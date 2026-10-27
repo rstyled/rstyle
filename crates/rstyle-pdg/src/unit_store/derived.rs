@@ -12,6 +12,29 @@ use crate::{
 };
 use std::{borrow::Cow, cell::OnceCell, rc::Rc, sync::Arc};
 
+/// Each original source family performs its own complete check before ownership wrapping.
+pub(super) trait OriginalSource: Clone {
+    fn check(facts: &dyn EvidenceFacts) -> Result<Option<Self>, String>;
+}
+
+impl OriginalSource for GuardedReaderSource {
+    fn check(facts: &dyn EvidenceFacts) -> Result<Option<Self>, String> {
+        crate::data_documents::fallible_readers::check_source(facts)
+    }
+}
+
+impl OriginalSource for Definition {
+    fn check(facts: &dyn EvidenceFacts) -> Result<Option<Self>, String> {
+        crate::inherent_calls::check_definition(facts)
+    }
+}
+
+pub(super) fn owned_source<'a, T: OriginalSource + 'a>(
+    facts: &(impl EvidenceFacts + ?Sized),
+) -> Result<Option<Cow<'a, T>>, String> {
+    T::check(facts.facts()).map(|proof| proof.map(Cow::Owned))
+}
+
 #[derive(Default)]
 pub(super) struct Derived {
     // Source-only outcomes are stable even while helper certification progresses.

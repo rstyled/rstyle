@@ -149,8 +149,7 @@ pub trait EvidenceFacts: sealed::Sealed {
     fn guarded_reader_source(
         &self,
     ) -> Result<Option<std::borrow::Cow<'_, GuardedReaderSource>>, String> {
-        crate::data_documents::fallible_readers::check_source(self.facts())
-            .map(|proof| proof.map(std::borrow::Cow::Owned))
+        derived::owned_source(self)
     }
 
     /// Origin results concern immutable source nodes, never graph documents.
@@ -188,8 +187,7 @@ pub trait EvidenceFacts: sealed::Sealed {
     fn inherent_definition(
         &self,
     ) -> Result<Option<std::borrow::Cow<'_, crate::inherent_calls::Definition>>, String> {
-        crate::inherent_calls::check_definition(self.facts())
-            .map(|record| record.map(std::borrow::Cow::Owned))
+        derived::owned_source(self)
     }
 
     fn native_width(&self) -> Result<bool, String> {
