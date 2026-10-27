@@ -14,6 +14,7 @@ pub(super) fn verify(
         .filter(|node| {
             integer::kind(node, facts).is_some()
                 || crate::lossless_integer_calls::kind(node, facts).is_some()
+                || crate::widening_readers::scoped_conversion_candidate(node, facts)
         })
         .collect();
     let actual = pair
@@ -76,6 +77,9 @@ fn verify_call(
     source: &HirNode,
     facts: &dyn EvidenceFacts,
 ) -> Result<(), String> {
+    if crate::widening_readers::scoped_conversion_candidate(source, facts) {
+        return verify_scoped_u16(pair, source, facts);
+    }
     if let Some(kind) = crate::lossless_integer_calls::kind(source, facts) {
         if !crate::extraction_profile::policy_supports(&pair.pdg.profile, kind.capability()) {
             return Err("Lossless conversion requires its registered document policy".into());
@@ -141,4 +145,28 @@ fn verify_message(
         return Err("Total expect loses its evaluated literal diagnostic value".into());
     }
     Ok(())
+}
+
+fn verify_scoped_u16(
+    pair: PairView<'_>,
+    source: &HirNode,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    crate::extraction_profile::require_document(
+        &pair.pdg.profile,
+        crate::widening_readers::U16_CAPABILITY,
+        || true,
+        "Scoped u16 conversion requires its complete reader document policy",
+    )?;
+    let summary = crate::widening_readers::conversion_summary(source, facts)?
+        .ok_or("Missing whole-reader scoped u16 conversion authority")?;
+    let node = super::serialized_operation(pair, &source.span, |node| {
+        node.category == crate::NodeCategory::Call
+    })?;
+    super::summary_records::Record {
+        source,
+        node,
+        summary,
+    }
+    .verify_pure(pair, facts, "data.integer.lossless-try-u16-usize")
 }

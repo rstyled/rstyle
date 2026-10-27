@@ -6,6 +6,7 @@ use syn::spanned::Spanned;
 mod tests;
 
 pub(crate) struct Roles<'a> {
+    pub width: crate::native_reader_width::Width,
     pub source: &'a HirNode,
     pub reader: &'a HirNode,
     pub continuation: &'a HirNode,
@@ -34,9 +35,7 @@ pub(super) fn verify(facts: &dyn EvidenceFacts) -> Result<Roles<'_>, String> {
         syn::parse_str(&facts.source.bytes).map_err(|error: syn::Error| error.to_string())?;
 
     let syntax = super::source::syntax(&function)?;
-    facts.verify_source_inputs()?;
-    crate::source_evidence::verify(facts)?;
-    facts.nominal_resolution()?;
+    source_context(syntax.width, facts)?;
 
     let [source] = children(&facts.body, "expr_block")?;
 
@@ -65,6 +64,7 @@ pub(super) fn verify(facts: &dyn EvidenceFacts) -> Result<Roles<'_>, String> {
     let [slice, message] = interface(facts)?;
 
     let roles = Roles {
+        width: syntax.width,
         source,
         reader,
         continuation,
@@ -93,6 +93,22 @@ pub(super) fn verify(facts: &dyn EvidenceFacts) -> Result<Roles<'_>, String> {
     types(&roles, body, facts)?;
 
     Ok(roles)
+}
+
+fn source_context(
+    width: crate::native_reader_width::Width,
+    facts: &dyn EvidenceFacts,
+) -> Result<(), String> {
+    if width == crate::native_reader_width::Width::U16
+        && !crate::extraction_profile::facts_support(facts, super::U16_CAPABILITY)
+    {
+        return Err("U16 widening reader requires its distinct registered policy".into());
+    }
+    facts.verify_source_inputs()?;
+    crate::source_evidence::verify(facts)?;
+    facts.nominal_resolution()?;
+
+    Ok(())
 }
 
 fn children<'a, const N: usize>(node: &'a HirNode, kind: &str) -> Result<&'a [HirNode; N], String> {
@@ -337,9 +353,7 @@ fn types(roles: &Roles<'_>, body: &HirNode, facts: &dyn EvidenceFacts) -> Result
     continuation_types(roles, err)?;
     typed(
         roles.map,
-        &TypeToken::MappedIntConversionResult {
-            ok: Box::new(tuple),
-        },
+        &TypeToken::from_tree(&super::intermediate(roles.width)),
     )?;
 
     if facts
@@ -358,23 +372,26 @@ fn types(roles: &Roles<'_>, body: &HirNode, facts: &dyn EvidenceFacts) -> Result
 }
 
 fn continuation_types(roles: &Roles<'_>, err: &TypeToken) -> Result<(), String> {
-    typed(roles.decoded, &scalar("u32"))?;
+    typed(roles.decoded, &scalar(roles.width.scalar()))?;
     typed(roles.count, &scalar("usize"))?;
     typed(roles.converted, &scalar("usize"))?;
     typed(
         roles.payload,
-        &TypeToken::Tuple(vec![scalar("u32"), scalar("usize")]),
+        &TypeToken::Tuple(vec![scalar(roles.width.scalar()), scalar("usize")]),
     )?;
     typed(
         roles.reader,
         &TypeToken::Result {
-            ok: Box::new(TypeToken::Tuple(vec![scalar("u32"), scalar("usize")])),
+            ok: Box::new(TypeToken::Tuple(vec![
+                scalar(roles.width.scalar()),
+                scalar("usize"),
+            ])),
             err: Box::new(err.clone()),
         },
     )?;
     typed(
         roles.conversion,
-        &TypeToken::IntConversionResult("usize".into()),
+        &TypeToken::from_tree(&super::conversion_type(roles.width)),
     )?;
 
     Ok(())

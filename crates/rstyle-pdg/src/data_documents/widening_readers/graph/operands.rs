@@ -100,15 +100,19 @@ fn conversion(
     checked: &contract::Checked<'_>,
     ops: &Operations<'_>,
 ) -> Result<(), String> {
-    let summary = crate::lossless_integer_calls::verify_scoped_u32_conversion(
-        checked.roles.conversion,
-        &[checked.roles.continuation],
-        facts,
-    )?;
+    let summary = contract::conversion(&checked.roles, facts)?;
     crate::data_documents::summary_records::Record {
         source: checked.roles.conversion,
         node: ops.get("conversion")?,
         summary,
     }
-    .verify_pure(pair, facts, "data.integer.lossless-try-u32-usize")
+    .verify_pure(
+        pair,
+        facts,
+        if checked.roles.width == crate::native_reader_width::Width::U16 {
+            "data.integer.lossless-try-u16-usize"
+        } else {
+            "data.integer.lossless-try-u32-usize"
+        },
+    )
 }

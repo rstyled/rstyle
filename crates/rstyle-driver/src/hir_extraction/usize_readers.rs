@@ -43,7 +43,7 @@ impl<'tcx> Context<'tcx> {
         !scan.found
     }
 
-    fn usize_reader_result(&self) -> bool {
+    pub(super) fn usize_reader_result(&self) -> bool {
         let ty::Adt(definition, arguments) = self.result.kind() else {
             return false;
         };

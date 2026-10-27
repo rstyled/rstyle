@@ -7,7 +7,7 @@ semantics. Real-world coverage is a ladder, not one final syntax switch.
 
 Audited against `4a0e346` (2026-10-15), after the performance work. The latest
 implemented selection is **`hir-data-v3`**, extraction
-`rstyle.rust.hir-data/3.127.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
+`rstyle.rust.hir-data/3.129.0`, matching `rstyle.ccgraph.data-calls/1.0.0`.
 Data-v3 3.55–3.57 connects byte classifiers, const-built bool tables and exact
 named Option callbacks through verified helpers. Data-v3 3.58 adds borrowed owners
 with independently checked Copy child fields. Data-v3 3.59 connects shared indexed
@@ -5636,5 +5636,17 @@ admitted records. Both reader widths now enforce complete entry/branch/return
 transfers; wrong width/count/decoder/byte order remain excluded. The original
 u16 widening wrapper still needs blanket TryFrom→Into→From selections and distinct
 never-error/callback proof; general generic dispatch and moves/drop remain open.
+[Contract](eval/coverage-development/wire-usize-readers/README.md) and
+[validation/frontier](docs/rust-support-execution.md).
+
+Data3.129 completes original `try_read_u16_as_usize`: independently selected
+blanket TryFrom→Into→From, exact source/substitutions and distinct never-error
+carriers compose through all three scoped callbacks and the checked reader.
+Default212→213/2,582; no-default150→151/590, zero losses or changed prior admitted
+records. All364 strict selections and33,903 cross pairs pass; frozen60 and earlier
+profiles remain unchanged. General generic dispatch, stored callbacks and
+moves/drop remain open. Next source-selected family is the complete Accel parser
+chain, beginning with fresh non-Copy/no-drop aggregate ownership rather than
+isolated whole-Result forwarding.
 [Contract](eval/coverage-development/wire-usize-readers/README.md) and
 [validation/frontier](docs/rust-support-execution.md).

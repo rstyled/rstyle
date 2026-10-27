@@ -5,6 +5,7 @@ use crate::source_evidence::{associated_owner, plain_type_path, plain_value_path
 mod tests;
 
 pub(crate) struct Syntax<'a> {
+    pub width: crate::native_reader_width::Width,
     pub formals: [&'a syn::PatIdent; 2],
     pub and_then: &'a syn::ExprMethodCall,
     pub reader: &'a syn::ExprCall,
@@ -32,6 +33,11 @@ pub(crate) fn syntax(function: &syn::ItemFn) -> Result<Syntax<'_>, String> {
 
     let reader = call(&and_then.receiver)?;
     reader_arguments(reader, formals)?;
+    let width = if plain_value_path(&reader.func, "try_read_u16") {
+        crate::native_reader_width::Width::U16
+    } else {
+        crate::native_reader_width::Width::U32
+    };
 
     let continuation = closure(&and_then.args[0])?;
 
@@ -65,6 +71,7 @@ pub(crate) fn syntax(function: &syn::ItemFn) -> Result<Syntax<'_>, String> {
     let conversion = conversion(&map.receiver, decoded)?;
 
     Ok(Syntax {
+        width,
         formals,
         and_then,
         reader,
@@ -240,7 +247,8 @@ fn continuation_tail(closure: &syn::ExprClosure) -> Result<&syn::Expr, String> {
 }
 
 fn reader_arguments(reader: &syn::ExprCall, formals: [&syn::PatIdent; 2]) -> Result<(), String> {
-    if !plain_value_path(&reader.func, "try_read_u32")
+    if !(plain_value_path(&reader.func, "try_read_u32")
+        || plain_value_path(&reader.func, "try_read_u16"))
         || reader.args.len() != 2
         || !read(&reader.args[0], formals[0])
         || !read(&reader.args[1], formals[1])

@@ -22,16 +22,16 @@ pub(crate) struct Proof {
 pub(super) fn verify(roles: &Roles<'_>, facts: &dyn EvidenceFacts) -> Result<Proof, String> {
     let output = output(facts)?;
 
-    let TypeTree::Result { ok, err } = &output else {
+    let TypeTree::Result { err, .. } = &output else {
         unreachable!()
     };
 
     let input = TypeTree::Result {
-        ok: Box::new(tuple("u32")),
+        ok: Box::new(tuple(roles.width.scalar())),
         err: err.clone(),
     };
 
-    let intermediate = TypeTree::MappedIntConversionResult { ok: ok.clone() };
+    let intermediate = super::intermediate(roles.width);
 
     let (reader_contract, reader_dependency) = reader(roles, &input, facts)?;
 
@@ -48,11 +48,7 @@ pub(super) fn verify(roles: &Roles<'_>, facts: &dyn EvidenceFacts) -> Result<Pro
         error_dependency,
     };
     methods(roles, &proof, facts)?;
-    crate::lossless_integer_calls::verify_scoped_u32_conversion(
-        roles.conversion,
-        &[roles.continuation],
-        facts,
-    )?;
+    super::conversion(roles, facts)?;
     proof.storage = super::environments::verify(roles, &proof, facts)?;
 
     Ok(proof)
@@ -115,7 +111,12 @@ fn reader(
 
     let callee = view.frontend();
 
-    if callee.name.rsplit("::").next() != Some("try_read_u32")
+    if callee.name.rsplit("::").next()
+        != Some(if roles.width == crate::native_reader_width::Width::U16 {
+            "try_read_u16"
+        } else {
+            "try_read_u32"
+        })
         || !crate::data_documents::fallible_readers::verify_source(&callee)?
         || dependency.summary().argument_types
             != [
@@ -181,7 +182,7 @@ fn methods(roles: &Roles<'_>, proof: &Proof, facts: &dyn EvidenceFacts) -> Resul
 
     let capture = crate::data_receivers::verify(facts)?;
 
-    let conversion = TypeTree::IntConversionResult("usize".into());
+    let conversion = super::conversion_type(roles.width);
 
     for (node, input, output, paths) in [
         (roles.source, &proof.input, &proof.output, AND_THEN),

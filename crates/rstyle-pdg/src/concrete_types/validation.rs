@@ -86,7 +86,8 @@ impl<'a> Validation<'a> {
             | TypeTree::Shared(element)
             | TypeTree::Slice(element)
             | TypeTree::Option(element)
-            | TypeTree::MappedIntConversionResult { ok: element } => self.check(element, depth),
+            | TypeTree::MappedIntConversionResult { ok: element }
+            | TypeTree::NeverConversionResult { ok: element } => self.check(element, depth),
             _ => Ok(()),
         }
     }

@@ -3,7 +3,9 @@ use super::TypeToken;
 
 pub(super) fn contains(token: &TypeToken) -> bool {
     match token {
-        TypeToken::MappedIntConversionResult { .. } => true,
+        TypeToken::MappedIntConversionResult { .. }
+        | TypeToken::NeverConversionResult { .. }
+        | TypeToken::NeverError => true,
         TypeToken::Tuple(values) => values.iter().any(contains),
         TypeToken::Array { element, .. }
         | TypeToken::Shared(element)

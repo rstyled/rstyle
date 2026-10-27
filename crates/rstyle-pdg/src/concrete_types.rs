@@ -61,6 +61,12 @@ pub enum TypeTree {
     MappedIntConversionResult {
         ok: Box<TypeTree>,
     },
+    /// Exact builtin never error observation; no standalone value permission.
+    NeverError,
+    /// Closed core Result with builtin ! error; no callback/effect authority.
+    NeverConversionResult {
+        ok: Box<TypeTree>,
+    },
     /// Pinned non-Copy Range<usize>; fresh result use is checked separately.
     RangeUsize {
         observation: crate::range_values::authority::Observation,
@@ -373,7 +379,8 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
         TypeTree::RangeFromUsize { observation } => crate::range_values::authority::range_from_shape(observation),
         TypeTree::RangeToUsize { observation } => crate::range_values::authority::range_to_shape(observation),
         TypeTree::Result { ok, err } => result_shape(ok, err),
-        TypeTree::MappedIntConversionResult { ok } => mapped_conversion_shape(ok),
+        TypeTree::MappedIntConversionResult { ok } => conversion_shape(ok, false),
+        TypeTree::NeverConversionResult { ok } => conversion_shape(ok, true),
         TypeTree::IntConversionResult(value) if !matches!(value.as_str(), "usize" | "u16" | "u64") => {
             Err("Integer conversion Result requires a registered scalar payload".into())
         }
@@ -413,14 +420,21 @@ fn check_shape(tree: &TypeTree) -> Result<(), String> {
 }
 
 /// This bounded shape grants neither Copy, drop freedom nor value permission.
-fn mapped_conversion_shape(ok: &TypeTree) -> Result<(), String> {
-    if crate::data_types::mapped_int_conversion_payload(&crate::data_types::TypeToken::from_tree(
-        ok,
-    )) {
-        Ok(())
+fn conversion_shape(ok: &TypeTree, never_error: bool) -> Result<(), String> {
+    let token = crate::data_types::TypeToken::from_tree(ok);
+    let (valid, message) = if never_error {
+        (
+            crate::data_types::never_conversion_payload(&token),
+            "Never-error conversion requires usize or the exact usize/count tuple",
+        )
     } else {
-        Err("Mapped integer conversion requires the exact usize/count tuple".into())
-    }
+        (
+            crate::data_types::mapped_int_conversion_payload(&token),
+            "Mapped integer conversion requires the exact usize/count tuple",
+        )
+    };
+
+    if valid { Ok(()) } else { Err(message.into()) }
 }
 
 fn result_shape(ok: &TypeTree, err: &TypeTree) -> Result<(), String> {

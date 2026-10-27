@@ -119,6 +119,15 @@ fn error(argument: &Value, registry: &Registry) -> Result<(), String> {
 }
 
 fn definition(value: &Value, expected: &str, registry: &Registry) -> Result<(), String> {
+    pinned_definition(value, (expected, expected), registry)
+}
+
+/// Registry keys and compiler paths differ for explicitly named semantic pins.
+pub(super) fn pinned_definition(
+    value: &Value,
+    (key, path): (&str, &str),
+    registry: &Registry,
+) -> Result<(), String> {
     let stable = registry
         .definitions
         .get(authority::STABLE_CORE)
@@ -126,7 +135,7 @@ fn definition(value: &Value, expected: &str, registry: &Registry) -> Result<(), 
         .ok_or("Missing pinned core stable crate identity")?;
     let identity = registry
         .definitions
-        .get(expected)
+        .get(key)
         .filter(|identity| !identity.is_empty())
         .ok_or("Missing pinned lossless core definition")?;
     if value["crate"] != "core"
@@ -135,7 +144,7 @@ fn definition(value: &Value, expected: &str, registry: &Registry) -> Result<(), 
         || value["definition_identity"].as_str() != Some(identity.as_str())
         || !value["path"]
             .as_str()
-            .is_some_and(|value| authority::path(value, expected))
+            .is_some_and(|actual| authority::path(actual, path) || authority::path(path, actual))
     {
         return Err("Lossless selected instance differs from exact pinned core definition".into());
     }

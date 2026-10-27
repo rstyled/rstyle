@@ -165,7 +165,13 @@ fn error(facts: &dyn EvidenceFacts, checked: &contract::Checked<'_>, route: &[Co
         ("conversion_guard", json!("err")),
         (
             "reachability",
-            json!("excluded-by-pinned-total-u32-conversion"),
+            json!(
+                if checked.roles.width == crate::native_reader_width::Width::U16 {
+                    "excluded-by-proved-never-error-conversion"
+                } else {
+                    "excluded-by-pinned-total-u32-conversion"
+                }
+            ),
         ),
         ("origins", json!([origins::reference(facts, 1, route)])),
     ])

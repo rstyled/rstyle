@@ -25,6 +25,7 @@ mod reference_owners;
 mod slice_projection;
 pub(super) use publication::capture as capture_projections;
 pub(in crate::hir_extraction) mod types;
+mod usize_reader_conversions;
 
 const KEY: &str = "rstyle.rust.call-instances";
 
@@ -80,6 +81,8 @@ struct Observation {
     requested_arguments: types::Arguments,
     #[serde(skip_serializing_if = "Option::is_none")]
     compiled_dependency: Option<super::crate_association::Dependency>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    usize_reader_conversion: Option<usize_reader_conversions::Observation>,
     #[serde(flatten)]
     outcome: Outcome,
 }
@@ -213,6 +216,11 @@ fn observe<'tcx>(
         requested: definition_record(context.tcx, definition),
         requested_arguments,
         compiled_dependency,
+        usize_reader_conversion: context
+            .profile
+            .supports("rust.u16-usize-reader-observations")
+            .then(|| usize_reader_conversions::observe(context, expression, definition, arguments))
+            .flatten(),
         outcome,
     }
 }

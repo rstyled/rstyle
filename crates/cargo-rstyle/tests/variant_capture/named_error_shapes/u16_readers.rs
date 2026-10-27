@@ -99,8 +99,8 @@ fn original_u16_reader_preserves_two_byte_bounds_count_and_named_error() {
     // Independently fixed by the exhaustive original-source oracle: lengths0/1
     // return BufferTooSmall carrying the exact static message before reading;
     // lengths>=2 decode the first native two bytes and return consumed2.
-    // Trailing bytes never affect the result. Blanket/Infallible widening is
-    // separately unsupported, even though its checked-reader dependency admits.
+    // Trailing bytes never affect the result. Blanket/never-error widening has
+    // its own connected proof and independently exercised composition fixture.
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), source()).unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
@@ -127,7 +127,14 @@ fn original_u16_reader_preserves_two_byte_bounds_count_and_named_error() {
 }
 
 fn check_frontier(report: &Value) {
-    for name in ["read_u16", "read_u32", NAME, "same_u16", "try_read_u32"] {
+    for name in [
+        "read_u16",
+        "read_u32",
+        NAME,
+        "same_u16",
+        "try_read_u32",
+        "try_read_u16_as_usize",
+    ] {
         let entry = function(report, name);
         assert_eq!(entry["outcome"], "admitted", "{name}: {}", entry["reasons"]);
     }
@@ -136,7 +143,6 @@ fn check_frontier(report: &Value) {
         "wrong_consumed",
         "wrong_helper",
         "wrong_endian",
-        "try_read_u16_as_usize",
         "check_slice_len",
     ] {
         let entry = function(report, name);

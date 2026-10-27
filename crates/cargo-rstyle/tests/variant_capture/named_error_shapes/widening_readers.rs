@@ -130,7 +130,7 @@ fn original_u32_widening_composes_saved_payloads_errors_and_scoped_callbacks() {
     // otherwise native first-four-byte u32 widens exactly and returns count4.
     // Both errors preserve the original static message root. Neither tuple
     // reordering/count changes nor extra callback work belongs to this family.
-    // The u16 blanket conversion/uninhabited error remains separately deferred.
+    // The u16 blanket conversion has separate selection and never-error proof.
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), source()).unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
@@ -149,7 +149,13 @@ fn original_u32_widening_composes_saved_payloads_errors_and_scoped_callbacks() {
 }
 
 fn assert_frontier(report: &Value) {
-    for name in ["read_u32", "try_read_u32", NAME, "same_widening"] {
+    for name in [
+        "read_u32",
+        "try_read_u32",
+        NAME,
+        "same_widening",
+        "try_read_u16_as_usize",
+    ] {
         let entry = function(report, name);
         assert_eq!(entry["outcome"], "admitted", "{name}: {}", entry["reasons"]);
     }
@@ -159,7 +165,6 @@ fn assert_frontier(report: &Value) {
         "wrong_message",
         "extra_work",
         "explicit_return",
-        "try_read_u16_as_usize",
     ] {
         let entry = function(report, name);
         assert_eq!(entry["outcome"], "excluded", "{name}: {}", entry["reasons"]);
@@ -682,3 +687,6 @@ fn widening_reader_does_not_hide_cleanup_in_an_unused_error_variant() {
         assert_eq!(entry["outcome"], "excluded", "{name}: {}", entry["reasons"]);
     }
 }
+
+#[path = "u16_widening_readers.rs"]
+mod u16_widening_readers;

@@ -38,6 +38,7 @@ fn original_and_alpha_renamed_roles_are_complete() {
     assert_eq!(roles.failure.inputs.len(), 1);
 
     assert!(check(ORIGINAL));
+    assert!(check(&ORIGINAL.replace("u32", "u16")));
     assert!(check(
         &ORIGINAL
             .replace("slice", "bytes")
@@ -63,7 +64,7 @@ fn changed_dataflow_and_additional_work_are_rejected() {
             "try_read_u32(slice, what)",
             "try_read_u32(slice, \"wrong\")",
         ),
-        ("try_read_u32(slice, what)", "try_read_u16(slice, what)"),
+        ("try_read_u32(slice, what)", "try_read_u8(slice, what)"),
         ("usize::try_from(n)", "usize::try_from(nr)"),
         ("usize::try_from(n)", "{ effect(); usize::try_from(n) }"),
         ("usize::try_from(n)", "effect(); usize::try_from(n)"),

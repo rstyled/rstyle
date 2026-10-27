@@ -14,6 +14,8 @@ pub(crate) use scalar_slices::shared_byte_slice;
 #[cfg(test)]
 mod mapped_int_results;
 #[cfg(test)]
+mod never_results;
+#[cfg(test)]
 mod range_values;
 use crate::concrete_types::VariantShape;
 
@@ -43,6 +45,10 @@ pub enum TypeToken {
     },
     IntConversionResult(String),
     MappedIntConversionResult {
+        ok: Box<TypeToken>,
+    },
+    NeverError,
+    NeverConversionResult {
         ok: Box<TypeToken>,
     },
     RangeUsize,
@@ -91,6 +97,10 @@ impl TypeToken {
             TypeTree::Str => Self::Str,
             TypeTree::IntConversionResult(value) => Self::IntConversionResult(value.clone()),
             TypeTree::MappedIntConversionResult { ok } => Self::MappedIntConversionResult {
+                ok: Box::new(Self::from_tree(ok)),
+            },
+            TypeTree::NeverError => Self::NeverError,
+            TypeTree::NeverConversionResult { ok } => Self::NeverConversionResult {
                 ok: Box::new(Self::from_tree(ok)),
             },
             TypeTree::RangeUsize { .. } => Self::RangeUsize,
@@ -187,7 +197,8 @@ impl TypeToken {
             | Self::Shared(element)
             | Self::Slice(element)
             | Self::Option(element)
-            | Self::MappedIntConversionResult { ok: element } => element.native_width(),
+            | Self::MappedIntConversionResult { ok: element }
+            | Self::NeverConversionResult { ok: element } => element.native_width(),
             Self::Struct { fields, .. } | Self::ScalarProductInstance { fields, .. } => {
                 fields.iter().any(|(_, field)| field.native_width())
             }
@@ -513,6 +524,7 @@ fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Resul
         {
             Ok(())
         }
+        TypeToken::NeverError => Ok(()),
         TypeToken::Tuple(values) => check_tuple(values, depth, entries),
         TypeToken::Result { ok, err } => check_result(ok, err, depth, entries),
         TypeToken::Str => Ok(()),
@@ -620,6 +632,7 @@ fn check_fieldless_variants(variants: &[(String, i64)]) -> Result<(), String> {
 
 fn recursive_element(token: &TypeToken) -> Option<&TypeToken> {
     match token {
+        TypeToken::NeverConversionResult { ok } if never_conversion_payload(ok) => Some(ok),
         TypeToken::MappedIntConversionResult { ok } if mapped_int_conversion_payload(ok) => {
             Some(ok)
         }
@@ -702,4 +715,10 @@ fn check_conversion_capabilities(
         return Err("Narrowing Result requires its registered capability".into());
     }
     Ok(())
+}
+
+/// Closed observational payloads; guarded value permission is independent.
+pub(crate) fn never_conversion_payload(token: &TypeToken) -> bool {
+    matches!(token, TypeToken::Scalar(value) if value == "usize")
+        || mapped_int_conversion_payload(token)
 }

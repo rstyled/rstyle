@@ -116,6 +116,14 @@ pub(crate) fn verify(pair: PairView<'_>, facts: &dyn EvidenceFacts) -> Result<bo
         || true,
         "Widening readers require their registered document policy",
     )?;
+    if checked.roles.width == crate::native_reader_width::Width::U16 {
+        crate::extraction_profile::require_document(
+            &pair.pdg.profile,
+            contract::U16_CAPABILITY,
+            || true,
+            "U16 widening reader requires its distinct registered document policy",
+        )?;
+    }
     let expected = graph::verify(pair, facts, &checked)?;
 
     for node in &pair.pdg.nodes {

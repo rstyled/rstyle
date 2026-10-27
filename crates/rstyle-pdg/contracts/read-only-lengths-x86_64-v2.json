@@ -141,7 +141,10 @@
     "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<usize> for u64>::try_from": "DefPathHash(Fingerprint(2625310331494506890, 7258545129528161828))",
     "std::convert::num::<impl std::convert::From<u16> for u64>::from": "DefPathHash(Fingerprint(2625310331494506890, 3869593704916397337))",
     "std::convert::num::ptr_try_from_impls::<impl std::convert::TryFrom<u64> for usize>::try_from": "DefPathHash(Fingerprint(2625310331494506890, 17876112623146492282))",
-    "std::result::Result::<T, E>::and_then": "DefPathHash(Fingerprint(2625310331494506890, 12814975945190598485))"
+    "std::result::Result::<T, E>::and_then": "DefPathHash(Fingerprint(2625310331494506890, 12814975945190598485))",
+    "rust.u16-usize.tryfrom-method": "DefPathHash(Fingerprint(2625310331494506890, 10869844015782465206))",
+    "rust.u16-usize.tryfrom-impl": "DefPathHash(Fingerprint(2625310331494506890, 5147802752492642705))",
+    "rust.u16-usize.from-impl": "DefPathHash(Fingerprint(2625310331494506890, 16069725939652599830))"
   },
   "alloc_macro_exports": {
     "library": {

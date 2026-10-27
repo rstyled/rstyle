@@ -55,8 +55,18 @@ fn prefix<'a>(checked: &contract::Checked<'a>) -> Result<Vec<Spec<'a>>, String> 
     Ok(vec![
         spec("outer-environment", r.continuation, &p.storage[0], Read)?,
         spec("outer-is-ok", r.source, &scalar("bool"), Control)?,
-        spec("reader-ok-payload", r.payload, &tuple("u32"), Value)?,
-        spec("decoded-payload", r.decoded, &scalar("u32"), Value)?,
+        spec(
+            "reader-ok-payload",
+            r.payload,
+            &tuple(r.width.scalar()),
+            Value,
+        )?,
+        spec(
+            "decoded-payload",
+            r.decoded,
+            &scalar(r.width.scalar()),
+            Value,
+        )?,
         spec("count-payload", r.count, &scalar("usize"), Value)?,
         spec("binding", r.decoded, &scalar("unit"), Declaration)?,
         spec("binding", r.count, &scalar("unit"), Declaration)?,

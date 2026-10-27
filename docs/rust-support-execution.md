@@ -1,16 +1,19 @@
 # Rust support execution frontier
 
 Authority: [delivery plan](rust-support-parallel-delivery.md) and repository-root
-[roadmap](../rust-feature-coverage.md). Updated 2026-10-26. All P01–P22 routes
+[roadmap](../rust-feature-coverage.md). Updated 2026-10-27. All P01–P22 routes
 remain active in the plan; this record contains current decisions and evidence.
 
 ## Current boundary
 
-Branch `feature/rust-feature-coverage`; Data3.119 connects original checked
-wire add/mul to fresh named errors. Native no-default138/590 admissions; default
-capture is complete; the selected family is excluded by imported macro source ownership. Callable arithmetic
-summaries, map_err/? and broader ownership remain open. See the latest evidence
-below; earlier milestones are historical. Broader P01–P22 work remains active.
+Branch `feature/rust-feature-coverage`; Data3.129 completes both original checked
+u16/u32 widening-reader chains. Default213/2,582 and no-default151/590 admissions;
+strict replay and complete selected matching pass. General tagged whole-Result
+caller mapping, non-Copy aggregate storage and broader generic/ownership support
+remain open. Next source-selected family: `Accel::from_slice` → `from_bytes` →
+`from_bytes_unchecked`, beginning with source-proved fresh no-drop aggregate
+ownership. Latest measured evidence appears below; earlier milestones are
+historical. Broad P01–P22 work remains active.
 
 Compiler nightly-2026-09-30, commit
 `5c543b0b8c73c7b72bc8284ced4fb22ead15734d`; native aarch64 Linux,
@@ -1995,3 +1998,29 @@ it grants no support. Tagged whole-result caller mapping and the previously
 recorded memory/storage blockers remain open. Native macOS/x86 CI remains pending;
 broad goal stays active, with no generic-dispatch, general cleanup, detector-quality
 or rewrite-safety claim.
+
+Integration461, Data3.129/158: original `try_read_u16_as_usize` now composes the
+checked reader, independently selected blanket TryFrom→Into→From obligations,
+reviewed core bodies, distinct builtin-never error and all scoped callback source,
+capture, order, error and origin evidence. No general generic/never/drop permission.
+Unchanged default212→213/2,582 and no-default150→151/590: exactly this wrapper,
+zero losses or changed prior admitted records. Strict213/151 selections each pass
+2 imports and score1 replay; complete22,578/11,325 cross pairs preserve all33,541
+prior results. Frozen run-_4rmp_5f preserves all60 identities, denominators,
+outcomes/blockers (24 admitted/29 excluded/7 inactive) and earlier profiles.
+All2,318 tests/5 existing skips plus doctests pass; fmt/Clippy clean;
+rstyle0/8,154; patterns0/15 unchanged ignores. Native original oracle984,536
+cases/zero mismatches; new batched composition test10.06s. No new runtime SHA256
+or serialized cache keys. Single observations: capture default255.82s/1,874,944KiB,
+no-default34.58s/435,620KiB; strict249.32s/6,532,344KiB and55.58s/1,476,188KiB.
+These are not equal-work speedup/regression claims. Evidence:
+`/tmp/rstyle-461-{natural,strict,frozen}-comparison.json`,
+`/tmp/rstyle-461-oracle.json`, `/tmp/rstyle-461-final-*.log`.
+
+Next Accel chain needs complete source/derive ownership and constants, fresh
+non-Copy/no-drop array-backed values, aggregate Results, checked slice-array
+map_err/? and tagged callable transport. Its unchecked constructor currently
+rejects owned construction; callers have further independently audited blockers.
+Whole-Result forwarding alone has no measured natural unlock in the current
+selection. Native macOS/x86 CI remains pending. Broad goal stays active; general
+moves/drop, detector quality and rewrite safety remain outside this delivery.

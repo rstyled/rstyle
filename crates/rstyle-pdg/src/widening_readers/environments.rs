@@ -4,6 +4,7 @@ use crate::{
     HirNode, HirRef,
     concrete_types::{Observation, TypeTree},
     id_error_maps::capture::Environment,
+    native_reader_width::Width,
     option_callbacks::CaptureMode,
     unit_store::EvidenceFacts,
 };
@@ -28,6 +29,11 @@ pub(super) fn verify(
     proof: &Proof,
     facts: &dyn EvidenceFacts,
 ) -> Result<[TypeTree; 3], String> {
+    if roles.width == Width::U16
+        && !crate::extraction_profile::facts_support(facts, super::U16_CAPABILITY)
+    {
+        return Err("Never-error callback requires its bounded u16 reader policy".into());
+    }
     parameters(roles, facts)?;
 
     let expected = expectations(roles, proof)?;
@@ -61,7 +67,7 @@ fn expectations<'a>(roles: &Roles<'a>, proof: &Proof) -> Result<[Expected<'a>; 3
                 .ok_or("Missing continuation body")?,
             root: &roles.message.pat.hir,
             root_type: message(),
-            input: Some(super::authority::tuple("u32")),
+            input: Some(super::authority::tuple(roles.width.scalar())),
             output: proof.output.clone(),
         },
         Expected {
@@ -77,7 +83,10 @@ fn expectations<'a>(roles: &Roles<'a>, proof: &Proof) -> Result<[Expected<'a>; 3
             body: roles.constructor,
             root: &roles.message.pat.hir,
             root_type: message(),
-            input: None,
+            input: match roles.width {
+                Width::U16 => Some(TypeTree::NeverError),
+                Width::U32 => None,
+            },
             output: (**err).clone(),
         },
     ])
@@ -161,7 +170,7 @@ fn parameters(roles: &Roles<'_>, facts: &dyn EvidenceFacts) -> Result<(), String
     if payload.kind != "pat_scalar_tuple"
         || !payload.children.iter().eq([roles.decoded, roles.count])
         || crate::data_aggregates::token(payload)?
-            != crate::data_types::token(&super::authority::tuple("u32"))?
+            != crate::data_types::token(&super::authority::tuple(roles.width.scalar()))?
         || payload.binding.is_some()
         || payload.binding_mut.is_some()
         || payload.param_index.is_some()
@@ -172,10 +181,15 @@ fn parameters(roles: &Roles<'_>, facts: &dyn EvidenceFacts) -> Result<(), String
     {
         return Err("Widening continuation changes its complete immutable tuple parameter".into());
     }
-    parameter(roles.decoded, roles.continuation, "u32", facts)?;
+    parameter(
+        roles.decoded,
+        roles.continuation,
+        roles.width.scalar(),
+        facts,
+    )?;
     parameter(roles.count, roles.continuation, "usize", facts)?;
     parameter(roles.converted, roles.success, "usize", facts)?;
-    wildcard(roles.wildcard)?;
+    wildcard(roles.wildcard, roles.width)?;
     crate::source_evidence::verify_binding_read(
         roles.decoded_read,
         roles.decoded,
@@ -249,7 +263,7 @@ fn parameter(
     Ok(())
 }
 
-fn wildcard(node: &HirNode) -> Result<(), String> {
+fn wildcard(node: &HirNode, width: Width) -> Result<(), String> {
     if node.kind != "pat_wild"
         || !node.children.is_empty()
         || node.binding.is_some()
@@ -259,13 +273,7 @@ fn wildcard(node: &HirNode) -> Result<(), String> {
         || node.res.is_some()
         || node.dispatch.is_some()
         || node.is_unsafe_block
-        || node.ty.as_ref().is_none_or(|ty| {
-            ty.normalized.is_some()
-                || !matches!(
-                    ty.observed.as_str(),
-                    "core::num::TryFromIntError" | "std::num::TryFromIntError"
-                )
-        })
+        || !wildcard_type(node, width)?
     {
         return Err(
             "Widening error callback must retain its exact unbound conversion-error wildcard"
@@ -274,6 +282,28 @@ fn wildcard(node: &HirNode) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+fn wildcard_type(node: &HirNode, width: Width) -> Result<bool, String> {
+    let Some(ty) = &node.ty else {
+        return Ok(false);
+    };
+    Ok(match width {
+        Width::U16 => {
+            ty.observed == "!"
+                && ty.normalized.as_deref()
+                    == Some(crate::data_types::token(&TypeTree::NeverError)?.as_str())
+        }
+        // Preserve the historical raw unavailable observation. The independent
+        // conversion authority proves this exact pinned inhabited error's drop.
+        Width::U32 => {
+            ty.normalized.is_none()
+                && matches!(
+                    ty.observed.as_str(),
+                    "core::num::TryFromIntError" | "std::num::TryFromIntError"
+                )
+        }
+    })
 }
 
 fn inventories(
@@ -457,7 +487,7 @@ fn substitutions(
 
     let error_map = arguments(calls[2], roles.failure)?;
 
-    let decoded = tuple_identity("u32");
+    let decoded = tuple_identity(roles.width.scalar());
 
     let converted = tuple_identity("usize");
 
@@ -488,7 +518,7 @@ fn substitutions(
         return Err("Missing sole widening callback owner".into());
     };
     local_error(&outer[1], &proof.output, &owner["definition"])?;
-    core_error(&map[1], facts)
+    core_error(&map[1], roles.width, facts)
 }
 
 fn arguments<'a>(call: &'a Value, closure: &HirNode) -> Result<&'a [Value], String> {
@@ -554,7 +584,10 @@ fn local_error(argument: &Value, output: &TypeTree, owner: &Value) -> Result<(),
     Ok(())
 }
 
-fn core_error(argument: &Value, facts: &dyn EvidenceFacts) -> Result<(), String> {
+fn core_error(argument: &Value, width: Width, facts: &dyn EvidenceFacts) -> Result<(), String> {
+    if width == Width::U16 {
+        return never_error(argument);
+    }
     let registry =
         crate::data_library::registry_for(facts).ok_or("Unpinned widening core error")?;
 
@@ -586,6 +619,13 @@ fn core_error(argument: &Value, facts: &dyn EvidenceFacts) -> Result<(), String>
         return Err("Widening substitution changes its exact pinned conversion error".into());
     }
 
+    Ok(())
+}
+
+fn never_error(argument: &Value) -> Result<(), String> {
+    if argument["identity"] != builtin_identity("!") || argument["value"] != "!" {
+        return Err("U16 widening requires the exact builtin never error substitution".into());
+    }
     Ok(())
 }
 

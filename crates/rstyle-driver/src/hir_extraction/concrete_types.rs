@@ -315,6 +315,15 @@ impl<'tcx> Capture<'_, 'tcx> {
             )));
         }
         match ty.kind() {
+            ty::Never
+                if self
+                    .ctx
+                    .profile
+                    .supports("rust.u16-usize-reader-observations")
+                    && self.ctx.usize_reader_result() =>
+            {
+                Ok(TypeTree::NeverError)
+            }
             ty::Int(_) | ty::Uint(_) | ty::Bool => Ok(TypeTree::Scalar(ty.to_string())),
             ty::Char if depth == 0 && self.ctx.profile.supports("rust.character-scalars") => {
                 Ok(TypeTree::Scalar("char".into()))
@@ -386,12 +395,17 @@ impl<'tcx> Capture<'_, 'tcx> {
     }
 
     fn observed_result(&mut self, ty: Ty<'tcx>, depth: usize) -> Result<Option<TypeTree>, Failure> {
+        if let Some(result) = self.never_conversion_result(ty, depth)? {
+            return Ok(Some(result));
+        }
+
         if let Some(result) = self
             .mapped_int_conversion_result(ty, depth)?
             .or_else(|| self.int_conversion_result(ty))
         {
             return Ok(Some(result));
         }
+
         if let Some(result) = self.slice_array_result(ty) {
             return Ok(Some(result));
         }
@@ -495,6 +509,37 @@ impl<'tcx> Capture<'_, 'tcx> {
         }
     }
 
+    fn never_conversion_result(
+        &mut self,
+        value: Ty<'tcx>,
+        depth: usize,
+    ) -> Result<Option<TypeTree>, Failure> {
+        if !self
+            .ctx
+            .profile
+            .supports("rust.u16-usize-reader-observations")
+        {
+            return Ok(None);
+        }
+
+        let Some((ok, err)) = super::results::payloads(self.ctx.tcx, value) else {
+            return Ok(None);
+        };
+        if !matches!(err.kind(), ty::Never)
+            || !(ok == self.ctx.tcx.types.usize
+                || matches!(ok.kind(), ty::Tuple(fields)
+                    if fields.as_slice() == [self.ctx.tcx.types.usize, self.ctx.tcx.types.usize]))
+        {
+            return Ok(None);
+        }
+
+        let result = TypeTree::NeverConversionResult {
+            ok: Box::new(self.tree(ok, depth + 1)?),
+        };
+        rstyle_pdg::concrete_types::validate(&result).map_err(Failure::Unsupported)?;
+        Ok(Some(result))
+    }
+
     fn int_conversion_result(&self, value: Ty<'tcx>) -> Option<TypeTree> {
         if !self.ctx.profile.supports("rust.bitset-cardinality") {
             return None;
@@ -529,6 +574,7 @@ impl<'tcx> Capture<'_, 'tcx> {
         {
             return Ok(None);
         }
+
         let Some((ok, err)) = super::results::payloads(self.ctx.tcx, value) else {
             return Ok(None);
         };

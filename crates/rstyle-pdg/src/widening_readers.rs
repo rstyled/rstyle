@@ -29,6 +29,7 @@ pub(crate) const FINAL_ERROR: &str = "data.widening-reader.final-error";
 pub(crate) const FINAL_PAYLOAD: &str = "data.widening-reader.final-success-payload";
 pub(crate) const FINAL_OK: &str = "data.widening-reader.final-ok";
 
+pub(crate) const U16_CAPABILITY: &str = "rust.named-error-u16-usize-reader-flow";
 pub(crate) const CAPABILITY: &str = "rust.named-error-usize-reader-flow";
 pub(crate) struct Checked<'a> {
     pub roles: roles::Roles<'a>,
@@ -106,8 +107,9 @@ pub(crate) fn conversion_summary(
     facts: &dyn EvidenceFacts,
 ) -> Result<Option<crate::call_summaries::Summary>, String> {
     if !candidate(facts)
-        || crate::lossless_integer_calls::kind(node, facts)
-            != Some(crate::lossless_integer_calls::Kind::ConvertU32Usize)
+        || !(crate::lossless_integer_calls::kind(node, facts)
+            == Some(crate::lossless_integer_calls::Kind::ConvertU32Usize)
+            || scoped_conversion_candidate(node, facts))
     {
         return Ok(None);
     }
@@ -117,12 +119,7 @@ pub(crate) fn conversion_summary(
     if node.hir != checked.roles.conversion.hir || node.span != checked.roles.conversion.span {
         return Err("Widening conversion differs from its whole-function source role".into());
     }
-    crate::lossless_integer_calls::verify_scoped_u32_conversion(
-        node,
-        &[checked.roles.continuation],
-        facts,
-    )
-    .map(Some)
+    conversion(&checked.roles, facts).map(Some)
 }
 
 /// Scalar tuple ownership is independent of callbacks and never covers the opaque carrier.
@@ -170,4 +167,77 @@ fn binding_finding(finding: &crate::HirDiagnostic, roles: &roles::Roles<'_>) -> 
     }
 
     Ok(())
+}
+
+/// Width selects a complete conversion/error contract, never only its scalar name.
+pub(crate) fn conversion(
+    roles: &roles::Roles<'_>,
+    facts: &dyn EvidenceFacts,
+) -> Result<crate::call_summaries::Summary, String> {
+    match roles.width {
+        crate::native_reader_width::Width::U16 => {
+            crate::lossless_integer_calls::verify_scoped_u16_conversion(
+                roles.conversion,
+                &[roles.continuation],
+                facts,
+            )
+        }
+        crate::native_reader_width::Width::U32 => {
+            crate::lossless_integer_calls::verify_scoped_u32_conversion(
+                roles.conversion,
+                &[roles.continuation],
+                facts,
+            )
+        }
+    }
+}
+
+pub(crate) fn conversion_type(
+    width: crate::native_reader_width::Width,
+) -> crate::concrete_types::TypeTree {
+    use crate::{concrete_types::TypeTree, native_reader_width::Width};
+    match width {
+        Width::U16 => TypeTree::NeverConversionResult {
+            ok: Box::new(TypeTree::Scalar("usize".into())),
+        },
+        Width::U32 => TypeTree::IntConversionResult("usize".into()),
+    }
+}
+
+pub(crate) fn intermediate(
+    width: crate::native_reader_width::Width,
+) -> crate::concrete_types::TypeTree {
+    use crate::{concrete_types::TypeTree, native_reader_width::Width};
+    let ok = Box::new(TypeTree::Tuple(vec![TypeTree::Scalar("usize".into()); 2]));
+    match width {
+        Width::U16 => TypeTree::NeverConversionResult { ok },
+        Width::U32 => TypeTree::MappedIntConversionResult { ok },
+    }
+}
+
+/// Dependency discovery only; complete source/selection verification still runs
+/// before this scoped call can supply any semantic summary or admitted graph.
+pub(crate) fn scoped_conversion_candidate(node: &HirNode, facts: &dyn EvidenceFacts) -> bool {
+    if !candidate(facts) || !crate::extraction_profile::facts_support(facts, U16_CAPABILITY) {
+        return false;
+    }
+    let selected = facts
+        .body
+        .children
+        .first()
+        .and_then(|source| source.children.get(1))
+        .and_then(|closure| closure.children.get(1))
+        .and_then(|body| body.children.first())
+        .and_then(|map_err| map_err.children.first())
+        .and_then(|map| map.children.first());
+    selected.is_some_and(|selected| selected.hir == node.hir && selected.span == node.span)
+        && node.kind == "expr_call"
+        && node.dispatch.as_ref().is_some_and(|dispatch| {
+            matches!(
+                dispatch.op.as_str(),
+                "core::convert::TryFrom::try_from" | "std::convert::TryFrom::try_from"
+            )
+        })
+        && matches!(node.children.as_slice(), [value]
+            if value.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) == Some("u16"))
 }

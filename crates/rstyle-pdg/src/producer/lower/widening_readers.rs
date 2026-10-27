@@ -98,7 +98,7 @@ impl Builder<'_> {
                 construct: Some(READER_PAYLOAD.into()),
                 role: "widening_reader_payload".into(),
                 ty: token(&crate::concrete_types::TypeTree::Tuple(vec![
-                    crate::concrete_types::TypeTree::Scalar("u32".into()),
+                    crate::concrete_types::TypeTree::Scalar(checked.roles.width.scalar().into()),
                     crate::concrete_types::TypeTree::Scalar("usize".into()),
                 ])),
                 operands: vec![saved.input.clone()],
@@ -149,19 +149,19 @@ impl Builder<'_> {
     }
 
     fn widening_conversion(&mut self, checked: &Checked<'_>, flow: Flow) -> Flow {
-        let summary = crate::lossless_integer_calls::verify_scoped_u32_conversion(
-            checked.roles.conversion,
-            &[checked.roles.continuation],
-            self.facts,
-        )
-        .expect("scoped pinned u32 widening conversion");
+        let summary = crate::widening_readers::conversion(&checked.roles, self.facts)
+            .expect("scoped pinned u32 widening conversion");
         let operand = self.expression(checked.roles.decoded_read, flow);
         self.emit(
             Operation {
                 construct: Some(
-                    crate::lossless_integer_calls::Kind::ConvertU32Usize
-                        .construct()
-                        .into(),
+                    if checked.roles.width == crate::native_reader_width::Width::U16 {
+                        "data.integer.lossless-try-u16-usize".into()
+                    } else {
+                        crate::lossless_integer_calls::Kind::ConvertU32Usize
+                            .construct()
+                            .into()
+                    },
                 ),
                 operator: Some(summary.callee_path),
                 role: "widening_conversion".into(),

@@ -194,6 +194,7 @@ pub(crate) fn static_intrinsic(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> bool {
     crate::lossless_integer_calls::kind(node, facts).is_some()
+        || crate::widening_readers::scoped_conversion_candidate(node, facts)
         || crate::bitset_cardinality::kind(node, facts).is_some()
         || crate::size_calls::candidate(node, facts)
         || crate::scalar_from::candidate(node, facts)

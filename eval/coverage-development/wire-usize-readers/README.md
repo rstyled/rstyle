@@ -95,3 +95,18 @@ Acceptance460: default211→212/2,582 and no-default149→150/590, exactly
 `try_read_u16`, zero losses. All212/150 strict selections and33,541 cross pairs
 pass with earlier pair results preserved; frozen60/historical profiles unchanged.
 The original-source oracle repeats984,536 cases with zero mismatches.
+
+Data3.129 completes the original u16 wrapper with three independently selected
+TryFrom→Into→From obligations, exact core source/signatures/substitutions and
+`Result<usize,!>`/mapped carriers. The impossible failure retains complete original
+constructor/capture/source proof; it is neither unit nor TryFromIntError. Bare or
+nested ordinary never-carrier value uses remain closed. Resealed selection,
+substitution, carrier, callback order/roster, source, origin/guard and historical
+policy mutations reject; strict duplicate matching scores1.
+
+Acceptance461: default212→213/2,582; no-default150→151/590, exactly the wrapper,
+zero losses or changed prior admitted records. All213/151 selections pass strict
+replay; complete22,578/11,325 cross pairs preserve all earlier results. Frozen60
+and historical profiles are unchanged. Native original-source oracle984,536
+cases/zero mismatches; native macOS/x86 CI remains pending. Tagged whole-Result
+caller transport, general dispatch and moves/drop remain outside this contract.
