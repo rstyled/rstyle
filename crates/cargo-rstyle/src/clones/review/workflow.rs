@@ -6,15 +6,9 @@ use std::{collections::BTreeMap, io::Write, path::Path};
 
 #[derive(Serialize)]
 pub(in crate::clones) struct Report {
-    schema: &'static str,
-    execution: analysis::Execution,
-    coverage: analysis::Coverage,
-    findings: usize,
-    hidden_findings: usize,
-    pub visible_findings: usize,
-    retained_entries: usize,
+    #[serde(flatten)]
+    summary: summary::Summary,
     pairs: Vec<Pair>,
-    reasons: Vec<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -27,12 +21,15 @@ struct Pair {
 
 impl Report {
     pub(in crate::clones) fn render(&self) -> String {
-        if self.execution == analysis::Execution::NotRequested {
+        if !self.summary.requested() {
             return String::new();
         }
         let mut output = format!(
             "\nHelper reviews: {:?} coverage; {} visible, {} hidden; {} retained entries.",
-            self.coverage, self.visible_findings, self.hidden_findings, self.retained_entries
+            self.summary.coverage,
+            self.summary.visible_findings,
+            self.summary.hidden_findings,
+            self.summary.retained_entries
         );
         for pair in &self.pairs {
             output.push_str(&format!(
@@ -46,37 +43,34 @@ impl Report {
         output
     }
 
-    pub(in crate::clones) fn permits_success(&self) -> bool {
-        self.execution == analysis::Execution::NotRequested
-            || self.coverage == analysis::Coverage::Complete
-    }
-
     pub(in crate::clones) fn visible_or(&self, unfiltered: usize) -> usize {
-        if self.execution == analysis::Execution::NotRequested {
-            unfiltered
-        } else {
-            self.visible_findings
-        }
+        self.summary
+            .visible_or(self.summary.visible_findings, unfiltered)
     }
 }
 
-pub(in crate::clones) fn apply(
+impl summary::Decision for Pair {
+    fn state(&self) -> &'static str {
+        self.state
+    }
+}
+
+fn apply_helpers(
     helpers: &analysis::helper_reports::Report<'_>,
     ctx: &report::Context<'_>,
+    store: Option<&mut ReviewStore>,
 ) -> Result<Report, String> {
-    let Some(path) = &ctx.args.review_file else {
+    let Some(store) = store.filter(|_| ctx.args.helper_proposals) else {
         return Ok(summarize(Vec::new(), 0, false, false));
     };
 
-    let mut store = load(path)?;
     let policy = matching_policy(
         ctx.matching_config,
         crate::clones::matching_profile(ctx.args).identity(),
     );
     let snapshots = snapshots(helpers, ctx, &policy);
     if !ctx.args.dismiss_helper_pair.is_empty() {
-        dismiss(&mut store, &snapshots, ctx.args)?;
-        save(path, &store)?;
+        dismiss(store, &snapshots, ctx.args)?;
     }
 
     let checked_store = store.checked().map_err(|error| format!("{error:?}"))?;
@@ -90,6 +84,33 @@ pub(in crate::clones) fn apply(
         true,
         helpers.scope_complete(),
     ))
+}
+
+pub(in crate::clones) struct Inputs<'a, 'b> {
+    pub helpers: &'a analysis::helper_reports::Report<'b>,
+    pub dispatch: &'a analysis::dispatch_reports::Report<'b>,
+    pub capabilities: &'a analysis::capability_reports::Report<'b>,
+    pub indices: &'a analysis::declaration_indices::Indices,
+}
+
+/// One load and atomic publication across all requested review families.
+/// A failed selector or snapshot leaves every retained entry untouched on disk.
+pub(in crate::clones) fn apply(
+    inputs: Inputs<'_, '_>,
+    ctx: &report::Context<'_>,
+) -> Result<(Report, super::local_workflow::Report), String> {
+    let mut store = ctx.args.review_file.as_deref().map(load).transpose()?;
+    let helpers = apply_helpers(inputs.helpers, ctx, store.as_mut())?;
+    let abstractions = super::local_workflow::apply(&inputs, ctx, store.as_mut())?;
+
+    if (!ctx.args.dismiss_helper_pair.is_empty()
+        || ctx.args.dismiss_enum_dispatch.is_some()
+        || !ctx.args.dismiss_capability_pair.is_empty())
+        && let (Some(path), Some(store)) = (&ctx.args.review_file, &store)
+    {
+        save(path, store)?;
+    }
+    Ok((helpers, abstractions))
 }
 
 type Snapshot = (String, String, Result<FindingSnapshot, String>);
@@ -157,7 +178,7 @@ impl MemberResolver<'_, '_> {
     }
 }
 
-fn unit<'a>(
+pub(super) fn unit<'a>(
     handoff: &Handoff,
     capture: &'a capture::Capture,
     record: &Function,
@@ -289,34 +310,19 @@ fn summarize(
     requested: bool,
     scope_complete: bool,
 ) -> Report {
-    let hidden_findings = pairs
-        .iter()
-        .filter(|pair| matches!(pair.state, "hidden_exact" | "hidden_growth"))
-        .count();
-    let complete = scope_complete && pairs.iter().all(|pair| pair.state != "unavailable");
-    Report {
-        schema: "rstyle.finding-review/1",
-        execution: if requested {
-            analysis::Execution::Completed
-        } else {
-            analysis::Execution::NotRequested
-        },
-        coverage: if requested && complete {
-            analysis::Coverage::Complete
-        } else {
-            analysis::Coverage::Incomplete
-        },
-        findings: pairs.len(),
-        hidden_findings,
-        visible_findings: pairs.len() - hidden_findings,
+    let summary = summary::summarize(
+        &pairs,
         retained_entries,
-        reasons: if requested && !scope_complete {
-            vec!["Potential helper members remain unavailable; see helper_proposals coverage"]
-        } else {
-            Vec::new()
+        summary::Scope {
+            requested,
+            complete: scope_complete,
         },
-        pairs,
-    }
+        summary::Contract {
+            schema: "rstyle.finding-review/1",
+            incomplete_scope: "Potential helper members remain unavailable; see helper_proposals coverage",
+        },
+    );
+    Report { summary, pairs }
 }
 
 fn load(path: &Path) -> Result<ReviewStore, String> {
@@ -340,4 +346,10 @@ fn save(path: &Path, store: &ReviewStore) -> Result<(), String> {
     file.flush().map_err(|error| error.to_string())?;
     file.persist(path).map_err(|error| error.to_string())?;
     Ok(())
+}
+
+impl crate::clones::analysis::Completion for Report {
+    fn permits_success(&self) -> bool {
+        self.summary.permits_success()
+    }
 }

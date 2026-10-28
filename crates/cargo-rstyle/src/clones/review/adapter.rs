@@ -59,7 +59,7 @@ pub(crate) fn member(
     })
 }
 
-fn relative(path: &Path, root: &Path) -> Result<String, String> {
+pub(super) fn relative(path: &Path, root: &Path) -> Result<String, String> {
     let suffix = path
         .strip_prefix(root)
         .map_err(|_| "Review locator lies outside its declared root")?;
@@ -204,52 +204,41 @@ fn context(
     matching_policy: &MatchingPolicy,
     consumer_policy: &ConsumerPolicy,
 ) -> Result<Context, String> {
-    let build = &facts.build;
-    let width = (build.pointer_width.status == rstyle_pdg::FactStatus::Known)
-        .then_some(build.pointer_width.value)
-        .flatten()
-        .and_then(|width| u16::try_from(width).ok())
-        .filter(|width| *width != 0)
-        .ok_or("Review target pointer width is unavailable")?;
-    let extraction = unit.extraction_profile.policy();
+    let build = super::local_adapter::context(facts, unit)?;
     Ok(Context {
-        compiler_commit: text(&build.rustc_commit, "compiler commit")?,
-        edition: text(&build.edition, "edition")?,
-        data_layout: text(&build.data_layout, "data layout")?,
-        compilation_target: CompilationTarget {
-            name: unit.target.name.clone(),
-            kind: sorted(&unit.target.kind),
-            test: unit.test,
-        },
-        target_triple: text(&build.target_triple, "target triple")?,
-        pointer_width: width,
-        features: sorted(&build.features),
-        cfgs: sorted(&build.cfgs),
-        opt_level: text(&build.opt_level, "optimization level")?,
-        debug_assertions: boolean(&build.debug_assertions, "debug assertions")?,
-        overflow_checks: boolean(&build.overflow_checks, "overflow checks")?,
-        panic_strategy: text(&build.panic_strategy, "panic strategy")?,
-        extraction_policy: format!("{}/{}", extraction.id, extraction.version),
+        compiler_commit: build.compiler_commit,
+        edition: build.edition,
+        data_layout: build.data_layout,
+        compilation_target: build.compilation_target,
+        target_triple: build.target_triple,
+        pointer_width: build.pointer_width,
+        features: build.features,
+        cfgs: build.cfgs,
+        opt_level: build.opt_level,
+        debug_assertions: build.debug_assertions,
+        overflow_checks: build.overflow_checks,
+        panic_strategy: build.panic_strategy,
+        extraction_policy: build.extraction_policy,
         matching_policy: matching_policy.clone(),
         consumer_policy: consumer_policy.clone(),
     })
 }
 
-fn text(fact: &StringFact, label: &str) -> Result<String, String> {
+pub(super) fn text(fact: &StringFact, label: &str) -> Result<String, String> {
     match fact.known_value() {
         Some(value) if !value.is_empty() => Ok(value.into()),
         _ => Err(format!("Review {label} is unavailable")),
     }
 }
 
-fn boolean(fact: &rstyle_pdg::BoolFact, label: &str) -> Result<bool, String> {
+pub(super) fn boolean(fact: &rstyle_pdg::BoolFact, label: &str) -> Result<bool, String> {
     (fact.status == rstyle_pdg::FactStatus::Known)
         .then_some(fact.value)
         .flatten()
         .ok_or_else(|| format!("Review {label} is unavailable"))
 }
 
-fn sorted(values: &[String]) -> Vec<String> {
+pub(super) fn sorted(values: &[String]) -> Vec<String> {
     let mut values = values.to_vec();
     values.sort();
     values.dedup();

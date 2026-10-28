@@ -1,7 +1,12 @@
 //! Pure exact review lifecycle. Loading bytes never grants current pair validity.
 //! No hashes: full versioned member values are the only equality authority.
 mod adapter;
+mod comparison;
+pub(super) mod local;
+mod local_adapter;
+pub(super) mod local_workflow;
 mod model;
+mod summary;
 pub(super) mod workflow;
 pub(crate) use model::*;
 use std::collections::BTreeSet;
@@ -77,6 +82,7 @@ impl Default for ReviewStore {
         Self {
             schema_version: SCHEMA_VERSION,
             entries: vec![],
+            source_entries: vec![],
         }
     }
 }
@@ -135,9 +141,12 @@ impl ReviewStore {
     }
 
     fn validate(&self) -> Result<(), ReviewError> {
-        if self.schema_version != SCHEMA_VERSION {
+        if !matches!(self.schema_version, 1 | 2)
+            || (self.schema_version == 1 && !self.source_entries.is_empty())
+        {
             return Err(ReviewError::InvalidSchema);
         }
+        local::validate_entries(&self.source_entries)?;
         for (index, entry) in self.entries.iter().enumerate() {
             if entry.reason.trim().is_empty() {
                 return Err(ReviewError::InvalidReason);
@@ -476,43 +485,18 @@ fn permits_growth(entry: &ReviewEntry, current: &FindingSnapshot) -> bool {
 }
 
 fn stale_reason(previous: &FindingSnapshot, current: &FindingSnapshot) -> Option<StaleReason> {
-    let overlap = previous.members.iter().any(|old| {
+    comparison::stale_reason(
+        &previous.versions,
+        &current.versions,
+        previous
+            .members
+            .iter()
+            .map(|member| (&member.key.locator, &member.key.context)),
         current
             .members
             .iter()
-            .any(|new| old.key.locator == new.key.locator)
-    });
-    if !overlap {
-        return None;
-    }
-
-    if previous.versions != current.versions {
-        return Some(StaleReason::Versions);
-    }
-
-    let old_keys: Vec<_> = previous
-        .members
-        .iter()
-        .map(|member| &member.key.locator)
-        .collect();
-    let new_keys: Vec<_> = current
-        .members
-        .iter()
-        .map(|member| &member.key.locator)
-        .collect();
-    if old_keys != new_keys {
-        return Some(StaleReason::Membership);
-    }
-
-    if previous
-        .members
-        .iter()
-        .zip(&current.members)
-        .any(|(old, new)| old.key.context != new.key.context)
-    {
-        return Some(StaleReason::Context);
-    }
-    Some(StaleReason::Body)
+            .map(|member| (&member.key.locator, &member.key.context)),
+    )
 }
 
 #[cfg(test)]

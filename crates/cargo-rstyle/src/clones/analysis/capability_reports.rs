@@ -191,9 +191,32 @@ fn export_pairs(
     }
 }
 
+pub(in crate::clones) struct Finding<'a> {
+    pub left: FunctionKey,
+    pub right: FunctionKey,
+    pub first: &'a capabilities::Wrapper,
+    pub second: &'a capabilities::Wrapper,
+}
+
 impl Report<'_> {
-    pub(in crate::clones) fn permits_success(&self) -> bool {
-        self.scope.permits_success()
+    pub(in crate::clones) fn finding_proposals(&self) -> impl Iterator<Item = Finding<'_>> {
+        let wrappers: BTreeMap<_, _> = self
+            .functions
+            .iter()
+            .filter_map(|function| {
+                if let Availability::Known(Some(wrapper)) = &function.evidence.availability {
+                    Some((function.key, wrapper))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        self.proposals.iter().map(move |proposal| Finding {
+            left: proposal.left,
+            right: proposal.right,
+            first: wrappers[&proposal.left],
+            second: wrappers[&proposal.right],
+        })
     }
 
     pub(in crate::clones) fn render(&self) -> String {
@@ -265,5 +288,11 @@ impl PairDecision {
             right: group[pair.right].0,
             reason: pair.reason,
         }
+    }
+}
+
+impl crate::clones::analysis::Completion for Report<'_> {
+    fn permits_success(&self) -> bool {
+        self.scope.permits_success()
     }
 }

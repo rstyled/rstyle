@@ -2,6 +2,7 @@
 pub mod capabilities;
 mod index;
 mod model;
+pub mod review;
 mod shapes;
 pub use index::Index;
 pub use model::{Arm, Assessment, Candidate, MethodOrigin, Signature};

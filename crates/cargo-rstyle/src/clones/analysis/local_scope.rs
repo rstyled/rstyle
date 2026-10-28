@@ -131,8 +131,10 @@ impl<P: Policy> Summary<P> {
             ..*self
         };
     }
+}
 
-    pub fn permits_success(&self) -> bool {
+impl<P: Policy> super::Completion for Summary<P> {
+    fn permits_success(&self) -> bool {
         self.execution == Execution::NotRequested
             || (self.execution == Execution::Completed && self.coverage == Coverage::Complete)
     }

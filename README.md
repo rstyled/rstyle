@@ -23,6 +23,8 @@ Optional [native pair explanations](docs/clones-pair-differences.md) show ordere
 scalar differences with separate coverage through `--explain-pairs`.
 Bounded [helper proposals](docs/clones-helper-proposals.md) use that evidence
 with `--helper-proposals` to suggest useful scalar-expression abstractions.
+[Saved finding reviews](docs/clones-finding-review.md) retain explicit dismissals
+for helpers, enum dispatch and witnessed capability sets across analysis runs.
 
 Other top-level folders:
 

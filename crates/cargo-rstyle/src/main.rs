@@ -47,7 +47,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Capture HIR R0 evidence and evaluate exhaustive strict similarity pairs.
-    Clones(clones::Args),
+    Clones(Box<clones::Args>),
     /// Mine the workspace for latent shared abstractions (signature groups).
     Patterns(PatternsArgs),
     /// Dismiss a merge candidate you reviewed, list the ledger, or prune dead entries.

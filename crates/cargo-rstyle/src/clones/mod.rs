@@ -9,6 +9,7 @@ mod report;
 mod review;
 mod selected_context;
 use crate::Cli;
+use analysis::Completion;
 use clap::Args as ClapArgs;
 use identity::FunctionKey;
 use rstyle_ccgraph::{CcgraphConfig, Decision, ImportedFunction};
@@ -27,6 +28,8 @@ use std::{
 
 #[derive(ClapArgs, Serialize)]
 #[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects"]).multiple(true)),
+    group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals"]).multiple(true)),
+    group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_capability_pair"])),
     group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules"]).multiple(true)))]
 pub struct Args {
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
@@ -89,14 +92,20 @@ pub struct Args {
     /// Exit 1 when requested analyses find opportunities; incomplete analysis exits 2.
     #[arg(long, requires = "finding_analysis")]
     fail_on_findings: bool,
-    /// Apply versioned helper reviews from this explicit file; lookup never writes.
-    #[arg(long, requires = "helper_proposals")]
+    /// Apply versioned reviews for requested abstraction families; lookup never writes.
+    #[arg(long, requires = "review_analysis")]
     review_file: Option<PathBuf>,
     /// Dismiss these exact saved-run helper endpoints; requires an explicit reason.
-    #[arg(long, num_args = 2, requires_all = ["review_file", "review_reason", "replay_run"])]
+    #[arg(long, num_args = 2, requires_all = ["review_file", "review_reason", "replay_run", "helper_proposals"])]
     dismiss_helper_pair: Vec<String>,
-    /// Reason retained with an explicitly dismissed helper finding.
-    #[arg(long, requires = "dismiss_helper_pair")]
+    /// Dismiss an exact saved-run enum dispatch finding.
+    #[arg(long, requires_all = ["review_file", "review_reason", "replay_run", "enum_dispatch"])]
+    dismiss_enum_dispatch: Option<String>,
+    /// Dismiss an exact saved-run ordered capability pair.
+    #[arg(long, num_args = 2, requires_all = ["review_file", "review_reason", "replay_run", "capability_proposals"])]
+    dismiss_capability_pair: Vec<String>,
+    /// Reason retained with an explicitly dismissed finding.
+    #[arg(long, requires = "dismissal")]
     review_reason: Option<String>,
     /// Retain review for future proven membership growth with unchanged original members.
     #[arg(long, requires = "dismiss_helper_pair")]
@@ -335,7 +344,7 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     let capture_complete = capture.failures.is_empty();
     let assessment_complete = handoff.failures.is_empty();
     let complete = capture_complete && assessment_complete && !matching.incomplete;
-    let report = report::make(report::Context {
+    let context = report::Context {
         cli,
         args,
         capture: &capture,
@@ -346,7 +355,9 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         analysis_config: config.analysis.as_ref(),
         mutation_config: config.mutation.as_ref(),
         matching_config: &config.matching,
-    })?;
+    };
+    let consumers = report::Consumers::new(&context)?;
+    let report = report::make(context, consumers);
     let output = report.publish(cli.format, accepted)?;
     let code = if complete && analyses_complete(&report) {
         u8::from(finding_exit_requested(&report, args, accepted))
@@ -366,14 +377,21 @@ fn analyses_complete(report: &report::Report<'_>) -> bool {
         && report.edit_planning.permits_success()
         && report.pair_reports.permits_success()
         && report.review.permits_success()
+        && report.abstraction_review.permits_success()
 }
 
 fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: usize) -> bool {
     (args.fail_on_accepted_pairs && accepted > 0)
         || (args.fail_on_findings
             && (report.analysis.findings > 0
-                || report.enum_dispatch.findings > 0
-                || report.capability_proposals.findings > 0
+                || report
+                    .abstraction_review
+                    .dispatch_visible_or(report.enum_dispatch.findings)
+                    > 0
+                || report
+                    .abstraction_review
+                    .capability_visible_or(report.capability_proposals.findings)
+                    > 0
                 || report.mutation_analysis.findings > 0
                 || report
                     .review

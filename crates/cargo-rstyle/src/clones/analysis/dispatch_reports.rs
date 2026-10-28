@@ -241,6 +241,17 @@ fn execution(functions: &[FunctionReport<'_>], requested: bool, captured: bool) 
 }
 
 impl Report<'_> {
+    pub(in crate::clones) fn finding_proposals(
+        &self,
+    ) -> impl Iterator<Item = (FunctionKey, &dispatch::Candidate)> {
+        self.functions.iter().filter_map(|function| {
+            function
+                .proposal
+                .as_ref()
+                .map(|proposal| (function.key, proposal))
+        })
+    }
+
     pub(in crate::clones) fn permits_success(&self) -> bool {
         self.scope.execution == Execution::NotRequested
             || (self.scope.execution == Execution::Completed

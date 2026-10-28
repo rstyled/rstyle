@@ -1,5 +1,7 @@
 //! Reproducible evidence with independent completeness indicators.
 
+mod consumers;
+pub(super) use consumers::Consumers;
 mod functions;
 mod locations;
 mod matching;
@@ -44,6 +46,7 @@ struct Scope<'a> {
 #[derive(Serialize)]
 pub struct Report<'a> {
     pub review: super::review::workflow::Report,
+    pub abstraction_review: super::review::local_workflow::Report,
     pub edit_planning: super::planning::Report,
     pub mutation_analysis: super::analysis::mutation_reports::Report<'a>,
     pub mutation_effects: super::analysis::effect_reports::Report<'a>,
@@ -130,21 +133,17 @@ fn ctx_profile_is_data(args: &Args) -> bool {
     args.extraction_profile.is_data()
 }
 
-pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
-    let pair_reports = ctx.pair_reports()?;
-    let review = super::review::workflow::apply(&pair_reports.helper_proposals, &ctx)?;
-
-    let declaration_indices = ctx.declaration_indices()?;
-
-    Ok(Report {
-        edit_planning: ctx.edit_planning(&pair_reports.helper_proposals)?,
-        pair_reports,
-        review,
+pub(super) fn make<'a>(ctx: Context<'a>, consumers: Consumers<'a>) -> Report<'a> {
+    Report {
+        edit_planning: consumers.edit_planning,
+        pair_reports: consumers.pairs,
+        review: consumers.review,
+        abstraction_review: consumers.abstraction_review,
         analysis: ctx.local_analysis(),
-        enum_dispatch: ctx.dispatch_report(&declaration_indices)?,
-        capability_proposals: ctx.capability_report(&declaration_indices)?,
-        mutation_analysis: ctx.mutation_report()?,
-        mutation_effects: ctx.effect_report()?,
+        enum_dispatch: consumers.dispatch,
+        capability_proposals: consumers.capabilities,
+        mutation_analysis: consumers.mutation,
+        mutation_effects: consumers.effects,
         report_detail: ctx.args.report_detail,
         verification_policy: ctx.verification_policy(),
         scope: selected_scope(&ctx),
@@ -178,9 +177,9 @@ pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
         pair_evaluation_complete: ctx.complete,
         pair_enumeration_complete: enumeration_complete(&ctx),
         matching: matching::Matching::new(ctx.matching, ctx.args.trace, ctx.partitions),
-        accepted_pairs: locations::accepted(ctx.handoff, ctx.matching)?,
+        accepted_pairs: consumers.accepted,
         claim: "Accepted pairs are similarity decisions, not equivalence or safe refactoring.",
-    })
+    }
 }
 
 impl<'a> Context<'a> {
@@ -307,10 +306,11 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         .collect::<String>();
 
     format!(
-        "{summary}{pairs}{}{}{}{}{}{}{}{}",
+        "{summary}{pairs}{}{}{}{}{}{}{}{}{}",
         report.analysis.render(),
         report.pair_reports.render(),
         report.review.render(),
+        report.abstraction_review.render(),
         report.enum_dispatch.render(),
         report.capability_proposals.render(),
         report.mutation_analysis.render(),

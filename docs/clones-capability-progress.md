@@ -40,7 +40,9 @@ Heavy captures and integrated gates run serially.
 | C11b | Local + acceptance + lead / mutation evidence, policy, CLI/report | delivered (bounded direct mutation) | `3329163` | Direct scalar assignment-site budgets with root provenance and unknown-aware lower bounds; config-only strict replay | Eighteen evidence/three policy/seven CLI tests; full tests and both legacy gates pass; general effects/density/helper summaries remain open |
 | C12a | Evidence + pair + lead / original body views, overlap model, CLI/report and acceptance | delivered (bounded helper edit coordination) | `21ba934` | Explicit helper-wrapper intents, exact original overlap witnesses and review groups; unknown insertion/name/scope and independence | Seven evidence/ten pure/six CLI tests; retained compact-to-full strict replay; full tests and both legacy gates pass; local guard/caller intents remain pending |
 | C11c | Evidence + local + lead / typed call observations, leaf summaries, CLI/report and acceptance | delivered (bounded scalar leaf effects) | `c68bcc5` | Caller-visible scalar writes through original same-unit leaves, distinct call events and exact formal mappings | 2,553 nextest tests and doc tests pass; zero style violations and reviewed pattern candidates; exact 15 baseline IDs unchanged; source/tool-free strict replay passes |
-| C10b | Evidence + pair + acceptance + lead / shared declaration index, wrapper witnesses, pairing and CLI/report | delivered (bounded witnessed capabilities) | this checkpoint | Two-member local capabilities backed by original ordered calls, independent of strict matching; exact local trait suppression | Nineteen independent source cases, six wrapper and eight pairing unit cases, eleven CLI tests; 2,578 full tests, both legacy gates and strict source/tool-free replay pass; broader families and retirement remain open |
+| C10b | Evidence + pair + acceptance + lead / shared declaration index, wrapper witnesses, pairing and CLI/report | delivered (bounded witnessed capabilities) | `0547b2e` | Two-member local capabilities backed by original ordered calls, independent of strict matching; exact local trait suppression | Nineteen independent source cases, six wrapper and eight pairing unit cases, eleven CLI tests; 2,578 full tests, both legacy gates and strict source/tool-free replay pass; broader families and retirement remain open |
+
+| C09b | Evidence + review + acceptance + lead / shared source identity index, typed local review and CLI/report | delivered (source-local dismissal) | this checkpoint | Explicit saved-run dismissal for dispatch and ordered capability findings, independent of graph matching; helper v1 preserved | 34 review unit tests, three source identity tests and 17 review CLI tests pass; 2,598 workspace tests and doc tests pass; both legacy gates clean |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
@@ -494,6 +496,62 @@ Broader signatures, generic/helper rewrites and retirement remain open. The next
 ready review frontier is versioned dismissal for dispatch/capability findings,
 using original declaration/context/ordered-role identity rather than run-local
 owner or function handles.
+
+
+## C09b: source-local abstraction reviews
+
+The shared `--review-file` workflow now covers completed enum-dispatch and
+ordered capability proposals. Explicit saved-run selectors retain a reason;
+ordinary lookup never writes or prunes. Helper-only schema-1 files retain their
+wire shape, and adding a source-local entry upgrades the envelope to schema 2
+without changing helper entries. Local family payloads retain exact original
+qualified declarations and consumer-relevant build context, with ordered
+variant/member or wrapper-method relations. Matching policy is excluded because
+these source consumers are independent of strict graph admission.
+
+Source identity reuses the existing immutable checked declaration index. Module
+qualification and declaration ranges are indexed once; canonical original tokens
+normalize caller formal/match bindings and preserve selected method headers and
+full nominal declarations. Source/graph snapshots are not cloned and no new
+hashes are introduced. Opaque callee-body changes remain outside this advisory
+identity; changing role order, selected members, declarations or effective context
+requires fresh review. Endpoint conversion is cached per report-local wrapper,
+then minimal persisted values are materialized for each exact pair. Both review
+families share borrowed ordered locator/context staleness comparison and generic
+review accounting; exact comparisons allocate no temporary member-key collections.
+
+The original consumer counts remain unfiltered. A separate `abstraction_review`
+report records per-family visible counts and per-finding status. Finding exits use
+visible counts, while incomplete source or review scope remains exit two even
+when every known finding is hidden. All fallible consumer/location construction
+precedes review-file publication, and a failed review selector or snapshot cannot
+write a partial multi-family decision. Existing-trait suppression remains a
+separate detector outcome, not a selectable user dismissal.
+
+Independent labels in `eval/clones-capability/abstraction-review-cases.json` and
+ten real-Cargo tests cover both families, source/tool-free full/compact replay,
+read-only lookup, relevant staleness, matching-policy independence, inline-module
+isolation, incomplete hidden scope, invalid writes and helper v1 preservation.
+Integrated validation passes: 2,598 nextest tests, five skipped, in 171.199
+seconds, plus doc tests. Workspace/all-target Clippy with warnings denied,
+formatting and diff checks pass. Legacy style reports zero violations across
+8,765 functions; reviewed patterns reports zero candidates, with the same 15
+unfiltered candidate IDs as the previous checkpoint. No ignores or thresholds
+changed. Logs are `/tmp/clones-migration-source-review-tests-final.log` and
+`/tmp/clones-migration-source-review-clippy.log`, with final style/pattern
+artifacts under the same prefix.
+
+Retained live evidence at
+`/tmp/clones-migration-source-review-live-jy5bpv8m/results.json` confirms both
+findings can be dismissed and replayed in full/compact form without original
+source, manifest or tools. Matching and consumer reports agree, and lookup
+leaves the review file unchanged.
+
+The next review frontier is explicit whole-store status for retained entries,
+with an honest distinction between absent findings, omitted scope and changed
+source/context. Broader signatures, caller-aware plans, richer effects, legacy
+compatibility and retirement remain open. Native macOS and exact Go comparison
+remain unverified.
 
 ## Hashing exceptions
 

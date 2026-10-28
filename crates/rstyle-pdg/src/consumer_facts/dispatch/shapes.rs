@@ -9,6 +9,8 @@ pub(super) struct SourceFailure {
 }
 
 pub(super) struct Module {
+    pub namespace: String,
+    pub review: Vec<ReviewDeclaration>,
     pub functions: Vec<syn::ItemFn>,
     reason: Option<&'static str>,
     owners: BTreeSet<String>,
@@ -18,8 +20,15 @@ pub(super) struct Module {
     foreign_impls: bool,
 }
 
+pub(super) struct ReviewDeclaration {
+    pub name: String,
+    pub kind: &'static str,
+    pub range: ByteSpan,
+}
+
 #[derive(Default)]
 struct ItemFacts {
+    review: Vec<ReviewDeclaration>,
     functions: Vec<syn::ItemFn>,
     methods: Vec<Method>,
     namespace: NamespaceUpdate,
@@ -183,6 +192,7 @@ struct IndexBuilder<'a> {
     source: &'a str,
     remaining: usize,
     modules: Vec<Module>,
+    namespace: Vec<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -194,6 +204,8 @@ struct ModuleScope {
 impl Module {
     fn new(reason: Option<&'static str>) -> Self {
         Self {
+            namespace: String::new(),
+            review: vec![],
             functions: vec![],
             reason,
             owners: BTreeSet::new(),
@@ -205,13 +217,25 @@ impl Module {
     }
 
     fn apply(&mut self, facts: ItemFacts) {
-        if !facts.functions.is_empty() {
-            self.functions.extend(facts.functions);
-        }
-        if !facts.methods.is_empty() {
-            self.methods.extend(facts.methods);
-        }
+        self.apply_members(facts.functions, facts.methods, facts.review);
         self.apply_namespace(facts.namespace);
+    }
+
+    fn apply_members(
+        &mut self,
+        functions: Vec<syn::ItemFn>,
+        methods: Vec<Method>,
+        review: Vec<ReviewDeclaration>,
+    ) {
+        if !functions.is_empty() {
+            self.functions.extend(functions);
+        }
+        if !methods.is_empty() {
+            self.methods.extend(methods);
+        }
+        if !review.is_empty() {
+            self.review.extend(review);
+        }
     }
 
     fn apply_namespace(&mut self, update: NamespaceUpdate) {
@@ -272,6 +296,7 @@ impl<'a> IndexBuilder<'a> {
             source,
             remaining: 4096,
             modules: vec![],
+            namespace: vec![],
         };
         index.index_modules(items, ModuleScope { reason, depth: 0 })?;
         Ok(index.modules)
@@ -284,6 +309,7 @@ impl<'a> IndexBuilder<'a> {
         self.remaining -= items.len();
 
         let mut module = Module::new(scope.reason);
+        module.namespace = self.namespace.join("::");
         for item in items {
             module.apply(self.index_item(item, scope)?);
         }
@@ -294,7 +320,8 @@ impl<'a> IndexBuilder<'a> {
     }
 
     fn index_item(&mut self, item: Item, scope: ModuleScope) -> Result<ItemFacts, SourceFailure> {
-        Ok(match item {
+        let review = review_declaration(&item, self.source).into_iter().collect();
+        let mut facts = match item {
             Item::Mod(item) => self.index_module(item, scope)?,
             Item::Fn(item) => ItemFacts {
                 functions: vec![item],
@@ -308,7 +335,9 @@ impl<'a> IndexBuilder<'a> {
             _ => ItemFacts::unavailable(
                 "Module imports, aliases or opaque items prevent exact local dispatch resolution",
             ),
-        })
+        };
+        facts.review = review;
+        Ok(facts)
     }
 
     fn index_module(
@@ -322,6 +351,7 @@ impl<'a> IndexBuilder<'a> {
             scope.reason
         };
         if let Some((_, items)) = item.content {
+            self.namespace.push(item.ident.to_string());
             self.index_modules(
                 items,
                 ModuleScope {
@@ -329,6 +359,7 @@ impl<'a> IndexBuilder<'a> {
                     depth: scope.depth + 1,
                 },
             )?;
+            self.namespace.pop();
             Ok(ItemFacts::default())
         } else {
             Ok(ItemFacts {
@@ -533,6 +564,7 @@ impl IndexBuilder<'_> {
             functions,
             methods,
             namespace,
+            ..ItemFacts::default()
         })
     }
 }
@@ -1039,4 +1071,42 @@ fn method_origin(module: &Module, method: &Method) -> DispatchResult<MethodOrigi
         member: method.name.clone(),
         trait_header: declaration.header,
     })
+}
+
+fn review_declaration(item: &Item, source: &str) -> Option<ReviewDeclaration> {
+    let (name, kind) = match item {
+        Item::Struct(item) => (&item.ident, "struct"),
+        Item::Enum(item) => (&item.ident, "enum"),
+        Item::Trait(item) => (&item.ident, "trait"),
+        _ => return None,
+    };
+    let range = match item {
+        Item::Trait(item) => ByteSpan {
+            start: span(source, item.span()).start,
+            end: span(source, item.brace_token.span.open()).start,
+        },
+        _ => span(source, item.span()),
+    };
+    Some(ReviewDeclaration {
+        name: name.to_string(),
+        kind,
+        range,
+    })
+}
+
+impl Module {
+    pub(super) fn review_method(
+        &self,
+        header: ByteSpan,
+    ) -> Result<(&str, &str, Option<&str>), String> {
+        let methods = self
+            .methods
+            .iter()
+            .filter(|method| method.header == header)
+            .collect::<Vec<_>>();
+        let [method] = methods.as_slice() else {
+            return Err("Review selected method header is ambiguous or missing".into());
+        };
+        Ok((&method.owner, &method.name, method.origin.as_deref()))
+    }
 }

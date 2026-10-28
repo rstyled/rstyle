@@ -316,7 +316,7 @@ fn self_duplicate_and_foreign_roster_edges_are_rejected() {
 fn malformed_persisted_schema_and_package_relative_owners_are_unavailable() {
     let snapshot = finding(&["a", "b"]);
     let mut store = dismissed(&snapshot, MembershipPolicy::Exact);
-    store.schema_version = 2;
+    store.schema_version = 3;
     assert!(store.to_json().is_err());
     assert!(matches!(
         store.lookup(ReviewInput::Checked(&live(&snapshot))),
@@ -515,4 +515,20 @@ fn empty_reasons_cannot_enter_or_load_a_review_store() {
     let mut bytes: serde_json::Value = serde_json::from_str(&valid.to_json().unwrap()).unwrap();
     bytes["entries"][0]["reason"] = "".into();
     assert!(ReviewStore::from_json(&bytes.to_string()).is_err());
+}
+
+#[test]
+fn helper_store_wire_shape_is_preserved_and_future_envelopes_are_rejected() {
+    let store = dismissed(&finding(&["a", "b"]), MembershipPolicy::Exact);
+    let bytes = store.to_json().unwrap();
+    let mut wire: serde_json::Value = serde_json::from_str(&bytes).unwrap();
+    assert_eq!(wire["schema_version"], 1);
+    assert!(wire.get("source_entries").is_none());
+    assert_eq!(ReviewStore::from_json(&bytes).unwrap(), store);
+    wire["schema_version"] = serde_json::json!(3);
+    assert!(ReviewStore::from_json(&wire.to_string()).is_err());
+    wire["schema_version"] = serde_json::json!(2);
+    let v2 = ReviewStore::from_json(&wire.to_string()).unwrap();
+    assert_eq!(v2.entries, store.entries);
+    assert!(v2.source_entries.is_empty());
 }

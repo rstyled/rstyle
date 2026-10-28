@@ -18,6 +18,12 @@ use rstyle_core::config::{Config as SourcePolicy, FnLengthConfig, FnParamsConfig
 use rstyle_pdg::consumer_facts::{Availability, LocalFacts};
 use serde::{Deserialize, Serialize};
 
+/// Whether requested work has enough completed coverage to permit a clean exit.
+/// Implementations retain their consumer-specific execution and scope rules.
+pub(in crate::clones) trait Completion {
+    fn permits_success(&self) -> bool;
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Outcome {

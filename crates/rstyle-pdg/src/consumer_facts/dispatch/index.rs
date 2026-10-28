@@ -1,4 +1,4 @@
-use super::{Assessment, capabilities, shapes};
+use super::{Assessment, capabilities, review, shapes};
 use crate::{
     HirFnFacts,
     nominal_boundary::{self, census},
@@ -24,7 +24,11 @@ struct SourceIndex {
 impl SourceIndex {
     fn new(modules: Vec<shapes::Module>, source: &str) -> Result<Self, String> {
         let mut declarations = BTreeMap::new();
+        let mut namespaces = std::collections::BTreeSet::new();
         for (module_index, module) in modules.iter().enumerate() {
+            if !namespaces.insert(&module.namespace) {
+                return Err("Dispatch source has ambiguous inline module qualification".into());
+            }
             for (function_index, function) in module.functions.iter().enumerate() {
                 let span = shapes::function_range(source, function);
                 if declarations
@@ -71,6 +75,42 @@ impl Index {
         facts: &HirFnFacts,
     ) -> Result<capabilities::Assessment, String> {
         self.query(facts, capabilities::evaluate)
+    }
+
+    pub fn review_dispatch(
+        &self,
+        facts: &HirFnFacts,
+        candidate: &super::Candidate,
+    ) -> Result<review::Dispatch, String> {
+        self.review(facts, |declaration| {
+            review::dispatch(declaration, candidate)
+        })
+    }
+
+    pub fn review_capability(
+        &self,
+        facts: &HirFnFacts,
+        wrapper: &capabilities::Wrapper,
+    ) -> Result<review::Capability, String> {
+        self.review(facts, |declaration| {
+            review::capability(declaration, wrapper)
+        })
+    }
+
+    fn review<T>(
+        &self,
+        facts: &HirFnFacts,
+        build: impl FnOnce(CheckedDeclaration<'_>) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let result = self.query(facts, |declaration| Assessment {
+            availability: super::super::Availability::Known(Some(build(declaration))),
+            reason: None,
+            budget_exhausted: false,
+        })?;
+        match result.availability {
+            super::super::Availability::Known(Some(value)) => value,
+            _ => Err("Review requires an available original indexed declaration".into()),
+        }
     }
 
     fn query<T>(

@@ -182,4 +182,6 @@ pub(crate) struct ReviewEntry {
 pub(crate) struct ReviewStore {
     pub schema_version: u32,
     pub entries: Vec<ReviewEntry>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_entries: Vec<super::local::Entry>,
 }

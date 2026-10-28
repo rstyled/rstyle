@@ -1,0 +1,85 @@
+{
+  "schema": "rstyle.clones-capability.abstraction-review-acceptance/1",
+  "status": "prepared-independent-requirements",
+  "cases": [
+    {
+      "id": "capability",
+      "family": "capability_set",
+      "flag": "--capability-proposals",
+      "dismiss": "--dismiss-capability-pair",
+      "endpoints": [
+        "alpha",
+        "beta"
+      ],
+      "source": "pub struct Alpha; pub struct Beta; impl Alpha { pub fn used(&self)->u32 {1} pub fn limit(&self)->u32 {2} } impl Beta { pub fn size(&self)->u32 {let read=||3; read()} pub fn capacity(&self)->u32 {4} } pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())} pub fn beta(y:&Beta)->(u32,u32) {(y.size(),y.capacity())}",
+      "expected_initial_findings": 1
+    },
+    {
+      "id": "dispatch",
+      "family": "enum_dispatch",
+      "flag": "--enum-dispatch",
+      "dismiss": "--dismiss-enum-dispatch",
+      "endpoints": [
+        "dispatch"
+      ],
+      "source": "pub struct Alpha { pub value:u32 } pub struct Beta { pub value:u32 } impl Alpha { pub fn measure(&self)->u32 { self.value+1 } } impl Beta { pub fn amount(&self)->u32 { let read=||self.value; read()+2 } } pub enum Item { A(Alpha), B(Beta) } pub fn dispatch(item:&Item)->u32 { match item { Item::A(a)=>a.measure(), Item::B(b)=>b.amount() } }",
+      "expected_initial_findings": 1
+    }
+  ],
+  "invariants": [
+    "Fresh original checked findings are required before any user dismissal; stored choices never supply declaration or pairing authority.",
+    "Lookup never creates, rewrites, migrates or prunes the store.",
+    "Line positions and formal names are presentation; selected context, declaration/member identities and ordered roles are relevant.",
+    "Opaque callee bodies are excluded from durable identity because the proposal requires declaration signatures rather than body admission.",
+    "Helper schema1 remains readable and unchanged until explicit source-family addition creates schema2; helper and source-family decisions remain independent.",
+    "Hidden known findings do not erase unavailable owners or exhausted scope.",
+    "Invalid selectors, malformed stores and duplicate dismissals must not write."
+  ],
+  "review_scenarios": [
+    {
+      "id": "saved-source-free-replay",
+      "change": "Dismiss exact saved finding, delete tree/manifest and disable tools.",
+      "expected": "hidden_exact, unchanged store bytes on full/compact lookup"
+    },
+    {
+      "id": "presentation-and-opaque-body",
+      "change": "Move lines/rename wrapper formal and change only opaque callee body.",
+      "expected": "hidden_exact"
+    },
+    {
+      "id": "changed-capability-roles",
+      "change": "Reverse Beta tuple method order.",
+      "expected": "stale visible"
+    },
+    {
+      "id": "changed-dispatch-member",
+      "change": "Rename Beta selected method and call while preserving supported signature.",
+      "expected": "stale visible"
+    },
+    {
+      "id": "changed-feature-context",
+      "change": "Capture same source with a different selected feature set.",
+      "expected": "stale visible"
+    },
+    {
+      "id": "unsupported-neighbor",
+      "change": "Add wrapper with block work alongside unchanged dismissed capability.",
+      "expected": "known finding hidden; coverage incomplete and exit2; unchanged store"
+    },
+    {
+      "id": "invalid-dismissal",
+      "change": "Unknown endpoint or valid endpoints with empty reason, or duplicate exact dismissal.",
+      "expected": "error exit2; no creation or rewrite"
+    },
+    {
+      "id": "helper-v1-coexistence",
+      "change": "Read helper-only schema1 while reviewing new local finding, then explicitly dismiss local family.",
+      "expected": "no cross-family hiding or lookup migration; explicit schema2 retains exact helper entries"
+    },
+    {
+      "id": "malformed-store",
+      "change": "Add unknown authority field to existing store.",
+      "expected": "error exit2; invalid file unchanged"
+    }
+  ]
+}
