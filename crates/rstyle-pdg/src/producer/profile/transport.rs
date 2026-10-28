@@ -55,13 +55,6 @@ impl Transport<'_> {
     fn interface(&self, function: crate::FunctionInfo) -> crate::FunctionInfo {
         crate::FunctionInfo {
             interface_completeness: self.described(function.interface_completeness),
-            reference_count: crate::CountFact {
-                policy: function
-                    .reference_count
-                    .policy
-                    .map(|policy| self.profile(policy)),
-                ..function.reference_count
-            },
             inputs: function
                 .inputs
                 .into_iter()
@@ -108,7 +101,6 @@ impl Transport<'_> {
 
     fn edge(&self, edge: crate::PdgEdge) -> crate::PdgEdge {
         crate::PdgEdge {
-            policy: self.profile(edge.policy),
             evidence: self.described(edge.evidence),
             provenance: self.described(edge.provenance),
             annotations: self.map(edge.annotations),
@@ -123,30 +115,14 @@ impl Transport<'_> {
                 .into_iter()
                 .map(|(key, value)| (key, self.described(value)))
                 .collect(),
-            conformance: evidence
-                .conformance
-                .into_iter()
-                .map(|value| crate::Conformance {
-                    profile: self.profile(value.profile),
-                    ..value
-                })
-                .collect(),
             ..evidence
         }
     }
 
-    fn described<T: DescribedPolicy>(&self, mut value: T) -> T {
-        self.description_policy(value.description_policy());
-        value
-    }
-
-    fn description_policy(&self, value: PolicyDescription<'_>) {
-        let PolicyDescription {
-            policy,
-            description,
-        } = value;
-        *policy = policy.take().map(|policy| self.profile(policy));
+    fn described<T: Described>(&self, mut value: T) -> T {
+        let description = value.description();
         *description = self.text(std::mem::take(description));
+        value
     }
 
     fn profile(&self, policy: ProfileId) -> ProfileId {
@@ -218,31 +194,19 @@ impl Transport<'_> {
     }
 }
 
-/// Capabilities and provenance share transportable policy/description metadata.
-/// The rest of each typed record stays owned and unchanged.
-struct PolicyDescription<'a> {
-    policy: &'a mut Option<ProfileId>,
-    description: &'a mut String,
+/// Only extraction descriptions change when selecting a local profile.
+trait Described {
+    fn description(&mut self) -> &mut String;
 }
 
-trait DescribedPolicy {
-    fn description_policy(&mut self) -> PolicyDescription<'_>;
-}
-
-impl DescribedPolicy for crate::Capability {
-    fn description_policy(&mut self) -> PolicyDescription<'_> {
-        PolicyDescription {
-            policy: &mut self.policy,
-            description: &mut self.description,
-        }
+impl Described for crate::Capability {
+    fn description(&mut self) -> &mut String {
+        &mut self.description
     }
 }
 
-impl DescribedPolicy for crate::Provenance {
-    fn description_policy(&mut self) -> PolicyDescription<'_> {
-        PolicyDescription {
-            policy: &mut self.policy,
-            description: &mut self.description,
-        }
+impl Described for crate::Provenance {
+    fn description(&mut self) -> &mut String {
+        &mut self.description
     }
 }

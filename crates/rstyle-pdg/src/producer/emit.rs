@@ -19,7 +19,6 @@ pub const SITES_KEY: &str = "compat.rust.hir-r0:value-sites";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentIdentity {
     pub key: String,
-    #[serde(alias = "sha256")]
     pub checksum: String,
 }
 
@@ -330,7 +329,6 @@ fn span(span: ByteSpan) -> Span {
 
 fn evidence(description: &str) -> Capability {
     Capability {
-        policy: Some(ProfileId::hir_r0()),
         status: CapabilityStatus::Supported,
         description: description.to_string(),
     }
@@ -349,7 +347,6 @@ fn provenance(node: &Operation) -> Provenance {
     };
 
     Provenance {
-        policy: Some(ProfileId::hir_r0()),
         origin,
         description: format!("R0 {} from resolved {}", node.role, node.original_kind),
         origin_node_ids: Vec::new(),
@@ -359,7 +356,6 @@ fn provenance(node: &Operation) -> Provenance {
 
 fn analysis_provenance() -> Provenance {
     Provenance {
-        policy: Some(ProfileId::hir_r0()),
         origin: ProvenanceOrigin::Analysis,
         description: "Exact R0 normal-flow binding/value/dominance analysis".to_string(),
         origin_node_ids: Vec::new(),
@@ -442,7 +438,6 @@ fn pdg_node(node: &Operation, graph: &Graph) -> PdgNode {
 
 fn pdg_edge(index: usize, edge: &Dependence) -> PdgEdge {
     PdgEdge {
-        policy: ProfileId::hir_r0(),
         id: format!("e{index}"),
         source: edge.source.clone(),
         target: edge.target.clone(),
@@ -568,7 +563,7 @@ fn function(facts: &dyn EvidenceFacts, graph: &Graph, analysis: &Analysis) -> Fu
         interface_completeness: evidence(
             "Every resolved named primitive parameter and the return metadata are retained",
         ),
-        reference_count: CountFact::known(reads.len() as u64, ProfileId::hir_r0()),
+        reference_count: CountFact::known(reads.len() as u64),
     }
 }
 
@@ -605,7 +600,7 @@ fn extraction(graph: &Graph, limitations: &[String]) -> ExtractionEvidence {
         let description = if key == "exceptional_flow" && !limitations.is_empty() { limitations.join("; ") }
             else if key == "exceptional_flow" && status == CapabilityStatus::Supported { "Explicit bounded checked failures; cleanup remains outside this subset".into() }
             else { format!("R0 bounded normal-flow {key}: {status:?}; validated only within demonstrated subset") };
-        (key.to_string(), Capability { policy: Some(ProfileId::hir_r0()), status, description })
+        (key.to_string(), Capability { status, description })
     }).collect();
     let diagnostics = limitations
         .iter()
@@ -622,10 +617,9 @@ fn extraction(graph: &Graph, limitations: &[String]) -> ExtractionEvidence {
     ExtractionEvidence {
         capabilities,
         diagnostics,
-        conformance: vec![Conformance::not_evaluated(
-            ProfileId::hir_r0(),
+        conformance: Conformance::not_evaluated(
             "Await independent normal-flow validation and strict admission; schema acceptance is insufficient",
-        )],
+        ),
     }
 }
 

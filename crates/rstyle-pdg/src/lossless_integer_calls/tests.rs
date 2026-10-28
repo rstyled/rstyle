@@ -181,7 +181,6 @@ fn numerical_width_inequality_is_not_reviewed_target_authority() {
         status: crate::FactStatus::Known,
         value: Some(64),
         reason: None,
-        policy: None,
     };
     assert!(authority::target(&width, &registry).is_ok());
     for value in [None, Some(16), Some(32), Some(128)] {

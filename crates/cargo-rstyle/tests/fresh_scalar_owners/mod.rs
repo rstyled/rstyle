@@ -139,8 +139,7 @@ fn frontier(report: &Value) {
 
 fn mutate(pair: &mut Pair, attack: &str) {
     if attack == "historical" {
-        pair.pdg.profile.version = "3.129.0".into();
-        pair.cfg.profile.version = "3.129.0".into();
+        *pair = shared_evidence::with_profile_version(pair, "3.129.0");
         return;
     }
     if attack == "slots" {

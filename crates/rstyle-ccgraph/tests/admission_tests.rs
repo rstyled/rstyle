@@ -18,7 +18,6 @@ fn r0() -> ProfileId {
 
 fn supported() -> Capability {
     Capability {
-        policy: None,
         status: CapabilityStatus::Supported,
         description: "d".to_string(),
     }
@@ -26,7 +25,6 @@ fn supported() -> Capability {
 
 fn na() -> Capability {
     Capability {
-        policy: None,
         status: CapabilityStatus::NotApplicable,
         description: "absent".to_string(),
     }
@@ -47,7 +45,6 @@ fn capabilities() -> BTreeMap<String, Capability> {
     caps.insert(
         "exceptional_flow".to_string(),
         Capability {
-            policy: None,
             status: CapabilityStatus::Unsupported,
             description: "normal-flow only".to_string(),
         },
@@ -65,7 +62,6 @@ fn span() -> Span {
 
 fn provenance() -> Provenance {
     Provenance {
-        policy: None,
         origin: ProvenanceOrigin::Source,
         description: "d".to_string(),
         origin_node_ids: Vec::new(),
@@ -184,7 +180,6 @@ fn pdg_nodes() -> Vec<PdgNode> {
 fn pdg_edges() -> Vec<PdgEdge> {
     vec![
         PdgEdge {
-            policy: r0(),
             id: "e0".to_string(),
             source: "n_p".to_string(),
             target: "n_r".to_string(),
@@ -201,7 +196,6 @@ fn pdg_edges() -> Vec<PdgEdge> {
             annotations: BTreeMap::new(),
         },
         PdgEdge {
-            policy: r0(),
             id: "e1".to_string(),
             source: "n_r".to_string(),
             target: "n_ret".to_string(),
@@ -245,7 +239,7 @@ fn pdg_function() -> FunctionInfo {
             extensions: BTreeMap::new(),
         }],
         interface_completeness: supported(),
-        reference_count: CountFact::known(1, r0()),
+        reference_count: CountFact::known(1),
     }
 }
 
@@ -294,7 +288,7 @@ fn pdg_doc(pdg_key: &str, cfg_key: &str) -> PdgDocument {
         extraction_evidence: ExtractionEvidence {
             capabilities: capabilities(),
             diagnostics: Vec::new(),
-            conformance: vec![Conformance::not_evaluated(r0(), "test")],
+            conformance: Conformance::not_evaluated("test"),
         },
         extensions: extensions(pdg_key, cfg_key),
     }

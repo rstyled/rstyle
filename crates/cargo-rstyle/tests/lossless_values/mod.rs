@@ -133,12 +133,7 @@ fn forge_message(pair: &mut rstyle_pdg::producer::Pair, attack: &str) {
 fn reject_historical(function: &Value, store: &rstyle_pdg::unit_store::UnitStore) {
     let index = shared_evidence::index(function);
     let pair = store.pair(index).unwrap();
-    let mut historical = rstyle_pdg::producer::Pair {
-        pdg: pair.pdg.clone(),
-        cfg: pair.cfg.clone(),
-    };
-    historical.pdg.profile.version = "3.95.0".into();
-    historical.cfg.profile.version = "3.95.0".into();
+    let historical = shared_evidence::with_profile_version(pair, "3.95.0");
     let analysis = store.analysis();
     let facts = analysis.function(index).unwrap();
     rstyle_pdg::data_documents::verify(pair, &facts).unwrap();

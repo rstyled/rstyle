@@ -133,8 +133,7 @@ fn check_origins(function: &Value) {
 
 fn forge(pair: &mut rstyle_pdg::producer::Pair, attack: &str, roots: &Value) {
     if attack == "policy" {
-        pair.pdg.profile.version = "3.88.0".into();
-        pair.cfg.profile.version = "3.88.0".into();
+        *pair = shared_evidence::with_profile_version(pair, "3.88.0");
         return;
     }
     let construct = if attack == "error-origin" {

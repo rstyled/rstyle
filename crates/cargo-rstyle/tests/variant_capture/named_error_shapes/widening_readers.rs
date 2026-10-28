@@ -571,8 +571,7 @@ fn mutate_pair(pair: &mut rstyle_pdg::producer::Pair, change: &str) {
         "order" => reorder_capture(pair),
         "entry" | "exit" => bypass_boundary(pair, change),
         "historical" => {
-            pair.pdg.profile.version = "3.126.0".into();
-            pair.cfg.profile.version = "3.126.0".into();
+            *pair = shared_evidence::with_profile_version(pair, "3.126.0");
         }
         _ => {
             let mut pdg = serde_json::to_value(&pair.pdg).unwrap();

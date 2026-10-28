@@ -247,3 +247,14 @@ pub fn check_partial_helper(function: &Value) {
         });
     }
 }
+
+/// Forge both document profiles; strict verification must reject the claim.
+pub fn with_profile_version(
+    pair: &rstyle_pdg::producer::Pair,
+    version: &str,
+) -> rstyle_pdg::producer::Pair {
+    let mut changed = pair.clone();
+    changed.pdg.profile.version = version.into();
+    changed.cfg.profile.version = version.into();
+    changed
+}

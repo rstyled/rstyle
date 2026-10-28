@@ -8,11 +8,7 @@ mod transport;
 use super::Pair;
 use crate::{ProfileId, extraction_profile::*};
 use serde::Serialize;
-#[cfg(test)]
-use serde::de::DeserializeOwned;
 use serde_json::Value;
-#[cfg(test)]
-use serde_json::json;
 
 pub fn apply(
     pair: Pair,
@@ -125,65 +121,4 @@ struct SelectionEvidence<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     frontend_ref: Option<Value>,
     semantics: &'static str,
-}
-
-#[cfg(test)]
-fn convert<T: Serialize + DeserializeOwned>(value: &T, policy: &ProfileId) -> Result<T, String> {
-    let value = serde_json::to_value(value).map_err(|e| e.to_string())?;
-    let value = replace_policies(value, policy);
-
-    serde_json::from_value(value).map_err(|e| e.to_string())
-}
-
-#[cfg(test)]
-fn replace_policies(value: Value, policy: &ProfileId) -> Value {
-    match value {
-        Value::Object(object) => replace_object(object, policy),
-        Value::Array(values) => Value::Array(
-            values
-                .into_iter()
-                .map(|child| replace_policies(child, policy))
-                .collect(),
-        ),
-        _ => value,
-    }
-}
-
-#[cfg(test)]
-fn replace_object(object: serde_json::Map<String, Value>, policy: &ProfileId) -> Value {
-    let identity = object.get("id").and_then(Value::as_str) == Some(crate::R0_POLICY_ID)
-        && object.get("version").and_then(Value::as_str) == Some(crate::R0_POLICY_VERSION);
-
-    Value::Object(
-        object
-            .into_iter()
-            .map(|(key, child)| {
-                let child = match key.as_str() {
-                    "id" if identity => json!(policy.id),
-                    "version" if identity => json!(policy.version),
-                    _ => replace_child(&key, child, policy),
-                };
-                (key, child)
-            })
-            .collect(),
-    )
-}
-
-#[cfg(test)]
-fn replace_child(key: &str, child: Value, policy: &ProfileId) -> Value {
-    // Dependencies are already verified documents/frontend snapshots. Their
-    // identities and policies must survive caller-policy transport unchanged.
-    if key == "dependency" {
-        return child;
-    }
-    if matches!(key, "description" | "normal_flow_scope")
-        && let Some(text) = child.as_str()
-    {
-        json!(text.replace("R0", "local scalar").replace(
-            "compat.rust.hir-r0/0.1.0",
-            &format!("{}/{}", policy.id, policy.version)
-        ))
-    } else {
-        replace_policies(child, policy)
-    }
 }

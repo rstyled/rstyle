@@ -42,11 +42,12 @@ mod tests {
 
     fn operand(target: &str) -> PdgEdge {
         serde_json::from_value(json!({
-            "policy":{"id":"test","version":"1"},"id":"edge","source":"saved","target":target,
+            "id":"edge","source":"saved","target":target,
             "kind":"data","subkind":"value_operand","operand_position":0,
-            "evidence":{"policy":{"id":"test","version":"1"},"status":"supported","description":"test"},
-            "provenance":{"policy":{"id":"test","version":"1"},"origin":"analysis","description":"test"}
-        })).unwrap()
+            "evidence":{"status":"supported","description":"test"},
+            "provenance":{"origin":"analysis","description":"test"}
+        }))
+        .unwrap()
     }
 
     #[test]

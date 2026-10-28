@@ -36,12 +36,7 @@ fn ordered_generated_constructors_compose_after_a_complete_prior_expansion() {
     let analysis = unit.analysis();
     let facts = analysis.function(shared_evidence::index(entry)).unwrap();
     let pair = shared_evidence::pair(&unit, entry);
-    let mut forged = rstyle_pdg::producer::Pair {
-        pdg: pair.pdg.clone(),
-        cfg: pair.cfg.clone(),
-    };
-    forged.pdg.profile.version = "3.114.0".into();
-    forged.cfg.profile.version = "3.114.0".into();
+    let forged = shared_evidence::with_profile_version(pair, "3.114.0");
     assert!(
         rstyle_pdg::verification_policy::strict(|| {
             rstyle_pdg::producer::verify_serialized(&forged.serialize().unwrap(), &facts)

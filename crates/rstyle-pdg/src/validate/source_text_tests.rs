@@ -1,16 +1,10 @@
 use super::*;
 
 fn document() -> PdgDocument {
-    let mut example: serde_json::Value =
+    let mut doc: PdgDocument =
         serde_json::from_str(include_str!("../../../../vendor-compat/pdg.example.json")).unwrap();
-    example["function"]["reference_count"]["policy"] = example["profile"].clone();
-    let policy: ProfileId = serde_json::from_value(example["profile"].clone()).unwrap();
-    for edge in example["edges"].as_array_mut().unwrap() {
-        edge["policy"] = serde_json::to_value(&policy).unwrap();
-    }
-    example["extraction_evidence"]["conformance"] =
-        serde_json::to_value(vec![Conformance::not_evaluated(policy, "parity fixture")]).unwrap();
-    serde_json::from_value(example).unwrap()
+    doc.extraction_evidence.conformance = Conformance::not_evaluated("parity fixture");
+    doc
 }
 
 #[test]

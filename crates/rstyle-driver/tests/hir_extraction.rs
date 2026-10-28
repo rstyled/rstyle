@@ -297,7 +297,7 @@ fn check_emission(case: &FixtureCase, facts: &HirFnFacts) {
 fn check_schemas(case: &FixtureCase, pair: &rstyle_pdg::producer::Pair) {
     let schemas = [
         (
-            include_str!("../../../vendor-compat/rust-r0/pdg.schema.json"),
+            include_str!("../../../vendor-compat/pdg.schema.json"),
             serde_json::to_value(&pair.pdg).expect("PDG document"),
         ),
         (
@@ -931,11 +931,11 @@ fn unary_operations_preserve_their_input_snapshot() {
 }
 
 #[test]
-fn serialized_manifest_policies_guards_and_frontiers_are_checked() {
+fn serialized_manifest_facts_guards_and_frontiers_are_checked() {
     let (_, facts) = compile("fn f(a: bool, b: bool) -> bool { a && b }");
     let facts = &facts.expect("captured facts")[0];
     let baseline = rstyle_pdg::producer::produce(facts).unwrap();
-    for mutation in 0..8 {
+    for mutation in 0..7 {
         let mut serialized = baseline.serialize().unwrap();
         if mutation == 0 {
             serialized.manifest.documents[0].checksum = "sha256:wrong".to_string();
@@ -953,10 +953,7 @@ fn serialized_manifest_policies_guards_and_frontiers_are_checked() {
                 "mutation {mutation}"
             );
         } else {
-            assert!(
-                matches!(mutation, 1 | 2),
-                "unexpected decode failure {mutation}"
-            );
+            assert_eq!(mutation, 1, "unexpected decode failure");
         }
     }
 }
@@ -964,27 +961,24 @@ fn serialized_manifest_policies_guards_and_frontiers_are_checked() {
 fn mutate_wire_document(document: &mut serde_json::Value, mutation: usize) {
     match mutation {
         1 => {
-            document["edges"][0]["policy"]["version"] = "0.0.0".into();
-        }
-        2 => {
             document["function"]["reference_count"]
                 .as_object_mut()
                 .unwrap()
-                .remove("policy");
+                .remove("value");
         }
-        3 => {
+        2 => {
             document["extensions"]["compat.rust.hir-r0:value-sites"][0]["annotations"]["compat.rust.hir-r0:guards"] =
                 serde_json::json!([]);
         }
-        4 => {
+        3 => {
             document["extensions"]["compat.rust.hir-r0:value-sites"][0]["alternatives"][0]["completion_cfg_node_ids"] =
                 serde_json::json!([]);
         }
-        5 => {
+        4 => {
             document["extraction_evidence"]["capabilities"]["node_extraction"]["status"] =
                 "not_applicable".into();
         }
-        6 => {
+        5 => {
             document["definitions"][0]["node_id"] = document["definitions"][1]["node_id"].clone();
         }
         _ => {
@@ -1254,7 +1248,7 @@ fn const_expansion_keeps_r0_and_deferred_source_closed() {
 fn local_const_import_rejects_missing_or_tampered_policy_and_frontend_evidence() {
     use rstyle_pdg::extraction_profile::EVIDENCE_KEY;
     let facts = compile_selected("const fn f(x: i32) -> i32 { x }", "hir-const-v1").remove(0);
-    for mutation in 0..6 {
+    for mutation in 0..5 {
         let mut pair = rstyle_pdg::producer::produce(&facts).unwrap();
         match mutation {
             0 => {
@@ -1270,9 +1264,6 @@ fn local_const_import_rejects_missing_or_tampered_policy_and_frontend_evidence()
             3 => {
                 pair.pdg.extensions.get_mut(EVIDENCE_KEY).unwrap()["frontend"]["signature"]["is_const"] =
                     serde_json::json!(false);
-            }
-            4 => {
-                pair.pdg.nodes[0].evidence.policy = Some(rstyle_pdg::ProfileId::hir_r0());
             }
             _ => {
                 pair.cfg.edges.pop();
@@ -2028,7 +2019,7 @@ fn assert_local_wire_schema(pair: &rstyle_pdg::producer::Pair) {
     let serialized = pair.serialize().unwrap();
     for (schema, document) in [
         (
-            include_str!("../../../vendor-compat/rust-r0/pdg.schema.json"),
+            include_str!("../../../vendor-compat/pdg.schema.json"),
             serde_json::from_slice(&serialized.pdg_bytes).unwrap(),
         ),
         (
