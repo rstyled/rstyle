@@ -241,6 +241,14 @@ fn execution(functions: &[FunctionReport<'_>], requested: bool, captured: bool) 
 }
 
 impl Report<'_> {
+    pub(in crate::clones) fn review_without_finding(&self, key: FunctionKey) -> bool {
+        self.functions.iter().any(|function| {
+            function.key == key
+                && function.execution == Execution::Completed
+                && function.outcome == Outcome::EvaluatedNoFinding
+        })
+    }
+
     pub(in crate::clones) fn finding_proposals(
         &self,
     ) -> impl Iterator<Item = (FunctionKey, &dispatch::Candidate)> {

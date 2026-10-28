@@ -59,9 +59,9 @@ fn apply_helpers(
     helpers: &analysis::helper_reports::Report<'_>,
     ctx: &report::Context<'_>,
     store: Option<&mut ReviewStore>,
-) -> Result<Report, String> {
-    let Some(store) = store.filter(|_| ctx.args.helper_proposals) else {
-        return Ok(summarize(Vec::new(), 0, false, false));
+) -> Result<(Report, Vec<status::Record>), String> {
+    let Some(store) = store.filter(|_| ctx.args.helper_proposals || ctx.args.review_status) else {
+        return Ok((summarize(Vec::new(), 0, false, false), Vec::new()));
     };
 
     let policy = matching_policy(
@@ -78,11 +78,15 @@ fn apply_helpers(
         .iter()
         .map(|(first, second, snapshot)| lookup(&checked_store, first, second, snapshot))
         .collect();
-    Ok(summarize(
-        pairs,
-        store.entries.len(),
-        true,
-        helpers.scope_complete(),
+    let records = status_workflow::helpers(store, &snapshots, helpers, ctx);
+    Ok((
+        summarize(
+            pairs,
+            store.entries.len(),
+            ctx.args.helper_proposals,
+            helpers.scope_complete(),
+        ),
+        records,
     ))
 }
 
@@ -98,10 +102,23 @@ pub(in crate::clones) struct Inputs<'a, 'b> {
 pub(in crate::clones) fn apply(
     inputs: Inputs<'_, '_>,
     ctx: &report::Context<'_>,
-) -> Result<(Report, super::local_workflow::Report), String> {
+) -> Result<
+    (
+        Report,
+        super::local_workflow::Report,
+        Option<status::Report>,
+    ),
+    String,
+> {
     let mut store = ctx.args.review_file.as_deref().map(load).transpose()?;
-    let helpers = apply_helpers(inputs.helpers, ctx, store.as_mut())?;
-    let abstractions = super::local_workflow::apply(&inputs, ctx, store.as_mut())?;
+    let (helpers, mut records) = apply_helpers(inputs.helpers, ctx, store.as_mut())?;
+    let (abstractions, source_records) =
+        super::local_workflow::apply(&inputs, ctx, store.as_mut())?;
+    records.extend(source_records);
+    let status = ctx
+        .args
+        .review_status
+        .then(|| status::Report::new(records, true));
 
     if (!ctx.args.dismiss_helper_pair.is_empty()
         || ctx.args.dismiss_enum_dispatch.is_some()
@@ -110,10 +127,10 @@ pub(in crate::clones) fn apply(
     {
         save(path, store)?;
     }
-    Ok((helpers, abstractions))
+    Ok((helpers, abstractions, status))
 }
 
-type Snapshot = (String, String, Result<FindingSnapshot, String>);
+pub(super) type Snapshot = (String, String, Result<FindingSnapshot, String>);
 
 fn snapshots(
     helpers: &analysis::helper_reports::Report<'_>,
@@ -194,7 +211,7 @@ pub(super) fn unit<'a>(
         .ok_or("Invalid review compilation context".into())
 }
 
-fn consumer_policy() -> ConsumerPolicy {
+pub(super) fn consumer_policy() -> ConsumerPolicy {
     ConsumerPolicy {
         id: "scalar-expression-helper".into(),
         version: 1,
@@ -203,7 +220,7 @@ fn consumer_policy() -> ConsumerPolicy {
     }
 }
 
-fn versions() -> Versions {
+pub(super) fn versions() -> Versions {
     Versions {
         detector: "scalar-expression-helper".into(),
         detector_version: 1,
@@ -213,7 +230,10 @@ fn versions() -> Versions {
     }
 }
 
-fn matching_policy(config: &rstyle_ccgraph::CcgraphConfig, profile: &str) -> MatchingPolicy {
+pub(super) fn matching_policy(
+    config: &rstyle_ccgraph::CcgraphConfig,
+    profile: &str,
+) -> MatchingPolicy {
     let rational = |fraction: rstyle_ccgraph::Frac| {
         format!("{}/{}", fraction.numerator(), fraction.denominator())
     };

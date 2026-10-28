@@ -47,6 +47,22 @@ pub(in crate::clones) fn dispatch(
     })
 }
 
+/// Observe only the checked original locator and build context for status lookup.
+pub(super) fn member_key(input: Input<'_>) -> Result<(Locator, local::BuildContext), String> {
+    let identity = Identity::new(input.facts, input.unit, input.plan)?;
+    let (qualified_name, declaration_kind) = input.index.review_location(input.facts)?;
+    Ok((
+        Locator {
+            package: identity.package,
+            source: identity.source,
+            qualified_name,
+            declaration_kind: declaration_kind.into(),
+            discriminator: "unique-declaration".into(),
+        },
+        context(input.facts, input.unit)?,
+    ))
+}
+
 /// Build once per wrapper endpoint, then borrow across proposal pairs.
 pub(in crate::clones) fn capability_member(
     input: Input<'_>,
@@ -99,7 +115,7 @@ pub(in crate::clones) fn capability(
     })
 }
 
-fn versions(detector: &str) -> Versions {
+pub(super) fn versions(detector: &str) -> Versions {
     Versions {
         detector: detector.into(),
         detector_version: 1,

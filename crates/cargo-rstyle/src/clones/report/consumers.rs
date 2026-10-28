@@ -11,6 +11,7 @@ pub(in crate::clones) struct Consumers<'a> {
     pub(super) effects: analysis::effect_reports::Report<'a>,
     pub(super) accepted: Vec<locations::AcceptedPair<'a>>,
     pub(super) review: review::workflow::Report,
+    pub(super) review_status: Option<review::status::Report>,
     pub(super) abstraction_review: review::local_workflow::Report,
 }
 
@@ -25,7 +26,7 @@ impl<'a> Consumers<'a> {
         let effects = ctx.effect_report()?;
         let accepted = locations::accepted(ctx.handoff, ctx.matching)?;
 
-        let (review, abstraction_review) = review::workflow::apply(
+        let (review, abstraction_review, review_status) = review::workflow::apply(
             review::workflow::Inputs {
                 helpers: &pairs.helper_proposals,
                 dispatch: &dispatch,
@@ -44,6 +45,7 @@ impl<'a> Consumers<'a> {
             accepted,
             review,
             abstraction_review,
+            review_status,
         })
     }
 }

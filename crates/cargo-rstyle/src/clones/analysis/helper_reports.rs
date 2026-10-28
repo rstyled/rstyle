@@ -169,6 +169,15 @@ impl Report<'_> {
         })
     }
 
+    pub(in crate::clones) fn review_pair_without_finding(&self, first: &str, second: &str) -> bool {
+        self.pairs.iter().any(|pair| {
+            ((pair.first == first && pair.second == second)
+                || (pair.first == second && pair.second == first))
+                && pair.assessment.execution == Execution::Completed
+                && pair.assessment.outcome == Outcome::EvaluatedNoFinding
+        })
+    }
+
     pub(in crate::clones) fn scope_complete(&self) -> bool {
         self.execution == Execution::Completed && self.coverage == Coverage::Complete
     }

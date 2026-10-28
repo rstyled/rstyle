@@ -77,6 +77,11 @@ impl Index {
         self.query(facts, capabilities::evaluate)
     }
 
+    /// Source-located identity without requiring a positive analysis finding.
+    pub fn review_location(&self, facts: &HirFnFacts) -> Result<(String, &'static str), String> {
+        self.review(facts, |declaration| Ok(review::location(&declaration)))
+    }
+
     pub fn review_dispatch(
         &self,
         facts: &HirFnFacts,

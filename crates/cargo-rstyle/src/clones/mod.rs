@@ -95,6 +95,9 @@ pub struct Args {
     /// Apply versioned reviews for requested abstraction families; lookup never writes.
     #[arg(long, requires = "review_analysis")]
     review_file: Option<PathBuf>,
+    /// Inspect every retained review; omitted or unavailable assessments remain incomplete.
+    #[arg(long, requires = "review_file", conflicts_with = "dismissal")]
+    review_status: bool,
     /// Dismiss these exact saved-run helper endpoints; requires an explicit reason.
     #[arg(long, num_args = 2, requires_all = ["review_file", "review_reason", "replay_run", "helper_proposals"])]
     dismiss_helper_pair: Vec<String>,
@@ -378,6 +381,10 @@ fn analyses_complete(report: &report::Report<'_>) -> bool {
         && report.pair_reports.permits_success()
         && report.review.permits_success()
         && report.abstraction_review.permits_success()
+        && report
+            .review_status
+            .as_ref()
+            .is_none_or(analysis::Completion::permits_success)
 }
 
 fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: usize) -> bool {

@@ -1,5 +1,5 @@
 //! Explicit source-proposal review consumes completed findings, never grants evidence.
-use super::{ReviewStore, local, local_adapter, summary, workflow};
+use super::{ReviewStore, local, local_adapter, status, status_workflow, summary, workflow};
 use crate::clones::analysis::Completion;
 use crate::clones::{Function, FunctionKey, analysis, report};
 use serde::Serialize;
@@ -29,20 +29,20 @@ struct Decision {
     reason: Option<String>,
 }
 
-struct Snapshot {
+pub(super) struct Snapshot {
     family: Family,
     endpoints: Vec<String>,
-    value: Result<local::Snapshot, String>,
+    pub value: Result<local::Snapshot, String>,
 }
 
 pub(super) fn apply(
     inputs: &workflow::Inputs<'_, '_>,
     ctx: &report::Context<'_>,
     store: Option<&mut ReviewStore>,
-) -> Result<Report, String> {
+) -> Result<(Report, Vec<status::Record>), String> {
     let requested = ctx.args.enum_dispatch || ctx.args.capability_proposals;
-    let Some(store) = store.filter(|_| requested) else {
-        return Ok(summarize(Vec::new(), 0, false, false));
+    let Some(store) = store.filter(|_| requested || ctx.args.review_status) else {
+        return Ok((summarize(Vec::new(), 0, false, false), Vec::new()));
     };
 
     let snapshots = snapshots(inputs, ctx);
@@ -53,11 +53,15 @@ pub(super) fn apply(
         .map(|snapshot| decision(snapshot, &checked))
         .collect();
 
-    Ok(summarize(
-        decisions,
-        store.source_entries.len(),
-        true,
-        inputs.dispatch.permits_success() && inputs.capabilities.permits_success(),
+    let records = status_workflow::local_entries(store, &snapshots, inputs, ctx);
+    Ok((
+        summarize(
+            decisions,
+            store.source_entries.len(),
+            requested,
+            inputs.dispatch.permits_success() && inputs.capabilities.permits_success(),
+        ),
+        records,
     ))
 }
 

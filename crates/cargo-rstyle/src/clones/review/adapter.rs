@@ -21,6 +21,20 @@ pub(crate) fn member(
     plan: &capture::Plan,
     policies: Policies<'_>,
 ) -> Result<MemberSnapshot, String> {
+    Ok(MemberSnapshot {
+        key: member_key(facts, unit, plan, policies)?,
+        signature: signature(facts)?,
+        expression: expression(&facts.body, facts, 0, 512)?.value,
+    })
+}
+
+/// Observe declaration/context without requiring a positive helper expression.
+pub(super) fn member_key(
+    facts: &HirFnFacts,
+    unit: &capture::Unit,
+    plan: &capture::Plan,
+    policies: Policies<'_>,
+) -> Result<MemberKey, String> {
     let local = rstyle_pdg::consumer_facts::inspect(facts)?;
     if !matches!(local.source, Availability::Known(_)) {
         return Err("Review requires available exact original source ownership".into());
@@ -49,13 +63,9 @@ pub(crate) fn member(
         declaration_kind: "free-function".into(),
         discriminator: "unique-declaration".into(),
     };
-    Ok(MemberSnapshot {
-        key: MemberKey {
-            locator,
-            context: context(facts, unit, policies.matching, policies.consumer)?,
-        },
-        signature: signature(facts)?,
-        expression: expression(&facts.body, facts, 0, 512)?.value,
+    Ok(MemberKey {
+        locator,
+        context: context(facts, unit, policies.matching, policies.consumer)?,
     })
 }
 

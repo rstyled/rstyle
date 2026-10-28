@@ -42,7 +42,8 @@ Heavy captures and integrated gates run serially.
 | C11c | Evidence + local + lead / typed call observations, leaf summaries, CLI/report and acceptance | delivered (bounded scalar leaf effects) | `c68bcc5` | Caller-visible scalar writes through original same-unit leaves, distinct call events and exact formal mappings | 2,553 nextest tests and doc tests pass; zero style violations and reviewed pattern candidates; exact 15 baseline IDs unchanged; source/tool-free strict replay passes |
 | C10b | Evidence + pair + acceptance + lead / shared declaration index, wrapper witnesses, pairing and CLI/report | delivered (bounded witnessed capabilities) | `0547b2e` | Two-member local capabilities backed by original ordered calls, independent of strict matching; exact local trait suppression | Nineteen independent source cases, six wrapper and eight pairing unit cases, eleven CLI tests; 2,578 full tests, both legacy gates and strict source/tool-free replay pass; broader families and retirement remain open |
 
-| C09b | Evidence + review + acceptance + lead / shared source identity index, typed local review and CLI/report | delivered (source-local dismissal) | this checkpoint | Explicit saved-run dismissal for dispatch and ordered capability findings, independent of graph matching; helper v1 preserved | 34 review unit tests, three source identity tests and 17 review CLI tests pass; 2,598 workspace tests and doc tests pass; both legacy gates clean |
+| C09b | Evidence + review + acceptance + lead / shared source identity index, typed local review and CLI/report | delivered (source-local dismissal) | `78cec55` | Explicit saved-run dismissal for dispatch and ordered capability findings, independent of graph matching; helper v1 preserved | 34 review unit tests, three source identity tests and 17 review CLI tests pass; 2,598 workspace tests and doc tests pass; both legacy gates clean |
+| C09c | Lead + acceptance + contract / retained-entry status, original identities and CLI/report | delivered (bounded whole-store status) | this checkpoint | Explicit whole-store read-only assessment with completed negatives, omitted scopes/families and unavailable evidence distinguished | 12 status/context unit tests and 11 real-Cargo CLI tests; 2,621 workspace tests plus doc tests, both legacy gates and retained live replay pass |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
@@ -551,6 +552,53 @@ The next review frontier is explicit whole-store status for retained entries,
 with an honest distinction between absent findings, omitted scope and changed
 source/context. Broader signatures, caller-aware plans, richer effects, legacy
 compatibility and retirement remain open. Native macOS and exact Go comparison
+remain unverified.
+
+## C09c: retained review status
+
+State: delivered bounded whole-store status; commit: this checkpoint. Lead owns
+read-only whole-store status,
+locator/context adapters, CLI/report integration and gates. Acceptance owns
+source-authored CLI cases; contract review owns status accounting and independent
+context/ambiguity tests. The C09b dismissal checkpoint is `78cec55`.
+
+Explicit `--review-status --review-file` reports one row for every retained helper,
+dispatch and capability review without writing, pruning or migrating stores.
+Current findings retain existing exact/growth/stale behavior. Unmatched reviews
+require uniquely observed endpoints, exact retained contexts and a completed
+negative function/pair assessment before `no_finding`. Omitted families, missing
+endpoints, unsupported evidence, version changes and exhausted budgets cannot
+become false clean negatives. A missing endpoint does not prove deletion.
+
+Source status reuses the checked declaration index; helper status separates
+original locator/context observation from positive expression conversion.
+Unresolved entries share lazy bounded indexes; already exact/stale entries avoid
+that extra work. Reports retain exact values and borrowed proposal comparisons,
+without new hashes or cloned source/graphs. Status is opt-in; its report field is absent when unrequested, and existing
+review reports and exits stay unchanged. Explicit incomplete status exits two. Original
+consumer reports and visible-finding accounting remain separate.
+
+Integrated validation passes: 2,621 nextest tests, five skipped, in 172.900
+seconds, plus doc tests; workspace/all-target Clippy with warnings denied,
+formatting and diff checks pass. Style is clean across 8,791 functions. Reviewed
+patterns has zero candidates; the unfiltered 15 IDs exactly match C09b, without
+new ignores or thresholds. Logs/artifacts use
+`/tmp/clones-review-status-{tests,clippy,style,patterns}-final.*`; independent
+unit/CLI development logs use the same prefix.
+
+Retained live evidence at `/tmp/clones-review-status-live-vf_u0k83/results.json`
+confirms exact status for both source families in full/compact strict replay
+without source, manifest or tools; matching/consumer reports and review-file
+bytes stay unchanged. Eleven CLI cases additionally cover known negatives,
+existing-trait suppression, omitted families/endpoints, old identity versions,
+unsupported helpers, context changes, budgets and schema-1 preservation. Twelve
+unit tests cover status accounting, context selection, ambiguity, member order
+and truncated-index uncertainty. No extraction permissions changed.
+
+Next review frontier is explicit pruning with scope-aware retention and legacy
+ignore/suppression compatibility; broader
+signature consumers, caller-aware plans, effects and selective graph analyses
+remain open. No legacy capability is retired. Native macOS and exact Go comparison
 remain unverified.
 
 ## Hashing exceptions

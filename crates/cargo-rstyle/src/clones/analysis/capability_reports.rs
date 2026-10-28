@@ -199,6 +199,40 @@ pub(in crate::clones) struct Finding<'a> {
 }
 
 impl Report<'_> {
+    /// A known non-wrapper or identical receiver owner is outside the pair population.
+    /// Other negatives require the original completed pair decision, never just two owners.
+    pub(in crate::clones) fn review_pair_without_finding(
+        &self,
+        left: FunctionKey,
+        right: FunctionKey,
+    ) -> bool {
+        if left.unit() != right.unit() {
+            return false;
+        }
+
+        let known = |key| {
+            self.functions
+                .iter()
+                .find(|function| function.key == key)
+                .filter(|function| function.execution == Execution::Completed)
+                .and_then(|function| match &function.evidence.availability {
+                    Availability::Known(wrapper) => Some(wrapper),
+                    _ => None,
+                })
+        };
+        let (Some(first), Some(second)) = (known(left), known(right)) else {
+            return false;
+        };
+        let (Some(first), Some(second)) = (first, second) else {
+            return true;
+        };
+        first.owner == second.owner
+            || self.suppressed.iter().any(|pair| {
+                (pair.left == left && pair.right == right)
+                    || (pair.left == right && pair.right == left)
+            })
+    }
+
     pub(in crate::clones) fn finding_proposals(&self) -> impl Iterator<Item = Finding<'_>> {
         let wrappers: BTreeMap<_, _> = self
             .functions

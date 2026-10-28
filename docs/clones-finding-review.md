@@ -54,11 +54,11 @@ reviewed groups. Exact membership is the default; member loss becomes stale.
 This bounded review capability does not migrate legacy suppressions or dismissals,
 provide automatic rewrites, or satisfy the remaining legacy retirement gates.
 
-Lookup assesses current helper findings. Stored entries with no current helper
-finding remain retained; this release does not provide a separate whole-store
-status/prune command or infer deletion from an unmatched review. The pure
-membership contract tests stale member loss and explicit all-pair growth; live
-helper groups and whole-store changed-scope presentation remain later work.
+Ordinary lookup assesses current helper findings. Stored entries without a
+current finding remain retained. Explicit whole-store status is described below;
+it does not infer deletion or prune entries. The pure membership contract tests
+stale member loss and explicit all-pair growth; live helper groups remain later
+work.
 
 ## Dispatch and ordered capability findings
 
@@ -105,6 +105,56 @@ Helper-only stores keep their schema-1 shape. Adding a dispatch or capability
 review upgrades the envelope to schema 2 with typed `source_entries`; existing
 helper entries are retained unchanged. Schema-1 files remain readable. Neither
 family can hide a different family, and serialized review data grants no current
-source or graph authority. Whole-store status/pruning, legacy ignore migration and
-broader review families remain open. Source reviews are bounded to 4,096 retained
+source or graph authority. Pruning, legacy ignore migration and broader review
+families remain open. Source reviews are bounded to 4,096 retained
 entries and 256 KiB per canonical declaration; exceeding a bound fails explicitly.
+
+## Inspect every retained review
+
+Add `--review-status` to a normal analysis or an explicit saved-run replay:
+
+```sh
+cargo rstyle clones --extraction-profile hir-data-v3 \
+  --replay-run /absolute/path/to/run \
+  --helper-proposals --enum-dispatch --capability-proposals \
+  --review-file reviews.json --review-status
+```
+
+This read-only report includes **every entry in the selected file**, including
+reviews with no current finding. It requires `--review-file` and conflicts with
+dismissal selectors. Request each analysis family you want assessed; an omitted
+family remains explicitly `not_requested`. Missing files mean an empty store and
+are never created. Schema-1 and schema-2 files are not migrated or rewritten.
+
+JSON adds `review_status` (`rstyle.review-status/1`) only when requested. Each
+`records` row retains its family, zero-based index within `entries` or
+`source_entries`, original reason, durable member locators, state and explanation.
+These indices locate rows in this file; they are not persistent finding IDs.
+
+| State | Evidence and meaning |
+| --- | --- |
+| `hidden_exact` / `hidden_growth` | A completed current finding is hidden by this exact retained entry or its explicit helper growth policy. |
+| `stale` | A completed current finding overlaps the retained identity but differs in versions, membership, context or relevant body/roles. |
+| `context_changed` | Every retained endpoint is observed, with at least one present only in a different context; no incomplete identity observations can conceal the original context. |
+| `no_finding` | Endpoints resolve uniquely in their retained context and the relevant function/pair has a completed negative assessment under matching detector/identity versions. Existing-trait suppression is a completed negative. |
+| `not_observed` | An endpoint has no checked identity in the selected capture. Omitted packages/targets, renamed or removed declarations are not distinguished; this is not proof of deletion. |
+| `not_requested` | This entry's detector family was omitted. |
+| `unavailable` | Identity, detector versions, admission, evidence, function/pair assessment or bounded work cannot establish status. |
+
+Captured endpoints alone never prove a negative pair assessment. Helpers absent
+from accepted strict pairs remain unavailable; capability pair budgets and
+unsupported wrapper evidence remain unavailable. Dispatch requires an explicit
+completed negative, not an unsupported or not-applicable result. Status reuses
+completed proposal and detector decisions; it does not run another detector or
+mint source/graph authority. Exact/stale entries do not require a second endpoint
+index. Unresolved entries share lazy report-local identity indexes, bounded to
+4,096 captured owners; exhausting that observation budget cannot establish an
+absent endpoint or changed context. Identities use exact locators and context
+values without additional hashes or graph/source clones.
+
+`assessed_entries` counts exact, growth, stale, context-changed and completed
+negative rows. Other rows leave status coverage incomplete and, when status is
+explicitly requested, exit two. Ordinary invocations keep their existing exits.
+Existing finding reports, review decisions and `--fail-on-findings` counts remain
+unchanged; requesting status does not dismiss findings. Pruning and legacy ignore
+migration are separate future work.

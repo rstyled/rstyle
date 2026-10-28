@@ -89,6 +89,16 @@ fn check_caller(declaration: &CheckedDeclaration<'_>, header: ByteSpan) -> Resul
 }
 
 fn caller(declaration: &CheckedDeclaration<'_>) -> Result<Declaration, String> {
+    let (qualified_name, kind) = location(declaration);
+    Ok(Declaration {
+        qualified_name,
+        kind,
+        source: normalized_caller(declaration)?,
+    })
+}
+
+/// Checked declaration identity even when the detector has no positive proposal.
+pub(super) fn location(declaration: &CheckedDeclaration<'_>) -> (String, &'static str) {
     let header = shapes::function_header(declaration.source, declaration.function);
     let method = declaration.module.review_method(header).ok();
     let (name, kind) = match method {
@@ -96,14 +106,13 @@ fn caller(declaration: &CheckedDeclaration<'_>) -> Result<Declaration, String> {
         None => (declaration.function.sig.ident.to_string(), "free-function"),
     };
 
-    let mut record = record(
-        declaration,
-        &name,
-        kind,
-        shapes::function_range(declaration.source, declaration.function),
-    )?;
-    record.source = normalized_caller(declaration)?;
-    Ok(record)
+    let namespace = &declaration.module.namespace;
+    let qualified = if namespace.is_empty() {
+        format!("crate::{name}")
+    } else {
+        format!("crate::{namespace}::{name}")
+    };
+    (qualified, kind)
 }
 
 fn selection(

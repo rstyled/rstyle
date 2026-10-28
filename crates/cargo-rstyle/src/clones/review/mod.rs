@@ -6,6 +6,8 @@ pub(super) mod local;
 mod local_adapter;
 pub(super) mod local_workflow;
 mod model;
+pub(super) mod status;
+mod status_workflow;
 mod summary;
 pub(super) mod workflow;
 pub(crate) use model::*;

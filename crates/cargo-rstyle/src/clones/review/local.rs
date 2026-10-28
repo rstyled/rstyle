@@ -110,7 +110,7 @@ pub(crate) fn validate_entries(entries: &[Entry]) -> Result<(), Error> {
     Ok(())
 }
 
-fn validate_snapshot(snapshot: &Snapshot) -> Result<(), Error> {
+pub(super) fn validate_snapshot(snapshot: &Snapshot) -> Result<(), Error> {
     let versions = &snapshot.versions;
     if versions.detector.is_empty()
         || [
@@ -265,7 +265,7 @@ fn canonical(values: &[String]) -> bool {
     values.windows(2).all(|pair| pair[0] < pair[1])
 }
 
-fn stale_reason(previous: &Snapshot, current: &Snapshot) -> Option<StaleReason> {
+pub(super) fn stale_reason(previous: &Snapshot, current: &Snapshot) -> Option<StaleReason> {
     if std::mem::discriminant(&previous.proposal) != std::mem::discriminant(&current.proposal) {
         return None;
     }
