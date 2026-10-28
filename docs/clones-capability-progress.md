@@ -1765,7 +1765,7 @@ declared scopes and broader project coverage. No legacy capability is retired;
 native macOS and external Go comparison remain unverified. Main/PR19 is merged
 upstream but has not been incorporated into this feature branch.
 
-## C11m: density comparison and classified external helper propagation
+## C11m: density comparison and classified external helper propagation (`e012dcd`)
 
 A ten-function independently authored density corpus now compares separate
 legacy/new captures under identical effective policy. The shared serial harness
@@ -1829,3 +1829,42 @@ Next ready work includes project-scoped density coverage/quality and changed-sco
 headless baselines. Broader non-scalar effects and advanced anomaly consumers
 remain open; native macOS and external Go comparison remain unverified. No
 legacy capability is retired and upstream PR19 remains outside this branch.
+
+
+## C13b: changed-file density presentation and CI findings
+
+Density now accepts the shared bounded `rstyle.changed-files/1` manifest without
+requiring source rules. Lead owns CLI/configuration, shared path membership,
+report/review integration and docs; an acceptance worker owns the isolated density
+changed-scope tests, and a read-only worker audits selection/completeness boundaries.
+Source rules and density retain independent selected coverage under one manifest.
+Density presentation applies saved numeric reviews before publishing selected
+visible counts. Raw measurements, events, owner rosters, whole-scope totals and
+execution remain intact. Empty selections cannot hide incomplete analysis;
+unknown selected files remain unobserved. Review selection borrows original owner
+paths with a bounded identity roster, so unselected choices cannot be dismissed
+or pruned as completed negatives. No new hash, source read/copy, parsing,
+extraction permission, budget or threshold is introduced.
+
+Eight real-Cargo cases cover selected clean and violating files, raw measurements,
+full/compact source/tool-free replay and changed selection, empty/unknown paths,
+whole-scope budgets and unselected unknown calls, suppression/exclusion, saved
+numeric reviews and unselected pruning protection, combined source/density gates,
+source-only compatibility, and invalid suppression visibility. The review case
+uses the existing root-file/inline-module identity contract; external module
+review identity remains unavailable rather than being relaxed by selection.
+
+The frozen code passes all 3,078 nextest tests (five skipped), including the
+original NonZero regressions and u32 widening composition, plus doc tests. Final
+workspace/all-target Clippy with warnings denied, formatting and diff checks pass.
+Legacy style reports zero violations across 9,399 functions; reviewed patterns
+reports zero visible candidates, with exactly the prior fifteen unfiltered IDs.
+Python comparison/harness tests pass 76/76 and script tests pass 50/50. Logs are
+under `/tmp/clones-density-selection-*`. Initial style findings were resolved by
+extracting bounded owner selection and a shared consumer/selection completion
+check; neither ledger entries nor thresholds changed. This is coverage/workflow
+progress, not a speedup claim.
+
+Next ready work is project-scoped density coverage/quality and saved CI finding
+baselines. Native macOS, external Go comparison, changed-line analysis and legacy
+retirement remain unverified or open. Upstream PR19 is still outside this branch.

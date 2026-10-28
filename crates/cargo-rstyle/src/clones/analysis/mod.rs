@@ -2,7 +2,8 @@
 mod capability_pairs;
 pub(super) mod capability_reports;
 mod changed_file_reports;
-mod changed_scope;
+pub(in crate::clones) use changed_file_reports::selected_file;
+pub(super) mod changed_scope;
 pub(super) mod declaration_indices;
 pub(super) mod dispatch_reports;
 pub(super) mod effect_reports;
@@ -168,8 +169,14 @@ pub(super) struct Config {
     changed_files: Option<changed_scope::Selection>,
 }
 
+impl Config {
+    pub(in crate::clones) fn changed_files(&self) -> Option<&changed_scope::Selection> {
+        self.changed_files.as_ref()
+    }
+}
+
 pub(super) fn configuration(args: &Args) -> Result<Option<Config>, String> {
-    if !args.source_rules && !args.guard_clauses {
+    if !args.source_rules && !args.guard_clauses && args.changed_files.is_none() {
         return Ok(None);
     }
     Ok(Some(Config {
@@ -235,6 +242,7 @@ pub(super) fn evaluate<'a>(
     config: Option<&'a Config>,
     args: &Args,
 ) -> Report<'a> {
+    let config = config.filter(|config| config.source.is_some() || config.guards);
     let limit = args.max_analysis_functions.unwrap_or(usize::MAX);
     let mut functions: Vec<_> = config
         .map(|config| {
@@ -253,7 +261,8 @@ pub(super) fn evaluate<'a>(
     let findings = count(&functions, Outcome::Finding);
     let visible_findings = functions.iter().map(FunctionReport::visible_findings).sum();
     let changed_scope = config
-        .and_then(|config| config.changed_files.as_ref())
+        .filter(|config| config.source.is_some())
+        .and_then(Config::changed_files)
         .map(|selection| {
             changed_file_reports::evaluate(selection, &mut functions, &capture.plan.root)
         });
@@ -558,13 +567,11 @@ fn unavailable(reason: &str) -> LocalFacts<'static> {
 
 impl Report<'_> {
     pub fn permits_success(&self) -> bool {
-        self.execution == Execution::NotRequested
-            || (self.execution == Execution::Completed
-                && self.scope.coverage == Coverage::Complete
-                && self
-                    .changed_scope
-                    .as_ref()
-                    .is_none_or(changed_scope::Report::permits_success))
+        changed_scope::permits_success(
+            self.execution,
+            self.scope.coverage,
+            self.changed_scope.as_ref(),
+        )
     }
 
     pub fn render(&self) -> String {

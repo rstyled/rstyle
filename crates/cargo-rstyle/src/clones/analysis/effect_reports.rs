@@ -1,6 +1,7 @@
 //! Opt-in caller-visible scalar mutation observations, separate from rule budgets.
 mod density;
 mod reviews;
+mod selection;
 pub(in crate::clones) use density::{Settings, configuration};
 pub(in crate::clones) use reviews::Review;
 mod scope;
@@ -24,6 +25,8 @@ pub(crate) struct Report<'a> {
     pub findings: usize,
     pub visible_findings: usize,
     pub review_hidden_findings: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    changed_scope: Option<super::changed_scope::Report<'a>>,
     #[serde(flatten)]
     scope: scope::Summary,
     functions: Vec<FunctionReport<'a>>,
@@ -38,6 +41,8 @@ struct FunctionReport<'a> {
     unit: usize,
     name: &'a str,
     source_file: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    changed_file: Option<bool>,
     fn_span: rstyle_pdg::ByteSpan,
     evidence: effects::Assessment,
     statement_inventory: statement_inventory::Inventory,
@@ -109,6 +114,7 @@ pub(in crate::clones) fn evaluate<'a>(
         findings: 0,
         visible_findings: 0,
         review_hidden_findings: 0,
+        changed_scope: None,
         statement_metric: "rstyle.original-source-statements/1",
         density_metric: "rstyle.static-effect-events/1",
         scope: scope::Summary::new(
@@ -245,9 +251,11 @@ impl<'a> Report<'a> {
     }
 
     pub(in crate::clones) fn permits_success(&self) -> bool {
-        self.scope.execution == Execution::NotRequested
-            || (self.scope.execution == Execution::Completed
-                && self.scope.coverage == Coverage::Complete)
+        super::changed_scope::permits_success(
+            self.scope.execution,
+            self.scope.coverage,
+            self.changed_scope.as_ref(),
+        )
     }
 
     pub(in crate::clones) fn render(&self) -> String {
@@ -261,7 +269,14 @@ impl<'a> Report<'a> {
             self.scope.unavailable_functions,
             self.summaries.len()
         );
+
+        if let Some(scope) = &self.changed_scope {
+            output.push_str(&scope.render_for("density"));
+        }
         for function in &self.functions {
+            if self.changed_scope.is_some() && function.changed_file != Some(true) {
+                continue;
+            }
             if let Some(density) = &function.density {
                 output.push_str(&density.render(
                     function.name,
@@ -343,6 +358,7 @@ fn function_report<'a>(
         unit,
         name: &function.facts.name,
         source_file: super::source_file(function),
+        changed_file: None,
         fn_span: function.facts.fn_span,
         evidence,
         statement_inventory,

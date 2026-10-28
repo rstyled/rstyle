@@ -213,3 +213,26 @@ wrapper remains unavailable. This path reads previously observed, context-checke
 owners and completed nonbudget summary attempts. It does not grant a scalar
 mutation summary or perform more extraction. Per-owner/depth cached kind sets
 are borrowed; source/graph values are not cloned.
+
+
+## Changed-file density findings
+
+Add `--changed-files changed.json` to `--effect-density` to select file-level
+presentation and finding exits. The shared manifest is
+`{"schema":"rstyle.changed-files/1","paths":["src/lib.rs"]}`; paths must be
+normalized workspace-relative Rust files. No Git query or live source lookup
+is needed, including during source/tool-free replay.
+
+`mutation_effects.changed_scope` reports selected-file coverage, matched and
+unavailable owners, and visible findings after saved reviews. Per-owner
+`changed_file` records membership. Whole-scope `findings`, `visible_findings`, raw
+events, measurements, exclusions, suppressions and execution remain available.
+Unknown files and unclassified owners prevent a clean selection. An explicit
+empty selection has complete empty presentation, but cannot hide incomplete
+whole-scope analysis or exhausted budgets. Unselected reviews cannot be dismissed
+or pruned as completed selected negatives.
+
+When source rules and density are requested together, both use the same manifest
+but retain independent coverage and findings. Other consumers' finding exits and
+planning populations retain their existing behavior. Changed-line analysis and
+saved CI finding baselines remain open.

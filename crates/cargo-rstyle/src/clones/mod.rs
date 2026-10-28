@@ -28,6 +28,7 @@ use std::{
 
 #[derive(ClapArgs, Serialize)]
 #[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density"]).multiple(true)),
+    group(clap::ArgGroup::new("changed_analysis").args(["source_rules", "effect_density"]).multiple(true)),
     group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules", "mutation_rules", "effect_density"]).multiple(true)),
     group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density"])),
     group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules", "effect_density"]).multiple(true)))]
@@ -71,8 +72,8 @@ pub struct Args {
     /// Evaluate source length and signature arity independently of graph admission.
     #[arg(long)]
     source_rules: bool,
-    /// JSON workspace-relative changed-file selection for source-rule presentation and finding exits.
-    #[arg(long, requires = "source_rules")]
+    /// JSON workspace-relative changed-file selection for source-rule and density presentation and finding exits.
+    #[arg(long, requires = "changed_analysis")]
     changed_files: Option<PathBuf>,
     /// Suggest bounded guard-clause shapes from original source; advisory only.
     #[arg(long)]
@@ -463,7 +464,7 @@ fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: us
                     .capability_visible_or(report.capability_proposals.findings)
                     > 0
                 || report.mutation_analysis.visible_findings > 0
-                || report.mutation_effects.visible_findings > 0
+                || report.mutation_effects.finding_exit_count() > 0
                 || report
                     .review
                     .visible_or(report.pair_reports.helper_proposals.findings)

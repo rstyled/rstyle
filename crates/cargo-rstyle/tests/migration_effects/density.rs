@@ -1,3 +1,4 @@
+mod changed_scope;
 mod external_helpers;
 use super::*;
 

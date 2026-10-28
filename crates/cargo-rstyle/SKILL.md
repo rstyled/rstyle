@@ -139,7 +139,9 @@ exits. JSON input is `{"schema":"rstyle.changed-files/1","paths":["src/lib.rs"]}
 paths are normalized workspace-relative Rust paths. All assessments and totals
 remain available, with selected counts in `analysis.changed_scope`. Unobserved
 paths and unavailable evidence remain incomplete; whole-scope incompleteness still
-exits two. Other consumers and planning populations remain unchanged. Selection
+exits two. Density can also use the manifest, independently of source rules, with selected
+counts in `mutation_effects.changed_scope` after numeric reviews. Other consumers
+and planning populations retain their existing behavior. Selection
 can be changed during source/tool-free replay; no Git or live source lookup runs.
 See `docs/clones-source-rules.md` for scope and association limitations. Keep both
 legacy style and patterns gates until their capability retirement gates pass.

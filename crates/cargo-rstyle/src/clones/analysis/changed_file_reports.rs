@@ -21,6 +21,16 @@ pub(super) fn evaluate<'a>(
     changed_scope::evaluate(selection, owners)
 }
 
+pub(in crate::clones) fn selected_file(
+    function: &crate::clones::Function,
+    selection: &changed_scope::Selection,
+    root: &Path,
+) -> bool {
+    super::source_file(function)
+        .and_then(|original| checked_path(original, root))
+        .is_some_and(|path| selection.contains(path))
+}
+
 fn source_complete(function: &FunctionReport<'_>) -> bool {
     function
         .assessments
@@ -47,7 +57,7 @@ impl FunctionReport<'_> {
     }
 }
 
-fn checked_path<'a>(original: &'a str, root: &Path) -> Option<&'a str> {
+pub(super) fn checked_path<'a>(original: &'a str, root: &Path) -> Option<&'a str> {
     let root_text = root.to_str()?;
     if original == "/" || !valid_absolute(original) || !valid_absolute(root_text) {
         return None;

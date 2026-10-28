@@ -261,3 +261,9 @@ functions, so the overall requested scope can remain incomplete and exit two.
 `--fail-on-findings` returns one only for complete analysis; failures and incomplete
 coverage take precedence. `--max-analysis-functions` applies to either local
 consumer. Similarity decisions remain independent.
+
+
+The same manifest can independently select `--effect-density` presentation via
+`mutation_effects.changed_scope`. When both consumers are requested, their
+selected coverage and visible findings remain independent; neither selection
+relaxes whole-analysis completeness. See [density reporting](clones-mutation-effects.md).

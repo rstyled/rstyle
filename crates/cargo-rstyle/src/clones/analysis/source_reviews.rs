@@ -21,17 +21,6 @@ impl Hidden {
 }
 
 impl Report<'_> {
-    pub(in crate::clones) fn review_selection(
-        &self,
-    ) -> impl Iterator<Item = (super::super::FunctionKey, bool)> {
-        self.functions.iter().map(|function| {
-            (
-                function.key,
-                self.changed_scope.is_none() || function.changed_file == Some(true),
-            )
-        })
-    }
-
     pub(in crate::clones) fn spacing_policy(&self) -> Option<usize> {
         self.effective_config
             .as_ref()

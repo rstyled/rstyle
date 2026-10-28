@@ -52,7 +52,7 @@ impl<'a> Consumers<'a> {
         }
         .apply(ctx)?;
         mutation.hide_reviewed(&reviews.mutations);
-        effects.hide_reviewed(&reviews.density);
+        ctx.present_effects(&mut effects, &reviews.density);
         let source_reviews = SourceReviews::apply(reviews.sources, ctx.args, &mut analysis);
         Ok(Self {
             pairs,
@@ -92,5 +92,20 @@ impl NumericReviews {
             mutation_review,
             density_review,
         }
+    }
+}
+
+impl<'a> Context<'a> {
+    fn present_effects(
+        &self,
+        effects: &mut analysis::effect_reports::Report<'a>,
+        reviews: &review::density_workflow::Report,
+    ) {
+        effects.hide_reviewed(reviews);
+        effects.select_changed(
+            self.analysis_config
+                .and_then(analysis::Config::changed_files),
+            &self.capture.plan.root,
+        );
     }
 }

@@ -1,5 +1,5 @@
-//! Changed files select source-rule presentation; they never grant source evidence.
-use super::Coverage;
+//! Changed files select consumer presentation; they never grant source evidence.
+use super::{Coverage, Execution};
 use serde::{Deserialize, Serialize};
 use std::{fs::File, io::Read, path::Path};
 
@@ -9,7 +9,7 @@ const MAX_PATHS: usize = 4096;
 const MAX_PATH_BYTES: usize = 4096;
 
 #[derive(Debug)]
-pub(super) struct Selection {
+pub(in crate::clones) struct Selection {
     paths: Vec<String>,
 }
 
@@ -181,14 +181,30 @@ fn include_owners<'a>(
     unclassified
 }
 
+/// Selected presentation cannot establish completion for an incomplete consumer.
+pub(super) fn permits_success(
+    execution: Execution,
+    coverage: Coverage,
+    selection: Option<&Report<'_>>,
+) -> bool {
+    execution == Execution::NotRequested
+        || (execution == Execution::Completed
+            && coverage == Coverage::Complete
+            && selection.is_none_or(Report::permits_success))
+}
+
 impl Report<'_> {
     pub fn permits_success(&self) -> bool {
         self.coverage == Coverage::Complete
     }
 
     pub fn render(&self) -> String {
+        self.render_for("source rules")
+    }
+
+    pub(super) fn render_for(&self, consumer: &str) -> String {
         let mut output = format!(
-            "\nChanged-file source rules: {:?} coverage; {} selected files, {} visible findings; {} unclassified functions.",
+            "\nChanged-file {consumer}: {:?} coverage; {} selected files, {} visible findings; {} unclassified functions.",
             self.coverage,
             self.paths.len(),
             self.visible_findings,

@@ -207,6 +207,11 @@ impl Report {
         }
     }
 
+    pub(super) fn presented_findings(&self) -> usize {
+        self.visible_findings
+            .saturating_sub(usize::from(self.review_hidden))
+    }
+
     pub(super) fn hide_reviewed(&mut self, hidden: bool) -> usize {
         self.review_hidden = hidden;
         usize::from(

@@ -127,7 +127,7 @@ pub(super) fn collect_selected<'s, S: Source, R: NumericObservation>(
     ctx: &report::Context<'_>,
     mut row: impl FnMut(S::Review<'s>, bool, Result<Identity, String>) -> R,
 ) -> Observations<R> {
-    let selected: BTreeMap<_, _> = inputs.analysis.review_selection().collect();
+    let selected = selected_owners(ctx);
     let collected = collect(
         source.reviews().map(|source| {
             let key = S::key(&source);
@@ -153,6 +153,27 @@ pub(super) fn collect_selected<'s, S: Source, R: NumericObservation>(
         requested: S::requested(ctx.args),
         complete: source.complete(),
     }
+}
+
+fn selected_owners(ctx: &report::Context<'_>) -> BTreeMap<FunctionKey, bool> {
+    ctx.handoff
+        .assessed
+        .iter()
+        .take(MAX_IDENTITIES)
+        .map(|function| {
+            let selected = ctx
+                .analysis_config
+                .and_then(crate::clones::analysis::Config::changed_files)
+                .is_none_or(|selection| {
+                    crate::clones::analysis::selected_file(
+                        function,
+                        selection,
+                        &ctx.capture.plan.root,
+                    )
+                });
+            (function.key, selected)
+        })
+        .collect()
 }
 
 impl Source for crate::clones::analysis::effect_reports::Report<'_> {
