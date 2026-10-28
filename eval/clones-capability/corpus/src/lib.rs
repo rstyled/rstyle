@@ -1,6 +1,7 @@
 //! Source-authored acceptance cases; labels are independent of detector output.
 
 pub mod excluded;
+pub mod spacing;
 
 pub mod source_rules {
     pub fn length_at_limit(value: u32) -> u32 {

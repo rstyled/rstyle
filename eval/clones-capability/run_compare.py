@@ -63,12 +63,14 @@ def fixture_policy(policy):
     configured = tomllib.loads(policy.read_text())
     expected = {"exclude": FIXTURE_EXCLUDES,
                 "fn_length": {"max_lines": 5},
-                "fn_params": {"max_params": 4, "count_self": False}}
+                "fn_params": {"max_params": 4, "count_self": False},
+                "fn_spacing": {"min_statements": 5}}
     if configured != expected:
         raise ValueError("runner expects fixed acceptance source-rule policy, including exclusions")
     return {"max_lines": configured["fn_length"]["max_lines"],
             "max_params": configured["fn_params"]["max_params"],
             "count_self": configured["fn_params"]["count_self"],
+            "min_statements": configured["fn_spacing"]["min_statements"],
             "exclude": configured["exclude"]}
 
 
@@ -104,6 +106,12 @@ def commands(binary, manifest, policy):
     return old, new
 
 
+def fixture_inputs(manifest, policy, lockfile):
+    return (manifest, policy, lockfile, HERE / "expectations.json",
+            manifest.parent / "src/lib.rs", manifest.parent / "src/excluded.rs",
+            manifest.parent / "src/spacing.rs")
+
+
 def run(args):
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -131,7 +139,7 @@ def run(args):
     capture(output, "cargo", ["cargo", "--version"], env, 10)
     snapshots = output / "inputs"
     snapshots.mkdir()
-    for source in (manifest, policy, lockfile, HERE / "expectations.json", manifest.parent / "src/lib.rs", manifest.parent / "src/excluded.rs"):
+    for source in fixture_inputs(manifest, policy, lockfile):
         target = snapshots / source.relative_to(HERE)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)

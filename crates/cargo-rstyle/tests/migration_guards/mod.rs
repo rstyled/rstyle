@@ -13,6 +13,12 @@ fn guard_workspace() -> TempDir {
     )
     .unwrap();
 
+    std::fs::write(
+        directory.path().join("src/spacing.rs"),
+        include_str!("../../../../eval/clones-capability/corpus/src/spacing.rs"),
+    )
+    .unwrap();
+
     directory
 }
 

@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from run_compare import FIXTURE_EXCLUDES, commands, controlled_environment, fixture_policy, roster
+from run_compare import FIXTURE_EXCLUDES, commands, controlled_environment, fixture_inputs, fixture_policy, roster
 
 
 class RunnerTests(unittest.TestCase):
@@ -78,15 +78,28 @@ class RunnerTests(unittest.TestCase):
             self.assertEqual(result[0]['source_file'], 'src/excluded.rs')
             self.assertEqual(result[0]['name'], 'excluded::over_both_limits')
 
+    def test_snapshots_include_every_fixture_module_and_fixed_policy(self):
+        directory = Path(__file__).resolve().parent
+        manifest = directory / 'corpus/Cargo.toml'
+        inputs = fixture_inputs(manifest, directory / 'analysis.toml', manifest.with_name('Cargo.lock'))
+        modules = {path.name for path in inputs if path.suffix == '.rs'}
+        self.assertEqual(modules, {'lib.rs', 'excluded.rs', 'spacing.rs'})
+        self.assertTrue(all(path.is_file() for path in inputs))
+        self.assertIn(directory / 'expectations.json', inputs)
+        self.assertIn(directory / 'analysis.toml', inputs)
+
     def test_fixture_policy_rejects_exclusion_drift(self):
         with tempfile.TemporaryDirectory() as directory:
             policy = Path(directory) / 'analysis.toml'
             fixed = Path(__file__).with_name('analysis.toml').read_text()
             policy.write_text(fixed)
             self.assertEqual(fixture_policy(policy)['exclude'], FIXTURE_EXCLUDES)
+            self.assertEqual(fixture_policy(policy)['min_statements'], 5)
             for changed in (fixed.replace('"src/excluded.rs"', '"src/other.rs"'),
                             fixed.replace('"target/**", ', ''),
-                            fixed.replace('max_lines = 5', 'max_lines = 6')):
+                            fixed.replace('max_lines = 5', 'max_lines = 6'),
+                            fixed.replace('min_statements = 5', 'min_statements = 4'),
+                            fixed.replace('[fn_spacing]\nmin_statements = 5\n', '')):
                 policy.write_text(changed)
                 with self.assertRaises(ValueError):
                     fixture_policy(policy)

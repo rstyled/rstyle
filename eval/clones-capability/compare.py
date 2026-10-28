@@ -4,7 +4,9 @@ import argparse
 import json
 from pathlib import Path
 
-RULES = {"length": "fn_length", "parameter_count": "fn_params"}
+RULES = {"length": "fn_length", "parameter_count": "fn_params", "spacing": "fn_spacing"}
+MEASURES = {"length": "code_lines", "parameter_count": "parameters", "spacing": "top_statements"}
+POLICIES = {"length": "max_lines", "parameter_count": "max_params", "spacing": "min_statements"}
 CONTEXT_FIELDS = ("manifest", "package", "target", "features", "profile", "toolchain", "revision", "policy")
 
 
@@ -85,7 +87,7 @@ def source_exclusion(function):
     return {"status": status, "excluded": status == "excluded", "path": path}, None
 
 
-def new_assessment(report, name, rule):
+def new_assessment(report, name, rule, disabled=False):
     analysis = report.get("analysis", {})
     if analysis.get("schema") != "rstyle.consumer-analysis/1":
         return None, None, None, "new analysis schema missing or unsupported"
@@ -112,6 +114,15 @@ def new_assessment(report, name, rule):
                 or type(assessment.get("limit")) is not int or assessment["limit"] < 0):
             return assessment, None, exclusion, "new excluded assessment contradicts complete policy skip"
         return assessment, None, exclusion, None
+    if disabled:
+        if (assessment.get("availability") != "not_applicable"
+                or assessment.get("coverage") != "complete"
+                or "actual" not in assessment or assessment["actual"] is not None
+                or not nonnegative_integer(assessment.get("limit"))
+                or "outcome" not in assessment):
+            return assessment, None, exclusion, "new disabled assessment has unavailable or malformed policy evidence"
+        suppression, error = source_suppression(function, rule)
+        return assessment, suppression, exclusion, error
     if (assessment.get("outcome") == "not_evaluated"
             or assessment.get("availability") != "known"
             or assessment.get("coverage") != "complete"):
@@ -142,62 +153,93 @@ def source_suppression(function, rule):
             and rule in rules}, None
 
 
+def nonnegative_integer(value):
+    return type(value) is int and value >= 0
+
+
+def rule_policy(expectations, label):
+    value = expectations["scope"]["policy"].get(POLICIES[label])
+    if not nonnegative_integer(value):
+        return None, False, "independent rule policy missing or malformed"
+    limit = max(value - 1, 0) if label == "spacing" else value
+    return limit, label == "spacing" and value == 0, None
+
+
+def measured_comparison(row, case, current, suppression, old, label, limit):
+    actual = case.get(MEASURES[label])
+    if not all(nonnegative_integer(value) for value in (actual, current.get("actual"), current.get("limit"))):
+        row.update(classification="uncovered", reasons=["numeric measurement or independent count missing or malformed"])
+        return
+    visible = "evaluated_no_finding" if suppression["permitted"] else current["outcome"]
+    row["new_visible_outcome"] = visible
+    if (current["outcome"] != row["expected"] or current["actual"] != actual or current["limit"] != limit):
+        row.update(classification="actual-regression", reasons=["new assessment contradicts independent label/count/policy"])
+    elif suppression["permitted"] != row["expected_suppressed"]:
+        row.update(classification="actual-regression", reasons=["new suppression contradicts independent suppression label"])
+    elif (old["outcome"] == visible and (old["outcome"] != "finding"
+          or (nonnegative_integer(old.get("actual")) and nonnegative_integer(old.get("limit"))
+              and old["actual"] == actual and old["limit"] == limit))):
+        row.update(classification="evaluated-agreement", reasons=[])
+    elif case.get("reviewed_improvements", {}).get(row["rule_id"]):
+        row.update(classification="intentional-improvement", reasons=[case["reviewed_improvements"][row["rule_id"]]])
+    else:
+        row.update(classification="unreviewed-disagreement", reasons=["new matches labels; legacy disagreement requires explicit review"])
+
+
+def disabled_comparison(row, current, suppression, old):
+    row["new_visible_outcome"] = "evaluated_no_finding"
+    if (current["outcome"] != "evaluated_no_finding" or current["limit"] != 0
+            or row["expected"] != "evaluated_no_finding"):
+        row.update(classification="actual-regression", reasons=["disabled rule contradicts independent policy"])
+    elif suppression["permitted"] != row["expected_suppressed"]:
+        row.update(classification="actual-regression", reasons=["new suppression contradicts independent suppression label"])
+    elif old["outcome"] != "evaluated_no_finding":
+        row.update(classification="uncovered", reasons=["disabled legacy rule must have complete clean assessment"])
+    else:
+        row.update(classification="policy-disabled-agreement", reasons=[])
+
+
 def compare(legacy, new, expectations, scope):
     errors = context_errors(legacy, new, expectations, scope)
     rows = []
     for case in expectations["source_cases"]:
         for label, rule in RULES.items():
+            if label == "spacing" and label not in case:
+                continue
+            limit, disabled, policy_error = rule_policy(expectations, label)
             row = {"function": case["function"], "rule_id": rule, "expected": normalized(case[label])}
             if errors:
                 row.update(classification="context-mismatch", reasons=errors)
                 rows.append(row)
                 continue
             old, old_error = legacy_assessment(legacy, scope["legacy"], case["function"], rule)
-            current, suppression, exclusion, current_error = new_assessment(new, case["function"], rule)
+            current, suppression, exclusion, current_error = new_assessment(new, case["function"], rule, disabled)
             # Labels describe permission; aggregate hidden-finding counts are not labels.
             row.update(legacy=old, new=current, source_suppression=suppression,
                        source_exclusion=exclusion, expected_excluded=case.get("excluded", False),
                        expected_suppressed=rule in case.get("suppressed_rules", []))
-            if old_error or current_error:
-                row.update(classification="uncovered", reasons=[reason for reason in (old_error, current_error) if reason])
+            if old_error or current_error or policy_error:
+                row.update(classification="uncovered", reasons=[reason for reason in (old_error, current_error, policy_error) if reason])
             elif not isinstance(row["expected_excluded"], bool):
                 row.update(classification="uncovered", reasons=["independent exclusion label malformed"])
             elif (old.get("excluded", False) != row["expected_excluded"]
                   or exclusion["excluded"] != row["expected_excluded"]):
                 row.update(classification="actual-regression", reasons=["exclusion contradicts independent policy label"])
             elif row["expected_excluded"]:
-                limit = expectations["scope"]["policy"]["max_lines" if label == "length" else "max_params"]
                 if current.get("limit") != limit:
                     row.update(classification="actual-regression", reasons=["excluded rule limit contradicts independent policy"])
                 else:
                     row.update(classification="policy-excluded-agreement", reasons=[])
+            elif disabled:
+                disabled_comparison(row, current, suppression, old)
             else:
-                visible_outcome = ("evaluated_no_finding" if suppression["permitted"]
-                                   else current["outcome"])
-                row["new_visible_outcome"] = visible_outcome
-                expected_actual = case["code_lines" if label == "length" else "parameters"]
-                expected_limit = expectations["scope"]["policy"]["max_lines" if label == "length" else "max_params"]
-                correct = (current["outcome"] == row["expected"]
-                           and current.get("actual") == expected_actual
-                           and current.get("limit") == expected_limit)
-                if not correct:
-                    row.update(classification="actual-regression", reasons=["new assessment contradicts independent label/count/policy"])
-                elif suppression["permitted"] != row["expected_suppressed"]:
-                    row.update(classification="actual-regression", reasons=["new suppression contradicts independent suppression label"])
-                elif (old["outcome"] == visible_outcome
-                      and (old["outcome"] != "finding"
-                           or (old.get("actual") == expected_actual and old.get("limit") == expected_limit))):
-                    row.update(classification="evaluated-agreement", reasons=[])
-                elif case.get("reviewed_improvements", {}).get(rule):
-                    row.update(classification="intentional-improvement", reasons=[case["reviewed_improvements"][rule]])
-                else:
-                    row.update(classification="unreviewed-disagreement", reasons=["new matches labels; legacy disagreement requires explicit review"])
+                measured_comparison(row, case, current, suppression, old, label, limit)
             rows.append(row)
     counts = {key: sum(row["classification"] == key for row in rows) for key in sorted({row["classification"] for row in rows})}
     return {"schema": "rstyle.clones-capability.comparison/1", "context": scope, "counts": counts,
             "rows": rows, "limitations": ["Source/signature rules only; strict pairs do not score abstraction proposals.",
-                                          "Invalid-suppression diagnostics are outside the two measured source-rule comparisons.",
-                                          "Policy-excluded agreement checks declared skips, not source measurements.",
+                                          "Invalid-suppression diagnostics are outside the measured source-rule comparisons.",
+                                          "Policy-excluded and policy-disabled agreements check policy results, not source measurements.",
                                           "Scope sidecar is an explicit operator declaration, not compiler evidence."]}
 
 
@@ -217,7 +259,7 @@ def main():
             report["scope"]["manifest_path"] = str(Path(manifest).resolve())
     result = compare(*inputs)
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
-    return int(any(row["classification"] not in ("evaluated-agreement", "intentional-improvement", "policy-excluded-agreement") for row in result["rows"]))
+    return int(any(row["classification"] not in ("evaluated-agreement", "intentional-improvement", "policy-excluded-agreement", "policy-disabled-agreement") for row in result["rows"]))
 
 
 if __name__ == "__main__":

@@ -54,8 +54,10 @@ keeps the requested overall scope incomplete. Statement work runs only when
 spacing is enabled and uses one indexed byte-position table, with no new hashes,
 file reads, graph copies or second parse. Saved-run replay can enable or change
 spacing policy without original source files or tools. The independent comparison
-adapter currently scores only length/parameters; spacing has dedicated real-source
-acceptance tests and is outside that adapter's measurement denominator.
+adapter scores spacing only for independently labeled cases, using the direct
+count and authored blank-line outcome. Disabled and excluded policy agreement
+remain separate from measured agreement; historical length/arity cases retain
+their original denominator.
 
 The JSON `analysis` object separates execution, scope coverage, fact availability
 and each rule's outcome. Every assessed function has its report-local key, name,

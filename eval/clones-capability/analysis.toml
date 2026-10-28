@@ -6,3 +6,6 @@ max_lines = 5
 [fn_params]
 max_params = 4
 count_self = false
+
+[fn_spacing]
+min_statements = 5

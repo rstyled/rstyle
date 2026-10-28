@@ -12,11 +12,27 @@ results. They include ordered subtraction, opaque calls, usefulness boundaries,
 nontransitive pair relationships, movement, body edits and exact-key collision
 isolation. Their delivery gate requires real consumer execution and lifecycle tests.
 
-`expectations.json` labels six source/signature cases, one strict pair and one
+`expectations.json` labels twelve source/signature cases, one strict pair and one
 negative abstraction case. Length counts the entire function, including its
 signature and closing brace, excluding blank/comment-only lines. The test policy
 is five code lines and four parameters, with `self` excluded. Exactly-at-limit
 cases are clean; a value strictly greater than the limit produces a finding.
+
+Spacing is scored only when a case explicitly declares `spacing` and
+`top_statements`; historical length/arity-only cases retain their denominator.
+Its policy is `min_statements = 5`, with a reported limit of four. Five direct
+statements without a blank line produce a finding; a blank line makes the same
+count clean. Nested statements do not increase the direct count. The six spacing
+examples cover four/five statements, blank lines, a nested closure, a multiline
+initializer and named suppression. Independent outcomes are authored separately
+from counts because counts alone do not establish blank-line policy.
+
+An explicit zero minimum disables spacing. Comparison requires a complete
+`not_applicable`, null-count, zero-limit clean assessment, a complete clean legacy
+assessment and matching suppression permission. This is
+`policy-disabled-agreement`, never measured agreement. Exclusion takes precedence.
+Missing policy, count, incomplete or malformed evidence is uncovered; contradictory
+known measurements or policy outcomes are regressions.
 
 The closure in `unsupported_body_parameters` deliberately excludes strict graph
 analysis while leaving complete source and five explicit parameters available.
@@ -59,13 +75,13 @@ report entries are not automatically evaluated-no-finding. A complete input
 assessment and explicit denominator are required for a clean result.
 
 Source cases may declare `suppressed_rules`, a list of independently expected
-source-rule permissions (omitted means none). Raw length/arity outcomes and counts
+source-rule permissions (omitted means none). Raw source-rule outcomes and counts
 remain the measurement labels. Comparison separately checks the captured
 permission and compares the visible outcome with legacy diagnostics; suppression
 cannot excuse a wrong measurement. Missing suppression evidence is uncovered.
 Historical reports without a suppression field are treated as unsuppressed.
 Invalid-suppression diagnostics are validated by CLI acceptance, outside this
-two-rule measurement comparator.
+measurement comparator.
 
 Source cases may also declare `excluded: true` (omitted means false). This checks
 workspace path policy, separately from measured agreement. The legacy scope
@@ -95,7 +111,7 @@ python3 eval/clones-capability/compare.py \
   --expectations eval/clones-capability/expectations.json \
   --scope /tmp/clones-capability-scope.json \
   --output /tmp/clones-capability-comparison.json
-python3 -m unittest discover -s eval/clones-capability -p test_compare.py
+python3 -m unittest discover -s eval/clones-capability -p 'test_*.py'
 ```
 
 For repeatable live comparison, first build the pinned workspace binaries, then
@@ -158,12 +174,13 @@ so multiple compilation contexts are never silently merged. Compare one declared
 context at a time.
 
 Output rows distinguish `uncovered`, `context-mismatch`, `evaluated-agreement`,
-`actual-regression`, `policy-excluded-agreement`, and `unreviewed-disagreement`. `intentional-improvement`
+`actual-regression`, `policy-excluded-agreement`, `policy-disabled-agreement`,
+and `unreviewed-disagreement`. `intentional-improvement`
 requires a source-case `reviewed_improvements` map from rule ID to review reason;
 the initial labels have no such entries. A new result must match the independent
 outcome, actual measure and configured limit before it can count as measured agreement or
-improvement. Exit status is zero only when every row has measured or policy-excluded
-agreement, or a reviewed improvement. This adapter assesses source rules only; pair and abstraction quality
+improvement. Exit status is zero only when every row has measured agreement,
+explicit excluded/disabled policy agreement, or a reviewed improvement. This adapter assesses source rules only; pair and abstraction quality
 need their own consumers and are deliberately excluded from its denominators.
 
 `enum-dispatch-cases.json` freezes nine local dispatch requirements. It includes

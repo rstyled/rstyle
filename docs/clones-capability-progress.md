@@ -50,7 +50,8 @@ Heavy captures and integrated gates run serially.
 | C04c | Contract + policy + acceptance + lead / shared glob matcher, captured path decisions and source reports | delivered (workspace path exclusions) | `b65f15c` | Default/configured exclusions with explicit complete skipped rows, independent guard coverage and source-free policy reevaluation | Four matcher, six decision and seven CLI cases; checkpoint evidence below |
 | C05b | Acceptance + runner + lead / independent exclusion labels and comparison | delivered (bounded exclusion comparison) | `6958b92` | Separate policy-excluded agreement from measured source-rule agreement; retain excluded legacy roster and context | 38 independent Python tests and live frozen-corpus comparison; checkpoint evidence below |
 
-| C04d | Evidence + policy + acceptance + lead / direct statement view, shared spacing predicate and opt-in source policy | delivered (bounded spacing) | this checkpoint | Original source spacing independent of strict matching, explicit unsupported transformations and source-free policy reevaluation | Focused tests and integrated checkpoint evidence below |
+| C04d | Evidence + policy + acceptance + lead / direct statement view, shared spacing predicate and opt-in source policy | delivered (bounded spacing) | `0e7234e` | Original source spacing independent of strict matching, explicit unsupported transformations and source-free policy reevaluation | Focused tests and integrated checkpoint evidence below |
+| C05c | Acceptance + runner + lead / spacing corpus, comparator and independent labels | delivered (bounded spacing comparison) | this checkpoint | Optional independently labeled spacing measurements, explicit disabled-policy agreement and three-rule exclusion checks | 56 Python tests, live serial comparison and integrated checkpoint evidence below |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
@@ -793,3 +794,35 @@ Next ready work is independent spacing comparison labels/live legacy comparison
 for the supported statement scope, followed by the next caller-aware planning
 intent. Macro/cfg/async expansion handling requires its own evidence work rather
 than treating source AST length as a compiler statement count.
+
+
+## C05c: independent spacing comparison
+
+The comparator scores spacing only for explicit independent labels, retaining
+historical length/arity-only denominators. Six frozen examples separate direct
+counts from physical lines, nested work and blank-line policy. Suppression checks
+raw measurements before comparing visible diagnostics. Exclusion skips all three
+requested rules. Zero minimum requires complete null-count/not-applicable policy
+results and complete clean legacy scope; `policy-disabled-agreement` is separate
+from measured agreement. Malformed numeric values (including booleans), missing
+policy/counts, duplicate owners/rules, unsupported evidence and exhausted work
+remain uncovered. The serial runner freezes spacing policy and snapshots the
+additional source module; guard acceptance copies the same module.
+
+All 56 independent Python tests pass. A fresh serial legacy/new capture at
+`/tmp/clones-spacing-comparison-live-20261028` reports 28 measured agreements and
+three policy-excluded agreements. Six spacing measurements agree, including a
+raw suppressed finding and a high-count blank-line clean case. Artifacts retain
+the dirty fixture snapshot and exact prebuilt executable metadata. This provides
+bounded native Linux comparison, not project-scale quality or exact Go parity.
+
+The integrated checkpoint passes all 2,689 workspace tests (five skipped) in
+175.707 seconds plus doc tests; workspace/all-target Clippy, formatting and diff
+checks pass. Legacy style reports zero violations across 8,830 functions and
+reviewed patterns passes. All 15 unfiltered candidate IDs are unchanged from
+`0e7234e`. Logs use `/tmp/clones-spacing-comparison-{tests,clippy,style,patterns}.*`
+and `/tmp/clones-spacing-comparison-patterns-unfiltered.*`.
+
+Caller-aware parameter intents are the next ready planning work: retain witnessed exact call
+regions while reporting caller census completeness separately; current direct
+call observations cannot establish absence of callers hidden by opaque work.
