@@ -11,11 +11,12 @@ mod local_scope;
 pub(super) mod mutation_reports;
 mod pair_differences;
 pub(super) mod pair_reports;
+mod source_exclusions;
 mod source_rules;
 mod source_suppressions;
 
 use super::{Args, Function, Handoff, capture};
-use rstyle_core::config::{Config as SourcePolicy, FnLengthConfig, FnParamsConfig};
+use rstyle_core::config::{Config as SourcePolicy, Excludes, FnLengthConfig, FnParamsConfig};
 use rstyle_pdg::consumer_facts::{Availability, LocalFacts};
 use serde::{Deserialize, Serialize};
 
@@ -77,7 +78,8 @@ pub struct Scope {
     pub expected_functions: Option<usize>,
     pub evaluated_rules: usize,
     pub unavailable_rules: usize,
-    pub unavailable_source_suppressions: usize,
+    #[serde(flatten)]
+    source: SourceScope,
     pub reasons: Vec<String>,
 }
 
@@ -89,7 +91,7 @@ pub struct Report<'a> {
     pub findings: usize,
     pub visible_findings: usize,
     pub suppressed_findings: usize,
-    effective_config: Option<Settings>,
+    effective_config: Option<Settings<'a>>,
     limitations: &'static [&'static str],
     functions: Vec<FunctionReport<'a>>,
 }
@@ -106,11 +108,14 @@ struct FunctionReport<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     source_suppression: Option<source_suppressions::Report>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    source_exclusion: Option<source_exclusions::Report>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     guard_clause: Option<guards::GuardAssessment>,
 }
 
 #[derive(Serialize)]
-struct Settings {
+struct Settings<'a> {
+    exclude: &'a [String],
     max_lines: usize,
     max_params: usize,
     count_self: bool,
@@ -119,12 +124,13 @@ struct Settings {
 #[derive(Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 struct SourceConfig {
+    exclude: Excludes,
     fn_length: FnLengthConfig,
     fn_params: FnParamsConfig,
 }
 
 pub(super) struct Config {
-    source: Option<SourcePolicy>,
+    source: Option<ConfiguredSource>,
     guards: bool,
 }
 
@@ -138,7 +144,12 @@ pub(super) fn configuration(args: &Args) -> Result<Option<Config>, String> {
     }))
 }
 
-fn source_policy(args: &Args) -> Result<SourcePolicy, String> {
+struct ConfiguredSource {
+    rules: SourcePolicy,
+    exclusions: rstyle_core::exclusions::Matcher,
+}
+
+fn source_policy(args: &Args) -> Result<ConfiguredSource, String> {
     let local: SourceConfig = match &args.analysis_config {
         Some(path) => {
             let text = std::fs::read_to_string(path)
@@ -147,17 +158,20 @@ fn source_policy(args: &Args) -> Result<SourcePolicy, String> {
         }
         None => SourceConfig::default(),
     };
-    Ok(SourcePolicy {
+    let rules = SourcePolicy {
+        exclude: local.exclude,
         fn_length: local.fn_length,
         fn_params: local.fn_params,
         ..SourcePolicy::default()
-    })
+    };
+    let exclusions = rstyle_core::exclusions::Matcher::compile(&rules.exclude.0)?;
+    Ok(ConfiguredSource { rules, exclusions })
 }
 
 pub(super) fn evaluate<'a>(
     handoff: &'a Handoff,
     capture: &capture::Capture,
-    config: Option<&Config>,
+    config: Option<&'a Config>,
     args: &Args,
 ) -> Report<'a> {
     let limit = args.max_analysis_functions.unwrap_or(usize::MAX);
@@ -167,7 +181,9 @@ pub(super) fn evaluate<'a>(
                 .assessed
                 .iter()
                 .enumerate()
-                .map(|(index, function)| assess(function, config, index >= limit))
+                .map(|(index, function)| {
+                    assess(function, config, index >= limit, &capture.plan.root)
+                })
                 .collect()
         })
         .unwrap_or_default();
@@ -186,14 +202,15 @@ pub(super) fn evaluate<'a>(
         effective_config: config
             .and_then(|config| config.source.as_ref())
             .map(|config| Settings {
-                max_lines: config.fn_length.max_lines,
-                max_params: config.fn_params.max_params,
-                count_self: config.fn_params.count_self,
+                exclude: &config.rules.exclude.0,
+                max_lines: config.rules.fn_length.max_lines,
+                max_params: config.rules.fn_params.max_params,
+                count_self: config.rules.fn_params.count_self,
             }),
         limitations: &[
             "Source rules do not establish body effects or refactoring safety.",
             "Length uses the legacy code-line policy, including its string/comment limitations.",
-            "Source rules honor captured legacy length/parameter suppressions; exclusions and review ledgers remain separate.",
+            "Source rules honor configured workspace path exclusions and captured named source suppressions; review ledgers remain separate.",
             "Guard opportunities are bounded syntactic advice; review conditions, lifetimes and drops before editing.",
         ],
         functions,
@@ -213,16 +230,14 @@ fn scope(
         .cloned()
         .collect();
     let expected_functions = reasons.is_empty().then_some(handoff.assessed.len());
-    let unavailable_rules = count(functions, Outcome::NotEvaluated);
-    let unavailable_source_suppressions = unavailable_source_suppressions(functions);
+    let source = source_scope(functions);
+    let unavailable_rules = count(functions, Outcome::NotEvaluated) - source.excluded_rules;
     if unavailable_rules > 0 {
         reasons.push(
             "Some requested rules could not be evaluated; see per-function evidence reasons".into(),
         );
     }
-    if unavailable_source_suppressions > 0 {
-        reasons.push("Some source suppression observations are unavailable".into());
-    }
+    source.add_reasons(&mut reasons);
     let complete = requested
         && reasons.is_empty()
         && functions
@@ -245,17 +260,69 @@ fn scope(
         evaluated_rules: count(functions, Outcome::Finding)
             + count(functions, Outcome::EvaluatedNoFinding),
         unavailable_rules,
-        unavailable_source_suppressions,
+        source,
         reasons,
     }
 }
 
-fn unavailable_source_suppressions(functions: &[FunctionReport<'_>]) -> usize {
+#[derive(Debug, Default, Serialize)]
+struct SourceScope {
+    unavailable_source_suppressions: usize,
+    unavailable_source_exclusions: usize,
+    excluded_source_functions: usize,
+    excluded_rules: usize,
+}
+
+fn source_scope(functions: &[FunctionReport<'_>]) -> SourceScope {
     functions
         .iter()
-        .filter_map(|function| function.source_suppression.as_ref())
-        .filter(|suppression| !suppression.complete())
-        .count()
+        .fold(SourceScope::default(), |mut scope, function| {
+            scope.unavailable_source_suppressions += usize::from(
+                function
+                    .source_suppression
+                    .as_ref()
+                    .is_some_and(|value| !value.complete()),
+            );
+            scope.unavailable_source_exclusions += usize::from(
+                function
+                    .source_exclusion
+                    .as_ref()
+                    .is_some_and(|value| !value.complete()),
+            );
+            scope.excluded_source_functions += usize::from(
+                function
+                    .source_exclusion
+                    .as_ref()
+                    .is_some_and(|value| value.excluded()),
+            );
+            scope.excluded_rules += function
+                .assessments
+                .iter()
+                .filter(|rule| {
+                    rule.outcome == Outcome::NotEvaluated && rule.coverage == Coverage::Complete
+                })
+                .count();
+            scope
+        })
+}
+
+impl SourceScope {
+    fn add_reasons(&self, reasons: &mut Vec<String>) {
+        for (count, reason) in [
+            (
+                self.unavailable_source_suppressions,
+                "Some source suppression observations are unavailable",
+            ),
+            (
+                self.unavailable_source_exclusions,
+                "Some source exclusion observations are unavailable",
+            ),
+        ] {
+            if count > 0 {
+                reasons.push(reason.into());
+            }
+        }
+    }
 }
 
 fn count(functions: &[FunctionReport<'_>], outcome: Outcome) -> usize {
@@ -291,18 +358,18 @@ fn execution(functions: &[FunctionReport<'_>], scope: &Scope, requested: bool) -
     }
 }
 
-fn assess<'a>(function: &'a Function, config: &Config, exhausted: bool) -> FunctionReport<'a> {
+fn assess<'a>(
+    function: &'a Function,
+    config: &Config,
+    exhausted: bool,
+    root: &std::path::Path,
+) -> FunctionReport<'a> {
     let (execution, facts) = inputs(function, exhausted);
-    let mut assessments = config
+    let source = config
         .source
         .as_ref()
-        .map(|policy| source_rules::evaluate(&facts, policy))
+        .map(|policy| source_assessments(function, policy, &facts, root))
         .unwrap_or_default();
-    let source_suppression = config.source.as_ref().map(|_| {
-        let suppression = source_suppressions::evaluate(&facts.preceding_comment);
-        assessments.extend(suppression.invalid_assessment());
-        suppression
-    });
     let guard_clause = config.guards.then(|| {
         let mut guard = guards::evaluate(&facts.source);
         if execution != Execution::Completed {
@@ -330,9 +397,42 @@ fn assess<'a>(function: &'a Function, config: &Config, exhausted: bool) -> Funct
         fn_span: function.facts.fn_span,
         source_digest: &function.facts.source.digest,
         execution,
-        assessments,
-        source_suppression,
+        assessments: source.rules,
+        source_suppression: source.suppression,
+        source_exclusion: source.exclusion,
         guard_clause,
+    }
+}
+
+#[derive(Default)]
+struct SourceAssessments {
+    rules: Vec<Assessment>,
+    exclusion: Option<source_exclusions::Report>,
+    suppression: Option<source_suppressions::Report>,
+}
+
+fn source_assessments(
+    function: &Function,
+    policy: &ConfiguredSource,
+    facts: &LocalFacts<'_>,
+    root: &std::path::Path,
+) -> SourceAssessments {
+    let exclusion = source_exclusions::evaluate(facts, function, root, &policy.exclusions);
+    if exclusion.excluded() {
+        return SourceAssessments {
+            rules: source_rules::excluded(&policy.rules),
+            exclusion: Some(exclusion),
+            suppression: None,
+        };
+    }
+
+    let mut rules = source_rules::evaluate(facts, &policy.rules);
+    let suppression = source_suppressions::evaluate(&facts.preceding_comment);
+    rules.extend(suppression.invalid_assessment());
+    SourceAssessments {
+        rules,
+        exclusion: Some(exclusion),
+        suppression: Some(suppression),
     }
 }
 

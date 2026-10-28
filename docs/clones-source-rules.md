@@ -10,10 +10,12 @@ cargo rstyle clones --manifest-path path/to/Cargo.toml \
   --analysis-config analysis.toml --format json --report-detail compact
 ```
 
-`analysis.toml` accepts only these two sections; omitted settings use the legacy
+`analysis.toml` accepts path exclusions and these two sections; omitted settings use the legacy
 rule defaults. It is separate from the JSON `--matching-config` policy.
 
 ```toml
+exclude = ["target/**"]
+
 [fn_length]
 max_lines = 50
 [fn_params]
@@ -30,7 +32,7 @@ Findings require a value strictly greater than the configured limit.
 The JSON `analysis` object separates execution, scope coverage, fact availability
 and each rule's outcome. Every assessed function has its report-local key, name,
 source path, byte span and source checksum. `actual: null` with `not_evaluated`
-means unavailable evidence; known zero parameters is an evaluated result.
+means unavailable evidence or an explicit complete exclusion; known zero parameters is an evaluated result.
 Full and compact reports retain the same source-rule assessments. Text output
 lists findings at their source byte spans.
 
@@ -50,11 +52,33 @@ limits local work and retains explicit unevaluated rows beyond the limit.
 Strict matching completion and `--fail-on-accepted-pairs` retain their own meaning;
 neither source-rule success nor accepted similarity establishes refactoring safety.
 
-Legacy exclusions and review entries do not apply to this opt-in
-consumer. Existing source-rule suppression comments apply as described below. Legacy style and patterns remain supported and continue to gate this
+Configured path exclusions and existing source-rule suppression comments apply as
+described below. Legacy review entries do not apply. Legacy style and patterns remain supported and continue to gate this
 repository. This bounded consumer does not yet replace them. The independent
 [acceptance corpus](../eval/clones-capability/README.md) records comparison scope
 and remaining migration requirements.
+
+## Workspace path exclusions
+
+The top-level `exclude` list uses the same glob matcher as legacy style and
+defaults to `["target/**"]`. Set `exclude = []` to evaluate every captured source
+owner. Invalid patterns fail before capture. Paths are relative to the original
+captured workspace root; files outside that root remain evaluated. Matching uses
+captured paths and verified original source ownership, with no filesystem reads.
+
+Excluded functions remain in the report with `source_exclusion.status` set to
+`excluded`. Their numeric rules are `not_evaluated`, with complete coverage and
+`not_applicable` availability. They are counted in `scope.excluded_source_functions`
+and `scope.excluded_rules`, separately from unavailable evidence. Missing source
+ownership or invalid original paths yield `unavailable` exclusion decisions and
+incomplete scope, counted in `scope.unavailable_source_exclusions`.
+
+Exclusion precedes numeric evaluation and suppression diagnostics. Other consumers,
+including guard advice and strict matching, retain their own results and coverage.
+Exclusions do not bypass the analysis function budget. Saved captures can be
+reevaluated with different exclusion lists after original files have been removed.
+The independent comparator currently leaves excluded numeric assessments uncovered;
+an exclusion does not count as a measured clean result.
 
 ## Existing source-rule suppression comments
 

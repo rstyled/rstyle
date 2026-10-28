@@ -24,6 +24,24 @@ pub(super) fn evaluate(facts: &LocalFacts<'_>, config: &Config) -> Vec<Assessmen
     ]
 }
 
+pub(super) fn excluded(config: &Config) -> Vec<Assessment> {
+    [
+        ("fn_length", config.fn_length.max_lines),
+        ("fn_params", config.fn_params.max_params),
+    ]
+    .into_iter()
+    .map(|(rule_id, limit)| Assessment {
+        rule_id,
+        outcome: Outcome::NotEvaluated,
+        coverage: Coverage::Complete,
+        availability: FactAvailability::NotApplicable,
+        actual: None,
+        limit,
+        reasons: vec!["Original source path is excluded by the configured workspace policy".into()],
+    })
+    .collect()
+}
+
 fn assess<T>(
     rule_id: &'static str,
     fact: &Availability<T>,

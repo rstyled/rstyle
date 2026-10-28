@@ -9,6 +9,7 @@ pub mod complexity;
 pub mod complexity_report;
 pub mod config;
 pub mod dispatch;
+pub mod exclusions;
 pub mod facts;
 pub mod graph;
 pub mod groups;
@@ -32,19 +33,9 @@ pub mod wl_trace;
 
 use config::Config;
 use facts::FnFacts;
-use globset::{Glob, GlobSet, GlobSetBuilder};
 use report::{Diagnostic, Report, Summary};
 use std::collections::BTreeMap;
 use suppress::Suppression;
-
-fn exclude_set(patterns: &[String]) -> Result<GlobSet, String> {
-    let mut builder = GlobSetBuilder::new();
-    for pattern in patterns {
-        let glob = Glob::new(pattern).map_err(|e| format!("bad exclude `{pattern}`: {e}"))?;
-        builder.add(glob);
-    }
-    builder.build().map_err(|e| e.to_string())
-}
 
 fn rule_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec<Diagnostic> {
     [
@@ -131,10 +122,10 @@ fn all_effects(facts: &[FnFacts], graph: &graph::Graph, cfg: &Config) -> Vec<Vec
 
 /// Evaluates all rules. Input order does not matter: facts are merged first.
 pub fn evaluate(facts: Vec<FnFacts>, cfg: &Config) -> Result<Report, String> {
-    let excluded = exclude_set(&cfg.exclude.0)?;
+    let excluded = exclusions::Matcher::compile(&cfg.exclude.0)?;
     let facts: Vec<FnFacts> = facts::merge(facts)
         .into_iter()
-        .filter(|f| !excluded.is_match(&f.path))
+        .filter(|f| !excluded.is_excluded(std::path::Path::new(&f.path)))
         .collect();
     let graph = graph::build(&facts);
     let effects = all_effects(&facts, &graph, cfg);
