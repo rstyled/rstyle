@@ -152,17 +152,11 @@ fn many_direct_statements_preserve_every_original_roster_position() {
     }
     source.push_str(" value_999\n}");
     let mut facts = captured(&source);
-    assert_eq!(
-        super::super::inspect_with_statements(&facts)
-            .unwrap()
-            .top_statements,
-        Availability::Known(1001)
-    );
+    let function = syn::parse_str::<syn::ItemFn>(&source).unwrap();
+    assert_eq!(inspect(&facts, &function), Availability::Known(1001));
     facts.body.children.swap(998, 999);
     assert!(matches!(
-        super::super::inspect_with_statements(&facts)
-            .unwrap()
-            .top_statements,
+        inspect(&facts, &function),
         Availability::Unknown { .. }
     ));
 }

@@ -469,13 +469,22 @@ fn inputs(function: &Function, exhausted: bool, statements: bool) -> (Execution,
         rstyle_pdg::consumer_facts::inspect(&function.facts)
     };
     match inspected {
-        Ok(facts) => (Execution::Completed, facts),
+        Ok(facts) => {
+            let execution = match facts.execution {
+                rstyle_pdg::consumer_facts::InspectionExecution::Completed => Execution::Completed,
+                rstyle_pdg::consumer_facts::InspectionExecution::BudgetExhausted => {
+                    Execution::BudgetExhausted
+                }
+            };
+            (execution, facts)
+        }
         Err(error) => (Execution::Failed, unavailable(&error)),
     }
 }
 
 fn unavailable(reason: &str) -> LocalFacts<'static> {
     LocalFacts {
+        execution: rstyle_pdg::consumer_facts::InspectionExecution::Completed,
         top_statements: Availability::Unknown {
             reason: reason.into(),
         },

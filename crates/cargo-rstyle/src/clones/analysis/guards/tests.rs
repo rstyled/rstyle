@@ -109,7 +109,7 @@ fn unavailable_source_preserves_specific_status_and_reason() {
 
 #[test]
 fn source_byte_budget_is_explicit_without_truncating_or_declaring_clean() {
-    let source = format!("fn f() {{ /*{}*/ }}", "x".repeat(MAX_SOURCE_BYTES));
+    let source = format!("fn f() {{ /*{}*/ }}", "x".repeat(256 * 1024));
     let result = assessed(&source);
     assert_eq!(result.execution, Execution::BudgetExhausted);
     assert_eq!(result.outcome, Outcome::NotEvaluated);
@@ -117,4 +117,22 @@ fn source_byte_budget_is_explicit_without_truncating_or_declaring_clean() {
     assert_eq!(result.coverage, Coverage::Incomplete);
     assert!(result.opportunity.is_none());
     assert!(result.reasons[0].contains("budget exhausted"));
+}
+
+#[test]
+fn recursive_and_flat_syntax_exhausts_before_guard_parsing() {
+    for body in [
+        format!("{}true", "!".repeat(1000)),
+        format!("{}0", "return ".repeat(1000)),
+        format!("{}0{}", "(".repeat(129), ")".repeat(129)),
+        format!("{}0", "1 + ".repeat(129)),
+    ] {
+        let source = format!("fn f() {{ {body} }}");
+        let result = assessed(&source);
+        assert_eq!(result.execution, Execution::BudgetExhausted);
+        assert_eq!(result.outcome, Outcome::NotEvaluated);
+        assert_eq!(result.availability, FactAvailability::Known);
+        assert_eq!(result.coverage, Coverage::Incomplete);
+        assert!(result.opportunity.is_none());
+    }
 }

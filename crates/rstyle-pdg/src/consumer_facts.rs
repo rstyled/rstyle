@@ -13,6 +13,7 @@ pub mod callers;
 pub mod dispatch;
 pub mod effects;
 pub mod formal_types;
+mod header;
 pub mod mutations;
 pub mod planning;
 mod preceding_comment;
@@ -20,6 +21,8 @@ mod selected_context;
 mod syntax_budget;
 mod top_statements;
 
+#[cfg(test)]
+mod resource_tests;
 #[cfg(test)]
 mod tests;
 
@@ -40,6 +43,19 @@ pub struct Signature {
     pub has_self: bool,
 }
 
+/// Execution of the requested local source inspection, independent of availability.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InspectionExecution {
+    Completed,
+    BudgetExhausted,
+}
+
+/// Apply the shared lexical parser budget without parsing or changing its limits.
+pub fn within_source_budget(source: &str) -> bool {
+    syntax_budget::within_budget(source)
+}
+
 /// Independently available inputs for local consumers, borrowing captured bytes.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct LocalFacts<'a> {
@@ -47,6 +63,7 @@ pub struct LocalFacts<'a> {
     pub signature: Availability<Signature>,
     pub preceding_comment: Availability<crate::SourceText>,
     pub top_statements: Availability<usize>,
+    pub execution: InspectionExecution,
 }
 
 /// Bind facts to their immutable selected-unit source without requiring a graph.
@@ -66,6 +83,7 @@ fn inspect_requested(facts: &HirFnFacts, statements: bool) -> Result<LocalFacts<
         Availability::Unknown { reason } => Ok(unavailable(reason)),
         Availability::Unsupported { reason } | Availability::NotApplicable { reason } => {
             Ok(LocalFacts {
+                execution: InspectionExecution::Completed,
                 source: Availability::Unsupported {
                     reason: reason.clone(),
                 },
@@ -119,49 +137,59 @@ fn owned_source(facts: &HirFnFacts) -> Result<Availability<&str>, String> {
 
 fn inspect_source(facts: &HirFnFacts, statements: bool) -> Result<LocalFacts<'_>, String> {
     let source = facts.source.bytes.as_str();
+    if !statements || !within_source_budget(source) {
+        return header::inspect(facts, statements);
+    }
     let function: syn::ItemFn = match syn::parse_str(source) {
         Ok(function) => function,
         Err(error) => {
-            return Ok(LocalFacts {
-                source: Availability::Known(source),
-                top_statements: Availability::Unsupported {
-                    reason: "Original function syntax is unavailable".into(),
-                },
-                preceding_comment: Availability::Unsupported {
-                    reason: "Original signature syntax is unavailable".into(),
-                },
-                signature: Availability::Unsupported {
-                    reason: format!("Original function syntax is unavailable: {error}"),
-                },
-            });
+            return Ok(unsupported_syntax(facts, &error.to_string()));
         }
     };
 
     check_signature(facts, &function)?;
-    let signature = if function.sig.variadic.is_some() {
+    let signature = arity(facts, &function.sig);
+    Ok(LocalFacts {
+        execution: InspectionExecution::Completed,
+        source: Availability::Known(source),
+        signature,
+        preceding_comment: preceding_comment::inspect(facts)?,
+        top_statements: top_statements::inspect(facts, &function),
+    })
+}
+
+fn arity(facts: &HirFnFacts, signature: &syn::Signature) -> Availability<Signature> {
+    if signature.variadic.is_some() {
         Availability::Unsupported {
             reason: "Variadic input has no fixed complete arity".into(),
         }
     } else {
         Availability::Known(Signature {
-            parameters: function.sig.inputs.len() - usize::from(facts.signature.has_self),
+            parameters: signature.inputs.len() - usize::from(facts.signature.has_self),
             has_self: facts.signature.has_self,
         })
-    };
-    Ok(LocalFacts {
-        source: Availability::Known(source),
-        signature,
-        preceding_comment: preceding_comment::inspect(facts)?,
-        top_statements: if statements {
-            top_statements::inspect(facts, &function)
-        } else {
-            unrequested_statements()
+    }
+}
+
+fn unsupported_syntax<'a>(facts: &'a HirFnFacts, error: &str) -> LocalFacts<'a> {
+    LocalFacts {
+        execution: InspectionExecution::Completed,
+        source: Availability::Known(facts.source.bytes.as_str()),
+        top_statements: Availability::Unsupported {
+            reason: "Original function syntax is unavailable".into(),
         },
-    })
+        preceding_comment: Availability::Unsupported {
+            reason: "Original signature syntax is unavailable".into(),
+        },
+        signature: Availability::Unsupported {
+            reason: format!("Original function syntax is unavailable: {error}"),
+        },
+    }
 }
 
 fn unavailable(reason: String) -> LocalFacts<'static> {
     LocalFacts {
+        execution: InspectionExecution::Completed,
         source: Availability::Unknown {
             reason: reason.clone(),
         },
@@ -240,7 +268,14 @@ fn check_file(facts: &HirFnFacts, census: &census::Census) -> Result<Option<Stri
 }
 
 fn check_signature(facts: &HirFnFacts, function: &syn::ItemFn) -> Result<(), String> {
-    let signature = &function.sig;
+    check_signature_parts(facts, &function.sig, &function.vis)
+}
+
+fn check_signature_parts(
+    facts: &HirFnFacts,
+    signature: &syn::Signature,
+    visibility: &syn::Visibility,
+) -> Result<(), String> {
     let source = facts.source.bytes.as_str();
     let has_self = signature.receiver().is_some();
     if let Some(identifier) = facts
@@ -257,7 +292,7 @@ fn check_signature(facts: &HirFnFacts, function: &syn::ItemFn) -> Result<(), Str
         || has_self != facts.signature.has_self
         || has_self != facts.signature.receiver.is_some()
         || signature.variadic.is_some() != facts.signature.is_variadic
-        || header_span(source, function) != facts.signature.sig_span
+        || signature_span(source, signature, visibility) != facts.signature.sig_span
     {
         return Err("Local facts signature disagrees with original input roster or span".into());
     }
@@ -277,11 +312,20 @@ fn check_signature(facts: &HirFnFacts, function: &syn::ItemFn) -> Result<(), Str
 
 // rustc's signature starts at visibility, while syn::Signature excludes it.
 // Retain the signature end so bodies and intervening whitespace cannot widen it.
+#[cfg(test)]
 fn header_span(source: &str, function: &syn::ItemFn) -> ByteSpan {
-    let signature = relative_span(source, function.sig.span());
-    let start = match function.vis {
+    signature_span(source, &function.sig, &function.vis)
+}
+
+fn signature_span(
+    source: &str,
+    signature: &syn::Signature,
+    visibility: &syn::Visibility,
+) -> ByteSpan {
+    let signature = relative_span(source, signature.span());
+    let start = match visibility {
         syn::Visibility::Inherited => signature.start,
-        _ => relative_span(source, function.vis.span()).start,
+        _ => relative_span(source, visibility.span()).start,
     };
     ByteSpan {
         start,

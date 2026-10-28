@@ -127,6 +127,10 @@ Add `[fn_spacing]` to the analysis config to request spacing from checked origin
 direct statements. Its default threshold is five; zero disables it. Unsupported
 statement transformations remain incomplete, independently of length/arity.
 Named `fn_spacing` suppression applies when requested.
+Signature-only inspection parses a bounded borrowed header, independently of body
+size or support. Statement and guard parsing use the shared lexical syntax budget;
+exhaustion keeps available length/arity findings but reports incomplete execution
+and exit two. Saved replay uses the same bounds without requiring source files.
 Source policy also accepts top-level workspace-relative `exclude` globs (default
 `["target/**"]`; `[]` disables). Excluded owners remain explicit complete skips
 in `source_exclusion` and scope counters; other consumers still evaluate them.

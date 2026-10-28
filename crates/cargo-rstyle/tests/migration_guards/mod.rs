@@ -193,3 +193,5 @@ fn guard_advice_does_not_require_the_called_body_to_be_clone_admitted() {
     assert_eq!(function["outcome"], "excluded");
     assert_eq!(report["analysis"]["scope"]["coverage"], "complete");
 }
+
+mod resources;

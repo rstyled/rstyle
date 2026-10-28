@@ -5,8 +5,6 @@ use rstyle_pdg::consumer_facts::Availability;
 use serde::Serialize;
 use syn::{Expr, Stmt, visit::Visit};
 
-const MAX_SOURCE_BYTES: usize = 256 * 1024;
-
 #[derive(Debug, Serialize)]
 pub(super) struct GuardAssessment {
     pub rule_id: &'static str,
@@ -56,10 +54,10 @@ fn unavailable(availability: FactAvailability, reason: &str) -> GuardAssessment 
 }
 
 fn inspect(source: &str) -> GuardAssessment {
-    if source.len() > MAX_SOURCE_BYTES {
+    if !rstyle_pdg::consumer_facts::within_source_budget(source) {
         let mut result = unavailable(
             FactAvailability::Known,
-            "guard source byte budget exhausted before parsing",
+            "guard source syntax budget exhausted before parsing",
         );
         result.execution = Execution::BudgetExhausted;
         return result;

@@ -1001,15 +1001,43 @@ external caller closure, local guard intents and cross-family edit coordination
 remain open. Native macOS and exact Go comparison remain unverified.
 
 
-The next ready resource slice precedes guard edit-intent expansion. Guard parsing
-currently has a byte-only limit, and shared local-facts inspection parses a full
-body before the guard consumer runs. Reuse the existing lexical syntax budget
-without making ordinary large bodies lose source/signature checks: a bounded
-borrowed header ending at the captured original body start can supply signature
-facts independently. Only requested, within-budget statement evidence needs a
-full-body parse. Header/body range contradictions and ownership errors must still
-fail before usable facts appear. Guard assessment must separately mark exhausted
-syntax as incomplete execution. Independent cases should include delimiter-free
-unary/return chains, deep delimiters, long flat bodies with small valid headers,
-forged boundaries, UTF-8/CRLF and source-free replay. Subsequent guard intents and
-cross-family physical edit coordination remain ready after that resource fix.
+## C04e: bounded header and optional body parsing
+
+The shared source-rule entrance now avoids parsing unrequested bodies. After
+immutable ownership checks, ordinary inspection borrows the original header
+through the captured body opener, parses attributes/visibility/signature once,
+and retains the existing exact signature roster/span/receiver checks. Native
+range, brace, UTF-8 and complete function extent contradictions fail before
+usable header facts. Unsupported body kinds/children do not erase independent
+signature evidence, including native async captures.
+
+Requested direct statements use a single full-function parse only inside the
+existing conservative lexical budget (256 KiB, depth 128, punctuation 128, word
+starts 128). Otherwise the bounded header supplies available facts, statements
+are unknown and typed inspection execution is BudgetExhausted. Overbudget
+headers retain owned source but leave signature/comment syntax unknown.
+Unrequested statement facts remain NotApplicable. Guards use the same lexical
+bound before parsing, covering delimiter-free unary/return chains as well as deep
+and long flat bodies. No synthetic parser suffix, body copy, new hash, graph
+proof, permission or larger limit was introduced.
+
+Independent library cases cover recursive bodies constructed without parsing,
+large bodies/small headers, unsupported roots, header exhaustion, ownership
+precedence, forged return/where boundaries, visibility, receiver, UTF-8 and CRLF.
+The 1,001-statement roster regression still exercises the lower-level native
+roster validator directly; entrance budget behavior has separate acceptance.
+Real locked Cargo captures preserve a parameter finding while spacing/guards
+exhaust, then source/tool-free full and compact strict replay preserve analysis
+and matching. A native async/header-only case checks source-rule independence.
+
+The frozen integrated snapshot passes all 2,752 nextest tests (five skipped) in
+178.929 seconds, doc tests, workspace/all-targets locked Clippy with warnings
+denied, and all 56 Python comparison tests. Both originally reported NonZero
+regressions pass. Logs are retained under `/tmp/clones-header-{tests,clippy,python}`.
+Legacy style passes with zero violations across 8,963 functions after one
+formatting-only phase separator; reviewed patterns passes and unfiltered patterns
+retain the same 15 exact IDs as C12d. Format/diff checks pass; retained logs and
+JSON use `/tmp/clones-header-{style,patterns}`. Guard edit intents and shared
+cross-family physical edit coordination remain the next ready planning slice;
+whole-plan independence, arbitrary propagation/removal, broader signatures,
+macOS, exact Go comparison and legacy retirement remain unverified/open.

@@ -45,7 +45,7 @@ Omitting this section requests only length and parameters. `min_statements = 0`
 disables spacing: its explicit clean assessment is not applicable and carries no
 measured count. `effective_config.min_statements` is null when unrequested.
 
-The count reuses the existing source parse and checks the original block and each
+The requested count uses one bounded full-function parse and checks the original block and each
 direct statement against captured kinds, byte ranges and snippets. Missing or
 changed children remain unknown. Direct macros, attributed statements/items,
 empty/verbatim statements and async lowering are initially unsupported. Length
@@ -160,8 +160,15 @@ and establishes no effect, equivalence or refactoring-safety proof.
 Already flat code, two working branches and single-expression work branches
 produce no opportunity under this contract. Macros, closures, unsafe/async
 syntax, attributes, loops, labels, `match`, `?`, let conditions and else-if chains
-remain explicitly unsupported. The detector bounds source to 256 KiB before its
-parser; exceeding that bound reports budget exhaustion without truncation.
+remain explicitly unsupported. Statement and guard parsers share a conservative
+lexical bound: 256 KiB, delimiter depth 128, 128 punctuation bytes and 128 word
+starts. This byte scan counts syntax inside comments and literals too. Exceeding
+any limit reports budget exhaustion without truncation or parsing that body.
+Ordinary source/signature inspection instead parses only a bounded borrowed
+header through the captured original body opener. Large or unsupported bodies
+retain independently checked length, parameter and suppression facts. An
+oversized header preserves owned source but leaves syntax facts unknown. Native
+range contradictions and source ownership errors still fail the query.
 Missing ownership stays unknown. A finding can coexist with unsupported
 functions, so the overall requested scope can remain incomplete and exit two.
 `--fail-on-findings` returns one only for complete analysis; failures and incomplete

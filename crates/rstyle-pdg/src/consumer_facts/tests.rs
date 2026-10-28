@@ -69,7 +69,7 @@ pub(super) fn facts(source: &str) -> HirFnFacts {
     facts
 }
 
-fn source_owner(facts: &mut HirFnFacts, source: &str) {
+pub(super) fn source_owner(facts: &mut HirFnFacts, source: &str) {
     facts.build.frontend_options = Default::default();
     let mut context = nominal_boundary::tests::context();
     context.package.manifest_digest = context.package.manifest_bytes.checksum().into();
@@ -101,6 +101,10 @@ fn source_owner(facts: &mut HirFnFacts, source: &str) {
 
 fn signature(facts: &mut HirFnFacts, source: &str) {
     let function: syn::ItemFn = syn::parse_str(source).unwrap();
+    facts.body.span = relative_span(source, function.block.span());
+    facts.body.snippet = crate::source_evidence::byte_range(source, facts.body.span)
+        .unwrap()
+        .into();
     // Captured function bytes begin at the full header, including visibility.
     facts.signature.sig_span = ByteSpan {
         start: 0,
@@ -246,6 +250,7 @@ fn receiver_contradiction_and_changed_file_bytes_are_errors() {
 #[test]
 fn availability_keeps_empty_values_and_unknown_unsupported_separate() {
     let value = serde_json::to_value(LocalFacts {
+        execution: InspectionExecution::Completed,
         source: Availability::Known(""),
         signature: Availability::Unsupported {
             reason: "variadic".into(),
@@ -411,10 +416,14 @@ fn preceding_comment_availability_tracks_original_signature_ownership() {
 #[test]
 fn unsupported_signature_cannot_supply_preceding_comment_authority() {
     let mut facts = facts("fn f() {}");
-    facts.source.bytes = "unrecognized syntax".into();
+    let source = "mystery text {}";
+    facts.source.bytes = source.into();
     facts.source.digest = facts.source.bytes.checksum().into();
     facts.fn_span.end = facts.source.bytes.len() as u32;
-    source_owner(&mut facts, "unrecognized syntax");
+    facts.signature.sig_span.end = "mystery text".len() as u32;
+    facts.body.span = ByteSpan { start: 13, end: 15 };
+    facts.body.snippet = "{}".into();
+    source_owner(&mut facts, source);
     let inspected = inspect(&facts).unwrap();
     assert!(matches!(inspected.source, Availability::Known(_)));
     assert!(matches!(
