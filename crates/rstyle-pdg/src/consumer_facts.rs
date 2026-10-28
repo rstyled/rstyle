@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use syn::spanned::Spanned;
 
+pub mod dispatch;
+
 #[cfg(test)]
 mod tests;
 

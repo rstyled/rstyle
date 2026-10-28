@@ -25,8 +25,8 @@ use std::{
 };
 
 #[derive(ClapArgs, Serialize)]
-#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses"]).multiple(true)),
-    group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals"]).multiple(true)))]
+#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch"]).multiple(true)),
+    group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch"]).multiple(true)))]
 pub struct Args {
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
     #[arg(long, default_value = "r0", value_parser = rstyle_pdg::extraction_profile::ExtractionProfile::select)]
@@ -61,6 +61,9 @@ pub struct Args {
     /// Suggest bounded guard-clause shapes from original source; advisory only.
     #[arg(long)]
     guard_clauses: bool,
+    /// Suggest bounded local enum dispatch abstractions from original source and signatures.
+    #[arg(long)]
+    enum_dispatch: bool,
     /// TOML source-rule policy (fn_length/fn_params only); distinct from legacy configuration.
     #[arg(long, requires = "source_rules")]
     analysis_config: Option<PathBuf>,
@@ -323,25 +326,31 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         matching_config: &config.matching,
     })?;
     let output = report.publish(cli.format, accepted)?;
-    let code = if !complete
-        || !report.analysis.permits_success()
-        || !report.pair_reports.permits_success()
-        || !report.review.permits_success()
-    {
-        2
+    let code = if complete && analyses_complete(&report) {
+        u8::from(finding_exit_requested(&report, args, accepted))
     } else {
-        u8::from(
-            (args.fail_on_accepted_pairs && accepted > 0)
-                || (args.fail_on_findings
-                    && (report.analysis.findings > 0
-                        || report
-                            .review
-                            .visible_or(report.pair_reports.helper_proposals.findings)
-                            > 0)),
-        )
+        2
     };
 
     Ok((output, code))
+}
+
+fn analyses_complete(report: &report::Report<'_>) -> bool {
+    report.analysis.permits_success()
+        && report.enum_dispatch.permits_success()
+        && report.pair_reports.permits_success()
+        && report.review.permits_success()
+}
+
+fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: usize) -> bool {
+    (args.fail_on_accepted_pairs && accepted > 0)
+        || (args.fail_on_findings
+            && (report.analysis.findings > 0
+                || report.enum_dispatch.findings > 0
+                || report
+                    .review
+                    .visible_or(report.pair_reports.helper_proposals.findings)
+                    > 0))
 }
 
 fn capture_input(cli: &Cli, args: &Args) -> Result<capture::Capture, String> {

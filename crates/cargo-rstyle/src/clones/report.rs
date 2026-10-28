@@ -43,6 +43,7 @@ struct Scope<'a> {
 #[derive(Serialize)]
 pub struct Report<'a> {
     pub review: super::review::workflow::Report,
+    pub enum_dispatch: super::analysis::dispatch_reports::Report<'a>,
     #[serde(flatten)]
     pub pair_reports: super::analysis::pair_reports::Reports<'a>,
     pub analysis: super::analysis::Report<'a>,
@@ -124,6 +125,7 @@ pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
         pair_reports,
         review,
         analysis: ctx.local_analysis(),
+        enum_dispatch: ctx.dispatch_report()?,
         report_detail: ctx.args.report_detail,
         verification_policy: ctx.verification_policy(),
         scope,
@@ -172,6 +174,10 @@ impl<'a> Context<'a> {
         } else {
             "trusted-generated"
         }
+    }
+
+    fn dispatch_report(&self) -> Result<super::analysis::dispatch_reports::Report<'a>, String> {
+        super::analysis::dispatch_reports::evaluate(self.handoff, self.capture, self.args)
     }
 
     fn local_analysis(&self) -> super::analysis::Report<'a> {
@@ -246,10 +252,11 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         .collect::<String>();
 
     format!(
-        "{summary}{pairs}{}{}{}",
+        "{summary}{pairs}{}{}{}{}",
         report.analysis.render(),
         report.pair_reports.render(),
-        report.review.render()
+        report.review.render(),
+        report.enum_dispatch.render()
     )
 }
 

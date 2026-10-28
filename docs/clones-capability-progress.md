@@ -279,6 +279,46 @@ unsupported. General owner/trait relations need a checked local evidence route;
 raw display strings and impl ordinals are not authority. C11 mutation/effects,
 C12 edit plans and later selective consumers remain independent open work.
 
+## C10a: local enum-dispatch advice
+
+State: delivered bounded dispatch family; commit: this checkpoint. Lead owns CLI/report routing,
+registration and docs; pair worker owns the source-evidence leaf, acceptance
+worker supplied frozen source labels and CLI cases, and local worker reviews
+namespace/coverage behavior independently.
+
+`--enum-dispatch` uses original source/signature evidence independently of strict
+pair matching. The bounded witness is an exhaustive two-variant local enum match
+whose arms call corresponding payload methods with shared-self/zero-argument/u32
+signatures. Opaque method bodies do not block available declaration evidence.
+Exact existing local trait-member relations suppress advice; unrelated traits,
+wrong receivers, incompatible arity and same free callees are distinct negatives.
+Unsupported arms, ownership ambiguity and internal work limits remain explicit.
+The report retains original locations, per-owner reasons and complete/incomplete
+scope; a known finding can coexist with an incomplete result. Source-only replay,
+full/compact agreement and explicit analysis budgets have independent CLI checks.
+
+No legacy retirement, general trait/capability/generic family or refactoring
+safety claim is implied. The frozen snapshot passes all 2,466 nextest tests (five skipped), 162.915
+seconds, and doc tests. Workspace/all-target Clippy, formatting and diff checks
+pass. Legacy style has zero violations across 8,439 functions; reviewed patterns
+has zero new candidates, and unfiltered comparison retains the exact previous
+15 candidate IDs. No ignores, suppressions, thresholds or strict admission were
+changed. Logs use `/tmp/clones-migration-c10-*`.
+
+Nine real-Cargo CLI tests and twelve evidence tests cover the independent labels,
+original header/arm spans, exact source-owner isolation, namespace closure,
+primitive shadowing, competing mutable/shared method origins, opaque same-callee
+arguments, explicit source/declaration/module limits, budgets and mixed coverage.
+The retained fresh compact example also finds one opportunity across three
+complete owners, then strictly replays with original source/manifest deleted and
+all external tools disabled. Its consumer report is unchanged and explicit
+finding failure exits one; `/tmp/clones-migration-c10-live-8fomlkdg/results.json`.
+Linux aarch64 only; macOS and exact Go comparison remain unverified.
+
+The next independently prepared frontier is direct scalar-write provenance with
+unknown-aware mutation/effect boundaries;
+C11 evidence, C12 edit plans and selective later consumers remain open.
+
 ## Hashing exceptions
 
 New consumers use borrowed evidence and report-local typed handles, without new

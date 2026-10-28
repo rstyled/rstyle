@@ -19,6 +19,7 @@ mod inherent_expansions;
 mod loop_merge_target;
 mod lossless_values;
 mod migration_differences;
+mod migration_dispatch;
 mod migration_guards;
 mod migration_helpers;
 mod migration_output;

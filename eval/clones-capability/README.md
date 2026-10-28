@@ -136,3 +136,11 @@ outcome, actual measure and configured limit before it can count as agreement or
 improvement. Exit status is zero only when every row agrees or has a reviewed
 improvement. This adapter assesses source rules only; pair and abstraction quality
 need their own consumers and are deliberately excluded from its denominators.
+
+`enum-dispatch-cases.json` freezes nine local dispatch requirements. It includes
+an opaque callee body whose signature remains usable, exact existing-trait
+suppression, unrelated traits, arity/receiver/free-callee counterexamples and
+unsupported guarded/opaque arms. The real-Cargo `migration_dispatch` tests assess
+these source labels, full/compact/default reports, budget and mixed-coverage
+semantics, and explicit saved-run replay. See the
+[bounded consumer contract](../../docs/clones-enum-dispatch.md).
