@@ -18,8 +18,11 @@
       "config-only strict saved replay"
     ],
     "next": [
-      "complete branch/loop source-site inventory",
-      "lexical shadowed-binding roots"
+      "complete loop source-site inventory"
+    ],
+    "bounded_extensions": [
+      "ordinary if/else direct assignment-site inventory when calls/formal-use observations are unrequested",
+      "lexical shadowed-binding roots; existing block-scope capability checked explicitly"
     ],
     "later": [
       "field projection policy",
@@ -270,7 +273,7 @@
     },
     {
       "id": "shadowed-local-bindings",
-      "stage": "next-bounded-extension",
+      "stage": "bounded-lexical-scope",
       "source": "pub fn shadow()->u32 { let mut value=0u32; value=1; { let mut value=2u32; value=3; } value }",
       "expected": {
         "coverage": "complete",
@@ -294,7 +297,7 @@
     },
     {
       "id": "branch-source-site-counts",
-      "stage": "next-bounded-extension",
+      "stage": "bounded-direct-branches",
       "source": "pub fn branch(target:&mut u32,flag:bool) { if flag { *target=1; } else { *target=2; } }",
       "expected": {
         "coverage": "complete",
@@ -311,7 +314,8 @@
           "value": 2
         },
         "runtime_writes_on_normal_path": 1,
-        "mutation_per_target": "evaluated_no_finding"
+        "mutation_per_target": "evaluated_no_finding",
+        "mutated_targets": "evaluated_no_finding"
       },
       "reason": "Two static write sites, not two dynamic writes along one execution. This count contract must be explicit; unsupported branch traversal stays incomplete."
     },

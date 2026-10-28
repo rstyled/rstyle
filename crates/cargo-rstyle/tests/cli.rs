@@ -28,6 +28,7 @@ mod migration_guard_plans;
 mod migration_guards;
 mod migration_helpers;
 mod migration_length_review;
+mod migration_mutation_branches;
 mod migration_mutations;
 mod migration_output;
 mod migration_parameter_plans;

@@ -225,6 +225,13 @@ See `docs/clones-edit-planning.md` for limits and intent semantics.
 
 ## Bounded scalar helper mutation effects
 
+Direct `clones --mutation-rules` counts static scalar assignment sites through
+ordinary unexpanded `if`/`else` branches, preserving original lexical roots.
+Mutually exclusive arm sites each count once; runtime execution counts remain
+unknown. Pattern conditions, loops and opaque operations remain incomplete.
+This direct inventory does not certify conditional helper calls or parameter uses.
+See `docs/clones-mutations.md` for policy, provenance and replay semantics.
+
 `clones --mutation-effects` uses schema `rstyle.mutation-effects/2` for original
 scalar writes through at most two same-unit call edges (`caller → wrapper → leaf`).
 Inspect `summary_site_index`, original write owner/site, `call_path` and projected

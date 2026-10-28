@@ -193,7 +193,11 @@ semantics, and explicit saved-run replay. See the
 
 `effects-cases.json` freezes direct scalar assignment budgets, caller-visible
 provenance, opaque boundaries and saved-policy reevaluation. Initial cases
-exercise the mutation consumer; next/later cases retain explicit future scope.
+exercise the mutation consumer. The bounded ordinary `if`/`else` extension counts
+both authored arms once, with distinct lexical roots and unknown boundaries;
+conditional helper-effect and formal-use proof coverage stays conservative.
+The original lexical-block shadowing case also has explicit live coverage.
+Next/later cases retain explicit future scope, including loop inventories.
 A complete direct-write inventory does not establish purity or density, and the
 static-site vocabulary differs intentionally from legacy mutable-borrow events.
 

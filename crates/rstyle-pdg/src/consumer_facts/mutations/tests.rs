@@ -547,3 +547,5 @@ fn oversized_binding_inventory_is_bounded_before_building_the_index() {
     assert!(result.sites.is_empty());
     assert_eq!(result.coverage, Coverage::Incomplete);
 }
+
+mod conditional;

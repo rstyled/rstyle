@@ -80,6 +80,7 @@ pub(in crate::clones) fn evaluate<'a>(
         functions,
         limitations: &[
             "Counts describe original syntactic assignment sites, not dynamic execution frequency.",
+            "Ordinary branch arms each contribute their original sites once; loops and pattern conditions remain incomplete.",
             "Direct u32 owned roots and mutable formal pointees only; unknown boundaries prevent clean conclusions.",
             "No purity, density, transitive effects or rewrite safety claim; legacy reviews and suppressions are not applied.",
         ],

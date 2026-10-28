@@ -1386,3 +1386,47 @@ contract must count both original arms once, preserve native lexical roots and
 unknown boundaries, and keep conditional call/formal-use and effect-summary
 certification conservative. General effects/density, broader signatures,
 legacy retirement, native macOS validation and exact Go comparison remain open.
+
+## C11e: direct scalar assignment sites in ordinary branches
+
+Delivered the staged `branch-source-site-counts` requirement. Evidence owns
+direct-only branch/source/native joins and unit fixtures; acceptance owns
+`tests/migration_mutation_branches`; the lead owns corpus promotion, registration
+and docs. The contract inventories both original arms once with exact lexical
+root identities, preserving unknown/unsupported boundaries and existing work
+limits. It does not broaden call/formal-use/effect-summary certification. The
+preexisting standalone lexical-shadowing requirement is checked explicitly rather
+than presented as newly implemented behavior.
+
+Fourteen source/native unit cases and twelve independent live CLI cases cover
+original arm sites, no-else/nested/else-if scope, distinct roots, lexical shadowing,
+transparent parentheses, missing/contradictory evidence, aliases, reference
+redirection, unknown calls and RHS work, conditional assignment boundaries,
+consumer isolation, owner budgets and source/tool-free strict full/compact replay.
+The audit found compound assignments inside conditions needed an explicit
+unsupported boundary, now checked by both native and live regressions. Original
+condition subtrees are borrowed and checked once; no extra index, source/graph
+cloning, hashing, admission permission or work-budget increase was added.
+
+The patterns gate prompted one shared typed native-effect lookup and an explicit
+argument-projection interface for the existing product/reference diagnostic
+lenses (`82f20f8`). Their distinct normalization, owner checks, errors and schemas remain.
+The focused 97-test run, formatting, workspace/all-target Clippy with warnings
+denied, all 56 Python comparison tests and diff checks pass. Final legacy style
+reports zero violations across 9,160 functions. Reviewed patterns is clean, and
+unfiltered discovery retains exactly the same 15 baseline IDs.
+The frozen integrated checkpoint passes all 2,924 nextest tests (five skipped)
+in 187.291 seconds, plus doc tests. Both originally reported NonZero regressions
+and original product/reference diagnostic cases pass. Logs and JSON reports are
+retained under `/tmp/clones-direct-branches-*`; runtime is checkpoint evidence,
+not a measured speedup claim. No ignores, suppressions or thresholds changed.
+
+Next is mutation-rule policy compatibility: captured named suppressions and
+workspace path exclusions using the existing source-policy helpers and original
+immutable observations. Trusted exclusions must be explicit policy skips while
+raw evidence remains inspectable; suppression alone cannot conceal incomplete
+analysis. Invalid comments and unavailable paths remain visible. Independent
+acceptance targets cover rule-specific hiding, malformed annotations, excluded
+opaque owners, exact paths and source/tool-free policy replay. Broader effects,
+loops, saved mutation reviews, quality evaluation and legacy retirement remain
+open; native macOS and exact Go comparison are unverified.

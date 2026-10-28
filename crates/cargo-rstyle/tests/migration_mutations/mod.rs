@@ -84,6 +84,8 @@ fn direct_scalar_assignment_counts_follow_independent_sources_and_provenance() {
         "borrowed-formal-pointee-writes",
         "builtin-compound-assignment-once",
         "two-local-targets",
+        "shadowed-local-bindings",
+        "branch-source-site-counts",
     ] {
         let directory = workspace(id);
         let (output, report) = requested(directory.path(), &[]);

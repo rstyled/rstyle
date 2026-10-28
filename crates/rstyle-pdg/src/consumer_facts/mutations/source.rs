@@ -1,3 +1,5 @@
+mod branches;
+
 use super::{Assessment, Execution, Operation, Provenance, Root, WriteSite, native};
 use crate::{ByteSpan, HirFnFacts, HirNode};
 use std::collections::{BTreeMap, BTreeSet};
@@ -151,6 +153,28 @@ impl Effects {
             execution,
             sites,
             boundaries,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum NativeEffect {
+    Value,
+    Operation,
+}
+
+impl NativeEffect {
+    fn missing(self) -> &'static str {
+        match self {
+            Self::Value => "Missing original native value evidence",
+            Self::Operation => "Missing original native operation evidence",
+        }
+    }
+
+    fn inspect(self, node: &HirNode, span: ByteSpan) -> Effects {
+        match self {
+            Self::Value => value_effects(node, span),
+            Self::Operation => primitive_effects(node, span),
         }
     }
 }
@@ -672,12 +696,12 @@ impl Scan<'_> {
         if self.calls.is_some() && self.result.execution == Execution::BudgetExhausted {
             return Ok(());
         }
-        if self.calls.is_some()
+        if (self.calls.is_some() || self.uses.is_none())
             && let Expr::If(branch) = expression
             && branch.attrs.is_empty()
             && plain_condition(&branch.cond)
         {
-            return self.conditional_calls(branch);
+            return self.conditional_expression(branch);
         }
         if self.calls.is_some()
             && let Expr::Call(call) = expression
@@ -894,15 +918,23 @@ impl Scan<'_> {
                 self.assignment(Assignment::compound(expression, binary))?
             }
             Expr::Binary(binary) => ExpressionPlan {
-                effects: self.primitive(expression, "expr_binary")?,
+                effects: self.native_effect(expression, "expr_binary", NativeEffect::Operation)?,
                 ..ExpressionPlan::children(vec![&binary.left, &binary.right])
             },
             Expr::Unary(unary) => ExpressionPlan {
-                effects: self.primitive(expression, "expr_unary")?,
+                effects: self.native_effect(expression, "expr_unary", NativeEffect::Operation)?,
                 ..ExpressionPlan::children(vec![&unary.expr])
             },
-            Expr::Lit(_) => ExpressionPlan::effects(self.value(expression, "expr_lit")?),
-            Expr::Path(_) => ExpressionPlan::effects(self.value(expression, "expr_path")?),
+            Expr::Lit(_) => ExpressionPlan::effects(self.native_effect(
+                expression,
+                "expr_lit",
+                NativeEffect::Value,
+            )?),
+            Expr::Path(_) => ExpressionPlan::effects(self.native_effect(
+                expression,
+                "expr_path",
+                NativeEffect::Value,
+            )?),
             Expr::Paren(paren) => ExpressionPlan::children(vec![&paren.expr]),
             Expr::Group(group) => ExpressionPlan::children(vec![&group.expr]),
             Expr::Block(block) if block.label.is_none() && block.attrs.is_empty() => {
@@ -929,56 +961,17 @@ impl Scan<'_> {
         }
     }
 
-    fn value(&self, expression: &Expr, kind: &str) -> Result<Effects, String> {
-        let Some(node) = self.index.node(kind, self.span(expression))? else {
-            return Ok(Effects::unknown(
-                self.span(expression),
-                "Missing original native value evidence",
-            ));
+    fn native_effect(
+        &self,
+        expression: &Expr,
+        kind: &str,
+        effect: NativeEffect,
+    ) -> Result<Effects, String> {
+        let span = self.span(expression);
+        let Some(node) = self.index.node(kind, span)? else {
+            return Ok(Effects::unknown(span, effect.missing()));
         };
-        if node.ty.is_none() {
-            return Ok(Effects::unknown(
-                self.span(expression),
-                "Native value type was not captured",
-            ));
-        }
-
-        Ok(if benign_node(node) {
-            Effects::default()
-        } else {
-            Effects::unsupported(self.span(expression), "Unsupported primitive value")
-        })
-    }
-
-    fn primitive(&self, expression: &Expr, kind: &str) -> Result<Effects, String> {
-        let Some(node) = self.index.node(kind, self.span(expression))? else {
-            return Ok(Effects::unknown(
-                self.span(expression),
-                "Missing original native operation evidence",
-            ));
-        };
-        if node.ty.is_none() || node.dispatch.is_none() {
-            return Ok(Effects::unknown(
-                self.span(expression),
-                "Native operation type or dispatch was not captured",
-            ));
-        }
-
-        let known = benign_node(node)
-            && node
-                .dispatch
-                .as_ref()
-                .is_some_and(|dispatch| dispatch.kind == "builtin")
-            && node.children.iter().all(benign_node);
-
-        Ok(if known {
-            Effects::default()
-        } else {
-            Effects::unsupported(
-                self.span(expression),
-                "Unproven builtin primitive operation",
-            )
-        })
+        Ok(effect.inspect(node, span))
     }
 
     fn assignment<'a>(&self, site: Assignment<'a>) -> Result<ExpressionPlan<'a>, String> {
@@ -1771,5 +1764,35 @@ impl<'ast> Visit<'ast> for Poison {
             self.place(&reference.expr);
         }
         syn::visit::visit_expr_reference(self, reference);
+    }
+}
+
+fn value_effects(node: &HirNode, span: ByteSpan) -> Effects {
+    if node.ty.is_none() {
+        return Effects::unknown(span, "Native value type was not captured");
+    }
+
+    if benign_node(node) {
+        Effects::default()
+    } else {
+        Effects::unsupported(span, "Unsupported primitive value")
+    }
+}
+
+fn primitive_effects(node: &HirNode, span: ByteSpan) -> Effects {
+    if node.ty.is_none() || node.dispatch.is_none() {
+        return Effects::unknown(span, "Native operation type or dispatch was not captured");
+    }
+    let known = benign_node(node)
+        && node
+            .dispatch
+            .as_ref()
+            .is_some_and(|dispatch| dispatch.kind == "builtin")
+        && node.children.iter().all(benign_node);
+
+    if known {
+        Effects::default()
+    } else {
+        Effects::unsupported(span, "Unproven builtin primitive operation")
     }
 }

@@ -7,6 +7,19 @@ pointees, including builtin compound assignments. Declaration initialization is
 excluded. One compound assignment counts once. Counts describe syntactic sites,
 not execution frequency, panic freedom, purity or rewrite safety.
 
+Ordinary unexpanded `if`/`else` branches contribute each original assignment site
+once, including mutually exclusive arms and nested branches. An `if` without
+`else` still has the sites authored in its arm; the report does not claim that
+they execute. Original native branch/condition/arm correspondence is required.
+Branch-local declarations retain distinct lexical binding roots, and leaving an
+arm restores the enclosing scope. Loops, pattern conditions and assignments
+inside conditions remain outside this bounded branch vocabulary.
+
+This extension applies to the direct mutation-rule inventory. Conditional call
+observations, helper-effect certification and parameter-use proofs retain their
+separate incomplete boundaries. An unsupported or unknown branch operation
+cannot turn into a complete clean inventory, even if other sites are witnessed.
+
 Use an explicit TOML policy with `--mutation-config FILE`:
 
 ```toml
