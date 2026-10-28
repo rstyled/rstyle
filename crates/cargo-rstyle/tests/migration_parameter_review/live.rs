@@ -257,7 +257,7 @@ fn suppressed_clean_unselected_and_unknown_selectors_cannot_change_the_store() {
 }
 
 #[test]
-fn budget_and_external_module_identity_limits_remain_incomplete() {
+fn budget_limits_remain_incomplete() {
     let directory = workspace(ORIGINAL);
     let (_, original) = capture(directory.path(), &[]);
     let replay = Replay {
@@ -276,7 +276,37 @@ fn budget_and_external_module_identity_limits_remain_incomplete() {
         "unavailable"
     );
     assert_eq!(std::fs::read(file).unwrap(), bytes);
+}
+
+#[test]
+fn ordinary_external_module_parameter_reviews_keep_original_identity_and_raw_findings() {
     let external = workspace("pub mod external;\n");
+    std::fs::write(external.path().join("src/external.rs"), ORIGINAL).unwrap();
+    let (output, report) = capture(external.path(), &[]);
+    assert!(output.status.success());
+    assert_eq!(report["parameter_review"]["coverage"], "complete");
+    counts(&report, 0, 1);
+    let replay = Replay {
+        directory: external.path(),
+        original: &report,
+    };
+    replay.dismiss("external::many");
+
+    let store: Value =
+        serde_json::from_slice(&std::fs::read(external.path().join("reviews.json")).unwrap())
+            .unwrap();
+    let locator = &store["parameter_entries"][0]["finding"]["locator"];
+    assert_eq!(locator["source"], "src/external.rs");
+    assert_eq!(locator["qualified_name"], "crate::external::many");
+    let (output, reviewed) = capture(external.path(), &["--fail-on-findings"]);
+    assert!(output.status.success());
+    counts(&reviewed, 1, 0);
+    assert_eq!(reviewed["analysis"]["findings"], 1);
+}
+
+#[test]
+fn remapped_external_module_parameter_identity_remains_unavailable() {
+    let external = workspace("#[path=\"external.rs\"] pub mod external;\n");
     std::fs::write(external.path().join("src/external.rs"), ORIGINAL).unwrap();
     let (output, report) = capture(external.path(), &[]);
     assert_eq!(output.status.code(), Some(2));

@@ -506,3 +506,70 @@ fn opaque_methods_and_nontuple_free_functions_are_not_wrapper_candidates() {
     ordinary.source.bytes = SourceText::from("corrupt original");
     assert!(index.evaluate_capability_wrapper(&ordinary).is_err());
 }
+
+fn external_facts(source: &str, name: &str) -> HirFnFacts {
+    let mut facts = fixture(source, name);
+    let original = facts
+        .build
+        .frontend_options
+        .data::<Arc<census::Census>>()
+        .unwrap()
+        .into_owned();
+    let mut census = (*original).clone();
+    let path = census
+        .context
+        .root_source
+        .parent()
+        .unwrap()
+        .join("worker.rs");
+    census.files[0].path = path.clone();
+    let bytes: crate::SourceSnapshot = "mod worker;".into();
+    census.files.push(census::UnitFile {
+        path: census.context.root_source.clone(),
+        digest: bytes.checksum().into(),
+        bytes,
+    });
+
+    facts.build.frontend_options.insert_data(Arc::new(census));
+    facts
+        .build
+        .frontend_options
+        .insert("source_file".into(), serde_json::json!(path));
+    facts
+}
+
+#[test]
+fn external_review_location_does_not_extend_dispatch_or_capability_permissions() {
+    let facts = external_facts(positive_source(), "dispatch");
+    let index = Index::from_facts(&[&facts]).unwrap();
+    assert_eq!(
+        index.review_location(&facts).unwrap(),
+        ("crate::worker::dispatch".into(), "free-function")
+    );
+    assert!(matches!(
+        index.evaluate(&facts).unwrap().availability,
+        super::super::Availability::Unsupported { .. }
+    ));
+    assert!(matches!(
+        index
+            .evaluate_capability_wrapper(&facts)
+            .unwrap()
+            .availability,
+        super::super::Availability::Unsupported { .. }
+    ));
+}
+
+#[test]
+fn external_location_cache_checks_current_context_and_original_bytes() {
+    let mut facts = external_facts("fn selected(value:u32)->u32{value}", "selected");
+    let index = Index::from_facts(&[&facts]).unwrap();
+    assert!(index.review_location(&facts).is_ok());
+    facts.build.cfgs.push("changed_cfg".into());
+    assert!(index.review_location(&facts).is_err());
+    facts.build.cfgs.pop();
+    facts.signature.sig_span.end += 1;
+    assert!(index.review_location(&facts).is_err());
+    facts.signature.sig_span.end -= 1;
+    facts.source.bytes = SourceText::from("different original bytes");
+    assert!(index.review_location(&facts).is_err());
+}

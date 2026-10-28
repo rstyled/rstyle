@@ -283,7 +283,12 @@ headers and at most 4,096 exact finding snapshots; input and output are bounded 
 4 MiB. Duplicate original identities, malformed snapshots, unknown fields and
 invalid headers reject. Publication never overwrites an old baseline; create a
 new artifact to review an intentional update. Source/tool-free full and compact
-replay support export and comparison. Durable identities currently cover original
-root files and inline modules; positive external-module identities remain
-unavailable. This bounded density workflow does not establish general project
+replay support export and comparison. Durable identities cover original root
+files, inline modules and free functions in an independently checked ordinary
+external-module closure (`name.rs` or `name/mod.rs`). The external locator index
+retains the exact captured cfg context and original file/range/header joins;
+ambiguous, missing, generated or remapped module ownership stays unavailable.
+External methods are outside this locator extension. Closure files/bytes,
+declaration population and parser depth are bounded; exhaustion publishes no
+partial locator population. This bounded density workflow does not establish general project
 coverage or retire legacy style/patterns.

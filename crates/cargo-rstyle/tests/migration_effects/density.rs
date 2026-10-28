@@ -1,6 +1,7 @@
 mod baseline;
 mod changed_scope;
 mod external_helpers;
+mod external_modules;
 use super::*;
 
 const POLICY: &str = "[side_effects]\nmax_density_milli=500\nmin_statements=0\nmin_lines=0\n";

@@ -279,8 +279,40 @@ fn invalid_clean_suppressed_unselected_and_unavailable_length_dismissals_never_w
 }
 
 #[test]
-fn external_module_length_identity_is_explicitly_unavailable() {
+fn ordinary_external_module_length_identity_supports_saved_run_dismissal() {
     let directory = workspace("pub mod external;\n");
+    std::fs::write(directory.path().join("src/external.rs"), ORIGINAL).unwrap();
+    let (output, original) = capture(directory.path(), &["--fail-on-findings"]);
+    assert_eq!(output.status.code(), Some(1));
+    counts(&original, 0, 1);
+    let replay = Replay {
+        directory: directory.path(),
+        original: &original,
+    };
+    replay.dismiss("external::many");
+
+    let output = replay.run(&["--fail-on-findings"]);
+    assert!(output.status.success());
+    let report = parsed(&output);
+    counts(&report, 1, 0);
+    assert_eq!(report["length_review"]["coverage"], "complete");
+    assert_eq!(
+        report["length_review"]["decisions"][0]["state"],
+        "hidden_exact"
+    );
+    assert_eq!(report["analysis"]["findings"], 1);
+    assert_eq!(report["analysis"]["visible_findings"], 1);
+    let store: Value =
+        serde_json::from_slice(&std::fs::read(directory.path().join("reviews.json")).unwrap())
+            .unwrap();
+    let locator = &store["length_entries"][0]["finding"]["locator"];
+    assert_eq!(locator["source"], "src/external.rs");
+    assert_eq!(locator["qualified_name"], "crate::external::many");
+}
+
+#[test]
+fn path_remapped_external_module_length_identity_remains_unavailable() {
+    let directory = workspace("#[path=\"external.rs\"] pub mod remapped;\n");
     std::fs::write(directory.path().join("src/external.rs"), ORIGINAL).unwrap();
     let (output, original) = capture(directory.path(), &[]);
     assert_eq!(output.status.code(), Some(2));
@@ -294,7 +326,7 @@ fn external_module_length_identity_is_explicitly_unavailable() {
     }
     .run(&[
         "--dismiss-length",
-        key(&original, "external::many"),
+        key(&original, "remapped::many"),
         "--review-reason",
         REASON,
     ]);

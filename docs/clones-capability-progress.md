@@ -1870,7 +1870,7 @@ baselines. Native macOS, external Go comparison, changed-line analysis and legac
 retirement remain unverified or open. Upstream PR19 is still outside this branch.
 
 
-## C13c: explicit saved density CI baselines
+## C13c: explicit saved density CI baselines (`5b42926`)
 
 The lead owns CLI/report integration and shared observation reuse; model and IO
 workers own the isolated `review/density_baseline/` leaves; independent acceptance
@@ -1924,3 +1924,53 @@ Original root-file and inline-module locators remain the current positive identi
 scope. Broader external-module identities, source-rule CI baselines, project
 coverage/quality, native macOS, external Go comparisons and capability-specific
 retirement remain open. PR19 is still outside this branch.
+
+## C13d: original external free-function review identities
+
+The lead owns declaration-index routing, existing analysis boundaries and
+parameter-review acceptance; the locator worker owns `dispatch/locations.rs` and
+its unit tests; acceptance owns density external-module cases and length/spacing
+live review cases. This slice extends the
+shared durable location query used by source and numeric reviews, making density
+baselines usable for ordinary external free functions. It does not add external
+enum/capability analysis or external method review permission.
+
+A lazily retained locator index checks the complete ordinary selected-module
+closure from immutable captured source buffers. It keeps the exact compiler cfg
+context, unique full qualified declaration names and exact file/range/header
+correspondence. Source buffers share existing immutable snapshot handles. Query
+lookups borrow the completed index, with no new hash or serialized authority.
+Root/inline queries keep their original declaration index and method behavior.
+External paths use `name.rs` and `name/mod.rs`, including nested inline modules;
+remapped/generated ownership, duplicate/missing/orphan files, unknown selection,
+external methods and exhausted limits remain unavailable. Whole-closure limits
+include existing 256-file/8-MiB census bounds, a 256-KiB per-file and 256-delimiter
+parser preflight, 32 module levels and 4,096 visited source items. Failed or
+exhausted indexing publishes no partial locator population.
+
+Independent unit cases cover ordinary/nested layouts, sibling names and equal
+byte offsets, cfg isolation, original BOM/CRLF offsets, ambiguous closure/name
+ownership, changed bytes/header/path/identifier, generated declarations and
+budgets, including impl/trait members in the whole declaration population.
+Routing cases verify external identities cannot authorize dispatch or
+capability findings, and retained lookup checks current context and source.
+Five real-Cargo cases cover numeric baseline export, recapture/movement, changed
+measurements, multiple external paths, saved density reviews and source/tool-free
+full/compact comparison and export. Source-rule cases now prove ordinary external
+length/parameter/spacing dismissals preserve raw findings, while remapped-module
+identity remains unavailable and budget refusal remains intact. All 48 focused
+source-review/external-module cases pass. The final frozen code passes all 3,126
+nextest tests (five skipped) in 198.256 seconds and workspace doc tests, including
+the original NonZero regressions and u32 widening composition. Workspace/all-target
+Clippy with warnings denied, formatting and diff checks pass. Legacy style reports
+zero violations across 9,441 functions; reviewed patterns reports zero visible
+candidates, with exactly the previous fifteen unfiltered IDs. The extra query
+wrapper was removed to share owner/file selection without a new abstraction or
+ledger entry. Evidence is under `/tmp/clones-external-locations-*`.
+
+Broader external methods, source-rule CI baselines, project quality/coverage,
+native macOS, external Go comparison and capability-specific legacy retirement
+remain open. PR19 remains outside this branch.
+Next ready work is explicit source-rule CI baselines over shared completed
+length/parameter/configured-spacing observations, retaining empty policy/context
+headers and keeping numeric resolution distinct from suppression visibility.

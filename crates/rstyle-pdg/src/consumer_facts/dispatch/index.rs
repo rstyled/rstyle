@@ -4,16 +4,18 @@ use crate::{
     nominal_boundary::{self, census},
 };
 use serde::Deserialize;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{cell::OnceCell, collections::BTreeMap, sync::Arc};
 
 pub struct Index {
     units: Vec<Unit>,
 }
 
 struct Unit {
+    owner_index: usize,
     census: Arc<census::Census>,
     context: serde_json::Value,
     source: Result<SourceIndex, shapes::SourceFailure>,
+    locations: OnceCell<Result<super::locations::Locations, String>>,
 }
 
 struct SourceIndex {
@@ -58,7 +60,8 @@ impl Index {
                     return Err("Dispatch source owner has conflicting selected contexts".into());
                 }
             } else {
-                units.push(Unit::new(census, context)?);
+                let unit = Unit::new(census, context, units.len())?;
+                units.push(unit);
             }
         }
         Ok(Self { units })
@@ -79,7 +82,28 @@ impl Index {
 
     /// Source-located identity without requiring a positive analysis finding.
     pub fn review_location(&self, facts: &HirFnFacts) -> Result<(String, &'static str), String> {
-        self.review(facts, |declaration| Ok(review::location(&declaration)))
+        let Some(unit) = self.selected(facts)? else {
+            return Err("Review requires original selected-unit source ownership".into());
+        };
+        let Some(file) = unit.file(facts)? else {
+            return Err("Review requires an original function source path".into());
+        };
+        if file.path != unit.census.context.root_source {
+            let locations = unit
+                .locations
+                .get_or_init(|| super::locations::Locations::new(&unit.census, &facts.build.cfgs));
+            return locations
+                .as_ref()
+                .map_err(Clone::clone)?
+                .location(facts, &file.bytes);
+        }
+        available(unit.query_file(facts, file, |declaration| Assessment {
+            availability: super::super::Availability::Known(Some(Ok(review::location(
+                &declaration,
+            )))),
+            reason: None,
+            budget_exhausted: false,
+        })?)
     }
 
     pub fn review_dispatch(
@@ -112,10 +136,7 @@ impl Index {
             reason: None,
             budget_exhausted: false,
         })?;
-        match result.availability {
-            super::super::Availability::Known(Some(value)) => value,
-            _ => Err("Review requires an available original indexed declaration".into()),
-        }
+        available(result)
     }
 
     fn query<T>(
@@ -123,26 +144,42 @@ impl Index {
         facts: &HirFnFacts,
         evaluate: impl FnOnce(CheckedDeclaration<'_>) -> Assessment<T>,
     ) -> Result<Assessment<T>, String> {
-        let Some((census, context)) = owner(facts)? else {
+        let Some(unit) = self.selected(facts)? else {
             return Ok(Assessment::unknown(
                 "Original selected-unit source ownership was not captured",
             ));
         };
-        let (owner_index, unit) = self
+        let Some(file) = unit.file(facts)? else {
+            return Ok(Assessment::unknown(
+                "Original function source path was not captured",
+            ));
+        };
+
+        unit.query_file(facts, file, evaluate)
+    }
+
+    fn selected(&self, facts: &HirFnFacts) -> Result<Option<&Unit>, String> {
+        let Some((census, context)) = owner(facts)? else {
+            return Ok(None);
+        };
+        let unit = self
             .units
             .iter()
-            .enumerate()
-            .find(|(_, unit)| Arc::ptr_eq(&unit.census, &census))
+            .find(|unit| Arc::ptr_eq(&unit.census, &census))
             .ok_or("Dispatch facts are outside the indexed immutable source owners")?;
         if unit.context != *context {
             return Err("Dispatch source owner context changed".into());
         }
-        unit.query(facts, owner_index, evaluate)
+        Ok(Some(unit))
     }
 }
 
 impl Unit {
-    fn new(census: Arc<census::Census>, context: &serde_json::Value) -> Result<Self, String> {
+    fn new(
+        census: Arc<census::Census>,
+        context: &serde_json::Value,
+        owner_index: usize,
+    ) -> Result<Self, String> {
         let selected = nominal_boundary::UnitContext::deserialize(context)
             .map_err(|error| error.to_string())?;
         selected.validate()?;
@@ -159,13 +196,15 @@ impl Unit {
             Err(failure) => Err(failure),
         };
         Ok(Self {
+            owner_index,
             census,
             context: context.clone(),
             source,
+            locations: OnceCell::new(),
         })
     }
 
-    fn checked_file(&self, facts: &HirFnFacts) -> Result<Option<&census::UnitFile>, String> {
+    fn file(&self, facts: &HirFnFacts) -> Result<Option<&census::UnitFile>, String> {
         let Some(path) = facts
             .build
             .frontend_options
@@ -180,22 +219,16 @@ impl Unit {
             .iter()
             .find(|file| file.path.to_str() == Some(path))
             .ok_or("Dispatch function file is absent from its immutable census")?;
-        check_function_bytes(facts, &file.bytes)?;
         Ok(Some(file))
     }
 
-    fn query<T>(
+    fn query_file<T>(
         &self,
         facts: &HirFnFacts,
-        owner_index: usize,
+        file: &census::UnitFile,
         evaluate: impl FnOnce(CheckedDeclaration<'_>) -> Assessment<T>,
     ) -> Result<Assessment<T>, String> {
-        let Some(file) = self.checked_file(facts)? else {
-            return Ok(Assessment::unknown(
-                "Original function source path was not captured",
-            ));
-        };
-
+        check_function_bytes(facts, &file.bytes)?;
         if file.path != self.census.context.root_source {
             return Ok(Assessment::unsupported(
                 "Only the compiler-selected root file and its inline modules are indexed",
@@ -210,6 +243,7 @@ impl Unit {
                 "Generated function has no original dispatch declaration",
             ));
         }
+
         let modules = match &self.source {
             Ok(modules) => modules,
             Err(failure) => {
@@ -218,7 +252,8 @@ impl Unit {
                 return Ok(assessment);
             }
         };
-        let Some(declaration) = CheckedDeclaration::new(modules, facts, &file.bytes, owner_index)?
+        let Some(declaration) =
+            CheckedDeclaration::new(modules, facts, &file.bytes, self.owner_index)?
         else {
             return Ok(Assessment::unsupported(
                 "Owned function is not an original indexed free declaration",
@@ -254,7 +289,7 @@ fn checked_files(census: &census::Census) -> Result<(), String> {
     Ok(())
 }
 
-fn check_function_bytes(facts: &HirFnFacts, source: &str) -> Result<(), String> {
+pub(super) fn check_function_bytes(facts: &HirFnFacts, source: &str) -> Result<(), String> {
     if !facts.source.bytes.matches_identity(&facts.source.digest)
         || facts.fn_span.end.checked_sub(facts.fn_span.start)
             != u32::try_from(facts.source.bytes.len()).ok()
@@ -300,7 +335,11 @@ impl<'a> CheckedDeclaration<'a> {
     }
 }
 
-fn check_header(facts: &HirFnFacts, function: &syn::ItemFn, source: &str) -> Result<(), String> {
+pub(super) fn check_header(
+    facts: &HirFnFacts,
+    function: &syn::ItemFn,
+    source: &str,
+) -> Result<(), String> {
     let header = shapes::function_header(source, function);
     if header.start != facts.fn_span.start
         || header.end.checked_sub(header.start) != Some(facts.signature.sig_span.end)
@@ -321,4 +360,11 @@ fn check_header(facts: &HirFnFacts, function: &syn::ItemFn, source: &str) -> Res
         return Err("Dispatch source identifier differs from its owned declaration".into());
     }
     Ok(())
+}
+
+fn available<T>(assessment: Assessment<Result<T, String>>) -> Result<T, String> {
+    match assessment.availability {
+        super::super::Availability::Known(Some(value)) => value,
+        _ => Err("Review requires an available original indexed declaration".into()),
+    }
 }

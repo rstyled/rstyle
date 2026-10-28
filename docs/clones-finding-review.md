@@ -140,9 +140,11 @@ Parameter dismissal upgrades the store envelope to schema 3 with typed
 rewrites. Missing stores mean no reviews. Suppressed, clean, unselected,
 unavailable, invalid or duplicate selections reject without writing.
 
-Identity initially covers uniquely indexed original free-function declarations
-in captured root source and inline modules. External module files, ambiguous
-declarations, unavailable source ownership/indexes and exhausted bounded work
+Identity covers uniquely indexed original free-function declarations in captured
+root source, inline modules and independently checked ordinary external modules
+(`name.rs` or `name/mod.rs`). External locators retain exact captured cfg selection
+and original file/range/header correspondence. Remapped/generated module
+ownership, external methods, ambiguous declarations, unavailable source ownership/indexes and exhausted bounded work
 remain unavailable when a positive review identity is needed. Observation and
 retained-entry work are each bounded to 4,096 entries.
 
@@ -182,7 +184,7 @@ Length dismissal adds `length_entries` in schema 4. Existing helper, abstraction
 and parameter entries survive unchanged, and schemas 1–3 remain readable without
 read-only upgrades. Parameter and length findings on one function are reviewed
 independently. Their original owner is resolved once per function, under the same
-4,096-owner bound and root/inline-module free-function coverage described above.
+4,096-owner bound and original free-function coverage described above.
 Each numeric family permits at most 4,096 retained entries.
 Unavailable, suppressed, unselected or clean findings cannot be dismissed.
 
