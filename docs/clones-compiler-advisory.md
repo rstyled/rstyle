@@ -47,6 +47,36 @@ deserialization would fill with zero/empty defaults. The enclosing bundle and
 selected compiler invocation retain the compilation context. No new hash is used.
 Strict clone matching and certification do not consume this advisory record.
 
+## Cross-package compiler effects
+
+Captured non-test library selections can reuse core effect propagation across
+uniquely identified direct Cargo dependency edges. Select both workspace packages
+with the existing package selection; missing packages are not captured implicitly.
+Each callee remains scoped by its report unit and compiler function ID. The
+adapter uses the existing captured Cargo unit graph, planned contexts, target,
+features and platform, requiring a unique correspondence. It performs no new
+artifact scans or checksums. Renamed imports preserve the compiler's callee ID.
+
+`units[].resolved_dependency_callees` maps resolved free-function IDs to their
+report-local dependency unit IDs; unresolved IDs retain the existing roster.
+Facts are borrowed while core constructs and propagates the shared call graph.
+Completed effect vectors then move into each unit's ordinary rule evaluation,
+without copying bodies/graphs or repeating propagation. Source rules, fix groups,
+parameter plans and proposal mining remain separated by compilation unit.
+Existing hop limits, outward effect kinds and suppression boundaries apply to
+cross-package calls exactly as to local calls. This is the existing compiler
+metric, not a purity or semantic-equivalence proof.
+
+This connection covers uniquely identified free-function definitions. Associated
+methods, trait dispatch, same-path functions in multiple direct dependencies,
+uncaptured/generated/excluded targets and ambiguous Cargo contexts remain
+unresolved. Cargo can emit indistinguishable descriptors for check/test library
+occurrences; neither is chosen by order. A dependency's missing propagation inputs
+also prevent completed density negatives, while direct rule assessments remain
+independent. Single-unit runs retain their existing evaluation path. Matching
+budgets and strict clone admission do not grant or prevent advisory propagation.
+Source/tool-free replay uses the same captured graph and owner identities.
+
 Add `--compiler-patterns` to collect the existing compiler advisory dependence
 graphs and run the existing core abstraction proposer. This flag requires
 `--compiler-advisory`; graph construction does no work without the explicit flag.

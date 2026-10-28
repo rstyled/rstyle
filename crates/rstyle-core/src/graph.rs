@@ -18,7 +18,10 @@
 use crate::facts::{ArgSource, EffectKind, FnFacts};
 use crate::rules::Effect;
 use crate::suppress;
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    borrow::Borrow,
+    collections::{BTreeMap, BTreeSet},
+};
 
 /// A resolved call: one of `targets` runs at `line` of the caller. Several targets
 /// mean a trait-method call (any impl, or the default body).
@@ -57,17 +60,33 @@ pub fn build(facts: &[FnFacts]) -> Graph {
             by_id.entry(trait_fn.as_str()).or_default().push(index);
         }
     }
+    build_resolved(facts, |_, edge| {
+        by_id
+            .get(edge.callee.as_str())
+            .into_iter()
+            .flatten()
+            .copied()
+    })
+}
+
+/// Reuse graph construction with a consumer's scoped target indices, borrowing its owners.
+pub fn build_resolved<F: Borrow<FnFacts>, T: IntoIterator<Item = usize>>(
+    facts: &[F],
+    mut targets: impl FnMut(usize, &crate::facts::Edge) -> T,
+) -> Graph {
     let callees = facts
         .iter()
         .enumerate()
-        .map(|(caller, f)| {
-            let resolved: BTreeSet<Callee> = f
+        .map(|(caller, fact)| {
+            let resolved: BTreeSet<Callee> = fact
+                .borrow()
                 .edges
                 .iter()
                 .filter_map(|edge| {
-                    let found = by_id.get(edge.callee.as_str())?;
-                    let targets: BTreeSet<usize> =
-                        found.iter().copied().filter(|&t| t != caller).collect();
+                    let targets: BTreeSet<_> = targets(caller, edge)
+                        .into_iter()
+                        .filter(|target| *target != caller)
+                        .collect();
                     (!targets.is_empty()).then(|| Callee {
                         line: edge.line,
                         targets: targets.into_iter().collect(),
@@ -83,10 +102,12 @@ pub fn build(facts: &[FnFacts]) -> Graph {
 
 /// True for functions that declared themselves a side-effect boundary.
 pub fn boundaries(facts: &[FnFacts]) -> Vec<bool> {
-    facts
-        .iter()
-        .map(|f| suppress::allows(&f.preceding_line, "side_effect_density"))
-        .collect()
+    facts.iter().map(is_boundary).collect()
+}
+
+/// The existing suppression policy over one borrowed owner.
+pub fn is_boundary(facts: &FnFacts) -> bool {
+    suppress::allows(&facts.preceding_line, "side_effect_density")
 }
 
 fn outward(kind: EffectKind) -> bool {
@@ -150,8 +171,8 @@ fn exported_by(target: &FnFacts, theirs: &[Effect], line: usize, delegated: bool
 }
 
 /// What a call hands to its caller: the effects every possible target exports.
-fn exported(
-    inputs: &Inputs,
+fn exported<F: Borrow<FnFacts>>(
+    inputs: &Inputs<'_, F>,
     caller: &FnFacts,
     callee: &Callee,
     current: &[Vec<Effect>],
@@ -164,7 +185,12 @@ fn exported(
         if inputs.boundary[t] {
             return Vec::new();
         }
-        exported_by(&inputs.facts[t], &current[t], callee.line, delegated)
+        exported_by(
+            inputs.facts[t].borrow(),
+            &current[t],
+            callee.line,
+            delegated,
+        )
     });
     let first = per_target.next().unwrap_or_default();
     let rest: Vec<Vec<Effect>> = per_target.collect();
@@ -182,22 +208,26 @@ fn exported(
 }
 
 /// Everything propagation reads. `direct[i]` and `boundary[i]` belong to `facts[i]`.
-pub struct Inputs<'a> {
-    pub facts: &'a [FnFacts],
+pub struct Inputs<'a, F = FnFacts> {
+    pub facts: &'a [F],
     pub graph: &'a Graph,
     pub direct: &'a [Vec<Effect>],
     pub boundary: &'a [bool],
 }
 
 /// One synchronous round for `facts[index]`: its direct effects plus what its callees export.
-fn round(inputs: &Inputs, index: usize, current: &[Vec<Effect>]) -> Vec<Effect> {
+fn round<F: Borrow<FnFacts>>(
+    inputs: &Inputs<'_, F>,
+    index: usize,
+    current: &[Vec<Effect>],
+) -> Vec<Effect> {
     let direct = &inputs.direct[index];
     let mut out = direct.clone();
     let mut seen: BTreeSet<(EffectKind, String)> =
         direct.iter().map(|e| (e.kind, e.label.clone())).collect();
     let inherited = inputs.graph.callees[index]
         .iter()
-        .flat_map(|callee| exported(inputs, &inputs.facts[index], callee, current));
+        .flat_map(|callee| exported(inputs, inputs.facts[index].borrow(), callee, current));
 
     for effect in inherited {
         if seen.insert((effect.kind, effect.label.clone())) {
@@ -208,7 +238,7 @@ fn round(inputs: &Inputs, index: usize, current: &[Vec<Effect>]) -> Vec<Effect> 
 }
 
 /// Direct effects plus effects inherited up to `depth` hops.
-pub fn propagate(inputs: &Inputs, depth: usize) -> Vec<Vec<Effect>> {
+pub fn propagate<F: Borrow<FnFacts>>(inputs: &Inputs<'_, F>, depth: usize) -> Vec<Vec<Effect>> {
     let mut current = inputs.direct.to_vec();
     for _ in 0..depth {
         let next: Vec<Vec<Effect>> = (0..inputs.facts.len())

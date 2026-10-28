@@ -1,6 +1,7 @@
 use super::*;
 
 mod patterns;
+mod propagation;
 mod reviews;
 mod selection;
 

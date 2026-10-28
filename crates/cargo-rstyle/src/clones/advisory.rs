@@ -1,6 +1,7 @@
-//! Reuse core policy over compiler-collected inputs, isolated by compilation unit.
+//! Reuse core policy over compiler-collected inputs, scoped by compilation unit.
 mod diagnostics;
 mod patterns;
+mod propagation;
 mod selection;
 use super::{analysis::Completion, identity::UnitId, report::Context};
 use rstyle_core::{
@@ -9,7 +10,10 @@ use rstyle_core::{
     facts::FnFacts,
 };
 use serde::Serialize;
-use std::{collections::BTreeSet, rc::Rc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+};
 
 #[derive(Serialize)]
 pub(super) struct Report {
@@ -41,6 +45,10 @@ struct Unit {
     observations: Vec<Measurement>,
     unavailable: Vec<Missing>,
     unresolved_callees: BTreeSet<String>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    resolved_dependency_callees: BTreeMap<String, UnitId>,
+    #[serde(skip)]
+    propagation_complete: bool,
     evaluation: rstyle_core::report::Report,
     #[serde(skip)]
     diagnostic_snapshots: Vec<Result<super::review::compiler_diagnostics::Snapshot, String>>,
@@ -208,7 +216,8 @@ impl Report {
                             .is_none_or(|selection| selection.contains(&assessed.path)),
                         effect_scope_complete: ctx.capture.failures.is_empty()
                             && ctx.handoff.failures.is_empty()
-                            && unit.inputs_complete(),
+                            && unit.inputs_complete()
+                            && unit.propagation_complete,
                     }
                 })
             })
@@ -282,11 +291,22 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
         return Ok(None);
     };
     let policy = Rc::new(serde_json::to_value(config).map_err(|error| error.to_string())?);
+    let inputs = ctx
+        .handoff
+        .unit_contexts
+        .iter()
+        .map(|unit| collect_inputs(ctx, unit.id))
+        .collect::<Result<Vec<_>, _>>()?;
+    let effects = propagation::evaluate(ctx, &inputs, config)?;
     let units = ctx
         .handoff
         .unit_contexts
         .iter()
-        .map(|unit| evaluate_unit(ctx, unit, &policy))
+        .zip(inputs)
+        .zip(effects)
+        .map(|((unit, inputs), effects)| {
+            evaluate_unit(ctx, unit, &policy, Prepared { inputs, effects })
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let complete = ctx.capture.failures.is_empty()
         && ctx.handoff.failures.is_empty()
@@ -301,7 +321,7 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
         findings: units.iter().map(Unit::findings).sum(),
         limitations: &[
             "Advisory compiler observations and existing core policy; no strict clone or purity authority.",
-            "Each compilation unit is evaluated separately; cross-package propagation is unavailable.",
+            "Core effect propagation follows unique captured direct Cargo dependencies; missing or ambiguous units remain unresolved.",
             "Missing functions and unresolved workspace callees make coverage incomplete; no zero facts are substituted.",
             "Core metrics count mutable borrows and use bounded effect propagation; they differ from strict mutation-effect metrics.",
             "Compiler patterns use approximate advisory graphs and bounded core discovery; input completeness is not exhaustive proposal coverage or refactoring safety.",
@@ -332,56 +352,69 @@ pub(super) fn configuration(args: &super::Args) -> Result<Option<Config>, String
     Ok(Some(config))
 }
 
+struct Prepared {
+    inputs: Collected,
+    effects: propagation::Completed,
+}
+
 fn evaluate_unit(
     ctx: &Context<'_>,
     unit: &super::identity::UnitContext,
     policy: &Rc<serde_json::Value>,
+    prepared: Prepared,
 ) -> Result<Unit, String> {
-    let captured = &ctx.capture.units[unit.observed_unit];
-    let root = captured.target.manifest_dir.clone();
-    let inputs = collect_inputs(ctx, unit.id)?;
-    let Collected {
-        facts,
-        observations,
-        unavailable,
-        missing_graphs,
-    } = inputs;
-    let unresolved_callees = unresolved(&facts)?;
+    let Prepared { inputs, effects } = prepared;
+    let root = &ctx.capture.units[unit.observed_unit].target.manifest_dir;
+    let unresolved_callees =
+        propagation::unresolved(&inputs.facts, effects.unresolved, &effects.resolved)?;
     let expected_functions = (ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty())
-        .then_some(observations.len() + unavailable.len());
-    let diagnostics::Completed {
-        evaluation,
-        facts,
-        snapshots: diagnostic_snapshots,
-        owners: diagnostic_owners,
-    } = diagnostics::evaluate(ctx, unit, facts, policy)?;
-    let patterns = ctx.args.compiler_patterns.then(|| {
-        patterns::evaluate(
-            ctx,
-            unit,
-            patterns::Inputs {
-                facts,
-                missing: missing_graphs,
-                unavailable_functions: unavailable.len(),
-            },
-        )
-    });
+        .then_some(inputs.observations.len() + inputs.unavailable.len());
+    let completed = diagnostics::evaluate(
+        ctx,
+        unit,
+        diagnostics::Inputs {
+            facts: inputs.facts,
+            effects: effects.values,
+        },
+        policy,
+    )?;
+    let patterns = evaluate_patterns(
+        ctx,
+        unit,
+        patterns::Inputs {
+            facts: completed.facts,
+            missing: inputs.missing_graphs,
+            unavailable_functions: inputs.unavailable.len(),
+        },
+    );
 
     Ok(Unit {
         unit: unit.id,
-        package_root: root,
+        package_root: root.clone(),
         source_root: ctx.capture.plan.root.clone(),
         expected_functions,
-        observations,
-        unavailable,
+        observations: inputs.observations,
+        unavailable: inputs.unavailable,
         unresolved_callees,
-        evaluation,
-        diagnostic_snapshots,
-        diagnostic_owners,
+        resolved_dependency_callees: effects.resolved,
+        propagation_complete: effects.complete,
+        evaluation: completed.evaluation,
+        diagnostic_snapshots: completed.snapshots,
+        diagnostic_owners: completed.owners,
         visible_diagnostics: None,
         selected_diagnostics: None,
         patterns,
     })
+}
+
+fn evaluate_patterns(
+    ctx: &Context<'_>,
+    unit: &super::identity::UnitContext,
+    inputs: patterns::Inputs,
+) -> Option<patterns::Report> {
+    ctx.args
+        .compiler_patterns
+        .then(|| patterns::evaluate(ctx, unit, inputs))
 }
 
 #[derive(Default)]

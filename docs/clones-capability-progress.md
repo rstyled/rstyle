@@ -2859,3 +2859,68 @@ Final reviewed patterns reports zero. Unfiltered discovery contains exactly the
 same fourteen reviewed IDs as C22, with no new or absent IDs; the ignore ledger
 is unchanged. Evidence is `/tmp/clones-compiler-negative-patterns-final-1` and
 `/tmp/clones-compiler-negative-patterns-unfiltered-final-1`.
+
+## C24: reuse core propagation across scoped Cargo dependency targets
+
+The lead owns the borrowed core graph/evaluation seam, compiler advisory adapter,
+acceptance cases and documentation. Core graph construction now accepts scoped
+resolved target iterators; its existing propagation reads borrowed function facts.
+The ordinary graph builder borrows its existing target lists without an extra
+per-call vector. The compiler adapter resolves each edge once while building the
+shared graph and passes completed effect vectors into ordinary core rule
+assessment, avoiding a second propagation pass. Source buffers, bodies and graphs
+are not copied. No new collector, propagation algorithm, hash, checksum, artifact
+scan or source/body proof is introduced.
+
+The connection uses unique captured non-test Cargo units, their exact planned
+records, package/target/features/platform and direct dependency edges. Owners
+remain keyed by unit and compiler function ID. Renamed dependencies work; only
+known free-function definitions are connected. Associated methods, uncaptured,
+generated and excluded targets, duplicate Cargo descriptors, multiple same-path
+dependencies and local/dependency path collisions remain unresolved. The report's
+`resolved_dependency_callees` exposes callee-to-unit mappings. Check/test inputs
+never merge. Existing depth, outward kinds, boundaries, policy, versions and
+unit-local fix groups/plans/proposals remain intact. Strict pair budgets and
+admission remain independent. Missing dependency propagation prevents completed
+density negatives; the five direct-rule scopes stay independent.
+
+Ten real-Cargo cases cover renamed dependencies, local/cross-package hop limits,
+suppression boundaries, omitted/generated/excluded inputs, source-free replay,
+check/test ambiguity, duplicate crate paths, local/foreign collisions and retained
+density unavailability. A core test verifies unchanged reports, original source
+buffer identity and rejection of missing completed effects. Focused cases pass;
+final integrated gates and the independently pre-labeled two-package project
+study follow below. The full migration is not complete: cross-package associated
+methods/planning, broader measured quality/coverage and retirement remain open.
+
+The integrated snapshot passes all 3,295 nextest cases in 212.979 seconds, with
+five existing skips, plus workspace doc tests. Both original NonZero regressions
+and the u32 widening composition pass. Evidence is
+`/tmp/clones-cross-unit-propagation-tests-final-1`. Final all-target Clippy with
+warnings denied passes after extracting the density review fixture setup into
+a helper; the earlier Clippy failure is not passing evidence. Formatting and
+diff checks pass. Style reports zero violations over 9,694 functions
+(`/tmp/clones-cross-unit-propagation-style-final-3`). Reviewed patterns reports
+zero candidates with the existing fourteen reviewed entries
+(`/tmp/clones-cross-unit-propagation-patterns-final-1`); no ledger entries,
+thresholds, suppressions or budgets were changed.
+
+The expanded two-library project capture stopped before advisory evaluation:
+the driver could not publish `rstyle-pdg` evidence because its existing source
+census exceeded the file/byte budget. The terminal exit is 2 after 44.16 seconds,
+with 4,833,952 KiB peak RSS reported by `/usr/bin/time`. Its saved run is
+`run-S1tXzo`, and its advisory unit roster is empty. Evidence and the exact
+command are recorded in `eval/clones-capability/project-study.md` and
+`/tmp/clones-cross-unit-propagation-project-capture-1`. This establishes no
+project coverage gain or speedup; the sixteen independently labeled free-target
+expectations remain unverified for that larger project. The existing census
+budget was not raised. Ten smaller real-Cargo acceptance cases pass, including
+two-hop depth, replay, missing inputs and conservative saved-density status.
+The next ready work is to address project capture availability through existing
+owner/source collection seams, then rerun these pre-labeled targets before
+claiming broader project gains. No new hashing or redundant body proof is needed.
+
+Final unfiltered pattern discovery contains exactly the same fourteen reviewed
+IDs as C23, with no new or absent IDs. Evidence is
+`/tmp/clones-cross-unit-propagation-patterns-unfiltered-final-1`; the ignore ledger
+is unchanged.

@@ -1,0 +1,34 @@
+{
+  "schema": "rstyle.compiler-cross-unit-study-cases/1",
+  "scope": "rstyle-ccgraph and rstyle-pdg non-test library units",
+  "expectations": {
+    "ccgraph_prior_unresolved": 20,
+    "ccgraph_free_function_targets": [
+      "rstyle_pdg::cfg::reachable_vertices",
+      "rstyle_pdg::cfg::read_operation_map",
+      "rstyle_pdg::cfg::validate_cfg",
+      "rstyle_pdg::cfg::validate_correspondence",
+      "rstyle_pdg::cfg::validate_paired_agreement",
+      "rstyle_pdg::collection::collect_present",
+      "rstyle_pdg::data_documents::read_keys",
+      "rstyle_pdg::data_types::parse",
+      "rstyle_pdg::extraction_profile::policy_supports",
+      "rstyle_pdg::helper_calls::native_width",
+      "rstyle_pdg::producer::matching_build::settings",
+      "rstyle_pdg::producer::verify::verify",
+      "rstyle_pdg::producer::verify::verify_view",
+      "rstyle_pdg::validate::validate_source_text",
+      "rstyle_pdg::validate::validate_sources",
+      "rstyle_pdg::value_sites::validate_value_sites"
+    ],
+    "method_targets_remain_unresolved": [
+      "rstyle_pdg::data_types::{impl#0}::native_width",
+      "rstyle_pdg::extraction_profile::{impl#0}::policy",
+      "rstyle_pdg::model::{impl#6}::known_value",
+      "rstyle_pdg::validate::{impl#2}::new"
+    ],
+    "whole_analysis_exit": 2,
+    "strict_pair_budget": 0
+  },
+  "basis": "Before running the expanded project selection, label the sixteen named free-function callees as eligible for unique direct-Cargo dependency resolution when their original observations are available. Four associated-method IDs remain outside this bounded connection. Generated owners and unresolved calls must preserve incompleteness. This study measures expanded call coverage, not speedup, strict matching completeness, or purity."
+}

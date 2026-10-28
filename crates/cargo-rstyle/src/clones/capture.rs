@@ -903,7 +903,7 @@ fn intended_mode(plan: &Plan, target: &Target, linked: bool, features: &[Value])
     })
 }
 
-fn invocation_features(invocation: &[String]) -> Vec<Value> {
+pub(in crate::clones) fn invocation_features(invocation: &[String]) -> Vec<Value> {
     let mut features: Vec<_> = invocation
         .iter()
         .enumerate()

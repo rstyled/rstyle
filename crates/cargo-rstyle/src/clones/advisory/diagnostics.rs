@@ -14,12 +14,18 @@ pub(super) struct Completed {
     pub owners: Vec<compiler_diagnostics::observed::Assessed>,
 }
 
+pub(super) struct Inputs {
+    pub facts: Vec<FnFacts>,
+    pub effects: Option<std::collections::BTreeMap<String, Vec<rstyle_core::rules::Effect>>>,
+}
+
 pub(super) fn evaluate(
     ctx: &Context<'_>,
     unit: &UnitContext,
-    facts: Vec<FnFacts>,
+    inputs: Inputs,
     policy: &Rc<serde_json::Value>,
 ) -> Result<Completed, String> {
+    let retention = retention(ctx);
     let config = ctx
         .compiler_advisory_config
         .ok_or("Compiler diagnostic policy was not requested")?;
@@ -28,7 +34,8 @@ pub(super) fn evaluate(
             .args
             .compiler_baseline_requested(crate::clones::CompilerBaseline::Diagnostics)
     {
-        let (evaluation, facts) = rstyle_core::evaluate_and_retain(facts, config)?;
+        let evaluated = evaluate_core(inputs, config, retention)?;
+        let (evaluation, facts) = (evaluated.report, evaluated.facts);
         return Ok(Completed {
             evaluation,
             facts,
@@ -37,15 +44,7 @@ pub(super) fn evaluate(
         });
     }
 
-    let mut evaluated = if ctx.args.review_status_requested()
-        || ctx
-            .args
-            .compiler_baseline_requested(crate::clones::CompilerBaseline::Diagnostics)
-    {
-        rstyle_core::evaluate_with_scopes(facts, config)?
-    } else {
-        rstyle_core::evaluate_with_owners(facts, config)?
-    };
+    let mut evaluated = evaluate_core(inputs, config, retention)?;
     let compiler_diagnostics::observed::Completed { snapshots, owners } =
         compiler_diagnostics::observed::collect(ctx, unit, &mut evaluated, policy);
     Ok(Completed {
@@ -54,6 +53,32 @@ pub(super) fn evaluate(
         snapshots,
         owners,
     })
+}
+
+fn retention(ctx: &Context<'_>) -> rstyle_core::Retention {
+    if ctx.args.review_status_requested()
+        || ctx
+            .args
+            .compiler_baseline_requested(crate::clones::CompilerBaseline::Diagnostics)
+    {
+        rstyle_core::Retention::Scopes
+    } else if ctx.args.review_file.is_some() {
+        rstyle_core::Retention::Owners
+    } else {
+        rstyle_core::Retention::Report
+    }
+}
+
+fn evaluate_core(
+    inputs: Inputs,
+    config: &rstyle_core::config::Config,
+    retention: rstyle_core::Retention,
+) -> Result<rstyle_core::Evaluation, String> {
+    let Inputs { facts, effects } = inputs;
+    if let Some(effects) = effects {
+        return rstyle_core::evaluate_with_effects(facts, config, retention, effects);
+    }
+    rstyle_core::evaluate_retained(facts, config, retention)
 }
 
 pub(super) fn render(unit: UnitId, report: &Report, visible: Option<&[usize]>) -> String {

@@ -373,6 +373,16 @@ invalid suppressions stay global. `changed_scope` reports file owner availabilit
 unknown files or whole-scope missing inputs still prevent a clean result.
 See [compiler advisory](../../docs/clones-compiler-advisory.md).
 
+When both workspace library packages are selected, compiler effects follow
+unique captured direct Cargo edges to known free functions. The report's
+`resolved_dependency_callees` maps compiler IDs to report-local unit IDs.
+Core propagation borrows captured owners and completed effects move into rule
+evaluation, with no extra hash, artifact scan, source proof or body/graph copy.
+Hop limits and suppression boundaries are unchanged. Missing, generated, excluded,
+ambiguous and associated-method targets remain unresolved; indistinguishable
+check/test graph descriptors never share inputs. Cross-unit plans/proposals stay
+out of scope. Strict clone admission and pair budgets remain independent.
+
 Add `--compiler-patterns` to reuse existing compiler graphs and the core
 trait/capability/generic/helper/dispatch proposer. Graph collection is opt-in;
 saved runs without graphs report unavailable inputs. Each unit's `patterns`

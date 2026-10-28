@@ -380,3 +380,33 @@ explicit source-free pruning, policy/context/selection and suppression boundarie
 direct-versus-density completeness and independence from strict pair budgets.
 This project check establishes preservation with requested scope retention, not
 new project findings, measured negative coverage, broader quality or retirement.
+
+## Cross-package compiler effect propagation
+
+The independently pre-recorded
+[`project-compiler-cross-unit-cases.json`](project-compiler-cross-unit-cases.json)
+labels sixteen free-function dependency targets and four associated methods over
+the non-test `rstyle-ccgraph` and `rstyle-pdg` libraries. The intended observation
+is expanded resolved-call coverage, with generated owners and associated methods
+still incomplete. It is not a speed or strict-matching study.
+
+```sh
+env PATH=/home/dev/.cargo/bin:$PATH CARGO_TARGET_DIR=target \
+python3 scripts/watchdog.py --timeout 180 \
+  --output /tmp/clones-cross-unit-propagation-project-capture-1 -- \
+  /usr/bin/time -v target/debug/cargo-rstyle rstyle \
+  -p rstyle-ccgraph -p rstyle-pdg --format json clones \
+  --extraction-profile hir-data-v3 --compiler-advisory \
+  --compiler-advisory-config eval/clones-capability/project-compiler-review-policy.toml \
+  --max-pairs 0 --locked --report-detail compact
+```
+
+On pinned Linux aarch64, this capture terminated with exit 2 after 44.16 seconds,
+with 4,833,952 KiB peak RSS reported by `/usr/bin/time`. The driver stopped while
+publishing `rstyle-pdg` source evidence: `Source census exceeds file/byte budget`.
+The saved run is `target/rstyle/clones/run-S1tXzo`; the advisory unit roster is
+empty. No usable project propagation measurement resulted. The existing census
+limits (256 files and 8 MiB), strict admission and pair budget are unchanged.
+This project coverage target remains unverified. Independent small real-Cargo
+acceptance tests validate the bounded connection; they do not establish the
+larger project's coverage gain or a performance improvement.

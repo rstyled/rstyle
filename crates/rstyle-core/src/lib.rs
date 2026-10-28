@@ -115,9 +115,19 @@ fn summarize(
 }
 
 /// Direct effects of every function plus what it inherits through the call graph.
-fn all_effects(facts: &[FnFacts], graph: &graph::Graph, cfg: &Config) -> Vec<Vec<rules::Effect>> {
-    let direct: Vec<_> = facts.iter().map(|f| rules::effects_of(f, cfg)).collect();
-    let boundary = graph::boundaries(facts);
+pub fn all_effects<F: std::borrow::Borrow<FnFacts>>(
+    facts: &[F],
+    graph: &graph::Graph,
+    cfg: &Config,
+) -> Vec<Vec<rules::Effect>> {
+    let direct: Vec<_> = facts
+        .iter()
+        .map(|f| rules::effects_of(f.borrow(), cfg))
+        .collect();
+    let boundary: Vec<_> = facts
+        .iter()
+        .map(|facts| graph::is_boundary(facts.borrow()))
+        .collect();
     let inputs = graph::Inputs {
         facts,
         graph,
@@ -137,7 +147,7 @@ pub fn evaluate_and_retain(
     facts: Vec<FnFacts>,
     cfg: &Config,
 ) -> Result<(Report, Vec<FnFacts>), String> {
-    evaluate_inputs(facts, cfg, Retention::Report)
+    evaluate_inputs(facts, cfg, Retention::Report, None)
         .map(|evaluation| (evaluation.report, evaluation.facts))
 }
 
@@ -159,19 +169,39 @@ pub struct Scopes {
 }
 
 #[derive(Clone, Copy)]
-enum Retention {
+pub enum Retention {
     Report,
     Owners,
     Scopes,
 }
 
 pub fn evaluate_with_owners(facts: Vec<FnFacts>, cfg: &Config) -> Result<Evaluation, String> {
-    evaluate_inputs(facts, cfg, Retention::Owners)
+    evaluate_inputs(facts, cfg, Retention::Owners, None)
 }
 
 /// Retain completed numeric scope outcomes without evaluating a rule or parsing a comment again.
 pub fn evaluate_with_scopes(facts: Vec<FnFacts>, cfg: &Config) -> Result<Evaluation, String> {
-    evaluate_inputs(facts, cfg, Retention::Scopes)
+    evaluate_inputs(facts, cfg, Retention::Scopes, None)
+}
+
+/// Evaluate with only the requested run-local metadata retained.
+pub fn evaluate_retained(
+    facts: Vec<FnFacts>,
+    cfg: &Config,
+    retention: Retention,
+) -> Result<Evaluation, String> {
+    evaluate_inputs(facts, cfg, retention, None)
+}
+
+/// Consume completed effects from the same policy and scoped owners; missing results are errors.
+/// The consumer resolves cross-unit targets; core still owns propagation and rule policy.
+pub fn evaluate_with_effects(
+    facts: Vec<FnFacts>,
+    cfg: &Config,
+    retention: Retention,
+    effects: BTreeMap<String, Vec<rules::Effect>>,
+) -> Result<Evaluation, String> {
+    evaluate_inputs(facts, cfg, retention, Some(effects))
 }
 
 struct RuleInputs<'a> {
@@ -226,6 +256,7 @@ fn evaluate_inputs(
     facts: Vec<FnFacts>,
     cfg: &Config,
     retention: Retention,
+    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,
 ) -> Result<Evaluation, String> {
     let excluded = exclusions::Matcher::compile(&cfg.exclude.0)?;
     let mut scopes = matches!(retention, Retention::Scopes).then(Scopes::default);
@@ -243,7 +274,7 @@ fn evaluate_inputs(
         })
         .collect();
     let graph = graph::build(&facts);
-    let effects = all_effects(&facts, &graph, cfg);
+    let effects = completed_effects(&facts, &graph, cfg, completed)?;
 
     let (diagnostic_owners, diagnostics) = evaluated_diagnostics(
         RuleInputs {
@@ -270,6 +301,25 @@ fn evaluate_inputs(
     })
 }
 
+fn completed_effects(
+    facts: &[FnFacts],
+    graph: &graph::Graph,
+    cfg: &Config,
+    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,
+) -> Result<Vec<Vec<rules::Effect>>, String> {
+    match completed {
+        None => Ok(all_effects(facts, graph, cfg)),
+        Some(mut completed) => facts
+            .iter()
+            .map(|fact| {
+                completed
+                    .remove(&fact.id)
+                    .ok_or_else(|| "Missing completed compiler effects".to_string())
+            })
+            .collect(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -288,6 +338,7 @@ mod tests {
             vec![four_params("original")],
             &Config::default(),
             Retention::Report,
+            None,
         )
         .unwrap();
         let owned =
@@ -297,6 +348,31 @@ mod tests {
         assert_eq!(plain.diagnostic_owners.capacity(), 0);
         assert_eq!(plain.report, owned.report);
         assert_eq!(owned.diagnostic_owners, vec![0]);
+    }
+
+    #[test]
+    fn borrowed_completed_effects_preserve_reports_and_require_every_selected_owner() {
+        let facts = four_params("owner");
+        let buffer = facts.source.as_ptr();
+        let config = Config::default();
+        let borrowed = vec![&facts];
+        let graph = graph::build_resolved(&borrowed, |_, _| Vec::new());
+        let effects = all_effects(&borrowed, &graph, &config);
+        let completed = BTreeMap::from([(facts.id.clone(), effects.into_iter().next().unwrap())]);
+        let expected = evaluate(vec![facts.clone()], &config).unwrap();
+        let evaluated =
+            evaluate_with_effects(vec![facts], &config, Retention::Scopes, completed).unwrap();
+        assert_eq!(evaluated.report, expected);
+        assert_eq!(evaluated.facts[0].source.as_ptr(), buffer);
+        assert!(
+            evaluate_with_effects(
+                vec![four_params("missing")],
+                &config,
+                Retention::Report,
+                BTreeMap::new()
+            )
+            .is_err()
+        );
     }
 
     #[test]
