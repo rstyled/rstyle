@@ -18,26 +18,13 @@ pub(super) fn verify_manifest(
     documents.sort_by(|a, b| a.0.cmp(&b.0));
     if claims.len() != documents.len()
         || !claims.iter().zip(documents).all(|(claim, (key, bytes))| {
-            claim.key == key && matches_checksum(&claim.checksum, bytes)
+            claim.key == key && claim.checksum == transport_checksum(bytes)
         })
     {
         return Err("External document byte identities or paired keys disagree".into());
     }
 
     Ok(())
-}
-
-fn matches_checksum(claim: &str, bytes: &[u8]) -> bool {
-    if claim.starts_with("xxh3-64:") {
-        return claim == transport_checksum(bytes);
-    }
-    // Read historical manifests without computing SHA for new publications.
-    if claim.starts_with("sha256:") {
-        use sha2::{Digest, Sha256};
-        return claim == format!("sha256:{:x}", Sha256::digest(bytes));
-    }
-
-    false
 }
 
 #[cfg(test)]

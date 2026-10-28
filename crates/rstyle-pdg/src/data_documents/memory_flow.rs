@@ -21,7 +21,6 @@ struct Root {
 
 struct Inventory<'a> {
     roots: BTreeMap<memory::Location, Root>,
-    policy: crate::ProfileId,
     nodes: BTreeMap<&'a str, &'a PdgNode>,
     definitions: BTreeMap<&'a str, Vec<&'a Definition>>,
 }
@@ -231,7 +230,6 @@ impl<'a> Inventory<'a> {
 
         Ok(Self {
             roots,
-            policy: pair.pdg.profile.clone(),
             nodes,
             definitions,
         })
@@ -323,7 +321,6 @@ impl<'a> Inventory<'a> {
         let (evidence, provenance) = self.edge_proof(description);
 
         Ok(PdgEdge {
-            policy: self.policy.clone(),
             id: format!("edge:mutable-memory:{ordinal}"),
             source,
             target: dependence.target.clone(),
@@ -351,16 +348,13 @@ impl<'a> Inventory<'a> {
     }
 
     fn edge_proof(&self, description: &str) -> (crate::Capability, crate::Provenance) {
-        let policy = Some(self.policy.clone());
         let description = description.to_owned();
         (
             crate::Capability {
-                policy: policy.clone(),
                 status: crate::CapabilityStatus::Supported,
                 description: description.clone(),
             },
             crate::Provenance {
-                policy,
                 origin: crate::ProvenanceOrigin::Analysis,
                 description,
                 origin_node_ids: Vec::new(),
@@ -581,8 +575,7 @@ fn verify_edges(
         expected.id = edge.id.clone();
         if *edge != expected {
             return Err(
-                "Memory dependence changes source, definition, root, policy or loop evidence"
-                    .into(),
+                "Memory dependence changes source, definition, root or loop evidence".into(),
             );
         }
     }
@@ -1133,9 +1126,8 @@ fn reconstruct_transfer(
     })
 }
 
-fn loop_capability(policy: &crate::ProfileId) -> crate::Capability {
+fn loop_capability() -> crate::Capability {
     crate::Capability {
-        policy: Some(policy.clone()),
         status: crate::CapabilityStatus::Supported,
         description: "Verified alias-conservative loop-carried referent RAW/WAR/WAW dependencies"
             .into(),
@@ -1148,10 +1140,10 @@ fn install_loop_capability(pair: &mut Pair, analysis: &memory::MemoryAnalysis) {
         .iter()
         .any(|dependence| dependence.loop_carried)
     {
-        pair.pdg.extraction_evidence.capabilities.insert(
-            "loop_carried_dependencies".into(),
-            loop_capability(&pair.pdg.profile),
-        );
+        pair.pdg
+            .extraction_evidence
+            .capabilities
+            .insert("loop_carried_dependencies".into(), loop_capability());
     }
 }
 
@@ -1168,7 +1160,7 @@ fn verify_loop_capability(
             .extraction_evidence
             .capabilities
             .get("loop_carried_dependencies")
-            != Some(&loop_capability(&pair.pdg.profile))
+            != Some(&loop_capability())
     {
         return Err(
             "Loop-carried memory dependencies lack their supported extraction capability".into(),

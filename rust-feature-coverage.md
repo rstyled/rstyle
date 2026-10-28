@@ -4646,7 +4646,8 @@ too large to retain. Foreign nodes and failed queries cannot populate the cache.
 Distinct-query scaling and stale-input cycle attacks have explicit regressions.
 The parser composition test takes3.311s on this runner; no controlled pipeline
 speedup is claimed. Transport/paired documents use XXH3; recorded source pins and
-historical SHA manifests retain their existing meanings.
+source identities retain SHA-256. The standalone paired manifest reader now
+uses only the current XXH3 `checksum`, with no historical SHA compatibility.
 Next: freeze the original Month/calendar dependency chain and oracle, then audit
 dependency capture/instance closure, explicit repr/casts, strict helper linking
 and owning namespaces before activation. General Result storage/payload binding,

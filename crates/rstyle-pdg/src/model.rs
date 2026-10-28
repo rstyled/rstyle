@@ -240,8 +240,6 @@ pub struct CountFact {
     pub value: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub policy: Option<ProfileId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
@@ -272,8 +270,6 @@ struct CountFactWire {
     value: Option<u64>,
     #[serde(default)]
     reason: Option<String>,
-    #[serde(default)]
-    policy: Option<ProfileId>,
 }
 
 /// Borrowed form of the wire fact grammar, also checked before typed transport.
@@ -345,11 +341,6 @@ impl<'de> Deserialize<'de> for BoolFact {
 impl<'de> Deserialize<'de> for CountFact {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let wire = CountFactWire::deserialize(deserializer)?;
-        if (wire.status == FactStatus::Known) != wire.policy.is_some() {
-            return Err(serde::de::Error::custom(
-                "known counts require a policy; unavailable counts must not carry one",
-            ));
-        }
 
         FactShape::new(wire.status, wire.value.is_some(), wire.reason.as_deref())
             .check("count")
@@ -359,7 +350,6 @@ impl<'de> Deserialize<'de> for CountFact {
             status: wire.status,
             value: wire.value,
             reason: wire.reason,
-            policy: wire.policy,
         })
     }
 }
@@ -367,8 +357,6 @@ impl<'de> Deserialize<'de> for CountFact {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Capability {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub policy: Option<ProfileId>,
     pub status: CapabilityStatus,
     pub description: String,
 }
@@ -384,8 +372,6 @@ pub struct Span {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Provenance {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub policy: Option<ProfileId>,
     pub origin: ProvenanceOrigin,
     pub description: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -461,7 +447,6 @@ pub struct PdgNode {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PdgEdge {
-    pub policy: ProfileId,
     pub id: String,
     pub source: String,
     pub target: String,
@@ -573,15 +558,13 @@ pub struct Diagnostic {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Conformance {
-    pub profile: ProfileId,
     pub status: ConformanceStatus,
     pub reasons: Vec<String>,
 }
 
 impl Conformance {
-    pub fn not_evaluated(profile: ProfileId, reason: &str) -> Self {
+    pub fn not_evaluated(reason: &str) -> Self {
         Self {
-            profile,
             status: ConformanceStatus::NotEvaluated,
             reasons: vec![reason.to_string()],
         }
@@ -603,32 +586,12 @@ pub struct Producer {
 pub struct ExtractionEvidence {
     pub capabilities: BTreeMap<String, Capability>,
     pub diagnostics: Vec<Diagnostic>,
-    pub conformance: Vec<Conformance>,
-}
-
-impl ExtractionEvidence {
-    pub(crate) fn map_assessments(
-        self,
-        capability: impl Fn(Capability) -> Capability,
-        conformance: impl Fn(Conformance) -> Conformance,
-    ) -> Self {
-        Self {
-            capabilities: self
-                .capabilities
-                .into_iter()
-                .map(|(key, value)| (key, capability(value)))
-                .collect(),
-            conformance: self.conformance.into_iter().map(conformance).collect(),
-            ..self
-        }
-    }
+    pub conformance: Conformance,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-/// Internal document, including historical record policy metadata used by strict
-/// verification. Use [`crate::transport`] for current shared PDG wire encoding;
-/// direct serde here retains the internal grammar and historical fixtures.
+/// Native shared PDG document. Direct serde is the sole import/export grammar.
 pub struct PdgDocument {
     pub schema_version: String,
     pub profile: ProfileId,
@@ -720,9 +683,8 @@ impl BoolFact {
 }
 
 impl CountFact {
-    pub fn known(value: u64, policy: ProfileId) -> Self {
+    pub fn known(value: u64) -> Self {
         Self {
-            policy: Some(policy),
             status: FactStatus::Known,
             value: Some(value),
             reason: None,
@@ -731,7 +693,6 @@ impl CountFact {
 
     pub fn missing(status: FactStatus, reason: &str) -> Self {
         Self {
-            policy: None,
             status,
             value: None,
             reason: Some(reason.to_string()),
@@ -739,11 +700,10 @@ impl CountFact {
     }
 
     pub fn shape_ok(&self) -> bool {
-        ((self.status == FactStatus::Known) == self.policy.is_some())
-            && well_formed(
-                self.status == FactStatus::Known,
-                self.value.is_some(),
-                self.reason.as_deref(),
-            )
+        well_formed(
+            self.status == FactStatus::Known,
+            self.value.is_some(),
+            self.reason.as_deref(),
+        )
     }
 }

@@ -19,7 +19,6 @@ pub const SITES_KEY: &str = "compat.rust.hir-r0:value-sites";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentIdentity {
     pub key: String,
-    #[serde(alias = "sha256")]
     pub checksum: String,
 }
 
@@ -31,7 +30,6 @@ pub struct Manifest {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Pair {
-    #[serde(with = "crate::transport")]
     pub pdg: PdgDocument,
     pub cfg: CfgDocument,
 }
@@ -40,7 +38,6 @@ pub struct Pair {
 /// grants no trust; ordinary paired/source/policy checks still apply.
 #[derive(Clone, Copy, Serialize)]
 pub struct PairView<'a> {
-    #[serde(serialize_with = "crate::transport::serialize")]
     pub pdg: &'a PdgDocument,
     pub cfg: &'a CfgDocument,
 }
@@ -160,7 +157,7 @@ impl SerializedPairView<'_> {
 
 impl Pair {
     pub fn serialize(&self) -> Result<SerializedPair, serde_json::Error> {
-        let pdg_bytes = serde_json::to_vec(&crate::transport::Borrowed(&self.pdg))?;
+        let pdg_bytes = serde_json::to_vec(&self.pdg)?;
         let cfg_bytes = serde_json::to_vec(&self.cfg)?;
         let links = read_paired_graph(&self.pdg.extensions).expect("producer paired links");
         let manifest = Manifest {
@@ -332,7 +329,6 @@ fn span(span: ByteSpan) -> Span {
 
 fn evidence(description: &str) -> Capability {
     Capability {
-        policy: Some(ProfileId::hir_r0()),
         status: CapabilityStatus::Supported,
         description: description.to_string(),
     }
@@ -351,7 +347,6 @@ fn provenance(node: &Operation) -> Provenance {
     };
 
     Provenance {
-        policy: Some(ProfileId::hir_r0()),
         origin,
         description: format!("R0 {} from resolved {}", node.role, node.original_kind),
         origin_node_ids: Vec::new(),
@@ -361,7 +356,6 @@ fn provenance(node: &Operation) -> Provenance {
 
 fn analysis_provenance() -> Provenance {
     Provenance {
-        policy: Some(ProfileId::hir_r0()),
         origin: ProvenanceOrigin::Analysis,
         description: "Exact R0 normal-flow binding/value/dominance analysis".to_string(),
         origin_node_ids: Vec::new(),
@@ -444,7 +438,6 @@ fn pdg_node(node: &Operation, graph: &Graph) -> PdgNode {
 
 fn pdg_edge(index: usize, edge: &Dependence) -> PdgEdge {
     PdgEdge {
-        policy: ProfileId::hir_r0(),
         id: format!("e{index}"),
         source: edge.source.clone(),
         target: edge.target.clone(),
@@ -570,7 +563,7 @@ fn function(facts: &dyn EvidenceFacts, graph: &Graph, analysis: &Analysis) -> Fu
         interface_completeness: evidence(
             "Every resolved named primitive parameter and the return metadata are retained",
         ),
-        reference_count: CountFact::known(reads.len() as u64, ProfileId::hir_r0()),
+        reference_count: CountFact::known(reads.len() as u64),
     }
 }
 
@@ -607,7 +600,7 @@ fn extraction(graph: &Graph, limitations: &[String]) -> ExtractionEvidence {
         let description = if key == "exceptional_flow" && !limitations.is_empty() { limitations.join("; ") }
             else if key == "exceptional_flow" && status == CapabilityStatus::Supported { "Explicit bounded checked failures; cleanup remains outside this subset".into() }
             else { format!("R0 bounded normal-flow {key}: {status:?}; validated only within demonstrated subset") };
-        (key.to_string(), Capability { policy: Some(ProfileId::hir_r0()), status, description })
+        (key.to_string(), Capability { status, description })
     }).collect();
     let diagnostics = limitations
         .iter()
@@ -624,10 +617,9 @@ fn extraction(graph: &Graph, limitations: &[String]) -> ExtractionEvidence {
     ExtractionEvidence {
         capabilities,
         diagnostics,
-        conformance: vec![Conformance::not_evaluated(
-            ProfileId::hir_r0(),
+        conformance: Conformance::not_evaluated(
             "Await independent normal-flow validation and strict admission; schema acceptance is insufficient",
-        )],
+        ),
     }
 }
 

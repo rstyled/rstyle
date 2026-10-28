@@ -163,16 +163,16 @@ Implementation names use HIR extraction: `rstyle-extraction-fixtures`,
 frontend uses `RSTYLE_HIR_FACTS_FILE` and `RSTYLE_HIR_DOCUMENT_DIR` exclusively.
 The normative profile identifier remains `compat.rust.hir-r0/0.1.0`.
 
-PDG serialization and decoding now use the native record-policy model directly;
-the pinned-wire translation module is removed. Native transport schema tests
-use the pinned PDG schema, and imported validation rejects mismatched edge,
-reference-count, capability, and provenance policies. Resolved-type extensions
-require known string facts; the legacy raw-string accommodation is removed.
-The older vendored PDG example is no longer a native transport test input;
+PDG serialization and decoding use the current shared schema directly:
+one root profile, no record-level policies, and one conformance object. The
+projection and profile-inheritance modules are deleted. Current examples,
 independently constructed native documents and actual frontend outputs cover
-schema roundtrips against the authoritative schema.
+schema roundtrips against `vendor-compat/pdg.schema.json`. Standalone paired
+manifests use only the current `checksum` field and XXH3; the SHA alias and
+fallback reader are removed. See [the native model](docs/pdg-transport.md).
+Resolved-type extensions require known string facts.
 
-Refactor verification: 437 workspace tests passed, including the 23 pinned
+Historical naming-refactor verification: 437 workspace tests passed, including the 23 pinned
 extraction cases. Formatting, all-target clippy, workspace build, and default
 rstyle checks passed. Pattern review retained the two existing low-score hints
 without suppressions or ignore entries.

@@ -166,7 +166,6 @@ fn validate_with_digests(
         check_schema_version(doc),
         check_unique_ids(doc),
         check_policy_identity(doc, ctx),
-        check_record_policies(doc),
         check_function_identity(doc),
         check_interface(doc),
         check_reference_count(doc),
@@ -206,49 +205,6 @@ fn eligibility_of(blocking: &[Issue]) -> Eligibility {
         Eligibility::Eligible
     } else {
         Eligibility::Ineligible
-    }
-}
-
-pub(crate) fn record_policies_agree(doc: &PdgDocument) -> bool {
-    let optional = std::iter::once(doc.function.reference_count.policy.as_ref())
-        .chain(std::iter::once(
-            doc.function.interface_completeness.policy.as_ref(),
-        ))
-        .chain(
-            doc.extraction_evidence
-                .capabilities
-                .values()
-                .map(|c| c.policy.as_ref()),
-        )
-        .chain(
-            doc.nodes
-                .iter()
-                .flat_map(|n| [n.evidence.policy.as_ref(), n.provenance.policy.as_ref()]),
-        )
-        .chain(
-            doc.edges
-                .iter()
-                .flat_map(|e| [e.evidence.policy.as_ref(), e.provenance.policy.as_ref()]),
-        )
-        .chain(
-            doc.memory_locations
-                .iter()
-                .map(|m| m.evidence.policy.as_ref()),
-        );
-    !optional
-        .flatten()
-        .chain(doc.edges.iter().map(|e| &e.policy))
-        .any(|policy| policy != &doc.profile)
-}
-
-fn check_record_policies(doc: &PdgDocument) -> CheckOutput {
-    if !record_policies_agree(doc) {
-        blocked(
-            "pdg.record-policy",
-            "record policy disagrees with document profile".to_string(),
-        )
-    } else {
-        clear()
     }
 }
 
@@ -385,7 +341,7 @@ fn check_interface(doc: &PdgDocument) -> CheckOutput {
     if doc.function.interface_completeness.status != CapabilityStatus::Supported {
         blocking.push(issue(
             "pdg.interface-completeness",
-            "interface must be completely known under an explicit policy".to_string(),
+            "interface must be completely known under the document profile".to_string(),
         ));
     }
 

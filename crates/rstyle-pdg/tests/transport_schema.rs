@@ -35,7 +35,6 @@ fn profile() -> ProfileId {
 
 fn supported_capability() -> Capability {
     Capability {
-        policy: Some(profile()),
         status: CapabilityStatus::Supported,
         description: "d".to_string(),
     }
@@ -43,7 +42,6 @@ fn supported_capability() -> Capability {
 
 fn na_capability() -> Capability {
     Capability {
-        policy: Some(profile()),
         status: CapabilityStatus::NotApplicable,
         description: "absent".to_string(),
     }
@@ -64,7 +62,6 @@ fn capabilities() -> BTreeMap<String, Capability> {
     caps.insert(
         "exceptional_flow".to_string(),
         Capability {
-            policy: Some(profile()),
             status: CapabilityStatus::Unsupported,
             description: "normal-flow only".to_string(),
         },
@@ -82,7 +79,6 @@ fn span() -> Span {
 
 fn provenance() -> Provenance {
     Provenance {
-        policy: Some(profile()),
         origin: ProvenanceOrigin::Source,
         description: "d".to_string(),
         origin_node_ids: Vec::new(),
@@ -154,7 +150,6 @@ fn read_node() -> PdgNode {
 
 fn edge(id: &str, source: &str, target: &str) -> PdgEdge {
     PdgEdge {
-        policy: profile(),
         id: id.to_string(),
         source: source.to_string(),
         target: target.to_string(),
@@ -206,7 +201,7 @@ fn base_function() -> FunctionInfo {
         inputs: vec![base_param(ParamRole::Parameter, Some("s_x"), "x", "i32")],
         outputs: vec![base_param(ParamRole::Return, None, "", "unit")],
         interface_completeness: supported_capability(),
-        reference_count: CountFact::known(1, profile()),
+        reference_count: CountFact::known(1),
     }
 }
 
@@ -253,7 +248,7 @@ fn base_doc() -> PdgDocument {
         extraction_evidence: ExtractionEvidence {
             capabilities: capabilities(),
             diagnostics: Vec::new(),
-            conformance: vec![Conformance::not_evaluated(profile(), "fixture")],
+            conformance: Conformance::not_evaluated("fixture"),
         },
         extensions: BTreeMap::new(),
     }
@@ -466,17 +461,10 @@ fn fact_alternatives_reject_mixed_and_empty_reasons() {
     assert!(
         serde_json::from_value::<StringFact>(serde_json::json!({"status": "unknown"})).is_err()
     );
-    // The internal historical record grammar retains explicit count policies.
+    // Native counts use the current shared grammar.
     assert!(
         serde_json::from_value::<CountFact>(serde_json::json!({"status": "known", "value": 1}))
-            .is_err()
-    );
-    // A record-level policy is represented natively.
-    assert!(
-        serde_json::from_value::<CountFact>(
-            serde_json::json!({"status": "known", "value": 1, "policy": {"id": "x", "version": "y"}})
-        )
-        .is_ok()
+            .is_ok()
     );
     // Count unknown carrying a value.
     assert!(
@@ -528,20 +516,18 @@ fn edge_case_value_policy_is_schema_checked() {
 }
 
 fn pdg_json(doc: &PdgDocument) -> serde_json::Value {
-    serde_json::to_value(transport::Borrowed(doc)).expect("serialize current PDG")
+    serde_json::to_value(doc).expect("serialize current PDG")
 }
 
 fn decode_pdg(value: serde_json::Value) -> Result<PdgDocument, serde_json::Error> {
-    serde_json::from_value::<transport::Document>(value).map(|doc| doc.0)
+    serde_json::from_value(value)
 }
 
 #[test]
-fn current_pdg_example_roundtrips_without_legacy_repair() {
+fn current_pdg_example_roundtrips_directly() {
     let example = vendor("pdg.example.json");
     let doc = decode_pdg(example.clone()).expect("current example parses directly");
     assert_eq!(pdg_json(&doc), example);
-    assert_eq!(doc.edges[0].policy, doc.profile);
-    assert_eq!(doc.extraction_evidence.conformance[0].profile, doc.profile);
 }
 
 #[test]
@@ -570,60 +556,7 @@ fn paired_boundaries_use_current_transport() {
 }
 
 #[test]
-fn obsolete_policy_fields_and_conformance_arrays_are_rejected() {
-    let original = pdg_json(&base_doc());
-    let paths = [
-        "/function/reference_count",
-        "/function/interface_completeness",
-        "/nodes/0/evidence",
-        "/nodes/0/provenance",
-        "/edges/0",
-        "/edges/0/evidence",
-        "/edges/0/provenance",
-        "/extraction_evidence/capabilities/reference_counting",
-    ];
-    let validator = validator_for(&vendor("pdg.schema.json"));
-    for path in paths {
-        let mut broken = original.clone();
-        broken.pointer_mut(path).unwrap()["policy"] = serde_json::json!(profile());
-        assert!(!validator.is_valid(&broken), "{path}");
-        assert!(decode_pdg(broken).is_err(), "{path}");
-    }
-    let mut broken = original.clone();
-    broken["extraction_evidence"]["conformance"]["profile"] = serde_json::json!(profile());
-    assert!(decode_pdg(broken).is_err());
-    let mut broken = original;
-    let claim = broken["extraction_evidence"]["conformance"].take();
-    broken["extraction_evidence"]["conformance"] = serde_json::json!([claim]);
-    assert!(decode_pdg(broken).is_err());
-}
-
-#[test]
-fn conflicting_internal_policies_and_claim_inventories_cannot_be_erased() {
-    let mut doc = base_doc();
-    let other = ProfileId {
-        id: "other".into(),
-        version: "1".into(),
-    };
-    doc.edges[0].policy = other.clone();
-    assert!(serde_json::to_value(transport::Borrowed(&doc)).is_err());
-    doc.edges[0].policy = doc.profile.clone();
-    doc.nodes[0].provenance.policy = Some(other.clone());
-    assert!(serde_json::to_value(transport::Borrowed(&doc)).is_err());
-    doc.nodes[0].provenance.policy = None;
-    doc.extraction_evidence.conformance[0].profile = other;
-    assert!(serde_json::to_value(transport::Borrowed(&doc)).is_err());
-    doc.extraction_evidence.conformance[0].profile = doc.profile.clone();
-    doc.extraction_evidence
-        .conformance
-        .push(doc.extraction_evidence.conformance[0].clone());
-    assert!(serde_json::to_value(transport::Borrowed(&doc)).is_err());
-    doc.extraction_evidence.conformance.clear();
-    assert!(serde_json::to_value(transport::Borrowed(&doc)).is_err());
-}
-
-#[test]
-fn current_counts_enforce_alternatives_and_inherit_root_profile() {
+fn current_counts_enforce_alternatives_with_one_document_profile() {
     for fact in [
         serde_json::json!({"status":"known"}),
         serde_json::json!({"status":"known","value":1,"reason":"mixed"}),
@@ -637,15 +570,10 @@ fn current_counts_enforce_alternatives_and_inherit_root_profile() {
     let mut wire = pdg_json(&base_doc());
     wire["profile"] = serde_json::json!({"id":"test.expanded","version":"2"});
     let doc = decode_pdg(wire.clone()).unwrap();
-    assert_eq!(
-        doc.function.reference_count.policy.as_ref(),
-        Some(&doc.profile)
-    );
     assert_eq!(pdg_json(&doc), wire);
     wire["function"]["reference_count"] =
         serde_json::json!({"status":"unknown","reason":"missing"});
     let doc = decode_pdg(wire.clone()).unwrap();
-    assert!(doc.function.reference_count.policy.is_none());
     assert_eq!(pdg_json(&doc), wire);
 }
 
@@ -673,7 +601,7 @@ fn transport_preserves_semantic_fields_evidence_and_opaque_annotations() {
     doc.edges[0].outcome = Some("false".into());
     doc.edges.push(doc.edges[0].clone());
     doc.edges[2].id = "parallel".into();
-    doc.extraction_evidence.conformance[0].status = ConformanceStatus::NonConformant;
+    doc.extraction_evidence.conformance.status = ConformanceStatus::NonConformant;
     let wire = pdg_json(&doc);
     let restored = decode_pdg(wire).unwrap();
     assert_eq!(restored, doc);

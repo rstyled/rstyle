@@ -682,11 +682,7 @@
         },
         "pointer_width": {
           "status": "known",
-          "value": 64,
-          "policy": {
-            "id": "compat.rust.hir-r0",
-            "version": "0.1.0"
-          }
+          "value": 64
         },
         "data_layout": {
           "status": "known",
@@ -1855,11 +1851,7 @@
         },
         "pointer_width": {
           "status": "known",
-          "value": 64,
-          "policy": {
-            "id": "compat.rust.hir-r0",
-            "version": "0.1.0"
-          }
+          "value": 64
         },
         "data_layout": {
           "status": "known",

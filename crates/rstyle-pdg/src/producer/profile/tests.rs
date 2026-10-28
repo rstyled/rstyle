@@ -1,5 +1,6 @@
-//! Keep the former round trip only as an independent exact-output oracle.
+//! Local profile selection preserves graph facts and dependency proofs.
 use super::*;
+use serde_json::json;
 
 const DESCRIPTION: &str = "R0 / compat.rust.hir-r0/0.1.0 / R0";
 
@@ -16,9 +17,6 @@ fn seed(value: &mut Value) {
         Value::Object(object) => {
             if object.contains_key("description") {
                 object.insert("description".into(), json!(DESCRIPTION));
-                if object.contains_key("status") || object.contains_key("origin") {
-                    object.insert("policy".into(), json!(crate::ProfileId::hir_r0()));
-                }
             }
             for value in object.values_mut() {
                 seed(value);
@@ -35,15 +33,6 @@ fn pdg_fixture() -> crate::PdgDocument {
         "/../../vendor-compat/pdg.example.json"
     )))
     .unwrap();
-    // Adapt the illustrative example's older conformance/edge shape locally.
-    for edge in pdg["edges"].as_array_mut().unwrap() {
-        edge["policy"] = json!(crate::ProfileId::hir_r0());
-    }
-    let conformance = pdg["extraction_evidence"]["conformance"].take();
-    pdg["extraction_evidence"]["conformance"] = json!([{
-        "profile":crate::ProfileId::hir_r0(), "status":conformance["status"],
-        "reasons":conformance["reasons"]}]);
-    pdg["function"]["reference_count"]["policy"] = json!(crate::ProfileId::hir_r0());
     seed(&mut pdg);
     let mut pdg: crate::PdgDocument = serde_json::from_value(pdg).unwrap();
     add_pdg_extensions(&mut pdg);
@@ -99,7 +88,7 @@ fn pair() -> Pair {
 }
 
 #[test]
-fn typed_policy_transport_matches_legacy_for_every_local_profile() {
+fn local_profile_selection_preserves_dependency_proofs() {
     use ExtractionProfile::*;
     for profile in [
         ConstV1,
@@ -116,11 +105,15 @@ fn typed_policy_transport_matches_legacy_for_every_local_profile() {
     ] {
         let pair = pair();
         let policy = profile.policy();
-        let pdg: crate::PdgDocument = convert(&pair.pdg, &policy).unwrap();
-        let cfg: crate::CfgDocument = convert(&pair.cfg, &policy).unwrap();
         let pair = transport::apply(pair, &policy).unwrap();
-        assert_eq!(pair.pdg, pdg, "{profile:?}");
-        assert_eq!(pair.cfg, cfg, "{profile:?}");
+        assert_eq!(pair.pdg.profile, policy, "{profile:?}");
+        assert_eq!(
+            pair.pdg.nodes[0].evidence.description,
+            format!(
+                "local scalar / {}/{} / local scalar",
+                policy.id, policy.version
+            )
+        );
         assert_eq!(
             pair.pdg.extensions["test:open"]["dependency"],
             extension()["dependency"]
@@ -135,11 +128,16 @@ fn unrelated_policies_and_non_description_source_text_remain_unchanged() {
     pair.cfg.sources[0].content = Some(DESCRIPTION.into());
     pair.pdg.nodes[0].attributes.literal = Some(crate::StringFact::known(DESCRIPTION));
     let policy = ExtractionProfile::HelpersV1.policy();
-    let pdg: crate::PdgDocument = convert(&pair.pdg, &policy).unwrap();
-    let cfg: crate::CfgDocument = convert(&pair.cfg, &policy).unwrap();
     let pair = transport::apply(pair, &policy).unwrap();
-    assert_eq!(pair.pdg, pdg);
-    assert_eq!(pair.cfg, cfg);
+    assert_eq!(
+        pair.pdg.nodes[0]
+            .attributes
+            .literal
+            .as_ref()
+            .unwrap()
+            .known_value(),
+        Some(DESCRIPTION)
+    );
     assert_eq!(pair.pdg.profile.version, "other-version");
     assert_eq!(pair.cfg.sources[0].content.as_deref(), Some(DESCRIPTION));
 }
@@ -163,33 +161,4 @@ fn typed_transport_moves_graph_and_opaque_proof_buffers() {
             .as_ptr(),
         proof
     );
-}
-
-#[test]
-fn malformed_typed_facts_keep_legacy_rejection_messages() {
-    type Edit = fn(&mut Pair);
-    let edits: [Edit; 6] = [
-        |pair| pair.pdg.producer.language_version.value = Some("bad".into()),
-        |pair| pair.cfg.producer.language_version.value = Some("bad".into()),
-        |pair| {
-            pair.pdg.nodes[0].attributes.literal = Some(crate::StringFact {
-                status: crate::FactStatus::Known,
-                value: Some("1".into()),
-                reason: Some("bad".into()),
-            })
-        },
-        |pair| pair.pdg.function.reference_count.policy = None,
-        |pair| pair.pdg.function.outputs[0].variadic.reason = Some("bad".into()),
-        |pair| pair.pdg.function.qualified_name.reason = Some(String::new()),
-    ];
-    let policy = ExtractionProfile::HelpersV1.policy();
-    for edit in edits {
-        let mut pair = pair();
-        edit(&mut pair);
-        let expected = convert::<crate::PdgDocument>(&pair.pdg, &policy)
-            .and_then(|_| convert::<crate::CfgDocument>(&pair.cfg, &policy))
-            .err()
-            .unwrap();
-        assert_eq!(transport::apply(pair, &policy).err().unwrap(), expected);
-    }
 }

@@ -432,7 +432,7 @@ pub fn unknown_bool(reason: &str) -> BoolFact {
 
 /// Build a known count fact.
 pub fn known_count(value: u64) -> CountFact {
-    CountFact::known(value, crate::ProfileId::hir_r0())
+    CountFact::known(value)
 }
 
 /// Build an unknown count fact with an explicit reason.

@@ -23,16 +23,6 @@ fn new_publications_use_the_existing_transport_checksum() {
 }
 
 #[test]
-fn historical_sha_manifests_remain_readable() {
-    let manifest: Manifest = serde_json::from_value(serde_json::json!({"documents": [
-        {"key":"cfg", "sha256":"sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"},
-        {"key":"pdg", "sha256":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
-    ]})).unwrap();
-    verify_manifest(&manifest, documents()).unwrap();
-    assert!(verify_manifest(&manifest, [("cfg".into(), b"abd"), ("pdg".into(), b"")]).is_err());
-}
-
-#[test]
 fn checksums_reject_changed_bytes_keys_cardinality_and_unknown_algorithms() {
     let original = manifest();
     assert!(verify_manifest(&original, [("cfg".into(), b"abd"), ("pdg".into(), b"")]).is_err());
@@ -55,12 +45,4 @@ fn checksums_reject_changed_bytes_keys_cardinality_and_unknown_algorithms() {
     let mut changed = original.clone();
     changed.documents.push(original.documents[0].clone());
     assert!(verify_manifest(&changed, documents()).is_err());
-}
-
-#[test]
-fn conflicting_historical_and_new_checksum_fields_are_rejected() {
-    let result = serde_json::from_value::<DocumentIdentity>(serde_json::json!({
-        "key":"cfg", "checksum":"xxh3-64:78af5f94892f3950", "sha256":"sha256:wrong"
-    }));
-    assert!(result.is_err());
 }

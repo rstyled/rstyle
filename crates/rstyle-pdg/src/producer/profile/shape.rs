@@ -1,5 +1,5 @@
 //! Preserve fact checks previously performed by the whole-document deserializer.
-use crate::{FactStatus, StringFact, model::FactShape, producer::Pair};
+use crate::{StringFact, model::FactShape, producer::Pair};
 
 pub(super) fn check(pair: &Pair) -> Result<(), String> {
     pdg(&pair.pdg)?;
@@ -31,9 +31,6 @@ fn interface(function: &crate::FunctionInfo) -> Result<(), String> {
     function.outputs.iter().try_for_each(parameter)?;
     string(&function.qualified_name)?;
     let count = &function.reference_count;
-    if (count.status == FactStatus::Known) != count.policy.is_some() {
-        return Err("known counts require a policy; unavailable counts must not carry one".into());
-    }
 
     FactShape::new(count.status, count.value.is_some(), count.reason.as_deref()).check("count")
 }

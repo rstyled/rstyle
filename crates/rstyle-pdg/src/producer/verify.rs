@@ -287,20 +287,14 @@ fn compare_documents(
     expected: &mut Pair,
     renaming: &BTreeMap<String, String>,
 ) -> Result<(), Vec<String>> {
-    // Current deterministic emission usually preserves IDs and record order.
-    // Align only the historical informational conformance exception; profiles,
-    // inventories and all semantic fields still participate in typed equality.
+    // Informational assessments do not establish source/build conformance.
+    // Root profiles and all semantic facts still participate in exact comparison.
     if renaming.iter().all(|(actual, expected)| actual == expected) {
-        for (actual, expected) in actual
+        expected
             .pdg
             .extraction_evidence
             .conformance
-            .iter()
-            .zip(&mut expected.pdg.extraction_evidence.conformance)
-        {
-            expected.status = actual.status;
-            expected.reasons.clone_from(&actual.reasons);
-        }
+            .clone_from(&actual.pdg.extraction_evidence.conformance);
     }
     compare_document(actual.pdg, &expected.pdg, renaming)?;
     compare_document(actual.cfg, &expected.cfg, renaming)

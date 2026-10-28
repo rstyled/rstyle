@@ -121,7 +121,6 @@ pub mod source_evidence;
 pub mod source_identity;
 mod source_table;
 mod static_string_values;
-pub mod transport;
 pub(crate) mod tryfrom_calls;
 pub mod unit_store;
 pub mod validate;

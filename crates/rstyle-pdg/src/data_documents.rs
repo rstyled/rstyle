@@ -349,7 +349,7 @@ fn install_evidence(
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<(), String> {
     let aliases = json!(crate::data_origins::aliases(facts)?);
-    let capability = memory_evidence(facts)?;
+    let capability = memory_evidence(facts);
     pdg.extensions
         .insert("rstyle.data:possible-formal-aliases".into(), aliases);
     pdg.extraction_evidence
@@ -359,18 +359,15 @@ fn install_evidence(
     Ok(())
 }
 
-fn memory_evidence(
-    facts: &dyn crate::unit_store::EvidenceFacts,
-) -> Result<crate::Capability, String> {
-    Ok(crate::Capability {
-        policy: Some(crate::extraction_profile::ExtractionProfile::from_facts(facts)?.policy()),
+fn memory_evidence(facts: &dyn crate::unit_store::EvidenceFacts) -> crate::Capability {
+    crate::Capability {
         status: crate::CapabilityStatus::Supported,
         description: if crate::mutable_scalars::enabled(facts) {
             "Verified formal read/write locations; conservative reference aliases and explicit normal/failure post-state".into()
         } else {
             "Verified formal read locations; shared inputs may alias; no disjointness or memory writes".into()
         },
-    })
+    }
 }
 
 pub fn read_keys(node: &crate::PdgNode, locations: &[crate::MemoryLocation]) -> Vec<String> {

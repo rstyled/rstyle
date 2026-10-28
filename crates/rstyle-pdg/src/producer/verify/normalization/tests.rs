@@ -52,14 +52,14 @@ fn ordered_values_literals_and_nested_ids_remain_evidence() {
 fn historical_informational_exceptions_do_not_hide_other_fields() {
     let evidence = crate::extraction_profile::EVIDENCE_KEY;
     let input = json!({
-        "conformance": [{"status": "conformant", "reasons": ["old"], "profile": "p"}],
+        "conformance": {"status": "conformant", "reasons": ["old"]},
         evidence: {"contract": "old/path", "profile": "p"},
         "other": {"status": "unknown", "reasons": ["missing"], "contract": "required"}
     });
     assert_eq!(
         normalize(input, "", &BTreeMap::new()),
         json!({
-            "conformance": [{"profile": "p"}],
+            "conformance": {},
             evidence: {"profile": "p"},
             "other": {"status": "unknown", "reasons": ["missing"], "contract": "required"}
         })

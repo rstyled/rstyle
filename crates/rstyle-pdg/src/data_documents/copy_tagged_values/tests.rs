@@ -8,19 +8,11 @@ const IDS: [&str; 11] = [
 ];
 
 fn scaffold() -> Pair {
-    let mut pdg: Value = serde_json::from_str(include_str!(concat!(
+    let pdg: Value = serde_json::from_str(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../vendor-compat/pdg.example.json"
     )))
     .unwrap();
-    for edge in pdg["edges"].as_array_mut().unwrap() {
-        edge["policy"] = json!(crate::ProfileId::hir_r0());
-    }
-    let conformance = pdg["extraction_evidence"]["conformance"].take();
-    pdg["extraction_evidence"]["conformance"] = json!([{
-        "profile": crate::ProfileId::hir_r0(), "status": conformance["status"],
-        "reasons": conformance["reasons"]}]);
-    pdg["function"]["reference_count"]["policy"] = json!(crate::ProfileId::hir_r0());
     Pair {
         pdg: serde_json::from_value(pdg).unwrap(),
         cfg: serde_json::from_str(include_str!(concat!(

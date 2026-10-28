@@ -96,7 +96,7 @@ fn historical_helper() -> CompletedHelper {
     }))
     .unwrap();
     let pair = Pair {
-        pdg: historical_document(),
+        pdg: example_document(),
         cfg: serde_json::from_str(include_str!(
             "../../../../../vendor-compat/cfg.example.json"
         ))
@@ -110,25 +110,16 @@ fn historical_helper() -> CompletedHelper {
     }
 }
 
-// Same historical-schema adapter used by validate::source_text_tests. Preserve
-// its explicitly unevaluated status; this document never establishes admission.
-fn historical_document() -> crate::PdgDocument {
-    let mut example: serde_json::Value = serde_json::from_str(include_str!(
+// A current-schema example with explicitly unevaluated evidence.
+// This document never establishes admission.
+fn example_document() -> crate::PdgDocument {
+    let mut doc: crate::PdgDocument = serde_json::from_str(include_str!(
         "../../../../../vendor-compat/pdg.example.json"
     ))
     .unwrap();
-    let policy: crate::ProfileId = serde_json::from_value(example["profile"].clone()).unwrap();
-    example["function"]["reference_count"]["policy"] = example["profile"].clone();
-    for edge in example["edges"].as_array_mut().unwrap() {
-        edge["policy"] = serde_json::to_value(&policy).unwrap();
-    }
-    example["extraction_evidence"]["conformance"] =
-        serde_json::to_value(vec![crate::Conformance::not_evaluated(
-            policy,
-            "Unrelated helper-table bookkeeping fixture",
-        )])
-        .unwrap();
-    serde_json::from_value(example).unwrap()
+    doc.extraction_evidence.conformance =
+        crate::Conformance::not_evaluated("Unrelated helper-table bookkeeping fixture");
+    doc
 }
 
 #[test]

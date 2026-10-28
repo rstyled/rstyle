@@ -40,11 +40,10 @@ fn produce_function(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Pair
     verify(&pair, facts)?;
     let profile =
         crate::extraction_profile::ExtractionProfile::from_facts(facts).map_err(|e| vec![e])?;
-    pair.pdg.extraction_evidence.conformance = vec![crate::Conformance {
-        profile: pair.pdg.profile.clone(),
+    pair.pdg.extraction_evidence.conformance = crate::Conformance {
         status: crate::ConformanceStatus::Conformant,
         reasons: vec![conformance_reason(profile)],
-    }];
+    };
 
     observation.finish(Ok(pair))
 }
@@ -76,9 +75,8 @@ pub fn verify_serialized_view(
     serialized: SerializedPairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Pair, Vec<String>> {
-    let pdg = serde_json::from_slice::<crate::transport::Document>(serialized.pdg_bytes)
-        .map_err(|e| vec![e.to_string()])?
-        .0;
+    let pdg = serde_json::from_slice::<crate::PdgDocument>(serialized.pdg_bytes)
+        .map_err(|e| vec![e.to_string()])?;
     let cfg = serde_json::from_slice(serialized.cfg_bytes).map_err(|e| vec![e.to_string()])?;
     let pair = Pair { pdg, cfg };
     serialized.verify_identities(&pair).map_err(|e| vec![e])?;

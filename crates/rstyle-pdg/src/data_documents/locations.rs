@@ -216,9 +216,6 @@ impl<'a> LocationContext<'a> {
             abstraction: abstraction(&key.path).into(),
             description: formal_description(path).into(),
             evidence: crate::Capability {
-                policy: Some(
-                    crate::extraction_profile::ExtractionProfile::from_facts(self.facts)?.policy(),
-                ),
                 status: crate::CapabilityStatus::Supported,
                 description: formal_evidence(path).into(),
             },
@@ -295,7 +292,6 @@ mod tests {
             abstraction: ABSTRACTION.into(),
             description: String::new(),
             evidence: crate::Capability {
-                policy: None,
                 status: crate::CapabilityStatus::Supported,
                 description: String::new(),
             },
