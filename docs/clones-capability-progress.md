@@ -2272,3 +2272,63 @@ Full migration, broader project density/spacing quality, native macOS, Go
 comparison, qualified-owner identity and capability retirement remain open. Next
 ready consumer work is the project density evidence gap; the statement-budget
 case requires an independently justified algorithm within the existing limits.
+
+## C14: reuse-first compiler advisory observations
+
+The reuse-first steering supersedes the pending wider-integer/tuple advisory
+scan. That uncommitted prototype was preserved outside the worktree at
+`/tmp/rstyle-deferred-integer-tuples-9vpi3gb5` rather than committed as another
+collector. The existing driver already supplies the ability through
+`mutations::collect` (`ExprUseVisitor`), `effects::collect` and
+`extract::function_facts`. The new opt-in `--compiler-advisory` captures those
+observations during the selected DataV3 compilation and feeds them directly into
+`rstyle_core::evaluate`. Existing core code supplies mutation/effect policy,
+bounded call-graph propagation, fix groups and parameter stacking. No parallel
+implementations of those algorithms were added.
+
+Observations decode once into owned facts and move into the existing evaluator;
+there is no body re-proof, SHA-256, new hashing, graph clone, cache fingerprint or
+work-budget increase. The small versioned adapter refuses missing fields that
+legacy deserialization would otherwise default to zero/empty facts. The enclosing
+selected-unit association retains compilation context. Check/test units evaluate
+separately; unknown generated owners, absent captures and unresolved workspace
+callees stay explicit. Core metric versions remain separate from source/native
+mutation-effect metrics. Configuration is explicit and reported in full; capture
+without the flag does no advisory collection. Strict admission and matching do
+not consume this observation namespace.
+
+Six real-Cargo acceptance tests cover u128 tuple writes, borrowed Vec mutation
+without strict admission, IO propagation and parameter fix plans, source/tool-free
+saved-run policy reevaluation and finding exits, missing prior captures, generated
+owners and check/test separation. Two core tests enforce metric-version and
+missing-field distinctions. This is not a purity or refactoring-safety proof.
+Saved numeric reviews, changed-file filtering and baselines do not yet apply to
+the compiler advisory field.
+
+A fresh explicit rstyle-ccgraph library capture completes in 20.685 seconds with
+empty capture/handoff failures: all 238 original-source owners now have compiler
+observations, with 176 generated owners unavailable out of 414. Core evaluation
+assesses all 238 under its defaults. Twenty unresolved workspace callees retain
+incomplete coverage and exit 2. Its four accepted strict pairs exactly match the
+previous saved project report. Gcd independently retains two owned mutations and
+zero escaping events; its nine lowered HIR statements are not relabeled as the
+source contract's five lexical statements. This is a coverage gain, not a timing
+speedup or strict density comparison. Reproduction and limitations are recorded
+in [the project study](../eval/clones-capability/project-study.md) and
+[compiler advisory contract](clones-compiler-advisory.md).
+
+The frozen source passes all 3,201 nextest tests (five existing skips) in 204.329
+seconds plus workspace doc tests, including both original NonZero failures and
+u32 widening composition. Formatting, diff checks and all-target workspace Clippy
+with warnings denied pass. Legacy style is zero across 9,516 functions. Reviewed
+patterns is zero; unfiltered discovery retains exactly the prior fifteen IDs.
+No ignore or review ledger changed. Gate logs are
+`/tmp/clones-reuse-{clippy-1,tests-final-1,style-final-1,patterns-final-1,patterns-unfiltered-final-1}`;
+project capture evidence is `/tmp/clones-project-reuse-capture-1`.
+
+Full migration and capability retirement remain incomplete. Next reuse seam:
+existing `sigmine::mine`, `prep::prepare` and `candidates::mine` proposal policy,
+with actual compiler graph observations, explicit unavailable inputs and an
+ownership/borrowing seam where needed. Do not invent graphs or extend another
+proposal algorithm before examining those inputs. Cross-package propagation,
+broader project quality and native macOS validation also remain open.

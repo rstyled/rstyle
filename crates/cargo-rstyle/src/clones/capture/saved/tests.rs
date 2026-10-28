@@ -27,6 +27,7 @@ impl Fixture {
         }});
 
         let plan = Plan {
+            compiler_advisory: false,
             ledger_schema: ledger::SCHEMA.into(),
             extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile::DataV3,
             root: "/sample".into(),

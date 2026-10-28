@@ -355,3 +355,17 @@ Incomplete analysis exits two and cannot export; empty headers still check drift
 Live capture and explicit source/tool-free replay share completed observations.
 The 4-MiB/4,096-entry bounds and checked original owner limitations apply; see
 `docs/clones-source-rules.md` before adopting the gate across a project.
+
+## Compiler advisory migration
+
+For existing compiler mutation/effect observations and core fix plans on a clones
+run, use `cargo rstyle clones --extraction-profile hir-data-v3 --compiler-advisory`.
+An explicit `--compiler-advisory-config PATH` selects core TOML policy; otherwise
+core defaults apply. The `compiler_advisory` report keeps check/test units separate,
+missing/generated owners unavailable, and unresolved workspace callees visible.
+It reuses `ExprUseVisitor`, core propagation, fix groups and parameter stacking;
+strict clone admission is not required. Captured observations support source-free
+`--replay-run` and policy reevaluation. These metric versions differ from strict
+mutation-effect metrics; zero policy density is not a purity proof. Saved reviews,
+changed-file filters and baselines do not yet apply to this advisory field.
+See [compiler advisory](../../docs/clones-compiler-advisory.md).

@@ -23,6 +23,7 @@ pub enum Detail {
 }
 
 pub struct Context<'a> {
+    pub compiler_advisory_config: Option<&'a rstyle_core::config::Config>,
     pub cli: &'a Cli,
     pub args: &'a Args,
     pub capture: &'a capture::Capture,
@@ -50,6 +51,8 @@ struct Scope<'a> {
 
 #[derive(Serialize)]
 pub struct Report<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compiler_advisory: Option<super::advisory::Report>,
     pub review: super::review::workflow::Report,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub review_status: Option<super::review::status::Report>,
@@ -93,18 +96,35 @@ pub struct Report<'a> {
     intended_primary_units: &'a [Value],
     intended_dependency_units: &'a [Value],
     observed_units: &'a [capture::Unit],
-    capture_complete: bool,
-    capture_failures: &'a [String],
-    assessment_complete: bool,
+    #[serde(flatten)]
+    capture_status: CaptureStatus<'a>,
     functions: functions::Functions<'a>,
     build_contexts: &'a [super::UnitBuildContexts],
     owned_source_inventory: &'a [Value],
-    handoff_failures: &'a [String],
     pair_evaluation_complete: bool,
     pair_enumeration_complete: bool,
     matching: matching::Matching<'a>,
     accepted_pairs: Vec<locations::AcceptedPair<'a>>,
     claim: &'static str,
+}
+
+#[derive(Serialize)]
+struct CaptureStatus<'a> {
+    capture_complete: bool,
+    capture_failures: &'a [String],
+    assessment_complete: bool,
+    handoff_failures: &'a [String],
+}
+
+impl<'a> CaptureStatus<'a> {
+    fn new(ctx: &Context<'a>) -> Self {
+        Self {
+            capture_complete: ctx.capture.failures.is_empty(),
+            capture_failures: &ctx.capture.failures,
+            assessment_complete: ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty(),
+            handoff_failures: &ctx.handoff.failures,
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -173,6 +193,7 @@ fn ctx_profile_is_data(args: &Args) -> bool {
 
 pub(super) fn make<'a>(ctx: Context<'a>, consumers: Consumers<'a>) -> Report<'a> {
     Report {
+        compiler_advisory: consumers.compiler_advisory,
         edit_planning: consumers.edit_planning,
         parameter_planning: consumers.parameter_planning,
         guard_planning: consumers.guard_planning,
@@ -207,13 +228,10 @@ pub(super) fn make<'a>(ctx: Context<'a>, consumers: Consumers<'a>) -> Report<'a>
         intended_primary_units: &ctx.capture.plan.primary_units,
         intended_dependency_units: &ctx.capture.plan.dependency_units,
         observed_units: &ctx.capture.units,
-        capture_complete: ctx.capture.failures.is_empty(),
-        capture_failures: &ctx.capture.failures,
-        assessment_complete: ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty(),
+        capture_status: CaptureStatus::new(&ctx),
         functions: functions::Functions::new(&ctx.handoff.assessed, ctx.args.report_detail),
         build_contexts: &ctx.handoff.build_contexts,
         owned_source_inventory: &ctx.handoff.source_inventory,
-        handoff_failures: &ctx.handoff.failures,
         pair_evaluation_complete: ctx.complete,
         pair_enumeration_complete: enumeration_complete(&ctx),
         matching: matching::Matching::new(ctx.matching, ctx.args.trace, ctx.partitions),
@@ -331,27 +349,20 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         report.observed_units.len(),
         coverage_summary(report),
         report.matching.report.pairs.len(),
-        report.capture_complete,
-        report.assessment_complete,
+        report.capture_status.capture_complete,
+        report.capture_status.assessment_complete,
         report.pair_enumeration_complete,
         report.pair_evaluation_complete,
         directory.join("report.json").display()
     );
-    let pairs = report
-        .accepted_pairs
-        .iter()
-        .map(|pair| {
-            format!(
-                "\nAccepted pair: {} <> {} (score {}).",
-                pair.first,
-                pair.second,
-                pair.displayed_score.unwrap_or("unavailable")
-            )
-        })
-        .collect::<String>();
+    let pairs = render_pairs(report);
 
     format!(
-        "{summary}{pairs}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        "{summary}{pairs}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        report
+            .compiler_advisory
+            .as_ref()
+            .map_or_else(String::new, |report| report.render()),
         report.analysis.render(),
         report.pair_reports.render(),
         report.review.render(),
@@ -373,6 +384,21 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         report.mutation_effects.render(),
         planning_summary(report)
     )
+}
+
+fn render_pairs(report: &Report<'_>) -> String {
+    report
+        .accepted_pairs
+        .iter()
+        .map(|pair| {
+            format!(
+                "\nAccepted pair: {} <> {} (score {}).",
+                pair.first,
+                pair.second,
+                pair.displayed_score.unwrap_or("unavailable")
+            )
+        })
+        .collect::<String>()
 }
 
 fn planning_summary(report: &Report<'_>) -> String {

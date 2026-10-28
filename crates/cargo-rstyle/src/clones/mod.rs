@@ -1,5 +1,6 @@
 //! Opt-in, verified source-to-pair analysis; no legacy miner involvement.
 
+mod advisory;
 mod analysis;
 pub mod capture;
 mod identity;
@@ -27,11 +28,11 @@ use std::{
 };
 
 #[derive(ClapArgs, Serialize)]
-#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density"]).multiple(true)),
+#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density", "compiler_advisory"]).multiple(true)),
     group(clap::ArgGroup::new("changed_analysis").args(["source_rules", "effect_density"]).multiple(true)),
     group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules", "mutation_rules", "effect_density"]).multiple(true)),
     group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density"])),
-    group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules", "effect_density"]).multiple(true)))]
+    group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules", "effect_density", "compiler_advisory"]).multiple(true)))]
 pub struct Args {
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
     #[arg(long, default_value = "r0", value_parser = rstyle_pdg::extraction_profile::ExtractionProfile::select)]
@@ -72,6 +73,12 @@ pub struct Args {
     /// Evaluate source length and signature arity independently of graph admission.
     #[arg(long)]
     source_rules: bool,
+    /// Reuse compiler style collectors, effect propagation and fix plans per compilation unit.
+    #[arg(long)]
+    compiler_advisory: bool,
+    /// TOML policy for compiler advisory metrics, independent of strict clone policy.
+    #[arg(long, requires = "compiler_advisory")]
+    compiler_advisory_config: Option<PathBuf>,
     /// JSON workspace-relative changed-file selection for source-rule and density presentation and finding exits.
     #[arg(long, requires = "changed_analysis")]
     changed_files: Option<PathBuf>,
@@ -225,6 +232,7 @@ pub fn write_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
 }
 
 struct Configuration {
+    compiler_advisory: Option<rstyle_core::config::Config>,
     matching: CcgraphConfig,
     analysis: Option<analysis::Config>,
     mutation: Option<analysis::mutation_reports::Settings>,
@@ -247,6 +255,7 @@ fn configuration(cli: &Cli, args: &Args) -> Result<Configuration, String> {
         .transpose()?
         .unwrap_or_else(|| json!({}));
     Ok(Configuration {
+        compiler_advisory: advisory::configuration(args)?,
         matching: rstyle_ccgraph::parse_config(&value).map_err(|e| e.message)?,
         analysis: analysis::configuration(args)?,
         mutation: analysis::mutation_reports::configuration(args)?,
@@ -441,6 +450,7 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         matching: &matching,
         partitions: evaluation.partitions,
         complete,
+        compiler_advisory_config: config.compiler_advisory.as_ref(),
         analysis_config: config.analysis.as_ref(),
         mutation_config: config.mutation.as_ref(),
         effect_config: config.effects.as_ref(),
@@ -471,7 +481,11 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
 }
 
 fn analyses_complete(report: &report::Report<'_>) -> bool {
-    report.analysis.permits_success()
+    report
+        .compiler_advisory
+        .as_ref()
+        .is_none_or(analysis::Completion::permits_success)
+        && report.analysis.permits_success()
         && report.enum_dispatch.permits_success()
         && report.capability_proposals.permits_success()
         && report.mutation_analysis.permits_success()
@@ -506,7 +520,11 @@ fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: us
         || (args.fail_on_new_density && report.numeric_reviews.density_review.baseline_gate_fails())
         || (args.fail_on_accepted_pairs && accepted > 0)
         || (args.fail_on_findings
-            && (source_finding_exit_count(report) > 0
+            && (report
+                .compiler_advisory
+                .as_ref()
+                .is_some_and(|report| report.findings > 0)
+                || source_finding_exit_count(report) > 0
                 || report
                     .abstraction_review
                     .dispatch_visible_or(report.enum_dispatch.findings)

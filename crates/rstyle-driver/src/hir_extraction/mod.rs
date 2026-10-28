@@ -1,5 +1,6 @@
 //! Opt-in R0 frontend; the legacy extraction path stays independent.
 
+mod advisory;
 mod assertions;
 mod bool_constants;
 mod callbacks;
@@ -146,6 +147,7 @@ fn capture_callable_owner(
     id: LocalDefId,
     facts: &mut HirFnFacts,
 ) -> Result<(), String> {
+    advisory::capture(ctx, id, facts)?;
     inherent::capture(ctx, id, facts)?;
     trait_members::capture(ctx, id, facts)
 }

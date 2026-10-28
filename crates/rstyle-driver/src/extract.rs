@@ -47,7 +47,7 @@ pub fn crate_facts(
     facts
 }
 
-fn function_facts(
+pub(crate) fn function_facts(
     tcx: TyCtxt<'_>,
     def_id: LocalDefId,
     root: &Path,

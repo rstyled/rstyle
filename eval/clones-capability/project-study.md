@@ -104,3 +104,44 @@ exceed the existing whole-function parser limit of 128. Reapplying that limit
 independently per direct statement would increase aggregate syntax work, so the
 checkpoint preserves the explicit budget-exhausted result. This gap requires a
 separately justified bounded algorithm, not an increased limit.
+
+
+## Reuse-first compiler advisory measurement
+
+A fresh explicit `rstyle-ccgraph` library capture with `--compiler-advisory`
+completed in 20.685 seconds on the same Linux aarch64 pinned toolchain. Capture
+and handoff failures were empty. The existing Rust collectors supplied facts for
+all 238 original-source functions out of the 414-owner roster; 176 generated
+functions remained unavailable. The core evaluator assessed those 238 functions
+using its defaults, producing zero diagnostics and retaining 27 mutation, one
+panic and four unknown effect events in its summary. Twenty unresolved workspace
+callee identities keep advisory coverage incomplete and the exit status at 2.
+The advisory configuration is recorded in full; it differs from the historical
+study's deliberately small source limits.
+
+This is a capability gain from reusing the compiler collector and existing core
+policy, not a speedup or strict density coverage comparison. The strict density
+study above is unchanged. Production `frac::gcd` now has two compiler-observed
+owned mutation events and zero escaping events. Its compiler statement count is
+nine, whereas the source lexical contract counts five: metric versions must not
+be merged. The deferred integer/tuple consumer extension would have unlocked only
+this one owner's strict density assessment; the reuse adapter reaches the full
+238-original-owner population without another integer-family scan.
+
+Reproduce with the build command above, then:
+
+```sh
+RSTYLE_DRIVER="$PWD/target/debug/rstyle-driver" \
+python3 scripts/watchdog.py --timeout 180 --grace 1 \
+  --output /tmp/clones-project-compiler-advisory -- \
+  target/debug/cargo-rstyle rstyle --manifest-path "$PWD/Cargo.toml" \
+  --package rstyle-ccgraph --format json clones \
+  --extraction-profile hir-data-v3 --locked --report-detail compact \
+  --compiler-advisory
+```
+
+The four accepted strict pairs exactly match the previous saved project report.
+
+Session evidence: `/tmp/clones-project-reuse-capture-1`, saved run
+`target/rstyle/clones/run-1MUfZV`. No project-wide quality/retirement claim follows
+from this measurement; abstraction proposal reuse is the next unconnected policy.

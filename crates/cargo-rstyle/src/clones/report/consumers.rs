@@ -3,6 +3,7 @@ use super::{Context, SourceReviews, locations};
 use crate::clones::{analysis, planning, review};
 
 pub(in crate::clones) struct Consumers<'a> {
+    pub(super) compiler_advisory: Option<crate::clones::advisory::Report>,
     pub(super) pairs: analysis::pair_reports::Reports<'a>,
     pub(super) dispatch: analysis::dispatch_reports::Report<'a>,
     pub(super) capabilities: analysis::capability_reports::Report<'a>,
@@ -24,6 +25,7 @@ pub(in crate::clones) struct Consumers<'a> {
 
 impl<'a> Consumers<'a> {
     pub(in crate::clones) fn new(ctx: &Context<'a>) -> Result<Self, String> {
+        let compiler_advisory = crate::clones::advisory::evaluate(ctx)?;
         let mut analysis = ctx.local_analysis();
         let guard_planning = planning::guards::evaluate(ctx, &analysis)?;
         let parameter_planning = planning::parameters::evaluate(ctx, &analysis)?;
@@ -32,11 +34,7 @@ impl<'a> Consumers<'a> {
         let dispatch = ctx.dispatch_report(&indices)?;
         let capabilities = ctx.capability_report(&indices)?;
         let edit_planning = ctx.edit_planning(&pairs.helper_proposals)?;
-        let edit_coordination = planning::coordination::evaluate(
-            &edit_planning,
-            parameter_planning.as_ref(),
-            guard_planning.as_ref(),
-        );
+        let edit_coordination = coordinate(&edit_planning, &parameter_planning, &guard_planning);
         let mut mutation = ctx.mutation_report()?;
         let mut effects = ctx.effect_report()?;
         let accepted = locations::accepted(ctx.handoff, ctx.matching)?;
@@ -55,6 +53,7 @@ impl<'a> Consumers<'a> {
         ctx.present_effects(&mut effects, &reviews.density);
         let source_reviews = SourceReviews::apply(reviews.sources, ctx.args, &mut analysis);
         Ok(Self {
+            compiler_advisory,
             pairs,
             analysis,
             parameter_planning,
@@ -108,4 +107,12 @@ impl<'a> Context<'a> {
             &self.capture.plan.root,
         );
     }
+}
+
+fn coordinate(
+    edits: &planning::Report,
+    parameters: &Option<planning::parameters::Report>,
+    guards: &Option<planning::guards::Report>,
+) -> Option<planning::coordination::Report> {
+    planning::coordination::evaluate(edits, parameters.as_ref(), guards.as_ref())
 }

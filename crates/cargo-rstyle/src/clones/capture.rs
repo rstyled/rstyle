@@ -29,6 +29,8 @@ pub struct Target {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Plan {
+    #[serde(default)]
+    pub compiler_advisory: bool,
     pub ledger_schema: String,
     pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     pub root: PathBuf,
@@ -75,6 +77,7 @@ pub fn prepare(cli: &Cli, args: &Args) -> Result<Capture, String> {
     let metadata = selected_workspace(cli)?;
     let mut capture = initial_capture(metadata, args.extraction_profile)?;
     capture.plan.targets = targets(cli, args.extraction_profile)?;
+    capture.plan.compiler_advisory = args.compiler_advisory;
 
     publish_plan(capture)
 }
@@ -135,6 +138,7 @@ fn plan(
     environment: CaptureEnvironment,
 ) -> Plan {
     Plan {
+        compiler_advisory: false,
         ledger_schema: ledger::SCHEMA.into(),
         extraction_profile,
         root,
@@ -598,6 +602,9 @@ fn driver_command(
     let mut command = Command::new(&plan.driver);
     run::clear_rstyle_environment(&mut command);
 
+    if plan.compiler_advisory && target.is_some() {
+        command.env(rstyle_core::advisory::CAPTURE_ENV, "1");
+    }
     command.args(arguments);
     Ok(command)
 }
