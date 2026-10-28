@@ -665,48 +665,61 @@ impl Scan<'_> {
         &self,
         expression: &Expr,
         node: &HirNode,
-    ) -> Result<(super::Availability<super::ArgumentValue>, Option<u32>), String> {
-        use super::{ArgumentValue, Availability};
+    ) -> Result<super::calls::ArgumentEvidence, String> {
+        use super::{ArgumentValue, Availability, calls::ArgumentEvidence};
         let expression = transparent(expression);
         if matches!(expression, Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(_), attrs, .. }) if attrs.is_empty())
             && node.kind == "expr_lit"
             && native::scalar(node)
         {
-            return Ok((Availability::Known(ArgumentValue::OwnedU32), None));
+            return Ok(ArgumentEvidence::unrooted(Availability::Known(
+                ArgumentValue::OwnedU32,
+            )));
         }
         let Expr::Path(path) = expression else {
-            return Ok((
-                Availability::Unsupported {
-                    reason: "Call argument evaluation is outside direct scalar reads".into(),
-                },
-                None,
-            ));
+            return Ok(ArgumentEvidence::unrooted(Availability::Unsupported {
+                reason: "Call argument evaluation is outside direct scalar reads".into(),
+            }));
         };
 
         let binding = plain_path(path)
             .and_then(|name| self.scopes.iter().rev().find_map(|scope| scope.get(&name)))
             .and_then(Option::as_ref);
         let Some(binding) = binding else {
-            return Ok((
-                Availability::Unknown {
-                    reason: "Call argument has no checked lexical scalar root".into(),
-                },
-                None,
-            ));
+            return Ok(ArgumentEvidence::unrooted(Availability::Unknown {
+                reason: "Call argument has no checked lexical scalar root".into(),
+            }));
         };
-
         if !check_call_argument(self.source, path, node, binding)? {
-            return Ok((
-                Availability::Unknown {
-                    reason: "Call argument native type or binding resolution was not captured"
-                        .into(),
-                },
-                None,
-            ));
+            return Ok(ArgumentEvidence::unrooted(Availability::Unknown {
+                reason: "Call argument native type or binding resolution was not captured".into(),
+            }));
         }
 
-        self.typed_call_argument(binding)
-            .map(|value| (value, binding.root.formal))
+        self.argument_evidence(binding)
+    }
+
+    fn argument_evidence(
+        &self,
+        binding: &Binding,
+    ) -> Result<super::calls::ArgumentEvidence, String> {
+        let value = self.typed_call_argument(binding)?;
+        let unchanged_formal = if !binding.mutable
+            && binding.root.provenance == Provenance::FormalOwned
+            && matches!(
+                value,
+                super::Availability::Known(super::ArgumentValue::OwnedU32)
+            ) {
+            binding.root.formal
+        } else {
+            None
+        };
+
+        Ok(super::calls::ArgumentEvidence {
+            value,
+            formal: binding.root.formal,
+            unchanged_formal,
+        })
     }
 
     fn typed_call_argument(

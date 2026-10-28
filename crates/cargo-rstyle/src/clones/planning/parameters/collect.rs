@@ -15,6 +15,7 @@ struct Collector<'a, 'context> {
     ctx: &'a report::Context<'context>,
     result: Collected,
     remaining: usize,
+    bundle_remaining: usize,
 }
 
 struct CallCollector<'a, 'unit, 'context> {
@@ -30,6 +31,7 @@ pub(super) fn evaluate(
 ) -> Result<Collected, String> {
     let mut collector = Collector {
         ctx,
+        bundle_remaining: super::model::MAX_COMPARISONS,
         remaining: ctx
             .args
             .max_analysis_functions
@@ -88,6 +90,11 @@ impl Collector<'_, '_> {
         self.result.census.push(UnitCensus { unit, census });
     }
 
+    fn retain_plan(&mut self, plan: Plan) {
+        self.result.budget |= plan.bundles.exhausted();
+        self.result.plans.push(plan);
+    }
+
     fn inspect_group(
         &mut self,
         group: Group<'_>,
@@ -95,17 +102,7 @@ impl Collector<'_, '_> {
         unit: usize,
     ) -> Result<(), String> {
         let session = inspect_session(group.store, self.allowance(group.store.functions().len()))?;
-        let mut calls = CallCollector {
-            group: &group,
-            session: &session,
-            regions: Regions::default(),
-            ctx: self.ctx,
-        };
-        for target in targets {
-            self.result
-                .plans
-                .push(calls.plan(self.result.plans.len(), target)?);
-        }
+        self.retain_plans(&group, &session, targets)?;
 
         let census = session
             .into_census()
@@ -113,10 +110,34 @@ impl Collector<'_, '_> {
         self.retain_census(unit, census);
         Ok(())
     }
+
+    fn retain_plans(
+        &mut self,
+        group: &Group<'_>,
+        session: &callers::Session<'_>,
+        targets: &[&Function],
+    ) -> Result<(), String> {
+        let mut calls = CallCollector {
+            group,
+            session,
+            regions: Regions::default(),
+            ctx: self.ctx,
+        };
+        for target in targets {
+            let plan = calls.plan(self.result.plans.len(), target, &mut self.bundle_remaining)?;
+            self.retain_plan(plan);
+        }
+        Ok(())
+    }
 }
 
 impl CallCollector<'_, '_, '_> {
-    fn plan(&mut self, id: usize, target: &Function) -> Result<Plan, String> {
+    fn plan(
+        &mut self,
+        id: usize,
+        target: &Function,
+        bundle_remaining: &mut usize,
+    ) -> Result<Plan, String> {
         let signature = self.regions.signature(target, self.ctx)?;
         let mut plan = Plan::new(id, target.key, signature);
 
@@ -131,6 +152,7 @@ impl CallCollector<'_, '_, '_> {
             );
         }
         self.gather(&mut plan, target.facts.index)?;
+        plan.bundles = super::bundles::evaluate(&plan, bundle_remaining);
         Ok(plan)
     }
 
@@ -159,6 +181,7 @@ impl CallCollector<'_, '_, '_> {
                     Ok(Argument {
                         span: super::regions::absolute(record.facts.fn_span, argument.span)?,
                         formal: argument.formal.clone(),
+                        unchanged_formal: argument.unchanged_formal.clone(),
                     })
                 })
                 .collect::<Result<_, String>>()?;

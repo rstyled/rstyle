@@ -108,12 +108,40 @@ pub(super) struct Site<'a, 'b> {
     pub boundary_index: usize,
 }
 
+pub(super) struct ArgumentEvidence {
+    pub value: Availability<ArgumentValue>,
+    pub formal: Option<u32>,
+    pub unchanged_formal: Option<u32>,
+}
+
+impl ArgumentEvidence {
+    pub fn unrooted(value: Availability<ArgumentValue>) -> Self {
+        Self {
+            value,
+            formal: None,
+            unchanged_formal: None,
+        }
+    }
+
+    fn origin(&self, ordinal: Option<u32>) -> Availability<Option<u32>> {
+        match &self.value {
+            Availability::Known(_) => Availability::Known(ordinal),
+            Availability::Unknown { reason } => Availability::Unknown {
+                reason: reason.clone(),
+            },
+            Availability::Unsupported { reason } => Availability::Unsupported {
+                reason: reason.clone(),
+            },
+            Availability::NotApplicable { reason } => Availability::NotApplicable {
+                reason: reason.clone(),
+            },
+        }
+    }
+}
+
 pub(super) fn observe(
     site: Site<'_, '_>,
-    mut argument: impl FnMut(
-        &Expr,
-        &HirNode,
-    ) -> Result<(Availability<ArgumentValue>, Option<u32>), String>,
+    mut argument: impl FnMut(&Expr, &HirNode) -> Result<ArgumentEvidence, String>,
 ) -> Result<Option<Call>, String> {
     let Site {
         facts,
@@ -157,10 +185,7 @@ fn observe_argument(
     source: &str,
     syntax: &Expr,
     child: &HirNode,
-    argument: &mut impl FnMut(
-        &Expr,
-        &HirNode,
-    ) -> Result<(Availability<ArgumentValue>, Option<u32>), String>,
+    argument: &mut impl FnMut(&Expr, &HirNode) -> Result<ArgumentEvidence, String>,
 ) -> Result<Argument, String> {
     let span = crate::source_evidence::original_span(source, syntax.span());
     let inner = crate::data_aggregates::ungroup(syntax);
@@ -168,33 +193,21 @@ fn observe_argument(
         return Err("Call native argument order contradicts original syntax".into());
     }
 
-    let (value, ordinal) = if !crate::conditional_source::expression_attributes(syntax).is_empty()
+    let evidence = if !crate::conditional_source::expression_attributes(syntax).is_empty()
         || child.expansion.is_some()
     {
-        (
-            unsupported("Call argument attributes or expansion are unsupported"),
-            None,
-        )
+        ArgumentEvidence::unrooted(unsupported(
+            "Call argument attributes or expansion are unsupported",
+        ))
     } else {
         argument(syntax, child)?
     };
 
-    let formal = match &value {
-        Availability::Known(_) => Availability::Known(ordinal),
-        Availability::Unknown { reason } => Availability::Unknown {
-            reason: reason.clone(),
-        },
-        Availability::Unsupported { reason } => Availability::Unsupported {
-            reason: reason.clone(),
-        },
-        Availability::NotApplicable { reason } => Availability::NotApplicable {
-            reason: reason.clone(),
-        },
-    };
     Ok(Argument {
         span,
-        value,
-        formal,
+        formal: evidence.origin(evidence.formal),
+        unchanged_formal: evidence.origin(evidence.unchanged_formal),
+        value: evidence.value,
     })
 }
 

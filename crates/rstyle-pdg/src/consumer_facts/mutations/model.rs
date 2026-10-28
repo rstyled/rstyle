@@ -120,6 +120,8 @@ pub struct Argument {
     pub value: Availability<ArgumentValue>,
     /// Original caller formal ordinal for checked direct reads; locals/literals have none.
     pub formal: Availability<Option<u32>>,
+    /// Checked immutable owned u32 formal read; no mutable, borrowed or alias roots.
+    pub unchanged_formal: Availability<Option<u32>>,
 }
 
 #[derive(Debug)]

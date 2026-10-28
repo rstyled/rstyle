@@ -52,7 +52,9 @@ Heavy captures and integrated gates run serially.
 
 | C04d | Evidence + policy + acceptance + lead / direct statement view, shared spacing predicate and opt-in source policy | delivered (bounded spacing) | `0e7234e` | Original source spacing independent of strict matching, explicit unsupported transformations and source-free policy reevaluation | Focused tests and integrated checkpoint evidence below |
 | C05c | Acceptance + runner + lead / spacing corpus, comparator and independent labels | delivered (bounded spacing comparison) | `bf11857` | Optional independently labeled spacing measurements, explicit disabled-policy agreement and three-rule exclusion checks | 56 Python tests, live serial comparison and integrated checkpoint evidence below |
-| C12b | Evidence + acceptance + lead / caller census, signature regions, overlap and CLI/report | delivered (bounded caller-aware signature intents) | this checkpoint | Advisory parameter signature intents with exact same-unit witnessed callers and separate census coverage | Eight real-Cargo acceptance cases, 2,709 workspace tests, both legacy gates and source-free strict replay; checkpoint evidence below |
+| C12b | Evidence + acceptance + lead / caller census, signature regions, overlap and CLI/report | delivered (bounded caller-aware signature intents) | `30f6a06` | Advisory parameter signature intents with exact same-unit witnessed callers and separate census coverage | Eight real-Cargo acceptance cases, 2,709 workspace tests, both legacy gates and source-free strict replay; checkpoint evidence below |
+
+| C12c | Evidence + acceptance + lead / immutable formal evidence, bounded bundle search and report | delivered (bounded witnessed forwarding) | this checkpoint | Repeated per-target unchanged-scalar forwarding with exact positional support witnesses | 2,724 workspace tests, both legacy gates and source-free live replay; checkpoint evidence below |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
@@ -891,3 +893,60 @@ witnesses but cannot establish exhaustive support. Pass-through candidates need
 a separate complete formal-use inventory, including other reads, writes, borrows
 and opaque boundaries; neither a formal ordinal nor a bundle establishes safe
 argument removal.
+
+
+## C12c: witnessed unchanged-scalar forwarding bundles
+
+Parameter signature plans now retain repeated forwarding candidates for the same
+exact target. Checked `unchanged_formal` evidence is separate from source-root
+`formal` provenance. Only immutable owned-u32 direct reads qualify; literals,
+local aliases, mutable and borrowed formals do not. Missing/unsupported evaluation
+retains its availability. Original mutability, binding identity, native argument
+order and scalar type must agree. The existing source scan supplies this evidence
+without another parse, graph/effect proof, hash or source-byte copy.
+
+The candidate search groups unique eligible target-position sets, considers their
+pairwise intersections, and checks support across every retained call. Each
+published candidate has at least two exact source call occurrences, ordered
+caller-to-target formal mappings and distinct caller roots. Repeated-root
+positions are excluded. Candidate vocabulary and unproved maximality are explicit;
+this does not enumerate all subsets or promise a parameter-struct rewrite.
+One 65,536-operation search allowance is shared across all signature plans.
+Exhaustion preserves only candidates with completed support scans and remains
+incomplete; partial support counts never become completed findings.
+
+Seven real-Cargo cases independently cover triples, permutations, shared subsets,
+exact namesakes, repeated roots, literals, aliases, transformed arguments,
+mutable/borrowed formals, useful incomplete-census witnesses and source-free
+full/compact replay. Four evidence tests distinguish immutable root evidence,
+resealed mutability/native contradictions, absent/unsupported data and known-empty
+literal/local evidence. Four pure search tests cover positions, support, excluded
+repeated roots and support-scan exhaustion. Broader all-use/pass-through evidence,
+external closure, broader signatures, project-scale quality and legacy retirement
+remain open. Native macOS and exact Go comparison remain unverified.
+
+
+The frozen checkpoint passes all 2,724 workspace tests (five skipped) in 177.007
+seconds plus doc tests. Workspace/all-target Clippy with warnings denied,
+formatting and diff checks pass. Legacy style reports zero violations across
+8,892 functions; reviewed patterns passes and the same 15 unfiltered baseline
+candidate IDs remain. All 56 Python comparator tests pass. Retained logs use
+`/tmp/clones-bundles-{tests,clippy,style,patterns,python}.*`; unfiltered pattern
+reports use `/tmp/clones-bundles-patterns-unfiltered.*`.
+
+Fresh locked live evidence is retained at `/tmp/clones-bundles-live-nvtm8gyk`.
+Two permuted original calls produce one bundle with independently checked target
+positions and caller mappings. After removing source/manifest and disabling
+Cargo/compiler/driver lookup, strict full/compact replay preserves planning and
+matching exactly. Zero function budget remains incomplete; config-only threshold
+reevaluation produces a complete empty plan set. Exact commands, timings, exit
+codes and reports are retained. No extraction permission, hash, ignore,
+threshold relaxation or legacy retirement was introduced.
+
+The next ready slice is a separate, bounded formal-use inventory in the existing
+source scan. Native path resolution must be checked for ordinary reads as well
+as call arguments. Initializers, shadowing, return/tail expressions, writes,
+borrows and opaque syntax need explicit occurrence or incompleteness evidence.
+Only complete inventories with at least one use, all directly forwarded unchanged
+into selected signature intents, can justify an advisory pass-through candidate;
+unused parameters and omitted syntax cannot supply that conclusion.

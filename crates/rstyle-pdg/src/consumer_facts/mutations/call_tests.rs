@@ -213,6 +213,10 @@ impl<'a> Fixture<'a> {
             span(self.source, argument),
             local,
         );
+        if matches!(argument, syn::Expr::Lit(_)) {
+            captured.kind = "expr_lit".into();
+            captured.ty.as_mut().unwrap().normalized = Some("u32".into());
+        }
         if let syn::Expr::Path(path) = argument {
             let name = path.path.get_ident().unwrap().to_string();
             if let Some(binding) = self
@@ -465,4 +469,153 @@ fn direct_owned_argument_retains_checked_original_formal_ordinal() {
         observed.calls[0].arguments[0].formal,
         Availability::Unsupported { .. }
     ));
+}
+
+#[test]
+fn unchanged_formal_requires_an_immutable_owned_original_read() {
+    let facts = fixture("pub fn caller(left:u32,right:u32) { leaf(right,left); }");
+    let observed = inspect_calls(&facts).unwrap();
+    assert_eq!(
+        observed.calls[0].arguments[0].unchanged_formal,
+        Availability::Known(Some(1))
+    );
+    assert_eq!(
+        observed.calls[0].arguments[1].unchanged_formal,
+        Availability::Known(Some(0))
+    );
+    for source in [
+        "pub fn caller(mut value:u32) { leaf(value); }",
+        "pub fn caller(value:&mut u32) { leaf(value); }",
+    ] {
+        let facts = fixture(source);
+        let observed = inspect_calls(&facts).unwrap();
+        assert_eq!(
+            observed.calls[0].arguments[0].formal,
+            Availability::Known(Some(0))
+        );
+        assert_eq!(
+            observed.calls[0].arguments[0].unchanged_formal,
+            Availability::Known(None)
+        );
+    }
+}
+
+#[test]
+fn unchanged_formal_rejects_resealed_binding_modes_and_targets() {
+    let original = fixture("pub fn caller(left:u32,right:u32) { leaf(left); }");
+    let mut changed = original.clone();
+    changed.bindings[0].is_mut = true;
+    changed.signature.params[0].pat.binding_mut = Some(true);
+    assert!(inspect_calls(&changed).is_err());
+    let mut changed = original;
+    changed.body.children[0].children[0]
+        .res
+        .as_mut()
+        .unwrap()
+        .target = Some(changed.signature.params[1].pat.hir.clone());
+    assert!(inspect_calls(&changed).is_err());
+    let mut changed = fixture("pub fn caller(mut value:u32) { leaf(value); }");
+    changed.bindings[0].is_mut = false;
+    changed.signature.params[0].pat.binding_mut = Some(false);
+    assert!(inspect_calls(&changed).is_err());
+}
+
+#[test]
+fn unchanged_formal_preserves_missing_and_unsupported_evidence() {
+    let mut facts = fixture("pub fn caller(value:u32) { leaf(value); }");
+    facts.body.children[0].children[0].ty = None;
+    let observed = inspect_calls(&facts).unwrap();
+    assert!(matches!(
+        observed.calls[0].arguments[0].unchanged_formal,
+        Availability::Unknown { .. }
+    ));
+    let facts = fixture("pub fn caller(value:u32) { leaf({value}); }");
+    let observed = inspect_calls(&facts).unwrap();
+    assert!(matches!(
+        observed.calls[0].arguments[0].unchanged_formal,
+        Availability::Unsupported { .. }
+    ));
+}
+
+fn local_alias_binding(pattern: &HirNode, scope: ByteSpan) -> crate::BindingFact {
+    crate::BindingFact {
+        symbol: "local-saved".into(),
+        name: "saved".into(),
+        decl_span: pattern.span,
+        scope: format!("scope:source:block:{}:{}", scope.start, scope.end),
+        hir: pattern.hir.clone(),
+        is_param: false,
+        is_mut: false,
+        ty: pattern.ty.clone().unwrap(),
+    }
+}
+
+fn checked_local_alias() -> HirFnFacts {
+    let source = "pub fn caller(value:u32) { let saved=value; leaf(saved); }";
+    let mut facts = fixture(source);
+    let function: syn::ItemFn = syn::parse_str(source).unwrap();
+    let syn::Stmt::Local(local) = &function.block.stmts[0] else {
+        unreachable!()
+    };
+    let declaration = span(source, &local.pat);
+    let mut pattern = node(
+        source,
+        NodeShape {
+            kind: "pat_binding",
+            token: Some("u32"),
+        },
+        declaration,
+        300,
+    );
+    pattern.binding = Some("local-saved".into());
+    pattern.binding_mut = Some(false);
+    facts
+        .bindings
+        .push(local_alias_binding(&pattern, facts.body.span));
+
+    let argument = &mut facts.body.children[0].children[0];
+    argument.ty = pattern.ty.clone();
+    argument.res = Some(crate::PathRes {
+        kind: "local".into(),
+        target: Some(pattern.hir.clone()),
+        description: String::new(),
+    });
+    let mut initializer = node(
+        source,
+        NodeShape {
+            kind: "expr_path",
+            token: Some("u32"),
+        },
+        span(source, &*local.init.as_ref().unwrap().expr),
+        301,
+    );
+    initializer.res = Some(crate::PathRes {
+        kind: "local".into(),
+        target: Some(facts.signature.params[0].pat.hir.clone()),
+        description: String::new(),
+    });
+    facts.body.children[0]
+        .dispatch
+        .as_mut()
+        .unwrap()
+        .operand_tys[0] = "u32".into();
+    facts.body.children.extend([pattern, initializer]);
+    facts
+}
+
+#[test]
+fn checked_local_alias_and_literal_are_distinct_from_unchanged_formals() {
+    for facts in [
+        checked_local_alias(),
+        fixture("pub fn caller() { leaf(3u32); }"),
+    ] {
+        let observed = inspect_calls(&facts).unwrap();
+        let argument = &observed.calls[0].arguments[0];
+        assert!(matches!(
+            argument.value,
+            Availability::Known(ArgumentValue::OwnedU32)
+        ));
+        assert_eq!(argument.formal, Availability::Known(None));
+        assert_eq!(argument.unchanged_formal, Availability::Known(None));
+    }
 }

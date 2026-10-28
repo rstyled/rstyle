@@ -1,4 +1,5 @@
 use super::*;
+mod bundles;
 
 const CALLS: &str = "pub fn many(left: u32, right: u32) -> u32 { left + right }\n\
 pub fn reversed(right: u32, left: u32) -> u32 { left + right }\n\

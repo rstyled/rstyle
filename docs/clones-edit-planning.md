@@ -100,6 +100,38 @@ units. Exhaustion preserves checked witnesses and exits two. Full/compact
 strict replay uses the same captured source and caller observations without
 source files, Cargo or a driver.
 
-Local guard intents, forwarding bundles, pass-through/all-use inventories,
+### Witnessed forwarding bundles
+
+Each signature plan also includes `forwarding_bundles`, derived from repeated
+checked calls to that exact target. A bundle names zero-based `target_parameters`
+and at least two supporting witnesses. Each witness's `caller_index` refers to
+the plan's ordered `callers` array; `caller_formals` maps the named target
+positions to original caller parameter ordinals. Different mappings and repeated
+source call occurrences remain distinct. Same-named targets are never pooled.
+
+`unchanged_formal` is separate from argument `formal` provenance. An ordinal is
+retained only for an original direct read of an immutable owned `u32` formal,
+with checked native binding, source and scalar type. Checked literals, local
+aliases, mutable formals (even before a write) and mutable borrowed arguments
+have no unchanged ordinal. Unknown and unsupported evaluation preserve their
+availability; they cannot become a clean lack of forwarding.
+
+The declared `bundle_search` considers unique unchanged-formal positions per
+call and pairwise intersections of those position sets. Positions repeating the
+same formal within a call are excluded. Candidate support is then checked across
+every retained call. Identical position sets are grouped before intersection
+search; work is bounded by one shared 65,536-operation allowance across all plans.
+This is a bounded candidate vocabulary, not an enumeration of all subsets or a
+maximality claim (`bundle_maximality` remains `not_proven`).
+
+`bundle_support_coverage` and `bundle_execution` state support scope and work
+completion. An incomplete caller census may still retain useful bundles. A
+partially counted candidate is never published; budget exhaustion preserves
+completed candidates, marks incomplete coverage and exits two. These witnesses
+suggest parameters worth reviewing together. They do not establish pass-through,
+safe argument removal, a parameter-struct design, external caller closure or
+rewrite independence. Full/compact source-free replay preserves the evidence.
+
+Local guard intents, pass-through/all-use inventories,
 external caller closure and broader signatures remain pending. Legacy grouping
 and stacking remain operational.

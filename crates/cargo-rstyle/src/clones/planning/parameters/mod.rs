@@ -1,4 +1,5 @@
 //! Signature intents and exact witnessed callers, independent of body effects.
+mod bundles;
 mod collect;
 mod regions;
 
@@ -20,6 +21,8 @@ pub(in crate::clones) struct Report {
     expected_plans: Option<usize>,
     caller_scope: &'static str,
     call_resolution: &'static str,
+    bundle_search: &'static str,
+    bundle_maximality: &'static str,
     plans: Vec<Plan>,
     caller_census: Vec<UnitCensus>,
     coordination: model::Analysis,
@@ -35,6 +38,8 @@ struct Plan {
     function: String,
     signature: Option<Region>,
     callers: Vec<Caller>,
+    #[serde(flatten)]
+    bundles: bundles::Analysis,
     reasons: Vec<String>,
 }
 
@@ -49,6 +54,7 @@ struct Caller {
 struct Argument {
     span: ByteSpan,
     formal: Availability<Option<u32>>,
+    unchanged_formal: Availability<Option<u32>>,
 }
 
 #[derive(Serialize)]
@@ -119,6 +125,8 @@ impl Report {
             expected_plans: population_complete.then_some(findings),
             caller_scope: "captured_selected_units",
             call_resolution: "same_unit_as_target",
+            bundle_search: "pairwise_intersections_of_unique_immutable_formal_positions",
+            bundle_maximality: "not_proven",
             plans: collected.plans,
             caller_census: collected.census,
             coordination,
@@ -164,6 +172,7 @@ impl Plan {
             function: function.to_string(),
             signature,
             callers: vec![],
+            bundles: bundles::Analysis::default(),
             reasons,
         }
     }

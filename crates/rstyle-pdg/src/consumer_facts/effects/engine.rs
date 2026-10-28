@@ -731,6 +731,7 @@ mod session_tests {
             target: Availability::Known("typed-test-leaf".into()),
             target_path: Some("typed-test-leaf".into()),
             arguments: vec![mutations::Argument {
+                unchanged_formal: Availability::Known(None),
                 formal: Availability::Known(Some(0)),
                 span: span(),
                 value: Availability::Known(mutations::ArgumentValue::MutableFormal(root())),

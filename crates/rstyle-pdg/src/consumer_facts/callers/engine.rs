@@ -347,6 +347,7 @@ mod tests {
                 target: Availability::Known("definition-1".into()),
                 target_path: Some("sample::function_1".into()),
                 arguments: vec![mutations::Argument {
+                    unchanged_formal: Availability::Known(Some(0)),
                     span,
                     value: Availability::Known(mutations::ArgumentValue::OwnedU32),
                     formal: Availability::Known(Some(0)),
