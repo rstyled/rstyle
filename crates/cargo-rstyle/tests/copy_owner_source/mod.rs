@@ -57,12 +57,7 @@ fn copy_owner_source_composes_constructor_and_getter_with_neighboring_expansion(
 fn reject_historical(function: &Value) {
     let (store, index) = shared_evidence::load(function);
     let pair = store.pair(index).unwrap();
-    let mut historical = rstyle_pdg::producer::Pair {
-        pdg: pair.pdg.clone(),
-        cfg: pair.cfg.clone(),
-    };
-    historical.pdg.profile.version = "3.94.0".into();
-    historical.cfg.profile.version = "3.94.0".into();
+    let historical = shared_evidence::with_profile_version(pair, "3.94.0");
     let analysis = store.analysis();
     let facts = analysis.function(index).unwrap();
     assert!(rstyle_pdg::data_documents::verify(&historical, &facts).is_err());

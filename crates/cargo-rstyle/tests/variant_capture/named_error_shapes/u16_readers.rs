@@ -266,8 +266,7 @@ fn mutate_graph(pair: &mut Pair, change: &str) {
         return;
     }
     if change == "historical" {
-        pair.pdg.profile.version = "3.127.0".into();
-        pair.cfg.profile.version = "3.127.0".into();
+        *pair = shared_evidence::with_profile_version(pair, "3.127.0");
         return;
     }
     if change == "source" {
@@ -335,9 +334,7 @@ fn check_prior_profile(store: &UnitStore, index: usize) {
     let analysis = store.analysis();
     let facts = analysis.function(index).unwrap();
     let original = store.pair(index).unwrap();
-    let mut historical = original.clone();
-    historical.pdg.profile.version = "3.127.0".into();
-    historical.cfg.profile.version = "3.127.0".into();
+    let historical = shared_evidence::with_profile_version(original, "3.127.0");
     rstyle_pdg::verification_policy::strict(|| {
         // Superseded Data3 policy IDs were not registered by this pipeline.
         // Keep that closed; unchanged u32 admission is checked under current policy.

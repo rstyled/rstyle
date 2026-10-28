@@ -31,6 +31,7 @@ pub struct Manifest {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Pair {
+    #[serde(with = "crate::transport")]
     pub pdg: PdgDocument,
     pub cfg: CfgDocument,
 }
@@ -39,6 +40,7 @@ pub struct Pair {
 /// grants no trust; ordinary paired/source/policy checks still apply.
 #[derive(Clone, Copy, Serialize)]
 pub struct PairView<'a> {
+    #[serde(serialize_with = "crate::transport::serialize")]
     pub pdg: &'a PdgDocument,
     pub cfg: &'a CfgDocument,
 }
@@ -158,7 +160,7 @@ impl SerializedPairView<'_> {
 
 impl Pair {
     pub fn serialize(&self) -> Result<SerializedPair, serde_json::Error> {
-        let pdg_bytes = serde_json::to_vec(&self.pdg)?;
+        let pdg_bytes = serde_json::to_vec(&crate::transport::Borrowed(&self.pdg))?;
         let cfg_bytes = serde_json::to_vec(&self.cfg)?;
         let links = read_paired_graph(&self.pdg.extensions).expect("producer paired links");
         let manifest = Manifest {

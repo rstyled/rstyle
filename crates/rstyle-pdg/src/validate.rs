@@ -209,7 +209,7 @@ fn eligibility_of(blocking: &[Issue]) -> Eligibility {
     }
 }
 
-fn check_record_policies(doc: &PdgDocument) -> CheckOutput {
+pub(crate) fn record_policies_agree(doc: &PdgDocument) -> bool {
     let optional = std::iter::once(doc.function.reference_count.policy.as_ref())
         .chain(std::iter::once(
             doc.function.interface_completeness.policy.as_ref(),
@@ -235,12 +235,14 @@ fn check_record_policies(doc: &PdgDocument) -> CheckOutput {
                 .iter()
                 .map(|m| m.evidence.policy.as_ref()),
         );
-    let disagree = optional
+    !optional
         .flatten()
         .chain(doc.edges.iter().map(|e| &e.policy))
-        .any(|policy| policy != &doc.profile);
+        .any(|policy| policy != &doc.profile)
+}
 
-    if disagree {
+fn check_record_policies(doc: &PdgDocument) -> CheckOutput {
+    if !record_policies_agree(doc) {
         blocked(
             "pdg.record-policy",
             "record policy disagrees with document profile".to_string(),

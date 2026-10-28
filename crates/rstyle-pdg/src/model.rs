@@ -606,8 +606,29 @@ pub struct ExtractionEvidence {
     pub conformance: Vec<Conformance>,
 }
 
+impl ExtractionEvidence {
+    pub(crate) fn map_assessments(
+        self,
+        capability: impl Fn(Capability) -> Capability,
+        conformance: impl Fn(Conformance) -> Conformance,
+    ) -> Self {
+        Self {
+            capabilities: self
+                .capabilities
+                .into_iter()
+                .map(|(key, value)| (key, capability(value)))
+                .collect(),
+            conformance: self.conformance.into_iter().map(conformance).collect(),
+            ..self
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+/// Internal document, including historical record policy metadata used by strict
+/// verification. Use [`crate::transport`] for current shared PDG wire encoding;
+/// direct serde here retains the internal grammar and historical fixtures.
 pub struct PdgDocument {
     pub schema_version: String,
     pub profile: ProfileId,

@@ -300,12 +300,7 @@ fn reject_historical_policy(functions: &[Value]) {
     }) {
         let (store, index) = shared_evidence::load(function);
         let pair = store.pair(index).unwrap();
-        let mut historical = rstyle_pdg::producer::Pair {
-            pdg: pair.pdg.clone(),
-            cfg: pair.cfg.clone(),
-        };
-        historical.pdg.profile.version = "3.93.0".into();
-        historical.cfg.profile.version = "3.93.0".into();
+        let historical = shared_evidence::with_profile_version(pair, "3.93.0");
         assert!(
             rstyle_pdg::data_documents::verify(
                 &historical,

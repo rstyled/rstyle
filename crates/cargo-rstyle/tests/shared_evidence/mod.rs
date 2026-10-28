@@ -247,3 +247,16 @@ pub fn check_partial_helper(function: &Value) {
         });
     }
 }
+
+/// Forge the document profile at the current wire boundary, so inherited record
+/// metadata is coherent and strict verification must reject the actual claim.
+pub fn with_profile_version(
+    pair: &rstyle_pdg::producer::Pair,
+    version: &str,
+) -> rstyle_pdg::producer::Pair {
+    let mut wire = serde_json::to_value(pair).unwrap();
+    wire["pdg"]["profile"]["version"] = version.into();
+    wire["cfg"]["profile"]["version"] = version.into();
+
+    serde_json::from_value(wire).unwrap()
+}

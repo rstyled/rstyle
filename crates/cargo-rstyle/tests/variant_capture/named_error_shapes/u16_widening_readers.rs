@@ -306,9 +306,7 @@ fn check_mutants(store: &UnitStore, analysis: &UnitAnalysis<'_>, mutants: Vec<(&
 }
 
 fn previous_profile(pair: &mut Pair) {
-    let previous = "3.128.0".to_owned();
-    pair.pdg.profile.version = previous.clone();
-    pair.cfg.profile.version = previous;
+    *pair = shared_evidence::with_profile_version(pair, "3.128.0");
 }
 
 fn check_graph_attacks(store: &UnitStore, analysis: &UnitAnalysis<'_>, index: usize) {

@@ -97,8 +97,7 @@ fn forge_decoder(forged: &mut rstyle_pdg::producer::Pair, attack: &str) {
             node.attributes.literal = Some(rstyle_pdg::StringFact::known("101"));
         }
         "policy" => {
-            forged.pdg.profile.version = "3.113.0".into();
-            forged.cfg.profile.version = "3.113.0".into();
+            *forged = shared_evidence::with_profile_version(forged, "3.113.0");
         }
         _ => unreachable!(),
     }

@@ -297,8 +297,8 @@ fn check_emission(case: &FixtureCase, facts: &HirFnFacts) {
 fn check_schemas(case: &FixtureCase, pair: &rstyle_pdg::producer::Pair) {
     let schemas = [
         (
-            include_str!("../../../vendor-compat/rust-r0/pdg.schema.json"),
-            serde_json::to_value(&pair.pdg).expect("PDG document"),
+            include_str!("../../../vendor-compat/pdg.schema.json"),
+            serde_json::to_value(rstyle_pdg::transport::Borrowed(&pair.pdg)).expect("PDG document"),
         ),
         (
             include_str!("../../../vendor-compat/rust-r0/cfg.schema.json"),
@@ -945,11 +945,14 @@ fn serialized_manifest_policies_guards_and_frontiers_are_checked() {
         let mut document: serde_json::Value =
             serde_json::from_slice(&serialized.pdg_bytes).unwrap();
         mutate_wire_document(&mut document, mutation);
-        if let Ok(pdg) = serde_json::from_value::<rstyle_pdg::PdgDocument>(document) {
+        if let Ok(pdg) = serde_json::from_value::<rstyle_pdg::transport::Document>(document) {
             let cfg = serde_json::from_slice(&serialized.cfg_bytes).unwrap();
             assert!(
-                rstyle_ccgraph::admit_produced(&rstyle_pdg::producer::Pair { pdg, cfg }, facts)
-                    .is_err(),
+                rstyle_ccgraph::admit_produced(
+                    &rstyle_pdg::producer::Pair { pdg: pdg.0, cfg },
+                    facts
+                )
+                .is_err(),
                 "mutation {mutation}"
             );
         } else {
@@ -970,7 +973,7 @@ fn mutate_wire_document(document: &mut serde_json::Value, mutation: usize) {
             document["function"]["reference_count"]
                 .as_object_mut()
                 .unwrap()
-                .remove("policy");
+                .remove("value");
         }
         3 => {
             document["extensions"]["compat.rust.hir-r0:value-sites"][0]["annotations"]["compat.rust.hir-r0:guards"] =
@@ -2028,7 +2031,7 @@ fn assert_local_wire_schema(pair: &rstyle_pdg::producer::Pair) {
     let serialized = pair.serialize().unwrap();
     for (schema, document) in [
         (
-            include_str!("../../../vendor-compat/rust-r0/pdg.schema.json"),
+            include_str!("../../../vendor-compat/pdg.schema.json"),
             serde_json::from_slice(&serialized.pdg_bytes).unwrap(),
         ),
         (

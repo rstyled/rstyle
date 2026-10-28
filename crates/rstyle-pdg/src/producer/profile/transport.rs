@@ -117,22 +117,13 @@ impl Transport<'_> {
     }
 
     fn evidence(&self, evidence: crate::ExtractionEvidence) -> crate::ExtractionEvidence {
-        crate::ExtractionEvidence {
-            capabilities: evidence
-                .capabilities
-                .into_iter()
-                .map(|(key, value)| (key, self.described(value)))
-                .collect(),
-            conformance: evidence
-                .conformance
-                .into_iter()
-                .map(|value| crate::Conformance {
-                    profile: self.profile(value.profile),
-                    ..value
-                })
-                .collect(),
-            ..evidence
-        }
+        evidence.map_assessments(
+            |value| self.described(value),
+            |value| crate::Conformance {
+                profile: self.profile(value.profile),
+                ..value
+            },
+        )
     }
 
     fn described<T: DescribedPolicy>(&self, mut value: T) -> T {

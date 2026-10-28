@@ -114,12 +114,7 @@ fn verify_strict_and_historical(function: &Value) -> rstyle_ccgraph::ImportedFun
     let imported =
         rstyle_pdg::verification_policy::strict(|| rstyle_ccgraph::admit_produced(pair, &facts))
             .unwrap();
-    let mut historical = rstyle_pdg::producer::Pair {
-        pdg: pair.pdg.clone(),
-        cfg: pair.cfg.clone(),
-    };
-    historical.pdg.profile.version = "3.96.0".into();
-    historical.cfg.profile.version = "3.96.0".into();
+    let historical = shared_evidence::with_profile_version(pair, "3.96.0");
     assert!(rstyle_pdg::data_documents::verify(&historical, &facts).is_err());
     let old_documents = historical.serialize().unwrap();
     assert!(

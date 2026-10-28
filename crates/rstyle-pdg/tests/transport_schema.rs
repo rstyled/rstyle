@@ -7,12 +7,7 @@ use rstyle_pdg::*;
 use std::collections::BTreeMap;
 
 fn vendor(name: &str) -> serde_json::Value {
-    let directory = if name.starts_with("pdg.") {
-        "vendor-compat/rust-r0"
-    } else {
-        "vendor-compat"
-    };
-    let path = format!("{}/../../{directory}/{name}", env!("CARGO_MANIFEST_DIR"));
+    let path = format!("{}/../../vendor-compat/{name}", env!("CARGO_MANIFEST_DIR"));
     let text = std::fs::read_to_string(&path).expect("vendored snapshot is committed");
 
     serde_json::from_str(&text).expect("vendored snapshot is valid JSON")
@@ -40,7 +35,7 @@ fn profile() -> ProfileId {
 
 fn supported_capability() -> Capability {
     Capability {
-        policy: None,
+        policy: Some(profile()),
         status: CapabilityStatus::Supported,
         description: "d".to_string(),
     }
@@ -48,7 +43,7 @@ fn supported_capability() -> Capability {
 
 fn na_capability() -> Capability {
     Capability {
-        policy: None,
+        policy: Some(profile()),
         status: CapabilityStatus::NotApplicable,
         description: "absent".to_string(),
     }
@@ -69,7 +64,7 @@ fn capabilities() -> BTreeMap<String, Capability> {
     caps.insert(
         "exceptional_flow".to_string(),
         Capability {
-            policy: None,
+            policy: Some(profile()),
             status: CapabilityStatus::Unsupported,
             description: "normal-flow only".to_string(),
         },
@@ -87,7 +82,7 @@ fn span() -> Span {
 
 fn provenance() -> Provenance {
     Provenance {
-        policy: None,
+        policy: Some(profile()),
         origin: ProvenanceOrigin::Source,
         description: "d".to_string(),
         origin_node_ids: Vec::new(),
@@ -357,14 +352,14 @@ fn pdg_wire_document_validates_against_authoritative_schema() {
     let schema = vendor("pdg.schema.json");
     let validator = validator_for(&schema);
     let doc = base_doc();
-    let json = serde_json::to_value(doc.clone()).expect("serialize");
+    let json = pdg_json(&doc);
 
     assert_valid(&validator, &json);
 
-    let back: PdgDocument = serde_json::from_value(json.clone()).expect("deserialize");
+    let back = decode_pdg(json.clone()).expect("deserialize");
     assert_eq!(back, doc);
 
-    let round = serde_json::to_value(&back).expect("reserialize");
+    let round = pdg_json(&back);
     assert_valid(&validator, &round);
 }
 
@@ -419,17 +414,17 @@ fn absent_optionals_are_omitted_not_nulled() {
 
     assert_no_nulls(&json, "$".to_string());
 
-    let pdg = serde_json::to_value(base_doc()).expect("serialize");
+    let pdg = pdg_json(&base_doc());
     assert_no_nulls(&pdg, "$".to_string());
 }
 
 #[test]
 fn forbidden_fields_are_rejected_in_closed_objects() {
-    let mut json = serde_json::to_value(base_doc()).expect("serialize");
+    let mut json = pdg_json(&base_doc());
     json.as_object_mut()
         .expect("doc")
         .insert("forbidden_field".to_string(), serde_json::json!(1));
-    assert!(serde_json::from_value::<PdgDocument>(json).is_err());
+    assert!(decode_pdg(json).is_err());
 
     let mut cfg = serde_json::to_value(cfg_doc()).expect("serialize");
     cfg.as_object_mut()
@@ -471,7 +466,7 @@ fn fact_alternatives_reject_mixed_and_empty_reasons() {
     assert!(
         serde_json::from_value::<StringFact>(serde_json::json!({"status": "unknown"})).is_err()
     );
-    // Known counts require their explicit policy.
+    // The internal historical record grammar retains explicit count policies.
     assert!(
         serde_json::from_value::<CountFact>(serde_json::json!({"status": "known", "value": 1}))
             .is_err()
@@ -530,4 +525,156 @@ fn edge_case_value_policy_is_schema_checked() {
     let json = serde_json::to_value(&doc).expect("serialize");
 
     assert!(!validator.is_valid(&json));
+}
+
+fn pdg_json(doc: &PdgDocument) -> serde_json::Value {
+    serde_json::to_value(transport::Borrowed(doc)).expect("serialize current PDG")
+}
+
+fn decode_pdg(value: serde_json::Value) -> Result<PdgDocument, serde_json::Error> {
+    serde_json::from_value::<transport::Document>(value).map(|doc| doc.0)
+}
+
+#[test]
+fn current_pdg_example_roundtrips_without_legacy_repair() {
+    let example = vendor("pdg.example.json");
+    let doc = decode_pdg(example.clone()).expect("current example parses directly");
+    assert_eq!(pdg_json(&doc), example);
+    assert_eq!(doc.edges[0].policy, doc.profile);
+    assert_eq!(doc.extraction_evidence.conformance[0].profile, doc.profile);
+}
+
+#[test]
+fn paired_boundaries_use_current_transport() {
+    let mut pair = producer::Pair {
+        pdg: base_doc(),
+        cfg: cfg_doc(),
+    };
+    pair.pdg.extensions.insert(
+        PAIRED_GRAPH_KEY.into(),
+        serde_json::json!({
+        "pdg_document_key":"pdg", "cfg_document_key":"cfg"}),
+    );
+    let expected = pdg_json(&pair.pdg);
+    let serialized = pair.serialize().unwrap();
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&serialized.pdg_bytes).unwrap(),
+        expected
+    );
+    serialized.verify_identities(&pair).unwrap();
+    let wire = serde_json::to_value(&pair).unwrap();
+    assert_eq!(wire["pdg"], expected);
+    assert_eq!(serde_json::to_value(pair.as_view()).unwrap(), wire);
+    let restored: producer::Pair = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(serde_json::to_value(restored).unwrap(), wire);
+}
+
+#[test]
+fn obsolete_policy_fields_and_conformance_arrays_are_rejected() {
+    let original = pdg_json(&base_doc());
+    let paths = [
+        "/function/reference_count",
+        "/function/interface_completeness",
+        "/nodes/0/evidence",
+        "/nodes/0/provenance",
+        "/edges/0",
+        "/edges/0/evidence",
+        "/edges/0/provenance",
+        "/extraction_evidence/capabilities/reference_counting",
+    ];
+    let validator = validator_for(&vendor("pdg.schema.json"));
+    for path in paths {
+        let mut broken = original.clone();
+        broken.pointer_mut(path).unwrap()["policy"] = serde_json::json!(profile());
+        assert!(!validator.is_valid(&broken), "{path}");
+        assert!(decode_pdg(broken).is_err(), "{path}");
+    }
+    let mut broken = original.clone();
+    broken["extraction_evidence"]["conformance"]["profile"] = serde_json::json!(profile());
+    assert!(decode_pdg(broken).is_err());
+    let mut broken = original;
+    let claim = broken["extraction_evidence"]["conformance"].take();
+    broken["extraction_evidence"]["conformance"] = serde_json::json!([claim]);
+    assert!(decode_pdg(broken).is_err());
+}
+
+#[test]
+fn conflicting_internal_policies_and_claim_inventories_cannot_be_erased() {
+    let mut doc = base_doc();
+    let other = ProfileId {
+        id: "other".into(),
+        version: "1".into(),
+    };
+    doc.edges[0].policy = other.clone();
+    assert!(serde_json::to_value(transport::Borrowed(&doc)).is_err());
+    doc.edges[0].policy = doc.profile.clone();
+    doc.nodes[0].provenance.policy = Some(other.clone());
+    assert!(serde_json::to_value(transport::Borrowed(&doc)).is_err());
+    doc.nodes[0].provenance.policy = None;
+    doc.extraction_evidence.conformance[0].profile = other;
+    assert!(serde_json::to_value(transport::Borrowed(&doc)).is_err());
+    doc.extraction_evidence.conformance[0].profile = doc.profile.clone();
+    doc.extraction_evidence
+        .conformance
+        .push(doc.extraction_evidence.conformance[0].clone());
+    assert!(serde_json::to_value(transport::Borrowed(&doc)).is_err());
+    doc.extraction_evidence.conformance.clear();
+    assert!(serde_json::to_value(transport::Borrowed(&doc)).is_err());
+}
+
+#[test]
+fn current_counts_enforce_alternatives_and_inherit_root_profile() {
+    for fact in [
+        serde_json::json!({"status":"known"}),
+        serde_json::json!({"status":"known","value":1,"reason":"mixed"}),
+        serde_json::json!({"status":"unknown","value":1,"reason":"mixed"}),
+        serde_json::json!({"status":"unknown","reason":""}),
+    ] {
+        let mut doc = pdg_json(&base_doc());
+        doc["function"]["reference_count"] = fact;
+        assert!(decode_pdg(doc).is_err());
+    }
+    let mut wire = pdg_json(&base_doc());
+    wire["profile"] = serde_json::json!({"id":"test.expanded","version":"2"});
+    let doc = decode_pdg(wire.clone()).unwrap();
+    assert_eq!(
+        doc.function.reference_count.policy.as_ref(),
+        Some(&doc.profile)
+    );
+    assert_eq!(pdg_json(&doc), wire);
+    wire["function"]["reference_count"] =
+        serde_json::json!({"status":"unknown","reason":"missing"});
+    let doc = decode_pdg(wire.clone()).unwrap();
+    assert!(doc.function.reference_count.policy.is_none());
+    assert_eq!(pdg_json(&doc), wire);
+}
+
+#[test]
+fn transport_preserves_semantic_fields_evidence_and_opaque_annotations() {
+    let mut doc = base_doc();
+    let annotation = serde_json::json!({"policy":{"id":"dependency","version":"3"},
+        "conformance":[{"profile":"foreign","status":"unknown"}], "payload":[1,2,3]});
+    doc.nodes[0]
+        .annotations
+        .insert("test:proof".into(), annotation.clone());
+    doc.edges[0]
+        .annotations
+        .insert("test:proof".into(), annotation);
+    doc.memory_locations.push(MemoryLocation {
+        id: "memory".into(),
+        abstraction: "test".into(),
+        description: "preserve".into(),
+        evidence: supported_capability(),
+        extensions: BTreeMap::new(),
+    });
+    doc.edges[0].operand_position = Some(2);
+    doc.edges[0].definition_id = Some("d0".into());
+    doc.edges[0].symbol_id = Some("s_x".into());
+    doc.edges[0].outcome = Some("false".into());
+    doc.edges.push(doc.edges[0].clone());
+    doc.edges[2].id = "parallel".into();
+    doc.extraction_evidence.conformance[0].status = ConformanceStatus::NonConformant;
+    let wire = pdg_json(&doc);
+    let restored = decode_pdg(wire).unwrap();
+    assert_eq!(restored, doc);
 }

@@ -76,7 +76,9 @@ pub fn verify_serialized_view(
     serialized: SerializedPairView<'_>,
     facts: &dyn crate::unit_store::EvidenceFacts,
 ) -> Result<Pair, Vec<String>> {
-    let pdg = serde_json::from_slice(serialized.pdg_bytes).map_err(|e| vec![e.to_string()])?;
+    let pdg = serde_json::from_slice::<crate::transport::Document>(serialized.pdg_bytes)
+        .map_err(|e| vec![e.to_string()])?
+        .0;
     let cfg = serde_json::from_slice(serialized.cfg_bytes).map_err(|e| vec![e.to_string()])?;
     let pair = Pair { pdg, cfg };
     serialized.verify_identities(&pair).map_err(|e| vec![e])?;

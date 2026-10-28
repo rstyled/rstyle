@@ -194,12 +194,7 @@ fn check_renamed_and_historical(pair: &Pair, facts: &dyn EvidenceFacts) {
         rstyle_pdg::producer::verify_serialized(&renamed.serialize().unwrap(), facts)
     })
     .unwrap();
-    let mut historical = Pair {
-        pdg: pair.pdg.clone(),
-        cfg: pair.cfg.clone(),
-    };
-    historical.pdg.profile.version = "3.92.0".into();
-    historical.cfg.profile.version = "3.92.0".into();
+    let historical = shared_evidence::with_profile_version(pair, "3.92.0");
     assert!(
         rstyle_pdg::verification_policy::strict(|| {
             rstyle_pdg::producer::verify_serialized(&historical.serialize().unwrap(), facts)
