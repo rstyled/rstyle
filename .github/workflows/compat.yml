@@ -19,8 +19,8 @@ permissions:
 
 jobs:
   compatibility:
-    uses: rstyled/compat/.github/workflows/compat.yml@952c016a592e2ab53a5e4b23b6e9046c9cabe182
+    uses: rstyled/compat/.github/workflows/compat.yml@7366049160309bb0a764c57f7e07ae543a039048
     with:
-      compat_ref: 952c016a592e2ab53a5e4b23b6e9046c9cabe182
+      compat_ref: 7366049160309bb0a764c57f7e07ae543a039048
       gstyle_ref: ${{ inputs.gstyle_ref || 'master' }}
       rstyle_ref: ${{ inputs.rstyle_ref || github.sha }}
