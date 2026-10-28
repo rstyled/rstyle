@@ -1,6 +1,9 @@
 use crate::{BindingFact, ByteSpan, HirFnFacts, HirNode, HirRef};
 use std::collections::{BTreeMap, BTreeSet};
 
+#[cfg(test)]
+mod tests;
+
 type Nodes<'a> = BTreeMap<(&'a str, u32, u32), Vec<&'a HirNode>>;
 
 pub(super) struct Index<'a> {
@@ -61,10 +64,27 @@ fn binding_index(facts: &HirFnFacts) -> Result<BTreeMap<(u32, u32, u32), &Bindin
     Ok(bindings)
 }
 
+struct Visit<'a> {
+    node: &'a HirNode,
+    depth: usize,
+    guard_position: bool,
+}
+
+impl<'a> Visit<'a> {
+    fn root(node: &'a HirNode) -> Self {
+        Self {
+            node,
+            depth: 0,
+            guard_position: false,
+        }
+    }
+}
+
 struct Inventory<'a> {
     nodes: Nodes<'a>,
     identities: BTreeSet<(u32, u32, u32)>,
-    pending: Vec<(&'a HirNode, usize)>,
+    pending: Vec<Visit<'a>>,
+    visited: usize,
 }
 
 impl<'a> Inventory<'a> {
@@ -73,30 +93,67 @@ impl<'a> Inventory<'a> {
             .signature
             .params
             .iter()
-            .map(|parameter| (&parameter.pat, 0))
-            .chain(std::iter::once((&facts.body, 0)))
+            .map(|parameter| Visit::root(&parameter.pat))
+            .chain(std::iter::once(Visit::root(&facts.body)))
             .collect();
         Self {
             nodes: BTreeMap::new(),
             identities: BTreeSet::new(),
             pending,
+            visited: 0,
         }
     }
 
     fn collect(mut self, source: &str) -> Result<Option<Nodes<'a>>, String> {
-        while let Some((node, depth)) = self.pending.pop() {
-            if !self.visit(node, depth, source)? {
+        while let Some(visit) = self.pending.pop() {
+            if !self.visit(visit, source)? {
                 return Ok(None);
             }
         }
         Ok(Some(self.nodes))
     }
 
-    fn visit(&mut self, node: &'a HirNode, depth: usize, source: &str) -> Result<bool, String> {
-        if self.identities.len() >= 16384 || depth > 128 {
+    fn visit(&mut self, visit: Visit<'a>, source: &str) -> Result<bool, String> {
+        let Visit {
+            node,
+            depth,
+            guard_position,
+        } = visit;
+        if self.visited >= 16384 || depth > 128 {
             return Ok(false);
         }
-        if !self.identities.insert(key(&node.hir)) {
+        self.visited += 1;
+        self.register(node, source, guard_position)?;
+
+        if self
+            .visited
+            .saturating_add(self.pending.len())
+            .saturating_add(node.children.len())
+            > 16384
+        {
+            return Ok(false);
+        }
+        self.pending
+            .extend(node.children.iter().enumerate().map(|(index, child)| {
+                let guard_position =
+                    node.kind == "match_arm" && node.children.len() == 3 && index == 1;
+                Visit {
+                    node: child,
+                    depth: depth + 1,
+                    guard_position,
+                }
+            }));
+        Ok(true)
+    }
+
+    fn register(
+        &mut self,
+        node: &'a HirNode,
+        source: &str,
+        guard_position: bool,
+    ) -> Result<(), String> {
+        let alias = match_guard_alias(node, guard_position)?;
+        if !alias && !self.identities.insert(key(&node.hir)) {
             return Err("Mutation native inventory repeats a HIR identity".into());
         }
         if crate::source_evidence::byte_range(source, node.span)? != node.snippet {
@@ -107,19 +164,40 @@ impl<'a> Inventory<'a> {
             .entry((node.kind.as_str(), node.span.start, node.span.end))
             .or_default()
             .push(node);
-        if self
-            .identities
-            .len()
-            .saturating_add(self.pending.len())
-            .saturating_add(node.children.len())
-            > 16384
-        {
-            return Ok(false);
-        }
-        self.pending
-            .extend(node.children.iter().map(|child| (child, depth + 1)));
-        Ok(true)
+        Ok(())
     }
+}
+
+// This wrapper is an established frontend role, not a second native expression.
+// A peeled DropTemps guard may have a different identity and is indexed normally.
+fn match_guard_alias(node: &HirNode, guard_position: bool) -> Result<bool, String> {
+    if node.kind != "match_guard" {
+        return Ok(false);
+    }
+    let [guard] = node.children.as_slice() else {
+        return Err("Mutation match guard wrapper has an invalid child roster".into());
+    };
+    if !guard_position || !guard.kind.starts_with("expr_") || !plain_guard_wrapper(node) {
+        return Err("Mutation match guard wrapper has an invalid structural role".into());
+    }
+
+    let alias = node.hir == guard.hir;
+    if alias && (node.span != guard.span || node.snippet != guard.snippet) {
+        return Err("Mutation match guard alias disagrees with its native expression".into());
+    }
+    Ok(alias)
+}
+
+fn plain_guard_wrapper(node: &HirNode) -> bool {
+    node.ty.is_none()
+        && node.res.is_none()
+        && node.dispatch.is_none()
+        && node.expansion.is_none()
+        && node.binding.is_none()
+        && node.binding_mut.is_none()
+        && node.lit.is_none()
+        && node.param_index.is_none()
+        && !node.is_unsafe_block
 }
 
 pub(super) fn scalar(node: &HirNode) -> bool {

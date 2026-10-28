@@ -397,6 +397,81 @@ fn external_record(facts: &mut HirFnFacts) {
     .to_string();
 }
 
+fn composite_argument_dispatch() -> HirFnFacts {
+    use crate::concrete_types::TypeTree;
+    let mut facts = fixture("pub fn caller(bytes:&[u8]) { leaf({bytes}); }");
+    facts
+        .build
+        .frontend_options
+        .remove(super::super::formal_types::KEY);
+    external_record(&mut facts);
+    let call = &mut facts.body.children[0];
+    call.children[0].ty.as_mut().unwrap().normalized = Some(
+        crate::data_types::token(&TypeTree::Shared(Box::new(TypeTree::Slice(Box::new(
+            TypeTree::Scalar("u8".into()),
+        )))))
+        .unwrap(),
+    );
+    call.children[0].ty.as_mut().unwrap().observed = "&[u8]".into();
+    call.dispatch.as_mut().unwrap().operand_tys = vec!["&[u8]".into()];
+    call.dispatch.as_mut().unwrap().result_ty = "std::vec::Vec<u8>".into();
+    call.ty.as_mut().unwrap().normalized = None;
+    call.ty.as_mut().unwrap().observed = "std::vec::Vec<u8>".into();
+    facts
+}
+
+#[test]
+fn associated_dispatch_vocabulary_does_not_grant_scalar_call_authority() {
+    for metadata in ["inherent", "trait_selection"] {
+        let mut facts = composite_argument_dispatch();
+        let mut record: serde_json::Value =
+            serde_json::from_str(&facts.body.children[0].res.as_ref().unwrap().description)
+                .unwrap();
+        record[metadata] = serde_json::json!({"owner":"sample::Owner"});
+        for local in [false, true] {
+            record["local"] = local.into();
+            facts.body.children[0].res.as_mut().unwrap().description = record.to_string();
+            let observed = inspect_calls(&facts).unwrap();
+            assert!(!matches!(observed.calls[0].target, Availability::Known(_)));
+            assert!(matches!(
+                observed.calls[0].resolved_callee,
+                Availability::Unsupported { .. }
+            ));
+            assert!(observed.calls[0].target_path.is_none());
+            assert_eq!(observed.direct.coverage, Coverage::Incomplete);
+        }
+    }
+}
+
+#[test]
+fn unrelated_resolution_kinds_keep_associated_dispatch_opaque() {
+    let mut facts = composite_argument_dispatch();
+    facts.body.children[0].res.as_mut().unwrap().kind = "resolved_associated_callee".into();
+    let observed = inspect_calls(&facts).unwrap();
+    assert!(matches!(
+        observed.calls[0].target,
+        Availability::Unknown { .. }
+    ));
+    assert!(matches!(
+        observed.calls[0].resolved_callee,
+        Availability::Unknown { .. }
+    ));
+    assert!(observed.calls[0].target_path.is_none());
+}
+
+#[test]
+fn free_call_dispatch_contradictions_and_malformed_records_still_fail() {
+    let facts = composite_argument_dispatch();
+    assert!(
+        inspect_calls(&facts)
+            .unwrap_err()
+            .contains("Call dispatch argument")
+    );
+    let mut facts = fixture("pub fn caller(value:u32) { leaf(value); }");
+    facts.body.children[0].res.as_mut().unwrap().description = "{".into();
+    assert!(inspect_calls(&facts).unwrap_err().contains("malformed"));
+}
+
 #[test]
 fn external_resolution_keeps_identity_without_local_or_argument_permission() {
     let mut facts = fixture("pub fn caller(value:u32) { leaf({value}); }");

@@ -207,7 +207,6 @@ fn resolved_callee(
     let Some(dispatch) = &node.dispatch else {
         return Ok(unknown("Call dispatch evidence was not captured"));
     };
-    check_dispatch(node, dispatch)?;
     let Some(resolution) = &node.res else {
         return Ok(unknown("Direct call resolution was not captured"));
     };
@@ -222,6 +221,12 @@ fn resolved_callee(
 
     let record: CalleeRecord = serde_json::from_str(&resolution.description)
         .map_err(|_| "Direct call resolution record is malformed")?;
+    if record.inherent.is_some() || record.trait_selection.is_some() {
+        return Ok(unsupported(
+            "Associated call requires a separate effect contract",
+        ));
+    }
+    check_dispatch(node, dispatch)?;
     resolved_record(node, dispatch, record)
 }
 
@@ -230,11 +235,6 @@ fn resolved_record(
     dispatch: &crate::Dispatch,
     record: CalleeRecord,
 ) -> Result<Availability<super::ResolvedCallee>, String> {
-    if record.inherent.is_some() || record.trait_selection.is_some() {
-        return Ok(unsupported(
-            "Associated call requires a separate effect contract",
-        ));
-    }
     if let Some(path) = &record.path
         && path != &dispatch.op
     {
@@ -321,12 +321,6 @@ fn target(
     let Some(dispatch) = &node.dispatch else {
         return Ok(unknown("Call dispatch evidence was not captured"));
     };
-    check_dispatch(node, dispatch)?;
-    if node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) != Some(dispatch.result_ty.as_str())
-    {
-        return Ok(unknown("Call result type evidence is unavailable"));
-    }
-
     let Some(resolution) = &node.res else {
         return Ok(unknown("Direct call resolution was not captured"));
     };
@@ -338,18 +332,35 @@ fn target(
             "Call has no original direct free-function resolution",
         ));
     }
-    local_target(facts, &resolution.description, &dispatch.op)
+
+    let record: serde_json::Value = serde_json::from_str(&resolution.description)
+        .map_err(|_| "Direct call resolution record is malformed")?;
+    if record.get("inherent").is_some() || record.get("trait_selection").is_some() {
+        return Ok(unsupported(
+            "Associated call requires a separate effect contract",
+        ));
+    }
+    check_dispatch(node, dispatch)
+        .map_err(|error| format!("{} at {:?}: {error}", facts.name, node.span))?;
+    if node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) != Some(dispatch.result_ty.as_str())
+    {
+        return Ok(unknown("Call result type evidence is unavailable"));
+    }
+    local_target(facts, &record, &dispatch.op)
 }
 
 fn check_dispatch(node: &HirNode, dispatch: &crate::Dispatch) -> Result<(), String> {
     if dispatch.operand_tys.len() != node.children.len() {
         return Err("Call dispatch argument roster contradicts native children".into());
     }
-    for (child, declared) in node.children.iter().zip(&dispatch.operand_tys) {
+    for (position, (child, declared)) in node.children.iter().zip(&dispatch.operand_tys).enumerate()
+    {
         if let Some(actual) = child.ty.as_ref().and_then(|ty| ty.normalized.as_deref())
             && actual != declared
         {
-            return Err("Call dispatch argument type contradicts native argument".into());
+            return Err(format!(
+                "Call dispatch argument {position} type contradicts native argument: declared {declared:?}, observed {actual:?}"
+            ));
         }
     }
 
@@ -358,11 +369,9 @@ fn check_dispatch(node: &HirNode, dispatch: &crate::Dispatch) -> Result<(), Stri
 
 fn local_target(
     facts: &HirFnFacts,
-    description: &str,
+    record: &serde_json::Value,
     path: &str,
 ) -> Result<Availability<String>, String> {
-    let record: serde_json::Value = serde_json::from_str(description)
-        .map_err(|_| "Direct call resolution record is malformed")?;
     let local = record
         .get("local")
         .and_then(serde_json::Value::as_bool)
@@ -373,11 +382,6 @@ fn local_target(
         ));
     }
 
-    if record.get("inherent").is_some() || record.get("trait_selection").is_some() {
-        return Ok(unsupported(
-            "Associated call requires a separate effect contract",
-        ));
-    }
     if record.get("path").and_then(serde_json::Value::as_str) != Some(path) {
         return Err("Call dispatch disagrees with original resolved callee".into());
     }
