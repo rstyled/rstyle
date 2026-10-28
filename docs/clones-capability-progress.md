@@ -2361,3 +2361,55 @@ Legacy style is zero across 9,519 functions; reviewed patterns is zero, and
 unfiltered discovery retains exactly the prior fifteen candidate IDs. No ignore
 or review ledger changed. Final gate logs are
 `/tmp/clones-owned-{tests-2,clippy-2,style-2,patterns-1,patterns-unfiltered-1}`.
+
+## C16: reuse compiler graphs and existing abstraction policy
+
+The opt-in `--compiler-patterns` extends compiler advisory capture by directly
+calling the existing `pdg::pdg_of` collector. A separate versioned graph record
+preserves the original style metric contract. The adapter decodes the graphs
+once, joins them to the same owned function observations, calls
+`evaluate_and_retain`, then moves policy-selected inputs into the existing
+`patterns_report::run_owned`. Signature mining, preparation, clustering,
+alignment, proposal families, ranking, counter-evidence and existing-trait/source
+suppression all remain in core. No second proposer, new graph permission,
+threshold change, cache, hash or source re-proof was added.
+
+Each compilation unit reports graph input availability and actual core default
+parameters alongside the core proposal report. Missing capture, generated owners
+and known-empty graphs remain distinct. Input completeness is not exhaustive
+discovery or complete Rust semantics: graph approximation and existing bounded
+blocking remain explicit limitations. Core path exclusions apply before mining;
+raw observation rosters remain visible. Proposal findings affect the explicit
+finding exit, with incomplete coverage still taking exit 2. Legacy ignores and
+newer context review/baseline workflows are not silently applied to this field.
+The workspace-member acceptance case also fixes the previous adapter's ambiguous
+location base: source paths normalize against captured workspace `source_root`,
+separately from `package_root`, using retained locations without filesystem work.
+
+Nine new real-Cargo tests cover all five proposal families, existing-trait,
+getter and forwarding negatives, legacy-report agreement, source-free replay and
+text output, missing/empty/generated inputs, check/test context isolation, core
+exclusions, workspace-member paths and unchanged nonempty strict decisions.
+Four core tests enforce missing signature/node/edge fields, version and graph
+bounds, known-empty graphs and retained body buffers through policy selection.
+
+A final fresh rstyle-ccgraph library capture takes 19.228 seconds and supplies
+graphs for all 238 original owners. The other 176 generated owners and twenty
+unresolved workspace callees keep coverage incomplete. Its two signature groups
+and one candidate exactly equal the separate legacy library discovery report;
+the four accepted strict pairs remain unchanged. The sole candidate was already
+reviewed unsuitable in the unchanged legacy ledger. This is measured capability
+access, not a new useful-refactoring or speedup claim. See the project study for
+source review, reproduction, exact run and comparison evidence.
+
+The frozen checkpoint passes all 3,217 nextest tests in 204.524 seconds (five
+existing skips), workspace doc tests, all-target workspace Clippy with warnings
+denied, formatting and diff checks. Both original NonZero regressions and u32
+widening composition pass. Legacy style is zero across 9,528 functions;
+reviewed patterns is zero and unfiltered discovery retains exactly the prior
+fifteen candidate IDs. No ignore or review ledger changed. Full gate logs are
+`/tmp/clones-pattern-adapter-{tests,clippy,style,patterns,patterns-unfiltered}-final-1`.
+
+Review/baseline integration for compiler advisory findings, cross-package
+propagation, broader project quality, native macOS verification and all unmet
+capability retirement gates remain open. The goal remains incomplete.

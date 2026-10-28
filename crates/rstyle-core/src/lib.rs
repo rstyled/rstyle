@@ -124,6 +124,14 @@ fn all_effects(facts: &[FnFacts], graph: &graph::Graph, cfg: &Config) -> Vec<Vec
 
 /// Evaluates all rules. Input order does not matter: facts are merged first.
 pub fn evaluate(facts: Vec<FnFacts>, cfg: &Config) -> Result<Report, String> {
+    evaluate_and_retain(facts, cfg).map(|(report, _)| report)
+}
+
+/// Return the merged, path-selected observations for another consumer without copying bodies.
+pub fn evaluate_and_retain(
+    facts: Vec<FnFacts>,
+    cfg: &Config,
+) -> Result<(Report, Vec<FnFacts>), String> {
     let excluded = exclusions::Matcher::compile(&cfg.exclude.0)?;
     let facts: Vec<FnFacts> = facts::merge(facts)
         .into_iter()
@@ -141,12 +149,15 @@ pub fn evaluate(facts: Vec<FnFacts>, cfg: &Config) -> Result<Report, String> {
     let summary = summarize(&facts, &effects, cfg, diagnostics.len());
     let fix_groups = groups::build(&facts, &graph, &diagnostics, cfg);
     let functions = complexity_report::findings(&facts, &diagnostics);
-    Ok(Report {
-        diagnostics,
-        summary,
-        fix_groups,
-        functions,
-    })
+    Ok((
+        Report {
+            diagnostics,
+            summary,
+            fix_groups,
+            functions,
+        },
+        facts,
+    ))
 }
 
 #[cfg(test)]
@@ -212,6 +223,28 @@ mod tests {
         let report = evaluate(vec![f], &Config::default()).unwrap();
         assert_eq!(report.summary.functions, 0);
         assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn retained_inputs_follow_policy_exclusions_without_copying_body_buffers() {
+        let mut kept = four_params("kept");
+        kept.pdg = Some(crate::pdgtest::emit_loop("Cow", "value"));
+        let source = kept.source.as_ptr();
+        let nodes = kept.pdg.as_ref().unwrap().nodes.as_ptr();
+        let mut excluded = sample("excluded");
+        excluded.path = "target/generated.rs".into();
+        let (report, retained) =
+            evaluate_and_retain(vec![excluded, kept], &Config::default()).unwrap();
+        assert_eq!(report.summary.functions, 1);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|row| row.rule_id == "fn_params")
+        );
+        assert_eq!(retained.len(), 1);
+        assert_eq!(retained[0].source.as_ptr(), source);
+        assert_eq!(retained[0].pdg.as_ref().unwrap().nodes.as_ptr(), nodes);
     }
 
     #[test]

@@ -2,6 +2,8 @@
 use crate::facts::FnFacts;
 use serde::{Deserialize, Serialize};
 
+pub mod patterns;
+
 pub const KEY: &str = "rstyle.compiler-advisory/1";
 pub const METRICS: &str = "rstyle.compiler-style-metrics/1";
 pub const CAPTURE_ENV: &str = "RSTYLE_COMPILER_ADVISORY";
@@ -49,6 +51,7 @@ impl Observation {
                     require_fields(entry, fields)?;
                 }
             }
+            require_signature(&raw["facts"]["sig"])?;
         }
         let observation = Self::deserialize(raw).map_err(|error| error.to_string())?;
         match &observation {
@@ -62,6 +65,24 @@ impl Observation {
         }
         Ok(observation)
     }
+}
+
+fn require_signature(raw: &serde_json::Value) -> Result<(), String> {
+    if !raw.is_null() {
+        require_fields(
+            raw,
+            &[
+                "self_ty",
+                "self_args",
+                "params",
+                "is_async",
+                "is_unsafe",
+                "is_const",
+                "generics",
+            ],
+        )?;
+    }
+    Ok(())
 }
 
 fn require_fields(raw: &serde_json::Value, required: &[&str]) -> Result<(), String> {

@@ -369,3 +369,13 @@ strict clone admission is not required. Captured observations support source-fre
 mutation-effect metrics; zero policy density is not a purity proof. Saved reviews,
 changed-file filters and baselines do not yet apply to this advisory field.
 See [compiler advisory](../../docs/clones-compiler-advisory.md).
+
+Add `--compiler-patterns` to reuse existing compiler graphs and the core
+trait/capability/generic/helper/dispatch proposer. Graph collection is opt-in;
+saved runs without graphs report unavailable inputs. Each unit's `patterns`
+report includes actual default clustering policy, input coverage and existing
+core proposals/counter-evidence. Explicit core path exclusions apply before
+mining. `--fail-on-findings` includes candidates; incomplete inputs still exit 2.
+Graphs and proposals remain advisory, independent of strict matching. No ignore
+ledger is implicitly loaded, and newer reviews/baselines do not apply to this
+field. Keep legacy patterns until its retirement gates pass.

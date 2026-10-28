@@ -12,7 +12,7 @@ use crate::facts::{EdgeKind, NodeKind, Pdg, PdgEdge, PdgNode};
 use std::collections::BTreeSet;
 
 /// Which rules run. Explicit value, no globals: callers pass it down.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize)]
 pub struct Rules {
     /// R1: value construction collapses into one `Ctor` node.
     pub ctor: bool,

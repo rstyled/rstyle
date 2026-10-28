@@ -15,7 +15,7 @@ const BLOCK_KEYS: usize = 2;
 /// classes unique to each function when the corpus is tiny, so parallel functions never meet.
 const ALL_PAIRS_LIMIT: usize = 400;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct Params {
     pub threshold_milli: u32,
     pub min_coverage_milli: u32,
