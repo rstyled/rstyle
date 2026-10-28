@@ -27,6 +27,7 @@ pub struct Context<'a> {
     pub partitions: rstyle_ccgraph::pipeline::WlPartitions,
     pub complete: bool,
     pub analysis_config: Option<&'a super::analysis::Config>,
+    pub matching_config: &'a rstyle_ccgraph::CcgraphConfig,
 }
 
 #[derive(Serialize)]
@@ -41,6 +42,7 @@ struct Scope<'a> {
 
 #[derive(Serialize)]
 pub struct Report<'a> {
+    pub review: super::review::workflow::Report,
     #[serde(flatten)]
     pub pair_reports: super::analysis::pair_reports::Reports<'a>,
     pub analysis: super::analysis::Report<'a>,
@@ -115,16 +117,15 @@ fn ctx_profile_is_data(args: &Args) -> bool {
 
 pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
     let scope = selected_scope(&ctx);
+    let pair_reports = ctx.pair_reports()?;
+    let review = super::review::workflow::apply(&pair_reports.helper_proposals, &ctx)?;
 
     Ok(Report {
-        pair_reports: ctx.pair_reports()?,
+        pair_reports,
+        review,
         analysis: ctx.local_analysis(),
         report_detail: ctx.args.report_detail,
-        verification_policy: if ctx.args.replay_run.is_some() {
-            "strict-replay"
-        } else {
-            "trusted-generated"
-        },
+        verification_policy: ctx.verification_policy(),
         scope,
         run_directory: &ctx.capture.directory,
         toolchain: crate::run::pinned_toolchain(),
@@ -165,6 +166,14 @@ pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
 }
 
 impl<'a> Context<'a> {
+    fn verification_policy(&self) -> &'static str {
+        if self.args.replay_run.is_some() {
+            "strict-replay"
+        } else {
+            "trusted-generated"
+        }
+    }
+
     fn local_analysis(&self) -> super::analysis::Report<'a> {
         super::analysis::evaluate(self.handoff, self.capture, self.analysis_config, self.args)
     }
@@ -237,9 +246,10 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         .collect::<String>();
 
     format!(
-        "{summary}{pairs}{}{}",
+        "{summary}{pairs}{}{}{}",
         report.analysis.render(),
-        report.pair_reports.render()
+        report.pair_reports.render(),
+        report.review.render()
     )
 }
 

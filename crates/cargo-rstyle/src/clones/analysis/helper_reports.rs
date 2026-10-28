@@ -160,6 +160,19 @@ fn scope_reasons(
 }
 
 impl Report<'_> {
+    pub(in crate::clones) fn finding_pairs(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.pairs.iter().filter_map(|pair| {
+            pair.assessment
+                .proposal
+                .as_ref()
+                .map(|_| (pair.first, pair.second))
+        })
+    }
+
+    pub(in crate::clones) fn scope_complete(&self) -> bool {
+        self.execution == Execution::Completed && self.coverage == Coverage::Complete
+    }
+
     pub(super) fn permits_success(&self) -> bool {
         self.execution == Execution::NotRequested
             || (self.execution == Execution::Completed && self.coverage == Coverage::Complete)

@@ -5,6 +5,7 @@ pub mod capture;
 mod identity;
 mod linking;
 mod report;
+mod review;
 mod selected_context;
 use crate::Cli;
 use clap::Args as ClapArgs;
@@ -66,6 +67,18 @@ pub struct Args {
     /// Exit 1 when requested analyses find opportunities; incomplete analysis exits 2.
     #[arg(long, requires = "finding_analysis")]
     fail_on_findings: bool,
+    /// Apply versioned helper reviews from this explicit file; lookup never writes.
+    #[arg(long, requires = "helper_proposals")]
+    review_file: Option<PathBuf>,
+    /// Dismiss these exact saved-run helper endpoints; requires an explicit reason.
+    #[arg(long, num_args = 2, requires_all = ["review_file", "review_reason", "replay_run"])]
+    dismiss_helper_pair: Vec<String>,
+    /// Reason retained with an explicitly dismissed helper finding.
+    #[arg(long, requires = "dismiss_helper_pair")]
+    review_reason: Option<String>,
+    /// Retain review for future proven membership growth with unchanged original members.
+    #[arg(long, requires = "dismiss_helper_pair")]
+    review_allow_growth: bool,
     /// Bound local rule work; remaining functions are explicitly not evaluated.
     #[arg(long, requires = "local_analysis")]
     max_analysis_functions: Option<usize>,
@@ -307,11 +320,13 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         partitions: evaluation.partitions,
         complete,
         analysis_config: config.analysis.as_ref(),
+        matching_config: &config.matching,
     })?;
     let output = report.publish(cli.format, accepted)?;
     let code = if !complete
         || !report.analysis.permits_success()
         || !report.pair_reports.permits_success()
+        || !report.review.permits_success()
     {
         2
     } else {
@@ -319,7 +334,10 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
             (args.fail_on_accepted_pairs && accepted > 0)
                 || (args.fail_on_findings
                     && (report.analysis.findings > 0
-                        || report.pair_reports.helper_proposals.findings > 0)),
+                        || report
+                            .review
+                            .visible_or(report.pair_reports.helper_proposals.findings)
+                            > 0)),
         )
     };
 

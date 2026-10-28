@@ -33,8 +33,9 @@ Heavy captures and integrated gates run serially.
 | C05 | Acceptance + lead / comparison | delivered (bounded comparison) | `3e1f4c9` | Compare same-scope legacy/new results against independent labels | Fifteen Python tests and actual serial captures: ten evaluated agreements; explicit unavailable/context/regression classifications |
 | C06 | Local + lead / guards and independent opt-in | delivered (checkpoint) | `115cd07` | Bounded advisory guard opportunities | Seven unit and five real-Cargo CLI cases; graph-excluded callee does not gate advice; full checkpoint passes |
 | C07 | Pair + lead / native differences, opt-in CLI/report | delivered (checkpoint) | `63ef4c5` | Ordered native correspondence and differences in accepted strict pairs | Thirteen native unit and three real-Cargo CLI cases; literal/formal roles, context/width, whole-tree rejection and budgets; matching unchanged |
-| C08 | Pair + acceptance + lead / native helper consumer, CLI/report | delivered (checkpoint) | this C08 implementation commit | Advisory u32 expression helper pairs with literal arguments, ordered evidence and explicit prerequisites | All eight frozen cases pass real-Cargo tests and retained live captures; nineteen native/consumer unit cases plus ten CLI cases; no inferred groups or safe-rewrite claim |
-| C09 | Acceptance + lead / versioned review | ready (independent labels frozen) | `6d901d7` | Persistent review separate from report handles | Nine lifecycle/collision/context cases prepared; no review implementation claimed |
+| C08 | Pair + acceptance + lead / native helper consumer, CLI/report | delivered (checkpoint) | `26b7b9c` | Advisory u32 expression helper pairs with literal arguments, ordered evidence and explicit prerequisites | All eight frozen cases pass real-Cargo tests and retained live captures; nineteen native/consumer unit cases plus ten CLI cases; no inferred groups or safe-rewrite claim |
+| C11a | Local + acceptance + lead / saved capture reconciliation and CLI/report | delivered (bounded replay) | `428416b` | Exact standalone saved-facts reevaluation without compilation or original files | Eight unit/five CLI cases, retained C06 capture, full tests and legacy gates; mutation/effects remain open |
+| C09a | Pair + local + acceptance + lead / review lifecycle, original snapshots and CLI/report | delivered (bounded helper review) | this C09a implementation commit | Explicit saved-run dismissal and read-only versioned exact review, stale/unavailable coverage | Twenty-seven unit/adapter and seven CLI cases; retained live replay, full tests and both legacy gates; whole-store status/legacy migration remain open |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
@@ -219,6 +220,64 @@ in `clones/review/`, explicitly excluded from this checkpoint. It needs validate
 source/context/expression snapshots, a real helper-proposal adapter and CLI
 persistence before it becomes a delivered capability. C10 trait/dispatch, C11
 mutation/effects, C12 caller/edit plans and selective later consumers remain open.
+
+## C09a: versioned helper review and explicit dismissal
+
+State: delivered bounded helper workflow; commit: this checkpoint. Lead owns
+CLI/report routing, review workflow IO, snapshot caching, registration and docs;
+pair/local/acceptance workers supplied disjoint frozen lifecycle, adapter and CLI
+leaves. Those leaves are now registered and included in checkpoint validation.
+
+`--helper-proposals --review-file PATH` applies exact versioned reviews without
+writing. Explicit `--dismiss-helper-pair FIRST SECOND --review-reason TEXT`
+requires a saved run and writes only the independently checked helper pair.
+Atomic replacement follows complete store/selector/reason validation. Missing
+files are empty read-only stores. Reports retain unfiltered findings, visible and
+hidden counts, exact/stale/unavailable pair status, reasons and retained entries;
+incomplete helper/review scope still exits two. Strict matching is unchanged.
+
+Persistent snapshots use original unique free-function package/source/qualified
+locators, typed target and effective build/matching/consumer settings, signatures
+and ordered u32 expressions. Exact equality replaces hashes. Line movement and
+formal renaming preserve reviews; relevant literals/operations/context/versions
+stale them. Full all-pair evidence is mandatory for growth in the pure lifecycle;
+current live proposals still contain exactly two members. Member snapshots and
+negative conversions are cached per report-local function; one immutable checked
+store view serves all pair lookups. No graph cloning/re-admission is introduced.
+
+Pure lifecycle and adapter fixtures cover the nine frozen labels, malformed wire
+claims, missing/duplicate/foreign pair rosters, exact expression/item/depth bounds,
+UTF-8/CRLF offsets and borrowed store reuse. Seven real-Cargo CLI cases cover
+explicit dismissal, deleted original files/unavailable tools, read-only lookup,
+line/binder stability, stale literals, feature/module separation, incomplete
+owners, invalid input without writes, and helper findings that lack reviewable
+method/conditional locators. All 2,445 nextest tests passed, five skipped,
+160.251 seconds; doc tests, formatting and workspace/all-target Clippy passed.
+Legacy style has zero violations across 8,360 functions and the reviewed pattern
+gate passes without new ignores. Separate unfiltered comparison is retained.
+The retained C08 literal-hole capture also passes explicit dismissal followed by
+read-only replay with tools disabled and unchanged review bytes, at
+`/tmp/clones-migration-c09-review-live/{results,dismiss,lookup,reviews}.json`.
+Logs use `/tmp/clones-migration-c09-review-*`.
+
+Scope is bounded original free functions within the captured workspace. Methods,
+nested/generated/ambiguous owners and outside-workspace locators are unavailable;
+legacy review migration, source-rule reviews, live multi-member groups and a
+whole-store status/changed-scope command remain open. Unmatched stored entries
+are retained rather than inferred deleted or pruned. The pure member-loss fixture
+does not establish live whole-store deletion detection. No legacy retirement or
+macOS/Go parity is claimed.
+
+Next C10 frontier: original exhaustive two-variant local enum dispatch, each arm
+calling a unique local shared-receiver zero-argument/u32 inherent method on that
+arm's payload. Signature/source evidence must be usable independently of body
+admission. Positive acceptance includes one opaque method body. Negative controls
+include incompatible arity, same free callee, an outer receiver, unrelated trait
+names and no dispatch witness; exact existing-trait relations suppress proposals.
+Guards/wildcards/opaque arms and unresolved trait origins stay explicitly
+unsupported. General owner/trait relations need a checked local evidence route;
+raw display strings and impl ordinals are not authority. C11 mutation/effects,
+C12 edit plans and later selective consumers remain independent open work.
 
 ## Hashing exceptions
 

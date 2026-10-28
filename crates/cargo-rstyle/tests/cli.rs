@@ -23,6 +23,7 @@ mod migration_guards;
 mod migration_helpers;
 mod migration_output;
 mod migration_replay;
+mod migration_review;
 mod migration_rules;
 mod mutable_scalar_formals;
 mod native_prefix_readers;
