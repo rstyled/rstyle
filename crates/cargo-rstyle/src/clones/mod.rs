@@ -402,7 +402,7 @@ fn analyses_complete(report: &report::Report<'_>) -> bool {
 fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: usize) -> bool {
     (args.fail_on_accepted_pairs && accepted > 0)
         || (args.fail_on_findings
-            && (report.analysis.findings > 0
+            && (report.analysis.visible_findings > 0
                 || report
                     .abstraction_review
                     .dispatch_visible_or(report.enum_dispatch.findings)

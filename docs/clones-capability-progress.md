@@ -44,7 +44,8 @@ Heavy captures and integrated gates run serially.
 
 | C09b | Evidence + review + acceptance + lead / shared source identity index, typed local review and CLI/report | delivered (source-local dismissal) | `78cec55` | Explicit saved-run dismissal for dispatch and ordered capability findings, independent of graph matching; helper v1 preserved | 34 review unit tests, three source identity tests and 17 review CLI tests pass; 2,598 workspace tests and doc tests pass; both legacy gates clean |
 | C09c | Lead + acceptance + contract / retained-entry status, original identities and CLI/report | delivered (bounded whole-store status) | `d15bdc4` | Explicit whole-store read-only assessment with completed negatives, omitted scopes/families and unavailable evidence distinguished | 12 status/context unit tests and 11 real-Cargo CLI tests; 2,621 workspace tests plus doc tests, both legacy gates and retained live replay pass |
-| C09d | Lead + contract + acceptance / selective review pruning | delivered (completed negatives only) | this checkpoint | Explicit saved-run preview/apply, original inventory validation and atomic schema-preserving removal | Eight contract and eight CLI cases; validation below |
+| C09d | Lead + contract + acceptance / selective review pruning | delivered (completed negatives only) | `644aef8` | Explicit saved-run preview/apply, original inventory validation and atomic schema-preserving removal | Eight contract and eight CLI cases; validation below |
+| C04b | Evidence + policy + acceptance + lead / captured comments, source reports and comparison | delivered (length/parameter suppression compatibility) | this checkpoint | Legacy named source suppressions from immutable snapshots, invalid diagnostics and raw/visible outcomes | Five evidence, six policy and six CLI cases; comparison and checkpoint validation below |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
@@ -634,3 +635,40 @@ unfiltered candidate IDs remain. Logs are retained at
 `/tmp/clones-review-prune-{tests,focused,clippy,style,patterns}-final.*`.
 Native macOS remains for CI. Legacy ignore/suppression compatibility and the
 broader capability migration remain open.
+
+
+## C04b: captured source-rule suppression compatibility
+
+The opt-in length/parameter consumer now honors named legacy `rstyle-allow`
+comments from the captured original source. The existing parser supplies valid
+rules and invalid diagnostics; physical association retains the legacy 40-line,
+single-line attribute/doc and blank-line semantics. Original measurements remain
+in raw findings. Visible/suppressed counts control text and finding exits without
+hiding guard or other consumers. Missing suppression observations keep coverage
+incomplete. The evidence view retains shared source ranges without new hashes,
+file reads, graph copies or a second parse. Saved-run replay follows the original
+annotation even after the live source is changed or removed.
+
+Evidence owns the `consumer_facts` view and line-selection tests; policy owns the
+narrow parser adapter; acceptance owns real-Cargo/source-free replay cases; the
+lead owns report/exit integration, docs and commits. Five evidence tests, six
+policy tests and six real-Cargo acceptance cases cover original ownership,
+association boundaries, valid/invalid rules, methods, same-named owners, guard
+isolation and source/tool-free replay. The comparator retains raw measurements,
+checks independently labeled suppression permissions and compares visible
+outcomes; its 17 tests plus three runner tests pass.
+
+The full workspace suite passed 2,654 tests (five skipped) in 174.315 seconds,
+plus doc tests. Final source-rule scope-count helper extraction and spacing
+cleanup are followed by focused evidence/consumer/CLI and doc-test revalidation.
+Clippy, formatting and diff checks pass. Legacy style reports zero violations
+across 8,811 functions; reviewed patterns has no candidates and unfiltered IDs
+remain exactly the same 15. Logs use
+`/tmp/clones-source-suppressions-{tests,focused,clippy,style,patterns}-final.*`.
+
+Retained live evidence at
+`/tmp/clones-source-suppressions-live-n4k6yn__/results.json` records equivalent
+legacy visible diagnostics and new raw/visible counts, plus identical full/compact
+strict replay without source, manifest or tools. Native macOS and exact Go
+comparison remain unverified. Exclusions, legacy ignore/review migration and
+broader replacement gates remain open. No legacy backend is retired.

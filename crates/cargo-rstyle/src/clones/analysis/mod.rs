@@ -12,6 +12,7 @@ pub(super) mod mutation_reports;
 mod pair_differences;
 pub(super) mod pair_reports;
 mod source_rules;
+mod source_suppressions;
 
 use super::{Args, Function, Handoff, capture};
 use rstyle_core::config::{Config as SourcePolicy, FnLengthConfig, FnParamsConfig};
@@ -76,6 +77,7 @@ pub struct Scope {
     pub expected_functions: Option<usize>,
     pub evaluated_rules: usize,
     pub unavailable_rules: usize,
+    pub unavailable_source_suppressions: usize,
     pub reasons: Vec<String>,
 }
 
@@ -85,6 +87,8 @@ pub struct Report<'a> {
     pub execution: Execution,
     pub scope: Scope,
     pub findings: usize,
+    pub visible_findings: usize,
+    pub suppressed_findings: usize,
     effective_config: Option<Settings>,
     limitations: &'static [&'static str],
     functions: Vec<FunctionReport<'a>>,
@@ -99,6 +103,8 @@ struct FunctionReport<'a> {
     source_digest: &'a str,
     execution: Execution,
     assessments: Vec<Assessment>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source_suppression: Option<source_suppressions::Report>,
     #[serde(skip_serializing_if = "Option::is_none")]
     guard_clause: Option<guards::GuardAssessment>,
 }
@@ -168,12 +174,15 @@ pub(super) fn evaluate<'a>(
     let scope = scope(&functions, handoff, capture, config.is_some());
     let execution = execution(&functions, &scope, config.is_some());
     let findings = count(&functions, Outcome::Finding);
+    let visible_findings = functions.iter().map(FunctionReport::visible_findings).sum();
 
     Report {
         schema: "rstyle.consumer-analysis/1",
         execution,
         scope,
         findings,
+        visible_findings,
+        suppressed_findings: findings - visible_findings,
         effective_config: config
             .and_then(|config| config.source.as_ref())
             .map(|config| Settings {
@@ -184,7 +193,7 @@ pub(super) fn evaluate<'a>(
         limitations: &[
             "Source rules do not establish body effects or refactoring safety.",
             "Length uses the legacy code-line policy, including its string/comment limitations.",
-            "Legacy exclusions, suppressions and review ledgers are not applied by this opt-in consumer.",
+            "Source rules honor captured legacy length/parameter suppressions; exclusions and review ledgers remain separate.",
             "Guard opportunities are bounded syntactic advice; review conditions, lifetimes and drops before editing.",
         ],
         functions,
@@ -205,10 +214,14 @@ fn scope(
         .collect();
     let expected_functions = reasons.is_empty().then_some(handoff.assessed.len());
     let unavailable_rules = count(functions, Outcome::NotEvaluated);
+    let unavailable_source_suppressions = unavailable_source_suppressions(functions);
     if unavailable_rules > 0 {
         reasons.push(
             "Some requested rules could not be evaluated; see per-function evidence reasons".into(),
         );
+    }
+    if unavailable_source_suppressions > 0 {
+        reasons.push("Some source suppression observations are unavailable".into());
     }
     let complete = requested
         && reasons.is_empty()
@@ -232,8 +245,17 @@ fn scope(
         evaluated_rules: count(functions, Outcome::Finding)
             + count(functions, Outcome::EvaluatedNoFinding),
         unavailable_rules,
+        unavailable_source_suppressions,
         reasons,
     }
+}
+
+fn unavailable_source_suppressions(functions: &[FunctionReport<'_>]) -> usize {
+    functions
+        .iter()
+        .filter_map(|function| function.source_suppression.as_ref())
+        .filter(|suppression| !suppression.complete())
+        .count()
 }
 
 fn count(functions: &[FunctionReport<'_>], outcome: Outcome) -> usize {
@@ -271,11 +293,16 @@ fn execution(functions: &[FunctionReport<'_>], scope: &Scope, requested: bool) -
 
 fn assess<'a>(function: &'a Function, config: &Config, exhausted: bool) -> FunctionReport<'a> {
     let (execution, facts) = inputs(function, exhausted);
-    let assessments = config
+    let mut assessments = config
         .source
         .as_ref()
         .map(|policy| source_rules::evaluate(&facts, policy))
         .unwrap_or_default();
+    let source_suppression = config.source.as_ref().map(|_| {
+        let suppression = source_suppressions::evaluate(&facts.preceding_comment);
+        assessments.extend(suppression.invalid_assessment());
+        suppression
+    });
     let guard_clause = config.guards.then(|| {
         let mut guard = guards::evaluate(&facts.source);
         if execution != Execution::Completed {
@@ -304,6 +331,7 @@ fn assess<'a>(function: &'a Function, config: &Config, exhausted: bool) -> Funct
         source_digest: &function.facts.source.digest,
         execution,
         assessments,
+        source_suppression,
         guard_clause,
     }
 }
@@ -323,6 +351,9 @@ fn inputs(function: &Function, exhausted: bool) -> (Execution, LocalFacts<'_>) {
 
 fn unavailable(reason: &str) -> LocalFacts<'static> {
     LocalFacts {
+        preceding_comment: Availability::Unknown {
+            reason: reason.into(),
+        },
         source: Availability::Unknown {
             reason: reason.into(),
         },
@@ -343,10 +374,12 @@ impl Report<'_> {
             return String::new();
         }
         let mut output = format!(
-            "\nLocal analysis: {:?}; {:?} coverage; {} findings; {} evaluated, {} unavailable rules.",
+            "\nLocal analysis: {:?}; {:?} coverage; {} visible of {} findings; {} suppressed; {} evaluated, {} unavailable rules.",
             self.execution,
             self.scope.coverage,
+            self.visible_findings,
             self.findings,
+            self.suppressed_findings,
             self.scope.evaluated_rules,
             self.scope.unavailable_rules
         );
@@ -362,6 +395,26 @@ impl Report<'_> {
 }
 
 impl FunctionReport<'_> {
+    fn visible(&self, assessment: &Assessment) -> bool {
+        assessment.outcome == Outcome::Finding
+            && !self
+                .source_suppression
+                .as_ref()
+                .is_some_and(|suppression| suppression.allows(assessment.rule_id))
+    }
+
+    fn visible_findings(&self) -> usize {
+        self.assessments
+            .iter()
+            .filter(|rule| self.visible(rule))
+            .count()
+            + usize::from(
+                self.guard_clause
+                    .as_ref()
+                    .is_some_and(|guard| guard.outcome == Outcome::Finding),
+            )
+    }
+
     fn location(&self) -> String {
         format!(
             "{} at {} [bytes {}..{}]",
@@ -377,13 +430,14 @@ impl FunctionReport<'_> {
         let source = self
             .assessments
             .iter()
-            .filter(|assessment| assessment.outcome == Outcome::Finding)
+            .filter(|assessment| self.visible(assessment))
             .map(|assessment| {
                 format!(
-                    "\n{} {location}: {} > {}.",
+                    "\n{} {location}: {} > {}. {}",
                     assessment.rule_id,
                     assessment.actual.unwrap_or(0),
-                    assessment.limit
+                    assessment.limit,
+                    assessment.reasons.join(" ")
                 )
             })
             .collect::<String>();

@@ -58,6 +58,15 @@ reviewed intentional changes, and regressions against these labels. Missing
 report entries are not automatically evaluated-no-finding. A complete input
 assessment and explicit denominator are required for a clean result.
 
+Source cases may declare `suppressed_rules`, a list of independently expected
+source-rule permissions (omitted means none). Raw length/arity outcomes and counts
+remain the measurement labels. Comparison separately checks the captured
+permission and compares the visible outcome with legacy diagnostics; suppression
+cannot excuse a wrong measurement. Missing suppression evidence is uncovered.
+Historical reports without a suppression field are treated as unsuppressed.
+Invalid-suppression diagnostics are validated by CLI acceptance, outside this
+two-rule measurement comparator.
+
 Compare retained explicit reports with:
 
 ```sh

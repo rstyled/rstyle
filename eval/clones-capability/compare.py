@@ -61,26 +61,47 @@ def legacy_assessment(report, metadata, name, rule):
 def new_assessment(report, name, rule):
     analysis = report.get("analysis", {})
     if analysis.get("schema") != "rstyle.consumer-analysis/1":
-        return None, "new analysis schema missing or unsupported"
+        return None, None, "new analysis schema missing or unsupported"
     if analysis.get("execution") != "completed":
-        return None, "new execution not completed"
+        return None, None, "new execution not completed"
     functions = [entry for entry in analysis.get("functions", []) if named(entry["name"], name)]
     if len(functions) != 1:
-        return None, "new function missing or ambiguous across contexts"
+        return None, None, "new function missing or ambiguous across contexts"
     function = functions[0]
     if function.get("execution") != "completed":
-        return None, "function execution not completed"
+        return None, None, "function execution not completed"
     assessments = [entry for entry in function.get("assessments", []) if entry.get("rule_id") == rule]
     if len(assessments) != 1:
-        return None, "new rule assessment missing or ambiguous"
+        return None, None, "new rule assessment missing or ambiguous"
     assessment = assessments[0]
     if (assessment.get("outcome") == "not_evaluated"
             or assessment.get("availability") != "known"
             or assessment.get("coverage") != "complete"):
-        return None, "new rule has unavailable or incomplete evidence"
+        return None, None, "new rule has unavailable or incomplete evidence"
     if assessment.get("outcome") not in ("finding", "evaluated_no_finding"):
-        return None, "unknown new assessment outcome"
-    return assessment, None
+        return None, None, "unknown new assessment outcome"
+    suppression, error = source_suppression(function, rule)
+    return assessment, suppression, error
+
+
+def source_suppression(function, rule):
+    """Match suppression permission, independently of whether a finding exists."""
+    if "source_suppression" not in function:
+        return {"status": "absent", "permitted": False}, None
+    declaration = function["source_suppression"]
+    if not isinstance(declaration, dict):
+        return None, "new suppression observation malformed"
+    status = declaration.get("status")
+    if status == "unavailable":
+        return None, "new suppression observation unavailable"
+    if status not in ("none", "allowed", "invalid"):
+        return None, "new suppression observation has unknown status"
+    rules = declaration.get("rules") if status == "allowed" else []
+    if status == "allowed" and (not isinstance(rules, list)
+                                or not all(isinstance(name, str) for name in rules)):
+        return None, "new suppression rule roster malformed"
+    return {"status": status, "permitted": status == "allowed" and rule in RULES.values()
+            and rule in rules}, None
 
 
 def compare(legacy, new, expectations, scope):
@@ -94,11 +115,16 @@ def compare(legacy, new, expectations, scope):
                 rows.append(row)
                 continue
             old, old_error = legacy_assessment(legacy, scope["legacy"], case["function"], rule)
-            current, current_error = new_assessment(new, case["function"], rule)
-            row.update(legacy=old, new=current)
+            current, suppression, current_error = new_assessment(new, case["function"], rule)
+            # Labels describe permission; aggregate hidden-finding counts are not labels.
+            row.update(legacy=old, new=current, source_suppression=suppression,
+                       expected_suppressed=rule in case.get("suppressed_rules", []))
             if old_error or current_error:
                 row.update(classification="uncovered", reasons=[reason for reason in (old_error, current_error) if reason])
             else:
+                visible_outcome = ("evaluated_no_finding" if suppression["permitted"]
+                                   else current["outcome"])
+                row["new_visible_outcome"] = visible_outcome
                 expected_actual = case["code_lines" if label == "length" else "parameters"]
                 expected_limit = expectations["scope"]["policy"]["max_lines" if label == "length" else "max_params"]
                 correct = (current["outcome"] == row["expected"]
@@ -106,7 +132,9 @@ def compare(legacy, new, expectations, scope):
                            and current.get("limit") == expected_limit)
                 if not correct:
                     row.update(classification="actual-regression", reasons=["new assessment contradicts independent label/count/policy"])
-                elif (old["outcome"] == current["outcome"]
+                elif suppression["permitted"] != row["expected_suppressed"]:
+                    row.update(classification="actual-regression", reasons=["new suppression contradicts independent suppression label"])
+                elif (old["outcome"] == visible_outcome
                       and (old["outcome"] != "finding"
                            or (old.get("actual") == expected_actual and old.get("limit") == expected_limit))):
                     row.update(classification="evaluated-agreement", reasons=[])
@@ -118,6 +146,7 @@ def compare(legacy, new, expectations, scope):
     counts = {key: sum(row["classification"] == key for row in rows) for key in sorted({row["classification"] for row in rows})}
     return {"schema": "rstyle.clones-capability.comparison/1", "context": scope, "counts": counts,
             "rows": rows, "limitations": ["Source/signature rules only; strict pairs do not score abstraction proposals.",
+                                          "Invalid-suppression diagnostics are outside the two measured source-rule comparisons.",
                                           "Scope sidecar is an explicit operator declaration, not compiler evidence."]}
 
 

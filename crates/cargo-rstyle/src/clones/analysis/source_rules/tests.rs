@@ -3,6 +3,7 @@ use rstyle_pdg::consumer_facts::Signature;
 
 fn facts(source: &str, parameters: usize, has_self: bool) -> LocalFacts<'_> {
     LocalFacts {
+        preceding_comment: Availability::Known("".into()),
         source: Availability::Known(source),
         signature: Availability::Known(Signature {
             parameters,
@@ -63,6 +64,9 @@ fn unsupported_body_does_not_preclude_source_and_signature_budgets() {
 #[test]
 fn unsupported_and_unknown_remain_separate_unevaluated_reasons() {
     let unavailable = LocalFacts {
+        preceding_comment: Availability::Unknown {
+            reason: "unavailable".into(),
+        },
         source: Availability::Unknown {
             reason: "original source unavailable".into(),
         },
@@ -91,6 +95,9 @@ fn unsupported_and_unknown_remain_separate_unevaluated_reasons() {
 #[test]
 fn known_empty_differs_from_inapplicable_and_one_finding_can_survive_missing_fact() {
     let unavailable = LocalFacts {
+        preceding_comment: Availability::Unknown {
+            reason: "unavailable".into(),
+        },
         source: Availability::NotApplicable {
             reason: "no original Rust function source".into(),
         },

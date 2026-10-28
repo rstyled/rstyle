@@ -1,4 +1,5 @@
 use super::*;
+mod suppressions;
 
 fn source_workspace() -> TempDir {
     let directory = clone_workspace();

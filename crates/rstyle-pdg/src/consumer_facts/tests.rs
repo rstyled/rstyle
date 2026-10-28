@@ -250,6 +250,7 @@ fn availability_keeps_empty_values_and_unknown_unsupported_separate() {
         signature: Availability::Unsupported {
             reason: "variadic".into(),
         },
+        preceding_comment: Availability::Known("".into()),
     })
     .unwrap();
     assert_eq!(value["source"]["status"], "known");
@@ -341,4 +342,82 @@ fn full_header_spans_include_public_restricted_and_private_visibility() {
             assert!(inspect(&facts).is_err(), "{header}: {changed:?}");
         }
     }
+}
+
+#[test]
+fn preceding_comment_borrows_exact_owned_file_and_survives_transport() {
+    let source = "fn method(&self, value: u32) {}";
+    let prefix = "// café\r\nimpl Example {\r\n    // rstyle-allow(fn_params): ffi\r\n    /// docs\r\n    #[inline]\r\n    ";
+    let mut facts = facts(source);
+    let file_source = format!("{prefix}{source}\r\n}}\r\n");
+    let mut census = (**facts
+        .build
+        .frontend_options
+        .data::<Arc<census::Census>>()
+        .unwrap())
+    .clone();
+    census.files[0].bytes = file_source.into();
+    census.files[0].digest = census.files[0].bytes.checksum().into();
+    let snapshot = census.files[0].bytes.clone();
+    facts.fn_span.start = prefix.len() as u32;
+    facts.fn_span.end = (prefix.len() + source.len()) as u32;
+    facts.build.frontend_options.insert_data(Arc::new(census));
+    let inspected = inspect(&facts).unwrap();
+    let Availability::Known(line) = inspected.preceding_comment else {
+        panic!("Missing original preceding line")
+    };
+    assert_eq!(line.as_str(), "// rstyle-allow(fn_params): ffi");
+    assert!(crate::SourceSnapshot::ptr_eq(
+        line.snapshot_range().unwrap().0,
+        &snapshot
+    ));
+    let restored: HirFnFacts =
+        serde_json::from_slice(&serde_json::to_vec(&facts).unwrap()).unwrap();
+    assert_eq!(
+        inspect(&restored).unwrap().preceding_comment,
+        Availability::Known(line)
+    );
+}
+
+#[test]
+fn preceding_comment_availability_tracks_original_signature_ownership() {
+    let original = facts("fn f() {}");
+    assert_eq!(
+        inspect(&original).unwrap().preceding_comment,
+        Availability::Known("".into())
+    );
+    let mut missing = original.clone();
+    missing.build.frontend_options = Default::default();
+    assert!(matches!(
+        inspect(&missing).unwrap().preceding_comment,
+        Availability::Unknown { .. }
+    ));
+    let mut expanded = original;
+    expanded.source_diagnostics.push(crate::HirDiagnostic {
+        capability: "rust.macros".into(),
+        construct: "macro_generated_function".into(),
+        span: expanded.signature.sig_span,
+        snippet: String::new(),
+        severity: "error".into(),
+        reason: "expanded".into(),
+    });
+    assert!(matches!(
+        inspect(&expanded).unwrap().preceding_comment,
+        Availability::Unsupported { .. }
+    ));
+}
+
+#[test]
+fn unsupported_signature_cannot_supply_preceding_comment_authority() {
+    let mut facts = facts("fn f() {}");
+    facts.source.bytes = "unrecognized syntax".into();
+    facts.source.digest = facts.source.bytes.checksum().into();
+    facts.fn_span.end = facts.source.bytes.len() as u32;
+    source_owner(&mut facts, "unrecognized syntax");
+    let inspected = inspect(&facts).unwrap();
+    assert!(matches!(inspected.source, Availability::Known(_)));
+    assert!(matches!(
+        inspected.preceding_comment,
+        Availability::Unsupported { .. }
+    ));
 }

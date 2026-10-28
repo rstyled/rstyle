@@ -50,11 +50,42 @@ limits local work and retains explicit unevaluated rows beyond the limit.
 Strict matching completion and `--fail-on-accepted-pairs` retain their own meaning;
 neither source-rule success nor accepted similarity establishes refactoring safety.
 
-Legacy exclusions, suppressions and review entries do not apply to this opt-in
-consumer. Legacy style and patterns remain supported and continue to gate this
+Legacy exclusions and review entries do not apply to this opt-in
+consumer. Existing source-rule suppression comments apply as described below. Legacy style and patterns remain supported and continue to gate this
 repository. This bounded consumer does not yet replace them. The independent
 [acceptance corpus](../eval/clones-capability/README.md) records comparison scope
 and remaining migration requirements.
+
+## Existing source-rule suppression comments
+
+Source rules honor the existing `// rstyle-allow(fn_length, fn_params): reason`
+syntax from the exact captured file. A nonempty reason is required. Only named
+length and parameter findings are hidden; other known legacy rule names grant
+no permission to hide guard, mutation, pair or abstraction findings. Unknown rule
+names or malformed annotations invalidate the whole comment, leave measurements
+visible and add an `invalid_suppression` diagnostic.
+
+Association follows the legacy physical-line policy: inspect at most 40 lines
+above the original signature, skipping individual lines beginning `#[` or `///`.
+The nearest remaining line is the candidate; a blank line stops association.
+Multiline attributes and block documentation retain those legacy limitations.
+Free functions, methods and same-named declarations use their own captured byte
+ranges. Replay never reads an edited live comment or requires the original file.
+
+Numeric assessments retain their original outcomes and values. JSON
+`analysis.findings` counts all measured findings, including invalid annotations;
+`visible_findings` and `suppressed_findings` distinguish presentation policy.
+Every source-rule function has `source_suppression` with status `none`, `allowed`,
+`invalid` or `unavailable`, retaining the captured candidate and declared rules
+or reason. Text and `--fail-on-findings` use visible findings. Missing suppression
+observations do not hide findings or permit a clean result; their count is
+`scope.unavailable_source_suppressions`. Unknown, failed or budget-exhausted
+coverage still exits two, even with no visible findings.
+
+The evidence view shares the immutable source snapshot, scans backward over the
+bounded preceding lines and reuses existing ownership/signature checks. It adds
+no hashes, file reads or independent function parse. Legacy style remains active;
+this compatibility slice does not retire a backend or migrate ignore ledgers.
 
 ## Bounded guard-clause advice
 

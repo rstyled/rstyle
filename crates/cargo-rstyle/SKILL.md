@@ -111,3 +111,17 @@ Defaults (WL similarity 600, alignment coverage 600, 3 holes max for `parameteri
 ## Requirements
 
 Needs the pinned nightly from the project's `rust-toolchain.toml` (installed by rustup automatically) and `rstyle-driver` installed next to the `cargo-rstyle` binary.
+
+
+## Opt-in clones source rules
+
+`cargo rstyle clones --extraction-profile hir-data-v3 --source-rules` evaluates
+captured length and parameter evidence independently of strict graph admission.
+Use `--analysis-config analysis.toml` for those two policies and
+`--fail-on-findings` for exit one on visible findings; incomplete scope exits two.
+Existing `rstyle-allow(fn_length, fn_params): reason` comments use captured source
+and apply only to those named rules. Invalid annotations remain findings. JSON
+retains raw `analysis.findings` plus `visible_findings`, `suppressed_findings` and
+per-function `source_suppression`. Saved-run replay preserves original comments.
+See `docs/clones-source-rules.md` for scope and association limitations. Keep both
+legacy style and patterns gates until their capability retirement gates pass.

@@ -14,6 +14,7 @@ pub mod effects;
 pub mod formal_types;
 pub mod mutations;
 pub mod planning;
+mod preceding_comment;
 mod syntax_budget;
 
 #[cfg(test)]
@@ -41,6 +42,7 @@ pub struct Signature {
 pub struct LocalFacts<'a> {
     pub source: Availability<&'a str>,
     pub signature: Availability<Signature>,
+    pub preceding_comment: Availability<crate::SourceText>,
 }
 
 /// Bind facts to their immutable selected-unit source without requiring a graph.
@@ -51,7 +53,10 @@ pub fn inspect(facts: &HirFnFacts) -> Result<LocalFacts<'_>, String> {
         Availability::Unknown { reason } => Ok(unavailable(reason)),
         Availability::Unsupported { reason } | Availability::NotApplicable { reason } => {
             Ok(LocalFacts {
-                source: Availability::Unsupported { reason },
+                source: Availability::Unsupported {
+                    reason: reason.clone(),
+                },
+                preceding_comment: Availability::Unsupported { reason },
                 signature: Availability::Unsupported {
                     reason: "Original signature is unavailable for expansion".into(),
                 },
@@ -93,6 +98,9 @@ fn inspect_source(facts: &HirFnFacts) -> Result<LocalFacts<'_>, String> {
         Err(error) => {
             return Ok(LocalFacts {
                 source: Availability::Known(source),
+                preceding_comment: Availability::Unsupported {
+                    reason: "Original signature syntax is unavailable".into(),
+                },
                 signature: Availability::Unsupported {
                     reason: format!("Original function syntax is unavailable: {error}"),
                 },
@@ -114,6 +122,7 @@ fn inspect_source(facts: &HirFnFacts) -> Result<LocalFacts<'_>, String> {
     Ok(LocalFacts {
         source: Availability::Known(source),
         signature,
+        preceding_comment: preceding_comment::inspect(facts)?,
     })
 }
 
@@ -122,7 +131,10 @@ fn unavailable(reason: String) -> LocalFacts<'static> {
         source: Availability::Unknown {
             reason: reason.clone(),
         },
-        signature: Availability::Unknown { reason },
+        signature: Availability::Unknown {
+            reason: reason.clone(),
+        },
+        preceding_comment: Availability::Unknown { reason },
     }
 }
 
