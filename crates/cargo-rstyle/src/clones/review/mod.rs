@@ -4,6 +4,7 @@ mod adapter;
 pub(super) mod baseline_common;
 mod baseline_io;
 mod comparison;
+pub(super) mod compiler_patterns;
 pub(super) mod density_baseline;
 pub(super) mod density_rules;
 pub(super) mod density_workflow;
@@ -109,6 +110,7 @@ impl Default for ReviewStore {
             spacing_entries: vec![],
             mutation_entries: vec![],
             density_entries: vec![],
+            compiler_pattern_entries: vec![],
         }
     }
 }
@@ -122,17 +124,15 @@ impl ReviewStore {
             + self.spacing_entries.len()
             + self.mutation_entries.len()
             + self.density_entries.len()
+            + self.compiler_pattern_entries.len()
     }
 
     pub(crate) fn from_json(bytes: &str) -> Result<Self, String> {
-        let store: Self = serde_json::from_str(bytes).map_err(|error| error.to_string())?;
-        store.validate().map_err(|error| format!("{error:?}"))?;
-        Ok(store)
+        baseline_io::parse(bytes.as_bytes())
     }
 
     pub(crate) fn to_json(&self) -> Result<String, String> {
-        self.validate().map_err(|error| format!("{error:?}"))?;
-        serde_json::to_string_pretty(self).map_err(|error| error.to_string())
+        String::from_utf8(baseline_io::encode(self)?).map_err(|error| error.to_string())
     }
 
     pub(crate) fn record_dismissal(
@@ -177,13 +177,14 @@ impl ReviewStore {
     }
 
     fn validate(&self) -> Result<(), ReviewError> {
-        if !matches!(self.schema_version, 1..=7)
+        if !matches!(self.schema_version, 1..=8)
             || (self.schema_version == 1 && !self.source_entries.is_empty())
             || (self.schema_version < 3 && !self.parameter_entries.is_empty())
             || (self.schema_version < 4 && !self.length_entries.is_empty())
             || (self.schema_version < 5 && !self.spacing_entries.is_empty())
             || (self.schema_version < 6 && !self.mutation_entries.is_empty())
             || (self.schema_version < 7 && !self.density_entries.is_empty())
+            || (self.schema_version < 8 && !self.compiler_pattern_entries.is_empty())
         {
             return Err(ReviewError::InvalidSchema);
         }
@@ -194,6 +195,7 @@ impl ReviewStore {
         spacing_rules::validate_entries(&self.spacing_entries)?;
         mutation_rules::validate_entries(&self.mutation_entries)?;
         density_rules::validate_entries(&self.density_entries)?;
+        compiler_patterns::validate_entries(&self.compiler_pattern_entries)?;
         for (index, entry) in self.entries.iter().enumerate() {
             if entry.reason.trim().is_empty() {
                 return Err(ReviewError::InvalidReason);
@@ -207,6 +209,14 @@ impl ReviewStore {
             }
         }
         Ok(())
+    }
+}
+
+impl baseline_io::Artifact for ReviewStore {
+    const LABEL: &'static str = "Review store";
+
+    fn validate(&self) -> Result<(), String> {
+        ReviewStore::validate(self).map_err(|error| format!("{error:?}"))
     }
 }
 

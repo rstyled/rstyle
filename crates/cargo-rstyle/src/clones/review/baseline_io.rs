@@ -15,7 +15,7 @@ pub(super) fn load<T: Artifact>(path: &Path) -> Result<T, String> {
     parse(&bytes).map_err(|error| format!("{}: {error}", path.display()))
 }
 
-fn read_bounded(path: &Path) -> Result<Vec<u8>, std::io::Error> {
+pub(super) fn read_bounded(path: &Path) -> Result<Vec<u8>, std::io::Error> {
     let mut bytes = Vec::new();
     File::open(path).and_then(|file| file.take(MAX_BYTES as u64 + 1).read_to_end(&mut bytes))?;
     Ok(bytes)
@@ -29,11 +29,16 @@ pub(super) fn parse<T: Artifact>(bytes: &[u8]) -> Result<T, String> {
 }
 
 pub(super) fn publish<T: Artifact>(path: &Path, artifact: &T) -> Result<(), String> {
+    let bytes = encode(artifact)?;
+
+    super::publication::write(path, &bytes, super::publication::Mode::CreateNew)
+}
+
+pub(super) fn encode<T: Artifact>(artifact: &T) -> Result<Vec<u8>, String> {
     artifact.validate()?;
     let bytes = serde_json::to_vec_pretty(artifact).map_err(|error| error.to_string())?;
     bounded::<T>(&bytes)?;
-
-    super::publication::write(path, &bytes, super::publication::Mode::CreateNew)
+    Ok(bytes)
 }
 
 fn bounded<T: Artifact>(bytes: &[u8]) -> Result<(), String> {

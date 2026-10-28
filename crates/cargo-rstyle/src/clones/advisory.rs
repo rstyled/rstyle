@@ -18,6 +18,8 @@ pub(super) struct Report {
     pub findings: usize,
     limitations: &'static [&'static str],
     units: Vec<Unit>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pattern_review: Option<super::review::compiler_patterns::Report>,
 }
 
 #[derive(Serialize)]
@@ -52,6 +54,10 @@ struct Missing {
 impl Completion for Report {
     fn permits_success(&self) -> bool {
         self.complete
+            && self
+                .pattern_review
+                .as_ref()
+                .is_none_or(Completion::permits_success)
     }
 }
 
@@ -70,7 +76,65 @@ impl Report {
             .filter_map(Unit::render_patterns)
             .collect::<Vec<_>>()
             .join("\n");
-        format!("{summary}{patterns}")
+        let reviews = self
+            .pattern_review
+            .as_ref()
+            .map_or_else(String::new, |review| review.render());
+        format!("{summary}{patterns}{reviews}")
+    }
+
+    pub(super) fn pattern_reviews(
+        &self,
+    ) -> Vec<super::review::compiler_patterns::observed::Row<'_>> {
+        self.units
+            .iter()
+            .flat_map(|unit| {
+                unit.patterns.iter().flat_map(move |patterns| {
+                    patterns
+                        .evaluation
+                        .candidates
+                        .iter()
+                        .zip(&patterns.snapshots)
+                        .enumerate()
+                        .map(move |(index, (candidate, snapshot))| {
+                            super::review::compiler_patterns::observed::Row {
+                                unit: unit.unit,
+                                index,
+                                id: &candidate.id,
+                                snapshot,
+                            }
+                        })
+                })
+            })
+            .collect()
+    }
+
+    pub(super) fn pattern_inputs_complete(&self) -> bool {
+        self.complete
+    }
+
+    pub(super) fn with_pattern_reviews(
+        self,
+        reviews: super::review::compiler_patterns::Report,
+    ) -> Self {
+        if !reviews.requested() {
+            return self;
+        }
+        let units: Vec<_> = self
+            .units
+            .into_iter()
+            .map(|unit| unit.with_pattern_reviews(&reviews))
+            .collect();
+        let findings = units.iter().map(Unit::findings).sum();
+        let complete = self.complete && reviews.permits_success();
+
+        Self {
+            units,
+            findings,
+            pattern_review: Some(reviews),
+            complete,
+            ..self
+        }
     }
 }
 
@@ -103,6 +167,7 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
             "Compiler patterns use approximate advisory graphs and bounded core discovery; input completeness is not exhaustive proposal coverage or refactoring safety.",
         ],
         units,
+        pattern_review: None,
     }))
 }
 
@@ -141,10 +206,17 @@ fn evaluate_unit(
     let expected_functions = (ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty())
         .then_some(observations.len() + unavailable.len());
     let (evaluation, facts) = rstyle_core::evaluate_and_retain(facts, config)?;
-    let patterns = ctx
-        .args
-        .compiler_patterns
-        .then(|| patterns::evaluate(facts, missing_graphs, unavailable.len()));
+    let patterns = ctx.args.compiler_patterns.then(|| {
+        patterns::evaluate(
+            ctx,
+            unit,
+            patterns::Inputs {
+                facts,
+                missing: missing_graphs,
+                unavailable_functions: unavailable.len(),
+            },
+        )
+    });
 
     Ok(Unit {
         unit: unit.id,
@@ -205,14 +277,21 @@ impl Collected {
 }
 
 impl Unit {
+    fn with_pattern_reviews(self, reviews: &super::review::compiler_patterns::Report) -> Self {
+        let patterns = self
+            .patterns
+            .map(|patterns| patterns.with_reviews(self.unit, reviews));
+        Self { patterns, ..self }
+    }
+
     fn render_patterns(&self) -> Option<String> {
         let report = self.patterns.as_ref()?;
         Some(format!(
-            "\nCompiler patterns for {:?}, source root {} (input complete={}):\n{}",
-            self.unit,
+            "\nCompiler patterns for unit {}, source root {} (input complete={}):\n{}",
+            self.unit.ordinal(),
             self.source_root.display(),
             report.input_complete,
-            rstyle_core::patterns_report::text(&report.evaluation)
+            report.render()
         ))
     }
 
@@ -227,10 +306,7 @@ impl Unit {
 
     fn findings(&self) -> usize {
         self.evaluation.summary.violations
-            + self
-                .patterns
-                .as_ref()
-                .map_or(0, |report| report.evaluation.candidates.len())
+            + self.patterns.as_ref().map_or(0, |report| report.findings())
     }
 }
 

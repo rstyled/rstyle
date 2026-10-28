@@ -83,7 +83,9 @@ pub(crate) type LiveFinding<'a> = exact_rules::LiveFinding<'a, Snapshot>;
 pub(crate) type ValidatedStore<'a> = exact_rules::ValidatedStore<'a, Snapshot>;
 pub(crate) type Lookup<'a> = exact_rules::Lookup<'a, Snapshot>;
 pub(crate) use exact_rules::StaleReason;
-pub(super) use exact_rules::{record_dismissal, validate_entries};
+#[cfg(test)]
+use exact_rules::record_dismissal;
+pub(super) use exact_rules::validate_entries;
 
 pub(super) fn validate_snapshot(snapshot: &Snapshot) -> Result<(), Error> {
     exact_rules::validate_identity(snapshot, snapshot.policy.rule_id())?;

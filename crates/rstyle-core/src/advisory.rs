@@ -67,7 +67,7 @@ impl Observation {
     }
 }
 
-fn require_signature(raw: &serde_json::Value) -> Result<(), String> {
+pub fn require_signature(raw: &serde_json::Value) -> Result<(), String> {
     if !raw.is_null() {
         require_fields(
             raw,

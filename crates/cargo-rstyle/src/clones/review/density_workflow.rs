@@ -92,14 +92,11 @@ fn dismiss(
         .iter()
         .find(|row| row.key.to_string() == *selector && row.selected)
         .ok_or("Selected saved-run owner is not a visible selected density finding")?;
-    let reason = ctx
-        .args
-        .review_reason
-        .as_deref()
-        .filter(|reason| !reason.trim().is_empty())
-        .ok_or("A dismissal requires a nonempty review reason")?;
-    density_rules::record_dismissal(&mut store.density_entries, &row.checked()?, reason.into())
-        .map_err(|error| format!("{error:?}"))?;
+    super::exact_rules::record_with_reason(
+        &mut store.density_entries,
+        &row.checked()?,
+        ctx.args.review_reason.as_deref(),
+    )?;
     store.schema_version = store.schema_version.max(7);
     Ok(())
 }

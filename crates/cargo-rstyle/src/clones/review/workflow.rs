@@ -93,6 +93,7 @@ fn apply_helpers(
 }
 
 pub(in crate::clones) struct Inputs<'a, 'b> {
+    pub compiler_advisory: Option<&'a crate::clones::advisory::Report>,
     pub analysis: &'a analysis::Report<'b>,
     pub helpers: &'a analysis::helper_reports::Report<'b>,
     pub dispatch: &'a analysis::dispatch_reports::Report<'b>,
@@ -103,6 +104,7 @@ pub(in crate::clones) struct Inputs<'a, 'b> {
 }
 
 pub(in crate::clones) struct Reports {
+    pub compiler_patterns: super::compiler_patterns::Report,
     pub density: super::density_workflow::Report,
     pub mutations: super::mutation_workflow::Report,
     pub sources: super::source_workflow::Reports,
@@ -129,6 +131,7 @@ impl Inputs<'_, '_> {
             || ctx.args.dismiss_mutation_per_target.is_some()
             || ctx.args.dismiss_mutated_targets.is_some()
             || ctx.args.dismiss_density.is_some()
+            || !ctx.args.dismiss_compiler_pattern.is_empty()
             || reports
                 .pruning
                 .as_ref()
@@ -151,12 +154,12 @@ fn evaluate(
         super::local_workflow::apply(inputs, ctx, store.as_deref_mut())?;
     let (sources, source_rule_records) =
         super::source_workflow::apply(inputs, ctx, store.as_deref_mut())?;
-    let (mutations, density, numeric_records) = evaluate_numeric(inputs, ctx, store)?;
+    let policy = evaluate_policy_reviews(inputs, ctx, store)?;
     let records = [
         helper_records,
         source_records,
         source_rule_records,
-        numeric_records,
+        policy.records,
     ]
     .into_iter()
     .flatten()
@@ -167,8 +170,9 @@ fn evaluate(
         .then(|| status::Report::new(records, true));
 
     Ok(Reports {
-        density,
-        mutations,
+        compiler_patterns: policy.compiler_patterns,
+        density: policy.density,
+        mutations: policy.mutations,
         sources,
         helpers,
         abstractions,
@@ -177,26 +181,36 @@ fn evaluate(
     })
 }
 
-fn evaluate_numeric(
+struct PolicyReviews {
+    mutations: super::mutation_workflow::Report,
+    density: super::density_workflow::Report,
+    compiler_patterns: super::compiler_patterns::Report,
+    records: Vec<status::Record>,
+}
+
+fn evaluate_policy_reviews(
     inputs: &Inputs<'_, '_>,
     ctx: &report::Context<'_>,
     mut store: Option<&mut ReviewStore>,
-) -> Result<
-    (
-        super::mutation_workflow::Report,
-        super::density_workflow::Report,
-        Vec<status::Record>,
-    ),
-    String,
-> {
+) -> Result<PolicyReviews, String> {
     let (mutations, mutation_records) =
         super::mutation_workflow::apply(inputs, ctx, store.as_deref_mut())?;
-    let (density, density_records) = super::density_workflow::apply(inputs, ctx, store)?;
+    let (density, density_records) =
+        super::density_workflow::apply(inputs, ctx, store.as_deref_mut())?;
+    let (compiler_patterns, compiler_records) =
+        super::compiler_patterns::apply(inputs, ctx, store)?;
     let records = mutation_records
         .into_iter()
         .chain(density_records)
+        .chain(compiler_records)
         .collect();
-    Ok((mutations, density, records))
+
+    Ok(PolicyReviews {
+        mutations,
+        density,
+        compiler_patterns,
+        records,
+    })
 }
 
 fn pruning(
@@ -435,8 +449,10 @@ fn summarize(
 }
 
 fn load(path: &Path) -> Result<ReviewStore, String> {
-    match std::fs::read_to_string(path) {
-        Ok(bytes) => ReviewStore::from_json(&bytes),
+    match baseline_io::read_bounded(path) {
+        Ok(bytes) => {
+            ReviewStore::from_json(std::str::from_utf8(&bytes).map_err(|error| error.to_string())?)
+        }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(ReviewStore::default()),
         Err(error) => Err(format!("{}: {error}", path.display())),
     }

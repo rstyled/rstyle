@@ -187,3 +187,32 @@ saved run `target/rstyle/clones/run-I9FEzJ`; the legacy comparison is
 locations without consulting source files on replay. Independent real-Cargo
 acceptance cases separately cover positive trait, capability, dispatch, generic
 and helper opportunities, plus existing-trait/getter/forwarder negatives.
+
+## Saved compiler proposal review lookup
+
+The schema-8 review checkpoint replays that same `run-I9FEzJ` capture with an
+explicit absent review path. It completes in 2.12 seconds (maximum resident set
+201,248 KiB) on the pinned Linux aarch64 toolchain. This single replay observation
+is not a performance comparison. The sole candidate `c5f442ffa59a` receives
+`visible_new`; no review file is created and no finding is dismissed. Its earlier
+source review above remains unsuitable. Raw core proposal and style reports,
+capture/handoff outcomes and all four accepted strict pairs equal the previous
+report exactly. Generated owners and unresolved callees still make coverage
+incomplete and require exit 2; the review lookup does not erase those gaps.
+
+```sh
+python3 scripts/watchdog.py --timeout 90 \
+  --output /tmp/clones-compiler-reviews-project-1 -- \
+  /usr/bin/time -v target/debug/cargo-rstyle rstyle --format json clones \
+  --extraction-profile hir-data-v3 --compiler-advisory --compiler-patterns \
+  --replay-run target/rstyle/clones/run-I9FEzJ \
+  --review-file /tmp/clones-compiler-reviews-project-1/choices.json \
+  --report-detail compact
+```
+
+Session evidence is `/tmp/clones-compiler-reviews-project-1`. Independent fixture
+acceptance covers actual saved choices across all five proposal families,
+changed observations, check/test separation, source-free replay and conservative
+retention when bounded discovery no longer produces a proposal. This delivers
+access to the existing saved-review workflow; it establishes neither better
+proposal quality nor baseline/retirement readiness.

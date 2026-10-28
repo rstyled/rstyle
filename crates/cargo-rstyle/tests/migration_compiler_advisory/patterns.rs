@@ -1,5 +1,7 @@
 use super::*;
 
+mod reviews;
+
 const ANIMALS: &str = include_str!("../fixtures/animals/src/lib.rs");
 
 const FAMILIES: &str = r#"

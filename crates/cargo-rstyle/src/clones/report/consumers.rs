@@ -34,12 +34,12 @@ impl<'a> Consumers<'a> {
         let dispatch = ctx.dispatch_report(&indices)?;
         let capabilities = ctx.capability_report(&indices)?;
         let edit_planning = ctx.edit_planning(&pairs.helper_proposals)?;
-        let edit_coordination = coordinate(&edit_planning, &parameter_planning, &guard_planning);
         let mut mutation = ctx.mutation_report()?;
         let mut effects = ctx.effect_report()?;
         let accepted = locations::accepted(ctx.handoff, ctx.matching)?;
 
         let reviews = review::workflow::Inputs {
+            compiler_advisory: compiler_advisory.as_ref(),
             analysis: &analysis,
             mutation: &mutation,
             effects: &effects,
@@ -49,6 +49,8 @@ impl<'a> Consumers<'a> {
             indices: &indices,
         }
         .apply(ctx)?;
+        let compiler_advisory = compiler_advisory
+            .map(|advisory| advisory.with_pattern_reviews(reviews.compiler_patterns));
         mutation.hide_reviewed(&reviews.mutations);
         ctx.present_effects(&mut effects, &reviews.density);
         let source_reviews = SourceReviews::apply(reviews.sources, ctx.args, &mut analysis);
@@ -56,9 +58,9 @@ impl<'a> Consumers<'a> {
             compiler_advisory,
             pairs,
             analysis,
+            edit_coordination: coordinate(&edit_planning, &parameter_planning, &guard_planning),
             parameter_planning,
             guard_planning,
-            edit_coordination,
             dispatch,
             capabilities,
             edit_planning,

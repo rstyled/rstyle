@@ -91,18 +91,11 @@ fn dismiss(
         .iter()
         .find(|row| row.key.to_string() == *selector && row.selected)
         .ok_or("Selected saved-run owner is not a visible selected mutation finding")?;
-    let reason = ctx
-        .args
-        .review_reason
-        .as_deref()
-        .filter(|reason| !reason.trim().is_empty())
-        .ok_or("A dismissal requires a nonempty review reason")?;
-    mutation_rules::record_dismissal(
+    super::exact_rules::record_with_reason(
         &mut store.mutation_entries,
         &row.checked(rule_id)?,
-        reason.into(),
-    )
-    .map_err(|error| format!("{error:?}"))?;
+        ctx.args.review_reason.as_deref(),
+    )?;
     store.schema_version = store.schema_version.max(6);
     Ok(())
 }

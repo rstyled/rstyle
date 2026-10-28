@@ -24,6 +24,7 @@ that flag the core defaults apply; the workspace's `rstyle.toml` is not implicit
 loaded. `--fail-on-findings` includes advisory diagnostics. Incomplete coverage
 still exits 2, even if assessed functions have no findings. These findings do not
 yet participate in the newer saved review, changed-file or baseline workflows.
+Compiler proposals have their own explicit review workflow described below.
 The normal legacy style command remains available.
 
 Both the record and metric identities are versioned:
@@ -63,8 +64,8 @@ signature groups, candidates, definitions and counter-evidence. Paths are
 relative to that unit's `source_root` (absolute for outside sources). Text output also displays the core
 proposals. `--fail-on-findings` counts proposal candidates in addition to style
 diagnostics; signature groups alone do not fail the gate. No ignore ledger is
-loaded implicitly, and the newer review/baseline workflows do not apply to these
-proposals. Core candidate IDs retain their existing fingerprint convention and
+loaded implicitly. An explicit review file can hide exact reviewed proposals;
+the baseline workflows do not yet apply to them. Core candidate IDs retain their existing fingerprint convention and
 must not be treated as the newer compilation-context review identities.
 
 The separate `rstyle.compiler-pattern-graph/1` capture record keeps the original
@@ -87,6 +88,58 @@ incomplete coverage still exits 2. Check/test contexts remain separate, saved
 graphs replay without source files or a compiler, and strict matching does not
 consume these graphs.
 
-Cross-package propagation, broader project proposal quality and migration of
-review/baseline workflows remain follow-up work. No legacy capability is retired
-by this increment.
+Use `--review-file PATH` with compiler patterns to look up existing choices. Lookup
+does not create or modify the file. To record a reviewed finding, replay its exact
+saved run and select the numeric unit and candidate ID from that report:
+
+```sh
+cargo rstyle clones --extraction-profile hir-data-v3 \
+  --compiler-advisory --compiler-patterns --replay-run PATH_TO_RUN \
+  --review-file reviews.json --dismiss-compiler-pattern 0 CANDIDATE_ID \
+  --review-reason 'Why these sites should remain separate'
+```
+
+Only dismiss proposals after reviewing their sites, definitions and
+counter-evidence. The candidate ID is a selection handle; an ambiguous ID in a
+unit rejects the write. Persisted identity uses full observations, not that ID,
+the legacy shape fingerprint or a new hash. Schema-8 stores retain earlier
+review families and use the same single atomic publication. Reads and writes
+are bounded by the existing baseline artifact convention of 4 MiB; oversized or
+invalid stores and failed selectors leave the existing file untouched.
+
+The core proposer returns the prepared facts it actually used. With an explicit
+review file, only referenced site/definition owners are converted. Each site
+graph moves into one immutable shared owner, so overlapping proposals and the
+saved choice share graph buffers. Without a review file, this conversion does
+no work. Stable locators reuse core owner/trait names and the existing package,
+source and build-context adapter. Ambiguous locators and unresolved impl-number
+names remain unavailable. Signatures come from captured compiler observations;
+no source parsing, body proof or checksum is added.
+
+Exact snapshots retain proposal kind, actual clustering policy, ordered role
+rosters, full site graphs and definition signatures. Source lines are erased and
+known local callee IDs use stable locators, so function movement, parameter
+renaming and unrelated impl-block renumbering preserve reviews. Relevant graph,
+signature, membership, kind, policy or build changes make them visible again.
+Definitions are declaration observations: changing an opaque callee body alone
+does not invalidate the review. A site graph with opaque macro/closure nodes also
+retains its original function text, so hidden body edits cannot disappear behind
+an unchanged approximate graph. This conservative case may stale on harmless
+text edits. Graph equality is an advisory review contract, not semantic
+equivalence or rewrite permission.
+
+Raw `patterns.evaluation` remains intact. `patterns.visible_candidates` lists
+the visible zero-based raw candidate indices when reviews are requested, and
+`compiler_advisory.pattern_review` reports each decision. Finding exits and text
+use that visibility. Missing input or unavailable positive review identity keeps
+the result incomplete; hiding findings cannot turn incomplete analysis clean.
+Check/test contexts remain separate. Retained status reuses completed lookups
+instead of comparing the graphs again. `--review-status` accounts for every
+stored entry, including omitted families. Missing proposals remain unavailable:
+bounded heuristic discovery cannot establish a completed negative, so compiler
+proposal entries are never automatically pruned. Other review families retain
+their existing independently completed negative pruning rules.
+
+Cross-package propagation, broader project proposal quality, compiler-style
+diagnostic reviews and baseline migration remain follow-up work. No legacy
+capability is retired by this increment.

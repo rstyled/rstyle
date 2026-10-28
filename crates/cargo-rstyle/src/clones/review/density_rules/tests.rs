@@ -246,7 +246,14 @@ fn density_envelope_roundtrips_only_with_its_supported_schema() {
     let bytes = store.to_json().unwrap();
     assert_eq!(ReviewStore::from_json(&bytes).unwrap(), store);
     let mut wire: serde_json::Value = serde_json::from_str(&bytes).unwrap();
-    for unsupported in [6, 8] {
+    wire["schema_version"] = serde_json::json!(8);
+    assert_eq!(
+        ReviewStore::from_json(&wire.to_string())
+            .unwrap()
+            .density_entries,
+        store.density_entries
+    );
+    for unsupported in [6, 9] {
         wire["schema_version"] = serde_json::json!(unsupported);
         assert!(ReviewStore::from_json(&wire.to_string()).is_err());
     }

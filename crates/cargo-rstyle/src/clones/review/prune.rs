@@ -41,6 +41,7 @@ enum Ordinal {
     Spacing(usize),
     Mutation(usize),
     Density(usize),
+    CompilerPattern(usize),
 }
 
 pub(super) fn apply(
@@ -93,6 +94,15 @@ fn selection_plan(store: &ReviewStore, status: &status::Report) -> Result<Select
 
 fn retain_numeric(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
     retain_source_rules(store, states);
+    retain_effects_and_patterns(store, states);
+}
+
+fn retain_effects_and_patterns(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
+    retain(
+        &mut store.compiler_pattern_entries,
+        states,
+        Ordinal::CompilerPattern,
+    );
     retain(&mut store.mutation_entries, states, Ordinal::Mutation);
     retain(&mut store.density_entries, states, Ordinal::Density);
 }
@@ -183,6 +193,17 @@ fn validate_record(store: &ReviewStore, record: &status::Record) -> Result<Ordin
         }
         status::Family::SideEffectDensity => {
             validate_numeric_record(&store.density_entries, record, Ordinal::Density)
+        }
+        status::Family::CompilerPattern => {
+            let entry = store
+                .compiler_pattern_entries
+                .get(record.entry_index)
+                .ok_or_else(invalid_record)?;
+            validate_identity(record, &entry.reason, entry.finding.locators())?;
+            if record.state == status::State::NoFinding {
+                return Err("Bounded compiler proposal discovery does not establish negative review assessments".into());
+            }
+            Ok(Ordinal::CompilerPattern(record.entry_index))
         }
         _ => validate_source_record(store, record),
     }

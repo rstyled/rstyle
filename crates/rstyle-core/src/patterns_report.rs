@@ -66,14 +66,17 @@ pub fn build(groups: Vec<SigGroup>, min_score_milli: u32, top: Option<usize>) ->
 }
 
 /// Layers 1 and 2 over driver facts, before any display filter or the ignore ledger.
-fn mine_all(facts: Vec<FnFacts>, options: &Options) -> (Vec<SigGroup>, candidates::Mined) {
+fn mine_all(
+    facts: Vec<FnFacts>,
+    options: &Options,
+) -> (Vec<SigGroup>, candidates::Mined, Vec<FnFacts>) {
     // Lib and test targets compile the same functions: dedupe like the style path does.
     let facts = crate::facts::merge(facts);
     let prepared = prep::hide_implements(prep::prepare_owned(facts), &options.hide_implements);
     let groups = sigmine::mine(&prepared);
     let mined = candidates::mine(&prepared, &groups, &options.params);
 
-    (groups, mined)
+    (groups, mined, prepared)
 }
 
 /// Every candidate, unfiltered: what `ignore` resolves ids against and `--prune` compares to.
@@ -101,7 +104,15 @@ pub fn run(facts: &[FnFacts], options: &Options) -> PatternsReport {
 
 /// Full proposal policy over owned compiler facts, preserving buffers through preparation.
 pub fn run_owned(facts: Vec<FnFacts>, options: &Options) -> PatternsReport {
-    let (groups, mined) = mine_all(facts, options);
+    run_owned_and_retain(facts, options).0
+}
+
+/// Return the exact prepared observations used for proposals without mining or copying again.
+pub fn run_owned_and_retain(
+    facts: Vec<FnFacts>,
+    options: &Options,
+) -> (PatternsReport, Vec<FnFacts>) {
+    let (groups, mined, prepared) = mine_all(facts, options);
     let ledger = options.ledger.clone().unwrap_or_default();
     let applied = ledger::apply(&ledger, mined.candidates);
     let candidates = applied
@@ -116,13 +127,14 @@ pub fn run_owned(facts: Vec<FnFacts>, options: &Options) -> PatternsReport {
         .map(|h| ignored_entry(&ledger, h))
         .collect();
 
-    PatternsReport {
+    let report = PatternsReport {
         candidates,
         suppressed: mined.suppressed,
         ignored_count: ignored.len(),
         ignored,
         ..build(groups, options.min_score_milli, options.top)
-    }
+    };
+    (report, prepared)
 }
 
 fn site(m: &Member) -> String {
@@ -205,6 +217,11 @@ fn section(title: String, body: Vec<String>) -> String {
 }
 
 pub fn text(report: &PatternsReport) -> String {
+    text_selected(report, |_| true)
+}
+
+/// Present review visibility without copying the report or its candidate values.
+pub fn text_selected(report: &PatternsReport, visible: impl Fn(usize) -> bool) -> String {
     let groups = section(
         format!("{} signature groups", report.signature_groups.len()),
         report.signature_groups.iter().map(group_text).collect(),
@@ -213,6 +230,7 @@ pub fn text(report: &PatternsReport) -> String {
         .candidates
         .iter()
         .enumerate()
+        .filter(|(i, _)| visible(*i))
         .map(|(i, c)| candidate_text(i, c))
         .collect();
     let mut parts = vec![
@@ -343,6 +361,36 @@ mod tests {
         assert_eq!(reviewed.ignored_count, 1);
         assert_eq!(reviewed.ignored[0].id, baseline.candidates[0].id);
         assert!(reviewed.candidates.is_empty());
+    }
+
+    #[test]
+    fn retained_pipeline_returns_original_graph_buffers_and_the_same_proposals() {
+        let facts = corpus();
+        let buffers: std::collections::BTreeMap<_, _> = facts
+            .iter()
+            .map(|facts| {
+                let graph = facts
+                    .pdg
+                    .as_ref()
+                    .map(|graph| (graph.nodes.as_ptr(), graph.edges.as_ptr()));
+                (facts.id.clone(), (facts.source.as_ptr(), graph))
+            })
+            .collect();
+        let (report, prepared) = run_owned_and_retain(facts, &Options::default());
+        assert_eq!(report, run(&corpus(), &Options::default()));
+        assert_eq!(prepared.len(), buffers.len());
+        for facts in &prepared {
+            assert_eq!(
+                buffers[&facts.id],
+                (
+                    facts.source.as_ptr(),
+                    facts
+                        .pdg
+                        .as_ref()
+                        .map(|graph| (graph.nodes.as_ptr(), graph.edges.as_ptr()))
+                )
+            );
+        }
     }
 
     #[test]

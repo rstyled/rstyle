@@ -125,7 +125,7 @@ pub(super) fn versions(detector: &str) -> Versions {
     }
 }
 
-struct Identity<'a> {
+pub(super) struct Identity<'a> {
     facts: &'a HirFnFacts,
     unit: &'a capture::Unit,
     package: Package,
@@ -133,7 +133,7 @@ struct Identity<'a> {
 }
 
 impl<'a> Identity<'a> {
-    fn new(
+    pub(super) fn new(
         facts: &'a HirFnFacts,
         unit: &'a capture::Unit,
         plan: &capture::Plan,
@@ -178,14 +178,18 @@ impl<'a> Identity<'a> {
 
     fn declaration(&self, declaration: dispatch::review::Declaration) -> local::Declaration {
         local::Declaration {
-            locator: Locator {
-                package: self.package.clone(),
-                source: self.source.clone(),
-                qualified_name: declaration.qualified_name,
-                declaration_kind: declaration.kind.into(),
-                discriminator: "unique-declaration".into(),
-            },
+            locator: self.locator(declaration.qualified_name, declaration.kind),
             source: declaration.source,
+        }
+    }
+
+    pub(super) fn locator(&self, qualified_name: String, kind: &str) -> Locator {
+        Locator {
+            package: self.package.clone(),
+            source: self.source.clone(),
+            qualified_name,
+            declaration_kind: kind.into(),
+            discriminator: "unique-declaration".into(),
         }
     }
 

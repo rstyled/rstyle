@@ -2444,3 +2444,69 @@ or review ledger changed. Full gate logs are
 `/tmp/clones-borrowed-graphs-{tests,clippy,style,patterns,patterns-unfiltered}-1`.
 Review/baseline integration, broader quality and the other recorded retirement
 gaps remain the next ready work; the full goal remains incomplete.
+
+## C18: reuse saved reviews for compiler proposals
+
+The lead owns the compiler proposal/review adapter, its core ownership seam,
+shared artifact codec and dismissal helper, acceptance tests and documentation.
+An explicit `--review-file` now looks up compiler proposal choices through the
+existing exact-review rules, outcome/summary model and single atomic workflow.
+Schema 8 preserves the earlier families. Recording a choice requires an explicit
+saved-run unit/candidate selector and reason; ambiguous selectors reject. IDs
+select findings but never authorize persisted equality. No project review or
+ignore ledger was changed.
+
+Core returns the exact prepared facts used by its proposer. Referenced site
+graphs move into shared immutable owners, and saved entries share those buffers.
+Without a review file, review conversion does no work; empty proposal sets also
+return immediately. Retained status reuses completed lookups rather than
+comparing graphs again. Full graph, signature, membership, kind, policy and build
+context equality controls visibility, without a new hash, source parse or body
+proof. Stable local callee locators reuse existing owner names; ambiguous names
+remain unavailable. Definition signatures are retained independently of their
+bodies. Opaque macro/closure sites also retain their captured text, so hidden
+edits cannot be lost behind the approximate graph; harmless text edits can
+conservatively stale such reviews.
+
+Raw core reports and strict matching remain unchanged. JSON carries separate
+visible candidate indices and review decisions; text and finding exits apply
+those decisions. Missing input or unavailable positive review identity retains
+incompleteness. Bounded proposal discovery cannot prove absence, so missing
+proposals remain unavailable and compiler proposal entries are never
+pruned automatically. Existing independently completed negative rules for other
+families remain intact. Review stores reuse the existing bounded artifact codec
+and 4 MiB convention, with failed selectors and oversized writes preserving the
+existing bytes. Mutation and density dismissals now share the same reason and
+recording helper instead of repeating that policy.
+
+Acceptance cases cover all five core proposal families, layout/binder stability,
+impl renumbering and definition-body edits, source-free replay, changed graphs,
+check/test isolation, failed writes, omitted families and missing-proposal prune
+protection. Model cases cover shared buffer ownership, complete graph/policy
+fields, relevant snapshot changes, ambiguous locators and artifact limits.
+Compiler-style review/baseline migration, project proposal quality, cross-package
+propagation and the other capability retirement gates remain open.
+
+The full suite passes all 3,232 nextest tests in 203.905 seconds (five existing
+skips), followed by workspace doc tests. Both original NonZero regressions and
+u32 widening composition pass. All-target workspace Clippy with warnings denied
+also passes. The initial full run caught an older density schema test that still
+rejected schema 8; it now verifies schema-8 compatibility and rejects future
+schema 9, and the complete corrected suite passes. Evidence is
+`/tmp/clones-compiler-reviews-tests-final-2` and
+`/tmp/clones-compiler-reviews-clippy-final-3`.
+Legacy style remains zero across 9,574 functions; reviewed patterns remains zero.
+No thresholds, budgets or ignore entries were changed. Final evidence is
+`/tmp/clones-compiler-reviews-style-final-2` and
+`/tmp/clones-compiler-reviews-patterns-final-4`.
+Unfiltered discovery retains exactly the prior fifteen candidate IDs, with
+results in `/tmp/clones-compiler-reviews-patterns-unfiltered-final-1`.
+
+Read-only replay of the retained rstyle-ccgraph capture takes 2.12 seconds and
+201,248 KiB maximum RSS. Its sole proposal is visible-new, with no file created
+or project dismissal made. Raw proposal/style reports and all four accepted
+strict pairs are exactly unchanged. Existing generated/unresolved inputs retain
+exit 2 and incomplete coverage. This is a replay observation, not a speedup or
+proposal-quality claim; reproduction and evidence are in the project study and
+`/tmp/clones-compiler-reviews-project-1`. Formatting and diff checks pass. Full
+capability migration remains incomplete.

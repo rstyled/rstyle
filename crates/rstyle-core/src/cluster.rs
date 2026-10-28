@@ -15,11 +15,13 @@ const BLOCK_KEYS: usize = 2;
 /// classes unique to each function when the corpus is tiny, so parallel functions never meet.
 const ALL_PAIRS_LIMIT: usize = 400;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Params {
     pub threshold_milli: u32,
     pub min_coverage_milli: u32,
     /// Experiment: also select pairs whose alignment coverage reaches this (besides WL similarity).
+    #[serde(deserialize_with = "serde::Deserialize::deserialize")]
     pub pair_coverage_milli: Option<u32>,
     /// Canonicalization rules applied to every graph before hashing and aligning (default: none).
     pub normalize: Rules,

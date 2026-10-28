@@ -367,7 +367,7 @@ It reuses `ExprUseVisitor`, core propagation, fix groups and parameter stacking;
 strict clone admission is not required. Captured observations support source-free
 `--replay-run` and policy reevaluation. These metric versions differ from strict
 mutation-effect metrics; zero policy density is not a purity proof. Saved reviews,
-changed-file filters and baselines do not yet apply to this advisory field.
+changed-file filters and baselines do not yet apply to compiler style diagnostics.
 See [compiler advisory](../../docs/clones-compiler-advisory.md).
 
 Add `--compiler-patterns` to reuse existing compiler graphs and the core
@@ -377,8 +377,20 @@ report includes actual default clustering policy, input coverage and existing
 core proposals/counter-evidence. Explicit core path exclusions apply before
 mining. `--fail-on-findings` includes candidates; incomplete inputs still exit 2.
 Graphs and proposals remain advisory, independent of strict matching. No ignore
-ledger is implicitly loaded, and newer reviews/baselines do not apply to this
-field. Keep legacy patterns until its retirement gates pass.
+ledger is implicitly loaded. Keep legacy patterns until its retirement gates pass.
 Default core clustering borrows captured graphs without copying their contents;
 enabled normalization retains owned rewrites. No extra hashing or source proof
 is required for that reuse.
+
+Compiler proposals accept `--review-file PATH` for read-only exact lookup. Only
+after the user agrees a finding should remain separate, replay its explicit run
+and pass `--dismiss-compiler-pattern UNIT CANDIDATE_ID --review-reason REASON`.
+The numeric unit and ID come from that saved report; IDs are selection handles,
+not persistent equality authority. Full captured graph/signature/role/policy and
+build-context equality hides reviewed proposals. Site graphs are shared without
+cloning, hashes or repeated body proofs. Schema 8 preserves earlier reviews and
+uses the shared atomic publication; stores have a 4 MiB limit. Raw proposals stay
+visible in JSON with separate review decisions and visible candidate indices.
+`--review-status` includes retained compiler proposals. Missing proposals remain
+unavailable because bounded discovery cannot prove absence; these entries are
+never automatically pruned. Baselines do not yet cover compiler proposals.

@@ -154,6 +154,18 @@ pub(super) fn validate_entries<S: ReviewSnapshot>(entries: &[Entry<S>]) -> Resul
     Ok(())
 }
 
+/// Apply the shared reason contract after a consumer selects its live finding.
+pub(super) fn record_with_reason<S: ReviewSnapshot>(
+    entries: &mut Vec<Entry<S>>,
+    current: &LiveFinding<'_, S>,
+    reason: Option<&str>,
+) -> Result<(), String> {
+    let reason = reason
+        .filter(|reason| !reason.trim().is_empty())
+        .ok_or("A dismissal requires a nonempty review reason")?;
+    record_dismissal(entries, current, reason.into()).map_err(|error| format!("{error:?}"))
+}
+
 pub(super) fn record_dismissal<S: ReviewSnapshot>(
     entries: &mut Vec<Entry<S>>,
     current: &LiveFinding<'_, S>,

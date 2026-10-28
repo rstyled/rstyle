@@ -15,6 +15,7 @@ pub(in crate::clones) enum Family {
     MutationPerTarget,
     MutatedTargets,
     SideEffectDensity,
+    CompilerPattern,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]

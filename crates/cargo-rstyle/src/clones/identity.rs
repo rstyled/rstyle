@@ -10,6 +10,12 @@ pub(super) const SCHEMA: &str = "rstyle.report-function/2";
 #[serde(transparent)]
 pub(super) struct UnitId(u32);
 
+impl UnitId {
+    pub(super) fn ordinal(self) -> u32 {
+        self.0
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct FunctionKey {
     unit: UnitId,

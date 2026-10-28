@@ -13,7 +13,8 @@ use std::borrow::Cow;
 use std::collections::BTreeSet;
 
 /// Which rules run. Explicit value, no globals: callers pass it down.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Rules {
     /// R1: value construction collapses into one `Ctor` node.
     pub ctor: bool,
