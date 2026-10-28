@@ -1,0 +1,9 @@
+# Deliberate study thresholds, separate from the repository's style gate.
+exclude = []
+[fn_length]
+max_lines = 10
+[fn_params]
+max_params = 1
+count_self = false
+[fn_spacing]
+min_statements = 5

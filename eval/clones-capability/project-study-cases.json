@@ -1,0 +1,55 @@
+{
+  "schema": "rstyle.clones-capability.project-study-cases/1",
+  "package": "rstyle-ccgraph",
+  "target": "lib",
+  "features": [],
+  "source_policy": {
+    "max_lines": 10,
+    "max_params": 1,
+    "count_self": false,
+    "min_statements": 5,
+    "exclude": []
+  },
+  "samples": [
+    {
+      "function": "frac::as_i128",
+      "source_file": "crates/rstyle-ccgraph/src/frac.rs",
+      "expected": {
+        "fn_length": {"actual": 5, "limit": 10, "outcome": "evaluated-no-finding"},
+        "fn_params": {"actual": 1, "limit": 1, "outcome": "evaluated-no-finding"},
+        "fn_spacing": {"actual": 1, "limit": 4, "outcome": "evaluated-no-finding"}
+      },
+      "reason": "Independent source count: five code-bearing lines from signature through closing brace, excluding the doc comment; one value parameter; one direct tail expression. The map_err closure and its initializer lines do not add direct statements. No blank line is needed below five direct statements."
+    },
+    {
+      "function": "frac::gcd",
+      "source_file": "crates/rstyle-ccgraph/src/frac.rs",
+      "expected": {
+        "fn_length": {"actual": 6, "limit": 10, "outcome": "evaluated-no-finding"},
+        "fn_params": {"actual": 2, "limit": 1, "outcome": "finding"},
+        "fn_spacing": {"actual": 2, "limit": 4, "outcome": "evaluated-no-finding"}
+      },
+      "reason": "Independent source count: six code-bearing lines including signature and closing brace; two parameters a and b, whose mut bindings do not change their count. The direct while loop and final if expression are two statements; the loop assignment is nested. There is no internal blank line, but two direct statements are below the spacing threshold."
+    },
+    {
+      "function": "frac::split_decimal",
+      "source_file": "crates/rstyle-ccgraph/src/frac.rs",
+      "expected": {
+        "fn_length": {"actual": 20, "limit": 10, "outcome": "finding"},
+        "fn_params": {"actual": 1, "limit": 1, "outcome": "evaluated-no-finding"},
+        "fn_spacing": {"actual": 7, "limit": 4, "outcome": "evaluated-no-finding"}
+      },
+      "reason": "Independent source count: twenty code-bearing lines, including signature and closing brace, with two internal blank lines excluded. There is one text parameter. Seven direct statements are the bad initializer, head/tail initializer, three guard if expressions, scale initializer, and final Ok expression; nested match arms, closures, and returns do not add direct statements. Blank lines before scale and before Ok satisfy spacing despite seven exceeding the threshold limit four."
+    },
+    {
+      "function": "frac::pow10",
+      "source_file": "crates/rstyle-ccgraph/src/frac.rs",
+      "expected": {
+        "fn_length": {"actual": 9, "limit": 10, "outcome": "evaluated-no-finding"},
+        "fn_params": {"actual": 1, "limit": 1, "outcome": "evaluated-no-finding"},
+        "fn_spacing": {"actual": 3, "limit": 4, "outcome": "evaluated-no-finding"}
+      },
+      "reason": "Independent source count: nine code-bearing lines including signature and closing brace; one scale parameter. Three direct statements are the out initializer, for loop, and final Ok expression. The checked multiplication assignment and ArithError initializer are nested in the loop and do not add direct statements. The function has no blank line and remains below five direct statements."
+    }
+  ]
+}

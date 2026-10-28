@@ -280,3 +280,7 @@ missing/duplicated owners, and unexpectedly unavailable completed cases. Thus
 successful acceptance does not claim complete project coverage or legacy
 retirement. Excluded policy rows have their own denominator, and raw source
 measurements are checked even when suppression/exclusion hides a finding.
+
+The [bounded project study](project-study.md) separately measures actual
+`rstyle-ccgraph` coverage with explicit policies and independent source samples.
+Its incomplete source/density results do not establish legacy retirement.

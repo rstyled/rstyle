@@ -1,0 +1,6 @@
+# Fixed two-edge consumer, with no size exemption hiding unsupported evidence.
+exclude = []
+[side_effects]
+max_density_milli = 500
+min_statements = 0
+min_lines = 0
