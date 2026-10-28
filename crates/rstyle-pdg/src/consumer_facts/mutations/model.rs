@@ -100,3 +100,35 @@ impl Assessment {
         });
     }
 }
+
+/// Optional call observations; direct mutation evidence keeps its original contract.
+#[derive(Debug)]
+pub struct Observations {
+    pub direct: Assessment,
+    pub calls: Vec<Call>,
+    pub signature: Availability<()>,
+}
+
+#[derive(Debug)]
+pub struct Call {
+    pub span: ByteSpan,
+    pub native: HirRef,
+    /// Exact index of this call's retained boundary in `Observations::direct`.
+    pub boundary_index: usize,
+    pub target: Availability<String>,
+    /// Checked native path, retained only for selected callee contradiction checks.
+    pub target_path: Option<String>,
+    pub arguments: Vec<Argument>,
+}
+
+#[derive(Debug)]
+pub struct Argument {
+    pub span: ByteSpan,
+    pub value: Availability<ArgumentValue>,
+}
+
+#[derive(Debug)]
+pub enum ArgumentValue {
+    OwnedU32,
+    MutableFormal(Root),
+}

@@ -46,6 +46,7 @@ pub struct Report<'a> {
     pub review: super::review::workflow::Report,
     pub edit_planning: super::planning::Report,
     pub mutation_analysis: super::analysis::mutation_reports::Report<'a>,
+    pub mutation_effects: super::analysis::effect_reports::Report<'a>,
     pub enum_dispatch: super::analysis::dispatch_reports::Report<'a>,
     #[serde(flatten)]
     pub pair_reports: super::analysis::pair_reports::Reports<'a>,
@@ -142,6 +143,7 @@ pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
         analysis: ctx.local_analysis(),
         enum_dispatch: ctx.dispatch_report()?,
         mutation_analysis: ctx.mutation_report()?,
+        mutation_effects: ctx.effect_report()?,
         report_detail: ctx.args.report_detail,
         verification_policy: ctx.verification_policy(),
         scope,
@@ -181,6 +183,10 @@ pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
 }
 
 impl<'a> Context<'a> {
+    fn effect_report(&self) -> Result<super::analysis::effect_reports::Report<'a>, String> {
+        super::analysis::effect_reports::evaluate(self.handoff, self.capture, self.args)
+    }
+
     fn verification_policy(&self) -> &'static str {
         if self.args.replay_run.is_some() {
             "strict-replay"
@@ -274,12 +280,13 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         .collect::<String>();
 
     format!(
-        "{summary}{pairs}{}{}{}{}{}{}",
+        "{summary}{pairs}{}{}{}{}{}{}{}",
         report.analysis.render(),
         report.pair_reports.render(),
         report.review.render(),
         report.enum_dispatch.render(),
         report.mutation_analysis.render(),
+        report.mutation_effects.render(),
         report.edit_planning.render()
     )
 }

@@ -1,5 +1,6 @@
 //! Opt-in local consumers with evidence, execution and scope reported separately.
 pub(super) mod dispatch_reports;
+pub(super) mod effect_reports;
 mod guards;
 pub(super) mod helper_reports;
 mod helpers;

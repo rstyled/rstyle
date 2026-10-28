@@ -26,7 +26,7 @@ use std::{
 };
 
 #[derive(ClapArgs, Serialize)]
-#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "mutation_rules"]).multiple(true)),
+#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "mutation_rules", "mutation_effects"]).multiple(true)),
     group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "mutation_rules"]).multiple(true)))]
 pub struct Args {
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
@@ -71,6 +71,9 @@ pub struct Args {
     /// Evaluate direct scalar assignment budgets with explicit unknown remainder.
     #[arg(long)]
     mutation_rules: bool,
+    /// Summarize caller-visible scalar mutation through original same-unit leaf helpers.
+    #[arg(long)]
+    mutation_effects: bool,
     /// TOML mutation_budget policy; root granularity only.
     #[arg(long, requires = "mutation_rules")]
     mutation_config: Option<PathBuf>,
@@ -352,6 +355,7 @@ fn analyses_complete(report: &report::Report<'_>) -> bool {
     report.analysis.permits_success()
         && report.enum_dispatch.permits_success()
         && report.mutation_analysis.permits_success()
+        && report.mutation_effects.permits_success()
         && report.edit_planning.permits_success()
         && report.pair_reports.permits_success()
         && report.review.permits_success()

@@ -1,6 +1,57 @@
 use super::*;
 use crate::{ParamFact, SourceText};
 
+#[test]
+fn formal_reference_observations_require_native_identity_and_survive_transport() {
+    let mut facts = facts("fn forward(target: &mut u32) {}");
+    let binding = facts.signature.params[0].pat.hir.clone();
+    // The rendered name alone cannot distinguish a builtin from a namesake.
+    facts.signature.params[0].ty.observed = "&mut u32".into();
+    assert!(!formal_types::mutable_u32(&facts, 0, &binding).unwrap());
+    facts.build.frontend_options.insert(
+        formal_types::KEY.into(),
+        serde_json::json!({
+            "identity": formal_types::IDENTITY,
+            "mutable_u32": [{"parameter": 0, "binding": binding}]
+        }),
+    );
+    let restored: HirFnFacts =
+        serde_json::from_slice(&serde_json::to_vec(&facts).unwrap()).unwrap();
+    assert!(formal_types::mutable_u32(&restored, 0, &binding).unwrap());
+    assert!(!formal_types::mutable_u32(&restored, 1, &binding).unwrap());
+    facts.signature.params[0].pat.hir.local += 1;
+    assert!(formal_types::mutable_u32(&facts, 0, &binding).is_err());
+}
+
+#[test]
+fn formal_reference_observations_reject_duplicate_missing_and_unknown_records() {
+    let mut facts = facts("fn forward(target: &mut u32) {}");
+    let binding = facts.signature.params[0].pat.hir.clone();
+    let entry = serde_json::json!({"parameter": 0, "binding": binding});
+    for entries in [
+        serde_json::json!([entry, entry]),
+        serde_json::json!([{"parameter": 1, "binding": binding}]),
+    ] {
+        facts.build.frontend_options.insert(
+            formal_types::KEY.into(),
+            serde_json::json!({
+                "identity": formal_types::IDENTITY, "mutable_u32": entries
+            }),
+        );
+        assert!(formal_types::mutable_u32(&facts, 0, &binding).is_err());
+    }
+    for value in [
+        serde_json::json!({"identity": "other/1", "mutable_u32": [entry]}),
+        serde_json::json!({"identity": formal_types::IDENTITY, "mutable_u32": [entry], "trusted": true}),
+    ] {
+        facts
+            .build
+            .frontend_options
+            .insert(formal_types::KEY.into(), value);
+        assert!(formal_types::mutable_u32(&facts, 0, &binding).is_err());
+    }
+}
+
 fn facts(source: &str) -> HirFnFacts {
     let mut facts: HirFnFacts = serde_json::from_str(include_str!(
         "../nominal_boundary/resolution/selected/function_cleanup_tests/facts.json"

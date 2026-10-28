@@ -1,0 +1,448 @@
+use super::*;
+use crate::{ByteSpan, HirNode, HirRef};
+use std::sync::Arc;
+use syn::spanned::Spanned;
+
+fn span(source: &str, syntax: &impl Spanned) -> ByteSpan {
+    crate::source_evidence::original_span(source, syntax.span())
+}
+
+struct NodeShape {
+    kind: &'static str,
+    token: Option<&'static str>,
+}
+
+fn node(source: &str, shape: NodeShape, span: ByteSpan, local: u32) -> HirNode {
+    HirNode {
+        hir: HirRef {
+            krate: 0,
+            owner: 1,
+            local,
+        },
+        kind: shape.kind.into(),
+        span,
+        snippet: crate::source_evidence::byte_range(source, span)
+            .unwrap()
+            .into(),
+        ty: Some(crate::ResolvedTy {
+            normalized: shape.token.map(str::to_owned),
+            observed: String::new(),
+            spelling: String::new(),
+        }),
+        res: None,
+        dispatch: None,
+        expansion: None,
+        binding: None,
+        binding_mut: None,
+        lit: None,
+        param_index: None,
+        is_unsafe_block: false,
+        children: vec![],
+    }
+}
+
+struct Fixture<'a> {
+    source: &'a str,
+    facts: HirFnFacts,
+}
+
+impl<'a> Fixture<'a> {
+    fn new(source: &'a str) -> Self {
+        let mut facts: HirFnFacts = serde_json::from_str(include_str!(
+            "../../nominal_boundary/resolution/selected/function_cleanup_tests/facts.json"
+        ))
+        .unwrap();
+        facts.source.bytes = source.into();
+        facts.source.digest = facts.source.bytes.checksum().into();
+        facts.fn_span = ByteSpan {
+            start: 0,
+            end: source.len() as u32,
+        };
+        facts.source_diagnostics.clear();
+        facts.bindings.clear();
+        facts.signature.params.clear();
+
+        Self { source, facts }
+    }
+
+    fn signature(&mut self, function: &syn::ItemFn) -> Vec<super::super::formal_types::Formal> {
+        self.facts.signature.sig_span = super::super::header_span(self.source, function);
+        self.facts.signature.has_self = false;
+        self.facts.signature.receiver = None;
+        self.facts.signature.is_variadic = false;
+        self.facts.signature.return_ty.normalized = Some("unit".into());
+
+        function
+            .sig
+            .inputs
+            .iter()
+            .enumerate()
+            .filter_map(|(ordinal, argument)| self.formal(ordinal, argument))
+            .collect()
+    }
+
+    fn formal(
+        &mut self,
+        ordinal: usize,
+        syntax: &syn::FnArg,
+    ) -> Option<super::super::formal_types::Formal> {
+        let syn::FnArg::Typed(argument) = syntax else {
+            unreachable!()
+        };
+        let syn::Pat::Ident(ident) = &*argument.pat else {
+            unreachable!()
+        };
+        let scalar = crate::source_evidence::plain_type_path(&argument.ty, "u32").then_some("u32");
+        let declaration = span(self.source, &ident.ident);
+        let mut pattern = node(
+            self.source,
+            NodeShape {
+                kind: "pat_binding",
+                token: scalar,
+            },
+            declaration,
+            ordinal as u32 + 1,
+        );
+        pattern.param_index = Some(ordinal as u32);
+        pattern.binding = Some(format!("s:{ordinal}"));
+        pattern.binding_mut = Some(ident.mutability.is_some());
+
+        self.facts.bindings.push(crate::BindingFact {
+            symbol: format!("s:{ordinal}"),
+            name: ident.ident.to_string(),
+            decl_span: declaration,
+            scope: format!("scope:source:fn:0:{}", self.source.len()),
+            hir: pattern.hir.clone(),
+            is_param: true,
+            is_mut: ident.mutability.is_some(),
+            ty: pattern.ty.clone().unwrap(),
+        });
+        self.facts.signature.params.push(crate::ParamFact {
+            symbol: format!("s:{ordinal}"),
+            position: ordinal as u32,
+            name_span: declaration,
+            ty_span: span(self.source, &argument.ty),
+            ty: pattern.ty.clone().unwrap(),
+            pat: pattern.clone(),
+        });
+
+        matches!(&*argument.ty, syn::Type::Reference(_)).then_some(
+            super::super::formal_types::Formal {
+                parameter: ordinal as u32,
+                binding: pattern.hir,
+            },
+        )
+    }
+
+    fn body(&mut self, function: &syn::ItemFn) {
+        let mut body = node(
+            self.source,
+            NodeShape {
+                kind: "expr_block",
+                token: Some("unit"),
+            },
+            span(self.source, &function.block),
+            1000,
+        );
+        body.children = function
+            .block
+            .stmts
+            .iter()
+            .enumerate()
+            .filter_map(|(ordinal, statement)| {
+                let syn::Stmt::Expr(syn::Expr::Call(call), _) = statement else {
+                    return None;
+                };
+                Some(self.call(ordinal, call))
+            })
+            .collect();
+
+        self.facts.body = body;
+    }
+
+    fn call(&self, ordinal: usize, call: &syn::ExprCall) -> HirNode {
+        let mut captured = node(
+            self.source,
+            NodeShape {
+                kind: "expr_call",
+                token: Some("unit"),
+            },
+            span(self.source, call),
+            100 + ordinal as u32 * 10,
+        );
+        captured.children = call
+            .args
+            .iter()
+            .enumerate()
+            .map(|(position, argument)| {
+                self.argument(argument, 101 + ordinal as u32 * 10 + position as u32)
+            })
+            .collect();
+        captured.dispatch = Some(crate::Dispatch {
+            kind: "resolved_direct".into(),
+            op: "sample::leaf".into(),
+            operand_tys: captured
+                .children
+                .iter()
+                .map(|node| {
+                    node.ty
+                        .as_ref()
+                        .unwrap()
+                        .normalized
+                        .clone()
+                        .unwrap_or("&mut u32".into())
+                })
+                .collect(),
+            result_ty: "unit".into(),
+        });
+        captured.res = Some(crate::PathRes {
+            kind: "resolved_direct_callee".into(), target: None,
+            description: serde_json::json!({"local":true,"path":"sample::leaf","crate":"sample","definition_identity":"leaf-id"}).to_string(),
+        });
+
+        captured
+    }
+
+    fn argument(&self, argument: &syn::Expr, local: u32) -> HirNode {
+        let mut captured = node(
+            self.source,
+            NodeShape {
+                kind: "expr_path",
+                token: None,
+            },
+            span(self.source, argument),
+            local,
+        );
+        if let syn::Expr::Path(path) = argument {
+            let name = path.path.get_ident().unwrap().to_string();
+            if let Some(binding) = self
+                .facts
+                .bindings
+                .iter()
+                .find(|binding| binding.name == name)
+            {
+                captured.ty = Some(binding.ty.clone());
+                captured.res = Some(crate::PathRes {
+                    kind: "local".into(),
+                    target: Some(binding.hir.clone()),
+                    description: String::new(),
+                });
+            }
+        }
+
+        captured
+    }
+}
+
+fn fixture(source: &str) -> HirFnFacts {
+    let function: syn::ItemFn = syn::parse_str(source).unwrap();
+    let mut fixture = Fixture::new(source);
+    let formals = fixture.signature(&function);
+    fixture.body(&function);
+    ownership(&mut fixture.facts, source);
+    fixture.facts.build.frontend_options.insert(
+        super::super::formal_types::KEY.into(),
+        serde_json::to_value(super::super::formal_types::Observations {
+            identity: super::super::formal_types::IDENTITY.into(),
+            mutable_u32: formals,
+        })
+        .unwrap(),
+    );
+
+    fixture.facts
+}
+
+fn ownership(facts: &mut HirFnFacts, source: &str) {
+    facts.build.frontend_options = Default::default();
+    let mut context = crate::nominal_boundary::tests::context();
+    context.package.manifest_digest = context.package.manifest_bytes.checksum().into();
+    let path = context.root_source.clone();
+    facts.build.frontend_options.insert(
+        crate::nominal_boundary::CONTEXT_KEY.into(),
+        serde_json::to_value(&context).unwrap(),
+    );
+    facts
+        .build
+        .frontend_options
+        .insert("source_file".into(), serde_json::json!(path));
+    facts
+        .build
+        .frontend_options
+        .insert_data(Arc::new(crate::nominal_boundary::census::Census {
+            identity: crate::nominal_boundary::census::IDENTITY.into(),
+            context,
+            files: vec![crate::nominal_boundary::census::UnitFile {
+                path,
+                bytes: source.into(),
+                digest: facts.source.digest.clone(),
+            }],
+            expansions: vec![],
+            documentation: vec![],
+            external_imports: vec![],
+        }));
+}
+
+#[test]
+fn direct_call_keeps_boundary_and_exact_mutable_formal_argument() {
+    let facts = fixture("pub fn caller(target:&mut u32) { leaf(target); }");
+    let observed = inspect_calls(&facts).unwrap();
+    assert!(matches!(observed.signature, Availability::Known(())));
+    assert_eq!(observed.calls.len(), 1);
+    assert_eq!(
+        observed.calls[0].target_path.as_deref(),
+        Some("sample::leaf")
+    );
+    let call = &observed.calls[0];
+    assert_eq!(
+        observed.direct.boundaries[call.boundary_index].span,
+        call.span
+    );
+    assert!(matches!(&call.target,Availability::Known(target) if target=="leaf-id"));
+    assert!(
+        matches!(&call.arguments[0].value,Availability::Known(ArgumentValue::MutableFormal(root)) if root.formal==Some(0) && root.native==facts.signature.params[0].pat.hir)
+    );
+    assert_eq!(observed.direct.sites.len(), 0);
+    assert_eq!(
+        serde_json::to_value(inspect(&facts).unwrap()).unwrap(),
+        serde_json::to_value(observed.direct).unwrap()
+    );
+}
+
+#[test]
+fn repeated_calls_preserve_distinct_boundaries_and_roots() {
+    let facts = fixture("pub fn caller(target:&mut u32) { leaf(target); leaf(target); }");
+    let observed = inspect_calls(&facts).unwrap();
+    assert_eq!(observed.calls.len(), 2);
+    assert_ne!(observed.calls[0].span, observed.calls[1].span);
+    assert_ne!(
+        observed.calls[0].boundary_index,
+        observed.calls[1].boundary_index
+    );
+}
+
+#[test]
+fn resealed_argument_target_roster_dispatch_and_formals_fail() {
+    let original = fixture("pub fn caller(left:&mut u32,right:&mut u32) { leaf(left,right); }");
+    let mut changed = original.clone();
+    changed.body.children[0].children[0]
+        .res
+        .as_mut()
+        .unwrap()
+        .target = Some(changed.signature.params[1].pat.hir.clone());
+    assert!(inspect_calls(&changed).is_err());
+    let mut changed = original.clone();
+    changed.body.children[0].children.swap(0, 1);
+    assert!(inspect_calls(&changed).is_err());
+    let mut changed = original.clone();
+    changed.body.children[0]
+        .dispatch
+        .as_mut()
+        .unwrap()
+        .operand_tys
+        .pop();
+    assert!(inspect_calls(&changed).is_err());
+    let mut changed = original;
+    changed.signature.params[0].position = 1;
+    assert!(inspect_calls(&changed).is_err());
+}
+
+#[test]
+fn absent_reference_observation_and_unsupported_signature_stay_unavailable() {
+    let mut facts = fixture("pub fn caller(target:&mut u32,callback:fn()) { leaf(target); }");
+    let observed = inspect_calls(&facts).unwrap();
+    assert!(matches!(
+        observed.signature,
+        Availability::Unsupported { .. }
+    ));
+    assert!(matches!(
+        observed.calls[0].arguments[0].value,
+        Availability::Known(ArgumentValue::MutableFormal(_))
+    ));
+    facts
+        .build
+        .frontend_options
+        .remove(super::super::formal_types::KEY);
+    let observed = inspect_calls(&facts).unwrap();
+    assert!(matches!(
+        observed.calls[0].arguments[0].value,
+        Availability::Unknown { .. }
+    ));
+}
+
+#[test]
+fn complex_argument_retains_opaque_evaluation_and_external_target_unknown() {
+    let mut facts = fixture("pub fn caller(value:u32) { leaf({value}); }");
+    let observed = inspect_calls(&facts).unwrap();
+    assert!(matches!(
+        observed.calls[0].arguments[0].value,
+        Availability::Unsupported { .. }
+    ));
+    facts.body.children[0].res.as_mut().unwrap().description =
+        serde_json::json!({"local":false}).to_string();
+    assert!(matches!(
+        inspect_calls(&facts).unwrap().calls[0].target,
+        Availability::Unknown { .. }
+    ));
+}
+
+#[test]
+fn owned_reads_require_original_binding_type_and_dispatch_correspondence() {
+    let original = fixture("pub fn caller(value:u32) { leaf(value); }");
+    let observed = inspect_calls(&original).unwrap();
+    assert!(matches!(observed.signature, Availability::Known(())));
+    assert!(matches!(
+        observed.calls[0].arguments[0].value,
+        Availability::Known(ArgumentValue::OwnedU32)
+    ));
+    let mut changed = original.clone();
+    changed.body.children[0].children[0]
+        .ty
+        .as_mut()
+        .unwrap()
+        .normalized = Some("bool".into());
+    assert!(inspect_calls(&changed).is_err());
+    let mut changed = original;
+    changed.body.children[0]
+        .dispatch
+        .as_mut()
+        .unwrap()
+        .operand_tys[0] = "u64".into();
+    assert!(inspect_calls(&changed).is_err());
+}
+
+#[test]
+fn missing_native_argument_type_is_unavailable_not_a_known_reference() {
+    let mut facts = fixture("pub fn caller(target:&mut u32) { leaf(target); }");
+    facts.body.children[0].children[0].ty = None;
+    assert!(matches!(
+        inspect_calls(&facts).unwrap().calls[0].arguments[0].value,
+        Availability::Unknown { .. }
+    ));
+}
+
+#[test]
+fn unsupported_alias_argument_never_inherits_a_known_formal_root() {
+    let facts = fixture("pub fn caller(target:&mut u32) { leaf(&mut *target); }");
+    let observed = inspect_calls(&facts).unwrap();
+    assert!(matches!(
+        observed.calls[0].arguments[0].value,
+        Availability::Unsupported { .. }
+    ));
+    assert_eq!(observed.direct.coverage, Coverage::Incomplete);
+}
+
+#[test]
+fn selected_definition_changes_retain_the_checked_original_path_for_join() {
+    let mut facts = fixture("pub fn caller(value:u32) { leaf(value); }");
+    facts.body.children[0].res.as_mut().unwrap().description = serde_json::json!({
+        "local":true,"path":"sample::leaf","crate":"sample","definition_identity":"different-leaf-id"
+    }).to_string();
+    let observed = inspect_calls(&facts).unwrap();
+    assert!(
+        matches!(&observed.calls[0].target, Availability::Known(id) if id=="different-leaf-id")
+    );
+    assert_eq!(
+        observed.calls[0].target_path.as_deref(),
+        Some("sample::leaf")
+    );
+}

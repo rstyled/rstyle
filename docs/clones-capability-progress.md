@@ -38,7 +38,8 @@ Heavy captures and integrated gates run serially.
 | C09a | Pair + local + acceptance + lead / review lifecycle, original snapshots and CLI/report | delivered (bounded helper review) | `1269c62` | Explicit saved-run dismissal and read-only versioned exact review, stale/unavailable coverage | Twenty-seven unit/adapter and seven CLI cases; retained live replay, full tests and both legacy gates; whole-store status/legacy migration remain open |
 | C10a | Local + acceptance + lead / dispatch source index, CLI/report | delivered (bounded local dispatch) | `fabd24d` | Source-owned two-variant dispatch with exact local method/trait signatures | Twelve evidence/nine CLI tests; full tests and both legacy gates pass; broader families remain open |
 | C11b | Local + acceptance + lead / mutation evidence, policy, CLI/report | delivered (bounded direct mutation) | `3329163` | Direct scalar assignment-site budgets with root provenance and unknown-aware lower bounds; config-only strict replay | Eighteen evidence/three policy/seven CLI tests; full tests and both legacy gates pass; general effects/density/helper summaries remain open |
-| C12a | Evidence + pair + lead / original body views, overlap model, CLI/report and acceptance | delivered (bounded helper edit coordination) | this C12a implementation commit | Explicit helper-wrapper intents, exact original overlap witnesses and review groups; unknown insertion/name/scope and independence | Seven evidence/ten pure/six CLI tests; retained compact-to-full strict replay; full tests and both legacy gates pass; local guard/caller intents remain pending |
+| C12a | Evidence + pair + lead / original body views, overlap model, CLI/report and acceptance | delivered (bounded helper edit coordination) | `21ba934` | Explicit helper-wrapper intents, exact original overlap witnesses and review groups; unknown insertion/name/scope and independence | Seven evidence/ten pure/six CLI tests; retained compact-to-full strict replay; full tests and both legacy gates pass; local guard/caller intents remain pending |
+| C11c | Evidence + local + lead / typed call observations, leaf summaries, CLI/report and acceptance | delivered (bounded scalar leaf effects) | this checkpoint | Caller-visible scalar writes through original same-unit leaves, distinct call events and exact formal mappings | 2,553 nextest tests and doc tests pass; zero style violations and reviewed pattern candidates; exact 15 baseline IDs unchanged; source/tool-free strict replay passes |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
@@ -406,12 +407,51 @@ legacy group retirement remain pending. Linux aarch64 only; macOS and exact Go
 comparison remain unverified. No suppressions, ignores, thresholds, strict
 admission or extraction permissions were changed.
 
-The next independently prepared frontier is C11c caller-visible scalar mutation
-effects from checked direct local helper summaries. It must first capture typed
-call-site argument evidence: the current mutation scanner treats complete calls
-as opaque and does not traverse their arguments. Summary reuse cannot erase that
-boundary or establish purity. General effects/density and the broader migration
-remain incomplete.
+C11c below advances caller-visible scalar mutation through checked original local
+leaves. General effects/density and the broader migration remain incomplete.
+
+## C11c: caller-visible scalar leaf mutation effects
+
+The opt-in `--mutation-effects` consumer preserves original direct assignment
+metrics while adding distinct call events and exact caller-formal mappings to
+original callee assignment witnesses. Owned scalar rebinding stays local. Complete
+bounded signatures and bodies, exact selected-unit definition identity, original
+source ownership, native argument rosters and binding provenance are prerequisites.
+A small separate compiler observation supplies direct mutable builtin-u32 formal
+types; rendered names and source spelling supply no referent authority. This is
+observational evidence, with strict graph admission kept independent.
+
+One analysis-local session borrows each immutable owning unit, checks each original
+owner once and reuses completed leaf outcomes. Assessment and leaf queries share
+one typed cache lifecycle; errors and unobserved budget outcomes never publish a
+completed result. Each original call occurrence remains separate. Visible-site
+budgets are checked before mapping allocation; no graph or source snapshots are
+cloned and no new hashes are introduced. Unknown callbacks, external/indirect or
+nonleaf calls, Drop-bearing signatures, aliases, opaque argument evaluation and
+reference coercions prevent whole-function clean conclusions. Independent known
+write witnesses survive unknown remainder. This is a depth-one scalar mutation
+axis, without purity, general effects, density, rewrite safety or legacy retirement.
+
+The [consumer contract](clones-mutation-effects.md) describes report indices,
+coverage, limits and replay. All 2,553 nextest tests pass (five skipped), 169.358
+seconds, plus doc tests, workspace/all-target Clippy, formatting and diff checks.
+Both original NonZero regressions pass. Legacy style reports zero violations
+across 8,644 functions; reviewed patterns has zero candidates, and unfiltered
+patterns retains exactly the same 15 IDs as C12a. Logs are retained under
+`/tmp/clones-migration-c11c-*`, with final gates named `*-final.*`.
+The final locked compact live capture and full strict replay retain identical
+effects and matching after removing original source/manifest files and disabling
+external compiler tools: `/tmp/clones-migration-c11c-live-3c4ccjnm/results.json`.
+Two call occurrences reuse one leaf summary, with two owner observations and two
+mapped write witnesses. No suppressions, ignores, thresholds, strict admission
+or extraction permissions were changed.
+
+The next ready C10b frontier is a witnessed local two-method capability set from
+parallel wrapper calls, reusing the existing checked source/method index. Exact
+existing-trait relations must suppress redundant advice; names/signatures alone
+cannot establish a proposal. Broader trait/capability proposals, richer effect
+families, caller-aware edit intents and retirement gates remain open. Native macOS
+and exact Go comparison remain unverified.
 
 ## Hashing exceptions
 

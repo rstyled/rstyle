@@ -158,3 +158,9 @@ source-free replay. Pure cases cover half-open intersections, conflicting snapsh
 and bounded work. Next/later local-guard and caller-parameter intents remain pending;
 no whole-plan independence or safe rewrite is inferred. See
 [edit planning](../../docs/clones-edit-planning.md).
+
+`helper-effect-cases.json` defines caller-visible scalar mutation through original
+same-unit leaves, distinct call occurrences, formal mappings, unknown boundaries,
+bounded summary reuse and source-free replay. It extends the direct-site cases
+without changing their metrics or claiming purity. See
+[mutation effects](../../docs/clones-mutation-effects.md).

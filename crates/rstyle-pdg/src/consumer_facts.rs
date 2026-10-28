@@ -10,6 +10,8 @@ use std::sync::Arc;
 use syn::spanned::Spanned;
 
 pub mod dispatch;
+pub mod effects;
+pub mod formal_types;
 pub mod mutations;
 pub mod planning;
 mod syntax_budget;

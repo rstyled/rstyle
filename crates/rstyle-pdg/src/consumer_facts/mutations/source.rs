@@ -10,15 +10,28 @@ pub(super) fn inspect(
     source: &str,
     result: Assessment,
 ) -> Result<Assessment, String> {
+    Ok(observe(facts, source, result, false)?.direct)
+}
+
+pub(super) fn observe(
+    facts: &HirFnFacts,
+    source: &str,
+    result: Assessment,
+    observe_calls: bool,
+) -> Result<super::Observations, String> {
     let function = match parsed(source) {
         Ok(function) => function,
-        Err(reason) => return Ok(Effects::unsupported(whole(source), &reason).merge(result)),
+        Err(reason) => {
+            return Ok(super::without_calls(
+                Effects::unsupported(whole(source), &reason).merge(result),
+            ));
+        }
     };
     super::super::check_signature(facts, &function)?;
     let Some(index) = native::Index::new(facts)? else {
-        return Ok(
+        return Ok(super::without_calls(
             Effects::exhausted(whole(source), "Native inventory budget exhausted").merge(result),
-        );
+        ));
     };
 
     let mut poison = Poison::default();
@@ -32,11 +45,23 @@ pub(super) fn inspect(
         poison: poison.names,
         opaque_references: poison.opaque_references,
         declarations: 0,
+        calls: observe_calls.then(Vec::new),
     };
 
     scan.signature(&function)?;
     scan.block(&function.block)?;
-    Ok(scan.result)
+    let signature = if observe_calls {
+        super::calls::signature(facts, &function)?
+    } else {
+        super::Availability::Unknown {
+            reason: "Call observations were not requested".into(),
+        }
+    };
+    Ok(super::Observations {
+        direct: scan.result,
+        calls: scan.calls.unwrap_or_default(),
+        signature,
+    })
 }
 
 fn whole(source: &str) -> ByteSpan {
@@ -243,6 +268,7 @@ struct Scan<'a> {
     poison: BTreeSet<String>,
     opaque_references: bool,
     declarations: usize,
+    calls: Option<Vec<super::Call>>,
 }
 
 impl Scan<'_> {
@@ -576,9 +602,18 @@ impl Scan<'_> {
     }
 
     fn expression(&mut self, expression: &Expr) -> Result<(), String> {
+        if self.calls.is_some()
+            && let Expr::Call(call) = expression
+            && call.attrs.is_empty()
+        {
+            return self.observe_call(call);
+        }
         let plan = self.expression_plan(expression)?;
-        self.apply(plan.effects);
+        self.evaluate_plan(plan)
+    }
 
+    fn evaluate_plan(&mut self, plan: ExpressionPlan<'_>) -> Result<(), String> {
+        self.apply(plan.effects);
         if let Some(block) = plan.block {
             self.block(block)?;
         }
@@ -586,6 +621,97 @@ impl Scan<'_> {
             self.expression(child)?;
         }
         Ok(())
+    }
+
+    fn observe_call(&mut self, call: &syn::ExprCall) -> Result<(), String> {
+        let boundary_index = self.result.boundaries.len();
+        if self.calls.as_ref().is_some_and(|calls| calls.len() >= 4096) {
+            self.apply(Effects::exhausted(
+                self.span(call),
+                "Call-site inventory budget exhausted",
+            ));
+            return Ok(());
+        }
+
+        let site = super::calls::Site {
+            facts: self.facts,
+            source: self.source,
+            index: &self.index,
+            call,
+            boundary_index,
+        };
+        let observation = super::calls::observe(site, |expression, node| {
+            self.call_argument(expression, node)
+        })?;
+        self.apply(Effects::unknown(self.span(call), "Unknown call boundary"));
+
+        if let Some(observation) = observation {
+            self.calls
+                .as_mut()
+                .expect("call observations requested")
+                .push(observation);
+        }
+        Ok(())
+    }
+
+    fn call_argument(
+        &self,
+        expression: &Expr,
+        node: &HirNode,
+    ) -> Result<super::Availability<super::ArgumentValue>, String> {
+        use super::{ArgumentValue, Availability};
+        let expression = transparent(expression);
+        if matches!(expression, Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(_), attrs, .. }) if attrs.is_empty())
+            && node.kind == "expr_lit"
+            && native::scalar(node)
+        {
+            return Ok(Availability::Known(ArgumentValue::OwnedU32));
+        }
+        let Expr::Path(path) = expression else {
+            return Ok(Availability::Unsupported {
+                reason: "Call argument evaluation is outside direct scalar reads".into(),
+            });
+        };
+
+        let binding = plain_path(path)
+            .and_then(|name| self.scopes.iter().rev().find_map(|scope| scope.get(&name)))
+            .and_then(Option::as_ref);
+        let Some(binding) = binding else {
+            return Ok(Availability::Unknown {
+                reason: "Call argument has no checked lexical scalar root".into(),
+            });
+        };
+
+        if !check_call_argument(self.source, path, node, binding)? {
+            return Ok(Availability::Unknown {
+                reason: "Call argument native type or binding resolution was not captured".into(),
+            });
+        }
+
+        self.typed_call_argument(binding)
+    }
+
+    fn typed_call_argument(
+        &self,
+        binding: &Binding,
+    ) -> Result<super::Availability<super::ArgumentValue>, String> {
+        use super::{ArgumentValue, Availability};
+        if binding.root.provenance != Provenance::FormalBorrowed {
+            return Ok(Availability::Known(ArgumentValue::OwnedU32));
+        }
+
+        if let Some(formal) = binding.root.formal
+            && binding.root.provenance == Provenance::FormalBorrowed
+            && super::super::formal_types::mutable_u32(self.facts, formal, &binding.root.native)?
+        {
+            return Ok(Availability::Known(ArgumentValue::MutableFormal(
+                binding.root.clone(),
+            )));
+        }
+
+        Ok(Availability::Unknown {
+            reason: "Call argument scalar reference type is unavailable".into(),
+        })
     }
 
     fn expression_plan<'a>(&self, expression: &'a Expr) -> Result<ExpressionPlan<'a>, String> {
@@ -838,6 +964,40 @@ impl Scan<'_> {
         }
         Ok(Some(binding.root.clone()))
     }
+}
+
+fn check_call_argument(
+    source: &str,
+    path: &syn::ExprPath,
+    node: &HirNode,
+    binding: &Binding,
+) -> Result<bool, String> {
+    if node.kind != "expr_path"
+        || node.span != crate::source_evidence::original_span(source, path.span())
+    {
+        return Err("Call argument native path differs from original syntax".into());
+    }
+    let Some(ty) = &node.ty else {
+        return Ok(false);
+    };
+
+    if binding.root.provenance != Provenance::FormalBorrowed
+        && ty.normalized.as_deref() != Some("u32")
+    {
+        return Err("Call argument type contradicts its lexical scalar binding".into());
+    }
+    if binding.root.provenance == Provenance::FormalBorrowed && ty.normalized.is_some() {
+        return Err("Call argument scalar type contradicts its mutable reference binding".into());
+    }
+
+    let Some(resolution) = &node.res else {
+        return Ok(false);
+    };
+    if resolution.kind != "local" || resolution.target.as_ref() != Some(&binding.root.native) {
+        return Err("Call argument resolution contradicts its lexical declaration".into());
+    }
+
+    Ok(true)
 }
 
 fn plain_path(path: &syn::ExprPath) -> Option<String> {

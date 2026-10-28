@@ -20,6 +20,7 @@ mod loop_merge_target;
 mod lossless_values;
 mod migration_differences;
 mod migration_dispatch;
+mod migration_effects;
 mod migration_guards;
 mod migration_helpers;
 mod migration_mutations;
