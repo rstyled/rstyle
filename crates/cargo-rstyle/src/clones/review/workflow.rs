@@ -118,6 +118,7 @@ pub(in crate::clones) struct CompilerReviews {
     patterns: super::compiler_patterns::Report,
     diagnostics: super::compiler_diagnostics::Report,
     baseline: Option<super::compiler_baseline::Report>,
+    pattern_baseline: Option<super::compiler_pattern_baseline::Report>,
 }
 
 impl CompilerReviews {
@@ -127,7 +128,10 @@ impl CompilerReviews {
         patterns: super::compiler_patterns::Report,
         diagnostics: super::compiler_diagnostics::Report,
     ) -> Result<Self, String> {
-        let baseline = if ctx.args.compiler_baseline_requested() {
+        let baseline = if ctx
+            .args
+            .compiler_baseline_requested(crate::clones::CompilerBaseline::Diagnostics)
+        {
             Some(super::compiler_baseline::evaluate(
                 inputs
                     .compiler_advisory
@@ -138,10 +142,25 @@ impl CompilerReviews {
         } else {
             None
         };
+        let pattern_baseline = if ctx
+            .args
+            .compiler_baseline_requested(crate::clones::CompilerBaseline::Patterns)
+        {
+            Some(super::compiler_pattern_baseline::evaluate(
+                inputs
+                    .compiler_advisory
+                    .ok_or("Compiler proposal baseline requires compiler advisory")?,
+                &patterns,
+                ctx,
+            )?)
+        } else {
+            None
+        };
         Ok(Self {
             patterns,
             diagnostics,
             baseline,
+            pattern_baseline,
         })
     }
 
@@ -153,6 +172,7 @@ impl CompilerReviews {
         advisory.map(|report| {
             report
                 .with_reviews(self.patterns, self.diagnostics, self.baseline)
+                .with_pattern_baseline(self.pattern_baseline)
                 .select_changed(ctx)
         })
     }

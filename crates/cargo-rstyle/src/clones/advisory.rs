@@ -27,6 +27,8 @@ pub(super) struct Report {
     #[serde(skip_serializing_if = "Option::is_none")]
     diagnostic_baseline: Option<super::review::compiler_baseline::Report>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pattern_baseline: Option<super::review::compiler_pattern_baseline::Report>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     changed_scope: Option<super::analysis::changed_scope::Report<'static>>,
 }
 
@@ -69,6 +71,10 @@ impl Completion for Report {
     fn permits_success(&self) -> bool {
         self.complete
             && self
+                .pattern_baseline
+                .as_ref()
+                .is_none_or(|baseline| baseline.permits_success())
+            && self
                 .changed_scope
                 .as_ref()
                 .is_none_or(|scope| scope.permits_success())
@@ -90,6 +96,20 @@ impl Completion for Report {
 impl Report {
     pub(super) fn baseline(&self) -> Option<&super::review::compiler_baseline::Report> {
         self.diagnostic_baseline.as_ref()
+    }
+
+    pub(super) fn pattern_baseline(
+        &self,
+    ) -> Option<&super::review::compiler_pattern_baseline::Report> {
+        self.pattern_baseline.as_ref()
+    }
+
+    pub(super) fn with_pattern_baseline(
+        mut self,
+        baseline: Option<super::review::compiler_pattern_baseline::Report>,
+    ) -> Self {
+        self.pattern_baseline = baseline;
+        self
     }
 
     pub(super) fn policy(&self) -> &Rc<serde_json::Value> {
@@ -135,13 +155,17 @@ impl Report {
             .as_ref()
             .map_or_else(String::new, |baseline| baseline.render());
 
+        let pattern_baseline = self
+            .pattern_baseline
+            .as_ref()
+            .map_or_else(String::new, |baseline| baseline.render());
         let selected = self
             .changed_scope
             .as_ref()
             .map_or_else(String::new, |scope| {
                 scope.render_for("compiler diagnostics")
             });
-        format!("{reviews}{diagnostic_reviews}{baseline}{selected}")
+        format!("{reviews}{diagnostic_reviews}{baseline}{pattern_baseline}{selected}")
     }
 
     pub(super) fn diagnostic_reviews(&self) -> Vec<super::review::compiler_diagnostics::Row<'_>> {
@@ -258,6 +282,7 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
         pattern_review: None,
         diagnostic_review: None,
         diagnostic_baseline: None,
+        pattern_baseline: None,
         changed_scope: None,
     }))
 }

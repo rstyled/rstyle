@@ -37,8 +37,8 @@ pub(super) struct Member {
 pub(crate) struct Snapshot {
     pub(super) versions: Versions,
     pub(super) context: local::BuildContext,
-    pub(super) policy: Params,
-    pub(super) kind: CandidateKind,
+    pub(in crate::clones::review) policy: Params,
+    pub(in crate::clones::review) kind: CandidateKind,
     pub(super) sites: Vec<Member>,
     pub(super) definitions: Vec<Rc<Declaration>>,
 }
@@ -46,7 +46,23 @@ pub(crate) struct Snapshot {
 pub(in crate::clones::review) type Entry = exact_rules::Entry<Snapshot>;
 pub(in crate::clones::review) use exact_rules::validate_entries;
 
+pub(in crate::clones::review) type Key<'a> = (
+    &'static str,
+    Vec<&'a Locator>,
+    usize,
+    &'a super::super::CompilationTarget,
+);
+
 impl Snapshot {
+    pub(in crate::clones::review) fn baseline_key(&self) -> Key<'_> {
+        (
+            self.kind.name(),
+            self.locators().collect(),
+            self.sites.len(),
+            &self.context.compilation_target,
+        )
+    }
+
     pub(in crate::clones::review) fn locators(&self) -> impl Iterator<Item = &Locator> {
         self.sites
             .iter()

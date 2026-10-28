@@ -33,6 +33,7 @@ pub struct Context<'a> {
     pub complete: bool,
     pub mutation_config: Option<&'a super::analysis::mutation_reports::Settings>,
     pub density_baseline: Option<&'a super::review::density_baseline::Baseline>,
+    pub compiler_pattern_baseline: Option<&'a super::review::compiler_pattern_baseline::Baseline>,
     pub compiler_baseline: Option<&'a super::review::compiler_baseline::Baseline>,
     pub source_baseline: Option<&'a super::review::source_baseline::Baseline>,
     pub effect_config: Option<&'a super::analysis::effect_reports::Settings>,

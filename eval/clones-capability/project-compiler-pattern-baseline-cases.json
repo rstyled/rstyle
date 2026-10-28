@@ -1,0 +1,13 @@
+{
+  "schema": "rstyle.compiler-pattern-baseline-study-cases/1",
+  "scope": "rstyle-ccgraph library saved run run-I9FEzJ",
+  "policy": "project-compiler-review-policy.toml",
+  "expected": {
+    "exit": 2,
+    "export_created": false,
+    "raw_numeric_findings": 39,
+    "raw_proposals": 1,
+    "accepted_strict_pairs": 4
+  },
+  "basis": "The retained project population has 176 unavailable generated owners and twenty unresolved callees. Complete identity for its known helper proposal does not establish complete proposal input. Export must refuse without dismissing findings or changing raw evaluations/strict matching."
+}

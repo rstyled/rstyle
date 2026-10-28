@@ -70,7 +70,11 @@ pub(super) fn evaluate(
         .count();
 
     let (evaluation, prepared) = patterns_report::run_owned_and_retain(facts, &options);
-    let snapshots = if ctx.args.review_file.is_some() {
+    let snapshots = if ctx.args.review_file.is_some()
+        || ctx
+            .args
+            .compiler_baseline_requested(crate::clones::CompilerBaseline::Patterns)
+    {
         crate::clones::review::compiler_patterns::observed::collect(
             ctx,
             unit,

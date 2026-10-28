@@ -325,3 +325,31 @@ reference/selected take 2.13/2.04 seconds and 201,632/201,568 KiB peak RSS. Thes
 single observations do not establish a speedup or overhead bound. This checks
 presentation over the existing retained project population, not broader project
 completeness or legacy retirement.
+
+## Compiler proposal baseline boundary
+
+The independently pre-recorded
+[`project-compiler-pattern-baseline-cases.json`](project-compiler-pattern-baseline-cases.json)
+uses the same library capture and explicit compiler policy. The reference replay
+exactly preserves the prior complete advisory report: 39 numeric diagnostics,
+one raw proposal, 176 unavailable generated owners and twenty unresolved callees.
+All strict results remain identical, including four accepted pairs.
+
+An explicit `--write-compiler-pattern-baseline` request correctly refuses export
+with exit 2 and `Incomplete analysis cannot publish a compiler proposal baseline`.
+No baseline or review file is created, and no real-project finding is dismissed.
+This checks the incomplete-scope boundary; it does not establish a complete
+project baseline or improve the previously reviewed proposal's quality.
+
+Repeat the previous compact reference replay, then append:
+
+```sh
+--write-compiler-pattern-baseline /tmp/clones-compiler-pattern-baseline-project-export-1/baseline.json
+```
+
+Pinned Linux aarch64 evidence is
+`/tmp/clones-compiler-pattern-baseline-project-{raw,export}-1`. Reference/refused
+export take 2.24/1.99 seconds and 201,024/202,008 KiB peak RSS. These single runs
+perform different output work and establish neither a speedup nor an overhead
+bound. Complete five-family baseline comparison/publication is separately tested
+with independent real-Cargo fixture cases and source/tool-free replay.

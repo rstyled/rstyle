@@ -2,7 +2,12 @@ use super::*;
 
 const HELPERS: &str = "pub fn first(a:u128)->u128 {std::hint::black_box(a.wrapping_add(7)).wrapping_mul(3)} pub fn second(a:u128)->u128 {std::hint::black_box(a.wrapping_add(8)).wrapping_mul(3)}";
 
-fn dismiss_candidate(directory: &Path, original: &Value, candidate: &Value, unit: usize) -> Value {
+pub(super) fn dismiss_candidate(
+    directory: &Path,
+    original: &Value,
+    candidate: &Value,
+    unit: usize,
+) -> Value {
     let (output, report) = replay(
         directory,
         original,

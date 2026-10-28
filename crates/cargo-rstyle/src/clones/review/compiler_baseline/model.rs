@@ -16,21 +16,20 @@ pub(in crate::clones) struct Baseline {
     pub entries: Vec<Snapshot>,
 }
 
-impl Baseline {
-    pub(super) fn new(
-        policy: Rc<serde_json::Value>,
-        contexts: Vec<local::BuildContext>,
-    ) -> Result<Self, String> {
-        baseline_common::build(Vec::new(), contexts, |entries, contexts| Self {
+impl baseline_common::CompilerInventory for Baseline {
+    fn empty(policy: Rc<serde_json::Value>, contexts: Vec<local::BuildContext>) -> Self {
+        Self {
             schema: "rstyle.compiler-baseline/1".into(),
             policy,
             versions: local_adapter::versions("compiler-diagnostics"),
             metrics: rstyle_core::advisory::METRICS.into(),
             contexts,
-            entries,
-        })
+            entries: Vec::new(),
+        }
     }
+}
 
+impl Baseline {
     fn validate_header(&self) -> Result<(), String> {
         if self.schema != "rstyle.compiler-baseline/1"
             || self.versions != local_adapter::versions("compiler-diagnostics")

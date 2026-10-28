@@ -2,7 +2,7 @@
 mod model;
 mod observations;
 use super::{
-    baseline_common::{self, Assessment},
+    baseline_common::{self, Assessment, CompilerInventory},
     baseline_io,
 };
 use crate::clones::{advisory, identity::UnitId, report};

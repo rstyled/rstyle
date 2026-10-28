@@ -22,7 +22,11 @@ pub(super) fn evaluate(
     let config = ctx
         .compiler_advisory_config
         .ok_or("Compiler diagnostic policy was not requested")?;
-    if ctx.args.review_file.is_none() && !ctx.args.compiler_baseline_requested() {
+    if ctx.args.review_file.is_none()
+        && !ctx
+            .args
+            .compiler_baseline_requested(crate::clones::CompilerBaseline::Diagnostics)
+    {
         let (evaluation, facts) = rstyle_core::evaluate_and_retain(facts, config)?;
         return Ok(Completed {
             evaluation,

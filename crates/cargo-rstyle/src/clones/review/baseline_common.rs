@@ -76,6 +76,19 @@ pub(in crate::clones) trait Inventory: baseline_io::Artifact {
     fn replace_entries(&mut self, entries: Vec<Self::Entry>);
 }
 
+/// Compiler consumers differ in their snapshot/header fields, not header construction.
+pub(super) trait CompilerInventory: Inventory + Sized {
+    fn empty(policy: std::rc::Rc<serde_json::Value>, contexts: Vec<local::BuildContext>) -> Self;
+    fn new(
+        policy: std::rc::Rc<serde_json::Value>,
+        contexts: Vec<local::BuildContext>,
+    ) -> Result<Self, String> {
+        build(Vec::<Self::Entry>::new(), contexts, |_, contexts| {
+            Self::empty(policy, contexts)
+        })
+    }
+}
+
 pub(super) fn build<T: baseline_io::Artifact, E>(
     entries: Vec<E>,
     mut contexts: Vec<local::BuildContext>,
@@ -232,6 +245,18 @@ impl FindingInventory<'_> {
         matches_header: impl Fn(&S) -> bool,
         rule: impl Fn(&S) -> &str,
     ) -> Result<(), String> {
+        self.validate_keys(entries, matches_header, |finding| {
+            let (locator, context) = finding.identity();
+            (rule(finding), locator, &context.compilation_target)
+        })
+    }
+
+    pub(super) fn validate_keys<'a, S: super::exact_rules::ReviewSnapshot, K: Ord>(
+        &self,
+        entries: &'a [S],
+        matches_header: impl Fn(&S) -> bool,
+        key: impl Fn(&'a S) -> K,
+    ) -> Result<(), String> {
         let mut identities = std::collections::BTreeSet::new();
         for finding in entries {
             finding
@@ -243,14 +268,14 @@ impl FindingInventory<'_> {
                     self.label
                 ));
             }
-            let (locator, context) = finding.identity();
+            let (_, context) = finding.identity();
             if self.contexts.binary_search(context).is_err() {
                 return Err(format!(
                     "{} baseline finding has no retained build context",
                     self.label
                 ));
             }
-            if !identities.insert((rule(finding), locator, &context.compilation_target)) {
+            if !identities.insert(key(finding)) {
                 return Err(format!(
                     "ambiguous original identity in {} baseline",
                     self.label

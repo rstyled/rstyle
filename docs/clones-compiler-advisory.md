@@ -67,7 +67,7 @@ relative to that unit's `source_root` (absolute for outside sources). Text outpu
 proposals. `--fail-on-findings` counts proposal candidates in addition to style
 diagnostics; signature groups alone do not fail the gate. No ignore ledger is
 loaded implicitly. An explicit review file can hide exact reviewed proposals;
-the baseline workflows do not yet apply to them. Core candidate IDs retain their existing fingerprint convention and
+explicit compiler proposal baselines are described below. Core candidate IDs retain their existing fingerprint convention and
 must not be treated as the newer compilation-context review identities.
 
 The separate `rstyle.compiler-pattern-graph/1` capture record keeps the original
@@ -142,8 +142,8 @@ bounded heuristic discovery cannot establish a completed negative, so compiler
 proposal entries are never automatically pruned. Other review families retain
 their existing independently completed negative pruning rules.
 
-Cross-package propagation, broader project proposal quality and baseline
-migration remain follow-up work. No legacy
+Cross-package propagation and broader project proposal quality remain follow-up
+work. No legacy
 capability is retired by this increment.
 
 
@@ -273,3 +273,50 @@ IDs. Selection retains only diagnostic indices, scoped owner IDs and owned repor
 path strings. It creates no diagnostic review snapshots absent an explicit
 review/baseline request, and adds no source parsing, graph/body copying, hashing
 or repeated proofs.
+
+
+## Compiler proposal CI baselines
+
+With compiler patterns, export a complete raw proposal inventory, then compare:
+
+```sh
+cargo rstyle clones --extraction-profile hir-data-v3 --compiler-advisory \
+  --compiler-patterns --write-compiler-pattern-baseline proposals.json
+cargo rstyle clones --extraction-profile hir-data-v3 --compiler-advisory \
+  --compiler-patterns --compiler-pattern-baseline proposals.json \
+  --fail-on-new-compiler-patterns
+```
+
+Both commands support explicit saved-run replay without source files or compiler
+tools. `compiler_advisory.pattern_baseline` uses the shared baseline report:
+current raw unit/candidate indices, existing/new visible counts, header drift
+and retained positive states. All existing proposal families reuse completed
+review snapshots and exact equality, including ordered site/definition roles,
+signatures, graphs, opaque source when required, metric/detector versions and
+build contexts. Membership keys contain borrowed owner locators; no new hash,
+source proof, graph copy or second mining pass is added. Explicit export shares
+immutable graph owners with snapshots until serialization. Normal runs without
+review/baseline requests still avoid snapshot preparation.
+
+Movement and parameter renaming can preserve equality. Relevant graph/signature
+changes make proposals changed; kind or membership changes identify a new
+proposal. The full effective compiler policy, actual default clustering policy
+and canonical compilation contexts participate in header comparison, including
+empty inventories. Thus unrelated compiler-policy edits may conservatively fail
+the new-proposal gate. Candidate IDs are selection handles and are not persisted
+as identity. A baseline establishes neither equivalence nor rewrite safety.
+
+`--fail-on-new-compiler-patterns` exits 1 for new/changed visible proposals or
+header drift. Explicit saved reviews can hide new proposals from that count;
+raw evaluations and exports retain them. Existing proposals still count under
+`--fail-on-findings`. Proposal comparison remains global with a changed-file
+manifest, just as proposal presentation does. Export conflicts with selection.
+Missing old proposals remain unavailable, never resolved or pruned: bounded
+heuristic discovery does not establish completed negatives.
+
+Missing/generated owners, uncaptured graphs, unresolved callees, unavailable
+identities or incomplete capture keep exit 2 and prevent export. The existing
+4 MiB artifact and 4,096 owner/entry/context bounds apply. Imports validate closed
+schemas, graph observations, versions, membership keys and build contexts; export
+creates a new file without overwriting an existing one. Broader project quality,
+coverage and legacy retirement remain open.

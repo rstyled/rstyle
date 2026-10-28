@@ -396,7 +396,7 @@ uses the shared atomic publication; stores have a 4 MiB limit. Raw proposals sta
 visible in JSON with separate review decisions and visible candidate indices.
 `--review-status` includes retained compiler proposals. Missing proposals remain
 unavailable because bounded discovery cannot prove absence; these entries are
-never automatically pruned. Baselines do not yet cover compiler proposals.
+never automatically pruned. Compiler proposals also support the explicit baseline workflow below.
 
 
 Compiler diagnostics also accept `--review-file` for read-only exact lookup. Only
@@ -424,3 +424,18 @@ Incomplete or oversized scope exits 2 and cannot export; bounds are 4 MiB and
 Changed-file selection filters new visible numeric findings in comparisons;
 whole-scope policy/context drift remains global. Export conflicts with selection.
 No proposal-baseline or legacy-retirement claim follows from this workflow.
+
+
+Compiler proposals support `--write-compiler-pattern-baseline PATH`, then
+`--compiler-pattern-baseline PATH --fail-on-new-compiler-patterns`, requiring
+`--compiler-patterns --compiler-advisory`. Completed exact review snapshots feed
+the shared baseline lifecycle without another mining pass or graph copy/hash.
+The whole effective compiler policy, default clustering policy and build scope
+participate even for empty inventories. Raw proposals/fix plans remain intact;
+reviews affect visible new counts, while exports retain raw proposals. Comparison
+stays global under changed-file selection; export conflicts with selection.
+Missing proposals stay unavailable because bounded discovery cannot prove
+resolution. Incomplete inputs exit 2 and cannot export. Shared 4 MiB and 4,096
+owner/entry/context bounds and create-new publication apply. Source/tool-free
+replay supports full/compact reports. Keep legacy patterns until its independent
+quality and retirement gates pass.

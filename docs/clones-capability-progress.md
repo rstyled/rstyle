@@ -2730,3 +2730,70 @@ the project study; logs are `/tmp/clones-compiler-selection-project-{raw,selecte
 Compiler proposal baselines, completed-negative/prune prerequisites, cross-package
 propagation, broader real-project completeness/quality and capability retirement
 remain open. No new hashes or strict-contract changes are introduced.
+
+## C22: reuse completed compiler proposal snapshots for CI baselines
+
+The lead owns the compiler proposal baseline adapter, shared inventory-key seam,
+CLI/report integration, acceptance cases and docs. The explicit
+`--write-compiler-pattern-baseline` / `--compiler-pattern-baseline
+--fail-on-new-compiler-patterns` workflow reuses prepared shared review snapshots
+and the existing baseline comparison, counts, retained-positive accounting and
+bounded atomic create-new I/O. No second miner, evaluator, source parser, body
+proof, hash or graph copy is introduced. Snapshot preparation remains opt-in to
+reviews/baselines; export clones only snapshot metadata and shared owner handles
+before serialization.
+
+Membership keys borrow all ordered site/definition locators, retaining the role
+boundary, proposal kind and compilation target. Exact equality retains graph,
+signature, opaque-source, version and context distinctions. Full compiler policy,
+default clustering policy and canonical build scope participate in headers even
+when no proposals exist. Explicit reviews affect new visible counts but not raw
+exports or header drift. Numeric changed-file presentation never filters this
+global proposal gate; export conflicts with selection. Missing prior proposals
+stay unavailable, never resolved or pruned, because bounded discovery cannot
+establish a completed negative. Raw core diagnostics, fix plans, proposals and
+strict matching remain intact.
+
+The shared inventory validator now accepts a consumer-specific borrowed identity
+key; existing numeric baselines retain their rule/owner/target keys. No policy,
+limit, budget, suppression or review ledger changes are made. Nine real-Cargo
+cases cover distinct site/definition roles on one owner, all five current proposal families, movement and graph changes,
+full/compact source/tool-free replay, empty-policy/context drift, exact reviews,
+global selection behavior, absent positives, generated/missing graphs, distinct
+check/test units, invalid artifacts and create-new publication. Final integrated
+gates and project observations follow below. Broader project quality/coverage,
+cross-package propagation, completed-negative prerequisites and retirement remain
+open; the full migration is not complete.
+
+
+The pattern gate exposed duplicated compiler-header construction and baseline
+request selection. Both compiler families now share header construction through
+a small inventory interface and one typed consumer selector. Snapshot/header
+validation remains family-specific; numeric artifact shapes and behavior stay
+unchanged. No ignores or discovery settings were changed.
+
+The frozen integrated snapshot passes all 3,276 nextest cases in 210.316 seconds
+with five existing skips, plus workspace doc tests. Both original NonZero CI
+regressions and the u32 widening composition pass. Workspace all-target Clippy
+with warnings denied, formatting and diff checks pass. Style reports zero across
+9,663 functions; reviewed patterns reports zero. Unfiltered discovery contains
+the same fourteen reviewed IDs as C20; `76534998402b` is not returned in this
+bounded scan, and its ledger entry remains untouched. Evidence is
+`/tmp/clones-compiler-pattern-baseline-tests-final-1`,
+`/tmp/clones-compiler-pattern-baseline-clippy-final-2`,
+`/tmp/clones-compiler-pattern-baseline-style-final-2`,
+`/tmp/clones-compiler-pattern-baseline-patterns-final-2` and
+`/tmp/clones-compiler-pattern-baseline-patterns-unfiltered-final-1`.
+
+The retained project reference exactly preserves the previous advisory and strict
+reports: 39 numeric diagnostics, one proposal and four accepted pairs. The 176
+unavailable generated owners and twenty unresolved callees correctly prevent
+proposal baseline export, with exit 2, an explicit reason and no file created.
+Reference/refused export resource observations are 2.24/1.99 seconds and
+201,024/202,008 KiB peak RSS; these different-output single runs are not a speedup
+or overhead-bound claim. Cases and commands are recorded in the project study;
+logs are `/tmp/clones-compiler-pattern-baseline-project-{raw,export}-1`.
+This delivers a shared CI workflow over completed proposals, not broader project
+completeness, better proposal quality or legacy retirement. The next frontier is
+compiler negative-status prerequisites and cross-package observations, followed
+by measured project-quality/coverage work rather than additional parallel miners.

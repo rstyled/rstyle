@@ -3,7 +3,7 @@ pub(in crate::clones) mod observed;
 mod rules;
 use super::{ReviewStore, outcome, positive_workflow, status, summary, workflow};
 use crate::clones::{identity::UnitId, report};
-pub(super) use rules::{Entry, validate_entries};
+pub(super) use rules::{Entry, Key, validate_entries};
 use serde::Serialize;
 use std::collections::BTreeSet;
 
