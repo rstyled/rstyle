@@ -96,6 +96,19 @@ pub struct Args {
     /// Evaluate bounded static effect density; unknown events prevent a ratio.
     #[arg(long)]
     effect_density: bool,
+    /// Compare completed numeric findings with an explicit saved density baseline.
+    #[arg(
+        long,
+        requires = "effect_density",
+        conflicts_with = "write_density_baseline"
+    )]
+    density_baseline: Option<PathBuf>,
+    /// Export a complete whole-scope density baseline to a new file.
+    #[arg(long, requires = "effect_density", conflicts_with_all = ["changed_files", "density_baseline"])]
+    write_density_baseline: Option<PathBuf>,
+    /// Fail on new density findings or baseline policy/build-context drift.
+    #[arg(long, requires = "density_baseline")]
+    fail_on_new_density: bool,
     /// TOML side_effects and workspace exclude policy for static density.
     #[arg(long, requires = "effect_density")]
     effect_config: Option<PathBuf>,
@@ -203,6 +216,7 @@ struct Configuration {
     analysis: Option<analysis::Config>,
     mutation: Option<analysis::mutation_reports::Settings>,
     effects: Option<analysis::effect_reports::Settings>,
+    density_baseline: Option<review::density_baseline::Baseline>,
 }
 
 fn configuration(cli: &Cli, args: &Args) -> Result<Configuration, String> {
@@ -223,6 +237,11 @@ fn configuration(cli: &Cli, args: &Args) -> Result<Configuration, String> {
         analysis: analysis::configuration(args)?,
         mutation: analysis::mutation_reports::configuration(args)?,
         effects: analysis::effect_reports::configuration(args)?,
+        density_baseline: args
+            .density_baseline
+            .as_deref()
+            .map(review::density_baseline::load)
+            .transpose()?,
     })
 }
 
@@ -406,10 +425,15 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         analysis_config: config.analysis.as_ref(),
         mutation_config: config.mutation.as_ref(),
         effect_config: config.effects.as_ref(),
+        density_baseline: config.density_baseline.as_ref(),
         matching_config: &config.matching,
     };
     let consumers = report::Consumers::new(&context)?;
     let report = report::make(context, consumers);
+    report.numeric_reviews.density_review.publish_baseline(
+        args.write_density_baseline.as_deref(),
+        complete && analyses_complete(&report),
+    )?;
     let output = report.publish(cli.format, accepted)?;
     let code = if complete && analyses_complete(&report) {
         u8::from(finding_exit_requested(&report, args, accepted))
@@ -452,7 +476,8 @@ fn analyses_complete(report: &report::Report<'_>) -> bool {
 }
 
 fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: usize) -> bool {
-    (args.fail_on_accepted_pairs && accepted > 0)
+    (args.fail_on_new_density && report.numeric_reviews.density_review.baseline_gate_fails())
+        || (args.fail_on_accepted_pairs && accepted > 0)
         || (args.fail_on_findings
             && (source_finding_exit_count(report) > 0
                 || report

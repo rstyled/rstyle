@@ -1831,7 +1831,7 @@ remain open; native macOS and external Go comparison remain unverified. No
 legacy capability is retired and upstream PR19 remains outside this branch.
 
 
-## C13b: changed-file density presentation and CI findings
+## C13b: changed-file density presentation and CI findings (`f5ac003`)
 
 Density now accepts the shared bounded `rstyle.changed-files/1` manifest without
 requiring source rules. Lead owns CLI/configuration, shared path membership,
@@ -1868,3 +1868,59 @@ progress, not a speedup claim.
 Next ready work is project-scoped density coverage/quality and saved CI finding
 baselines. Native macOS, external Go comparison, changed-line analysis and legacy
 retirement remain unverified or open. Upstream PR19 is still outside this branch.
+
+
+## C13c: explicit saved density CI baselines
+
+The lead owns CLI/report integration and shared observation reuse; model and IO
+workers own the isolated `review/density_baseline/` leaves; independent acceptance
+owns `tests/migration_effects/density/baseline.rs`. A read-only audit checked empty
+inventories, source-policy changes, unavailable retained observations, identity
+bounds and publication ordering.
+
+`--write-density-baseline NEW_PATH` exports complete whole-scope numeric findings;
+`--density-baseline PATH --fail-on-new-density` compares selected current findings
+and policy/exclusion/build-context headers. The new exit gate is separate from
+existing `--fail-on-findings`; raw findings, measurements and saved reviews remain
+intact. Density reviews and baselines share one completed observation roster,
+including checked original locators and exact numeric snapshots. Current numeric
+identity and uniqueness still require independent retained source inspection;
+loaded baseline values supply comparison only. Whole-analysis failure or
+incompleteness prevents publication and clean comparison.
+
+The bounded closed baseline stores policy/version/context/exclusion headers even
+when there are no findings. Contexts use canonical full-value ordering, not hashes.
+Changed headers fail the new gate even with empty selected presentation or no
+current positive findings. Only a completed selected numeric negative under the
+retained policy is resolved. Missing, unselected, suppressed, excluded, exempt and
+unavailable retained owners remain explicit rather than resolved; these statuses
+are separate from current comparison coverage and do not by themselves count as
+new current findings. Export is whole-scope only and atomically refuses overwrite.
+Input/output is bounded to 4 MiB and 4,096 positive snapshots, context entries and
+exclusion patterns. No source/graph clone, new extraction permission, hash,
+threshold, suppression or budget increase is introduced.
+
+Thirteen pure-model/IO tests and thirteen real-Cargo acceptance tests pass. They
+cover empty headers, invalid/duplicate identities and numeric values, size/entry
+bounds, unknown fields, exact/moved/changed/new findings, changed policy/context/
+exclusions, numeric resolution and unavailable/unobserved retained entries,
+reviews and changed selection, incomplete export, create-new refusal and
+source/tool-free full/compact replay. The frozen code passes all 3,104 nextest
+tests (five skipped) in 197.777 seconds and workspace doc tests, including the
+original NonZero regressions and u32 widening composition. Workspace/all-target
+Clippy with warnings denied and formatting pass. Legacy style reports zero
+violations across 9,428 functions; reviewed patterns reports zero visible
+candidates, with exactly the prior fifteen unfiltered IDs. Python
+comparison/harness tests pass 76/76 and script tests pass 50/50. Formatting and
+diff checks pass. Evidence is under `/tmp/clones-density-baseline-*`.
+
+Shared numeric review presentation and atomic artifact publication replace
+parallel family implementations. The integrated run caught a missing nested
+serde flatten attribute in that extraction; restoring it preserves the existing
+top-level density/mutation review JSON contract. All 55 focused density/review
+tests and the full rerun pass without changing review decisions or measurements.
+
+Original root-file and inline-module locators remain the current positive identity
+scope. Broader external-module identities, source-rule CI baselines, project
+coverage/quality, native macOS, external Go comparisons and capability-specific
+retirement remain open. PR19 is still outside this branch.

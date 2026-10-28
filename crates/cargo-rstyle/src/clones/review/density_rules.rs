@@ -27,7 +27,7 @@ impl Policy {
         }
     }
 
-    fn validate(&self) -> Result<(), Error> {
+    pub(in crate::clones) fn validate(&self) -> Result<(), Error> {
         if [
             &self.event_metric,
             &self.statement_metric,

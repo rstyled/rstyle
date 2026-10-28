@@ -2,6 +2,7 @@
 //! No hashes: full versioned member values are the only equality authority.
 mod adapter;
 mod comparison;
+pub(super) mod density_baseline;
 pub(super) mod density_rules;
 pub(super) mod density_workflow;
 mod exact_rules;
@@ -17,6 +18,7 @@ mod outcome;
 mod owner_observations;
 mod owner_population;
 pub(super) mod prune;
+mod publication;
 mod source_rules;
 pub(super) mod source_workflow;
 mod spacing_rules;

@@ -236,3 +236,54 @@ When source rules and density are requested together, both use the same manifest
 but retain independent coverage and findings. Other consumers' finding exits and
 planning populations retain their existing behavior. Changed-line analysis and
 saved CI finding baselines remain open.
+
+## Saved density CI baselines
+
+Export an explicit inventory after a complete analysis:
+
+```sh
+cargo rstyle clones --extraction-profile hir-data-v3 --effect-density \
+  --effect-config effects.toml --write-density-baseline density-baseline.json
+```
+
+The destination must be new. Export validates the whole requested analysis and
+writes a same-directory temporary file before atomic publication. Incomplete
+capture, unknown density evidence, identity exhaustion or incomplete requested
+consumers cannot publish an inventory. Export does not accept `--changed-files`;
+a selected subset cannot replace a whole-scope baseline. No review file is needed.
+
+Compare a current analysis or an explicit saved run with
+`--density-baseline density-baseline.json --fail-on-new-density`. This separate
+gate exits one for selected current findings without an exact baseline snapshot,
+or a change in effective density policy, exclusions or build-context roster.
+It exits two for incomplete requested analysis. Ordinary `--fail-on-findings`
+continues to include existing findings. Baseline comparison never hides raw
+measurements or changes saved reviews. Saved numeric reviews apply before
+selected existing/new counts, and `--changed-files` may select comparison output.
+
+`density_review.baseline` reports current coverage, selected visible existing/new
+counts, header drift, current owner states and retained-entry status. An existing
+finding requires the same original locator, build context, detector/metric
+versions, complete numeric event distribution and source denominator. Moving
+lines or changing a body without changing that completed measurement can retain
+an existing numeric finding. This is not semantic or refactoring approval.
+
+Retained status is separate from current coverage. Only a completed selected
+numeric negative under the retained policy is `resolved`. Suppression, exclusion,
+minimum exemptions, missing owners, unselected owners and unavailable identities
+do not prove resolution. They stay explicit and do not themselves count as new
+current findings. Missing capture scope and deletion are not distinguished.
+Policy/context/exclusion drift fails the new gate even for empty inventories or
+empty selected presentation. Deliberate source suppressions remain source policy.
+
+Use separate baseline artifacts for different compiler/target/build contexts.
+
+The closed `rstyle.density-baseline/1` JSON model stores policy/version/context
+headers and at most 4,096 exact finding snapshots; input and output are bounded to
+4 MiB. Duplicate original identities, malformed snapshots, unknown fields and
+invalid headers reject. Publication never overwrites an old baseline; create a
+new artifact to review an intentional update. Source/tool-free full and compact
+replay support export and comparison. Durable identities currently cover original
+root files and inline modules; positive external-module identities remain
+unavailable. This bounded density workflow does not establish general project
+coverage or retire legacy style/patterns.

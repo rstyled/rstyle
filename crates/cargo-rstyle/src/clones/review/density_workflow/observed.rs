@@ -6,9 +6,9 @@ use crate::clones::{FunctionKey, analysis::effect_reports, report};
 
 type Identity = (Locator, local::BuildContext);
 
-pub(super) type Observations = owner_observations::Observations<Row>;
+pub(in crate::clones::review) type Observations = owner_observations::Observations<Row>;
 
-pub(super) struct Row {
+pub(in crate::clones::review) struct Row {
     pub key: FunctionKey,
     pub selected: bool,
     pub complete: bool,
@@ -94,7 +94,7 @@ impl Row {
     }
 }
 
-pub(super) fn collect(
+pub(in crate::clones::review) fn collect(
     inputs: &workflow::Inputs<'_, '_>,
     ctx: &report::Context<'_>,
 ) -> Observations {

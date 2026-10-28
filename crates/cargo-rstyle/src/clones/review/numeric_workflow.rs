@@ -29,7 +29,19 @@ pub(super) fn apply<L: Lifecycle>(
     ctx: &report::Context<'_>,
     store: Option<&mut ReviewStore>,
 ) -> Result<(L::Report, Vec<status::Record>), String> {
-    let Some(store) = store.filter(|_| L::enabled(ctx)) else {
+    let observations = store
+        .as_ref()
+        .filter(|_| L::enabled(ctx))
+        .map(|_| L::collect(inputs, ctx));
+    apply_observed(observations.as_ref(), ctx, store)
+}
+
+pub(super) fn apply_observed<L: Lifecycle>(
+    observations: Option<&L>,
+    ctx: &report::Context<'_>,
+    store: Option<&mut ReviewStore>,
+) -> Result<(L::Report, Vec<status::Record>), String> {
+    let Some((observations, store)) = observations.zip(store.filter(|_| L::enabled(ctx))) else {
         let scope = summary::Scope {
             requested: false,
             complete: false,
@@ -37,7 +49,6 @@ pub(super) fn apply<L: Lifecycle>(
         return Ok((L::summarize(Vec::new(), 0, scope), Vec::new()));
     };
 
-    let observations = L::collect(inputs, ctx);
     observations.dismiss(store, ctx)?;
     let decisions = observations.decisions(store)?;
     let records = observations.records(store, ctx);
@@ -93,4 +104,36 @@ pub(super) fn records<R: Retained>(
             }
         })
         .collect()
+}
+
+/// Numeric families share completed exact-visibility accounting with distinct keys.
+pub(super) trait Visibility: summary::Decision {
+    type Key: Ord;
+    const CONTRACT: summary::Contract;
+    fn hidden_key(&self) -> Option<Self::Key>;
+}
+
+#[derive(serde::Serialize)]
+pub(super) struct Presentation<D: Visibility> {
+    #[serde(flatten)]
+    pub summary: summary::Summary,
+    hidden_selected_findings: usize,
+    decisions: Vec<D>,
+    #[serde(skip)]
+    pub hidden: std::collections::BTreeSet<D::Key>,
+}
+
+impl<D: Visibility> Presentation<D> {
+    pub fn new(decisions: Vec<D>, retained: usize, scope: summary::Scope) -> Self {
+        let hidden: std::collections::BTreeSet<_> = decisions
+            .iter()
+            .filter_map(Visibility::hidden_key)
+            .collect();
+        Self {
+            summary: summary::summarize(&decisions, retained, scope, D::CONTRACT),
+            hidden_selected_findings: hidden.len(),
+            decisions,
+            hidden,
+        }
+    }
 }

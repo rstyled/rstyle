@@ -31,6 +31,7 @@ pub struct Context<'a> {
     pub partitions: rstyle_ccgraph::pipeline::WlPartitions,
     pub complete: bool,
     pub mutation_config: Option<&'a super::analysis::mutation_reports::Settings>,
+    pub density_baseline: Option<&'a super::review::density_baseline::Baseline>,
     pub effect_config: Option<&'a super::analysis::effect_reports::Settings>,
     pub analysis_config: Option<&'a super::analysis::Config>,
     pub matching_config: &'a rstyle_ccgraph::CcgraphConfig,

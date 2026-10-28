@@ -13,7 +13,9 @@ impl Indices {
             args.max_analysis_functions.unwrap_or(usize::MAX)
         } else if args.capability_proposals
             || ((args.source_rules || args.mutation_rules || args.effect_density)
-                && args.review_file.is_some())
+                && (args.review_file.is_some()
+                    || args.density_baseline.is_some()
+                    || args.write_density_baseline.is_some()))
         {
             args.max_analysis_functions.unwrap_or(4096).min(4096)
         } else {

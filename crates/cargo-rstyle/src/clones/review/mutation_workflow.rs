@@ -5,16 +5,11 @@ mod retained;
 use super::{ReviewStore, mutation_rules, numeric_workflow, outcome, status, summary, workflow};
 use crate::clones::{FunctionKey, analysis::Completion, report};
 use serde::Serialize;
-use std::collections::BTreeSet;
 
 #[derive(Serialize)]
 pub(in crate::clones) struct Report {
     #[serde(flatten)]
-    summary: summary::Summary,
-    hidden_selected_findings: usize,
-    decisions: Vec<Decision>,
-    #[serde(skip)]
-    hidden: BTreeSet<(FunctionKey, &'static str)>,
+    review: numeric_workflow::Presentation<Decision>,
 }
 
 #[derive(Serialize)]
@@ -112,33 +107,6 @@ fn dismiss(
     Ok(())
 }
 
-fn summarize(decisions: Vec<Decision>, retained: usize, requested: bool, complete: bool) -> Report {
-    let hidden: BTreeSet<_> = decisions
-        .iter()
-        .filter(|decision| decision.selected && decision.outcome.state == "hidden_exact")
-        .map(|decision| (decision.key, decision.rule_id))
-        .collect();
-    let hidden_selected_findings = hidden.len();
-    let summary = summary::summarize(
-        &decisions,
-        retained,
-        summary::Scope {
-            requested,
-            complete,
-        },
-        summary::Contract {
-            schema: "rstyle.mutation-rule-review/1",
-            incomplete_scope: "Mutation evidence or review identity scope is incomplete; saved choices cannot establish clean analysis",
-        },
-    );
-    Report {
-        summary,
-        hidden_selected_findings,
-        decisions,
-        hidden,
-    }
-}
-
 impl summary::Decision for Decision {
     fn state(&self) -> &'static str {
         self.outcome.state
@@ -147,16 +115,16 @@ impl summary::Decision for Decision {
 
 impl Report {
     pub(in crate::clones) fn hidden_for(&self, key: FunctionKey, rule_id: &str) -> bool {
-        self.hidden.contains(&(key, rule_id))
+        self.review.hidden.contains(&(key, rule_id))
     }
     pub(in crate::clones) fn render(&self) -> String {
-        self.summary.render("Mutation")
+        self.review.summary.render("Mutation")
     }
 }
 
 impl Completion for Report {
     fn permits_success(&self) -> bool {
-        self.summary.permits_success()
+        self.review.summary.permits_success()
     }
 }
 
@@ -196,6 +164,19 @@ impl numeric_workflow::Lifecycle for observed::Observations {
     }
 
     fn summarize(decisions: Vec<Decision>, retained: usize, scope: summary::Scope) -> Report {
-        summarize(decisions, retained, scope.requested, scope.complete)
+        Report {
+            review: numeric_workflow::Presentation::new(decisions, retained, scope),
+        }
+    }
+}
+
+impl numeric_workflow::Visibility for Decision {
+    type Key = (FunctionKey, &'static str);
+    const CONTRACT: summary::Contract = summary::Contract {
+        schema: "rstyle.mutation-rule-review/1",
+        incomplete_scope: "Mutation evidence or review identity scope is incomplete; saved choices cannot establish clean analysis",
+    };
+    fn hidden_key(&self) -> Option<Self::Key> {
+        (self.selected && self.outcome.state == "hidden_exact").then_some((self.key, self.rule_id))
     }
 }

@@ -11,6 +11,13 @@ pub(in crate::clones) struct Review {
 }
 
 impl Report<'_> {
+    pub(in crate::clones) fn baseline_valid(&self) -> bool {
+        self.functions
+            .iter()
+            .filter_map(|function| function.density.as_ref())
+            .all(density::Report::baseline_valid)
+    }
+
     pub(in crate::clones) fn review_scope_complete(&self) -> bool {
         self.scope.coverage == Coverage::Complete && self.scope.execution == Execution::Completed
     }

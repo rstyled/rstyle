@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
 pub(in crate::clones) struct Settings {
-    pub(super) exclude: Vec<String>,
-    pub(super) side_effects: SideEffectsConfig,
+    pub(in crate::clones) exclude: Vec<String>,
+    pub(in crate::clones) side_effects: SideEffectsConfig,
     #[serde(skip)]
     pub(super) exclusions: Matcher,
 }

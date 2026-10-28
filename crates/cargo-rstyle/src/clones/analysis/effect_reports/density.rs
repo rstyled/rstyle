@@ -207,6 +207,10 @@ impl Report {
         }
     }
 
+    pub(super) fn baseline_valid(&self) -> bool {
+        self.invalid_suppression.is_none()
+    }
+
     pub(super) fn presented_findings(&self) -> usize {
         self.visible_findings
             .saturating_sub(usize::from(self.review_hidden))

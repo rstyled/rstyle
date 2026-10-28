@@ -316,3 +316,18 @@ policy and visibility. Intentional metric differences have individual review
 reasons. Expected unknown cases stay outside the measured denominator and force
 `fully_complete: false`; successful acceptance does not establish clean project
 coverage or retire legacy style/patterns.
+
+
+## Density CI baseline inventories
+
+`clones --effect-density --write-density-baseline NEW_PATH` exports a complete
+whole-scope numeric inventory to a new file; it cannot use changed-file selection.
+Use `--density-baseline PATH --fail-on-new-density` to fail only for selected new
+numeric findings or policy/exclusion/build-context drift. Existing
+`--fail-on-findings` still includes existing findings. Baselines preserve raw
+reports and do not create saved dismissals. Current incomplete analysis exits two;
+retained suppression, exclusion, missing owners and unavailable identities remain
+explicit rather than resolved. Empty baseline headers still detect policy drift.
+Both live analysis and source/tool-free replay work. Original root-file/inline
+identity support and bounded inventory limits apply; see
+`docs/clones-mutation-effects.md` before using this as a project-wide CI gate.

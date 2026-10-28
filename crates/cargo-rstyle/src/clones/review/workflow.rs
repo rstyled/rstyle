@@ -2,7 +2,7 @@
 use super::*;
 use crate::clones::{Function, Handoff, analysis, capture, report};
 use serde::Serialize;
-use std::{collections::BTreeMap, io::Write, path::Path};
+use std::{collections::BTreeMap, path::Path};
 
 #[derive(Serialize)]
 pub(in crate::clones) struct Report {
@@ -443,18 +443,8 @@ fn load(path: &Path) -> Result<ReviewStore, String> {
 }
 
 fn save(path: &Path, store: &ReviewStore) -> Result<(), String> {
-    let directory = path
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or(Path::new("."));
-
     let bytes = store.to_json()?;
-    let mut file = tempfile::NamedTempFile::new_in(directory).map_err(|error| error.to_string())?;
-    file.write_all(bytes.as_bytes())
-        .map_err(|error| error.to_string())?;
-    file.flush().map_err(|error| error.to_string())?;
-    file.persist(path).map_err(|error| error.to_string())?;
-    Ok(())
+    publication::write(path, bytes.as_bytes(), publication::Mode::Replace)
 }
 
 impl crate::clones::analysis::Completion for Report {

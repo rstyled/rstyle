@@ -2,7 +2,7 @@
 use super::super::{CompilationTarget, Locator, Versions};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct BuildContext {
     pub compiler_commit: String,

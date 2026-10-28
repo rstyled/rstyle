@@ -1,20 +1,17 @@
 //! Saved density choices filter presentation while preserving numeric evidence.
-mod observed;
+pub(super) mod observed;
 mod retained;
 
 use super::{ReviewStore, density_rules, numeric_workflow, outcome, status, summary, workflow};
 use crate::clones::{FunctionKey, analysis::Completion, report};
 use serde::Serialize;
-use std::collections::BTreeSet;
 
 #[derive(Serialize)]
 pub(in crate::clones) struct Report {
     #[serde(flatten)]
-    summary: summary::Summary,
-    hidden_selected_findings: usize,
-    decisions: Vec<Decision>,
-    #[serde(skip)]
-    hidden: BTreeSet<FunctionKey>,
+    review: numeric_workflow::Presentation<Decision>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    baseline: Option<super::density_baseline::Report>,
 }
 
 #[derive(Serialize)]
@@ -30,7 +27,21 @@ pub(super) fn apply(
     ctx: &report::Context<'_>,
     store: Option<&mut ReviewStore>,
 ) -> Result<(Report, Vec<status::Record>), String> {
-    numeric_workflow::apply::<observed::Observations>(inputs, ctx, store)
+    let requested =
+        ctx.args.density_baseline.is_some() || ctx.args.write_density_baseline.is_some();
+    let observations = (store.is_some() || requested).then(|| observed::collect(inputs, ctx));
+
+    let (mut report, records) =
+        numeric_workflow::apply_observed(observations.as_ref(), ctx, store)?;
+    if requested && let Some(observations) = observations.as_ref() {
+        report.baseline = Some(super::density_baseline::evaluate(
+            observations,
+            &report,
+            inputs,
+            ctx,
+        )?);
+    }
+    Ok((report, records))
 }
 
 fn decisions(
@@ -93,30 +104,25 @@ fn dismiss(
     Ok(())
 }
 
-fn summarize(decisions: Vec<Decision>, retained: usize, requested: bool, complete: bool) -> Report {
-    let hidden: BTreeSet<_> = decisions
-        .iter()
-        .filter(|decision| decision.selected && decision.outcome.state == "hidden_exact")
-        .map(|decision| decision.key)
-        .collect();
-    let hidden_selected_findings = hidden.len();
-    let summary = summary::summarize(
-        &decisions,
-        retained,
-        summary::Scope {
-            requested,
-            complete,
-        },
-        summary::Contract {
-            schema: "rstyle.density-review/1",
-            incomplete_scope: "Density evidence or review identity scope is incomplete; saved choices cannot establish clean analysis",
-        },
-    );
-    Report {
-        summary,
-        hidden_selected_findings,
-        decisions,
-        hidden,
+impl Report {
+    pub(in crate::clones) fn publish_baseline(
+        &self,
+        path: Option<&std::path::Path>,
+        complete: bool,
+    ) -> Result<(), String> {
+        if let Some(path) = path {
+            self.baseline
+                .as_ref()
+                .ok_or("Density baseline was not evaluated")?
+                .publish(path, complete)?;
+        }
+        Ok(())
+    }
+
+    pub(in crate::clones) fn baseline_gate_fails(&self) -> bool {
+        self.baseline
+            .iter()
+            .any(super::density_baseline::Report::gate_fails)
     }
 }
 
@@ -128,17 +134,27 @@ impl summary::Decision for Decision {
 
 impl Report {
     pub(in crate::clones) fn hidden_for(&self, key: FunctionKey) -> bool {
-        self.hidden.contains(&key)
+        self.review.hidden.contains(&key)
     }
 
     pub(in crate::clones) fn render(&self) -> String {
-        self.summary.render("Density")
+        format!(
+            "{}{}",
+            self.review.summary.render("Density"),
+            self.baseline
+                .as_ref()
+                .map_or_else(String::new, super::density_baseline::Report::render)
+        )
     }
 }
 
 impl Completion for Report {
     fn permits_success(&self) -> bool {
-        self.summary.permits_success()
+        self.review.summary.permits_success()
+            && self
+                .baseline
+                .as_ref()
+                .is_none_or(super::density_baseline::Report::permits_success)
     }
 }
 
@@ -178,6 +194,20 @@ impl numeric_workflow::Lifecycle for observed::Observations {
     }
 
     fn summarize(decisions: Vec<Decision>, retained: usize, scope: summary::Scope) -> Report {
-        summarize(decisions, retained, scope.requested, scope.complete)
+        Report {
+            review: numeric_workflow::Presentation::new(decisions, retained, scope),
+            baseline: None,
+        }
+    }
+}
+
+impl numeric_workflow::Visibility for Decision {
+    type Key = FunctionKey;
+    const CONTRACT: summary::Contract = summary::Contract {
+        schema: "rstyle.density-review/1",
+        incomplete_scope: "Density evidence or review identity scope is incomplete; saved choices cannot establish clean analysis",
+    };
+    fn hidden_key(&self) -> Option<Self::Key> {
+        (self.selected && self.outcome.state == "hidden_exact").then_some(self.key)
     }
 }
