@@ -364,3 +364,5 @@ fn hiding_a_compiler_diagnostic_cannot_erase_missing_generated_input() {
     assert_eq!(reviewed["compiler_advisory"]["complete"], false);
     assert_eq!(reviewed["matching"], original["matching"]);
 }
+
+mod baseline;

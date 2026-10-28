@@ -2588,3 +2588,86 @@ observations, not a speedup or an overhead bound. Policy, independent case,
 commands and limitations are in the project study. Evidence is
 `/tmp/clones-compiler-diagnostics-project-{raw,review}-1`.
 Formatting and diff checks pass. Full capability migration remains incomplete.
+
+## C20: reuse compiler diagnostic snapshots for CI baselines
+
+The lead owns the compiler baseline adapter, the small shared baseline handle
+seam, CLI/report integration, acceptance cases and documentation. The opt-in
+`--write-compiler-baseline` and `--compiler-baseline --fail-on-new-compiler`
+workflow reuses completed compiler diagnostic snapshots and the existing
+baseline comparison, counts, coverage, gate and bounded atomic create-new I/O.
+The shared baseline report accepts a consumer-local selection handle, retaining
+existing source/density output shapes while compiler reports use unit/index.
+Those handles are presentation only and never enter persisted identity.
+
+All six numeric rule families retain full effective policy, metric/detector
+versions, signatures, actual/limit values, ordered details and build contexts.
+Comparison borrows snapshot values and indexes positive observations; only an
+explicit export copies compact snapshots. One immutable effective-policy value
+is now shared across current compilation units, diagnostic owners and baseline
+publication instead of serializing a fresh policy for every unit. No new hash,
+source parse, graph/body copy, body proof or second evaluator is introduced.
+Absent review/baseline requests still avoid diagnostic owner-roster retention.
+
+Baseline evaluation finishes before saved-review publication. Export and new
+finding exits reuse existing completion/gate machinery. Empty inventories check
+policy and build scope; raw findings and caller/fix plans remain unchanged.
+Explicit reviews affect visible new-finding counts but never erase raw export
+entries or hide header drift. Missing prior positives remain unavailable: the
+adapter does not synthesize completed negatives or claim resolution/pruning.
+Invalid suppressions cannot be exported as clean numeric baseline entries.
+Incomplete scopes keep exit 2 and cannot publish, including generated test-harness
+owners. Whole-scope bounds are 4 MiB and 4,096 owners/entries/contexts. Compiler
+changed-file presentation, proposal baselines, cross-package propagation,
+broader project completeness and per-capability retirement remain open.
+
+Ten independent real-Cargo cases exercise the six numeric families, movement,
+changed/new measurements, full/compact source-free replay without tools, ordinary
+versus baseline finding exits, empty-policy/release-context drift, generated
+check/test incompleteness, positive-only retained status, explicit review
+visibility/raw export, unavailable input, invalid suppressions, closed artifacts
+and create-new publication. Shared source/density baseline regressions remain in
+the full checkpoint suite. Final gate and project observations follow below.
+
+The pattern gate identified three same-domain overlaps during development.
+Snapshot inventory validation now shares one generic pass between density and
+compiler baselines; retained-row enumeration also shares one implementation.
+Compiler observations feed the existing comparison directly. Density validation
+keeps the same snapshot, policy/version, build-context and unique-owner checks.
+Empty retained compiler inventories skip positive-index construction entirely.
+No pattern ignore, suppression, limit or budget was changed.
+The existing inventory interface now enforces header-before-findings validation
+for source, density and compiler baselines. Their rule-specific checks remain
+separate; no source/density completeness or policy semantics were relaxed.
+
+Final context review found that units with no captured functions have no
+function-backed build observation. Shared baseline context collection now rejects
+that missing context explicitly rather than inventing an empty context list.
+A real-Cargo empty-crate regression covers it. Source/density baselines inherit
+the same missing-data distinction; ordinary advisory evaluation is unchanged.
+
+The final integrated snapshot passes all 3,255 nextest tests in 208.373 seconds
+with five existing skips, plus workspace doc tests. Both original NonZero CI
+regressions and the u32 widening composition pass. Workspace all-target Clippy
+with warnings denied passes; reviewed patterns reports zero. Evidence is
+`/tmp/clones-compiler-baseline-tests-final-3`,
+`/tmp/clones-compiler-baseline-clippy-final-5` and
+`/tmp/clones-compiler-baseline-patterns-final-4`.
+Style is zero across 9,638 functions; evidence is
+`/tmp/clones-compiler-baseline-style-final-3`. Final unfiltered discovery contains
+fourteen previously reviewed IDs and no new IDs. Prior `76534998402b` is not
+returned by bounded discovery in this snapshot; its existing ledger entry and
+all other review entries remain untouched. Evidence is
+`/tmp/clones-compiler-baseline-patterns-unfiltered-final-2`.
+
+The retained project replay preserves all 39 raw diagnostics, the core proposal
+report and all four strict pairs. Its 176 unavailable generated owners and twenty
+unresolved callees correctly prevent baseline export: exit 2, explicit incomplete
+reason and no file created. The independently pre-recorded case, commands and
+single-run resource observations are in the project study. Reference/refused
+export take 2.07/2.02 seconds and 201,568/201,684 KiB peak RSS respectively;
+these are not a speedup or overhead bound. Evidence is
+`/tmp/clones-compiler-baseline-project-{raw,export}-1`.
+Formatting and diff checks pass. Full migration remains incomplete; compiler
+changed-file presentation is the next ready workflow slice. No legacy command
+or strict contract is retired by this checkpoint.

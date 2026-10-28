@@ -23,7 +23,8 @@ Use `--compiler-advisory-config PATH` for an explicit TOML core policy. Without
 that flag the core defaults apply; the workspace's `rstyle.toml` is not implicitly
 loaded. `--fail-on-findings` includes advisory diagnostics. Incomplete coverage
 still exits 2, even if assessed functions have no findings. An explicit `--review-file` applies exact saved choices to these diagnostics.
-Changed-file filters and baselines do not yet apply to this field. Compiler
+Changed-file filters do not yet apply to this field. The explicit compiler diagnostic
+baseline workflow is described below. Compiler
 proposals have a separate review identity described below.
 The normal legacy style command remains available.
 
@@ -166,8 +167,8 @@ cargo rstyle clones --extraction-profile hir-data-v3 --compiler-advisory \
 
 The unit and index are selection handles from that exact report, not durable
 identity. Core retains the diagnostic-to-owner association while sorting; the
-adapter does not infer owners from matching locations. Without a review file,
-core retains no extra owner roster and the adapter builds no review snapshots.
+adapter does not infer owners from matching locations. Without a review file or explicit compiler baseline request, core retains no extra
+owner roster and the adapter builds no diagnostic snapshots.
 Known compiler owner/trait locators and captured signature/build context reuse
 the same helpers as proposal reviews. Ambiguous names remain unavailable.
 
@@ -192,3 +193,57 @@ retained as unavailable: this adapter does not yet establish completed negative
 assessments for pruning. Omitted compiler advisory is not-requested. Hiding every
 known finding cannot make generated/missing/unresolved input complete, and all
 strict matching results remain independent.
+
+
+## Compiler diagnostic CI baselines
+
+Export an inventory after a complete compiler advisory run, then compare explicitly:
+
+```sh
+cargo rstyle clones --extraction-profile hir-data-v3 --compiler-advisory \
+  --compiler-advisory-config policy.toml --write-compiler-baseline baseline.json
+cargo rstyle clones --extraction-profile hir-data-v3 --compiler-advisory \
+  --compiler-advisory-config policy.toml --compiler-baseline baseline.json \
+  --fail-on-new-compiler
+```
+
+Both commands also accept an explicit `--replay-run PATH_TO_RUN`; comparison and
+export need neither source files nor compiler tools on replay. The schema-1
+inventory reuses completed diagnostic snapshots, metric/detector versions, full
+effective policy and canonical build contexts. Snapshot comparison borrows values;
+only explicit export copies compact measurements. One immutable policy value is
+shared across all current units, owners and baseline publication. No graph, body,
+source parsing, hashing or repeated analysis is added.
+
+`compiler_advisory.diagnostic_baseline` reports current diagnostic handles,
+existing/new visible counts, header drift and retained states. The unit/index
+handles refer only to the current raw diagnostic roster and are never persisted.
+All six numeric style rules use the same exact equality as saved diagnostic
+reviews. Movement can preserve equality; changes to signatures, measurements,
+distributions, policy or context make findings new/changed. Even an empty
+inventory checks policy and build scope. The entire effective policy participates,
+so an unrelated policy edit may conservatively cause drift.
+
+`--fail-on-new-compiler` exits 1 for new/changed visible findings or policy/context
+drift. Existing raw findings still count with `--fail-on-findings`; a baseline
+never dismisses them. An explicit review file can hide individual new findings
+from the new-finding count, while exports always retain the raw numeric findings.
+Reviews cannot hide header drift. Missing old positives stay **unavailable**;
+the adapter does not establish completed negatives or claim resolution/pruning.
+
+Incomplete inputs, unavailable diagnostic identities, invalid suppressions and
+oversized populations keep exit 2 and prevent export. The shared artifact boundary
+uses a 4 MiB limit, 4,096 entries/contexts, and atomic create-new publication;
+existing destination files are never overwritten. Compiler baseline assessment
+also requires at most 4,096 captured owners. Import validates the closed schema,
+versions, contexts and unambiguous rule/owner/compilation-target identities.
+A compilation unit with no captured functions lacks the function-backed build
+context required by this adapter and cannot establish a baseline; no empty
+context is invented. Generated test-harness owners may make `--all-targets` incomplete even when all
+known diagnostics are available. Known findings still appear in an incomplete
+comparison, but that comparison cannot establish a clean CI result.
+
+This gate covers the whole compiler advisory scope. Changed-file manifests apply
+only to their existing source/density consumers; exporting a compiler baseline
+with a changed-file manifest is rejected. Proposal baselines, broader project
+coverage, completed-negative status and legacy retirement remain open.

@@ -5,7 +5,6 @@ use super::super::{
     local, local_adapter,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
 
 const SCHEMA: &str = "rstyle.density-baseline/1";
 const MAX_ENTRIES: usize = 4096;
@@ -39,22 +38,7 @@ impl Baseline {
     }
 
     pub(in crate::clones) fn validate(&self) -> Result<(), String> {
-        self.validate_header()?;
-        let mut identities = BTreeSet::new();
-        for snapshot in &self.entries {
-            density_rules::validate_snapshot(snapshot)
-                .map_err(|error| format!("invalid density baseline finding: {error:?}"))?;
-            if snapshot.policy != self.policy || snapshot.versions != self.versions {
-                return Err("density baseline finding disagrees with policy or versions".into());
-            }
-            if self.contexts.binary_search(&snapshot.context).is_err() {
-                return Err("density baseline finding has no retained build context".into());
-            }
-            if !identities.insert((&snapshot.locator, &snapshot.context.compilation_target)) {
-                return Err("ambiguous original identity in density baseline".into());
-            }
-        }
-        Ok(())
+        super::super::baseline_common::Inventory::validate_inventory(self)
     }
 
     fn validate_header(&self) -> Result<(), String> {
@@ -100,6 +84,20 @@ impl super::super::baseline_common::Inventory for Baseline {
         self.policy == previous.policy
             && self.contexts == previous.contexts
             && self.exclude == previous.exclude
+    }
+    fn validate_header(&self) -> Result<(), String> {
+        Baseline::validate_header(self)
+    }
+    fn validate_findings(&self) -> Result<(), String> {
+        super::super::baseline_common::FindingInventory {
+            contexts: &self.contexts,
+            label: "density",
+        }
+        .validate(
+            &self.entries,
+            |finding| finding.policy == self.policy && finding.versions == self.versions,
+            |_| "side_effect_density",
+        )
     }
     type Entry = density_rules::Snapshot;
     fn replace_entries(&mut self, entries: Vec<Self::Entry>) {

@@ -4,6 +4,7 @@ mod adapter;
 pub(super) mod baseline_common;
 mod baseline_io;
 mod comparison;
+pub(super) mod compiler_baseline;
 pub(super) mod compiler_diagnostics;
 mod compiler_owners;
 pub(super) mod compiler_patterns;

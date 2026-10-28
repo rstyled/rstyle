@@ -367,7 +367,7 @@ It reuses `ExprUseVisitor`, core propagation, fix groups and parameter stacking;
 strict clone admission is not required. Captured observations support source-free
 `--replay-run` and policy reevaluation. These metric versions differ from strict
 mutation-effect metrics; zero policy density is not a purity proof. Changed-file
-filters and baselines do not yet apply to compiler style diagnostics.
+filters do not yet apply to compiler style diagnostics.
 See [compiler advisory](../../docs/clones-compiler-advisory.md).
 
 Add `--compiler-patterns` to reuse existing compiler graphs and the core
@@ -406,3 +406,17 @@ with separate visible indices and decisions. Invalid suppressions cannot be
 reviewed away. Missing diagnostics remain unavailable and are not automatically
 pruned. Owners/policy values are shared; no graphs, body proofs or hashes are
 added. Incomplete compiler coverage keeps exit 2 even when all findings are hidden.
+
+
+Compiler diagnostics support `--write-compiler-baseline PATH` for a complete
+whole-scope inventory, then `--compiler-baseline PATH --fail-on-new-compiler`
+for new/changed visible findings and policy/build-context drift. Use the same
+explicit compiler policy and saved run as needed. Comparison reuses completed
+numeric snapshots and shared baseline I/O; no hashes, body copies or extra
+analysis. Raw diagnostics/fix plans remain intact; `--fail-on-findings` still
+counts existing findings. Reviews can hide new findings but cannot hide header
+drift. Missing old findings remain unavailable, never automatically resolved.
+Incomplete or oversized scope exits 2 and cannot export; bounds are 4 MiB and
+4,096 owners/entries/contexts. Exports create a new file without overwriting.
+Changed-file selection does not filter this whole-scope compiler gate. No
+proposal-baseline or legacy-retirement claim follows from this workflow.

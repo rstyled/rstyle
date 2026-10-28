@@ -11,6 +11,22 @@ use serde::Serialize;
 use std::{collections::BTreeMap, path::Path};
 
 pub(super) fn contexts(ctx: &report::Context<'_>) -> Result<Vec<local::BuildContext>, String> {
+    let observed: std::collections::BTreeSet<_> = ctx
+        .handoff
+        .assessed
+        .iter()
+        .take(4096)
+        .map(|function| function.key.unit())
+        .collect();
+    if ctx
+        .handoff
+        .unit_contexts
+        .iter()
+        .any(|unit| !observed.contains(&unit.id))
+    {
+        return Err("Baseline build context is unavailable for a compilation unit without captured function owners".into());
+    }
+
     let mut contexts = ctx
         .handoff
         .assessed
@@ -51,6 +67,12 @@ pub(in crate::clones) trait Inventory: baseline_io::Artifact {
     const REPORT_SCHEMA: &'static str;
     const INCOMPLETE: &'static str;
     fn same_scope(&self, previous: &Self) -> bool;
+    fn validate_header(&self) -> Result<(), String>;
+    fn validate_findings(&self) -> Result<(), String>;
+    fn validate_inventory(&self) -> Result<(), String> {
+        self.validate_header()?;
+        self.validate_findings()
+    }
     fn replace_entries(&mut self, entries: Vec<Self::Entry>);
 }
 
@@ -81,13 +103,13 @@ pub(super) fn publication<T: Inventory>(
 }
 
 #[derive(Serialize)]
-pub(in crate::clones) struct Report<T> {
+pub(in crate::clones) struct Report<T, H = FunctionKey> {
     pub schema: &'static str,
     pub coverage: Coverage,
     pub existing_findings: usize,
     pub new_findings: usize,
     pub scope_changed: bool,
-    pub(super) current: Vec<Current>,
+    pub(super) current: Vec<Current<H>>,
     pub(super) retained: Vec<Previous>,
     pub reasons: Vec<String>,
     #[serde(skip)]
@@ -95,8 +117,8 @@ pub(in crate::clones) struct Report<T> {
 }
 
 #[derive(Serialize)]
-pub(super) struct Current {
-    pub key: FunctionKey,
+pub(super) struct Current<H = FunctionKey> {
+    pub key: H,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rule_id: Option<&'static str>,
     pub selected: bool,
@@ -111,18 +133,18 @@ pub(super) struct Previous {
     reason: String,
 }
 
-pub(super) struct Observation<K, V> {
-    pub key: FunctionKey,
+pub(super) struct Observation<K, V, H = FunctionKey> {
+    pub key: H,
     pub rule_id: Option<&'static str>,
     pub selected: bool,
     pub review_hidden: bool,
     pub finding: Result<(K, V), String>,
 }
 
-pub(super) fn compare<K: Ord, V: PartialEq>(
+pub(super) fn compare<K: Ord, V: PartialEq, H>(
     previous: BTreeMap<K, V>,
-    observations: impl Iterator<Item = Observation<K, V>>,
-) -> Vec<Current> {
+    observations: impl Iterator<Item = Observation<K, V, H>>,
+) -> Vec<Current<H>> {
     observations
         .map(|row| {
             let state =
@@ -149,13 +171,46 @@ pub(super) fn retained<'a, R: Owner + 'a, E: 'a>(
     domain: Domain,
     assess: impl Fn(&R, &E) -> (status::State, String),
 ) -> Vec<Previous> {
+    previous_rows(entries, |(locator, context, finding)| {
+        let (state, reason) = population
+            .resolve(locator, context, domain)
+            .map_or_else(|assessment| assessment, |owner| assess(owner, finding));
+        baseline_state(state, reason)
+    })
+}
+
+/// Positive inventories cannot establish that an absent finding was resolved.
+pub(super) fn positive_retained<'a, K: Ord, V: PartialEq + 'a>(
+    previous: impl Iterator<Item = (K, &'a V)>,
+    current: BTreeMap<K, Vec<&V>>,
+) -> Vec<Previous> {
+    previous_rows(previous, |(key, previous)| {
+        let (state, reason) = match current.get(&key) {
+            Some(rows) if rows.contains(&previous) => (
+                "existing",
+                "Exact baseline finding remains current; raw findings are retained",
+            ),
+            Some(_) => (
+                "changed",
+                "Current positive finding differs from the baseline",
+            ),
+            None => (
+                "unavailable",
+                "No current positive finding; a completed negative assessment is unavailable",
+            ),
+        };
+        (state, reason.into())
+    })
+}
+
+fn previous_rows<E>(
+    entries: impl Iterator<Item = E>,
+    assess: impl Fn(E) -> (&'static str, String),
+) -> Vec<Previous> {
     entries
         .enumerate()
-        .map(|(entry_index, (locator, context, finding))| {
-            let (state, reason) = population
-                .resolve(locator, context, domain)
-                .map_or_else(|assessment| assessment, |owner| assess(owner, finding));
-            let (state, reason) = baseline_state(state, reason);
+        .map(|(entry_index, entry)| {
+            let (state, reason) = assess(entry);
             Previous {
                 entry_index,
                 state,
@@ -165,7 +220,48 @@ pub(super) fn retained<'a, R: Owner + 'a, E: 'a>(
         .collect()
 }
 
-impl<T: Inventory> Report<T> {
+pub(super) struct FindingInventory<'a> {
+    pub contexts: &'a [local::BuildContext],
+    pub label: &'static str,
+}
+
+impl FindingInventory<'_> {
+    pub(super) fn validate<S: super::exact_rules::ReviewSnapshot>(
+        &self,
+        entries: &[S],
+        matches_header: impl Fn(&S) -> bool,
+        rule: impl Fn(&S) -> &str,
+    ) -> Result<(), String> {
+        let mut identities = std::collections::BTreeSet::new();
+        for finding in entries {
+            finding
+                .validate()
+                .map_err(|error| format!("invalid {} baseline finding: {error:?}", self.label))?;
+            if !matches_header(finding) {
+                return Err(format!(
+                    "{} baseline finding disagrees with policy or versions",
+                    self.label
+                ));
+            }
+            let (locator, context) = finding.identity();
+            if self.contexts.binary_search(context).is_err() {
+                return Err(format!(
+                    "{} baseline finding has no retained build context",
+                    self.label
+                ));
+            }
+            if !identities.insert((rule(finding), locator, &context.compilation_target)) {
+                return Err(format!(
+                    "ambiguous original identity in {} baseline",
+                    self.label
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<T: Inventory, H> Report<T, H> {
     pub(in crate::clones) fn publish(&self, path: &Path, complete: bool) -> Result<(), String> {
         let artifact = self.ready(complete)?;
         baseline_io::publish(path, artifact)
@@ -201,8 +297,8 @@ impl<T: Inventory> Report<T> {
     }
 }
 
-pub(in crate::clones) fn publish_optional<T: Inventory>(
-    report: Option<&Report<T>>,
+pub(in crate::clones) fn publish_optional<T: Inventory, H>(
+    report: Option<&Report<T, H>>,
     path: Option<&Path>,
     complete: bool,
 ) -> Result<(), String> {
@@ -214,7 +310,7 @@ pub(in crate::clones) fn publish_optional<T: Inventory>(
     Ok(())
 }
 
-pub(super) fn counts(current: &[Current]) -> (usize, usize) {
+pub(super) fn counts<H>(current: &[Current<H>]) -> (usize, usize) {
     let visible = current
         .iter()
         .filter(|row| row.selected && !row.review_hidden);
@@ -226,18 +322,18 @@ pub(super) fn counts(current: &[Current]) -> (usize, usize) {
     (existing, new)
 }
 
-pub(super) struct Assessment {
+pub(super) struct Assessment<H = FunctionKey> {
     pub complete: bool,
-    pub current: Vec<Current>,
+    pub current: Vec<Current<H>>,
     pub retained: Vec<Previous>,
     pub export_requested: bool,
 }
 
-impl<T: Inventory> Report<T> {
+impl<T: Inventory, H> Report<T, H> {
     pub(super) fn evaluate(
         header: T,
         previous: Option<&T>,
-        assessment: Assessment,
+        assessment: Assessment<H>,
         entries: impl FnOnce() -> Result<Vec<T::Entry>, String>,
     ) -> Result<Self, String> {
         let (existing_findings, new_findings) = counts(&assessment.current);

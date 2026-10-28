@@ -259,3 +259,39 @@ Independent real-Cargo cases separately exercise recorded choices for all six
 style-rule families, movement, changed measurements, source-free replay,
 check/test separation, failed writes and incomplete generated input. Baselines,
 completed-negative pruning, broader quality and retirement remain open.
+
+## Compiler diagnostic baseline boundary
+
+The baseline checkpoint reuses the same retained `run-I9FEzJ` library capture
+and explicit `project-compiler-review-policy.toml`. Its independently recorded
+expectation is in
+[`project-compiler-baseline-cases.json`](project-compiler-baseline-cases.json):
+176 unavailable generated owners and twenty unresolved callees prevent a clean
+whole-scope baseline even when the known diagnostics are usable.
+
+A reference replay retains the same 39 diagnostics, raw core style/proposal
+reports and all four accepted strict pairs. The subsequent explicit export
+request exits 2 with `Incomplete analysis cannot publish a compiler diagnostic
+baseline` and creates no baseline file. No real-project finding is dismissed or
+review file written. This establishes the baseline workflow's incomplete-scope
+boundary; it does not establish a clean project baseline or legacy retirement.
+
+```sh
+python3 scripts/watchdog.py --timeout 90 \
+  --output /tmp/clones-compiler-baseline-project-export-1 -- \
+  /usr/bin/time -v target/debug/cargo-rstyle rstyle --format json clones \
+  --extraction-profile hir-data-v3 --compiler-advisory --compiler-patterns \
+  --compiler-advisory-config eval/clones-capability/project-compiler-review-policy.toml \
+  --replay-run target/rstyle/clones/run-I9FEzJ \
+  --write-compiler-baseline /tmp/clones-compiler-baseline-project-export-1/baseline.json \
+  --report-detail compact
+```
+
+For the reference, omit `--write-compiler-baseline` and use a separate output
+directory. On pinned Linux aarch64 the reference takes 2.07 seconds and 201,568
+KiB peak RSS; the refused export takes 2.02 seconds and 201,684 KiB. These are
+single observations with different output work, not a speedup or overhead bound.
+Evidence is `/tmp/clones-compiler-baseline-project-{raw,export}-1`. Complete
+six-family baseline publication/comparison and source-free replay are separately
+verified by the independent real-Cargo fixture cases. Broader project completeness
+and quality remain open.

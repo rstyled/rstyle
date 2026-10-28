@@ -132,6 +132,19 @@ pub struct Args {
     /// Fail for new or changed selected source findings, or baseline header drift.
     #[arg(long, requires = "source_baseline")]
     fail_on_new_source: bool,
+    /// Compare completed compiler diagnostics with an explicit saved inventory.
+    #[arg(
+        long,
+        requires = "compiler_advisory",
+        conflicts_with = "write_compiler_baseline"
+    )]
+    compiler_baseline: Option<PathBuf>,
+    /// Export a complete compiler diagnostic inventory to a new file.
+    #[arg(long, requires = "compiler_advisory", conflicts_with_all = ["changed_files", "compiler_baseline"])]
+    write_compiler_baseline: Option<PathBuf>,
+    /// Fail for new or changed compiler diagnostics, or policy/build scope drift.
+    #[arg(long, requires = "compiler_baseline")]
+    fail_on_new_compiler: bool,
     /// TOML side_effects and workspace exclude policy for static density.
     #[arg(long, requires = "effect_density")]
     effect_config: Option<PathBuf>,
@@ -246,6 +259,7 @@ struct Configuration {
     analysis: Option<analysis::Config>,
     mutation: Option<analysis::mutation_reports::Settings>,
     effects: Option<analysis::effect_reports::Settings>,
+    compiler_baseline: Option<review::compiler_baseline::Baseline>,
     density_baseline: Option<review::density_baseline::Baseline>,
     source_baseline: Option<review::source_baseline::Baseline>,
 }
@@ -265,6 +279,11 @@ fn configuration(cli: &Cli, args: &Args) -> Result<Configuration, String> {
         .unwrap_or_else(|| json!({}));
     Ok(Configuration {
         compiler_advisory: advisory::configuration(args)?,
+        compiler_baseline: args
+            .compiler_baseline
+            .as_deref()
+            .map(review::compiler_baseline::load)
+            .transpose()?,
         matching: rstyle_ccgraph::parse_config(&value).map_err(|e| e.message)?,
         analysis: analysis::configuration(args)?,
         mutation: analysis::mutation_reports::configuration(args)?,
@@ -465,20 +484,12 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         effect_config: config.effects.as_ref(),
         density_baseline: config.density_baseline.as_ref(),
         source_baseline: config.source_baseline.as_ref(),
+        compiler_baseline: config.compiler_baseline.as_ref(),
         matching_config: &config.matching,
     };
     let consumers = report::Consumers::new(&context)?;
     let report = report::make(context, consumers);
-    review::baseline_common::publish_optional(
-        report.numeric_reviews.density_review.baseline.as_ref(),
-        args.write_density_baseline.as_deref(),
-        complete && analyses_complete(&report),
-    )?;
-    review::baseline_common::publish_optional(
-        report.source_reviews.source_baseline.as_ref(),
-        args.write_source_baseline.as_deref(),
-        complete && analyses_complete(&report),
-    )?;
+    publish_baselines(&report, args, complete && analyses_complete(&report))?;
     let output = report.publish(cli.format, accepted)?;
     let code = if complete && analyses_complete(&report) {
         u8::from(finding_exit_requested(&report, args, accepted))
@@ -487,6 +498,32 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     };
 
     Ok((output, code))
+}
+
+fn publish_baselines(
+    report: &report::Report<'_>,
+    args: &Args,
+    complete: bool,
+) -> Result<(), String> {
+    review::baseline_common::publish_optional(
+        report.numeric_reviews.density_review.baseline.as_ref(),
+        args.write_density_baseline.as_deref(),
+        complete,
+    )?;
+    review::baseline_common::publish_optional(
+        report.source_reviews.source_baseline.as_ref(),
+        args.write_source_baseline.as_deref(),
+        complete,
+    )?;
+    review::baseline_common::publish_optional(
+        report
+            .compiler_advisory
+            .as_ref()
+            .and_then(advisory::Report::baseline),
+        args.write_compiler_baseline.as_deref(),
+        complete,
+    )?;
+    Ok(())
 }
 
 fn analyses_complete(report: &report::Report<'_>) -> bool {
@@ -525,7 +562,13 @@ fn analyses_complete(report: &report::Report<'_>) -> bool {
 }
 
 fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: usize) -> bool {
-    (args.fail_on_new_source && report.source_reviews.baseline_gate_fails())
+    (args.fail_on_new_compiler
+        && report
+            .compiler_advisory
+            .as_ref()
+            .and_then(advisory::Report::baseline)
+            .is_some_and(review::compiler_baseline::Report::gate_fails))
+        || (args.fail_on_new_source && report.source_reviews.baseline_gate_fails())
         || (args.fail_on_new_density && report.numeric_reviews.density_review.baseline_gate_fails())
         || (args.fail_on_accepted_pairs && accepted > 0)
         || (args.fail_on_findings
@@ -913,5 +956,11 @@ fn projection_trace(function: &ImportedFunction) -> Value {
             "nodes": projection.trace.nodes.iter().map(|(id, disposition)| json!({"id":id,"disposition":format!("{disposition:?}")})).collect::<Vec<_>>(),
             "edges": projection.trace.edges.iter().map(|e| json!({"origin":e.origin,"source":e.source,"target":e.target,"family":e.family,"disposition":format!("{:?}",e.disposition)})).collect::<Vec<_>>()
         }),
+    }
+}
+
+impl Args {
+    fn compiler_baseline_requested(&self) -> bool {
+        self.compiler_baseline.is_some() || self.write_compiler_baseline.is_some()
     }
 }

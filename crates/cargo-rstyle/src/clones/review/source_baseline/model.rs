@@ -118,22 +118,7 @@ impl Baseline {
     }
 
     pub(in crate::clones) fn validate(&self) -> Result<(), String> {
-        self.validate_header()?;
-        let mut identities = BTreeSet::new();
-        for finding in &self.entries {
-            finding.validate()?;
-            if !finding.matches_header(&self.policy, &self.versions) {
-                return Err("source baseline finding disagrees with policy or versions".into());
-            }
-            let (locator, context) = finding.identity();
-            if self.contexts.binary_search(context).is_err() {
-                return Err("source baseline finding has no retained build context".into());
-            }
-            if !identities.insert((finding.rule_id(), locator, &context.compilation_target)) {
-                return Err("ambiguous original identity in source baseline".into());
-            }
-        }
-        Ok(())
+        super::super::baseline_common::Inventory::validate_inventory(self)
     }
 
     fn validate_header(&self) -> Result<(), String> {
@@ -176,6 +161,26 @@ impl super::super::baseline_common::Inventory for Baseline {
         self.policy == previous.policy
             && self.contexts == previous.contexts
             && self.exclude == previous.exclude
+    }
+    fn validate_header(&self) -> Result<(), String> {
+        Baseline::validate_header(self)
+    }
+    fn validate_findings(&self) -> Result<(), String> {
+        let mut identities = BTreeSet::new();
+        for finding in &self.entries {
+            finding.validate()?;
+            if !finding.matches_header(&self.policy, &self.versions) {
+                return Err("source baseline finding disagrees with policy or versions".into());
+            }
+            let (locator, context) = finding.identity();
+            if self.contexts.binary_search(context).is_err() {
+                return Err("source baseline finding has no retained build context".into());
+            }
+            if !identities.insert((finding.rule_id(), locator, &context.compilation_target)) {
+                return Err("ambiguous original identity in source baseline".into());
+            }
+        }
+        Ok(())
     }
     type Entry = Finding;
     fn replace_entries(&mut self, entries: Vec<Self::Entry>) {

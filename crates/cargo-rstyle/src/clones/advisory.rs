@@ -8,13 +8,13 @@ use rstyle_core::{
     facts::FnFacts,
 };
 use serde::Serialize;
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, rc::Rc};
 
 #[derive(Serialize)]
 pub(super) struct Report {
     schema: &'static str,
     metrics: &'static str,
-    effective_config: serde_json::Value,
+    effective_config: Rc<serde_json::Value>,
     complete: bool,
     pub findings: usize,
     limitations: &'static [&'static str],
@@ -23,6 +23,8 @@ pub(super) struct Report {
     pattern_review: Option<super::review::compiler_patterns::Report>,
     #[serde(skip_serializing_if = "Option::is_none")]
     diagnostic_review: Option<super::review::compiler_diagnostics::Report>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    diagnostic_baseline: Option<super::review::compiler_baseline::Report>,
 }
 
 #[derive(Serialize)]
@@ -62,6 +64,10 @@ impl Completion for Report {
     fn permits_success(&self) -> bool {
         self.complete
             && self
+                .diagnostic_baseline
+                .as_ref()
+                .is_none_or(|baseline| baseline.permits_success())
+            && self
                 .pattern_review
                 .as_ref()
                 .is_none_or(Completion::permits_success)
@@ -73,6 +79,14 @@ impl Completion for Report {
 }
 
 impl Report {
+    pub(super) fn baseline(&self) -> Option<&super::review::compiler_baseline::Report> {
+        self.diagnostic_baseline.as_ref()
+    }
+
+    pub(super) fn policy(&self) -> &Rc<serde_json::Value> {
+        &self.effective_config
+    }
+
     pub(super) fn render(&self) -> String {
         let summary = format!(
             "\nCompiler advisory: {} units, {} findings; complete={}. Metrics: {}.",
@@ -102,7 +116,11 @@ impl Report {
             .diagnostic_review
             .as_ref()
             .map_or_else(String::new, |review| review.render());
-        format!("{summary}{diagnostics}{patterns}{reviews}{diagnostic_reviews}")
+        let baseline = self
+            .diagnostic_baseline
+            .as_ref()
+            .map_or_else(String::new, |baseline| baseline.render());
+        format!("{summary}{diagnostics}{patterns}{reviews}{diagnostic_reviews}{baseline}")
     }
 
     pub(super) fn diagnostic_reviews(&self) -> Vec<super::review::compiler_diagnostics::Row<'_>> {
@@ -157,9 +175,13 @@ impl Report {
         self,
         patterns: super::review::compiler_patterns::Report,
         diagnostics: super::review::compiler_diagnostics::Report,
+        baseline: Option<super::review::compiler_baseline::Report>,
     ) -> Self {
         if !patterns.requested() && !diagnostics.requested() {
-            return self;
+            return Self {
+                diagnostic_baseline: baseline,
+                ..self
+            };
         }
         let units: Vec<_> = self
             .units
@@ -175,6 +197,7 @@ impl Report {
             complete,
             pattern_review: patterns.requested().then_some(patterns),
             diagnostic_review: diagnostics.requested().then_some(diagnostics),
+            diagnostic_baseline: baseline,
             ..self
         }
     }
@@ -184,11 +207,12 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
     let Some(config) = ctx.compiler_advisory_config else {
         return Ok(None);
     };
+    let policy = Rc::new(serde_json::to_value(config).map_err(|error| error.to_string())?);
     let units = ctx
         .handoff
         .unit_contexts
         .iter()
-        .map(|unit| evaluate_unit(ctx, unit, config))
+        .map(|unit| evaluate_unit(ctx, unit, &policy))
         .collect::<Result<Vec<_>, _>>()?;
     let complete = ctx.capture.failures.is_empty()
         && ctx.handoff.failures.is_empty()
@@ -198,7 +222,7 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
     Ok(Some(Report {
         schema: "rstyle.compiler-advisory/1",
         metrics: METRICS,
-        effective_config: serde_json::to_value(config).map_err(|error| error.to_string())?,
+        effective_config: policy,
         complete,
         findings: units.iter().map(Unit::findings).sum(),
         limitations: &[
@@ -211,6 +235,7 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
         units,
         pattern_review: None,
         diagnostic_review: None,
+        diagnostic_baseline: None,
     }))
 }
 
@@ -234,7 +259,7 @@ pub(super) fn configuration(args: &super::Args) -> Result<Option<Config>, String
 fn evaluate_unit(
     ctx: &Context<'_>,
     unit: &super::identity::UnitContext,
-    config: &Config,
+    policy: &Rc<serde_json::Value>,
 ) -> Result<Unit, String> {
     let captured = &ctx.capture.units[unit.observed_unit];
     let root = captured.target.manifest_dir.clone();
@@ -252,7 +277,7 @@ fn evaluate_unit(
         evaluation,
         facts,
         snapshots: diagnostic_snapshots,
-    } = diagnostics::evaluate(ctx, unit, facts, config)?;
+    } = diagnostics::evaluate(ctx, unit, facts, policy)?;
     let patterns = ctx.args.compiler_patterns.then(|| {
         patterns::evaluate(
             ctx,

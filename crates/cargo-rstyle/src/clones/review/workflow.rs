@@ -117,14 +117,39 @@ pub(in crate::clones) struct Reports {
 pub(in crate::clones) struct CompilerReviews {
     patterns: super::compiler_patterns::Report,
     diagnostics: super::compiler_diagnostics::Report,
+    baseline: Option<super::compiler_baseline::Report>,
 }
 
 impl CompilerReviews {
+    fn new(
+        inputs: &Inputs<'_, '_>,
+        ctx: &report::Context<'_>,
+        patterns: super::compiler_patterns::Report,
+        diagnostics: super::compiler_diagnostics::Report,
+    ) -> Result<Self, String> {
+        let baseline = if ctx.args.compiler_baseline_requested() {
+            Some(super::compiler_baseline::evaluate(
+                inputs
+                    .compiler_advisory
+                    .ok_or("Compiler baseline requires compiler advisory")?,
+                &diagnostics,
+                ctx,
+            )?)
+        } else {
+            None
+        };
+        Ok(Self {
+            patterns,
+            diagnostics,
+            baseline,
+        })
+    }
+
     pub(in crate::clones) fn apply(
         self,
         advisory: Option<crate::clones::advisory::Report>,
     ) -> Option<crate::clones::advisory::Report> {
-        advisory.map(|report| report.with_reviews(self.patterns, self.diagnostics))
+        advisory.map(|report| report.with_reviews(self.patterns, self.diagnostics, self.baseline))
     }
 }
 
@@ -170,6 +195,12 @@ fn evaluate(
     let (sources, source_rule_records) =
         super::source_workflow::apply(inputs, ctx, store.as_deref_mut())?;
     let policy = evaluate_policy_reviews(inputs, ctx, store)?;
+    let compiler = CompilerReviews::new(
+        inputs,
+        ctx,
+        policy.compiler_patterns,
+        policy.compiler_diagnostics,
+    )?;
     let records = [
         helper_records,
         source_records,
@@ -185,10 +216,7 @@ fn evaluate(
         .then(|| status::Report::new(records, true));
 
     Ok(Reports {
-        compiler: CompilerReviews {
-            patterns: policy.compiler_patterns,
-            diagnostics: policy.compiler_diagnostics,
-        },
+        compiler,
         density: policy.density,
         mutations: policy.mutations,
         sources,
