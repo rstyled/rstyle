@@ -6,7 +6,10 @@ pub(super) mod local;
 mod local_adapter;
 pub(super) mod local_workflow;
 mod model;
+mod outcome;
 pub(super) mod prune;
+mod source_rules;
+pub(super) mod source_workflow;
 pub(super) mod status;
 mod status_workflow;
 mod summary;
@@ -86,6 +89,7 @@ impl Default for ReviewStore {
             schema_version: SCHEMA_VERSION,
             entries: vec![],
             source_entries: vec![],
+            parameter_entries: vec![],
         }
     }
 }
@@ -144,12 +148,15 @@ impl ReviewStore {
     }
 
     fn validate(&self) -> Result<(), ReviewError> {
-        if !matches!(self.schema_version, 1 | 2)
+        if !matches!(self.schema_version, 1..=3)
             || (self.schema_version == 1 && !self.source_entries.is_empty())
+            || (self.schema_version < 3 && !self.parameter_entries.is_empty())
         {
             return Err(ReviewError::InvalidSchema);
         }
+
         local::validate_entries(&self.source_entries)?;
+        source_rules::validate_entries(&self.parameter_entries)?;
         for (index, entry) in self.entries.iter().enumerate() {
             if entry.reason.trim().is_empty() {
                 return Err(ReviewError::InvalidReason);

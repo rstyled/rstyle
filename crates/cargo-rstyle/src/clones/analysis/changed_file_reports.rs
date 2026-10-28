@@ -26,14 +26,25 @@ fn source_complete(function: &FunctionReport<'_>) -> bool {
         .assessments
         .iter()
         .all(|rule| rule.coverage == Coverage::Complete)
-        && function.source_exclusion.as_ref().is_some_and(|exclusion| {
-            exclusion.complete()
-                && (exclusion.excluded()
-                    || function
-                        .source_suppression
-                        .as_ref()
-                        .is_some_and(|suppression| suppression.complete()))
-        })
+        && function.source_policy_complete()
+}
+
+impl FunctionReport<'_> {
+    pub(super) fn source_policy_complete(&self) -> bool {
+        let Some(exclusion) = &self.source_exclusion else {
+            return false;
+        };
+        if !exclusion.complete() {
+            return false;
+        }
+        if exclusion.excluded() {
+            return true;
+        }
+
+        self.source_suppression
+            .as_ref()
+            .is_some_and(|suppression| suppression.complete())
+    }
 }
 
 fn checked_path<'a>(original: &'a str, root: &Path) -> Option<&'a str> {

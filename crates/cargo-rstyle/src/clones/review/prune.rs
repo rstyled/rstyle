@@ -36,6 +36,7 @@ impl Report {
 enum Ordinal {
     Helper(usize),
     Source(usize),
+    Parameter(usize),
 }
 
 pub(super) fn apply(
@@ -49,13 +50,20 @@ pub(super) fn apply(
     if !dry_run {
         retain(&mut store.entries, &plan.states, Ordinal::Helper);
         retain(&mut store.source_entries, &plan.states, Ordinal::Source);
+        retain(
+            &mut store.parameter_entries,
+            &plan.states,
+            Ordinal::Parameter,
+        );
     }
     Ok(Report {
         schema: "rstyle.review-prune/1",
         dry_run,
         eligible_entries: plan.selections.len(),
         removed_entries: if dry_run { 0 } else { plan.selections.len() },
-        retained_entries: store.entries.len() + store.source_entries.len(),
+        retained_entries: store.entries.len()
+            + store.source_entries.len()
+            + store.parameter_entries.len(),
         selections: plan.selections,
     })
 }
@@ -99,7 +107,7 @@ fn retain<T>(
 }
 
 fn validate_summary(store: &ReviewStore, report: &status::Report) -> Result<(), String> {
-    let total = store.entries.len() + store.source_entries.len();
+    let total = store.entries.len() + store.source_entries.len() + store.parameter_entries.len();
     let unassessed = report
         .records
         .iter()
@@ -151,26 +159,41 @@ fn validate_record(store: &ReviewStore, record: &status::Record) -> Result<Ordin
             )?;
             Ok(Ordinal::Helper(record.entry_index))
         }
-        family => {
+        status::Family::Parameter => {
             let entry = store
-                .source_entries
+                .parameter_entries
                 .get(record.entry_index)
                 .ok_or_else(invalid_record)?;
-            let expected = match entry.finding.proposal {
-                local::Proposal::EnumDispatch { .. } => status::Family::EnumDispatch,
-                local::Proposal::OrderedCapability { .. } => status::Family::CapabilitySet,
-            };
-            if family != expected {
-                return Err(invalid_record());
-            }
             validate_identity(
                 record,
                 &entry.reason,
-                entry.finding.members.iter().map(|member| &member.locator),
+                std::iter::once(&entry.finding.locator),
             )?;
-            Ok(Ordinal::Source(record.entry_index))
+            Ok(Ordinal::Parameter(record.entry_index))
         }
+        _ => validate_source_record(store, record),
     }
+}
+
+fn validate_source_record(store: &ReviewStore, record: &status::Record) -> Result<Ordinal, String> {
+    let entry = store
+        .source_entries
+        .get(record.entry_index)
+        .ok_or_else(invalid_record)?;
+    let expected = match entry.finding.proposal {
+        local::Proposal::EnumDispatch { .. } => status::Family::EnumDispatch,
+        local::Proposal::OrderedCapability { .. } => status::Family::CapabilitySet,
+    };
+    if record.family != expected {
+        return Err(invalid_record());
+    }
+
+    validate_identity(
+        record,
+        &entry.reason,
+        entry.finding.members.iter().map(|member| &member.locator),
+    )?;
+    Ok(Ordinal::Source(record.entry_index))
 }
 
 fn validate_identity<'a>(

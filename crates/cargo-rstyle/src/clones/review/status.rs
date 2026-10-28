@@ -9,6 +9,7 @@ pub(in crate::clones) enum Family {
     Helper,
     EnumDispatch,
     CapabilitySet,
+    Parameter,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]

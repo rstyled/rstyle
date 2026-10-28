@@ -28,8 +28,8 @@ use std::{
 
 #[derive(ClapArgs, Serialize)]
 #[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects"]).multiple(true)),
-    group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals"]).multiple(true)),
-    group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_capability_pair"])),
+    group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules"]).multiple(true)),
+    group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_capability_pair", "dismiss_parameter"])),
     group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules"]).multiple(true)))]
 pub struct Args {
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
@@ -119,6 +119,9 @@ pub struct Args {
     /// Dismiss an exact saved-run enum dispatch finding.
     #[arg(long, requires_all = ["review_file", "review_reason", "replay_run", "enum_dispatch"])]
     dismiss_enum_dispatch: Option<String>,
+    /// Dismiss one exact saved-run visible parameter-count finding.
+    #[arg(long, requires_all = ["review_file", "review_reason", "replay_run", "source_rules"])]
+    dismiss_parameter: Option<String>,
     /// Dismiss an exact saved-run ordered capability pair.
     #[arg(long, num_args = 2, requires_all = ["review_file", "review_reason", "replay_run", "capability_proposals"])]
     dismiss_capability_pair: Vec<String>,
@@ -415,6 +418,10 @@ fn analyses_complete(report: &report::Report<'_>) -> bool {
         && report.review.permits_success()
         && report.abstraction_review.permits_success()
         && report
+            .parameter_review
+            .as_ref()
+            .is_none_or(analysis::Completion::permits_success)
+        && report
             .review_status
             .as_ref()
             .is_none_or(analysis::Completion::permits_success)
@@ -423,7 +430,7 @@ fn analyses_complete(report: &report::Report<'_>) -> bool {
 fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: usize) -> bool {
     (args.fail_on_accepted_pairs && accepted > 0)
         || (args.fail_on_findings
-            && (report.analysis.finding_exit_count() > 0
+            && (source_finding_exit_count(report) > 0
                 || report
                     .abstraction_review
                     .dispatch_visible_or(report.enum_dispatch.findings)
@@ -437,6 +444,15 @@ fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: us
                     .review
                     .visible_or(report.pair_reports.helper_proposals.findings)
                     > 0))
+}
+
+fn source_finding_exit_count(report: &report::Report<'_>) -> usize {
+    report.analysis.finding_exit_count().saturating_sub(
+        report
+            .parameter_review
+            .as_ref()
+            .map_or(0, |review| review.hidden_selected_findings()),
+    )
 }
 
 fn capture_input(cli: &Cli, args: &Args) -> Result<capture::Capture, String> {

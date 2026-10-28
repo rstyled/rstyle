@@ -1,5 +1,7 @@
 //! Explicit source-proposal review consumes completed findings, never grants evidence.
-use super::{ReviewStore, local, local_adapter, status, status_workflow, summary, workflow};
+use super::{
+    ReviewStore, local, local_adapter, outcome, status, status_workflow, summary, workflow,
+};
 use crate::clones::analysis::Completion;
 use crate::clones::{Function, FunctionKey, analysis, report};
 use serde::Serialize;
@@ -25,8 +27,8 @@ pub(in crate::clones) struct Report {
 struct Decision {
     family: Family,
     endpoints: Vec<String>,
-    state: &'static str,
-    reason: Option<String>,
+    #[serde(flatten)]
+    outcome: outcome::Outcome,
 }
 
 pub(super) struct Snapshot {
@@ -217,7 +219,7 @@ fn dismiss(
     let current = local::LiveFinding::checked(value).map_err(|error| format!("{error:?}"))?;
     local::record_dismissal(&mut store.source_entries, &current, reason.into())
         .map_err(|error| format!("{error:?}"))?;
-    store.schema_version = 2;
+    store.schema_version = store.schema_version.max(2);
     Ok(())
 }
 
@@ -227,28 +229,11 @@ fn decision(snapshot: &Snapshot, store: &local::ValidatedStore<'_>) -> Decision 
         .as_ref()
         .map_err(Clone::clone)
         .and_then(|value| local::LiveFinding::checked(value).map_err(|error| format!("{error:?}")));
-    let (state, reason) = match current {
-        Err(reason) => ("unavailable", Some(reason)),
-        Ok(current) => match store.lookup(&current) {
-            local::Lookup::HiddenExact(entry) => ("hidden_exact", Some(entry.reason.clone())),
-            local::Lookup::VisibleNew => ("visible_new", None),
-            local::Lookup::Stale(entries) => (
-                "stale",
-                Some(
-                    entries
-                        .iter()
-                        .map(|stale| format!("{:?}: {}", stale.reason, stale.entry.reason))
-                        .collect::<Vec<_>>()
-                        .join("; "),
-                ),
-            ),
-        },
-    };
+    let outcome = outcome::Outcome::checked(current.map(|current| store.lookup(&current).into()));
     Decision {
         family: snapshot.family,
         endpoints: snapshot.endpoints.clone(),
-        state,
-        reason,
+        outcome,
     }
 }
 
@@ -261,7 +246,9 @@ fn summarize(
     let visible = |family| {
         decisions
             .iter()
-            .filter(|decision| decision.family == family && decision.state != "hidden_exact")
+            .filter(|decision| {
+                decision.family == family && decision.outcome.state != "hidden_exact"
+            })
             .count()
     };
     let summary = summary::summarize(
@@ -286,7 +273,7 @@ fn summarize(
 
 impl summary::Decision for Decision {
     fn state(&self) -> &'static str {
-        self.state
+        self.outcome.state
     }
 }
 
@@ -316,8 +303,8 @@ impl Report {
             output.push_str(&format!(
                 "\nReview {}: {}. {}",
                 decision.endpoints.join(" <> "),
-                decision.state,
-                decision.reason.as_deref().unwrap_or("")
+                decision.outcome.state,
+                decision.outcome.reason.as_deref().unwrap_or("")
             ));
         }
         output

@@ -220,7 +220,7 @@ fn validate_source(source: &str) -> Result<(), Error> {
     Ok(())
 }
 
-fn validate_locator(locator: &Locator) -> Result<(), Error> {
+pub(super) fn validate_locator(locator: &Locator) -> Result<(), Error> {
     if !super::relative_source(&locator.package.identity)
         || locator.package.identity.rsplit('/').next() != Some("Cargo.toml")
         || locator.package.name.is_empty()
@@ -235,7 +235,7 @@ fn validate_locator(locator: &Locator) -> Result<(), Error> {
     Ok(())
 }
 
-fn validate_context(context: &BuildContext) -> Result<(), Error> {
+pub(super) fn validate_context(context: &BuildContext) -> Result<(), Error> {
     let target = &context.compilation_target;
     if [
         &context.compiler_commit,

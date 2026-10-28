@@ -57,6 +57,8 @@ Heavy captures and integrated gates run serially.
 | C12c | Evidence + acceptance + lead / immutable formal evidence, bounded bundle search and report | delivered (bounded witnessed forwarding) | `b03b349` | Repeated per-target unchanged-scalar forwarding with exact positional support witnesses | 2,724 workspace tests, both legacy gates and source-free live replay; checkpoint evidence below |
 | C12d | Evidence + acceptance + lead / original use scan, global retention, caller report | delivered (bounded scalar all-use evidence) | this checkpoint | Complete owned-u32 use inventories and advisory selected-intent pass-through outcomes | 2,743 workspace tests; style zero; exact 15 baseline pattern IDs; fresh source/tool-free strict replay |
 
+| C09e | Model + workflow + acceptance + lead / completed parameter facts, review storage/status/prune and CLI/report | delivered (exact parameter reviews) | this checkpoint | Saved numeric parameter-count choices with context/policy staleness and selected hiding | 2,835 workspace tests; style zero; same 15 unfiltered pattern IDs; source/tool-free strict replay; bounded free-function identity |
+
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
 
@@ -1173,3 +1175,64 @@ locators and build-context components can be reused, while source-rule evidence
 and effective parameter policy need their own versioned contract. Report-local
 keys, source checksums and finding counts alone cannot serve as stable review
 identity. This remains readiness work, not a delivered baseline capability.
+
+
+## C09e: exact saved parameter-count reviews
+
+Model owns `review/source_rules.rs`; workflow owns bounded original observations
+and retained status in `review/source_workflow/`; acceptance owns
+`tests/migration_parameter_review/`; the lead owns completed-signature retention,
+shared CLI/report/storage/prune integration, docs and embedded skill. Delivered in this checkpoint after frozen-snapshot validation.
+
+`--source-rules --review-file` now looks up exact parameter-count choices.
+Explicit saved-run `--dismiss-parameter` records only detector versions, original
+qualified locator, build context, numeric policy, parameter count and receiver
+presence, plus a reason. Report handles select the finding but are not persisted.
+No hashes, body tokens, source copies, reparsing or graph proofs are added.
+Body/binder/layout edits preserve review; parameter count, receiver, numeric
+policy and detector changes require review. Lib/test owners remain distinct.
+Schema 3 adds optional typed parameter entries and preserves v1/v2 reading without
+lookup rewrites or later local-family schema downgrades.
+
+The adapter borrows completed measurements and shared original declaration
+indices. Initial durable identities cover uniquely indexed root/inline-module
+original free functions; external module files and ambiguous ownership remain
+unavailable. Observations and retained parameter entries are bounded to 4,096;
+a truncated roster cannot hide or dismiss findings because uniqueness is unknown.
+A borrowed locator/target index avoids scanning unrelated stored entries, and
+hidden report-local keys use a set rather than repeated per-function decision scans.
+
+Text and finding exits hide exact selected parameter findings only. Raw source
+assessments/counts and advisory parameter planning remain unfiltered. Changed-file
+selection controls dismissal eligibility and hidden finding subtraction without
+removing unselected status observations. Other source rules and guards keep their
+gates; incomplete scope still exits two. All fallible consumers finish before
+atomic review publication. Suppressed, clean, unavailable, unselected or invalid
+selectors leave retained bytes unchanged.
+
+Whole-store status includes parameter entries. Completed negatives can be pruned
+only under the retained numeric policy and current detector versions. A raised
+threshold remains stale, future versions remain unavailable, and missing owners
+remain unobserved rather than deleted. Independent acceptance covers read-only
+lookup, minimal storage, strict full/compact source/tool-free replay, raw planning,
+recapture stability/staleness, lib/test isolation, changed scope, status and
+explicit preview/apply/idempotent pruning. The frozen final snapshot passes all
+2,835 workspace nextest tests (five skipped) in 181.624 seconds and doc tests,
+including both original NonZero regressions. Locked workspace/all-targets Clippy
+with warnings denied, zero style violations across 9,071 functions, all 56 Python
+comparison tests, formatting and diff checks pass. Reviewed patterns reports zero
+candidates; unfiltered patterns retains exactly the previous 15 IDs. Shared review
+outcome presentation and source policy completion avoid duplicating the new
+family's formatting and exclusion/suppression logic. Logs use
+`/tmp/clones-parameter-review-*`. Broader source-rule review, exact Go
+comparison, native macOS and per-capability legacy retirement remain open.
+
+
+The next ready slice is numeric `fn_length` review: reuse completed code-line
+measurements and `max_lines`, share original owner resolution with parameter
+reviews, and keep per-family decisions and hidden counts distinct. Proposed
+identity retains the measured count, so comment/blank insertions and same-count
+body edits preserve review; count changes and changed policy require review.
+This is readiness, not delivered behavior. Acceptance must cover same-policy
+completed negatives versus changed-policy stale negatives, mixed rule stores,
+source/tool-free replay, selected hiding and unfiltered raw planning.

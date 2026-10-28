@@ -185,6 +185,31 @@ Full and compact reports retain identical selected results. This provides an
 explicit file-level CI scope; it does not infer changed lines or maintain a saved
 finding baseline.
 
+## Explicit parameter reviews
+
+Use `--review-file reviews.json` alongside `--source-rules` to apply retained
+parameter-count reviews. An explicit saved-run dismissal requires
+`--dismiss-parameter FUNCTION_KEY` and a nonempty `--review-reason`; only a
+completed visible selected `fn_params` finding is eligible. Missing stores are
+empty and ordinary lookup never writes. See [finding reviews](clones-finding-review.md#parameter-count-findings)
+for commands, schema-3 identity and retained status/pruning.
+
+Body edits, binder renaming and line/layout changes preserve review. Parameter count,
+numeric policy and detector-version changes require review; changed build
+contexts cannot inherit it. Identity initially requires a uniquely indexed
+original free-function declaration in captured root source or inline modules.
+External module files, ambiguous declarations, missing ownership/index evidence
+and exhausted bounds remain unavailable when review identity is needed.
+
+JSON `parameter_review` reports original, hidden and visible counts plus selected
+hidden counts and decisions. Text and `--fail-on-findings` hide only exact reviewed
+selected parameter findings. Length, spacing and guard findings keep their own
+gates. Raw `analysis.findings`, `analysis.visible_findings`, source assessments and
+parameter planning populations remain unchanged. Whole-scope incompleteness
+still exits two. A completed negative can be pruned only with matching retained
+numeric policy and current detector versions; changing the limit does not prove
+that a retained entry can be removed.
+
 ## Bounded guard-clause advice
 
 `--guard-clauses` independently requests a syntactic advisory consumer. It can

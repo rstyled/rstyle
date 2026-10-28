@@ -145,6 +145,28 @@ See `docs/clones-source-rules.md` for scope and association limitations. Keep bo
 legacy style and patterns gates until their capability retirement gates pass.
 
 
+## Opt-in parameter-count reviews
+
+Add `--review-file reviews.json` to source rules for explicit parameter reviews.
+Only dismiss a completed visible selected `fn_params` finding after the user
+chooses to retain that boundary. Use an exact `--replay-run`,
+`--dismiss-parameter FUNCTION_KEY` and a nonempty `--review-reason`; do not dismiss
+findings merely to quiet the output. Parameter dismissal writes schema 3 while
+preserving existing helper and source entries. Lookup/status never write or
+upgrade stores. Body edits, binder renaming and line moves preserve review;
+parameter count, receiver presence, numeric policy or detector-version changes require review, and changed
+build contexts cannot inherit it. Identity initially covers uniquely indexed
+original free functions in captured root source and inline modules; external
+module files, ambiguity, missing ownership and exhausted bounds stay unavailable.
+Only selected hidden parameter findings leave the text/finding gate. Raw analysis
+counts, assessments and advisory parameter plans remain unfiltered; other rules
+and incomplete-scope exits retain their meaning. Explicit saved-run
+`--review-status` reports retained parameter entries. Explicit `--review-prune`
+can remove only completed negatives under the retained numeric policy and current
+detector versions; raised limits, missing owners and unavailable evidence never
+authorize pruning. See `docs/clones-finding-review.md` for commands and bounds.
+
+
 ## Opt-in caller-aware parameter plans
 
 Use `cargo rstyle clones --extraction-profile hir-data-v3 --locked --source-rules

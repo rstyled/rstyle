@@ -1,4 +1,4 @@
-# Abstraction finding reviews
+# Finding reviews
 
 `clones --helper-proposals --review-file reviews.json` applies an explicit,
 versioned JSON review store. A missing file means no previous reviews; lookup
@@ -105,9 +105,56 @@ Helper-only stores keep their schema-1 shape. Adding a dispatch or capability
 review upgrades the envelope to schema 2 with typed `source_entries`; existing
 helper entries are retained unchanged. Schema-1 files remain readable. Neither
 family can hide a different family, and serialized review data grants no current
-source or graph authority. Legacy ignore migration and broader review
-families remain open. Source reviews are bounded to 4,096 retained
+source or graph authority. Parameter reviews use schema 3 as described below.
+Legacy ignore migration remains open. Source reviews are bounded to 4,096 retained
 entries and 256 KiB per canonical declaration; exceeding a bound fails explicitly.
+
+## Parameter-count findings
+
+Add `--source-rules --analysis-config analysis.toml --review-file reviews.json`
+to assess parameter reviews. Dismiss one completed, visible, selected `fn_params`
+finding from an exact saved run:
+
+```sh
+cargo rstyle clones --extraction-profile hir-data-v3 \
+  --replay-run /absolute/path/to/run --source-rules \
+  --analysis-config analysis.toml --review-file reviews.json \
+  --dismiss-parameter function:u0:f0 \
+  --review-reason 'Keep this public parameter boundary.'
+```
+
+The selector is local to the saved run. Durable identity retains detector versions,
+the original package and qualified declaration locator, exact compilation/build
+context, numeric policy (`max_params`, `count_self`) and measured parameter count
+and receiver presence. Parameter types and return types are outside this numeric
+rule's review identity.
+Body edits, binder renaming and line/layout changes preserve review. Changed
+arity, numeric policy or detector versions require review; changed build contexts
+cannot inherit it. Lib and test compilation owners remain distinct. No body
+source, source hash/checksum, byte position, report handle or run directory is
+persisted as identity.
+
+Parameter dismissal upgrades the store envelope to schema 3 with typed
+`parameter_entries`, preserving helper `entries` and dispatch/capability
+`source_entries`. Schema-1 and schema-2 files remain readable without lookup
+rewrites. Missing stores mean no reviews. Suppressed, clean, unselected,
+unavailable, invalid or duplicate selections reject without writing.
+
+Identity initially covers uniquely indexed original free-function declarations
+in captured root source and inline modules. External module files, ambiguous
+declarations, unavailable source ownership/indexes and exhausted bounded work
+remain unavailable when a positive review identity is needed. Observation and
+retained-entry work are each bounded to 4,096 entries.
+
+JSON `parameter_review` (`rstyle.parameter-review/1`) reports execution, coverage,
+original/visible/hidden counts, retained entries, `hidden_selected_findings` and
+per-function decisions (`visible_new`, `hidden_exact`, `stale`, `unavailable`).
+Text hides exact reviewed parameter diagnostics. `--fail-on-findings` subtracts
+only selected hidden parameter findings; other source rules keep their own gates.
+Raw `analysis.findings`, `analysis.visible_findings`, assessments and parameter
+planning populations remain unchanged. Unselected decisions remain reported.
+Incomplete scope keeps exit-two precedence. Exact replay requires neither
+original source files nor compiler tools.
 
 ## Inspect every retained review
 
@@ -124,19 +171,22 @@ This read-only report includes **every entry in the selected file**, including
 reviews with no current finding. It requires `--review-file` and conflicts with
 dismissal selectors. Request each analysis family you want assessed; an omitted
 family remains explicitly `not_requested`. Missing files mean an empty store and
-are never created. Schema-1 and schema-2 files are not migrated or rewritten.
+are never created. Schema-1, schema-2 and schema-3 files are not migrated or rewritten.
+Request `--source-rules` and the relevant `--analysis-config` to assess parameter
+entries.
 
 JSON adds `review_status` (`rstyle.review-status/1`) only when requested. Each
 `records` row retains its family, zero-based index within `entries` or
-`source_entries`, original reason, durable member locators, state and explanation.
+`source_entries` or `parameter_entries`, original reason, durable member locators,
+state and explanation.
 These indices locate rows in this file; they are not persistent finding IDs.
 
 | State | Evidence and meaning |
 | --- | --- |
 | `hidden_exact` / `hidden_growth` | A completed current finding is hidden by this exact retained entry or its explicit helper growth policy. |
-| `stale` | A completed current finding overlaps the retained identity but differs in versions, membership, context or relevant body/roles. |
+| `stale` | A completed current finding overlaps the retained identity but differs in versions, membership, context or relevant body/roles/signature/policy. A completed negative under changed parameter policy is also stale. |
 | `context_changed` | Every retained endpoint is observed, with at least one present only in a different context; no incomplete identity observations can conceal the original context. |
-| `no_finding` | Endpoints resolve uniquely in their retained context and the relevant function/pair has a completed negative assessment under matching detector/identity versions. Existing-trait suppression is a completed negative. |
+| `no_finding` | Endpoints resolve uniquely in their retained context and the relevant function/pair has a completed negative assessment under matching detector/identity versions. Parameter negatives also require the retained `max_params` and `count_self`. Existing-trait and source-rule suppression can be completed negatives. |
 | `not_observed` | An endpoint has no checked identity in the selected capture. Omitted packages/targets, renamed or removed declarations are not distinguished; this is not proof of deletion. |
 | `not_requested` | This entry's detector family was omitted. |
 | `unavailable` | Identity, detector versions, admission, evidence, function/pair assessment or bounded work cannot establish status. |
@@ -177,6 +227,10 @@ Only entries assessed as `no_finding` are eligible. Stale, changed-context,
 missing, unrequested and unavailable entries remain. Independently completed
 negatives can be removed from mixed incomplete coverage; incomplete coverage
 still exits two. Capture or handoff failures block pruning without writing.
+For parameter entries, raising the limit to remove a finding yields `stale`,
+not `no_finding`; changed policy or noncurrent detector versions never authorize
+negative pruning. Request source rules with the retained numeric policy to assess
+parameter entries.
 
 JSON adds `review_prune` (`rstyle.review-prune/1`), with eligible, removed and
 retained entry counts and selections by family and original entry index. Status

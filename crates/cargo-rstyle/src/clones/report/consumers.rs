@@ -18,11 +18,12 @@ pub(in crate::clones) struct Consumers<'a> {
     pub(super) review_prune: Option<review::prune::Report>,
     pub(super) review_status: Option<review::status::Report>,
     pub(super) abstraction_review: review::local_workflow::Report,
+    pub(super) parameter_review: Option<review::source_workflow::Report>,
 }
 
 impl<'a> Consumers<'a> {
     pub(in crate::clones) fn new(ctx: &Context<'a>) -> Result<Self, String> {
-        let analysis = ctx.local_analysis();
+        let mut analysis = ctx.local_analysis();
         let guard_planning = planning::guards::evaluate(ctx, &analysis)?;
         let parameter_planning = planning::parameters::evaluate(ctx, &analysis)?;
         let pairs = ctx.pair_reports()?;
@@ -41,6 +42,7 @@ impl<'a> Consumers<'a> {
 
         let reviews = review::workflow::apply(
             review::workflow::Inputs {
+                analysis: &analysis,
                 helpers: &pairs.helper_proposals,
                 dispatch: &dispatch,
                 capabilities: &capabilities,
@@ -48,6 +50,9 @@ impl<'a> Consumers<'a> {
             },
             ctx,
         )?;
+        analysis.hide_reviewed_parameters(&reviews.parameters);
+        let parameter_review =
+            (ctx.args.source_rules && ctx.args.review_file.is_some()).then_some(reviews.parameters);
         Ok(Self {
             pairs,
             analysis,
@@ -62,6 +67,7 @@ impl<'a> Consumers<'a> {
             accepted,
             review: reviews.helpers,
             abstraction_review: reviews.abstractions,
+            parameter_review,
             review_status: reviews.status,
             review_prune: reviews.pruning,
         })

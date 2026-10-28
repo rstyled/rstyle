@@ -93,6 +93,7 @@ fn apply_helpers(
 }
 
 pub(in crate::clones) struct Inputs<'a, 'b> {
+    pub analysis: &'a analysis::Report<'b>,
     pub helpers: &'a analysis::helper_reports::Report<'b>,
     pub dispatch: &'a analysis::dispatch_reports::Report<'b>,
     pub capabilities: &'a analysis::capability_reports::Report<'b>,
@@ -100,6 +101,7 @@ pub(in crate::clones) struct Inputs<'a, 'b> {
 }
 
 pub(in crate::clones) struct Reports {
+    pub parameters: super::source_workflow::Report,
     pub helpers: Report,
     pub abstractions: super::local_workflow::Report,
     pub status: Option<status::Report>,
@@ -113,31 +115,46 @@ pub(in crate::clones) fn apply(
     ctx: &report::Context<'_>,
 ) -> Result<Reports, String> {
     let mut store = ctx.args.review_file.as_deref().map(load).transpose()?;
-    let (helpers, mut records) = apply_helpers(inputs.helpers, ctx, store.as_mut())?;
-    let (abstractions, source_records) =
-        super::local_workflow::apply(&inputs, ctx, store.as_mut())?;
-    records.extend(source_records);
-    let status = ctx
-        .args
-        .review_status_requested()
-        .then(|| status::Report::new(records, true));
+    let mut reports = evaluate(&inputs, ctx, store.as_mut())?;
+    reports.pruning = pruning(store.as_mut(), reports.status.as_ref(), ctx)?;
 
-    let pruning = pruning(store.as_mut(), status.as_ref(), ctx)?;
     if (!ctx.args.dismiss_helper_pair.is_empty()
         || ctx.args.dismiss_enum_dispatch.is_some()
         || !ctx.args.dismiss_capability_pair.is_empty()
-        || pruning
+        || ctx.args.dismiss_parameter.is_some()
+        || reports
+            .pruning
             .as_ref()
             .is_some_and(|report| report.removed_entries > 0))
         && let (Some(path), Some(store)) = (&ctx.args.review_file, &store)
     {
         save(path, store)?;
     }
+    Ok(reports)
+}
+
+fn evaluate(
+    inputs: &Inputs<'_, '_>,
+    ctx: &report::Context<'_>,
+    mut store: Option<&mut ReviewStore>,
+) -> Result<Reports, String> {
+    let (helpers, mut records) = apply_helpers(inputs.helpers, ctx, store.as_deref_mut())?;
+    let (abstractions, source_records) =
+        super::local_workflow::apply(inputs, ctx, store.as_deref_mut())?;
+    records.extend(source_records);
+    let (parameters, parameter_records) = super::source_workflow::apply(inputs, ctx, store)?;
+    records.extend(parameter_records);
+    let status = ctx
+        .args
+        .review_status_requested()
+        .then(|| status::Report::new(records, true));
+
     Ok(Reports {
+        parameters,
         helpers,
         abstractions,
         status,
-        pruning,
+        pruning: None,
     })
 }
 

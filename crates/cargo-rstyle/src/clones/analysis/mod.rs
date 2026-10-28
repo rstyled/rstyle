@@ -13,6 +13,7 @@ mod local_scope;
 pub(super) mod mutation_reports;
 mod pair_differences;
 pub(super) mod pair_reports;
+mod parameter_reviews;
 mod source_exclusions;
 mod source_rules;
 mod source_spacing;
@@ -66,6 +67,17 @@ pub struct Assessment {
     pub reasons: Vec<String>,
 }
 
+pub(in crate::clones) struct ParameterReview<'a> {
+    pub key: super::FunctionKey,
+    pub assessment: Option<&'a Assessment>,
+    pub signature: Option<rstyle_pdg::consumer_facts::Signature>,
+    pub max_params: usize,
+    pub count_self: bool,
+    pub complete: bool,
+    pub visible: bool,
+    pub selected: bool,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Execution {
@@ -112,6 +124,10 @@ struct FunctionReport<'a> {
     source_digest: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     changed_file: Option<bool>,
+    #[serde(skip)]
+    signature: Option<rstyle_pdg::consumer_facts::Signature>,
+    #[serde(skip)]
+    parameter_review_hidden: bool,
     execution: Execution,
     assessments: Vec<Assessment>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -414,13 +430,9 @@ fn assess<'a>(
         .as_ref()
         .map(|policy| source_assessments(function, policy, &facts, root))
         .unwrap_or_default();
-    let guard_clause = config.guards.then(|| {
-        let mut guard = guards::evaluate(&facts.source);
-        if execution != Execution::Completed {
-            guard.execution = execution;
-        }
-        guard
-    });
+    let guard_clause = config
+        .guards
+        .then(|| assess_guard(&facts.source, execution));
     let execution = if execution == Execution::Completed {
         guard_clause
             .as_ref()
@@ -441,12 +453,25 @@ fn assess<'a>(
         fn_span: function.facts.fn_span,
         source_digest: &function.facts.source.digest,
         changed_file: None,
+        signature: match facts.signature {
+            Availability::Known(signature) => Some(signature),
+            _ => None,
+        },
+        parameter_review_hidden: false,
         execution,
         assessments: source.rules,
         source_suppression: source.suppression,
         source_exclusion: source.exclusion,
         guard_clause,
     }
+}
+
+fn assess_guard(source: &Availability<&str>, execution: Execution) -> guards::GuardAssessment {
+    let mut guard = guards::evaluate(source);
+    if execution != Execution::Completed {
+        guard.execution = execution;
+    }
+    guard
 }
 
 #[derive(Default)]
@@ -608,7 +633,11 @@ impl FunctionReport<'_> {
         let source = self
             .assessments
             .iter()
-            .filter(|assessment| show_source && self.visible(assessment))
+            .filter(|assessment| {
+                show_source
+                    && self.visible(assessment)
+                    && !(self.parameter_review_hidden && assessment.rule_id == "fn_params")
+            })
             .map(|assessment| {
                 format!(
                     "\n{} {location}: {} > {}. {}",
@@ -699,22 +728,7 @@ impl Report<'_> {
 
     pub(in crate::clones) fn parameter_population_complete(&self) -> bool {
         self.population_complete(|function| {
-            function.execution == Execution::Completed
-                && function.assessments.iter().any(|assessment| {
-                    assessment.rule_id == "fn_params" && assessment.coverage == Coverage::Complete
-                })
-                && function
-                    .source_exclusion
-                    .as_ref()
-                    .is_some_and(|exclusion| exclusion.complete())
-                && (function
-                    .source_exclusion
-                    .as_ref()
-                    .is_some_and(|exclusion| exclusion.excluded())
-                    || function
-                        .source_suppression
-                        .as_ref()
-                        .is_some_and(|suppression| suppression.complete()))
+            function.execution == Execution::Completed && function.parameter_source_complete()
         })
     }
 

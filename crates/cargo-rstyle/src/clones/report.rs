@@ -51,6 +51,8 @@ pub struct Report<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub review_prune: Option<super::review::prune::Report>,
     pub abstraction_review: super::review::local_workflow::Report,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameter_review: Option<super::review::source_workflow::Report>,
     pub edit_planning: super::planning::Report,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameter_planning: Option<super::planning::parameters::Report>,
@@ -171,6 +173,7 @@ pub(super) fn make<'a>(ctx: Context<'a>, consumers: Consumers<'a>) -> Report<'a>
         pair_reports: consumers.pairs,
         review: consumers.review,
         abstraction_review: consumers.abstraction_review,
+        parameter_review: consumers.parameter_review,
         review_status: consumers.review_status,
         review_prune: consumers.review_prune,
         analysis: consumers.analysis,
@@ -335,11 +338,16 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         .collect::<String>();
 
     format!(
-        "{summary}{pairs}{}{}{}{}{}{}{}{}{}{}{}",
+        "{summary}{pairs}{}{}{}{}{}{}{}{}{}{}{}{}",
         report.analysis.render(),
         report.pair_reports.render(),
         report.review.render(),
         report.abstraction_review.render(),
+        report
+            .parameter_review
+            .as_ref()
+            .map(|review| review.render())
+            .unwrap_or_default(),
         report
             .review_status
             .as_ref()
