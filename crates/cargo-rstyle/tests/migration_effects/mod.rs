@@ -1,5 +1,6 @@
 use super::*;
 mod controls;
+mod density;
 
 fn labels(id: &str) -> Value {
     let cases: Value = serde_json::from_str(include_str!(
@@ -185,7 +186,7 @@ struct Positive<'a> {
 
 fn assert_positive(report: &Value, expected: Positive<'_>) {
     let effects = &report["mutation_effects"];
-    assert_eq!(effects["schema"], "rstyle.mutation-effects/3");
+    assert_eq!(effects["schema"], "rstyle.mutation-effects/4");
     assert_eq!(effects["execution"], "completed");
     assert_eq!(effects["coverage"], "complete");
     let caller = &function(report, "caller")["evidence"];

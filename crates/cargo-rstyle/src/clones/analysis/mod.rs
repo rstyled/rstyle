@@ -743,3 +743,12 @@ impl Report<'_> {
             && self.functions.iter().all(completed)
     }
 }
+
+pub(super) fn source_file(function: &Function) -> Option<&str> {
+    function
+        .facts
+        .build
+        .frontend_options
+        .get("source_file")
+        .and_then(serde_json::Value::as_str)
+}

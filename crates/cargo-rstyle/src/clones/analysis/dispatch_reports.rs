@@ -114,7 +114,7 @@ fn assess(function: &Function, assessment: dispatch::Assessment) -> FunctionRepo
     FunctionReport {
         key: function.key,
         name: &function.facts.name,
-        source_file: source_file(function),
+        source_file: super::source_file(function),
         fn_span: function.facts.fn_span,
         execution: Execution::Completed,
         outcome,
@@ -129,15 +129,6 @@ fn assess(function: &Function, assessment: dispatch::Assessment) -> FunctionRepo
     }
 }
 
-fn source_file(function: &Function) -> Option<&str> {
-    function
-        .facts
-        .build
-        .frontend_options
-        .get("source_file")
-        .and_then(serde_json::Value::as_str)
-}
-
 fn unavailable<'a>(
     function: &'a Function,
     execution: Execution,
@@ -146,7 +137,7 @@ fn unavailable<'a>(
     FunctionReport {
         key: function.key,
         name: &function.facts.name,
-        source_file: source_file(function),
+        source_file: super::source_file(function),
         fn_span: function.facts.fn_span,
         execution,
         outcome: Outcome::NotEvaluated,

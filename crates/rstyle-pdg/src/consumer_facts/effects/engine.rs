@@ -723,6 +723,9 @@ mod session_tests {
             native: root().native,
             boundary_index,
             target: Availability::Known("typed-test-leaf".into()),
+            resolved_callee: Availability::Unknown {
+                reason: "Unrequested native callee metadata".into(),
+            },
             target_path: Some("typed-test-leaf".into()),
             arguments: vec![mutations::Argument {
                 unchanged_formal: Availability::Known(None),

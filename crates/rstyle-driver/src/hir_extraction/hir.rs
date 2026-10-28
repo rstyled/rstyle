@@ -1095,6 +1095,7 @@ impl Context<'_> {
                 path: self.tcx.def_path_str(callee),
                 crate_name: self.tcx.crate_name(callee.krate).to_string(),
                 local: callee.is_local(),
+                safe: callee_safety(self.tcx, callee),
                 definition_identity: format!("{:?}", self.tcx.def_path_hash(callee)),
                 inherent: evidence
                     .owner
@@ -1119,9 +1120,27 @@ struct DirectCallee {
     local: bool,
     definition_identity: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    safe: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     inherent: Option<rstyle_pdg::inherent_calls::CallOwner>,
     #[serde(skip_serializing_if = "Option::is_none")]
     compiled_dependency: Option<super::crate_association::Dependency>,
+}
+
+fn callee_safety(tcx: TyCtxt<'_>, callee: rustc_hir::def_id::DefId) -> Option<bool> {
+    matches!(
+        tcx.def_kind(callee),
+        rustc_hir::def::DefKind::Fn
+            | rustc_hir::def::DefKind::AssocFn
+            | rustc_hir::def::DefKind::Ctor(..)
+    )
+    .then(|| {
+        tcx.fn_sig(callee)
+            .instantiate_identity()
+            .skip_binder()
+            .safety()
+            .is_safe()
+    })
 }
 
 fn kind(kind: &ExprKind<'_>) -> &'static str {

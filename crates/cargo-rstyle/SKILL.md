@@ -259,7 +259,7 @@ selected negative can authorize pruning. Older review schemas remain readable.
 
 `clones --mutation-effects` includes an independent original-source nested statement
 inventory (`rstyle.original-source-statements/1`); unavailable counts never
-authorize a density ratio. It uses schema `rstyle.mutation-effects/3` for original
+authorize a density ratio. It uses schema `rstyle.mutation-effects/4` for original
 scalar writes through at most two same-unit call edges (`caller → wrapper → leaf`).
 Checked ordinary branches and primitive loops retain each original call/write
 site once, including mutually exclusive arms and zero-iteration bodies. Lexical
@@ -274,3 +274,17 @@ aliases, unsupported signatures and opaque calls stay incomplete; this is no
 purity, density, runtime-frequency or rewrite-safety claim. Existing owner/call/site
 budgets bound summary/path work. Replay recomputes from immutable original facts,
 without compiler tools or live source. See `docs/clones-mutation-effects.md`.
+
+
+`clones --effect-density [--effect-config PATH]` requests a separate static-event
+policy metric in `mutation_effects`. It shares completed scalar helper proofs,
+deduplicates direct escaped roots, counts each delegated write call once, and
+classifies configured non-mutation call paths through at most two edges. Safe
+external free calls need independent native identity/safety, owned-u32 arguments
+and unit/u32/never results. Unknown work prevents ratios and size exemptions even
+at weight zero. Complete counts use legacy weights/minima and checked milli
+arithmetic; `--fail-on-findings` uses visible density findings. Named density
+suppressions preserve raw measurements; explicit config exclusions preserve raw
+unavailability. Both request flags require both axes complete. Config-only replay
+uses captured source policy without live source/tools. This is a static policy
+metric, not runtime frequency or purity. See `docs/clones-mutation-effects.md`.

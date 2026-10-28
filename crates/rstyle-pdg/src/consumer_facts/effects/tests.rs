@@ -55,6 +55,9 @@ fn call(boundary_index: usize) -> mutations::Call {
         },
         boundary_index,
         target: Availability::Known("exact-local-definition".into()),
+        resolved_callee: Availability::Unknown {
+            reason: "Unrequested native callee metadata".into(),
+        },
         target_path: Some("exact-local-definition".into()),
         arguments: vec![mutations::Argument {
             unchanged_formal: Availability::Known(None),

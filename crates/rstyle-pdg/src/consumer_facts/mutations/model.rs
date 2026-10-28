@@ -112,7 +112,17 @@ pub struct Call {
     pub target: Availability<String>,
     /// Checked native path, retained only for selected callee contradiction checks.
     pub target_path: Option<String>,
+    /// Checked native free-function identity; independent of local summary permission.
+    pub resolved_callee: Availability<ResolvedCallee>,
     pub arguments: Vec<Argument>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ResolvedCallee {
+    pub path: String,
+    pub local: bool,
+    pub safe: bool,
+    pub result_type: String,
 }
 
 #[derive(Debug)]

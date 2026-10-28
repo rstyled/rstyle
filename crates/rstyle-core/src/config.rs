@@ -111,7 +111,7 @@ impl Default for MutationBudgetConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, serde::Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SideEffectsConfig {
     pub max_density_milli: usize,
@@ -137,7 +137,7 @@ impl Default for SideEffectsConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, serde::Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Weights {
     pub mutation: usize,
@@ -184,7 +184,7 @@ impl Weights {
 }
 
 /// Callee path prefixes per effect kind. The longest matching prefix wins.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, serde::Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct EffectPaths {
     pub io: Vec<String>,

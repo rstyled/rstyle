@@ -6,7 +6,7 @@ Request the optional consumer separately from direct mutation budgets:
 cargo rstyle clones --extraction-profile hir-data-v3 --locked --mutation-effects --format json --report-detail compact
 ```
 
-`mutation_effects` (`rstyle.mutation-effects/3`) describes original direct writes
+`mutation_effects` (`rstyle.mutation-effects/4`) describes original direct writes
 and calls through at most two original same-selected-unit helper edges:
 `caller → wrapper → leaf`. It does not require strict clone admission. The
 vocabulary covers ordinary nongeneric free functions with owned `u32` or direct
@@ -59,10 +59,62 @@ from scalar-effect coverage: a match can have a known source statement count
 while its scalar effects remain incomplete. Full and compact saved replay use
 the same owned source bytes without reopening project files.
 
-A density ratio remains unevaluated. The numerator still needs a complete event
-vocabulary and configured weights/classification, including unknown calls and
-non-mutation effects. A known denominator or complete scalar-write summary
-cannot certify that numerator.
+Request `--effect-density` for the separate `rstyle.static-effect-events/1`
+policy metric, optionally with `--effect-config effects.toml`. It can run alone or
+alongside `--mutation-effects`; completeness requires every requested axis.
+Density-only may complete for a classified safe external free call even though
+its raw scalar mutation assessment remains incomplete.
+
+Each direct escaped mutable binding contributes one mutation event regardless
+of assignment count. Each original completed helper-call occurrence contributes
+one mutation event if it maps any caller-visible write. Callee-local rebinding
+does not escape. Configured non-mutation kinds use the legacy longest native-path
+prefix classifier. A local original call contributes its own configured kind
+and the distinct kinds of its complete summary's original inner calls, once per
+kind per outer call. Repeated outer calls remain separate events. Summary kind
+sets are computed once per owning analysis/unit and borrowed by occurrence;
+there are no graph clones or hash cache keys.
+
+Safe external free calls require independent native identity, safety and result
+type, checked owned-u32 arguments, and a configured path classification. Unit,
+u32 and never results qualify; methods, generic syntax, opaque/nested arguments,
+mutable external arguments and unclassified calls remain incomplete. Missing
+safety metadata in older captures does not become safe. This does not extend
+same-unit scalar helper summaries or strict graph admission.
+
+```toml
+[side_effects]
+max_density_milli = 500
+min_statements = 3
+min_lines = 10
+
+[side_effects.weights]
+mutation = 1
+io = 3
+
+[side_effects.paths]
+time = ['std::thread::yield_now']
+```
+
+Weights/default path lists and minimum-size policy reuse legacy configuration.
+The config also accepts workspace-relative `exclude` globs; unknown keys and
+`transitive_depth` are rejected (the two-edge bound is fixed). Paths are native
+compiler paths, including unqualified names for root local functions. With complete
+numerator, statements and code lines, either minimum can exempt a small function.
+Otherwise checked integer arithmetic computes
+`1000 * weighted_events / max(statements, 1)` and reports a finding only when
+strictly above the limit. Unknown work prevents both ratios and minimum-size
+exemptions, even with zero unknown weight. Implicit arithmetic panics lie outside
+this explicit static-event metric; unsafe/global/Drop-bearing syntax is unsupported.
+It makes no runtime frequency, purity, termination or rewrite-safety claim.
+
+Schema 4 retains raw scalar evidence and statement inventory, plus per-function
+`density.event_inventory`, `measurement`, source policy and completeness. Named
+`rstyle-allow(side_effect_density): reason` hides only visible findings; it does
+not repair unavailable evidence. Exclusions are explicit policy skips retaining
+raw evidence. `--fail-on-findings` uses visible findings; incomplete requested
+scope still exits two. Full/compact replay recomputes policy from saved original
+facts and current effect config without compiler tools or live source.
 
 Each function's evidence reports `caller_visible_mutation`:
 

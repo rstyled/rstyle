@@ -388,6 +388,9 @@ mod tests {
                 },
                 boundary_index: 0,
                 target: Availability::Known("definition-1".into()),
+                resolved_callee: Availability::Unknown {
+                    reason: "Unrequested native callee metadata".into(),
+                },
                 target_path: Some("sample::function_1".into()),
                 arguments: vec![mutations::Argument {
                     unchanged_formal: Availability::Known(Some(0)),

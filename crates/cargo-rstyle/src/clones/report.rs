@@ -31,6 +31,7 @@ pub struct Context<'a> {
     pub partitions: rstyle_ccgraph::pipeline::WlPartitions,
     pub complete: bool,
     pub mutation_config: Option<&'a super::analysis::mutation_reports::Settings>,
+    pub effect_config: Option<&'a super::analysis::effect_reports::Settings>,
     pub analysis_config: Option<&'a super::analysis::Config>,
     pub matching_config: &'a rstyle_ccgraph::CcgraphConfig,
 }
@@ -250,7 +251,12 @@ impl<'a> Context<'a> {
     }
 
     fn effect_report(&self) -> Result<super::analysis::effect_reports::Report<'a>, String> {
-        super::analysis::effect_reports::evaluate(self.handoff, self.capture, self.args)
+        super::analysis::effect_reports::evaluate(
+            self.handoff,
+            self.capture,
+            self.args,
+            self.effect_config,
+        )
     }
 
     fn verification_policy(&self) -> &'static str {

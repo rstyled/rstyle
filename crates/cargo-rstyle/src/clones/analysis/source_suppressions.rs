@@ -56,6 +56,10 @@ impl Report {
             && matches!(self, Self::Allowed { rules, .. } if rules.iter().any(|name| name == rule))
     }
 
+    pub(super) fn allows_density(&self) -> bool {
+        matches!(self, Self::Allowed { rules, .. } if rules.iter().any(|rule| rule == "side_effect_density"))
+    }
+
     pub(super) fn complete(&self) -> bool {
         !matches!(self, Self::Unavailable { .. })
     }

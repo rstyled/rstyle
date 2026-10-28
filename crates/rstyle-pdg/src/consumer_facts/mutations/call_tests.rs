@@ -389,6 +389,114 @@ fn complex_argument_retains_opaque_evaluation_and_external_target_unknown() {
     ));
 }
 
+fn external_record(facts: &mut HirFnFacts) {
+    facts.body.children[0].res.as_mut().unwrap().description = serde_json::json!({
+        "local":false,"safe":true,"path":"sample::leaf","crate":"sample",
+        "definition_identity":"external-leaf-id"
+    })
+    .to_string();
+}
+
+#[test]
+fn external_resolution_keeps_identity_without_local_or_argument_permission() {
+    let mut facts = fixture("pub fn caller(value:u32) { leaf({value}); }");
+    external_record(&mut facts);
+    let observed = inspect_calls(&facts).unwrap();
+    let call = &observed.calls[0];
+    assert_eq!(
+        call.resolved_callee,
+        Availability::Known(ResolvedCallee {
+            path: "sample::leaf".into(),
+            local: false,
+            safe: true,
+            result_type: "unit".into(),
+        })
+    );
+    assert!(matches!(call.target, Availability::Unknown { .. }));
+    assert!(call.target_path.is_none());
+    assert!(matches!(
+        call.arguments[0].value,
+        Availability::Unsupported { .. }
+    ));
+    assert_eq!(observed.direct.coverage, Coverage::Incomplete);
+}
+
+#[test]
+fn never_result_requires_matching_native_type_and_dispatch() {
+    let mut facts = fixture("pub fn caller() { leaf(); }");
+    external_record(&mut facts);
+    let call = &mut facts.body.children[0];
+    call.ty.as_mut().unwrap().normalized = None;
+    call.ty.as_mut().unwrap().observed = "!".into();
+    call.dispatch.as_mut().unwrap().result_ty = "!".into();
+    let observed = inspect_calls(&facts).unwrap();
+    assert!(
+        matches!(&observed.calls[0].resolved_callee, Availability::Known(callee) if callee.result_type == "!")
+    );
+    for observed in ["", "unit", "Alias"] {
+        facts.body.children[0].ty.as_mut().unwrap().observed = observed.into();
+        assert!(matches!(
+            inspect_calls(&facts).unwrap().calls[0].resolved_callee,
+            Availability::Unknown { .. }
+        ));
+    }
+}
+
+#[test]
+fn external_resolution_rejects_path_contradiction_before_missing_safety() {
+    let mut facts = fixture("pub fn caller() { leaf(); }");
+    external_record(&mut facts);
+    facts.body.children[0].dispatch.as_mut().unwrap().op = "sample::other".into();
+    let resolution = facts.body.children[0].res.as_mut().unwrap();
+    let mut record: serde_json::Value = serde_json::from_str(&resolution.description).unwrap();
+    record.as_object_mut().unwrap().remove("safe");
+    resolution.description = record.to_string();
+    assert!(inspect_calls(&facts).is_err());
+}
+
+#[test]
+fn missing_callee_metadata_preserves_older_local_summaries() {
+    let facts = fixture("pub fn caller() { leaf(); }");
+    let observed = inspect_calls(&facts).unwrap();
+    assert!(matches!(observed.calls[0].target, Availability::Known(_)));
+    assert!(matches!(
+        observed.calls[0].resolved_callee,
+        Availability::Unknown { .. }
+    ));
+    for missing in ["safe", "crate", "definition_identity", "path"] {
+        let mut changed = facts.clone();
+        external_record(&mut changed);
+        let resolution = changed.body.children[0].res.as_mut().unwrap();
+        let mut record: serde_json::Value = serde_json::from_str(&resolution.description).unwrap();
+        record.as_object_mut().unwrap().remove(missing);
+        resolution.description = record.to_string();
+        assert!(matches!(
+            inspect_calls(&changed).unwrap().calls[0].resolved_callee,
+            Availability::Unknown { .. }
+        ));
+    }
+}
+
+#[test]
+fn resolved_callees_exclude_generic_and_associated_selection() {
+    let mut facts = fixture("pub fn caller() { leaf::<u32>(); }");
+    external_record(&mut facts);
+    assert!(matches!(
+        inspect_calls(&facts).unwrap().calls[0].resolved_callee,
+        Availability::Unsupported { .. }
+    ));
+    let mut facts = fixture("pub fn caller() { leaf(); }");
+    external_record(&mut facts);
+    let resolution = facts.body.children[0].res.as_mut().unwrap();
+    let mut record: serde_json::Value = serde_json::from_str(&resolution.description).unwrap();
+    record["inherent"] = serde_json::json!({"owner":"sample::Owner"});
+    resolution.description = record.to_string();
+    assert!(matches!(
+        inspect_calls(&facts).unwrap().calls[0].resolved_callee,
+        Availability::Unsupported { .. }
+    ));
+}
+
 #[test]
 fn owned_reads_require_original_binding_type_and_dispatch_correspondence() {
     let original = fixture("pub fn caller(value:u32) { leaf(value); }");

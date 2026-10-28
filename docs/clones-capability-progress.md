@@ -1660,3 +1660,68 @@ unknown effects, checked weighted arithmetic and policy/threshold decisions.
 Do not infer it from the deduplicated scalar root union. Full migration remains
 active; legacy retirement, native macOS and external Go comparison remain
 unverified. Main/PR19 has not been merged into this feature branch.
+
+## C11k: bounded static effect density
+
+Added independent opt-in `--effect-density` with `--effect-config`, sharing one
+completed scalar-summary session with optional `--mutation-effects`. Schema
+`rstyle.mutation-effects/4` records requested axes, effective policy, raw scalar
+and statement evidence, static event inventories, numeric outcomes and visible
+findings separately. Density-only can complete for classified safe external free
+calls while its raw scalar summary remains incomplete; combined flags require
+both axes. Strict matching/admission and direct mutation-budget metrics are unchanged.
+
+Direct caller-visible mutable roots contribute once per checked native binding;
+each original completed helper-call occurrence with projected writes contributes
+one mutation event. Configured non-mutation native path labels propagate through
+at most two original local edges, with one event per kind per outer call. Repeated
+calls retain separate source events. Per-summary kind sets are retained once in
+the owning unit/analysis and borrowed, with indexed checked call occurrences;
+there is no JSON hashing, source/graph clone or global cache.
+
+External direct free calls require native identity and safety, checked owned-u32
+arguments, unit/u32/never results and configured classification. Explicit generics,
+associated/method calls, nested arguments, mutable external arguments and opaque
+work remain incomplete. Missing older safety metadata remains unknown. Native
+never-type evidence is consumed locally; the extractor's shared type normalization
+is unchanged. No graph permission or extraction policy was extended.
+
+The independent source denominator and complete event inventory gate checked
+weighted milli arithmetic. Existing legacy weights, path-prefix classifier,
+minimum statements/lines and strict comparison are reused. Unknown work cannot
+acquire a ratio or minimum exemption even with zero unknown weight. Captured
+named density suppressions preserve raw measurements; explicit path exclusions
+are policy skips with raw evidence retained. Full/compact saved replay recomputes
+config policy without live source/compiler tools. Implicit arithmetic panics are
+outside this static event metric; unsafe/global/Drop-bearing forms are unsupported.
+
+Independent acceptance labels live in `eval/clones-capability/density-cases.json`.
+CLI cases cover repeated roots/calls, local kind propagation, external unit/never
+calls, unknown-zero-weight controls, source policy, budget/config failures,
+combined requested axes, text/finding exits and source/tool-free replay. Native
+metadata tests separately check missing identity/safety, path contradictions,
+never result evidence and unsupported selections. Numeric tests cover strict
+thresholds, unavailable denominators, minimum exemptions and all overflow stages.
+
+The final frozen snapshot passes all 3,048 nextest tests (five skipped) in
+194.833 seconds, plus doc tests. Both original NonZero regression tests and the
+u32 widening-reader composition pass. Workspace/all-target Clippy with warnings
+denied and formatting/diff checks pass. The 56 migration comparison and 50 script
+tests pass. Legacy style reports zero violations across 9,311 functions; reviewed
+patterns has zero visible candidates, and unfiltered patterns preserves exactly
+the prior fifteen reviewed IDs. No ignores, thresholds or budgets changed.
+
+A separate locked compact `hir-data-v3 --effect-density --mutation-effects`
+capture over three independent scalar functions completes both requested axes:
+leaf has one mutation event/two statements (500 milli), wrapper has two delegated
+events/two statements (1,000), caller has one delegated event/one statement
+(1,000). The latter two are visible findings at limit500. The initial smoke
+attempt correctly failed without its fixture lockfile; after generating that
+lockfile offline, the locked run passes. Logs/reports are under
+`/tmp/clones-density-*`. Runtime is checkpoint evidence, not a speedup claim.
+
+Full migration remains active. Next ready quality work includes
+saved density review semantics and independent legacy/new policy comparison over
+the declared scope; broader effects, project coverage and legacy retirement remain
+open. Native macOS and external Go comparison remain unverified. Main/PR19 has not
+been incorporated into this feature branch.

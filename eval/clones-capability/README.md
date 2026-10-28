@@ -231,3 +231,13 @@ from original ordered wrapper calls. It includes opaque method bodies, exact
 existing-trait suppression, negative namesakes and repeated members, unavailable
 namespaces/coercions, explicit budgets and source-free replay. See
 [capability proposals](../../docs/clones-capability-proposals.md).
+
+
+`density-cases.json` independently specifies the bounded static policy numerator
+and complete statement denominator: repeated direct roots, delegated call
+occurrences, local path-kind propagation, classified safe external calls and
+unknown-zero-weight rejection. Real Cargo tests cover thresholds, requested-axis
+completeness, source policy, budget failures and full/compact source/tool-free
+replay. Native metadata and checked arithmetic have separate negative tests.
+This metric intentionally differs from legacy mutable-borrow counting and is
+not a claim of general effects, runtime frequency, purity or legacy retirement.

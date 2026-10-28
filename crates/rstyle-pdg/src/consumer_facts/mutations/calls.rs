@@ -165,6 +165,7 @@ pub(super) fn observe(
         .map(|(syntax, child)| observe_argument(source, syntax, child, &mut argument))
         .collect::<Result<_, _>>()?;
     let target = target(facts, node, call)?;
+    let resolved_callee = resolved_callee(node, call)?;
     let target_path = if matches!(target, Availability::Known(_)) {
         node.dispatch.as_ref().map(|dispatch| dispatch.op.clone())
     } else {
@@ -177,8 +178,104 @@ pub(super) fn observe(
         boundary_index,
         target,
         target_path,
+        resolved_callee,
         arguments,
     }))
+}
+
+#[derive(serde::Deserialize)]
+struct CalleeRecord {
+    path: Option<String>,
+    #[serde(rename = "crate")]
+    crate_name: Option<String>,
+    definition_identity: Option<String>,
+    local: Option<bool>,
+    safe: Option<bool>,
+    inherent: Option<serde_json::Value>,
+    trait_selection: Option<serde_json::Value>,
+}
+
+fn resolved_callee(
+    node: &HirNode,
+    call: &syn::ExprCall,
+) -> Result<Availability<super::ResolvedCallee>, String> {
+    if !direct_free_syntax(call) {
+        return Ok(unsupported(
+            "Call target syntax is outside direct free functions",
+        ));
+    }
+    let Some(dispatch) = &node.dispatch else {
+        return Ok(unknown("Call dispatch evidence was not captured"));
+    };
+    check_dispatch(node, dispatch)?;
+    let Some(resolution) = &node.res else {
+        return Ok(unknown("Direct call resolution was not captured"));
+    };
+    if dispatch.kind != "resolved_direct"
+        || resolution.kind != "resolved_direct_callee"
+        || resolution.target.is_some()
+    {
+        return Ok(unknown(
+            "Call has no original direct free-function resolution",
+        ));
+    }
+
+    let record: CalleeRecord = serde_json::from_str(&resolution.description)
+        .map_err(|_| "Direct call resolution record is malformed")?;
+    resolved_record(node, dispatch, record)
+}
+
+fn resolved_record(
+    node: &HirNode,
+    dispatch: &crate::Dispatch,
+    record: CalleeRecord,
+) -> Result<Availability<super::ResolvedCallee>, String> {
+    if record.inherent.is_some() || record.trait_selection.is_some() {
+        return Ok(unsupported(
+            "Associated call requires a separate effect contract",
+        ));
+    }
+    if let Some(path) = &record.path
+        && path != &dispatch.op
+    {
+        return Err("Call dispatch disagrees with original resolved callee".into());
+    }
+    // Never is retained as an observed native type rather than a normalized token.
+    let actual = crate::frontend::normalized(node).or_else(|| {
+        node.ty
+            .as_ref()
+            .filter(|ty| ty.normalized.is_none() && ty.observed == "!")
+            .map(|_| "!")
+    });
+    if actual != Some(dispatch.result_ty.as_str()) {
+        return Ok(unknown("Call result type evidence is unavailable"));
+    }
+
+    let (Some(path), Some(crate_name), Some(identity), Some(local), Some(safe)) = (
+        record.path,
+        record.crate_name,
+        record.definition_identity,
+        record.local,
+        record.safe,
+    ) else {
+        return Ok(unknown(
+            "Direct callee identity or safety evidence was not captured",
+        ));
+    };
+    if path.is_empty() || crate_name.is_empty() || identity.is_empty() {
+        return Ok(unknown("Direct callee identity evidence is empty"));
+    }
+    Ok(Availability::Known(super::ResolvedCallee {
+        path,
+        local,
+        safe,
+        result_type: dispatch.result_ty.clone(),
+    }))
+}
+
+fn direct_free_syntax(call: &syn::ExprCall) -> bool {
+    call.attrs.is_empty()
+        && matches!(&*call.func, Expr::Path(path) if path.attrs.is_empty() && path.qself.is_none() && path.path.segments.iter().all(|segment| segment.arguments.is_empty()))
 }
 
 fn observe_argument(
@@ -216,9 +313,7 @@ fn target(
     node: &HirNode,
     call: &syn::ExprCall,
 ) -> Result<Availability<String>, String> {
-    if !call.attrs.is_empty()
-        || !matches!(&*call.func, Expr::Path(path) if path.attrs.is_empty() && path.qself.is_none() && path.path.segments.iter().all(|segment| segment.arguments.is_empty()))
-    {
+    if !direct_free_syntax(call) {
         return Ok(unsupported(
             "Call target syntax is outside direct free functions",
         ));

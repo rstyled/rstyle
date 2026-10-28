@@ -27,10 +27,10 @@ use std::{
 };
 
 #[derive(ClapArgs, Serialize)]
-#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects"]).multiple(true)),
+#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density"]).multiple(true)),
     group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules", "mutation_rules"]).multiple(true)),
     group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets"])),
-    group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules"]).multiple(true)))]
+    group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules", "effect_density"]).multiple(true)))]
 pub struct Args {
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
     #[arg(long, default_value = "r0", value_parser = rstyle_pdg::extraction_profile::ExtractionProfile::select)]
@@ -92,6 +92,12 @@ pub struct Args {
     /// Summarize caller-visible scalar mutation through original same-unit leaf helpers.
     #[arg(long)]
     mutation_effects: bool,
+    /// Evaluate bounded static effect density; unknown events prevent a ratio.
+    #[arg(long)]
+    effect_density: bool,
+    /// TOML side_effects and workspace exclude policy for static density.
+    #[arg(long, requires = "effect_density")]
+    effect_config: Option<PathBuf>,
     /// TOML mutation_budget and workspace exclude policy; root granularity only.
     #[arg(long, requires = "mutation_rules")]
     mutation_config: Option<PathBuf>,
@@ -192,6 +198,7 @@ struct Configuration {
     matching: CcgraphConfig,
     analysis: Option<analysis::Config>,
     mutation: Option<analysis::mutation_reports::Settings>,
+    effects: Option<analysis::effect_reports::Settings>,
 }
 
 fn configuration(cli: &Cli, args: &Args) -> Result<Configuration, String> {
@@ -211,6 +218,7 @@ fn configuration(cli: &Cli, args: &Args) -> Result<Configuration, String> {
         matching: rstyle_ccgraph::parse_config(&value).map_err(|e| e.message)?,
         analysis: analysis::configuration(args)?,
         mutation: analysis::mutation_reports::configuration(args)?,
+        effects: analysis::effect_reports::configuration(args)?,
     })
 }
 
@@ -393,6 +401,7 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         complete,
         analysis_config: config.analysis.as_ref(),
         mutation_config: config.mutation.as_ref(),
+        effect_config: config.effects.as_ref(),
         matching_config: &config.matching,
     };
     let consumers = report::Consumers::new(&context)?;
@@ -450,6 +459,7 @@ fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: us
                     .capability_visible_or(report.capability_proposals.findings)
                     > 0
                 || report.mutation_analysis.visible_findings > 0
+                || report.mutation_effects.visible_findings > 0
                 || report
                     .review
                     .visible_or(report.pair_reports.helper_proposals.findings)
