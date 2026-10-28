@@ -7,6 +7,12 @@ fn guard_workspace() -> TempDir {
         include_str!("../../../../eval/clones-capability/corpus/src/lib.rs"),
     )
     .unwrap();
+    std::fs::write(
+        directory.path().join("src/excluded.rs"),
+        include_str!("../../../../eval/clones-capability/corpus/src/excluded.rs"),
+    )
+    .unwrap();
+
     directory
 }
 

@@ -56,7 +56,23 @@ def capture(output, name, command, env, timeout, accepted=(0,)):
     return (output / (name + ".stdout")).read_text()
 
 
-def roster(facts_file, legacy):
+FIXTURE_EXCLUDES = ["target/**", "src/excluded.rs"]
+
+
+def fixture_policy(policy):
+    configured = tomllib.loads(policy.read_text())
+    expected = {"exclude": FIXTURE_EXCLUDES,
+                "fn_length": {"max_lines": 5},
+                "fn_params": {"max_params": 4, "count_self": False}}
+    if configured != expected:
+        raise ValueError("runner expects fixed acceptance source-rule policy, including exclusions")
+    return {"max_lines": configured["fn_length"]["max_lines"],
+            "max_params": configured["fn_params"]["max_params"],
+            "count_self": configured["fn_params"]["count_self"],
+            "exclude": configured["exclude"]}
+
+
+def roster(facts_file, legacy, workspace_root):
     facts = json.loads(facts_file.read_text())
     if not isinstance(facts, list) or not facts:
         raise ValueError("fresh legacy capture has no facts roster")
@@ -64,8 +80,17 @@ def roster(facts_file, legacy):
     for function in facts:
         if not all(key in function for key in ("name", "path", "line")):
             raise ValueError("malformed captured legacy function")
-        result.append({"name": function["name"], "source_file": function["path"], "line": function["line"]})
-    if legacy.get("summary", {}).get("functions") != len(result):
+        source_path = Path(function["path"])
+        original_path = source_path if source_path.is_absolute() else workspace_root / source_path
+        excluded = original_path == workspace_root / "src/excluded.rs"
+        result.append({"name": function["name"], "source_file": function["path"],
+                       "line": function["line"], "excluded": excluded})
+    excluded = [function for function in result if function["excluded"]]
+    expected_name = "excluded::over_both_limits"
+    if len(excluded) != 1 or not (excluded[0]["name"] == expected_name
+                                  or excluded[0]["name"].endswith("::" + expected_name)):
+        raise ValueError("captured facts must retain the fixed excluded acceptance function")
+    if legacy.get("summary", {}).get("functions") != sum(not function["excluded"] for function in result):
         raise ValueError("legacy summary count differs from captured facts; completeness unproven")
     return result
 
@@ -89,6 +114,7 @@ def run(args):
             raise ValueError("missing prebuilt executable: " + str(executable))
     manifest = HERE / "corpus/Cargo.toml"
     policy = HERE / "analysis.toml"
+    effective_policy = fixture_policy(policy)
     lockfile = manifest.parent / "Cargo.lock"
     lock_before = lockfile.read_bytes()
     package = tomllib.loads(manifest.read_text())
@@ -105,7 +131,7 @@ def run(args):
     capture(output, "cargo", ["cargo", "--version"], env, 10)
     snapshots = output / "inputs"
     snapshots.mkdir()
-    for source in (manifest, policy, lockfile, HERE / "expectations.json", manifest.parent / "src/lib.rs"):
+    for source in (manifest, policy, lockfile, HERE / "expectations.json", manifest.parent / "src/lib.rs", manifest.parent / "src/excluded.rs"):
         target = snapshots / source.relative_to(HERE)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
@@ -114,14 +140,14 @@ def run(args):
     old_command, new_command = commands(binary, manifest, policy)
     legacy = json.loads(capture(output, "legacy", old_command, env, args.timeout, (0, 1)))
     facts_file = output / "legacy-target/rstyle/facts/clones_capability_acceptance-lib.json"
-    functions = roster(facts_file, legacy)
+    functions = roster(facts_file, legacy, manifest.parent)
     new_env = controlled_environment(output / "new-target", toolchain, driver)
     new = json.loads(capture(output, "new", new_command, new_env, args.timeout))
     if lockfile.read_bytes() != lock_before:
         raise ValueError("fixture lockfile changed during captures")
     context = {"manifest": str(manifest), "package": "clones-capability-acceptance", "target": "lib",
                "features": [], "profile": "dev", "toolchain": toolchain, "revision": revision,
-               "policy": {"max_lines": 5, "max_params": 4, "count_self": False}}
+               "policy": effective_policy}
     scope = {"legacy": {"context": context, "complete": True, "functions": functions},
              "new": {"context": context}, "limitations": [
                  "Legacy CLI lacks --locked/--lib/features/profile; fixed library-only fixture, offline lockfile unchanged, empty features and dev host defaults used.",

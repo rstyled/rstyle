@@ -12,7 +12,7 @@ results. They include ordered subtraction, opaque calls, usefulness boundaries,
 nontransitive pair relationships, movement, body edits and exact-key collision
 isolation. Their delivery gate requires real consumer execution and lifecycle tests.
 
-`expectations.json` labels five source/signature cases, one strict pair and one
+`expectations.json` labels six source/signature cases, one strict pair and one
 negative abstraction case. Length counts the entire function, including its
 signature and closing brace, excluding blank/comment-only lines. The test policy
 is five code lines and four parameters, with `self` excluded. Exactly-at-limit
@@ -67,6 +67,25 @@ Historical reports without a suppression field are treated as unsuppressed.
 Invalid-suppression diagnostics are validated by CLI acceptance, outside this
 two-rule measurement comparator.
 
+Source cases may also declare `excluded: true` (omitted means false). This checks
+workspace path policy, separately from measured agreement. The legacy scope
+roster must retain that owner with `excluded: true` and complete scope; its numeric
+diagnostics must be absent. The new report must retain a completed owner with an
+explicit `source_exclusion` decision and complete `not_applicable` skips, null
+measurements and the configured limits. Only then is the row
+`policy-excluded-agreement`. The raw source labels are retained but not scored as
+measurements for that row. Missing or malformed evidence remains uncovered;
+known exclusion decisions that contradict the independent label are regressions.
+Aggregate excluded counts grant no permission. Historical reports without an
+exclusion field are treated as included.
+
+The fixed corpus deliberately exceeds both limits in `src/excluded.rs` and excludes
+that exact path. The runner validates the fixed exclusion configuration, retains
+all captured legacy owners, and reconciles the summary against included owners.
+Its per-owner legacy exclusion declaration uses the known fixture path, without
+implementing a second glob matcher. General project exclusions still require an
+independently checked operator declaration in the sidecar.
+
 Compare retained explicit reports with:
 
 ```sh
@@ -115,7 +134,8 @@ JSON does not record a full build context. Its shape is:
       "profile": "dev",
       "toolchain": "RECORD_ACTUAL_PINNED_TOOLCHAIN",
       "revision": "RECORD_ACTUAL_REVISION",
-      "policy": {"max_lines": 5, "max_params": 4, "count_self": false}
+      "policy": {"max_lines": 5, "max_params": 4, "count_self": false,
+                 "exclude": ["target/**", "src/excluded.rs"]}
     },
     "complete": true,
     "functions": [
@@ -138,12 +158,12 @@ so multiple compilation contexts are never silently merged. Compare one declared
 context at a time.
 
 Output rows distinguish `uncovered`, `context-mismatch`, `evaluated-agreement`,
-`actual-regression`, and `unreviewed-disagreement`. `intentional-improvement`
+`actual-regression`, `policy-excluded-agreement`, and `unreviewed-disagreement`. `intentional-improvement`
 requires a source-case `reviewed_improvements` map from rule ID to review reason;
 the initial labels have no such entries. A new result must match the independent
-outcome, actual measure and configured limit before it can count as agreement or
-improvement. Exit status is zero only when every row agrees or has a reviewed
-improvement. This adapter assesses source rules only; pair and abstraction quality
+outcome, actual measure and configured limit before it can count as measured agreement or
+improvement. Exit status is zero only when every row has measured or policy-excluded
+agreement, or a reviewed improvement. This adapter assesses source rules only; pair and abstraction quality
 need their own consumers and are deliberately excluded from its denominators.
 
 `enum-dispatch-cases.json` freezes nine local dispatch requirements. It includes

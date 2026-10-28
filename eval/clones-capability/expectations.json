@@ -6,9 +6,10 @@
     "target": "lib",
     "features": [],
     "extraction_profile": "hir-data-v3",
-    "policy": {"max_lines": 5, "max_params": 4, "count_self": false}
+    "policy": {"max_lines": 5, "max_params": 4, "count_self": false, "exclude": ["target/**", "src/excluded.rs"]}
   },
   "source_cases": [
+    {"function": "excluded::over_both_limits", "code_lines": 6, "parameters": 5, "length": "finding", "parameter_count": "finding", "excluded": true},
     {"function": "source_rules::length_at_limit", "code_lines": 5, "parameters": 1, "length": "evaluated-no-finding", "parameter_count": "evaluated-no-finding"},
     {"function": "source_rules::length_over_limit", "code_lines": 6, "parameters": 1, "length": "finding", "parameter_count": "evaluated-no-finding"},
     {"function": "source_rules::parameters_at_limit", "code_lines": 3, "parameters": 4, "length": "evaluated-no-finding", "parameter_count": "evaluated-no-finding"},

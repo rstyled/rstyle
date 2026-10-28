@@ -77,8 +77,8 @@ Exclusion precedes numeric evaluation and suppression diagnostics. Other consume
 including guard advice and strict matching, retain their own results and coverage.
 Exclusions do not bypass the analysis function budget. Saved captures can be
 reevaluated with different exclusion lists after original files have been removed.
-The independent comparator currently leaves excluded numeric assessments uncovered;
-an exclusion does not count as a measured clean result.
+The independent comparator checks labeled exclusions separately as
+`policy-excluded-agreement`; an exclusion does not count as a measured clean result.
 
 ## Existing source-rule suppression comments
 

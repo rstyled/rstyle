@@ -1,3 +1,5 @@
+exclude = ["target/**", "src/excluded.rs"]
+
 [fn_length]
 max_lines = 5
 

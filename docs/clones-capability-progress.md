@@ -45,7 +45,10 @@ Heavy captures and integrated gates run serially.
 | C09b | Evidence + review + acceptance + lead / shared source identity index, typed local review and CLI/report | delivered (source-local dismissal) | `78cec55` | Explicit saved-run dismissal for dispatch and ordered capability findings, independent of graph matching; helper v1 preserved | 34 review unit tests, three source identity tests and 17 review CLI tests pass; 2,598 workspace tests and doc tests pass; both legacy gates clean |
 | C09c | Lead + acceptance + contract / retained-entry status, original identities and CLI/report | delivered (bounded whole-store status) | `d15bdc4` | Explicit whole-store read-only assessment with completed negatives, omitted scopes/families and unavailable evidence distinguished | 12 status/context unit tests and 11 real-Cargo CLI tests; 2,621 workspace tests plus doc tests, both legacy gates and retained live replay pass |
 | C09d | Lead + contract + acceptance / selective review pruning | delivered (completed negatives only) | `644aef8` | Explicit saved-run preview/apply, original inventory validation and atomic schema-preserving removal | Eight contract and eight CLI cases; validation below |
-| C04b | Evidence + policy + acceptance + lead / captured comments, source reports and comparison | delivered (length/parameter suppression compatibility) | this checkpoint | Legacy named source suppressions from immutable snapshots, invalid diagnostics and raw/visible outcomes | Five evidence, six policy and six CLI cases; comparison and checkpoint validation below |
+| C04b | Evidence + policy + acceptance + lead / captured comments, source reports and comparison | delivered (length/parameter suppression compatibility) | `7436414` | Legacy named source suppressions from immutable snapshots, invalid diagnostics and raw/visible outcomes | Five evidence, six policy and six CLI cases; comparison and checkpoint validation below |
+
+| C04c | Contract + policy + acceptance + lead / shared glob matcher, captured path decisions and source reports | delivered (workspace path exclusions) | `b65f15c` | Default/configured exclusions with explicit complete skipped rows, independent guard coverage and source-free policy reevaluation | Four matcher, six decision and seven CLI cases; checkpoint evidence below |
+| C05b | Acceptance + runner + lead / independent exclusion labels and comparison | delivered (bounded exclusion comparison) | this checkpoint | Separate policy-excluded agreement from measured source-rule agreement; retain excluded legacy roster and context | 38 independent Python tests and live frozen-corpus comparison; checkpoint evidence below |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
@@ -672,3 +675,65 @@ legacy visible diagnostics and new raw/visible counts, plus identical full/compa
 strict replay without source, manifest or tools. Native macOS and exact Go
 comparison remain unverified. Exclusions, legacy ignore/review migration and
 broader replacement gates remain open. No legacy backend is retired.
+
+
+## C04c / C05b: workspace exclusions and independent policy comparison
+
+`b65f15c` applies configured workspace-relative path globs to the opt-in source
+rules through the exact existing legacy matcher. Patterns compile once before
+capture; default `target/**` and explicit empty lists preserve existing policy.
+Only checked original source ownership can grant an exclusion. Original paths
+outside the workspace remain evaluated; missing ownership or invalid/dot paths
+remain unavailable. Matching is lexical and uses the original captured root,
+without new file reads, hashes, graph copies or source parses.
+
+Excluded owners stay in the roster with complete, not-applicable numeric skips
+and explicit exclusion counters, separate from unavailable rules. Suppression
+parsing and diagnostics are skipped for excluded source rules. Other consumers
+keep their own findings/coverage, and exclusions cannot bypass the function budget.
+Four shared matcher tests, six source decision cases and seven real-Cargo CLI
+cases cover glob boundaries, namesakes, external sources, invalid configuration,
+independent guards, budgets, full/compact reports and source/tool-free replay.
+The initial 2,671-test run had one new fixture failure: its `../target` path was
+intentionally unavailable under the path contract. Using an absolute original
+path corrected the fixture; all 17 exclusion tests and doc tests then passed.
+Clippy, formatting and diff checks passed, style reported zero violations across
+8,821 functions, and reviewed patterns passed with the same 15 unfiltered IDs.
+Logs are `/tmp/clones-source-exclusions-*-final.*`.
+
+C05b adds an independent boolean exclusion label and an explicit legacy per-owner
+operator declaration. A valid labeled skip is `policy-excluded-agreement`, never
+measured clean. Missing/unavailable/malformed evidence remains uncovered; known
+policy mismatches are regressions. Complete unique rosters, exact skip fields,
+configured limits and absent legacy numeric diagnostics are required. Historical
+absent exclusion fields mean included. Aggregate counters grant no permission.
+The frozen corpus adds `excluded::over_both_limits`, independently specified as
+six code lines/five parameters before exclusion. The runner validates its fixed
+policy and retains all 17 legacy owners while reconciling the included summary.
+It interprets legacy relative paths against the declared original root, preserving
+raw locations and avoiding a second glob implementation.
+
+Thirty-eight Python tests pass. Live serial captures at
+`/tmp/clones-exclusion-comparison-live-final` yield ten measured agreements and
+two policy-excluded agreements; new scope is complete with 17 assessed owners,
+one excluded owner, two excluded rules and no unavailable source evidence.
+The first comparison checkpoint run found two guard-fixture failures because
+its temporary workspace copied the corpus root but omitted the new module.
+The copy helper now includes both source files; all five guard tests pass.
+The final integrated snapshot passed all 2,671 workspace tests (five skipped) in
+174.606 seconds plus doc tests, 38 Python tests, Clippy, formatting and diff checks.
+Style reports zero violations across 8,821 functions; reviewed patterns passed.
+Logs use `/tmp/clones-exclusion-comparison-{tests,clippy,style,patterns}-final.*`.
+Unfiltered patterns retain exactly the same 15 candidate IDs as `b65f15c`. Native
+macOS and exact Go comparison remain unverified for these changes. Legacy review
+migration, broader source/effects/planning scope and capability retirement remain
+open; neither legacy backend is retired.
+
+
+Next ready source-rule work is spacing evidence: derive an independently checked
+scalar direct-statement count during the existing owned source parse, cross-check
+original body shape, and retain unsupported macro/cfg/async transformations. Legacy
+spacing counts compiler HIR statements, so a raw source AST count alone does not
+establish parity. Reuse the existing blank-line policy; excluded/suppressed,
+disabled, threshold and incomplete cases need separate acceptance before delivery.
+Broader review migration and planning/effect capabilities remain parallel work.
