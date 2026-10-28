@@ -50,7 +50,12 @@ pub(in crate::clones) fn evaluate(
                     .flat_map(|baseline| &baseline.entries)
                     .map(|finding| (observations::key(finding), finding))
                     .collect(),
-                observations::current(&rows, reviews),
+                observations::current(
+                    &rows,
+                    reviews,
+                    ctx.analysis_config
+                        .and_then(crate::clones::analysis::Config::changed_files),
+                ),
             ),
             retained: observations::retained(&rows, previous),
             export_requested: ctx.args.write_compiler_baseline.is_some(),

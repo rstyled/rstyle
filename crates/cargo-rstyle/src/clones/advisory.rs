@@ -1,6 +1,7 @@
 //! Reuse core policy over compiler-collected inputs, isolated by compilation unit.
 mod diagnostics;
 mod patterns;
+mod selection;
 use super::{analysis::Completion, identity::UnitId, report::Context};
 use rstyle_core::{
     advisory::{KEY, METRICS, Observation},
@@ -25,6 +26,8 @@ pub(super) struct Report {
     diagnostic_review: Option<super::review::compiler_diagnostics::Report>,
     #[serde(skip_serializing_if = "Option::is_none")]
     diagnostic_baseline: Option<super::review::compiler_baseline::Report>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    changed_scope: Option<super::analysis::changed_scope::Report<'static>>,
 }
 
 #[derive(Serialize)]
@@ -41,6 +44,8 @@ struct Unit {
     diagnostic_snapshots: Vec<Result<super::review::compiler_diagnostics::Snapshot, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     visible_diagnostics: Option<Vec<usize>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    selected_diagnostics: Option<Vec<usize>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     patterns: Option<patterns::Report>,
 }
@@ -63,6 +68,10 @@ struct Missing {
 impl Completion for Report {
     fn permits_success(&self) -> bool {
         self.complete
+            && self
+                .changed_scope
+                .as_ref()
+                .is_none_or(|scope| scope.permits_success())
             && self
                 .diagnostic_baseline
                 .as_ref()
@@ -101,10 +110,6 @@ impl Report {
             .filter_map(Unit::render_patterns)
             .collect::<Vec<_>>()
             .join("\n");
-        let reviews = self
-            .pattern_review
-            .as_ref()
-            .map_or_else(String::new, |review| review.render());
 
         let diagnostics = self
             .units
@@ -112,6 +117,15 @@ impl Report {
             .map(Unit::render_diagnostics)
             .collect::<Vec<_>>()
             .join("\n");
+        let summaries = self.render_summaries();
+        format!("{summary}{diagnostics}{patterns}{summaries}")
+    }
+
+    fn render_summaries(&self) -> String {
+        let reviews = self
+            .pattern_review
+            .as_ref()
+            .map_or_else(String::new, |review| review.render());
         let diagnostic_reviews = self
             .diagnostic_review
             .as_ref()
@@ -120,7 +134,14 @@ impl Report {
             .diagnostic_baseline
             .as_ref()
             .map_or_else(String::new, |baseline| baseline.render());
-        format!("{summary}{diagnostics}{patterns}{reviews}{diagnostic_reviews}{baseline}")
+
+        let selected = self
+            .changed_scope
+            .as_ref()
+            .map_or_else(String::new, |scope| {
+                scope.render_for("compiler diagnostics")
+            });
+        format!("{reviews}{diagnostic_reviews}{baseline}{selected}")
     }
 
     pub(super) fn diagnostic_reviews(&self) -> Vec<super::review::compiler_diagnostics::Row<'_>> {
@@ -135,6 +156,7 @@ impl Report {
                             unit: unit.unit,
                             index,
                             snapshot,
+                            path: &unit.evaluation.diagnostics[index].path,
                         },
                     )
             })
@@ -236,6 +258,7 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
         pattern_review: None,
         diagnostic_review: None,
         diagnostic_baseline: None,
+        changed_scope: None,
     }))
 }
 
@@ -301,6 +324,7 @@ fn evaluate_unit(
         evaluation,
         diagnostic_snapshots,
         visible_diagnostics: None,
+        selected_diagnostics: None,
         patterns,
     })
 }
@@ -379,7 +403,9 @@ impl Unit {
         diagnostics::render(
             self.unit,
             &self.evaluation,
-            self.visible_diagnostics.as_deref(),
+            self.selected_diagnostics
+                .as_deref()
+                .or(self.visible_diagnostics.as_deref()),
         )
     }
 
@@ -404,8 +430,9 @@ impl Unit {
     }
 
     fn findings(&self) -> usize {
-        self.visible_diagnostics
+        self.selected_diagnostics
             .as_ref()
+            .or(self.visible_diagnostics.as_ref())
             .map_or(self.evaluation.summary.violations, Vec::len)
             + self.patterns.as_ref().map_or(0, |report| report.findings())
     }

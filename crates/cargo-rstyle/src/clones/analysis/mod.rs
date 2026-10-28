@@ -2,7 +2,7 @@
 mod capability_pairs;
 pub(super) mod capability_reports;
 mod changed_file_reports;
-pub(in crate::clones) use changed_file_reports::selected_file;
+pub(in crate::clones) use changed_file_reports::{checked_path, selected_file};
 pub(super) mod changed_scope;
 pub(super) mod declaration_indices;
 pub(super) mod dispatch_reports;

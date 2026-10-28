@@ -366,8 +366,11 @@ missing/generated owners unavailable, and unresolved workspace callees visible.
 It reuses `ExprUseVisitor`, core propagation, fix groups and parameter stacking;
 strict clone admission is not required. Captured observations support source-free
 `--replay-run` and policy reevaluation. These metric versions differ from strict
-mutation-effect metrics; zero policy density is not a purity proof. Changed-file
-filters do not yet apply to compiler style diagnostics.
+mutation-effect metrics; zero policy density is not a purity proof.
+`--changed-files PATH` selects numeric compiler diagnostic presentation and finding
+exits after reviews. Raw evaluations/fix plans remain intact; proposals and
+invalid suppressions stay global. `changed_scope` reports file owner availability;
+unknown files or whole-scope missing inputs still prevent a clean result.
 See [compiler advisory](../../docs/clones-compiler-advisory.md).
 
 Add `--compiler-patterns` to reuse existing compiler graphs and the core
@@ -418,5 +421,6 @@ counts existing findings. Reviews can hide new findings but cannot hide header
 drift. Missing old findings remain unavailable, never automatically resolved.
 Incomplete or oversized scope exits 2 and cannot export; bounds are 4 MiB and
 4,096 owners/entries/contexts. Exports create a new file without overwriting.
-Changed-file selection does not filter this whole-scope compiler gate. No
-proposal-baseline or legacy-retirement claim follows from this workflow.
+Changed-file selection filters new visible numeric findings in comparisons;
+whole-scope policy/context drift remains global. Export conflicts with selection.
+No proposal-baseline or legacy-retirement claim follows from this workflow.

@@ -18,14 +18,15 @@ pub(super) fn key(finding: &Snapshot) -> Key<'_> {
 pub(super) fn current<'a>(
     rows: &'a [Row<'a>],
     reviews: &'a super::super::compiler_diagnostics::Report,
+    selection: Option<&'a crate::clones::analysis::changed_scope::Selection>,
 ) -> impl Iterator<Item = Observation<Key<'a>, &'a Snapshot, Handle>> {
-    rows.iter().map(|row| Observation {
+    rows.iter().map(move |row| Observation {
         key: Handle {
             unit: row.unit,
             diagnostic_index: row.index,
         },
         rule_id: None,
-        selected: true,
+        selected: selection.is_none_or(|selection| selection.contains(row.path)),
         review_hidden: reviews.hidden_for(row.unit, row.index),
         finding: row
             .snapshot

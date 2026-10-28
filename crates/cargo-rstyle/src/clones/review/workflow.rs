@@ -148,8 +148,13 @@ impl CompilerReviews {
     pub(in crate::clones) fn apply(
         self,
         advisory: Option<crate::clones::advisory::Report>,
+        ctx: &report::Context<'_>,
     ) -> Option<crate::clones::advisory::Report> {
-        advisory.map(|report| report.with_reviews(self.patterns, self.diagnostics, self.baseline))
+        advisory.map(|report| {
+            report
+                .with_reviews(self.patterns, self.diagnostics, self.baseline)
+                .select_changed(ctx)
+        })
     }
 }
 

@@ -295,3 +295,33 @@ Evidence is `/tmp/clones-compiler-baseline-project-{raw,export}-1`. Complete
 six-family baseline publication/comparison and source-free replay are separately
 verified by the independent real-Cargo fixture cases. Broader project completeness
 and quality remain open.
+
+## Compiler changed-file presentation
+
+The independently pre-recorded
+[`project-compiler-selection-cases.json`](project-compiler-selection-cases.json)
+selects `crates/rstyle-ccgraph/src/frac.rs` from the same retained library run and
+explicit compiler policy. Two numeric mutated-target findings are selected.
+The 39 raw diagnostics and their complete evaluations/fix plans, the one global
+proposal, unavailable/unresolved lists and all strict matching results are
+identical to the reference replay. Four of the fifteen strict pair evaluations
+are accepted in both reports. Global advisory findings remain forty.
+
+The selected path has 23 matched functions, eight with unavailable observations,
+so its owner coverage is incomplete. Both reference and selected runs exit 2;
+file selection does not hide that missing data or the whole-run 176 unavailable
+generated owners and twenty unresolved callees. No review file is written and
+no real-project finding is dismissed.
+
+Repeat the preceding reference command without the baseline export, then append:
+
+```sh
+--changed-files /tmp/clones-compiler-selection-project-manifest.json --fail-on-findings
+```
+
+The manifest is the `selection` object in the recorded cases file. Evidence is
+`/tmp/clones-compiler-selection-project-{raw,selected}-1`. On pinned Linux aarch64,
+reference/selected take 2.13/2.04 seconds and 201,632/201,568 KiB peak RSS. These
+single observations do not establish a speedup or overhead bound. This checks
+presentation over the existing retained project population, not broader project
+completeness or legacy retirement.

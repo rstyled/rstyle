@@ -49,7 +49,7 @@ impl<'a> Consumers<'a> {
             indices: &indices,
         }
         .apply(ctx)?;
-        let compiler_advisory = reviews.compiler.apply(compiler_advisory);
+        let compiler_advisory = reviews.compiler.apply(compiler_advisory, ctx);
         mutation.hide_reviewed(&reviews.mutations);
         ctx.present_effects(&mut effects, &reviews.density);
         let source_reviews = SourceReviews::apply(reviews.sources, ctx.args, &mut analysis);

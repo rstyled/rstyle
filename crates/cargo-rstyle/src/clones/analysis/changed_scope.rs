@@ -1,7 +1,7 @@
 //! Changed files select consumer presentation; they never grant source evidence.
 use super::{Coverage, Execution};
 use serde::{Deserialize, Serialize};
-use std::{fs::File, io::Read, path::Path};
+use std::{borrow::Cow, fs::File, io::Read, path::Path};
 
 const SCHEMA: &str = "rstyle.changed-files/1";
 const MAX_BYTES: usize = 1024 * 1024;
@@ -73,14 +73,14 @@ fn validate_path(path: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) struct Owner<'a> {
+pub(in crate::clones) struct Owner<'a> {
     pub path: Option<&'a str>,
     pub complete: bool,
     pub visible_findings: usize,
 }
 
 #[derive(Debug, Serialize)]
-pub(super) struct Report<'a> {
+pub(in crate::clones) struct Report<'a> {
     pub coverage: Coverage,
     pub visible_findings: usize,
     pub unclassified_functions: usize,
@@ -88,8 +88,8 @@ pub(super) struct Report<'a> {
 }
 
 #[derive(Debug, Serialize)]
-pub(super) struct PathReport<'a> {
-    pub path: &'a str,
+pub(in crate::clones) struct PathReport<'a> {
+    pub path: Cow<'a, str>,
     pub matched_functions: usize,
     pub unavailable_functions: usize,
     pub visible_findings: usize,
@@ -99,7 +99,7 @@ pub(super) struct PathReport<'a> {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub(super) enum Status {
+pub(in crate::clones) enum Status {
     Observed,
     Unobserved,
 }
@@ -107,7 +107,7 @@ pub(super) enum Status {
 impl<'a> PathReport<'a> {
     fn unobserved(path: &'a str) -> Self {
         Self {
-            path,
+            path: Cow::Borrowed(path),
             matched_functions: 0,
             unavailable_functions: 0,
             visible_findings: 0,
@@ -136,7 +136,7 @@ impl<'a> PathReport<'a> {
     }
 }
 
-pub(super) fn evaluate<'selection, 'owner>(
+pub(in crate::clones) fn evaluate<'selection, 'owner>(
     selection: &'selection Selection,
     owners: impl IntoIterator<Item = Owner<'owner>>,
 ) -> Report<'selection> {
@@ -174,7 +174,7 @@ fn include_owners<'a>(
             unclassified += usize::from(!paths.is_empty());
             continue;
         };
-        if let Ok(index) = paths.binary_search_by_key(&path, |entry| entry.path) {
+        if let Ok(index) = paths.binary_search_by(|entry| entry.path.as_ref().cmp(path)) {
             paths[index].include(owner);
         }
     }
@@ -194,6 +194,38 @@ pub(super) fn permits_success(
 }
 
 impl Report<'_> {
+    pub(in crate::clones) fn include_findings<'a>(&mut self, paths: impl Iterator<Item = &'a str>) {
+        for path in paths {
+            if let Ok(index) = self
+                .paths
+                .binary_search_by(|entry| entry.path.as_ref().cmp(path))
+            {
+                self.paths[index].visible_findings += 1;
+                self.visible_findings += 1;
+            }
+        }
+    }
+
+    pub(in crate::clones) fn into_owned(self) -> Report<'static> {
+        Report {
+            coverage: self.coverage,
+            visible_findings: self.visible_findings,
+            unclassified_functions: self.unclassified_functions,
+            paths: self
+                .paths
+                .into_iter()
+                .map(|path| PathReport {
+                    path: Cow::Owned(path.path.into_owned()),
+                    matched_functions: path.matched_functions,
+                    unavailable_functions: path.unavailable_functions,
+                    visible_findings: path.visible_findings,
+                    coverage: path.coverage,
+                    status: path.status,
+                })
+                .collect(),
+        }
+    }
+
     pub fn permits_success(&self) -> bool {
         self.coverage == Coverage::Complete
     }
@@ -202,7 +234,7 @@ impl Report<'_> {
         self.render_for("source rules")
     }
 
-    pub(super) fn render_for(&self, consumer: &str) -> String {
+    pub(in crate::clones) fn render_for(&self, consumer: &str) -> String {
         let mut output = format!(
             "\nChanged-file {consumer}: {:?} coverage; {} selected files, {} visible findings; {} unclassified functions.",
             self.coverage,

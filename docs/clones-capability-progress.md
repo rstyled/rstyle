@@ -2671,3 +2671,62 @@ these are not a speedup or overhead bound. Evidence is
 Formatting and diff checks pass. Full migration remains incomplete; compiler
 changed-file presentation is the next ready workflow slice. No legacy command
 or strict contract is retired by this checkpoint.
+
+## C21: reuse completed compiler diagnostics for changed-file presentation
+
+The lead owns the selection adapter, shared coverage seam, CLI/report integration,
+acceptance cases and docs. `--compiler-advisory --changed-files PATH` now uses the
+existing bounded manifest and exact completed core diagnostic paths. Selection
+runs after explicit reviews and retains raw evaluations, totals and caller/fix
+plans. Separate raw diagnostic indices control text and finding exits. Numeric
+baseline comparison uses the same selection while header drift stays global;
+whole-scope export still conflicts with selection. Invalid suppressions and core
+proposals remain global.
+
+The shared source/density coverage aggregator now accepts finding paths separately
+from owner availability; findings cannot promote an unobserved path to complete.
+Compiler selection indexes scoped observation IDs and borrows captured paths.
+Only selected report path strings are owned for publication, with no graph/body
+copy, source parsing, hash, replacement checksum or repeated proof. Absent explicit
+review/baseline requests still avoid diagnostic owner rosters and snapshots.
+Unknown selected paths remain incomplete, empty selection selects no numeric
+findings, and global generated/missing/unresolved inputs still keep exit 2.
+Check/test occurrences remain separate. No source-rule analysis is implicitly
+requested by a compiler-only selection.
+
+Ten real-Cargo integration cases cover exact nested namesake paths, raw reports
+and strict results, text output, empty/unknown files, source/tool-free replay,
+missing/generated inputs, check/test occurrences, reviews, baseline selected
+counts/global drift, invalid suppressions and global proposals. Two shared unit
+cases cover independent coverage/count aggregation and owned path publication.
+No limits, budgets, suppressions or ignore entries are changed. Full capability
+migration and legacy retirement remain incomplete.
+
+The pattern gate identified two counting-helper overlaps during development.
+Presentation and exit counts now share the existing unit finding method, using
+selected indices before reviewed indices while preserving global raw totals.
+No new generic counting framework or ledger exception was introduced.
+
+The frozen integrated snapshot passes all 3,267 nextest cases in 208.866 seconds
+with five existing skips, plus workspace doc tests. Both original NonZero CI
+regressions and the u32 widening composition pass. Workspace all-target Clippy
+with warnings denied, formatting and diff checks pass. Style reports zero across
+9,646 functions; reviewed patterns reports zero. Unfiltered discovery contains
+fifteen previously reviewed IDs: `76534998402b` returns in this bounded scan;
+all other fourteen IDs match C20. No review ledger changes were made.
+Evidence is `/tmp/clones-compiler-selection-tests-final-1`,
+`/tmp/clones-compiler-selection-clippy-final-2`,
+`/tmp/clones-compiler-selection-style-final-3`,
+`/tmp/clones-compiler-selection-patterns-final-2` and
+`/tmp/clones-compiler-selection-patterns-unfiltered-final-1`.
+
+The retained project replay selects the two numeric findings in `frac.rs` while
+preserving all 39 raw diagnostics/fix plans, the global proposal, missing-input
+lists and four accepted strict pairs. The selected path itself has eight
+unavailable owners, and both runs correctly exit 2. Reference/selected resource
+observations are 2.13/2.04 seconds and 201,632/201,568 KiB peak RSS, without a
+speedup or overhead-bound claim. Cases, commands and limitations are recorded in
+the project study; logs are `/tmp/clones-compiler-selection-project-{raw,selected}-1`.
+Compiler proposal baselines, completed-negative/prune prerequisites, cross-package
+propagation, broader real-project completeness/quality and capability retirement
+remain open. No new hashes or strict-contract changes are introduced.

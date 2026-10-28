@@ -23,8 +23,9 @@ Use `--compiler-advisory-config PATH` for an explicit TOML core policy. Without
 that flag the core defaults apply; the workspace's `rstyle.toml` is not implicitly
 loaded. `--fail-on-findings` includes advisory diagnostics. Incomplete coverage
 still exits 2, even if assessed functions have no findings. An explicit `--review-file` applies exact saved choices to these diagnostics.
-Changed-file filters do not yet apply to this field. The explicit compiler diagnostic
-baseline workflow is described below. Compiler
+An explicit `--changed-files PATH` selects numeric diagnostic presentation and
+finding exits as described below. The compiler diagnostic baseline workflow is
+also described below. Compiler
 proposals have a separate review identity described below.
 The normal legacy style command remains available.
 
@@ -243,7 +244,32 @@ context is invented. Generated test-harness owners may make `--all-targets` inco
 known diagnostics are available. Known findings still appear in an incomplete
 comparison, but that comparison cannot establish a clean CI result.
 
-This gate covers the whole compiler advisory scope. Changed-file manifests apply
-only to their existing source/density consumers; exporting a compiler baseline
-with a changed-file manifest is rejected. Proposal baselines, broader project
+Baseline comparison applies changed-file selection to new visible numeric
+findings; policy/build-context drift still covers the whole scope. Exporting a
+compiler baseline with a changed-file manifest is rejected. Proposal baselines, broader project
 coverage, completed-negative status and legacy retirement remain open.
+
+
+## Changed-file compiler diagnostics
+
+Add `--changed-files PATH` with the shared manifest format:
+`{"schema":"rstyle.changed-files/1","paths":["src/lib.rs"]}`. Exact
+workspace-relative paths select numeric diagnostics after explicit saved reviews.
+Text and `--fail-on-findings` use `units[].selected_diagnostics`, zero-based
+indices into the unchanged raw diagnostic roster. Raw evaluations, totals and
+caller/fix plans remain intact. Compiler proposals and invalid-suppression
+diagnostics remain global. No source-rule analysis is implicitly enabled.
+
+`compiler_advisory.changed_scope` reports per-file owner availability and selected
+finding counts using the shared source/density coverage aggregator. Unknown files
+stay unobserved/incomplete; empty selection selects no numeric diagnostics.
+Generated/missing owners and unresolved callees still keep whole-analysis exit 2,
+even when every selected file has available observations. Check/test occurrences
+remain distinct. Selection is file-level presentation, not changed-line analysis
+or selective compiler execution.
+
+Live analysis and source/tool-free replay use the same captured paths and owner
+IDs. Selection retains only diagnostic indices, scoped owner IDs and owned report
+path strings. It creates no diagnostic review snapshots absent an explicit
+review/baseline request, and adds no source parsing, graph/body copying, hashing
+or repeated proofs.

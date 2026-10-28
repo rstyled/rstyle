@@ -14,6 +14,7 @@ use serde::Serialize;
 pub(in crate::clones) struct Row<'a> {
     pub unit: UnitId,
     pub index: usize,
+    pub path: &'a str,
     pub snapshot: &'a Result<Snapshot, String>,
 }
 

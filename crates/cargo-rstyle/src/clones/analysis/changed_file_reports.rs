@@ -57,7 +57,7 @@ impl FunctionReport<'_> {
     }
 }
 
-pub(super) fn checked_path<'a>(original: &'a str, root: &Path) -> Option<&'a str> {
+pub(in crate::clones) fn checked_path<'a>(original: &'a str, root: &Path) -> Option<&'a str> {
     let root_text = root.to_str()?;
     if original == "/" || !valid_absolute(original) || !valid_absolute(root_text) {
         return None;

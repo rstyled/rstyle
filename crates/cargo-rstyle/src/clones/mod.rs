@@ -29,7 +29,7 @@ use std::{
 
 #[derive(ClapArgs, Serialize)]
 #[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density", "compiler_advisory"]).multiple(true)),
-    group(clap::ArgGroup::new("changed_analysis").args(["source_rules", "effect_density"]).multiple(true)),
+    group(clap::ArgGroup::new("changed_analysis").args(["source_rules", "effect_density", "compiler_advisory"]).multiple(true)),
     group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules", "mutation_rules", "effect_density", "compiler_patterns", "compiler_advisory"]).multiple(true)),
     group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density", "dismiss_compiler_pattern", "dismiss_compiler_diagnostic"])),
     group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules", "effect_density", "compiler_advisory"]).multiple(true)))]
@@ -82,7 +82,7 @@ pub struct Args {
     /// TOML policy for compiler advisory metrics, independent of strict clone policy.
     #[arg(long, requires = "compiler_advisory")]
     compiler_advisory_config: Option<PathBuf>,
-    /// JSON workspace-relative changed-file selection for source-rule and density presentation and finding exits.
+    /// JSON workspace-relative changed-file selection for source, density and compiler diagnostic presentation and finding exits.
     #[arg(long, requires = "changed_analysis")]
     changed_files: Option<PathBuf>,
     /// Suggest bounded guard-clause shapes from original source; advisory only.
@@ -575,7 +575,7 @@ fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: us
             && (report
                 .compiler_advisory
                 .as_ref()
-                .is_some_and(|report| report.findings > 0)
+                .is_some_and(|report| report.finding_exit_count() > 0)
                 || source_finding_exit_count(report) > 0
                 || report
                     .abstraction_review

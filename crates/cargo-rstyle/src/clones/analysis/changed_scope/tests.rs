@@ -207,3 +207,34 @@ fn empty_selection_consumes_owners_so_adapters_can_annotate_every_function() {
     assert_eq!(report.unclassified_functions, 0);
     assert_eq!(report.visible_findings, 0);
 }
+
+#[test]
+fn independent_diagnostic_counts_do_not_promote_unobserved_files() {
+    let selection = selection(&["src/known.rs", "src/missing.rs"]);
+    let mut report = evaluate(&selection, [owner(Some("src/known.rs"), true, 0)]);
+    report.include_findings(
+        [
+            "src/known.rs",
+            "src/known.rs",
+            "src/missing.rs",
+            "src/outside.rs",
+        ]
+        .into_iter(),
+    );
+    assert_eq!(report.visible_findings, 3);
+    assert_eq!(report.paths[0].visible_findings, 2);
+    assert_eq!(report.paths[1].visible_findings, 1);
+    assert_eq!(report.paths[1].status, Status::Unobserved);
+    assert!(!report.permits_success());
+}
+
+#[test]
+fn owned_selection_report_retains_counts_after_manifest_owner_is_dropped() {
+    let report = {
+        let selection = selection(&["src/known.rs"]);
+        evaluate(&selection, [owner(Some("src/known.rs"), true, 2)]).into_owned()
+    };
+    assert_eq!(report.paths[0].path, "src/known.rs");
+    assert_eq!(report.visible_findings, 2);
+    assert!(report.permits_success());
+}
