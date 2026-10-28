@@ -12,12 +12,25 @@ once, including mutually exclusive arms and nested branches. An `if` without
 `else` still has the sites authored in its arm; the report does not claim that
 they execute. Original native branch/condition/arm correspondence is required.
 Branch-local declarations retain distinct lexical binding roots, and leaving an
-arm restores the enclosing scope. Loops, pattern conditions and assignments
-inside conditions remain outside this bounded branch vocabulary.
+arm restores the enclosing scope. Pattern conditions and assignments inside
+conditions remain outside this bounded branch vocabulary.
 
-This extension applies to the direct mutation-rule inventory. Conditional call
-observations, helper-effect certification and parameter-use proofs retain their
-separate incomplete boundaries. An unsupported or unknown branch operation
+Unlabelled `loop`, primitive boolean `while`, and primitive half-open `u32`
+`for` ranges contribute each original body site once. Both range endpoints must
+be present; wildcard and immutable scalar binders are supported. Captured compiler
+range identity, original endpoint/binder/body correspondence and lexical binding
+scopes are checked. A zero-length range or false while condition still has its
+authored sites; no dynamic execution count or termination claim follows.
+Valueless unlabelled `break` and `continue` require the captured innermost loop
+destination. Compiler builtin never-type observations are retained separately
+for this consumer and joined to original HIR identities and spans; display text
+does not supply type authority or graph admission. Inventory continues through source statements after a transfer,
+including unreachable statements. Labels, value breaks, while-let, inclusive
+ranges, arbitrary iterators and mutable range binders remain outside this scope.
+
+This extension applies to the direct mutation-rule inventory. Conditional and
+loop call observations, helper-effect certification and parameter-use proofs retain their
+separate incomplete boundaries. An unsupported or unknown branch/loop operation
 cannot turn into a complete clean inventory, even if other sites are witnessed.
 
 Use an explicit TOML policy with `--mutation-config FILE`:

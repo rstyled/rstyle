@@ -1473,3 +1473,48 @@ count those sites. Keep static-site counting independent of dynamic frequency,
 termination, call summaries and formal-use certification. Saved mutation reviews,
 broader effects/density, project quality and legacy retirement remain open.
 Native macOS and exact Go comparison remain unverified.
+
+## C11g: direct loop assignment-site inventory
+
+Delivered the staged primitive `for _ in 0..count` static-site requirement,
+ordinary boolean while conditions and unlabelled loop bodies. Capture owns
+original for-loop head/binder/body and exact compiler core Range evidence;
+the mutation consumer joins source/native nodes, loop-local roots and original
+transfer destinations. Each authored assignment counts once, including after a
+valueless unlabelled break/continue and inside a zero-range or false-while body.
+Nested branches/loops, immutable scalar binders, shadowing and conditional
+transfers retain lexical roots. Labels, value breaks, pattern conditions,
+inclusive ranges, arbitrary iterators and mutable binders remain incomplete.
+No iteration, termination, call-summary, formal-use or density conclusion follows.
+
+Compiler builtin never-type observations use a separate consumer record keyed by
+original HIR identity, kind and span, checked against the existing bounded native
+inventory and owning function. They do not change graph type normalization or
+admission permissions. Duplicate, wrong-owner, mismatched and malformed records
+reject; missing evidence stays unknown without consulting display text. The full
+suite caught regressions in the initial shared never-type token approach; that
+approach was removed before delivery. Original graph behavior is preserved.
+There are no new hashes, source/graph copies, ignores, thresholds or budgets.
+
+Fourteen focused engine cases and fifteen live/replay CLI cases cover exact
+static counts, correspondence changes, typed binders, transfers, macro origins,
+summary isolation and existing budget boundaries. Full/compact strict replay
+works without source files or compiler tools, including conditional continue
+bodies, and reconfigures mutation limits while retaining original evidence.
+The frozen `loop-source-site-not-runtime-frequency` corpus case is promoted to
+`bounded-direct-loops`; its runtime frequency remains explicitly count-dependent.
+
+Integrated validation: 2,987 workspace tests pass (five skipped), plus doc tests,
+with nextest runtime 190.817 seconds. Both originally reported NonZero regressions,
+generated conversion admission and the u32 widening reader pass. The focused run
+passed 148 tests; final full validation also covers the strengthened coordinated
+foreign-owner negative case. Clippy with warnings denied, formatting and diff
+checks pass. Legacy style reports zero violations across 9,218 functions;
+reviewed patterns pass with zero candidates, and unfiltered discovery retains
+exactly the same fifteen baseline IDs. All 56 migration comparison Python tests
+and 50 auxiliary script tests pass. Native macOS and external Go comparison remain
+unverified.
+
+Next ready work is saved mutation reviews over completed visible findings, then
+broader effect/density and project-quality contracts. The migration remains active;
+legacy retirement gates are not established by this slice.

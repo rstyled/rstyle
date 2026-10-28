@@ -22,16 +22,25 @@ impl<'a> Index<'a> {
     }
 
     pub fn node(&self, kind: &str, span: ByteSpan) -> Result<Option<&'a HirNode>, String> {
+        Ok(self
+            .captured_node(kind, span)?
+            .filter(|node| node.expansion.is_none()))
+    }
+
+    pub fn captured_node(&self, kind: &str, span: ByteSpan) -> Result<Option<&'a HirNode>, String> {
         match self
             .nodes
             .get(&(kind, span.start, span.end))
             .map(Vec::as_slice)
         {
             None => Ok(None),
-            Some([node]) if node.expansion.is_none() => Ok(Some(*node)),
-            Some([_]) => Ok(None),
+            Some([node]) => Ok(Some(*node)),
             Some(_) => Err("Mutation source site has ambiguous native correspondence".into()),
         }
+    }
+
+    pub fn node_count(&self) -> usize {
+        self.nodes.values().map(Vec::len).sum()
     }
 
     pub fn binding(&self, node: &HirNode) -> Result<&'a BindingFact, String> {

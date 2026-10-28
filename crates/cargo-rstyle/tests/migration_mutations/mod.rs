@@ -86,6 +86,7 @@ fn direct_scalar_assignment_counts_follow_independent_sources_and_provenance() {
         "two-local-targets",
         "shadowed-local-bindings",
         "branch-source-site-counts",
+        "loop-source-site-not-runtime-frequency",
     ] {
         let directory = workspace(id);
         let (output, report) = requested(directory.path(), &[]);

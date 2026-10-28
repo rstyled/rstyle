@@ -228,8 +228,12 @@ See `docs/clones-edit-planning.md` for limits and intent semantics.
 Direct `clones --mutation-rules` counts static scalar assignment sites through
 ordinary unexpanded `if`/`else` branches, preserving original lexical roots.
 Mutually exclusive arm sites each count once; runtime execution counts remain
-unknown. Pattern conditions, loops and opaque operations remain incomplete.
-This direct inventory does not certify conditional helper calls or parameter uses.
+unknown. Unlabelled loops, primitive bool while conditions and half-open u32 for
+ranges also count original sites once, including source after plain break/continue.
+Wildcard and immutable scalar range binders retain exact body scopes. Pattern
+conditions, labels, value breaks, arbitrary iterators and opaque work remain
+incomplete. This direct inventory does not certify loop/conditional helper calls
+or parameter uses.
 See `docs/clones-mutations.md` for policy, provenance and replay semantics.
 
 Mutation schema `rstyle.mutations/2` keeps raw evidence/rules separate from

@@ -99,7 +99,11 @@ impl Scan<'_> {
         children
     }
 
-    fn condition_evidence(&self, expression: &Expr, node: &HirNode) -> Result<Effects, String> {
+    pub(super) fn condition_evidence(
+        &self,
+        expression: &Expr,
+        node: &HirNode,
+    ) -> Result<Effects, String> {
         let expression = transparent(expression);
         let span = self.span(expression);
         if node.kind != condition_kind(expression)
@@ -114,23 +118,9 @@ impl Scan<'_> {
                 "Conditional operand has no original unexpanded evidence",
             ));
         }
-        let children: Vec<&Expr> = match expression {
-            Expr::Binary(binary) if compound(&binary.op) => {
-                return Ok(Effects::unsupported(
-                    span,
-                    "Compound assignment in conditional operand is outside direct inventory",
-                ));
-            }
-            Expr::Binary(binary) => vec![&binary.left, &binary.right],
-            Expr::Unary(unary) => vec![&unary.expr],
-            Expr::Path(_) | Expr::Lit(_) => vec![],
-            Expr::Call(_) => return Ok(Effects::unknown(span, "Unknown call boundary")),
-            _ => {
-                return Ok(Effects::unsupported(
-                    span,
-                    "Unsupported conditional operand",
-                ));
-            }
+        let children = match condition_children(expression, span) {
+            Ok(children) => children,
+            Err(effects) => return Ok(effects),
         };
         if node.children.len() != children.len() {
             return Err("Conditional native operand roster contradicts original syntax".into());
@@ -165,12 +155,7 @@ impl Scan<'_> {
         if condition.normalized.as_deref() != Some("bool")
             || std::iter::once(node)
                 .chain(node.children.iter().skip(1))
-                .any(|node| {
-                    node.ty
-                        .as_ref()
-                        .and_then(|ty| ty.normalized.as_ref())
-                        .is_none()
-                })
+                .any(|node| self.control_type(node).is_none())
         {
             return Ok(Effects::unknown(
                 span,
@@ -179,16 +164,30 @@ impl Scan<'_> {
         }
 
         Ok(
-            if benign_node(node) && node.children.iter().skip(1).all(benign_node) {
+            if self.conditional_value(node)
+                && node
+                    .children
+                    .iter()
+                    .skip(1)
+                    .all(|node| self.conditional_value(node))
+            {
                 Effects::default()
             } else {
                 Effects::unsupported(span, "Unsupported conditional value or branch result")
             },
         )
     }
+
+    fn conditional_value(&self, node: &HirNode) -> bool {
+        benign_node(node)
+            || (!self.loop_targets.is_empty()
+                && node.expansion.is_none()
+                && matches!(node.kind.as_str(), "expr_if" | "expr_block")
+                && self.control_type(node) == Some("never"))
+    }
 }
 
-fn condition_kind(expression: &Expr) -> &'static str {
+pub(super) fn condition_kind(expression: &Expr) -> &'static str {
     match expression {
         Expr::Path(_) => "expr_path",
         Expr::Lit(_) => "expr_lit",
@@ -197,5 +196,22 @@ fn condition_kind(expression: &Expr) -> &'static str {
         Expr::Unary(_) => "expr_unary",
         Expr::Call(_) => "expr_call",
         _ => "unsupported_condition",
+    }
+}
+
+fn condition_children(expression: &Expr, span: ByteSpan) -> Result<Vec<&Expr>, Effects> {
+    match expression {
+        Expr::Binary(binary) if compound(&binary.op) => Err(Effects::unsupported(
+            span,
+            "Compound assignment in conditional operand is outside direct inventory",
+        )),
+        Expr::Binary(binary) => Ok(vec![&binary.left, &binary.right]),
+        Expr::Unary(unary) => Ok(vec![&unary.expr]),
+        Expr::Path(_) | Expr::Lit(_) => Ok(vec![]),
+        Expr::Call(_) => Err(Effects::unknown(span, "Unknown call boundary")),
+        _ => Err(Effects::unsupported(
+            span,
+            "Unsupported conditional operand",
+        )),
     }
 }

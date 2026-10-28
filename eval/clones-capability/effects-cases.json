@@ -321,21 +321,27 @@
     },
     {
       "id": "loop-source-site-not-runtime-frequency",
-      "stage": "next-bounded-extension",
+      "stage": "bounded-direct-loops",
       "source": "pub fn repeated(target:&mut u32,count:u32) { for _ in 0..count { *target=1; } }",
       "expected": {
+        "coverage": "complete",
         "write_sites": {
-          "kind": "exact_when_loop_inventory_supported",
+          "kind": "exact",
+          "value": 1
+        },
+        "mutated_roots": {
+          "kind": "exact",
+          "value": 1
+        },
+        "escaped_write_sites": {
+          "kind": "exact",
           "value": 1
         },
         "runtime_write_count": "depends_on_count",
-        "required_if_loop_inventory_unsupported": {
-          "coverage": "incomplete",
-          "mutation_per_target": "not_evaluated",
-          "density": "not_evaluated"
-        }
+        "mutation_per_target": "evaluated_no_finding",
+        "mutated_targets": "evaluated_no_finding"
       },
-      "reason": "A loop body has one static assignment site regardless of iterations. No unrolling/dynamic write-count inference from an observed input; initial slice may explicitly exclude loops."
+      "reason": "The original primitive half-open u32 for-loop body has one static assignment site regardless of iterations, including zero. No unrolling, termination, dynamic write-count or density inference follows from this inventory."
     },
     {
       "id": "reassigned-reference-formal",

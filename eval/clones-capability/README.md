@@ -197,7 +197,11 @@ exercise the mutation consumer. The bounded ordinary `if`/`else` extension count
 both authored arms once, with distinct lexical roots and unknown boundaries;
 conditional helper-effect and formal-use proof coverage stays conservative.
 The original lexical-block shadowing case also has explicit live coverage.
-Next/later cases retain explicit future scope, including loop inventories.
+The bounded direct loop extension counts original primitive half-open u32 range,
+boolean while and unlabelled loop sites once, including statements after plain
+break/continue. Its staged source label has live coverage. Labels, arbitrary
+iterators and broader loop semantics remain outside this inventory; next/later
+cases retain explicit future scope.
 Mutation policy acceptance separately checks captured named suppressions and
 workspace path exclusions. Schema 2 retains raw evidence while exposing visible,
 suppressed and excluded findings and separate raw/policy coverage. Exclusions

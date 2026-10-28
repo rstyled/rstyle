@@ -1,5 +1,7 @@
 //! Resolved source-facing HIR records. No graph derivation lives here.
 
+mod for_loops;
+
 use rstyle_pdg::{extraction_profile::ExtractionProfile, frontend::*};
 use rustc_hir::{self as hir, Expr, ExprKind, HirId, PatKind, StmtKind, def::Res};
 use rustc_middle::ty::{self, Ty, TyCtxt, TypeckResults};
@@ -235,6 +237,9 @@ impl<'tcx> Context<'tcx> {
     }
 
     pub fn expression(&self, expr: &Expr<'tcx>) -> HirNode {
+        if let Some(iteration) = self.original_for_loop(expr) {
+            return iteration;
+        }
         if let Some(assignment) = self.tuple_assignment(expr) {
             return assignment;
         }
@@ -1153,8 +1158,16 @@ fn kind(kind: &ExprKind<'_>) -> &'static str {
 }
 
 pub fn bindings(node: &HirNode, scope: &str) -> Vec<BindingFact> {
+    let scope_span = if node.kind == "expr_for" && node.children.len() == 3 {
+        node.children[2].span
+    } else {
+        node.span
+    };
     let local_scope = match node.kind.as_str() {
         "expr_block" => Some("block"),
+        "expr_for" if node.children.len() == 3 && node.children[2].kind == "expr_block" => {
+            Some("block")
+        }
         "expr_closure" if !node.children.is_empty() => Some("callback"),
         "match_arm"
             if node
@@ -1166,7 +1179,12 @@ pub fn bindings(node: &HirNode, scope: &str) -> Vec<BindingFact> {
         }
         _ => None,
     }
-    .map(|kind| format!("scope:source:{kind}:{}:{}", node.span.start, node.span.end));
+    .map(|kind| {
+        format!(
+            "scope:source:{kind}:{}:{}",
+            scope_span.start, scope_span.end
+        )
+    });
     let scope = local_scope.as_deref().unwrap_or(scope);
     let binding = binding_fact(node, scope);
 

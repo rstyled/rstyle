@@ -10,6 +10,7 @@ use std::sync::Arc;
 use syn::spanned::Spanned;
 
 pub mod callers;
+pub mod control_types;
 pub mod dispatch;
 pub mod effects;
 pub mod formal_types;

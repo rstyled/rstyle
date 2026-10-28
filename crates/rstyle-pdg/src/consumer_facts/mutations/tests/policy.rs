@@ -60,7 +60,7 @@ fn policy_inputs_share_exact_direct_evidence_and_borrow_original_bytes() {
 fn incomplete_body_does_not_discard_checked_source_or_comment() {
     for source in [
         "pub fn f(target:&mut u32){opaque();*target=1;}",
-        "pub fn f(target:&mut u32){loop {*target=1;}}",
+        "pub fn f(target:&mut u32){'again: loop {*target=1;}}",
     ] {
         let facts = owned(source, &["*target=1"], "// policy candidate\n");
         let policy = inspect_with_policy(&facts).unwrap();

@@ -1,4 +1,5 @@
 mod branches;
+mod loops;
 
 use super::{Assessment, Execution, Operation, Provenance, Root, WriteSite, native};
 use crate::{ByteSpan, HirFnFacts, HirNode};
@@ -51,12 +52,14 @@ pub(super) fn observe_with_signature(
     let mut scan = Scan {
         facts,
         source,
-        index,
         result,
         scopes: vec![BTreeMap::new()],
         poison: poison.names,
         opaque_references: poison.opaque_references,
         declarations: 0,
+        never_controls: loops::never_controls(facts, &index)?,
+        index,
+        loop_targets: Vec::new(),
         calls: request.calls.then(Vec::new),
         uses: request.uses.then(super::uses::Scan::new),
     };
@@ -292,6 +295,8 @@ struct Scan<'a> {
     poison: BTreeSet<String>,
     opaque_references: bool,
     declarations: usize,
+    loop_targets: Vec<crate::HirRef>,
+    never_controls: BTreeSet<(u32, u32, u32)>,
     calls: Option<Vec<super::Call>>,
     uses: Option<super::uses::Scan>,
 }
@@ -706,12 +711,8 @@ impl Scan<'_> {
         if self.calls.is_some() && self.result.execution == Execution::BudgetExhausted {
             return Ok(());
         }
-        if (self.calls.is_some() || self.uses.is_none())
-            && let Expr::If(branch) = expression
-            && branch.attrs.is_empty()
-            && plain_condition(&branch.cond)
-        {
-            return self.conditional_expression(branch);
+        if self.structured_expression(expression)? {
+            return Ok(());
         }
         if self.calls.is_some()
             && let Expr::Call(call) = expression
@@ -721,6 +722,22 @@ impl Scan<'_> {
         }
 
         self.regular_expression(expression)
+    }
+
+    fn structured_expression(&mut self, expression: &Expr) -> Result<bool, String> {
+        if self.calls.is_none() && self.uses.is_none() && self.loop_expression(expression)? {
+            return Ok(true);
+        }
+        if (self.calls.is_some() || self.uses.is_none())
+            && let Expr::If(branch) = expression
+            && branch.attrs.is_empty()
+            && plain_condition(&branch.cond)
+        {
+            self.conditional_expression(branch)?;
+            return Ok(true);
+        }
+
+        Ok(false)
     }
 
     fn regular_expression(&mut self, expression: &Expr) -> Result<(), String> {

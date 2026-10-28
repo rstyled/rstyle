@@ -4,6 +4,7 @@ mod assertions;
 mod bool_constants;
 mod callbacks;
 mod concrete_types;
+mod consumer_control_types;
 mod consumer_formal_types;
 mod crate_association;
 mod dependency_namespaces;
@@ -152,11 +153,16 @@ fn capture_callable_owner(
 fn capture_locations(ctx: &hir::Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
     rstyle_pdg::field_locations::capture(facts)?;
     if ctx.profile == ExtractionProfile::DataV3 {
-        consumer_formal_types::capture(ctx, facts)?;
-        mutable_scalar_formals::capture(ctx, facts)?;
+        capture_consumer_types(ctx, facts)?;
     }
 
     Ok(())
+}
+
+fn capture_consumer_types(ctx: &hir::Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
+    consumer_formal_types::capture(ctx, facts)?;
+    consumer_control_types::capture(ctx, facts)?;
+    mutable_scalar_formals::capture(ctx, facts)
 }
 
 fn function_source<'tcx>(

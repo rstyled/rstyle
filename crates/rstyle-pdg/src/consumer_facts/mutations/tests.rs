@@ -550,4 +550,6 @@ fn oversized_binding_inventory_is_bounded_before_building_the_index() {
 
 mod conditional;
 
+mod loops;
+
 mod policy;
