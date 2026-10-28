@@ -67,6 +67,16 @@ pub(super) fn summarize<D: Decision>(
 }
 
 impl Summary {
+    pub fn render(&self, label: &str) -> String {
+        if !self.requested() {
+            return String::new();
+        }
+        format!(
+            "\n{label} reviews: {:?} coverage; {} visible, {} hidden; {} retained entries.",
+            self.coverage, self.visible_findings, self.hidden_findings, self.retained_entries
+        )
+    }
+
     pub fn requested(&self) -> bool {
         self.execution != Execution::NotRequested
     }

@@ -1,8 +1,7 @@
 //! Retained mutation choices require current evaluated numeric observations.
 use super::super::{
-    ReviewStore, Versions, exact_rules, local_adapter, mutation_rules,
-    owner_population::{Domain, Population},
-    status,
+    ReviewStore, Versions, exact_rules, local_adapter, mutation_rules, numeric_workflow,
+    owner_population::Domain, status,
 };
 use super::observed::{Observations, Row};
 use crate::clones::report;
@@ -14,43 +13,21 @@ pub(super) fn records(
     observations: &Observations,
     ctx: &report::Context<'_>,
 ) -> Vec<status::Record> {
-    if !ctx.args.review_status_requested() {
-        return Vec::new();
+    numeric_workflow::records(&store.mutation_entries, observations, ctx)
+}
+
+impl numeric_workflow::Retained for Row {
+    type Snapshot = mutation_rules::Snapshot;
+    const DOMAIN: Domain = Domain::Mutation;
+    const NOT_REQUESTED: &'static str = "Mutation rules were not requested";
+
+    fn family(snapshot: &Self::Snapshot) -> status::Family {
+        family(&snapshot.policy)
     }
-    let population = Population::new(
-        &observations.rows,
-        observations.unavailable_scope,
-        observations.truncated,
-    );
-    store
-        .mutation_entries
-        .iter()
-        .enumerate()
-        .map(|(entry_index, entry)| {
-            let (state, detail) = if observations.requested {
-                population
-                    .resolve(
-                        &entry.finding.locator,
-                        &entry.finding.context,
-                        Domain::Mutation,
-                    )
-                    .map_or_else(
-                        |assessment| assessment,
-                        |owner| assess_owner(owner, &entry.finding),
-                    )
-            } else {
-                not_requested("Mutation rules were not requested")
-            };
-            status::Record {
-                family: family(&entry.finding.policy),
-                entry_index,
-                state,
-                detail,
-                reason: entry.reason.clone(),
-                members: vec![entry.finding.locator.clone()],
-            }
-        })
-        .collect()
+
+    fn assess(&self, previous: &Self::Snapshot) -> Assessment {
+        assess_owner(self, previous)
+    }
 }
 
 fn family(policy: &mutation_rules::Policy) -> status::Family {

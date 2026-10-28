@@ -40,6 +40,7 @@ enum Ordinal {
     Length(usize),
     Spacing(usize),
     Mutation(usize),
+    Density(usize),
 }
 
 pub(super) fn apply(
@@ -93,6 +94,7 @@ fn selection_plan(store: &ReviewStore, status: &status::Report) -> Result<Select
 fn retain_numeric(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
     retain_source_rules(store, states);
     retain(&mut store.mutation_entries, states, Ordinal::Mutation);
+    retain(&mut store.density_entries, states, Ordinal::Density);
 }
 
 fn retain_source_rules(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
@@ -178,6 +180,9 @@ fn validate_record(store: &ReviewStore, record: &status::Record) -> Result<Ordin
         }
         status::Family::MutationPerTarget | status::Family::MutatedTargets => {
             validate_mutation_record(store, record)
+        }
+        status::Family::SideEffectDensity => {
+            validate_numeric_record(&store.density_entries, record, Ordinal::Density)
         }
         _ => validate_source_record(store, record),
     }

@@ -9,9 +9,11 @@ pub(super) struct Measurement {
     pub(super) actual: Option<usize>,
     pub(super) limit: usize,
     pub(super) exempt: bool,
+    pub(super) source: SourceSize,
     pub(super) reason: Option<&'static str>,
 }
 
+#[derive(Clone, Copy, Debug, serde::Serialize)]
 pub(super) struct SourceSize {
     pub statements: Option<usize>,
     pub code_lines: Option<usize>,
@@ -29,6 +31,7 @@ pub(super) fn evaluate(
         limit: config.max_density_milli,
         exempt: false,
         reason: Some(reason),
+        source,
     };
     let (Some(statements), Some(code_lines)) = (source.statements, source.code_lines) else {
         return Ok(unavailable(
@@ -45,6 +48,7 @@ pub(super) fn evaluate(
             actual: None,
             limit: config.max_density_milli,
             exempt: true,
+            source,
             reason: Some("Complete function is below a configured density minimum"),
         });
     }
@@ -58,6 +62,7 @@ pub(super) fn evaluate(
             Outcome::EvaluatedNoFinding
         },
         exempt: false,
+        source,
         reason: None,
     })
 }

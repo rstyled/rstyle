@@ -288,3 +288,16 @@ suppressions preserve raw measurements; explicit config exclusions preserve raw
 unavailability. Both request flags require both axes complete. Config-only replay
 uses captured source policy without live source/tools. This is a static policy
 metric, not runtime frequency or purity. See `docs/clones-mutation-effects.md`.
+
+
+Saved density choices use review-store schema 7, `density_review`
+(`rstyle.density-review/1`), and `--dismiss-density FUNCTION_KEY` with an explicit
+saved run, review file and reason. Exact complete event distributions,
+statements/code lines, all density policy and original owner/build identity are
+retained. Changed numeric evidence/policy is stale; equal complete numeric
+measurements may retain a choice without semantic approval. Reviews hide only
+presentation/finding exits; raw density evidence and completeness remain.
+Status/prune requires a selected completed numeric negative under the exact
+retained policy. Unknown, exempt, source-suppressed/excluded, unrequested and
+budget-limited owners cannot retire choices. Full/compact replay needs no live
+source or compiler tools. See `docs/clones-mutation-effects.md`.

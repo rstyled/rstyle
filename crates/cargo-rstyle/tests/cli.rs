@@ -20,6 +20,7 @@ mod loop_merge_target;
 mod lossless_values;
 mod migration_abstraction_review;
 mod migration_capabilities;
+mod migration_density_review;
 mod migration_differences;
 mod migration_dispatch;
 mod migration_effect_composition;

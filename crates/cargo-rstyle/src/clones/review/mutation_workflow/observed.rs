@@ -3,18 +3,11 @@ use super::super::{
     Locator, local, local_adapter, mutation_rules, owner_observations, owner_population, workflow,
 };
 use crate::clones::{FunctionKey, analysis::mutation_reports, report};
-use std::collections::BTreeMap;
 
 pub(super) use mutation_reports::RuleReview as Rule;
 type Identity = (Locator, local::BuildContext);
 
-pub(super) struct Observations {
-    pub rows: Vec<Row>,
-    pub truncated: bool,
-    pub unavailable_scope: bool,
-    pub requested: bool,
-    complete: bool,
-}
+pub(super) type Observations = owner_observations::Observations<Row>;
 
 pub(super) struct Row {
     pub key: FunctionKey,
@@ -104,42 +97,11 @@ impl Row {
     }
 }
 
-impl Observations {
-    pub fn complete(&self) -> bool {
-        self.complete
-            && !self.truncated
-            && !self.unavailable_scope
-            && self.rows.iter().all(|row| {
-                row.rules()
-                    .all(|rule| !rule.visible || row.checked(rule.policy.rule_id()).is_ok())
-            })
-    }
-}
-
 pub(super) fn collect(
     inputs: &workflow::Inputs<'_, '_>,
     ctx: &report::Context<'_>,
 ) -> Observations {
-    let selected: BTreeMap<_, _> = inputs.analysis.review_selection().collect();
-    let collected = owner_observations::collect(
-        inputs.mutation.reviews().map(|source| (source.key, source)),
-        inputs,
-        ctx,
-        |source, identity| {
-            let selection = selected
-                .get(&source.key)
-                .copied()
-                .unwrap_or(ctx.args.changed_files.is_none());
-            Row::new(source, selection, identity)
-        },
-    );
-    Observations {
-        rows: collected.rows,
-        truncated: collected.truncated,
-        requested: ctx.args.mutation_rules,
-        unavailable_scope: collected.unavailable_scope,
-        complete: inputs.mutation.review_scope_complete(),
-    }
+    owner_observations::collect_selected(inputs.mutation, inputs, ctx, Row::new)
 }
 
 impl owner_population::Owner for Row {
@@ -155,5 +117,12 @@ impl owner_observations::Observation for Row {
 
     fn set_unique(&mut self, unique: bool) {
         self.unique = unique;
+    }
+}
+
+impl owner_observations::NumericObservation for Row {
+    fn findings_complete(&self) -> bool {
+        self.rules()
+            .all(|rule| !rule.visible || self.checked(rule.policy.rule_id()).is_ok())
     }
 }

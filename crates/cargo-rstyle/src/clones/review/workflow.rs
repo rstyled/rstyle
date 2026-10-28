@@ -97,11 +97,13 @@ pub(in crate::clones) struct Inputs<'a, 'b> {
     pub helpers: &'a analysis::helper_reports::Report<'b>,
     pub dispatch: &'a analysis::dispatch_reports::Report<'b>,
     pub capabilities: &'a analysis::capability_reports::Report<'b>,
+    pub effects: &'a analysis::effect_reports::Report<'b>,
     pub mutation: &'a analysis::mutation_reports::Report<'b>,
     pub indices: &'a analysis::declaration_indices::Indices,
 }
 
 pub(in crate::clones) struct Reports {
+    pub density: super::density_workflow::Report,
     pub mutations: super::mutation_workflow::Report,
     pub sources: super::source_workflow::Reports,
     pub helpers: Report,
@@ -126,6 +128,7 @@ impl Inputs<'_, '_> {
             || ctx.args.dismiss_spacing.is_some()
             || ctx.args.dismiss_mutation_per_target.is_some()
             || ctx.args.dismiss_mutated_targets.is_some()
+            || ctx.args.dismiss_density.is_some()
             || reports
                 .pruning
                 .as_ref()
@@ -143,21 +146,28 @@ fn evaluate(
     ctx: &report::Context<'_>,
     mut store: Option<&mut ReviewStore>,
 ) -> Result<Reports, String> {
-    let (helpers, mut records) = apply_helpers(inputs.helpers, ctx, store.as_deref_mut())?;
+    let (helpers, helper_records) = apply_helpers(inputs.helpers, ctx, store.as_deref_mut())?;
     let (abstractions, source_records) =
         super::local_workflow::apply(inputs, ctx, store.as_deref_mut())?;
-    records.extend(source_records);
     let (sources, source_rule_records) =
         super::source_workflow::apply(inputs, ctx, store.as_deref_mut())?;
-    records.extend(source_rule_records);
-    let (mutations, mutation_records) = super::mutation_workflow::apply(inputs, ctx, store)?;
-    records.extend(mutation_records);
+    let (mutations, density, numeric_records) = evaluate_numeric(inputs, ctx, store)?;
+    let records = [
+        helper_records,
+        source_records,
+        source_rule_records,
+        numeric_records,
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
     let status = ctx
         .args
         .review_status_requested()
         .then(|| status::Report::new(records, true));
 
     Ok(Reports {
+        density,
         mutations,
         sources,
         helpers,
@@ -165,6 +175,28 @@ fn evaluate(
         status,
         pruning: None,
     })
+}
+
+fn evaluate_numeric(
+    inputs: &Inputs<'_, '_>,
+    ctx: &report::Context<'_>,
+    mut store: Option<&mut ReviewStore>,
+) -> Result<
+    (
+        super::mutation_workflow::Report,
+        super::density_workflow::Report,
+        Vec<status::Record>,
+    ),
+    String,
+> {
+    let (mutations, mutation_records) =
+        super::mutation_workflow::apply(inputs, ctx, store.as_deref_mut())?;
+    let (density, density_records) = super::density_workflow::apply(inputs, ctx, store)?;
+    let records = mutation_records
+        .into_iter()
+        .chain(density_records)
+        .collect();
+    Ok((mutations, density, records))
 }
 
 fn pruning(

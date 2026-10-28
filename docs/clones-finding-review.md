@@ -239,13 +239,13 @@ This read-only report includes **every entry in the selected file**, including
 reviews with no current finding. It requires `--review-file` and conflicts with
 dismissal selectors. Request each analysis family you want assessed; an omitted
 family remains explicitly `not_requested`. Missing files mean an empty store and
-are never created. Schemas 1–5 are not migrated or rewritten by lookup or status.
+are never created. Schemas 1–7 are not migrated or rewritten by lookup or status.
 Request `--source-rules` and the relevant `--analysis-config` to assess source-rule
 entries; spacing additionally requires an explicit `[fn_spacing]` section.
 
 JSON adds `review_status` (`rstyle.review-status/1`) only when requested. Each
 `records` row retains its family, zero-based index within `entries` or
-`source_entries` or `parameter_entries`, `length_entries` or `spacing_entries`, original reason, durable member locators,
+`source_entries` or `parameter_entries`, `length_entries` or `spacing_entries`, `mutation_entries` or `density_entries`, original reason, durable member locators,
 state and explanation.
 These indices locate rows in this file; they are not persistent finding IDs.
 
@@ -306,3 +306,24 @@ and finding reports describe the store before pruning. A dry run removes zero
 entries and leaves bytes unchanged. Applying a nonempty selection uses one atomic
 replacement, preserving schema version, surviving entries and their order.
 No-op applies and dry runs never create or rewrite the file.
+
+
+## Save numeric effect-density choices
+
+Density reviews require `--effect-density`, an explicit `--replay-run`,
+`--review-file`, `--dismiss-density FUNCTION_KEY`, and a nonempty `--review-reason`.
+Use the same `--effect-config` as the finding being reviewed. Schema 7 stores these
+choices in `density_entries`; earlier schemas remain readable. See
+[mutation and effect analysis](clones-mutation-effects.md) for an invocation.
+
+The retained snapshot identifies the original declaration/build context and the
+complete numeric measurement: event-kind counts, source statement/code-line
+counts, metric versions and the full density configuration. This is a numeric
+policy choice. Body edits that preserve that complete measurement and context
+can preserve the review; it does not approve behavior or establish equivalence.
+Raw effect evidence and density measurements remain visible in JSON.
+
+Status reports the `side_effect_density` family. A completed numeric negative
+requires the retained policy and current detector versions before pruning can
+remove an entry. Unknown, exempt, suppressed, excluded, unselected, unavailable,
+and budget-limited observations cannot authorize density negative pruning.

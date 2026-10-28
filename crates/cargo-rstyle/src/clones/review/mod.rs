@@ -2,6 +2,8 @@
 //! No hashes: full versioned member values are the only equality authority.
 mod adapter;
 mod comparison;
+pub(super) mod density_rules;
+pub(super) mod density_workflow;
 mod exact_rules;
 mod length_rules;
 pub(super) mod local;
@@ -10,6 +12,7 @@ pub(super) mod local_workflow;
 mod model;
 pub(super) mod mutation_rules;
 pub(super) mod mutation_workflow;
+mod numeric_workflow;
 mod outcome;
 mod owner_observations;
 mod owner_population;
@@ -100,6 +103,7 @@ impl Default for ReviewStore {
             length_entries: vec![],
             spacing_entries: vec![],
             mutation_entries: vec![],
+            density_entries: vec![],
         }
     }
 }
@@ -112,6 +116,7 @@ impl ReviewStore {
             + self.length_entries.len()
             + self.spacing_entries.len()
             + self.mutation_entries.len()
+            + self.density_entries.len()
     }
 
     pub(crate) fn from_json(bytes: &str) -> Result<Self, String> {
@@ -167,12 +172,13 @@ impl ReviewStore {
     }
 
     fn validate(&self) -> Result<(), ReviewError> {
-        if !matches!(self.schema_version, 1..=6)
+        if !matches!(self.schema_version, 1..=7)
             || (self.schema_version == 1 && !self.source_entries.is_empty())
             || (self.schema_version < 3 && !self.parameter_entries.is_empty())
             || (self.schema_version < 4 && !self.length_entries.is_empty())
             || (self.schema_version < 5 && !self.spacing_entries.is_empty())
             || (self.schema_version < 6 && !self.mutation_entries.is_empty())
+            || (self.schema_version < 7 && !self.density_entries.is_empty())
         {
             return Err(ReviewError::InvalidSchema);
         }
@@ -182,6 +188,7 @@ impl ReviewStore {
         length_rules::validate_entries(&self.length_entries)?;
         spacing_rules::validate_entries(&self.spacing_entries)?;
         mutation_rules::validate_entries(&self.mutation_entries)?;
+        density_rules::validate_entries(&self.density_entries)?;
         for (index, entry) in self.entries.iter().enumerate() {
             if entry.reason.trim().is_empty() {
                 return Err(ReviewError::InvalidReason);

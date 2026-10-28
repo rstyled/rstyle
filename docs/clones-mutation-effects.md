@@ -167,3 +167,30 @@ An explicit `--replay-run PATH --mutation-effects` reevaluates retained original
 facts without source files or compiler tools. It recomputes summaries inside each
 immutable owning unit; it never imports a serialized clean-effect verdict or
 shares summaries across analyses or selected units.
+
+
+## Saved numeric density reviews
+
+With `--effect-density`, apply `--review-file reviews.json`. To record a choice,
+use `--replay-run RUN --dismiss-density FUNCTION_KEY --review-reason TEXT`.
+Only a completed, selected, visible numeric finding with one checked original
+owner qualifies. Review-store schema 7 adds `density_entries`; older stores stay
+readable. JSON `density_review` uses `rstyle.density-review/1`.
+
+A review retains the exact detector/metric versions, original locator/build
+context, full density weights/path lists/minima/threshold and two-edge bound,
+event-kind counts, statement count, code-line count and resulting density.
+Changes to any of these become stale. This is a numeric-policy choice: body
+edits preserving the complete measurement and identity can retain a choice;
+it does not certify semantic equivalence. No source/graph clones or hashes form
+review identity. Lookup borrows existing exact-review infrastructure.
+
+Hidden reviews affect text and finding exits via `review_hidden_findings` and
+`visible_findings`; raw scalar evidence, events, measurement and completeness
+remain intact. Source/tool-free full and compact replay recompute the current
+measurement before review matching. Unknown work, budgets, exclusions,
+suppressions and minimum-size exemptions cannot supply a completed numeric
+negative for pruning. `--review-status` accounts for all retained families;
+`--review-prune --review-prune-dry-run` previews only independently completed
+selected negatives under the retained policy. Changed policy, omitted families,
+unselected owners, unavailable evidence and missing owners remain retained.

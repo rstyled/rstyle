@@ -1725,3 +1725,40 @@ saved density review semantics and independent legacy/new policy comparison over
 the declared scope; broader effects, project coverage and legacy retirement remain
 open. Native macOS and external Go comparison remain unverified. Main/PR19 has not
 been incorporated into this feature branch.
+
+## C11l: saved numeric density reviews
+
+Lead owns CLI/report integration, review publication, schema and index seams;
+contract, workflow and acceptance workers supplied frozen leaf changes. Review
+store schema 7 adds `density_entries`, while schemas 1–6 remain readable without
+lookup/status rewriting. `--dismiss-density` requires an explicit saved run,
+review file, nonempty reason and requested density analysis. Full policy, metric
+versions, event-kind distribution, source statement/code-line counts and original
+locator/build context define exact numeric equality. No body approval or semantic
+equivalence is claimed; measurement-preserving body edits can preserve a review.
+No new hashes, graph/source clones, admission permissions or budget changes occur.
+
+Reviewed findings filter text and visible finding exits; raw density/effect
+measurements remain intact. Retained status and pruning require completed numeric
+negatives under the same policy/current versions. Unknown, exempt, suppressed,
+excluded, unselected and budget-limited evidence cannot authorize numeric negative
+pruning. Shared numeric lifecycle and owner-selection/retained-record helpers
+reuse completed assessments while preserving independent mutation/density checks.
+
+Independent CLI acceptance covers full/compact/text source/tool-free replay,
+raw measurements, exits, invalid selectors, unknown/suppressed/excluded cases,
+changed thresholds/weights/path policy/event distribution/denominators, omitted
+families, scoped selection and preview/apply/idempotent pruning. Pure contract
+cases additionally cover checked arithmetic, schema closure and legacy envelopes.
+
+The frozen implementation passes all 3,065 nextest tests (five skipped) in
+195.491 seconds plus doc tests. Both original NonZero regressions and the u32
+widening-reader composition pass. Final workspace/all-target Clippy with warnings
+denied, formatting and diff checks pass. Python migration/script suites pass
+56/50 tests. Legacy style reports zero violations across 9,385 functions; reviewed
+patterns reports zero visible candidates without new ignores. Unfiltered patterns preserves exactly the prior fifteen reviewed IDs. Comparison
+evidence is retained under `/tmp/clones-density-review-*`.
+Next ready work remains independent legacy/new density policy comparison over
+declared scopes and broader project coverage. No legacy capability is retired;
+native macOS and external Go comparison remain unverified. Main/PR19 is merged
+upstream but has not been incorporated into this feature branch.

@@ -2,7 +2,7 @@
 mod observed;
 mod retained;
 
-use super::{ReviewStore, mutation_rules, outcome, status, summary, workflow};
+use super::{ReviewStore, mutation_rules, numeric_workflow, outcome, status, summary, workflow};
 use crate::clones::{FunctionKey, analysis::Completion, report};
 use serde::Serialize;
 use std::collections::BTreeSet;
@@ -18,7 +18,7 @@ pub(in crate::clones) struct Report {
 }
 
 #[derive(Serialize)]
-struct Decision {
+pub(super) struct Decision {
     key: FunctionKey,
     rule_id: &'static str,
     selected: bool,
@@ -31,25 +31,7 @@ pub(super) fn apply(
     ctx: &report::Context<'_>,
     store: Option<&mut ReviewStore>,
 ) -> Result<(Report, Vec<status::Record>), String> {
-    let Some(store) =
-        store.filter(|_| ctx.args.mutation_rules || ctx.args.review_status_requested())
-    else {
-        return Ok((summarize(Vec::new(), 0, false, false), Vec::new()));
-    };
-    let observations = observed::collect(inputs, ctx);
-    dismiss(store, &observations, ctx)?;
-    let decisions = decisions(&observations, store)?;
-    let records = retained::records(store, &observations, ctx);
-
-    Ok((
-        summarize(
-            decisions,
-            store.mutation_entries.len(),
-            observations.requested,
-            observations.complete(),
-        ),
-        records,
-    ))
+    numeric_workflow::apply::<observed::Observations>(inputs, ctx, store)
 }
 
 fn decisions(
@@ -168,21 +150,52 @@ impl Report {
         self.hidden.contains(&(key, rule_id))
     }
     pub(in crate::clones) fn render(&self) -> String {
-        if !self.summary.requested() {
-            return String::new();
-        }
-        format!(
-            "\nMutation reviews: {:?} coverage; {} visible, {} hidden; {} retained entries.",
-            self.summary.coverage,
-            self.summary.visible_findings,
-            self.summary.hidden_findings,
-            self.summary.retained_entries
-        )
+        self.summary.render("Mutation")
     }
 }
 
 impl Completion for Report {
     fn permits_success(&self) -> bool {
         self.summary.permits_success()
+    }
+}
+
+impl numeric_workflow::Lifecycle for observed::Observations {
+    type Decision = Decision;
+    type Report = Report;
+
+    fn enabled(ctx: &report::Context<'_>) -> bool {
+        ctx.args.mutation_rules || ctx.args.review_status_requested()
+    }
+
+    fn collect(inputs: &workflow::Inputs<'_, '_>, ctx: &report::Context<'_>) -> Self {
+        observed::collect(inputs, ctx)
+    }
+
+    fn dismiss(&self, store: &mut ReviewStore, ctx: &report::Context<'_>) -> Result<(), String> {
+        dismiss(store, self, ctx)
+    }
+
+    fn decisions(&self, store: &ReviewStore) -> Result<Vec<Decision>, String> {
+        decisions(self, store)
+    }
+
+    fn records(&self, store: &ReviewStore, ctx: &report::Context<'_>) -> Vec<status::Record> {
+        retained::records(store, self, ctx)
+    }
+
+    fn retained(store: &ReviewStore) -> usize {
+        store.mutation_entries.len()
+    }
+
+    fn scope(&self) -> summary::Scope {
+        summary::Scope {
+            requested: self.requested,
+            complete: self.complete(),
+        }
+    }
+
+    fn summarize(decisions: Vec<Decision>, retained: usize, scope: summary::Scope) -> Report {
+        summarize(decisions, retained, scope.requested, scope.complete)
     }
 }

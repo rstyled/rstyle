@@ -121,6 +121,7 @@ fn store() -> ReviewStore {
         length_entries: vec![],
         spacing_entries: vec![],
         mutation_entries: vec![],
+        density_entries: vec![],
     }
 }
 

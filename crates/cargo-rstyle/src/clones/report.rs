@@ -63,7 +63,8 @@ pub struct Report<'a> {
     pub guard_planning: Option<super::planning::guards::Report>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub edit_coordination: Option<super::planning::coordination::Report>,
-    pub mutation_review: super::review::mutation_workflow::Report,
+    #[serde(flatten)]
+    pub numeric_reviews: consumers::NumericReviews,
     pub mutation_analysis: super::analysis::mutation_reports::Report<'a>,
     pub mutation_effects: super::analysis::effect_reports::Report<'a>,
     pub enum_dispatch: super::analysis::dispatch_reports::Report<'a>,
@@ -184,7 +185,7 @@ pub(super) fn make<'a>(ctx: Context<'a>, consumers: Consumers<'a>) -> Report<'a>
         enum_dispatch: consumers.dispatch,
         capability_proposals: consumers.capabilities,
         mutation_analysis: consumers.mutation,
-        mutation_review: consumers.mutation_review,
+        numeric_reviews: consumers.numeric_reviews,
         mutation_effects: consumers.effects,
         report_detail: ctx.args.report_detail,
         verification_policy: ctx.verification_policy(),
@@ -348,7 +349,7 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         .collect::<String>();
 
     format!(
-        "{summary}{pairs}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        "{summary}{pairs}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
         report.analysis.render(),
         report.pair_reports.render(),
         report.review.render(),
@@ -365,7 +366,8 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         report.enum_dispatch.render(),
         report.capability_proposals.render(),
         report.mutation_analysis.render(),
-        report.mutation_review.render(),
+        report.numeric_reviews.mutation_review.render(),
+        report.numeric_reviews.density_review.render(),
         report.mutation_effects.render(),
         planning_summary(report)
     )

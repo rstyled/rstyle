@@ -12,6 +12,7 @@ pub(super) trait Owner {
 pub(super) enum Domain {
     Source,
     Mutation,
+    Density,
 }
 
 impl Domain {
@@ -19,6 +20,7 @@ impl Domain {
         match self {
             Self::Source => "Source",
             Self::Mutation => "Mutation",
+            Self::Density => "Density",
         }
     }
 
@@ -26,6 +28,7 @@ impl Domain {
         match self {
             Self::Source => "source",
             Self::Mutation => "mutation",
+            Self::Density => "density",
         }
     }
 

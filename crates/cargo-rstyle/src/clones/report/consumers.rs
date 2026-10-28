@@ -18,7 +18,7 @@ pub(in crate::clones) struct Consumers<'a> {
     pub(super) review_prune: Option<review::prune::Report>,
     pub(super) review_status: Option<review::status::Report>,
     pub(super) abstraction_review: review::local_workflow::Report,
-    pub(super) mutation_review: review::mutation_workflow::Report,
+    pub(super) numeric_reviews: NumericReviews,
     pub(super) source_reviews: SourceReviews,
 }
 
@@ -38,12 +38,13 @@ impl<'a> Consumers<'a> {
             guard_planning.as_ref(),
         );
         let mut mutation = ctx.mutation_report()?;
-        let effects = ctx.effect_report()?;
+        let mut effects = ctx.effect_report()?;
         let accepted = locations::accepted(ctx.handoff, ctx.matching)?;
 
         let reviews = review::workflow::Inputs {
             analysis: &analysis,
             mutation: &mutation,
+            effects: &effects,
             helpers: &pairs.helper_proposals,
             dispatch: &dispatch,
             capabilities: &capabilities,
@@ -51,6 +52,7 @@ impl<'a> Consumers<'a> {
         }
         .apply(ctx)?;
         mutation.hide_reviewed(&reviews.mutations);
+        effects.hide_reviewed(&reviews.density);
         let source_reviews = SourceReviews::apply(reviews.sources, ctx.args, &mut analysis);
         Ok(Self {
             pairs,
@@ -62,7 +64,7 @@ impl<'a> Consumers<'a> {
             capabilities,
             edit_planning,
             mutation,
-            mutation_review: reviews.mutations,
+            numeric_reviews: NumericReviews::new(reviews.mutations, reviews.density),
             effects,
             accepted,
             review: reviews.helpers,
@@ -71,5 +73,24 @@ impl<'a> Consumers<'a> {
             review_status: reviews.status,
             review_prune: reviews.pruning,
         })
+    }
+}
+
+/// Presentation decisions for completed numeric effect measurements.
+#[derive(serde::Serialize)]
+pub(in crate::clones) struct NumericReviews {
+    pub density_review: review::density_workflow::Report,
+    pub mutation_review: review::mutation_workflow::Report,
+}
+
+impl NumericReviews {
+    fn new(
+        mutation_review: review::mutation_workflow::Report,
+        density_review: review::density_workflow::Report,
+    ) -> Self {
+        Self {
+            mutation_review,
+            density_review,
+        }
     }
 }

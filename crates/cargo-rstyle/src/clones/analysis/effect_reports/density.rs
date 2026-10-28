@@ -21,6 +21,8 @@ pub(super) struct Report {
     source_suppression: source_suppressions::Report,
     suppressed: bool,
     invalid_suppression: Option<analysis::Assessment>,
+    #[serde(skip)]
+    review_hidden: bool,
 }
 
 pub(super) struct Inputs<'a, 'u> {
@@ -126,6 +128,7 @@ fn finish(
         source_suppression: suppression,
         suppressed,
         invalid_suppression,
+        review_hidden: false,
     }
 }
 
@@ -150,6 +153,7 @@ impl Report {
         if self.measurement.outcome == Outcome::Finding
             && !self.source_exclusion.excluded()
             && !self.suppressed
+            && !self.review_hidden
         {
             output.push_str(&format!(
                 "\nside_effect_density {location}: {} > {} milli (static policy events).",
@@ -164,5 +168,49 @@ impl Report {
             ));
         }
         output
+    }
+}
+
+impl Report {
+    pub(super) fn review(
+        &self,
+        key: crate::clones::FunctionKey,
+        settings: &Settings,
+    ) -> super::Review {
+        use crate::clones::review::density_rules;
+        let source = self.measurement.source;
+        let measurement = match (
+            self.measurement.actual,
+            source.statements,
+            source.code_lines,
+        ) {
+            (Some(actual), Some(statements), Some(code_lines)) => {
+                Some(density_rules::Measurement {
+                    actual,
+                    statements,
+                    code_lines,
+                    event_counts: self.event_inventory.counts.clone(),
+                })
+            }
+            _ => None,
+        };
+        super::Review {
+            key,
+            policy: density_rules::Policy::from_config(&settings.side_effects),
+            complete: self.complete
+                && measurement.is_some()
+                && !self.source_exclusion.excluded()
+                && !self.suppressed
+                && self.invalid_suppression.is_none(),
+            visible: self.measurement.outcome == Outcome::Finding && self.visible_findings > 0,
+            measurement,
+        }
+    }
+
+    pub(super) fn hide_reviewed(&mut self, hidden: bool) -> usize {
+        self.review_hidden = hidden;
+        usize::from(
+            hidden && self.measurement.outcome == Outcome::Finding && self.visible_findings > 0,
+        )
     }
 }

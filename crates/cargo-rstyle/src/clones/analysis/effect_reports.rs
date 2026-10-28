@@ -1,6 +1,8 @@
 //! Opt-in caller-visible scalar mutation observations, separate from rule budgets.
 mod density;
+mod reviews;
 pub(in crate::clones) use density::{Settings, configuration};
+pub(in crate::clones) use reviews::Review;
 mod scope;
 mod witnesses;
 use super::{Coverage, Execution};
@@ -21,6 +23,7 @@ pub(crate) struct Report<'a> {
     density_config: Option<&'a Settings>,
     pub findings: usize,
     pub visible_findings: usize,
+    pub review_hidden_findings: usize,
     #[serde(flatten)]
     scope: scope::Summary,
     functions: Vec<FunctionReport<'a>>,
@@ -105,6 +108,7 @@ pub(in crate::clones) fn evaluate<'a>(
         density_config: settings,
         findings: 0,
         visible_findings: 0,
+        review_hidden_findings: 0,
         statement_metric: "rstyle.original-source-statements/1",
         density_metric: "rstyle.static-effect-events/1",
         scope: scope::Summary::new(

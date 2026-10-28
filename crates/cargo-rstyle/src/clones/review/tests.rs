@@ -525,7 +525,7 @@ fn helper_store_wire_shape_is_preserved_and_future_envelopes_are_rejected() {
     assert_eq!(wire["schema_version"], 1);
     assert!(wire.get("source_entries").is_none());
     assert_eq!(ReviewStore::from_json(&bytes).unwrap(), store);
-    wire["schema_version"] = serde_json::json!(7);
+    wire["schema_version"] = serde_json::json!(8);
     assert!(ReviewStore::from_json(&wire.to_string()).is_err());
     wire["schema_version"] = serde_json::json!(2);
     let v2 = ReviewStore::from_json(&wire.to_string()).unwrap();
