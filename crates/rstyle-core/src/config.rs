@@ -8,9 +8,24 @@ pub struct Config {
     pub fn_length: FnLengthConfig,
     pub fn_params: FnParamsConfig,
     pub fn_spacing: FnSpacingConfig,
+    pub complexity: ComplexityConfig,
     pub mutation_budget: MutationBudgetConfig,
     pub side_effects: SideEffectsConfig,
     pub grouping: GroupingConfig,
+}
+
+/// Complexity is always measured; limits are opt-in.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ComplexityConfig {
+    pub max_cyclomatic: Option<usize>,
+    pub max_cognitive: Option<usize>,
+}
+
+impl ComplexityConfig {
+    pub fn enabled(&self) -> bool {
+        self.max_cyclomatic.is_some() || self.max_cognitive.is_some()
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

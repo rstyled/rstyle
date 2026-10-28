@@ -4,6 +4,7 @@
 
 mod clones;
 mod collect;
+mod complexity;
 mod diagnostic_process;
 mod ignore;
 mod run;
@@ -46,6 +47,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Rank functions by source-level cyclomatic or cognitive complexity.
+    Complexity(complexity::Args),
     /// Capture HIR R0 evidence and evaluate exhaustive strict similarity pairs.
     Clones(clones::Args),
     /// Mine the workspace for latent shared abstractions (signature groups).
@@ -357,6 +360,7 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     match &cli.command {
+        Some(Command::Complexity(args)) => return exit_with(complexity::run(&cli, args)),
         Some(Command::Clones(args)) => return exit_with(clones::run(&cli, args)),
         Some(Command::Patterns(args)) => return exit_with(patterns(&cli, args)),
         Some(Command::Ignore(args)) => {

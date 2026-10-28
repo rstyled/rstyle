@@ -13,6 +13,11 @@ count_self = false        # `self` is the object, not an argument
 [fn_spacing]
 min_statements = 5
 
+# Complexity scores are always measured; these optional limits enable findings.
+# [complexity]
+# max_cyclomatic = 10
+# max_cognitive = 15
+
 [mutation_budget]
 max_mutations_per_target = 3   # writes / `&mut` borrows of one root (local, param, self)
 max_mutated_targets = 3        # distinct roots mutated in one function

@@ -1,6 +1,7 @@
 //! Turns every local function body into a plain `FnFacts` record.
 
 use crate::{effects, ids, mutations, pdg, sig};
+use rstyle_core::complexity::Measurement;
 use rstyle_core::facts::{FnFacts, ParamFacts};
 use rstyle_core::lines::preceding_comment_line;
 use rustc_hir::def::DefKind;
@@ -21,10 +22,24 @@ pub fn line_of(tcx: TyCtxt<'_>, span: Span) -> usize {
         .line
 }
 
-pub fn crate_facts(tcx: TyCtxt<'_>, root: &Path, with_pdg: bool) -> Vec<FnFacts> {
+pub fn crate_facts(
+    tcx: TyCtxt<'_>,
+    root: &Path,
+    with_pdg: bool,
+    complexity: &crate::complexity::Functions,
+) -> Vec<FnFacts> {
     let mut facts: Vec<FnFacts> = tcx
         .hir_body_owners()
-        .filter_map(|def_id| function_facts(tcx, def_id, root, with_pdg))
+        .filter_map(|def_id| {
+            let (mut facts, recursions) = function_facts(tcx, def_id, root, with_pdg)?;
+            let span = tcx.hir_node_by_def_id(def_id).fn_sig()?.span;
+            facts.complexity = complexity.get(&span.lo()).map(|nodes| {
+                let mut nodes = nodes.clone();
+                nodes.extend(recursions);
+                Measurement::score(&nodes)
+            });
+            Some(facts)
+        })
         .collect();
     facts.sort_by(|a, b| {
         (&a.path, a.line, a.column, &a.name).cmp(&(&b.path, b.line, b.column, &b.name))
@@ -37,7 +52,7 @@ fn function_facts(
     def_id: LocalDefId,
     root: &Path,
     with_pdg: bool,
-) -> Option<FnFacts> {
+) -> Option<(FnFacts, Vec<rstyle_core::complexity::Node>)> {
     if !matches!(tcx.def_kind(def_id), DefKind::Fn | DefKind::AssocFn) {
         return None;
     }
@@ -55,33 +70,39 @@ fn function_facts(
     let has_self = sig.decl.implicit_self().has_implicit_self();
     let body_facts = effects::collect(tcx, def_id, body, root);
     let (mutations, mutated_types) = mutations::collect(tcx, def_id, root);
-    let implements = tcx
-        .opt_associated_item(def_id.to_def_id())
-        .and_then(|item| item.trait_item_def_id())
-        .map(|trait_fn| ids::def_id_str(tcx, trait_fn));
 
-    Some(FnFacts {
-        id: ids::def_id_str(tcx, def_id.to_def_id()),
-        implements,
-        path: display_path(&start.file, root)?,
-        line: start.line,
-        column: start.col.0 + 1,
-        name: tcx.def_path_str(def_id.to_def_id()),
-        params: sig.decl.inputs.len() - usize::from(has_self),
-        param_list: param_list(tcx, sig, body, &body_facts.param_uses),
-        has_self,
-        statements: body_facts.statements,
-        top_statements: top_statements(body),
-        source,
-        preceding_line: lines_above(&start.file, start.line),
-        mutations,
-        calls: body_facts.calls,
-        effects: body_facts.effects,
-        edges: body_facts.edges,
-        mutated_types,
-        sig: sig::sig_facts(tcx, def_id, sig),
-        pdg: with_pdg.then(|| pdg::pdg_of(tcx, def_id, body, root)),
-    })
+    Some((
+        FnFacts {
+            id: ids::def_id_str(tcx, def_id.to_def_id()),
+            implements: trait_method(tcx, def_id),
+            path: display_path(&start.file, root)?,
+            line: start.line,
+            column: start.col.0 + 1,
+            name: tcx.def_path_str(def_id.to_def_id()),
+            params: sig.decl.inputs.len() - usize::from(has_self),
+            param_list: param_list(tcx, sig, body, &body_facts.param_uses),
+            has_self,
+            statements: body_facts.statements,
+            top_statements: top_statements(body),
+            complexity: None,
+            source,
+            preceding_line: lines_above(&start.file, start.line),
+            mutations,
+            calls: body_facts.calls,
+            effects: body_facts.effects,
+            edges: body_facts.edges,
+            mutated_types,
+            sig: sig::sig_facts(tcx, def_id, sig),
+            pdg: with_pdg.then(|| pdg::pdg_of(tcx, def_id, body, root)),
+        },
+        body_facts.recursions,
+    ))
+}
+
+fn trait_method(tcx: TyCtxt<'_>, def_id: LocalDefId) -> Option<String> {
+    tcx.opt_associated_item(def_id.to_def_id())
+        .and_then(|item| item.trait_item_def_id())
+        .map(|trait_fn| ids::def_id_str(tcx, trait_fn))
 }
 
 /// Statements plus the tail expression directly in the body block: its "phases".

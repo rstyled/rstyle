@@ -5,6 +5,7 @@ mod byte_windows;
 mod checked_options;
 mod checksum_state;
 mod compact_report;
+mod complexity;
 mod component_helper_results;
 mod concrete_default;
 mod copy_owner_source;

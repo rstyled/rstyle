@@ -23,8 +23,29 @@ Exit codes: `0` clean, `1` violations found (not an error), `2` tool/config/comp
 JSON top level: `diagnostics`, `summary`, `fix_groups`.
 
 - `diagnostics[]`: `path`, `line`, `column`, `rule_id`, `message`, `actual`, `limit`, `details`.
-- Rule ids: `fn_length`, `fn_params`, `fn_spacing`, `mutation_per_target`, `mutated_targets`, `side_effect_density`, `invalid_suppression`.
+- Rule ids: `fn_length`, `fn_params`, `fn_spacing`, `cyclomatic_complexity`, `cognitive_complexity`, `mutation_per_target`, `mutated_targets`, `side_effect_density`, `invalid_suppression`.
 - `fix_groups[]`: violations whose fixes overlap. Different groups never conflict.
+
+## Inspect complexity
+
+```sh
+cargo rstyle complexity --sort cognitive --top 20
+cargo rstyle complexity --format json --top 100
+```
+
+CC counts source decisions; COG also charges nesting. Each function carries
+`complexity` with both scores, `policy_version`, and per-increment source evidence.
+Ordinary JSON reports include these under `functions`, even below any limit.
+The ranked view reports total, measured, and unavailable counts before `--top`.
+Missing scores are unavailable, never zero; the ranked command exits 2 on missing
+measurements. Closures contribute to their owner; compiler lowering and opaque
+macro expansions do not add hidden branches. See `docs/complexity.md` for policy.
+
+Optional `[complexity]` settings `max_cyclomatic` and `max_cognitive` enable the
+`cyclomatic_complexity` and `cognitive_complexity` threshold rules in ordinary style
+checks. They use normal suppressions and fix groups. Suppression retains scores.
+Prefer flatter control flow and cohesive helpers; do not split code just to lower
+a score. `complexity` is an inspection command and does not fail on style limits.
 
 ## Fix workflow
 

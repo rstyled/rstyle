@@ -76,6 +76,10 @@ jobs:
           cat rstyle-report.json
           exit "${status:-0}"
 
+      # Reuse style facts and fail if any selected function lacks complexity data.
+      - name: rstyle complexity self-check
+        run: ./scripts/style.sh complexity --sort cognitive --top 20
+
       # Dog-food: merge candidates. Fix each one or dismiss it after review with
       # `cargo rstyle ignore <id> --reason "..."` (committed in rstyle-ignore.toml).
       # Exit 1 = candidates nobody has reviewed.

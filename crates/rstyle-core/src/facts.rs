@@ -333,6 +333,9 @@ pub struct FnFacts {
     /// non-block body. 0 in facts from older runs, which `fn_spacing` skips.
     #[serde(default)]
     pub top_statements: usize,
+    /// Source-level complexity. Older facts omit it; absent data is unavailable.
+    #[serde(default)]
+    pub complexity: Option<crate::complexity::Measurement>,
     /// Source text from the `fn` signature through the closing brace.
     pub source: String,
     /// The comment line directly above the function (attributes skipped), if any.
@@ -382,6 +385,7 @@ pub fn sample(name: &str) -> FnFacts {
         has_self: false,
         statements: 1,
         top_statements: 2,
+        complexity: None,
         source: format!("fn {name}() {{}}"),
         preceding_line: String::new(),
         mutations: vec![],

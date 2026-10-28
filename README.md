@@ -142,6 +142,18 @@ scripts/style.sh            # builds driver + CLI, then runs rstyle
 cargo style                 # alias; needs `cargo build --workspace` once first
 ```
 
+Inspect cyclomatic (CC) and cognitive (COG) complexity for every function:
+
+```sh
+cargo style complexity --sort cognitive --top 20
+cargo style complexity --format json --top 100
+```
+
+Scores include source evidence for each increment. The ordinary JSON style report
+also includes all functions and their scores. Limits are opt-in. See
+[the shared scoring policy and Rust mapping](docs/complexity.md) for the counting
+rules, coverage, frontend contract, and configuration.
+
 Run on another project:
 
 ```sh

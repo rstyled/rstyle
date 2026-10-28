@@ -5,6 +5,8 @@ pub mod candidates;
 pub mod cli_args;
 pub mod clip;
 pub mod cluster;
+pub mod complexity;
+pub mod complexity_report;
 pub mod config;
 pub mod dispatch;
 pub mod facts;
@@ -49,6 +51,7 @@ fn rule_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec
         rules::fn_length(f, cfg),
         rules::fn_params(f, cfg),
         rules::fn_spacing(f, cfg),
+        rules::complexity(f, cfg),
         rules::mutation_budget(f, &cfg.mutation_budget),
         rules::side_effect_density(f, effects, cfg),
     ]
@@ -128,6 +131,12 @@ pub fn evaluate(facts: Vec<FnFacts>, cfg: &Config) -> Result<Report, String> {
         .filter(|f| !excluded.is_match(&f.path))
         .collect();
     let graph = graph::build(&facts);
+    if cfg.complexity.enabled() && facts.iter().any(|fact| fact.complexity.is_none()) {
+        return Err(
+            "complexity is unavailable for some functions; rebuild the driver and regenerate facts"
+                .into(),
+        );
+    }
     let effects = all_effects(&facts, &graph, cfg);
     let mut diagnostics: Vec<Diagnostic> = facts
         .iter()
@@ -142,6 +151,10 @@ pub fn evaluate(facts: Vec<FnFacts>, cfg: &Config) -> Result<Report, String> {
         diagnostics,
         summary,
         fix_groups,
+        functions: facts
+            .iter()
+            .map(complexity_report::Function::from)
+            .collect(),
     })
 }
 

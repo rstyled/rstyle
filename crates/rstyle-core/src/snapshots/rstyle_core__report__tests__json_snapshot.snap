@@ -1,6 +1,5 @@
 ---
 source: crates/rstyle-core/src/report.rs
-assertion_line: 190
 expression: json(&report).unwrap()
 ---
 {
@@ -34,5 +33,6 @@ expression: json(&report).unwrap()
     "max_density_milli": 0,
     "effect_counts": {}
   },
-  "fix_groups": []
+  "fix_groups": [],
+  "functions": []
 }

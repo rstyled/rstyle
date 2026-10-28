@@ -114,6 +114,7 @@ pub struct Report {
     pub diagnostics: Vec<Diagnostic>,
     pub summary: Summary,
     pub fix_groups: Vec<FixGroup>,
+    pub functions: Vec<crate::complexity_report::Function>,
 }
 
 pub fn sort(diagnostics: &mut [Diagnostic]) {
@@ -253,6 +254,7 @@ mod tests {
             diagnostics: vec![diagnostic("a.rs", 1)],
             summary: Summary::default(),
             fix_groups: vec![],
+            functions: vec![],
         };
         let rendered = text(&report);
         assert_eq!(rendered.lines().count(), 2);
@@ -307,6 +309,7 @@ mod tests {
                 ..Summary::default()
             },
             fix_groups: vec![],
+            functions: vec![],
         };
         insta::assert_snapshot!(json(&report).unwrap());
     }
