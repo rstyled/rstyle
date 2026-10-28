@@ -2197,3 +2197,78 @@ policy changed. Final integrated evidence is `/tmp/clones-external-methods-*-fin
 This is a delivered original-method review increment; the full migration remains
 active, with the project statement-budget case and broader capability quality
 and retirement gates still open.
+
+## C13i: lifetime-only external method review identities
+
+The locator worker owns the lifetime syntax/declaration leaves and index tests;
+independent acceptance owns the parameter-review leaf. The lead owns source
+baseline acceptance, semantic-boundary controls, docs/embedded skill and integrated
+validation. All implementation writes freeze before checkpoint gates.
+
+The measured project spacing gap (`frac::split_decimal`) remains unavailable:
+146 raw punctuation bytes exceed the existing whole-function parser limit of 128.
+Resetting that limit per statement would increase aggregate parser work. No
+parser budget or unavailable outcome changed to admit this case. The next ready
+source identity gap instead concerns two project functions on lifetime-only
+owners, `LabelNames<'_>::partition` and `AdmittedPair<'_>::check_correspondence`.
+
+External locators now accept unique same-module structs/enums with plain lifetime
+parameters and matching impl lifetime arguments. Explicit arguments must have the
+owner's exact arity and use an impl binder, `'_` or `'static`. Names omit lifetime
+spelling, retaining `Owner::method` or `<Owner as LocalTrait>::method`; canonical
+collisions refuse the complete index. Nongeneric local trait origins remain
+supported. Type/const parameters, bounds, where clauses, lifetime-generic traits,
+qualified/imported/aliased owners, ambiguous/generated ownership and exhausted
+bounds remain unavailable. Exact immutable census, original function bytes,
+header/receiver/cfg checks and existing population limits still apply. No schema,
+hash, source clone, work budget, dispatch/effect permission or strict matching
+policy changed.
+
+Unit acceptance covers struct/enum, named/placeholder/static lifetimes, arity and
+binding failures, mixed generics, cfg/namespace ambiguity, original source/header
+contradictions and lifetime-erased method collisions. Real-Cargo acceptance checks
+numeric review identity through movement and lifetime/binder renaming, stale
+arity, unsupported const/generic-trait owners, tool/source-free parameter replay
+and all three numeric source-baseline families. A semantic-boundary control keeps
+located lifetime-owner methods unsupported by dispatch/capability consumers.
+
+Real-Cargo acceptance exposed a pre-existing capture/replay mismatch for small
+scalar methods under `impl Owner<'_>`: rustc rewrites the placeholder as a
+synthetic impl lifetime, which capture accepted as inherent ownership while the
+strict source verifier requires explicit in-order binders. Lifetime-owner capture
+now uses a HIR source gate to refuse synthetic, specialized, reordered/repeated or
+bounded lifetime impls before publishing that ownership. It uses borrowed native
+parameter/path rosters; no full impl reparse or verifier relaxation is added.
+Concrete type/const specializations retain their independently supported prior
+routes. The initial full checkpoint caught an overbroad gate blocking digit
+helpers; narrowing it to lifetime handling restores all eighteen focused
+regressions, including both original NonZero tests. Original function/source
+records remain available. Named exact lifetime helper ownership remains supported. The acceptance explicitly checks ownership presence/absence
+and strict numeric review replay on named, placeholder and static forms. HIR does
+not retain the optional `::` spelling before type arguments, so that existing
+source syntax rejection remains separately enforced by strict verification.
+
+Strict replay of the same 414-owner saved project capture now resolves identities
+for 122 of 123 parameter findings and all 117 length findings, recovering both
+measured lifetime-owner gaps. The remaining unavailable parameter owner uses a
+cross-module qualified trait. All 240 raw findings remain visible; no review
+store is created. Capture/handoff failures remain empty, and existing spacing
+incompleteness still requires exit 2. The 4.407-second replay is not a fresh
+capture or speed comparison. Exact command and results are retained under
+`/tmp/clones-project-lifetime-review-final`.
+
+The frozen source passes 49 focused dispatch/locator unit tests and all eleven
+focused external-method Cargo cases. Formatting, all-target workspace Clippy with
+warnings denied and diff checks pass. Legacy style reports zero violations across
+9,501 functions. Reviewed patterns reports zero visible candidates; the unfiltered
+scan retains exactly the previous fifteen IDs. No ignore/review ledger changed.
+The final frozen checkpoint passes all 3,193 nextest tests (five skipped) in
+203.340 seconds and workspace doc tests, including both original NonZero
+regressions, the digit-helper regressions and u32 widening composition. Full gate
+logs are `/tmp/clones-lifetime-{style,patterns,patterns-unfiltered,clippy,tests}-final-2`,
+with focused regression evidence in `/tmp/clones-lifetime-regressions`. No threshold,
+work budget, review suppression, semantic permission or hash policy changed.
+Full migration, broader project density/spacing quality, native macOS, Go
+comparison, qualified-owner identity and capability retirement remain open. Next
+ready consumer work is the project density evidence gap; the statement-budget
+case requires an independently justified algorithm within the existing limits.

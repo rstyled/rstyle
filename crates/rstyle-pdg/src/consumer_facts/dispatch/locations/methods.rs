@@ -2,6 +2,8 @@
 use crate::conditional_source::Configuration;
 use std::collections::BTreeMap;
 
+mod lifetimes;
+
 type Declaration = (String, syn::ItemFn, &'static str);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -10,22 +12,35 @@ enum Kind {
     Trait,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct Nominal {
+    kind: Kind,
+    lifetimes: usize,
+}
+
 #[derive(Default)]
 struct Names {
-    entries: BTreeMap<String, Option<Kind>>,
+    entries: BTreeMap<String, Option<Nominal>>,
     glob: bool,
 }
 
 impl Names {
-    fn insert(&mut self, name: String, kind: Option<Kind>) {
+    fn insert(&mut self, name: String, kind: Option<Nominal>) {
         self.entries
             .entry(name)
             .and_modify(|value| *value = None)
             .or_insert(kind);
     }
 
-    fn contains(&self, name: &str, kind: Kind) -> bool {
-        !self.glob && self.entries.get(name) == Some(&Some(kind))
+    fn nominal(&self, name: &str, kind: Kind) -> Option<Nominal> {
+        if self.glob {
+            return None;
+        }
+        self.entries
+            .get(name)
+            .copied()
+            .flatten()
+            .filter(|item| item.kind == kind)
     }
 
     fn import(&mut self, tree: &syn::UseTree, parent: Option<&syn::Ident>) {
@@ -107,8 +122,15 @@ fn nominal_names(items: &[syn::Item]) -> Names {
     names
 }
 
-fn eligible(generics: &syn::Generics, kind: Kind) -> Option<Kind> {
-    (generics.params.is_empty() && generics.where_clause.is_none()).then_some(kind)
+fn eligible(generics: &syn::Generics, kind: Kind) -> Option<Nominal> {
+    let parameters = lifetimes::parameters(generics)?;
+    if kind == Kind::Trait && !parameters.is_empty() {
+        return None;
+    }
+    Some(Nominal {
+        kind,
+        lifetimes: parameters.len(),
+    })
 }
 
 fn implementation(
@@ -144,22 +166,21 @@ fn implementation(
 }
 
 fn owner(item: &syn::ItemImpl, names: &Names) -> Option<(String, Option<String>)> {
-    if eligible(&item.generics, Kind::Owner).is_none()
-        || item.unsafety.is_some()
-        || item.defaultness.is_some()
-    {
+    let parameters = lifetimes::parameters(&item.generics)?;
+    if item.unsafety.is_some() || item.defaultness.is_some() {
         return None;
     }
 
-    let owner = super::super::shapes::plain_type(&item.self_ty)?;
-    if !names.contains(&owner, Kind::Owner) {
-        return None;
-    }
+    let path = lifetimes::owner_path(&item.self_ty)?;
+    let owner = path.ident.to_string();
+    let nominal = names.nominal(&owner, Kind::Owner)?;
+    lifetimes::arguments(&path.arguments, nominal.lifetimes, &parameters)?;
 
     let origin = match &item.trait_ {
         Some((None, path, _)) => {
             let origin = super::super::shapes::plain_path(path)?;
-            Some(names.contains(&origin, Kind::Trait).then_some(origin)?)
+            names.nominal(&origin, Kind::Trait)?;
+            Some(origin)
         }
         Some(_) => return None,
         None => None,

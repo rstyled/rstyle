@@ -86,3 +86,21 @@ creates no review store. Source coverage remains incomplete and exit 2 remains
 required. This 4.390-second replay is a separate workload from the original
 capture and does not establish a speedup. Session evidence and the full command
 are `/tmp/clones-project-method-review/{stdout.log,stderr.log,run.json}`.
+
+The lifetime-only locator checkpoint replays the same explicit saved run with
+`--review-file /tmp/clones-project-lifetime-reviews.json` and otherwise the same
+source policy. Identities resolve for 122 of 123 parameter findings and all 117
+length findings. `LabelNames::partition` and `AdmittedPair::check_correspondence`
+now have original method identities. The remaining unavailable parameter owner
+is the cross-module qualified trait impl `features::MulFrac`. All 240 raw findings
+remain visible, and no review store is created. Capture/handoff failures remain
+empty; existing source/spacing incompleteness still requires exit 2. This is a
+4.407-second strict replay observation, not a fresh capture or a speed comparison.
+Full session command and results are retained in
+`/tmp/clones-project-lifetime-review-final/{run.json,stdout.log,stderr.log}`.
+
+The spacing gap remains `frac::split_decimal`: its 146 raw punctuation bytes
+exceed the existing whole-function parser limit of 128. Reapplying that limit
+independently per direct statement would increase aggregate syntax work, so the
+checkpoint preserves the explicit budget-exhausted result. This gap requires a
+separately justified bounded algorithm, not an increased limit.

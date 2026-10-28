@@ -552,6 +552,13 @@ fn external_review_location_does_not_extend_dispatch_or_capability_permissions()
             ),
             ("crate::worker::Local::measure", "method"),
         ),
+        (
+            external_facts(
+                "struct Local<'a>(&'a u32); impl Local<'_> { fn measure(&self) {} }",
+                "measure",
+            ),
+            ("crate::worker::Local::measure", "method"),
+        ),
     ] {
         let index = Index::from_facts(&[&facts]).unwrap();
         assert_eq!(

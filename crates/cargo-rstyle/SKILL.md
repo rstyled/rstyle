@@ -160,9 +160,12 @@ parameter count, receiver presence, numeric policy or detector-version changes
 require review, and changed build contexts cannot inherit it. Identity covers
 uniquely indexed original declarations in captured root source, inline modules and
 independently checked
-ordinary external modules. External methods support unique same-module nongeneric
-struct/enum owners and inherent/local-trait impls, with exact cfg/source/header
-checks. Generic/aliased/imported/qualified owners or traits, default trait methods,
+ordinary external modules. External methods support unique same-module
+struct/enum owners with no type/const parameters and inherent/nongeneric local-trait
+impls, with exact cfg/source/header checks. Plain lifetime-only owner/impl
+parameters are allowed with matching lifetime argument counts; locator names omit
+lifetimes and canonical method collisions refuse identity. Lifetime bounds, where
+clauses, generic traits, type/const-generic, aliased/imported/qualified owners or traits, default trait methods,
 remapped/generated modules, ambiguity, missing ownership and exhausted bounds
 stay unavailable.
 Only selected hidden parameter findings leave the text/finding gate. Raw analysis

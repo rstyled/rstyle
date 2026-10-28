@@ -143,12 +143,17 @@ unavailable, invalid or duplicate selections reject without writing.
 Identity covers uniquely indexed original declarations in captured root source,
 inline modules and independently checked ordinary external modules (`name.rs` or
 `name/mod.rs`). External locators support free functions and methods on unique
-same-module nongeneric structs/enums. Inherent methods use
+same-module structs/enums with no type or const parameters. Plain lifetime-only
+parameters are supported when the impl supplies exactly the declared number of
+lifetime arguments (`'static`, `'_` or a declared impl lifetime). Lifetime bounds,
+where clauses and lifetime-generic traits remain unavailable. Inherent methods use
 `crate::module::Owner::method`; local-trait impl methods use
 `crate::module::<Owner as Trait>::method`, with declaration kind `method`.
 Member cfgs use the exact captured compiler selection before checking duplicates.
 Original file/range/header/receiver correspondence remains mandatory. These are
-source identities, not dispatch, effect or refactoring proofs. Generic impl/owner,
+source identities, not dispatch, effect or refactoring proofs. Locator names omit
+lifetime arguments: binder renaming preserves identity, while duplicate canonical
+method names refuse the index. Type/const-generic impl/owner,
 aliased/imported/qualified owners or traits, default trait methods, remapped or
 generated ownership, ambiguous declarations and exhausted bounded work remain
 unavailable. Observation and retained-entry work are each bounded to 4,096 entries.

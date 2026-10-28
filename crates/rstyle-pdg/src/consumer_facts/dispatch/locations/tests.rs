@@ -365,3 +365,47 @@ fn impl_and_trait_members_count_toward_the_complete_declaration_budget() {
         assert!(error.contains("population budget"), "{error}");
     }
 }
+
+#[test]
+fn lifetime_owner_location_checks_original_header_and_owned_function_bytes() {
+    let source = "fn seed() {} struct Item<'a>(&'a str); impl Item<'_> { fn read() {} }";
+    let proof = census(&[
+        ("/sample/src/lib.rs", "mod worker;"),
+        ("/sample/src/worker.rs", source),
+    ]);
+    let locations = Locations::new(&proof, &[]).unwrap();
+    let original = associated_facts(source, "Item::read");
+    assert_eq!(
+        locations.location(&original, source).unwrap(),
+        ("crate::worker::Item::read".into(), "method")
+    );
+    let mut changed = original.clone();
+    changed.signature.sig_span.end += 1;
+    assert!(locations.location(&changed, source).is_err());
+    changed = original.clone();
+    changed.source.bytes = "fn read() { }".into();
+    changed.source.digest = changed.source.bytes.checksum().into();
+    assert!(locations.location(&changed, source).is_err());
+    assert!(
+        locations
+            .location(&original, &source.replace("'_", "'static"))
+            .is_err()
+    );
+}
+
+#[test]
+fn canonical_lifetime_method_collisions_refuse_the_entire_location_index() {
+    for implementation in [
+        "impl Item<'static> { fn read() {} } impl Item<'_> { fn read() {} }",
+        "impl<'a> Item<'a> { fn read() {} } impl<'b> Item<'b> { fn read() {} }",
+        "impl Read for Item<'static> { fn read() {} } impl Read for Item<'_> { fn read() {} }",
+    ] {
+        let source = format!("struct Item<'a>(&'a str); trait Read {{}} {implementation}");
+        let proof = census(&[
+            ("/sample/src/lib.rs", "mod worker;"),
+            ("/sample/src/worker.rs", &source),
+        ]);
+        let error = Locations::new(&proof, &[]).err().unwrap();
+        assert!(error.contains("ambiguous qualified"), "{error}");
+    }
+}

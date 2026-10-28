@@ -2,9 +2,19 @@ use super::*;
 
 #[test]
 fn external_method_source_baselines_keep_three_families_across_layout_and_replay() {
+    check_baselines(&format!("pub struct Unit;\nimpl Unit {{\n{ORIGINAL}}}\n"));
+}
+
+#[test]
+fn external_lifetime_owner_baselines_keep_three_numeric_families_in_strict_replay() {
+    check_baselines(&format!(
+        "pub struct Unit<'a>(pub &'a u32);\nimpl Unit<'_> {{\n{ORIGINAL}}}\n"
+    ));
+}
+
+fn check_baselines(source: &str) {
     let directory = workspace("pub mod external;\n");
-    let source = format!("pub struct Unit;\nimpl Unit {{\n{ORIGINAL}}}\n");
-    std::fs::write(directory.path().join("src/external.rs"), &source).unwrap();
+    std::fs::write(directory.path().join("src/external.rs"), source).unwrap();
     let (output, _) = requested(
         directory.path(),
         &["--write-source-baseline", "baseline.json"],

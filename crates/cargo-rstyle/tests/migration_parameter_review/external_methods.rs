@@ -62,10 +62,15 @@ fn external_associated_and_receiver_methods_have_original_method_locators() {
 
 #[test]
 fn external_method_review_replays_without_source_or_tools_in_full_and_compact() {
-    let directory =
-        external("pub struct Unit; impl Unit { pub fn read(&self,a:u32,b:u32)->u32 { a+b } }\n");
+    let directory = external(
+        "pub struct Unit<'a>(pub &'a u32); impl Unit<'_> { pub fn read(&self,a:u32,b:u32)->u32 { a+b } }\n",
+    );
     let (_, original) = capture(directory.path(), &[]);
-    dismiss(directory.path(), &original, "external::Unit::read");
+    dismiss(
+        directory.path(),
+        &original,
+        parameter_finding(&original)["name"].as_str().unwrap(),
+    );
     let bytes = std::fs::read(directory.path().join("reviews.json")).unwrap();
     for file in ["src/lib.rs", "src/external.rs", "Cargo.toml"] {
         std::fs::remove_file(directory.path().join(file)).unwrap();
@@ -90,6 +95,125 @@ fn external_method_review_replays_without_source_or_tools_in_full_and_compact() 
         reviews.push(report["parameter_review"].clone());
     }
     assert_eq!(reviews[0], reviews[1]);
+    assert_eq!(
+        std::fs::read(directory.path().join("reviews.json")).unwrap(),
+        bytes
+    );
+}
+
+#[test]
+fn external_lifetime_only_owners_preserve_original_method_locators() {
+    for (source, expected) in [
+        (
+            "pub struct Unit<'a>(pub &'a u32); impl<'a> Unit<'a> { pub fn read(a:u32,b:u32)->u32 { a+b } }\n",
+            "crate::external::Unit::read",
+        ),
+        (
+            "pub struct Unit<'a,'b>(pub &'a u32,pub &'b u32); impl Unit<'_,'_> { pub fn read(&self,a:u32,b:u32)->u32 { a+b } }\n",
+            "crate::external::Unit::read",
+        ),
+        (
+            "pub struct Unit<'a>(pub &'a u32); impl Unit<'static> { pub fn read(a:u32,b:u32)->u32 { a+b } }\n",
+            "crate::external::Unit::read",
+        ),
+        (
+            "pub struct Unit<'a,'b>(pub &'a u32,pub &'b u32); impl<'a,'b> Unit<'b,'a> { pub fn read(a:u32,b:u32)->u32 { a+b } }\n",
+            "crate::external::Unit::read",
+        ),
+        (
+            "pub enum Unit<'a> { Value(&'a u32) } impl<'a> Unit<'a> { pub fn read(&self,a:u32,b:u32)->u32 { a+b } }\n",
+            "crate::external::Unit::read",
+        ),
+        (
+            "pub struct Unit<'a>(pub &'a u32); pub trait Local { fn read(&self,a:u32,b:u32)->u32; } impl<'a> Local for Unit<'a> { fn read(&self,a:u32,b:u32)->u32 { a+b } }\n",
+            "crate::external::<Unit as Local>::read",
+        ),
+    ] {
+        let directory = external(source);
+        let (output, original) = capture(directory.path(), &[]);
+        assert!(output.status.success(), "{source}: {}", output.status);
+        counts(&original, 0, 1);
+        let reviewed = dismiss(
+            directory.path(),
+            &original,
+            parameter_finding(&original)["name"].as_str().unwrap(),
+        );
+        counts(&reviewed, 1, 0);
+        let store = stored(directory.path());
+        let locator = &store["parameter_entries"][0]["finding"]["locator"];
+        assert_eq!(locator["qualified_name"], expected, "{source}");
+        assert_eq!(locator["source"], "src/external.rs");
+        assert_eq!(locator["declaration_kind"], "method");
+    }
+}
+
+#[test]
+fn lifetime_source_locators_do_not_supply_unproved_inherent_helper_ownership() {
+    for (implementation, owned) in [
+        ("impl<'a> Unit<'a>", true),
+        ("impl Unit<'_>", false),
+        ("impl Unit<'static>", false),
+    ] {
+        let source = format!(
+            "pub struct Unit<'a>(pub &'a u32); {implementation} {{ pub fn read(a:u32,b:u32)->u32 {{ a+b }} }}"
+        );
+        let directory = external(&source);
+        let (output, original) = capture(directory.path(), &[]);
+        assert!(output.status.success(), "{source}: {}", output.status);
+        let finding = parameter_finding(&original);
+        let frontend = original["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["key"] == finding["key"])
+            .unwrap();
+        assert_eq!(
+            frontend["facts"]["build"]["frontend_options"]
+                .get("inherent_definition")
+                .is_some(),
+            owned,
+            "{source}"
+        );
+        let reviewed = dismiss(
+            directory.path(),
+            &original,
+            finding["name"].as_str().unwrap(),
+        );
+        counts(&reviewed, 1, 0);
+    }
+}
+
+#[test]
+fn external_lifetime_binder_changes_keep_reviews_but_changed_arity_stales_them() {
+    let directory = external(
+        "pub struct Unit<'a>(pub &'a u32); impl<'a> Unit<'a> { pub fn read(&self,a:u32,b:u32)->u32 { a+b } }\n",
+    );
+    let (_, original) = capture(directory.path(), &[]);
+    dismiss(
+        directory.path(),
+        &original,
+        parameter_finding(&original)["name"].as_str().unwrap(),
+    );
+    let bytes = std::fs::read(directory.path().join("reviews.json")).unwrap();
+    let moved = "// Original declarations moved and lifetime binders renamed.\n\npub struct Unit<'renamed>(pub &'renamed u32);\n\nimpl<'other> Unit<'other> { pub fn read(&self,left:u32,right:u32)->u32 { let saved=left*right; saved+3 } }\n";
+    std::fs::write(directory.path().join("src/external.rs"), moved).unwrap();
+    let (output, changed) = capture(directory.path(), &["--review-status"]);
+    assert!(output.status.success());
+    counts(&changed, 1, 0);
+    assert_eq!(
+        changed["review_status"]["records"][0]["state"],
+        "hidden_exact"
+    );
+    let changed_arity = moved.replace("left:u32,right:u32", "left:u32,right:u32,extra:u32");
+    std::fs::write(directory.path().join("src/external.rs"), changed_arity).unwrap();
+    let (output, changed) = capture(directory.path(), &["--review-status", "--fail-on-findings"]);
+    assert_eq!(output.status.code(), Some(1));
+    counts(&changed, 0, 1);
+    assert_eq!(
+        changed["parameter_review"]["decisions"][0]["state"],
+        "stale"
+    );
+    assert_eq!(changed["review_status"]["records"][0]["state"], "stale");
     assert_eq!(
         std::fs::read(directory.path().join("reviews.json")).unwrap(),
         bytes
@@ -207,6 +331,8 @@ fn parameter_finding(report: &Value) -> &Value {
 fn unsupported_external_method_owner_forms_keep_raw_findings_and_refuse_dismissal() {
     for source in [
         "pub struct Unit<T>(pub T); impl<T> Unit<T> { pub fn read(a:u32,b:u32)->u32 { a+b } }\n",
+        "pub struct Unit<const N:usize>; impl<const N:usize> Unit<N> { pub fn read(a:u32,b:u32)->u32 { a+b } }\n",
+        "pub struct Unit<'a>(pub &'a u32); pub trait Local<'a> { fn read(a:u32,b:u32)->u32; } impl<'a> Local<'a> for Unit<'a> { fn read(a:u32,b:u32)->u32 { a+b } }\n",
         "pub struct Unit; type Alias=Unit; impl Alias { pub fn read(a:u32,b:u32)->u32 { a+b } }\n",
         "pub struct Unit; impl crate::external::Unit { pub fn read(a:u32,b:u32)->u32 { a+b } }\n",
         "pub struct Unit; impl std::ops::Add for Unit { type Output=Self; fn add(self,_rhs:Self)->Self { self } }\n",

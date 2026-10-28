@@ -199,7 +199,9 @@ numeric policy and detector-version changes require review; changed build
 contexts cannot inherit it. Identity requires a uniquely indexed original
 declaration in captured root source, inline modules or checked ordinary external
 modules. External free functions and inherent/local-trait impl methods on unique
-same-module nongeneric structs/enums are supported. Generic impls/owners, aliases,
+same-module structs/enums with no type or const parameters are supported. Plain
+lifetime parameters and matching impl lifetime arguments are allowed; bounds and
+where clauses remain unavailable. Type/const-generic impls/owners, aliases,
 imported/qualified owners or traits, default trait methods, ambiguous declarations,
 missing ownership/index evidence and exhausted bounds remain unavailable when
 review identity is needed. See the shared finding-review owner contract.

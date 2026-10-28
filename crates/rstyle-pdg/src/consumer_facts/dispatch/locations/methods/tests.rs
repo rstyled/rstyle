@@ -98,3 +98,96 @@ fn converted_method_retains_exact_original_span_with_bom_crlf_unicode_and_attrib
         "pub fn café<T>(&self, value:T) {}"
     );
 }
+
+#[test]
+fn lifetime_only_owners_keep_nominal_method_names_without_lifetime_spelling() {
+    for implementation in [
+        "impl Item<'_> { fn read() {} }",
+        "impl Item<'static> { fn read() {} }",
+        "impl<'a> Item<'a> { fn read() {} }",
+        "impl<'renamed> Item<'renamed> { fn read() {} }",
+    ] {
+        let source = format!("struct Item<'a>(&'a str); {implementation}");
+        let declarations = selected(&source, &[]).unwrap();
+        assert_eq!(declarations.len(), 1, "{source}");
+        assert_eq!(declarations[0].0, "Item::read");
+        assert_eq!(declarations[0].2, "method");
+    }
+    let source = "enum Item<'a,'b> { Value(&'a str,&'b str) } trait Read {} impl<'a> Read for Item<'a,'static> { fn read() {} }";
+    let declarations = selected(source, &[]).unwrap();
+    assert_eq!(declarations.len(), 1);
+    assert_eq!(declarations[0].0, "<Item as Read>::read");
+}
+
+#[test]
+fn lifetime_owners_require_exact_arity_and_resolved_plain_lifetime_arguments() {
+    for implementation in [
+        "impl Item { fn read() {} }",
+        "impl Item<'_,'_> { fn read() {} }",
+        "impl Item<'unbound> { fn read() {} }",
+        "impl<'a> Item<'unbound> { fn read() {} }",
+        "impl Item<u32> { fn read() {} }",
+        "impl Item<3> { fn read() {} }",
+        "impl Item<Assoc = u32> { fn read() {} }",
+        "impl Item::<'_> { fn read() {} }",
+        "impl<'a: 'static> Item<'a> { fn read() {} }",
+        "impl<'a> Item<'a> where 'a: 'static { fn read() {} }",
+        "impl<T> Item<'_> { fn read() {} }",
+        "impl<const N: usize> Item<'_> { fn read() {} }",
+        "impl<'a,T> Item<'a> { fn read() {} }",
+    ] {
+        let source = format!("struct Item<'a>(&'a str); {implementation}");
+        assert!(selected(&source, &[]).unwrap().is_empty(), "{source}");
+    }
+    let source = "struct Item; impl Item<'_> { fn read() {} }";
+    assert!(selected(source, &[]).unwrap().is_empty());
+}
+
+#[test]
+fn lifetime_declarations_do_not_admit_bounds_aliases_or_generic_traits() {
+    for source in [
+        "struct Item<'a: 'static>(&'a str); impl Item<'_> { fn read() {} }",
+        "struct Item<'a>(&'a str) where 'a: 'static; impl Item<'_> { fn read() {} }",
+        "struct Item<'a,T>(&'a T); impl Item<'_> { fn read() {} }",
+        "struct Item<'a,const N: usize>(&'a str); impl Item<'_> { fn read() {} }",
+        "type Item<'a> = &'a str; impl Item<'_> { fn read() {} }",
+        "use foreign::Item; impl Item<'_> { fn read() {} }",
+        "mod nested { struct Item<'a>(&'a str); } impl nested::Item<'_> { fn read() {} }",
+        "struct Item<'a>(&'a str); trait Read<'a> {} impl Read for Item<'_> { fn read() {} }",
+        "struct Item<'a>(&'a str); trait Read<'a> {} impl Read<'_> for Item<'_> { fn read() {} }",
+    ] {
+        assert!(selected(source, &[]).unwrap().is_empty(), "{source}");
+    }
+}
+
+#[test]
+fn lifetime_parameter_attributes_and_duplicate_binders_remain_unavailable() {
+    for source in [
+        "struct Item<#[allow(dead_code)] 'a>(&'a str); impl Item<'_> { fn read() {} }",
+        "struct Item<'a>(&'a str); impl<#[allow(dead_code)] 'a> Item<'a> { fn read() {} }",
+        "struct Item<'a,'a>(&'a str); impl Item<'_,'_> { fn read() {} }",
+        "struct Item<'a>(&'a str); impl<'a,'a> Item<'a> { fn read() {} }",
+    ] {
+        assert!(selected(source, &[]).unwrap().is_empty(), "{source}");
+    }
+}
+
+#[test]
+fn lifetime_owners_preserve_cfg_selection_and_type_namespace_ambiguity() {
+    let source = "struct Item<'a>(&'a str); impl Item<'_> { #[cfg(feature=\"enabled\")] fn read() {} #[cfg(not(feature=\"enabled\"))] fn read() {} }";
+    for cfgs in [vec![], vec!["feature=\"enabled\"".into()]] {
+        let declarations = selected(source, &cfgs).unwrap();
+        assert_eq!(declarations.len(), 1);
+        assert_eq!(declarations[0].0, "Item::read");
+    }
+    for conflicting in [
+        "struct Item<'b>(&'b str);",
+        "type Item<'a> = &'a str;",
+        "use foreign::Item;",
+        "use foreign::*;",
+    ] {
+        let source =
+            format!("struct Item<'a>(&'a str); {conflicting} impl Item<'_> {{ fn read() {{}} }}");
+        assert!(selected(&source, &[]).unwrap().is_empty(), "{source}");
+    }
+}
