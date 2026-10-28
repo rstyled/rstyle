@@ -1,8 +1,7 @@
 //! Exact advisory reviews reuse prepared compiler observations, never clone proof.
 pub(in crate::clones) mod observed;
-mod retained;
 mod rules;
-use super::{ReviewStore, exact_rules, outcome, status, summary, workflow};
+use super::{ReviewStore, outcome, positive_workflow, status, summary, workflow};
 use crate::clones::{identity::UnitId, report};
 pub(super) use rules::{Entry, validate_entries};
 use serde::Serialize;
@@ -49,22 +48,24 @@ pub(super) fn apply(
         dismiss(store, &rows, ctx)?;
     }
 
-    let checked = exact_rules::ValidatedStore::new(&store.compiler_pattern_entries)
-        .map_err(|error| format!("{error:?}"))?;
-    let lookups: Vec<_> = rows
-        .iter()
-        .map(|row| row.checked().map(|current| checked.lookup(&current)))
-        .collect();
-    let records = retained::records(store, &rows, &lookups, ctx.args.compiler_patterns);
+    let evaluated = positive_workflow::evaluate(
+        &store.compiler_pattern_entries,
+        &rows,
+        positive_workflow::Contract {
+            requested,
+            family: status::Family::CompilerPattern,
+            label: "Compiler proposal",
+        },
+    )?;
 
     let decisions = rows
         .iter()
-        .zip(lookups)
-        .map(|(row, lookup)| Decision {
+        .zip(evaluated.outcomes)
+        .map(|(row, outcome)| Decision {
             unit: row.unit,
             candidate_index: row.index,
             candidate_id: row.id.into(),
-            outcome: outcome::Outcome::checked(lookup.map(Into::into)),
+            outcome,
         })
         .collect();
 
@@ -78,7 +79,7 @@ pub(super) fn apply(
             requested,
             complete,
         ),
-        records,
+        evaluated.records,
     ))
 }
 

@@ -30,8 +30,8 @@ use std::{
 #[derive(ClapArgs, Serialize)]
 #[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density", "compiler_advisory"]).multiple(true)),
     group(clap::ArgGroup::new("changed_analysis").args(["source_rules", "effect_density"]).multiple(true)),
-    group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules", "mutation_rules", "effect_density", "compiler_patterns"]).multiple(true)),
-    group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density", "dismiss_compiler_pattern"])),
+    group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules", "mutation_rules", "effect_density", "compiler_patterns", "compiler_advisory"]).multiple(true)),
+    group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density", "dismiss_compiler_pattern", "dismiss_compiler_diagnostic"])),
     group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules", "effect_density", "compiler_advisory"]).multiple(true)))]
 pub struct Args {
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
@@ -180,6 +180,9 @@ pub struct Args {
     /// Dismiss one completed visible saved-run static density finding.
     #[arg(long, requires_all = ["review_file", "review_reason", "replay_run", "effect_density"])]
     dismiss_density: Option<String>,
+    /// Dismiss a saved-run compiler diagnostic by numeric unit and zero-based index.
+    #[arg(long, num_args = 2, value_names = ["UNIT", "DIAGNOSTIC_INDEX"], requires_all = ["review_file", "review_reason", "replay_run", "compiler_advisory"])]
+    dismiss_compiler_diagnostic: Vec<String>,
     /// Dismiss one saved-run compiler proposal selected by numeric unit and candidate ID.
     #[arg(long, num_args = 2, value_names = ["UNIT", "CANDIDATE_ID"], requires_all = ["review_file", "review_reason", "replay_run", "compiler_patterns"])]
     dismiss_compiler_pattern: Vec<String>,

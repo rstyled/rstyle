@@ -196,4 +196,6 @@ pub(crate) struct ReviewStore {
     pub density_entries: Vec<super::density_rules::Entry>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub compiler_pattern_entries: Vec<super::compiler_patterns::Entry>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub compiler_diagnostic_entries: Vec<super::compiler_diagnostics::Entry>,
 }

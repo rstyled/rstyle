@@ -132,6 +132,62 @@ pub fn evaluate_and_retain(
     facts: Vec<FnFacts>,
     cfg: &Config,
 ) -> Result<(Report, Vec<FnFacts>), String> {
+    evaluate_inputs(facts, cfg, false).map(|evaluation| (evaluation.report, evaluation.facts))
+}
+
+/// Completed diagnostic ownership follows report sorting without location-based inference.
+pub struct Evaluation {
+    pub report: Report,
+    pub facts: Vec<FnFacts>,
+    /// One index into `facts` for each diagnostic in `report`.
+    pub diagnostic_owners: Vec<usize>,
+}
+
+pub fn evaluate_with_owners(facts: Vec<FnFacts>, cfg: &Config) -> Result<Evaluation, String> {
+    evaluate_inputs(facts, cfg, true)
+}
+
+fn evaluated_diagnostics(
+    facts: &[FnFacts],
+    effects: &[Vec<rules::Effect>],
+    cfg: &Config,
+    retain_owners: bool,
+) -> (Vec<usize>, Vec<Diagnostic>) {
+    if !retain_owners {
+        let mut diagnostics = collect_diagnostics(facts, effects, cfg, |_, diagnostic| diagnostic);
+        report::sort(&mut diagnostics);
+        return (Vec::new(), diagnostics);
+    }
+    let mut owned =
+        collect_diagnostics(facts, effects, cfg, |owner, diagnostic| (owner, diagnostic));
+    owned.sort_by(|(_, a), (_, b)| report::ordering(a, b));
+    owned.into_iter().unzip()
+}
+
+fn collect_diagnostics<T>(
+    facts: &[FnFacts],
+    effects: &[Vec<rules::Effect>],
+    cfg: &Config,
+    emit: impl Fn(usize, Diagnostic) -> T,
+) -> Vec<T> {
+    facts
+        .iter()
+        .zip(effects)
+        .enumerate()
+        .flat_map(|(owner, (f, e))| {
+            let emit = &emit;
+            function_diagnostics(f, e, cfg)
+                .into_iter()
+                .map(move |diagnostic| emit(owner, diagnostic))
+        })
+        .collect()
+}
+
+fn evaluate_inputs(
+    facts: Vec<FnFacts>,
+    cfg: &Config,
+    retain_owners: bool,
+) -> Result<Evaluation, String> {
     let excluded = exclusions::Matcher::compile(&cfg.exclude.0)?;
     let facts: Vec<FnFacts> = facts::merge(facts)
         .into_iter()
@@ -139,25 +195,22 @@ pub fn evaluate_and_retain(
         .collect();
     let graph = graph::build(&facts);
     let effects = all_effects(&facts, &graph, cfg);
-    let mut diagnostics: Vec<Diagnostic> = facts
-        .iter()
-        .zip(&effects)
-        .flat_map(|(f, e)| function_diagnostics(f, e, cfg))
-        .collect();
 
-    report::sort(&mut diagnostics);
+    let (diagnostic_owners, diagnostics) =
+        evaluated_diagnostics(&facts, &effects, cfg, retain_owners);
     let summary = summarize(&facts, &effects, cfg, diagnostics.len());
     let fix_groups = groups::build(&facts, &graph, &diagnostics, cfg);
     let functions = complexity_report::findings(&facts, &diagnostics);
-    Ok((
-        Report {
+    Ok(Evaluation {
+        report: Report {
             diagnostics,
             summary,
             fix_groups,
             functions,
         },
         facts,
-    ))
+        diagnostic_owners,
+    })
 }
 
 #[cfg(test)]
@@ -170,6 +223,54 @@ mod tests {
             params: 5,
             ..sample(name)
         }
+    }
+
+    #[test]
+    fn default_evaluation_keeps_no_owner_roster_and_preserves_the_report() {
+        let plain =
+            evaluate_inputs(vec![four_params("original")], &Config::default(), false).unwrap();
+        let owned =
+            evaluate_with_owners(vec![four_params("original")], &Config::default()).unwrap();
+        assert_eq!(plain.diagnostic_owners.capacity(), 0);
+        assert_eq!(plain.report, owned.report);
+        assert_eq!(owned.diagnostic_owners, vec![0]);
+    }
+
+    #[test]
+    fn completed_diagnostic_owners_survive_sorting_and_shared_source_positions() {
+        let mut first = four_params("zeta");
+        first.path = "same.rs".into();
+        first.line = 3;
+        first.column = 8;
+        let mut second = four_params("alpha");
+        second.path = "same.rs".into();
+        second.line = 3;
+        second.column = 2;
+        let buffers = [first.source.as_ptr(), second.source.as_ptr()];
+        let evaluated = evaluate_with_owners(vec![first, second], &Config::default()).unwrap();
+        let associations: Vec<_> = evaluated
+            .report
+            .diagnostics
+            .iter()
+            .zip(&evaluated.diagnostic_owners)
+            .map(|(diagnostic, owner)| {
+                (
+                    diagnostic.column,
+                    diagnostic.rule_id.as_str(),
+                    evaluated.facts[*owner].name.as_str(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            associations,
+            vec![(2, "fn_params", "alpha"), (8, "fn_params", "zeta")]
+        );
+        assert!(
+            evaluated
+                .facts
+                .iter()
+                .all(|fact| buffers.contains(&fact.source.as_ptr()))
+        );
     }
 
     #[test]

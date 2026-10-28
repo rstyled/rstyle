@@ -4,6 +4,7 @@ use crate::clones::review::{
     exact_rules::{self, ReviewSnapshot},
     local_adapter,
 };
+use rstyle_pdg::ResolvedTy;
 
 fn context() -> local::BuildContext {
     local::BuildContext {

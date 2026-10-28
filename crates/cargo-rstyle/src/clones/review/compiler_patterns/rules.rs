@@ -1,29 +1,10 @@
 //! Full observation equality is review identity; fingerprints never hide findings.
 use super::super::{Locator, Versions, exact_rules, local};
-use rstyle_core::{
-    candidates::CandidateKind,
-    cluster::Params,
-    facts::{Pdg, SigFacts},
-};
-use rstyle_pdg::{ResolvedTy, StringFact};
+use rstyle_core::{candidates::CandidateKind, cluster::Params, facts::Pdg};
 use serde::{Deserialize, Serialize, de::Error};
 use std::rc::Rc;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct Signature {
-    pub parameters: Vec<ResolvedTy>,
-    pub result: ResolvedTy,
-    #[serde(deserialize_with = "read_method")]
-    pub method: Option<SigFacts>,
-    pub abi: StringFact,
-    pub generics: Vec<String>,
-    pub has_self: bool,
-    pub is_variadic: bool,
-    pub is_async: bool,
-    pub is_unsafe: bool,
-    pub is_const: bool,
-}
+use super::super::compiler_owners::Signature;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -116,6 +97,12 @@ impl exact_rules::ReviewSnapshot for Snapshot {
     }
 }
 
+impl super::super::positive_workflow::Snapshot for Snapshot {
+    fn locators(&self) -> Vec<super::super::Locator> {
+        self.locators().cloned().collect()
+    }
+}
+
 fn read_graph<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Pdg, D::Error> {
     let raw = serde_json::Value::deserialize(deserializer)?;
     let graph = rstyle_core::advisory::patterns::read_graph(&raw).map_err(D::Error::custom)?;
@@ -125,14 +112,6 @@ fn read_graph<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Pdg, 
         ));
     }
     Ok(graph)
-}
-
-fn read_method<'de, D: serde::Deserializer<'de>>(
-    deserializer: D,
-) -> Result<Option<SigFacts>, D::Error> {
-    let raw = serde_json::Value::deserialize(deserializer)?;
-    rstyle_core::advisory::require_signature(&raw).map_err(D::Error::custom)?;
-    Option::<SigFacts>::deserialize(raw).map_err(D::Error::custom)
 }
 
 #[cfg(test)]

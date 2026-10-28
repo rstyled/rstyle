@@ -366,8 +366,8 @@ missing/generated owners unavailable, and unresolved workspace callees visible.
 It reuses `ExprUseVisitor`, core propagation, fix groups and parameter stacking;
 strict clone admission is not required. Captured observations support source-free
 `--replay-run` and policy reevaluation. These metric versions differ from strict
-mutation-effect metrics; zero policy density is not a purity proof. Saved reviews,
-changed-file filters and baselines do not yet apply to compiler style diagnostics.
+mutation-effect metrics; zero policy density is not a purity proof. Changed-file
+filters and baselines do not yet apply to compiler style diagnostics.
 See [compiler advisory](../../docs/clones-compiler-advisory.md).
 
 Add `--compiler-patterns` to reuse existing compiler graphs and the core
@@ -394,3 +394,15 @@ visible in JSON with separate review decisions and visible candidate indices.
 `--review-status` includes retained compiler proposals. Missing proposals remain
 unavailable because bounded discovery cannot prove absence; these entries are
 never automatically pruned. Baselines do not yet cover compiler proposals.
+
+
+Compiler diagnostics also accept `--review-file` for read-only exact lookup. Only
+after the user agrees a finding is acceptable, replay its explicit run and pass
+`--dismiss-compiler-diagnostic UNIT DIAGNOSTIC_INDEX --review-reason REASON`.
+Use the zero-based index from that saved report. Schema 9 preserves earlier
+families; full numeric observations, metric versions, signature, effective policy
+and build context control equality. Raw diagnostics/fix plans remain intact,
+with separate visible indices and decisions. Invalid suppressions cannot be
+reviewed away. Missing diagnostics remain unavailable and are not automatically
+pruned. Owners/policy values are shared; no graphs, body proofs or hashes are
+added. Incomplete compiler coverage keeps exit 2 even when all findings are hidden.

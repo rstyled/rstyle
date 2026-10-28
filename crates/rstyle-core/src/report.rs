@@ -130,12 +130,15 @@ impl Report {
 }
 
 pub fn sort(diagnostics: &mut [Diagnostic]) {
-    diagnostics.sort_by(|a, b| {
-        (&a.path, a.line, a.column, &a.rule_id).cmp(&(&b.path, b.line, b.column, &b.rule_id))
-    });
+    diagnostics.sort_by(ordering);
 }
 
-fn diagnostic_line(d: &Diagnostic) -> String {
+pub(crate) fn ordering(a: &Diagnostic, b: &Diagnostic) -> std::cmp::Ordering {
+    (&a.path, a.line, a.column, &a.rule_id).cmp(&(&b.path, b.line, b.column, &b.rule_id))
+}
+
+/// Render the same source-located diagnostic in legacy and compiler advisory views.
+pub fn diagnostic_line(d: &Diagnostic) -> String {
     format!(
         "{}:{}:{}: {}: {} (actual {}, limit {})",
         d.path, d.line, d.column, d.rule_id, d.message, d.actual, d.limit

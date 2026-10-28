@@ -1,0 +1,16 @@
+{
+  "schema": "rstyle.compiler-review-study-cases/1",
+  "scope": "rstyle-ccgraph library, original compiler observations",
+  "metrics": "rstyle.compiler-style-metrics/1",
+  "policy": "project-compiler-review-policy.toml",
+  "cases": [
+    {
+      "function": "frac::gcd",
+      "rule_id": "mutated_targets",
+      "actual": 2,
+      "limit": 1,
+      "expected_review": "visible_new",
+      "basis": "The original tuple assignment writes the two distinct owned roots a and b; neither write escapes. The lowered compiler statement metric is a separate contract."
+    }
+  ]
+}

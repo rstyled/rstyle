@@ -42,6 +42,7 @@ enum Ordinal {
     Mutation(usize),
     Density(usize),
     CompilerPattern(usize),
+    CompilerDiagnostic(usize),
 }
 
 pub(super) fn apply(
@@ -98,13 +99,22 @@ fn retain_numeric(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
 }
 
 fn retain_effects_and_patterns(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
+    retain_compiler(store, states);
+    retain(&mut store.mutation_entries, states, Ordinal::Mutation);
+    retain(&mut store.density_entries, states, Ordinal::Density);
+}
+
+fn retain_compiler(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
     retain(
         &mut store.compiler_pattern_entries,
         states,
         Ordinal::CompilerPattern,
     );
-    retain(&mut store.mutation_entries, states, Ordinal::Mutation);
-    retain(&mut store.density_entries, states, Ordinal::Density);
+    retain(
+        &mut store.compiler_diagnostic_entries,
+        states,
+        Ordinal::CompilerDiagnostic,
+    );
 }
 
 fn retain_source_rules(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
@@ -194,6 +204,33 @@ fn validate_record(store: &ReviewStore, record: &status::Record) -> Result<Ordin
         status::Family::SideEffectDensity => {
             validate_numeric_record(&store.density_entries, record, Ordinal::Density)
         }
+        status::Family::CompilerDiagnostic | status::Family::CompilerPattern => {
+            validate_compiler_record(store, record)
+        }
+        _ => validate_source_record(store, record),
+    }
+}
+
+fn validate_compiler_record(
+    store: &ReviewStore,
+    record: &status::Record,
+) -> Result<Ordinal, String> {
+    match record.family {
+        status::Family::CompilerDiagnostic => {
+            if record.state == status::State::NoFinding {
+                return Err("Compiler diagnostic reviews require an explicit completed negative adapter before pruning".into());
+            }
+            let entry = store
+                .compiler_diagnostic_entries
+                .get(record.entry_index)
+                .ok_or_else(invalid_record)?;
+            validate_identity(
+                record,
+                &entry.reason,
+                std::iter::once(&entry.finding.owner.locator),
+            )?;
+            Ok(Ordinal::CompilerDiagnostic(record.entry_index))
+        }
         status::Family::CompilerPattern => {
             let entry = store
                 .compiler_pattern_entries
@@ -205,7 +242,7 @@ fn validate_record(store: &ReviewStore, record: &status::Record) -> Result<Ordin
             }
             Ok(Ordinal::CompilerPattern(record.entry_index))
         }
-        _ => validate_source_record(store, record),
+        _ => Err(invalid_record()),
     }
 }
 

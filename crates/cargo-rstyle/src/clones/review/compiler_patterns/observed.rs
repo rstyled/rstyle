@@ -1,7 +1,8 @@
 //! Move each prepared graph into one shared immutable review owner.
+use super::super::compiler_owners::{names, originals, signature};
 use super::super::{exact_rules, local, local_adapter};
 pub(in crate::clones) use super::rules::Snapshot;
-use super::rules::{Body, Declaration, Member, Signature};
+use super::rules::{Body, Declaration, Member};
 use crate::clones::{
     identity::{UnitContext, UnitId},
     report,
@@ -10,7 +11,6 @@ use rstyle_core::{
     candidates::Candidate,
     cluster::Params,
     facts::{FnFacts, NodeKind},
-    locator,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -28,6 +28,13 @@ impl Row<'_> {
     pub(super) fn checked(&self) -> Result<exact_rules::LiveFinding<'_, Snapshot>, String> {
         let snapshot = self.snapshot.as_ref().map_err(Clone::clone)?;
         exact_rules::LiveFinding::checked(snapshot).map_err(|error| format!("{error:?}"))
+    }
+}
+
+impl super::super::positive_workflow::Row for Row<'_> {
+    type Snapshot = Snapshot;
+    fn snapshot(&self) -> &Result<Snapshot, String> {
+        self.snapshot
     }
 }
 
@@ -81,48 +88,6 @@ pub(in crate::clones) fn collect(
     candidates
         .iter()
         .map(|candidate| snapshot(candidate, &endpoints))
-        .collect()
-}
-
-fn originals<'a>(
-    ctx: &'a report::Context<'_>,
-    unit: UnitId,
-) -> BTreeMap<&'a str, &'a crate::clones::Function> {
-    ctx.handoff
-        .assessed
-        .iter()
-        .filter(|record| record.key.unit() == unit)
-        .filter_map(|record| {
-            record
-                .facts
-                .build
-                .frontend_options
-                .get(rstyle_core::advisory::KEY)?["facts"]["id"]
-                .as_str()
-                .map(|id| (id, record))
-        })
-        .collect()
-}
-
-fn names(facts: &[FnFacts]) -> BTreeMap<String, Result<String, String>> {
-    let named: Vec<_> = facts
-        .iter()
-        .map(|facts| (&facts.id, locator::base(facts)))
-        .collect();
-    let mut counts = BTreeMap::new();
-    for (_, name) in &named {
-        *counts.entry(name.as_str()).or_insert(0) += 1;
-    }
-    named
-        .iter()
-        .map(|(id, name)| {
-            let result = if counts[name.as_str()] != 1 || name.contains("{impl#") {
-                Err("Compiler review locator is ambiguous or lacks a stable owner".into())
-            } else {
-                Ok(name.clone())
-            };
-            ((*id).clone(), result)
-        })
         .collect()
 }
 
@@ -191,29 +156,6 @@ impl Resolver<'_, '_> {
                     opaque_source: opaque.then(|| std::mem::take(&mut facts.source)),
                 }))
             })
-    }
-}
-
-fn signature(
-    original: &rstyle_pdg::HirFnFacts,
-    method: Option<rstyle_core::facts::SigFacts>,
-) -> Signature {
-    let sig = &original.signature;
-    Signature {
-        parameters: sig.params.iter().map(|param| param.ty.clone()).collect(),
-        result: sig.return_ty.clone(),
-        method,
-        abi: sig.abi.clone(),
-        generics: sig
-            .generics
-            .iter()
-            .map(|param| param.name.clone())
-            .collect(),
-        has_self: sig.has_self,
-        is_variadic: sig.is_variadic,
-        is_async: sig.is_async,
-        is_unsafe: sig.is_unsafe,
-        is_const: sig.is_const,
     }
 }
 

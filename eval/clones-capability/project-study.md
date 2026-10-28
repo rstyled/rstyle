@@ -216,3 +216,46 @@ changed observations, check/test separation, source-free replay and conservative
 retention when bounded discovery no longer produces a proposal. This delivers
 access to the existing saved-review workflow; it establishes neither better
 proposal quality nor baseline/retirement readiness.
+
+## Compiler diagnostic review access
+
+The next read-only replay uses the explicit compiler study policy
+[`project-compiler-review-policy.toml`](project-compiler-review-policy.toml), which
+sets the distinct mutation-target budget to one. Production and legacy dog-food
+policies are unchanged. The independent case in
+[`project-compiler-review-cases.json`](project-compiler-review-cases.json) was
+recorded before replay: the original `frac::gcd` tuple assignment writes the two
+owned roots `a` and `b`, so its `mutated_targets` diagnostic must report actual 2,
+limit 1 and a visible-new review decision. The replay matches that expectation,
+including one event for each root. This is numeric review access, not an endorsed
+refactoring or a claim that gcd should be rewritten.
+
+The same retained library capture has 39 diagnostics under that explicit policy;
+all 39 obtain available positive review identities and remain visible-new with
+an empty review store. The 238 original-owner population, 176 unavailable
+generated owners and twenty unresolved callees remain unchanged. Raw core style
+and proposal reports exactly equal the same-policy run without reviews, and all
+four accepted strict pairs equal both that run and the earlier project capture.
+No file is created or finding dismissed. Incomplete coverage still requires exit
+2; available identities for known findings do not establish a clean full scope.
+
+```sh
+python3 scripts/watchdog.py --timeout 90 \
+  --output /tmp/clones-compiler-diagnostics-project-review-1 -- \
+  /usr/bin/time -v target/debug/cargo-rstyle rstyle --format json clones \
+  --extraction-profile hir-data-v3 --compiler-advisory --compiler-patterns \
+  --compiler-advisory-config eval/clones-capability/project-compiler-review-policy.toml \
+  --replay-run target/rstyle/clones/run-I9FEzJ \
+  --review-file /tmp/clones-compiler-diagnostics-project-review-1/choices.json \
+  --report-detail compact
+```
+
+For the same-policy reference, omit `--review-file` and use a separate output
+directory. The pinned Linux aarch64 replay takes 2.12 seconds and 202,208 KiB peak
+RSS without review lookup, and 2.11 seconds and 202,168 KiB with lookup. These are
+single-run resource observations, not a speedup or a bound on lookup overhead.
+Evidence is retained in `/tmp/clones-compiler-diagnostics-project-{raw,review}-1`.
+Independent real-Cargo cases separately exercise recorded choices for all six
+style-rule families, movement, changed measurements, source-free replay,
+check/test separation, failed writes and incomplete generated input. Baselines,
+completed-negative pruning, broader quality and retirement remain open.

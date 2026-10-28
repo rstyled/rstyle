@@ -104,7 +104,7 @@ pub(in crate::clones) struct Inputs<'a, 'b> {
 }
 
 pub(in crate::clones) struct Reports {
-    pub compiler_patterns: super::compiler_patterns::Report,
+    pub compiler: CompilerReviews,
     pub density: super::density_workflow::Report,
     pub mutations: super::mutation_workflow::Report,
     pub sources: super::source_workflow::Reports,
@@ -112,6 +112,20 @@ pub(in crate::clones) struct Reports {
     pub abstractions: super::local_workflow::Report,
     pub status: Option<status::Report>,
     pub pruning: Option<prune::Report>,
+}
+
+pub(in crate::clones) struct CompilerReviews {
+    patterns: super::compiler_patterns::Report,
+    diagnostics: super::compiler_diagnostics::Report,
+}
+
+impl CompilerReviews {
+    pub(in crate::clones) fn apply(
+        self,
+        advisory: Option<crate::clones::advisory::Report>,
+    ) -> Option<crate::clones::advisory::Report> {
+        advisory.map(|report| report.with_reviews(self.patterns, self.diagnostics))
+    }
 }
 
 impl Inputs<'_, '_> {
@@ -132,6 +146,7 @@ impl Inputs<'_, '_> {
             || ctx.args.dismiss_mutated_targets.is_some()
             || ctx.args.dismiss_density.is_some()
             || !ctx.args.dismiss_compiler_pattern.is_empty()
+            || !ctx.args.dismiss_compiler_diagnostic.is_empty()
             || reports
                 .pruning
                 .as_ref()
@@ -170,7 +185,10 @@ fn evaluate(
         .then(|| status::Report::new(records, true));
 
     Ok(Reports {
-        compiler_patterns: policy.compiler_patterns,
+        compiler: CompilerReviews {
+            patterns: policy.compiler_patterns,
+            diagnostics: policy.compiler_diagnostics,
+        },
         density: policy.density,
         mutations: policy.mutations,
         sources,
@@ -185,6 +203,7 @@ struct PolicyReviews {
     mutations: super::mutation_workflow::Report,
     density: super::density_workflow::Report,
     compiler_patterns: super::compiler_patterns::Report,
+    compiler_diagnostics: super::compiler_diagnostics::Report,
     records: Vec<status::Record>,
 }
 
@@ -198,17 +217,21 @@ fn evaluate_policy_reviews(
     let (density, density_records) =
         super::density_workflow::apply(inputs, ctx, store.as_deref_mut())?;
     let (compiler_patterns, compiler_records) =
-        super::compiler_patterns::apply(inputs, ctx, store)?;
+        super::compiler_patterns::apply(inputs, ctx, store.as_deref_mut())?;
+    let (compiler_diagnostics, diagnostic_records) =
+        super::compiler_diagnostics::apply(inputs, ctx, store)?;
     let records = mutation_records
         .into_iter()
         .chain(density_records)
         .chain(compiler_records)
+        .chain(diagnostic_records)
         .collect();
 
     Ok(PolicyReviews {
         mutations,
         density,
         compiler_patterns,
+        compiler_diagnostics,
         records,
     })
 }

@@ -22,9 +22,9 @@ full effective configuration.
 Use `--compiler-advisory-config PATH` for an explicit TOML core policy. Without
 that flag the core defaults apply; the workspace's `rstyle.toml` is not implicitly
 loaded. `--fail-on-findings` includes advisory diagnostics. Incomplete coverage
-still exits 2, even if assessed functions have no findings. These findings do not
-yet participate in the newer saved review, changed-file or baseline workflows.
-Compiler proposals have their own explicit review workflow described below.
+still exits 2, even if assessed functions have no findings. An explicit `--review-file` applies exact saved choices to these diagnostics.
+Changed-file filters and baselines do not yet apply to this field. Compiler
+proposals have a separate review identity described below.
 The normal legacy style command remains available.
 
 Both the record and metric identities are versioned:
@@ -140,6 +140,55 @@ bounded heuristic discovery cannot establish a completed negative, so compiler
 proposal entries are never automatically pruned. Other review families retain
 their existing independently completed negative pruning rules.
 
-Cross-package propagation, broader project proposal quality, compiler-style
-diagnostic reviews and baseline migration remain follow-up work. No legacy
+Cross-package propagation, broader project proposal quality and baseline
+migration remain follow-up work. No legacy
 capability is retired by this increment.
+
+
+## Saved compiler diagnostic reviews
+
+Pass `--review-file PATH` with compiler advisory for read-only lookup. Raw
+`units[].evaluation` diagnostics, summaries and fix groups remain intact.
+`units[].visible_diagnostics` lists the visible zero-based diagnostic indices;
+`compiler_advisory.diagnostic_review` contains the decisions. Text includes unit
+and diagnostic indices, and `--fail-on-findings` counts visible diagnostics.
+Fix plans still describe the full raw findings; a saved review does not remove
+caller edits or prove independence.
+
+After reviewing the finding, record an explicit saved-run choice:
+
+```sh
+cargo rstyle clones --extraction-profile hir-data-v3 --compiler-advisory \
+  --replay-run PATH_TO_RUN --compiler-advisory-config policy.toml \
+  --review-file reviews.json --dismiss-compiler-diagnostic 0 DIAGNOSTIC_INDEX \
+  --review-reason 'Why this finding is acceptable'
+```
+
+The unit and index are selection handles from that exact report, not durable
+identity. Core retains the diagnostic-to-owner association while sorting; the
+adapter does not infer owners from matching locations. Without a review file,
+core retains no extra owner roster and the adapter builds no review snapshots.
+Known compiler owner/trait locators and captured signature/build context reuse
+the same helpers as proposal reviews. Ambiguous names remain unavailable.
+
+Schema 9 adds `compiler_diagnostic_entries` while preserving earlier families and
+the shared atomic 4 MiB artifact boundary. All six style rules are supported:
+length, parameters, spacing, mutations per target, mutated targets and effect
+density. Invalid-suppression diagnostics cannot be dismissed. Snapshots retain
+metric and detector versions, the full effective policy, captured signatures,
+actual/limit values and ordered label/count details. Unrelated edits to the full
+policy may conservatively stale a choice. Source lines and diagnostic
+messages are presentation only. Movement and parameter renaming preserve choices
+when these observations remain equal; signature, policy, context, count or
+distribution changes make findings visible again. Mutation target renaming may
+conservatively stale label-based details. Equality of numeric observations is a
+review contract, not body equivalence or purity.
+
+Diagnostics from the same function share one immutable owner/signature; snapshots
+and saved choices share that owner and their policy value. No graph, body, source
+parse, new checksum or hash is involved. Status reuses completed lookups through
+the same positive-review workflow as compiler proposals. A missing diagnostic is
+retained as unavailable: this adapter does not yet establish completed negative
+assessments for pruning. Omitted compiler advisory is not-requested. Hiding every
+known finding cannot make generated/missing/unresolved input complete, and all
+strict matching results remain independent.

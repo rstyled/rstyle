@@ -2510,3 +2510,81 @@ exit 2 and incomplete coverage. This is a replay observation, not a speedup or
 proposal-quality claim; reproduction and evidence are in the project study and
 `/tmp/clones-compiler-reviews-project-1`. Formatting and diff checks pass. Full
 capability migration remains incomplete.
+
+## C19: reuse exact reviews for completed compiler diagnostics
+
+The lead owns the core diagnostic-ownership seam, compiler advisory review and
+presentation adapters, shared captured-owner/positive-review helpers, acceptance
+cases and documentation. Compiler style diagnostics now accept read-only exact
+lookup through `--review-file`. Explicit saved-run unit/diagnostic indices select
+a current finding for dismissal; they are never persisted identity. Schema 9
+preserves earlier review families and uses the existing single atomic bounded
+publication. No repository review or ignore choice was changed.
+
+The existing core evaluator retains owner indices alongside sorting when a
+review is requested. This avoids ambiguous location-based joins and does not
+rerun collectors, propagation, rule policy or fix planning. Default evaluation
+keeps its original diagnostic collection and no owner roster allocation. The
+adapter uses shared compiler owner/trait locators, captured signatures and build
+contexts. Multiple diagnostics share their immutable owner/signature and policy;
+saved entries share those owners. There are no graph/body copies, new hashes,
+source parses or body proofs. Proposal and diagnostic status now use one shared
+positive-lookup workflow and reuse completed equality outcomes. Their visibility
+is applied in one pass over compilation units.
+
+All six existing style-rule families use full metric/version, policy, signature,
+actual/limit and ordered label/count equality. Lines and diagnostic messages do
+not control identity. Relevant count/distribution, signature, policy and context
+changes make choices visible again. Different rules on one owner have distinct
+review scopes; unrelated rule findings cannot hide or stale each other. Movement
+and parameter renaming can preserve observations; mutation-root label renaming
+may conservatively stale details. Invalid source suppressions cannot be reviewed
+away. Numeric equality is a review contract, not body equivalence or purity.
+
+Raw diagnostics, summaries and caller/fix plans remain intact. Separate visible
+indices and decisions drive text and finding exits. Missing/generated owners and
+unresolved calls keep coverage incomplete even if every known diagnostic is
+hidden. Retained missing diagnostics remain unavailable; this increment does not
+establish the completed negative assessments required for automatic pruning.
+Omitted compiler advisory is not-requested. Compiler baselines, changed-file
+presentation, cross-package propagation, broader project quality and retirement
+remain open.
+
+Retained status additionally indexes completed outcomes once and groups current
+positives by owner locator. It no longer scans the entire lookup roster for every
+stored entry; empty stores skip status-index construction. These indices are
+analysis-local and never serialized. Exact outcomes take precedence across
+multiple contexts independently of row order. This is an algorithmic reduction,
+not a measured wall-time speedup.
+
+Focused acceptance before final checkpoint validation passes 41 cases, including
+all compiler proposal regressions, the six compiler style families, exact owner
+association through sorting, default evaluation without an owner roster, shared
+owner/policy buffers, distinct rule domains, required snapshot fields, version
+and threshold checks, source-free replay, movement, changed counts/distributions,
+check/test separation, atomic failed selectors and missing/generated input.
+Evidence is `/tmp/clones-compiler-diagnostics-focused-3`; the subsequent
+order-independent retained-status test is included in the full checkpoint suite.
+
+The frozen source passes all 3,245 nextest tests in 206.299 seconds (five existing
+skips), workspace doc tests and all-target workspace Clippy with warnings denied.
+Both original NonZero regressions and u32 widening composition pass. Legacy style
+is zero across 9,613 functions; reviewed patterns is zero. Final logs are
+`/tmp/clones-compiler-diagnostics-tests-final-1`,
+`/tmp/clones-compiler-diagnostics-clippy-final-2`,
+`/tmp/clones-compiler-diagnostics-style-final-2` and
+`/tmp/clones-compiler-diagnostics-patterns-final-1`.
+Unfiltered discovery retains exactly the prior fifteen candidate IDs, with
+results in `/tmp/clones-compiler-diagnostics-patterns-unfiltered-final-1`.
+
+The real-project read-only study makes all 39 diagnostics under an explicit
+one-target budget available to exact review lookup. The pre-recorded gcd case
+matches actual two targets, limit one and visible-new status. Raw style/proposal
+reports and all four accepted strict pairs are unchanged; no review file or
+choice is written. Existing 176 generated owners and twenty unresolved callees
+retain incomplete coverage and exit 2. The reference/lookup replays take
+2.12/2.11 seconds and 202,208/202,168 KiB peak RSS respectively: single-run
+observations, not a speedup or an overhead bound. Policy, independent case,
+commands and limitations are in the project study. Evidence is
+`/tmp/clones-compiler-diagnostics-project-{raw,review}-1`.
+Formatting and diff checks pass. Full capability migration remains incomplete.

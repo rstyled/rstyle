@@ -4,6 +4,8 @@ mod adapter;
 pub(super) mod baseline_common;
 mod baseline_io;
 mod comparison;
+pub(super) mod compiler_diagnostics;
+mod compiler_owners;
 pub(super) mod compiler_patterns;
 pub(super) mod density_baseline;
 pub(super) mod density_rules;
@@ -20,6 +22,7 @@ mod numeric_workflow;
 mod outcome;
 mod owner_observations;
 mod owner_population;
+mod positive_workflow;
 pub(super) mod prune;
 mod publication;
 pub(super) mod source_baseline;
@@ -111,6 +114,7 @@ impl Default for ReviewStore {
             mutation_entries: vec![],
             density_entries: vec![],
             compiler_pattern_entries: vec![],
+            compiler_diagnostic_entries: vec![],
         }
     }
 }
@@ -125,6 +129,7 @@ impl ReviewStore {
             + self.mutation_entries.len()
             + self.density_entries.len()
             + self.compiler_pattern_entries.len()
+            + self.compiler_diagnostic_entries.len()
     }
 
     pub(crate) fn from_json(bytes: &str) -> Result<Self, String> {
@@ -177,7 +182,7 @@ impl ReviewStore {
     }
 
     fn validate(&self) -> Result<(), ReviewError> {
-        if !matches!(self.schema_version, 1..=8)
+        if !matches!(self.schema_version, 1..=9)
             || (self.schema_version == 1 && !self.source_entries.is_empty())
             || (self.schema_version < 3 && !self.parameter_entries.is_empty())
             || (self.schema_version < 4 && !self.length_entries.is_empty())
@@ -185,6 +190,7 @@ impl ReviewStore {
             || (self.schema_version < 6 && !self.mutation_entries.is_empty())
             || (self.schema_version < 7 && !self.density_entries.is_empty())
             || (self.schema_version < 8 && !self.compiler_pattern_entries.is_empty())
+            || (self.schema_version < 9 && !self.compiler_diagnostic_entries.is_empty())
         {
             return Err(ReviewError::InvalidSchema);
         }
@@ -196,6 +202,7 @@ impl ReviewStore {
         mutation_rules::validate_entries(&self.mutation_entries)?;
         density_rules::validate_entries(&self.density_entries)?;
         compiler_patterns::validate_entries(&self.compiler_pattern_entries)?;
+        compiler_diagnostics::validate_entries(&self.compiler_diagnostic_entries)?;
         for (index, entry) in self.entries.iter().enumerate() {
             if entry.reason.trim().is_empty() {
                 return Err(ReviewError::InvalidReason);

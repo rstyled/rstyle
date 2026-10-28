@@ -11,6 +11,10 @@ pub(crate) trait ReviewSnapshot: Clone + Eq {
     fn versions(&self) -> &Versions;
     fn validate(&self) -> Result<(), Error>;
     fn changed(&self, current: &Self) -> Option<StaleReason>;
+    /// Separate rule domains sharing one owner index.
+    fn same_scope(&self, _current: &Self) -> bool {
+        true
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -195,7 +199,8 @@ pub(super) fn record_dismissal<S: ReviewSnapshot>(
 pub(super) fn stale_reason<S: ReviewSnapshot>(previous: &S, current: &S) -> Option<StaleReason> {
     let (old_locator, old_context) = previous.identity();
     let (new_locator, new_context) = current.identity();
-    if old_locator != new_locator
+    if !previous.same_scope(current)
+        || old_locator != new_locator
         || old_context.compilation_target != new_context.compilation_target
     {
         return None;

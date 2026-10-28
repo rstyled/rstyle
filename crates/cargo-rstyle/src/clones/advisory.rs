@@ -1,4 +1,5 @@
 //! Reuse core policy over compiler-collected inputs, isolated by compilation unit.
+mod diagnostics;
 mod patterns;
 use super::{analysis::Completion, identity::UnitId, report::Context};
 use rstyle_core::{
@@ -20,6 +21,8 @@ pub(super) struct Report {
     units: Vec<Unit>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pattern_review: Option<super::review::compiler_patterns::Report>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    diagnostic_review: Option<super::review::compiler_diagnostics::Report>,
 }
 
 #[derive(Serialize)]
@@ -32,6 +35,10 @@ struct Unit {
     unavailable: Vec<Missing>,
     unresolved_callees: BTreeSet<String>,
     evaluation: rstyle_core::report::Report,
+    #[serde(skip)]
+    diagnostic_snapshots: Vec<Result<super::review::compiler_diagnostics::Snapshot, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    visible_diagnostics: Option<Vec<usize>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     patterns: Option<patterns::Report>,
 }
@@ -58,6 +65,10 @@ impl Completion for Report {
                 .pattern_review
                 .as_ref()
                 .is_none_or(Completion::permits_success)
+            && self
+                .diagnostic_review
+                .as_ref()
+                .is_none_or(Completion::permits_success)
     }
 }
 
@@ -80,7 +91,36 @@ impl Report {
             .pattern_review
             .as_ref()
             .map_or_else(String::new, |review| review.render());
-        format!("{summary}{patterns}{reviews}")
+
+        let diagnostics = self
+            .units
+            .iter()
+            .map(Unit::render_diagnostics)
+            .collect::<Vec<_>>()
+            .join("\n");
+        let diagnostic_reviews = self
+            .diagnostic_review
+            .as_ref()
+            .map_or_else(String::new, |review| review.render());
+        format!("{summary}{diagnostics}{patterns}{reviews}{diagnostic_reviews}")
+    }
+
+    pub(super) fn diagnostic_reviews(&self) -> Vec<super::review::compiler_diagnostics::Row<'_>> {
+        self.units
+            .iter()
+            .flat_map(|unit| {
+                unit.diagnostic_snapshots
+                    .iter()
+                    .enumerate()
+                    .map(
+                        move |(index, snapshot)| super::review::compiler_diagnostics::Row {
+                            unit: unit.unit,
+                            index,
+                            snapshot,
+                        },
+                    )
+            })
+            .collect()
     }
 
     pub(super) fn pattern_reviews(
@@ -113,26 +153,28 @@ impl Report {
         self.complete
     }
 
-    pub(super) fn with_pattern_reviews(
+    pub(super) fn with_reviews(
         self,
-        reviews: super::review::compiler_patterns::Report,
+        patterns: super::review::compiler_patterns::Report,
+        diagnostics: super::review::compiler_diagnostics::Report,
     ) -> Self {
-        if !reviews.requested() {
+        if !patterns.requested() && !diagnostics.requested() {
             return self;
         }
         let units: Vec<_> = self
             .units
             .into_iter()
-            .map(|unit| unit.with_pattern_reviews(&reviews))
+            .map(|unit| unit.with_reviews(&patterns, &diagnostics))
             .collect();
-        let findings = units.iter().map(Unit::findings).sum();
-        let complete = self.complete && reviews.permits_success();
 
+        let findings = units.iter().map(Unit::findings).sum();
+        let complete = self.complete && patterns.permits_success() && diagnostics.permits_success();
         Self {
             units,
             findings,
-            pattern_review: Some(reviews),
             complete,
+            pattern_review: patterns.requested().then_some(patterns),
+            diagnostic_review: diagnostics.requested().then_some(diagnostics),
             ..self
         }
     }
@@ -168,6 +210,7 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
         ],
         units,
         pattern_review: None,
+        diagnostic_review: None,
     }))
 }
 
@@ -205,7 +248,11 @@ fn evaluate_unit(
     let unresolved_callees = unresolved(&facts)?;
     let expected_functions = (ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty())
         .then_some(observations.len() + unavailable.len());
-    let (evaluation, facts) = rstyle_core::evaluate_and_retain(facts, config)?;
+    let diagnostics::Completed {
+        evaluation,
+        facts,
+        snapshots: diagnostic_snapshots,
+    } = diagnostics::evaluate(ctx, unit, facts, config)?;
     let patterns = ctx.args.compiler_patterns.then(|| {
         patterns::evaluate(
             ctx,
@@ -227,6 +274,8 @@ fn evaluate_unit(
         unavailable,
         unresolved_callees,
         evaluation,
+        diagnostic_snapshots,
+        visible_diagnostics: None,
         patterns,
     })
 }
@@ -277,11 +326,36 @@ impl Collected {
 }
 
 impl Unit {
-    fn with_pattern_reviews(self, reviews: &super::review::compiler_patterns::Report) -> Self {
-        let patterns = self
-            .patterns
-            .map(|patterns| patterns.with_reviews(self.unit, reviews));
-        Self { patterns, ..self }
+    fn with_reviews(
+        self,
+        patterns: &super::review::compiler_patterns::Report,
+        diagnostics: &super::review::compiler_diagnostics::Report,
+    ) -> Self {
+        let visible_diagnostics = diagnostics.requested().then(|| {
+            (0..self.evaluation.diagnostics.len())
+                .filter(|index| !diagnostics.hidden_for(self.unit, *index))
+                .collect()
+        });
+        let patterns = self.patterns.map(|report| {
+            if patterns.requested() {
+                report.with_reviews(self.unit, patterns)
+            } else {
+                report
+            }
+        });
+        Self {
+            patterns,
+            visible_diagnostics,
+            ..self
+        }
+    }
+
+    fn render_diagnostics(&self) -> String {
+        diagnostics::render(
+            self.unit,
+            &self.evaluation,
+            self.visible_diagnostics.as_deref(),
+        )
     }
 
     fn render_patterns(&self) -> Option<String> {
@@ -305,7 +379,9 @@ impl Unit {
     }
 
     fn findings(&self) -> usize {
-        self.evaluation.summary.violations
+        self.visible_diagnostics
+            .as_ref()
+            .map_or(self.evaluation.summary.violations, Vec::len)
             + self.patterns.as_ref().map_or(0, |report| report.findings())
     }
 }

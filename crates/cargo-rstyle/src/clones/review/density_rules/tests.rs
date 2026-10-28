@@ -253,7 +253,7 @@ fn density_envelope_roundtrips_only_with_its_supported_schema() {
             .density_entries,
         store.density_entries
     );
-    for unsupported in [6, 9] {
+    for unsupported in [6, 10] {
         wire["schema_version"] = serde_json::json!(unsupported);
         assert!(ReviewStore::from_json(&wire.to_string()).is_err());
     }
