@@ -35,7 +35,9 @@ Heavy captures and integrated gates run serially.
 | C07 | Pair + lead / native differences, opt-in CLI/report | delivered (checkpoint) | `63ef4c5` | Ordered native correspondence and differences in accepted strict pairs | Thirteen native unit and three real-Cargo CLI cases; literal/formal roles, context/width, whole-tree rejection and budgets; matching unchanged |
 | C08 | Pair + acceptance + lead / native helper consumer, CLI/report | delivered (checkpoint) | `26b7b9c` | Advisory u32 expression helper pairs with literal arguments, ordered evidence and explicit prerequisites | All eight frozen cases pass real-Cargo tests and retained live captures; nineteen native/consumer unit cases plus ten CLI cases; no inferred groups or safe-rewrite claim |
 | C11a | Local + acceptance + lead / saved capture reconciliation and CLI/report | delivered (bounded replay) | `428416b` | Exact standalone saved-facts reevaluation without compilation or original files | Eight unit/five CLI cases, retained C06 capture, full tests and legacy gates; mutation/effects remain open |
-| C09a | Pair + local + acceptance + lead / review lifecycle, original snapshots and CLI/report | delivered (bounded helper review) | this C09a implementation commit | Explicit saved-run dismissal and read-only versioned exact review, stale/unavailable coverage | Twenty-seven unit/adapter and seven CLI cases; retained live replay, full tests and both legacy gates; whole-store status/legacy migration remain open |
+| C09a | Pair + local + acceptance + lead / review lifecycle, original snapshots and CLI/report | delivered (bounded helper review) | `1269c62` | Explicit saved-run dismissal and read-only versioned exact review, stale/unavailable coverage | Twenty-seven unit/adapter and seven CLI cases; retained live replay, full tests and both legacy gates; whole-store status/legacy migration remain open |
+| C10a | Local + acceptance + lead / dispatch source index, CLI/report | delivered (bounded local dispatch) | `fabd24d` | Source-owned two-variant dispatch with exact local method/trait signatures | Twelve evidence/nine CLI tests; full tests and both legacy gates pass; broader families remain open |
+| C11b | Local + acceptance + lead / mutation evidence, policy, CLI/report | delivered (bounded direct mutation) | this C11b implementation commit | Direct scalar assignment-site budgets with root provenance and unknown-aware lower bounds; config-only strict replay | Eighteen evidence/three policy/seven CLI tests; full tests and both legacy gates pass; general effects/density/helper summaries remain open |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
@@ -318,6 +320,52 @@ Linux aarch64 only; macOS and exact Go comparison remain unverified.
 The next independently prepared frontier is direct scalar-write provenance with
 unknown-aware mutation/effect boundaries;
 C11 evidence, C12 edit plans and selective later consumers remain open.
+
+## C11b: direct scalar mutation budgets
+
+This checkpoint adds opt-in `--mutation-rules` and explicit TOML
+`--mutation-config` independently of strict clone admission. It reuses legacy
+mutation limits while defining a deliberately distinct original assignment-site
+vocabulary. Direct owned `u32` bindings and `&mut u32` formal pointees retain
+compiler identity, declaration/lexical-scope spans, formal ordinal, operation and
+caller-visible provenance. Builtin compound assignments count once; declaration
+initialization is excluded. Counts describe static sites, not runtime executions.
+
+Complete bounded inventories report exact counts; unknown calls and unsupported
+syntax retain typed boundaries and witnessed lower bounds. A witnessed threshold
+breach survives incomplete scope; no clean result or density ratio is inferred
+from an unknown remainder. Raw addresses, reference reassignment, mutable aliases,
+macros, attributes and unsupported shadow patterns cannot mint stale roots.
+Missing evidence stays unavailable; contradictory consumed source/native/context
+joins fail. Source ownership is checked before work budgets, original syntax is
+parsed once per query, and native/binding indices borrow immutable inputs.
+No new hashes, graph copies, extraction permissions or proof caches were added.
+
+The frozen snapshot passes all 2,494 nextest tests (five skipped), 164.135 seconds,
+and doc tests. Eighteen evidence tests, three policy tests and seven real-Cargo
+CLI tests cover initial positive/negative cases, independent spans/provenance,
+replay/configuration, partial findings, opaque-root controls and resource bounds.
+Workspace/all-target Clippy, formatting and diff checks pass. Legacy style has
+zero violations across 8,531 functions; reviewed patterns has zero new
+candidates. Unfiltered patterns retains exactly the same 15 candidate IDs as C10.
+No ignores, suppressions, thresholds or strict admission were changed.
+Logs: `/tmp/clones-migration-c11-*` (final full tests in `tests-final.log`).
+
+The retained bounded compact live capture uses `--locked`, then deletes original
+source/manifest and disables external tools. Strict replay changes the per-root
+limit from two to three, retaining identical assignment evidence, original
+function rows and matching while the finding disappears (exit one to zero):
+`/tmp/clones-migration-c11-live-8ig3hqmz/results.json`.
+[Mutation scope and usage](clones-mutations.md) document limitations. General
+effects, aliases/fields, helper summaries, density, review integration and legacy
+retirement remain open. Linux aarch64 only; macOS and exact Go comparison remain
+unverified.
+
+The next prepared frontier is C12 required-edit overlap planning from explicit
+finding edit intents and checked original physical source regions. Its unreferenced
+`planning-cases.json` is an independent specification, not delivered support.
+Caller-aware parameter plans still need an explicit parameter edit and complete
+call/argument provenance; similarity components do not establish edit independence.
 
 ## Hashing exceptions
 

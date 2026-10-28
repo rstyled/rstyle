@@ -3,6 +3,7 @@ pub(super) mod dispatch_reports;
 mod guards;
 pub(super) mod helper_reports;
 mod helpers;
+pub(super) mod mutation_reports;
 mod pair_differences;
 pub(super) mod pair_reports;
 mod source_rules;

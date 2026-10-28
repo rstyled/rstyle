@@ -144,3 +144,9 @@ unsupported guarded/opaque arms. The real-Cargo `migration_dispatch` tests asses
 these source labels, full/compact/default reports, budget and mixed-coverage
 semantics, and explicit saved-run replay. See the
 [bounded consumer contract](../../docs/clones-enum-dispatch.md).
+
+`effects-cases.json` freezes direct scalar assignment budgets, caller-visible
+provenance, opaque boundaries and saved-policy reevaluation. Initial cases
+exercise the mutation consumer; next/later cases retain explicit future scope.
+A complete direct-write inventory does not establish purity or density, and the
+static-site vocabulary differs intentionally from legacy mutable-borrow events.

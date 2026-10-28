@@ -26,6 +26,7 @@ pub struct Context<'a> {
     pub matching: &'a RunReport,
     pub partitions: rstyle_ccgraph::pipeline::WlPartitions,
     pub complete: bool,
+    pub mutation_config: Option<&'a super::analysis::mutation_reports::Settings>,
     pub analysis_config: Option<&'a super::analysis::Config>,
     pub matching_config: &'a rstyle_ccgraph::CcgraphConfig,
 }
@@ -43,6 +44,7 @@ struct Scope<'a> {
 #[derive(Serialize)]
 pub struct Report<'a> {
     pub review: super::review::workflow::Report,
+    pub mutation_analysis: super::analysis::mutation_reports::Report<'a>,
     pub enum_dispatch: super::analysis::dispatch_reports::Report<'a>,
     #[serde(flatten)]
     pub pair_reports: super::analysis::pair_reports::Reports<'a>,
@@ -126,6 +128,7 @@ pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
         review,
         analysis: ctx.local_analysis(),
         enum_dispatch: ctx.dispatch_report()?,
+        mutation_analysis: ctx.mutation_report()?,
         report_detail: ctx.args.report_detail,
         verification_policy: ctx.verification_policy(),
         scope,
@@ -174,6 +177,15 @@ impl<'a> Context<'a> {
         } else {
             "trusted-generated"
         }
+    }
+
+    fn mutation_report(&self) -> Result<super::analysis::mutation_reports::Report<'a>, String> {
+        super::analysis::mutation_reports::evaluate(
+            self.handoff,
+            self.capture,
+            self.args,
+            self.mutation_config,
+        )
     }
 
     fn dispatch_report(&self) -> Result<super::analysis::dispatch_reports::Report<'a>, String> {
@@ -252,11 +264,12 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         .collect::<String>();
 
     format!(
-        "{summary}{pairs}{}{}{}{}",
+        "{summary}{pairs}{}{}{}{}{}",
         report.analysis.render(),
         report.pair_reports.render(),
         report.review.render(),
-        report.enum_dispatch.render()
+        report.enum_dispatch.render(),
+        report.mutation_analysis.render()
     )
 }
 

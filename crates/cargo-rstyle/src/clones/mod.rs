@@ -25,8 +25,8 @@ use std::{
 };
 
 #[derive(ClapArgs, Serialize)]
-#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch"]).multiple(true)),
-    group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch"]).multiple(true)))]
+#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "mutation_rules"]).multiple(true)),
+    group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "mutation_rules"]).multiple(true)))]
 pub struct Args {
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
     #[arg(long, default_value = "r0", value_parser = rstyle_pdg::extraction_profile::ExtractionProfile::select)]
@@ -64,6 +64,12 @@ pub struct Args {
     /// Suggest bounded local enum dispatch abstractions from original source and signatures.
     #[arg(long)]
     enum_dispatch: bool,
+    /// Evaluate direct scalar assignment budgets with explicit unknown remainder.
+    #[arg(long)]
+    mutation_rules: bool,
+    /// TOML mutation_budget policy; root granularity only.
+    #[arg(long, requires = "mutation_rules")]
+    mutation_config: Option<PathBuf>,
     /// TOML source-rule policy (fn_length/fn_params only); distinct from legacy configuration.
     #[arg(long, requires = "source_rules")]
     analysis_config: Option<PathBuf>,
@@ -124,6 +130,7 @@ pub fn write_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
 struct Configuration {
     matching: CcgraphConfig,
     analysis: Option<analysis::Config>,
+    mutation: Option<analysis::mutation_reports::Settings>,
 }
 
 fn configuration(cli: &Cli, args: &Args) -> Result<Configuration, String> {
@@ -142,6 +149,7 @@ fn configuration(cli: &Cli, args: &Args) -> Result<Configuration, String> {
     Ok(Configuration {
         matching: rstyle_ccgraph::parse_config(&value).map_err(|e| e.message)?,
         analysis: analysis::configuration(args)?,
+        mutation: analysis::mutation_reports::configuration(args)?,
     })
 }
 
@@ -323,6 +331,7 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         partitions: evaluation.partitions,
         complete,
         analysis_config: config.analysis.as_ref(),
+        mutation_config: config.mutation.as_ref(),
         matching_config: &config.matching,
     })?;
     let output = report.publish(cli.format, accepted)?;
@@ -338,6 +347,7 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
 fn analyses_complete(report: &report::Report<'_>) -> bool {
     report.analysis.permits_success()
         && report.enum_dispatch.permits_success()
+        && report.mutation_analysis.permits_success()
         && report.pair_reports.permits_success()
         && report.review.permits_success()
 }
@@ -347,6 +357,7 @@ fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: us
         || (args.fail_on_findings
             && (report.analysis.findings > 0
                 || report.enum_dispatch.findings > 0
+                || report.mutation_analysis.findings > 0
                 || report
                     .review
                     .visible_or(report.pair_reports.helper_proposals.findings)

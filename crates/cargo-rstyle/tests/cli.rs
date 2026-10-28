@@ -22,6 +22,7 @@ mod migration_differences;
 mod migration_dispatch;
 mod migration_guards;
 mod migration_helpers;
+mod migration_mutations;
 mod migration_output;
 mod migration_replay;
 mod migration_review;
