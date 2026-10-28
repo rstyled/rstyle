@@ -232,7 +232,7 @@ fn patterns(cli: &Cli, args: &PatternsArgs) -> Result<(String, u8), String> {
         ledger,
         ..mine_options(&args.mine)
     };
-    let report = patterns_report::run(&facts, &options);
+    let report = patterns_report::run_owned(facts, &options);
     let code = u8::from(args.fail_on_candidates && !report.candidates.is_empty()) * FOUND;
     let output = match cli.format {
         Format::Text => patterns_text(&report, args.show_ignored),

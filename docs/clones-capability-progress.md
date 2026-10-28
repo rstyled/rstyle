@@ -2332,3 +2332,32 @@ with actual compiler graph observations, explicit unavailable inputs and an
 ownership/borrowing seam where needed. Do not invent graphs or extend another
 proposal algorithm before examining those inputs. Cross-package propagation,
 broader project quality and native macOS validation also remain open.
+
+## C15: move existing proposal inputs through preparation
+
+The next reusable consumer is the existing core abstraction proposer, not another
+proposal algorithm. Its preparation previously cloned the input facts, cloned
+active facts again, rebuilt every graph and cloned facts again while replacing
+those graphs. The legacy patterns command now moves its owned facts into
+`patterns_report::run_owned` and `prep::prepare_owned`. Preparation retains the
+source, node and edge buffers and applies only recorded callee/signature changes.
+All rewrites are selected against the original active inputs before any graph
+changes, preserving trait resolution and suppression order. Borrowed callers keep
+their existing APIs. No hash, checksum, source re-proof, new cache, work-budget
+increase or proposal-policy change was added. An unused evaluator-retention API
+was deferred until a consumer actually needs it.
+
+Regression tests check buffer retention, unchanged unrelated metadata,
+unresolved calls, absent versus known-empty graphs, candidate identity and review
+policy. This is a necessary ownership seam, not new clone capability or a measured
+end-to-end speedup. Compiler graph capture and connection of the compiler advisory
+adapter to this proposer remain the next separate vertical slice. Existing strict
+admission and matching remain unchanged.
+
+The frozen source passes all 3,204 nextest tests (five existing skips), workspace
+doc tests, all-target workspace Clippy with warnings denied, formatting and diff
+checks. Both original NonZero regressions and u32 widening composition pass.
+Legacy style is zero across 9,519 functions; reviewed patterns is zero, and
+unfiltered discovery retains exactly the prior fifteen candidate IDs. No ignore
+or review ledger changed. Final gate logs are
+`/tmp/clones-owned-{tests-2,clippy-2,style-2,patterns-1,patterns-unfiltered-1}`.

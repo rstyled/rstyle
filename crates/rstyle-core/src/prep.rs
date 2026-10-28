@@ -1,6 +1,6 @@
 //! Pre-processing of facts before mining: suppression, devirtualization, trait hiding.
 
-use crate::facts::{EdgeKind, FnFacts, NodeKind, Pdg, PdgNode, TyShape};
+use crate::facts::{EdgeKind, FnFacts, NodeKind, Pdg, SigFacts, TyShape};
 use crate::suppress;
 use std::collections::BTreeMap;
 
@@ -52,26 +52,43 @@ fn receiver_adt(pdg: &Pdg, call: usize) -> Option<&str> {
     }
 }
 
-/// Rewrites calls to a trait method into calls to the impl for the receiver's static type,
-/// so `cow.speak()` and `hen.speak()` become distinct, comparable callees.
-fn devirtualized(pdg: &Pdg, table: &Impls<'_>) -> Pdg {
-    let nodes = pdg.nodes.iter().enumerate().map(|(index, node)| {
-        let target = (node.kind == NodeKind::Call)
-            .then(|| table.get(&(node.callee_id.as_deref()?, receiver_adt(pdg, index)?)))
-            .flatten();
-        match target {
-            Some(t) => PdgNode {
-                callee_id: Some(t.id.clone()),
-                callee_sig: t.sig.clone(),
-                ..node.clone()
-            },
-            None => node.clone(),
-        }
-    });
-    Pdg {
-        nodes: nodes.collect(),
-        edges: pdg.edges.clone(),
+/// Only resolved call metadata changes; graph nodes, edges and source stay owned.
+struct Rewrite {
+    function: usize,
+    call: usize,
+    callee: String,
+    signature: Option<SigFacts>,
+}
+
+impl Rewrite {
+    fn apply(self, facts: &mut [FnFacts]) {
+        let pdg = facts[self.function].pdg.as_mut().expect("selected graph");
+        let node = &mut pdg.nodes[self.call];
+        node.callee_id = Some(self.callee);
+        node.callee_sig = self.signature;
     }
+}
+
+fn rewrites(facts: &[FnFacts]) -> Vec<Rewrite> {
+    let table = impls(facts);
+    let mut changes = Vec::new();
+    for (function, facts) in facts.iter().enumerate() {
+        let Some(pdg) = &facts.pdg else { continue };
+        for (call, node) in pdg.nodes.iter().enumerate() {
+            let target = (node.kind == NodeKind::Call)
+                .then(|| table.get(&(node.callee_id.as_deref()?, receiver_adt(pdg, call)?)))
+                .flatten();
+            if let Some(target) = target {
+                changes.push(Rewrite {
+                    function,
+                    call,
+                    callee: target.id.clone(),
+                    signature: target.sig.clone(),
+                });
+            }
+        }
+    }
+    changes
 }
 
 /// Derives and proc macros wrap their output in `const _: () = { .. }`: not hand-written code.
@@ -84,21 +101,17 @@ fn generated(f: &FnFacts) -> bool {
 /// Facts ready for mining: `rstyle-allow(abstraction)` functions removed, trait calls
 /// resolved to impls. Order is preserved.
 pub fn prepare(facts: &[FnFacts]) -> Vec<FnFacts> {
-    let active: Vec<FnFacts> = facts
-        .iter()
-        .filter(|f| !suppress::allows(&f.preceding_line, "abstraction") && !generated(f))
-        .cloned()
-        .collect();
-    let table = impls(&active);
-    let rewritten: Vec<Option<Pdg>> = active
-        .iter()
-        .map(|f| f.pdg.as_ref().map(|p| devirtualized(p, &table)))
-        .collect();
-    active
-        .iter()
-        .zip(rewritten)
-        .map(|(f, pdg)| FnFacts { pdg, ..f.clone() })
-        .collect()
+    prepare_owned(facts.to_vec())
+}
+
+/// Consume facts without copying source, nodes or edges. Resolve all calls
+/// against the original input before changing any graph, like the borrowed API.
+pub fn prepare_owned(mut facts: Vec<FnFacts>) -> Vec<FnFacts> {
+    facts.retain(|f| !suppress::allows(&f.preceding_line, "abstraction") && !generated(f));
+    for change in rewrites(&facts) {
+        change.apply(&mut facts);
+    }
+    facts
 }
 
 #[cfg(test)]
@@ -141,6 +154,43 @@ mod tests {
         let out = prepare(&facts);
         let pdg = out[2].pdg.as_ref().expect("pdg");
         assert_eq!(pdg.nodes[4].callee_id.as_deref(), Some("k::Cow::speak"));
+    }
+
+    #[test]
+    fn owned_preparation_preserves_body_buffers_and_unrelated_metadata() {
+        let caller = caller_of_trait_method("Cow");
+        let original = caller.pdg.as_ref().unwrap();
+        let buffers = (
+            caller.source.as_ptr(),
+            original.nodes.as_ptr(),
+            original.edges.as_ptr(),
+        );
+        let mut expected = caller.clone();
+        let target = speaker("Cow");
+        let call = &mut expected.pdg.as_mut().unwrap().nodes[4];
+        call.callee_id = Some(target.id.clone());
+        call.callee_sig = target.sig.clone();
+
+        let result = prepare_owned(vec![caller, target]);
+        let graph = result[0].pdg.as_ref().unwrap();
+        assert_eq!(result[0], expected);
+        assert_eq!(
+            buffers,
+            (
+                result[0].source.as_ptr(),
+                graph.nodes.as_ptr(),
+                graph.edges.as_ptr()
+            )
+        );
+    }
+
+    #[test]
+    fn unresolved_calls_and_absent_graphs_remain_unchanged() {
+        let caller = caller_of_trait_method("Cow");
+        let mut other = speaker("Hen");
+        other.pdg = Some(Pdg::default());
+        let facts = vec![caller, other, sample("without_graph")];
+        assert_eq!(prepare_owned(facts.clone()), facts);
     }
 
     #[test]

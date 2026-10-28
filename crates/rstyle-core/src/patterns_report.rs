@@ -66,10 +66,10 @@ pub fn build(groups: Vec<SigGroup>, min_score_milli: u32, top: Option<usize>) ->
 }
 
 /// Layers 1 and 2 over driver facts, before any display filter or the ignore ledger.
-fn mine_all(facts: &[FnFacts], options: &Options) -> (Vec<SigGroup>, candidates::Mined) {
+fn mine_all(facts: Vec<FnFacts>, options: &Options) -> (Vec<SigGroup>, candidates::Mined) {
     // Lib and test targets compile the same functions: dedupe like the style path does.
-    let facts = crate::facts::merge(facts.to_vec());
-    let prepared = prep::hide_implements(prep::prepare(&facts), &options.hide_implements);
+    let facts = crate::facts::merge(facts);
+    let prepared = prep::hide_implements(prep::prepare_owned(facts), &options.hide_implements);
     let groups = sigmine::mine(&prepared);
     let mined = candidates::mine(&prepared, &groups, &options.params);
 
@@ -78,7 +78,7 @@ fn mine_all(facts: &[FnFacts], options: &Options) -> (Vec<SigGroup>, candidates:
 
 /// Every candidate, unfiltered: what `ignore` resolves ids against and `--prune` compares to.
 pub fn all_candidates(facts: &[FnFacts], options: &Options) -> Vec<Candidate> {
-    mine_all(facts, options).1.candidates
+    mine_all(facts.to_vec(), options).1.candidates
 }
 
 fn ignored_entry(ledger: &Ledger, hidden: Hidden) -> Ignored {
@@ -96,6 +96,11 @@ fn ignored_entry(ledger: &Ledger, hidden: Hidden) -> Ignored {
 
 /// Full pipeline over driver facts: layers 1 and 2, the ignore ledger, then filter and rank.
 pub fn run(facts: &[FnFacts], options: &Options) -> PatternsReport {
+    run_owned(facts.to_vec(), options)
+}
+
+/// Full proposal policy over owned compiler facts, preserving buffers through preparation.
+pub fn run_owned(facts: Vec<FnFacts>, options: &Options) -> PatternsReport {
     let (groups, mined) = mine_all(facts, options);
     let ledger = options.ledger.clone().unwrap_or_default();
     let applied = ledger::apply(&ledger, mined.candidates);
@@ -327,6 +332,17 @@ mod tests {
         let ids: std::collections::BTreeSet<_> =
             c.sites.iter().map(|s| (&s.path, s.line, &s.id)).collect();
         assert_eq!(ids.len(), c.sites.len());
+    }
+
+    #[test]
+    fn owned_pipeline_retains_candidate_identity_and_review_policy() {
+        let baseline = run(&corpus(), &Options::default());
+        assert_eq!(run_owned(corpus(), &Options::default()), baseline);
+        let options = dismissing(&baseline.candidates[0], false);
+        let reviewed = run_owned(corpus(), &options);
+        assert_eq!(reviewed.ignored_count, 1);
+        assert_eq!(reviewed.ignored[0].id, baseline.candidates[0].id);
+        assert!(reviewed.candidates.is_empty());
     }
 
     #[test]
