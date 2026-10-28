@@ -17,6 +17,7 @@ pub(crate) struct Endpoint<'a, 'graph> {
     facts: &'a HirFnFacts,
     validation: Result<(), Gap>,
     native_width_involved: bool,
+    helper_operations: Option<usize>,
 }
 
 impl<'a, 'graph> Endpoint<'a, 'graph> {
@@ -35,18 +36,42 @@ impl<'a, 'graph> Endpoint<'a, 'graph> {
     fn from_native(admitted: &'graph ImportedFunction, facts: &'a HirFnFacts) -> Self {
         let validation = validate(facts);
         // Scan only the successfully bounded roster, once per retained endpoint.
-        let native_width_involved =
-            admitted.native_width_involved || validation.is_ok() && uses_native_width(facts);
+        let summary = validation.is_ok().then(|| native_summary(facts));
+        let native_width_involved = admitted.native_width_involved
+            || summary.as_ref().is_some_and(|summary| summary.native_width);
+        let helper_operations = summary
+            .filter(|summary| summary.u32_only)
+            .map(|summary| summary.operations);
+
         Self {
             admitted,
             facts,
             validation,
             native_width_involved,
+            helper_operations,
         }
     }
 }
 
+#[cfg(test)]
 pub(crate) fn explain<'a>(left: &Endpoint<'a, '_>, right: &Endpoint<'a, '_>) -> Assessment<'a> {
+    compare(left, right).into_assessment()
+}
+
+pub(crate) fn compare<'a>(left: &Endpoint<'a, '_>, right: &Endpoint<'a, '_>) -> ComparedPair<'a> {
+    let builtin_operations = left
+        .helper_operations
+        .zip(right.helper_operations)
+        .map(|(left, right)| [left, right]);
+    ComparedPair {
+        left: left.facts,
+        right: right.facts,
+        builtin_operations,
+        assessment: assess(left, right),
+    }
+}
+
+fn assess<'a>(left: &Endpoint<'a, '_>, right: &Endpoint<'a, '_>) -> Assessment<'a> {
     if left
         .admitted
         .extraction_context
@@ -77,18 +102,47 @@ pub(crate) fn explain<'a>(left: &Endpoint<'a, '_>, right: &Endpoint<'a, '_>) -> 
     align_complete(left.facts, right.facts)
 }
 
-fn uses_native_width(facts: &HirFnFacts) -> bool {
-    facts
-        .signature
-        .params
-        .iter()
-        .any(|parameter| matches!(parameter.ty.normalized.as_deref(), Some("usize" | "isize")))
-        || native_tree(&facts.body)
+struct NativeSummary {
+    native_width: bool,
+    u32_only: bool,
+    operations: usize,
+}
+
+fn native_summary(facts: &HirFnFacts) -> NativeSummary {
+    let tree = summarize_tree(&facts.body);
+    NativeSummary {
+        native_width: tree.native_width
+            || facts
+                .signature
+                .params
+                .iter()
+                .any(|param| matches!(param.ty.normalized.as_deref(), Some("usize" | "isize"))),
+        u32_only: tree.u32_only
+            && facts.signature.return_ty.normalized.as_deref() == Some("u32")
+            && facts
+                .signature
+                .params
+                .iter()
+                .all(|param| param.ty.normalized.as_deref() == Some("u32")),
+        operations: tree.operations,
+    }
 }
 
 // Called only after closed-tree validation has bounded the full native roster.
-fn native_tree(node: &HirNode) -> bool {
-    matches!(scalar_type(node), Some("usize" | "isize")) || node.children.iter().any(native_tree)
+fn summarize_tree(node: &HirNode) -> NativeSummary {
+    let local = NativeSummary {
+        native_width: matches!(scalar_type(node), Some("usize" | "isize")),
+        u32_only: scalar_type(node) == Some("u32"),
+        operations: usize::from(matches!(node.kind.as_str(), "expr_binary" | "expr_unary")),
+    };
+    node.children
+        .iter()
+        .map(summarize_tree)
+        .fold(local, |parent, child| NativeSummary {
+            native_width: parent.native_width || child.native_width,
+            u32_only: parent.u32_only && child.u32_only,
+            operations: parent.operations + child.operations,
+        })
 }
 
 fn align_complete<'a>(left: &'a HirFnFacts, right: &'a HirFnFacts) -> Assessment<'a> {

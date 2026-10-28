@@ -319,3 +319,137 @@ fn depth_and_parameter_budgets_have_explicit_negative_outcomes() {
     many.signature.params = vec![many.signature.params[0].clone(); 65];
     assert_eq!(inspect(&many, &many).coverage, Coverage::BudgetExhausted);
 }
+
+fn two_operations(text: &str) -> HirNode {
+    let inner = binary("+", read(10, 1), literal(11, text));
+    let mut outer = binary("*", inner, literal(12, "2"));
+    outer.hir.local = 101;
+    outer
+}
+
+#[test]
+fn compared_pair_retains_exact_members_and_literal_occurrences() {
+    let left = facts(two_operations("1"));
+    let right = facts(two_operations("3"));
+    let graph = admitted(Some("context-a"));
+    let comparison = compare(
+        &Endpoint::from_native(&graph, &left),
+        &Endpoint::from_native(&graph, &right),
+    );
+    let inputs = comparison.helper_inputs().unwrap();
+    assert!(std::ptr::eq(inputs.left, &left));
+    assert!(std::ptr::eq(inputs.right, &right));
+    assert_eq!(inputs.builtin_operations, [2, 2]);
+    assert!(std::ptr::eq(
+        comparison.assessment().holes[0].left,
+        &left.body.children[0].children[1]
+    ));
+    assert!(std::ptr::eq(
+        comparison.assessment().holes[0].right,
+        &right.body.children[0].children[1]
+    ));
+    assert_eq!(comparison.into_assessment().holes.len(), 1);
+}
+
+#[test]
+fn helper_counts_measure_operations_without_imposing_usefulness_policy() {
+    let graph = admitted(Some("context-a"));
+    let cases = [
+        read(10, 1),
+        binary("+", read(10, 1), literal(11, "1")),
+        two_operations("1"),
+    ];
+    for (count, body) in cases.into_iter().enumerate() {
+        let facts = facts(body);
+        let endpoint = Endpoint::from_native(&graph, &facts);
+        let comparison = compare(&endpoint, &endpoint);
+        assert_eq!(
+            comparison.helper_inputs().unwrap().builtin_operations,
+            [count; 2]
+        );
+        assert!(comparison.assessment().holes.is_empty());
+    }
+}
+
+#[test]
+fn non_u32_members_are_native_complete_but_helper_unsupported() {
+    let native = native_facts();
+    let mut unused_wide = facts(two_operations("1"));
+    unused_wide.signature.params[1].ty.normalized = Some("u64".into());
+    unused_wide.signature.params[1]
+        .pat
+        .ty
+        .as_mut()
+        .unwrap()
+        .normalized = Some("u64".into());
+    let graph = admitted(Some("context-a"));
+    for facts in [&native, &unused_wide] {
+        let endpoint = Endpoint::from_native(&graph, facts);
+        let comparison = compare(&endpoint, &endpoint);
+        assert_eq!(comparison.assessment().coverage, Coverage::Complete);
+        let unavailable = comparison.helper_inputs().unwrap_err();
+        assert_eq!(unavailable.coverage, Coverage::Unsupported);
+        assert!(unavailable.reason.contains("exclusively u32"));
+    }
+}
+
+#[test]
+fn native_unavailability_precedes_helper_profile_eligibility() {
+    let mut ambiguous = native_facts();
+    ambiguous.body.children[1].hir = ambiguous.body.children[0].hir.clone();
+    let mut budget = native_facts();
+    budget.signature.params = vec![budget.signature.params[0].clone(); 65];
+    let graph = admitted(Some("context-a"));
+    for (facts, expected) in [
+        (&ambiguous, Coverage::Ambiguous),
+        (&budget, Coverage::BudgetExhausted),
+    ] {
+        let endpoint = Endpoint::from_native(&graph, facts);
+        let comparison = compare(&endpoint, &endpoint);
+        let unavailable = comparison.helper_inputs().unwrap_err();
+        assert_eq!(unavailable.coverage, expected);
+        assert_eq!(Some(unavailable.reason), comparison.assessment().reason);
+    }
+}
+
+#[test]
+fn helper_inputs_preserve_native_matching_profile_rejection() {
+    let facts = native_facts();
+    let graph = admitted(Some("context-a"));
+    let mut other_profile = admitted(Some("context-a"));
+    other_profile.matching_profile = rstyle_ccgraph::MatchingProfile::ScalarV1;
+    let comparison = compare(
+        &Endpoint::from_native(&graph, &facts),
+        &Endpoint::from_native(&other_profile, &facts),
+    );
+    let unavailable = comparison.helper_inputs().unwrap_err();
+    assert_eq!(unavailable.coverage, Coverage::Unsupported);
+    assert_eq!(Some(unavailable.reason), comparison.assessment().reason);
+    assert!(unavailable.reason.contains("context"));
+}
+
+fn operator_facts(inner_operator: &str) -> HirFnFacts {
+    let inner = binary(inner_operator, read(10, 1), literal(11, "1"));
+    let mut outer = binary("*", inner, literal(12, "2"));
+    outer.hir.local = 200;
+    facts(outer)
+}
+
+#[test]
+fn helper_policy_rejects_completed_operator_and_shape_holes() {
+    let left_facts = operator_facts("+");
+    let operator = operator_facts("-");
+    let mut shape = operator_facts("+");
+    shape.body.children.swap(0, 1);
+    let graph = admitted(Some("context"));
+    let left = Endpoint::from_native(&graph, &left_facts);
+    for changed in [&operator, &shape] {
+        let right = Endpoint::from_native(&graph, changed);
+        let comparison = compare(&left, &right);
+        assert_eq!(comparison.assessment().coverage, Coverage::Complete);
+        let helper = super::super::helpers::evaluate(&comparison);
+        assert_eq!(helper.outcome, super::super::Outcome::EvaluatedNoFinding);
+        assert!(helper.proposal.is_none());
+        assert!(helper.reasons[0].contains("formal roles, operators or subtree shapes"));
+    }
+}

@@ -24,7 +24,8 @@ use std::{
 };
 
 #[derive(ClapArgs, Serialize)]
-#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses"]).multiple(true)))]
+#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses"]).multiple(true)),
+    group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals"]).multiple(true)))]
 pub struct Args {
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
     #[arg(long, default_value = "r0", value_parser = rstyle_pdg::extraction_profile::ExtractionProfile::select)]
@@ -50,6 +51,9 @@ pub struct Args {
     /// Explain ordered native scalar differences in accepted pairs; incomplete explanations exit 2.
     #[arg(long)]
     explain_pairs: bool,
+    /// Propose bounded u32 expression helpers; includes native pair explanations. Advisory only.
+    #[arg(long)]
+    helper_proposals: bool,
     /// Evaluate source length and signature arity independently of graph admission.
     #[arg(long)]
     source_rules: bool,
@@ -59,8 +63,8 @@ pub struct Args {
     /// TOML source-rule policy (fn_length/fn_params only); distinct from legacy configuration.
     #[arg(long, requires = "source_rules")]
     analysis_config: Option<PathBuf>,
-    /// Exit 1 when requested local analyses find opportunities; incomplete analysis exits 2.
-    #[arg(long, requires = "local_analysis")]
+    /// Exit 1 when requested analyses find opportunities; incomplete analysis exits 2.
+    #[arg(long, requires = "finding_analysis")]
     fail_on_findings: bool,
     /// Bound local rule work; remaining functions are explicitly not evaluated.
     #[arg(long, requires = "local_analysis")]
@@ -307,13 +311,15 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     let output = report.publish(cli.format, accepted)?;
     let code = if !complete
         || !report.analysis.permits_success()
-        || !report.pair_explanations.permits_success()
+        || !report.pair_reports.permits_success()
     {
         2
     } else {
         u8::from(
             (args.fail_on_accepted_pairs && accepted > 0)
-                || (args.fail_on_findings && report.analysis.findings > 0),
+                || (args.fail_on_findings
+                    && (report.analysis.findings > 0
+                        || report.pair_reports.helper_proposals.findings > 0)),
         )
     };
 

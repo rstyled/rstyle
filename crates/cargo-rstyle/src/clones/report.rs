@@ -39,7 +39,8 @@ struct Scope<'a> {
 
 #[derive(Serialize)]
 pub struct Report<'a> {
-    pub pair_explanations: super::analysis::pair_reports::Report<'a>,
+    #[serde(flatten)]
+    pub pair_reports: super::analysis::pair_reports::Reports<'a>,
     pub analysis: super::analysis::Report<'a>,
     report_detail: Detail,
     scope: Scope<'a>,
@@ -114,7 +115,7 @@ pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
     let scope = selected_scope(&ctx);
 
     Ok(Report {
-        pair_explanations: ctx.pair_explanations()?,
+        pair_reports: ctx.pair_reports()?,
         analysis: ctx.local_analysis(),
         report_detail: ctx.args.report_detail,
         verification_policy: if ctx.args.replay_run.is_some() {
@@ -166,12 +167,15 @@ impl<'a> Context<'a> {
         super::analysis::evaluate(self.handoff, self.capture, self.analysis_config, self.args)
     }
 
-    fn pair_explanations(&self) -> Result<super::analysis::pair_reports::Report<'a>, String> {
+    fn pair_reports(&self) -> Result<super::analysis::pair_reports::Reports<'a>, String> {
         super::analysis::pair_reports::evaluate(
             self.handoff,
             self.matching,
-            self.args.explain_pairs,
-            self.complete,
+            super::analysis::pair_reports::Requests {
+                explain: self.args.explain_pairs,
+                helpers: self.args.helper_proposals,
+                matching_complete: self.complete,
+            },
         )
     }
 }
@@ -222,7 +226,7 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
     format!(
         "{summary}{pairs}{}{}",
         report.analysis.render(),
-        report.pair_explanations.render()
+        report.pair_reports.render()
     )
 }
 

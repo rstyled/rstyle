@@ -1,10 +1,36 @@
 //! Optional explanations over accepted pairs; matching authority stays separate.
-use super::{Coverage, Execution, pair_differences as native};
+use super::{Coverage, Execution, helper_reports, helpers, pair_differences as native};
 use crate::clones::Handoff;
 use rstyle_ccgraph::{Decision, RunReport};
 use rstyle_pdg::{ByteSpan, HirNode, HirRef};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
+
+#[derive(Serialize)]
+pub(crate) struct Reports<'a> {
+    pub pair_explanations: Report<'a>,
+    pub helper_proposals: helper_reports::Report<'a>,
+}
+
+pub(in crate::clones) struct Requests {
+    pub explain: bool,
+    pub helpers: bool,
+    pub matching_complete: bool,
+}
+
+impl Reports<'_> {
+    pub(crate) fn permits_success(&self) -> bool {
+        self.pair_explanations.permits_success() && self.helper_proposals.permits_success()
+    }
+
+    pub(crate) fn render(&self) -> String {
+        format!(
+            "{}{}",
+            self.pair_explanations.render(),
+            self.helper_proposals.render()
+        )
+    }
+}
 
 #[derive(Serialize)]
 pub(crate) struct Report<'a> {
@@ -70,14 +96,30 @@ impl<'a> From<&'a HirNode> for Node<'a> {
 pub(in crate::clones) fn evaluate<'a>(
     handoff: &'a Handoff,
     matching: &'a RunReport,
-    requested: bool,
-    matching_complete: bool,
-) -> Result<Report<'a>, String> {
-    let pairs = if requested {
-        explain_accepted(handoff, matching)?
+    requests: Requests,
+) -> Result<Reports<'a>, String> {
+    let requested = requests.explain || requests.helpers;
+    let compared = if requested {
+        explain_accepted(handoff, matching, requests.helpers)?
     } else {
         Vec::new()
     };
+    let (pairs, helpers): (Vec<_>, Vec<_>) = compared.into_iter().unzip();
+    let helper_proposals = helper_reports::summarize(
+        helpers.into_iter().flatten().collect(),
+        handoff,
+        requests.helpers,
+        requests.matching_complete,
+    );
+    let pair_explanations = summarize(pairs, requested, requests.matching_complete);
+
+    Ok(Reports {
+        pair_explanations,
+        helper_proposals,
+    })
+}
+
+fn summarize<'a>(pairs: Vec<Pair<'a>>, requested: bool, matching_complete: bool) -> Report<'a> {
     let complete_pairs = pairs
         .iter()
         .filter(|pair| pair.coverage == native::Coverage::Complete)
@@ -93,7 +135,7 @@ pub(in crate::clones) fn evaluate<'a>(
         );
     }
 
-    Ok(Report {
+    Report {
         schema: "rstyle.native-pair-differences/1",
         execution: execution(&pairs, requested),
         coverage: if complete {
@@ -108,7 +150,7 @@ pub(in crate::clones) fn evaluate<'a>(
         reasons,
         pairs,
         claim: "Ordered native scalar differences do not establish equivalence or safe refactoring.",
-    })
+    }
 }
 
 fn execution(pairs: &[Pair<'_>], requested: bool) -> Execution {
@@ -124,10 +166,13 @@ fn execution(pairs: &[Pair<'_>], requested: bool) -> Execution {
     }
 }
 
+type Compared<'a> = (Pair<'a>, Option<helper_reports::Pair<'a>>);
+
 fn explain_accepted<'a>(
     handoff: &'a Handoff,
     matching: &'a RunReport,
-) -> Result<Vec<Pair<'a>>, String> {
+    helpers_requested: bool,
+) -> Result<Vec<Compared<'a>>, String> {
     let endpoints = endpoints(handoff, matching)?;
     matching
         .pairs
@@ -140,26 +185,36 @@ fn explain_accepted<'a>(
             let right = endpoints
                 .get(pair.second.as_str())
                 .ok_or_else(|| format!("Missing admitted endpoint {}", pair.second))?;
-            let result = native::explain(left, right);
-            Ok(Pair {
+            let comparison = native::compare(left, right);
+            let helper = helpers_requested.then(|| helper_reports::Pair {
                 first: &pair.first,
                 second: &pair.second,
-                coverage: result.coverage,
-                correspondence: result.correspondence,
-                holes: result
-                    .holes
-                    .into_iter()
-                    .map(|hole| Hole {
-                        kind: hole.kind,
-                        role: hole.role,
-                        left: hole.left.into(),
-                        right: hole.right.into(),
-                    })
-                    .collect(),
-                reason: result.reason,
-            })
+                assessment: helpers::evaluate(&comparison),
+            });
+            let result = comparison.into_assessment();
+            Ok((export(pair, result), helper))
         })
         .collect()
+}
+
+fn export<'a>(pair: &'a rstyle_ccgraph::PairRecord, result: native::Assessment<'a>) -> Pair<'a> {
+    Pair {
+        first: &pair.first,
+        second: &pair.second,
+        coverage: result.coverage,
+        correspondence: result.correspondence,
+        holes: result
+            .holes
+            .into_iter()
+            .map(|hole| Hole {
+                kind: hole.kind,
+                role: hole.role,
+                left: hole.left.into(),
+                right: hole.right.into(),
+            })
+            .collect(),
+        reason: result.reason,
+    }
 }
 
 fn endpoints<'a>(

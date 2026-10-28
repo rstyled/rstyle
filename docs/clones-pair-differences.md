@@ -34,5 +34,5 @@ text reports summarize coverage and hole counts.
 Complete coverage means the bounded tree comparison completed. An empty hole
 list means no differences under this contract. Neither result proves semantic
 equivalence, usefulness of a helper, purity, or safety of a rewrite. Strict
-matching decisions and scores are unchanged. Helper proposals and persistent
-review remain separate migration work.
+matching decisions and scores are unchanged. Opt-in [helper proposals](clones-helper-proposals.md) consume this evidence
+under a separate usefulness policy. Persistent review remains migration work.

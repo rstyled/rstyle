@@ -21,6 +21,8 @@ Clones also offers opt-in [source and signature rules](docs/clones-source-rules.
 whose evidence remains usable when a body is excluded from strict matching.
 Optional [native pair explanations](docs/clones-pair-differences.md) show ordered
 scalar differences with separate coverage through `--explain-pairs`.
+Bounded [helper proposals](docs/clones-helper-proposals.md) use that evidence
+with `--helper-proposals` to suggest useful scalar-expression abstractions.
 
 Other top-level folders:
 

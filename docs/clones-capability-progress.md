@@ -32,9 +32,9 @@ Heavy captures and integrated gates run serially.
 | C04 | Local + lead / source rules and opt-in CLI | delivered (checkpoint) | `644151d` | Length/parameters with separate availability, execution, scope and outcomes | Five leaf tests, six source-rule CLI cases; live labeled corpus agrees; both legacy gates and full tests pass |
 | C05 | Acceptance + lead / comparison | delivered (bounded comparison) | `3e1f4c9` | Compare same-scope legacy/new results against independent labels | Fifteen Python tests and actual serial captures: ten evaluated agreements; explicit unavailable/context/regression classifications |
 | C06 | Local + lead / guards and independent opt-in | delivered (checkpoint) | `115cd07` | Bounded advisory guard opportunities | Seven unit and five real-Cargo CLI cases; graph-excluded callee does not gate advice; full checkpoint passes |
-| C07 | Pair + lead / native differences, opt-in CLI/report | delivered (checkpoint) | this C07 implementation commit | Ordered native correspondence and differences in accepted strict pairs | Thirteen native unit and three real-Cargo CLI cases; literal/formal roles, context/width, whole-tree rejection and budgets; matching unchanged |
-| C08 | Pair / helper proposals | ready (independent labels frozen) | acceptance-preparation commit | Parameterized helper proposals with counter-evidence | Eight source-authored cases in `proposal-review-cases.json`; depends on C07; labels are not implementation evidence |
-| C09 | Acceptance + lead / versioned review | ready (independent labels frozen) | acceptance-preparation commit | Persistent review separate from report handles | Nine lifecycle/collision/context cases prepared; no review implementation claimed |
+| C07 | Pair + lead / native differences, opt-in CLI/report | delivered (checkpoint) | `63ef4c5` | Ordered native correspondence and differences in accepted strict pairs | Thirteen native unit and three real-Cargo CLI cases; literal/formal roles, context/width, whole-tree rejection and budgets; matching unchanged |
+| C08 | Pair + acceptance + lead / native helper consumer, CLI/report | delivered (checkpoint) | this C08 implementation commit | Advisory u32 expression helper pairs with literal arguments, ordered evidence and explicit prerequisites | All eight frozen cases pass real-Cargo tests and retained live captures; nineteen native/consumer unit cases plus ten CLI cases; no inferred groups or safe-rewrite claim |
+| C09 | Acceptance + lead / versioned review | ready (independent labels frozen) | `6d901d7` | Persistent review separate from report handles | Nine lifecycle/collision/context cases prepared; no review implementation claimed |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
@@ -135,6 +135,53 @@ never infer an all-member group from connected pair edges. The eight frozen
 proposal labels remain requirements, not implemented behavior. Versioned review,
 quality/effects, saved standalone reevaluation and planning remain required;
 legacy consumers are not retired.
+
+## Helper-proposal checkpoint (2026-10-28)
+
+`--helper-proposals` includes native explanations and adds a separate versioned
+helper report. The fixed initial policy requires exclusively u32 signatures and
+expression nodes, two builtin operations per member and at most one literal hole.
+Proposals retain ordered formal positions, member roots, operation counts and
+source-backed literal arguments; common literals are not promoted to parameters.
+Forwarding, small bodies and changed formal roles/operators/shapes remain
+explicit negatives. Unknown calls and writes retain their original unavailable
+owner rows; findings can coexist with incomplete coverage. Two connected pair
+proposals never imply a three-member proposal.
+
+Each immutable endpoint retains its completed/negative native proof and bounded
+width/u32/count summary. A privately constructed comparison binds those results
+to exact borrowed members before helper evaluation; no graph copies, repeat
+admission or hashes were added. Default helper analysis remains not requested;
+complete findings use opt-in exit one and incomplete scope takes exit two.
+Legacy configuration, suppressions, review entries and strict decisions stay
+independent, and no legacy capability is retired.
+
+All nineteen native/consumer unit cases and ten real-Cargo CLI cases pass in the
+full checkpoint: 2,398 nextest tests, five skipped, doc tests pass; nextest runtime
+158.751 seconds. Formatting, workspace/all-target Clippy, zero legacy style
+violations across 8,294 functions and the reviewed pattern gate pass. The new
+empty/single literal argument representation follows the fixed one-hole policy;
+no ignores or thresholds changed. Logs are retained at
+`/tmp/clones-migration-c08-{tests,clippy,style,patterns}.*`, with separate
+`patterns-unfiltered.{json,log}` comparison evidence.
+
+All eight frozen proposal cases also pass fresh offline/locked captures retained
+in `/tmp/clones-migration-c08-live`: original sources/manifests/lockfiles, exact
+commands, reports, stderr, exit status, elapsed time and owning evidence bundles.
+`results.json` identifies the precommit C08 checkpoint rather than claiming that
+the older base revision contained the new consumer. Positive cases each produce
+one proposal; negative cases produce zero with complete scope; call/write cases
+remain incomplete and exit two. The nontransitive case produces exactly two pair
+findings over three independently evaluated accepted pairs. Linux aarch64 only;
+macOS and exact Go comparisons remain unverified.
+
+Next is versioned review with full exact locator/context/expression membership,
+separate from navigation and report handles. Original free-function ownership and
+captured effective build settings provide the first ready identity route;
+ordinal/ambiguous/generated locators must remain explicitly unavailable. The
+standalone saved-run replay gap can also advance independently by reusing saved
+Cargo/plan/unit reconciliation and existing strict import, without new trust
+flags. Neither later capability is delivered by this checkpoint.
 
 ## Hashing exceptions
 
