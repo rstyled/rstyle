@@ -28,9 +28,11 @@ does not supply type authority or graph admission. Inventory continues through s
 including unreachable statements. Labels, value breaks, while-let, inclusive
 ranges, arbitrary iterators and mutable range binders remain outside this scope.
 
-This extension applies to the direct mutation-rule inventory. Conditional and
-loop call observations, helper-effect certification and parameter-use proofs retain their
-separate incomplete boundaries. An unsupported or unknown branch/loop operation
+This extension applies to the direct mutation-rule inventory. Ordinary call-roster
+and parameter-use proofs retain separate incomplete control-flow boundaries.
+The explicit `--mutation-effects` consumer also observes checked static control
+sites under its own summary contract (see `clones-mutation-effects.md`).
+An unsupported or unknown branch/loop operation
 cannot turn into a complete clean inventory, even if other sites are witnessed.
 
 Use an explicit TOML policy with `--mutation-config FILE`:

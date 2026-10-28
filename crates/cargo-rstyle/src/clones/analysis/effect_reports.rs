@@ -85,6 +85,7 @@ pub(in crate::clones) fn evaluate<'a>(
             "Caller-visible scalar mutation only; no purity, panic freedom, termination, density or rewrite-safety claim.",
             "Original same-unit nongeneric scalar helpers through at most two call edges; deeper or incomplete summaries, unsupported signatures and arguments remain incomplete.",
             "Direct assignment sites and distinct summarized call occurrences are separate; witnesses describe syntax, never runtime frequency.",
+            "Checked ordinary branches and primitive loops retain original sites once; unsupported controls and aliases remain incomplete, and formal-use certification is separate.",
         ],
     };
     if args.mutation_effects {

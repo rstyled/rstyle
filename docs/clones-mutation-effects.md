@@ -18,6 +18,24 @@ nontrivial owned values remain incomplete. Checked direct witnesses in an
 assessed function survive an unknown remainder; an incomplete wrapper cannot
 supply a complete summary.
 
+Checked ordinary `if`/`else`, unlabelled `loop`, primitive boolean `while` and
+half-open `u32` `for` bodies retain original call and assignment sites once.
+Both arms contribute distinct source occurrences; false conditions and empty
+ranges still retain authored sites. Original condition/head/binder/body and
+transfer correspondence use the direct inventory's existing checks. Immutable
+scalar and wildcard range binders retain lexical scopes. A shadowed local
+assignment does not invalidate an unrelated mutable formal with the same name.
+Initializer expressions are visited before introducing local shadowing, and
+range endpoints before introducing loop binders. Reference redirection, macros,
+raw references and other opaque operations retain conservative boundaries.
+
+This explicit effect observation does not change ordinary call-roster or formal-use
+certification. Conditional operand calls, pattern conditions, labels, value breaks,
+inclusive ranges, arbitrary iterators and mutable range binders remain incomplete.
+Neither branch selection nor iteration multiplies static sites or establishes
+execution frequency. A complete summary still requires all observed original
+calls to resolve within the existing two-edge bound and work budgets.
+
 The separate compiler `consumer_formal_types` observation records direct mutable
 builtin `u32` formal types. Source spelling and rendered compiler type names do
 not establish primitive referents. This observation supplies no graph admission,

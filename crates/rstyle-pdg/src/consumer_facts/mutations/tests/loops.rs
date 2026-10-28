@@ -8,7 +8,7 @@ fn original_span(source: &str, value: &impl Spanned) -> ByteSpan {
     crate::source_evidence::original_span(source, value.span())
 }
 
-fn loop_fixture(source: &str) -> HirFnFacts {
+pub(in crate::consumer_facts::mutations) fn loop_fixture(source: &str) -> HirFnFacts {
     let mut facts = fixture(source, &[]);
     let function: syn::ItemFn = syn::parse_str(source).unwrap();
     facts.signature.sig_span = crate::consumer_facts::header_span(source, &function);

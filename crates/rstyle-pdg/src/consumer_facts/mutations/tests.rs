@@ -5,7 +5,7 @@ use crate::{
 
 const SIMPLE: &str = "pub fn f(target:&mut u32){*target=1;}";
 
-fn span(source: &str, text: &str) -> ByteSpan {
+pub(super) fn span(source: &str, text: &str) -> ByteSpan {
     let start = source.find(text).unwrap() as u32;
     ByteSpan {
         start,
@@ -166,7 +166,7 @@ fn dispatch(op: &str, result: &str) -> Dispatch {
 }
 
 // Deliberately author native records separately from the consumer's traversal.
-fn fixture(source: &str, writes: &[&str]) -> HirFnFacts {
+pub(super) fn fixture(source: &str, writes: &[&str]) -> HirFnFacts {
     let mut facts: HirFnFacts = serde_json::from_str(include_str!(
         "../../nominal_boundary/resolution/selected/function_cleanup_tests/facts.json"
     ))
@@ -548,8 +548,8 @@ fn oversized_binding_inventory_is_bounded_before_building_the_index() {
     assert_eq!(result.coverage, Coverage::Incomplete);
 }
 
-mod conditional;
+pub(super) mod conditional;
 
-mod loops;
+pub(super) mod loops;
 
 mod policy;

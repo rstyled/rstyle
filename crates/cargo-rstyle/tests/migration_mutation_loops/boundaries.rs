@@ -74,7 +74,7 @@ fn loop_aliases_and_reference_redirection_do_not_restore_stale_borrowed_roots() 
 }
 
 #[test]
-fn direct_loop_counts_do_not_certify_effect_summaries_or_formal_use_coverage() {
+fn checked_loop_effects_leave_formal_use_coverage_incomplete() {
     let source = "pub fn many(first:u32,second:u32)->u32 { let mut value=first; for _ in 0u32..second { value=1; } value }\n";
     let directory = workspace(source);
     std::fs::write(
@@ -102,7 +102,11 @@ fn direct_loop_counts_do_not_certify_effect_summaries_or_formal_use_coverage() {
         },
     );
     assert_eq!(report["mutation_analysis"]["coverage"], "complete");
-    assert_eq!(report["mutation_effects"]["coverage"], "incomplete");
+    assert_eq!(report["mutation_effects"]["coverage"], "complete");
+    assert_eq!(
+        report["mutation_effects"]["functions"][0]["evidence"]["caller_visible_mutation"],
+        "none_proven"
+    );
     assert_eq!(report["parameter_planning"]["coverage"], "incomplete");
     assert_eq!(
         report["parameter_planning"]["caller_census"][0]["parameter_uses"]["coverage"],

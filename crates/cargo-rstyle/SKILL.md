@@ -259,6 +259,12 @@ selected negative can authorize pruning. Older review schemas remain readable.
 
 `clones --mutation-effects` uses schema `rstyle.mutation-effects/2` for original
 scalar writes through at most two same-unit call edges (`caller → wrapper → leaf`).
+Checked ordinary branches and primitive loops retain each original call/write
+site once, including mutually exclusive arms and zero-iteration bodies. Lexical
+shadowing keeps unrelated locals distinct from mutable formals. This explicit
+effect observation leaves ordinary call-roster/formal-use certification unchanged;
+unsupported control shapes, aliases and opaque work remain incomplete. No runtime
+frequency, purity or termination conclusion follows from complete static sites.
 Inspect `summary_site_index`, original write owner/site, `call_path` and projected
 `mapped_root` separately from direct assignment counts. Repeated paths remain
 distinct while completed summary proofs are reused. Third edges, recursion,

@@ -16,7 +16,7 @@ impl ConditionalPlan {
 
 impl Scan<'_> {
     pub(super) fn conditional_expression(&mut self, branch: &syn::ExprIf) -> Result<(), String> {
-        if self.calls.is_some() {
+        if self.calls.is_some() && !self.effect_controls {
             self.conditional_calls(branch)
         } else {
             self.direct_conditional(branch)

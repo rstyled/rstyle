@@ -1,4 +1,5 @@
 use super::*;
+mod controls;
 
 fn labels(id: &str) -> Value {
     let cases: Value = serde_json::from_str(include_str!(

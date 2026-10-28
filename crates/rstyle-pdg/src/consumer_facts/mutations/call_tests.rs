@@ -256,7 +256,7 @@ fn fixture(source: &str) -> HirFnFacts {
     fixture.facts
 }
 
-fn ownership(facts: &mut HirFnFacts, source: &str) {
+pub(super) fn ownership(facts: &mut HirFnFacts, source: &str) {
     facts.build.frontend_options = Default::default();
     let mut context = crate::nominal_boundary::tests::context();
     context.package.manifest_digest = context.package.manifest_bytes.checksum().into();

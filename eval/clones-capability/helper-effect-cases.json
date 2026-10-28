@@ -3,7 +3,7 @@
   "status": "frozen-independent-requirements",
   "purpose": "Independent caller-visible scalar mutation effects and bounded original local scalar summaries; no purity, total effects, extraction or rewrite-safety permission.",
   "initial_scope": {
-    "callee": "Original same-selected-unit nongeneric free function leaf or one wrapper whose calls all resolve to complete call-free leaves; complete original signature and body; owned u32 inputs, optionally direct &mut u32 formals, u32/unit result; scalar local mutation and primitive expressions plus bounded checked calls only. No deeper calls, closures, aliases, drop-bearing values, unsafe or expansion.",
+    "callee": "Original same-selected-unit nongeneric free function leaf or one wrapper whose calls all resolve to complete call-free leaves; complete original signature and body; owned u32 inputs, optionally direct &mut u32 formals, u32/unit result; scalar local mutation, primitive expressions, bounded checked calls and the declared bounded control-site extension only. No deeper calls, closures, aliases, drop-bearing values, unsafe or expansion.",
     "caller": "Exact direct call to checked leaf or one wrapper (at most two call edges), exact source/native argument roster; initial arguments limited to checked direct owned-u32 binding/literal reads or direct mutable formal forwarding. Opaque arguments remain unavailable.",
     "effect_axis": [
       "none_proven",
@@ -359,8 +359,42 @@
     "Real Cargo captured positive owned and borrowed leaf cases independent of strict admission.",
     "Source/native argument and root adversarial checks, not count-only snapshots.",
     "Call occurrences remain distinct with immutable leaf summary reuse.",
-    "Unknown external/indirect/drop/alias/control/cycle boundaries cannot produce a whole-function clean effect conclusion.",
+    "Unknown external/indirect/drop/alias/unsupported-control/cycle boundaries cannot produce a whole-function clean effect conclusion.",
     "Strict retained replay without tools/tree.",
     "No legacy effects/density retirement or full C11 completion claim."
-  ]
+  ],
+  "bounded_controls": {
+    "scope": "Ordinary unexpanded if/else, unlabelled loop, primitive bool while, primitive half-open u32 for with immutable/wildcard binders. Existing source/native condition/head/binder/body/transfer joins and bounded scalar signatures remain required.",
+    "sites": "Each authored call/write site counted once, including mutually exclusive arms, zero/false loops and source after plain transfers. No runtime frequency or termination conclusion.",
+    "independent_expectations": [
+      {
+        "id": "branch-and-loop-leaf",
+        "source": "fn leaf(target:&mut u32,value:u32){if value==0 {*target=1;} else {*target=2;} while value<0 {*target=3;} loop {*target=4;break;} for index in 0u32..0u32 {*target=index;}}",
+        "direct_sites": 5,
+        "formal_roots": 1
+      },
+      {
+        "id": "conditional-wrapper",
+        "source": "fn wrapper(target:&mut u32,value:u32){if value==0 {leaf(target,value);} else {leaf(target,value);}}",
+        "call_occurrences": 2,
+        "shared_leaf_summaries": 1,
+        "mapped_site_occurrences": 10
+      },
+      {
+        "id": "shadowed-owned-local",
+        "source": "pub fn caller(target:&mut u32){{let mut target=0u32;target=2;} *target=3;}",
+        "direct_sites": 2,
+        "caller_visible_roots": 1,
+        "reason": "A shadow-local assignment does not redirect the unrelated mutable formal."
+      }
+    ],
+    "boundaries": "Conditional operand calls, pattern conditions, labels, value breaks, inclusive ranges, custom iterators, mutable range binders, aliases, reference redirection and opaque work remain incomplete. Formal-use and ordinary call-roster behavior do not gain effect permission.",
+    "gates": [
+      "two-edge composition and third-edge rejection",
+      "missing/resealed native control correspondence",
+      "lexical root and shadow scopes",
+      "source/tool-free strict full/compact replay",
+      "work budgets retain unknown outcomes"
+    ]
+  }
 }

@@ -3,6 +3,8 @@
 #[cfg(test)]
 mod call_tests;
 mod calls;
+#[cfg(test)]
+mod effect_control_tests;
 mod model;
 mod native;
 mod policy;
@@ -26,6 +28,20 @@ pub fn inspect_calls(facts: &HirFnFacts) -> Result<Observations, String> {
         Request {
             calls: true,
             uses: false,
+            effect_controls: false,
+        },
+    )
+}
+
+/// Observe original static call/write sites through checked scalar control flow.
+/// This does not certify formal uses or how often any site executes.
+pub fn inspect_effect_calls(facts: &HirFnFacts) -> Result<Observations, String> {
+    observe(
+        facts,
+        Request {
+            calls: true,
+            uses: false,
+            effect_controls: true,
         },
     )
 }
@@ -37,6 +53,7 @@ pub fn inspect_calls_with_uses(facts: &HirFnFacts) -> Result<Observations, Strin
         Request {
             calls: true,
             uses: true,
+            effect_controls: false,
         },
     )?;
     if matches!(&observed.uses.availability, Availability::Unknown { reason } if reason == "Formal use inventory was not requested")
@@ -56,6 +73,7 @@ pub fn inspect_calls_with_uses(facts: &HirFnFacts) -> Result<Observations, Strin
 pub(super) struct Request {
     pub calls: bool,
     pub uses: bool,
+    pub effect_controls: bool,
 }
 
 fn observe(facts: &HirFnFacts, request: Request) -> Result<Observations, String> {

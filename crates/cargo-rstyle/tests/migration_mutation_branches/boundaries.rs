@@ -53,7 +53,7 @@ fn checked_writes_before_an_unknown_branch_preserve_a_lower_bound_breach() {
 }
 
 #[test]
-fn completed_direct_branches_do_not_certify_conditional_effects_or_formal_uses() {
+fn checked_branch_effects_do_not_certify_formal_uses() {
     let source = "pub fn many(first:u32,second:u32)->u32 { let mut value=first; if second>0 { value=1; } else { value=2; } value }\n";
     let directory = workspace(source);
     std::fs::write(
@@ -81,7 +81,11 @@ fn completed_direct_branches_do_not_certify_conditional_effects_or_formal_uses()
         },
     );
     assert_eq!(report["mutation_analysis"]["coverage"], "complete");
-    assert_eq!(report["mutation_effects"]["coverage"], "incomplete");
+    assert_eq!(report["mutation_effects"]["coverage"], "complete");
+    assert_eq!(
+        report["mutation_effects"]["functions"][0]["evidence"]["caller_visible_mutation"],
+        "none_proven"
+    );
     assert_eq!(report["parameter_planning"]["coverage"], "incomplete");
     let uses = &report["parameter_planning"]["caller_census"][0]["parameter_uses"];
     assert_eq!(uses["coverage"], "incomplete");

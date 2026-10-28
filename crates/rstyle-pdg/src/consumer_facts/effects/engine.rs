@@ -178,7 +178,7 @@ impl<'a> Session<'a> {
         }
 
         self.work.statistics.observations += 1;
-        let result = mutations::inspect_calls(facts).map(|observed| {
+        let result = mutations::inspect_effect_calls(facts).map(|observed| {
             if self.work.retain(&observed, self.limits) {
                 Some(observed)
             } else {

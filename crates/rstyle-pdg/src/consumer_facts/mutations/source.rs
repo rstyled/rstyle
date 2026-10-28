@@ -62,6 +62,7 @@ pub(super) fn observe_with_signature(
         loop_targets: Vec::new(),
         calls: request.calls.then(Vec::new),
         uses: request.uses.then(super::uses::Scan::new),
+        effect_controls: request.effect_controls,
     };
 
     scan.signature(&function)?;
@@ -299,6 +300,7 @@ struct Scan<'a> {
     never_controls: BTreeSet<(u32, u32, u32)>,
     calls: Option<Vec<super::Call>>,
     uses: Option<super::uses::Scan>,
+    effect_controls: bool,
 }
 
 impl Scan<'_> {
@@ -725,7 +727,10 @@ impl Scan<'_> {
     }
 
     fn structured_expression(&mut self, expression: &Expr) -> Result<bool, String> {
-        if self.calls.is_none() && self.uses.is_none() && self.loop_expression(expression)? {
+        if self.uses.is_none()
+            && (self.calls.is_none() || self.effect_controls)
+            && self.loop_expression(expression)?
+        {
             return Ok(true);
         }
         if (self.calls.is_some() || self.uses.is_none())
@@ -1702,6 +1707,7 @@ fn compound_builtin(node: &HirNode, expression: &Expr) -> bool {
 struct Poison {
     names: BTreeSet<String>,
     opaque_references: bool,
+    shadows: Vec<BTreeSet<String>>,
 }
 
 impl Poison {
@@ -1709,7 +1715,9 @@ impl Poison {
         match transparent(expression) {
             Expr::Path(path) => {
                 if let Some(name) = plain_path(path) {
-                    self.names.insert(name);
+                    if !self.shadows.iter().rev().any(|scope| scope.contains(&name)) {
+                        self.names.insert(name);
+                    }
                 } else {
                     self.opaque_references = true;
                 }
@@ -1720,6 +1728,32 @@ impl Poison {
                 {}
             _ => self.opaque_references = true,
         }
+    }
+
+    fn shadow(&mut self, pattern: &Pat) {
+        let mut names = PatternNames::default();
+        names.visit_pat(pattern);
+        self.opaque_references |= names.opaque;
+        if let Some(scope) = self.shadows.last_mut() {
+            scope.extend(names.names);
+        }
+    }
+
+    fn for_head(&mut self, syntax: &syn::ExprForLoop) {
+        for attribute in &syntax.attrs {
+            self.visit_attribute(attribute);
+        }
+        self.visit_expr(&syntax.expr);
+        self.visit_pat(&syntax.pat);
+    }
+
+    fn shadowed_block(&mut self, pattern: &Pat, block: &syn::Block) {
+        let mut names = PatternNames::default();
+        names.visit_pat(pattern);
+
+        self.shadows.push(names.names.into_iter().collect());
+        self.visit_block(block);
+        self.shadows.pop();
     }
 }
 
@@ -1751,6 +1785,23 @@ impl<'ast> Visit<'ast> for PatternNames {
 }
 
 impl<'ast> Visit<'ast> for Poison {
+    fn visit_block(&mut self, block: &'ast syn::Block) {
+        self.shadows.push(BTreeSet::new());
+        syn::visit::visit_block(self, block);
+        self.shadows.pop();
+    }
+
+    fn visit_local(&mut self, local: &'ast syn::Local) {
+        // Initializers and let-else divergence see the enclosing binding.
+        syn::visit::visit_local(self, local);
+        self.shadow(&local.pat);
+    }
+
+    fn visit_expr_for_loop(&mut self, syntax: &'ast syn::ExprForLoop) {
+        self.for_head(syntax);
+        self.shadowed_block(&syntax.pat, &syntax.body);
+    }
+
     fn visit_attribute(&mut self, _: &'ast syn::Attribute) {
         self.opaque_references = true;
     }

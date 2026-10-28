@@ -1566,3 +1566,48 @@ evidence for explicit boundaries, not whole-project clean or retirement evidence
 Next ready work is broader effect/density and project-quality contracts. The full
 migration remains active; legacy retirement, native macOS and external Go
 comparison remain unverified. Main/PR19 has not been merged into this branch.
+
+## C11i: checked control sites in scalar effect summaries
+
+Extended the explicit scalar mutation-effect observation with the direct
+inventory's checked ordinary branches and primitive loops. Original call and
+write sites appear once, including mutually exclusive arms, false while/empty
+range bodies and source after plain transfers. Leaf/wrapper summaries preserve
+original write ownership, distinct call paths and projected lexical roots under
+the existing two-edge/work bounds. Unsupported controls, aliases, reference
+redirection, opaque operations and missing native correspondence remain explicit
+boundaries. This gives no runtime frequency, purity, termination or density claim.
+
+A separate effect-control request leaves ordinary call-roster and formal-use
+certification conservative. A live acceptance case found that name-only reference
+poisoning confused a shadowed scalar local with an unrelated mutable formal.
+The scan now tracks original lexical block/for-binder shadow scopes, visiting
+initializers and range endpoints before installing new bindings. Reference
+redirection after a shadow scope and in an initializer still poisons the formal;
+macros, raw references and opaque work retain the existing conservative behavior.
+No hashes, graph permissions, ignores, threshold changes or larger budgets added.
+
+Four low-level and six live/replay cases cover original control joins and resealed
+contradictions, site counts, summary reuse, shadowed roots, call paths, unsupported
+remainders, omitted owners, depth limits and source/tool-free strict full/compact
+replay. Independent control requirements extend the frozen helper-effect corpus.
+Focused validation passes all 149 mutation/effect and branch/loop boundary tests.
+Older direct-inventory tests now explicitly require complete scalar effects while
+retaining incomplete formal-use coverage and exit 2 for the combined request.
+A separate locked compact `hir-data-v3 --mutation-effects` capture over the frozen
+three-function control corpus completes all three owners: five leaf-write sites,
+two conditional wrapper calls and one caller call.
+
+Integrated validation: all 3,023 nextest tests pass (five skipped) in 192.622
+seconds, plus doc tests. Both originally reported NonZero regressions and the u32
+widening reader pass. Clippy with warnings denied, formatting and diff checks
+pass. Legacy style reports zero violations across 9,274 functions; reviewed
+patterns passes with zero candidates, and unfiltered discovery retains exactly
+the fifteen C11h baseline IDs. All 56 migration comparison and 50 auxiliary script
+tests pass. Logs and reports are under `/tmp/clones-effect-controls-*`. Runtime is
+checkpoint evidence, not a measured speedup claim.
+
+Next ready work remains a complete bounded event/statement contract for density
+and broader project-quality reporting. This extension does not retire legacy
+effects or establish full C11 completion; native macOS and external Go comparison
+remain unverified.
