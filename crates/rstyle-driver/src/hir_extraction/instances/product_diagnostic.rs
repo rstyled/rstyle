@@ -3,6 +3,7 @@ mod conversions;
 mod projection;
 
 use super::super::{Options, function_source, hir::Context, source};
+use super::diagnostic_support::ArgumentsProjection;
 use super::{diagnostic_support, types};
 use rstyle_pdg::{HirFnFacts, HirNode};
 use rustc_hir::{self as hir, def::DefKind, def_id::LocalDefId};

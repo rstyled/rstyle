@@ -1,6 +1,7 @@
 //! Owning reference-instance observations, never an admission or lifetime proof.
 mod association;
 use super::super::{Options, function_source, hir::Context, source};
+use super::diagnostic_support::ArgumentsProjection;
 use super::{
     borrowed_operations, definition_record, diagnostic_support, reference_owners,
     types::{self, endpoint},

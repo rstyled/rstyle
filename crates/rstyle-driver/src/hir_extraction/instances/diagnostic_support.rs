@@ -1,8 +1,17 @@
 //! Shared diagnostic mechanics; callers retain their owner and publication scopes.
 use rustc_hir::{self as hir, def::DefKind, def_id::LocalDefId};
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::ty::{GenericArgsRef, TyCtxt};
 use serde::Serialize;
 use std::{collections::BTreeMap, path::PathBuf};
+
+/// Project complete compiler arguments while retaining each diagnostic lens's policy.
+pub(super) trait ArgumentsProjection<'tcx> {
+    fn args(
+        &self,
+        tcx: TyCtxt<'tcx>,
+        original: GenericArgsRef<'tcx>,
+    ) -> Result<GenericArgsRef<'tcx>, String>;
+}
 
 pub(super) fn owners(tcx: TyCtxt<'_>, kinds: &[DefKind]) -> BTreeMap<String, Option<LocalDefId>> {
     let mut owners = BTreeMap::new();

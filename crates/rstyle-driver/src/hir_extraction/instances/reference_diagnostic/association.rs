@@ -1,4 +1,5 @@
 //! Exact outer trait selection; this observation grants no body or effect proof.
+use super::super::diagnostic_support::ArgumentsProjection;
 use super::super::{
     Definition, comparisons, definition_record,
     reference_owners::{Projection, original},

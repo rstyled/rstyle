@@ -1,5 +1,5 @@
 //! Bounded compiler lens; erased regions provide no lifetime authority.
-use super::super::types;
+use super::super::{diagnostic_support::ArgumentsProjection, types};
 use rustc_hir::{
     HirId,
     def::DefKind,
@@ -76,17 +76,6 @@ impl<'tcx> Projection<'tcx> {
         })
     }
 
-    pub(in crate::hir_extraction::instances) fn args(
-        &self,
-        tcx: TyCtxt<'tcx>,
-        original: GenericArgsRef<'tcx>,
-    ) -> Result<GenericArgsRef<'tcx>, String> {
-        Ok(
-            super::super::projection::complete_arguments(tcx, self.normalize(tcx, original))?
-                .arguments,
-        )
-    }
-
     pub(in crate::hir_extraction::instances) fn select(
         &self,
         tcx: TyCtxt<'tcx>,
@@ -120,5 +109,18 @@ impl<'tcx> Projection<'tcx> {
                 "Reference substitution normalization failed".into()
             }
         })
+    }
+}
+
+impl<'tcx> ArgumentsProjection<'tcx> for Projection<'tcx> {
+    fn args(
+        &self,
+        tcx: TyCtxt<'tcx>,
+        original: GenericArgsRef<'tcx>,
+    ) -> Result<GenericArgsRef<'tcx>, String> {
+        Ok(
+            super::super::projection::complete_arguments(tcx, self.normalize(tcx, original))?
+                .arguments,
+        )
     }
 }
