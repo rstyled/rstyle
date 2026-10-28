@@ -13,6 +13,8 @@ import subprocess
 import sys
 import time
 import tomllib
+from dataclasses import dataclass
+from typing import Callable
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
@@ -74,7 +76,7 @@ def fixture_policy(policy):
             "exclude": configured["exclude"]}
 
 
-def roster(facts_file, legacy, workspace_root):
+def roster(facts_file, legacy, workspace_root, excluded_owner="excluded::over_both_limits"):
     facts = json.loads(facts_file.read_text())
     if not isinstance(facts, list) or not facts:
         raise ValueError("fresh legacy capture has no facts roster")
@@ -88,7 +90,7 @@ def roster(facts_file, legacy, workspace_root):
         result.append({"name": function["name"], "source_file": function["path"],
                        "line": function["line"], "excluded": excluded})
     excluded = [function for function in result if function["excluded"]]
-    expected_name = "excluded::over_both_limits"
+    expected_name = excluded_owner
     if len(excluded) != 1 or not (excluded[0]["name"] == expected_name
                                   or excluded[0]["name"].endswith("::" + expected_name)):
         raise ValueError("captured facts must retain the fixed excluded acceptance function")
@@ -97,12 +99,14 @@ def roster(facts_file, legacy, workspace_root):
     return result
 
 
-def commands(binary, manifest, policy):
+def commands(binary, manifest, policy, package="clones-capability-acceptance", analysis="source", new_policy=None):
     shared = [str(binary), "rstyle", "--manifest-path", str(manifest), "--package",
-              "clones-capability-acceptance", "--format", "json"]
+              package, "--format", "json"]
     old = shared + ["--config", str(policy)]
+    flags = (["--effect-density", "--effect-config"] if analysis == "density"
+             else ["--source-rules", "--analysis-config"])
     new = shared + ["clones", "--extraction-profile", "hir-data-v3", "--locked",
-                    "--report-detail", "compact", "--source-rules", "--analysis-config", str(policy)]
+                    "--report-detail", "compact"] + flags + [str(new_policy or policy)]
     return old, new
 
 
@@ -112,7 +116,32 @@ def fixture_inputs(manifest, policy, lockfile):
             manifest.parent / "src/spacing.rs")
 
 
-def run(args):
+@dataclass(frozen=True)
+class Fixture:
+    manifest: Path
+    policy: Path
+    expectations: Path
+    package: str
+    analysis: str
+    excluded_owner: str
+    policy_reader: Callable[[Path], dict]
+    inputs: tuple
+    comparator: Path
+    new_policy: Path | None = None
+    new_policy_reader: Callable[[Path], dict] | None = None
+
+
+def source_fixture():
+    manifest = HERE / "corpus/Cargo.toml"
+    policy = HERE / "analysis.toml"
+    return Fixture(manifest, policy, HERE / "expectations.json", "clones-capability-acceptance",
+                   "source", "excluded::over_both_limits", fixture_policy,
+                   fixture_inputs(manifest, policy, manifest.with_name("Cargo.lock")) +
+                   (HERE / "run_compare.py", HERE / "compare.py"), HERE / "compare.py")
+
+
+def run(args, fixture=None):
+    fixture = fixture or source_fixture()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     binary = args.binary.resolve()
@@ -120,13 +149,16 @@ def run(args):
     for executable in (binary, driver):
         if not executable.is_file():
             raise ValueError("missing prebuilt executable: " + str(executable))
-    manifest = HERE / "corpus/Cargo.toml"
-    policy = HERE / "analysis.toml"
-    effective_policy = fixture_policy(policy)
+    manifest = fixture.manifest
+    policy = fixture.policy
+    effective_policy = fixture.policy_reader(policy)
+    if fixture.new_policy is not None:
+        if fixture.new_policy_reader is None or fixture.new_policy_reader(fixture.new_policy) != effective_policy:
+            raise ValueError("legacy/new fixture effective policies differ")
     lockfile = manifest.parent / "Cargo.lock"
     lock_before = lockfile.read_bytes()
     package = tomllib.loads(manifest.read_text())
-    if package["package"]["name"] != "clones-capability-acceptance" or package.get("features"):
+    if package["package"]["name"] != fixture.package or package.get("features"):
         raise ValueError("runner expects fixed feature-free acceptance package")
     if list((manifest.parent / "src").glob("bin/*")) or (manifest.parent / "src/main.rs").exists():
         raise ValueError("legacy/new scope requires library-only fixture")
@@ -139,21 +171,21 @@ def run(args):
     capture(output, "cargo", ["cargo", "--version"], env, 10)
     snapshots = output / "inputs"
     snapshots.mkdir()
-    for source in fixture_inputs(manifest, policy, lockfile):
+    for source in fixture.inputs:
         target = snapshots / source.relative_to(HERE)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
     write_json(output / "executables.json", [{"path": str(path), "size": path.stat().st_size,
                                               "mtime_ns": path.stat().st_mtime_ns} for path in (binary, driver)])
-    old_command, new_command = commands(binary, manifest, policy)
+    old_command, new_command = commands(binary, manifest, policy, fixture.package, fixture.analysis, fixture.new_policy)
     legacy = json.loads(capture(output, "legacy", old_command, env, args.timeout, (0, 1)))
-    facts_file = output / "legacy-target/rstyle/facts/clones_capability_acceptance-lib.json"
-    functions = roster(facts_file, legacy, manifest.parent)
+    facts_file = output / ("legacy-target/rstyle/facts/" + fixture.package.replace("-", "_") + "-lib.json")
+    functions = roster(facts_file, legacy, manifest.parent, fixture.excluded_owner)
     new_env = controlled_environment(output / "new-target", toolchain, driver)
-    new = json.loads(capture(output, "new", new_command, new_env, args.timeout))
+    new = json.loads(capture(output, "new", new_command, new_env, args.timeout, (0, 2) if fixture.analysis == "density" else (0,)))
     if lockfile.read_bytes() != lock_before:
         raise ValueError("fixture lockfile changed during captures")
-    context = {"manifest": str(manifest), "package": "clones-capability-acceptance", "target": "lib",
+    context = {"manifest": str(manifest), "package": fixture.package, "target": "lib",
                "features": [], "profile": "dev", "toolchain": toolchain, "revision": revision,
                "policy": effective_policy}
     scope = {"legacy": {"context": context, "complete": True, "functions": functions},
@@ -163,15 +195,15 @@ def run(args):
     write_json(output / "scope.json", scope)
     write_json(output / "legacy.json", legacy)
     write_json(output / "new.json", new)
-    comparison = [sys.executable, str(HERE / "compare.py"), "--legacy", str(output / "legacy.json"),
+    comparison = [sys.executable, str(fixture.comparator), "--legacy", str(output / "legacy.json"),
                   "--new", str(output / "new.json"), "--scope", str(output / "scope.json"),
-                  "--expectations", str(HERE / "expectations.json"), "--output", str(output / "comparison.json")]
+                  "--expectations", str(fixture.expectations), "--output", str(output / "comparison.json")]
     capture(output, "compare", comparison, env, 10)
     return 0
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+def main(fixture=None, description=__doc__):
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--output", required=True, type=Path, help="new retained artifact directory")
     parser.add_argument("--binary", type=Path, default=ROOT / "target/debug/cargo-rstyle")
     parser.add_argument("--driver", type=Path, default=ROOT / "target/debug/rstyle-driver")
@@ -180,7 +212,7 @@ def main():
     if args.timeout < 1:
         parser.error("timeout must be positive")
     try:
-        return run(args)
+        return run(args, fixture)
     except (OSError, ValueError, RuntimeError) as error:
         print(str(error), file=sys.stderr)
         return 2

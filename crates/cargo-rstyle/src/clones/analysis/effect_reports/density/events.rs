@@ -1,4 +1,5 @@
 //! Static policy events. Unknown boundaries never become a numeric lower bound.
+mod retained;
 use rstyle_core::{config::EffectPaths, facts::EffectKind};
 use rstyle_pdg::{
     ByteSpan,
@@ -7,7 +8,13 @@ use rstyle_pdg::{
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
-pub(in super::super) type Cache = BTreeMap<usize, BTreeSet<EffectKind>>;
+pub(in super::super) type Cache = BTreeMap<CacheKey, Option<BTreeSet<EffectKind>>>;
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(in super::super) enum CacheKey {
+    Summary(usize),
+    Retained { owner: usize, remaining: u8 },
+}
 
 #[derive(Serialize)]
 pub(super) struct Inventory {
@@ -48,6 +55,7 @@ pub(super) fn inspect(
             session,
             paths,
             cache,
+            owner: assessment.function_index,
         },
     )?;
     let unresolved_boundaries: Vec<_> = (0..observed.direct.boundaries.len())
@@ -81,6 +89,7 @@ impl Inventory {
             session,
             paths,
             cache,
+            owner,
         } = context;
         let occurrences = observed
             .calls
@@ -94,6 +103,7 @@ impl Inventory {
                     checked: checked[index],
                     paths,
                     session,
+                    owner,
                 };
                 Ok(self
                     .call_events(input, cache)?
@@ -145,6 +155,7 @@ impl Inventory {
             checked,
             paths,
             session,
+            owner,
         } = input;
         if let Some(checked) = checked {
             self.checked_events(
@@ -154,6 +165,7 @@ impl Inventory {
                     checked: Some(checked),
                     paths,
                     session,
+                    owner,
                 },
                 checked,
                 cache,
@@ -161,19 +173,16 @@ impl Inventory {
             return Ok(true);
         }
 
-        if let Availability::Known(callee) = &call.resolved_callee
-            && !callee.local
-            && callee.safe
-            && matches!(callee.result_type.as_str(), "u32" | "unit" | "!")
-            && call.arguments.iter().all(|arg| {
-                matches!(
-                    arg.value,
-                    Availability::Known(mutations::ArgumentValue::OwnedU32)
-                )
-            })
-            && let Some(kind) = paths.classify(&callee.path)
+        if let Some(kinds) = (retained::Walker {
+            session,
+            paths,
+            cache,
+        })
+        .call_kinds(owner, index, 2)?
         {
-            self.push(kind, call.span, Some(index));
+            for kind in kinds {
+                self.push(kind, call.span, Some(index));
+            }
             return Ok(true);
         }
         self.push(EffectKind::Unknown, call.span, Some(index));
@@ -200,11 +209,13 @@ impl Inventory {
             self.push(EffectKind::Mutation, call.span, Some(index));
         }
         if let std::collections::btree_map::Entry::Vacant(entry) =
-            cache.entry(checked.summary_index)
+            cache.entry(CacheKey::Summary(checked.summary_index))
         {
-            entry.insert(summary_kinds(session, checked.summary_index, paths)?);
+            entry.insert(Some(summary_kinds(session, checked.summary_index, paths)?));
         }
-        let inherited = &cache[&checked.summary_index];
+        let inherited = cache[&CacheKey::Summary(checked.summary_index)]
+            .as_ref()
+            .unwrap();
         if let Some(kind) = call
             .target_path
             .as_deref()
@@ -240,12 +251,14 @@ fn check_boundary(
 }
 
 struct CallContext<'a, 'u> {
+    owner: usize,
     session: &'a effects::Session<'u>,
     paths: &'a EffectPaths,
     cache: &'a mut Cache,
 }
 
 struct CallInput<'a, 'u> {
+    owner: usize,
     index: usize,
     call: &'a mutations::Call,
     checked: Option<&'a effects::CallEvent>,

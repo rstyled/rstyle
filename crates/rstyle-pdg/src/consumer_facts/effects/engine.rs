@@ -112,6 +112,51 @@ impl<'a> Session<'a> {
         self.observations.get(&index)?.as_ref().ok()?.as_ref()
     }
 
+    /// Borrow an already observed local target without granting mutation summary authority.
+    /// The original bounded summary attempt must have completed without exhausting work.
+    /// An index grants no body/type authority: consumers must check retained signatures
+    /// and every original body boundary before deriving a complete result.
+    pub fn retained_local_callee(
+        &self,
+        caller: usize,
+        occurrence: usize,
+        depth: u8,
+    ) -> Result<Option<usize>, String> {
+        let Some(call) = self
+            .observations(caller)
+            .and_then(|owner| owner.calls.get(occurrence))
+        else {
+            return Ok(None);
+        };
+        let Availability::Known(target) = &call.target else {
+            return Ok(None);
+        };
+        let Some(&callee) = self.definitions.get(target.as_str()) else {
+            return Ok(None);
+        };
+        let facts = &self.unit.functions()[callee];
+
+        if call.target_path.as_deref() != Some(facts.name.as_str()) {
+            return Err(
+                "Effect selected callee identity contradicts its captured native path".into(),
+            );
+        }
+        let contexts = matches!(
+            (self.contexts.get(&caller), self.contexts.get(&callee)),
+            (Some(Availability::Known(left)), Some(Availability::Known(right))) if left == right
+        );
+        let completed = matches!(
+            self.completed.get(&(callee, QueryKind::Summary(depth))),
+            Some(Completed::Summary(Prepared { budget: false, .. }))
+        );
+        let owned = owned_scalar_arguments(facts, call);
+
+        Ok(
+            (contexts && completed && owned && self.observations(callee).is_some())
+                .then_some(callee),
+        )
+    }
+
     pub fn summaries(&self) -> &[Summary] {
         &self.summaries
     }
@@ -318,6 +363,22 @@ impl Prepared {
             reason: Some(reason.into()),
         }
     }
+}
+
+fn owned_scalar_arguments(facts: &HirFnFacts, call: &mutations::Call) -> bool {
+    facts.signature.params.len() <= 64
+        && facts.signature.params.len() == call.arguments.len()
+        && facts
+            .signature
+            .params
+            .iter()
+            .all(|parameter| parameter.ty.normalized.as_deref() == Some("u32"))
+        && call.arguments.iter().all(|argument| {
+            matches!(
+                argument.value,
+                Availability::Known(mutations::ArgumentValue::OwnedU32)
+            )
+        })
 }
 
 fn definitions(unit: &UnitStore) -> Result<BTreeMap<&str, usize>, String> {

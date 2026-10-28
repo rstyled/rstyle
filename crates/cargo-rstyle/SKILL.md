@@ -281,7 +281,11 @@ policy metric in `mutation_effects`. It shares completed scalar helper proofs,
 deduplicates direct escaped roots, counts each delegated write call once, and
 classifies configured non-mutation call paths through at most two edges. Safe
 external free calls need independent native identity/safety, owned-u32 arguments
-and unit/u32/never results. Unknown work prevents ratios and size exemptions even
+and unit/u32/never results. Retained same-unit helpers with original owned-u32
+parameters/arguments can propagate these classified events, with complete body
+boundary checks and no escaped direct writes. The external edge counts toward
+the two-edge bound; mutation-summary completeness remains independent.
+Unknown work prevents ratios and size exemptions even
 at weight zero. Complete counts use legacy weights/minima and checked milli
 arithmetic; `--fail-on-findings` uses visible density findings. Named density
 suppressions preserve raw measurements; explicit config exclusions preserve raw
@@ -301,3 +305,12 @@ Status/prune requires a selected completed numeric negative under the exact
 retained policy. Unknown, exempt, source-suppressed/excluded, unrequested and
 budget-limited owners cannot retire choices. Full/compact replay needs no live
 source or compiler tools. See `docs/clones-mutation-effects.md`.
+
+
+For independent density migration comparison after a pinned workspace build, run
+`python3 eval/clones-capability/run_density_compare.py --output NEW_DIRECTORY`.
+The ten-case source corpus checks exact events, source denominators, effective
+policy and visibility. Intentional metric differences have individual review
+reasons. Expected unknown cases stay outside the measured denominator and force
+`fully_complete: false`; successful acceptance does not establish clean project
+coverage or retire legacy style/patterns.

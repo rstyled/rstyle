@@ -1728,6 +1728,8 @@ been incorporated into this feature branch.
 
 ## C11l: saved numeric density reviews
 
+Committed as `c7d9e11` and pushed to `feature/rust-feature-coverage`.
+
 Lead owns CLI/report integration, review publication, schema and index seams;
 contract, workflow and acceptance workers supplied frozen leaf changes. Review
 store schema 7 adds `density_entries`, while schemas 1–6 remain readable without
@@ -1762,3 +1764,68 @@ Next ready work remains independent legacy/new density policy comparison over
 declared scopes and broader project coverage. No legacy capability is retired;
 native macOS and external Go comparison remain unverified. Main/PR19 is merged
 upstream but has not been incorporated into this feature branch.
+
+## C11m: density comparison and classified external helper propagation
+
+A ten-function independently authored density corpus now compares separate
+legacy/new captures under identical effective policy. The shared serial harness
+retains compiler/build context, explicit raw reports, captured legacy owner
+locations, commands/exits/timings, snapshots of source/config/labels/comparison
+code, and unchanged offline fixture lockfiles. Two configuration files express
+one policy: legacy explicitly accepts depth 2, while the new frontend fixes its
+two-edge bound and rejects a depth input field. Fully expanded weights, path
+lists and exclusions must match before capture and comparison.
+
+The initial comparison exposed an unimplemented accepted case: a known safe
+classified external call completed directly but could not propagate through one
+local helper. The case's expected result remained unchanged. Density now borrows
+already observed original local owners via a read-only Session index query,
+requiring exact definition/path/selected-context/owned-argument association and a
+completed nonbudget summary attempt. The density consumer separately requires a
+known original signature and complete body/call-boundary roster with no escaped
+direct write. Classification follows at most two total call edges, including the
+external edge. Checked mutation summaries remain independent; this extension
+cannot certify their unknown external bodies. Per-owner/depth kinds are borrowed
+from explicitly separated summary/retained cache key domains. No hashes,
+source/graph clones, new extraction permissions or budget changes are introduced.
+
+The comparator checks event distributions, source denominators, arithmetic,
+threshold/minimum policy, source suppression/exclusion and visible outcomes.
+Independent review confirms both intentional metric changes: repeated delegated
+mutation call occurrences and inherited classified-call occurrences remain
+separate in the new metric, while legacy deduplicates roots or inherited
+kind/label pairs. Legacy clean reports establish outcome agreement rather than
+an unpublished numeric value. The known unknown-call case is explicitly
+`expected-uncovered`, outside the measured denominator and never evaluated-clean.
+It forces `fully_complete: false` even when the acceptance command succeeds.
+Failed capture/handoff, missing/ambiguous owners, policy/context drift and
+unexpected incomplete completed cases still fail the comparison.
+
+Contract and acceptance workers supplied isolated Python adapter/tests and
+Rust density-helper implementation/tests; lead owns harness/fixture/config,
+documentation, integration and commits. Real Cargo tests cover direct and
+wrapped classification, exact two-edge/third-edge boundary, unknown/mutable/
+unsafe/macro/cycle controls, source-alias/native-display disagreement,
+source/tool-free policy replay, and observation exhaustion after a retained
+helper. The frozen implementation passes all 3,070 nextest tests (five skipped)
+in 196.009 seconds plus doc tests. Both original NonZero regressions and the u32
+widening-reader composition pass. Final workspace/all-target Clippy with warnings
+denied, formatting and diff checks pass. Python comparison/harness tests pass
+76/76, and script tests pass 50/50. Legacy style reports zero violations across
+9,391 functions; reviewed patterns reports zero visible candidates, and separate
+unfiltered comparison preserves exactly the prior fifteen reviewed IDs.
+
+A rebuilt-binary live density comparison passes ten cases: six evaluated
+agreements, two independently reviewed intentional differences, one excluded
+policy agreement and one expected-uncovered unknown. Eight numeric cases are
+measured; full coverage remains false. The unchanged source-rule control passes
+28 evaluated and three excluded-policy rows after harness reuse. Explicit reports,
+commands and context are under `/tmp/clones-density-comparison-checkpoint` and
+`/tmp/clones-density-source-comparison-checkpoint`; test/style logs are under
+`/tmp/clones-density-helpers-*`. These bounded execution results are not a speedup
+or broad project-coverage claim.
+
+Next ready work includes project-scoped density coverage/quality and changed-scope
+headless baselines. Broader non-scalar effects and advanced anomaly consumers
+remain open; native macOS and external Go comparison remain unverified. No
+legacy capability is retired and upstream PR19 remains outside this branch.

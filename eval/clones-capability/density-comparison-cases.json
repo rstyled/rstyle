@@ -1,0 +1,185 @@
+{
+  "schema": "rstyle.clones-capability.density-comparison-cases/1",
+  "scope": {
+    "manifest": "density-corpus/Cargo.toml",
+    "package": "density-capability-acceptance",
+    "target": "lib",
+    "features": [],
+    "policy": {
+      "max_density_milli": 500,
+      "min_statements": 0,
+      "min_lines": 0,
+      "transitive_depth": 2,
+      "weights": {
+        "mutation": 1,
+        "io": 3,
+        "network": 3,
+        "global": 2,
+        "unsafe": 4,
+        "time": 1,
+        "random": 1,
+        "panic": 0,
+        "unknown": 1
+      },
+      "paths": {
+        "io": [],
+        "network": [],
+        "time": [
+          "std::thread::yield_now"
+        ],
+        "random": [],
+        "panic": []
+      },
+      "exclude": [
+        "target/**",
+        "src/excluded.rs"
+      ]
+    }
+  },
+  "source_cases": [
+    {
+      "function": "empty",
+      "expected": {
+        "events": {},
+        "statements": 0,
+        "code_lines": 1,
+        "actual": 0,
+        "outcome": "evaluated_no_finding",
+        "complete": true,
+        "exempt": false
+      }
+    },
+    {
+      "function": "repeated",
+      "expected": {
+        "events": {
+          "mutation": 1
+        },
+        "statements": 2,
+        "code_lines": 4,
+        "actual": 500,
+        "outcome": "evaluated_no_finding",
+        "complete": true,
+        "exempt": false
+      }
+    },
+    {
+      "function": "single_write",
+      "expected": {
+        "events": {
+          "mutation": 1
+        },
+        "statements": 1,
+        "code_lines": 3,
+        "actual": 1000,
+        "outcome": "finding",
+        "complete": true,
+        "exempt": false
+      }
+    },
+    {
+      "function": "local",
+      "expected": {
+        "events": {},
+        "statements": 3,
+        "code_lines": 5,
+        "actual": 0,
+        "outcome": "evaluated_no_finding",
+        "complete": true,
+        "exempt": false
+      }
+    },
+    {
+      "function": "delegated",
+      "expected": {
+        "events": {
+          "mutation": 2
+        },
+        "statements": 2,
+        "code_lines": 4,
+        "actual": 1000,
+        "outcome": "finding",
+        "complete": true,
+        "exempt": false
+      },
+      "reviewed_difference": "The new numerator retains each checked original helper-call occurrence; legacy mutable-borrow observations and delegated propagation use a different numerator. This is an intentional static-event metric difference, not runtime frequency."
+    },
+    {
+      "function": "clock_leaf",
+      "expected": {
+        "events": {
+          "time": 1
+        },
+        "statements": 1,
+        "code_lines": 3,
+        "actual": 1000,
+        "outcome": "finding",
+        "complete": true,
+        "exempt": false
+      }
+    },
+    {
+      "function": "clocks",
+      "expected": {
+        "events": {
+          "time": 2
+        },
+        "statements": 2,
+        "code_lines": 4,
+        "actual": 1000,
+        "outcome": "finding",
+        "complete": true,
+        "exempt": false
+      },
+      "reviewed_difference": "Legacy propagation deduplicates inherited effects by kind and label across call sites; the new static metric retains both original clock_leaf call occurrences. Distinct original calls remain independently observable."
+    },
+    {
+      "function": "unknown",
+      "expected": {
+        "events": {},
+        "statements": 1,
+        "code_lines": 3,
+        "actual": null,
+        "outcome": "not_evaluated",
+        "complete": false,
+        "exempt": false
+      }
+    },
+    {
+      "function": "suppressed",
+      "expected": {
+        "events": {
+          "mutation": 1
+        },
+        "statements": 1,
+        "code_lines": 3,
+        "actual": 1000,
+        "outcome": "finding",
+        "complete": true,
+        "exempt": false
+      },
+      "suppressed": true
+    },
+    {
+      "function": "excluded::write",
+      "expected": {
+        "events": {
+          "mutation": 1
+        },
+        "statements": 1,
+        "code_lines": 3,
+        "actual": 1000,
+        "outcome": "finding",
+        "complete": true,
+        "exempt": false
+      },
+      "excluded": true
+    }
+  ],
+  "limitations": [
+    "Static source-event metric only; no purity, runtime frequency or semantic equivalence claim.",
+    "Unknown source case is deliberately uncovered and never counted evaluated-clean.",
+    "Legacy agreement checks visible outcomes; clean legacy reports do not publish numeric measurements.",
+    "No Go or native macOS comparison and no legacy retirement claim."
+  ]
+}

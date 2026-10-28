@@ -241,3 +241,42 @@ completeness, source policy, budget failures and full/compact source/tool-free
 replay. Native metadata and checked arithmetic have separate negative tests.
 This metric intentionally differs from legacy mutable-borrow counting and is
 not a claim of general effects, runtime frequency, purity or legacy retirement.
+
+Run the separate density comparison after building the pinned workspace binaries:
+
+```sh
+python3 eval/clones-capability/run_density_compare.py \
+  --output /tmp/clones-density-comparison --timeout 60
+```
+
+`density-comparison-cases.json` independently labels the ten-function
+`density-corpus` workspace. The full policy explicitly fixes all weights and
+classified path lists. Separate legacy/new config files express the same effective
+two-edge policy: legacy accepts `transitive_depth = 2`, while the new frontend fixes
+that bound internally and rejects that input field. Both effective policies must
+match the independent labels before capture.
+The harness reuses serial capture, fresh target directories, recorded compiler
+and revision metadata, lockfile checks and captured legacy owner locations. It
+snapshots the comparator/runner code as well as Rust sources, labels and policy.
+Legacy/new results, exit statuses, commands, elapsed times and comparison rows
+remain in the new output directory. A prebuilt executable's path/stat is
+provenance metadata; use the preceding build checkpoint to associate its source.
+
+Rows compare original event-kind counts, statement/code-line denominators,
+weighted milli arithmetic, exact policy, raw outcomes and visible source policy.
+Legacy clean diagnostic agreement does not establish a legacy numeric value.
+The delegated-call case explicitly reviews the change from legacy mutable-borrow
+and delegated propagation observations to one event per checked original call
+occurrence. Other disagreements require their own review; they cannot inherit
+this exception. The classified-helper case separately reviews legacy deduplication
+of inherited kind/label pairs across call sites versus original occurrence counts.
+
+The unknown-call case is deliberately `expected-uncovered`: it must have no
+numeric density or clean result. It stays outside `summary.measured` and forces
+`fully_complete: false`, even when all acceptance cases match and the comparison
+command exits zero. The harness retains a new-analysis exit two for this declared
+incompleteness; the adapter still rejects failed capture/handoff, changed contexts,
+missing/duplicated owners, and unexpectedly unavailable completed cases. Thus
+successful acceptance does not claim complete project coverage or legacy
+retirement. Excluded policy rows have their own denominator, and raw source
+measurements are checked even when suppression/exclusion hides a finding.

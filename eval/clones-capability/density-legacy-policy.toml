@@ -1,0 +1,25 @@
+exclude = ["target/**", "src/excluded.rs"]
+
+[side_effects]
+max_density_milli = 500
+min_statements = 0
+min_lines = 0
+transitive_depth = 2
+
+[side_effects.weights]
+mutation = 1
+io = 3
+network = 3
+global = 2
+unsafe = 4
+time = 1
+random = 1
+panic = 0
+unknown = 1
+
+[side_effects.paths]
+io = []
+network = []
+time = ["std::thread::yield_now"]
+random = []
+panic = []
