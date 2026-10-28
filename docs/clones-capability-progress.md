@@ -183,6 +183,43 @@ standalone saved-run replay gap can also advance independently by reusing saved
 Cargo/plan/unit reconciliation and existing strict import, without new trust
 flags. Neither later capability is delivered by this checkpoint.
 
+## C11a: standalone saved-run reevaluation
+
+State: delivered bounded workflow slice; commit: this checkpoint. Lead owns
+capture/replay routing, selection provenance, CLI registration and docs; local
+consumer and acceptance workers supplied frozen loader/test leaves. This delivers
+the saved-facts configuration workflow within C11, not mutation/effect evidence.
+
+Explicit `--replay-run` now reconciles standalone plans, unique Cargo root indices,
+successful final Cargo completion, exact selected artifacts and compiler ledgers
+before the existing strict bundle import. Check/test roots may contain identical
+Cargo metadata; their compiler-unit modes and ledgers remain separate. Dependency
+captures still require their closure inventory and artifact associations. Replay
+rejects selection/build overrides and reports saved selection provenance rather
+than implying the current request flags describe the original capture.
+
+Eight loader cases and five real-Cargo CLI tests cover source policy changes,
+newly requested guards/helpers, deleted source/manifests, unavailable compiler
+tools, original all-target populations, invalid overrides and missing/changed
+completion/ledgers/bundles. The existing dependency replay test additionally
+rejects a missing closure inventory. The retained original C06 standalone capture
+now passes strict replay: 16 owners, 32 complete source-rule assessments and two
+findings; `/tmp/clones-migration-c11-replay-retained.{json,log}`.
+
+Integrated checkpoint: 2,411 nextest tests passed, five skipped, 159.090 seconds;
+doc tests passed. Workspace/all-target Clippy and formatting passed. Legacy style has zero
+violations across 8,302 functions; the reviewed pattern gate passes with zero
+new candidates. The separate unfiltered comparison is retained. Logs use
+`/tmp/clones-migration-c11-replay-*`. Linux aarch64 only; macOS and exact Go
+comparison remain unverified. No legacy capability is retired and no new hashes,
+trust flags, suppressions or ignores were added.
+
+Next ready work is C09: the pure review lifecycle leaf is frozen and unregistered
+in `clones/review/`, explicitly excluded from this checkpoint. It needs validated
+source/context/expression snapshots, a real helper-proposal adapter and CLI
+persistence before it becomes a delivered capability. C10 trait/dispatch, C11
+mutation/effects, C12 caller/edit plans and selective later consumers remain open.
+
 ## Hashing exceptions
 
 New consumers use borrowed evidence and report-local typed handles, without new

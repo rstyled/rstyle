@@ -34,6 +34,9 @@ means unavailable evidence; known zero parameters is an evaluated result.
 Full and compact reports retain the same source-rule assessments. Text output
 lists findings at their source byte spans.
 
+An exact saved capture can be [reevaluated](clones-saved-runs.md) with changed
+source-rule policy or newly requested consumers without running the compiler.
+
 A closure or unsupported graph operation can exclude a strict pair input while
 its original source and signature still support these rules. The default `r0`
 profile lacks the required ownership observations and reports unknown evidence.

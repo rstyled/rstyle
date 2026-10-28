@@ -31,9 +31,11 @@ pub struct Context<'a> {
 
 #[derive(Serialize)]
 struct Scope<'a> {
-    packages: &'a [String],
-    all_targets: bool,
-    manifest_path: &'a Option<std::path::PathBuf>,
+    selection_origin: &'static str,
+    packages: Option<&'a [String]>,
+    all_targets: Option<bool>,
+    manifest_path: Option<&'a Path>,
+    build_options_origin: &'static str,
     build_options: &'a Args,
 }
 
@@ -181,10 +183,21 @@ impl<'a> Context<'a> {
 }
 
 fn selected_scope<'a>(ctx: &Context<'a>) -> Scope<'a> {
+    let replay = ctx.args.replay_run.is_some();
     Scope {
-        packages: &ctx.cli.packages,
-        all_targets: ctx.cli.all_targets,
-        manifest_path: &ctx.cli.manifest_path,
+        selection_origin: if replay { "saved_run" } else { "fresh_capture" },
+        packages: (!replay).then_some(ctx.cli.packages.as_slice()),
+        all_targets: (!replay).then_some(ctx.cli.all_targets),
+        manifest_path: if replay {
+            None
+        } else {
+            ctx.cli.manifest_path.as_deref()
+        },
+        build_options_origin: if replay {
+            "current consumer request; original effective build contexts are recorded in expected_compilation_units and build_contexts"
+        } else {
+            "fresh capture request"
+        },
         build_options: ctx.args,
     }
 }

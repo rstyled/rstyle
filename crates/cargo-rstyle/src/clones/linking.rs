@@ -27,17 +27,23 @@ pub(super) fn load_capture(directory: &Path, args: &Args) -> Result<capture::Cap
     {
         return Err("Saved-run replay uses its original build options".into());
     }
-    let manifest = manifest(directory)?;
+    let directory = &directory
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
     let plan: capture::Plan = read_json(&directory.join("plan.json"))?;
-    if plan.extraction_profile != args.extraction_profile || plan.dependency_units.is_empty() {
-        return Err("Saved-run replay requires its selected dependency extraction profile".into());
+    if plan.extraction_profile != args.extraction_profile {
+        return Err("Saved-run replay requires its original extraction profile".into());
     }
+    if plan.dependency_units.is_empty() {
+        return capture::load_saved(directory, plan);
+    }
+    let manifest = manifest(directory)?;
     let mut units = Vec::new();
 
     for path in &manifest.ledgers {
         let unit: capture::Unit = read_json(path)?;
         if capture::ledger::path(&plan, directory, &unit.target, unit.test)? != *path
-            || unit.directory.parent() != Some(directory)
+            || unit.directory.parent() != Some(directory.as_path())
         {
             return Err("Saved dependency ledger belongs to another run or target".into());
         }
@@ -45,7 +51,7 @@ pub(super) fn load_capture(directory: &Path, args: &Args) -> Result<capture::Cap
     }
 
     let mut capture = capture::Capture {
-        directory: directory.into(),
+        directory: directory.clone(),
         plan,
         units,
         failures: Vec::new(),

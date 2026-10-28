@@ -33,7 +33,7 @@ pub struct Args {
     /// Capture an explicitly selected reachable dependency library; does not authorize external calls.
     #[arg(long = "capture-dependency")]
     pub capture_dependencies: Vec<String>,
-    /// Strictly replay a saved dependency closure and its owning unit bundles.
+    /// Strictly reevaluate an exact saved standalone run or dependency closure without compiling.
     #[arg(long, conflicts_with = "capture_dependencies")]
     replay_run: Option<PathBuf>,
     /// JSON matching overrides, separate from legacy rstyle.toml.
@@ -328,6 +328,9 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
 
 fn capture_input(cli: &Cli, args: &Args) -> Result<capture::Capture, String> {
     if let Some(directory) = &args.replay_run {
+        if cli.manifest_path.is_some() || !cli.packages.is_empty() || cli.all_targets {
+            return Err("Saved-run replay uses its original selection; new manifest, package and all-targets flags are not accepted".into());
+        }
         return linking::load_capture(directory, args);
     }
     capture_fresh(cli, args)
