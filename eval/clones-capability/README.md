@@ -150,3 +150,11 @@ provenance, opaque boundaries and saved-policy reevaluation. Initial cases
 exercise the mutation consumer; next/later cases retain explicit future scope.
 A complete direct-write inventory does not establish purity or density, and the
 static-site vocabulary differs intentionally from legacy mutable-borrow events.
+
+`planning-cases.json` defines required-edit coordination from explicit helper
+wrapper intents. Initial real-Cargo tests cover shared bodies, disjoint bodies,
+helper-policy rejection, unavailable evidence, shared lib/test source regions and
+source-free replay. Pure cases cover half-open intersections, conflicting snapshots
+and bounded work. Next/later local-guard and caller-parameter intents remain pending;
+no whole-plan independence or safe rewrite is inferred. See
+[edit planning](../../docs/clones-edit-planning.md).

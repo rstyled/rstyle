@@ -37,7 +37,8 @@ Heavy captures and integrated gates run serially.
 | C11a | Local + acceptance + lead / saved capture reconciliation and CLI/report | delivered (bounded replay) | `428416b` | Exact standalone saved-facts reevaluation without compilation or original files | Eight unit/five CLI cases, retained C06 capture, full tests and legacy gates; mutation/effects remain open |
 | C09a | Pair + local + acceptance + lead / review lifecycle, original snapshots and CLI/report | delivered (bounded helper review) | `1269c62` | Explicit saved-run dismissal and read-only versioned exact review, stale/unavailable coverage | Twenty-seven unit/adapter and seven CLI cases; retained live replay, full tests and both legacy gates; whole-store status/legacy migration remain open |
 | C10a | Local + acceptance + lead / dispatch source index, CLI/report | delivered (bounded local dispatch) | `fabd24d` | Source-owned two-variant dispatch with exact local method/trait signatures | Twelve evidence/nine CLI tests; full tests and both legacy gates pass; broader families remain open |
-| C11b | Local + acceptance + lead / mutation evidence, policy, CLI/report | delivered (bounded direct mutation) | this C11b implementation commit | Direct scalar assignment-site budgets with root provenance and unknown-aware lower bounds; config-only strict replay | Eighteen evidence/three policy/seven CLI tests; full tests and both legacy gates pass; general effects/density/helper summaries remain open |
+| C11b | Local + acceptance + lead / mutation evidence, policy, CLI/report | delivered (bounded direct mutation) | `3329163` | Direct scalar assignment-site budgets with root provenance and unknown-aware lower bounds; config-only strict replay | Eighteen evidence/three policy/seven CLI tests; full tests and both legacy gates pass; general effects/density/helper summaries remain open |
+| C12a | Evidence + pair + lead / original body views, overlap model, CLI/report and acceptance | delivered (bounded helper edit coordination) | this C12a implementation commit | Explicit helper-wrapper intents, exact original overlap witnesses and review groups; unknown insertion/name/scope and independence | Seven evidence/ten pure/six CLI tests; retained compact-to-full strict replay; full tests and both legacy gates pass; local guard/caller intents remain pending |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
@@ -361,11 +362,56 @@ effects, aliases/fields, helper summaries, density, review integration and legac
 retirement remain open. Linux aarch64 only; macOS and exact Go comparison remain
 unverified.
 
-The next prepared frontier is C12 required-edit overlap planning from explicit
-finding edit intents and checked original physical source regions. Its unreferenced
-`planning-cases.json` is an independent specification, not delivered support.
-Caller-aware parameter plans still need an explicit parameter edit and complete
-call/argument provenance; similarity components do not establish edit independence.
+C12a below advances required-edit overlap planning from explicit finding intents
+and checked original source regions. Caller-aware parameter plans still need an
+explicit parameter edit and complete call/argument provenance; similarity
+components do not establish edit independence.
+
+## C12a: required helper body edit coordination
+
+This checkpoint introduces explicit `--helper-proposals --edit-plans` for the
+advisory intent of a shared helper with original-signature wrapper bodies. Only
+actual completed helper findings supply plans. Checked original half-open file
+body spans, workspace-relative source resources and package/context witnesses
+supply existing required edits. Overlap witnesses retain their exact
+intersections; connected review groups neither merge helper proposals nor prove
+stack order. Disjoint known bodies leave declaration insertion/name/scope and
+whole-plan independence unknown.
+
+Source views retain immutable file owners by `Arc`. Endpoint resolution is reused
+across pairs; exact snapshot equality uses a pointer fast path and bounded byte
+work without hashes. The same source region across lib/test contexts overlaps;
+conflicting snapshots and missing ownership remain incomplete. Source ownership
+precedes a shared conservative mutation/planning syntax budget. Plan/region/byte
+budgets preserve checked witnesses while refusing a complete truncated result.
+Typed unavailable endpoint observations retain unknown/unsupported distinctions.
+Full/compact reports use the same consumer, and strict source-free/tool-free
+replay retains identical footprints and matching.
+
+Seven evidence tests, ten pure overlap tests and six real-Cargo CLI tests cover
+the initial contract. All 2,517 nextest tests pass (five skipped), 163.816 seconds,
+plus doc tests. Workspace/all-target Clippy, formatting and diff checks pass.
+Legacy style has zero violations across 8,569 functions; reviewed patterns has
+zero candidates, and unfiltered patterns retains exactly the same 15 IDs as C11.
+Logs: `/tmp/clones-migration-c12-*` (final full suite in `tests-final.log`).
+The retained live capture uses `--locked` and compact output, then strictly replays
+full output with original source/manifest deleted and external tools disabled.
+Three plans and one overlap group, their witnesses and matching are identical;
+explicit helper-finding failure exits one in both cases:
+`/tmp/clones-migration-c12-live-7oughwkv/results.json`.
+[Planning scope and usage](clones-edit-planning.md) document the output indices,
+intent and limitations. This is a bounded initial C12 slice; local guard intents,
+caller-aware parameter plans, full replay handle-reordering/tamper cases and
+legacy group retirement remain pending. Linux aarch64 only; macOS and exact Go
+comparison remain unverified. No suppressions, ignores, thresholds, strict
+admission or extraction permissions were changed.
+
+The next independently prepared frontier is C11c caller-visible scalar mutation
+effects from checked direct local helper summaries. It must first capture typed
+call-site argument evidence: the current mutation scanner treats complete calls
+as opaque and does not traverse their arguments. Summary reuse cannot erase that
+boundary or establish purity. General effects/density and the broader migration
+remain incomplete.
 
 ## Hashing exceptions
 

@@ -1,0 +1,475 @@
+{
+  "schema": "rstyle.clones-capability.edit-planning-acceptance/1",
+  "status": "prepared-independent-requirements",
+  "scope": {
+    "initial": "Advisory required-edit overlap evidence from delivered helper pair findings. Conservative original member body regions are explicit lower information, with unchosen declaration/name/scope edits unknown.",
+    "next": "Explicit local-only guard intents, then concrete parameter bundle intent with actual direct-call/argument evidence. No rewrite engine or similarity-based work groups."
+  },
+  "resource_contract": {
+    "physical_resource": [
+      "workspace/package-relative manifest identity",
+      "workspace/package-relative exact original source-file path",
+      "exact immutable source snapshot equality"
+    ],
+    "evidence_association": [
+      "full checked locator",
+      "actual compilation context",
+      "detector and consumer-policy versions"
+    ],
+    "coordinate_system": "Half-open original file byte ranges. Convert function-relative native spans through checked exact function/source ownership; do not guess base from display line/column.",
+    "context_rule": "Evidence/review contexts remain distinct. Same physical source region across contexts is a shared edit and cannot be declared independent.",
+    "snapshot_rule": "Compare actual captured immutable bytes under the same owner/context as needed; checksums are optional accelerators, never equality or identity. No new SHA, no filesystem reread/canonicalization of deleted originals on replay.",
+    "uncertainty": "Required witnessed regions may be conservative. Disjoint known required regions do not prove complete-plan independence when insertions/imports/callers/names or remaining findings are unknown."
+  },
+  "cases": [
+    {
+      "id": "shared-helper-endpoint-is-required-edit-overlap",
+      "stage": "initial",
+      "source": "pub fn a(value:u32)->u32 { (value+1)*2 } pub fn b(value:u32)->u32 { (value+3)*2 } pub fn c(value:u32)->u32 { (value+4)*2 }",
+      "input_findings": [
+        {
+          "kind": "scalar-helper",
+          "members": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "kind": "scalar-helper",
+          "members": [
+            "a",
+            "c"
+          ]
+        },
+        {
+          "kind": "scalar-helper",
+          "members": [
+            "b",
+            "c"
+          ]
+        }
+      ],
+      "expected": {
+        "required_regions_per_proposal": 2,
+        "proposal_relations": [
+          {
+            "plans": [
+              [
+                "a",
+                "b"
+              ],
+              [
+                "a",
+                "c"
+              ]
+            ],
+            "relation": "overlap_witness",
+            "resource_owner": "a"
+          },
+          {
+            "plans": [
+              [
+                "a",
+                "b"
+              ],
+              [
+                "b",
+                "c"
+              ]
+            ],
+            "relation": "overlap_witness",
+            "resource_owner": "b"
+          },
+          {
+            "plans": [
+              [
+                "a",
+                "c"
+              ],
+              [
+                "b",
+                "c"
+              ]
+            ],
+            "relation": "overlap_witness",
+            "resource_owner": "c"
+          }
+        ],
+        "overlap_review_groups": 1,
+        "whole_plan_independence": "unknown",
+        "stack_order": "not_proven"
+      },
+      "reason": "Each helper proposal requires both existing member bodies to change. Shared endpoints give concrete conflicting edit regions, not a transitive three-member abstraction or proof that all proposals can be applied sequentially."
+    },
+    {
+      "id": "separate-helper-regions-in-one-file",
+      "stage": "initial",
+      "source": "pub fn a(value:u32)->u32 { (value+1)*2 } pub fn b(value:u32)->u32 { (value+3)*2 } pub fn c(value:u32)->u32 { (value^1)&15 } pub fn d(value:u32)->u32 { (value^3)&15 }",
+      "input_findings": [
+        {
+          "kind": "scalar-helper",
+          "members": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "kind": "scalar-helper",
+          "members": [
+            "c",
+            "d"
+          ]
+        }
+      ],
+      "expected": {
+        "relation": "disjoint_known_regions",
+        "distinct_existing_body_regions": 4,
+        "whole_plan_independence": "unknown",
+        "unknown_edit_resources": [
+          "helper_declaration_insertion",
+          "helper_name_and_scope"
+        ]
+      },
+      "reason": "Disjoint existing body edits are useful evidence, but unchosen helper declaration/name/scope edits prevent claiming complete independence."
+    },
+    {
+      "id": "same-source-similarity-without-helper-finding",
+      "stage": "initial",
+      "source": "pub fn a(value:u32)->u32 { (value+1)*2 } pub fn b(value:u32)->u32 { (value+3)*4 }",
+      "consumer_policy": {
+        "max_literal_holes": 1,
+        "minimum_builtin_operations": 2
+      },
+      "expected": {
+        "eligible_helper_findings": 0,
+        "plans": 0,
+        "relation": "not_applicable"
+      },
+      "reason": "Two independent literal differences exceed the actual helper policy. Similarity alone does not authorize an edit plan."
+    },
+    {
+      "id": "unsupported-helper-input-does-not-become-an-empty-independent-plan",
+      "stage": "initial",
+      "source": "pub fn a(value:u32,callback:fn(u32)->u32)->u32 { (callback(value)+1)*2 } pub fn b(value:u32,callback:fn(u32)->u32)->u32 { (callback(value)+3)*2 }",
+      "expected": {
+        "helper_scope": "incomplete",
+        "planning_coverage": "incomplete",
+        "plans_from_unsupported_pair": 0,
+        "whole_plan_independence": "unknown"
+      },
+      "reason": "Unavailable candidate evidence is not evaluated-no-finding or proof that nothing needs editing."
+    },
+    {
+      "id": "non-u32-native-evidence-not-helper-plan-authority",
+      "stage": "initial",
+      "source": "pub fn a(value:u64)->u64 { (value+1)*2 } pub fn b(value:u64)->u64 { (value+3)*2 }",
+      "expected": {
+        "native_comparison": "complete",
+        "helper_outcome": "not_evaluated",
+        "planning_coverage": "incomplete",
+        "plans": 0
+      },
+      "reason": "Completed native comparison does not supply the prerequisite supported helper finding."
+    },
+    {
+      "id": "separate-local-guard-body-intents",
+      "stage": "next-local-intent",
+      "source": "pub fn a(value:u32)->u32 { if value>0 { let next=value+1; next+1 } else { 0 } } pub fn b(value:u32)->u32 { if value>1 { let next=value+2; next+2 } else { 1 } }",
+      "chosen_edit_intents": [
+        {
+          "kind": "guard-local-body",
+          "function": "a",
+          "changes_signature": false,
+          "adds_declarations_outside_body": false
+        },
+        {
+          "kind": "guard-local-body",
+          "function": "b",
+          "changes_signature": false,
+          "adds_declarations_outside_body": false
+        }
+      ],
+      "expected": {
+        "required_regions": 2,
+        "relation": "independent_for_declared_local_body_intents",
+        "caller_edits": 0,
+        "stack_order": "none_required"
+      },
+      "reason": "For explicitly selected body-only guard edits, distinct checked bodies in one file are physically disjoint. This is advisory edit coordination, not a correctness or safe-rewrite proof."
+    },
+    {
+      "id": "same-file-region-in-different-compilation-contexts",
+      "stage": "initial",
+      "source": "pub fn a(value:u32)->u32 { (value+1)*2 } pub fn b(value:u32)->u32 { (value+3)*2 }",
+      "input_findings": [
+        {
+          "members": [
+            "a",
+            "b"
+          ],
+          "context": {
+            "target": "lib",
+            "test": false,
+            "features": []
+          }
+        },
+        {
+          "members": [
+            "a",
+            "b"
+          ],
+          "context": {
+            "target": "lib",
+            "test": true,
+            "features": []
+          }
+        }
+      ],
+      "expected": {
+        "evidence_contexts": 2,
+        "physical_body_regions": 2,
+        "relation": "overlap_witness",
+        "context_proofs_merged": false,
+        "whole_plan_independence": "not_independent"
+      },
+      "reason": "Distinct review/evidence contexts share the same original physical source edits. Context inequality cannot make a file region independent."
+    },
+    {
+      "id": "same-short-name-distinct-physical-files",
+      "stage": "initial",
+      "sources": [
+        {
+          "file": "src/left.rs",
+          "source": "pub fn run(value:u32)->u32 { (value+1)*2 }"
+        },
+        {
+          "file": "src/right.rs",
+          "source": "pub fn run(value:u32)->u32 { (value+1)*2 }"
+        }
+      ],
+      "expected": {
+        "physical_resources": 2,
+        "relation": "disjoint_known_regions",
+        "name_based_merge": false
+      },
+      "reason": "Short function names and equal bytes do not merge distinct original files or packages. Remaining intent-specific edits can still be unknown."
+    },
+    {
+      "id": "half-open-source-regions-touching-not-overlapping",
+      "stage": "pure-region-contract",
+      "resource": {
+        "package_manifest": "Cargo.toml",
+        "source_file": "src/lib.rs",
+        "snapshot": "identical checked original bytes"
+      },
+      "regions": [
+        [
+          10,
+          20
+        ],
+        [
+          20,
+          30
+        ]
+      ],
+      "expected": {
+        "relation": "disjoint_known_regions"
+      },
+      "reason": "Regions are half-open byte ranges; touching boundaries do not overlap. This tests span arithmetic rather than producer-derived offsets."
+    },
+    {
+      "id": "nested-required-regions-overlap",
+      "stage": "pure-region-contract",
+      "resource": {
+        "package_manifest": "Cargo.toml",
+        "source_file": "src/lib.rs",
+        "snapshot": "identical checked original bytes"
+      },
+      "regions": [
+        [
+          10,
+          40
+        ],
+        [
+          20,
+          30
+        ]
+      ],
+      "expected": {
+        "relation": "overlap_witness",
+        "intersection": [
+          20,
+          30
+        ]
+      },
+      "reason": "A conservative whole-function region overlaps an inner required edit, even when the proposals have different detector names."
+    },
+    {
+      "id": "same-resource-different-source-snapshots",
+      "stage": "initial",
+      "resource": {
+        "package_manifest": "Cargo.toml",
+        "source_file": "src/lib.rs"
+      },
+      "snapshots": [
+        "pub fn a()->u32 { 1 }",
+        "pub fn a()->u32 { 2 }"
+      ],
+      "regions": [
+        [
+          0,
+          21
+        ],
+        [
+          0,
+          21
+        ]
+      ],
+      "expected": {
+        "planning_coverage": "incomplete",
+        "relation": "conflicting_snapshots",
+        "whole_plan_independence": "unknown"
+      },
+      "reason": "Equal paths/ranges against unequal original bytes do not establish a shared coordinate system. Never use a matching checksum alone to merge snapshots."
+    },
+    {
+      "id": "missing-or-unowned-region",
+      "stage": "initial",
+      "input_variants": [
+        "missing source-file ownership",
+        "missing exact span base",
+        "span beyond original captured bytes",
+        "body-relative span mistaken for file-relative span"
+      ],
+      "expected": {
+        "planning_coverage": "incomplete",
+        "relation": "unavailable",
+        "whole_plan_independence": "unknown"
+      },
+      "reason": "Every region needs its checked original source owner and coordinate base. A displayed source location is insufficient edit authority."
+    },
+    {
+      "id": "helper-insertion-anchor-cannot-be-guessed",
+      "stage": "initial",
+      "input_findings": [
+        {
+          "kind": "scalar-helper",
+          "members": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "kind": "scalar-helper",
+          "members": [
+            "c",
+            "d"
+          ]
+        }
+      ],
+      "expected": {
+        "required_existing_body_relation": "disjoint_known_regions",
+        "unchosen_insertion_relation": "unknown",
+        "whole_plan_independence": "unknown"
+      },
+      "reason": "Distinct member functions neither choose a helper name/module nor prove that generated declarations/import edits do not conflict. First slice must not invent insertion locations."
+    },
+    {
+      "id": "budget-exhausted-population",
+      "stage": "initial",
+      "execution": "budget_exhausted",
+      "input_population": "unknown remaining findings",
+      "expected": {
+        "planning_coverage": "incomplete",
+        "expected_plans": null,
+        "whole_plan_independence": "unknown"
+      },
+      "reason": "Known witnessed overlaps can still be shown, but a truncated finding roster is not a complete clean or independent plan set."
+    },
+    {
+      "id": "parameter-plan-requires-an-actual-edit-intent",
+      "stage": "next-caller-intent",
+      "source": "fn callee(a:u32,b:u32,c:u32)->u32 { a+b+c } pub fn caller(x:u32,y:u32,z:u32)->u32 { callee(x,y,z) }",
+      "input_findings": [
+        {
+          "kind": "fn_params",
+          "function": "callee"
+        }
+      ],
+      "expected": {
+        "automatic_signature_plan": "not_created",
+        "caller_edits": "not_inferred"
+      },
+      "reason": "A parameter-count finding does not choose which parameters to bundle/remove or how argument syntax changes. Similarity, type co-occurrence and legacy caller-hop settings do not supply the edit."
+    },
+    {
+      "id": "chosen-parameter-bundle-with-exact-call-sites",
+      "stage": "later-caller-intent",
+      "source": "fn callee(a:u32,b:u32,c:u32)->u32 { a+b+c } pub fn caller(x:u32,y:u32,z:u32)->u32 { callee(x,y,z) }",
+      "chosen_edit_intent": {
+        "kind": "bundle_parameters",
+        "function": "callee",
+        "formal_positions": [
+          0,
+          1
+        ]
+      },
+      "prerequisites": [
+        "complete bounded direct-call/function-value-use inventory for declared captured scope",
+        "resolved exact callee and ordered caller argument provenance",
+        "checked source spans for signature and caller argument list",
+        "external/public caller limitations explicit"
+      ],
+      "expected": {
+        "required_edits": [
+          "callee signature/body uses",
+          "caller argument list",
+          "chosen bundle declaration when concrete insertion selected"
+        ],
+        "dependency": "callee contract edit before updating dependent caller syntax",
+        "unknown_indirect_call": "unavailable rather than no callers"
+      },
+      "reason": "Caller-aware sequencing comes from the concrete signature/argument edits, not graph similarity. Cycles require explicit SCC/manual coordination, not an invented total order."
+    }
+  ],
+  "replay_cases": [
+    {
+      "id": "source-free-tool-free-footprints",
+      "change": "Delete original source/manifest, disable PATH/CARGO/RSTYLE_DRIVER; evaluate saved checked facts",
+      "expected": "same physical resource keys/regions/context witnesses/overlap relations from retained source snapshots, strict-replay, no capture/subprocess"
+    },
+    {
+      "id": "report-handle-order-changes",
+      "change": "Reorder equivalent saved report presentation/function handles without changing checked original owners/context",
+      "expected": "overlap evidence unchanged; no persistent identity derived from report-local function:uN:fN labels"
+    },
+    {
+      "id": "changed-build-context-shared-file",
+      "change": "Replay original lib/test contexts over identical captured file bytes",
+      "expected": "separate proof witnesses retained; physical overlap still shown; neither context suppressed or treated as a distinct editable copy"
+    },
+    {
+      "id": "corrupt-owner-span-resealed-transport",
+      "change": "Change source owner/span association and recompute ordinary transport checksum",
+      "expected": "source/association checks fail or footprint explicitly unavailable; no fabricated edit range"
+    }
+  ],
+  "non_goals": [
+    "no automatic safe rewrite claim",
+    "no all-member abstraction from connected pair proposals",
+    "no inferred caller or insertion edits",
+    "no retirement of legacy groups/stacking from this bounded deliverable",
+    "no full plan independence from partial known regions"
+  ],
+  "legacy_anchors": [
+    "crates/rstyle-core/src/groups.rs required footprint intersection and soft hints",
+    "crates/rstyle-core/src/stacking.rs parameter bundle/caller sequencing behavior"
+  ],
+  "validation_gate": [
+    "Execute initial positive/negative cases against actual delivered consumer findings and checked source owners.",
+    "Assert witness region/resource/context, not only group counts.",
+    "Preserve known overlaps with incomplete roster and exact unknown denominator.",
+    "Test scope/context/snapshot isolation and strict saved replay.",
+    "Keep next/later cases explicitly pending until their edit/evidence contracts exist."
+  ]
+}

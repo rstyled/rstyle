@@ -44,6 +44,7 @@ struct Scope<'a> {
 #[derive(Serialize)]
 pub struct Report<'a> {
     pub review: super::review::workflow::Report,
+    pub edit_planning: super::planning::Report,
     pub mutation_analysis: super::analysis::mutation_reports::Report<'a>,
     pub enum_dispatch: super::analysis::dispatch_reports::Report<'a>,
     #[serde(flatten)]
@@ -99,6 +100,15 @@ struct SchemaVersions {
     cfg: &'static str,
 }
 
+impl SchemaVersions {
+    fn current() -> Self {
+        Self {
+            pdg: "0.1.0",
+            cfg: "0.2.0",
+        }
+    }
+}
+
 // Report the CLI name separately from the frozen frontend evidence token.
 fn extraction_selection(args: &Args) -> &'static str {
     if args.extraction_profile == rstyle_pdg::extraction_profile::ExtractionProfile::R0 {
@@ -123,7 +133,10 @@ pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
     let pair_reports = ctx.pair_reports()?;
     let review = super::review::workflow::apply(&pair_reports.helper_proposals, &ctx)?;
 
+    let edit_planning = super::planning::evaluate(&pair_reports.helper_proposals, &ctx)?;
+
     Ok(Report {
+        edit_planning,
         pair_reports,
         review,
         analysis: ctx.local_analysis(),
@@ -144,10 +157,7 @@ pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
         extraction_policy: extraction_policy(ctx.args),
         extraction_capabilities: ctx.args.extraction_profile.capabilities(),
         call_summaries: ctx.args.extraction_profile.summaries(),
-        schema_versions: SchemaVersions {
-            pdg: "0.1.0",
-            cfg: "0.2.0",
-        },
+        schema_versions: SchemaVersions::current(),
         producer_name: "rstyle-hir-extraction",
         producer_version: env!("CARGO_PKG_VERSION"),
         expected_targets: &ctx.capture.plan.targets,
@@ -264,12 +274,13 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         .collect::<String>();
 
     format!(
-        "{summary}{pairs}{}{}{}{}{}",
+        "{summary}{pairs}{}{}{}{}{}{}",
         report.analysis.render(),
         report.pair_reports.render(),
         report.review.render(),
         report.enum_dispatch.render(),
-        report.mutation_analysis.render()
+        report.mutation_analysis.render(),
+        report.edit_planning.render()
     )
 }
 

@@ -4,6 +4,7 @@ mod analysis;
 pub mod capture;
 mod identity;
 mod linking;
+mod planning;
 mod report;
 mod review;
 mod selected_context;
@@ -55,6 +56,9 @@ pub struct Args {
     /// Propose bounded u32 expression helpers; includes native pair explanations. Advisory only.
     #[arg(long)]
     helper_proposals: bool,
+    /// Plan required body edits for helper-with-wrapper intents; insertion and naming remain unknown.
+    #[arg(long, requires = "helper_proposals")]
+    edit_plans: bool,
     /// Evaluate source length and signature arity independently of graph admission.
     #[arg(long)]
     source_rules: bool,
@@ -348,6 +352,7 @@ fn analyses_complete(report: &report::Report<'_>) -> bool {
     report.analysis.permits_success()
         && report.enum_dispatch.permits_success()
         && report.mutation_analysis.permits_success()
+        && report.edit_planning.permits_success()
         && report.pair_reports.permits_success()
         && report.review.permits_success()
 }
