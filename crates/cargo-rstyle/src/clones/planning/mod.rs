@@ -5,6 +5,8 @@ mod model;
 mod overlap;
 pub(super) mod parameters;
 #[cfg(test)]
+mod snapshot_reuse_tests;
+#[cfg(test)]
 mod tests;
 
 use super::{Function, analysis, report};

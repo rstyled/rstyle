@@ -41,6 +41,45 @@ enum Status {
 struct Snapshot<'a> {
     bytes: &'a str,
     status: Status,
+    equal_owners: BTreeSet<SnapshotOwner>,
+}
+
+/// Identifies a borrowed slice kept alive by the plans throughout this analysis.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct SnapshotOwner {
+    address: *const u8,
+    length: usize,
+}
+
+impl SnapshotOwner {
+    fn of(bytes: &str) -> Self {
+        Self {
+            address: bytes.as_ptr(),
+            length: bytes.len(),
+        }
+    }
+}
+
+impl<'a> Snapshot<'a> {
+    fn new(bytes: &'a str) -> Self {
+        Self {
+            bytes,
+            status: Status::Known,
+            equal_owners: BTreeSet::from([SnapshotOwner::of(bytes)]),
+        }
+    }
+
+    fn observe(&mut self, bytes: &'a str, remaining: usize) -> SnapshotCheck {
+        let checked = check_snapshot(self, bytes, remaining);
+        self.status = checked.status;
+        if checked.status == Status::Known {
+            // Entries are bounded by the shared region-visit allowance.
+            self.equal_owners.insert(SnapshotOwner::of(bytes));
+        } else {
+            self.equal_owners.clear();
+        }
+        checked
+    }
 }
 
 #[derive(Default)]
@@ -58,21 +97,11 @@ struct SnapshotCheck {
 
 impl<'a> SnapshotLedger<'a> {
     fn observe(&mut self, region: &Region<'a>) {
-        let original = self.snapshots.get(region.resource);
-        let checked = check_snapshot(
-            original,
-            region.snapshot,
-            MAX_SNAPSHOT_BYTES - self.comparison_bytes,
-        );
-        let bytes = original.map_or(region.snapshot, |snapshot| snapshot.bytes);
-
-        self.snapshots.insert(
-            region.resource,
-            Snapshot {
-                bytes,
-                status: checked.status,
-            },
-        );
+        let snapshot = self
+            .snapshots
+            .entry(region.resource)
+            .or_insert_with(|| Snapshot::new(region.snapshot));
+        let checked = snapshot.observe(region.snapshot, MAX_SNAPSHOT_BYTES - self.comparison_bytes);
         self.comparison_bytes += checked.comparison_bytes;
         self.exhausted |= checked.exhausted;
     }
@@ -146,11 +175,9 @@ fn validate_plans(plans: &[Plan<'_>]) -> Validation {
     }
 }
 
-fn check_snapshot(original: Option<&Snapshot<'_>>, bytes: &str, remaining: usize) -> SnapshotCheck {
-    let Some(original) = original else {
-        return snapshot_check(Status::Known, 0, false);
-    };
-    if original.status != Status::Known || std::ptr::eq(original.bytes, bytes) {
+fn check_snapshot(original: &Snapshot<'_>, bytes: &str, remaining: usize) -> SnapshotCheck {
+    if original.status != Status::Known || original.equal_owners.contains(&SnapshotOwner::of(bytes))
+    {
         return snapshot_check(original.status, 0, false);
     }
     if original.bytes.len() != bytes.len() {

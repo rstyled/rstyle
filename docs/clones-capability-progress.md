@@ -1095,11 +1095,36 @@ retirement remain open. No new extraction permission, ignore, threshold change,
 cryptographic hash or budget increase was introduced.
 
 
-The next ready bounded resource fix is completed snapshot-equality reuse in
-`planning::overlap::SnapshotLedger`. Current code keeps the first allocation for
-a resource, so a second equal immutable snapshot is compared again for every
-region referencing it. Independent equal owners should pay for a completed
-comparison once per resource/analysis; distinct owners, conflicting bytes and
-exhausted comparisons must retain the existing budget behavior. A scoped borrowed
-owner identity can retain equality without hashes or source copies. This is a
-source-inspected readiness finding, not a measured wall-time improvement.
+## C12f: reuse completed snapshot equality
+
+Production owns `planning/overlap.rs`, independent acceptance owns
+`planning/snapshot_reuse_tests.rs`, and the lead owns registration and docs.
+The overlap ledger now retains successful exact equality for borrowed immutable
+slices, identified by pointer and length, separately for each physical resource
+and analysis. The first snapshot remains the canonical borrowed bytes. Repeated
+regions reuse completed equality only while the resource is known; later conflict
+or exhaustion remains absorbing and invalidates all affected plans. Region visits
+bound retained identities. No source copies, hashes, serialized identities,
+schema changes or increased budgets are introduced.
+
+Eight independent model-level tests cover repeated equal owners, third owners,
+resource and session isolation, late conflicts, exhaustion after successful
+equality, and offset/length distinctions within one allocation. Twenty uses of a
+second 1 MiB owner now charge exactly 1 MiB of byte comparison, with complete
+planning; distinct owners retain the existing 16 MiB exhaustion test. This is
+measured comparison accounting, not a wall-time speedup claim.
+
+Focused planning/caller/guard verification passes 75 tests plus doc tests,
+including locked live capture and full/compact strict replay after removing
+source files and compiler tools. The frozen workspace passes all 2,787 nextest
+tests (five skipped) in 179.248 seconds, doc tests, locked workspace/all-targets
+Clippy with warnings denied, zero style violations across 9,006 functions and
+all 56 Python comparison tests. Both original NonZero regressions pass.
+Reviewed patterns passes and unfiltered patterns retain exactly the same 15 IDs
+as C12e. Formatting and diff checks pass. Retained logs use
+`/tmp/clones-snapshot-*`. Native macOS, exact Go comparison, broader planning
+coverage and legacy retirement remain open.
+
+The next ready consumer is changed-file source-rule presentation and CI policy:
+reuse completed assessments without changing capture scope, raw totals or
+whole-analysis completeness. Missing selected paths must remain unknown.

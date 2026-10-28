@@ -43,6 +43,14 @@ witnesses and reports incomplete execution. Missing/unsupported source evidence
 and unavailable helper populations remain explicit; an empty incomplete report is
 not a clean result. No snapshots or source bytes are duplicated into this report.
 
+Within one analysis and physical resource, a completed successful equality check
+is reused for later regions borrowing the same immutable slice. Slice identity
+includes both address and length; separate owners and different offsets still
+require exact byte comparison. The region-visit limit bounds retained identities.
+Later conflicts or exhausted comparisons invalidate every affected plan, including
+previously equal owners. Nothing is retained between analyses or serialized, and
+the byte allowance is unchanged.
+
 Strict `--replay-run` can request planning from saved evidence without source files,
 Cargo or the driver. Full and compact presentation use the same consumer.
 Incomplete planning exits two; existing helper finding/exit policy remains in
