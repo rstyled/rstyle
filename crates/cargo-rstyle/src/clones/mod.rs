@@ -98,6 +98,12 @@ pub struct Args {
     /// Inspect every retained review; omitted or unavailable assessments remain incomplete.
     #[arg(long, requires = "review_file", conflicts_with = "dismissal")]
     review_status: bool,
+    /// Remove only completed negative reviews from an explicit saved run; implies status.
+    #[arg(long, requires_all = ["review_file", "replay_run"], conflicts_with = "dismissal")]
+    review_prune: bool,
+    /// Preview review pruning without writing or creating a review file.
+    #[arg(long, requires = "review_prune")]
+    review_prune_dry_run: bool,
     /// Dismiss these exact saved-run helper endpoints; requires an explicit reason.
     #[arg(long, num_args = 2, requires_all = ["review_file", "review_reason", "replay_run", "helper_proposals"])]
     dismiss_helper_pair: Vec<String>,
@@ -135,6 +141,12 @@ pub struct Args {
     pub target: Option<String>,
     #[arg(short, long)]
     pub jobs: Option<usize>,
+}
+
+impl Args {
+    fn review_status_requested(&self) -> bool {
+        self.review_status || self.review_prune
+    }
 }
 
 #[cfg(test)]

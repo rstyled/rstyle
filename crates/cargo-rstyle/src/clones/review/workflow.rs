@@ -60,7 +60,9 @@ fn apply_helpers(
     ctx: &report::Context<'_>,
     store: Option<&mut ReviewStore>,
 ) -> Result<(Report, Vec<status::Record>), String> {
-    let Some(store) = store.filter(|_| ctx.args.helper_proposals || ctx.args.review_status) else {
+    let Some(store) =
+        store.filter(|_| ctx.args.helper_proposals || ctx.args.review_status_requested())
+    else {
         return Ok((summarize(Vec::new(), 0, false, false), Vec::new()));
     };
 
@@ -97,19 +99,19 @@ pub(in crate::clones) struct Inputs<'a, 'b> {
     pub indices: &'a analysis::declaration_indices::Indices,
 }
 
+pub(in crate::clones) struct Reports {
+    pub helpers: Report,
+    pub abstractions: super::local_workflow::Report,
+    pub status: Option<status::Report>,
+    pub pruning: Option<prune::Report>,
+}
+
 /// One load and atomic publication across all requested review families.
 /// A failed selector or snapshot leaves every retained entry untouched on disk.
 pub(in crate::clones) fn apply(
     inputs: Inputs<'_, '_>,
     ctx: &report::Context<'_>,
-) -> Result<
-    (
-        Report,
-        super::local_workflow::Report,
-        Option<status::Report>,
-    ),
-    String,
-> {
+) -> Result<Reports, String> {
     let mut store = ctx.args.review_file.as_deref().map(load).transpose()?;
     let (helpers, mut records) = apply_helpers(inputs.helpers, ctx, store.as_mut())?;
     let (abstractions, source_records) =
@@ -117,17 +119,46 @@ pub(in crate::clones) fn apply(
     records.extend(source_records);
     let status = ctx
         .args
-        .review_status
+        .review_status_requested()
         .then(|| status::Report::new(records, true));
 
+    let pruning = pruning(store.as_mut(), status.as_ref(), ctx)?;
     if (!ctx.args.dismiss_helper_pair.is_empty()
         || ctx.args.dismiss_enum_dispatch.is_some()
-        || !ctx.args.dismiss_capability_pair.is_empty())
+        || !ctx.args.dismiss_capability_pair.is_empty()
+        || pruning
+            .as_ref()
+            .is_some_and(|report| report.removed_entries > 0))
         && let (Some(path), Some(store)) = (&ctx.args.review_file, &store)
     {
         save(path, store)?;
     }
-    Ok((helpers, abstractions, status))
+    Ok(Reports {
+        helpers,
+        abstractions,
+        status,
+        pruning,
+    })
+}
+
+fn pruning(
+    store: Option<&mut ReviewStore>,
+    status: Option<&status::Report>,
+    ctx: &report::Context<'_>,
+) -> Result<Option<prune::Report>, String> {
+    if !ctx.args.review_prune {
+        return Ok(None);
+    }
+    if !ctx.capture.failures.is_empty() || !ctx.handoff.failures.is_empty() {
+        return Err(
+            "Review pruning requires a successful capture and assessment; no entries changed"
+                .into(),
+        );
+    }
+
+    let store = store.ok_or("Review pruning requires a review file")?;
+    let status = status.ok_or("Review pruning requires retained-entry assessment")?;
+    prune::apply(store, status, ctx.args.review_prune_dry_run).map(Some)
 }
 
 pub(super) type Snapshot = (String, String, Result<FindingSnapshot, String>);

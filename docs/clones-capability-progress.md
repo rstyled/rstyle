@@ -43,7 +43,8 @@ Heavy captures and integrated gates run serially.
 | C10b | Evidence + pair + acceptance + lead / shared declaration index, wrapper witnesses, pairing and CLI/report | delivered (bounded witnessed capabilities) | `0547b2e` | Two-member local capabilities backed by original ordered calls, independent of strict matching; exact local trait suppression | Nineteen independent source cases, six wrapper and eight pairing unit cases, eleven CLI tests; 2,578 full tests, both legacy gates and strict source/tool-free replay pass; broader families and retirement remain open |
 
 | C09b | Evidence + review + acceptance + lead / shared source identity index, typed local review and CLI/report | delivered (source-local dismissal) | `78cec55` | Explicit saved-run dismissal for dispatch and ordered capability findings, independent of graph matching; helper v1 preserved | 34 review unit tests, three source identity tests and 17 review CLI tests pass; 2,598 workspace tests and doc tests pass; both legacy gates clean |
-| C09c | Lead + acceptance + contract / retained-entry status, original identities and CLI/report | delivered (bounded whole-store status) | this checkpoint | Explicit whole-store read-only assessment with completed negatives, omitted scopes/families and unavailable evidence distinguished | 12 status/context unit tests and 11 real-Cargo CLI tests; 2,621 workspace tests plus doc tests, both legacy gates and retained live replay pass |
+| C09c | Lead + acceptance + contract / retained-entry status, original identities and CLI/report | delivered (bounded whole-store status) | `d15bdc4` | Explicit whole-store read-only assessment with completed negatives, omitted scopes/families and unavailable evidence distinguished | 12 status/context unit tests and 11 real-Cargo CLI tests; 2,621 workspace tests plus doc tests, both legacy gates and retained live replay pass |
+| C09d | Lead + contract + acceptance / selective review pruning | delivered (completed negatives only) | this checkpoint | Explicit saved-run preview/apply, original inventory validation and atomic schema-preserving removal | Eight contract and eight CLI cases; validation below |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
@@ -610,3 +611,26 @@ source/oracle pins; immutable owners compute them only for those explicit claims
 The `clones::digest` helper is test-only historical test-contract compatibility,
 not a new finding identity. New routine source publication uses existing XXH3.
 This bounded inventory does not claim every historical fixture has migrated.
+
+
+## C09d: selective review pruning
+
+Explicit `--review-prune` requires a saved run and review file, implies retained
+entry status, and removes only completed `no_finding` assessments. Preview with
+`--review-prune-dry-run`. Stale, changed-context, omitted and unavailable entries
+remain; incomplete coverage retains exit two. Capture and handoff failures block
+publication. Status inventories are checked against the complete original store
+before mutation. Dry runs and no-op applies preserve bytes and never create files;
+nonempty applies use the existing atomic save and retain schema and entry order.
+
+Eight pure contract tests and eight CLI cases cover mixed coverage, original
+identity, preview/apply/idempotence, source-free replay and publication safety.
+The full suite passed 2,637 tests (five skipped) in 174.231 seconds, plus doc
+tests. After the final validation/mutation separation and test-helper cleanup,
+all 16 affected tests and doc tests passed again. Workspace Clippy with warnings
+denied, formatting and diff checks pass. Legacy style reports zero violations
+across 8,801 functions; reviewed patterns reports no candidates, and the same 15
+unfiltered candidate IDs remain. Logs are retained at
+`/tmp/clones-review-prune-{tests,focused,clippy,style,patterns}-final.*`.
+Native macOS remains for CI. Legacy ignore/suppression compatibility and the
+broader capability migration remain open.

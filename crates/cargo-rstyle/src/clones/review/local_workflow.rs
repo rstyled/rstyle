@@ -41,7 +41,7 @@ pub(super) fn apply(
     store: Option<&mut ReviewStore>,
 ) -> Result<(Report, Vec<status::Record>), String> {
     let requested = ctx.args.enum_dispatch || ctx.args.capability_proposals;
-    let Some(store) = store.filter(|_| requested || ctx.args.review_status) else {
+    let Some(store) = store.filter(|_| requested || ctx.args.review_status_requested()) else {
         return Ok((summarize(Vec::new(), 0, false, false), Vec::new()));
     };
 

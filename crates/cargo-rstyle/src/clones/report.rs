@@ -48,6 +48,8 @@ pub struct Report<'a> {
     pub review: super::review::workflow::Report,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub review_status: Option<super::review::status::Report>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub review_prune: Option<super::review::prune::Report>,
     pub abstraction_review: super::review::local_workflow::Report,
     pub edit_planning: super::planning::Report,
     pub mutation_analysis: super::analysis::mutation_reports::Report<'a>,
@@ -142,6 +144,7 @@ pub(super) fn make<'a>(ctx: Context<'a>, consumers: Consumers<'a>) -> Report<'a>
         review: consumers.review,
         abstraction_review: consumers.abstraction_review,
         review_status: consumers.review_status,
+        review_prune: consumers.review_prune,
         analysis: ctx.local_analysis(),
         enum_dispatch: consumers.dispatch,
         capability_proposals: consumers.capabilities,
@@ -309,7 +312,7 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         .collect::<String>();
 
     format!(
-        "{summary}{pairs}{}{}{}{}{}{}{}{}{}{}",
+        "{summary}{pairs}{}{}{}{}{}{}{}{}{}{}{}",
         report.analysis.render(),
         report.pair_reports.render(),
         report.review.render(),
@@ -318,6 +321,10 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
             .review_status
             .as_ref()
             .map_or_else(String::new, |status| status.render()),
+        report
+            .review_prune
+            .as_ref()
+            .map_or_else(String::new, |pruning| pruning.render()),
         report.enum_dispatch.render(),
         report.capability_proposals.render(),
         report.mutation_analysis.render(),

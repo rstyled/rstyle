@@ -161,7 +161,7 @@ pub(super) fn helpers(
     helpers: &analysis::helper_reports::Report<'_>,
     ctx: &report::Context<'_>,
 ) -> Vec<status::Record> {
-    if !ctx.args.review_status || entries.entries.is_empty() {
+    if !ctx.args.review_status_requested() || entries.entries.is_empty() {
         return Vec::new();
     }
     let observed = OnceCell::new();
@@ -283,7 +283,7 @@ pub(super) fn local_entries(
     inputs: &workflow::Inputs<'_, '_>,
     ctx: &report::Context<'_>,
 ) -> Vec<status::Record> {
-    if !ctx.args.review_status || store.source_entries.is_empty() {
+    if !ctx.args.review_status_requested() || store.source_entries.is_empty() {
         return Vec::new();
     }
     let observed = OnceCell::new();

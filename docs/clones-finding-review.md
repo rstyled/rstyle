@@ -42,7 +42,7 @@ helper/review coverage still exits two, including when every known finding is
 hidden. Without `--review-file`, reviews are not requested and finding exits
 remain unchanged. Text output includes both original proposals and review status.
 
-Only explicit dismissal writes the file, using a temporary file and replacement.
+Explicit dismissal and pruning write the file, using a temporary file and replacement.
 A nonempty reason and `--replay-run` are required. Invalid selectors, unavailable
 snapshots, malformed stores and repeated exact dismissals fail without writing.
 `--review-allow-growth` records an explicit choice for future membership growth;
@@ -105,7 +105,7 @@ Helper-only stores keep their schema-1 shape. Adding a dispatch or capability
 review upgrades the envelope to schema 2 with typed `source_entries`; existing
 helper entries are retained unchanged. Schema-1 files remain readable. Neither
 family can hide a different family, and serialized review data grants no current
-source or graph authority. Pruning, legacy ignore migration and broader review
+source or graph authority. Legacy ignore migration and broader review
 families remain open. Source reviews are bounded to 4,096 retained
 entries and 256 KiB per canonical declaration; exceeding a bound fails explicitly.
 
@@ -156,5 +156,31 @@ values without additional hashes or graph/source clones.
 negative rows. Other rows leave status coverage incomplete and, when status is
 explicitly requested, exit two. Ordinary invocations keep their existing exits.
 Existing finding reports, review decisions and `--fail-on-findings` counts remain
-unchanged; requesting status does not dismiss findings. Pruning and legacy ignore
-migration are separate future work.
+unchanged; requesting status does not dismiss findings. Legacy ignore migration
+remains separate future work.
+
+
+## Prune completed negative reviews
+
+Use an explicit saved run to preview removal:
+
+```sh
+cargo rstyle clones --extraction-profile hir-data-v3 \
+  --replay-run /absolute/path/to/run \
+  --helper-proposals --enum-dispatch --capability-proposals \
+  --review-file reviews.json --review-prune --review-prune-dry-run
+```
+
+Remove `--review-prune-dry-run` to apply. Pruning implies whole-store status and
+requires `--review-file` and `--replay-run`; it conflicts with dismissal selectors.
+Only entries assessed as `no_finding` are eligible. Stale, changed-context,
+missing, unrequested and unavailable entries remain. Independently completed
+negatives can be removed from mixed incomplete coverage; incomplete coverage
+still exits two. Capture or handoff failures block pruning without writing.
+
+JSON adds `review_prune` (`rstyle.review-prune/1`), with eligible, removed and
+retained entry counts and selections by family and original entry index. Status
+and finding reports describe the store before pruning. A dry run removes zero
+entries and leaves bytes unchanged. Applying a nonempty selection uses one atomic
+replacement, preserving schema version, surviving entries and their order.
+No-op applies and dry runs never create or rewrite the file.

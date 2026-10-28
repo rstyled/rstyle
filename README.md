@@ -26,6 +26,7 @@ with `--helper-proposals` to suggest useful scalar-expression abstractions.
 [Saved finding reviews](docs/clones-finding-review.md) retain explicit dismissals
 for helpers, enum dispatch and witnessed capability sets across analysis runs.
 `--review-status` inspects every retained entry with explicit scope and evidence gaps.
+`--review-prune --review-prune-dry-run` previews removal of completed negative reviews.
 
 Other top-level folders:
 
