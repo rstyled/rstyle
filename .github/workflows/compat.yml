@@ -1,0 +1,26 @@
+name: PDG compatibility
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      gstyle_ref:
+        description: Go branch, tag or commit
+        default: master
+        type: string
+      rstyle_ref:
+        description: Rust ref override; empty tests the selected workflow commit
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    uses: rstyled/compat/.github/workflows/compat.yml@952c016a592e2ab53a5e4b23b6e9046c9cabe182
+    with:
+      compat_ref: 952c016a592e2ab53a5e4b23b6e9046c9cabe182
+      gstyle_ref: ${{ inputs.gstyle_ref || 'master' }}
+      rstyle_ref: ${{ inputs.rstyle_ref || github.sha }}
