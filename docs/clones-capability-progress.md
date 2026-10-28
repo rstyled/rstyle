@@ -1430,3 +1430,46 @@ acceptance targets cover rule-specific hiding, malformed annotations, excluded
 opaque owners, exact paths and source/tool-free policy replay. Broader effects,
 loops, saved mutation reviews, quality evaluation and legacy retirement remain
 open; native macOS and exact Go comparison are unverified.
+
+## C11f: captured mutation visibility policy
+
+Delivered named mutation-rule suppressions and original workspace path
+exclusions. Evidence owns the combined mutation/source/comment observation and
+unit tests; policy owns shared adapters, compiled matching and decisions;
+acceptance owns `tests/migration_mutation_policy`; the lead owns report schema 2,
+scope counters, exits, registration and documentation. Raw evidence and rule
+results remain independent of visibility. Only trusted exclusions permit a
+complete policy skip; suppression alone never repairs incomplete evidence.
+
+The combined inspection borrows original source and shares the existing bounded
+parse/native pass. Checked comments reuse physical-line association and the core
+suppression parser. Only explicitly named mutation rules hide findings; invalid
+annotations remain visible, including on excluded owners. Workspace globs compile
+once and apply to original checked paths. Missing path/source authority and
+unassessed owners cannot acquire exclusions. Generated test-harness owners remain
+unavailable independently of authored source-file exclusions. Schema 2 separates
+raw evidence completeness from policy scope, preserves measured raw rules and
+reports skipped decisions without fabricated zero measurements. Finding exits
+and text consume visible findings; other consumers remain independent.
+
+Nine engine tests, fourteen policy/adapter tests and eleven live CLI acceptance
+cases cover raw-evidence equality, borrowed source, comment/budget boundaries,
+rule-specific and malformed annotations, opaque owners, exact paths, lib/test
+population, independent consumers and source/tool-free strict full/compact replay.
+The final snapshot passes all 2,958 nextest tests (five skipped) in 188.950 seconds,
+plus doc tests. Both originally reported NonZero regressions pass. Formatting,
+workspace/all-target Clippy with warnings denied, all 56 Python comparison tests
+and diff checks pass. Legacy style reports zero violations across 9,179 functions;
+reviewed patterns reports zero candidates. Unfiltered discovery retains exactly
+the same 15 baseline IDs as C11e. The pattern gate prompted a single-pass mutation
+finding tally. No ignores, thresholds, admission permissions, hashes or work
+budgets changed. Logs and JSON reports are under `/tmp/clones-mutation-policy-*`;
+runtime is checkpoint evidence, not a measured speedup claim.
+
+Next is direct loop assignment-site inventory, including the staged primitive
+`for _ in 0..count` case. Original while/loop children exist, but for-loop capture
+needs checked original head/binder/body correspondence before the consumer can
+count those sites. Keep static-site counting independent of dynamic frequency,
+termination, call summaries and formal-use certification. Saved mutation reviews,
+broader effects/density, project quality and legacy retirement remain open.
+Native macOS and exact Go comparison remain unverified.

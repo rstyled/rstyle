@@ -108,3 +108,30 @@ fn unavailable_comments_preserve_reasons_without_permission_or_findings() {
     }
     assert!(!Report::failure("failed".into()).complete());
 }
+
+#[test]
+fn mutation_permissions_are_named_and_disjoint_from_source_permissions() {
+    let one = report("// rstyle-allow(mutation_per_target): deliberate");
+    assert!(one.allows_mutation("mutation_per_target"));
+    assert!(!one.allows_mutation("mutated_targets"));
+    assert!(!one.allows("mutation_per_target"));
+    let mixed =
+        report("// rstyle-allow(fn_length, mutated_targets, side_effect_density): deliberate");
+    assert!(mixed.allows("fn_length"));
+    assert!(mixed.allows_mutation("mutated_targets"));
+    assert!(!mixed.allows_mutation("fn_length"));
+    assert!(!mixed.allows_mutation("side_effect_density"));
+    assert!(!mixed.allows_mutation("abstraction"));
+}
+
+#[test]
+fn invalid_or_unavailable_comments_cannot_grant_mutation_permissions() {
+    for value in [
+        report("// rstyle-allow(mutation_per_target):"),
+        report("// rstyle-allow(mutated_targets, unknown): deliberate"),
+        Report::failure("missing".into()),
+    ] {
+        assert!(!value.allows_mutation("mutation_per_target"));
+        assert!(!value.allows_mutation("mutated_targets"));
+    }
+}

@@ -7,32 +7,42 @@ use syn::{Expr, Pat, Type, spanned::Spanned, visit::Visit};
 
 pub(super) use crate::consumer_facts::syntax_budget::within_budget;
 
+#[cfg(test)]
 pub(super) fn inspect(
     facts: &HirFnFacts,
     source: &str,
     result: Assessment,
 ) -> Result<Assessment, String> {
-    Ok(observe(facts, source, result, super::Request::default())?.direct)
+    Ok(
+        observe_with_signature(facts, source, result, super::Request::default())?
+            .0
+            .direct,
+    )
 }
 
-pub(super) fn observe(
+pub(super) fn observe_with_signature(
     facts: &HirFnFacts,
     source: &str,
     result: Assessment,
     request: super::Request,
-) -> Result<super::Observations, String> {
+) -> Result<(super::Observations, bool), String> {
     let function = match parsed(source) {
         Ok(function) => function,
         Err(reason) => {
-            return Ok(super::without_calls(
-                Effects::unsupported(whole(source), &reason).merge(result),
+            return Ok((
+                super::without_calls(Effects::unsupported(whole(source), &reason).merge(result)),
+                false,
             ));
         }
     };
     super::super::check_signature(facts, &function)?;
     let Some(index) = native::Index::new(facts)? else {
-        return Ok(super::without_calls(
-            Effects::exhausted(whole(source), "Native inventory budget exhausted").merge(result),
+        return Ok((
+            super::without_calls(
+                Effects::exhausted(whole(source), "Native inventory budget exhausted")
+                    .merge(result),
+            ),
+            true,
         ));
     };
 
@@ -53,7 +63,7 @@ pub(super) fn observe(
 
     scan.signature(&function)?;
     scan.block(&function.block)?;
-    scan.finish(&function)
+    scan.finish(&function).map(|observed| (observed, true))
 }
 
 fn whole(source: &str) -> ByteSpan {

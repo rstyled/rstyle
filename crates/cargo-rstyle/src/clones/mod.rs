@@ -92,7 +92,7 @@ pub struct Args {
     /// Summarize caller-visible scalar mutation through original same-unit leaf helpers.
     #[arg(long)]
     mutation_effects: bool,
-    /// TOML mutation_budget policy; root granularity only.
+    /// TOML mutation_budget and workspace exclude policy; root granularity only.
     #[arg(long, requires = "mutation_rules")]
     mutation_config: Option<PathBuf>,
     /// TOML source-rule policy (fn_length/fn_params/fn_spacing); distinct from legacy configuration.
@@ -442,7 +442,7 @@ fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: us
                     .abstraction_review
                     .capability_visible_or(report.capability_proposals.findings)
                     > 0
-                || report.mutation_analysis.findings > 0
+                || report.mutation_analysis.visible_findings > 0
                 || report
                     .review
                     .visible_or(report.pair_reports.helper_proposals.findings)

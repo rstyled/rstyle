@@ -1,5 +1,8 @@
 //! Direct scalar mutation budgets with explicit unknown remainder and provenance.
+mod decisions;
 mod policy;
+mod rendering;
+mod scope;
 
 use super::{Coverage, Execution, FactAvailability, Outcome};
 use crate::clones::{Args, Function, FunctionKey, Handoff, capture};
@@ -12,39 +15,53 @@ pub(crate) struct Report<'a> {
     schema: &'static str,
     detector: &'static str,
     #[serde(flatten)]
-    scope: Summary,
+    scope: scope::Summary,
     config: Option<&'a Settings>,
     pub findings: usize,
+    pub visible_findings: usize,
+    suppressed_findings: usize,
+    excluded_findings: usize,
     functions: Vec<FunctionReport<'a>>,
     limitations: &'static [&'static str],
 }
 
 #[derive(Serialize)]
-struct Summary {
-    execution: Execution,
-    coverage: Coverage,
-    population: &'static str,
-    expected_functions: Option<usize>,
-    assessed_functions: usize,
-    evaluated_functions: usize,
-    unavailable_functions: usize,
-    reasons: Vec<String>,
-}
-
-#[derive(Serialize)]
 struct FunctionReport<'a> {
-    key: FunctionKey,
-    name: &'a str,
-    source_file: Option<&'a str>,
-    fn_span: rstyle_pdg::ByteSpan,
+    #[serde(flatten)]
+    location: Location<'a>,
     execution: Execution,
     outcome: Outcome,
     coverage: Coverage,
     availability: FactAvailability,
     evidence: Option<policy::Evidence>,
     rules: Vec<policy::Rule>,
+    policy: decisions::Policy,
     density: Density,
     reason: Option<String>,
+}
+
+#[derive(Serialize)]
+struct Location<'a> {
+    key: FunctionKey,
+    name: &'a str,
+    source_file: Option<&'a str>,
+    fn_span: rstyle_pdg::ByteSpan,
+}
+
+impl<'a> Location<'a> {
+    fn new(function: &'a Function) -> Self {
+        Self {
+            key: function.key,
+            name: &function.facts.name,
+            source_file: function
+                .facts
+                .build
+                .frontend_options
+                .get("source_file")
+                .and_then(serde_json::Value::as_str),
+            fn_span: function.facts.fn_span,
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -65,24 +82,32 @@ pub(in crate::clones) fn evaluate<'a>(
 ) -> Result<Report<'a>, String> {
     let functions = match config {
         None => Vec::new(),
-        Some(settings) => evaluate_functions(handoff, args, settings)?,
+        Some(settings) => evaluate_functions(handoff, args, settings, &capture.plan.root)?,
     };
+    let counts = decisions::FindingCounts::observe(functions.iter().map(|f| &f.policy));
     Ok(Report {
-        schema: "rstyle.mutations/1",
+        schema: "rstyle.mutations/2",
         detector: "direct-scalar-mutations/1",
-        scope: summary(&functions, handoff, capture, config.is_some()),
+        scope: scope::summary(&functions, handoff, capture, config.is_some()),
         config,
         findings: functions
             .iter()
             .flat_map(|f| &f.rules)
             .filter(|rule| rule.outcome == Outcome::Finding)
-            .count(),
+            .count()
+            + functions
+                .iter()
+                .filter(|f| f.policy.invalid_suppression.is_some())
+                .count(),
+        visible_findings: counts.visible,
+        suppressed_findings: counts.suppressed,
+        excluded_findings: counts.excluded,
         functions,
         limitations: &[
             "Counts describe original syntactic assignment sites, not dynamic execution frequency.",
             "Ordinary branch arms each contribute their original sites once; loops and pattern conditions remain incomplete.",
             "Direct u32 owned roots and mutable formal pointees only; unknown boundaries prevent clean conclusions.",
-            "No purity, density, transitive effects or rewrite safety claim; legacy reviews and suppressions are not applied.",
+            "No purity, density, transitive effects or rewrite safety claim; saved mutation reviews are not applied.",
         ],
     })
 }
@@ -91,6 +116,7 @@ fn evaluate_functions<'a>(
     handoff: &'a Handoff,
     args: &Args,
     settings: &Settings,
+    root: &std::path::Path,
 ) -> Result<Vec<FunctionReport<'a>>, String> {
     let limit = args.max_analysis_functions.unwrap_or(usize::MAX);
     handoff
@@ -106,7 +132,12 @@ fn evaluate_functions<'a>(
                     settings,
                 ))
             } else {
-                assess(function, mutations::inspect(&function.facts)?, settings)
+                assess(
+                    function,
+                    mutations::inspect_with_policy(&function.facts)?,
+                    settings,
+                    root,
+                )
             }
         })
         .collect()
@@ -114,19 +145,12 @@ fn evaluate_functions<'a>(
 
 fn assess<'a>(
     function: &'a Function,
-    assessment: mutations::Assessment,
+    observed: mutations::PolicyObservation<'_>,
     settings: &Settings,
+    root: &std::path::Path,
 ) -> Result<FunctionReport<'a>, String> {
-    let (availability, reason) = match &assessment.availability {
-        Availability::Known(()) => (FactAvailability::Known, None),
-        Availability::Unknown { reason } => (FactAvailability::Unknown, Some(reason.clone())),
-        Availability::Unsupported { reason } => {
-            (FactAvailability::Unsupported, Some(reason.clone()))
-        }
-        Availability::NotApplicable { reason } => {
-            (FactAvailability::NotApplicable, Some(reason.clone()))
-        }
-    };
+    let assessment = observed.direct;
+    let (availability, reason) = availability(&assessment.availability);
     let complete = assessment.coverage == mutations::Coverage::Complete
         && assessment.execution == mutations::Execution::Completed
         && availability == FactAvailability::Known;
@@ -138,6 +162,20 @@ fn assess<'a>(
 
     let evidence = policy::Evidence::from_assessment(assessment, complete)?;
     let rules = settings.evaluate(Some(&evidence), complete);
+    let policy = decisions::evaluate(
+        super::source_exclusions::evaluate_source(
+            &observed.source,
+            function,
+            root,
+            settings.exclusions(),
+        ),
+        super::source_suppressions::evaluate(&observed.preceding_comment),
+        &rules,
+        decisions::RawStatus {
+            complete,
+            execution,
+        },
+    );
     Ok(FunctionReport {
         execution,
         coverage: if complete {
@@ -148,10 +186,25 @@ fn assess<'a>(
         availability,
         outcome: policy::outcome(&rules),
         evidence: Some(evidence),
+        policy,
         rules,
         reason,
-        ..unavailable(function, execution, "", settings)
+        location: Location::new(function),
+        density: Density::unavailable(),
     })
+}
+
+fn availability(observed: &Availability<()>) -> (FactAvailability, Option<String>) {
+    match observed {
+        Availability::Known(()) => (FactAvailability::Known, None),
+        Availability::Unknown { reason } => (FactAvailability::Unknown, Some(reason.clone())),
+        Availability::Unsupported { reason } => {
+            (FactAvailability::Unsupported, Some(reason.clone()))
+        }
+        Availability::NotApplicable { reason } => {
+            (FactAvailability::NotApplicable, Some(reason.clone()))
+        }
+    }
 }
 
 fn unavailable<'a>(
@@ -160,86 +213,38 @@ fn unavailable<'a>(
     reason: &str,
     settings: &Settings,
 ) -> FunctionReport<'a> {
+    let rules = settings.evaluate(None, false);
+    let policy = decisions::evaluate(
+        super::source_exclusions::Report::Unavailable {
+            reason: reason.into(),
+        },
+        super::source_suppressions::Report::failure(reason.into()),
+        &rules,
+        decisions::RawStatus {
+            complete: false,
+            execution,
+        },
+    );
     FunctionReport {
-        key: function.key,
-        name: &function.facts.name,
-        source_file: function
-            .facts
-            .build
-            .frontend_options
-            .get("source_file")
-            .and_then(serde_json::Value::as_str),
-        fn_span: function.facts.fn_span,
+        location: Location::new(function),
         execution,
         outcome: Outcome::NotEvaluated,
         coverage: Coverage::Incomplete,
         availability: FactAvailability::Unknown,
         evidence: None,
-        rules: settings.evaluate(None, false),
-        density: Density {
-            outcome: Outcome::NotEvaluated,
-            reason: "Density requires a complete effect vocabulary and statement denominator",
-        },
+        rules,
+        policy,
+        density: Density::unavailable(),
         reason: Some(reason.into()),
     }
 }
 
-fn summary(
-    functions: &[FunctionReport<'_>],
-    handoff: &Handoff,
-    capture: &capture::Capture,
-    requested: bool,
-) -> Summary {
-    let mut reasons: Vec<_> = capture
-        .failures
-        .iter()
-        .chain(&handoff.failures)
-        .cloned()
-        .collect();
-    let expected_functions = reasons.is_empty().then_some(handoff.assessed.len());
-    let evaluated_functions = functions
-        .iter()
-        .filter(|f| f.coverage == Coverage::Complete)
-        .count();
-    let unavailable_functions = functions.len() - evaluated_functions;
-    if requested && unavailable_functions > 0 {
-        reasons.push(
-            "Some owners have incomplete mutation evidence; see boundaries and reasons".into(),
-        );
-    }
-    let execution = execution(functions, requested, expected_functions.is_some());
-
-    Summary {
-        execution,
-        coverage: if requested && reasons.is_empty() && execution == Execution::Completed {
-            Coverage::Complete
-        } else {
-            Coverage::Incomplete
-        },
-        population: "captured function owners, independent of strict graph admission",
-        expected_functions,
-        assessed_functions: functions
-            .iter()
-            .filter(|f| f.execution != Execution::BudgetExhausted)
-            .count(),
-        evaluated_functions,
-        unavailable_functions,
-        reasons,
-    }
-}
-
-fn execution(functions: &[FunctionReport<'_>], requested: bool, captured: bool) -> Execution {
-    if !requested {
-        Execution::NotRequested
-    } else if !captured {
-        Execution::Failed
-    } else if functions
-        .iter()
-        .any(|f| f.execution == Execution::BudgetExhausted)
-    {
-        Execution::BudgetExhausted
-    } else {
-        Execution::Completed
+impl Density {
+    fn unavailable() -> Self {
+        Self {
+            outcome: Outcome::NotEvaluated,
+            reason: "Density requires a complete effect vocabulary and statement denominator",
+        }
     }
 }
 
@@ -248,37 +253,5 @@ impl Report<'_> {
         self.scope.execution == Execution::NotRequested
             || (self.scope.execution == Execution::Completed
                 && self.scope.coverage == Coverage::Complete)
-    }
-
-    pub(in crate::clones) fn render(&self) -> String {
-        if self.scope.execution == Execution::NotRequested {
-            return String::new();
-        }
-        let mut output = format!(
-            "\nMutation analysis: {:?} coverage; {} findings; {} complete, {} unavailable functions.",
-            self.scope.coverage,
-            self.findings,
-            self.scope.evaluated_functions,
-            self.scope.unavailable_functions
-        );
-        for function in &self.functions {
-            for rule in function
-                .rules
-                .iter()
-                .filter(|r| r.outcome == Outcome::Finding)
-            {
-                output.push_str(&format!(
-                    "\n{} {} at {} [bytes {}..{}]: at least {} sites/roots (limit {}).",
-                    rule.rule_id,
-                    function.name,
-                    function.source_file.unwrap_or("<source unavailable>"),
-                    function.fn_span.start,
-                    function.fn_span.end,
-                    rule.actual.unwrap_or(0),
-                    rule.limit
-                ));
-            }
-        }
-        output
     }
 }

@@ -20,7 +20,16 @@ pub(super) fn evaluate(
     root: &Path,
     matcher: &Matcher,
 ) -> Report {
-    if let Some(reason) = unavailable_source(&facts.source) {
+    evaluate_source(&facts.source, function, root, matcher)
+}
+
+pub(super) fn evaluate_source(
+    source: &Availability<&str>,
+    function: &Function,
+    root: &Path,
+    matcher: &Matcher,
+) -> Report {
+    if let Some(reason) = unavailable_source(source) {
         return Report::Unavailable { reason };
     }
     let path = function

@@ -5,6 +5,7 @@ mod call_tests;
 mod calls;
 mod model;
 mod native;
+mod policy;
 mod source;
 #[cfg(test)]
 mod tests;
@@ -12,6 +13,7 @@ mod uses;
 use super::Availability;
 use crate::HirFnFacts;
 pub use model::*;
+pub use policy::{PolicyObservation, inspect_with_policy};
 
 pub fn inspect(facts: &HirFnFacts) -> Result<Assessment, String> {
     Ok(observe(facts, Request::default())?.direct)
@@ -68,27 +70,34 @@ fn observe(facts: &HirFnFacts, request: Request) -> Result<Observations, String>
             })));
         }
     };
+    Ok(observe_original(facts, source, request)?.0)
+}
+
+fn observe_original(
+    facts: &HirFnFacts,
+    source: &str,
+    request: Request,
+) -> Result<(Observations, bool), String> {
     // Bound parsing before the shared source/signature parser runs.
     if !source::within_budget(&facts.source.bytes) {
-        return Ok(without_calls(Assessment {
-            execution: Execution::BudgetExhausted,
-            coverage: Coverage::Incomplete,
-            boundaries: vec![Boundary {
-                availability: BoundaryAvailability::Unknown,
-                span: crate::ByteSpan {
-                    start: 0,
-                    end: facts.source.bytes.len() as u32,
-                },
-                reason: "Original syntax budget exhausted".into(),
-            }],
-            ..Assessment::empty()
-        }));
+        return Ok((
+            without_calls(Assessment {
+                execution: Execution::BudgetExhausted,
+                coverage: Coverage::Incomplete,
+                boundaries: vec![Boundary {
+                    availability: BoundaryAvailability::Unknown,
+                    span: crate::ByteSpan {
+                        start: 0,
+                        end: facts.source.bytes.len() as u32,
+                    },
+                    reason: "Original syntax budget exhausted".into(),
+                }],
+                ..Assessment::empty()
+            }),
+            false,
+        ));
     }
-    if request.calls {
-        source::observe(facts, source, Assessment::empty(), request)
-    } else {
-        source::inspect(facts, source, Assessment::empty()).map(without_calls)
-    }
+    source::observe_with_signature(facts, source, Assessment::empty(), request)
 }
 
 fn unavailable(availability: Availability<()>) -> Assessment {

@@ -51,6 +51,11 @@ impl Report {
             && matches!(self, Self::Allowed { rules, .. } if rules.iter().any(|name| name == rule))
     }
 
+    pub(super) fn allows_mutation(&self, rule: &str) -> bool {
+        matches!(rule, "mutation_per_target" | "mutated_targets")
+            && matches!(self, Self::Allowed { rules, .. } if rules.iter().any(|name| name == rule))
+    }
+
     pub(super) fn complete(&self) -> bool {
         !matches!(self, Self::Unavailable { .. })
     }

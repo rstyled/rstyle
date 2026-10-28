@@ -232,6 +232,15 @@ unknown. Pattern conditions, loops and opaque operations remain incomplete.
 This direct inventory does not certify conditional helper calls or parameter uses.
 See `docs/clones-mutations.md` for policy, provenance and replay semantics.
 
+Mutation schema `rstyle.mutations/2` keeps raw evidence/rules separate from
+`policy` decisions. Use `visible_findings` for finding exits; named captured
+`rstyle-allow(mutation_per_target, mutated_targets): reason` comments hide only
+those rules. Suppression does not repair incomplete evidence. Mutation-config
+`exclude` uses original workspace-relative globs (default `target/**`, `[]` opts
+out); excluded owners are explicit policy skips with raw evidence retained.
+Inspect raw and policy coverage/counters separately. Replay reevaluates config
+against captured paths and comments without reading changed live files.
+
 `clones --mutation-effects` uses schema `rstyle.mutation-effects/2` for original
 scalar writes through at most two same-unit call edges (`caller → wrapper → leaf`).
 Inspect `summary_site_index`, original write owner/site, `call_path` and projected

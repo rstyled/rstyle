@@ -23,6 +23,8 @@ cannot turn into a complete clean inventory, even if other sites are witnessed.
 Use an explicit TOML policy with `--mutation-config FILE`:
 
 ```toml
+exclude = ["target/**", "generated/**"]
+
 [mutation_budget]
 max_mutations_per_target = 2
 max_mutated_targets = 1
@@ -35,7 +37,7 @@ granularity is rejected until field provenance has its own evidence contract.
 This consumer has a distinct event vocabulary from legacy mutation analysis,
 which also counts mutable borrows. It does not replace legacy behavior.
 
-JSON `mutation_analysis` includes effective policy, scope/execution, findings,
+JSON `mutation_analysis` schema `rstyle.mutations/2` includes effective policy, scope/execution, findings,
 expected/assessed/complete/unavailable function counts, and per-function rules.
 Each retained site includes its original function-relative byte span, compiler
 binding identity, declaration and lexical-scope spans, formal ordinal when
@@ -59,11 +61,43 @@ limits include 256 KiB original source, 128 delimiter depth and conservative
 native nodes/depth 128, and 4,096 roots/sites. Exceeding a bound remains explicit
 budget exhaustion; it never establishes an empty inventory. Incomplete
 requested analysis exits 2, including when it has findings. Complete analysis
-exits 0, or 1 with `--fail-on-findings` and an over-budget rule. Full and compact
-reports retain the same consumer evidence. Legacy suppressions, ignores and
-review entries do not apply to this opt-in consumer.
+exits 0, or 1 with `--fail-on-findings` and a visible finding. Full and compact
+reports retain the same consumer evidence. Saved ignore and review entries do
+not apply to this opt-in consumer.
 
-Capture once, then reevaluate thresholds with `--replay-run RUN_DIRECTORY`, the
+Captured comments use the existing physical-line association and named-rule
+syntax, for example `// rstyle-allow(mutation_per_target): deliberate repeated writes`.
+Only the explicitly named mutation rules are hidden. A malformed annotation
+produces an `invalid_suppression` finding and hides nothing. Original comments,
+including empty comments, come from the checked captured file; live file edits
+cannot change them during replay. A suppression never repairs incomplete raw
+analysis: an included opaque owner still exits 2 even when its witnessed findings
+are suppressed.
+
+The top-level `exclude` list in the mutation configuration uses the shared
+workspace-relative glob policy. Its default is `["target/**"]`; `exclude = []`
+opts out. Matching uses the original captured path and workspace root, without
+reading the current filesystem. A trusted excluded owner has an explicit complete
+policy skip; its raw evidence, boundaries and incomplete raw status remain
+inspectable. Skipped rule decisions have no measured `actual` value. Missing
+source/path authority cannot authorize a skip. Known invalid comments remain
+visible even on excluded owners. This policy does not alter effects, source
+rules, guards or planning consumers.
+
+Per-function `policy` separates suppression/exclusion decisions from raw `rules`,
+`evidence`, `coverage` and `execution`. Report `findings` counts observed mutation
+breaches and known invalid annotations; `visible_findings` controls finding exits
+and text. `suppressed_findings` and `excluded_findings` explain hidden breaches.
+Top-level `coverage`/`execution` describe the requested policy scope, while
+`evidence_coverage`/`evidence_execution` describe the unchanged raw scope.
+`evaluated_functions`/`unavailable_functions` retain raw-evidence meanings;
+`policy_evaluated_functions`, `excluded_functions` and
+`policy_unavailable_functions` partition requested policy owners. Capture errors
+and unassessed owners remain incomplete regardless of policy.
+With all-target capture, generated test-harness owners can remain unavailable;
+an authored source-file exclusion does not authorize skipping those owners.
+
+Capture once, then reevaluate thresholds and exclusions with `--replay-run RUN_DIRECTORY`, the
 same extraction profile, `--mutation-rules` and a new `--mutation-config`.
 Replay uses checked retained original source and compiler observations; it needs
 neither the original source tree nor Cargo/compiler execution. Wrong source,

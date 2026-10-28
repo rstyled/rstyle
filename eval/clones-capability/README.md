@@ -198,6 +198,10 @@ both authored arms once, with distinct lexical roots and unknown boundaries;
 conditional helper-effect and formal-use proof coverage stays conservative.
 The original lexical-block shadowing case also has explicit live coverage.
 Next/later cases retain explicit future scope, including loop inventories.
+Mutation policy acceptance separately checks captured named suppressions and
+workspace path exclusions. Schema 2 retains raw evidence while exposing visible,
+suppressed and excluded findings and separate raw/policy coverage. Exclusions
+are explicit skips, and suppression alone never makes an opaque owner clean.
 A complete direct-write inventory does not establish purity or density, and the
 static-site vocabulary differs intentionally from legacy mutable-borrow events.
 

@@ -1,11 +1,17 @@
 use super::{Outcome, mutations};
 use crate::clones::Args;
-use rstyle_core::config::{Granularity, MutationBudgetConfig};
+use rstyle_core::{
+    config::{Excludes, Granularity, MutationBudgetConfig},
+    exclusions::Matcher,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 #[derive(Serialize)]
 pub(in crate::clones) struct Settings {
+    exclude: Vec<String>,
+    #[serde(skip)]
+    exclusions: Matcher,
     max_mutations_per_target: usize,
     max_mutated_targets: usize,
     granularity: &'static str,
@@ -14,6 +20,7 @@ pub(in crate::clones) struct Settings {
 #[derive(Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 struct Configuration {
+    exclude: Excludes,
     mutation_budget: MutationBudgetConfig,
 }
 
@@ -21,23 +28,30 @@ pub(super) fn configuration(args: &Args) -> Result<Option<Settings>, String> {
     if !args.mutation_rules {
         return Ok(None);
     }
-    let policy = match &args.mutation_config {
+    let config = match &args.mutation_config {
         None => Configuration::default(),
         Some(path) => {
             let text = std::fs::read_to_string(path)
                 .map_err(|error| format!("{}: {error}", path.display()))?;
             toml::from_str(&text).map_err(|error| format!("{}: {error}", path.display()))?
         }
-    }
-    .mutation_budget;
+    };
+    settings(config).map(Some)
+}
+
+fn settings(config: Configuration) -> Result<Settings, String> {
+    let policy = config.mutation_budget;
     if !matches!(policy.granularity, Granularity::Root) {
         return Err("Mutation analysis currently supports root granularity only".into());
     }
-    Ok(Some(Settings {
+    let exclusions = Matcher::compile(&config.exclude.0)?;
+    Ok(Settings {
+        exclude: config.exclude.0,
+        exclusions,
         max_mutations_per_target: policy.max_mutations_per_target,
         max_mutated_targets: policy.max_mutated_targets,
         granularity: "root",
-    }))
+    })
 }
 
 #[derive(Serialize)]
@@ -111,6 +125,10 @@ fn root_counts(sites: &[mutations::WriteSite]) -> Result<RootCounts<'_>, String>
 }
 
 impl Settings {
+    pub(super) fn exclusions(&self) -> &Matcher {
+        &self.exclusions
+    }
+
     pub(super) fn evaluate(&self, evidence: Option<&Evidence>, complete: bool) -> Vec<Rule> {
         vec![
             rule(
@@ -214,5 +232,46 @@ mod tests {
                 .is_err()
         );
         assert!(toml::from_str::<Configuration>("max_mutations_per_target=2").is_err());
+    }
+
+    #[test]
+    fn workspace_exclusions_compile_once_and_serialize_original_patterns() {
+        let config: Configuration =
+            toml::from_str("exclude=['vendor/**', '**/generated_*.rs']").unwrap();
+        let settings = settings(config).unwrap();
+        assert!(
+            settings
+                .exclusions()
+                .is_excluded(std::path::Path::new("vendor/lib.rs"))
+        );
+        assert!(
+            !settings
+                .exclusions()
+                .is_excluded(std::path::Path::new("src/lib.rs"))
+        );
+        let json = serde_json::to_value(&settings).unwrap();
+        assert_eq!(
+            json["exclude"],
+            serde_json::json!(["vendor/**", "**/generated_*.rs"])
+        );
+        assert!(json.get("exclusions").is_none());
+    }
+
+    #[test]
+    fn default_empty_and_invalid_exclusions_keep_shared_matcher_semantics() {
+        let default = settings(Configuration::default()).unwrap();
+        assert!(
+            default
+                .exclusions()
+                .is_excluded(std::path::Path::new("target/debug/a.rs"))
+        );
+        let empty = settings(toml::from_str("exclude=[]").unwrap()).unwrap();
+        assert!(
+            !empty
+                .exclusions()
+                .is_excluded(std::path::Path::new("target/debug/a.rs"))
+        );
+        let invalid = settings(toml::from_str("exclude=['[']").unwrap());
+        assert!(invalid.err().unwrap().starts_with("bad exclude `[`"));
     }
 }

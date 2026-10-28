@@ -96,7 +96,7 @@ fn direct_scalar_assignment_counts_follow_independent_sources_and_provenance() {
 
 fn assert_exact_case(report: &Value, case: &Value) {
     let analysis = &report["mutation_analysis"];
-    assert_eq!(analysis["schema"], "rstyle.mutations/1");
+    assert_eq!(analysis["schema"], "rstyle.mutations/2");
     assert_eq!(analysis["execution"], "completed");
     assert_eq!(analysis["coverage"], "complete");
     assert_eq!(
