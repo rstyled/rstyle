@@ -80,7 +80,7 @@ fn inspect_source(facts: &HirFnFacts) -> Result<LocalFacts<'_>, String> {
             });
         }
     };
-    check_signature(facts, &function.sig)?;
+    check_signature(facts, &function)?;
     let signature = if function.sig.variadic.is_some() {
         Availability::Unsupported {
             reason: "Variadic input has no fixed complete arity".into(),
@@ -168,7 +168,8 @@ fn check_file(facts: &HirFnFacts, census: &census::Census) -> Result<Option<Stri
     Ok(None)
 }
 
-fn check_signature(facts: &HirFnFacts, signature: &syn::Signature) -> Result<(), String> {
+fn check_signature(facts: &HirFnFacts, function: &syn::ItemFn) -> Result<(), String> {
+    let signature = &function.sig;
     let source = facts.source.bytes.as_str();
     let has_self = signature.receiver().is_some();
     if let Some(identifier) = facts
@@ -184,7 +185,7 @@ fn check_signature(facts: &HirFnFacts, signature: &syn::Signature) -> Result<(),
         || has_self != facts.signature.has_self
         || has_self != facts.signature.receiver.is_some()
         || signature.variadic.is_some() != facts.signature.is_variadic
-        || relative_span(source, signature.span()) != facts.signature.sig_span
+        || header_span(source, function) != facts.signature.sig_span
     {
         return Err("Local facts signature disagrees with original input roster or span".into());
     }
@@ -200,6 +201,20 @@ fn check_signature(facts: &HirFnFacts, signature: &syn::Signature) -> Result<(),
         }
     }
     Ok(())
+}
+
+// rustc's signature starts at visibility, while syn::Signature excludes it.
+// Retain the signature end so bodies and intervening whitespace cannot widen it.
+fn header_span(source: &str, function: &syn::ItemFn) -> ByteSpan {
+    let signature = relative_span(source, function.sig.span());
+    let start = match function.vis {
+        syn::Visibility::Inherited => signature.start,
+        _ => relative_span(source, function.vis.span()).start,
+    };
+    ByteSpan {
+        start,
+        end: signature.end,
+    }
 }
 
 fn relative_span(source: &str, span: proc_macro2::Span) -> ByteSpan {

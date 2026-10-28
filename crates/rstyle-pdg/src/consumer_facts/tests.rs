@@ -41,7 +41,11 @@ fn facts(source: &str) -> HirFnFacts {
             external_imports: vec![],
         }));
     let function: syn::ItemFn = syn::parse_str(source).unwrap();
-    facts.signature.sig_span = relative_span(source, function.sig.span());
+    // Captured function bytes begin at the full header, including visibility.
+    facts.signature.sig_span = ByteSpan {
+        start: 0,
+        end: relative_span(source, function.sig.span()).end,
+    };
     facts.signature.has_self = function.sig.receiver().is_some();
     facts.signature.is_variadic = function.sig.variadic.is_some();
     facts.signature.params = function
@@ -231,4 +235,51 @@ fn oversized_ownership_inventory_cannot_yield_local_facts() {
         .resize(census::MAX_FILES + 1, census.files[0].clone());
     facts.build.frontend_options.insert_data(Arc::new(census));
     assert!(inspect(&facts).is_err());
+}
+
+#[test]
+fn full_header_spans_include_public_restricted_and_private_visibility() {
+    for header in [
+        "fn local(input: u32)",
+        "pub fn public(input: u32)",
+        "pub(crate) fn restricted(input: u32)",
+        "pub(in crate::module) async fn scoped<T>(input: T) -> T where T: Copy",
+        "pub const unsafe extern \"C\" fn qualified(input: u32) -> u32",
+    ] {
+        let source = format!("{header} {{ input }}");
+        let mut facts = facts(&source);
+        // Independent byte expectations, not a projection of the parser helper.
+        facts.signature.sig_span = ByteSpan {
+            start: 0,
+            end: header.len() as u32,
+        };
+        assert!(
+            matches!(inspect(&facts).unwrap().signature, Availability::Known(_)),
+            "{header}"
+        );
+        if header.starts_with("pub") {
+            facts.signature.sig_span.start = header.find("fn ").unwrap() as u32;
+            assert!(
+                inspect(&facts).is_err(),
+                "Visibility cannot be omitted: {header}"
+            );
+        }
+        for changed in [
+            ByteSpan {
+                start: 1,
+                end: header.len() as u32,
+            },
+            ByteSpan {
+                start: 0,
+                end: header.len() as u32 - 1,
+            },
+            ByteSpan {
+                start: 0,
+                end: header.len() as u32 + 1,
+            },
+        ] {
+            facts.signature.sig_span = changed;
+            assert!(inspect(&facts).is_err(), "{header}: {changed:?}");
+        }
+    }
 }
