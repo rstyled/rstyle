@@ -37,6 +37,7 @@ enum Ordinal {
     Helper(usize),
     Source(usize),
     Parameter(usize),
+    Length(usize),
 }
 
 pub(super) fn apply(
@@ -50,20 +51,14 @@ pub(super) fn apply(
     if !dry_run {
         retain(&mut store.entries, &plan.states, Ordinal::Helper);
         retain(&mut store.source_entries, &plan.states, Ordinal::Source);
-        retain(
-            &mut store.parameter_entries,
-            &plan.states,
-            Ordinal::Parameter,
-        );
+        retain_numeric(store, &plan.states);
     }
     Ok(Report {
         schema: "rstyle.review-prune/1",
         dry_run,
         eligible_entries: plan.selections.len(),
         removed_entries: if dry_run { 0 } else { plan.selections.len() },
-        retained_entries: store.entries.len()
-            + store.source_entries.len()
-            + store.parameter_entries.len(),
+        retained_entries: store.retained_entries(),
         selections: plan.selections,
     })
 }
@@ -93,6 +88,11 @@ fn selection_plan(store: &ReviewStore, status: &status::Report) -> Result<Select
     Ok(SelectionPlan { states, selections })
 }
 
+fn retain_numeric(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
+    retain(&mut store.parameter_entries, states, Ordinal::Parameter);
+    retain(&mut store.length_entries, states, Ordinal::Length);
+}
+
 fn retain<T>(
     entries: &mut Vec<T>,
     states: &BTreeMap<Ordinal, bool>,
@@ -107,7 +107,7 @@ fn retain<T>(
 }
 
 fn validate_summary(store: &ReviewStore, report: &status::Report) -> Result<(), String> {
-    let total = store.entries.len() + store.source_entries.len() + store.parameter_entries.len();
+    let total = store.retained_entries();
     let unassessed = report
         .records
         .iter()
@@ -170,6 +170,18 @@ fn validate_record(store: &ReviewStore, record: &status::Record) -> Result<Ordin
                 std::iter::once(&entry.finding.locator),
             )?;
             Ok(Ordinal::Parameter(record.entry_index))
+        }
+        status::Family::Length => {
+            let entry = store
+                .length_entries
+                .get(record.entry_index)
+                .ok_or_else(invalid_record)?;
+            validate_identity(
+                record,
+                &entry.reason,
+                std::iter::once(&entry.finding.locator),
+            )?;
+            Ok(Ordinal::Length(record.entry_index))
         }
         _ => validate_source_record(store, record),
     }

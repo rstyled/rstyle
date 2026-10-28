@@ -145,7 +145,7 @@ See `docs/clones-source-rules.md` for scope and association limitations. Keep bo
 legacy style and patterns gates until their capability retirement gates pass.
 
 
-## Opt-in parameter-count reviews
+## Opt-in numeric source-rule reviews
 
 Add `--review-file reviews.json` to source rules for explicit parameter reviews.
 Only dismiss a completed visible selected `fn_params` finding after the user
@@ -166,6 +166,16 @@ can remove only completed negatives under the retained numeric policy and curren
 detector versions; raised limits, missing owners and unavailable evidence never
 authorize pruning. See `docs/clones-finding-review.md` for commands and bounds.
 
+
+Length choices use the same review workflow with `--dismiss-length FUNCTION_KEY`.
+They require an explicit saved run and reason, write schema-4 `length_entries`,
+and appear in `length_review`/retained `length` status. Identity retains checked
+owner/context, detector versions, `max_lines` and completed code-line count.
+Same-count edits and blank/comment insertions preserve this numeric choice;
+changed count or policy requires review. Dismiss only after the user chooses to
+retain that measured boundary. Parameter and length choices remain independent;
+other findings, raw assessments/plans and incomplete exits retain their meaning.
+Only same-policy/current-version completed negatives can be explicitly pruned.
 
 ## Opt-in caller-aware parameter plans
 

@@ -1,5 +1,5 @@
 //! Shared presentation of independently checked exact review lookups.
-use super::{local, source_rules};
+use super::{exact_rules, local};
 use serde::Serialize;
 use std::fmt::Debug;
 
@@ -57,12 +57,12 @@ impl From<local::Lookup<'_>> for Outcome {
     }
 }
 
-impl From<source_rules::Lookup<'_>> for Outcome {
-    fn from(lookup: source_rules::Lookup<'_>) -> Self {
+impl<S> From<exact_rules::Lookup<'_, S>> for Outcome {
+    fn from(lookup: exact_rules::Lookup<'_, S>) -> Self {
         match lookup {
-            source_rules::Lookup::HiddenExact(entry) => Self::exact(&entry.reason),
-            source_rules::Lookup::VisibleNew => Self::new(),
-            source_rules::Lookup::Stale(entries) => Self::stale(
+            exact_rules::Lookup::HiddenExact(entry) => Self::exact(&entry.reason),
+            exact_rules::Lookup::VisibleNew => Self::new(),
+            exact_rules::Lookup::Stale(entries) => Self::stale(
                 entries
                     .iter()
                     .map(|entry| (entry.reason, entry.entry.reason.as_str())),

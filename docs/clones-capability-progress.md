@@ -59,6 +59,8 @@ Heavy captures and integrated gates run serially.
 
 | C09e | Model + workflow + acceptance + lead / completed parameter facts, review storage/status/prune and CLI/report | delivered (exact parameter reviews) | this checkpoint | Saved numeric parameter-count choices with context/policy staleness and selected hiding | 2,835 workspace tests; style zero; same 15 unfiltered pattern IDs; source/tool-free strict replay; bounded free-function identity |
 
+| C09f | Model + workflow + acceptance + lead / shared numeric review, completed length measurements and CLI/report | delivered (numeric length reviews) | this checkpoint | Saved numeric function-length choices with independent family hiding and shared original owner resolution | 2,857 workspace tests and doc tests; zero style violations; same 15 unfiltered pattern IDs; strict source/tool-free replay; conservative same-policy pruning |
+
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
 
@@ -1236,3 +1238,54 @@ body edits preserve review; count changes and changed policy require review.
 This is readiness, not delivered behavior. Acceptance must cover same-policy
 completed negatives versus changed-policy stale negatives, mixed rule stores,
 source/tool-free replay, selected hiding and unfiltered raw planning.
+
+
+## C09f: numeric function-length review and shared source-owner resolution
+
+Model owns shared typed exact-choice mechanics and the length snapshot; workflow
+owns source-rule observations and per-family status/dismissal; acceptance owns
+`tests/migration_length_review/`; the lead owns source adapters, CLI/storage/report
+seams, pruning, docs and embedded skill. This slice is delivered over its bounded
+original free-function scope.
+
+`--source-rules --review-file` assesses numeric function-length choices alongside
+parameter choices. An explicit saved-run `--dismiss-length` records detector
+versions, checked original locator/build context, `max_lines` and completed
+`code_lines`. No body bytes, checksums, report handles or source positions are
+stored as identity. Code-line counting is not repeated. Same-count edits and
+blank/comment insertions preserve review; changed count or policy requires review.
+This deliberately reviews the measured numeric boundary rather than every body
+edit. Schema 4 adds optional typed length entries; prior schema shapes remain
+readable and read-only lookup/status never upgrade retained bytes.
+
+One bounded original-owner resolution feeds both source-rule families. Each has
+separate decisions/hidden key sets/counts and detector policy. Generic exact-choice
+storage shares bounded validation and borrowed locator/target lookup without
+merging distinct typed snapshots. The existing independent local-abstraction
+model remains separate. Both numeric models retain explicit semantic validation.
+Root/inline-module original free-function coverage, the shared 4,096-owner bound
+and the 4,096-entry bound per numeric family remain unchanged; ambiguous, missing and truncated identities grant no dismissal.
+
+Length review affects selected length diagnostics/finding exits only. Other source
+rules and guards, raw counts/assessments and parameter plans retain their meaning.
+Same-policy/current-version completed negatives permit explicit pruning; raising
+`max_lines` yields stale rather than a prunable negative. Source suppression,
+changed-file intersections, lib/test context separation, schema coexistence and
+source/tool-free strict full/compact replay have independent acceptance targets.
+The frozen final snapshot passes all 2,857 workspace nextest tests (five skipped)
+in 183.049 seconds and doc tests, including both original NonZero regressions.
+Workspace/all-targets locked Clippy with warnings denied, zero style violations
+across 9,110 functions, all 56 Python comparison tests, formatting and diff checks
+pass. Reviewed patterns reports zero candidates; unfiltered discovery retains
+exactly the previous 15 IDs. The shared completeness gate uses typed family
+selection, preserving short-circuit proof checks without indirect callback cost.
+Logs use `/tmp/clones-length-review-*`. Native macOS, exact Go comparison and
+per-capability legacy retirement remain unverified or open.
+
+The next ready source-review slice is `fn_spacing`, using completed direct-statement
+measurements and explicit `min_statements` policy. Omitted spacing must remain
+not-requested; disabled or changed policy must not prune retained positives. A
+new blank line can establish a completed same-policy negative only through the
+existing completed assessment. No additional source scan/hash is needed. Mixed
+three-family stores, independent hiding, unsupported transformed source and
+source/tool-free replay need independent acceptance before delivery.

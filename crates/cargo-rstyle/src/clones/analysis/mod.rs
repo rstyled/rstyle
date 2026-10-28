@@ -13,8 +13,8 @@ mod local_scope;
 pub(super) mod mutation_reports;
 mod pair_differences;
 pub(super) mod pair_reports;
-mod parameter_reviews;
 mod source_exclusions;
+mod source_reviews;
 mod source_rules;
 mod source_spacing;
 mod source_suppressions;
@@ -67,15 +67,19 @@ pub struct Assessment {
     pub reasons: Vec<String>,
 }
 
-pub(in crate::clones) struct ParameterReview<'a> {
+pub(in crate::clones) struct SourceReview<'a> {
     pub key: super::FunctionKey,
-    pub assessment: Option<&'a Assessment>,
+    pub selected: bool,
     pub signature: Option<rstyle_pdg::consumer_facts::Signature>,
-    pub max_params: usize,
     pub count_self: bool,
+    pub parameter: RuleReview<'a>,
+    pub length: RuleReview<'a>,
+}
+
+pub(in crate::clones) struct RuleReview<'a> {
+    pub assessment: Option<&'a Assessment>,
     pub complete: bool,
     pub visible: bool,
-    pub selected: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -127,7 +131,7 @@ struct FunctionReport<'a> {
     #[serde(skip)]
     signature: Option<rstyle_pdg::consumer_facts::Signature>,
     #[serde(skip)]
-    parameter_review_hidden: bool,
+    source_review_hidden: source_reviews::Hidden,
     execution: Execution,
     assessments: Vec<Assessment>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -457,7 +461,7 @@ fn assess<'a>(
             Availability::Known(signature) => Some(signature),
             _ => None,
         },
-        parameter_review_hidden: false,
+        source_review_hidden: source_reviews::Hidden::default(),
         execution,
         assessments: source.rules,
         source_suppression: source.suppression,
@@ -636,7 +640,7 @@ impl FunctionReport<'_> {
             .filter(|assessment| {
                 show_source
                     && self.visible(assessment)
-                    && !(self.parameter_review_hidden && assessment.rule_id == "fn_params")
+                    && !self.source_review_hidden.contains(assessment.rule_id)
             })
             .map(|assessment| {
                 format!(

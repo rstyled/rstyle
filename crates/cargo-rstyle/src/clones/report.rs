@@ -53,6 +53,8 @@ pub struct Report<'a> {
     pub abstraction_review: super::review::local_workflow::Report,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameter_review: Option<super::review::source_workflow::Report>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub length_review: Option<super::review::source_workflow::Report>,
     pub edit_planning: super::planning::Report,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameter_planning: Option<super::planning::parameters::Report>,
@@ -174,6 +176,7 @@ pub(super) fn make<'a>(ctx: Context<'a>, consumers: Consumers<'a>) -> Report<'a>
         review: consumers.review,
         abstraction_review: consumers.abstraction_review,
         parameter_review: consumers.parameter_review,
+        length_review: consumers.length_review,
         review_status: consumers.review_status,
         review_prune: consumers.review_prune,
         analysis: consumers.analysis,
@@ -343,11 +346,7 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         report.pair_reports.render(),
         report.review.render(),
         report.abstraction_review.render(),
-        report
-            .parameter_review
-            .as_ref()
-            .map(|review| review.render())
-            .unwrap_or_default(),
+        source_review_summary(report),
         report
             .review_status
             .as_ref()
@@ -362,6 +361,15 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         report.mutation_effects.render(),
         planning_summary(report)
     )
+}
+
+fn source_review_summary(report: &Report<'_>) -> String {
+    report
+        .parameter_review
+        .iter()
+        .chain(report.length_review.iter())
+        .map(|review| review.render())
+        .collect()
 }
 
 fn planning_summary(report: &Report<'_>) -> String {

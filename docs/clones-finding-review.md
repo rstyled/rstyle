@@ -156,6 +156,46 @@ planning populations remain unchanged. Unselected decisions remain reported.
 Incomplete scope keeps exit-two precedence. Exact replay requires neither
 original source files nor compiler tools.
 
+## Function-length findings
+
+`--source-rules --review-file reviews.json` also assesses exact numeric length
+reviews. From an explicit saved run, use `--dismiss-length FUNCTION_KEY` with
+`--review-reason` to retain one completed visible selected `fn_length` finding:
+
+```sh
+cargo rstyle clones --extraction-profile hir-data-v3 \
+  --replay-run /absolute/path/to/run --source-rules \
+  --analysis-config analysis.toml --review-file reviews.json \
+  --dismiss-length function:u0:f0 \
+  --review-reason 'Keep this measured function boundary.'
+```
+
+The durable choice contains detector versions, checked declaration locator and
+build context, `policy.max_lines`, and `measurement.code_lines`. It reuses the
+completed source-rule count. There is no body fingerprint, stored source, recount,
+or new graph requirement. Blank/comment-only insertions and body edits preserving
+the code-line count preserve review. A changed count, length
+policy or detector version requires review; different build contexts cannot
+inherit the choice. This numeric choice does not approve every future body edit.
+
+Length dismissal adds `length_entries` in schema 4. Existing helper, abstraction
+and parameter entries survive unchanged, and schemas 1–3 remain readable without
+read-only upgrades. Parameter and length findings on one function are reviewed
+independently. Their original owner is resolved once per function, under the same
+4,096-owner bound and root/inline-module free-function coverage described above.
+Each numeric family permits at most 4,096 retained entries.
+Unavailable, suppressed, unselected or clean findings cannot be dismissed.
+
+JSON `length_review` (`rstyle.length-review/1`) reports the same counts, selected
+hidden count and decision vocabulary as parameter reviews. Exact length reviews
+hide only selected length text diagnostics and selected length finding exits.
+Parameter, spacing and guard findings retain their gates; raw assessments/counts
+and advisory plans stay unfiltered. Strict full/compact saved-run replay requires
+neither source files nor compiler tools. Retained status uses family `length`.
+Only same-policy, current-version completed negatives are eligible for explicit
+pruning. Raising `max_lines` leaves the old choice stale and ineligible; omitted
+owners and unavailable evidence remain retained.
+
 ## Inspect every retained review
 
 Add `--review-status` to a normal analysis or an explicit saved-run replay:
@@ -171,22 +211,22 @@ This read-only report includes **every entry in the selected file**, including
 reviews with no current finding. It requires `--review-file` and conflicts with
 dismissal selectors. Request each analysis family you want assessed; an omitted
 family remains explicitly `not_requested`. Missing files mean an empty store and
-are never created. Schema-1, schema-2 and schema-3 files are not migrated or rewritten.
+are never created. Schemas 1–4 are not migrated or rewritten by lookup or status.
 Request `--source-rules` and the relevant `--analysis-config` to assess parameter
 entries.
 
 JSON adds `review_status` (`rstyle.review-status/1`) only when requested. Each
 `records` row retains its family, zero-based index within `entries` or
-`source_entries` or `parameter_entries`, original reason, durable member locators,
+`source_entries` or `parameter_entries` or `length_entries`, original reason, durable member locators,
 state and explanation.
 These indices locate rows in this file; they are not persistent finding IDs.
 
 | State | Evidence and meaning |
 | --- | --- |
 | `hidden_exact` / `hidden_growth` | A completed current finding is hidden by this exact retained entry or its explicit helper growth policy. |
-| `stale` | A completed current finding overlaps the retained identity but differs in versions, membership, context or relevant body/roles/signature/policy. A completed negative under changed parameter policy is also stale. |
+| `stale` | A completed current finding overlaps the retained identity but differs in versions, membership, context or relevant body/roles/signature/policy. A completed negative under changed parameter or length policy is also stale. |
 | `context_changed` | Every retained endpoint is observed, with at least one present only in a different context; no incomplete identity observations can conceal the original context. |
-| `no_finding` | Endpoints resolve uniquely in their retained context and the relevant function/pair has a completed negative assessment under matching detector/identity versions. Parameter negatives also require the retained `max_params` and `count_self`. Existing-trait and source-rule suppression can be completed negatives. |
+| `no_finding` | Endpoints resolve uniquely in their retained context and the relevant function/pair has a completed negative assessment under matching detector/identity versions. Parameter negatives also require the retained `max_params` and `count_self`; length negatives require the retained `max_lines`. Existing-trait and source-rule suppression can be completed negatives. |
 | `not_observed` | An endpoint has no checked identity in the selected capture. Omitted packages/targets, renamed or removed declarations are not distinguished; this is not proof of deletion. |
 | `not_requested` | This entry's detector family was omitted. |
 | `unavailable` | Identity, detector versions, admission, evidence, function/pair assessment or bounded work cannot establish status. |

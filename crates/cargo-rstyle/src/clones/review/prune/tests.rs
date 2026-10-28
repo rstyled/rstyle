@@ -118,6 +118,7 @@ fn store() -> ReviewStore {
         entries: (0..4).map(helper).collect(),
         source_entries: (0..4).map(|index| source(index, index % 2 == 0)).collect(),
         parameter_entries: vec![],
+        length_entries: vec![],
     }
 }
 
@@ -300,7 +301,7 @@ fn uncompleted_and_inconsistent_summary_reports_cannot_remove_entries() {
 
 #[test]
 fn empty_and_helper_only_stores_preserve_their_schema_versions() {
-    for schema_version in [1, 2, 3] {
+    for schema_version in [1, 2, 3, 4] {
         let mut store = ReviewStore {
             schema_version,
             ..ReviewStore::default()

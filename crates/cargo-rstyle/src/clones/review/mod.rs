@@ -2,6 +2,8 @@
 //! No hashes: full versioned member values are the only equality authority.
 mod adapter;
 mod comparison;
+mod exact_rules;
+mod length_rules;
 pub(super) mod local;
 mod local_adapter;
 pub(super) mod local_workflow;
@@ -90,11 +92,19 @@ impl Default for ReviewStore {
             entries: vec![],
             source_entries: vec![],
             parameter_entries: vec![],
+            length_entries: vec![],
         }
     }
 }
 
 impl ReviewStore {
+    pub(super) fn retained_entries(&self) -> usize {
+        self.entries.len()
+            + self.source_entries.len()
+            + self.parameter_entries.len()
+            + self.length_entries.len()
+    }
+
     pub(crate) fn from_json(bytes: &str) -> Result<Self, String> {
         let store: Self = serde_json::from_str(bytes).map_err(|error| error.to_string())?;
         store.validate().map_err(|error| format!("{error:?}"))?;
@@ -148,15 +158,17 @@ impl ReviewStore {
     }
 
     fn validate(&self) -> Result<(), ReviewError> {
-        if !matches!(self.schema_version, 1..=3)
+        if !matches!(self.schema_version, 1..=4)
             || (self.schema_version == 1 && !self.source_entries.is_empty())
             || (self.schema_version < 3 && !self.parameter_entries.is_empty())
+            || (self.schema_version < 4 && !self.length_entries.is_empty())
         {
             return Err(ReviewError::InvalidSchema);
         }
 
         local::validate_entries(&self.source_entries)?;
         source_rules::validate_entries(&self.parameter_entries)?;
+        length_rules::validate_entries(&self.length_entries)?;
         for (index, entry) in self.entries.iter().enumerate() {
             if entry.reason.trim().is_empty() {
                 return Err(ReviewError::InvalidReason);

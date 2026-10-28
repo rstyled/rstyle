@@ -101,7 +101,7 @@ pub(in crate::clones) struct Inputs<'a, 'b> {
 }
 
 pub(in crate::clones) struct Reports {
-    pub parameters: super::source_workflow::Report,
+    pub sources: super::source_workflow::Reports,
     pub helpers: Report,
     pub abstractions: super::local_workflow::Report,
     pub status: Option<status::Report>,
@@ -122,6 +122,7 @@ pub(in crate::clones) fn apply(
         || ctx.args.dismiss_enum_dispatch.is_some()
         || !ctx.args.dismiss_capability_pair.is_empty()
         || ctx.args.dismiss_parameter.is_some()
+        || ctx.args.dismiss_length.is_some()
         || reports
             .pruning
             .as_ref()
@@ -142,15 +143,15 @@ fn evaluate(
     let (abstractions, source_records) =
         super::local_workflow::apply(inputs, ctx, store.as_deref_mut())?;
     records.extend(source_records);
-    let (parameters, parameter_records) = super::source_workflow::apply(inputs, ctx, store)?;
-    records.extend(parameter_records);
+    let (sources, source_rule_records) = super::source_workflow::apply(inputs, ctx, store)?;
+    records.extend(source_rule_records);
     let status = ctx
         .args
         .review_status_requested()
         .then(|| status::Report::new(records, true));
 
     Ok(Reports {
-        parameters,
+        sources,
         helpers,
         abstractions,
         status,

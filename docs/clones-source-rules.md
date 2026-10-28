@@ -185,10 +185,10 @@ Full and compact reports retain identical selected results. This provides an
 explicit file-level CI scope; it does not infer changed lines or maintain a saved
 finding baseline.
 
-## Explicit parameter reviews
+## Explicit numeric source-rule reviews
 
 Use `--review-file reviews.json` alongside `--source-rules` to apply retained
-parameter-count reviews. An explicit saved-run dismissal requires
+parameter-count and function-length reviews. An explicit saved-run dismissal requires
 `--dismiss-parameter FUNCTION_KEY` and a nonempty `--review-reason`; only a
 completed visible selected `fn_params` finding is eligible. Missing stores are
 empty and ordinary lookup never writes. See [finding reviews](clones-finding-review.md#parameter-count-findings)
@@ -209,6 +209,16 @@ parameter planning populations remain unchanged. Whole-scope incompleteness
 still exits two. A completed negative can be pruned only with matching retained
 numeric policy and current detector versions; changing the limit does not prove
 that a retained entry can be removed.
+
+Length reviews use `--dismiss-length FUNCTION_KEY` with an explicit saved run
+and reason. Their identity records `max_lines` and the completed code-line count,
+plus the same checked owner/context and detector versions. Same-count body edits,
+blank lines and comments preserve the numeric choice; changed count or policy
+requires review. They use schema-4 `length_entries` and JSON `length_review`.
+A parameter review cannot hide a length finding or vice versa. Source owners are
+resolved once for both families. See [length reviews](clones-finding-review.md#function-length-findings)
+for exact persistence, status and pruning semantics. Existing stores remain
+readable and lookup never rewrites them.
 
 ## Bounded guard-clause advice
 
