@@ -128,13 +128,13 @@ function compiled normally and as a test target is intentionally two distinct
 functions. Pairs across those contexts are included when both are admitted. There
 is no source-digest deduplication or display-name grouping.
 
-The deterministic global function key is SHA-256 of a JSON identity tuple:
-package identity, target name/kind, test context, actual source filename,
-file-relative function byte span, qualified path, captured semantic/build facts,
-and compiler invocation. Only the fresh run-directory prefix is replaced by
-`<run>` in invocation paths; it is not a matching normalization. The source digest
-alone is never an identity. Identical definitions in separate modules or packages
-remain distinct. Duplicate keys fail the run rather than merging functions.
+Function keys use the `rstyle.report-function/2` schema: `function:uN:fN` is a
+typed unit/function handle scoped to this report. Unit descriptors retain the
+compilation context, and `unit_contexts` maps each local unit to its observed
+compiler unit. Duplicate or contradictory unit descriptors fail instead of
+merging. These handles are navigation labels, not persistent review identities;
+neither their spelling nor a source checksum establishes semantic identity.
+Identical definitions in separate modules or compilation contexts remain distinct.
 
 Captured `frontend_options.source_file` is the real absolute frontend filename;
 `fn_span` is a half-open UTF-8 byte interval in that file. `source.bytes` contains
@@ -227,6 +227,13 @@ Exit codes:
   `--fail-on-accepted-pairs` is explicitly enabled.
 - **2**: configuration, compilation, capture, verification, resource, arithmetic
   or reporting failure. Failure takes precedence over accepted-pair exit status.
+
+Opt-in [source and signature rules](clones-source-rules.md) add a separate
+`analysis` object in full and compact reports. Accepted pairs retain both source
+locations in `accepted_pairs` and text output. `--fail-on-findings` requests exit
+one for source-rule findings; incomplete requested analysis returns two even when
+strict matching is complete. Without `--source-rules`, these additional rule
+assessments are not requested and do not change the strict matching exit policy.
 
 R0 limitations, including incomplete conditional-source evidence, remain fail
 closed. A compilation unit with two otherwise indistinguishable ledger contexts

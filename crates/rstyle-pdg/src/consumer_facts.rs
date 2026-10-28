@@ -50,6 +50,7 @@ pub fn inspect(facts: &HirFnFacts) -> Result<LocalFacts<'_>, String> {
     if let Some(reason) = unavailable_owner(facts)? {
         return Ok(unavailable(reason));
     }
+
     if facts
         .source_diagnostics
         .iter()
@@ -80,6 +81,7 @@ fn inspect_source(facts: &HirFnFacts) -> Result<LocalFacts<'_>, String> {
             });
         }
     };
+
     check_signature(facts, &function)?;
     let signature = if function.sig.variadic.is_some() {
         Availability::Unsupported {
@@ -115,6 +117,7 @@ fn unavailable_owner(facts: &HirFnFacts) -> Result<Option<String>, String> {
         nominal_boundary::UnitContext::deserialize(context)
             .map_err(|error| format!("Invalid local facts context: {error}"))?;
     context.validate()?;
+
     if !options.contains_key(census::KEY) {
         return Ok(Some("Original source ownership was not captured".into()));
     }
@@ -150,6 +153,7 @@ fn check_file(facts: &HirFnFacts, census: &census::Census) -> Result<Option<Stri
     else {
         return Ok(Some("Function source path was not captured".into()));
     };
+
     let mut files = census
         .files
         .iter()
@@ -181,6 +185,7 @@ fn check_signature(facts: &HirFnFacts, function: &syn::ItemFn) -> Result<(), Str
     {
         return Err("Local facts signature belongs to another captured source identifier".into());
     }
+
     if signature.inputs.len() != facts.signature.params.len()
         || has_self != facts.signature.has_self
         || has_self != facts.signature.receiver.is_some()

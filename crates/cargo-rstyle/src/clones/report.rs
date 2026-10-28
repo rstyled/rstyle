@@ -26,6 +26,7 @@ pub struct Context<'a> {
     pub matching: &'a RunReport,
     pub partitions: rstyle_ccgraph::pipeline::WlPartitions,
     pub complete: bool,
+    pub analysis_config: Option<&'a rstyle_core::config::Config>,
 }
 
 #[derive(Serialize)]
@@ -38,6 +39,7 @@ struct Scope<'a> {
 
 #[derive(Serialize)]
 pub struct Report<'a> {
+    pub analysis: super::analysis::Report<'a>,
     report_detail: Detail,
     scope: Scope<'a>,
     run_directory: &'a Path,
@@ -109,8 +111,11 @@ fn ctx_profile_is_data(args: &Args) -> bool {
 
 pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
     let scope = selected_scope(&ctx);
+    let analysis =
+        super::analysis::evaluate(ctx.handoff, ctx.capture, ctx.analysis_config, ctx.args);
 
     Ok(Report {
+        analysis,
         report_detail: ctx.args.report_detail,
         verification_policy: if ctx.args.replay_run.is_some() {
             "strict-replay"
@@ -199,7 +204,7 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         })
         .collect::<String>();
 
-    format!("{summary}{pairs}")
+    format!("{summary}{pairs}{}", report.analysis.render())
 }
 
 fn coverage_summary(report: &Report<'_>) -> String {

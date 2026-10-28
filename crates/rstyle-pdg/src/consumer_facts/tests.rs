@@ -13,6 +13,12 @@ fn facts(source: &str) -> HirFnFacts {
         end: source.len() as u32,
     };
     facts.source_scan_complete = false;
+    source_owner(&mut facts, source);
+    signature(&mut facts, source);
+    facts
+}
+
+fn source_owner(facts: &mut HirFnFacts, source: &str) {
     facts.build.frontend_options = Default::default();
     let mut context = nominal_boundary::tests::context();
     context.package.manifest_digest = context.package.manifest_bytes.checksum().into();
@@ -40,6 +46,9 @@ fn facts(source: &str) -> HirFnFacts {
             documentation: vec![],
             external_imports: vec![],
         }));
+}
+
+fn signature(facts: &mut HirFnFacts, source: &str) {
     let function: syn::ItemFn = syn::parse_str(source).unwrap();
     // Captured function bytes begin at the full header, including visibility.
     facts.signature.sig_span = ByteSpan {
@@ -79,7 +88,6 @@ fn facts(source: &str) -> HirFnFacts {
         span: facts.signature.params[0].name_span,
         snippet: facts.signature.params[0].pat.snippet.clone(),
     });
-    facts
 }
 
 #[test]

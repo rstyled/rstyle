@@ -17,6 +17,8 @@ See [the Rust feature coverage matrix](docs/rust-feature-coverage.md) for curren
 support, examples, and the remaining real-world Rust roadmap.
 See [the integration workflow](docs/source-to-pair.md) for build selection,
 verified evidence, reports and exit codes. It does not activate abstraction mining.
+Clones also offers opt-in [source and signature rules](docs/clones-source-rules.md)
+whose evidence remains usable when a body is excluded from strict matching.
 
 Other top-level folders:
 

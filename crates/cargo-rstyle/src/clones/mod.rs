@@ -1,5 +1,6 @@
 //! Opt-in, verified source-to-pair analysis; no legacy miner involvement.
 
+mod analysis;
 pub mod capture;
 mod identity;
 mod linking;
@@ -45,6 +46,18 @@ pub struct Args {
     /// Exit 1 if any pair is accepted; similarity does not prove equivalence.
     #[arg(long)]
     fail_on_accepted_pairs: bool,
+    /// Evaluate source length and signature arity independently of graph admission.
+    #[arg(long)]
+    source_rules: bool,
+    /// TOML source-rule policy (fn_length/fn_params only); distinct from legacy configuration.
+    #[arg(long, requires = "source_rules")]
+    analysis_config: Option<PathBuf>,
+    /// Exit 1 when requested source rules find violations; incomplete analysis exits 2.
+    #[arg(long, requires = "source_rules")]
+    fail_on_findings: bool,
+    /// Bound local rule work; remaining functions are explicitly not evaluated.
+    #[arg(long, requires = "source_rules")]
+    max_analysis_functions: Option<usize>,
     /// Execution budget: fail incomplete before enumeration if it requires more pairs.
     #[arg(long)]
     max_pairs: Option<usize>,
@@ -81,7 +94,12 @@ pub fn write_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
     std::fs::write(path, bytes).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-fn configuration(cli: &Cli, args: &Args) -> Result<CcgraphConfig, String> {
+struct Configuration {
+    matching: CcgraphConfig,
+    analysis: Option<rstyle_core::config::Config>,
+}
+
+fn configuration(cli: &Cli, args: &Args) -> Result<Configuration, String> {
     if cli.config.is_some() || cli.ignore_file.is_some() {
         return Err(
             "clones does not consume legacy --config or --ignore-file; use --matching-config"
@@ -94,7 +112,10 @@ fn configuration(cli: &Cli, args: &Args) -> Result<CcgraphConfig, String> {
         .map(read_json::<Value>)
         .transpose()?
         .unwrap_or_else(|| json!({}));
-    rstyle_ccgraph::parse_config(&value).map_err(|e| e.message)
+    Ok(Configuration {
+        matching: rstyle_ccgraph::parse_config(&value).map_err(|e| e.message)?,
+        analysis: analysis::configuration(args)?,
+    })
 }
 
 #[derive(Serialize)]
@@ -253,18 +274,9 @@ pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
 
 fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     let config = configuration(cli, args)?;
-    let capture = if let Some(directory) = &args.replay_run {
-        linking::load_capture(directory, args)?
-    } else {
-        let mut capture =
-            Stage::new("cli.prepare", "run", None).observe(|| capture::prepare(cli, args))?;
-        if let Err(error) = capture::compile(&mut capture, cli, args) {
-            capture.failures.push(error);
-        }
-        capture
-    };
+    let capture = capture_input(cli, args)?;
     let handoff = Handoff::capture(&capture, args)?;
-    let evaluation = evaluate_matching(&handoff, &config, args)?;
+    let evaluation = evaluate_matching(&handoff, &config.matching, args)?;
     let matching = evaluation.report;
 
     let accepted = matching
@@ -283,15 +295,35 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         matching: &matching,
         partitions: evaluation.partitions,
         complete,
+        analysis_config: config.analysis.as_ref(),
     })?;
     let output = report.publish(cli.format, accepted)?;
-    let code = if !complete {
+    let code = if !complete || !report.analysis.permits_success() {
         2
     } else {
-        u8::from(args.fail_on_accepted_pairs && accepted > 0)
+        u8::from(
+            (args.fail_on_accepted_pairs && accepted > 0)
+                || (args.fail_on_findings && report.analysis.findings > 0),
+        )
     };
 
     Ok((output, code))
+}
+
+fn capture_input(cli: &Cli, args: &Args) -> Result<capture::Capture, String> {
+    if let Some(directory) = &args.replay_run {
+        return linking::load_capture(directory, args);
+    }
+    capture_fresh(cli, args)
+}
+
+fn capture_fresh(cli: &Cli, args: &Args) -> Result<capture::Capture, String> {
+    let mut capture =
+        Stage::new("cli.prepare", "run", None).observe(|| capture::prepare(cli, args))?;
+    if let Err(error) = capture::compile(&mut capture, cli, args) {
+        capture.failures.push(error);
+    }
+    Ok(capture)
 }
 
 fn evaluate_matching(

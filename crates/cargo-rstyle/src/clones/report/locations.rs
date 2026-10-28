@@ -59,6 +59,7 @@ fn locate<'a>(
         .get("source_file")
         .and_then(|v| v.as_str());
     let position = position(facts, path);
+
     Ok(Location {
         key,
         name: &facts.name,
@@ -79,6 +80,7 @@ fn position(facts: &rstyle_pdg::HirFnFacts, path: Option<&str>) -> Option<(usize
     if file.bytes.get(start..facts.fn_span.end as usize)? != facts.source.bytes.as_str() {
         return None;
     }
+
     let prefix = file.bytes.get(..start)?;
     Some((
         prefix.bytes().filter(|byte| *byte == b'\n').count() + 1,
