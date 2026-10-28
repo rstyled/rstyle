@@ -584,7 +584,7 @@ fn method_shape(signature: &syn::Signature) -> MethodShape {
     }
 }
 
-fn bounded_signature(signature: &syn::Signature) -> bool {
+pub(super) fn bounded_signature(signature: &syn::Signature) -> bool {
     signature.unsafety.is_none()
         && signature.asyncness.is_none()
         && signature.constness.is_none()
@@ -625,11 +625,11 @@ fn signature_header(
     }
 }
 
-fn span(source: &str, span: proc_macro2::Span) -> ByteSpan {
+pub(super) fn span(source: &str, span: proc_macro2::Span) -> ByteSpan {
     crate::source_evidence::original_span(source, span)
 }
 
-fn plain_type(ty: &Type) -> Option<String> {
+pub(super) fn plain_type(ty: &Type) -> Option<String> {
     let Type::Path(path) = ty else {
         return None;
     };
@@ -646,11 +646,11 @@ fn plain_path(path: &syn::Path) -> Option<String> {
     .then(|| path.segments[0].ident.to_string())
 }
 
-enum Decision {
+pub(super) enum Decision {
     Negative(&'static str),
     Unsupported(&'static str),
 }
-type DispatchResult<T> = std::result::Result<T, Decision>;
+pub(super) type DispatchResult<T> = std::result::Result<T, Decision>;
 
 pub(super) fn evaluate(module: &Module, function: &syn::ItemFn, source: &str) -> Assessment {
     let expression = match function.block.stmts.as_slice() {
@@ -861,22 +861,76 @@ impl DispatchSource<'_> {
         binder: &str,
         owner: &str,
     ) -> DispatchResult<&Method> {
-        if !call.attrs.is_empty() || call.turbofish.is_some() {
-            return Err(Decision::Unsupported(
-                "Method call attributes or substitutions are unsupported",
-            ));
-        }
-        if !matches!(&*call.receiver, Expr::Path(path) if path.qself.is_none() && path.path.is_ident(binder))
-        {
-            return Err(Decision::Negative(
-                "Selected call receiver is not its arm payload binder",
-            ));
-        }
-
-        let method = selected_method(self.module, owner, &call.method.to_string())?;
-        check_call_shape(method, call)?;
-        Ok(method)
+        select_call(self.module, call, binder, owner)
     }
+}
+
+fn select_call<'a>(
+    module: &'a Module,
+    call: &syn::ExprMethodCall,
+    binder: &str,
+    owner: &str,
+) -> DispatchResult<&'a Method> {
+    if !call.attrs.is_empty() || call.turbofish.is_some() {
+        return Err(Decision::Unsupported(
+            "Method call attributes or substitutions are unsupported",
+        ));
+    }
+    if !matches!(&*call.receiver, Expr::Path(path) if path.attrs.is_empty() && path.qself.is_none() && path.path.is_ident(binder))
+    {
+        return Err(Decision::Negative(
+            "Selected call receiver is not its arm payload binder",
+        ));
+    }
+
+    let method = selected_method(module, owner, &call.method.to_string())?;
+    check_call_shape(method, call)?;
+    Ok(method)
+}
+
+pub(super) fn capability_owner(module: &Module, owner: &str) -> DispatchResult<()> {
+    if let Some(reason) = module.reason {
+        return Err(Decision::Unsupported(reason));
+    }
+    if !module.owners.contains(owner) {
+        return Err(Decision::Unsupported(
+            "Wrapper receiver is not a unique same-module nominal owner",
+        ));
+    }
+    Ok(())
+}
+
+pub(super) struct MethodRequest<'a> {
+    pub module: &'a Module,
+    pub binder: &'a str,
+    pub owner: &'a str,
+    pub source: &'a str,
+}
+
+pub(super) fn capability_call_syntax(call: &syn::ExprMethodCall) -> DispatchResult<()> {
+    if !call.attrs.is_empty()
+        || call.turbofish.is_some()
+        || !call.args.iter().all(super::capabilities::plain_argument)
+        || !matches!(&*call.receiver, Expr::Path(path) if path.attrs.is_empty() && path.qself.is_none() && path.path.get_ident().is_some())
+    {
+        return Err(Decision::Unsupported(
+            "Wrapper method arguments, attributes or receiver contain unsupported work",
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn capability_method(
+    request: &MethodRequest<'_>,
+    call: &syn::ExprMethodCall,
+) -> DispatchResult<super::capabilities::MethodWitness> {
+    let method = select_call(request.module, call, request.binder, request.owner)?;
+    Ok(super::capabilities::MethodWitness {
+        name: method.name.clone(),
+        call_span: span(request.source, call.span()),
+        callee_header: method.header,
+        origin: method_origin(request.module, method)?,
+    })
 }
 
 fn check_call_shape(method: &Method, call: &syn::ExprMethodCall) -> DispatchResult<()> {

@@ -31,6 +31,22 @@ struct FunctionReport<'a> {
     boundaries: Vec<mutations::Boundary>,
 }
 
+impl super::local_scope::FunctionStatus for FunctionReport<'_> {
+    fn status(&self) -> super::local_scope::Status {
+        let evidence = &self.evidence;
+        let assessed = evidence.execution != mutations::Execution::BudgetExhausted;
+        super::local_scope::Status {
+            assessed,
+            evaluated: assessed
+                && evidence.coverage == mutations::Coverage::Complete
+                && matches!(
+                    evidence.availability,
+                    rstyle_pdg::consumer_facts::Availability::Known(())
+                ),
+        }
+    }
+}
+
 #[derive(Serialize)]
 struct Summary<'a> {
     unit: usize,
@@ -73,7 +89,7 @@ pub(in crate::clones) fn evaluate<'a>(
     if args.mutation_effects {
         report.inspect(handoff, args)?;
     }
-    report.scope.finish(&report.functions);
+    report.scope.finish(&report.functions, false);
     Ok(report)
 }
 

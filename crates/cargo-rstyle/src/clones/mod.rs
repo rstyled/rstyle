@@ -26,8 +26,8 @@ use std::{
 };
 
 #[derive(ClapArgs, Serialize)]
-#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "mutation_rules", "mutation_effects"]).multiple(true)),
-    group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "mutation_rules"]).multiple(true)))]
+#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects"]).multiple(true)),
+    group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules"]).multiple(true)))]
 pub struct Args {
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
     #[arg(long, default_value = "r0", value_parser = rstyle_pdg::extraction_profile::ExtractionProfile::select)]
@@ -68,6 +68,12 @@ pub struct Args {
     /// Suggest bounded local enum dispatch abstractions from original source and signatures.
     #[arg(long)]
     enum_dispatch: bool,
+    /// Propose local capabilities from parallel ordered method usage.
+    #[arg(long)]
+    capability_proposals: bool,
+    /// Maximum distinct-owner wrapper pairs evaluated across selected units.
+    #[arg(long, default_value_t = 16384, requires = "capability_proposals")]
+    max_capability_pairs: usize,
     /// Evaluate direct scalar assignment budgets with explicit unknown remainder.
     #[arg(long)]
     mutation_rules: bool,
@@ -354,6 +360,7 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
 fn analyses_complete(report: &report::Report<'_>) -> bool {
     report.analysis.permits_success()
         && report.enum_dispatch.permits_success()
+        && report.capability_proposals.permits_success()
         && report.mutation_analysis.permits_success()
         && report.mutation_effects.permits_success()
         && report.edit_planning.permits_success()
@@ -366,6 +373,7 @@ fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: us
         || (args.fail_on_findings
             && (report.analysis.findings > 0
                 || report.enum_dispatch.findings > 0
+                || report.capability_proposals.findings > 0
                 || report.mutation_analysis.findings > 0
                 || report
                     .review

@@ -1,4 +1,5 @@
 //! Bounded source-owned enum dispatch; no body/effect or rewrite authority.
+pub mod capabilities;
 mod index;
 mod model;
 mod shapes;

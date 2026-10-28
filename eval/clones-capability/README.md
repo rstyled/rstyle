@@ -164,3 +164,9 @@ same-unit leaves, distinct call occurrences, formal mappings, unknown boundaries
 bounded summary reuse and source-free replay. It extends the direct-site cases
 without changing their metrics or claiming purity. See
 [mutation effects](../../docs/clones-mutation-effects.md).
+
+`capability-cases.json` specifies witnessed local two-method capability proposals
+from original ordered wrapper calls. It includes opaque method bodies, exact
+existing-trait suppression, negative namesakes and repeated members, unavailable
+namespaces/coercions, explicit budgets and source-free replay. See
+[capability proposals](../../docs/clones-capability-proposals.md).

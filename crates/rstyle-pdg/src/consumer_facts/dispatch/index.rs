@@ -1,4 +1,4 @@
-use super::{Assessment, shapes};
+use super::{Assessment, capabilities, shapes};
 use crate::{
     HirFnFacts,
     nominal_boundary::{self, census},
@@ -61,20 +61,38 @@ impl Index {
     }
 
     pub fn evaluate(&self, facts: &HirFnFacts) -> Result<Assessment, String> {
+        self.query(facts, |declaration| {
+            shapes::evaluate(declaration.module, declaration.function, declaration.source)
+        })
+    }
+
+    pub fn evaluate_capability_wrapper(
+        &self,
+        facts: &HirFnFacts,
+    ) -> Result<capabilities::Assessment, String> {
+        self.query(facts, capabilities::evaluate)
+    }
+
+    fn query<T>(
+        &self,
+        facts: &HirFnFacts,
+        evaluate: impl FnOnce(CheckedDeclaration<'_>) -> Assessment<T>,
+    ) -> Result<Assessment<T>, String> {
         let Some((census, context)) = owner(facts)? else {
             return Ok(Assessment::unknown(
                 "Original selected-unit source ownership was not captured",
             ));
         };
-        let unit = self
+        let (owner_index, unit) = self
             .units
             .iter()
-            .find(|unit| Arc::ptr_eq(&unit.census, &census))
+            .enumerate()
+            .find(|(_, unit)| Arc::ptr_eq(&unit.census, &census))
             .ok_or("Dispatch facts are outside the indexed immutable source owners")?;
         if unit.context != *context {
             return Err("Dispatch source owner context changed".into());
         }
-        unit.evaluate(facts)
+        unit.query(facts, owner_index, evaluate)
     }
 }
 
@@ -102,16 +120,14 @@ impl Unit {
         })
     }
 
-    fn evaluate(&self, facts: &HirFnFacts) -> Result<Assessment, String> {
+    fn checked_file(&self, facts: &HirFnFacts) -> Result<Option<&census::UnitFile>, String> {
         let Some(path) = facts
             .build
             .frontend_options
             .get("source_file")
             .and_then(serde_json::Value::as_str)
         else {
-            return Ok(Assessment::unknown(
-                "Original function source path was not captured",
-            ));
+            return Ok(None);
         };
         let file = self
             .census
@@ -120,6 +136,20 @@ impl Unit {
             .find(|file| file.path.to_str() == Some(path))
             .ok_or("Dispatch function file is absent from its immutable census")?;
         check_function_bytes(facts, &file.bytes)?;
+        Ok(Some(file))
+    }
+
+    fn query<T>(
+        &self,
+        facts: &HirFnFacts,
+        owner_index: usize,
+        evaluate: impl FnOnce(CheckedDeclaration<'_>) -> Assessment<T>,
+    ) -> Result<Assessment<T>, String> {
+        let Some(file) = self.checked_file(facts)? else {
+            return Ok(Assessment::unknown(
+                "Original function source path was not captured",
+            ));
+        };
 
         if file.path != self.census.context.root_source {
             return Ok(Assessment::unsupported(
@@ -143,7 +173,13 @@ impl Unit {
                 return Ok(assessment);
             }
         };
-        evaluate_modules(modules, facts, &file.bytes)
+        let Some(declaration) = CheckedDeclaration::new(modules, facts, &file.bytes, owner_index)?
+        else {
+            return Ok(Assessment::unsupported(
+                "Owned function is not an original indexed free declaration",
+            ));
+        };
+        Ok(evaluate(declaration))
     }
 }
 
@@ -184,24 +220,39 @@ fn check_function_bytes(facts: &HirFnFacts, source: &str) -> Result<(), String> 
     Ok(())
 }
 
-fn evaluate_modules(
-    index: &SourceIndex,
-    facts: &HirFnFacts,
-    source: &str,
-) -> Result<Assessment, String> {
-    let Some(&(module_index, function_index)) = index
-        .declarations
-        .get(&(facts.fn_span.start, facts.fn_span.end))
-    else {
-        return Ok(Assessment::unsupported(
-            "Owned function is not an original indexed free declaration",
-        ));
-    };
+pub(super) struct CheckedDeclaration<'a> {
+    pub module: &'a shapes::Module,
+    pub function: &'a syn::ItemFn,
+    pub source: &'a str,
+    pub owner_index: usize,
+    pub module_index: usize,
+}
 
-    let module = &index.modules[module_index];
-    let function = &module.functions[function_index];
-    check_header(facts, function, source)?;
-    Ok(shapes::evaluate(module, function, source))
+impl<'a> CheckedDeclaration<'a> {
+    fn new(
+        index: &'a SourceIndex,
+        facts: &HirFnFacts,
+        source: &'a str,
+        owner_index: usize,
+    ) -> Result<Option<Self>, String> {
+        let Some(&(module_index, function_index)) = index
+            .declarations
+            .get(&(facts.fn_span.start, facts.fn_span.end))
+        else {
+            return Ok(None);
+        };
+        let module = &index.modules[module_index];
+        let function = &module.functions[function_index];
+        check_header(facts, function, source)?;
+
+        Ok(Some(Self {
+            module,
+            function,
+            source,
+            owner_index,
+            module_index,
+        }))
+    }
 }
 
 fn check_header(facts: &HirFnFacts, function: &syn::ItemFn, source: &str) -> Result<(), String> {

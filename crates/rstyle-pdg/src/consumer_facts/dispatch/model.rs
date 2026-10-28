@@ -3,13 +3,13 @@ use crate::ByteSpan;
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
-pub struct Assessment {
-    pub availability: Availability<Option<Candidate>>,
+pub struct Assessment<T = Candidate> {
+    pub availability: Availability<Option<T>>,
     pub reason: Option<String>,
     pub budget_exhausted: bool,
 }
 
-impl Assessment {
+impl<T> Assessment<T> {
     pub(super) fn negative(reason: &str) -> Self {
         Self {
             availability: Availability::Known(None),

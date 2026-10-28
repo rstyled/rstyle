@@ -1,9 +1,13 @@
 //! Opt-in local consumers with evidence, execution and scope reported separately.
+mod capability_pairs;
+pub(super) mod capability_reports;
+pub(super) mod declaration_indices;
 pub(super) mod dispatch_reports;
 pub(super) mod effect_reports;
 mod guards;
 pub(super) mod helper_reports;
 mod helpers;
+mod local_scope;
 pub(super) mod mutation_reports;
 mod pair_differences;
 pub(super) mod pair_reports;

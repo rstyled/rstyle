@@ -39,7 +39,8 @@ Heavy captures and integrated gates run serially.
 | C10a | Local + acceptance + lead / dispatch source index, CLI/report | delivered (bounded local dispatch) | `fabd24d` | Source-owned two-variant dispatch with exact local method/trait signatures | Twelve evidence/nine CLI tests; full tests and both legacy gates pass; broader families remain open |
 | C11b | Local + acceptance + lead / mutation evidence, policy, CLI/report | delivered (bounded direct mutation) | `3329163` | Direct scalar assignment-site budgets with root provenance and unknown-aware lower bounds; config-only strict replay | Eighteen evidence/three policy/seven CLI tests; full tests and both legacy gates pass; general effects/density/helper summaries remain open |
 | C12a | Evidence + pair + lead / original body views, overlap model, CLI/report and acceptance | delivered (bounded helper edit coordination) | `21ba934` | Explicit helper-wrapper intents, exact original overlap witnesses and review groups; unknown insertion/name/scope and independence | Seven evidence/ten pure/six CLI tests; retained compact-to-full strict replay; full tests and both legacy gates pass; local guard/caller intents remain pending |
-| C11c | Evidence + local + lead / typed call observations, leaf summaries, CLI/report and acceptance | delivered (bounded scalar leaf effects) | this checkpoint | Caller-visible scalar writes through original same-unit leaves, distinct call events and exact formal mappings | 2,553 nextest tests and doc tests pass; zero style violations and reviewed pattern candidates; exact 15 baseline IDs unchanged; source/tool-free strict replay passes |
+| C11c | Evidence + local + lead / typed call observations, leaf summaries, CLI/report and acceptance | delivered (bounded scalar leaf effects) | `c68bcc5` | Caller-visible scalar writes through original same-unit leaves, distinct call events and exact formal mappings | 2,553 nextest tests and doc tests pass; zero style violations and reviewed pattern candidates; exact 15 baseline IDs unchanged; source/tool-free strict replay passes |
+| C10b | Evidence + pair + acceptance + lead / shared declaration index, wrapper witnesses, pairing and CLI/report | delivered (bounded witnessed capabilities) | this checkpoint | Two-member local capabilities backed by original ordered calls, independent of strict matching; exact local trait suppression | Nineteen independent source cases, six wrapper and eight pairing unit cases, eleven CLI tests; 2,578 full tests, both legacy gates and strict source/tool-free replay pass; broader families and retirement remain open |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
@@ -446,12 +447,53 @@ Two call occurrences reuse one leaf summary, with two owner observations and two
 mapped write witnesses. No suppressions, ignores, thresholds, strict admission
 or extraction permissions were changed.
 
-The next ready C10b frontier is a witnessed local two-method capability set from
+The C10b frontier below is a witnessed local two-method capability set from
 parallel wrapper calls, reusing the existing checked source/method index. Exact
 existing-trait relations must suppress redundant advice; names/signatures alone
 cannot establish a proposal. Broader trait/capability proposals, richer effect
 families, caller-aware edit intents and retirement gates remain open. Native macOS
 and exact Go comparison remain unverified.
+
+## C10b: witnessed local capability sets
+
+The opt-in `--capability-proposals` consumer joins two original free wrappers
+that call two distinct zero-argument shared-self/u32 methods on their sole shared
+nominal formal. Original tuple order supplies operation roles; no names-only
+signature mining or behavioral equivalence is inferred. Method bodies can remain
+opaque because the proposal concerns interface usage. Exact original trait/member
+relations suppress redundant advice, while mixed/partial/different trait coverage
+stays explicitly unavailable.
+
+Both abstraction consumers share one original declaration index per selected unit,
+including ownership, context, function/header checks and existing closed local
+method resolution. Borrowed source/module handles distinguish namesakes without
+new hashes, source clones or compiler observations. Owner and distinct-owner pair
+budgets are separate from strict matching, with population preflight before pair
+allocation. Findings can coexist with incomplete scope. Default, full/compact,
+failure behavior and source/tool-free replay have independent acceptance cases.
+The [consumer contract](clones-capability-proposals.md) records exact scope and
+report joins. Shared function-scope accounting also replaces duplicated mutation
+effect accounting, with one borrowed status fold and unchanged completion rules.
+
+All 2,578 nextest tests pass (five skipped), 174.521 seconds, plus doc tests,
+workspace/all-target Clippy, formatting and diff checks. Both original NonZero
+regressions pass. Legacy style has zero violations across 8,696 functions;
+reviewed patterns has zero candidates and unfiltered patterns retains exactly
+the same 15 IDs as C11c. No suppressions, ignores, thresholds or strict admission
+permissions were changed. Final logs: `/tmp/clones-migration-c10b-*-final.*`, with
+Clippy at `/tmp/clones-migration-c10b-clippy.log`.
+
+A locked compact live capture requests both capability proposals and enum
+dispatch using their shared index. Full strict replay retains identical capability,
+dispatch and matching reports after removing original source/manifest files and
+disabling external tools. The single finding exits one under explicit
+`--fail-on-findings` in both runs:
+`/tmp/clones-migration-c10b-live-zma97vjk/results.json`.
+Linux aarch64 only; native macOS and exact Go comparison remain unverified.
+Broader signatures, generic/helper rewrites and retirement remain open. The next
+ready review frontier is versioned dismissal for dispatch/capability findings,
+using original declaration/context/ordered-role identity rather than run-local
+owner or function handles.
 
 ## Hashing exceptions
 

@@ -48,6 +48,7 @@ pub struct Report<'a> {
     pub mutation_analysis: super::analysis::mutation_reports::Report<'a>,
     pub mutation_effects: super::analysis::effect_reports::Report<'a>,
     pub enum_dispatch: super::analysis::dispatch_reports::Report<'a>,
+    pub capability_proposals: super::analysis::capability_reports::Report<'a>,
     #[serde(flatten)]
     pub pair_reports: super::analysis::pair_reports::Reports<'a>,
     pub analysis: super::analysis::Report<'a>,
@@ -130,23 +131,23 @@ fn ctx_profile_is_data(args: &Args) -> bool {
 }
 
 pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
-    let scope = selected_scope(&ctx);
     let pair_reports = ctx.pair_reports()?;
     let review = super::review::workflow::apply(&pair_reports.helper_proposals, &ctx)?;
 
-    let edit_planning = super::planning::evaluate(&pair_reports.helper_proposals, &ctx)?;
+    let declaration_indices = ctx.declaration_indices()?;
 
     Ok(Report {
-        edit_planning,
+        edit_planning: ctx.edit_planning(&pair_reports.helper_proposals)?,
         pair_reports,
         review,
         analysis: ctx.local_analysis(),
-        enum_dispatch: ctx.dispatch_report()?,
+        enum_dispatch: ctx.dispatch_report(&declaration_indices)?,
+        capability_proposals: ctx.capability_report(&declaration_indices)?,
         mutation_analysis: ctx.mutation_report()?,
         mutation_effects: ctx.effect_report()?,
         report_detail: ctx.args.report_detail,
         verification_policy: ctx.verification_policy(),
-        scope,
+        scope: selected_scope(&ctx),
         run_directory: &ctx.capture.directory,
         toolchain: crate::run::pinned_toolchain(),
         compiler_identity: &ctx.capture.plan.compiler_identity,
@@ -183,6 +184,36 @@ pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
 }
 
 impl<'a> Context<'a> {
+    fn edit_planning(
+        &self,
+        helpers: &super::analysis::helper_reports::Report<'_>,
+    ) -> Result<super::planning::Report, String> {
+        super::planning::evaluate(helpers, self)
+    }
+
+    fn declaration_indices(&self) -> Result<super::analysis::declaration_indices::Indices, String> {
+        super::analysis::declaration_indices::Indices::new(self.handoff, self.args)
+    }
+
+    fn dispatch_report(
+        &self,
+        indices: &super::analysis::declaration_indices::Indices,
+    ) -> Result<super::analysis::dispatch_reports::Report<'a>, String> {
+        super::analysis::dispatch_reports::evaluate(self.handoff, self.capture, self.args, indices)
+    }
+
+    fn capability_report(
+        &self,
+        indices: &super::analysis::declaration_indices::Indices,
+    ) -> Result<super::analysis::capability_reports::Report<'a>, String> {
+        super::analysis::capability_reports::evaluate(
+            self.handoff,
+            self.capture,
+            self.args,
+            indices,
+        )
+    }
+
     fn effect_report(&self) -> Result<super::analysis::effect_reports::Report<'a>, String> {
         super::analysis::effect_reports::evaluate(self.handoff, self.capture, self.args)
     }
@@ -202,10 +233,6 @@ impl<'a> Context<'a> {
             self.args,
             self.mutation_config,
         )
-    }
-
-    fn dispatch_report(&self) -> Result<super::analysis::dispatch_reports::Report<'a>, String> {
-        super::analysis::dispatch_reports::evaluate(self.handoff, self.capture, self.args)
     }
 
     fn local_analysis(&self) -> super::analysis::Report<'a> {
@@ -280,11 +307,12 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         .collect::<String>();
 
     format!(
-        "{summary}{pairs}{}{}{}{}{}{}{}",
+        "{summary}{pairs}{}{}{}{}{}{}{}{}",
         report.analysis.render(),
         report.pair_reports.render(),
         report.review.render(),
         report.enum_dispatch.render(),
+        report.capability_proposals.render(),
         report.mutation_analysis.render(),
         report.mutation_effects.render(),
         report.edit_planning.render()

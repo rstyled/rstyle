@@ -1,0 +1,149 @@
+{
+  "schema": "rstyle.clones-capability.capability-acceptance/1",
+  "status": "frozen-independent-requirements",
+  "scope": "Original closed root-file and inline-module nongeneric local owners, two shared-self zero-ordinary-argument builtin-u32 methods, witnessed by ordered tail-tuple calls in two original wrappers. Advisory capabilities only; no body equivalence, rewrite, purity, ranking quality or legacy retirement claim.",
+  "cases": [
+    {
+      "id": "ordered-local-method-pair-opaque-body",
+      "source": "pub struct Alpha; pub struct Beta; impl Alpha { pub fn used(&self)->u32 {1} pub fn limit(&self)->u32 {2} } impl Beta { pub fn size(&self)->u32 {let read=||3; read()} pub fn capacity(&self)->u32 {4} } pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())} pub fn beta(y:&Beta)->(u32,u32) {(y.size(),y.capacity())}",
+      "expected": "finding",
+      "coverage": "complete",
+      "reason": "Two distinct original local owners and two distinct shared receiver methods have actual ordered wrapper call witnesses. Opaque callee bodies do not prevent available declaration evidence."
+    },
+    {
+      "id": "unrelated-trait-declaration",
+      "source": "pub struct Alpha; pub struct Beta; impl Alpha { pub fn used(&self)->u32 {1} pub fn limit(&self)->u32 {2} } impl Beta { pub fn size(&self)->u32 {let read=||3; read()} pub fn capacity(&self)->u32 {4} } pub trait Stats {fn used(&self)->u32;fn limit(&self)->u32;} pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())} pub fn beta(y:&Beta)->(u32,u32) {(y.size(),y.capacity())}",
+      "expected": "finding",
+      "coverage": "complete",
+      "reason": "An unrelated unimplemented trait does not suppress witnessed capabilities."
+    },
+    {
+      "id": "inline-module-wrappers",
+      "source": "mod local {pub struct Alpha; pub struct Beta; impl Alpha { pub fn used(&self)->u32 {1} pub fn limit(&self)->u32 {2} } impl Beta { pub fn size(&self)->u32 {let read=||3; read()} pub fn capacity(&self)->u32 {4} } pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())} pub fn beta(y:&Beta)->(u32,u32) {(y.size(),y.capacity())}}",
+      "expected": "finding",
+      "coverage": "complete",
+      "reason": "Original inline-module owners and wrappers remain in one closed local namespace."
+    },
+    {
+      "id": "reversed-member-order",
+      "source": "pub struct Alpha; pub struct Beta; impl Alpha { pub fn used(&self)->u32 {1} pub fn limit(&self)->u32 {2} } impl Beta { pub fn size(&self)->u32 {let read=||3; read()} pub fn capacity(&self)->u32 {4} } pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())} pub fn beta(y:&Beta)->(u32,u32) {(y.capacity(),y.size())}",
+      "expected": "finding",
+      "coverage": "complete",
+      "reason": "Call occurrence order determines role mapping; methods are never sorted by name or signature to recover the previous map."
+    },
+    {
+      "id": "exact-existing-trait",
+      "source": "pub struct Alpha; pub struct Beta; pub trait Stats { fn used(&self)->u32; fn limit(&self)->u32; } impl Stats for Alpha { fn used(&self)->u32 {1} fn limit(&self)->u32 {2} } impl Stats for Beta { fn used(&self)->u32 {3} fn limit(&self)->u32 {4} } pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())} pub fn beta(y:&Beta)->(u32,u32) {(y.used(),y.limit())}",
+      "expected": "evaluated_no_finding",
+      "coverage": "complete",
+      "reason": "Both ordered roles already refer to the same exact local trait members for both owners; retain exact existing-capability suppression evidence."
+    },
+    {
+      "id": "declarations-without-wrappers",
+      "source": "pub struct Alpha; pub struct Beta; impl Alpha { pub fn used(&self)->u32 {1} pub fn limit(&self)->u32 {2} } impl Beta { pub fn size(&self)->u32 {let read=||3; read()} pub fn capacity(&self)->u32 {4} } pub fn ordinary(value:u32)->u32 {value+1}",
+      "expected": "evaluated_no_finding",
+      "coverage": "complete",
+      "reason": "Matching declarations alone provide no parallel usage witness."
+    },
+    {
+      "id": "same-owner",
+      "source": "pub struct Alpha; pub struct Beta; impl Alpha { pub fn used(&self)->u32 {1} pub fn limit(&self)->u32 {2} } impl Beta { pub fn size(&self)->u32 {let read=||3; read()} pub fn capacity(&self)->u32 {4} } pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())} pub fn beta(y:&Alpha)->(u32,u32) {(y.used(),y.limit())}",
+      "expected": "evaluated_no_finding",
+      "coverage": "complete",
+      "reason": "Two wrappers over the same exact nominal owner do not establish a cross-owner capability."
+    },
+    {
+      "id": "duplicate-selected-member",
+      "source": "pub struct Alpha; pub struct Beta; impl Alpha { pub fn used(&self)->u32 {1} pub fn limit(&self)->u32 {2} } impl Beta { pub fn size(&self)->u32 {let read=||3; read()} pub fn capacity(&self)->u32 {4} } pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.used())} pub fn beta(y:&Beta)->(u32,u32) {(y.size(),y.size())}",
+      "expected": "evaluated_no_finding",
+      "coverage": "complete",
+      "reason": "Two call occurrences of one exact method are not two distinct capability members."
+    },
+    {
+      "id": "different-ordinary-arity",
+      "source": "pub struct Alpha; pub struct Beta; impl Alpha { pub fn used(&self)->u32 {1} pub fn limit(&self)->u32 {2} } impl Beta { pub fn size(&self)->u32 {let read=||3; read()} pub fn capacity(&self,extra:u32)->u32 {4} } pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())} pub fn beta(y:&Beta)->(u32,u32) {(y.size(),y.capacity(1))}",
+      "expected": "evaluated_no_finding",
+      "coverage": "complete",
+      "reason": "A selected method ordinary argument mismatch does not satisfy the bounded common signature."
+    },
+    {
+      "id": "wrong-second-receiver",
+      "source": "pub struct Alpha; pub struct Beta; impl Alpha { pub fn used(&self)->u32 {1} pub fn limit(&self)->u32 {2} } impl Beta { pub fn size(&self)->u32 {let read=||3; read()} pub fn capacity(&self)->u32 {4} } pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())} pub fn beta(y:&Beta,other:&Alpha)->(u32,u32) {(y.size(),other.limit())}",
+      "expected": "not_evaluated",
+      "coverage": "incomplete",
+      "reason": "Two-formal wrappers exceed the one-owner-formal contract; no unrelated receiver may be mapped by names."
+    },
+    {
+      "id": "same-free-functions",
+      "source": "pub struct Alpha; pub struct Beta; impl Alpha { pub fn used(&self)->u32 {1} pub fn limit(&self)->u32 {2} } impl Beta { pub fn size(&self)->u32 {let read=||3; read()} pub fn capacity(&self)->u32 {4} } fn first()->u32 {1} fn second()->u32 {2} pub fn alpha(x:&Alpha)->(u32,u32) {(first(),second())} pub fn beta(y:&Beta)->(u32,u32) {(first(),second())}",
+      "expected": "evaluated_no_finding",
+      "coverage": "complete",
+      "reason": "Free function calls are not owner-specific receiver capabilities."
+    },
+    {
+      "id": "additional-wrapper-work",
+      "source": "pub struct Alpha; pub struct Beta; impl Alpha { pub fn used(&self)->u32 {1} pub fn limit(&self)->u32 {2} } impl Beta { pub fn size(&self)->u32 {let read=||3; read()} pub fn capacity(&self)->u32 {4} } pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())} pub fn beta(y:&Beta)->(u32,u32) {({let saved=y.size(); saved},y.capacity())}",
+      "expected": "not_evaluated",
+      "coverage": "incomplete",
+      "reason": "Additional expression work cannot be stripped from a candidate tuple to invent a supported ordered method wrapper."
+    },
+    {
+      "id": "generic-method",
+      "source": "pub struct Alpha; pub struct Beta; impl Alpha { pub fn used(&self)->u32 {1} pub fn limit(&self)->u32 {2} } impl Beta { pub fn size<T>(&self)->u32 {let read=||3; read()} pub fn capacity(&self)->u32 {4} } pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())} pub fn beta(y:&Beta)->(u32,u32) {(y.size::<u32>(),y.capacity())}",
+      "expected": "not_evaluated",
+      "coverage": "incomplete",
+      "reason": "Generic method/substitution evidence is outside the bounded source declaration contract."
+    },
+    {
+      "id": "conditional-import",
+      "source": "pub struct Alpha; pub struct Beta; impl Alpha { pub fn used(&self)->u32 {1} pub fn limit(&self)->u32 {2} } impl Beta { pub fn size(&self)->u32 {let read=||3; read()} pub fn capacity(&self)->u32 {4} } #[cfg(any())] use core::fmt::Debug; pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())} pub fn beta(y:&Beta)->(u32,u32) {(y.size(),y.capacity())}",
+      "expected": "not_evaluated",
+      "coverage": "incomplete",
+      "reason": "Conditional imports prevent closed exact source namespace reasoning; source resemblance is insufficient."
+    },
+    {
+      "id": "inherited-default-method",
+      "source": "pub struct Alpha; pub struct Beta; pub trait Stats {fn used(&self)->u32 {1} fn limit(&self)->u32 {2}} impl Stats for Alpha {} impl Stats for Beta {} pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())} pub fn beta(y:&Beta)->(u32,u32) {(y.used(),y.limit())}",
+      "expected": "not_evaluated",
+      "coverage": "incomplete",
+      "reason": "Inherited default trait methods have no explicitly indexed original impl member; do not fabricate selection or suppression."
+    },
+    {
+      "id": "coerced-receiver",
+      "source": "pub struct Alpha; pub struct Beta; impl Alpha { pub fn used(&self)->u32 {1} pub fn limit(&self)->u32 {2} } impl Beta { pub fn size(&self)->u32 {let read=||3; read()} pub fn capacity(&self)->u32 {4} } pub struct Wrap(Beta); impl core::ops::Deref for Wrap {type Target=Beta;fn deref(&self)->&Beta {&self.0}} pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())} pub fn beta(y:&Wrap)->(u32,u32) {(y.size(),y.capacity())}",
+      "expected": "not_evaluated",
+      "coverage": "incomplete",
+      "reason": "Deref-mediated method selection requires a separate resolved receiver contract."
+    },
+    {
+      "id": "competing-receiver-origins",
+      "source": "pub struct Alpha; pub struct Beta; pub trait Stats { fn used(&self)->u32; fn limit(&self)->u32; } impl Stats for Alpha { fn used(&self)->u32 {1} fn limit(&self)->u32 {2} } impl Stats for Beta { fn used(&self)->u32 {3} fn limit(&self)->u32 {4} } pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())} pub fn beta(y:&Beta)->(u32,u32) {(y.used(),y.limit())} impl Alpha {pub fn used(&mut self)->u32 {5}}",
+      "expected": "not_evaluated",
+      "coverage": "incomplete",
+      "reason": "Shared trait and mutable inherent namesakes require resolved method selection; spelling alone cannot suppress or propose."
+    },
+    {
+      "id": "different-traits-with-same-name",
+      "source": "mod a {pub struct Alpha;pub trait Stats {fn used(&self)->u32;fn limit(&self)->u32;}impl Stats for Alpha {fn used(&self)->u32 {1}fn limit(&self)->u32 {2}}pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())}} mod b {pub struct Beta;pub trait Stats {fn used(&self)->u32;fn limit(&self)->u32;}impl Stats for Beta {fn used(&self)->u32 {3}fn limit(&self)->u32 {4}}pub fn beta(y:&Beta)->(u32,u32) {(y.used(),y.limit())}}",
+      "expected": "not_evaluated",
+      "coverage": "incomplete",
+      "reason": "Distinct original module-scoped Stats traits have different identities; equal spelling cannot suppress, and mixed exact trait origins remain unavailable under the bounded pairing contract."
+    },
+    {
+      "id": "one-formal-wrong-receiver",
+      "source": "pub struct Alpha; pub struct Beta; impl Alpha { pub fn used(&self)->u32 {1} pub fn limit(&self)->u32 {2} } impl Beta { pub fn size(&self)->u32 {let read=||3; read()} pub fn capacity(&self)->u32 {4} } pub fn alpha(x:&Alpha)->(u32,u32) {(x.used(),x.limit())} static OTHER:Alpha=Alpha; pub fn beta(y:&Beta)->(u32,u32) {(y.size(),OTHER.limit())}",
+      "expected": "evaluated_no_finding",
+      "coverage": "complete",
+      "reason": "The second method receiver is a separate original static rather than the sole wrapper owner formal; no root mapping from method names."
+    }
+  ],
+  "invariants": [
+    "Actual ordered wrapper call occurrences are mandatory; matching names/signatures/declarations alone are insufficient.",
+    "Owner/member identities and source ranges remain selected-unit local.",
+    "Exact existing-trait member correspondence suppresses; unrelated traits and namesakes do not.",
+    "Each receiver must be the wrapper formal; aliases, coercions and hidden work do not acquire authority.",
+    "Distinct roles require distinct selected member identities; repeated occurrences are not new members.",
+    "Missing evidence and exhausted work remain incomplete, not empty complete scope.",
+    "Full/compact reports and source/tool-free strict replay retain original evidence."
+  ]
+}

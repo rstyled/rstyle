@@ -1,9 +1,9 @@
 //! Local dispatch advice uses source/signature evidence independently of strict pairs.
+use super::declaration_indices::Indices;
 use super::{Coverage, Execution, FactAvailability, Outcome};
 use crate::clones::{Args, Function, FunctionKey, Handoff, capture};
 use rstyle_pdg::consumer_facts::{Availability, dispatch};
 use serde::Serialize;
-use std::collections::BTreeMap;
 
 #[derive(Serialize)]
 pub(crate) struct Report<'a> {
@@ -46,27 +46,25 @@ pub(in crate::clones) fn evaluate<'a>(
     handoff: &'a Handoff,
     capture: &capture::Capture,
     args: &Args,
+    indices: &Indices,
 ) -> Result<Report<'a>, String> {
     let functions = if args.enum_dispatch {
-        evaluate_functions(handoff, args.max_analysis_functions.unwrap_or(usize::MAX))?
+        evaluate_functions(
+            handoff,
+            args.max_analysis_functions.unwrap_or(usize::MAX),
+            indices,
+        )?
     } else {
         Vec::new()
     };
     Ok(summarize(functions, handoff, capture, args.enum_dispatch))
 }
 
-fn evaluate_functions(handoff: &Handoff, limit: usize) -> Result<Vec<FunctionReport<'_>>, String> {
-    let mut units = BTreeMap::new();
-    for function in handoff.assessed.iter().take(limit) {
-        units
-            .entry(function.key.unit())
-            .or_insert_with(Vec::new)
-            .push(&*function.facts);
-    }
-    let indices: BTreeMap<_, _> = units
-        .into_iter()
-        .map(|(unit, facts)| dispatch::Index::from_facts(&facts).map(|index| (unit, index)))
-        .collect::<Result<_, _>>()?;
+fn evaluate_functions<'a>(
+    handoff: &'a Handoff,
+    limit: usize,
+    indices: &Indices,
+) -> Result<Vec<FunctionReport<'a>>, String> {
     handoff
         .assessed
         .iter()
@@ -79,7 +77,9 @@ fn evaluate_functions(handoff: &Handoff, limit: usize) -> Result<Vec<FunctionRep
                     "Analysis function budget exhausted",
                 ))
             } else {
-                let assessment = indices[&function.key.unit()].evaluate(&function.facts)?;
+                let assessment = indices
+                    .get(function.key.unit())?
+                    .evaluate(&function.facts)?;
                 Ok(assess(function, assessment))
             }
         })

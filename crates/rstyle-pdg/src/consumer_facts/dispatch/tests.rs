@@ -317,3 +317,192 @@ fn competing_mutable_inherent_and_shared_trait_receivers_are_unavailable() {
         matches!(assessment.availability, super::super::Availability::Unsupported { reason } if reason.contains("Competing"))
     );
 }
+
+fn wrapper_source() -> &'static str {
+    "struct Alpha; impl Alpha { fn used(&self)->u32 {let opaque=||1; opaque()} fn limit(&self)->u32 {2} } fn alpha(x:&Alpha)->(u32,u32){(x.used(),x.limit())}"
+}
+
+#[test]
+fn capability_wrapper_retains_order_and_original_headers_with_opaque_bodies() {
+    let source = wrapper_source();
+    let facts = fixture(source, "alpha");
+    let index = Index::from_facts(&[&facts]).unwrap();
+    let super::super::Availability::Known(Some(wrapper)) = index
+        .evaluate_capability_wrapper(&facts)
+        .unwrap()
+        .availability
+    else {
+        panic!("expected wrapper")
+    };
+    assert_eq!(wrapper.owner.name, "Alpha");
+    assert_eq!(wrapper.owner_name, "Alpha");
+    assert_eq!(
+        wrapper
+            .methods
+            .iter()
+            .map(|method| method.name.as_str())
+            .collect::<Vec<_>>(),
+        ["used", "limit"]
+    );
+    assert_eq!(
+        crate::source_evidence::byte_range(source, wrapper.methods[0].call_span).unwrap(),
+        "x.used()"
+    );
+    assert_eq!(
+        crate::source_evidence::byte_range(source, wrapper.methods[1].callee_header).unwrap(),
+        "fn limit(&self)->u32"
+    );
+    assert_eq!(
+        crate::source_evidence::byte_range(source, wrapper.caller_header).unwrap(),
+        "fn alpha(x:&Alpha)->(u32,u32)"
+    );
+    assert!(matches!(
+        index.evaluate(&facts).unwrap().availability,
+        super::super::Availability::Known(None)
+    ));
+}
+
+#[test]
+fn capability_wrappers_require_two_distinct_direct_receiver_calls() {
+    for body in [
+        "(x.used(),x.used())",
+        "(x.used(),other.limit())",
+        "(x.used(),x.limit(),x.used())",
+    ] {
+        let source = wrapper_source().replace("(x.used(),x.limit())", body);
+        let facts = fixture(&source, "alpha");
+        assert!(
+            matches!(
+                Index::from_facts(&[&facts])
+                    .unwrap()
+                    .evaluate_capability_wrapper(&facts)
+                    .unwrap()
+                    .availability,
+                super::super::Availability::Known(None)
+            ),
+            "{body}"
+        );
+    }
+}
+
+#[test]
+fn capability_wrapper_reuses_closed_namespace_and_method_selection() {
+    for source in [
+        format!("use extra::*; {}", wrapper_source()),
+        wrapper_source().replace("struct Alpha;", "type Alpha=Other;"),
+        wrapper_source().replace("fn limit(&self)", "fn limit<T>(&self)"),
+        wrapper_source().replace("x.limit()", "x.limit::<u8>()"),
+        wrapper_source().replace("x.limit()", "{let saved=x.limit(); saved}"),
+        wrapper_source().replace("x.limit()", "x.limit(hidden())"),
+        wrapper_source().replace("(x.used(),x.limit())", "{let y=x; (y.used(),y.limit())}"),
+        wrapper_source().replace("x:&Alpha", "x:&mut Alpha"),
+        wrapper_source().replace("->(u32,u32)", "->(u32,u16)"),
+    ] {
+        let facts = fixture(&source, "alpha");
+        assert!(
+            matches!(
+                Index::from_facts(&[&facts])
+                    .unwrap()
+                    .evaluate_capability_wrapper(&facts)
+                    .unwrap()
+                    .availability,
+                super::super::Availability::Unsupported { .. }
+            ),
+            "{source}"
+        );
+    }
+    let source = wrapper_source().replace("fn limit(&self)", "fn limit(&mut self)");
+    let facts = fixture(&source, "alpha");
+    assert!(matches!(
+        Index::from_facts(&[&facts])
+            .unwrap()
+            .evaluate_capability_wrapper(&facts)
+            .unwrap()
+            .availability,
+        super::super::Availability::Known(None)
+    ));
+}
+
+#[test]
+fn capability_ownership_errors_and_budget_match_dispatch_boundary() {
+    let mut facts = fixture(wrapper_source(), "alpha");
+    let index = Index::from_facts(&[&facts]).unwrap();
+    facts.signature.sig_span.end += 1;
+    assert!(index.evaluate_capability_wrapper(&facts).is_err());
+    let mut facts = fixture(wrapper_source(), "alpha");
+    facts.build.frontend_options = Default::default();
+    assert!(matches!(
+        Index::from_facts(&[&facts])
+            .unwrap()
+            .evaluate_capability_wrapper(&facts)
+            .unwrap()
+            .availability,
+        super::super::Availability::Unknown { .. }
+    ));
+    let source = format!("/* {} */ {}", "(".repeat(257), wrapper_source());
+    let facts = fixture(&source, "alpha");
+    let assessment = Index::from_facts(&[&facts])
+        .unwrap()
+        .evaluate_capability_wrapper(&facts)
+        .unwrap();
+    assert!(assessment.budget_exhausted);
+    assert!(matches!(
+        assessment.availability,
+        super::super::Availability::Unsupported { .. }
+    ));
+}
+
+#[test]
+fn capability_owner_slots_distinguish_equal_names_in_independent_sources() {
+    let first = fixture(wrapper_source(), "alpha");
+    let second = fixture(wrapper_source(), "alpha");
+    let index = Index::from_facts(&[&first, &second]).unwrap();
+    let super::super::Availability::Known(Some(left)) = index
+        .evaluate_capability_wrapper(&first)
+        .unwrap()
+        .availability
+    else {
+        panic!("left")
+    };
+    let super::super::Availability::Known(Some(right)) = index
+        .evaluate_capability_wrapper(&second)
+        .unwrap()
+        .availability
+    else {
+        panic!("right")
+    };
+    assert_ne!(left.owner, right.owner);
+    assert_eq!(left.owner.name, right.owner.name);
+}
+
+#[test]
+fn opaque_methods_and_nontuple_free_functions_are_not_wrapper_candidates() {
+    let source = format!(
+        "{} fn opaque()->u32 {{let value=3; value}}",
+        wrapper_source()
+    );
+    let wrapper = fixture(&source, "alpha");
+    let mut method = fixture(&source, "used");
+    let mut ordinary = fixture(&source, "opaque");
+    method.build.frontend_options = wrapper.build.frontend_options.clone();
+    ordinary.build.frontend_options = wrapper.build.frontend_options.clone();
+    let index = Index::from_facts(&[&wrapper, &method, &ordinary]).unwrap();
+    assert!(matches!(
+        index
+            .evaluate_capability_wrapper(&wrapper)
+            .unwrap()
+            .availability,
+        super::super::Availability::Known(Some(_))
+    ));
+    for facts in [&method, &ordinary] {
+        assert!(matches!(
+            index
+                .evaluate_capability_wrapper(facts)
+                .unwrap()
+                .availability,
+            super::super::Availability::Known(None)
+        ));
+    }
+    ordinary.source.bytes = SourceText::from("corrupt original");
+    assert!(index.evaluate_capability_wrapper(&ordinary).is_err());
+}
