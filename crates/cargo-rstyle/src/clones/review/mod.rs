@@ -12,6 +12,7 @@ mod outcome;
 pub(super) mod prune;
 mod source_rules;
 pub(super) mod source_workflow;
+mod spacing_rules;
 pub(super) mod status;
 mod status_workflow;
 mod summary;
@@ -93,6 +94,7 @@ impl Default for ReviewStore {
             source_entries: vec![],
             parameter_entries: vec![],
             length_entries: vec![],
+            spacing_entries: vec![],
         }
     }
 }
@@ -103,6 +105,7 @@ impl ReviewStore {
             + self.source_entries.len()
             + self.parameter_entries.len()
             + self.length_entries.len()
+            + self.spacing_entries.len()
     }
 
     pub(crate) fn from_json(bytes: &str) -> Result<Self, String> {
@@ -158,10 +161,11 @@ impl ReviewStore {
     }
 
     fn validate(&self) -> Result<(), ReviewError> {
-        if !matches!(self.schema_version, 1..=4)
+        if !matches!(self.schema_version, 1..=5)
             || (self.schema_version == 1 && !self.source_entries.is_empty())
             || (self.schema_version < 3 && !self.parameter_entries.is_empty())
             || (self.schema_version < 4 && !self.length_entries.is_empty())
+            || (self.schema_version < 5 && !self.spacing_entries.is_empty())
         {
             return Err(ReviewError::InvalidSchema);
         }
@@ -169,6 +173,7 @@ impl ReviewStore {
         local::validate_entries(&self.source_entries)?;
         source_rules::validate_entries(&self.parameter_entries)?;
         length_rules::validate_entries(&self.length_entries)?;
+        spacing_rules::validate_entries(&self.spacing_entries)?;
         for (index, entry) in self.entries.iter().enumerate() {
             if entry.reason.trim().is_empty() {
                 return Err(ReviewError::InvalidReason);

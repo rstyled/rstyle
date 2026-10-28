@@ -1,5 +1,5 @@
 //! Prune only independently completed negative assessments of retained reviews.
-use super::{Locator, ReviewStore, local, status};
+use super::{Locator, ReviewStore, exact_rules, local, status};
 use crate::clones::analysis::{Coverage, Execution};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -38,6 +38,7 @@ enum Ordinal {
     Source(usize),
     Parameter(usize),
     Length(usize),
+    Spacing(usize),
 }
 
 pub(super) fn apply(
@@ -91,6 +92,7 @@ fn selection_plan(store: &ReviewStore, status: &status::Report) -> Result<Select
 fn retain_numeric(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
     retain(&mut store.parameter_entries, states, Ordinal::Parameter);
     retain(&mut store.length_entries, states, Ordinal::Length);
+    retain(&mut store.spacing_entries, states, Ordinal::Spacing);
 }
 
 fn retain<T>(
@@ -160,31 +162,30 @@ fn validate_record(store: &ReviewStore, record: &status::Record) -> Result<Ordin
             Ok(Ordinal::Helper(record.entry_index))
         }
         status::Family::Parameter => {
-            let entry = store
-                .parameter_entries
-                .get(record.entry_index)
-                .ok_or_else(invalid_record)?;
-            validate_identity(
-                record,
-                &entry.reason,
-                std::iter::once(&entry.finding.locator),
-            )?;
-            Ok(Ordinal::Parameter(record.entry_index))
+            validate_numeric_record(&store.parameter_entries, record, Ordinal::Parameter)
         }
         status::Family::Length => {
-            let entry = store
-                .length_entries
-                .get(record.entry_index)
-                .ok_or_else(invalid_record)?;
-            validate_identity(
-                record,
-                &entry.reason,
-                std::iter::once(&entry.finding.locator),
-            )?;
-            Ok(Ordinal::Length(record.entry_index))
+            validate_numeric_record(&store.length_entries, record, Ordinal::Length)
+        }
+        status::Family::Spacing => {
+            validate_numeric_record(&store.spacing_entries, record, Ordinal::Spacing)
         }
         _ => validate_source_record(store, record),
     }
+}
+
+fn validate_numeric_record<S: exact_rules::ReviewSnapshot>(
+    entries: &[exact_rules::Entry<S>],
+    record: &status::Record,
+    ordinal: fn(usize) -> Ordinal,
+) -> Result<Ordinal, String> {
+    let entry = entries.get(record.entry_index).ok_or_else(invalid_record)?;
+    validate_identity(
+        record,
+        &entry.reason,
+        std::iter::once(entry.finding.identity().0),
+    )?;
+    Ok(ordinal(record.entry_index))
 }
 
 fn validate_source_record(store: &ReviewStore, record: &status::Record) -> Result<Ordinal, String> {

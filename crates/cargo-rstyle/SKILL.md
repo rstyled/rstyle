@@ -177,6 +177,16 @@ retain that measured boundary. Parameter and length choices remain independent;
 other findings, raw assessments/plans and incomplete exits retain their meaning.
 Only same-policy/current-version completed negatives can be explicitly pruned.
 
+Spacing choices use `--dismiss-spacing FUNCTION_KEY` from an explicit saved run
+with an explicit `[fn_spacing]` policy and reason. Schema-5 `spacing_entries`
+retain `min_statements` and the completed direct-statement count; JSON reports
+`spacing_review` and retained status family `spacing`. Same-count positive findings
+preserve review. A same-policy blank-line negative can be explicitly pruned;
+disabling or changing the threshold stays stale, and omitted spacing is
+not-requested. Three source families share owner resolution but keep independent
+hiding and counts. Never dismiss merely to silence findings.
+
+
 ## Opt-in caller-aware parameter plans
 
 Use `cargo rstyle clones --extraction-profile hir-data-v3 --locked --source-rules

@@ -5,6 +5,8 @@ pub(super) use consumers::Consumers;
 mod functions;
 mod locations;
 mod matching;
+mod source_reviews;
+pub(in crate::clones) use source_reviews::SourceReviews;
 
 use super::{Args, Handoff, capture};
 use crate::{Cli, Format};
@@ -51,10 +53,8 @@ pub struct Report<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub review_prune: Option<super::review::prune::Report>,
     pub abstraction_review: super::review::local_workflow::Report,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parameter_review: Option<super::review::source_workflow::Report>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub length_review: Option<super::review::source_workflow::Report>,
+    #[serde(flatten)]
+    pub source_reviews: SourceReviews,
     pub edit_planning: super::planning::Report,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameter_planning: Option<super::planning::parameters::Report>,
@@ -175,8 +175,7 @@ pub(super) fn make<'a>(ctx: Context<'a>, consumers: Consumers<'a>) -> Report<'a>
         pair_reports: consumers.pairs,
         review: consumers.review,
         abstraction_review: consumers.abstraction_review,
-        parameter_review: consumers.parameter_review,
-        length_review: consumers.length_review,
+        source_reviews: consumers.source_reviews,
         review_status: consumers.review_status,
         review_prune: consumers.review_prune,
         analysis: consumers.analysis,
@@ -346,7 +345,7 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         report.pair_reports.render(),
         report.review.render(),
         report.abstraction_review.render(),
-        source_review_summary(report),
+        report.source_reviews.render(),
         report
             .review_status
             .as_ref()
@@ -361,15 +360,6 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         report.mutation_effects.render(),
         planning_summary(report)
     )
-}
-
-fn source_review_summary(report: &Report<'_>) -> String {
-    report
-        .parameter_review
-        .iter()
-        .chain(report.length_review.iter())
-        .map(|review| review.render())
-        .collect()
 }
 
 fn planning_summary(report: &Report<'_>) -> String {

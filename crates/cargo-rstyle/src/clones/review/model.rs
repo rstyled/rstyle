@@ -188,4 +188,6 @@ pub(crate) struct ReviewStore {
     pub parameter_entries: Vec<super::source_rules::Entry>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub length_entries: Vec<super::length_rules::Entry>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub spacing_entries: Vec<super::spacing_rules::Entry>,
 }

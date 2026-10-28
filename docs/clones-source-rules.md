@@ -188,7 +188,7 @@ finding baseline.
 ## Explicit numeric source-rule reviews
 
 Use `--review-file reviews.json` alongside `--source-rules` to apply retained
-parameter-count and function-length reviews. An explicit saved-run dismissal requires
+parameter-count, function-length and configured spacing reviews. An explicit saved-run dismissal requires
 `--dismiss-parameter FUNCTION_KEY` and a nonempty `--review-reason`; only a
 completed visible selected `fn_params` finding is eligible. Missing stores are
 empty and ordinary lookup never writes. See [finding reviews](clones-finding-review.md#parameter-count-findings)
@@ -216,9 +216,17 @@ plus the same checked owner/context and detector versions. Same-count body edits
 blank lines and comments preserve the numeric choice; changed count or policy
 requires review. They use schema-4 `length_entries` and JSON `length_review`.
 A parameter review cannot hide a length finding or vice versa. Source owners are
-resolved once for both families. See [length reviews](clones-finding-review.md#function-length-findings)
+resolved once for the source-rule families. See [length reviews](clones-finding-review.md#function-length-findings)
 for exact persistence, status and pruning semantics. Existing stores remain
 readable and lookup never rewrites them.
+
+Spacing reviews use `--dismiss-spacing FUNCTION_KEY` and JSON `spacing_review`.
+They retain the completed direct-statement count and explicit `min_statements`
+policy in schema-5 `spacing_entries`. Same-count findings preserve review;
+changed count or policy requires review. A newly inserted blank line can yield
+a same-policy completed negative for explicit pruning. Disabled or raised policy
+remains stale; an omitted `[fn_spacing]` section is not requested. See
+[spacing reviews](clones-finding-review.md#function-spacing-findings).
 
 ## Bounded guard-clause advice
 

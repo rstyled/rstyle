@@ -2,7 +2,9 @@
 mod observed;
 mod retained;
 
-use super::{ReviewStore, length_rules, outcome, source_rules, status, summary, workflow};
+use super::{
+    ReviewStore, length_rules, outcome, source_rules, spacing_rules, status, summary, workflow,
+};
 use crate::clones::{FunctionKey, analysis::Completion, report};
 use serde::Serialize;
 use std::collections::BTreeSet;
@@ -10,12 +12,14 @@ use std::collections::BTreeSet;
 pub(in crate::clones) struct Reports {
     pub parameters: Report,
     pub lengths: Report,
+    pub spacings: Report,
 }
 
 #[derive(Clone, Copy)]
 enum Family {
     Parameter,
     Length,
+    Spacing,
 }
 
 #[derive(Serialize)]
@@ -45,29 +49,7 @@ pub(super) fn apply(
 ) -> Result<(Reports, Vec<status::Record>), String> {
     let requested = ctx.args.source_rules;
     let Some(store) = store.filter(|_| requested || ctx.args.review_status_requested()) else {
-        return Ok((
-            Reports {
-                parameters: summarize(
-                    Vec::new(),
-                    0,
-                    summary::Scope {
-                        requested: false,
-                        complete: false,
-                    },
-                    Family::Parameter,
-                ),
-                lengths: summarize(
-                    Vec::new(),
-                    0,
-                    summary::Scope {
-                        requested: false,
-                        complete: false,
-                    },
-                    Family::Length,
-                ),
-            },
-            Vec::new(),
-        ));
+        return Ok((Reports::not_requested(), Vec::new()));
     };
 
     let observations = observed::collect(inputs, ctx);
@@ -92,6 +74,9 @@ fn reports(
         .map_err(|error| format!("{error:?}"))?;
     let lengths = length_rules::ValidatedStore::new(&store.length_entries)
         .map_err(|error| format!("{error:?}"))?;
+    let spacings = spacing_rules::ValidatedStore::new(&store.spacing_entries)
+        .map_err(|error| format!("{error:?}"))?;
+
     let inputs = ReportInputs {
         observations,
         store,
@@ -110,6 +95,12 @@ fn reports(
                 lookup.into()
             }))
         }),
+        spacings: Family::Spacing.report(&inputs, |row| {
+            outcome::Outcome::checked(row.checked_spacing().map(|current| {
+                let lookup: spacing_rules::Lookup<'_> = spacings.lookup(&current);
+                lookup.into()
+            }))
+        }),
     })
 }
 
@@ -121,6 +112,7 @@ fn dismiss(
     for (family, selector) in [
         (Family::Parameter, ctx.args.dismiss_parameter.as_deref()),
         (Family::Length, ctx.args.dismiss_length.as_deref()),
+        (Family::Spacing, ctx.args.dismiss_spacing.as_deref()),
     ] {
         let Some(selector) = selector else {
             continue;
@@ -150,6 +142,17 @@ fn dismiss_one(
     family: Family,
     reason: &str,
 ) -> Result<(), String> {
+    let required_schema = record_choice(store, row, family, reason)?;
+    store.schema_version = store.schema_version.max(required_schema);
+    Ok(())
+}
+
+fn record_choice(
+    store: &mut ReviewStore,
+    row: &observed::Row,
+    family: Family,
+    reason: &str,
+) -> Result<u32, String> {
     let result = match family {
         Family::Parameter => source_rules::record_dismissal(
             &mut store.parameter_entries,
@@ -161,13 +164,18 @@ fn dismiss_one(
             &row.checked_length()?,
             reason.into(),
         ),
+        Family::Spacing => spacing_rules::record_dismissal(
+            &mut store.spacing_entries,
+            &row.checked_spacing()?,
+            reason.into(),
+        ),
     };
     result.map_err(|error| format!("{error:?}"))?;
-    store.schema_version = store.schema_version.max(match family {
+    Ok(match family {
         Family::Parameter => 3,
         Family::Length => 4,
-    });
-    Ok(())
+        Family::Spacing => 5,
+    })
 }
 
 impl Family {
@@ -175,6 +183,7 @@ impl Family {
         match self {
             Self::Parameter => "Parameter",
             Self::Length => "Length",
+            Self::Spacing => "Spacing",
         }
     }
 
@@ -182,6 +191,7 @@ impl Family {
         match self {
             Self::Parameter => row.parameters.visible,
             Self::Length => row.lengths.visible,
+            Self::Spacing => row.spacing_requested && row.spacings.visible,
         }
     }
 
@@ -189,6 +199,7 @@ impl Family {
         match self {
             Self::Parameter => row.parameters.complete,
             Self::Length => row.lengths.complete,
+            Self::Spacing => row.spacing_requested && row.spacings.complete,
         }
     }
 
@@ -205,6 +216,10 @@ impl Family {
             Self::Length => summary::Contract {
                 schema: "rstyle.length-review/1",
                 incomplete_scope: "Length source assessments or positive finding identities remain unavailable",
+            },
+            Self::Spacing => summary::Contract {
+                schema: "rstyle.spacing-review/1",
+                incomplete_scope: "Spacing source assessments or positive finding identities remain unavailable",
             },
         }
     }
@@ -228,16 +243,43 @@ impl Family {
         let retained = match self {
             Self::Parameter => inputs.store.parameter_entries.len(),
             Self::Length => inputs.store.length_entries.len(),
+            Self::Spacing => inputs.store.spacing_entries.len(),
         };
         summarize(
             decisions,
             retained,
             summary::Scope {
-                requested: inputs.requested,
+                requested: inputs.requested && self.requested(inputs.observations),
                 complete: self.complete(inputs.observations),
             },
             self,
         )
+    }
+
+    fn requested(self, observations: &observed::Observations) -> bool {
+        !matches!(self, Self::Spacing) || observations.spacing_requested
+    }
+
+    fn not_requested(self) -> Report {
+        summarize(
+            Vec::new(),
+            0,
+            summary::Scope {
+                requested: false,
+                complete: false,
+            },
+            self,
+        )
+    }
+}
+
+impl Reports {
+    fn not_requested() -> Self {
+        Self {
+            parameters: Family::Parameter.not_requested(),
+            lengths: Family::Length.not_requested(),
+            spacings: Family::Spacing.not_requested(),
+        }
     }
 }
 

@@ -108,30 +108,30 @@ pub(in crate::clones) struct Reports {
     pub pruning: Option<prune::Report>,
 }
 
-/// One load and atomic publication across all requested review families.
-/// A failed selector or snapshot leaves every retained entry untouched on disk.
-pub(in crate::clones) fn apply(
-    inputs: Inputs<'_, '_>,
-    ctx: &report::Context<'_>,
-) -> Result<Reports, String> {
-    let mut store = ctx.args.review_file.as_deref().map(load).transpose()?;
-    let mut reports = evaluate(&inputs, ctx, store.as_mut())?;
-    reports.pruning = pruning(store.as_mut(), reports.status.as_ref(), ctx)?;
+impl Inputs<'_, '_> {
+    /// One load and atomic publication across all requested review families.
+    /// A failed selector or snapshot leaves every retained entry untouched on disk.
+    pub(in crate::clones) fn apply(self, ctx: &report::Context<'_>) -> Result<Reports, String> {
+        let mut store = ctx.args.review_file.as_deref().map(load).transpose()?;
+        let mut reports = evaluate(&self, ctx, store.as_mut())?;
+        reports.pruning = pruning(store.as_mut(), reports.status.as_ref(), ctx)?;
 
-    if (!ctx.args.dismiss_helper_pair.is_empty()
-        || ctx.args.dismiss_enum_dispatch.is_some()
-        || !ctx.args.dismiss_capability_pair.is_empty()
-        || ctx.args.dismiss_parameter.is_some()
-        || ctx.args.dismiss_length.is_some()
-        || reports
-            .pruning
-            .as_ref()
-            .is_some_and(|report| report.removed_entries > 0))
-        && let (Some(path), Some(store)) = (&ctx.args.review_file, &store)
-    {
-        save(path, store)?;
+        if (!ctx.args.dismiss_helper_pair.is_empty()
+            || ctx.args.dismiss_enum_dispatch.is_some()
+            || !ctx.args.dismiss_capability_pair.is_empty()
+            || ctx.args.dismiss_parameter.is_some()
+            || ctx.args.dismiss_length.is_some()
+            || ctx.args.dismiss_spacing.is_some()
+            || reports
+                .pruning
+                .as_ref()
+                .is_some_and(|report| report.removed_entries > 0))
+            && let (Some(path), Some(store)) = (&ctx.args.review_file, &store)
+        {
+            save(path, store)?;
+        }
+        Ok(reports)
     }
-    Ok(reports)
 }
 
 fn evaluate(

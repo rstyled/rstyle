@@ -196,6 +196,34 @@ Only same-policy, current-version completed negatives are eligible for explicit
 pruning. Raising `max_lines` leaves the old choice stale and ineligible; omitted
 owners and unavailable evidence remain retained.
 
+## Function-spacing findings
+
+With an explicit `[fn_spacing]` section, source-rule review also covers completed
+visible spacing findings. Use `--dismiss-spacing FUNCTION_KEY` from a saved run
+with `--source-rules`, `--analysis-config`, `--review-file` and a nonempty
+`--review-reason`. Dismiss only when you intend to retain this measured boundary.
+
+The choice stores checked locator/build context and detector versions,
+`policy.min_statements` and `measurement.direct_statements`. The completed finding
+establishes the missing blank line; the review adapter does not parse or scan
+source again. Same-count edits that still produce a spacing finding preserve
+review. Changed counts or policy require review. Inserting a blank line can
+produce a completed negative under the retained policy, eligible for explicit
+pruning. Disabling spacing or raising its threshold changes policy and leaves
+the old entry stale and ineligible. Omitting `[fn_spacing]` leaves it
+`not_requested`. Unsupported statement transformations remain unavailable.
+
+Spacing dismissal adds `spacing_entries` in schema 5. Schemas 1–4 remain readable
+without read-only rewrites. JSON `spacing_review` (`rstyle.spacing-review/1`) and
+retained family `spacing` use the same counts and decision vocabulary. Parameter,
+length and spacing choices remain independent; only selected matching diagnostics
+and finding exits are hidden. Raw assessments, totals and plans remain unfiltered.
+All three families share one original owner resolution and the existing 4,096-owner
+bound, with 4,096 stored entries per family. Strict full/compact replay needs no
+original source or compiler tools. Identity scope remains original root/inline
+free functions; unavailable, suppressed, unselected and clean findings cannot be
+dismissed.
+
 ## Inspect every retained review
 
 Add `--review-status` to a normal analysis or an explicit saved-run replay:
@@ -211,22 +239,22 @@ This read-only report includes **every entry in the selected file**, including
 reviews with no current finding. It requires `--review-file` and conflicts with
 dismissal selectors. Request each analysis family you want assessed; an omitted
 family remains explicitly `not_requested`. Missing files mean an empty store and
-are never created. Schemas 1–4 are not migrated or rewritten by lookup or status.
-Request `--source-rules` and the relevant `--analysis-config` to assess parameter
-entries.
+are never created. Schemas 1–5 are not migrated or rewritten by lookup or status.
+Request `--source-rules` and the relevant `--analysis-config` to assess source-rule
+entries; spacing additionally requires an explicit `[fn_spacing]` section.
 
 JSON adds `review_status` (`rstyle.review-status/1`) only when requested. Each
 `records` row retains its family, zero-based index within `entries` or
-`source_entries` or `parameter_entries` or `length_entries`, original reason, durable member locators,
+`source_entries` or `parameter_entries`, `length_entries` or `spacing_entries`, original reason, durable member locators,
 state and explanation.
 These indices locate rows in this file; they are not persistent finding IDs.
 
 | State | Evidence and meaning |
 | --- | --- |
 | `hidden_exact` / `hidden_growth` | A completed current finding is hidden by this exact retained entry or its explicit helper growth policy. |
-| `stale` | A completed current finding overlaps the retained identity but differs in versions, membership, context or relevant body/roles/signature/policy. A completed negative under changed parameter or length policy is also stale. |
+| `stale` | A completed current finding overlaps the retained identity but differs in versions, membership, context or relevant body/roles/signature/policy. A completed negative under changed parameter, length or spacing policy is also stale. |
 | `context_changed` | Every retained endpoint is observed, with at least one present only in a different context; no incomplete identity observations can conceal the original context. |
-| `no_finding` | Endpoints resolve uniquely in their retained context and the relevant function/pair has a completed negative assessment under matching detector/identity versions. Parameter negatives also require the retained `max_params` and `count_self`; length negatives require the retained `max_lines`. Existing-trait and source-rule suppression can be completed negatives. |
+| `no_finding` | Endpoints resolve uniquely in their retained context and the relevant function/pair has a completed negative assessment under matching detector/identity versions. Parameter negatives also require the retained `max_params` and `count_self`; length negatives require the retained `max_lines`; spacing negatives require the retained `min_statements`. Existing-trait and source-rule suppression can be completed negatives. |
 | `not_observed` | An endpoint has no checked identity in the selected capture. Omitted packages/targets, renamed or removed declarations are not distinguished; this is not proof of deletion. |
 | `not_requested` | This entry's detector family was omitted. |
 | `unavailable` | Identity, detector versions, admission, evidence, function/pair assessment or bounded work cannot establish status. |

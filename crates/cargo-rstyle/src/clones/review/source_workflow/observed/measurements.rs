@@ -2,11 +2,12 @@
 use super::{Identity, Witness};
 use crate::clones::{
     analysis,
-    review::{length_rules, local_adapter, source_rules},
+    review::{length_rules, local_adapter, source_rules, spacing_rules},
 };
 
 type Parameter = (source_rules::Policy, source_rules::Signature);
 type Length = (length_rules::Policy, length_rules::Measurement);
+type Spacing = (spacing_rules::Policy, spacing_rules::Measurement);
 
 pub(super) fn parameter(
     source: &analysis::SourceReview<'_>,
@@ -32,34 +33,79 @@ pub(super) fn parameter(
 pub(super) fn length(
     source: &analysis::SourceReview<'_>,
 ) -> Result<Option<length_rules::Measurement>, String> {
-    if !source.length.visible || !source.length.complete {
+    numeric(
+        &source.length,
+        |code_lines| length_rules::Measurement { code_lines },
+        "Length",
+    )
+}
+
+pub(super) fn spacing(
+    source: &analysis::SourceReview<'_>,
+) -> Result<Option<spacing_rules::Measurement>, String> {
+    if source.min_statements.is_none() {
         return Ok(None);
     }
-    let code_lines = source
-        .length
+    numeric(
+        &source.spacing,
+        |direct_statements| spacing_rules::Measurement { direct_statements },
+        "Spacing",
+    )
+}
+
+fn numeric<M>(
+    review: &analysis::RuleReview<'_>,
+    measure: impl FnOnce(usize) -> M,
+    family: &str,
+) -> Result<Option<M>, String> {
+    if !review.visible || !review.complete {
+        return Ok(None);
+    }
+    let actual = review
         .assessment
         .and_then(|rule| rule.actual)
-        .ok_or("Length finding count is unavailable")?;
-    Ok(Some(length_rules::Measurement { code_lines }))
+        .ok_or_else(|| format!("{family} finding count is unavailable"))?;
+    Ok(Some(measure(actual)))
 }
 
 pub(super) fn snapshots(
     identity: Identity,
     parameter: Option<Parameter>,
     length: Option<Length>,
+    spacing: Option<Spacing>,
 ) -> Witness {
-    match (parameter, length) {
-        (None, None) => Witness::Identity(identity),
-        (Some(parameter), None) => Witness::Parameter(parameter_snapshot(identity, parameter)),
-        (None, Some(length)) => Witness::Length(length_snapshot(identity, length)),
-        (Some(parameter), Some(length)) => {
-            let duplicate = (identity.0.clone(), identity.1.clone());
-            Witness::Both(Box::new(super::Snapshots {
-                parameters: parameter_snapshot(identity, parameter),
-                lengths: length_snapshot(duplicate, length),
-            }))
-        }
+    if let Some(parameter) = parameter {
+        let following = following(&identity, length, spacing);
+        return Witness::Parameter {
+            snapshot: parameter_snapshot(identity, parameter),
+            following,
+        };
     }
+    if let Some(length) = length {
+        let spacing = spacing.map(|spacing| Box::new(spacing_snapshot(identity.clone(), spacing)));
+        return Witness::Length {
+            snapshot: length_snapshot(identity, length),
+            spacing,
+        };
+    }
+    match spacing {
+        Some(spacing) => Witness::Spacing(spacing_snapshot(identity, spacing)),
+        None => Witness::Identity(identity),
+    }
+}
+
+fn following(
+    identity: &Identity,
+    length: Option<Length>,
+    spacing: Option<Spacing>,
+) -> Option<Box<super::Following>> {
+    if length.is_none() && spacing.is_none() {
+        return None;
+    }
+    Some(Box::new(super::Following {
+        lengths: length.map(|length| length_snapshot(identity.clone(), length)),
+        spacings: spacing.map(|spacing| spacing_snapshot(identity.clone(), spacing)),
+    }))
 }
 
 fn parameter_snapshot(
@@ -81,6 +127,19 @@ fn length_snapshot(
 ) -> length_rules::Snapshot {
     length_rules::Snapshot {
         versions: local_adapter::versions("fn_length"),
+        locator,
+        context,
+        policy,
+        measurement,
+    }
+}
+
+fn spacing_snapshot(
+    (locator, context): Identity,
+    (policy, measurement): Spacing,
+) -> spacing_rules::Snapshot {
+    spacing_rules::Snapshot {
+        versions: local_adapter::versions("fn_spacing"),
         locator,
         context,
         policy,

@@ -1,6 +1,8 @@
-//! Both source rules share one bounded original owner identity resolution.
+//! Source rules share one bounded original owner identity resolution.
 mod measurements;
-use super::super::{Locator, length_rules, local, local_adapter, source_rules, workflow};
+use super::super::{
+    Locator, length_rules, local, local_adapter, source_rules, spacing_rules, workflow,
+};
 use super::Family;
 use crate::clones::{Function, FunctionKey, analysis, report};
 use std::collections::{BTreeMap, BTreeSet};
@@ -12,6 +14,7 @@ pub(super) struct Observations {
     pub rows: Vec<Row>,
     pub truncated: bool,
     pub unavailable_scope: bool,
+    pub spacing_requested: bool,
 }
 
 pub(super) struct Rule<P> {
@@ -21,30 +24,60 @@ pub(super) struct Rule<P> {
     error: Option<String>,
 }
 
+impl<P> Rule<P> {
+    fn new(review: &analysis::RuleReview<'_>, policy: P, error: Option<String>) -> Self {
+        Self {
+            visible: review.visible,
+            complete: review.complete,
+            policy,
+            error,
+        }
+    }
+
+    fn measured<M>(&self, measurement: Result<Option<M>, String>) -> Option<(P, M)>
+    where
+        P: Clone,
+    {
+        measurement
+            .ok()
+            .flatten()
+            .map(|value| (self.policy.clone(), value))
+    }
+}
+
 pub(super) struct Row {
     pub key: FunctionKey,
     pub selected: bool,
     pub parameters: Rule<source_rules::Policy>,
     pub lengths: Rule<length_rules::Policy>,
+    pub spacings: Rule<spacing_rules::Policy>,
+    pub spacing_requested: bool,
     unique: bool,
     witness: Result<Witness, String>,
 }
 
 enum Witness {
     Identity(Identity),
-    Parameter(source_rules::Snapshot),
-    Length(length_rules::Snapshot),
-    Both(Box<Snapshots>),
+    Parameter {
+        snapshot: source_rules::Snapshot,
+        following: Option<Box<Following>>,
+    },
+    Length {
+        snapshot: length_rules::Snapshot,
+        spacing: Option<Box<spacing_rules::Snapshot>>,
+    },
+    Spacing(spacing_rules::Snapshot),
 }
 
-struct Snapshots {
-    parameters: source_rules::Snapshot,
-    lengths: length_rules::Snapshot,
+struct Following {
+    lengths: Option<length_rules::Snapshot>,
+    spacings: Option<spacing_rules::Snapshot>,
 }
 
 struct SnapshotRefs<'a> {
     parameters: Option<&'a source_rules::Snapshot>,
     lengths: Option<&'a length_rules::Snapshot>,
+    spacings: Option<&'a spacing_rules::Snapshot>,
 }
 
 impl Witness {
@@ -53,18 +86,25 @@ impl Witness {
             Self::Identity(_) => SnapshotRefs {
                 parameters: None,
                 lengths: None,
+                spacings: None,
             },
-            Self::Parameter(snapshot) => SnapshotRefs {
+            Self::Parameter {
+                snapshot,
+                following,
+            } => SnapshotRefs {
                 parameters: Some(snapshot),
-                lengths: None,
+                lengths: following.as_ref().and_then(|extra| extra.lengths.as_ref()),
+                spacings: following.as_ref().and_then(|extra| extra.spacings.as_ref()),
             },
-            Self::Length(snapshot) => SnapshotRefs {
+            Self::Length { snapshot, spacing } => SnapshotRefs {
                 parameters: None,
                 lengths: Some(snapshot),
+                spacings: spacing.as_deref(),
             },
-            Self::Both(snapshots) => SnapshotRefs {
-                parameters: Some(&snapshots.parameters),
-                lengths: Some(&snapshots.lengths),
+            Self::Spacing(snapshot) => SnapshotRefs {
+                parameters: None,
+                lengths: None,
+                spacings: Some(snapshot),
             },
         }
     }
@@ -74,34 +114,35 @@ impl Row {
     fn new(source: analysis::SourceReview<'_>, identity: Result<Identity, String>) -> Self {
         let parameter = measurements::parameter(&source);
         let length = measurements::length(&source);
-        let parameters = Rule {
-            visible: source.parameter.visible,
-            complete: source.parameter.complete,
-            policy: source_rules::Policy {
+        let spacing = measurements::spacing(&source);
+        let parameters = Rule::new(
+            &source.parameter,
+            source_rules::Policy {
                 max_params: source.parameter.assessment.map_or(0, |rule| rule.limit),
                 count_self: source.count_self,
             },
-            error: parameter.as_ref().err().cloned(),
-        };
-        let lengths = Rule {
-            visible: source.length.visible,
-            complete: source.length.complete,
-            policy: length_rules::Policy {
+            parameter.as_ref().err().cloned(),
+        );
+        let lengths = Rule::new(
+            &source.length,
+            length_rules::Policy {
                 max_lines: source.length.assessment.map_or(0, |rule| rule.limit),
             },
-            error: length.as_ref().err().cloned(),
-        };
+            length.as_ref().err().cloned(),
+        );
+        let spacings = Rule::new(
+            &source.spacing,
+            spacing_rules::Policy {
+                min_statements: source.min_statements.unwrap_or(0),
+            },
+            spacing.as_ref().err().cloned(),
+        );
         let witness = identity.map(|identity| {
             measurements::snapshots(
                 identity,
-                parameter
-                    .ok()
-                    .flatten()
-                    .map(|signature| (parameters.policy.clone(), signature)),
-                length
-                    .ok()
-                    .flatten()
-                    .map(|measurement| (lengths.policy.clone(), measurement)),
+                parameters.measured(parameter),
+                lengths.measured(length),
+                spacings.measured(spacing),
             )
         });
 
@@ -110,6 +151,8 @@ impl Row {
             selected: source.selected,
             parameters,
             lengths,
+            spacings,
+            spacing_requested: source.min_statements.is_some(),
             unique: true,
             witness,
         }
@@ -118,11 +161,9 @@ impl Row {
     pub fn identity(&self) -> Result<(&Locator, &local::BuildContext), &str> {
         match self.witness.as_ref().map_err(String::as_str)? {
             Witness::Identity((locator, context)) => Ok((locator, context)),
-            Witness::Parameter(snapshot) => Ok((&snapshot.locator, &snapshot.context)),
-            Witness::Length(snapshot) => Ok((&snapshot.locator, &snapshot.context)),
-            Witness::Both(snapshots) => {
-                Ok((&snapshots.parameters.locator, &snapshots.parameters.context))
-            }
+            Witness::Parameter { snapshot, .. } => Ok((&snapshot.locator, &snapshot.context)),
+            Witness::Length { snapshot, .. } => Ok((&snapshot.locator, &snapshot.context)),
+            Witness::Spacing(snapshot) => Ok((&snapshot.locator, &snapshot.context)),
         }
     }
 
@@ -146,6 +187,7 @@ impl Row {
         match family {
             Family::Parameter => self.checked_parameter().map(|_| ()),
             Family::Length => self.checked_length().map(|_| ()),
+            Family::Spacing => self.checked_spacing().map(|_| ()),
         }
     }
 
@@ -163,6 +205,19 @@ impl Row {
         self.snapshot(|snapshots| snapshots.lengths, "length")
     }
 
+    pub fn checked_spacing(&self) -> Result<spacing_rules::LiveFinding<'_>, String> {
+        if !self.spacing_requested {
+            return Err("Spacing source rule was not requested".into());
+        }
+        self.ready(&self.spacings)?;
+        spacing_rules::LiveFinding::checked(self.spacing_snapshot()?)
+            .map_err(|error| format!("{error:?}"))
+    }
+
+    pub fn spacing_snapshot(&self) -> Result<&spacing_rules::Snapshot, String> {
+        self.snapshot(|snapshots| snapshots.spacings, "spacing")
+    }
+
     fn snapshot<'a, S: 'a>(
         &'a self,
         select: impl FnOnce(SnapshotRefs<'a>) -> Option<&'a S>,
@@ -176,11 +231,12 @@ impl Row {
 
 impl Observations {
     pub(super) fn complete(&self, family: Family) -> bool {
-        self.scope_complete()
-            && self.rows.iter().all(|row| {
-                family.assessment_complete(row)
-                    && (!family.visible(row) || row.checked(family).is_ok())
-            })
+        !family.requested(self)
+            || self.scope_complete()
+                && self.rows.iter().all(|row| {
+                    family.assessment_complete(row)
+                        && (!family.visible(row) || row.checked(family).is_ok())
+                })
     }
 
     fn scope_complete(&self) -> bool {
@@ -215,6 +271,7 @@ pub(super) fn collect(
         rows,
         truncated,
         unavailable_scope: !ctx.capture.failures.is_empty() || !ctx.handoff.failures.is_empty(),
+        spacing_requested: inputs.analysis.spacing_policy().is_some(),
     }
 }
 

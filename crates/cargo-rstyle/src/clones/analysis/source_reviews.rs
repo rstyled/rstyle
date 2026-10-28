@@ -6,6 +6,7 @@ use crate::clones::review;
 pub(super) struct Hidden {
     parameters: bool,
     lengths: bool,
+    spacings: bool,
 }
 
 impl Hidden {
@@ -13,12 +14,19 @@ impl Hidden {
         match rule_id {
             "fn_params" => self.parameters,
             "fn_length" => self.lengths,
+            "fn_spacing" => self.spacings,
             _ => false,
         }
     }
 }
 
 impl Report<'_> {
+    pub(in crate::clones) fn spacing_policy(&self) -> Option<usize> {
+        self.effective_config
+            .as_ref()
+            .and_then(|settings| settings.min_statements)
+    }
+
     pub(in crate::clones) fn source_reviews(&self) -> impl Iterator<Item = SourceReview<'_>> {
         self.effective_config.iter().flat_map(move |settings| {
             self.functions
@@ -35,6 +43,7 @@ impl Report<'_> {
             function.source_review_hidden = Hidden {
                 parameters: reviews.parameters.hidden_for(function.key),
                 lengths: reviews.lengths.hidden_for(function.key),
+                spacings: reviews.spacings.hidden_for(function.key),
             };
         }
     }
@@ -53,6 +62,8 @@ impl FunctionReport<'_> {
             count_self: settings.count_self,
             parameter: self.source_rule_review("fn_params"),
             length: self.source_rule_review("fn_length"),
+            spacing: self.source_rule_review("fn_spacing"),
+            min_statements: settings.min_statements,
         }
     }
 

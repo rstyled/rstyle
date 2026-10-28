@@ -74,6 +74,8 @@ pub(in crate::clones) struct SourceReview<'a> {
     pub count_self: bool,
     pub parameter: RuleReview<'a>,
     pub length: RuleReview<'a>,
+    pub spacing: RuleReview<'a>,
+    pub min_statements: Option<usize>,
 }
 
 pub(in crate::clones) struct RuleReview<'a> {

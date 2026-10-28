@@ -34,7 +34,7 @@ pub(crate) type LiveFinding<'a> = exact_rules::LiveFinding<'a, Snapshot>;
 pub(crate) type ValidatedStore<'a> = exact_rules::ValidatedStore<'a, Snapshot>;
 pub(crate) type Lookup<'a> = exact_rules::Lookup<'a, Snapshot>;
 pub(crate) use exact_rules::StaleReason;
-pub(super) use exact_rules::{record_dismissal, stale_reason, validate_entries};
+pub(super) use exact_rules::{record_dismissal, validate_entries};
 
 pub(super) fn validate_snapshot(snapshot: &Snapshot) -> Result<(), Error> {
     exact_rules::validate_identity(snapshot, "fn_params")?;

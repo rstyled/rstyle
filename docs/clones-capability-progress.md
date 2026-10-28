@@ -61,6 +61,8 @@ Heavy captures and integrated gates run serially.
 
 | C09f | Model + workflow + acceptance + lead / shared numeric review, completed length measurements and CLI/report | delivered (numeric length reviews) | this checkpoint | Saved numeric function-length choices with independent family hiding and shared original owner resolution | 2,857 workspace tests and doc tests; zero style violations; same 15 unfiltered pattern IDs; strict source/tool-free replay; conservative same-policy pruning |
 
+| C09g | Model + workflow + acceptance + lead / completed spacing measurements, shared review presentation and CLI/report | delivered (configured spacing reviews) | this checkpoint | Saved direct-statement spacing choices with explicit policy and independent three-family hiding | 2,880 workspace tests and doc tests; zero style violations; same 15 unfiltered pattern IDs; source/tool-free strict replay; empty-policy and conservative pruning acceptance |
+
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
 
@@ -1289,3 +1291,46 @@ new blank line can establish a completed same-policy negative only through the
 existing completed assessment. No additional source scan/hash is needed. Mixed
 three-family stores, independent hiding, unsupported transformed source and
 source/tool-free replay need independent acceptance before delivery.
+
+
+## C09g: saved spacing choices from completed statement evidence
+
+Model owns `review/spacing_rules`; workflow owns shared source observations and
+per-family status; acceptance owns `tests/migration_spacing_review`; lead owns
+configuration/analysis adapters, CLI/storage/report/prune seams and documentation.
+This slice is delivered over the existing bounded original free-function scope.
+
+The intended choice retains explicit `min_statements` and completed direct-statement
+count, alongside existing versioned locator/context identity. No new source scan,
+parser, hash or graph prerequisite is introduced. Omitted policy must stay
+not-requested even with no captured functions. A same-policy blank-line negative
+can permit explicit pruning; changed or disabled policy must leave retained
+positives stale. Three independent source families share original owner resolution.
+Mixed stores, selected hiding, source-free strict replay and schemas 1–4 read-only
+compatibility pass independent acceptance. Eight model tests and 14 real-Cargo
+spacing-review cases cover boundary counts, same-count edits, blank-line negatives,
+changed/disabled/omitted policy, empty captures, source/tool-free full/compact/text,
+unsupported statements, per-target isolation and three-family/raw-plan independence.
+All 195 focused review/source-rule tests passed before final integration.
+
+The frozen final snapshot passes all 2,880 workspace nextest tests (five skipped)
+in 185.254 seconds and doc tests, including both original NonZero regressions.
+Locked workspace/all-targets Clippy with warnings denied, zero style violations
+across 9,136 functions, all 56 Python comparison tests, formatting and diff checks
+pass. Reviewed patterns reports zero candidates; unfiltered discovery retains
+exactly the previous 15 IDs. Source-review presentation groups only the optional
+reports; serialized field names, per-family completeness and hidden counts remain
+independent. No new ignores, suppressions, threshold changes or SHA paths.
+Logs use `/tmp/clones-spacing-review-*`. Native macOS, exact Go comparison and
+per-capability legacy retirement remain unverified or open.
+
+The next dependency-ready quality slice is bounded depth-two scalar mutation
+summaries: caller → wrapper → leaf, using existing original calls and scalar roots.
+The current nested-helper oracle remains explicitly unknown until implementation.
+Nested witnesses must retain original summary/site ownership and exact call paths;
+callee sites must never become caller direct assignments. Repeated paths, reordered
+formals, direct-plus-nested writes, owned rebinding, recursive/deeper/opaque calls,
+context joins, budgets and source/tool-free strict replay need independent cases.
+Depth-specific completed query results must not poison other summary queries.
+This is readiness, not delivered behavior; no transitive fixpoint, alias analysis,
+purity, density or safe-rewrite claim is implied.
