@@ -51,7 +51,8 @@ Heavy captures and integrated gates run serially.
 | C05b | Acceptance + runner + lead / independent exclusion labels and comparison | delivered (bounded exclusion comparison) | `6958b92` | Separate policy-excluded agreement from measured source-rule agreement; retain excluded legacy roster and context | 38 independent Python tests and live frozen-corpus comparison; checkpoint evidence below |
 
 | C04d | Evidence + policy + acceptance + lead / direct statement view, shared spacing predicate and opt-in source policy | delivered (bounded spacing) | `0e7234e` | Original source spacing independent of strict matching, explicit unsupported transformations and source-free policy reevaluation | Focused tests and integrated checkpoint evidence below |
-| C05c | Acceptance + runner + lead / spacing corpus, comparator and independent labels | delivered (bounded spacing comparison) | this checkpoint | Optional independently labeled spacing measurements, explicit disabled-policy agreement and three-rule exclusion checks | 56 Python tests, live serial comparison and integrated checkpoint evidence below |
+| C05c | Acceptance + runner + lead / spacing corpus, comparator and independent labels | delivered (bounded spacing comparison) | `bf11857` | Optional independently labeled spacing measurements, explicit disabled-policy agreement and three-rule exclusion checks | 56 Python tests, live serial comparison and integrated checkpoint evidence below |
+| C12b | Evidence + acceptance + lead / caller census, signature regions, overlap and CLI/report | delivered (bounded caller-aware signature intents) | this checkpoint | Advisory parameter signature intents with exact same-unit witnessed callers and separate census coverage | Eight real-Cargo acceptance cases, 2,709 workspace tests, both legacy gates and source-free strict replay; checkpoint evidence below |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
@@ -826,3 +827,67 @@ and `/tmp/clones-spacing-comparison-patterns-unfiltered.*`.
 Caller-aware parameter intents are the next ready planning work: retain witnessed exact call
 regions while reporting caller census completeness separately; current direct
 call observations cannot establish absence of callers hidden by opaque work.
+
+
+## C12b: caller-aware parameter signature intents
+
+An explicit `--source-rules --parameter-plans` request derives advisory signature
+intents from the existing visible `fn_params` assessments. Source rules are
+evaluated once; their checked exclusion/suppression decisions and unavailable
+population are reused. No strict pair or effect proof is required. Each intent
+retains its exact original signature region plus witnessed same-unit call
+regions and original argument/formal-root mappings. Formal provenance does not
+prove unchanged forwarding, pass-through, bundling or safe argument removal.
+The report separately declares captured selected-unit scope, same-unit target
+resolution and per-unit caller census coverage. Unknown external/function-value
+uses, replacement design and stack order remain explicit.
+
+The caller session scans each bounded original owner once, indexes exact selected
+definition targets, validates native call/argument order and path/context joins,
+and borrows retained observations for target queries. Unsupported/nested argument
+evaluation and unexamined macro/control/closure/indirect/associated work preserve
+known witnesses while making the census incomplete. Excluded source owners still
+contribute callers. No source/graph byte copies, routine hashes or repeated target
+query parsers are introduced. Region resolution caches one signature/body owner
+per function; both share the immutable source census. The overlap consumer now
+accepts an explicit required-region count, validates every region within an
+existing comparison allowance and retains the original two-region helper
+contract. Disjoint expressions in the same caller do not imply overlapping edits.
+
+Independent acceptance covers exact two-callee/multiple-call regions, reordered
+formal roots, namesakes, no finding/opt-in/CLI requirements, suppression/exclusion,
+excluded callers, useful partial witnesses, unavailable source, budget and
+source/tool-free full/compact strict replay. Caller tests cover cached outcomes,
+source/signature gaps, boundary ownership, exact context/path contradictions and
+budget exhaustion; signature tests cover UTF-8/CRLF, visibility, where clauses,
+methods and opaque bodies. Broader all-use/pass-through inventories, forwarding
+bundles, external closure, generic/nominal call vocabularies, local guard intents
+and project-scale quality/retirement remain open. Native macOS and exact Go
+comparison are unverified for this increment.
+
+The final frozen implementation passes all 2,709 workspace tests (five skipped)
+in 176.940 seconds plus doc tests. Workspace/all-target Clippy, formatting and
+diff checks pass. Legacy style reports zero violations across 8,877 functions;
+reviewed patterns passes and all 15 unfiltered baseline candidate IDs are
+unchanged. All 56 independent Python comparison tests pass. Logs and reports use
+`/tmp/clones-parameter-{tests,clippy,style,patterns,python}-final.*` and
+`/tmp/clones-parameter-patterns-unfiltered-final.*`.
+
+A fresh locked compact capture at `/tmp/clones-parameter-live-6yp1jifu` retains
+one exact signature and two witnessed callers. After removing original source
+and manifest and disabling compiler/tool lookup, full and compact strict replay
+preserve parameter planning and matching exactly. A zero function budget stays
+explicitly incomplete with a null expected-plan population; config-only threshold
+reevaluation produces a complete empty intent set. Commands, exit codes, timings
+and reports are retained in that directory. No extraction permission, new hash,
+ignore entry or policy threshold was added to make the checkpoint pass.
+
+The next bounded planning slice is per-target witnessed forwarding bundles.
+Formal-root provenance alone cannot establish unchanged values: a mutable formal
+may have been assigned before the call. Initial bundle witnesses therefore need
+checked immutable owned scalar reads, distinct formal roots and target positions,
+with repeated exact call occurrences retained. Incomplete census may preserve
+witnesses but cannot establish exhaustive support. Pass-through candidates need
+a separate complete formal-use inventory, including other reads, writes, borrows
+and opaque boundaries; neither a formal ordinal nor a bundle establishes safe
+argument removal.

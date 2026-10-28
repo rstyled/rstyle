@@ -13,9 +13,10 @@ pub(super) struct Region<'a> {
     pub span: ByteSpan,
 }
 
-/// The adapter supplies original body regions for an explicit helper intent.
+/// Each intent declares its complete required source footprint.
 pub(super) struct Plan<'a> {
     pub id: usize,
+    pub required_regions: usize,
     pub regions: Vec<Region<'a>>,
 }
 

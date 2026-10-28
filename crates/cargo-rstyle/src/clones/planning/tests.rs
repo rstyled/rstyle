@@ -12,6 +12,7 @@ fn region(resource: &'static str, start: u32, end: u32) -> Region<'static> {
 fn plan(id: usize, first: Region<'static>, second: Region<'static>) -> Plan<'static> {
     Plan {
         id,
+        required_regions: 2,
         regions: vec![first, second],
     }
 }
@@ -112,6 +113,7 @@ fn missing_member_region_is_unavailable_even_without_other_plans() {
     let plans = [
         Plan {
             id: 0,
+            required_regions: 2,
             regions: vec![],
         },
         plan(1, region("a.rs", 0, 10), region("b.rs", 0, 10)),
@@ -147,6 +149,7 @@ fn plan_population_budget_preserves_incomplete_status() {
     let plans = (0..MAX_PLANS + 1)
         .map(|id| Plan {
             id,
+            required_regions: 2,
             regions: vec![],
         })
         .collect::<Vec<_>>();
@@ -176,6 +179,7 @@ fn snapshot_byte_budget_limits_exact_equality_work_and_preserves_other_resources
         .enumerate()
         .map(|(id, bytes)| Plan {
             id,
+            required_regions: 2,
             regions: vec![
                 Region {
                     resource: "large.rs",
@@ -199,4 +203,83 @@ fn snapshot_byte_budget_limits_exact_equality_work_and_preserves_other_resources
     assert_eq!(result.snapshot_comparison_bytes, MAX_SNAPSHOT_BYTES);
     assert_eq!(result.unavailable_plans.len(), 20);
     assert_eq!(result.overlap_groups, [vec![100, 101]]);
+}
+
+#[test]
+fn variable_intent_footprints_compare_every_required_region() {
+    let plans = [
+        Plan {
+            id: 0,
+            required_regions: 1,
+            regions: vec![region("shared.rs", 10, 20)],
+        },
+        Plan {
+            id: 1,
+            required_regions: 3,
+            regions: vec![
+                region("a.rs", 0, 10),
+                region("b.rs", 0, 10),
+                region("shared.rs", 12, 18),
+            ],
+        },
+    ];
+    let result = analyze(&plans, true);
+    assert!(result.coverage_complete);
+    assert_eq!(result.region_comparisons, 3);
+    assert_eq!(
+        result.relations[0].relation,
+        Relation::OverlapWitness {
+            witnesses: vec![Witness {
+                first_region: 0,
+                second_region: 2,
+                intersection: ByteSpan { start: 12, end: 18 },
+            }],
+        }
+    );
+}
+
+#[test]
+fn later_regions_cannot_hide_snapshot_contradictions() {
+    let mut changed = region("shared.rs", 30, 40);
+    changed.snapshot = "different exact snapshot";
+    let plans = [Plan {
+        id: 7,
+        required_regions: 3,
+        regions: vec![region("shared.rs", 0, 10), region("a.rs", 0, 10), changed],
+    }];
+    let result = analyze(&plans, true);
+    assert!(!result.coverage_complete);
+    assert_eq!(result.conflicting_snapshot_plans, [7]);
+}
+
+#[test]
+fn declared_footprints_require_every_region_and_nonzero_cardinality() {
+    for required_regions in [0, 3] {
+        let plans = [Plan {
+            id: 3,
+            required_regions,
+            regions: vec![region("a.rs", 0, 10)],
+        }];
+        let result = analyze(&plans, true);
+        assert!(!result.coverage_complete);
+        assert_eq!(result.execution, Execution::Completed);
+        assert_eq!(result.unavailable_plans, [3]);
+    }
+}
+
+#[test]
+fn region_visits_are_bounded_even_for_one_large_intent() {
+    let plans = [Plan {
+        id: 9,
+        required_regions: MAX_COMPARISONS + 1,
+        regions: (0..MAX_COMPARISONS + 1)
+            .map(|_| region("shared.rs", 0, 10))
+            .collect(),
+    }];
+    let result = analyze(&plans, true);
+    assert_eq!(result.execution, Execution::BudgetExhausted);
+    assert!(!result.coverage_complete);
+    assert_eq!(result.unavailable_plans, [9]);
+    assert_eq!(result.expected_comparisons, Some(0));
+    assert_eq!(result.assessed_comparisons, 0);
 }

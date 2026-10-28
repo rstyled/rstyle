@@ -132,3 +132,18 @@ Source policy also accepts top-level workspace-relative `exclude` globs (default
 in `source_exclusion` and scope counters; other consumers still evaluate them.
 See `docs/clones-source-rules.md` for scope and association limitations. Keep both
 legacy style and patterns gates until their capability retirement gates pass.
+
+
+## Opt-in caller-aware parameter plans
+
+Use `cargo rstyle clones --extraction-profile hir-data-v3 --locked --source-rules
+--parameter-plans --analysis-config PATH` for advisory signature and witnessed
+caller regions from visible parameter-count findings. `parameter_planning`
+reports same-unit caller census completeness separately from exact witnesses;
+opaque or unexamined work and budgets remain incomplete and exit two. Named
+suppression and path exclusion apply to findings, while excluded callers are
+still scanned. Argument formal ordinals describe source roots, not pass-through
+or removable parameters. `coordination` checks only known physical edit overlaps;
+external callers, replacement design, whole-plan independence and stack order
+remain unknown. Strict saved-run replay supports this consumer without original
+source/tools. Legacy parameter grouping remains available for its broader scope.

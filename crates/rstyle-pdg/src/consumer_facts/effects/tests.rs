@@ -57,6 +57,7 @@ fn call(boundary_index: usize) -> mutations::Call {
         target: Availability::Known("exact-local-definition".into()),
         target_path: Some("exact-local-definition".into()),
         arguments: vec![mutations::Argument {
+            formal: Availability::Known(Some(0)),
             span: span(51, 52),
             value: Availability::Known(mutations::ArgumentValue::MutableFormal(root(
                 Some(3),

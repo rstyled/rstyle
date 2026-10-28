@@ -110,7 +110,10 @@ pub(super) struct Site<'a, 'b> {
 
 pub(super) fn observe(
     site: Site<'_, '_>,
-    mut argument: impl FnMut(&Expr, &HirNode) -> Result<Availability<ArgumentValue>, String>,
+    mut argument: impl FnMut(
+        &Expr,
+        &HirNode,
+    ) -> Result<(Availability<ArgumentValue>, Option<u32>), String>,
 ) -> Result<Option<Call>, String> {
     let Site {
         facts,
@@ -154,7 +157,10 @@ fn observe_argument(
     source: &str,
     syntax: &Expr,
     child: &HirNode,
-    argument: &mut impl FnMut(&Expr, &HirNode) -> Result<Availability<ArgumentValue>, String>,
+    argument: &mut impl FnMut(
+        &Expr,
+        &HirNode,
+    ) -> Result<(Availability<ArgumentValue>, Option<u32>), String>,
 ) -> Result<Argument, String> {
     let span = crate::source_evidence::original_span(source, syntax.span());
     let inner = crate::data_aggregates::ungroup(syntax);
@@ -162,15 +168,34 @@ fn observe_argument(
         return Err("Call native argument order contradicts original syntax".into());
     }
 
-    let value = if !crate::conditional_source::expression_attributes(syntax).is_empty()
+    let (value, ordinal) = if !crate::conditional_source::expression_attributes(syntax).is_empty()
         || child.expansion.is_some()
     {
-        unsupported("Call argument attributes or expansion are unsupported")
+        (
+            unsupported("Call argument attributes or expansion are unsupported"),
+            None,
+        )
     } else {
         argument(syntax, child)?
     };
 
-    Ok(Argument { span, value })
+    let formal = match &value {
+        Availability::Known(_) => Availability::Known(ordinal),
+        Availability::Unknown { reason } => Availability::Unknown {
+            reason: reason.clone(),
+        },
+        Availability::Unsupported { reason } => Availability::Unsupported {
+            reason: reason.clone(),
+        },
+        Availability::NotApplicable { reason } => Availability::NotApplicable {
+            reason: reason.clone(),
+        },
+    };
+    Ok(Argument {
+        span,
+        value,
+        formal,
+    })
 }
 
 fn target(

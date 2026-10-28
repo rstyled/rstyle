@@ -277,7 +277,14 @@ impl Scan<'_> {
     }
 
     fn boundary(&mut self, value: &impl Spanned, reason: &str) {
-        self.result.boundary(self.span(value), reason);
+        let boundary = super::Boundary {
+            span: self.span(value),
+            availability: super::BoundaryAvailability::Unsupported,
+            reason: reason.into(),
+        };
+        self.result
+            .coverage
+            .record_incomplete(&mut self.result.boundaries, boundary);
     }
 
     fn signature(&mut self, function: &syn::ItemFn) -> Result<(), String> {
@@ -658,37 +665,48 @@ impl Scan<'_> {
         &self,
         expression: &Expr,
         node: &HirNode,
-    ) -> Result<super::Availability<super::ArgumentValue>, String> {
+    ) -> Result<(super::Availability<super::ArgumentValue>, Option<u32>), String> {
         use super::{ArgumentValue, Availability};
         let expression = transparent(expression);
         if matches!(expression, Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(_), attrs, .. }) if attrs.is_empty())
             && node.kind == "expr_lit"
             && native::scalar(node)
         {
-            return Ok(Availability::Known(ArgumentValue::OwnedU32));
+            return Ok((Availability::Known(ArgumentValue::OwnedU32), None));
         }
         let Expr::Path(path) = expression else {
-            return Ok(Availability::Unsupported {
-                reason: "Call argument evaluation is outside direct scalar reads".into(),
-            });
+            return Ok((
+                Availability::Unsupported {
+                    reason: "Call argument evaluation is outside direct scalar reads".into(),
+                },
+                None,
+            ));
         };
 
         let binding = plain_path(path)
             .and_then(|name| self.scopes.iter().rev().find_map(|scope| scope.get(&name)))
             .and_then(Option::as_ref);
         let Some(binding) = binding else {
-            return Ok(Availability::Unknown {
-                reason: "Call argument has no checked lexical scalar root".into(),
-            });
+            return Ok((
+                Availability::Unknown {
+                    reason: "Call argument has no checked lexical scalar root".into(),
+                },
+                None,
+            ));
         };
 
         if !check_call_argument(self.source, path, node, binding)? {
-            return Ok(Availability::Unknown {
-                reason: "Call argument native type or binding resolution was not captured".into(),
-            });
+            return Ok((
+                Availability::Unknown {
+                    reason: "Call argument native type or binding resolution was not captured"
+                        .into(),
+                },
+                None,
+            ));
         }
 
         self.typed_call_argument(binding)
+            .map(|value| (value, binding.root.formal))
     }
 
     fn typed_call_argument(

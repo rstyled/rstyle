@@ -446,3 +446,23 @@ fn selected_definition_changes_retain_the_checked_original_path_for_join() {
         Some("sample::leaf")
     );
 }
+
+#[test]
+fn direct_owned_argument_retains_checked_original_formal_ordinal() {
+    let facts = fixture("pub fn caller(left:u32,right:u32) { leaf(right,left); }");
+    let observed = inspect_calls(&facts).unwrap();
+    assert_eq!(
+        observed.calls[0].arguments[0].formal,
+        Availability::Known(Some(1))
+    );
+    assert_eq!(
+        observed.calls[0].arguments[1].formal,
+        Availability::Known(Some(0))
+    );
+    let facts = fixture("pub fn caller(value:u32) { leaf({value}); }");
+    let observed = inspect_calls(&facts).unwrap();
+    assert!(matches!(
+        observed.calls[0].arguments[0].formal,
+        Availability::Unsupported { .. }
+    ));
+}

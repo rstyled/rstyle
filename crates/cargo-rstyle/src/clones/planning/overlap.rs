@@ -93,19 +93,56 @@ impl Validation {
     }
 }
 
+struct PlanValidation<'a> {
+    ledger: SnapshotLedger<'a>,
+    remaining: usize,
+    validated: BTreeSet<usize>,
+}
+
+impl<'a> PlanValidation<'a> {
+    fn observe(&mut self, plan: &Plan<'a>) {
+        let visits = self.remaining.min(plan.regions.len());
+        for region in plan.regions.iter().take(visits) {
+            self.ledger.observe(region);
+        }
+
+        self.account(plan, visits);
+    }
+
+    fn account(&mut self, plan: &Plan<'_>, visits: usize) {
+        self.remaining -= visits;
+        if visits == plan.regions.len() {
+            self.validated.insert(plan.id);
+        } else {
+            self.ledger.exhausted = true;
+        }
+    }
+}
+
 fn validate_plans(plans: &[Plan<'_>]) -> Validation {
-    let mut ledger = SnapshotLedger::default();
-    for region in plans.iter().flat_map(|plan| plan.regions.iter().take(2)) {
-        ledger.observe(region);
+    let mut checked = PlanValidation {
+        ledger: SnapshotLedger::default(),
+        remaining: MAX_COMPARISONS,
+        validated: BTreeSet::new(),
+    };
+    for plan in plans {
+        checked.observe(plan);
     }
 
     Validation {
         statuses: plans
             .iter()
-            .map(|plan| (plan.id, plan_status(plan, &ledger.snapshots)))
+            .map(|plan| {
+                let status = if checked.validated.contains(&plan.id) {
+                    plan_status(plan, &checked.ledger.snapshots)
+                } else {
+                    Status::Unavailable
+                };
+                (plan.id, status)
+            })
             .collect(),
-        comparison_bytes: ledger.comparison_bytes,
-        exhausted: ledger.exhausted,
+        comparison_bytes: checked.ledger.comparison_bytes,
+        exhausted: checked.ledger.exhausted,
     }
 }
 
@@ -140,16 +177,21 @@ fn snapshot_check(status: Status, comparison_bytes: usize, exhausted: bool) -> S
 }
 
 fn plan_status(plan: &Plan<'_>, snapshots: &BTreeMap<&str, Snapshot<'_>>) -> Status {
-    if plan.regions.len() != 2 {
+    if plan.required_regions == 0 || plan.regions.len() != plan.required_regions {
         return Status::Unavailable;
     }
-    let collected = [
-        snapshots[plan.regions[0].resource].status,
-        snapshots[plan.regions[1].resource].status,
-    ];
-    if collected.contains(&Status::Conflicting) {
+    let status = |region: &Region<'_>| snapshots[region.resource].status;
+    if plan
+        .regions
+        .iter()
+        .any(|region| status(region) == Status::Conflicting)
+    {
         Status::Conflicting
-    } else if collected.contains(&Status::Unavailable) {
+    } else if plan
+        .regions
+        .iter()
+        .any(|region| status(region) == Status::Unavailable)
+    {
         Status::Unavailable
     } else {
         Status::Known
@@ -239,7 +281,7 @@ fn compare(
             work: 0,
         };
     }
-    let work = first.regions.len() * second.regions.len();
+    let work = first.regions.len().saturating_mul(second.regions.len());
     if work > remaining {
         return Compared {
             relation: None,

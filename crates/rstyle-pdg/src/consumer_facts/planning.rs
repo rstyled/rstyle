@@ -1,4 +1,4 @@
-//! Checked original body regions for edit-intent planning, without graph admission.
+//! Checked original source regions for edit-intent planning, without graph admission.
 use super::{Availability, census, syntax_budget::within_budget};
 use crate::{ByteSpan, HirFnFacts};
 use std::{path::Path, sync::Arc};
@@ -24,8 +24,29 @@ impl BodyRegion {
     }
 }
 
+/// Signature and body footprints sharing one immutable original file owner.
+#[derive(Clone, Debug)]
+pub struct SourceRegions {
+    pub body: BodyRegion,
+    pub signature: BodyRegion,
+}
+
 /// Resolve a physical source footprint independently of strict clone admission.
 pub fn inspect(facts: &HirFnFacts) -> Result<Availability<BodyRegion>, String> {
+    Ok(match inspect_regions(facts)? {
+        Availability::Known(regions) => Availability::Known(regions.body),
+        Availability::Unknown { reason } => Availability::Unknown { reason },
+        Availability::Unsupported { reason } => Availability::Unsupported { reason },
+        Availability::NotApplicable { reason } => Availability::NotApplicable { reason },
+    })
+}
+
+/// Resolve both footprints with one owned-source check and one syntax parse.
+///
+/// The signature starts at visibility or the first signature token and ends
+/// immediately before the opening body brace. Outer attributes are excluded:
+/// they describe the function but are not part of its callable signature.
+pub fn inspect_regions(facts: &HirFnFacts) -> Result<Availability<SourceRegions>, String> {
     let source = match super::owned_source(facts)? {
         Availability::Known(source) => source,
         Availability::Unknown { reason } => return Ok(Availability::Unknown { reason }),
@@ -47,8 +68,27 @@ pub fn inspect(facts: &HirFnFacts) -> Result<Availability<BodyRegion>, String> {
             });
         }
     };
+    Ok(Availability::Known(checked_regions(
+        facts, source, &function,
+    )?))
+}
+
+fn checked_regions(
+    facts: &HirFnFacts,
+    source: &str,
+    function: &syn::ItemFn,
+) -> Result<SourceRegions, String> {
     let relative = super::relative_span(source, function.block.span());
+    let signature_start = match &function.vis {
+        syn::Visibility::Inherited => function.sig.span(),
+        _ => function.vis.span(),
+    };
+    let signature = ByteSpan {
+        start: super::relative_span(source, signature_start).start,
+        end: relative.start,
+    };
     let span = absolute_span(facts.fn_span, relative)?;
+    let signature_span = absolute_span(facts.fn_span, signature)?;
     let owner = facts
         .build
         .frontend_options
@@ -60,7 +100,19 @@ pub fn inspect(facts: &HirFnFacts) -> Result<Availability<BodyRegion>, String> {
     {
         return Err("Planning body differs from its original file region".into());
     }
-    Ok(Availability::Known(BodyRegion { owner, file, span }))
+
+    Ok(SourceRegions {
+        body: BodyRegion {
+            owner: Arc::clone(&owner),
+            file,
+            span,
+        },
+        signature: BodyRegion {
+            owner,
+            file,
+            span: signature_span,
+        },
+    })
 }
 
 fn file_index(facts: &HirFnFacts, owner: &census::Census) -> Result<usize, String> {
@@ -76,14 +128,14 @@ fn file_index(facts: &HirFnFacts, owner: &census::Census) -> Result<usize, Strin
         .ok_or_else(|| "Planning source file is absent from its checked census".into())
 }
 
-fn absolute_span(function: ByteSpan, body: ByteSpan) -> Result<ByteSpan, String> {
+pub fn absolute_span(function: ByteSpan, body: ByteSpan) -> Result<ByteSpan, String> {
     let start = function.start.checked_add(body.start);
     let end = function.start.checked_add(body.end);
     match (start, end) {
         (Some(start), Some(end)) if start <= end && end <= function.end => {
             Ok(ByteSpan { start, end })
         }
-        _ => Err("Planning body span escapes its original function range".into()),
+        _ => Err("Planning source span escapes its original function range".into()),
     }
 }
 
@@ -142,6 +194,50 @@ mod tests {
         }
     }
 
+    fn regions(facts: &HirFnFacts) -> SourceRegions {
+        match inspect_regions(facts).unwrap() {
+            Availability::Known(regions) => regions,
+            other => panic!("Expected source regions: {other:?}"),
+        }
+    }
+
+    fn text(region: &BodyRegion) -> &str {
+        &region.snapshot()[region.span.start as usize..region.span.end as usize]
+    }
+
+    #[test]
+    fn signature_preserves_visibility_where_clause_and_original_byte_boundaries() {
+        let source = "#[inline]\r\npub(crate) unsafe fn café<T>(value: T) -> T\r\nwhere T: Copy, /* π */\r\n{ opaque!(); value }";
+        let facts = facts(source, "// λ\r\n");
+        let regions = regions(&facts);
+        assert_eq!(
+            text(&regions.signature),
+            "pub(crate) unsafe fn café<T>(value: T) -> T\r\nwhere T: Copy, /* π */\r\n"
+        );
+        assert_eq!(regions.signature.span.end, regions.body.span.start);
+        assert_eq!(text(&regions.body), "{ opaque!(); value }");
+        assert!(Arc::ptr_eq(&regions.signature.owner, &regions.body.owner));
+        assert!(std::ptr::eq(
+            regions.signature.snapshot().as_ptr(),
+            regions.body.snapshot().as_ptr()
+        ));
+    }
+
+    #[test]
+    fn inherited_visibility_and_methods_keep_qualifiers_without_body_admission() {
+        let source = "#[allow(dead_code)]\nasync unsafe fn read(&self, value: u32) -> u32 { unknown!(); value }";
+        let mut facts = facts(source, "// original\n");
+        facts.body.kind = "unsupported_original_body".into();
+        facts.body.children.clear();
+        facts.source_scan_complete = false;
+        let regions = regions(&facts);
+        assert_eq!(
+            text(&regions.signature),
+            "async unsafe fn read(&self, value: u32) -> u32 "
+        );
+        assert_eq!(known(&facts).span, regions.body.span);
+    }
+
     #[test]
     fn body_is_absolute_half_open_original_utf8_crlf_bytes() {
         let source = "pub fn café() {\r\n    opaque!();\r\n}";
@@ -183,7 +279,7 @@ mod tests {
         let mut missing = facts("fn update() {}", "");
         missing.build.frontend_options = Default::default();
         assert!(matches!(
-            inspect(&missing).unwrap(),
+            inspect_regions(&missing).unwrap(),
             Availability::Unknown { .. }
         ));
         let mut expanded = facts("fn update() {}", "");
@@ -196,11 +292,11 @@ mod tests {
             snippet: String::new(),
         });
         assert!(matches!(
-            inspect(&expanded).unwrap(),
+            inspect_regions(&expanded).unwrap(),
             Availability::Unsupported { .. }
         ));
         assert!(matches!(
-            inspect(&facts("not a function", "")).unwrap(),
+            inspect_regions(&facts("not a function", "")).unwrap(),
             Availability::Unsupported { .. }
         ));
     }
@@ -221,13 +317,13 @@ mod tests {
         let mut changed = facts("fn update() {}", "// prefix\n");
         changed.fn_span.start += 1;
         changed.fn_span.end += 1;
-        assert!(inspect(&changed).is_err());
+        assert!(inspect_regions(&changed).is_err());
         let mut changed = facts("fn update() {}", "");
         changed
             .build
             .frontend_options
             .insert("source_file".into(), serde_json::json!("missing.rs"));
-        assert!(inspect(&changed).is_err());
+        assert!(inspect_regions(&changed).is_err());
         assert!(
             absolute_span(
                 ByteSpan {
@@ -252,7 +348,7 @@ mod tests {
         owner.files[0].bytes = "// prefix\nfn replaced() {}\n// sibling\n".into();
         owner.files[0].digest = owner.files[0].bytes.checksum().into();
         changed.build.frontend_options.insert_data(Arc::new(owner));
-        assert!(inspect(&changed).is_err());
+        assert!(inspect_regions(&changed).is_err());
     }
 
     #[test]

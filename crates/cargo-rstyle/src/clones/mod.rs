@@ -62,6 +62,9 @@ pub struct Args {
     /// Plan required body edits for helper-with-wrapper intents; insertion and naming remain unknown.
     #[arg(long, requires = "helper_proposals")]
     edit_plans: bool,
+    /// Plan signature and witnessed caller edits for visible parameter-count findings.
+    #[arg(long, requires = "source_rules")]
+    parameter_plans: bool,
     /// Evaluate source length and signature arity independently of graph admission.
     #[arg(long)]
     source_rules: bool,
@@ -86,7 +89,7 @@ pub struct Args {
     /// TOML mutation_budget policy; root granularity only.
     #[arg(long, requires = "mutation_rules")]
     mutation_config: Option<PathBuf>,
-    /// TOML source-rule policy (fn_length/fn_params only); distinct from legacy configuration.
+    /// TOML source-rule policy (fn_length/fn_params/fn_spacing); distinct from legacy configuration.
     #[arg(long, requires = "source_rules")]
     analysis_config: Option<PathBuf>,
     /// Exit 1 when requested analyses find opportunities; incomplete analysis exits 2.
@@ -390,6 +393,10 @@ fn analyses_complete(report: &report::Report<'_>) -> bool {
         && report.mutation_analysis.permits_success()
         && report.mutation_effects.permits_success()
         && report.edit_planning.permits_success()
+        && report
+            .parameter_planning
+            .as_ref()
+            .is_none_or(analysis::Completion::permits_success)
         && report.pair_reports.permits_success()
         && report.review.permits_success()
         && report.abstraction_review.permits_success()

@@ -52,6 +52,8 @@ pub struct Report<'a> {
     pub review_prune: Option<super::review::prune::Report>,
     pub abstraction_review: super::review::local_workflow::Report,
     pub edit_planning: super::planning::Report,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameter_planning: Option<super::planning::parameters::Report>,
     pub mutation_analysis: super::analysis::mutation_reports::Report<'a>,
     pub mutation_effects: super::analysis::effect_reports::Report<'a>,
     pub enum_dispatch: super::analysis::dispatch_reports::Report<'a>,
@@ -64,19 +66,15 @@ pub struct Report<'a> {
     run_directory: &'a Path,
     toolchain: String,
     compiler_identity: &'a str,
+    #[serde(flatten)]
+    producer: ProducerMetadata,
     cargo_identity: &'a str,
-    contract_revision: &'static str,
-    unit_bundle_schema: &'static str,
-    function_identity_schema: &'static str,
     unit_contexts: &'a [super::identity::UnitContext],
     verification_policy: &'static str,
     extraction_selection: &'static str,
     extraction_policy: Policy,
     extraction_capabilities: &'static [&'static str],
     call_summaries: &'static [&'static str],
-    schema_versions: SchemaVersions,
-    producer_name: &'static str,
-    producer_version: &'static str,
     expected_targets: &'a [capture::Target],
     expected_compilation_units: &'a Value,
     intended_primary_units: &'a [Value],
@@ -94,6 +92,29 @@ pub struct Report<'a> {
     matching: matching::Matching<'a>,
     accepted_pairs: Vec<locations::AcceptedPair<'a>>,
     claim: &'static str,
+}
+
+#[derive(Serialize)]
+struct ProducerMetadata {
+    contract_revision: &'static str,
+    unit_bundle_schema: &'static str,
+    function_identity_schema: &'static str,
+    schema_versions: SchemaVersions,
+    producer_name: &'static str,
+    producer_version: &'static str,
+}
+
+impl ProducerMetadata {
+    fn current() -> Self {
+        Self {
+            contract_revision: "04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f",
+            unit_bundle_schema: rstyle_pdg::unit_store::BUNDLE_SCHEMA,
+            function_identity_schema: super::identity::SCHEMA,
+            schema_versions: SchemaVersions::current(),
+            producer_name: "rstyle-hir-extraction",
+            producer_version: env!("CARGO_PKG_VERSION"),
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -140,12 +161,13 @@ fn ctx_profile_is_data(args: &Args) -> bool {
 pub(super) fn make<'a>(ctx: Context<'a>, consumers: Consumers<'a>) -> Report<'a> {
     Report {
         edit_planning: consumers.edit_planning,
+        parameter_planning: consumers.parameter_planning,
         pair_reports: consumers.pairs,
         review: consumers.review,
         abstraction_review: consumers.abstraction_review,
         review_status: consumers.review_status,
         review_prune: consumers.review_prune,
-        analysis: ctx.local_analysis(),
+        analysis: consumers.analysis,
         enum_dispatch: consumers.dispatch,
         capability_proposals: consumers.capabilities,
         mutation_analysis: consumers.mutation,
@@ -157,17 +179,12 @@ pub(super) fn make<'a>(ctx: Context<'a>, consumers: Consumers<'a>) -> Report<'a>
         toolchain: crate::run::pinned_toolchain(),
         compiler_identity: &ctx.capture.plan.compiler_identity,
         cargo_identity: &ctx.capture.plan.cargo_identity,
-        contract_revision: "04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f",
-        unit_bundle_schema: rstyle_pdg::unit_store::BUNDLE_SCHEMA,
-        function_identity_schema: super::identity::SCHEMA,
+        producer: ProducerMetadata::current(),
         unit_contexts: &ctx.handoff.unit_contexts,
         extraction_selection: extraction_selection(ctx.args),
         extraction_policy: extraction_policy(ctx.args),
         extraction_capabilities: ctx.args.extraction_profile.capabilities(),
         call_summaries: ctx.args.extraction_profile.summaries(),
-        schema_versions: SchemaVersions::current(),
-        producer_name: "rstyle-hir-extraction",
-        producer_version: env!("CARGO_PKG_VERSION"),
         expected_targets: &ctx.capture.plan.targets,
         expected_compilation_units: &ctx.capture.expected_unit_graph,
         intended_primary_units: &ctx.capture.plan.primary_units,
@@ -312,7 +329,7 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         .collect::<String>();
 
     format!(
-        "{summary}{pairs}{}{}{}{}{}{}{}{}{}{}{}",
+        "{summary}{pairs}{}{}{}{}{}{}{}{}{}{}{}{}",
         report.analysis.render(),
         report.pair_reports.render(),
         report.review.render(),
@@ -329,7 +346,11 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         report.capability_proposals.render(),
         report.mutation_analysis.render(),
         report.mutation_effects.render(),
-        report.edit_planning.render()
+        report.edit_planning.render(),
+        report
+            .parameter_planning
+            .as_ref()
+            .map_or_else(String::new, |planning| planning.render())
     )
 }
 

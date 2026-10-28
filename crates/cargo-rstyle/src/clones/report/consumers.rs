@@ -7,6 +7,8 @@ pub(in crate::clones) struct Consumers<'a> {
     pub(super) dispatch: analysis::dispatch_reports::Report<'a>,
     pub(super) capabilities: analysis::capability_reports::Report<'a>,
     pub(super) edit_planning: planning::Report,
+    pub(super) parameter_planning: Option<planning::parameters::Report>,
+    pub(super) analysis: analysis::Report<'a>,
     pub(super) mutation: analysis::mutation_reports::Report<'a>,
     pub(super) effects: analysis::effect_reports::Report<'a>,
     pub(super) accepted: Vec<locations::AcceptedPair<'a>>,
@@ -18,6 +20,8 @@ pub(in crate::clones) struct Consumers<'a> {
 
 impl<'a> Consumers<'a> {
     pub(in crate::clones) fn new(ctx: &Context<'a>) -> Result<Self, String> {
+        let analysis = ctx.local_analysis();
+        let parameter_planning = planning::parameters::evaluate(ctx, &analysis)?;
         let pairs = ctx.pair_reports()?;
         let indices = ctx.declaration_indices()?;
         let dispatch = ctx.dispatch_report(&indices)?;
@@ -38,6 +42,8 @@ impl<'a> Consumers<'a> {
         )?;
         Ok(Self {
             pairs,
+            analysis,
+            parameter_planning,
             dispatch,
             capabilities,
             edit_planning,

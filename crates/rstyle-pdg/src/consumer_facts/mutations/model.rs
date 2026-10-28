@@ -18,6 +18,17 @@ pub enum Coverage {
     Incomplete,
 }
 
+impl Coverage {
+    pub(in crate::consumer_facts) fn record_incomplete<T>(
+        &mut self,
+        outcomes: &mut Vec<T>,
+        outcome: T,
+    ) {
+        *self = Self::Incomplete;
+        outcomes.push(outcome);
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Execution {
@@ -81,24 +92,6 @@ impl Assessment {
             boundaries: vec![],
         }
     }
-
-    pub(super) fn boundary(&mut self, span: ByteSpan, reason: &str) {
-        self.record_boundary(span, reason, BoundaryAvailability::Unsupported);
-    }
-
-    fn record_boundary(
-        &mut self,
-        span: ByteSpan,
-        reason: &str,
-        availability: BoundaryAvailability,
-    ) {
-        self.coverage = Coverage::Incomplete;
-        self.boundaries.push(Boundary {
-            span,
-            availability,
-            reason: reason.into(),
-        });
-    }
 }
 
 /// Optional call observations; direct mutation evidence keeps its original contract.
@@ -125,6 +118,8 @@ pub struct Call {
 pub struct Argument {
     pub span: ByteSpan,
     pub value: Availability<ArgumentValue>,
+    /// Original caller formal ordinal for checked direct reads; locals/literals have none.
+    pub formal: Availability<Option<u32>>,
 }
 
 #[derive(Debug)]

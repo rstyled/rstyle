@@ -1,6 +1,7 @@
 //! Advisory edit coordination from chosen helper wrapper intents.
 mod model;
 mod overlap;
+pub(super) mod parameters;
 #[cfg(test)]
 mod tests;
 
@@ -178,6 +179,14 @@ fn region(
         Ok(original) => original,
         Err(failure) => return Ok(Err(failure)),
     };
+    located_region(record, ctx, original)
+}
+
+fn located_region(
+    record: &Function,
+    ctx: &report::Context<'_>,
+    original: BodyRegion,
+) -> Result<Result<Region, Unavailable>, String> {
     let manifest = package_manifest(record, ctx)?;
     let (Some(resource), Some(package_manifest)) = (
         relative(original.path(), &ctx.capture.plan.root),
@@ -277,6 +286,7 @@ impl Contents {
             .plans
             .iter()
             .map(|plan| model::Plan {
+                required_regions: 2,
                 id: plan.id,
                 regions: plan
                     .required_regions

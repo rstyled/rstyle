@@ -583,3 +583,44 @@ impl FunctionReport<'_> {
         format!("{source}{guard}")
     }
 }
+
+impl Report<'_> {
+    pub(in crate::clones) fn parameter_findings(
+        &self,
+    ) -> impl Iterator<Item = super::FunctionKey> + '_ {
+        self.functions
+            .iter()
+            .filter(|function| {
+                function.assessments.iter().any(|assessment| {
+                    assessment.rule_id == "fn_params" && assessment.outcome == Outcome::Finding
+                }) && !function
+                    .source_suppression
+                    .as_ref()
+                    .is_some_and(|suppression| suppression.allows("fn_params"))
+            })
+            .map(|function| function.key)
+    }
+
+    pub(in crate::clones) fn parameter_population_complete(&self) -> bool {
+        self.scope.expected_functions == Some(self.functions.len())
+            && self.functions.iter().all(|function| {
+                function.execution == Execution::Completed
+                    && function.assessments.iter().any(|assessment| {
+                        assessment.rule_id == "fn_params"
+                            && assessment.coverage == Coverage::Complete
+                    })
+                    && function
+                        .source_exclusion
+                        .as_ref()
+                        .is_some_and(|exclusion| exclusion.complete())
+                    && (function
+                        .source_exclusion
+                        .as_ref()
+                        .is_some_and(|exclusion| exclusion.excluded())
+                        || function
+                            .source_suppression
+                            .as_ref()
+                            .is_some_and(|suppression| suppression.complete()))
+            })
+    }
+}

@@ -1,4 +1,4 @@
-# Advisory helper edit planning
+# Advisory edit planning
 
 Request `cargo rstyle clones --extraction-profile hir-data-v3 --locked
 --helper-proposals --edit-plans` to coordinate existing body edits for the explicit
@@ -49,7 +49,57 @@ Incomplete planning exits two; existing helper finding/exit policy remains in
 force. Legacy review dismissals are not treated as chosen edit intents, and this
 initial consumer coordinates all actual helper findings, including reviewed ones.
 
-Local guard intents and concrete caller-aware parameter plans remain pending.
-Parameter plans require selected parameter positions, checked call/argument and
-function-value-use inventories, and explicit public/external caller limits.
-Legacy grouping and stacking remain operational.
+## Parameter signature intents
+
+Request `--source-rules --parameter-plans` with the usual `--analysis-config`
+source policy. The optional `parameter_planning` report
+(`rstyle.parameter-planning/1`) contains one advisory signature intent per visible
+`fn_params` finding. Named suppression and workspace path exclusion prevent an
+intent for that finding. A completed clean parameter population has no intents;
+unavailable or budget-limited population cannot become a clean empty result.
+The source-rule report is evaluated once and supplies these findings directly.
+
+Each plan contains the exact original signature region and checked same-unit
+caller expression regions. Signatures start at visibility or the first signature
+token and end immediately before the opening body brace, excluding outer
+attributes. Regions share immutable source ownership; no original files are
+reread. `arguments` retain absolute original spans and checked formal-root
+ordinals where available. `formal: known(null)` denotes a checked literal/local
+argument. This is source-root provenance, not proof that a formal is unchanged,
+only forwarded, removable or suitable for a bundle.
+
+`caller_scope` is captured selected units and `call_resolution` is
+`same_unit_as_target`. Each defining unit has a separate `caller_census` with
+expected/scanned owner counts, call/argument counts, execution, coverage and
+reasons. Exact definition identities, native paths, source call/argument order
+and selected-unit contexts must agree. A single bounded scan builds the target
+index; target queries borrow completed observations rather than rescanning or
+proving callee effects. Signatures and call regions for each owner are resolved
+once within this consumer. The scan initially uses the existing nongeneric
+scalar call vocabulary; unsupported signatures and result types remain incomplete.
+
+Opaque macros, closures/control flow, indirect/associated/external calls,
+unexamined nested arguments and unavailable owners prevent a complete caller
+census. Supported call witnesses can coexist with incomplete coverage; missing
+witnesses never prove absence of callers. Functions from excluded source paths
+still participate in caller scanning because their calls may need editing.
+The scope does not prove all Rust callers, function-value uses or external API
+consumers have been captured. Public functions can have a complete declared
+same-unit census while external coverage remains unknown.
+
+`coordination` reuses the checked overlap consumer over each signature followed
+by its caller regions. Its region ordinals refer to that order, and relations
+coordinate witnessed physical edits only. Disjoint call expressions in a shared
+caller do not manufacture an overlap. Whole-plan independence and stack order
+remain unknown; the replacement signature/argument design, imports, names,
+visibility and uncaptured callers are unknown edits. No rewrite is performed.
+Limits are 4,096 scanned owners per unit/population, 16,384 calls and 65,536
+arguments per unit, plus the existing plan/overlap limits. The
+`--max-analysis-functions` allowance also bounds caller scans across relevant
+units. Exhaustion preserves checked witnesses and exits two. Full/compact
+strict replay uses the same captured source and caller observations without
+source files, Cargo or a driver.
+
+Local guard intents, forwarding bundles, pass-through/all-use inventories,
+external caller closure and broader signatures remain pending. Legacy grouping
+and stacking remain operational.

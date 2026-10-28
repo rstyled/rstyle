@@ -1,13 +1,8 @@
 use super::{
-    super::{Availability, formal_types, mutations},
+    super::{Availability, formal_types, mutations, selected_context},
     model::*,
 };
-use crate::{
-    HirFnFacts,
-    nominal_boundary::{self, UnitContext},
-    unit_store::UnitStore,
-};
-use serde::Deserialize;
+use crate::{HirFnFacts, nominal_boundary::UnitContext, unit_store::UnitStore};
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_FUNCTION_POPULATION: usize = 4096;
@@ -223,8 +218,8 @@ impl<'a> Session<'a> {
     }
 
     fn check_contexts(&mut self, caller: usize, callee: usize) -> Result<bool, String> {
-        self.context(caller)?;
-        self.context(callee)?;
+        selected_context::retain(&mut self.contexts, self.unit, caller)?;
+        selected_context::retain(&mut self.contexts, self.unit, callee)?;
         match (&self.contexts[&caller], &self.contexts[&callee]) {
             (Availability::Known(left), Availability::Known(right)) if left != right => {
                 Err("Effect call target belongs to another selected-unit context".into())
@@ -232,14 +227,6 @@ impl<'a> Session<'a> {
             (Availability::Known(_), Availability::Known(_)) => Ok(true),
             _ => Ok(false),
         }
-    }
-
-    fn context(&mut self, index: usize) -> Result<(), String> {
-        if !self.contexts.contains_key(&index) {
-            let context = selected_context(&self.unit.functions()[index])?;
-            self.contexts.insert(index, context);
-        }
-        Ok(())
     }
 
     fn leaf_summary(&mut self, index: usize) -> Result<Prepared, String> {
@@ -350,22 +337,6 @@ fn definitions(unit: &UnitStore) -> Result<BTreeMap<&str, usize>, String> {
         }
     }
     Ok(definitions)
-}
-
-pub(super) fn selected_context(facts: &HirFnFacts) -> Result<Availability<UnitContext>, String> {
-    let Some(value) = facts
-        .build
-        .frontend_options
-        .get(nominal_boundary::CONTEXT_KEY)
-    else {
-        return Ok(Availability::Unknown {
-            reason: "Effect selected-unit context is absent".into(),
-        });
-    };
-    let context: UnitContext = UnitContext::deserialize(value)
-        .map_err(|error| format!("Invalid effect selected-unit context: {error}"))?;
-    context.validate()?;
-    Ok(Availability::Known(context))
 }
 
 pub(super) fn leaf_complete(observed: &mutations::Observations) -> bool {
@@ -715,6 +686,7 @@ fn budget_assessment(index: usize) -> Assessment {
 #[cfg(test)]
 mod session_tests {
     use super::*;
+    use crate::nominal_boundary;
 
     fn root() -> mutations::Root {
         mutations::Root {
@@ -759,6 +731,7 @@ mod session_tests {
             target: Availability::Known("typed-test-leaf".into()),
             target_path: Some("typed-test-leaf".into()),
             arguments: vec![mutations::Argument {
+                formal: Availability::Known(Some(0)),
                 span: span(),
                 value: Availability::Known(mutations::ArgumentValue::MutableFormal(root())),
             }],
