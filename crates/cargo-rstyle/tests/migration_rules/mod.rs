@@ -1,4 +1,5 @@
 use super::*;
+mod changed_scope;
 mod exclusions;
 mod spacing;
 mod suppressions;

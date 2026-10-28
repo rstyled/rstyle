@@ -71,6 +71,9 @@ pub struct Args {
     /// Evaluate source length and signature arity independently of graph admission.
     #[arg(long)]
     source_rules: bool,
+    /// JSON workspace-relative changed-file selection for source-rule presentation and finding exits.
+    #[arg(long, requires = "source_rules")]
+    changed_files: Option<PathBuf>,
     /// Suggest bounded guard-clause shapes from original source; advisory only.
     #[arg(long)]
     guard_clauses: bool,
@@ -420,7 +423,7 @@ fn analyses_complete(report: &report::Report<'_>) -> bool {
 fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: usize) -> bool {
     (args.fail_on_accepted_pairs && accepted > 0)
         || (args.fail_on_findings
-            && (report.analysis.visible_findings > 0
+            && (report.analysis.finding_exit_count() > 0
                 || report
                     .abstraction_review
                     .dispatch_visible_or(report.enum_dispatch.findings)

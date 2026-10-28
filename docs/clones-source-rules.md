@@ -141,6 +141,50 @@ bounded preceding lines and reuses existing ownership/signature checks. It adds
 no hashes, file reads or independent function parse. Legacy style remains active;
 this compatibility slice does not retire a backend or migrate ignore ledgers.
 
+## Changed-file presentation and CI findings
+
+Add `--changed-files changed.json` alongside `--source-rules` to select source-rule
+diagnostics for text output and `--fail-on-findings`. The manifest is explicit
+consumer policy; it does not limit capture, matching, assessment or edit planning.
+
+```json
+{"schema":"rstyle.changed-files/1","paths":["src/lib.rs","crates/parser/src/read.rs"]}
+```
+
+Paths are relative to the captured workspace root, use `/`, and must name `.rs`
+files. Absolute paths, empty/dot/parent components, backslashes, colons and control
+characters reject before capture. The input is bounded to 1 MiB, 4,096 path entries
+and 4,096 UTF-8 bytes per path. Entries are sorted and deduplicated after checking
+the raw limits. Selection uses captured paths without live file reads, Git queries,
+canonicalization, hashes, another parse or copied source evidence.
+
+JSON retains every function assessment and the original `analysis.findings`,
+`visible_findings`, suppression counts and whole scope. The optional
+`analysis.changed_scope` adds selected visible findings and per-path matched and
+unavailable function counts, coverage, and `observed`/`unobserved` status. Distinct
+lib/test compilation owners remain distinct. Per-function `changed_file` is true
+for selected paths, false for other checked paths, and omitted when path membership
+is unknown. Without a selection, that field and `changed_scope` are omitted.
+
+A requested path with no captured function owner is unobserved and incomplete,
+including empty or inactive-only files in this initial contract. No matching
+function is insufficient evidence of a clean file. Unclassified function paths
+also leave a nonempty selection incomplete. An explicit empty list is a complete
+empty selection. Selected owners with unavailable rule or policy evidence retain
+incomplete coverage and any known findings.
+
+For a complete analysis and selection, `--fail-on-findings` uses selected visible
+source-rule findings. Whole-analysis failures, unknowns and exhausted budgets still
+exit two, even with an empty selection or a clean selected file. Guard, mutation,
+proposal and accepted-pair gates retain their own populations and policies.
+Parameter and guard edit plans continue to include all applicable findings.
+
+The same manifest option works with `--replay-run`: change the selection against
+one saved capture after removing original source files and compiler tools.
+Full and compact reports retain identical selected results. This provides an
+explicit file-level CI scope; it does not infer changed lines or maintain a saved
+finding baseline.
+
 ## Bounded guard-clause advice
 
 `--guard-clauses` independently requests a syntactic advisory consumer. It can

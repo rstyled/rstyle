@@ -1,6 +1,8 @@
 //! Opt-in local consumers with evidence, execution and scope reported separately.
 mod capability_pairs;
 pub(super) mod capability_reports;
+mod changed_file_reports;
+mod changed_scope;
 pub(super) mod declaration_indices;
 pub(super) mod dispatch_reports;
 pub(super) mod effect_reports;
@@ -94,6 +96,8 @@ pub struct Report<'a> {
     pub findings: usize,
     pub visible_findings: usize,
     pub suppressed_findings: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    changed_scope: Option<changed_scope::Report<'a>>,
     effective_config: Option<Settings<'a>>,
     limitations: &'static [&'static str],
     functions: Vec<FunctionReport<'a>>,
@@ -106,6 +110,8 @@ struct FunctionReport<'a> {
     source_file: Option<&'a str>,
     fn_span: rstyle_pdg::ByteSpan,
     source_digest: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    changed_file: Option<bool>,
     execution: Execution,
     assessments: Vec<Assessment>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -137,6 +143,7 @@ struct SourceConfig {
 pub(super) struct Config {
     source: Option<ConfiguredSource>,
     guards: bool,
+    changed_files: Option<changed_scope::Selection>,
 }
 
 pub(super) fn configuration(args: &Args) -> Result<Option<Config>, String> {
@@ -146,6 +153,11 @@ pub(super) fn configuration(args: &Args) -> Result<Option<Config>, String> {
     Ok(Some(Config {
         source: args.source_rules.then(|| source_policy(args)).transpose()?,
         guards: args.guard_clauses,
+        changed_files: args
+            .changed_files
+            .as_deref()
+            .map(changed_scope::Selection::load)
+            .transpose()?,
     }))
 }
 
@@ -153,6 +165,20 @@ struct ConfiguredSource {
     spacing: bool,
     rules: SourcePolicy,
     exclusions: rstyle_core::exclusions::Matcher,
+}
+
+impl<'a> Settings<'a> {
+    fn new(config: &'a ConfiguredSource) -> Self {
+        Self {
+            exclude: &config.rules.exclude.0,
+            min_statements: config
+                .spacing
+                .then_some(config.rules.fn_spacing.min_statements),
+            max_lines: config.rules.fn_length.max_lines,
+            max_params: config.rules.fn_params.max_params,
+            count_self: config.rules.fn_params.count_self,
+        }
+    }
 }
 
 fn source_policy(args: &Args) -> Result<ConfiguredSource, String> {
@@ -188,7 +214,7 @@ pub(super) fn evaluate<'a>(
     args: &Args,
 ) -> Report<'a> {
     let limit = args.max_analysis_functions.unwrap_or(usize::MAX);
-    let functions: Vec<_> = config
+    let mut functions: Vec<_> = config
         .map(|config| {
             handoff
                 .assessed
@@ -204,6 +230,11 @@ pub(super) fn evaluate<'a>(
     let execution = execution(&functions, &scope, config.is_some());
     let findings = count(&functions, Outcome::Finding);
     let visible_findings = functions.iter().map(FunctionReport::visible_findings).sum();
+    let changed_scope = config
+        .and_then(|config| config.changed_files.as_ref())
+        .map(|selection| {
+            changed_file_reports::evaluate(selection, &mut functions, &capture.plan.root)
+        });
 
     Report {
         schema: "rstyle.consumer-analysis/1",
@@ -212,17 +243,10 @@ pub(super) fn evaluate<'a>(
         findings,
         visible_findings,
         suppressed_findings: findings - visible_findings,
+        changed_scope,
         effective_config: config
             .and_then(|config| config.source.as_ref())
-            .map(|config| Settings {
-                exclude: &config.rules.exclude.0,
-                min_statements: config
-                    .spacing
-                    .then_some(config.rules.fn_spacing.min_statements),
-                max_lines: config.rules.fn_length.max_lines,
-                max_params: config.rules.fn_params.max_params,
-                count_self: config.rules.fn_params.count_self,
-            }),
+            .map(Settings::new),
         limitations: &[
             "Source rules do not establish body effects or refactoring safety.",
             "Length uses the legacy code-line policy, including its string/comment limitations.",
@@ -416,6 +440,7 @@ fn assess<'a>(
             .and_then(|v| v.as_str()),
         fn_span: function.facts.fn_span,
         source_digest: &function.facts.source.digest,
+        changed_file: None,
         execution,
         assessments: source.rules,
         source_suppression: source.suppression,
@@ -503,13 +528,19 @@ fn unavailable(reason: &str) -> LocalFacts<'static> {
 impl Report<'_> {
     pub fn permits_success(&self) -> bool {
         self.execution == Execution::NotRequested
-            || (self.execution == Execution::Completed && self.scope.coverage == Coverage::Complete)
+            || (self.execution == Execution::Completed
+                && self.scope.coverage == Coverage::Complete
+                && self
+                    .changed_scope
+                    .as_ref()
+                    .is_none_or(changed_scope::Report::permits_success))
     }
 
     pub fn render(&self) -> String {
         if self.execution == Execution::NotRequested {
             return String::new();
         }
+
         let mut output = format!(
             "\nLocal analysis: {:?}; {:?} coverage; {} visible of {} findings; {} suppressed; {} evaluated, {} unavailable rules.",
             self.execution,
@@ -520,11 +551,17 @@ impl Report<'_> {
             self.scope.evaluated_rules,
             self.scope.unavailable_rules
         );
+        if let Some(changed) = &self.changed_scope {
+            output.push_str(&changed.render());
+        }
         output.push_str(
             &self
                 .functions
                 .iter()
-                .map(FunctionReport::render)
+                .map(|function| {
+                    function
+                        .render(self.changed_scope.is_none() || function.changed_file == Some(true))
+                })
                 .collect::<String>(),
         );
         output
@@ -541,15 +578,19 @@ impl FunctionReport<'_> {
     }
 
     fn visible_findings(&self) -> usize {
-        self.assessments
-            .iter()
-            .filter(|rule| self.visible(rule))
-            .count()
+        self.source_visible_findings()
             + usize::from(
                 self.guard_clause
                     .as_ref()
                     .is_some_and(|guard| guard.outcome == Outcome::Finding),
             )
+    }
+
+    fn source_visible_findings(&self) -> usize {
+        self.assessments
+            .iter()
+            .filter(|rule| self.visible(rule))
+            .count()
     }
 
     fn location(&self) -> String {
@@ -562,12 +603,12 @@ impl FunctionReport<'_> {
         )
     }
 
-    fn render(&self) -> String {
+    fn render(&self, show_source: bool) -> String {
         let location = self.location();
         let source = self
             .assessments
             .iter()
-            .filter(|assessment| self.visible(assessment))
+            .filter(|assessment| show_source && self.visible(assessment))
             .map(|assessment| {
                 format!(
                     "\n{} {location}: {} > {}. {}",

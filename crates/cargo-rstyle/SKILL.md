@@ -134,6 +134,13 @@ and exit two. Saved replay uses the same bounds without requiring source files.
 Source policy also accepts top-level workspace-relative `exclude` globs (default
 `["target/**"]`; `[]` disables). Excluded owners remain explicit complete skips
 in `source_exclusion` and scope counters; other consumers still evaluate them.
+Add `--changed-files PATH` for explicit changed-file source diagnostics and finding
+exits. JSON input is `{"schema":"rstyle.changed-files/1","paths":["src/lib.rs"]}`;
+paths are normalized workspace-relative Rust paths. All assessments and totals
+remain available, with selected counts in `analysis.changed_scope`. Unobserved
+paths and unavailable evidence remain incomplete; whole-scope incompleteness still
+exits two. Other consumers and planning populations remain unchanged. Selection
+can be changed during source/tool-free replay; no Git or live source lookup runs.
 See `docs/clones-source-rules.md` for scope and association limitations. Keep both
 legacy style and patterns gates until their capability retirement gates pass.
 

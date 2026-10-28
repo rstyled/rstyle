@@ -1125,6 +1125,51 @@ as C12e. Formatting and diff checks pass. Retained logs use
 `/tmp/clones-snapshot-*`. Native macOS, exact Go comparison, broader planning
 coverage and legacy retirement remain open.
 
-The next ready consumer is changed-file source-rule presentation and CI policy:
-reuse completed assessments without changing capture scope, raw totals or
-whole-analysis completeness. Missing selected paths must remain unknown.
+## C13: changed-file source-rule presentation and CI findings
+
+Scope owns `analysis/changed_scope.rs` and bounded manifest tests; the source
+adapter owns `analysis/changed_file_reports.rs`; independent acceptance owns
+`tests/migration_rules/changed_scope.rs`; the lead owns CLI, shared registration,
+report integration, docs and embedded skill. `--source-rules --changed-files PATH`
+loads a closed `rstyle.changed-files/1` JSON manifest before capture. Input limits
+are 1 MiB, 4,096 raw paths and 4,096 UTF-8 bytes per normalized workspace-relative
+Rust path. Selection is sorted/deduplicated and uses checked captured paths.
+It introduces no Git queries, live source reads, hashes, copied source evidence,
+repeated parsing or graph proof.
+
+The report retains all function assessments, suppression/exclusion outcomes,
+raw/visible totals and original scope, and adds selected per-path observations,
+coverage and visible findings. Text diagnostics and the source-rule finding gate
+use the selection. Guards and other consumers retain their own finding gates;
+parameter/guard planning populations remain unfiltered. Unknown selected paths
+and unclassified owners cannot become clean. Empty or inactive-only files without
+captured functions remain explicitly unobserved in this initial contract.
+An explicit empty selection is complete-empty, while whole-analysis incompleteness
+still exits two. In particular, a generated all-targets test harness leaves the
+whole source analysis incomplete even when selected original file owners are all
+complete.
+
+Independent cases cover exact same-name files, repeated lib/test owners,
+unchanged violations versus selected clean files, selected violations, source
+suppression/exclusion, invalid/oversized manifests, missing paths and budgets,
+unfiltered guard findings and parameter plans, and full/compact strict replay
+after deleting source files and disabling compiler tools. Changing the manifest
+reuses one saved capture without altering its assessments. Changed-line inference,
+saved finding baselines, broader consumer selections and legacy retirement remain
+open.
+
+The frozen checkpoint passes 77 focused tests, including locked live captures
+and source/tool-free full/compact strict replay, plus all 2,809 workspace nextest
+tests (five skipped) in 180.151 seconds and doc tests. Locked workspace/all-targets
+Clippy with warnings denied, zero style violations across 9,024 functions, both
+original NonZero regressions, all 56 Python comparison tests, format and diff
+checks pass. Reviewed patterns passes; unfiltered patterns retains exactly the
+same 15 IDs as C12f. Retained evidence uses `/tmp/clones-changed-*`.
+Native macOS, exact Go comparison and per-capability legacy retirement remain
+unverified/open.
+
+The next ready review slice is exact saved `fn_params` findings. Existing review
+locators and build-context components can be reused, while source-rule evidence
+and effective parameter policy need their own versioned contract. Report-local
+keys, source checksums and finding counts alone cannot serve as stable review
+identity. This remains readiness work, not a delivered baseline capability.
