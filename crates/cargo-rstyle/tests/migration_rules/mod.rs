@@ -1,4 +1,5 @@
 use super::*;
+mod call_tokens;
 mod changed_scope;
 mod exclusions;
 mod spacing;
@@ -26,6 +27,71 @@ fn source_report(directory: &Path, extra: &[&str]) -> (Output, Value) {
     ];
     args.extend_from_slice(extra);
     clones(directory, &args)
+}
+
+#[test]
+fn opaque_iterator_methods_preserve_source_rule_coverage_without_clone_admission() {
+    let directory = source_workspace();
+    std::fs::write(
+        directory.path().join("src/lib.rs"),
+        "pub fn values(a: &[usize]) -> impl Iterator<Item = usize> + '_ { a.iter().copied() }\n\
+         pub fn largest(a: &[usize]) -> usize { values(a).map(|n| n + 1).max().unwrap_or(0) }\n\
+         pub fn mapped(a: &[usize]) -> impl Iterator<Item = usize> + '_ {\n\
+             let limit = values(a).map(|n| n + 1).max().unwrap_or(0);\n\
+             values(a).map(move |n| n + limit)\n\
+         }\n",
+    )
+    .unwrap();
+
+    let (output, report) = source_report(directory.path(), &[]);
+    assert!(output.status.success(), "{report}");
+    assert_eq!(report["capture_complete"], true);
+    assert_eq!(report["assessment_complete"], true);
+    assert_eq!(report["analysis"]["scope"]["coverage"], "complete");
+    assert_eq!(assessed(&report, "largest")["assessments"][0]["actual"], 1);
+    assert!(
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|function| { function["outcome"] == "excluded" })
+    );
+    check_iterator_signature(&report, "largest");
+    check_iterator_signature(&report, "mapped");
+}
+
+fn check_iterator_signature(report: &Value, name: &str) {
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["facts"]["name"] == name)
+        .unwrap();
+    let (unit, index) = data_unit(function);
+    let analysis = unit.analysis();
+    let facts = analysis.function(index).unwrap();
+    let capture = rstyle_pdg::data_receivers::verify(&facts).unwrap();
+
+    let expected = rstyle_pdg::concrete_types::Observation::Captured {
+        ty: rstyle_pdg::concrete_types::TypeTree::Option(Box::new(
+            rstyle_pdg::concrete_types::TypeTree::Scalar("usize".into()),
+        )),
+    };
+    let method = capture
+        .methods
+        .iter()
+        .position(|method| method.signature_result == expected)
+        .expect("max must retain its independently normalized Option<usize> result");
+    let mut changed = rstyle_pdg::unit_store::EvidenceFacts::facts(&facts).clone();
+    changed
+        .build
+        .frontend_options
+        .get_mut(rstyle_pdg::data_receivers::KEY)
+        .unwrap()["methods"][method]["signature_result"] = serde_json::json!({
+        "status": "Captured", "ty": {"kind": "Scalar", "evidence": "bool"}
+    });
+    assert!(rstyle_pdg::data_receivers::verify(&changed).is_err());
+    shared_evidence::reject_facts(function, &changed);
 }
 
 fn assessed<'a>(report: &'a Value, name: &str) -> &'a Value {

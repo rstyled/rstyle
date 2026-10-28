@@ -2023,3 +2023,53 @@ reviewed patterns reports zero visible candidates. Unfiltered patterns retains
 exactly the previous fifteen IDs, with no ledger edits. Evidence is retained in
 `/tmp/clones-source-baseline-*`, with final gates named `*-final.*`. This is a
 delivered source-baseline increment, not full migration or legacy retirement.
+
+## C13f: project-capture type consistency
+
+The lead owns receiver capture, regression registration and integration; the
+capture worker owns independent dispatch-token refresh and its leaf regression.
+The project-quality worker independently labels four production functions in
+`rstyle-ccgraph::frac` before reading reports. The study remains unfinished.
+
+A bounded real `rstyle-ccgraph` library capture exposed two inconsistencies that
+small acceptance fixtures missed. Method signatures were normalized in a
+post-analysis environment that reveals hidden opaque implementations, although
+the operands retain body type-checking types. Receiver observations now use the
+compiler's body-aware post-typecheck environment. Declared signature results
+still require exact independent agreement with HIR; iterator semantic admission
+is not extended. A real-Cargo regression covers foreign and locally defined
+opaque iterator returns, `map/max/unwrap_or`, complete source-rule coverage and
+continued strict clone exclusion. Modified result claims fail direct verification
+and strict bundle import in both verification policies.
+
+Call dispatch refreshed its type tokens only when every operand and result had
+a normalized type. One unsupported sibling left otherwise available composite
+operand tokens stale. Ordinary original direct free calls now refresh each
+available operand/result independently, retaining the original roster length and
+all independent contradiction checks. Specialized method and generated
+propagation routes preserve their observed dispatch vocabulary until the full
+structural roster is known. The first integrated test run caught that distinction;
+the wider partial-refresh experiment was narrowed before delivery.
+The second regression combines borrowed-byte operands with unsupported vector
+results/arguments: source rules remain complete while density remains explicitly
+incomplete with exit 2.
+
+The unchanged bounded project command completed in 18.649 seconds before the
+receiver fix and 18.770 seconds after it, both with exit 2; these are failed-run
+observations, not speed or coverage comparisons. Its third capture passes both
+type boundaries but stops on `Mutation native inventory repeats a HIR identity`.
+The next ready repair is the established synthetic match-guard wrapper sharing
+its guard expression's HIR identity, preserving rejection of actual duplicate
+nodes. Retained evidence is `/tmp/clones-project-ccgraph-capture-{1,2,3}`.
+No project-wide clean, quality score, native macOS, Go parity or retirement claim
+follows from these failed captures. PR19 remains outside this feature branch.
+
+The frozen final implementation passes all 3,153 nextest tests (five skipped) in
+200.488 seconds and workspace doc tests. Formatting, workspace/all-target Clippy
+with warnings denied and diff checks pass. Legacy style reports zero violations
+across 9,480 functions; reviewed patterns has zero visible candidates, and
+unfiltered patterns retains exactly the previous fifteen IDs. No thresholds,
+suppression/review ledgers, work budgets or extraction permissions changed.
+Final checkpoint evidence is `/tmp/clones-project-capture-*-final.*`.
+The independent project reducer remains a draft pending a usable real project
+report; its 28 synthetic tests do not establish production coverage or accuracy.

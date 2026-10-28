@@ -102,7 +102,9 @@ impl<'tcx> Capture<'_, 'tcx> {
         ty: rustc_middle::ty::Ty<'tcx>,
         character_ascii: bool,
     ) -> Result<rstyle_pdg::concrete_types::Observation, String> {
-        let environment = rustc_middle::ty::TypingEnv::post_analysis(
+        // These are typeck's body types: retain published opaque bounds rather
+        // than revealing hidden implementations against analysis-time closures.
+        let environment = rustc_middle::ty::TypingEnv::post_typeck_until_borrowck(
             self.ctx.tcx,
             self.ctx.typeck.hir_owner.def_id,
         );

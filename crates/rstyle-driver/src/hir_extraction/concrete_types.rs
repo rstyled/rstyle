@@ -995,17 +995,54 @@ fn interface_tokens(
 }
 
 fn install_call_tokens(node: &mut rstyle_pdg::HirNode) {
-    let arguments: Option<Vec<_>> = node
-        .children
-        .iter()
-        .map(|child| child.ty.as_ref()?.normalized.clone())
-        .collect();
-    let result = node.ty.as_ref().and_then(|ty| ty.normalized.clone());
-    if let (Some(dispatch), Some(arguments), Some(result)) = (&mut node.dispatch, arguments, result)
-    {
-        dispatch.operand_tys = arguments;
-        dispatch.result_ty = result;
+    let complete = node.ty.as_ref().is_some_and(|ty| ty.normalized.is_some())
+        && node
+            .children
+            .iter()
+            .all(|child| child.ty.as_ref().is_some_and(|ty| ty.normalized.is_some()));
+    if !complete && !original_free_call(node) {
+        // Specialized methods and generated propagation keep their observed
+        // dispatch vocabulary unless the complete structural roster is known.
+        return;
     }
+    let Some(dispatch) = &mut node.dispatch else {
+        return;
+    };
+
+    dispatch.operand_tys = refreshed_operands(&dispatch.operand_tys, &node.children);
+    if let Some(token) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) {
+        token.clone_into(&mut dispatch.result_ty);
+    }
+}
+
+fn refreshed_operands(current: &[String], children: &[rstyle_pdg::HirNode]) -> Vec<String> {
+    // Retain the original roster, including unsupported observations and any
+    // length mismatch that independent dispatch validation must still reject.
+    current
+        .iter()
+        .enumerate()
+        .map(|(position, declared)| {
+            children
+                .get(position)
+                .and_then(|child| child.ty.as_ref())
+                .and_then(|ty| ty.normalized.as_ref())
+                .unwrap_or(declared)
+                .clone()
+        })
+        .collect()
+}
+
+fn original_free_call(node: &rstyle_pdg::HirNode) -> bool {
+    node.kind == "expr_call"
+        && node.expansion.is_none()
+        && node
+            .dispatch
+            .as_ref()
+            .is_some_and(|dispatch| dispatch.kind == "resolved_direct")
+        && node
+            .res
+            .as_ref()
+            .is_some_and(|resolution| resolution.kind == "resolved_direct_callee")
 }
 
 pub(super) use scalar_product_instances::scalar_argument;
