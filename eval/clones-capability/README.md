@@ -4,6 +4,14 @@ This corpus freezes source-authored expectations for the capability migration.
 It is independent of new producer output and is not a broad Rust benchmark or a
 claim of Go compatibility. The isolated Cargo workspace has no dependencies.
 
+`proposal-review-cases.json` separately freezes the next helper-proposal and
+review-lifecycle requirements: eight source-authored proposal cases and nine
+identity/dismissal transitions. Their embedded source examples and synthetic
+transitions are specifications, not captured facts or passing implementation
+results. They include ordered subtraction, opaque calls, usefulness boundaries,
+nontransitive pair relationships, movement, body edits and exact-key collision
+isolation. Their delivery gate requires real consumer execution and lifecycle tests.
+
 `expectations.json` labels five source/signature cases, one strict pair and one
 negative abstraction case. Length counts the entire function, including its
 signature and closing brace, excluding blank/comment-only lines. The test policy

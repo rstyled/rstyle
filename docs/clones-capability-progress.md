@@ -31,9 +31,10 @@ Heavy captures and integrated gates run serially.
 | C03 | Lead / clones report and CLI acceptance | delivered (checkpoint) | `ffce699`, `3080a7d` | Source-located accepted strict pairs | Full/compact/text navigation agrees; pair budget remains incomplete; test module discovery fixed |
 | C04 | Local + lead / source rules and opt-in CLI | delivered (checkpoint) | `644151d` | Length/parameters with separate availability, execution, scope and outcomes | Five leaf tests, six source-rule CLI cases; live labeled corpus agrees; both legacy gates and full tests pass |
 | C05 | Acceptance + lead / comparison | delivered (bounded comparison) | `3e1f4c9` | Compare same-scope legacy/new results against independent labels | Fifteen Python tests and actual serial captures: ten evaluated agreements; explicit unavailable/context/regression classifications |
-| C06 | Local + lead / guards and independent opt-in | delivered (checkpoint) | guard commit | Bounded advisory guard opportunities | Seven unit and five real-Cargo CLI cases; graph-excluded callee does not gate advice; full checkpoint passes |
+| C06 | Local + lead / guards and independent opt-in | delivered (checkpoint) | `115cd07` | Bounded advisory guard opportunities | Seven unit and five real-Cargo CLI cases; graph-excluded callee does not gate advice; full checkpoint passes |
 | C07 | Pair / `analysis/pair_differences` | awaiting integration | pending | Ordered native correspondence and differences | Unregistered leaf and authored fixtures; real native capture validation pending |
-| C08 | Pair / helper proposals | ready | pending | Parameterized helper proposals with counter-evidence | Depends on C07; identity forwarder negative remains required |
+| C08 | Pair / helper proposals | ready (independent labels frozen) | acceptance-preparation commit | Parameterized helper proposals with counter-evidence | Eight source-authored cases in `proposal-review-cases.json`; depends on C07; labels are not implementation evidence |
+| C09 | Acceptance + lead / versioned review | ready (independent labels frozen) | acceptance-preparation commit | Persistent review separate from report handles | Nine lifecycle/collision/context cases prepared; no review implementation claimed |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
