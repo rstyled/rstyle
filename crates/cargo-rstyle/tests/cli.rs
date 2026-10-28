@@ -22,6 +22,7 @@ mod migration_abstraction_review;
 mod migration_capabilities;
 mod migration_differences;
 mod migration_dispatch;
+mod migration_effect_composition;
 mod migration_effects;
 mod migration_guard_plans;
 mod migration_guards;

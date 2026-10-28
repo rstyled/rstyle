@@ -206,9 +206,12 @@ no whole-plan independence or safe rewrite is inferred. See
 [edit planning](../../docs/clones-edit-planning.md).
 
 `helper-effect-cases.json` defines caller-visible scalar mutation through original
-same-unit leaves, distinct call occurrences, formal mappings, unknown boundaries,
+same-unit leaves and one checked wrapper (at most two call edges), distinct call
+occurrences, formal mappings, unknown boundaries,
 bounded summary reuse and source-free replay. It extends the direct-site cases
-without changing their metrics or claiming purity. See
+without changing their metrics or claiming purity. C11d deliberately changes the
+previous nested-helper negative to a complete owned-scalar two-edge case and adds
+a separate third-edge negative; it does not establish arbitrary transitive closure. See
 [mutation effects](../../docs/clones-mutation-effects.md).
 
 `capability-cases.json` specifies witnessed local two-method capability proposals

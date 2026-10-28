@@ -25,6 +25,7 @@ impl Default for Limits {
 pub struct Statistics {
     pub observations: usize,
     pub leaf_checks: usize,
+    pub wrapper_checks: usize,
     pub calls: usize,
     pub mapped_sites: usize,
 }
@@ -65,15 +66,31 @@ pub struct CallEvent {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Mapping {
-    pub callee_site_index: usize,
+    pub summary_site_index: usize,
     pub caller_root: mutations::Root,
 }
 
 #[derive(Debug, Serialize)]
-pub struct LeafSummary {
+pub struct Summary {
     pub function_index: usize,
-    pub site_indices: Vec<usize>,
+    pub sites: Vec<SiteWitness>,
     pub parameters: Vec<Parameter>,
+}
+
+/// Original write identity and its projection into the summary owner's bindings.
+#[derive(Debug, Serialize)]
+pub struct SiteWitness {
+    pub function_index: usize,
+    pub site_index: usize,
+    pub call_path: Vec<CallReference>,
+    pub root: mutations::Root,
+}
+
+/// One original call occurrence; paths are ordered from the summary owner outward.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub struct CallReference {
+    pub function_index: usize,
+    pub call_index: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]

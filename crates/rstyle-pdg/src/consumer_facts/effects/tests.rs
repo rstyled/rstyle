@@ -109,41 +109,31 @@ fn borrowed_leaf_sites_map_to_actual_caller_formal_and_owned_sites_stay_local() 
         write(Some(0), mutations::Provenance::FormalBorrowed),
         write(None, mutations::Provenance::LocalOwned),
     ]);
-    let summary = LeafSummary {
+    let summary = Summary {
         function_index: 1,
-        site_indices: vec![0, 1],
+        sites: witnesses(&direct),
         parameters: vec![Parameter::MutableU32],
     };
-    let mapped = mappings(&call(0), &summary, &direct, &[0])
-        .unwrap()
-        .unwrap();
+    let mapped = mappings(&call(0), &summary, &[0]).unwrap().unwrap();
     assert_eq!(mapped.len(), 1);
-    assert_eq!(mapped[0].callee_site_index, 0);
+    assert_eq!(mapped[0].summary_site_index, 0);
     assert_eq!(mapped[0].caller_root.formal, Some(3));
 }
 
 #[test]
 fn missing_and_changed_argument_roles_cannot_complete_a_call() {
     let direct = direct(vec![write(Some(0), mutations::Provenance::FormalBorrowed)]);
-    let summary = LeafSummary {
+    let summary = Summary {
         function_index: 1,
-        site_indices: vec![0],
+        sites: witnesses(&direct),
         parameters: vec![Parameter::MutableU32],
     };
     let mut missing = call(0);
     missing.arguments.clear();
-    assert!(
-        mappings(&missing, &summary, &direct, &[0])
-            .unwrap()
-            .is_none()
-    );
+    assert!(mappings(&missing, &summary, &[0]).unwrap().is_none());
     let mut changed = call(0);
     changed.arguments[0].value = Availability::Known(mutations::ArgumentValue::OwnedU32);
-    assert!(
-        mappings(&changed, &summary, &direct, &[0])
-            .unwrap()
-            .is_none()
-    );
+    assert!(mappings(&changed, &summary, &[0]).unwrap().is_none());
 }
 
 #[test]
@@ -151,7 +141,7 @@ fn every_original_call_occurrence_keeps_its_event_and_shared_summary_index() {
     let observed = observed(vec![call(0), call(1)]);
     let mapping = || {
         vec![Mapping {
-            callee_site_index: 0,
+            summary_site_index: 0,
             caller_root: root(Some(3), mutations::Provenance::FormalBorrowed),
         }]
     };
@@ -179,7 +169,7 @@ fn unrelated_unknown_boundary_and_callback_signature_preserve_positive_witness()
         reason: "opaque callback".into(),
     });
     let mapping = vec![Mapping {
-        callee_site_index: 0,
+        summary_site_index: 0,
         caller_root: root(Some(3), mutations::Provenance::FormalBorrowed),
     }];
     let result = assessment(0, &observed, vec![event(0, mapping)]).unwrap();
@@ -283,12 +273,12 @@ fn owner_budget_is_explicit_and_does_not_inspect_an_omitted_owner() {
 
 #[test]
 fn corrupt_summary_site_and_contradictory_root_metadata_fail() {
-    let summary = LeafSummary {
+    let summary = Summary {
         function_index: 1,
-        site_indices: vec![99],
+        sites: Vec::new(),
         parameters: vec![Parameter::MutableU32],
     };
-    assert!(mappings(&call(0), &summary, &direct(Vec::new()), &[99]).is_err());
+    assert!(mappings(&call(0), &summary, &[99]).is_err());
     let mut observed = observed(vec![call(0)]);
     observed
         .direct
@@ -302,10 +292,24 @@ fn corrupt_summary_site_and_contradictory_root_metadata_fail() {
         vec![event(
             0,
             vec![Mapping {
-                callee_site_index: 0,
+                summary_site_index: 0,
                 caller_root: changed,
             }],
         )],
     );
     assert!(result.is_err());
+}
+
+fn witnesses(direct: &mutations::Assessment) -> Vec<SiteWitness> {
+    direct
+        .sites
+        .iter()
+        .enumerate()
+        .map(|(site_index, site)| SiteWitness {
+            function_index: 1,
+            site_index,
+            call_path: Vec::new(),
+            root: site.root.clone(),
+        })
+        .collect()
 }

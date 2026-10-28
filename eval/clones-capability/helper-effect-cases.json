@@ -1,10 +1,10 @@
 {
   "schema": "rstyle.clones-capability.helper-effect-acceptance/1",
   "status": "frozen-independent-requirements",
-  "purpose": "Independent caller-visible scalar mutation effects and conservative original local leaf summaries; no purity, total effects, extraction or rewrite-safety permission.",
+  "purpose": "Independent caller-visible scalar mutation effects and bounded original local scalar summaries; no purity, total effects, extraction or rewrite-safety permission.",
   "initial_scope": {
-    "callee": "Original same-selected-unit nongeneric free function leaf; complete original signature and body; owned u32 inputs, optionally direct &mut u32 formals, u32/unit result; scalar local mutation and primitive expressions only. No calls, closures, aliases, drop-bearing values, unsafe or expansion.",
-    "caller": "Exact direct call to checked leaf, exact source/native argument roster; initial arguments limited to checked direct owned-u32 binding/literal reads or direct mutable formal forwarding. Opaque arguments remain unavailable.",
+    "callee": "Original same-selected-unit nongeneric free function leaf or one wrapper whose calls all resolve to complete call-free leaves; complete original signature and body; owned u32 inputs, optionally direct &mut u32 formals, u32/unit result; scalar local mutation and primitive expressions plus bounded checked calls only. No deeper calls, closures, aliases, drop-bearing values, unsafe or expansion.",
+    "caller": "Exact direct call to checked leaf or one wrapper (at most two call edges), exact source/native argument roster; initial arguments limited to checked direct owned-u32 binding/literal reads or direct mutable formal forwarding. Opaque arguments remain unavailable.",
     "effect_axis": [
       "none_proven",
       "writes_formal",
@@ -243,11 +243,22 @@
       "id": "nested-helper-not-yet-leaf",
       "source": "fn leaf(value:u32)->u32 { value+1 } fn middle(value:u32)->u32 { leaf(value) } pub fn caller(value:u32)->u32 { middle(value) }",
       "expected": {
-        "middle": "not_leaf",
-        "caller_effect_coverage": "incomplete",
-        "boundary": "nonleaf_helper"
+        "middle": "complete_bounded_wrapper",
+        "caller_effect_coverage": "complete",
+        "caller_visible_mutation": "none_proven",
+        "summarized_call_events": 1
       },
-      "reason": "One direct leaf-summary slice does not silently establish arbitrary transitive closure. A future bounded DAG contract can extend it."
+      "reason": "C11d explicitly extends the prior depth-one negative to a complete two-edge owned-scalar chain. Empty complete leaf and wrapper summaries prove only absence of bounded caller-visible writes; arbitrary transitive closure remains excluded."
+    },
+    {
+      "id": "third-helper-edge-outside-summary-depth",
+      "source": "fn leaf(value:u32)->u32 { value+1 } fn middle(value:u32)->u32 { leaf(value) } fn outer(value:u32)->u32 { middle(value) } pub fn caller(value:u32)->u32 { outer(value) }",
+      "expected": {
+        "caller_effect_coverage": "incomplete",
+        "caller_visible_mutation": "unknown",
+        "boundary": "summary_depth_exceeded"
+      },
+      "reason": "A third original helper edge exceeds the declared two-edge contract, even when the body is pure-looking owned-scalar arithmetic. No empty summary or arbitrary closure is assumed."
     },
     {
       "id": "witness-survives-unknown-remainder",

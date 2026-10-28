@@ -1,5 +1,6 @@
 //! Opt-in caller-visible scalar mutation observations, separate from rule budgets.
 mod scope;
+mod witnesses;
 use super::{Coverage, Execution};
 use crate::clones::{Args, Function, FunctionKey, Handoff, capture};
 use rstyle_pdg::{
@@ -55,7 +56,7 @@ struct Summary<'a> {
     definition_identity: Option<&'a str>,
     name: &'a str,
     fn_span: rstyle_pdg::ByteSpan,
-    sites: Vec<mutations::WriteSite>,
+    sites: Vec<witnesses::Site>,
 }
 
 struct Group<'a> {
@@ -75,14 +76,14 @@ pub(in crate::clones) fn evaluate<'a>(
     args: &Args,
 ) -> Result<Report<'a>, String> {
     let mut report = Report {
-        schema: "rstyle.mutation-effects/1",
+        schema: "rstyle.mutation-effects/2",
         scope: scope::Summary::new(handoff, capture, args.mutation_effects),
         functions: Vec::new(),
         summaries: Vec::new(),
         units: Vec::new(),
         limitations: &[
             "Caller-visible scalar mutation only; no purity, panic freedom, termination, density or rewrite-safety claim.",
-            "Original same-unit nongeneric scalar leaf helpers only; every unsupported signature, argument or call remains incomplete.",
+            "Original same-unit nongeneric scalar helpers through at most two call edges; deeper or incomplete summaries, unsupported signatures and arguments remain incomplete.",
             "Direct assignment sites and distinct summarized call occurrences are separate; witnesses describe syntax, never runtime frequency.",
         ],
     };
@@ -158,7 +159,7 @@ impl<'a> Report<'a> {
             return String::new();
         }
         format!(
-            "\nScalar mutation effects: {:?} coverage; {} complete, {} unavailable functions; {} retained leaf summaries.",
+            "\nScalar mutation effects: {:?} coverage; {} complete, {} unavailable functions; {} retained scalar summaries.",
             self.scope.coverage,
             self.scope.evaluated_functions,
             self.scope.unavailable_functions,
@@ -230,21 +231,7 @@ fn export_summaries<'a>(
         .iter()
         .enumerate()
         .map(|(summary_index, summary)| {
-            let observed = session
-                .observations(summary.function_index)
-                .ok_or("Completed leaf summary lost its original observation")?;
-            let sites = summary
-                .site_indices
-                .iter()
-                .map(|index| {
-                    let site = observed
-                        .direct
-                        .sites
-                        .get(*index)
-                        .ok_or("Leaf summary witness is outside original inventory")?;
-                    Ok(copy_site(site))
-                })
-                .collect::<Result<_, String>>()?;
+            let sites = witnesses::sites(summary, session)?;
             let facts = &store.functions()[summary.function_index];
             Ok(Summary {
                 unit,

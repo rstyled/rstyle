@@ -222,3 +222,15 @@ These source regions share captured snapshots; strict replay needs no live files
 Unknown caller populations remain incomplete even when an overlap is witnessed.
 No report proves whole-plan independence, rewrite correctness or a stack order.
 See `docs/clones-edit-planning.md` for limits and intent semantics.
+
+## Bounded scalar helper mutation effects
+
+`clones --mutation-effects` uses schema `rstyle.mutation-effects/2` for original
+scalar writes through at most two same-unit call edges (`caller → wrapper → leaf`).
+Inspect `summary_site_index`, original write owner/site, `call_path` and projected
+`mapped_root` separately from direct assignment counts. Repeated paths remain
+distinct while completed summary proofs are reused. Third edges, recursion,
+aliases, unsupported signatures and opaque calls stay incomplete; this is no
+purity, density, runtime-frequency or rewrite-safety claim. Existing owner/call/site
+budgets bound summary/path work. Replay recomputes from immutable original facts,
+without compiler tools or live source. See `docs/clones-mutation-effects.md`.

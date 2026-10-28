@@ -105,7 +105,7 @@ fn assert_calls(report: &Value, source: &str) {
         let callee_source = original_function(source, callee);
         let sites = summary["sites"].as_array().unwrap();
         for mapping in call["mappings"].as_array().unwrap() {
-            let index = mapping["callee_site_index"].as_u64().unwrap() as usize;
+            let index = mapping["summary_site_index"].as_u64().unwrap() as usize;
             let witness = &sites[index];
             assert!(slice(callee_source, &witness["span"]).contains('='));
             assert_eq!(witness["caller_visible"], true);
@@ -142,6 +142,7 @@ const POSITIVE_CASES: &[(&str, &str, u64, usize, usize, &str)] = &[
         "writes_formal",
     ),
     ("ordered-formal-mapping", "set", 1, 1, 1, "writes_formal"),
+    ("nested-helper-not-yet-leaf", "leaf", 0, 1, 0, "none_proven"),
     ("distinct-caller-roots", "set", 1, 2, 2, "writes_formal"),
     (
         "same-name-different-definitions",
@@ -183,7 +184,7 @@ struct Positive<'a> {
 
 fn assert_positive(report: &Value, expected: Positive<'_>) {
     let effects = &report["mutation_effects"];
-    assert_eq!(effects["schema"], "rstyle.mutation-effects/1");
+    assert_eq!(effects["schema"], "rstyle.mutation-effects/2");
     assert_eq!(effects["execution"], "completed");
     assert_eq!(effects["coverage"], "complete");
     let caller = &function(report, "caller")["evidence"];
@@ -255,7 +256,7 @@ fn argument_positions_map_written_callee_formals_to_original_caller_roots() {
             let call = &caller["evidence"]["calls"][0];
             let selected = summary(&report, caller, call);
             let mapping = &call["mappings"][0];
-            let index = mapping["callee_site_index"].as_u64().unwrap() as usize;
+            let index = mapping["summary_site_index"].as_u64().unwrap() as usize;
             assert_eq!(selected["sites"][index]["root"]["formal"], 1);
             assert_eq!(mapping["caller_root"]["formal"], 0);
         }
@@ -273,7 +274,7 @@ fn opaque_nonleaf_and_unsupported_argument_boundaries_never_become_clean_effects
         "argument-evaluation-not-hidden",
         "unused-callback-formal-outside-signature-vocabulary",
         "recursive-cycle-not-leaf",
-        "nested-helper-not-yet-leaf",
+        "third-helper-edge-outside-summary-depth",
     ] {
         let directory = workspace(id);
         let (output, report) = requested(directory.path(), &[]);

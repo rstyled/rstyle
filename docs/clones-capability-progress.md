@@ -63,6 +63,8 @@ Heavy captures and integrated gates run serially.
 
 | C09g | Model + workflow + acceptance + lead / completed spacing measurements, shared review presentation and CLI/report | delivered (configured spacing reviews) | this checkpoint | Saved direct-statement spacing choices with explicit policy and independent three-family hiding | 2,880 workspace tests and doc tests; zero style violations; same 15 unfiltered pattern IDs; source/tool-free strict replay; empty-policy and conservative pruning acceptance |
 
+| C11d | Evidence + acceptance + lead / bounded helper composition, original witnesses and report | delivered (two-edge scalar summaries) | this checkpoint | Caller-visible writes through complete original wrappers with composed formal roots and distinct paths | 2,898 workspace tests and doc tests; zero style violations; same 15 unfiltered pattern IDs; exact-fit/one-short retention, depth/cycle and strict source/tool-free replay cases |
+
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
 
@@ -1334,3 +1336,53 @@ context joins, budgets and source/tool-free strict replay need independent cases
 Depth-specific completed query results must not poison other summary queries.
 This is readiness, not delivered behavior; no transitive fixpoint, alias analysis,
 purity, density or safe-rewrite claim is implied.
+
+
+## C11d: bounded two-edge scalar mutation composition
+
+Evidence/engine owns typed summary witnesses, depth-specific completed queries,
+call composition and unit tests; acceptance owns `tests/migration_effect_composition`;
+the lead owns report schema/export, original oracle scope transition, registration
+and documentation. An independent read-only audit covers ownership, argument
+projection, exact contexts, cycles, cache separation and resource preflight.
+This bounded slice is delivered. The independent audit confirmed depth separation,
+original ownership and budget preflight, and prompted an additional
+exact-fit/one-short wrapper publication test included in the final suite.
+
+The target is `caller → wrapper → leaf` over the existing scalar signature and
+call vocabulary. Every nested witness retains original assignment owner/site and
+ordered original call occurrences; summary-level projected roots remain distinct
+from the original write root. Repeated paths are not collapsed. Only complete
+bounded wrappers supply summaries, and checked direct witnesses survive incomplete
+assessment. Third-edge chains, recursion, unknown arguments and opaque boundaries
+remain incomplete. Existing work limits must charge summary sites and path entries
+before publication; no new hashes, source/graph clones, admission permissions or
+budgets are introduced. Schema 2 explicitly names `summary_site_index` and exports
+original ownership/path metadata. The prior owned-scalar nested-helper negative
+is deliberately promoted to a two-edge positive with a new third-edge negative.
+
+Seven new engine tests and eleven independent live CLI cases cover depth-query
+ordering, canonical leaf and repeated wrapper reuse, reordered mutable formals,
+distinct original owners/paths, third edges, cycles, unknown remainder, aliases,
+reference redirection, coercions, observation/call/summary/site budgets and strict
+full/compact replay after deleting sources and removing compiler tools. Direct
+mutation-rule evidence remains identical when effects are also requested.
+
+The frozen checkpoint passes 2,898 nextest tests (five skipped) in 186.383 seconds,
+plus doc tests. Both originally reported NonZero regressions pass. Formatting,
+workspace/all-target Clippy with warnings denied, all 56 Python comparison tests
+and diff checks pass. Legacy style reports zero violations across 9,148 functions;
+reviewed patterns reports zero candidates. The unfiltered result retains exactly
+the same 15 baseline IDs as C09g. The pattern gate identified duplicated call
+assessment, now shared with explicit remaining depth. No ignores, suppressions,
+thresholds, admission permissions or work budgets changed. Evidence logs are
+`/tmp/clones-two-edge-effects-{focused,full,clippy,python,patterns}.log`, style JSON
+and the separate `patterns-unfiltered.json` under the same prefix. Runtime is
+checkpoint evidence, not a measured speedup claim.
+
+The next ready mutation slice is ordinary `if/else` direct assignment-site
+inventory, advancing the staged `branch-source-site-counts` requirement. Its
+contract must count both original arms once, preserve native lexical roots and
+unknown boundaries, and keep conditional call/formal-use and effect-summary
+certification conservative. General effects/density, broader signatures,
+legacy retirement, native macOS validation and exact Go comparison remain open.

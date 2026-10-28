@@ -1,3 +1,4 @@
+mod summaries;
 use super::{
     super::{Availability, formal_types, mutations, selected_context},
     model::*,
@@ -13,7 +14,7 @@ pub struct Session<'a> {
     definitions: BTreeMap<&'a str, usize>,
     observations: BTreeMap<usize, Result<Option<mutations::Observations>, String>>,
     contexts: BTreeMap<usize, Availability<UnitContext>>,
-    summaries: Vec<LeafSummary>,
+    summaries: Vec<Summary>,
     visible_sites: Vec<Vec<usize>>,
     completed: BTreeMap<(usize, QueryKind), Completed>,
     work: Work,
@@ -36,13 +37,24 @@ struct Prepared {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum QueryKind {
     Assessment,
-    Leaf,
+    Summary(u8),
 }
 
 #[derive(Clone)]
 enum Completed {
     Assessment(Assessment),
-    Leaf(Prepared),
+    Summary(Prepared),
+}
+
+impl Completed {
+    fn cacheable(&self) -> bool {
+        match self {
+            Self::Assessment(assessment) => {
+                assessment.execution != mutations::Execution::BudgetExhausted
+            }
+            Self::Summary(prepared) => !prepared.budget,
+        }
+    }
 }
 
 impl TryFrom<Completed> for Assessment {
@@ -51,7 +63,7 @@ impl TryFrom<Completed> for Assessment {
     fn try_from(completed: Completed) -> Result<Self, Self::Error> {
         match completed {
             Completed::Assessment(assessment) => Ok(assessment),
-            Completed::Leaf(_) => Err("Effect assessment query returned a leaf outcome".into()),
+            Completed::Summary(_) => Err("Effect assessment query returned a leaf outcome".into()),
         }
     }
 }
@@ -61,7 +73,7 @@ impl TryFrom<Completed> for Prepared {
 
     fn try_from(completed: Completed) -> Result<Self, Self::Error> {
         match completed {
-            Completed::Leaf(prepared) => Ok(prepared),
+            Completed::Summary(prepared) => Ok(prepared),
             Completed::Assessment(_) => {
                 Err("Effect leaf query returned an assessment outcome".into())
             }
@@ -73,7 +85,7 @@ impl QueryKind {
     fn budget(self, index: usize) -> Completed {
         match self {
             Self::Assessment => Completed::Assessment(budget_assessment(index)),
-            Self::Leaf => Completed::Leaf(Prepared::unavailable(
+            Self::Summary(_) => Completed::Summary(Prepared::unavailable(
                 "Effect owner observation budget exhausted",
                 true,
             )),
@@ -100,7 +112,7 @@ impl<'a> Session<'a> {
         self.observations.get(&index)?.as_ref().ok()?.as_ref()
     }
 
-    pub fn summaries(&self) -> &[LeafSummary] {
+    pub fn summaries(&self) -> &[Summary] {
         &self.summaries
     }
 
@@ -128,21 +140,23 @@ impl<'a> Session<'a> {
         }
 
         let completed = self.compute(index, kind)?;
-        self.completed.insert((index, kind), completed.clone());
+        if completed.cacheable() {
+            self.completed.insert((index, kind), completed.clone());
+        }
         Ok(completed)
     }
 
     fn compute(&mut self, index: usize, kind: QueryKind) -> Result<Completed, String> {
         match kind {
-            QueryKind::Assessment => self.assess_observed(index).map(Completed::Assessment),
-            QueryKind::Leaf => self.retain_leaf(index).map(Completed::Leaf),
+            QueryKind::Assessment => self.assess_observed(index, 1).map(Completed::Assessment),
+            QueryKind::Summary(depth) => self.retain_summary(index, depth).map(Completed::Summary),
         }
     }
 
-    fn assess_observed(&mut self, index: usize) -> Result<Assessment, String> {
+    fn assess_observed(&mut self, index: usize, depth: u8) -> Result<Assessment, String> {
         let count = self.observations(index).unwrap().calls.len();
         let prepared = (0..count)
-            .map(|call| self.prepare(index, call))
+            .map(|call| self.prepare(index, call, depth))
             .collect::<Result<Vec<_>, _>>()?;
 
         self.compose(index, &prepared)
@@ -178,7 +192,7 @@ impl<'a> Session<'a> {
             .map_err(Clone::clone)
     }
 
-    fn prepare(&mut self, caller: usize, call_index: usize) -> Result<Prepared, String> {
+    fn prepare(&mut self, caller: usize, call_index: usize, depth: u8) -> Result<Prepared, String> {
         if self.work.statistics.calls >= self.limits.calls {
             return Ok(Prepared::unavailable(
                 "Effect call work budget exhausted",
@@ -214,7 +228,7 @@ impl<'a> Session<'a> {
                 false,
             ));
         }
-        self.leaf_summary(callee)
+        self.query_result(callee, QueryKind::Summary(depth))
     }
 
     fn check_contexts(&mut self, caller: usize, callee: usize) -> Result<bool, String> {
@@ -230,7 +244,7 @@ impl<'a> Session<'a> {
     }
 
     fn leaf_summary(&mut self, index: usize) -> Result<Prepared, String> {
-        self.query_result(index, QueryKind::Leaf)
+        self.query_result(index, QueryKind::Summary(0))
     }
 
     fn retain_leaf(&mut self, index: usize) -> Result<Prepared, String> {
@@ -252,12 +266,6 @@ impl<'a> Session<'a> {
                 false,
             ));
         }
-        if self.summaries.len() >= self.limits.summaries {
-            return Ok(Prepared::unavailable(
-                "Effect summary retention budget exhausted",
-                true,
-            ));
-        }
 
         let Some(parameters) = parameters(&self.unit.functions()[index])? else {
             return Ok(Prepared::unavailable(
@@ -265,27 +273,23 @@ impl<'a> Session<'a> {
                 false,
             ));
         };
-        let visible = observed
-            .direct
-            .sites
-            .iter()
-            .enumerate()
-            .filter_map(|(site, write)| write.caller_visible.then_some(site))
-            .collect();
-        let summary = LeafSummary {
-            function_index: index,
-            site_indices: (0..observed.direct.sites.len()).collect(),
-            parameters,
-        };
+        let count = observed.direct.sites.len();
+        if !self.summary_fits(count) {
+            return Ok(Prepared::unavailable(
+                "Effect summary retention budget exhausted",
+                true,
+            ));
+        }
 
-        let summary_index = self.summaries.len();
-        self.summaries.push(summary);
-        self.visible_sites.push(visible);
-        Ok(Prepared {
-            summary: Some(summary_index),
-            budget: false,
-            reason: None,
-        })
+        let sites = self.direct_witnesses(index);
+        Ok(self.publish_summary(
+            Summary {
+                function_index: index,
+                parameters,
+                sites,
+            },
+            count,
+        ))
     }
 }
 
@@ -295,7 +299,8 @@ impl Work {
             .retained_sites
             .saturating_add(observed.direct.sites.len());
         let calls = self.retained_calls.saturating_add(observed.calls.len());
-        if sites > limits.sites || calls > limits.calls {
+        if sites.saturating_add(self.statistics.mapped_sites) > limits.sites || calls > limits.calls
+        {
             return false;
         }
 
@@ -439,9 +444,6 @@ impl Session<'_> {
             });
         };
         let summary = &self.summaries[summary_index];
-        let observed = self
-            .observations(summary.function_index)
-            .ok_or("Effect summary has no original callee observation")?;
         let visible = &self.visible_sites[summary_index];
         if visible.len() > remaining {
             return Ok(ResolvedCall::unavailable(
@@ -450,7 +452,7 @@ impl Session<'_> {
             ));
         }
 
-        let Some(mappings) = mappings(call, summary, &observed.direct, visible)? else {
+        let Some(mappings) = mappings(call, summary, visible)? else {
             return Ok(ResolvedCall::unavailable(
                 "Exact call arguments do not satisfy the leaf formal mapping",
                 false,
@@ -497,8 +499,7 @@ fn validate_calls(observed: &mutations::Observations) -> Result<(), String> {
 
 pub(super) fn mappings(
     call: &mutations::Call,
-    summary: &LeafSummary,
-    direct: &mutations::Assessment,
+    summary: &Summary,
     visible: &[usize],
 ) -> Result<Option<Vec<Mapping>>, String> {
     if summary.parameters.len() > 64
@@ -514,14 +515,7 @@ pub(super) fn mappings(
     }
     visible
         .iter()
-        .map(|index| {
-            if summary.site_indices.get(*index) != Some(index) {
-                return Err(
-                    "Effect visible site is absent from its original summary roster".into(),
-                );
-            }
-            site_mapping(*index, direct.sites.get(*index), call)
-        })
+        .map(|index| site_mapping(*index, summary.sites.get(*index), call))
         .collect::<Result<Option<Vec<_>>, _>>()
 }
 
@@ -538,7 +532,7 @@ fn argument_matches((argument, parameter): (&mutations::Argument, &Parameter)) -
 
 fn site_mapping(
     index: usize,
-    site: Option<&mutations::WriteSite>,
+    site: Option<&SiteWitness>,
     call: &mutations::Call,
 ) -> Result<Option<Mapping>, String> {
     let site = site.ok_or("Effect summary site ordinal is outside its original callee")?;
@@ -556,7 +550,7 @@ fn site_mapping(
         return Ok(None);
     };
     Ok(Some(Mapping {
-        callee_site_index: index,
+        summary_site_index: index,
         caller_root: root.clone(),
     }))
 }
@@ -750,9 +744,16 @@ mod session_tests {
                 signature: Availability::Known(()),
             })),
         );
-        session.summaries.push(LeafSummary {
+        session.summaries.push(Summary {
             function_index: 0,
-            site_indices: (0..4096).collect(),
+            sites: (0..4096)
+                .map(|site_index| SiteWitness {
+                    function_index: 0,
+                    site_index,
+                    call_path: Vec::new(),
+                    root: root(),
+                })
+                .collect(),
             parameters: vec![Parameter::MutableU32],
         });
         session.visible_sites.push((0..4096).collect());
@@ -854,7 +855,7 @@ mod session_tests {
                 signature: Availability::Known(()),
             })),
         );
-        assert!(session.prepare(0, 0).is_err());
+        assert!(session.prepare(0, 0, 1).is_err());
         assert!(session.summaries.is_empty());
     }
 
@@ -891,5 +892,262 @@ mod session_tests {
         assert!(limited.leaf_summary(0).unwrap().budget);
         assert!(limited.completed.is_empty());
         assert_eq!(limited.statistics().observations, 0);
+    }
+    fn synthetic_session<'a>(
+        unit: &'a UnitStore,
+        edges: &[Option<usize>],
+        limits: Limits,
+    ) -> Session<'a> {
+        let mut session = Session::new(unit, limits).unwrap();
+        for (index, target) in edges.iter().enumerate() {
+            let calls: Vec<_> = target
+                .iter()
+                .map(|target| {
+                    let mut call = call(0);
+                    call.target = Availability::Known(format!("definition-{target}"));
+                    call.target_path = Some(format!("function-{target}"));
+                    call.arguments.clear();
+                    call
+                })
+                .collect();
+            let boundaries = calls
+                .iter()
+                .map(|call| mutations::Boundary {
+                    span: call.span,
+                    availability: mutations::BoundaryAvailability::Unknown,
+                    reason: "call".into(),
+                })
+                .collect();
+            session.observations.insert(
+                index,
+                Ok(Some(mutations::Observations {
+                    signature: Availability::Known(()),
+                    uses: mutations::UseInventory::unrequested(),
+                    calls,
+                    direct: mutations::Assessment {
+                        sites: Vec::new(),
+                        boundaries,
+                        ..original_sites()
+                    },
+                })),
+            );
+            session.check_contexts(index, index).unwrap();
+        }
+        session
+    }
+
+    fn three_functions() -> UnitStore {
+        let context = nominal_boundary::tests::context();
+        contextual_unit(&[Some(context.clone()), Some(context.clone()), Some(context)])
+    }
+
+    #[test]
+    fn depth_queries_are_separate_and_call_free_leaf_summaries_are_canonical() {
+        let unit = three_functions();
+        for order in [[0, 1], [1, 0]] {
+            let mut session =
+                synthetic_session(&unit, &[Some(1), Some(2), None], Limits::default());
+            for depth in order {
+                let result: Prepared = session.query_result(1, QueryKind::Summary(depth)).unwrap();
+                assert_eq!(result.summary.is_some(), depth == 1);
+            }
+            let wrapper: Prepared = session.query_result(1, QueryKind::Summary(1)).unwrap();
+            assert!(wrapper.summary.is_some());
+            let low: Prepared = session.query_result(2, QueryKind::Summary(0)).unwrap();
+            let high: Prepared = session.query_result(2, QueryKind::Summary(1)).unwrap();
+            assert_eq!(low.summary, high.summary);
+            assert_eq!(session.statistics().wrapper_checks, 1);
+            assert_eq!(session.summaries.len(), 2);
+        }
+    }
+
+    #[test]
+    fn cycles_and_third_edges_remain_incomplete() {
+        let unit = three_functions();
+        for edges in [[Some(1), Some(0), None], [Some(1), Some(2), Some(2)]] {
+            let mut session = synthetic_session(&unit, &edges, Limits::default());
+            let assessment = session.assess(0).unwrap();
+            assert_eq!(assessment.coverage, mutations::Coverage::Incomplete);
+            assert!(session.summaries.is_empty());
+        }
+    }
+
+    #[test]
+    fn exhausted_call_and_summary_queries_publish_no_completed_outcome() {
+        let unit = three_functions();
+        for limits in [
+            Limits {
+                calls: 0,
+                ..Limits::default()
+            },
+            Limits {
+                summaries: 0,
+                ..Limits::default()
+            },
+        ] {
+            let mut session = synthetic_session(&unit, &[Some(1), Some(2), None], limits);
+            let result: Prepared = session.query_result(1, QueryKind::Summary(1)).unwrap();
+            assert!(result.budget);
+            assert!(!session.completed.contains_key(&(1, QueryKind::Summary(1))));
+            assert!(session.summaries.is_empty());
+        }
+    }
+
+    #[test]
+    fn cached_summaries_do_not_skip_inner_original_edge_context_or_path() {
+        let unit = three_functions();
+        let mut session = synthetic_session(&unit, &[Some(1), Some(2), None], Limits::default());
+        assert!(session.leaf_summary(2).unwrap().summary.is_some());
+        let mut context = nominal_boundary::tests::context();
+        context.crate_name = "changed".into();
+        session.contexts.insert(2, Availability::Known(context));
+        assert!(session.prepare(1, 0, 0).is_err());
+        session.check_contexts(1, 1).unwrap();
+        session
+            .observations
+            .get_mut(&1)
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .calls[0]
+            .target_path = Some("contradictory".into());
+        assert!(session.prepare(1, 0, 0).is_err());
+    }
+
+    #[test]
+    fn expanded_summary_cardinality_is_checked_before_copying_paths() {
+        let unit = three_functions();
+        let mut session = synthetic_session(&unit, &[None, None, None], Limits::default());
+        session.summaries.push(Summary {
+            function_index: 2,
+            parameters: Vec::new(),
+            sites: vec![SiteWitness {
+                function_index: 2,
+                site_index: usize::MAX,
+                call_path: vec![CallReference {
+                    function_index: usize::MAX,
+                    call_index: usize::MAX,
+                }],
+                root: root(),
+            }],
+        });
+        let events = [CallEvent {
+            call_index: 0,
+            span: span(),
+            native: root().native,
+            summary_index: 0,
+            mappings: vec![Mapping {
+                summary_site_index: 0,
+                caller_root: root(),
+            }],
+        }];
+        assert_eq!(session.wrapper_cost(1, &events).unwrap(), 3);
+        session.limits.sites = 2;
+        assert!(!session.summary_fits(3));
+        assert_eq!(session.summaries.len(), 1);
+    }
+    #[test]
+    fn wrapper_witnesses_preserve_occurrences_and_compose_reordered_formals() {
+        let unit = three_functions();
+        let mut session = synthetic_session(&unit, &[None, None, None], Limits::default());
+        session.summaries.push(Summary {
+            function_index: 2,
+            parameters: vec![Parameter::MutableU32],
+            sites: vec![SiteWitness {
+                function_index: 2,
+                site_index: 7,
+                call_path: Vec::new(),
+                root: root(),
+            }],
+        });
+        let mut projected = root();
+        projected.formal = Some(1);
+        let events: Vec<_> = (0..2)
+            .map(|call_index| CallEvent {
+                call_index,
+                span: span(),
+                native: root().native,
+                summary_index: 0,
+                mappings: vec![Mapping {
+                    summary_site_index: 0,
+                    caller_root: projected.clone(),
+                }],
+            })
+            .collect();
+        let sites = session.wrapper_witnesses(1, &events).unwrap();
+        assert_eq!(sites.len(), 2);
+        assert_eq!(sites[0].function_index, 2);
+        assert_eq!(sites[0].site_index, 7);
+        assert_ne!(sites[0].call_path, sites[1].call_path);
+        assert_eq!(sites[0].call_path[0].function_index, 1);
+        let wrapper = Summary {
+            function_index: 1,
+            sites,
+            parameters: vec![Parameter::MutableU32, Parameter::MutableU32],
+        };
+        let mut outer = call(0);
+        outer.arguments.push(call(0).arguments.remove(0));
+        let mut actual = root();
+        actual.formal = Some(4);
+        outer.arguments[1].value =
+            Availability::Known(mutations::ArgumentValue::MutableFormal(actual));
+        let mapped = mappings(&outer, &wrapper, &[0, 1]).unwrap().unwrap();
+        assert!(
+            mapped
+                .iter()
+                .all(|mapping| mapping.caller_root.formal == Some(4))
+        );
+    }
+    #[test]
+    fn wrapper_publication_requires_the_complete_retention_allowance() {
+        let unit = three_functions();
+        for sites in [1, 2] {
+            let limits = Limits {
+                sites,
+                ..Limits::default()
+            };
+            let mut session = synthetic_session(&unit, &[None, Some(2), None], limits);
+            let mut owned = root();
+            owned.formal = None;
+            owned.provenance = mutations::Provenance::LocalOwned;
+            session
+                .observations
+                .get_mut(&1)
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .direct
+                .sites
+                .push(mutations::WriteSite {
+                    span: span(),
+                    root: owned,
+                    operation: mutations::Operation::Assignment,
+                    caller_visible: false,
+                });
+            // The synthetic observation retains its original direct write before queries.
+            session.work.retained_sites = 1;
+            let prepared: Prepared = session.query_result(1, QueryKind::Summary(1)).unwrap();
+            if sites == 1 {
+                assert!(prepared.budget);
+                assert!(prepared.summary.is_none());
+                assert_eq!(session.summaries.len(), 1);
+                assert_eq!(session.summaries[0].function_index, 2);
+                assert!(!session.completed.contains_key(&(1, QueryKind::Summary(1))));
+                assert_eq!(session.work.retained_sites, 1);
+            } else {
+                assert!(!prepared.budget);
+                let summary = &session.summaries[prepared.summary.unwrap()];
+                assert_eq!(summary.function_index, 1);
+                assert_eq!(summary.sites.len(), 1);
+                assert_eq!(summary.sites[0].function_index, 1);
+                assert_eq!(summary.sites[0].site_index, 0);
+                assert!(session.completed.contains_key(&(1, QueryKind::Summary(1))));
+                assert_eq!(session.work.retained_sites, 2);
+            }
+        }
     }
 }
