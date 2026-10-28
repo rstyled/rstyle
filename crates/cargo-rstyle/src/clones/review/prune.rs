@@ -39,6 +39,7 @@ enum Ordinal {
     Parameter(usize),
     Length(usize),
     Spacing(usize),
+    Mutation(usize),
 }
 
 pub(super) fn apply(
@@ -90,6 +91,11 @@ fn selection_plan(store: &ReviewStore, status: &status::Report) -> Result<Select
 }
 
 fn retain_numeric(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
+    retain_source_rules(store, states);
+    retain(&mut store.mutation_entries, states, Ordinal::Mutation);
+}
+
+fn retain_source_rules(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
     retain(&mut store.parameter_entries, states, Ordinal::Parameter);
     retain(&mut store.length_entries, states, Ordinal::Length);
     retain(&mut store.spacing_entries, states, Ordinal::Spacing);
@@ -170,8 +176,31 @@ fn validate_record(store: &ReviewStore, record: &status::Record) -> Result<Ordin
         status::Family::Spacing => {
             validate_numeric_record(&store.spacing_entries, record, Ordinal::Spacing)
         }
+        status::Family::MutationPerTarget | status::Family::MutatedTargets => {
+            validate_mutation_record(store, record)
+        }
         _ => validate_source_record(store, record),
     }
+}
+
+fn validate_mutation_record(
+    store: &ReviewStore,
+    record: &status::Record,
+) -> Result<Ordinal, String> {
+    let entry = store
+        .mutation_entries
+        .get(record.entry_index)
+        .ok_or_else(invalid_record)?;
+    let expected = match entry.finding.policy {
+        super::mutation_rules::Policy::MutationPerTarget { .. } => {
+            status::Family::MutationPerTarget
+        }
+        super::mutation_rules::Policy::MutatedTargets { .. } => status::Family::MutatedTargets,
+    };
+    if record.family != expected {
+        return Err(invalid_record());
+    }
+    validate_numeric_record(&store.mutation_entries, record, Ordinal::Mutation)
 }
 
 fn validate_numeric_record<S: exact_rules::ReviewSnapshot>(

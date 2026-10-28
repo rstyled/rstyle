@@ -62,9 +62,16 @@ pub(crate) struct ValidatedStore<'a, S> {
 
 impl<'a, S: ReviewSnapshot> ValidatedStore<'a, S> {
     pub fn new(entries: &'a [Entry<S>]) -> Result<Self, Error> {
+        Self::new_filtered(entries, |_| true)
+    }
+
+    pub fn new_filtered(
+        entries: &'a [Entry<S>],
+        select: impl Fn(&Entry<S>) -> bool,
+    ) -> Result<Self, Error> {
         validate_entries(entries)?;
         let mut index: EntryIndex<'a, S> = BTreeMap::new();
-        for entry in entries {
+        for entry in entries.iter().filter(|entry| select(entry)) {
             let (locator, context) = entry.finding.identity();
             index
                 .entry((locator, &context.compilation_target))

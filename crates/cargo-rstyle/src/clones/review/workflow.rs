@@ -97,10 +97,12 @@ pub(in crate::clones) struct Inputs<'a, 'b> {
     pub helpers: &'a analysis::helper_reports::Report<'b>,
     pub dispatch: &'a analysis::dispatch_reports::Report<'b>,
     pub capabilities: &'a analysis::capability_reports::Report<'b>,
+    pub mutation: &'a analysis::mutation_reports::Report<'b>,
     pub indices: &'a analysis::declaration_indices::Indices,
 }
 
 pub(in crate::clones) struct Reports {
+    pub mutations: super::mutation_workflow::Report,
     pub sources: super::source_workflow::Reports,
     pub helpers: Report,
     pub abstractions: super::local_workflow::Report,
@@ -122,6 +124,8 @@ impl Inputs<'_, '_> {
             || ctx.args.dismiss_parameter.is_some()
             || ctx.args.dismiss_length.is_some()
             || ctx.args.dismiss_spacing.is_some()
+            || ctx.args.dismiss_mutation_per_target.is_some()
+            || ctx.args.dismiss_mutated_targets.is_some()
             || reports
                 .pruning
                 .as_ref()
@@ -143,14 +147,18 @@ fn evaluate(
     let (abstractions, source_records) =
         super::local_workflow::apply(inputs, ctx, store.as_deref_mut())?;
     records.extend(source_records);
-    let (sources, source_rule_records) = super::source_workflow::apply(inputs, ctx, store)?;
+    let (sources, source_rule_records) =
+        super::source_workflow::apply(inputs, ctx, store.as_deref_mut())?;
     records.extend(source_rule_records);
+    let (mutations, mutation_records) = super::mutation_workflow::apply(inputs, ctx, store)?;
+    records.extend(mutation_records);
     let status = ctx
         .args
         .review_status_requested()
         .then(|| status::Report::new(records, true));
 
     Ok(Reports {
+        mutations,
         sources,
         helpers,
         abstractions,

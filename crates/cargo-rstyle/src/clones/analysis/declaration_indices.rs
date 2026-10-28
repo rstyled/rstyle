@@ -11,7 +11,9 @@ impl Indices {
     pub fn new(handoff: &Handoff, args: &Args) -> Result<Self, String> {
         let limit = if args.enum_dispatch {
             args.max_analysis_functions.unwrap_or(usize::MAX)
-        } else if args.capability_proposals || (args.source_rules && args.review_file.is_some()) {
+        } else if args.capability_proposals
+            || ((args.source_rules || args.mutation_rules) && args.review_file.is_some())
+        {
             args.max_analysis_functions.unwrap_or(4096).min(4096)
         } else {
             0

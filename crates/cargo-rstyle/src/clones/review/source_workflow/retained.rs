@@ -1,19 +1,13 @@
 //! Retained choices use shared owner resolution and rule-specific measurements.
 use super::super::{
-    CompilationTarget, Locator, ReviewStore, Versions, exact_rules, length_rules, local,
-    local_adapter, source_rules, spacing_rules, status,
+    Locator, ReviewStore, Versions, exact_rules, length_rules, local, local_adapter,
+    owner_population::{Domain, Population},
+    source_rules, spacing_rules, status,
 };
 use super::observed::{Observations, Row, Rule};
 use crate::clones::report;
-use std::collections::BTreeMap;
 
 type Assessment = (status::State, String);
-struct Population<'a> {
-    owners: BTreeMap<(&'a Locator, &'a CompilationTarget), Vec<&'a Row>>,
-    uncertain: bool,
-    truncated: bool,
-}
-
 #[derive(Clone, Copy)]
 enum Entry<'a> {
     Parameter(&'a source_rules::Entry),
@@ -29,7 +23,11 @@ pub(super) fn records(
     if !ctx.args.review_status_requested() {
         return Vec::new();
     }
-    let population = Population::new(observations);
+    let population = Population::new(
+        &observations.rows,
+        observations.unavailable_scope,
+        observations.truncated,
+    );
     let parameters = store
         .parameter_entries
         .iter()
@@ -51,7 +49,9 @@ pub(super) fn records(
         .chain(spacings)
         .map(|(index, entry)| {
             let assessment = if ctx.args.source_rules && entry.requested(observations) {
-                population.assess(entry)
+                population
+                    .resolve(entry.identity().0, entry.identity().1, Domain::Source)
+                    .map_or_else(|assessment| assessment, |owner| entry.assess_owner(owner))
             } else {
                 (
                     status::State::NotRequested,
@@ -98,65 +98,6 @@ impl<'a> Entry<'a> {
 
     fn requested(self, observations: &Observations) -> bool {
         !matches!(self, Self::Spacing(_)) || observations.spacing_requested
-    }
-}
-
-impl<'a> Population<'a> {
-    fn new(observations: &'a Observations) -> Self {
-        let mut owners = BTreeMap::<_, Vec<_>>::new();
-        for row in &observations.rows {
-            if let Ok((locator, context)) = row.identity() {
-                owners
-                    .entry((locator, &context.compilation_target))
-                    .or_default()
-                    .push(row);
-            }
-        }
-        Self {
-            owners,
-            uncertain: observations.unavailable_scope
-                || observations.rows.iter().any(|row| row.identity().is_err()),
-            truncated: observations.truncated,
-        }
-    }
-
-    fn assess(&self, entry: Entry<'_>) -> Assessment {
-        if self.truncated {
-            return unavailable("Source identity budget exhausted; uniqueness is unknown");
-        }
-        let (locator, context) = entry.identity();
-        let Some(owners) = self.owners.get(&(locator, &context.compilation_target)) else {
-            return self.missing();
-        };
-        if owners.len() != 1 {
-            return unavailable("Source owner has ambiguous observations in this target");
-        }
-        let owner = owners[0];
-        let Ok((_, observed)) = owner.identity() else {
-            return self.missing();
-        };
-
-        if context != observed {
-            return if self.uncertain {
-                self.missing()
-            } else {
-                (
-                    status::State::ContextChanged,
-                    "Source owner was observed in a different build context".into(),
-                )
-            };
-        }
-        entry.assess_owner(owner)
-    }
-
-    fn missing(&self) -> Assessment {
-        if self.uncertain {
-            unavailable(
-                "Source identity scope is incomplete; a retained owner cannot be classified",
-            )
-        } else {
-            (status::State::NotObserved, "Retained source owner was not observed; deletion and omitted capture scope are not distinguished".into())
-        }
     }
 }
 

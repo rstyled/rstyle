@@ -245,6 +245,18 @@ out); excluded owners are explicit policy skips with raw evidence retained.
 Inspect raw and policy coverage/counters separately. Replay reevaluates config
 against captured paths and comments without reading changed live files.
 
+Saved numeric mutation choices use review-store schema 6 and JSON
+`mutation_review` (`rstyle.mutation-rule-review/1`). With an explicit saved run,
+review file and reason, use `--dismiss-mutation-per-target FUNCTION_KEY` or
+`--dismiss-mutated-targets FUNCTION_KEY`. Only completed selected visible numeric
+findings with unique original owners qualify. Choices retain exact rule/threshold,
+build context and the complete sorted count distribution; changing those makes
+them stale. Numeric equality does not approve semantics. Reviews hide text and
+finding exits, counted by `mutation_analysis.review_hidden_findings`, while raw
+evidence/rules and completeness remain unchanged. Status/prune distinguish
+omitted, missing, stale and unavailable owners; only an exact-context completed
+selected negative can authorize pruning. Older review schemas remain readable.
+
 `clones --mutation-effects` uses schema `rstyle.mutation-effects/2` for original
 scalar writes through at most two same-unit call edges (`caller → wrapper → leaf`).
 Inspect `summary_site_index`, original write owner/site, `call_path` and projected

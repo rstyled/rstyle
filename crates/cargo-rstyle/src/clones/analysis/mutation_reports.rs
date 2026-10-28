@@ -1,5 +1,7 @@
 //! Direct scalar mutation budgets with explicit unknown remainder and provenance.
 mod decisions;
+mod reviews;
+pub(in crate::clones) use reviews::{Review, RuleReview};
 mod policy;
 mod rendering;
 mod scope;
@@ -19,6 +21,7 @@ pub(crate) struct Report<'a> {
     config: Option<&'a Settings>,
     pub findings: usize,
     pub visible_findings: usize,
+    review_hidden_findings: usize,
     suppressed_findings: usize,
     excluded_findings: usize,
     functions: Vec<FunctionReport<'a>>,
@@ -37,6 +40,8 @@ struct FunctionReport<'a> {
     rules: Vec<policy::Rule>,
     policy: decisions::Policy,
     density: Density,
+    #[serde(skip)]
+    review_hidden: [bool; 2],
     reason: Option<String>,
 }
 
@@ -100,6 +105,7 @@ pub(in crate::clones) fn evaluate<'a>(
                 .filter(|f| f.policy.invalid_suppression.is_some())
                 .count(),
         visible_findings: counts.visible,
+        review_hidden_findings: 0,
         suppressed_findings: counts.suppressed,
         excluded_findings: counts.excluded,
         functions,
@@ -107,7 +113,7 @@ pub(in crate::clones) fn evaluate<'a>(
             "Counts describe original syntactic assignment sites, not dynamic execution frequency.",
             "Ordinary branches and supported primitive loops each contribute their original sites once; pattern conditions and arbitrary iterators remain incomplete.",
             "Direct u32 owned roots and mutable formal pointees only; unknown boundaries prevent clean conclusions.",
-            "No purity, density, transitive effects or rewrite safety claim; saved mutation reviews are not applied.",
+            "Numeric saved reviews affect presentation only; no purity, density, transitive effects or rewrite safety claim.",
         ],
     })
 }
@@ -191,6 +197,7 @@ fn assess<'a>(
         reason,
         location: Location::new(function),
         density: Density::unavailable(),
+        review_hidden: [false; 2],
     })
 }
 
@@ -235,6 +242,7 @@ fn unavailable<'a>(
         rules,
         policy,
         density: Density::unavailable(),
+        review_hidden: [false; 2],
         reason: Some(reason.into()),
     }
 }

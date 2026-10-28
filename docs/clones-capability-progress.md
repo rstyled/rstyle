@@ -1518,3 +1518,51 @@ unverified.
 Next ready work is saved mutation reviews over completed visible findings, then
 broader effect/density and project-quality contracts. The migration remains active;
 legacy retirement gates are not established by this slice.
+
+## C11h: saved numeric mutation reviews
+
+Added independent `--dismiss-mutation-per-target` and `--dismiss-mutated-targets`
+choices over explicit saved runs, review files and reasons. Schema 6 adds numeric
+mutation entries while preserving schemas 1 through 5 and populated existing
+families. A current dismissal requires a completed evaluated visible finding,
+selected scope and a unique original declaration. Identity retains the rule and
+threshold, full sorted per-root count distribution, original locator, build
+context and detector versions. Binder/comment/RHS changes preserving that numeric
+measurement retain the choice without approving semantics. Changed distributions
+or thresholds are stale even when the maximum and root count are unchanged.
+
+Exact choices filter only the selected rule's presentation and finding exit;
+raw evidence, raw rules, policy decisions, coverage and execution stay intact.
+Lower-bound findings, suppressed/excluded owners, unknown evidence and exhausted
+budgets cannot authorize dismissal or negative pruning. Status distinguishes
+omitted analysis, missing declarations, changed context, stale policy/measurement
+and unavailable observations. Prune preview/apply requires a completed selected
+negative with the same rule, threshold, versions and context. Changed-file
+selection reuses source-rule scope rather than adding another selector.
+
+Legacy pattern discovery identified duplicated source/mutation owner handling.
+Both now share bounded collection, original identity resolution, ambiguity checks
+and a borrowed retained-owner index; measurement and positive/negative rule
+decisions remain consumer-specific. Numeric snapshots contain no source/graph
+copies or hashes. No ignores, thresholds, admission permissions or work budgets
+changed. Source/tool-free full/compact strict replay and text exits are covered.
+
+Integrated validation: all 3,013 workspace nextest tests pass (five skipped) in
+192.885 seconds, plus doc tests. Both originally reported NonZero regressions and
+the u32 widening reader pass. The full suite covers source and mutation review
+paths together after shared-owner extraction; the earlier focused run passed 171
+tests. Clippy with warnings denied, formatting and diff checks pass. Legacy style
+reports zero violations across 9,267 functions; reviewed patterns reports zero
+candidates, and unfiltered discovery retains exactly the fifteen C11g baseline
+IDs. All 56 migration comparison Python tests and 50 auxiliary script tests pass.
+Logs and JSON reports are under `/tmp/clones-mutation-review-*`; runtime is
+checkpoint evidence, not a measured speedup claim.
+
+A separate locked compact `hir-data-v3 --mutation-rules` capture over the declared
+23-function acceptance corpus completed with 20 evaluated and three unavailable
+owners, honestly returning exit 2 for incomplete mutation coverage. It is smoke
+evidence for explicit boundaries, not whole-project clean or retirement evidence.
+
+Next ready work is broader effect/density and project-quality contracts. The full
+migration remains active; legacy retirement, native macOS and external Go
+comparison remain unverified. Main/PR19 has not been merged into this branch.

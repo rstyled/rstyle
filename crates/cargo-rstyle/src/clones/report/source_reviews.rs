@@ -13,7 +13,13 @@ pub(in crate::clones) struct SourceReviews {
 }
 
 impl SourceReviews {
-    pub(super) fn new(reports: source_workflow::Reports, args: &Args, spacing: bool) -> Self {
+    pub(super) fn apply(
+        reports: source_workflow::Reports,
+        args: &Args,
+        analysis: &mut crate::clones::analysis::Report<'_>,
+    ) -> Self {
+        analysis.hide_reviewed_source_rules(&reports);
+        let spacing = analysis.spacing_policy().is_some();
         let requested = args.source_rules && args.review_file.is_some();
         Self {
             parameter_review: requested.then_some(reports.parameters),

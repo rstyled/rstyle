@@ -18,6 +18,7 @@ pub(in crate::clones) struct Consumers<'a> {
     pub(super) review_prune: Option<review::prune::Report>,
     pub(super) review_status: Option<review::status::Report>,
     pub(super) abstraction_review: review::local_workflow::Report,
+    pub(super) mutation_review: review::mutation_workflow::Report,
     pub(super) source_reviews: SourceReviews,
 }
 
@@ -36,24 +37,21 @@ impl<'a> Consumers<'a> {
             parameter_planning.as_ref(),
             guard_planning.as_ref(),
         );
-        let mutation = ctx.mutation_report()?;
+        let mut mutation = ctx.mutation_report()?;
         let effects = ctx.effect_report()?;
         let accepted = locations::accepted(ctx.handoff, ctx.matching)?;
 
         let reviews = review::workflow::Inputs {
             analysis: &analysis,
+            mutation: &mutation,
             helpers: &pairs.helper_proposals,
             dispatch: &dispatch,
             capabilities: &capabilities,
             indices: &indices,
         }
         .apply(ctx)?;
-        analysis.hide_reviewed_source_rules(&reviews.sources);
-        let source_reviews = SourceReviews::new(
-            reviews.sources,
-            ctx.args,
-            analysis.spacing_policy().is_some(),
-        );
+        mutation.hide_reviewed(&reviews.mutations);
+        let source_reviews = SourceReviews::apply(reviews.sources, ctx.args, &mut analysis);
         Ok(Self {
             pairs,
             analysis,
@@ -64,6 +62,7 @@ impl<'a> Consumers<'a> {
             capabilities,
             edit_planning,
             mutation,
+            mutation_review: reviews.mutations,
             effects,
             accepted,
             review: reviews.helpers,

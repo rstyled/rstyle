@@ -75,8 +75,9 @@ native nodes/depth 128, and 4,096 roots/sites. Exceeding a bound remains explici
 budget exhaustion; it never establishes an empty inventory. Incomplete
 requested analysis exits 2, including when it has findings. Complete analysis
 exits 0, or 1 with `--fail-on-findings` and a visible finding. Full and compact
-reports retain the same consumer evidence. Saved ignore and review entries do
-not apply to this opt-in consumer.
+reports retain the same consumer evidence. Legacy ignore entries do not apply
+to this opt-in consumer. Explicit saved mutation reviews filter presentation as
+described below.
 
 Captured comments use the existing physical-line association and named-rule
 syntax, for example `// rstyle-allow(mutation_per_target): deliberate repeated writes`.
@@ -116,6 +117,47 @@ Replay uses checked retained original source and compiler observations; it needs
 neither the original source tree nor Cargo/compiler execution. Wrong source,
 context or native correspondence is an error rather than an unavailable fact.
 There is no new hash or global proof cache.
+
+## Saved numeric reviews
+
+Dismiss each numeric rule separately using an explicit saved run, review file and
+reason:
+
+```sh
+cargo rstyle clones --extraction-profile hir-data-v3 --mutation-rules \
+  --replay-run RUN_DIRECTORY --review-file reviews.json \
+  --dismiss-mutation-per-target FUNCTION_KEY --review-reason 'Reviewed repeated writes'
+```
+
+Use `--dismiss-mutated-targets FUNCTION_KEY` for the other budget. The key is the
+saved report's function handle. Only selected, uniquely identified original
+owners with completed, evaluated, visible findings can be dismissed. Suppressed,
+excluded, unknown, unsupported and budget-limited observations cannot authorize
+a dismissal, including witnessed lower-bound breaches.
+
+Review-store schema 6 adds `mutation_entries` while reading schemas 1 through 5
+without upgrading or rewriting them during lookup/status. Numeric identity keeps
+the original declaration locator, build context, detector versions, selected rule
+and threshold, and the sorted complete distribution of sites per mutated root.
+Changing that distribution or threshold makes a choice stale. Binder renames,
+comments and right-hand-side edits that preserve these counts retain a numeric
+choice; they acquire no semantic or effect approval. No source or graph is copied
+into the review identity, and no hash is needed.
+
+JSON `mutation_review` uses schema `rstyle.mutation-rule-review/1`. Exact reviews
+hide only their selected numeric findings from text and finding exits;
+`mutation_analysis.review_hidden_findings` counts them. Raw evidence, rules,
+policy decisions, coverage and execution remain unchanged. Unrelated numeric
+rules and invalid annotations remain visible; a review cannot repair incomplete
+analysis.
+
+`--review-status` distinguishes omitted analysis (`not_requested`), missing
+declarations (`not_observed`), stale measurements/policies and unavailable
+evidence. `--review-prune --review-prune-dry-run` previews eligible removal;
+`--review-prune` applies it. Only a completed selected negative result under the
+same rule, threshold, versions and build context authorizes removal. Unknown,
+suppressed, excluded and unselected owners do not. Changed-file review selection
+uses the existing source-rule scope rather than a separate mutation selector.
 
 The independent corpus is `eval/clones-capability/effects-cases.json`. Its staged
 next/later cases remain requirements, not delivered support. General transitive

@@ -28,8 +28,8 @@ use std::{
 
 #[derive(ClapArgs, Serialize)]
 #[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects"]).multiple(true)),
-    group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules"]).multiple(true)),
-    group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing"])),
+    group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules", "mutation_rules"]).multiple(true)),
+    group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets"])),
     group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules"]).multiple(true)))]
 pub struct Args {
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
@@ -128,6 +128,12 @@ pub struct Args {
     /// Dismiss one exact saved-run visible function-spacing finding.
     #[arg(long, requires_all = ["review_file", "review_reason", "replay_run", "source_rules"])]
     dismiss_spacing: Option<String>,
+    /// Dismiss one completed visible saved-run per-root mutation finding.
+    #[arg(long, requires_all = ["review_file", "review_reason", "replay_run", "mutation_rules"])]
+    dismiss_mutation_per_target: Option<String>,
+    /// Dismiss one completed visible saved-run mutated-root count finding.
+    #[arg(long, requires_all = ["review_file", "review_reason", "replay_run", "mutation_rules"])]
+    dismiss_mutated_targets: Option<String>,
     /// Dismiss an exact saved-run ordered capability pair.
     #[arg(long, num_args = 2, requires_all = ["review_file", "review_reason", "replay_run", "capability_proposals"])]
     dismiss_capability_pair: Vec<String>,
@@ -407,6 +413,7 @@ fn analyses_complete(report: &report::Report<'_>) -> bool {
         && report.capability_proposals.permits_success()
         && report.mutation_analysis.permits_success()
         && report.mutation_effects.permits_success()
+        && report.mutation_review.permits_success()
         && report.edit_planning.permits_success()
         && report
             .parameter_planning

@@ -57,6 +57,8 @@ fn settings(config: Configuration) -> Result<Settings, String> {
 #[derive(Serialize)]
 pub(super) struct Evidence {
     sites: Vec<mutations::WriteSite>,
+    #[serde(skip)]
+    pub(super) sites_per_root: Vec<usize>,
     boundaries: Vec<mutations::Boundary>,
     write_sites: Count,
     mutated_roots: Count,
@@ -85,7 +87,11 @@ impl Evidence {
     ) -> Result<Self, String> {
         let counts = root_counts(&assessment.sites)?;
         let kind = if complete { "exact" } else { "lower_bound" };
+        let mut sites_per_root: Vec<_> = counts.values().map(|(_, count)| *count).collect();
+        sites_per_root.sort_unstable();
+
         Ok(Self {
+            sites_per_root,
             write_sites: Count {
                 kind,
                 value: assessment.sites.len(),

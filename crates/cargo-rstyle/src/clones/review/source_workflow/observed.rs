@@ -1,13 +1,12 @@
 //! Source rules share one bounded original owner identity resolution.
 mod measurements;
 use super::super::{
-    Locator, length_rules, local, local_adapter, source_rules, spacing_rules, workflow,
+    Locator, length_rules, local, owner_observations, owner_population, source_rules,
+    spacing_rules, workflow,
 };
 use super::Family;
-use crate::clones::{Function, FunctionKey, analysis, report};
-use std::collections::{BTreeMap, BTreeSet};
+use crate::clones::{FunctionKey, analysis, report};
 
-const MAX_IDENTITIES: usize = 4096;
 type Identity = (Locator, local::BuildContext);
 
 pub(super) struct Observations {
@@ -248,67 +247,35 @@ pub(super) fn collect(
     inputs: &workflow::Inputs<'_, '_>,
     ctx: &report::Context<'_>,
 ) -> Observations {
-    let records: BTreeMap<_, _> = ctx
-        .handoff
-        .assessed
-        .iter()
-        .take(MAX_IDENTITIES)
-        .map(|record| (record.key, record))
-        .collect();
-    let mut reviews = inputs.analysis.source_reviews();
-    let mut rows: Vec<_> = reviews
-        .by_ref()
-        .take(MAX_IDENTITIES)
-        .map(|source| {
-            let identity = identity(source.key, records.get(&source.key).copied(), inputs, ctx);
-            Row::new(source, identity)
-        })
-        .collect();
-    let truncated = reviews.next().is_some();
-    mark_ambiguous(&mut rows, truncated);
-
+    let collected = owner_observations::collect(
+        inputs
+            .analysis
+            .source_reviews()
+            .map(|source| (source.key, source)),
+        inputs,
+        ctx,
+        Row::new,
+    );
     Observations {
-        rows,
-        truncated,
-        unavailable_scope: !ctx.capture.failures.is_empty() || !ctx.handoff.failures.is_empty(),
+        rows: collected.rows,
+        truncated: collected.truncated,
+        unavailable_scope: collected.unavailable_scope,
         spacing_requested: inputs.analysis.spacing_policy().is_some(),
     }
 }
 
-fn mark_ambiguous(rows: &mut [Row], truncated: bool) {
-    let mut owners = BTreeMap::<_, Vec<FunctionKey>>::new();
-    for row in rows.iter() {
-        if let Ok((locator, context)) = row.identity() {
-            owners
-                .entry((locator, &context.compilation_target))
-                .or_default()
-                .push(row.key);
-        }
-    }
-    let ambiguous: BTreeSet<_> = owners
-        .values()
-        .filter(|keys| keys.len() > 1)
-        .flatten()
-        .copied()
-        .collect();
-
-    for row in rows {
-        row.unique = !truncated && !ambiguous.contains(&row.key);
+impl owner_population::Owner for Row {
+    fn identity(&self) -> Result<(&Locator, &local::BuildContext), &str> {
+        Row::identity(self)
     }
 }
 
-fn identity(
-    key: FunctionKey,
-    record: Option<&Function>,
-    inputs: &workflow::Inputs<'_, '_>,
-    ctx: &report::Context<'_>,
-) -> Result<Identity, String> {
-    let record = record.ok_or("Missing source review owner")?;
-    let unit = workflow::unit(ctx.handoff, ctx.capture, record)?;
-    local_adapter::member_key(local_adapter::Input {
-        facts: &record.facts,
-        unit,
-        plan: &ctx.capture.plan,
-        index: inputs.indices.get(key.unit())?,
-    })
+impl owner_observations::Observation for Row {
+    fn key(&self) -> FunctionKey {
+        self.key
+    }
+
+    fn set_unique(&mut self, unique: bool) {
+        self.unique = unique;
+    }
 }

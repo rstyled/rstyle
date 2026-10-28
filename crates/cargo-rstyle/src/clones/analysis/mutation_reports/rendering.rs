@@ -27,12 +27,10 @@ impl Report<'_> {
 
 impl FunctionReport<'_> {
     fn render(&self, output: &mut String) {
-        for rule in self
-            .policy
-            .rule_decisions
-            .iter()
-            .filter(|r| r.outcome == Outcome::Finding)
-        {
+        for rule in self.policy.rule_decisions.iter().filter(|r| {
+            r.outcome == Outcome::Finding
+                && !self.review_hidden[usize::from(r.rule_id == "mutated_targets")]
+        }) {
             output.push_str(&format!(
                 "\n{} {} at {} [bytes {}..{}]: at least {} sites/roots (limit {}).",
                 rule.rule_id,
