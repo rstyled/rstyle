@@ -152,6 +152,7 @@ fn clean_crate_exits_zero() {
     assert!(stdout(&output).contains("0 violations"));
     let report = json(dir.path());
     assert!(report["diagnostics"].as_array().unwrap().is_empty());
+    assert!(report["functions"].as_array().unwrap().is_empty());
     assert_eq!(report["summary"]["functions"], 4);
 }
 

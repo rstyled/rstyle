@@ -1,6 +1,5 @@
 ---
 source: crates/cargo-rstyle/tests/cli.rs
-assertion_line: 123
 expression: stdout(&output)
 ---
 src/lib.rs:12:5: mutation_per_target: function `Account::churn` mutates one target too many times (actual 4, limit 3)
@@ -14,4 +13,12 @@ src/lib.rs:58:1: fn_params: function `missing_reason` has too many parameters (a
 src/lib.rs:58:1: invalid_suppression: function `missing_reason`: rstyle-allow requires a reason after `:` (actual 1, limit 0)
 src/lib.rs:72:1: fn_length: function `very_long` is too long (actual 54, limit 50)
 fix groups: 7 (0 stacked, 7 independent)
-rstyle: 11 functions, 10 violations, mean density 690, max density 3000
+  CC  COG  LOCATION  FUNCTION
+   1    0  src/lib.rs:12:5  Account::churn
+   1    0  src/lib.rs:24:1  too_many
+   1    0  src/lib.rs:28:1  spread
+   1    0  src/lib.rs:35:1  noisy
+   1    0  src/lib.rs:43:1  dirty
+   1    0  src/lib.rs:58:1  missing_reason
+   1    0  src/lib.rs:72:1  very_long
+rstyle: 11 functions, 10 violations, mean density 690, max density 3000, complexity 11 measured, 0 unavailable

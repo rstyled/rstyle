@@ -29,6 +29,8 @@ expression: json(&report).unwrap()
   "summary": {
     "functions": 1,
     "violations": 1,
+    "complexity_measured": 0,
+    "complexity_unavailable": 0,
     "mean_density_milli": 0,
     "max_density_milli": 0,
     "effect_counts": {}

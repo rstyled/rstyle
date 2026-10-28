@@ -14,17 +14,20 @@ pub struct Config {
     pub grouping: GroupingConfig,
 }
 
-/// Complexity is always measured; limits are opt-in.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// Findings start strictly above either configured complexity limit.
+#[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ComplexityConfig {
-    pub max_cyclomatic: Option<usize>,
-    pub max_cognitive: Option<usize>,
+    pub max_cyclomatic: usize,
+    pub max_cognitive: usize,
 }
 
-impl ComplexityConfig {
-    pub fn enabled(&self) -> bool {
-        self.max_cyclomatic.is_some() || self.max_cognitive.is_some()
+impl Default for ComplexityConfig {
+    fn default() -> Self {
+        Self {
+            max_cyclomatic: 12,
+            max_cognitive: 12,
+        }
     }
 }
 

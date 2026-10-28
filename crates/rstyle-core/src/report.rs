@@ -25,6 +25,8 @@ pub struct Diagnostic {
 pub struct Summary {
     pub functions: usize,
     pub violations: usize,
+    pub complexity_measured: usize,
+    pub complexity_unavailable: usize,
     /// Mean of per-function `density_milli`, rounded down.
     pub mean_density_milli: usize,
     pub max_density_milli: usize,
@@ -115,6 +117,16 @@ pub struct Report {
     pub summary: Summary,
     pub fix_groups: Vec<FixGroup>,
     pub functions: Vec<crate::complexity_report::Function>,
+}
+
+impl Report {
+    /// Missing analysis takes precedence over findings; a partial report is not clean.
+    pub fn exit_code(&self) -> u8 {
+        if self.summary.complexity_unavailable > 0 {
+            return 2;
+        }
+        u8::from(!self.diagnostics.is_empty())
+    }
 }
 
 pub fn sort(diagnostics: &mut [Diagnostic]) {
@@ -208,9 +220,10 @@ pub fn text(report: &Report) -> String {
     if !report.fix_groups.is_empty() {
         lines.extend(groups_text(&report.fix_groups));
     }
+    lines.extend(crate::complexity_report::text(&report.functions));
     lines.push(format!(
-        "rstyle: {} functions, {} violations, mean density {}, max density {}",
-        s.functions, s.violations, s.mean_density_milli, s.max_density_milli
+        "rstyle: {} functions, {} violations, mean density {}, max density {}, complexity {} measured, {} unavailable",
+        s.functions, s.violations, s.mean_density_milli, s.max_density_milli, s.complexity_measured, s.complexity_unavailable
     ));
     lines.join("\n")
 }

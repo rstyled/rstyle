@@ -77,21 +77,32 @@ fn older_facts_preserve_unavailable_complexity() {
     let fact: crate::facts::FnFacts = serde_json::from_value(value).unwrap();
     let report = crate::evaluate(vec![fact.clone()], &crate::config::Config::default()).unwrap();
     assert!(report.functions[0].complexity.is_none());
-    let ranking = crate::complexity_report::Ranking::new(
-        report.functions,
-        crate::complexity_report::Order::Cyclomatic,
-        0,
-    );
-    assert_eq!(
-        (ranking.total, ranking.measured, ranking.unavailable),
-        (1, 0, 1)
-    );
+    assert_eq!(report.summary.complexity_measured, 0);
+    assert_eq!(report.summary.complexity_unavailable, 1);
+    assert_eq!(report.exit_code(), 2);
     let config = crate::config::Config::parse("[complexity]\nmax_cognitive = 5\n").unwrap();
-    assert!(
-        crate::evaluate(vec![fact], &config)
-            .unwrap_err()
-            .contains("unavailable")
-    );
+    let report = crate::evaluate(vec![fact], &config).unwrap();
+    assert_eq!(report.exit_code(), 2);
+    assert!(crate::report::text(&report).contains("?    ?"));
+    assert!(crate::report::text(&report).contains("0 measured, 1 unavailable"));
+}
+
+#[test]
+fn partial_measurements_keep_other_findings_and_fail_the_report() {
+    let unknown = crate::facts::sample("unknown");
+    let mut measured = crate::facts::sample("measured");
+    measured.params = 5;
+    measured.complexity = Some(Measurement::score(&[]));
+    let report =
+        crate::evaluate(vec![unknown, measured], &crate::config::Config::default()).unwrap();
+    assert_eq!(report.functions.len(), 2);
+    assert_eq!(report.summary.complexity_measured, 1);
+    assert_eq!(report.summary.complexity_unavailable, 1);
+    assert_eq!(report.diagnostics[0].rule_id, "fn_params");
+    assert_eq!(report.exit_code(), 2);
+    let text = crate::report::text(&report);
+    assert!(text.contains("fn_params"));
+    assert!(text.contains("?    ?"));
 }
 
 #[test]

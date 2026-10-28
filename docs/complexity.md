@@ -1,24 +1,27 @@
 # Source-level complexity
 
-`cargo rstyle complexity` ranks functions by cyclomatic complexity (CC) or
-cognitive complexity (COG). These are inspection signals, not proofs of safety.
+`cargo rstyle` reports style findings, fix groups, cyclomatic complexity (CC),
+and cognitive complexity (COG) together. These are inspection signals, not
+proofs of safety.
 
 ```sh
-scripts/style.sh complexity --sort cognitive --top 20
-cargo style complexity --sort cyclomatic --format json --top 100
+scripts/style.sh
+cargo style --format json
 ```
 
-The ordinary `cargo rstyle --format json` report also includes every selected
-function under `functions`. Each function has its identity, source location, and
-`complexity`: `policy_version`, `cyclomatic`, `cognitive`, and `contributions`.
+The text report lists functions with findings, ranked by COG and then CC, alongside
+all diagnostics and fix groups. The `cargo rstyle --format json` report includes
+those functions under `functions`. Each function has its identity, source
+location, and `complexity`: `policy_version`, `cyclomatic`, `cognitive`, and
+`contributions`.
 Each contribution records its semantic kind, line, column, nesting, and the
 increment for each score. CC has a base of one; the evidence accounts for all
 other CC points and every COG point. Locations are one-based.
 
-The ranked view sorts by the selected score, then the other score, then path,
-line, column, and name. `--top` limits displayed functions; `total`, `measured`,
-and `unavailable` still cover the full selected input. The command exits 2 if
-any selected function lacks complexity data. Old facts deserialize as
+Ties use path, line, column, and name. Clean functions are omitted; functions with
+missing measurements remain visible. The summary counts all analyzed functions,
+including `complexity_measured` and `complexity_unavailable`. The command exits 2 if any selected function lacks
+complexity data, while retaining other available findings. Old facts deserialize as
 `complexity: null`, never as a measured zero.
 
 ## Shared policy, version 1
@@ -81,22 +84,22 @@ counting their compiler-generated matches and loops.
   source-level metric. A macro invocation is opaque; its expansion does not add
   hidden branches. Functions disabled by cfg are absent from the selected build.
 
-## Optional limits
+## Limits
 
-Scores are always available for inspection. Limits are disabled by default.
-To enforce them, add a policy to `rstyle.toml`:
+Both limits default to 12. A score strictly above either limit is a finding;
+exactly 12 is allowed. To change the limits, set them in `rstyle.toml`:
 
 ```toml
 [complexity]
-max_cyclomatic = 10
-max_cognitive = 15
+max_cyclomatic = 12
+max_cognitive = 12
 ```
 
 `cargo rstyle` reports scores strictly above the limits as `cyclomatic_complexity`
 and `cognitive_complexity`. Findings use the existing source evidence, fix groups,
-and exit status 1. `cargo rstyle complexity` remains an inspection command and
-does not fail on style thresholds. A required but missing measurement is an
-operational error, not a clean check.
+and exit status 1. A missing measurement produces exit status 2, with unavailable
+counts in the same report. Missing data takes precedence over findings when
+selecting the exit status.
 
 Suppress a deliberate exception with the existing reason-bearing syntax:
 
@@ -104,5 +107,6 @@ Suppress a deliberate exception with the existing reason-bearing syntax:
 // rstyle-allow(cyclomatic_complexity): protocol state dispatcher
 ```
 
-Suppression removes the threshold finding, not the function's measured scores.
+Suppression removes the threshold finding. Measurement still covers all functions;
+only functions with remaining findings or missing measurements appear in the report.
 Do not raise limits or split functions solely to make these signals smaller.

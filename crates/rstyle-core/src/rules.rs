@@ -66,7 +66,6 @@ pub fn complexity(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
     ]
     .into_iter()
     .filter_map(|(rule, actual, limit)| {
-        let limit = limit?;
         if actual <= limit {
             return None;
         }

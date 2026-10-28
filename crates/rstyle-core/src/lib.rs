@@ -101,9 +101,15 @@ fn summarize(
         .map(|(f, e)| rules::density_milli(f, e, cfg))
         .collect();
     let densities = densities.into_iter();
+    let measured = facts
+        .iter()
+        .filter(|fact| fact.complexity.is_some())
+        .count();
     Summary {
         functions: facts.len(),
         violations,
+        complexity_measured: measured,
+        complexity_unavailable: facts.len() - measured,
         mean_density_milli: densities.clone().sum::<usize>() / facts.len().max(1),
         max_density_milli: densities.max().unwrap_or(0),
         effect_counts: effect_counts(effects.iter().flatten()),
@@ -131,12 +137,6 @@ pub fn evaluate(facts: Vec<FnFacts>, cfg: &Config) -> Result<Report, String> {
         .filter(|f| !excluded.is_match(&f.path))
         .collect();
     let graph = graph::build(&facts);
-    if cfg.complexity.enabled() && facts.iter().any(|fact| fact.complexity.is_none()) {
-        return Err(
-            "complexity is unavailable for some functions; rebuild the driver and regenerate facts"
-                .into(),
-        );
-    }
     let effects = all_effects(&facts, &graph, cfg);
     let mut diagnostics: Vec<Diagnostic> = facts
         .iter()
@@ -147,14 +147,12 @@ pub fn evaluate(facts: Vec<FnFacts>, cfg: &Config) -> Result<Report, String> {
     report::sort(&mut diagnostics);
     let summary = summarize(&facts, &effects, cfg, diagnostics.len());
     let fix_groups = groups::build(&facts, &graph, &diagnostics, cfg);
+    let functions = complexity_report::findings(&facts, &diagnostics);
     Ok(Report {
         diagnostics,
         summary,
         fix_groups,
-        functions: facts
-            .iter()
-            .map(complexity_report::Function::from)
-            .collect(),
+        functions,
     })
 }
 

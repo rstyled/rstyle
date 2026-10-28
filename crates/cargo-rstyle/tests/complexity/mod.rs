@@ -34,12 +34,15 @@ pub fn macro_else(a: bool) { if a {} else { branch!(); } }
 fn report() -> (tempfile::TempDir, Value) {
     let dir = fixture("clean");
     std::fs::write(dir.path().join("src/lib.rs"), SOURCE).unwrap();
-    let output = rstyle(
-        dir.path(),
-        &["complexity", "--top", "100", "--format", "json"],
-    );
-    assert!(
-        output.status.success(),
+    std::fs::write(
+        dir.path().join("rstyle.toml"),
+        "[complexity]\nmax_cyclomatic = 0\nmax_cognitive = 0\n",
+    )
+    .unwrap();
+    let output = rstyle(dir.path(), &["--format", "json"]);
+    assert_eq!(
+        output.status.code(),
+        Some(1),
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
@@ -93,8 +96,9 @@ fn source_constructs_have_exact_shared_scores() {
             "{name}"
         );
     }
-    assert_eq!(report["unavailable"], 0);
-    assert_eq!(report["total"], cases.len());
+    assert_eq!(report["summary"]["complexity_unavailable"], 0);
+    assert_eq!(report["summary"]["complexity_measured"], cases.len());
+    assert_eq!(report["functions"].as_array().unwrap().len(), cases.len());
 }
 
 #[test]
@@ -113,40 +117,30 @@ fn scores_retain_evidence_and_ranking_is_deterministic() {
         .find(|line| line.starts_with("pub fn propagate"))
         .unwrap();
     assert_eq!(propagation["column"], source.find('?').unwrap() + 1);
-    let output = rstyle(
-        dir.path(),
-        &["complexity", "--top", "100", "--format", "json"],
-    );
+    let output = rstyle(dir.path(), &["--format", "json"]);
     assert_eq!(
         serde_json::from_slice::<Value>(&output.stdout).unwrap(),
         report
     );
-    let output = rstyle(
-        dir.path(),
-        &[
-            "complexity",
-            "--sort",
-            "cognitive",
-            "--top",
-            "1",
-            "--format",
-            "json",
-        ],
-    );
-    let ranked: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(
-        ranked["functions"][0]["name"]
+        report["functions"][0]["name"]
             .as_str()
             .unwrap()
             .rsplit("::")
             .next(),
         Some("jumps")
     );
-    assert_eq!(ranked["measured"], report["measured"]);
+    let output = rstyle(dir.path(), &[]);
+    assert_eq!(output.status.code(), Some(1));
+    let text = stdout(&output);
+    assert!(text.contains("CC  COG  LOCATION  FUNCTION"));
+    for function in report["functions"].as_array().unwrap() {
+        assert!(text.contains(function["name"].as_str().unwrap()));
+    }
 }
 
 #[test]
-fn optional_thresholds_use_existing_diagnostics_suppressions_and_groups() {
+fn configured_limits_use_existing_diagnostics_suppressions_and_groups() {
     let dir = fixture("clean");
     std::fs::write(dir.path().join("src/lib.rs"), "pub fn flat(a: bool, b: bool) { if a {} if b {} }\n// rstyle-allow(cyclomatic_complexity, cognitive_complexity): contract fixture\npub fn allowed(a: bool, b: bool) { if a {} if b {} }\n").unwrap();
     std::fs::write(
@@ -159,7 +153,7 @@ fn optional_thresholds_use_existing_diagnostics_suppressions_and_groups() {
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["diagnostics"].as_array().unwrap().len(), 2);
     assert_eq!(report["fix_groups"].as_array().unwrap().len(), 1);
-    assert_eq!(report["functions"].as_array().unwrap().len(), 2);
+    assert_eq!(report["functions"].as_array().unwrap().len(), 1);
     assert!(
         report["diagnostics"]
             .as_array()
@@ -167,7 +161,44 @@ fn optional_thresholds_use_existing_diagnostics_suppressions_and_groups() {
             .iter()
             .all(|finding| finding["line"] == 1)
     );
-    let output = rstyle(dir.path(), &["complexity", "--top", "1"]);
-    assert!(output.status.success());
-    assert!(stdout(&output).contains("2 measured, 0 unavailable"));
+    let output = rstyle(dir.path(), &[]);
+    assert_eq!(output.status.code(), Some(1));
+    let text = stdout(&output);
+    assert!(text.contains("cyclomatic_complexity"));
+    assert!(text.contains("cognitive_complexity"));
+    assert!(text.contains("CC  COG  LOCATION  FUNCTION"));
+    assert!(text.contains("2 measured, 0 unavailable"));
+}
+
+#[test]
+fn default_twelve_limits_report_only_functions_strictly_over_either_limit() {
+    let dir = fixture("clean");
+    let nested = "if x { if x { if x { if x {} } } }";
+    let source = format!(
+        "pub fn cc_at(x: bool) {{\n\n {} }}\npub fn cc_over(x: bool) {{\n\n {} }}\npub fn cog_at(x: bool) {{\n\n {nested} {} }}\npub fn cog_over(x: bool) {{\n\n {nested} {} }}\n",
+        "if x {} ".repeat(11),
+        "if x {} ".repeat(12),
+        "if x {} ".repeat(2),
+        "if x {} ".repeat(3)
+    );
+    std::fs::write(dir.path().join("src/lib.rs"), source).unwrap();
+    let output = rstyle(dir.path(), &["--format", "json"]);
+    assert_eq!(output.status.code(), Some(1));
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["summary"]["functions"], 4);
+    assert_eq!(report["summary"]["complexity_measured"], 4);
+    assert_eq!(report["functions"].as_array().unwrap().len(), 2);
+    assert_eq!(report["diagnostics"].as_array().unwrap().len(), 2);
+    assert_eq!(report["diagnostics"][0]["rule_id"], "cyclomatic_complexity");
+    assert_eq!(report["diagnostics"][1]["rule_id"], "cognitive_complexity");
+    for finding in report["diagnostics"].as_array().unwrap() {
+        assert_eq!(finding["actual"], 13);
+        assert_eq!(finding["limit"], 12);
+    }
+    let output = rstyle(dir.path(), &[]);
+    let text = stdout(&output);
+    assert!(text.contains("cc_over"));
+    assert!(text.contains("cog_over"));
+    assert!(!text.contains("cc_at"));
+    assert!(!text.contains("cog_at"));
 }

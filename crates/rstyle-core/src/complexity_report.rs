@@ -1,7 +1,8 @@
 //! Function scores and ranking, separate from optional threshold diagnostics.
 
-use crate::{complexity::Measurement, facts::FnFacts};
+use crate::{complexity::Measurement, facts::FnFacts, report::Diagnostic};
 use serde::Serialize;
+use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Function {
@@ -26,69 +27,55 @@ impl From<&FnFacts> for Function {
     }
 }
 
-#[derive(Clone, Copy)]
-pub enum Order {
-    Cyclomatic,
-    Cognitive,
+fn key(function: &Function) -> Option<(usize, usize)> {
+    function
+        .complexity
+        .as_ref()
+        .map(|score| (score.cognitive, score.cyclomatic))
 }
 
-#[derive(Serialize)]
-pub struct Ranking {
-    pub total: usize,
-    pub measured: usize,
-    pub unavailable: usize,
-    pub functions: Vec<Function>,
+/// Keep functions with findings or unavailable analysis; clean measurements stay in facts.
+pub fn findings(facts: &[FnFacts], diagnostics: &[Diagnostic]) -> Vec<Function> {
+    let locations: BTreeSet<_> = diagnostics
+        .iter()
+        .map(|d| (d.path.as_str(), d.line, d.column))
+        .collect();
+    let mut functions: Vec<_> = facts
+        .iter()
+        .filter(|fact| {
+            fact.complexity.is_none()
+                || locations.contains(&(fact.path.as_str(), fact.line, fact.column))
+        })
+        .map(Function::from)
+        .collect();
+    sort(&mut functions);
+    functions
 }
 
-fn key(function: &Function, order: Order) -> (bool, usize, usize) {
-    let Some(score) = &function.complexity else {
-        return (false, 0, 0);
-    };
-    let (primary, secondary) = match order {
-        Order::Cyclomatic => (score.cyclomatic, score.cognitive),
-        Order::Cognitive => (score.cognitive, score.cyclomatic),
-    };
-    (true, primary, secondary)
+/// All functions are ranked by COG, then CC, then stable source identity.
+fn sort(functions: &mut [Function]) {
+    functions.sort_by(|a, b| {
+        key(b).cmp(&key(a)).then_with(|| {
+            (&a.path, a.line, a.column, &a.name).cmp(&(&b.path, b.line, b.column, &b.name))
+        })
+    });
 }
 
-impl Ranking {
-    pub fn new(mut functions: Vec<Function>, order: Order, top: usize) -> Self {
-        let total = functions.len();
-        let measured = functions.iter().filter(|f| f.complexity.is_some()).count();
-        functions.sort_by(|a, b| {
-            key(b, order).cmp(&key(a, order)).then_with(|| {
-                (&a.path, a.line, a.column, &a.name).cmp(&(&b.path, b.line, b.column, &b.name))
-            })
-        });
-        functions.truncate(top);
-
-        Self {
-            total,
-            measured,
-            unavailable: total - measured,
-            functions,
-        }
+pub fn text(functions: &[Function]) -> Vec<String> {
+    if functions.is_empty() {
+        return vec![];
     }
-
-    pub fn text(&self) -> String {
-        let rows = self.functions.iter().map(|function| {
-            let scores = function.complexity.as_ref().map_or_else(
-                || "   ?    ?".into(),
-                |score| format!("{:4} {:4}", score.cyclomatic, score.cognitive),
-            );
-            format!(
-                "{scores}  {}:{}:{}  {}",
-                function.path, function.line, function.column, function.name
-            )
-        });
-        let summary = format!(
-            "complexity: {} functions, {} measured, {} unavailable",
-            self.total, self.measured, self.unavailable
+    let rows = functions.iter().map(|function| {
+        let scores = function.complexity.as_ref().map_or_else(
+            || "   ?    ?".into(),
+            |score| format!("{:4} {:4}", score.cyclomatic, score.cognitive),
         );
-        std::iter::once("  CC  COG  LOCATION  FUNCTION".to_owned())
-            .chain(rows)
-            .chain(std::iter::once(summary))
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
+        format!(
+            "{scores}  {}:{}:{}  {}",
+            function.path, function.line, function.column, function.name
+        )
+    });
+    std::iter::once("  CC  COG  LOCATION  FUNCTION".to_owned())
+        .chain(rows)
+        .collect()
 }
