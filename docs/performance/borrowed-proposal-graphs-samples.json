@@ -1,0 +1,220 @@
+{
+  "schema": "rstyle.borrowed-proposal-graphs-study/1",
+  "baseline_commit": "a1edd6acc4af4f7f6d118cdb5a7c9cba8fc20c17",
+  "host": "aarch64 Linux",
+  "toolchain": "nightly-2026-09-30",
+  "input": {
+    "source": "retained target/rstyle/facts-sem/rstyle_ccgraph-lib.json",
+    "snapshot": "/tmp/clones-normalization-probe-1/input.json",
+    "functions": 238,
+    "graphs": 238,
+    "nodes": 3847,
+    "edges": 4858
+  },
+  "method": {
+    "pipeline": "rstyle_core::patterns_report::run_owned, Options::default()",
+    "build": "unoptimized dev with serde_json opt-level=2; same resolved dependencies in both probe manifests",
+    "measurement": "System allocator counts alloc/alloc_zeroed/realloc calls and requested sizes during the full proposal pipeline, including input destruction; decoding, input clone, report comparison and JSON output excluded",
+    "warmup_runs": 1,
+    "sample_runs": 7,
+    "before_logs": "/tmp/clones-normalization-before-1",
+    "after_logs": "/tmp/clones-normalization-after-1",
+    "probe_source": "/tmp/clones-normalization-probe-1/before/src/main.rs"
+  },
+  "before": [
+    {
+      "allocation_calls": 183312,
+      "milliseconds": 107.99283299999999,
+      "requested_bytes": 12333551
+    },
+    {
+      "allocation_calls": 183312,
+      "milliseconds": 107.897696,
+      "requested_bytes": 12333551
+    },
+    {
+      "allocation_calls": 183312,
+      "milliseconds": 109.706829,
+      "requested_bytes": 12333551
+    },
+    {
+      "allocation_calls": 183312,
+      "milliseconds": 108.667215,
+      "requested_bytes": 12333551
+    },
+    {
+      "allocation_calls": 183312,
+      "milliseconds": 109.110846,
+      "requested_bytes": 12333551
+    },
+    {
+      "allocation_calls": 183312,
+      "milliseconds": 110.07314699999999,
+      "requested_bytes": 12333551
+    },
+    {
+      "allocation_calls": 183312,
+      "milliseconds": 108.643551,
+      "requested_bytes": 12333551
+    }
+  ],
+  "after": [
+    {
+      "allocation_calls": 166555,
+      "milliseconds": 109.551619,
+      "requested_bytes": 10469752
+    },
+    {
+      "allocation_calls": 166555,
+      "milliseconds": 108.82374899999999,
+      "requested_bytes": 10469752
+    },
+    {
+      "allocation_calls": 166555,
+      "milliseconds": 108.837909,
+      "requested_bytes": 10469752
+    },
+    {
+      "allocation_calls": 166555,
+      "milliseconds": 108.657269,
+      "requested_bytes": 10469752
+    },
+    {
+      "allocation_calls": 166555,
+      "milliseconds": 108.910741,
+      "requested_bytes": 10469752
+    },
+    {
+      "allocation_calls": 166555,
+      "milliseconds": 108.809189,
+      "requested_bytes": 10469752
+    },
+    {
+      "allocation_calls": 166555,
+      "milliseconds": 109.359764,
+      "requested_bytes": 10469752
+    }
+  ],
+  "equal_reports": true,
+  "report": {
+    "candidates": [
+      {
+        "breakdown": {
+          "coverage_milli": 807,
+          "holes": 2,
+          "lift_milli": 0,
+          "support": 4
+        },
+        "counter_evidence": [],
+        "definitions": [],
+        "id": "c5f442ffa59a",
+        "inference": "the same computation is written out once per site",
+        "kind": "parameterize",
+        "observation": "4 functions share one dependence structure and differ only at D0 = num | den; D1 = den | num",
+        "possible_refactor": "extract one helper and pass the differing parts as parameters: D0 = num | den; D1 = den | num",
+        "score_milli": 373,
+        "sites": [
+          {
+            "id": "rstyle_ccgraph::frac::{impl#0}::checked_add",
+            "line": 100,
+            "locator": "rstyle_ccgraph::frac::Frac::checked_add",
+            "name": "frac::Frac::checked_add",
+            "path": "crates/rstyle-ccgraph/src/frac.rs",
+            "shape": "a5b382b09e9c6cae"
+          },
+          {
+            "id": "rstyle_ccgraph::frac::{impl#0}::checked_mul",
+            "line": 119,
+            "locator": "rstyle_ccgraph::frac::Frac::checked_mul",
+            "name": "frac::Frac::checked_mul",
+            "path": "crates/rstyle-ccgraph/src/frac.rs",
+            "shape": "38a39a32061ac614"
+          },
+          {
+            "id": "rstyle_ccgraph::frac::{impl#0}::checked_div",
+            "line": 129,
+            "locator": "rstyle_ccgraph::frac::Frac::checked_div",
+            "name": "frac::Frac::checked_div",
+            "path": "crates/rstyle-ccgraph/src/frac.rs",
+            "shape": "db1576f848832ae7"
+          },
+          {
+            "id": "rstyle_ccgraph::frac::{impl#0}::ge",
+            "line": 145,
+            "locator": "rstyle_ccgraph::frac::Frac::ge",
+            "name": "frac::Frac::ge",
+            "path": "crates/rstyle-ccgraph/src/frac.rs",
+            "shape": "9fa34aa6a4dfaaf6"
+          }
+        ]
+      }
+    ],
+    "ignored": [],
+    "ignored_count": 0,
+    "signature_groups": [
+      {
+        "key": "fn(&Self) -> usize",
+        "members": [
+          {
+            "id": "rstyle_ccgraph::compact::{impl#2}::node_count",
+            "line": 112,
+            "name": "compact::MatchingGraph::node_count",
+            "path": "crates/rstyle-ccgraph/src/compact.rs",
+            "self_ty": "rstyle_ccgraph::compact::MatchingGraph"
+          },
+          {
+            "id": "rstyle_ccgraph::graph::{impl#2}::node_count",
+            "line": 148,
+            "name": "graph::ProjectedGraph::node_count",
+            "path": "crates/rstyle-ccgraph/src/graph.rs",
+            "self_ty": "rstyle_ccgraph::graph::ProjectedGraph"
+          }
+        ],
+        "same_name": true,
+        "score_milli": 4567,
+        "self_types": 2,
+        "specificity_milli": 3045,
+        "traited": []
+      },
+      {
+        "key": "fn(Self) -> &str",
+        "members": [
+          {
+            "id": "rstyle_ccgraph::graph::{impl#0}::token",
+            "line": 22,
+            "name": "graph::CcLabel::token",
+            "path": "crates/rstyle-ccgraph/src/graph.rs",
+            "self_ty": "rstyle_ccgraph::graph::CcLabel"
+          },
+          {
+            "id": "rstyle_ccgraph::graph::{impl#1}::identity",
+            "line": 96,
+            "name": "graph::MatchingProfile::identity",
+            "path": "crates/rstyle-ccgraph/src/graph.rs",
+            "self_ty": "rstyle_ccgraph::graph::MatchingProfile"
+          },
+          {
+            "id": "rstyle_ccgraph::pipeline::{impl#0}::token",
+            "line": 44,
+            "name": "pipeline::StageName::token",
+            "path": "crates/rstyle-ccgraph/src/pipeline.rs",
+            "self_ty": "rstyle_ccgraph::pipeline::StageName"
+          }
+        ],
+        "same_name": true,
+        "score_milli": 3518,
+        "self_types": 3,
+        "specificity_milli": 2639,
+        "traited": []
+      }
+    ],
+    "suppressed": []
+  },
+  "limitations": [
+    "Requested bytes are cumulative allocation traffic, not peak RSS.",
+    "Allocator instrumentation affects timing; samples are consecutive rather than randomized.",
+    "This is saved-fact core proposal evaluation, not fresh capture, strict matching or whole-workspace wall time.",
+    "Temporary probe Cargo manifests resolved the same local offline dependencies; these are not the workspace lockfile.",
+    "No measured wall-time improvement is claimed."
+  ]
+}

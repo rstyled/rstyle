@@ -53,6 +53,9 @@ No new consumer algorithm, body proof, hash or strict clone permission is added.
 Collected graphs move between consumers rather than being copied during input
 preparation. The style evaluator retains its policy-selected facts for the
 proposer; the explicit core configuration's path exclusions apply to both.
+Default clustering also borrows these graphs: with no normalization rules it
+does not copy their nodes, edges or metadata. Explicit normalization still uses
+an owned rewrite, preserving the original observations.
 
 Each unit gains a `patterns` result with schema `rstyle.compiler-patterns/1`,
 the actual default clustering parameters and the existing core report, including

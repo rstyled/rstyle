@@ -2413,3 +2413,34 @@ fifteen candidate IDs. No ignore or review ledger changed. Full gate logs are
 Review/baseline integration for compiler advisory findings, cross-package
 propagation, broader project quality, native macOS verification and all unmet
 capability retirement gates remain open. The goal remains incomplete.
+
+## C17: borrow default graphs through reused core clustering
+
+The lead owns `rstyle-core` normalization/clustering, the focused ownership tests,
+performance evidence and these docs. Default clustering previously cloned every
+captured graph even though no normalization rules ran. It now borrows the
+original immutable graphs; enabled normalization keeps the existing owned
+rewrites. Both legacy patterns and compiler-backed proposals use this path.
+There is no new cache, hash, body proof or strict matching change. The owned
+normalization API remains compatible.
+
+On the same retained rstyle-ccgraph library input (238 functions/graphs, 3,847
+nodes and 4,858 edges), the complete core proposer produces an exactly equal
+report while allocation/reallocation calls fall from 183,312 to 166,555 and
+cumulative requested bytes from 12,333,551 to 10,469,752. Seven instrumented
+samples have effectively unchanged median time (108.667 versus 108.838 ms), so
+this is an allocation reduction, not a measured wall-time speedup or capability
+quality improvement. See `docs/performance/borrowed-proposal-graphs.md` and its
+sample artifact for scope, dependency and instrumentation limitations.
+
+The frozen checkpoint passes all 3,219 nextest tests in 204.461 seconds (five
+existing skips), workspace doc tests, all-target workspace Clippy with warnings
+denied, formatting and diff checks. The 255 core tests include original-buffer
+identity without normalization and owned rewrites that preserve their original
+input. Both original NonZero regressions and u32 widening composition pass.
+Legacy style is zero across 9,529 functions; reviewed patterns is zero, and
+unfiltered discovery retains exactly the prior fifteen candidate IDs. No ignore
+or review ledger changed. Full gate logs are
+`/tmp/clones-borrowed-graphs-{tests,clippy,style,patterns,patterns-unfiltered}-1`.
+Review/baseline integration, broader quality and the other recorded retirement
+gaps remain the next ready work; the full goal remains incomplete.

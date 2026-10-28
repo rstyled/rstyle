@@ -3,7 +3,7 @@
 
 use crate::align::{Alignment, Ctx, HoleKind, align};
 use crate::facts::{NodeKind, Pdg};
-use crate::normalize::{Rules, canonicalize};
+use crate::normalize::{Rules, canonicalize_or_borrow};
 use crate::wl::{Wl, call_class, comparable, similarity_milli};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -245,11 +245,11 @@ fn build(pdgs: &[&Pdg], wls: &[Wl], group: &[usize], params: &Params) -> Option<
 /// Clusters of structurally parallel functions, largest first. Each function lands in at
 /// most one cluster; members must align with the template above the coverage floor.
 pub fn cluster(pdgs: &[&Pdg], params: &Params) -> Vec<Cluster> {
-    let canonical: Vec<Pdg> = pdgs
+    let canonical: Vec<_> = pdgs
         .iter()
-        .map(|p| canonicalize(p, &params.normalize))
+        .map(|p| canonicalize_or_borrow(p, &params.normalize))
         .collect();
-    let pdgs: Vec<&Pdg> = canonical.iter().collect();
+    let pdgs: Vec<&Pdg> = canonical.iter().map(|p| p.as_ref()).collect();
     let pdgs = pdgs.as_slice();
     let wls: Vec<Wl> = pdgs.iter().map(|p| Wl::new(p)).collect();
     let adjacency = similar(pdgs, &wls, &pairs_to_compare(pdgs), params);

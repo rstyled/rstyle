@@ -9,6 +9,7 @@
 //! the rewritten node so holes can still be reported.
 
 use crate::facts::{EdgeKind, NodeKind, Pdg, PdgEdge, PdgNode};
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 
 /// Which rules run. Explicit value, no globals: callers pass it down.
@@ -90,6 +91,14 @@ type Rule = fn(Pdg) -> Pdg;
 
 /// Applies the enabled rules in a fixed order (R1, R2, ...).
 pub fn canonicalize(pdg: &Pdg, rules: &Rules) -> Pdg {
+    canonicalize_or_borrow(pdg, rules).into_owned()
+}
+
+/// Default proposal policy leaves graphs unchanged, so retain their original owner.
+pub(crate) fn canonicalize_or_borrow<'a>(pdg: &'a Pdg, rules: &Rules) -> Cow<'a, Pdg> {
+    if rules.is_none() {
+        return Cow::Borrowed(pdg);
+    }
     let steps: [(bool, Rule); 7] = [
         (rules.propagate, propagate_errors),
         (rules.ctor, fold_ctors),
@@ -99,10 +108,12 @@ pub fn canonicalize(pdg: &Pdg, rules: &Rules) -> Pdg {
         (rules.counter, counter_loops),
         (rules.cmp, compare_class),
     ];
-    steps
-        .iter()
-        .filter(|(on, _)| *on)
-        .fold(pdg.clone(), |graph, (_, step)| step(graph))
+    Cow::Owned(
+        steps
+            .iter()
+            .filter(|(on, _)| *on)
+            .fold(pdg.clone(), |graph, (_, step)| step(graph)),
+    )
 }
 
 // ---- graph helpers -------------------------------------------------------------------------
@@ -992,6 +1003,25 @@ mod tests {
     fn no_rules_is_the_identity() {
         let pdg = negated_pair();
         assert_eq!(canonicalize(&pdg, &Rules::default()), pdg);
+    }
+
+    #[test]
+    fn default_normalization_borrows_the_original_graph() {
+        let graph = negated_pair();
+        let normalized = canonicalize_or_borrow(&graph, &Rules::default());
+        assert!(matches!(normalized, Cow::Borrowed(_)));
+        assert!(std::ptr::eq(normalized.as_ref(), &graph));
+    }
+
+    #[test]
+    fn enabled_normalization_owns_rewrites_without_changing_the_input() {
+        let original = nested_constant();
+        let graph = original.clone();
+        let normalized = canonicalize_or_borrow(&graph, &all());
+        assert!(matches!(normalized, Cow::Owned(_)));
+        assert!(normalized.nodes.len() < graph.nodes.len());
+        assert_eq!(normalized.as_ref(), &canonicalize(&graph, &all()));
+        assert_eq!(graph, original);
     }
 
     #[test]

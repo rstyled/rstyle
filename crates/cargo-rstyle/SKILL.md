@@ -379,3 +379,6 @@ mining. `--fail-on-findings` includes candidates; incomplete inputs still exit 2
 Graphs and proposals remain advisory, independent of strict matching. No ignore
 ledger is implicitly loaded, and newer reviews/baselines do not apply to this
 field. Keep legacy patterns until its retirement gates pass.
+Default core clustering borrows captured graphs without copying their contents;
+enabled normalization retains owned rewrites. No extra hashing or source proof
+is required for that reuse.

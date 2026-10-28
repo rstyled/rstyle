@@ -42,3 +42,9 @@ configuration/suppression/exit compatibility, bounded resource evidence, broader
 declared project coverage and docs/skill migration remain required. Existing Go
 comparison is unavailable and unverified. Integrated gate results and commits
 belong in the lead-owned progress ledger, not inferred from this matrix.
+
+The shared core proposer borrows graphs when normalization is disabled. The
+238-function rstyle-ccgraph saved-fact comparison retains exactly the same report
+while reducing cumulative allocation traffic; it establishes no new proposal
+coverage or wall-time speedup. See
+[the measured samples](performance/borrowed-proposal-graphs-samples.json).
