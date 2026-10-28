@@ -1,5 +1,6 @@
 use super::*;
 mod exclusions;
+mod spacing;
 mod suppressions;
 
 fn source_workspace() -> TempDir {

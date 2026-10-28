@@ -26,6 +26,7 @@ pub mod report;
 pub mod rules;
 pub mod shape;
 pub mod sigmine;
+pub mod spacing;
 pub mod stacking;
 pub mod suppress;
 pub mod wl;

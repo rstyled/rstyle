@@ -7,7 +7,7 @@ pub(crate) mod type_scopes;
 pub(crate) use candidates::Candidates;
 pub(crate) mod call_inventory;
 pub(crate) mod checked_activation;
-mod positions;
+pub(crate) mod positions;
 pub(crate) use attributes::{has_body_attributes, literal_metadata, single_identifier_attribute};
 mod exact_pairs;
 pub(crate) use exact_pairs::exact_pairs;

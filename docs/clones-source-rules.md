@@ -10,7 +10,7 @@ cargo rstyle clones --manifest-path path/to/Cargo.toml \
   --analysis-config analysis.toml --format json --report-detail compact
 ```
 
-`analysis.toml` accepts path exclusions and these two sections; omitted settings use the legacy
+`analysis.toml` accepts path exclusions and these sections; omitted settings use the legacy
 rule defaults. It is separate from the JSON `--matching-config` policy.
 
 ```toml
@@ -28,6 +28,34 @@ including the signature and closing brace. Blank and comment-only lines do not
 count; the legacy string/comment parsing limitations still apply. Destructuring
 counts as one parameter. `count_self` controls whether a receiver counts.
 Findings require a value strictly greater than the configured limit.
+
+Spacing is a separate opt-in within the source policy. Add this section to request it:
+
+```toml
+[fn_spacing]
+min_statements = 5
+```
+
+Spacing counts direct original statements, including a tail expression, and uses
+the legacy blank-line policy over the entire function source. Nested operations
+and multiline initializers do not add direct statements. At least five statements
+with no blank line produce a finding under the default threshold; the reported
+limit is four. A blank line in the signature also satisfies the existing policy.
+Omitting this section requests only length and parameters. `min_statements = 0`
+disables spacing: its explicit clean assessment is not applicable and carries no
+measured count. `effective_config.min_statements` is null when unrequested.
+
+The count reuses the existing source parse and checks the original block and each
+direct statement against captured kinds, byte ranges and snippets. Missing or
+changed children remain unknown. Direct macros, attributed statements/items,
+empty/verbatim statements and async lowering are initially unsupported. Length
+and parameter checks can still evaluate those functions; spacing incompleteness
+keeps the requested overall scope incomplete. Statement work runs only when
+spacing is enabled and uses one indexed byte-position table, with no new hashes,
+file reads, graph copies or second parse. Saved-run replay can enable or change
+spacing policy without original source files or tools. The independent comparison
+adapter currently scores only length/parameters; spacing has dedicated real-source
+acceptance tests and is outside that adapter's measurement denominator.
 
 The JSON `analysis` object separates execution, scope coverage, fact availability
 and each rule's outcome. Every assessed function has its report-local key, name,
@@ -67,7 +95,7 @@ captured workspace root; files outside that root remain evaluated. Matching uses
 captured paths and verified original source ownership, with no filesystem reads.
 
 Excluded functions remain in the report with `source_exclusion.status` set to
-`excluded`. Their numeric rules are `not_evaluated`, with complete coverage and
+`excluded`. Their requested source rules are `not_evaluated`, with complete coverage and
 `not_applicable` availability. They are counted in `scope.excluded_source_functions`
 and `scope.excluded_rules`, separately from unavailable evidence. Missing source
 ownership or invalid original paths yield `unavailable` exclusion decisions and
@@ -82,9 +110,9 @@ The independent comparator checks labeled exclusions separately as
 
 ## Existing source-rule suppression comments
 
-Source rules honor the existing `// rstyle-allow(fn_length, fn_params): reason`
+Source rules honor the existing `// rstyle-allow(fn_length, fn_params, fn_spacing): reason`
 syntax from the exact captured file. A nonempty reason is required. Only named
-length and parameter findings are hidden; other known legacy rule names grant
+requested length, parameter and spacing findings are hidden; other known legacy rule names grant
 no permission to hide guard, mutation, pair or abstraction findings. Unknown rule
 names or malformed annotations invalidate the whole comment, leave measurements
 visible and add an `invalid_suppression` diagnostic.

@@ -23,8 +23,9 @@ fn valid_legacy_rules_do_not_suppress_unmigrated_consumers() {
     );
     assert!(allowed.complete());
     assert!(allowed.allows("fn_length"));
+    assert!(allowed.allows("fn_spacing"));
     for rule in suppress::RULE_IDS {
-        if !matches!(*rule, "fn_length" | "fn_params") {
+        if !matches!(*rule, "fn_length" | "fn_params" | "fn_spacing") {
             assert!(!allowed.allows(rule), "{rule}");
         }
     }

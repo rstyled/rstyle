@@ -4,8 +4,8 @@ use super::{Assessment, Coverage, FactAvailability, Outcome};
 use rstyle_core::{config::Config, lines::code_lines};
 use rstyle_pdg::consumer_facts::{Availability, LocalFacts};
 
-pub(super) fn evaluate(facts: &LocalFacts<'_>, config: &Config) -> Vec<Assessment> {
-    vec![
+pub(super) fn evaluate(facts: &LocalFacts<'_>, config: &Config, spacing: bool) -> Vec<Assessment> {
+    let mut rules = vec![
         assess(
             "fn_length",
             &facts.source,
@@ -21,15 +21,23 @@ pub(super) fn evaluate(facts: &LocalFacts<'_>, config: &Config) -> Vec<Assessmen
                     + usize::from(config.fn_params.count_self && signature.has_self)
             },
         ),
-    ]
+    ];
+    if spacing {
+        rules.push(super::source_spacing::evaluate(facts, &config.fn_spacing));
+    }
+    rules
 }
 
-pub(super) fn excluded(config: &Config) -> Vec<Assessment> {
+pub(super) fn excluded(config: &Config, spacing: bool) -> Vec<Assessment> {
     [
         ("fn_length", config.fn_length.max_lines),
         ("fn_params", config.fn_params.max_params),
     ]
     .into_iter()
+    .chain(spacing.then_some((
+        "fn_spacing",
+        config.fn_spacing.min_statements.saturating_sub(1),
+    )))
     .map(|(rule_id, limit)| Assessment {
         rule_id,
         outcome: Outcome::NotEvaluated,
@@ -42,7 +50,7 @@ pub(super) fn excluded(config: &Config) -> Vec<Assessment> {
     .collect()
 }
 
-fn assess<T>(
+pub(super) fn assess<T>(
     rule_id: &'static str,
     fact: &Availability<T>,
     limit: usize,

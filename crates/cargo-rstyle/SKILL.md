@@ -123,6 +123,10 @@ Existing `rstyle-allow(fn_length, fn_params): reason` comments use captured sour
 and apply only to those named rules. Invalid annotations remain findings. JSON
 retains raw `analysis.findings` plus `visible_findings`, `suppressed_findings` and
 per-function `source_suppression`. Saved-run replay preserves original comments.
+Add `[fn_spacing]` to the analysis config to request spacing from checked original
+direct statements. Its default threshold is five; zero disables it. Unsupported
+statement transformations remain incomplete, independently of length/arity.
+Named `fn_spacing` suppression applies when requested.
 Source policy also accepts top-level workspace-relative `exclude` globs (default
 `["target/**"]`; `[]` disables). Excluded owners remain explicit complete skips
 in `source_exclusion` and scope counters; other consumers still evaluate them.

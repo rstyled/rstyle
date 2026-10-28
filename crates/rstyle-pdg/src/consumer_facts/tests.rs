@@ -52,7 +52,7 @@ fn formal_reference_observations_reject_duplicate_missing_and_unknown_records() 
     }
 }
 
-fn facts(source: &str) -> HirFnFacts {
+pub(super) fn facts(source: &str) -> HirFnFacts {
     let mut facts: HirFnFacts = serde_json::from_str(include_str!(
         "../nominal_boundary/resolution/selected/function_cleanup_tests/facts.json"
     ))
@@ -251,6 +251,7 @@ fn availability_keeps_empty_values_and_unknown_unsupported_separate() {
             reason: "variadic".into(),
         },
         preceding_comment: Availability::Known("".into()),
+        top_statements: Availability::Known(0),
     })
     .unwrap();
     assert_eq!(value["source"]["status"], "known");

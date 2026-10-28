@@ -2,7 +2,7 @@
 
 use crate::config::{Config, Granularity, MutationBudgetConfig};
 use crate::facts::{EffectKind, FnFacts};
-use crate::lines::{code_lines, has_blank_line};
+use crate::lines::code_lines;
 use crate::report::{Detail, Diagnostic};
 use std::collections::BTreeMap;
 
@@ -104,7 +104,7 @@ pub fn fn_spacing(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
     let actual = f.top_statements;
     let limit = min.saturating_sub(1);
     let message = format!("function `{}` has no blank line between its phases", f.name);
-    let flagged = min > 0 && actual >= min && !has_blank_line(&f.source);
+    let flagged = crate::spacing::is_finding(&f.source, actual, min);
 
     flagged
         .then(|| diagnostic(f, "fn_spacing", message, Measure { actual, limit }))

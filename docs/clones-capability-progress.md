@@ -48,7 +48,9 @@ Heavy captures and integrated gates run serially.
 | C04b | Evidence + policy + acceptance + lead / captured comments, source reports and comparison | delivered (length/parameter suppression compatibility) | `7436414` | Legacy named source suppressions from immutable snapshots, invalid diagnostics and raw/visible outcomes | Five evidence, six policy and six CLI cases; comparison and checkpoint validation below |
 
 | C04c | Contract + policy + acceptance + lead / shared glob matcher, captured path decisions and source reports | delivered (workspace path exclusions) | `b65f15c` | Default/configured exclusions with explicit complete skipped rows, independent guard coverage and source-free policy reevaluation | Four matcher, six decision and seven CLI cases; checkpoint evidence below |
-| C05b | Acceptance + runner + lead / independent exclusion labels and comparison | delivered (bounded exclusion comparison) | this checkpoint | Separate policy-excluded agreement from measured source-rule agreement; retain excluded legacy roster and context | 38 independent Python tests and live frozen-corpus comparison; checkpoint evidence below |
+| C05b | Acceptance + runner + lead / independent exclusion labels and comparison | delivered (bounded exclusion comparison) | `6958b92` | Separate policy-excluded agreement from measured source-rule agreement; retain excluded legacy roster and context | 38 independent Python tests and live frozen-corpus comparison; checkpoint evidence below |
+
+| C04d | Evidence + policy + acceptance + lead / direct statement view, shared spacing predicate and opt-in source policy | delivered (bounded spacing) | this checkpoint | Original source spacing independent of strict matching, explicit unsupported transformations and source-free policy reevaluation | Focused tests and integrated checkpoint evidence below |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
@@ -737,3 +739,57 @@ spacing counts compiler HIR statements, so a raw source AST count alone does not
 establish parity. Reuse the existing blank-line policy; excluded/suppressed,
 disabled, threshold and incomplete cases need separate acceptance before delivery.
 Broader review migration and planning/effect capabilities remain parallel work.
+
+
+## C04d: checked direct statements and opt-in spacing
+
+An explicit `[fn_spacing]` source-policy section requests spacing; its default
+minimum is five statements. Omitted spacing remains unrequested. Zero disables
+the rule with an explicit complete, not-applicable clean assessment and no
+measured statement count. The shared `rstyle_core::spacing::is_finding` predicate
+also serves legacy style: it counts direct phases rather than lines and accepts
+any original blank line, including whitespace-only and signature blank lines.
+The assessment retains the count and minimum-minus-one limit even when a blank
+line makes it clean. This is advisory formatting policy, not a body-effect proof.
+
+Evidence derives the scalar count during the existing verified source parse,
+checks the original block and ordered direct statement kinds/ranges/snippets,
+and counts the tail expression. Missing/tampered rosters remain unknown. Nested
+expressions/closures/initializers do not add direct statements and need not pass
+strict graph admission. Async, direct macros, attributed or empty/verbatim direct
+statements remain unsupported. No new extraction permission, hash, file read,
+source/graph copy or second parse is introduced. One existing indexed position
+table gives direct spans without repeated source-prefix scans. Ordinary
+`inspect` avoids this work; `inspect_with_statements` is selected only for enabled
+spacing. Existing length/arity and guard queries keep their previous prerequisites.
+
+Acceptance covers threshold four/five, tails, blank lines, nested opaque work,
+multiline initializers, unsupported macros/cfg/async, disabled policy, suppression
+isolation, exclusion of all requested rows, budget incompleteness, full/compact
+reports and source/tool-free strict replay with a changed threshold. Pure policy
+cases cover the inclusive boundary and legacy blank-line semantics. Evidence
+cases include missing/changed/duplicated children, ownership, UTF-8/CRLF and a
+1,001-statement roster. The focused run passed 62 tests plus doc tests; 38 existing
+Python comparison tests and Clippy pass. The final full workspace run passed
+2,689 tests (five skipped) in 181.849 seconds plus doc tests. Formatting and diff
+checks pass. Style reports zero violations across 8,830 functions; reviewed
+patterns passed with exactly the same 15 unfiltered candidate IDs as `6958b92`.
+Logs use `/tmp/clones-spacing-{focused,tests,style,patterns}-final.*`
+and `/tmp/clones-spacing-clippy.log`. Retained live evidence at
+`/tmp/clones-spacing-live-h4wt51ce/results.json` verifies finding/clean/incomplete
+outcomes, identical full/compact source-free strict replay and config-only
+disabling with complete clean policy results.
+The comparison adapter continues to score length/parameters only; its denominator
+has not silently expanded to include spacing.
+
+Remaining work includes macro/cfg/async statement transformations, independently
+reviewed project-scale spacing quality and replacement gates, legacy review
+migration, broader abstraction signatures, effects and caller-aware planning.
+Native macOS and exact Go behavior remain unverified for this slice. No legacy
+backend is retired.
+
+
+Next ready work is independent spacing comparison labels/live legacy comparison
+for the supported statement scope, followed by the next caller-aware planning
+intent. Macro/cfg/async expansion handling requires its own evidence work rather
+than treating source AST length as a compiler statement count.

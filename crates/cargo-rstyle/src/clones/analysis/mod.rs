@@ -13,10 +13,13 @@ mod pair_differences;
 pub(super) mod pair_reports;
 mod source_exclusions;
 mod source_rules;
+mod source_spacing;
 mod source_suppressions;
 
 use super::{Args, Function, Handoff, capture};
-use rstyle_core::config::{Config as SourcePolicy, Excludes, FnLengthConfig, FnParamsConfig};
+use rstyle_core::config::{
+    Config as SourcePolicy, Excludes, FnLengthConfig, FnParamsConfig, FnSpacingConfig,
+};
 use rstyle_pdg::consumer_facts::{Availability, LocalFacts};
 use serde::{Deserialize, Serialize};
 
@@ -116,6 +119,7 @@ struct FunctionReport<'a> {
 #[derive(Serialize)]
 struct Settings<'a> {
     exclude: &'a [String],
+    min_statements: Option<usize>,
     max_lines: usize,
     max_params: usize,
     count_self: bool,
@@ -127,6 +131,7 @@ struct SourceConfig {
     exclude: Excludes,
     fn_length: FnLengthConfig,
     fn_params: FnParamsConfig,
+    fn_spacing: Option<FnSpacingConfig>,
 }
 
 pub(super) struct Config {
@@ -145,6 +150,7 @@ pub(super) fn configuration(args: &Args) -> Result<Option<Config>, String> {
 }
 
 struct ConfiguredSource {
+    spacing: bool,
     rules: SourcePolicy,
     exclusions: rstyle_core::exclusions::Matcher,
 }
@@ -158,14 +164,21 @@ fn source_policy(args: &Args) -> Result<ConfiguredSource, String> {
         }
         None => SourceConfig::default(),
     };
+
+    let spacing = local.fn_spacing.is_some();
     let rules = SourcePolicy {
         exclude: local.exclude,
         fn_length: local.fn_length,
         fn_params: local.fn_params,
+        fn_spacing: local.fn_spacing.unwrap_or_default(),
         ..SourcePolicy::default()
     };
     let exclusions = rstyle_core::exclusions::Matcher::compile(&rules.exclude.0)?;
-    Ok(ConfiguredSource { rules, exclusions })
+    Ok(ConfiguredSource {
+        spacing,
+        rules,
+        exclusions,
+    })
 }
 
 pub(super) fn evaluate<'a>(
@@ -203,6 +216,9 @@ pub(super) fn evaluate<'a>(
             .and_then(|config| config.source.as_ref())
             .map(|config| Settings {
                 exclude: &config.rules.exclude.0,
+                min_statements: config
+                    .spacing
+                    .then_some(config.rules.fn_spacing.min_statements),
                 max_lines: config.rules.fn_length.max_lines,
                 max_params: config.rules.fn_params.max_params,
                 count_self: config.rules.fn_params.count_self,
@@ -364,7 +380,11 @@ fn assess<'a>(
     exhausted: bool,
     root: &std::path::Path,
 ) -> FunctionReport<'a> {
-    let (execution, facts) = inputs(function, exhausted);
+    let statements = config
+        .source
+        .as_ref()
+        .is_some_and(|policy| policy.spacing && policy.rules.fn_spacing.min_statements > 0);
+    let (execution, facts) = inputs(function, exhausted, statements);
     let source = config
         .source
         .as_ref()
@@ -420,13 +440,13 @@ fn source_assessments(
     let exclusion = source_exclusions::evaluate(facts, function, root, &policy.exclusions);
     if exclusion.excluded() {
         return SourceAssessments {
-            rules: source_rules::excluded(&policy.rules),
+            rules: source_rules::excluded(&policy.rules, policy.spacing),
             exclusion: Some(exclusion),
             suppression: None,
         };
     }
 
-    let mut rules = source_rules::evaluate(facts, &policy.rules);
+    let mut rules = source_rules::evaluate(facts, &policy.rules, policy.spacing);
     let suppression = source_suppressions::evaluate(&facts.preceding_comment);
     rules.extend(suppression.invalid_assessment());
     SourceAssessments {
@@ -436,14 +456,19 @@ fn source_assessments(
     }
 }
 
-fn inputs(function: &Function, exhausted: bool) -> (Execution, LocalFacts<'_>) {
+fn inputs(function: &Function, exhausted: bool, statements: bool) -> (Execution, LocalFacts<'_>) {
     if exhausted {
         return (
             Execution::BudgetExhausted,
             unavailable("Analysis function budget exhausted"),
         );
     }
-    match rstyle_pdg::consumer_facts::inspect(&function.facts) {
+    let inspected = if statements {
+        rstyle_pdg::consumer_facts::inspect_with_statements(&function.facts)
+    } else {
+        rstyle_pdg::consumer_facts::inspect(&function.facts)
+    };
+    match inspected {
         Ok(facts) => (Execution::Completed, facts),
         Err(error) => (Execution::Failed, unavailable(&error)),
     }
@@ -451,6 +476,9 @@ fn inputs(function: &Function, exhausted: bool) -> (Execution, LocalFacts<'_>) {
 
 fn unavailable(reason: &str) -> LocalFacts<'static> {
     LocalFacts {
+        top_statements: Availability::Unknown {
+            reason: reason.into(),
+        },
         preceding_comment: Availability::Unknown {
             reason: reason.into(),
         },

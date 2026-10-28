@@ -1,4 +1,4 @@
-//! Legacy comment syntax applies only to the two migrated source rules.
+//! Legacy comment syntax applies only to the requested migrated source rules.
 use super::{Assessment, Coverage, FactAvailability, Outcome};
 use rstyle_core::suppress::{self, Suppression};
 use rstyle_pdg::{SourceText, consumer_facts::Availability};
@@ -47,7 +47,7 @@ pub(super) fn evaluate(comment: &Availability<SourceText>) -> Report {
 
 impl Report {
     pub(super) fn allows(&self, rule: &str) -> bool {
-        matches!(rule, "fn_length" | "fn_params")
+        matches!(rule, "fn_length" | "fn_params" | "fn_spacing")
             && matches!(self, Self::Allowed { rules, .. } if rules.iter().any(|name| name == rule))
     }
 

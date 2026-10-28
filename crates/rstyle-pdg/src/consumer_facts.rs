@@ -16,6 +16,7 @@ pub mod mutations;
 pub mod planning;
 mod preceding_comment;
 mod syntax_budget;
+mod top_statements;
 
 #[cfg(test)]
 mod tests;
@@ -43,17 +44,30 @@ pub struct LocalFacts<'a> {
     pub source: Availability<&'a str>,
     pub signature: Availability<Signature>,
     pub preceding_comment: Availability<crate::SourceText>,
+    pub top_statements: Availability<usize>,
 }
 
 /// Bind facts to their immutable selected-unit source without requiring a graph.
 /// Contradictory evidence fails the query rather than yielding usable facts.
 pub fn inspect(facts: &HirFnFacts) -> Result<LocalFacts<'_>, String> {
-    match owned_source(facts)? {
-        Availability::Known(_) => inspect_source(facts),
+    inspect_requested(facts, false)
+}
+
+/// Include a direct statement count from the same original syntax inspection.
+pub fn inspect_with_statements(facts: &HirFnFacts) -> Result<LocalFacts<'_>, String> {
+    inspect_requested(facts, true)
+}
+
+fn inspect_requested(facts: &HirFnFacts, statements: bool) -> Result<LocalFacts<'_>, String> {
+    let mut inspected = match owned_source(facts)? {
+        Availability::Known(_) => inspect_source(facts, statements),
         Availability::Unknown { reason } => Ok(unavailable(reason)),
         Availability::Unsupported { reason } | Availability::NotApplicable { reason } => {
             Ok(LocalFacts {
                 source: Availability::Unsupported {
+                    reason: reason.clone(),
+                },
+                top_statements: Availability::Unsupported {
                     reason: reason.clone(),
                 },
                 preceding_comment: Availability::Unsupported { reason },
@@ -62,6 +76,16 @@ pub fn inspect(facts: &HirFnFacts) -> Result<LocalFacts<'_>, String> {
                 },
             })
         }
+    }?;
+    if !statements {
+        inspected.top_statements = unrequested_statements();
+    }
+    Ok(inspected)
+}
+
+fn unrequested_statements() -> Availability<usize> {
+    Availability::NotApplicable {
+        reason: "Statement count was not requested".into(),
     }
 }
 
@@ -91,13 +115,16 @@ fn owned_source(facts: &HirFnFacts) -> Result<Availability<&str>, String> {
     Ok(Availability::Known(facts.source.bytes.as_str()))
 }
 
-fn inspect_source(facts: &HirFnFacts) -> Result<LocalFacts<'_>, String> {
+fn inspect_source(facts: &HirFnFacts, statements: bool) -> Result<LocalFacts<'_>, String> {
     let source = facts.source.bytes.as_str();
     let function: syn::ItemFn = match syn::parse_str(source) {
         Ok(function) => function,
         Err(error) => {
             return Ok(LocalFacts {
                 source: Availability::Known(source),
+                top_statements: Availability::Unsupported {
+                    reason: "Original function syntax is unavailable".into(),
+                },
                 preceding_comment: Availability::Unsupported {
                     reason: "Original signature syntax is unavailable".into(),
                 },
@@ -123,6 +150,11 @@ fn inspect_source(facts: &HirFnFacts) -> Result<LocalFacts<'_>, String> {
         source: Availability::Known(source),
         signature,
         preceding_comment: preceding_comment::inspect(facts)?,
+        top_statements: if statements {
+            top_statements::inspect(facts, &function)
+        } else {
+            unrequested_statements()
+        },
     })
 }
 
@@ -132,6 +164,9 @@ fn unavailable(reason: String) -> LocalFacts<'static> {
             reason: reason.clone(),
         },
         signature: Availability::Unknown {
+            reason: reason.clone(),
+        },
+        top_statements: Availability::Unknown {
             reason: reason.clone(),
         },
         preceding_comment: Availability::Unknown { reason },
