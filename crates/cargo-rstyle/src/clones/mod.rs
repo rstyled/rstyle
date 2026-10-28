@@ -24,6 +24,7 @@ use std::{
 };
 
 #[derive(ClapArgs, Serialize)]
+#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses"]).multiple(true)))]
 pub struct Args {
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
     #[arg(long, default_value = "r0", value_parser = rstyle_pdg::extraction_profile::ExtractionProfile::select)]
@@ -49,14 +50,17 @@ pub struct Args {
     /// Evaluate source length and signature arity independently of graph admission.
     #[arg(long)]
     source_rules: bool,
+    /// Suggest bounded guard-clause shapes from original source; advisory only.
+    #[arg(long)]
+    guard_clauses: bool,
     /// TOML source-rule policy (fn_length/fn_params only); distinct from legacy configuration.
     #[arg(long, requires = "source_rules")]
     analysis_config: Option<PathBuf>,
-    /// Exit 1 when requested source rules find violations; incomplete analysis exits 2.
-    #[arg(long, requires = "source_rules")]
+    /// Exit 1 when requested local analyses find opportunities; incomplete analysis exits 2.
+    #[arg(long, requires = "local_analysis")]
     fail_on_findings: bool,
     /// Bound local rule work; remaining functions are explicitly not evaluated.
-    #[arg(long, requires = "source_rules")]
+    #[arg(long, requires = "local_analysis")]
     max_analysis_functions: Option<usize>,
     /// Execution budget: fail incomplete before enumeration if it requires more pairs.
     #[arg(long)]
@@ -96,7 +100,7 @@ pub fn write_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
 
 struct Configuration {
     matching: CcgraphConfig,
-    analysis: Option<rstyle_core::config::Config>,
+    analysis: Option<analysis::Config>,
 }
 
 fn configuration(cli: &Cli, args: &Args) -> Result<Configuration, String> {

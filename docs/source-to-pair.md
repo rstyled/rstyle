@@ -233,7 +233,9 @@ Opt-in [source and signature rules](clones-source-rules.md) add a separate
 locations in `accepted_pairs` and text output. `--fail-on-findings` requests exit
 one for source-rule findings; incomplete requested analysis returns two even when
 strict matching is complete. Without `--source-rules`, these additional rule
-assessments are not requested and do not change the strict matching exit policy.
+assessments are not requested and do not change the strict matching exit policy,
+unless the separate `--guard-clauses` local consumer is enabled. It has its own
+advisory outcomes and explicit unsupported coverage.
 
 R0 limitations, including incomplete conditional-source evidence, remain fail
 closed. A compilation unit with two otherwise indistinguishable ledger contexts

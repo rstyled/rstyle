@@ -40,7 +40,7 @@ profile lacks the required ownership observations and reports unknown evidence.
 The scope denominator covers captured function owners; inactive definitions stay
 in `owned_source_inventory`. Failed capture leaves the expected denominator unknown.
 
-Without `--source-rules`, analysis is `not_requested`. With it, complete analysis
+Without a requested local consumer, analysis is `not_requested`. With one, complete analysis
 returns zero even when it finds violations; add `--fail-on-findings` for exit one.
 Failed, unknown or budget-exhausted scope returns two. `--max-analysis-functions N`
 limits local work and retains explicit unevaluated rows beyond the limit.
@@ -52,3 +52,30 @@ consumer. Legacy style and patterns remain supported and continue to gate this
 repository. This bounded consumer does not yet replace them. The independent
 [acceptance corpus](../eval/clones-capability/README.md) records comparison scope
 and remaining migration requirements.
+
+## Bounded guard-clause advice
+
+`--guard-clauses` independently requests a syntactic advisory consumer. It can
+run alone or alongside `--source-rules`, and uses the same original source
+ownership query. Each function's optional `guard_clause` assessment records its
+execution, outcome, availability, coverage and reasons. It contributes to local
+analysis coverage and findings; the source length/parameter `assessments` array
+stays empty when those rules were not requested. Numeric policy is then null.
+
+The bounded opportunity is a final top-level `if/else` with one scalar fallback
+(boolean, integer, character or unit, optionally directly returned) and a
+continuing branch with at least two statements ending in a value. The report
+identifies which branch is the fallback and advises reviewing condition inversion,
+lifetimes and drops before lifting the continuing branch. It performs no rewrite
+and establishes no effect, equivalence or refactoring-safety proof.
+
+Already flat code, two working branches and single-expression work branches
+produce no opportunity under this contract. Macros, closures, unsafe/async
+syntax, attributes, loops, labels, `match`, `?`, let conditions and else-if chains
+remain explicitly unsupported. The detector bounds source to 256 KiB before its
+parser; exceeding that bound reports budget exhaustion without truncation.
+Missing ownership stays unknown. A finding can coexist with unsupported
+functions, so the overall requested scope can remain incomplete and exit two.
+`--fail-on-findings` returns one only for complete analysis; failures and incomplete
+coverage take precedence. `--max-analysis-functions` applies to either local
+consumer. Similarity decisions remain independent.

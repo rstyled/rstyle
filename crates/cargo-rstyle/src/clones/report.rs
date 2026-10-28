@@ -26,7 +26,7 @@ pub struct Context<'a> {
     pub matching: &'a RunReport,
     pub partitions: rstyle_ccgraph::pipeline::WlPartitions,
     pub complete: bool,
-    pub analysis_config: Option<&'a rstyle_core::config::Config>,
+    pub analysis_config: Option<&'a super::analysis::Config>,
 }
 
 #[derive(Serialize)]

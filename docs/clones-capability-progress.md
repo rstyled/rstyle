@@ -30,8 +30,8 @@ Heavy captures and integrated gates run serially.
 | C02 | Evidence / `consumer_facts` and lead registration | delivered (checkpoint) | `0d97fd8`, `3080a7d` | Source/interface availability independent of strict graph admission | Nine evidence tests plus live public/receiver capture tests; visibility span correction; no new extraction permission |
 | C03 | Lead / clones report and CLI acceptance | delivered (checkpoint) | `ffce699`, `3080a7d` | Source-located accepted strict pairs | Full/compact/text navigation agrees; pair budget remains incomplete; test module discovery fixed |
 | C04 | Local + lead / source rules and opt-in CLI | delivered (checkpoint) | `644151d` | Length/parameters with separate availability, execution, scope and outcomes | Five leaf tests, six source-rule CLI cases; live labeled corpus agrees; both legacy gates and full tests pass |
-| C05 | Acceptance + lead / comparison | delivered (bounded comparison) | comparison commit | Compare same-scope legacy/new results against independent labels | Fifteen Python tests and actual serial captures: ten evaluated agreements; explicit unavailable/context/regression classifications |
-| C06 | Local / `analysis/guards` | awaiting integration | pending | Bounded advisory guard opportunities | Unregistered leaf and seven authored tests; not compiled or delivered |
+| C05 | Acceptance + lead / comparison | delivered (bounded comparison) | `3e1f4c9` | Compare same-scope legacy/new results against independent labels | Fifteen Python tests and actual serial captures: ten evaluated agreements; explicit unavailable/context/regression classifications |
+| C06 | Local + lead / guards and independent opt-in | delivered (checkpoint) | guard commit | Bounded advisory guard opportunities | Seven unit and five real-Cargo CLI cases; graph-excluded callee does not gate advice; full checkpoint passes |
 | C07 | Pair / `analysis/pair_differences` | awaiting integration | pending | Ordered native correspondence and differences | Unregistered leaf and authored fixtures; real native capture validation pending |
 | C08 | Pair / helper proposals | ready | pending | Parameterized helper proposals with counter-evidence | Depends on C07; identity forwarder negative remains required |
 
@@ -64,9 +64,39 @@ bytes. The new capture uses `--locked` explicitly. These are native Linux
 aarch64 results; macOS and exact Go comparisons remain unverified.
 
 Checkpoint Rust validation includes every task-owned registered source/test
-dependency. Unregistered guard/difference leaves and pre-existing untracked work
-provide no compiled dependencies. No SHA was introduced; no legacy capability is
-retired. Next ready integration is C06, then real native C07 acceptance and C08.
+dependency. Unregistered guard/difference leaves at that checkpoint and
+pre-existing untracked work provide no compiled dependencies. No SHA was
+introduced; no legacy capability is retired.
+
+## Guard checkpoint (2026-10-28)
+
+`--guard-clauses` is independent of `--source-rules`. The aggregate retains
+per-consumer outcomes and separate numeric/guard evidence, with shared scope and
+execution accounting. Unsupported syntax, absent ownership and work exhaustion
+remain incomplete. Guard advice establishes no purity, equivalence or safe rewrite.
+
+Formatting, workspace/all-target Clippy, both legacy gates and all 2,366 nextest
+cases (five skipped) plus doc tests pass. Nextest runtime is 157.335 seconds.
+Style reports zero violations across 8,246 functions; unfiltered patterns retains
+the same 15 reviewed candidates. Logs and JSON are under
+`/tmp/clones-migration-c06-checkpoint-{clippy,tests,style,patterns}.*`, with separate
+`patterns-unfiltered.json`. The next pair-difference leaf remains unregistered and
+does not supply compiled dependencies to this commit.
+
+The live guard corpus report `/tmp/clones-migration-c06-guards.json` records one
+finding, 15 evaluated functions and one explicitly unsupported closure example:
+completed execution, incomplete scope, exit two as required. The complete
+single-positive fixture returns zero by default and one with `--fail-on-findings`.
+Full/compact/text and the graph-excluded-call case pass real-Cargo tests. Repeat
+legacy/new source-rule comparison at `/tmp/clones-capability-c06-checkpoint`
+still yields ten agreements.
+
+A manual saved standalone-capture source-rule reevaluation exits two because
+`--replay-run` currently requires `dependency-closure.json`; see
+`/tmp/clones-migration-c06-source-replay.log`. Standalone saved-facts reevaluation
+remains a required later workflow gap. This is not a passed replay gate or a
+reason to weaken import validation. Next is real native C07 integration, C08
+helper proposals and versioned C09 review; quality/replay can advance independently.
 
 ## Hashing exceptions
 

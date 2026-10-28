@@ -18,6 +18,7 @@ mod fresh_scalar_owners;
 mod inherent_expansions;
 mod loop_merge_target;
 mod lossless_values;
+mod migration_guards;
 mod migration_output;
 mod migration_rules;
 mod mutable_scalar_formals;

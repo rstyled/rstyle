@@ -1,8 +1,9 @@
 //! Opt-in local consumers with evidence, execution and scope reported separately.
+mod guards;
 mod source_rules;
 
 use super::{Args, Function, Handoff, capture};
-use rstyle_core::config::{Config, FnLengthConfig, FnParamsConfig};
+use rstyle_core::config::{Config as SourcePolicy, FnLengthConfig, FnParamsConfig};
 use rstyle_pdg::consumer_facts::{Availability, LocalFacts};
 use serde::{Deserialize, Serialize};
 
@@ -81,6 +82,8 @@ struct FunctionReport<'a> {
     source_digest: &'a str,
     execution: Execution,
     assessments: Vec<Assessment>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    guard_clause: Option<guards::GuardAssessment>,
 }
 
 #[derive(Serialize)]
@@ -97,10 +100,22 @@ struct SourceConfig {
     fn_params: FnParamsConfig,
 }
 
+pub(super) struct Config {
+    source: Option<SourcePolicy>,
+    guards: bool,
+}
+
 pub(super) fn configuration(args: &Args) -> Result<Option<Config>, String> {
-    if !args.source_rules {
+    if !args.source_rules && !args.guard_clauses {
         return Ok(None);
     }
+    Ok(Some(Config {
+        source: args.source_rules.then(|| source_policy(args)).transpose()?,
+        guards: args.guard_clauses,
+    }))
+}
+
+fn source_policy(args: &Args) -> Result<SourcePolicy, String> {
     let local: SourceConfig = match &args.analysis_config {
         Some(path) => {
             let text = std::fs::read_to_string(path)
@@ -109,11 +124,11 @@ pub(super) fn configuration(args: &Args) -> Result<Option<Config>, String> {
         }
         None => SourceConfig::default(),
     };
-    Ok(Some(Config {
+    Ok(SourcePolicy {
         fn_length: local.fn_length,
         fn_params: local.fn_params,
-        ..Config::default()
-    }))
+        ..SourcePolicy::default()
+    })
 }
 
 pub(super) fn evaluate<'a>(
@@ -142,15 +157,18 @@ pub(super) fn evaluate<'a>(
         execution,
         scope,
         findings,
-        effective_config: config.map(|config| Settings {
-            max_lines: config.fn_length.max_lines,
-            max_params: config.fn_params.max_params,
-            count_self: config.fn_params.count_self,
-        }),
+        effective_config: config
+            .and_then(|config| config.source.as_ref())
+            .map(|config| Settings {
+                max_lines: config.fn_length.max_lines,
+                max_params: config.fn_params.max_params,
+                count_self: config.fn_params.count_self,
+            }),
         limitations: &[
             "Source rules do not establish body effects or refactoring safety.",
             "Length uses the legacy code-line policy, including its string/comment limitations.",
             "Legacy exclusions, suppressions and review ledgers are not applied by this opt-in consumer.",
+            "Guard opportunities are bounded syntactic advice; review conditions, lifetimes and drops before editing.",
         ],
         functions,
     }
@@ -204,8 +222,14 @@ fn scope(
 fn count(functions: &[FunctionReport<'_>], outcome: Outcome) -> usize {
     functions
         .iter()
-        .flat_map(|function| &function.assessments)
-        .filter(|assessment| assessment.outcome == outcome)
+        .flat_map(|function| {
+            function
+                .assessments
+                .iter()
+                .map(|assessment| assessment.outcome)
+                .chain(function.guard_clause.iter().map(|guard| guard.outcome))
+        })
+        .filter(|value| *value == outcome)
         .count()
 }
 
@@ -229,17 +253,27 @@ fn execution(functions: &[FunctionReport<'_>], scope: &Scope, requested: bool) -
 }
 
 fn assess<'a>(function: &'a Function, config: &Config, exhausted: bool) -> FunctionReport<'a> {
-    let (execution, assessments) = if exhausted {
-        (
-            Execution::BudgetExhausted,
-            unavailable(config, "Analysis function budget exhausted"),
-        )
-    } else {
-        match rstyle_pdg::consumer_facts::inspect(&function.facts) {
-            Ok(facts) => (Execution::Completed, source_rules::evaluate(&facts, config)),
-            Err(error) => (Execution::Failed, unavailable(config, &error)),
+    let (execution, facts) = inputs(function, exhausted);
+    let assessments = config
+        .source
+        .as_ref()
+        .map(|policy| source_rules::evaluate(&facts, policy))
+        .unwrap_or_default();
+    let guard_clause = config.guards.then(|| {
+        let mut guard = guards::evaluate(&facts.source);
+        if execution != Execution::Completed {
+            guard.execution = execution;
         }
+        guard
+    });
+    let execution = if execution == Execution::Completed {
+        guard_clause
+            .as_ref()
+            .map_or(execution, |guard| guard.execution)
+    } else {
+        execution
     };
+
     FunctionReport {
         key: function.key,
         name: &function.facts.name,
@@ -253,21 +287,32 @@ fn assess<'a>(function: &'a Function, config: &Config, exhausted: bool) -> Funct
         source_digest: &function.facts.source.digest,
         execution,
         assessments,
+        guard_clause,
     }
 }
 
-fn unavailable(config: &Config, reason: &str) -> Vec<Assessment> {
-    source_rules::evaluate(
-        &LocalFacts {
-            source: Availability::Unknown {
-                reason: reason.into(),
-            },
-            signature: Availability::Unknown {
-                reason: reason.into(),
-            },
+fn inputs(function: &Function, exhausted: bool) -> (Execution, LocalFacts<'_>) {
+    if exhausted {
+        return (
+            Execution::BudgetExhausted,
+            unavailable("Analysis function budget exhausted"),
+        );
+    }
+    match rstyle_pdg::consumer_facts::inspect(&function.facts) {
+        Ok(facts) => (Execution::Completed, facts),
+        Err(error) => (Execution::Failed, unavailable(&error)),
+    }
+}
+
+fn unavailable(reason: &str) -> LocalFacts<'static> {
+    LocalFacts {
+        source: Availability::Unknown {
+            reason: reason.into(),
         },
-        config,
-    )
+        signature: Availability::Unknown {
+            reason: reason.into(),
+        },
+    }
 }
 
 impl Report<'_> {
@@ -281,29 +326,61 @@ impl Report<'_> {
             return String::new();
         }
         let mut output = format!(
-            "\nSource rules: {:?}; {:?} coverage; {} findings; {} evaluated, {} unavailable rules.",
+            "\nLocal analysis: {:?}; {:?} coverage; {} findings; {} evaluated, {} unavailable rules.",
             self.execution,
             self.scope.coverage,
             self.findings,
             self.scope.evaluated_rules,
             self.scope.unavailable_rules
         );
-        for function in &self.functions {
-            for assessment in &function.assessments {
-                if assessment.outcome == Outcome::Finding {
-                    output.push_str(&format!(
-                        "\n{} {} at {} [bytes {}..{}]: {} > {}.",
-                        assessment.rule_id,
-                        function.name,
-                        function.source_file.unwrap_or("<source unavailable>"),
-                        function.fn_span.start,
-                        function.fn_span.end,
-                        assessment.actual.unwrap_or(0),
-                        assessment.limit
-                    ));
-                }
-            }
-        }
+        output.push_str(
+            &self
+                .functions
+                .iter()
+                .map(FunctionReport::render)
+                .collect::<String>(),
+        );
         output
+    }
+}
+
+impl FunctionReport<'_> {
+    fn location(&self) -> String {
+        format!(
+            "{} at {} [bytes {}..{}]",
+            self.name,
+            self.source_file.unwrap_or("<source unavailable>"),
+            self.fn_span.start,
+            self.fn_span.end
+        )
+    }
+
+    fn render(&self) -> String {
+        let location = self.location();
+        let source = self
+            .assessments
+            .iter()
+            .filter(|assessment| assessment.outcome == Outcome::Finding)
+            .map(|assessment| {
+                format!(
+                    "\n{} {location}: {} > {}.",
+                    assessment.rule_id,
+                    assessment.actual.unwrap_or(0),
+                    assessment.limit
+                )
+            })
+            .collect::<String>();
+        let guard = self
+            .guard_clause
+            .as_ref()
+            .and_then(|guard| guard.opportunity.as_ref())
+            .map(|opportunity| {
+                format!(
+                    "\nguard_clause {location}: {} (fallback {:?}).",
+                    opportunity.advisory, opportunity.fallback_branch
+                )
+            })
+            .unwrap_or_default();
+        format!("{source}{guard}")
     }
 }
