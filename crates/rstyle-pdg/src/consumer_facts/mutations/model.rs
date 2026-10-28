@@ -100,6 +100,7 @@ pub struct Observations {
     pub direct: Assessment,
     pub calls: Vec<Call>,
     pub signature: Availability<()>,
+    pub uses: UseInventory,
 }
 
 #[derive(Debug)]
@@ -128,4 +129,61 @@ pub struct Argument {
 pub enum ArgumentValue {
     OwnedU32,
     MutableFormal(Root),
+}
+
+/// Original owned-u32 declarations, including checked zero-use formals.
+#[derive(Debug, Serialize)]
+pub struct UseFormal {
+    pub ordinal: u32,
+    pub span: ByteSpan,
+    pub native: HirRef,
+    pub mutable: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum UseRole {
+    Read,
+    Write,
+    ReadWrite,
+    SharedBorrow,
+    MutableBorrow,
+    CallArgument {
+        call_index: usize,
+        argument_index: usize,
+        unchanged: bool,
+    },
+}
+
+#[derive(Debug, Serialize)]
+pub struct UseOccurrence {
+    pub native: HirRef,
+    pub span: ByteSpan,
+    pub formal: u32,
+    pub role: UseRole,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UseInventory {
+    pub availability: Availability<()>,
+    pub coverage: Coverage,
+    pub execution: Execution,
+    pub formals: Vec<UseFormal>,
+    pub occurrences: Vec<UseOccurrence>,
+    pub boundaries: Vec<Boundary>,
+}
+
+impl UseInventory {
+    pub fn unrequested() -> Self {
+        Self {
+            availability: Availability::Unknown {
+                reason: "Formal use inventory was not requested".into(),
+            },
+            coverage: Coverage::Incomplete,
+            execution: Execution::Completed,
+            formals: Vec::new(),
+            occurrences: Vec::new(),
+            boundaries: Vec::new(),
+        }
+    }
 }

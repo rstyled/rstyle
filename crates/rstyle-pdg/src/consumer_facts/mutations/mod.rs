@@ -8,20 +8,55 @@ mod native;
 mod source;
 #[cfg(test)]
 mod tests;
+mod uses;
 use super::Availability;
 use crate::HirFnFacts;
 pub use model::*;
 
 pub fn inspect(facts: &HirFnFacts) -> Result<Assessment, String> {
-    Ok(observe(facts, false)?.direct)
+    Ok(observe(facts, Request::default())?.direct)
 }
 
 /// Observe bounded direct local calls without granting callee effect authority.
 pub fn inspect_calls(facts: &HirFnFacts) -> Result<Observations, String> {
-    observe(facts, true)
+    observe(
+        facts,
+        Request {
+            calls: true,
+            uses: false,
+        },
+    )
 }
 
-fn observe(facts: &HirFnFacts, calls: bool) -> Result<Observations, String> {
+/// Observe calls and original owned-u32 formal uses in the same bounded source scan.
+pub fn inspect_calls_with_uses(facts: &HirFnFacts) -> Result<Observations, String> {
+    let mut observed = observe(
+        facts,
+        Request {
+            calls: true,
+            uses: true,
+        },
+    )?;
+    if matches!(&observed.uses.availability, Availability::Unknown { reason } if reason == "Formal use inventory was not requested")
+    {
+        observed.uses.availability = match &observed.direct.availability {
+            Availability::Known(()) => Availability::Unknown {
+                reason: "Original source was not scanned for formal uses".into(),
+            },
+            availability => availability.clone(),
+        };
+        observed.uses.execution = observed.direct.execution;
+    }
+    Ok(observed)
+}
+
+#[derive(Clone, Copy, Default)]
+pub(super) struct Request {
+    pub calls: bool,
+    pub uses: bool,
+}
+
+fn observe(facts: &HirFnFacts, request: Request) -> Result<Observations, String> {
     let source = match super::owned_source(facts)? {
         Availability::Known(source) => source,
         Availability::Unknown { reason } => {
@@ -49,8 +84,8 @@ fn observe(facts: &HirFnFacts, calls: bool) -> Result<Observations, String> {
             ..Assessment::empty()
         }));
     }
-    if calls {
-        source::observe(facts, source, Assessment::empty(), true)
+    if request.calls {
+        source::observe(facts, source, Assessment::empty(), request)
     } else {
         source::inspect(facts, source, Assessment::empty()).map(without_calls)
     }
@@ -66,6 +101,7 @@ fn unavailable(availability: Availability<()>) -> Assessment {
 
 fn without_calls(direct: Assessment) -> Observations {
     Observations {
+        uses: UseInventory::unrequested(),
         direct,
         calls: vec![],
         signature: Availability::Unknown {

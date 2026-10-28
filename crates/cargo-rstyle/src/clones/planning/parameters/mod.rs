@@ -2,6 +2,7 @@
 mod bundles;
 mod collect;
 mod regions;
+mod uses;
 
 use super::{Region, model, overlap};
 use crate::clones::{FunctionKey, analysis, report};
@@ -62,6 +63,7 @@ struct UnitCensus {
     unit: usize,
     #[serde(flatten)]
     census: callers::Census,
+    parameter_uses: uses::Report,
 }
 
 pub(in crate::clones) fn evaluate(
@@ -96,6 +98,7 @@ impl Collected {
             && self.plans.iter().all(|plan| plan.reasons.is_empty())
             && self.census.iter().all(|unit| {
                 unit.census.coverage == rstyle_pdg::consumer_facts::mutations::Coverage::Complete
+                    && unit.parameter_uses.permits_success()
             });
         let plans = self.plans.iter().map(Plan::footprint).collect::<Vec<_>>();
         overlap::analyze(&plans, complete)

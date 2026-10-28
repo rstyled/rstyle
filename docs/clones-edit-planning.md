@@ -132,6 +132,34 @@ suggest parameters worth reviewing together. They do not establish pass-through,
 safe argument removal, a parameter-struct design, external caller closure or
 rewrite independence. Full/compact source-free replay preserves the evidence.
 
-Local guard intents, pass-through/all-use inventories,
-external caller closure and broader signatures remain pending. Legacy grouping
-and stacking remain operational.
+### Complete formal-use inventories
+
+Each defining unit retains `parameter_uses` once under `caller_census`.
+The existing source scan checks owned-u32 formal declarations and native path
+bindings, then records original reads, writes, compound writes, borrows and
+call arguments. Declaration and occurrence spans are absolute original bytes;
+call arguments retain their original call and argument ordinals. Aliases remain
+separate local bindings. Initializers are checked before shadow declarations.
+
+A `pass_through_candidate` requires a complete owner inventory, an immutable
+formal, at least one occurrence and every occurrence forwarded unchanged into a
+selected visible signature intent in the same unit. `unused` requires a complete
+empty inventory. A supported counterexample yields `has_other_uses`; unresolved
+call targets yield `unavailable` unless another occurrence proves a counterexample.
+Opaque syntax, missing correspondence and unsupported formal families keep the
+owner inventory incomplete and its outcomes unavailable. Complete wrappers in the
+same unit retain their own results. Use coverage is independent of mutation
+coverage and caller-census coverage.
+
+Declarations, occurrences and boundaries share one 65,536-entry retention allowance
+across relevant units. Reported formal rows, including unavailable placeholders,
+have a separate shared 65,536-row cap. Truncated rows retain expected counts and
+mark budget exhaustion. `assessed_formals` counts checked declarations in retained evidence, which can
+exceed the rendered row count after truncation. Exceeding retention preserves
+earlier owner inventories, marks execution budget-exhausted and exits two. This evidence is advisory: it establishes
+neither safe argument removal nor permission to propagate a signature edit.
+Full/compact strict replay uses the retained original source and native evidence
+without reopening source files or invoking build tools.
+
+Local guard intents, external caller closure and broader signatures remain pending.
+Legacy grouping and stacking remain operational.

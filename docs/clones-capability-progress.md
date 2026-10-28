@@ -54,7 +54,8 @@ Heavy captures and integrated gates run serially.
 | C05c | Acceptance + runner + lead / spacing corpus, comparator and independent labels | delivered (bounded spacing comparison) | `bf11857` | Optional independently labeled spacing measurements, explicit disabled-policy agreement and three-rule exclusion checks | 56 Python tests, live serial comparison and integrated checkpoint evidence below |
 | C12b | Evidence + acceptance + lead / caller census, signature regions, overlap and CLI/report | delivered (bounded caller-aware signature intents) | `30f6a06` | Advisory parameter signature intents with exact same-unit witnessed callers and separate census coverage | Eight real-Cargo acceptance cases, 2,709 workspace tests, both legacy gates and source-free strict replay; checkpoint evidence below |
 
-| C12c | Evidence + acceptance + lead / immutable formal evidence, bounded bundle search and report | delivered (bounded witnessed forwarding) | this checkpoint | Repeated per-target unchanged-scalar forwarding with exact positional support witnesses | 2,724 workspace tests, both legacy gates and source-free live replay; checkpoint evidence below |
+| C12c | Evidence + acceptance + lead / immutable formal evidence, bounded bundle search and report | delivered (bounded witnessed forwarding) | `b03b349` | Repeated per-target unchanged-scalar forwarding with exact positional support witnesses | 2,724 workspace tests, both legacy gates and source-free live replay; checkpoint evidence below |
+| C12d | Evidence + acceptance + lead / original use scan, global retention, caller report | delivered (bounded scalar all-use evidence) | this checkpoint | Complete owned-u32 use inventories and advisory selected-intent pass-through outcomes | 2,743 workspace tests; style zero; exact 15 baseline pattern IDs; fresh source/tool-free strict replay |
 
 No capability is retired. Stable review identity, broader proposals, conservative
 effects/mutation and work planning remain later required migration work.
@@ -950,3 +951,65 @@ borrows and opaque syntax need explicit occurrence or incompleteness evidence.
 Only complete inventories with at least one use, all directly forwarded unchanged
 into selected signature intents, can justify an advisory pass-through candidate;
 unused parameters and omitted syntax cannot supply that conclusion.
+
+
+## C12d: original formal-use inventories
+
+The original call/mutation source scan optionally records owned-u32 formal
+bindings and exact native occurrences. Reads, assignments, compound assignments,
+shared/mutable borrows and call arguments remain distinct. Initializers precede
+shadow declarations, local aliases remain separate roots, and wildcard discard
+does not hide initializer evaluation. Existing mutation/effect assessments keep
+their independent contracts. Unsupported syntax, missing binding/child evidence,
+opaque work and budgets cannot become complete zero-use inventories.
+
+Parameter planning retains each owner inventory once per defining unit. Complete
+immutable formals with nonzero uses, all forwarded unchanged into selected visible
+signature intents, receive advisory pass-through candidates. Complete empty
+inventories are unused. Other-use witnesses and unavailable target resolution
+remain distinct. One global 65,536-entry retention allowance covers declarations,
+occurrences and boundaries across relevant units. A separate shared 65,536-row
+allowance bounds report placeholders as well as observed formal rows; truncation
+preserves expected counts and reports budget exhaustion. Scoped native IDs and ordered
+indexes avoid repeated source parsing, source/graph copying and new hashing.
+
+Six original-evidence tests cover declaration/use roles, unchanged mutation
+assessments, repeated and zero uses, call positions, aliases, return/borrow native
+children, absent evidence, duplicate native nodes and syntax budgets. A caller
+session regression bounds retention across owners. Six classifier/quota tests
+separate unknown targets from counterexamples and bound report rows. Six real-Cargo
+cases cover forwarding, other reads/writes, borrowed/opaque boundaries, exact
+UTF-8/CRLF spans, owner isolation and source-free full/compact replay.
+
+The frozen snapshot passes all 2,743 workspace tests (five skipped) in 177.206
+seconds plus doc tests. Workspace/all-target Clippy with warnings denied,
+formatting and diff checks pass. Legacy style reports zero violations across
+8,953 functions; reviewed patterns passes and the same 15 unfiltered baseline
+candidate IDs remain. All 56 independent Python comparison tests pass. Logs and
+reports use `/tmp/clones-uses-{tests,clippy,style,patterns,python}.*` and
+`/tmp/clones-uses-patterns-unfiltered.*`.
+
+Fresh locked live evidence is retained at `/tmp/clones-uses-live-8cgsp2u8`.
+Two permuted calls retain complete formal-use inventories and advisory forwarding
+outcomes. After source/manifest removal and disabling build-tool lookup, full and
+compact strict replay preserve planning and matching exactly. Zero function
+budget remains incomplete; config-only threshold reevaluation returns a complete
+empty plan set. Commands, timings, stderr, reports and exit statuses are retained.
+No extraction permission, hash, ignore entry, threshold relaxation or legacy
+retirement was introduced. Broader formal families, safe argument removal,
+external caller closure, local guard intents and cross-family edit coordination
+remain open. Native macOS and exact Go comparison remain unverified.
+
+
+The next ready resource slice precedes guard edit-intent expansion. Guard parsing
+currently has a byte-only limit, and shared local-facts inspection parses a full
+body before the guard consumer runs. Reuse the existing lexical syntax budget
+without making ordinary large bodies lose source/signature checks: a bounded
+borrowed header ending at the captured original body start can supply signature
+facts independently. Only requested, within-budget statement evidence needs a
+full-body parse. Header/body range contradictions and ownership errors must still
+fail before usable facts appear. Guard assessment must separately mark exhausted
+syntax as incomplete execution. Independent cases should include delimiter-free
+unary/return chains, deep delimiters, long flat bodies with small valid headers,
+forged boundaries, UTF-8/CRLF and source-free replay. Subsequent guard intents and
+cross-family physical edit coordination remain ready after that resource fix.

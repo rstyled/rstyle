@@ -8,6 +8,7 @@ const MAX_FUNCTIONS: usize = 4096;
 pub struct Session<'a> {
     unit: &'a UnitStore,
     limits: Limits,
+    observe_uses: bool,
     definitions: BTreeMap<&'a str, usize>,
     observations: BTreeMap<usize, mutations::Observations>,
     contexts: BTreeMap<usize, Availability<UnitContext>>,
@@ -18,9 +19,18 @@ pub struct Session<'a> {
 
 impl<'a> Session<'a> {
     pub fn new(unit: &'a UnitStore, limits: Limits) -> Result<Self, String> {
+        Self::configured(unit, limits, false)
+    }
+
+    pub fn new_with_uses(unit: &'a UnitStore, limits: Limits) -> Result<Self, String> {
+        Self::configured(unit, limits, true)
+    }
+
+    fn configured(unit: &'a UnitStore, limits: Limits, observe_uses: bool) -> Result<Self, String> {
         Ok(Self {
             unit,
             limits,
+            observe_uses,
             definitions: definitions(unit)?,
             observations: BTreeMap::new(),
             contexts: BTreeMap::new(),
@@ -103,19 +113,51 @@ impl<'a> Session<'a> {
     }
 
     fn observe(&mut self, owner: usize, census: &mut Census) -> Result<bool, String> {
-        let observed = mutations::inspect_calls(&self.unit.functions()[owner])?;
+        let observed = if self.observe_uses {
+            mutations::inspect_calls_with_uses(&self.unit.functions()[owner])?
+        } else {
+            mutations::inspect_calls(&self.unit.functions()[owner])?
+        };
+        self.retain_observation(owner, observed, census)
+    }
+
+    fn retain_observation(
+        &mut self,
+        owner: usize,
+        observed: mutations::Observations,
+        census: &mut Census,
+    ) -> Result<bool, String> {
         let arguments: usize = observed.calls.iter().map(|call| call.arguments.len()).sum();
+        let uses = observed.uses.formals.len()
+            + observed.uses.occurrences.len()
+            + observed.uses.boundaries.len();
         if observed.calls.len() > self.limits.calls.saturating_sub(census.call_count)
             || arguments > self.limits.arguments.saturating_sub(census.argument_count)
+            || uses > self.limits.uses.saturating_sub(census.use_entries)
         {
             census.exhausted(
                 Some(owner),
-                "Caller call or argument retention budget exhausted",
+                "Caller call, argument or formal-use retention budget exhausted",
             );
             return Ok(false);
         }
 
+        self.publish_observation(owner, observed, census)
+    }
+
+    fn publish_observation(
+        &mut self,
+        owner: usize,
+        observed: mutations::Observations,
+        census: &mut Census,
+    ) -> Result<bool, String> {
+        let arguments = observed.calls.iter().map(|call| call.arguments.len()).sum();
+        let uses = observed.uses.formals.len()
+            + observed.uses.occurrences.len()
+            + observed.uses.boundaries.len();
+
         count_observation(census, observed.calls.len(), arguments);
+        census.use_entries += uses;
         self.inspect_observation(owner, &observed, census)?;
         self.observations.insert(owner, observed);
         Ok(true)
@@ -324,6 +366,7 @@ mod tests {
     fn observed() -> mutations::Observations {
         let span = ByteSpan { start: 0, end: 1 };
         mutations::Observations {
+            uses: mutations::UseInventory::unrequested(),
             signature: Availability::Known(()),
             direct: mutations::Assessment {
                 availability: Availability::Known(()),
@@ -438,6 +481,40 @@ mod tests {
         assert_eq!(census.scanned_functions, 0);
         assert_eq!(census.execution, mutations::Execution::BudgetExhausted);
         assert_eq!(census.coverage, mutations::Coverage::Incomplete);
+    }
+
+    #[test]
+    fn total_use_retention_cannot_multiply_the_allowance_per_owner() {
+        let unit = unit();
+        let mut session = Session::new_with_uses(
+            &unit,
+            Limits {
+                uses: 1,
+                ..Limits::default()
+            },
+        )
+        .unwrap();
+        let mut census = Census::new(2);
+        let mut first = observed();
+        first.uses.boundaries.push(mutations::Boundary {
+            availability: mutations::BoundaryAvailability::Unknown,
+            span: ByteSpan { start: 0, end: 1 },
+            reason: "First owner inventory gap".into(),
+        });
+        assert!(session.retain_observation(0, first, &mut census).unwrap());
+        let mut second = observed();
+        second.uses.boundaries.push(mutations::Boundary {
+            availability: mutations::BoundaryAvailability::Unknown,
+            span: ByteSpan { start: 0, end: 1 },
+            reason: "Second owner inventory gap".into(),
+        });
+        assert!(!session.retain_observation(1, second, &mut census).unwrap());
+        assert_eq!(census.use_entries, 1);
+        assert_eq!(census.scanned_functions, 1);
+        assert_eq!(census.execution, mutations::Execution::BudgetExhausted);
+        assert_eq!(census.coverage, mutations::Coverage::Incomplete);
+        assert!(session.observations(0).is_some());
+        assert!(session.observations(1).is_none());
     }
 
     #[test]

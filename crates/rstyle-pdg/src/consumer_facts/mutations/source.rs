@@ -10,14 +10,14 @@ pub(super) fn inspect(
     source: &str,
     result: Assessment,
 ) -> Result<Assessment, String> {
-    Ok(observe(facts, source, result, false)?.direct)
+    Ok(observe(facts, source, result, super::Request::default())?.direct)
 }
 
 pub(super) fn observe(
     facts: &HirFnFacts,
     source: &str,
     result: Assessment,
-    observe_calls: bool,
+    request: super::Request,
 ) -> Result<super::Observations, String> {
     let function = match parsed(source) {
         Ok(function) => function,
@@ -45,23 +45,13 @@ pub(super) fn observe(
         poison: poison.names,
         opaque_references: poison.opaque_references,
         declarations: 0,
-        calls: observe_calls.then(Vec::new),
+        calls: request.calls.then(Vec::new),
+        uses: request.uses.then(super::uses::Scan::new),
     };
 
     scan.signature(&function)?;
     scan.block(&function.block)?;
-    let signature = if observe_calls {
-        super::calls::signature(facts, &function)?
-    } else {
-        super::Availability::Unknown {
-            reason: "Call observations were not requested".into(),
-        }
-    };
-    Ok(super::Observations {
-        direct: scan.result,
-        calls: scan.calls.unwrap_or_default(),
-        signature,
-    })
+    scan.finish(&function)
 }
 
 fn whole(source: &str) -> ByteSpan {
@@ -269,9 +259,31 @@ struct Scan<'a> {
     opaque_references: bool,
     declarations: usize,
     calls: Option<Vec<super::Call>>,
+    uses: Option<super::uses::Scan>,
 }
 
 impl Scan<'_> {
+    fn finish(self, function: &syn::ItemFn) -> Result<super::Observations, String> {
+        let signature = if self.calls.is_some() {
+            super::calls::signature(self.facts, function)?
+        } else {
+            super::Availability::Unknown {
+                reason: "Call observations were not requested".into(),
+            }
+        };
+        let uses = self
+            .uses
+            .map_or_else(super::UseInventory::unrequested, |uses| {
+                uses.finish(self.facts.signature.params.len(), &signature)
+            });
+        Ok(super::Observations {
+            uses,
+            direct: self.result,
+            calls: self.calls.unwrap_or_default(),
+            signature,
+        })
+    }
+
     fn span(&self, value: &impl Spanned) -> ByteSpan {
         crate::source_evidence::original_span(self.source, value.span())
     }
@@ -334,6 +346,10 @@ impl Scan<'_> {
             },
         )?;
 
+        if self.uses.is_some() {
+            self.use_formal(&argument.pat, &argument.ty)?;
+        }
+
         let observed = &self.facts.signature.params[ordinal].ty;
         if !borrowed
             && !matches!(observed.normalized.as_deref(), Some("u32" | "bool"))
@@ -357,13 +373,25 @@ impl Scan<'_> {
             self.declaration(pattern, context)?
         };
 
+        if !plan.effects.boundaries.is_empty()
+            && !matches!(pattern, Pat::Wild(wild) if wild.attrs.is_empty())
+        {
+            self.use_boundary(
+                self.span(pattern),
+                "Original declaration is outside checked formal-use bindings",
+            );
+        }
+        self.install_declaration(plan);
+        Ok(())
+    }
+
+    fn install_declaration(&mut self, plan: DeclarationPlan) {
         self.declarations += 1;
         self.apply(plan.effects);
         self.scopes
             .last_mut()
             .expect("root scope exists")
             .extend(plan.bindings);
-        Ok(())
     }
 
     fn declaration(
@@ -537,20 +565,43 @@ impl Scan<'_> {
             match statement {
                 syn::Stmt::Local(local) => self.local(local, scope)?,
                 syn::Stmt::Expr(expression, _) => self.expression(expression)?,
-                _ => self.apply(Effects::opaque(
-                    self.span(statement),
-                    "Opaque original item or macro statement",
-                )),
+                _ => self.opaque_statement(statement),
             }
         }
         Ok(())
     }
 
+    fn opaque_statement(&mut self, statement: &syn::Stmt) {
+        self.use_boundary(
+            self.span(statement),
+            "Opaque original item or macro statement may hide formal uses",
+        );
+        self.apply(Effects::opaque(
+            self.span(statement),
+            "Opaque original item or macro statement",
+        ));
+    }
+
     fn local(&mut self, local: &syn::Local, scope: ByteSpan) -> Result<(), String> {
+        if !local.attrs.is_empty()
+            || local
+                .init
+                .as_ref()
+                .is_some_and(|init| init.diverge.is_some())
+        {
+            self.use_boundary(
+                self.span(local),
+                "Local attributes or let-else may hide formal uses",
+            );
+        }
         let plan = self.local_plan(local);
         if let Some(expression) = plan.initializer {
             self.expression(expression)?;
         }
+        self.install_local(plan, scope)
+    }
+
+    fn install_local(&mut self, plan: LocalPlan<'_>, scope: ByteSpan) -> Result<(), String> {
         self.apply(plan.effects);
 
         if let Some(pattern) = plan.pattern {
@@ -599,13 +650,22 @@ impl Scan<'_> {
     }
 
     fn apply(&mut self, effects: Effects) {
+        if effects.execution == Execution::BudgetExhausted
+            && let Some(uses) = &mut self.uses
+        {
+            uses.exhausted(whole(self.source));
+        }
         let invalidate = effects.invalidate;
-        let previous = std::mem::replace(&mut self.result, Assessment::empty());
-        self.result = effects.merge(previous);
+        self.merge_effects(effects);
 
         if invalidate {
             self.invalidate_roots();
         }
+    }
+
+    fn merge_effects(&mut self, effects: Effects) {
+        let previous = std::mem::replace(&mut self.result, Assessment::empty());
+        self.result = effects.merge(previous);
     }
 
     fn expression(&mut self, expression: &Expr) -> Result<(), String> {
@@ -614,6 +674,9 @@ impl Scan<'_> {
             && call.attrs.is_empty()
         {
             return self.observe_call(call);
+        }
+        if self.uses.is_some() {
+            self.expression_use(expression, UseMode::Expression)?;
         }
         let plan = self.expression_plan(expression)?;
         self.evaluate_plan(plan)
@@ -652,11 +715,27 @@ impl Scan<'_> {
         })?;
         self.apply(Effects::unknown(self.span(call), "Unknown call boundary"));
 
+        self.retain_call(call, observation)
+    }
+
+    fn retain_call(
+        &mut self,
+        call: &syn::ExprCall,
+        observation: Option<super::Call>,
+    ) -> Result<(), String> {
         if let Some(observation) = observation {
+            if self.uses.is_some() {
+                self.call_uses(call, &observation)?;
+            }
             self.calls
                 .as_mut()
                 .expect("call observations requested")
                 .push(observation);
+        } else {
+            self.use_boundary(
+                self.span(call),
+                "Original call observation is unavailable for formal-use roles",
+            );
         }
         Ok(())
     }
@@ -994,6 +1073,425 @@ impl Scan<'_> {
             return Ok(None);
         }
         Ok(Some(binding.root.clone()))
+    }
+}
+
+impl Scan<'_> {
+    fn use_boundary(&mut self, span: ByteSpan, reason: &str) {
+        if let Some(uses) = &mut self.uses {
+            uses.boundary(span, super::BoundaryAvailability::Unknown, reason);
+        }
+    }
+
+    fn use_formal(&mut self, pattern: &Pat, ty: &Type) -> Result<(), String> {
+        match checked_use_formal(&self.scopes, pattern, ty) {
+            UseCheck::Known(binding) => self
+                .uses
+                .as_mut()
+                .unwrap()
+                .formal(&binding.root, binding.mutable),
+            UseCheck::Unavailable(reason) => {
+                self.use_boundary(self.span(pattern), reason);
+                Ok(())
+            }
+        }
+    }
+
+    fn path_use(&mut self, path: &syn::ExprPath, role: super::UseRole) -> Result<(), String> {
+        let context = UseContext {
+            source: self.source,
+            index: &self.index,
+            scopes: &self.scopes,
+        };
+        match context.path(path)? {
+            UseCheck::Known((node, binding)) => {
+                self.uses
+                    .as_mut()
+                    .unwrap()
+                    .occurrence(node, &binding.root, role)
+            }
+            UseCheck::Unavailable(reason) => {
+                self.use_boundary(self.span(path), reason);
+                Ok(())
+            }
+        }
+    }
+
+    fn expression_use(&mut self, expression: &Expr, mode: UseMode) -> Result<(), String> {
+        let plan = match mode {
+            UseMode::Expression => self.expression_use_plan(expression),
+            UseMode::Operand => self.operand_use_plan(expression),
+        };
+        self.apply_use_plan(plan)
+    }
+
+    fn expression_use_plan<'a>(&self, expression: &'a Expr) -> UsePlan<'a> {
+        if !crate::conditional_source::expression_attributes(expression).is_empty() {
+            return UsePlan::boundary(
+                self.span(expression),
+                "Expression attributes may hide original formal uses",
+            );
+        }
+        match expression {
+            Expr::Path(path) => UsePlan::Leaf(UseLeaf::Path(path, super::UseRole::Read)),
+            Expr::Assign(assign) => UsePlan::Wrapper(UseWrapper::Assignment(
+                Assignment::plain(expression, assign),
+                false,
+            )),
+            Expr::Binary(binary) if compound(&binary.op) => UsePlan::Wrapper(
+                UseWrapper::Assignment(Assignment::compound(expression, binary), false),
+            ),
+            Expr::Reference(reference) => UsePlan::Wrapper(UseWrapper::Borrow(reference)),
+            Expr::Return(returned) => UsePlan::Wrapper(UseWrapper::Return(returned)),
+            Expr::Binary(_) | Expr::Unary(_) | Expr::Lit(_) | Expr::Paren(_) | Expr::Group(_) => {
+                UsePlan::Leaf(UseLeaf::Ignored)
+            }
+            Expr::Block(block) if block.label.is_none() && block.attrs.is_empty() => {
+                UsePlan::Leaf(UseLeaf::Ignored)
+            }
+            _ => UsePlan::boundary(
+                self.span(expression),
+                "Opaque original expression may hide formal uses",
+            ),
+        }
+    }
+
+    fn apply_use_plan(&mut self, plan: UsePlan<'_>) -> Result<(), String> {
+        match plan {
+            UsePlan::Leaf(leaf) => self.apply_use_leaf(leaf),
+            UsePlan::Wrapper(wrapper) => self.apply_use_wrapper(wrapper),
+            UsePlan::Evaluation(evaluation) => self.apply_use_evaluation(evaluation),
+        }
+    }
+
+    fn apply_use_leaf(&mut self, leaf: UseLeaf<'_>) -> Result<(), String> {
+        match leaf {
+            UseLeaf::Path(path, role) => self.path_use(path, role),
+            UseLeaf::Boundary(span, reason) => {
+                self.use_boundary(span, reason);
+                Ok(())
+            }
+            UseLeaf::Ignored => Ok(()),
+        }
+    }
+
+    fn apply_use_wrapper(&mut self, wrapper: UseWrapper<'_>) -> Result<(), String> {
+        match wrapper {
+            UseWrapper::Assignment(site, read_rhs) => self.assignment_role(site, read_rhs),
+            UseWrapper::Borrow(reference) => self.borrow_use(reference),
+            UseWrapper::Return(returned) => self.return_use(returned),
+        }
+    }
+
+    fn apply_use_evaluation(&mut self, evaluation: UseEvaluation<'_>) -> Result<(), String> {
+        match evaluation {
+            UseEvaluation::Unary(expression, child) => {
+                self.operand_children(expression, "expr_unary", &[child])
+            }
+            UseEvaluation::Binary(expression, left, right) => {
+                self.operand_children(expression, "expr_binary", &[left, right])
+            }
+            UseEvaluation::Literal(expression) => self.literal_use(expression),
+        }
+    }
+
+    fn assignment_use(&mut self, site: Assignment<'_>) -> Result<(), String> {
+        let (kind, role) = match site.operation {
+            Operation::Assignment => ("expr_assign", super::UseRole::Write),
+            Operation::CompoundAssignment => ("expr_assign_op", super::UseRole::ReadWrite),
+        };
+        if self.checked_use_children(site.expression, kind, &[site.left, site.right])? {
+            self.place_use(site.left, role)?;
+        }
+        Ok(())
+    }
+
+    fn place_use(&mut self, expression: &Expr, role: super::UseRole) -> Result<(), String> {
+        match transparent(expression) {
+            Expr::Path(path) => self.path_use(path, role),
+            _ => {
+                self.use_boundary(
+                    self.span(expression),
+                    "Projection or indirect place may hide formal uses",
+                );
+                Ok(())
+            }
+        }
+    }
+
+    fn checked_use_children(
+        &mut self,
+        expression: &impl Spanned,
+        kind: &str,
+        children: &[&Expr],
+    ) -> Result<bool, String> {
+        let span = self.span(expression);
+        let Some(node) = self.index.node(kind, span)? else {
+            self.use_boundary(
+                span,
+                "Original formal-use wrapper has no native correspondence",
+            );
+            return Ok(false);
+        };
+        if node.children.len() != children.len()
+            || node
+                .children
+                .iter()
+                .zip(children)
+                .any(|(node, source)| node.span != self.span(transparent(source)))
+        {
+            return Err(
+                "Formal-use wrapper native child roster contradicts original syntax".into(),
+            );
+        }
+        Ok(true)
+    }
+
+    fn borrow_use(&mut self, reference: &syn::ExprReference) -> Result<(), String> {
+        let role = if reference.mutability.is_some() {
+            super::UseRole::MutableBorrow
+        } else {
+            super::UseRole::SharedBorrow
+        };
+        if self.checked_use_children(reference, "expr_addr_of", &[&reference.expr])? {
+            self.place_use(&reference.expr, role)?;
+        }
+        Ok(())
+    }
+
+    fn return_use(&mut self, returned: &syn::ExprReturn) -> Result<(), String> {
+        let children: Vec<&Expr> = returned
+            .expr
+            .iter()
+            .map(|expression| &**expression)
+            .collect();
+        if self.checked_use_children(returned, "expr_ret", &children)?
+            && let Some(value) = &returned.expr
+        {
+            self.expression_use(value, UseMode::Operand)?;
+        }
+        Ok(())
+    }
+
+    fn operand_use_plan<'a>(&self, expression: &'a Expr) -> UsePlan<'a> {
+        if !crate::conditional_source::expression_attributes(expression).is_empty() {
+            return UsePlan::boundary(
+                self.span(expression),
+                "Attributed evaluation may hide formal uses",
+            );
+        }
+        let expression = transparent(expression);
+        match expression {
+            Expr::Path(path) => UsePlan::Leaf(UseLeaf::Path(path, super::UseRole::Read)),
+            Expr::Assign(assign) => UsePlan::Wrapper(UseWrapper::Assignment(
+                Assignment::plain(expression, assign),
+                true,
+            )),
+            Expr::Binary(binary) if compound(&binary.op) => UsePlan::Wrapper(
+                UseWrapper::Assignment(Assignment::compound(expression, binary), true),
+            ),
+            Expr::Binary(binary) => UsePlan::Evaluation(UseEvaluation::Binary(
+                expression,
+                &binary.left,
+                &binary.right,
+            )),
+            Expr::Unary(unary) => {
+                UsePlan::Evaluation(UseEvaluation::Unary(expression, &unary.expr))
+            }
+            Expr::Reference(reference) => UsePlan::Wrapper(UseWrapper::Borrow(reference)),
+            Expr::Lit(_) => UsePlan::Evaluation(UseEvaluation::Literal(expression)),
+            _ => UsePlan::boundary(
+                self.span(expression),
+                "Unexamined evaluation may hide original formal uses",
+            ),
+        }
+    }
+
+    fn literal_use(&mut self, expression: &Expr) -> Result<(), String> {
+        if self
+            .index
+            .node("expr_lit", self.span(expression))?
+            .is_none()
+        {
+            self.use_boundary(
+                self.span(expression),
+                "Original literal evaluation was not captured",
+            );
+        }
+        Ok(())
+    }
+
+    fn assignment_role(&mut self, site: Assignment<'_>, read_rhs: bool) -> Result<(), String> {
+        let right = site.right;
+        self.assignment_use(site)?;
+        if read_rhs {
+            self.expression_use(right, UseMode::Operand)?;
+        }
+        Ok(())
+    }
+
+    fn operand_children(
+        &mut self,
+        expression: &Expr,
+        kind: &str,
+        children: &[&Expr],
+    ) -> Result<(), String> {
+        if self.checked_use_children(expression, kind, children)? {
+            for child in children {
+                self.expression_use(child, UseMode::Operand)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn call_uses(&mut self, syntax: &syn::ExprCall, call: &super::Call) -> Result<(), String> {
+        let call_index = self.calls.as_ref().unwrap().len();
+        if !matches!(&*syntax.func, Expr::Path(path) if path.attrs.is_empty() && path.qself.is_none() && path.path.segments.iter().all(|segment| segment.arguments.is_empty()))
+        {
+            self.use_boundary(
+                self.span(&syntax.func),
+                "Unexamined call target evaluation may hide formal uses",
+            );
+        }
+        for (argument_index, (syntax, argument)) in
+            syntax.args.iter().zip(&call.arguments).enumerate()
+        {
+            let unchanged = matches!(
+                argument.unchanged_formal,
+                super::Availability::Known(Some(_))
+            );
+            self.call_argument_use(
+                syntax,
+                super::UseRole::CallArgument {
+                    call_index,
+                    argument_index,
+                    unchanged,
+                },
+            )?;
+        }
+        Ok(())
+    }
+    fn call_argument_use(&mut self, syntax: &Expr, role: super::UseRole) -> Result<(), String> {
+        if !crate::conditional_source::expression_attributes(syntax).is_empty() {
+            self.use_boundary(
+                self.span(syntax),
+                "Attributed call argument may hide formal uses",
+            );
+            return Ok(());
+        }
+        match transparent(syntax) {
+            Expr::Path(path) => self.path_use(path, role),
+            _ => self.expression_use(syntax, UseMode::Operand),
+        }
+    }
+}
+
+// Pure use plans distinguish ordinary scan children from operands evaluated only here.
+enum UseMode {
+    Expression,
+    Operand,
+}
+
+enum UsePlan<'a> {
+    Leaf(UseLeaf<'a>),
+    Wrapper(UseWrapper<'a>),
+    Evaluation(UseEvaluation<'a>),
+}
+
+enum UseLeaf<'a> {
+    Path(&'a syn::ExprPath, super::UseRole),
+    Boundary(ByteSpan, &'static str),
+    Ignored,
+}
+
+enum UseWrapper<'a> {
+    Assignment(Assignment<'a>, bool),
+    Borrow(&'a syn::ExprReference),
+    Return(&'a syn::ExprReturn),
+}
+
+enum UseEvaluation<'a> {
+    Unary(&'a Expr, &'a Expr),
+    Binary(&'a Expr, &'a Expr, &'a Expr),
+    Literal(&'a Expr),
+}
+
+impl UsePlan<'_> {
+    fn boundary(span: ByteSpan, reason: &'static str) -> Self {
+        Self::Leaf(UseLeaf::Boundary(span, reason))
+    }
+}
+
+enum UseCheck<T> {
+    Known(T),
+    Unavailable(&'static str),
+}
+
+type LexicalScopes = [BTreeMap<String, Option<Binding>>];
+
+fn checked_use_formal<'a>(
+    scopes: &'a LexicalScopes,
+    pattern: &Pat,
+    ty: &Type,
+) -> UseCheck<&'a Binding> {
+    let Pat::Ident(ident) = pattern else {
+        return UseCheck::Unavailable("Formal use declaration requires a direct owned-u32 binding");
+    };
+    if !crate::source_evidence::plain_type_path(ty, "u32") {
+        return UseCheck::Unavailable("Formal use inventory does not support this formal family");
+    }
+    match scopes
+        .last()
+        .and_then(|scope| scope.get(&ident.ident.to_string()))
+        .and_then(Option::as_ref)
+    {
+        Some(binding) => UseCheck::Known(binding),
+        None => UseCheck::Unavailable("Original formal binding evidence is unavailable"),
+    }
+}
+
+struct UseContext<'a, 'b> {
+    source: &'a str,
+    index: &'b native::Index<'a>,
+    scopes: &'b LexicalScopes,
+}
+
+impl<'a, 'b> UseContext<'a, 'b> {
+    fn path(&self, path: &syn::ExprPath) -> Result<UseCheck<(&'a HirNode, &'b Binding)>, String> {
+        let span = crate::source_evidence::original_span(self.source, path.span());
+        let Some(name) = plain_path(path) else {
+            return Ok(UseCheck::Unavailable(
+                "Formal use path is outside direct lexical bindings",
+            ));
+        };
+        let Some(node) = self.index.node("expr_path", span)? else {
+            return Ok(UseCheck::Unavailable(
+                "Original formal-use native path is unavailable",
+            ));
+        };
+
+        let binding = self
+            .scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(&name))
+            .and_then(Option::as_ref);
+        let Some(binding) = binding else {
+            return Ok(UseCheck::Unavailable(
+                "Formal use has no checked lexical root",
+            ));
+        };
+        if binding.root.provenance == Provenance::FormalBorrowed {
+            return Ok(UseCheck::Unavailable(
+                "Borrowed formal values require another use-inventory family",
+            ));
+        }
+        if !check_call_argument(self.source, path, node, binding)? {
+            return Ok(UseCheck::Unavailable(
+                "Original formal-use path type or resolution is unavailable",
+            ));
+        }
+        Ok(UseCheck::Known((node, binding)))
     }
 }
 

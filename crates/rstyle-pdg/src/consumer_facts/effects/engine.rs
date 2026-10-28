@@ -744,6 +744,7 @@ mod session_tests {
         session.observations.insert(
             0,
             Ok(Some(mutations::Observations {
+                uses: mutations::UseInventory::unrequested(),
                 direct: original_sites(),
                 calls: (0..3).map(call).collect(),
                 signature: Availability::Known(()),
@@ -847,6 +848,7 @@ mod session_tests {
         session.observations.insert(
             0,
             Ok(Some(mutations::Observations {
+                uses: mutations::UseInventory::unrequested(),
                 direct: original_sites(),
                 calls: vec![redirected],
                 signature: Availability::Known(()),

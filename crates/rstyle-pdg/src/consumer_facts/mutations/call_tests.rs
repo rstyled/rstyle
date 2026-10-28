@@ -619,3 +619,300 @@ fn checked_local_alias_and_literal_are_distinct_from_unchanged_formals() {
         assert_eq!(argument.unchanged_formal, Availability::Known(None));
     }
 }
+
+fn text_span(source: &str, text: &str) -> ByteSpan {
+    let start = source.find(text).unwrap() as u32;
+    ByteSpan {
+        start,
+        end: start + text.len() as u32,
+    }
+}
+
+fn native_read(facts: &HirFnFacts, formal: usize, range: ByteSpan, local: u32) -> HirNode {
+    let mut read = node(
+        &facts.source.bytes,
+        NodeShape {
+            kind: "expr_path",
+            token: Some("u32"),
+        },
+        range,
+        local,
+    );
+    read.res = Some(crate::PathRes {
+        kind: "local".into(),
+        target: Some(facts.signature.params[formal].pat.hir.clone()),
+        description: String::new(),
+    });
+    read
+}
+
+fn repeated_read_fixture() -> HirFnFacts {
+    let source = "pub fn caller(left:u32,right:u32) { left+left; }";
+    let mut facts = fixture(source);
+    let range = text_span(source, "left+left");
+    let left = native_read(
+        &facts,
+        0,
+        ByteSpan {
+            start: range.start,
+            end: range.start + 4,
+        },
+        501,
+    );
+    let right = native_read(
+        &facts,
+        0,
+        ByteSpan {
+            start: range.end - 4,
+            end: range.end,
+        },
+        502,
+    );
+    let mut binary = node(
+        source,
+        NodeShape {
+            kind: "expr_binary",
+            token: Some("u32"),
+        },
+        range,
+        500,
+    );
+    binary.children = vec![left, right];
+    binary.dispatch = Some(crate::Dispatch {
+        kind: "builtin".into(),
+        op: "+".into(),
+        operand_tys: vec!["u32".into(), "u32".into()],
+        result_ty: "u32".into(),
+    });
+    facts.body.children = vec![binary];
+    facts
+}
+
+#[test]
+fn formal_use_inventory_retains_unused_declarations_and_repeated_reads() {
+    let facts = repeated_read_fixture();
+    let observed = inspect_calls_with_uses(&facts).unwrap();
+    assert_eq!(observed.uses.availability, Availability::Known(()));
+    assert_eq!(observed.uses.coverage, Coverage::Complete);
+    assert_eq!(observed.uses.formals.len(), 2);
+    assert_eq!(observed.uses.occurrences.len(), 2);
+    assert!(
+        observed
+            .uses
+            .occurrences
+            .iter()
+            .all(|use_| use_.formal == 0 && use_.role == UseRole::Read)
+    );
+    assert_eq!(observed.uses.formals[1].ordinal, 1);
+    assert_ne!(
+        observed.uses.occurrences[0].native,
+        observed.uses.occurrences[1].native
+    );
+}
+
+fn owned_write(facts: &HirFnFacts, text: &str, local: u32) -> HirNode {
+    let source = &facts.source.bytes;
+    let range = text_span(source, text);
+    let left = native_read(
+        facts,
+        0,
+        ByteSpan {
+            start: range.start,
+            end: range.start + 5,
+        },
+        local + 1,
+    );
+    let right = node(
+        source,
+        NodeShape {
+            kind: "expr_lit",
+            token: Some("u32"),
+        },
+        ByteSpan {
+            start: range.end - 1,
+            end: range.end,
+        },
+        local + 2,
+    );
+    let compound = text.contains("+=");
+    let mut assignment = node(
+        source,
+        NodeShape {
+            kind: if compound {
+                "expr_assign_op"
+            } else {
+                "expr_assign"
+            },
+            token: Some("unit"),
+        },
+        range,
+        local,
+    );
+    assignment.children = vec![left, right];
+    if compound {
+        assignment.dispatch = Some(crate::Dispatch {
+            kind: "builtin".into(),
+            op: "+=".into(),
+            operand_tys: vec!["u32".into(), "u32".into()],
+            result_ty: "unit".into(),
+        });
+    }
+    assignment
+}
+
+#[test]
+fn formal_use_inventory_records_mutable_targets_once_without_changing_mutations() {
+    let mut facts = fixture("pub fn caller(mut value:u32) { value=1; value+=2; }");
+    facts.body.children = vec![
+        owned_write(&facts, "value=1", 500),
+        owned_write(&facts, "value+=2", 600),
+    ];
+    let before = inspect_calls(&facts).unwrap();
+    let after = inspect_calls_with_uses(&facts).unwrap();
+    assert_eq!(
+        serde_json::to_value(before.direct).unwrap(),
+        serde_json::to_value(after.direct).unwrap()
+    );
+    assert_eq!(after.uses.coverage, Coverage::Complete);
+    assert!(after.uses.formals[0].mutable);
+    assert_eq!(
+        after
+            .uses
+            .occurrences
+            .iter()
+            .map(|use_| use_.role)
+            .collect::<Vec<_>>(),
+        vec![UseRole::Write, UseRole::ReadWrite]
+    );
+    let mut changed = facts.clone();
+    changed.body.children[0].children[0]
+        .res
+        .as_mut()
+        .unwrap()
+        .target
+        .as_mut()
+        .unwrap()
+        .local = 999;
+    assert!(inspect_calls_with_uses(&changed).is_err());
+    facts.body.children.clear();
+    assert_eq!(
+        inspect_calls_with_uses(&facts).unwrap().uses.coverage,
+        Coverage::Incomplete
+    );
+}
+
+#[test]
+fn formal_use_inventory_links_exact_call_positions_and_keeps_witnessed_prefixes() {
+    let facts = fixture("pub fn caller(left:u32,right:u32) { leaf(right,left); noop!(); }");
+    let observed = inspect_calls_with_uses(&facts).unwrap();
+    assert_eq!(observed.uses.coverage, Coverage::Incomplete);
+    assert_eq!(observed.uses.occurrences.len(), 2);
+    assert_eq!(observed.uses.occurrences[0].formal, 1);
+    assert_eq!(
+        observed.uses.occurrences[0].role,
+        UseRole::CallArgument {
+            call_index: 0,
+            argument_index: 0,
+            unchanged: true
+        }
+    );
+    assert_eq!(observed.uses.occurrences[1].formal, 0);
+    let facts = checked_local_alias();
+    let observed = inspect_calls_with_uses(&facts).unwrap();
+    assert_eq!(observed.uses.coverage, Coverage::Complete);
+    assert_eq!(observed.uses.occurrences.len(), 1);
+    assert_eq!(observed.uses.occurrences[0].role, UseRole::Read);
+}
+
+fn wrapped_use(source: &str, text: &str, kind: &'static str) -> HirFnFacts {
+    let mut facts = fixture(source);
+    let wrapper_span = text_span(source, text);
+    let read_span = ByteSpan {
+        start: wrapper_span.end - 5,
+        end: wrapper_span.end,
+    };
+    let read = native_read(&facts, 0, read_span, 501);
+    let mut wrapper = node(source, NodeShape { kind, token: None }, wrapper_span, 500);
+    wrapper.children = vec![read];
+    facts.body.children = vec![wrapper];
+    if source.contains("->u32") {
+        facts.signature.return_ty.normalized = Some("u32".into());
+    }
+    facts
+}
+
+#[test]
+fn formal_use_inventory_checks_return_and_borrow_children_independently_of_effects() {
+    for (facts, role) in [
+        (
+            wrapped_use(
+                "pub fn caller(value:u32) { &value; }",
+                "&value",
+                "expr_addr_of",
+            ),
+            UseRole::SharedBorrow,
+        ),
+        (
+            wrapped_use(
+                "pub fn caller(mut value:u32) { &mut value; }",
+                "&mut value",
+                "expr_addr_of",
+            ),
+            UseRole::MutableBorrow,
+        ),
+        (
+            wrapped_use(
+                "pub fn caller(value:u32)->u32 { return value; }",
+                "return value",
+                "expr_ret",
+            ),
+            UseRole::Read,
+        ),
+    ] {
+        let observed = inspect_calls_with_uses(&facts).unwrap();
+        assert_eq!(observed.direct.coverage, Coverage::Incomplete);
+        assert_eq!(observed.uses.coverage, Coverage::Complete);
+        assert_eq!(observed.uses.occurrences[0].role, role);
+        let mut changed = facts;
+        changed.body.children[0].children.clear();
+        assert!(inspect_calls_with_uses(&changed).is_err());
+    }
+}
+
+#[test]
+fn formal_use_inventory_never_treats_missing_or_unrequested_evidence_as_zero_clean() {
+    let facts = fixture("pub fn caller(value:u32) { leaf(value); }");
+    let unrequested = inspect_calls(&facts).unwrap();
+    assert_eq!(unrequested.uses.coverage, Coverage::Incomplete);
+    assert!(matches!(
+        unrequested.uses.availability,
+        Availability::Unknown { .. }
+    ));
+    let mut changed = facts;
+    changed.body.children[0].children[0].res = None;
+    let observed = inspect_calls_with_uses(&changed).unwrap();
+    assert_eq!(observed.uses.coverage, Coverage::Incomplete);
+    assert!(observed.uses.occurrences.is_empty());
+    let changed = fixture("pub fn caller(value:u32) { leaf({value}); }");
+    assert_eq!(
+        inspect_calls_with_uses(&changed).unwrap().uses.coverage,
+        Coverage::Incomplete
+    );
+    let changed = fixture("pub fn caller(value:&mut u32) { leaf(value); }");
+    assert_eq!(
+        inspect_calls_with_uses(&changed).unwrap().uses.coverage,
+        Coverage::Incomplete
+    );
+}
+
+#[test]
+fn formal_use_syntax_exhaustion_and_duplicate_native_occurrences_never_complete() {
+    let source = format!("pub fn caller(value:u32) {{{}}}", ";".repeat(140));
+    let facts = fixture(&source);
+    let observed = inspect_calls_with_uses(&facts).unwrap();
+    assert_eq!(observed.uses.execution, Execution::BudgetExhausted);
+    assert_eq!(observed.uses.coverage, Coverage::Incomplete);
+    let mut facts = fixture("pub fn caller(value:u32) { leaf(value); }");
+    facts.body.children.push(facts.body.children[0].clone());
+    assert!(inspect_calls_with_uses(&facts).is_err());
+}

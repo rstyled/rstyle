@@ -7,6 +7,7 @@ use rstyle_pdg::{
 use std::collections::{BTreeMap, BTreeSet};
 
 struct Group<'a> {
+    unit: usize,
     store: &'a UnitStore,
     records: BTreeMap<usize, &'a Function>,
 }
@@ -16,6 +17,7 @@ struct Collector<'a, 'context> {
     result: Collected,
     remaining: usize,
     bundle_remaining: usize,
+    use_remaining: usize,
 }
 
 struct CallCollector<'a, 'unit, 'context> {
@@ -32,6 +34,7 @@ pub(super) fn evaluate(
     let mut collector = Collector {
         ctx,
         bundle_remaining: super::model::MAX_COMPARISONS,
+        use_remaining: callers::Limits::default().uses,
         remaining: ctx
             .args
             .max_analysis_functions
@@ -43,7 +46,9 @@ pub(super) fn evaluate(
         },
     };
     let selected: BTreeSet<_> = keys.iter().copied().collect();
-    for (unit, group) in groups(ctx).into_iter().enumerate() {
+    let mut use_rows = callers::Limits::default().uses;
+
+    for group in groups(ctx) {
         let targets: Vec<_> = group
             .records
             .values()
@@ -54,7 +59,7 @@ pub(super) fn evaluate(
         if targets.is_empty() {
             continue;
         }
-        collector.inspect_group(group, &targets, unit)?;
+        collector.inspect_group(group, &targets, &mut use_rows)?;
     }
     Ok(collector.result)
 }
@@ -70,6 +75,7 @@ fn groups<'a>(ctx: &report::Context<'a>) -> Vec<Group<'a>> {
             group.records.insert(record.facts.index, record);
         } else {
             groups.push(Group {
+                unit: groups.len(),
                 store,
                 records: BTreeMap::from([(record.facts.index, record)]),
             });
@@ -85,9 +91,11 @@ impl Collector<'_, '_> {
         functions
     }
 
-    fn retain_census(&mut self, unit: usize, census: callers::Census) {
-        self.result.budget |= census.execution == mutations::Execution::BudgetExhausted;
-        self.result.census.push(UnitCensus { unit, census });
+    fn retain_census(&mut self, unit: UnitCensus) {
+        self.result.budget |= unit.census.execution == mutations::Execution::BudgetExhausted
+            || unit.parameter_uses.exhausted();
+        self.use_remaining -= unit.census.use_entries;
+        self.result.census.push(unit);
     }
 
     fn retain_plan(&mut self, plan: Plan) {
@@ -99,15 +107,21 @@ impl Collector<'_, '_> {
         &mut self,
         group: Group<'_>,
         targets: &[&Function],
-        unit: usize,
+        use_rows: &mut usize,
     ) -> Result<(), String> {
-        let session = inspect_session(group.store, self.allowance(group.store.functions().len()))?;
+        let functions = self.allowance(group.store.functions().len());
+        let session = inspect_session(group.store, functions, self.use_remaining)?;
         self.retain_plans(&group, &session, targets)?;
+        let parameter_uses = super::uses::evaluate(&group.records, &session, targets, use_rows)?;
 
         let census = session
             .into_census()
             .ok_or("Caller census was not completed")?;
-        self.retain_census(unit, census);
+        self.retain_census(UnitCensus {
+            unit: group.unit,
+            census,
+            parameter_uses,
+        });
         Ok(())
     }
 
@@ -195,11 +209,16 @@ impl CallCollector<'_, '_, '_> {
     }
 }
 
-fn inspect_session(store: &UnitStore, functions: usize) -> Result<callers::Session<'_>, String> {
-    let mut session = callers::Session::new(
+fn inspect_session(
+    store: &UnitStore,
+    functions: usize,
+    uses: usize,
+) -> Result<callers::Session<'_>, String> {
+    let mut session = callers::Session::new_with_uses(
         store,
         callers::Limits {
             functions,
+            uses,
             ..Default::default()
         },
     )?;

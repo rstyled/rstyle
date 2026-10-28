@@ -78,6 +78,7 @@ fn observed(calls: Vec<mutations::Call>) -> mutations::Observations {
         })
         .collect();
     mutations::Observations {
+        uses: mutations::UseInventory::unrequested(),
         direct: mutations::Assessment {
             boundaries,
             coverage: mutations::Coverage::Incomplete,
@@ -193,6 +194,7 @@ fn unrelated_unknown_boundary_and_callback_signature_preserve_positive_witness()
 #[test]
 fn empty_complete_leaf_proves_only_absence_of_bounded_writes() {
     let observed = mutations::Observations {
+        uses: mutations::UseInventory::unrequested(),
         direct: direct(Vec::new()),
         calls: Vec::new(),
         signature: Availability::Known(()),

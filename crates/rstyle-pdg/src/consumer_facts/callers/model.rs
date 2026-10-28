@@ -7,6 +7,7 @@ pub struct Limits {
     pub functions: usize,
     pub calls: usize,
     pub arguments: usize,
+    pub uses: usize,
 }
 
 impl Default for Limits {
@@ -15,6 +16,7 @@ impl Default for Limits {
             functions: 4096,
             calls: 16384,
             arguments: 65536,
+            uses: 65536,
         }
     }
 }
@@ -42,6 +44,7 @@ pub struct Census {
     pub scanned_functions: usize,
     pub call_count: usize,
     pub argument_count: usize,
+    pub use_entries: usize,
     pub reasons: Vec<Reason>,
 }
 
@@ -54,6 +57,7 @@ impl Census {
             scanned_functions: 0,
             call_count: 0,
             argument_count: 0,
+            use_entries: 0,
             reasons: Vec::new(),
         }
     }

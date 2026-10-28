@@ -147,7 +147,13 @@ retain repeated exact call witnesses for distinct immutable owned-u32 formal
 reads, with separate support coverage and budget outcomes. Mutable/borrowed
 formals, aliases and transformed arguments do not establish unchanged forwarding.
 Bundles do not prove pass-through or removable parameters; their search does not
-enumerate every subset or prove maximality. `coordination` checks known physical edit overlaps;
+enumerate every subset or prove maximality. Each unit's `parameter_uses` separately
+records owned-u32 formal occurrences. A complete immutable formal used only as
+unchanged arguments into selected signature intents yields an advisory
+`pass_through_candidate`; unused, other-use and unavailable outcomes stay distinct.
+Opaque syntax and unresolved targets cannot prove forwarding. Use retention is
+bounded across units; this does not establish safe removal or propagation.
+`coordination` checks known physical edit overlaps;
 external callers, replacement design, whole-plan independence and stack order
 remain unknown. Strict saved-run replay supports this consumer without original
 source/tools. Legacy parameter grouping remains available for its broader scope.
