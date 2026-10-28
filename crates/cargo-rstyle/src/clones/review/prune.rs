@@ -217,9 +217,6 @@ fn validate_compiler_record(
 ) -> Result<Ordinal, String> {
     match record.family {
         status::Family::CompilerDiagnostic => {
-            if record.state == status::State::NoFinding {
-                return Err("Compiler diagnostic reviews require an explicit completed negative adapter before pruning".into());
-            }
             let entry = store
                 .compiler_diagnostic_entries
                 .get(record.entry_index)

@@ -8,40 +8,121 @@ use std::{
     rc::Rc,
 };
 
+#[derive(Default)]
+pub(in crate::clones) struct Completed {
+    pub snapshots: Vec<Result<Snapshot, String>>,
+    pub owners: Vec<Assessed>,
+}
+
+pub(in crate::clones) struct Assessed {
+    pub(in crate::clones::review) owner: Result<Rc<Owner>, String>,
+    pub(in crate::clones) path: String,
+    pub(in crate::clones::review) suppression: Option<rstyle_core::suppress::Suppression>,
+    pub(in crate::clones::review) findings: BTreeMap<String, usize>,
+}
+
 pub(in crate::clones) fn collect(
     ctx: &report::Context<'_>,
     unit: &UnitContext,
-    evaluation: &Evaluation,
+    evaluation: &mut Evaluation,
     policy: &Rc<serde_json::Value>,
-) -> Vec<Result<Snapshot, String>> {
-    if evaluation.report.diagnostics.is_empty() {
-        return Vec::new();
+) -> Completed {
+    if evaluation.report.diagnostics.is_empty() && evaluation.scopes.is_none() {
+        return Completed::default();
     }
-    let names = compiler_owners::names(&evaluation.facts);
+
+    let scopes = evaluation.scopes.take();
+    let names = compiler_owners::names(
+        evaluation
+            .facts
+            .iter()
+            .chain(scopes.iter().flat_map(|scopes| &scopes.excluded)),
+    );
+
     let originals = compiler_owners::originals(ctx, unit.id);
-    let captured = &ctx.capture.units[unit.observed_unit];
     let resolver = Resolver {
         ctx,
-        captured,
+        captured: &ctx.capture.units[unit.observed_unit],
         names: &names,
     };
+    let resolve = |facts: &FnFacts| {
+        originals
+            .get(facts.id.as_str())
+            .ok_or_else(|| "Missing compiler diagnostic owner".to_string())
+            .and_then(|original| resolver.resolve(facts, &original.facts))
+    };
 
-    let owners: BTreeMap<_, _> = evaluation
-        .diagnostic_owners
-        .iter()
-        .copied()
-        .collect::<BTreeSet<_>>()
+    let owners = resolve_owners(evaluation, scopes.is_some(), resolve);
+    let snapshots = snapshots(evaluation, &owners, policy);
+    let owners = scopes.map_or_else(Vec::new, |scopes| {
+        assessed(evaluation, scopes, owners, resolve)
+    });
+    Completed { snapshots, owners }
+}
+
+type Owners = BTreeMap<usize, Result<Rc<Owner>, String>>;
+
+fn resolve_owners(
+    evaluation: &Evaluation,
+    retain_scopes: bool,
+    resolve: impl Fn(&FnFacts) -> Result<Rc<Owner>, String>,
+) -> Owners {
+    let mut needed: BTreeSet<_> = evaluation.diagnostic_owners.iter().copied().collect();
+    if retain_scopes {
+        needed.extend(0..evaluation.facts.len().min(4096));
+    }
+    needed
         .into_iter()
-        .map(|index| {
-            let facts = &evaluation.facts[index];
-            let resolved = originals
-                .get(facts.id.as_str())
-                .ok_or_else(|| "Missing compiler diagnostic owner".to_string())
-                .and_then(|original| resolver.resolve(facts, &original.facts));
-            (index, resolved)
+        .map(|index| (index, resolve(&evaluation.facts[index])))
+        .collect()
+}
+
+fn findings(evaluation: &Evaluation) -> BTreeMap<usize, BTreeMap<String, usize>> {
+    let mut findings = BTreeMap::<usize, BTreeMap<String, usize>>::new();
+    for (index, owner) in evaluation.diagnostic_owners.iter().enumerate() {
+        findings
+            .entry(*owner)
+            .or_default()
+            .insert(evaluation.report.diagnostics[index].rule_id.clone(), index);
+    }
+    findings
+}
+
+fn assessed(
+    evaluation: &Evaluation,
+    scopes: rstyle_core::Scopes,
+    mut owners: Owners,
+    resolve: impl Fn(&FnFacts) -> Result<Rc<Owner>, String>,
+) -> Vec<Assessed> {
+    let mut findings = findings(evaluation);
+    let mut assessed: Vec<_> = evaluation
+        .facts
+        .iter()
+        .zip(scopes.suppressions)
+        .take(4096)
+        .enumerate()
+        .map(|(index, (facts, suppression))| Assessed {
+            owner: owners.remove(&index).expect("Retained core owner"),
+            path: facts.path.clone(),
+            suppression: Some(suppression),
+            findings: findings.remove(&index).unwrap_or_default(),
         })
         .collect();
-    snapshots(evaluation, &owners, policy)
+
+    let remaining = 4096 - assessed.len();
+    assessed.extend(
+        scopes
+            .excluded
+            .iter()
+            .take(remaining)
+            .map(|facts| Assessed {
+                owner: resolve(facts),
+                path: facts.path.clone(),
+                suppression: None,
+                findings: BTreeMap::new(),
+            }),
+    );
+    assessed
 }
 
 fn snapshots(

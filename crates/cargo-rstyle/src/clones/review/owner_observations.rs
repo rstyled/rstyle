@@ -109,7 +109,7 @@ pub(super) struct Observations<R> {
     pub truncated: bool,
     pub unavailable_scope: bool,
     pub requested: bool,
-    complete: bool,
+    pub(super) complete: bool,
 }
 
 impl<R: NumericObservation> Observations<R> {

@@ -1,5 +1,6 @@
-//! Compiler style choices reuse exact numeric review accounting and positive status.
+//! Compiler style choices reuse exact numeric review accounting and completed owner scopes.
 pub(in crate::clones) mod observed;
+pub(in crate::clones) mod retained;
 mod rules;
 use super::{
     ReviewStore, exact_rules,
@@ -75,6 +76,7 @@ pub(super) fn apply(
         &store.compiler_diagnostic_entries,
         &rows,
         positive_workflow::Contract {
+            retain_records: inputs.compiler_advisory.is_none(),
             requested: ctx.args.compiler_advisory,
             family: status::Family::CompilerDiagnostic,
             label: "Compiler diagnostic",
@@ -89,6 +91,7 @@ pub(super) fn apply(
             outcome,
         })
         .collect();
+    let records = retained_records(inputs, ctx, store, evaluated.records);
     Ok((
         summarize(
             decisions,
@@ -98,8 +101,23 @@ pub(super) fn apply(
                 .compiler_advisory
                 .is_some_and(|report| report.pattern_inputs_complete()),
         ),
-        evaluated.records,
+        records,
     ))
+}
+
+fn retained_records(
+    inputs: &workflow::Inputs<'_, '_>,
+    ctx: &report::Context<'_>,
+    store: &ReviewStore,
+    fallback: Vec<status::Record>,
+) -> Vec<status::Record> {
+    if !ctx.args.review_status_requested() {
+        return Vec::new();
+    }
+    inputs.compiler_advisory.map_or(fallback, |advisory| {
+        let observations = retained::observations(advisory, ctx);
+        numeric_workflow::records(&store.compiler_diagnostic_entries, &observations, ctx)
+    })
 }
 
 fn dismiss(

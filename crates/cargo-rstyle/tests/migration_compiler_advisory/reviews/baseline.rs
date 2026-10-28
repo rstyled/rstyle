@@ -1,6 +1,6 @@
 use super::*;
 
-const COMPARE: &[&str] = &[
+pub(super) const COMPARE: &[&str] = &[
     "--compiler-advisory-config",
     "policy.toml",
     "--compiler-baseline",
@@ -12,7 +12,7 @@ fn baseline(report: &Value) -> &Value {
     &report["compiler_advisory"]["diagnostic_baseline"]
 }
 
-fn exported() -> (TempDir, Value) {
+pub(super) fn exported() -> (TempDir, Value) {
     let (directory, original) = configured();
     let (output, report) = replay(
         directory.path(),
@@ -128,7 +128,7 @@ fn compiler_baseline_movement_preserves_equality_and_new_measurements_fail() {
     assert_eq!(baseline(&added)["new_findings"], 6);
 }
 
-fn capture_in(directory: &Path, extra: &[&str]) -> (Output, Value) {
+pub(super) fn capture_in(directory: &Path, extra: &[&str]) -> (Output, Value) {
     let mut args = vec!["--extraction-profile", "hir-data-v3", "--compiler-advisory"];
     args.extend_from_slice(extra);
     clones(directory, &args)
@@ -207,7 +207,7 @@ fn invalid_suppression_diagnostics_cannot_be_exported_as_a_clean_baseline() {
 }
 
 #[test]
-fn absent_positive_findings_remain_unavailable_instead_of_resolved() {
+fn completed_same_policy_negatives_resolve_prior_compiler_findings() {
     let (directory, _) = exported();
     std::fs::write(
         directory.path().join("src/lib.rs"),
@@ -218,7 +218,7 @@ fn absent_positive_findings_remain_unavailable_instead_of_resolved() {
     checked(&output, 0);
     let retained = baseline(&gone)["retained"].as_array().unwrap();
     assert_eq!(retained.len(), 6);
-    assert!(retained.iter().all(|row| row["state"] == "unavailable"));
+    assert!(retained.iter().all(|row| row["state"] == "resolved"));
 }
 
 #[test]

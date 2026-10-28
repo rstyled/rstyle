@@ -13,6 +13,7 @@ pub(super) enum Domain {
     Source,
     Mutation,
     Density,
+    Compiler,
 }
 
 impl Domain {
@@ -21,6 +22,7 @@ impl Domain {
             Self::Source => "Source",
             Self::Mutation => "Mutation",
             Self::Density => "Density",
+            Self::Compiler => "Compiler diagnostic",
         }
     }
 
@@ -29,6 +31,7 @@ impl Domain {
             Self::Source => "source",
             Self::Mutation => "mutation",
             Self::Density => "density",
+            Self::Compiler => "compiler diagnostic",
         }
     }
 

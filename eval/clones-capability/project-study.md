@@ -353,3 +353,30 @@ export take 2.24/1.99 seconds and 201,024/202,008 KiB peak RSS. These single run
 perform different output work and establish neither a speedup nor an overhead
 bound. Complete five-family baseline comparison/publication is separately tested
 with independent real-Cargo fixture cases and source/tool-free replay.
+
+## Completed compiler numeric scopes
+
+The independently recorded
+[`project-compiler-negative-cases.json`](project-compiler-negative-cases.json)
+requests read-only status against a missing review file over the same explicit
+library capture and policy. It requests completed owner scopes while creating no
+review file or retained choices. The 39 raw numeric findings, one raw proposal,
+176 unavailable generated owners, twenty unresolved callees and all strict
+results remain identical to a fresh reference replay, including four accepted
+pairs. Both runs exit 2. Ordinary review presentation adds visibility indices;
+raw core evaluations remain unchanged.
+
+Use the previous reference command without baseline export, then append:
+
+```sh
+--review-file /tmp/clones-compiler-negative-project-status-1/reviews.json --review-status
+```
+
+Pinned Linux aarch64 reference/status resource observations are both 2.09 seconds
+and 201,792/201,984 KiB peak RSS. These single runs do not establish a speedup or
+an overhead bound. Evidence is `/tmp/clones-compiler-negative-project-{raw,status}-1`.
+The seven independent real-Cargo fixture cases establish six-family negatives,
+explicit source-free pruning, policy/context/selection and suppression boundaries,
+direct-versus-density completeness and independence from strict pair budgets.
+This project check establishes preservation with requested scope retention, not
+new project findings, measured negative coverage, broader quality or retirement.

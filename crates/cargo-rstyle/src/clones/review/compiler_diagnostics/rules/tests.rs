@@ -138,6 +138,7 @@ fn completed_status_prefers_exact_context_independently_of_row_order() {
             &entries,
             &rows,
             positive_workflow::Contract {
+                retain_records: true,
                 requested: true,
                 family: status::Family::CompilerDiagnostic,
                 label: "Fixture",

@@ -188,12 +188,22 @@ review contract, not body equivalence or purity.
 
 Diagnostics from the same function share one immutable owner/signature; snapshots
 and saved choices share that owner and their policy value. No graph, body, source
-parse, new checksum or hash is involved. Status reuses completed lookups through
-the same positive-review workflow as compiler proposals. A missing diagnostic is
-retained as unavailable: this adapter does not yet establish completed negative
-assessments for pruning. Omitted compiler advisory is not-requested. Hiding every
-known finding cannot make generated/missing/unresolved input complete, and all
-strict matching results remain independent.
+parse, new checksum or hash is involved. Explicit status and diagnostic baselines
+retain the core evaluator's completed suppression outcomes and move excluded
+observations into the owner inventory. Ordinary lookup and default analysis do
+not retain these extra scopes or parse suppression comments again.
+
+A known selected owner evaluated under the same full policy and metric/detector
+versions can establish `no_finding`. Effect-density negatives additionally require
+complete propagation inputs; the five direct rules can complete despite unrelated
+unavailable owners. Suppressed, invalid-suppression and excluded owners remain
+unavailable. Unselected owners are not-requested; missing owners are not-observed
+only in a complete identity scope, otherwise unavailable. Policy changes stay
+stale and build contexts remain distinct. `--review-prune` requires an explicit
+saved run and removes only completed negative choices; add
+`--review-prune-dry-run` to preview without writing. Status alone never writes.
+Compiler proposals remain positive-only. Hiding every known finding cannot make
+generated/missing/unresolved input complete, and strict matching stays independent.
 
 
 ## Compiler diagnostic CI baselines
@@ -229,8 +239,9 @@ so an unrelated policy edit may conservatively cause drift.
 drift. Existing raw findings still count with `--fail-on-findings`; a baseline
 never dismisses them. An explicit review file can hide individual new findings
 from the new-finding count, while exports always retain the raw numeric findings.
-Reviews cannot hide header drift. Missing old positives stay **unavailable**;
-the adapter does not establish completed negatives or claim resolution/pruning.
+Reviews cannot hide header drift. Retained numeric findings become `resolved`
+only through the same completed owner/rule scopes used by review status;
+suppressed, excluded, missing and unavailable inputs cannot establish resolution.
 
 Incomplete inputs, unavailable diagnostic identities, invalid suppressions and
 oversized populations keep exit 2 and prevent export. The shared artifact boundary
@@ -246,8 +257,8 @@ comparison, but that comparison cannot establish a clean CI result.
 
 Baseline comparison applies changed-file selection to new visible numeric
 findings; policy/build-context drift still covers the whole scope. Exporting a
-compiler baseline with a changed-file manifest is rejected. Proposal baselines, broader project
-coverage, completed-negative status and legacy retirement remain open.
+compiler baseline with a changed-file manifest is rejected. Broader project
+coverage and legacy retirement remain open.
 
 
 ## Changed-file compiler diagnostics

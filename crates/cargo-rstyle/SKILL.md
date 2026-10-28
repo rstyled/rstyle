@@ -406,9 +406,15 @@ Use the zero-based index from that saved report. Schema 9 preserves earlier
 families; full numeric observations, metric versions, signature, effective policy
 and build context control equality. Raw diagnostics/fix plans remain intact,
 with separate visible indices and decisions. Invalid suppressions cannot be
-reviewed away. Missing diagnostics remain unavailable and are not automatically
-pruned. Owners/policy values are shared; no graphs, body proofs or hashes are
-added. Incomplete compiler coverage keeps exit 2 even when all findings are hidden.
+reviewed away. Explicit status and diagnostic baselines reuse completed core
+suppression and owner scopes. Known selected owners under the same policy and
+versions can establish numeric negatives; density also needs complete propagation.
+Suppressed/excluded/unavailable inputs cannot establish negatives. Unselected
+owners remain not-requested; missing owners stay not-observed or unavailable.
+Only explicit saved-run `--review-prune` removes completed negative choices;
+`--review-prune-dry-run` previews. Default analysis retains no extra scope roster.
+Owners/policy values are shared; no graphs, repeated parsing, body proofs or hashes
+are added. Incomplete compiler coverage keeps exit 2 even when all findings are hidden.
 
 
 Compiler diagnostics support `--write-compiler-baseline PATH` for a complete
@@ -418,7 +424,8 @@ explicit compiler policy and saved run as needed. Comparison reuses completed
 numeric snapshots and shared baseline I/O; no hashes, body copies or extra
 analysis. Raw diagnostics/fix plans remain intact; `--fail-on-findings` still
 counts existing findings. Reviews can hide new findings but cannot hide header
-drift. Missing old findings remain unavailable, never automatically resolved.
+drift. Old findings resolve only through the same completed owner/rule scopes
+used by numeric review status; missing positives alone never imply resolution.
 Incomplete or oversized scope exits 2 and cannot export; bounds are 4 MiB and
 4,096 owners/entries/contexts. Exports create a new file without overwriting.
 Changed-file selection filters new visible numeric findings in comparisons;

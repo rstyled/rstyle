@@ -6,7 +6,6 @@ use super::super::{
     exact_rules::ReviewSnapshot,
 };
 use super::{Baseline, Handle};
-use std::collections::BTreeMap;
 
 type Key<'a> = (&'a str, &'a Locator, &'a CompilationTarget);
 
@@ -36,20 +35,26 @@ pub(super) fn current<'a>(
     })
 }
 
-pub(super) fn retained(rows: &[Row<'_>], previous: Option<&Baseline>) -> Vec<Previous> {
+pub(super) fn retained(
+    advisory: &crate::clones::advisory::Report,
+    ctx: &crate::clones::report::Context<'_>,
+    previous: Option<&Baseline>,
+) -> Vec<Previous> {
     let Some(previous) = previous.filter(|baseline| !baseline.entries.is_empty()) else {
         return Vec::new();
     };
-    let mut positives = BTreeMap::<_, Vec<_>>::new();
-    for finding in rows.iter().filter_map(|row| row.snapshot.as_ref().ok()) {
-        positives.entry(key(finding)).or_default().push(finding);
-    }
-
-    baseline_common::positive_retained(
-        previous
-            .entries
-            .iter()
-            .map(|finding| (key(finding), finding)),
-        positives,
+    let owners = super::super::compiler_diagnostics::retained::observations(advisory, ctx);
+    baseline_common::retained(
+        previous.entries.iter().map(|finding| {
+            let (locator, context) = finding.identity();
+            (locator, context, finding)
+        }),
+        super::super::owner_population::Population::new(
+            &owners.rows,
+            owners.unavailable_scope,
+            owners.truncated,
+        ),
+        super::super::owner_population::Domain::Compiler,
+        super::super::numeric_workflow::Retained::assess,
     )
 }

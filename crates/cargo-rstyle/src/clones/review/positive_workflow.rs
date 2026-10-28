@@ -20,6 +20,8 @@ type Lookup<'a, S> = Result<exact_rules::Lookup<'a, S>, String>;
 
 pub(super) struct Contract {
     pub requested: bool,
+    /// Skip positive-only records when a numeric consumer supplies completed owner scopes.
+    pub retain_records: bool,
     pub family: status::Family,
     pub label: &'static str,
 }
@@ -61,7 +63,7 @@ fn records<R: Row>(
     lookups: &[Lookup<'_, R::Snapshot>],
     contract: &Contract,
 ) -> Vec<status::Record> {
-    if entries.is_empty() {
+    if !contract.retain_records || entries.is_empty() {
         return Vec::new();
     }
     let states = States::completed(rows, lookups);

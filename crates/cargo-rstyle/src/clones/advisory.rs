@@ -44,6 +44,8 @@ struct Unit {
     evaluation: rstyle_core::report::Report,
     #[serde(skip)]
     diagnostic_snapshots: Vec<Result<super::review::compiler_diagnostics::Snapshot, String>>,
+    #[serde(skip)]
+    diagnostic_owners: Vec<super::review::compiler_diagnostics::observed::Assessed>,
     #[serde(skip_serializing_if = "Option::is_none")]
     visible_diagnostics: Option<Vec<usize>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -187,6 +189,32 @@ impl Report {
             .collect()
     }
 
+    pub(super) fn diagnostic_owner_reviews(
+        &self,
+        ctx: &Context<'_>,
+    ) -> Vec<super::review::compiler_diagnostics::retained::Row<'_>> {
+        let selection = ctx
+            .analysis_config
+            .and_then(super::analysis::Config::changed_files);
+        self.units
+            .iter()
+            .flat_map(|unit| {
+                unit.diagnostic_owners.iter().map(move |assessed| {
+                    super::review::compiler_diagnostics::retained::Row {
+                        assessed,
+                        snapshots: &unit.diagnostic_snapshots,
+                        policy: &self.effective_config,
+                        selected: selection
+                            .is_none_or(|selection| selection.contains(&assessed.path)),
+                        effect_scope_complete: ctx.capture.failures.is_empty()
+                            && ctx.handoff.failures.is_empty()
+                            && unit.inputs_complete(),
+                    }
+                })
+            })
+            .collect()
+    }
+
     pub(super) fn pattern_reviews(
         &self,
     ) -> Vec<super::review::compiler_patterns::observed::Row<'_>> {
@@ -325,6 +353,7 @@ fn evaluate_unit(
         evaluation,
         facts,
         snapshots: diagnostic_snapshots,
+        owners: diagnostic_owners,
     } = diagnostics::evaluate(ctx, unit, facts, policy)?;
     let patterns = ctx.args.compiler_patterns.then(|| {
         patterns::evaluate(
@@ -348,6 +377,7 @@ fn evaluate_unit(
         unresolved_callees,
         evaluation,
         diagnostic_snapshots,
+        diagnostic_owners,
         visible_diagnostics: None,
         selected_diagnostics: None,
         patterns,

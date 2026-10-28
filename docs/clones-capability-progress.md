@@ -2797,3 +2797,65 @@ This delivers a shared CI workflow over completed proposals, not broader project
 completeness, better proposal quality or legacy retirement. The next frontier is
 compiler negative-status prerequisites and cross-package observations, followed
 by measured project-quality/coverage work rather than additional parallel miners.
+
+## C23: reuse completed compiler numeric scopes for retained choices
+
+The lead owns the core completion seam, compiler diagnostic review/baseline
+adapter, acceptance cases and documentation. Explicit status, pruning and numeric
+baselines now reuse the existing core evaluator's suppression outcomes and
+selected/excluded owner census. Excluded observations move into the temporary
+inventory without copying source buffers; included positive snapshots and retained
+rows share one resolved owner. Default analysis and ordinary positive lookups
+retain no additional scope inventory. The shared positive workflow skips its
+positive-only retained pass when completed numeric scopes supply the records.
+No new source parsing, repeated rule evaluation, body/graph copying, hash,
+checksum, strict admission change or real-project dismissal is introduced.
+
+All six numeric families can establish a negative for a selected known owner
+under the same full policy, detector/metric versions and compilation context.
+Suppressed, invalid-suppression and excluded inputs remain unavailable. Unselected
+owners remain not-requested; missing owners are not-observed only in a complete
+identity scope. Five direct-rule negatives survive unrelated generated inputs;
+effect density additionally requires complete propagation. Policy drift stays
+stale and build contexts remain distinct. Explicit saved-run pruning and shared
+baseline resolution consume the same completed outcomes. Status alone never
+writes, and compiler proposals retain their positive-only contract.
+
+Seven new real-Cargo cases cover all six negatives, source-free replay/pruning,
+read-only status/dry-run, suppression/exclusion, policy/context/selection drift,
+missing/generated owners, direct-versus-density completeness and strict matching
+budget independence. Effect-density scope depends on compiler capture and
+propagation completion, never strict pair completion. The existing
+baseline expectation now requires completed same-policy resolution. A core test
+checks unchanged report output, suppression alignment and original excluded-source
+buffer identity; default and positive-only paths retain no scope roster.
+Focused checks pass: 259 core tests and all 24 compiler diagnostic review cases,
+including the strict-budget independence regression.
+Final integrated checks and read-only retained-project observations follow below.
+Cross-package propagation, broader project quality/coverage and legacy retirement
+remain open; the full migration remains incomplete.
+
+The final integrated snapshot passes all 3,284 nextest cases in 211.582 seconds
+with five existing skips, plus workspace doc tests. Both original NonZero CI
+regressions and the u32 widening composition pass. Final all-target Clippy with
+warnings denied, formatting and diff checks pass; style remains zero across
+9,676 functions. Test evidence is `/tmp/clones-compiler-negative-tests-final-2`;
+Clippy/style evidence is `/tmp/clones-compiler-negative-{clippy,style}-final-1`.
+The earlier full run was intentionally interrupted to correct advisory scope's
+unnecessary dependency on strict matching completion; it is not passing evidence.
+
+The read-only retained-project study preserves all raw evaluations, the 39 numeric
+findings, one proposal and four accepted strict pairs; no review file or choice
+is created. Its 176 generated unavailable owners and twenty unresolved callees
+still require exit 2. Reference/status each take 2.09 seconds with
+201,792/201,984 KiB peak RSS. These single observations establish neither speedup
+nor an overhead bound. Independently recorded cases and commands are in the
+project study; evidence is `/tmp/clones-compiler-negative-project-{raw,status}-1`.
+This delivers completed numeric review/baseline lifecycle over known owners,
+not broader project completeness or new project-quality findings. Cross-package
+observations and measured project coverage/quality remain the next frontier.
+
+Final reviewed patterns reports zero. Unfiltered discovery contains exactly the
+same fourteen reviewed IDs as C22, with no new or absent IDs; the ignore ledger
+is unchanged. Evidence is `/tmp/clones-compiler-negative-patterns-final-1` and
+`/tmp/clones-compiler-negative-patterns-unfiltered-final-1`.

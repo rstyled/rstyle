@@ -57,7 +57,7 @@ pub(in crate::clones) fn evaluate(
                         .and_then(crate::clones::analysis::Config::changed_files),
                 ),
             ),
-            retained: observations::retained(&rows, previous),
+            retained: observations::retained(advisory, ctx, previous),
             export_requested: ctx.args.write_compiler_baseline.is_some(),
         },
         || rows.iter().map(|row| row.snapshot.clone()).collect(),

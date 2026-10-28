@@ -291,17 +291,17 @@ fn compiler_diagnostic_reviews_preserve_contexts_missing_findings_and_atomic_wri
     );
     assert_eq!(output.status.code(), Some(2));
     assert_eq!(std::fs::read(&path).unwrap(), bytes);
-    let (output, missing) = replay(
+    let (output, changed_policy) = replay(
         directory.path(),
         &original,
         &["--review-file", "reviews.json", "--review-prune"],
     );
-    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(output.status.code(), Some(0));
     assert_eq!(
-        missing["review_status"]["records"][0]["state"],
-        "unavailable"
+        changed_policy["review_status"]["records"][0]["state"],
+        "stale"
     );
-    assert_eq!(missing["review_prune"]["removed_entries"], 0);
+    assert_eq!(changed_policy["review_prune"]["removed_entries"], 0);
     assert_eq!(std::fs::read(path).unwrap(), bytes);
 }
 
@@ -366,3 +366,4 @@ fn hiding_a_compiler_diagnostic_cannot_erase_missing_generated_input() {
 }
 
 mod baseline;
+mod negatives;

@@ -52,6 +52,7 @@ pub(super) fn apply(
         &store.compiler_pattern_entries,
         &rows,
         positive_workflow::Contract {
+            retain_records: true,
             requested,
             family: status::Family::CompilerPattern,
             label: "Compiler proposal",

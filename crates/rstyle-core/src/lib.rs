@@ -51,7 +51,7 @@ fn rule_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec
     .concat()
 }
 
-fn invalid_suppression(f: &FnFacts, message: String) -> Diagnostic {
+fn invalid_suppression(f: &FnFacts, message: &str) -> Diagnostic {
     Diagnostic {
         path: f.path.clone(),
         line: f.line,
@@ -64,14 +64,19 @@ fn invalid_suppression(f: &FnFacts, message: String) -> Diagnostic {
     }
 }
 
-fn function_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec<Diagnostic> {
+fn function_diagnostics(
+    f: &FnFacts,
+    effects: &[rules::Effect],
+    cfg: &Config,
+) -> (Vec<Diagnostic>, Suppression) {
     let mut out = rule_diagnostics(f, effects, cfg);
-    match suppress::parse(&f.preceding_line) {
+    let suppression = suppress::parse(&f.preceding_line);
+    match &suppression {
         Suppression::None => {}
         Suppression::Allow(rules) => out.retain(|d| !rules.contains(&d.rule_id)),
         Suppression::Invalid(message) => out.push(invalid_suppression(f, message)),
     }
-    out
+    (out, suppression)
 }
 
 fn effect_counts<'a>(effects: impl Iterator<Item = &'a rules::Effect>) -> BTreeMap<String, usize> {
@@ -132,7 +137,8 @@ pub fn evaluate_and_retain(
     facts: Vec<FnFacts>,
     cfg: &Config,
 ) -> Result<(Report, Vec<FnFacts>), String> {
-    evaluate_inputs(facts, cfg, false).map(|evaluation| (evaluation.report, evaluation.facts))
+    evaluate_inputs(facts, cfg, Retention::Report)
+        .map(|evaluation| (evaluation.report, evaluation.facts))
 }
 
 /// Completed diagnostic ownership follows report sorting without location-based inference.
@@ -141,42 +147,75 @@ pub struct Evaluation {
     pub facts: Vec<FnFacts>,
     /// One index into `facts` for each diagnostic in `report`.
     pub diagnostic_owners: Vec<usize>,
+    /// Explicit consumers may retain completed suppression scopes and excluded observations.
+    pub scopes: Option<Scopes>,
+}
+
+#[derive(Default)]
+pub struct Scopes {
+    /// Aligned with the selected facts, from their completed rule evaluation.
+    pub suppressions: Vec<Suppression>,
+    pub excluded: Vec<FnFacts>,
+}
+
+#[derive(Clone, Copy)]
+enum Retention {
+    Report,
+    Owners,
+    Scopes,
 }
 
 pub fn evaluate_with_owners(facts: Vec<FnFacts>, cfg: &Config) -> Result<Evaluation, String> {
-    evaluate_inputs(facts, cfg, true)
+    evaluate_inputs(facts, cfg, Retention::Owners)
+}
+
+/// Retain completed numeric scope outcomes without evaluating a rule or parsing a comment again.
+pub fn evaluate_with_scopes(facts: Vec<FnFacts>, cfg: &Config) -> Result<Evaluation, String> {
+    evaluate_inputs(facts, cfg, Retention::Scopes)
+}
+
+struct RuleInputs<'a> {
+    facts: &'a [FnFacts],
+    effects: &'a [Vec<rules::Effect>],
+    cfg: &'a Config,
 }
 
 fn evaluated_diagnostics(
-    facts: &[FnFacts],
-    effects: &[Vec<rules::Effect>],
-    cfg: &Config,
-    retain_owners: bool,
+    inputs: RuleInputs<'_>,
+    retention: Retention,
+    scopes: &mut Option<Scopes>,
 ) -> (Vec<usize>, Vec<Diagnostic>) {
-    if !retain_owners {
-        let mut diagnostics = collect_diagnostics(facts, effects, cfg, |_, diagnostic| diagnostic);
+    if matches!(retention, Retention::Report) {
+        let mut diagnostics = collect_diagnostics(inputs, |_, diagnostic| diagnostic, None);
         report::sort(&mut diagnostics);
         return (Vec::new(), diagnostics);
     }
-    let mut owned =
-        collect_diagnostics(facts, effects, cfg, |owner, diagnostic| (owner, diagnostic));
+    let mut owned = collect_diagnostics(
+        inputs,
+        |owner, diagnostic| (owner, diagnostic),
+        scopes.as_mut().map(|scopes| &mut scopes.suppressions),
+    );
     owned.sort_by(|(_, a), (_, b)| report::ordering(a, b));
     owned.into_iter().unzip()
 }
 
 fn collect_diagnostics<T>(
-    facts: &[FnFacts],
-    effects: &[Vec<rules::Effect>],
-    cfg: &Config,
+    inputs: RuleInputs<'_>,
     emit: impl Fn(usize, Diagnostic) -> T,
+    mut scopes: Option<&mut Vec<Suppression>>,
 ) -> Vec<T> {
-    facts
+    inputs
+        .facts
         .iter()
-        .zip(effects)
+        .zip(inputs.effects)
         .enumerate()
         .flat_map(|(owner, (f, e))| {
             let emit = &emit;
-            function_diagnostics(f, e, cfg)
+            let (diagnostics, suppression) = function_diagnostics(f, e, inputs.cfg);
+            if let Some(scopes) = scopes.as_mut() {
+                scopes.push(suppression);
+            }
+            diagnostics
                 .into_iter()
                 .map(move |diagnostic| emit(owner, diagnostic))
         })
@@ -186,18 +225,35 @@ fn collect_diagnostics<T>(
 fn evaluate_inputs(
     facts: Vec<FnFacts>,
     cfg: &Config,
-    retain_owners: bool,
+    retention: Retention,
 ) -> Result<Evaluation, String> {
     let excluded = exclusions::Matcher::compile(&cfg.exclude.0)?;
+    let mut scopes = matches!(retention, Retention::Scopes).then(Scopes::default);
     let facts: Vec<FnFacts> = facts::merge(facts)
         .into_iter()
-        .filter(|f| !excluded.is_excluded(std::path::Path::new(&f.path)))
+        .filter_map(|fact| {
+            if excluded.is_excluded(std::path::Path::new(&fact.path)) {
+                if let Some(scopes) = scopes.as_mut() {
+                    scopes.excluded.push(fact);
+                }
+                None
+            } else {
+                Some(fact)
+            }
+        })
         .collect();
     let graph = graph::build(&facts);
     let effects = all_effects(&facts, &graph, cfg);
 
-    let (diagnostic_owners, diagnostics) =
-        evaluated_diagnostics(&facts, &effects, cfg, retain_owners);
+    let (diagnostic_owners, diagnostics) = evaluated_diagnostics(
+        RuleInputs {
+            facts: &facts,
+            effects: &effects,
+            cfg,
+        },
+        retention,
+        &mut scopes,
+    );
     let summary = summarize(&facts, &effects, cfg, diagnostics.len());
     let fix_groups = groups::build(&facts, &graph, &diagnostics, cfg);
     let functions = complexity_report::findings(&facts, &diagnostics);
@@ -210,6 +266,7 @@ fn evaluate_inputs(
         },
         facts,
         diagnostic_owners,
+        scopes,
     })
 }
 
@@ -227,13 +284,49 @@ mod tests {
 
     #[test]
     fn default_evaluation_keeps_no_owner_roster_and_preserves_the_report() {
-        let plain =
-            evaluate_inputs(vec![four_params("original")], &Config::default(), false).unwrap();
+        let plain = evaluate_inputs(
+            vec![four_params("original")],
+            &Config::default(),
+            Retention::Report,
+        )
+        .unwrap();
         let owned =
             evaluate_with_owners(vec![four_params("original")], &Config::default()).unwrap();
+        assert!(plain.scopes.is_none());
+        assert!(owned.scopes.is_none());
         assert_eq!(plain.diagnostic_owners.capacity(), 0);
         assert_eq!(plain.report, owned.report);
         assert_eq!(owned.diagnostic_owners, vec![0]);
+    }
+
+    #[test]
+    fn completed_scopes_retain_suppressions_and_move_excluded_source_buffers() {
+        let mut excluded = four_params("excluded");
+        excluded.path = "generated/file.rs".into();
+        let buffer = excluded.source.as_ptr();
+        let mut allowed = four_params("allowed");
+        allowed.preceding_line = "// rstyle-allow(fn_params): fixture".into();
+        let config: Config = toml::from_str("exclude=['generated/**']").unwrap();
+        let original = vec![excluded, allowed, four_params("reported")];
+        let expected = evaluate(original.clone(), &config).unwrap();
+        let evaluated = evaluate_with_scopes(original, &config).unwrap();
+        assert_eq!(evaluated.report, expected);
+        let scopes = evaluated.scopes.unwrap();
+        assert_eq!(scopes.excluded.len(), 1);
+        assert_eq!(scopes.excluded[0].source.as_ptr(), buffer);
+        assert_eq!(scopes.suppressions.len(), evaluated.facts.len());
+        for (fact, suppression) in evaluated.facts.iter().zip(&scopes.suppressions) {
+            match fact.name.as_str() {
+                "allowed" => assert_eq!(suppression, &Suppression::Allow(vec!["fn_params".into()])),
+                "reported" => assert_eq!(suppression, &Suppression::None),
+                other => panic!("unexpected selected owner: {other}"),
+            }
+        }
+        assert_eq!(evaluated.report.diagnostics.len(), 1);
+        assert_eq!(
+            evaluated.facts[evaluated.diagnostic_owners[0]].name,
+            "reported"
+        );
     }
 
     #[test]

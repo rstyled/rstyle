@@ -43,9 +43,11 @@ pub(super) fn originals<'a>(
         .collect()
 }
 
-pub(super) fn names(facts: &[FnFacts]) -> BTreeMap<String, Result<String, String>> {
+pub(super) fn names<'a>(
+    facts: impl IntoIterator<Item = &'a FnFacts>,
+) -> BTreeMap<String, Result<String, String>> {
     let named: Vec<_> = facts
-        .iter()
+        .into_iter()
         .map(|facts| (&facts.id, locator::base(facts)))
         .collect();
     let mut counts = BTreeMap::new();

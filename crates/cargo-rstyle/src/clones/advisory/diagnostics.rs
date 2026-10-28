@@ -11,6 +11,7 @@ pub(super) struct Completed {
     pub evaluation: Report,
     pub facts: Vec<FnFacts>,
     pub snapshots: Vec<Result<compiler_diagnostics::Snapshot, String>>,
+    pub owners: Vec<compiler_diagnostics::observed::Assessed>,
 }
 
 pub(super) fn evaluate(
@@ -32,15 +33,26 @@ pub(super) fn evaluate(
             evaluation,
             facts,
             snapshots: Vec::new(),
+            owners: Vec::new(),
         });
     }
 
-    let evaluated = rstyle_core::evaluate_with_owners(facts, config)?;
-    let snapshots = compiler_diagnostics::observed::collect(ctx, unit, &evaluated, policy);
+    let mut evaluated = if ctx.args.review_status_requested()
+        || ctx
+            .args
+            .compiler_baseline_requested(crate::clones::CompilerBaseline::Diagnostics)
+    {
+        rstyle_core::evaluate_with_scopes(facts, config)?
+    } else {
+        rstyle_core::evaluate_with_owners(facts, config)?
+    };
+    let compiler_diagnostics::observed::Completed { snapshots, owners } =
+        compiler_diagnostics::observed::collect(ctx, unit, &mut evaluated, policy);
     Ok(Completed {
         evaluation: evaluated.report,
         facts: evaluated.facts,
         snapshots,
+        owners,
     })
 }
 
