@@ -156,11 +156,15 @@ chooses to retain that boundary. Use an exact `--replay-run`,
 findings merely to quiet the output. Parameter dismissal writes schema 3 while
 preserving existing helper and source entries. Lookup/status never write or
 upgrade stores. Body edits, binder renaming and line moves preserve review;
-parameter count, receiver presence, numeric policy or detector-version changes require review, and changed
-build contexts cannot inherit it. Identity covers uniquely indexed original free
-functions in captured root source, inline modules and independently checked
-ordinary external modules. Remapped/generated modules, external methods,
-ambiguity, missing ownership and exhausted bounds stay unavailable.
+parameter count, receiver presence, numeric policy or detector-version changes
+require review, and changed build contexts cannot inherit it. Identity covers
+uniquely indexed original declarations in captured root source, inline modules and
+independently checked
+ordinary external modules. External methods support unique same-module nongeneric
+struct/enum owners and inherent/local-trait impls, with exact cfg/source/header
+checks. Generic/aliased/imported/qualified owners or traits, default trait methods,
+remapped/generated modules, ambiguity, missing ownership and exhausted bounds
+stay unavailable.
 Only selected hidden parameter findings leave the text/finding gate. Raw analysis
 counts, assessments and advisory parameter plans remain unfiltered; other rules
 and incomplete-scope exits retain their meaning. Explicit saved-run
@@ -330,7 +334,8 @@ reports and do not create saved dismissals. Current incomplete analysis exits tw
 retained suppression, exclusion, missing owners and unavailable identities remain
 explicit rather than resolved. Empty baseline headers still detect policy drift.
 Both live analysis and source/tool-free replay work. Original root/inline and
-checked ordinary external free-function identities and bounded inventory limits apply; see
+checked ordinary external free-function and concrete local method identities,
+and bounded inventory limits apply; see
 `docs/clones-mutation-effects.md` before using this as a project-wide CI gate.
 
 ## Source-rule CI baseline inventories

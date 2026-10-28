@@ -196,10 +196,13 @@ for commands, schema-3 identity and retained status/pruning.
 
 Body edits, binder renaming and line/layout changes preserve review. Parameter count,
 numeric policy and detector-version changes require review; changed build
-contexts cannot inherit it. Identity initially requires a uniquely indexed
-original free-function declaration in captured root source or inline modules.
-External module files, ambiguous declarations, missing ownership/index evidence
-and exhausted bounds remain unavailable when review identity is needed.
+contexts cannot inherit it. Identity requires a uniquely indexed original
+declaration in captured root source, inline modules or checked ordinary external
+modules. External free functions and inherent/local-trait impl methods on unique
+same-module nongeneric structs/enums are supported. Generic impls/owners, aliases,
+imported/qualified owners or traits, default trait methods, ambiguous declarations,
+missing ownership/index evidence and exhausted bounds remain unavailable when
+review identity is needed. See the shared finding-review owner contract.
 
 JSON `parameter_review` reports original, hidden and visible counts plus selected
 hidden counts and decisions. Text and `--fail-on-findings` hide only exact reviewed
@@ -307,7 +310,9 @@ its own visibility semantics. Baseline input never supplies current evidence.
 Load and export are bounded to 4 MiB, with at most 4,096 entries, contexts and
 exclusions. Export creates a new destination atomically and refuses overwrite.
 The shared original owner index also bounds scope: root/inline owners and checked
-ordinary external free functions are supported; external methods, remapped or
-ambiguous ownership and exhausted identities remain unavailable. Live and
+ordinary external free functions and concrete same-module inherent/local-trait
+impl methods are supported. Generic/aliased/qualified/imported owners, default
+trait methods, remapped or ambiguous ownership and exhausted identities remain
+unavailable. Live and
 source/tool-free saved-run comparison and export use the same policy. These
 limits remain visible prerequisites for any project-wide CI gate.

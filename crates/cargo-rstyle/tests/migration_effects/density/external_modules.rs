@@ -228,3 +228,46 @@ fn external_density_review_is_retained_after_original_owner_movement() {
     assert_eq!(report["mutation_effects"]["findings"], 1);
     measured(&report, "worker::update", 1000, "finding");
 }
+
+#[test]
+fn concrete_external_associated_method_density_baseline_replays_original_identity() {
+    let source = format!("pub struct Unit; impl Unit {{ {UPDATE} }}\n");
+    let directory = external("pub mod worker;\n", &[("src/worker.rs", &source)]);
+    export(directory.path());
+    let saved = retained(directory.path());
+    let entries = saved["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["locator"]["source"], "src/worker.rs");
+    assert_eq!(
+        entries[0]["locator"]["qualified_name"],
+        "crate::worker::Unit::update"
+    );
+    assert_eq!(entries[0]["locator"]["declaration_kind"], "method");
+    std::fs::write(
+        directory.path().join("src/worker.rs"),
+        format!("// moved original method\n\n{source}"),
+    )
+    .unwrap();
+    let (output, moved) = requested(directory.path(), COMPARE);
+    check(&output, 0);
+    baseline_counts(&moved, 1, 0);
+    for path in ["src/lib.rs", "src/worker.rs", "Cargo.toml"] {
+        std::fs::remove_file(directory.path().join(path)).unwrap();
+    }
+    for detail in ["full", "compact"] {
+        let report = replay_baseline(
+            directory.path(),
+            &moved,
+            &[
+                "--density-baseline",
+                "baseline.json",
+                "--fail-on-new-density",
+                "--report-detail",
+                detail,
+            ],
+        );
+        baseline_counts(&report, 1, 0);
+        assert_eq!(report["verification_policy"], "strict-replay");
+    }
+    assert_eq!(retained(directory.path()), saved);
+}

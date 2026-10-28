@@ -1,4 +1,5 @@
 use super::*;
+mod external_methods;
 mod live;
 mod status;
 

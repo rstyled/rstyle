@@ -266,7 +266,7 @@ fn root_and_generated_functions_do_not_acquire_external_free_identity() {
 }
 
 #[test]
-fn original_methods_do_not_acquire_external_free_identity() {
+fn mismatched_method_headers_do_not_acquire_external_free_identity() {
     let source = "fn value() {} struct Item; impl Item { fn method() {} }";
     let proof = census(&[
         ("/sample/src/lib.rs", "mod worker;"),
@@ -289,6 +289,60 @@ fn original_methods_do_not_acquire_external_free_identity() {
             .into();
     original_method.source.digest = original_method.source.bytes.checksum().into();
     assert!(locations.location(&original_method, source).is_err());
+}
+
+fn associated_facts(source: &str, name: &str) -> HirFnFacts {
+    let declarations = methods::declarations(syn::parse_file(source).unwrap().items, &[]).unwrap();
+    let (_, function, _) = declarations
+        .iter()
+        .find(|(candidate, _, _)| candidate == name)
+        .unwrap();
+    let mut facts = facts("/sample/src/worker.rs", source, "seed");
+    facts.fn_span = shapes::function_range(source, function);
+    facts.source.bytes = crate::source_evidence::byte_range(source, facts.fn_span)
+        .unwrap()
+        .into();
+    facts.source.digest = facts.source.bytes.checksum().into();
+    facts.signature.sig_span.end =
+        shapes::function_header(source, function).end - facts.fn_span.start;
+    facts.build.frontend_options.insert(
+        "source_identifier".into(),
+        serde_json::json!(function.sig.ident.to_string()),
+    );
+    facts
+}
+
+#[test]
+fn inherent_and_distinct_trait_methods_keep_exact_external_qualified_identities() {
+    let source = "fn seed() {} struct Item; trait One { fn read(); } trait Two { fn read(); } impl Item { fn read() {} } impl One for Item { fn read() {} } impl Two for Item { fn read() {} }";
+    let proof = census(&[
+        ("/sample/src/lib.rs", "mod worker;"),
+        ("/sample/src/worker.rs", source),
+    ]);
+    let locations = Locations::new(&proof, &[]).unwrap();
+    for name in ["Item::read", "<Item as One>::read", "<Item as Two>::read"] {
+        let facts = associated_facts(source, name);
+        assert_eq!(
+            locations.location(&facts, source).unwrap(),
+            (format!("crate::worker::{name}"), "method")
+        );
+    }
+}
+
+#[test]
+fn duplicate_external_method_identities_refuse_the_whole_location_index() {
+    for source in [
+        "struct Item; impl Item { fn read() {} fn read() {} }",
+        "struct Item; impl Item { fn read() {} } impl Item { fn read() {} }",
+        "struct Item; trait One { fn read(); } impl One for Item { fn read() {} } impl One for Item { fn read() {} }",
+    ] {
+        let proof = census(&[
+            ("/sample/src/lib.rs", "mod worker;"),
+            ("/sample/src/worker.rs", source),
+        ]);
+        let error = Locations::new(&proof, &[]).err().unwrap();
+        assert!(error.contains("ambiguous qualified"), "{error}");
+    }
 }
 
 #[test]

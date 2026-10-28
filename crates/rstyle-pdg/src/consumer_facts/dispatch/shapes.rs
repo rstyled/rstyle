@@ -671,7 +671,7 @@ pub(super) fn plain_type(ty: &Type) -> Option<String> {
         .flatten()
 }
 
-fn plain_path(path: &syn::Path) -> Option<String> {
+pub(super) fn plain_path(path: &syn::Path) -> Option<String> {
     (path.leading_colon.is_none()
         && path.segments.len() == 1
         && path.segments[0].arguments.is_empty())

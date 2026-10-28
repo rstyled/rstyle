@@ -540,23 +540,36 @@ fn external_facts(source: &str, name: &str) -> HirFnFacts {
 
 #[test]
 fn external_review_location_does_not_extend_dispatch_or_capability_permissions() {
-    let facts = external_facts(positive_source(), "dispatch");
-    let index = Index::from_facts(&[&facts]).unwrap();
-    assert_eq!(
-        index.review_location(&facts).unwrap(),
-        ("crate::worker::dispatch".into(), "free-function")
-    );
-    assert!(matches!(
-        index.evaluate(&facts).unwrap().availability,
-        super::super::Availability::Unsupported { .. }
-    ));
-    assert!(matches!(
-        index
-            .evaluate_capability_wrapper(&facts)
-            .unwrap()
-            .availability,
-        super::super::Availability::Unsupported { .. }
-    ));
+    for (facts, expected) in [
+        (
+            external_facts(positive_source(), "dispatch"),
+            ("crate::worker::dispatch", "free-function"),
+        ),
+        (
+            external_facts(
+                "struct Local; impl Local { fn measure(&self) {} }",
+                "measure",
+            ),
+            ("crate::worker::Local::measure", "method"),
+        ),
+    ] {
+        let index = Index::from_facts(&[&facts]).unwrap();
+        assert_eq!(
+            index.review_location(&facts).unwrap(),
+            (expected.0.into(), expected.1)
+        );
+        assert!(matches!(
+            index.evaluate(&facts).unwrap().availability,
+            super::super::Availability::Unsupported { .. }
+        ));
+        assert!(matches!(
+            index
+                .evaluate_capability_wrapper(&facts)
+                .unwrap()
+                .availability,
+            super::super::Availability::Unsupported { .. }
+        ));
+    }
 }
 
 #[test]

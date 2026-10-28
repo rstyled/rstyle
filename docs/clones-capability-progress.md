@@ -2132,3 +2132,68 @@ previous fifteen IDs. No ledgers changed. The 29 reducer tests also pass.
 Final checkpoint evidence is `/tmp/clones-project-study-*-final.*` and
 `/tmp/clones-project-study-python.log`. This delivers capture isolation and a
 repeatable coverage study, not full migration or capability retirement.
+
+## C13h: original external method review identities
+
+The locator worker owns the external declaration leaf and unit controls; parameter
+acceptance owns the dedicated parameter-review leaf; numeric acceptance owns
+length/spacing leaves. The lead owns shared naming visibility, source/density
+baseline acceptance, registration, docs/embedded skill and integrated validation.
+Worker writes finish before the frozen checkpoint.
+
+Ordinary external module locations now index inherent and same-module local-trait
+impl methods on uniquely named nongeneric structs/enums. Durable names reuse the
+existing root method convention (`Owner::method` or `<Owner as Trait>::method`),
+with declaration kind `method`; existing locators and store schemas are unchanged.
+Associated, shared and mutable receiver methods retain their exact original
+signature/source/header checks. Member cfg selection precedes collision checks.
+Ambiguous qualified identities refuse the whole locator index. Imports, aliases,
+generic owner/impl forms, qualified/nonlocal owners or traits, default trait body
+methods and generated/remapped ownership remain unavailable. A wildcard import
+conservatively prevents method owner resolution. Unrelated explicit imports do
+not. The existing immutable census, parser, module/item population and retained
+entry limits are unchanged. Source snapshots are shared, queries borrow the
+completed index, and no new hash or serialized authority is introduced.
+
+The locator extension does not extend dispatch, capability, strict pair, caller,
+helper or effect permissions. A route regression explicitly checks that an
+externally located receiver method still lacks dispatch/capability authority.
+Unit controls distinguish inherent and multiple trait origins, unsupported and
+shadowed/imported/generic owners, cfg selection, duplicate identities, original
+BOM/CRLF/Unicode bytes and unchanged whole-declaration budget refusal.
+
+Real-Cargo acceptance covers durable parameter/length/spacing reviews, retained
+raw findings, full/compact source/tool-free strict replay, namespace/owner namesake
+isolation, movement/body retention and numeric staleness. Source baselines preserve
+all three numeric families on an external method across movement and replay. A
+separate associated-method density baseline exercises already complete scalar
+body evidence; the locator does not manufacture that evidence. Unsupported owner
+forms retain raw measurements but refuse dismissal without publishing a store.
+The shared owner scope is documented in source rules, finding reviews, the matrix
+and the embedded skill. Broader generic/imported owners, default trait methods,
+project spacing/density quality, native macOS, Go comparison and legacy retirement
+remain open. PR19 remains outside this feature branch.
+
+Strict replay of the earlier 414-owner project capture completes in 4.390 seconds
+with no capture/handoff failures, resolving original identities for 121 of 123
+parameter findings and 116 of 117 length findings. The remaining parameter owners
+are a cross-module qualified trait impl and a lifetime-generic owner; the remaining
+length owner is lifetime-generic. All 240 raw findings remain visible and no review
+store is created. Existing source budget/unsupported coverage still requires exit
+2. This is a separate replay observation, not a fresh capture or performance
+comparison. Evidence is `/tmp/clones-project-method-review`; its command and saved
+run path are recorded in `run.json`.
+
+The frozen checkpoint passes all 3,182 nextest tests (five skipped) in 202.011
+seconds and workspace doc tests, including both original NonZero failures and
+u32 widening composition. All ten new real-Cargo cases pass, and focused dispatch
+unit tests pass. Formatting, workspace/all-target Clippy with warnings denied and
+diff checks pass. Legacy style reports zero violations across 9,493 functions.
+Reviewed patterns reports zero visible candidates, and unfiltered patterns retains
+exactly the previous fifteen IDs. The initial exact plain-path duplicate was
+removed by reusing the existing source helper; no review/ignore ledger changed.
+No threshold, work budget, extraction permission, semantic admission or hash
+policy changed. Final integrated evidence is `/tmp/clones-external-methods-*-final.*`.
+This is a delivered original-method review increment; the full migration remains
+active, with the project statement-budget case and broader capability quality
+and retirement gates still open.

@@ -140,13 +140,18 @@ Parameter dismissal upgrades the store envelope to schema 3 with typed
 rewrites. Missing stores mean no reviews. Suppressed, clean, unselected,
 unavailable, invalid or duplicate selections reject without writing.
 
-Identity covers uniquely indexed original free-function declarations in captured
-root source, inline modules and independently checked ordinary external modules
-(`name.rs` or `name/mod.rs`). External locators retain exact captured cfg selection
-and original file/range/header correspondence. Remapped/generated module
-ownership, external methods, ambiguous declarations, unavailable source ownership/indexes and exhausted bounded work
-remain unavailable when a positive review identity is needed. Observation and
-retained-entry work are each bounded to 4,096 entries.
+Identity covers uniquely indexed original declarations in captured root source,
+inline modules and independently checked ordinary external modules (`name.rs` or
+`name/mod.rs`). External locators support free functions and methods on unique
+same-module nongeneric structs/enums. Inherent methods use
+`crate::module::Owner::method`; local-trait impl methods use
+`crate::module::<Owner as Trait>::method`, with declaration kind `method`.
+Member cfgs use the exact captured compiler selection before checking duplicates.
+Original file/range/header/receiver correspondence remains mandatory. These are
+source identities, not dispatch, effect or refactoring proofs. Generic impl/owner,
+aliased/imported/qualified owners or traits, default trait methods, remapped or
+generated ownership, ambiguous declarations and exhausted bounded work remain
+unavailable. Observation and retained-entry work are each bounded to 4,096 entries.
 
 JSON `parameter_review` (`rstyle.parameter-review/1`) reports execution, coverage,
 original/visible/hidden counts, retained entries, `hidden_selected_findings` and
@@ -222,9 +227,9 @@ length and spacing choices remain independent; only selected matching diagnostic
 and finding exits are hidden. Raw assessments, totals and plans remain unfiltered.
 All three families share one original owner resolution and the existing 4,096-owner
 bound, with 4,096 stored entries per family. Strict full/compact replay needs no
-original source or compiler tools. Identity scope remains original root/inline
-free functions; unavailable, suppressed, unselected and clean findings cannot be
-dismissed.
+original source or compiler tools. The three families share the original owner
+scope above, including checked ordinary external methods. Unavailable, suppressed,
+unselected and clean findings cannot be dismissed.
 
 ## Inspect every retained review
 

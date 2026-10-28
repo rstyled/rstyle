@@ -75,3 +75,14 @@ Next work should investigate the small source-statement budget case while
 preserving existing limits and unknown semantics. Broader durable review locators
 for external methods are a separate need; ordinary source methods already measure.
 Native macOS, Go comparison and per-capability legacy retirement remain pending.
+
+A subsequent external-method locator checkpoint replays this same saved run with
+`--source-rules --analysis-config eval/clones-capability/project-source-policy.toml
+--review-file /tmp/clones-project-method-reviews.json`. Strict replay resolves
+identities for 121 of 123 parameter findings and 116 of 117 length findings.
+The three unavailable identities are one cross-module qualified trait impl and
+two lifetime-generic owners. All 240 findings remain visible; ordinary lookup
+creates no review store. Source coverage remains incomplete and exit 2 remains
+required. This 4.390-second replay is a separate workload from the original
+capture and does not establish a speedup. Session evidence and the full command
+are `/tmp/clones-project-method-review/{stdout.log,stderr.log,run.json}`.

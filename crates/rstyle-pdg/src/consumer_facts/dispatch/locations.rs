@@ -1,4 +1,4 @@
-//! Original external free-function locations; grants no dispatch authority.
+//! Original external declaration locations; grants no dispatch authority.
 use super::{index, shapes};
 use crate::{HirFnFacts, SourceSnapshot, nominal_boundary::census};
 use std::{
@@ -6,6 +6,8 @@ use std::{
     path::PathBuf,
 };
 use syn::visit::Visit;
+
+mod methods;
 
 pub(super) struct Locations {
     cfgs: Vec<String>,
@@ -16,6 +18,7 @@ pub(super) struct Locations {
 struct Declaration {
     qualified_name: String,
     function: syn::ItemFn,
+    kind: &'static str,
 }
 
 impl Locations {
@@ -50,14 +53,10 @@ impl Locations {
         names: &mut BTreeSet<String>,
     ) -> Result<(), String> {
         let source = &self.files[&module.path];
-        for item in module.items {
-            let syn::Item::Fn(function) = item else {
-                continue;
-            };
-            let name = function.sig.ident.to_string();
+        for (name, function, kind) in methods::declarations(module.items, &self.cfgs)? {
             let qualified_name = format!("crate::{}::{name}", module.namespace.join("::"));
             if !names.insert(qualified_name.clone()) {
-                return Err("Review source has ambiguous qualified free-function identity".into());
+                return Err("Review source has ambiguous qualified declaration identity".into());
             }
 
             let range = shapes::function_range(source, &function);
@@ -65,6 +64,7 @@ impl Locations {
             let declaration = Declaration {
                 qualified_name,
                 function,
+                kind,
             };
             if self.declarations.insert(key, declaration).is_some() {
                 return Err("Review source has ambiguous external declaration ownership".into());
@@ -86,9 +86,9 @@ impl Locations {
         let declaration = self
             .declarations
             .get(&key)
-            .ok_or("Review requires an original indexed external free declaration")?;
+            .ok_or("Review requires an original indexed external declaration")?;
         index::check_header(facts, &declaration.function, source)?;
-        Ok((declaration.qualified_name.clone(), "free-function"))
+        Ok((declaration.qualified_name.clone(), declaration.kind))
     }
 
     fn check_context(&self, facts: &HirFnFacts) -> Result<(), String> {

@@ -152,7 +152,7 @@ fn selection(
     })
 }
 
-fn method_name(owner: &str, name: &str, origin: Option<&str>) -> String {
+pub(super) fn method_name(owner: &str, name: &str, origin: Option<&str>) -> String {
     match origin {
         Some(origin) => format!("<{owner} as {origin}>::{name}"),
         None => format!("{owner}::{name}"),
