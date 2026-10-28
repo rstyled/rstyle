@@ -403,3 +403,7 @@ source ownership work.
 
 Data-v3 extraction 3.2.0 also admits [integer range patterns](extraction-profiles/scalar-range-patterns-v1.md),
 including mixed literal/range OR arms, under the existing bounded match contract.
+
+Opt-in [native pair explanations](clones-pair-differences.md) expose ordered
+scalar differences in accepted strict pairs through `--explain-pairs`. Their
+coverage and exit status are separate from strict matching and local rules.

@@ -19,6 +19,8 @@ See [the integration workflow](docs/source-to-pair.md) for build selection,
 verified evidence, reports and exit codes. It does not activate abstraction mining.
 Clones also offers opt-in [source and signature rules](docs/clones-source-rules.md)
 whose evidence remains usable when a body is excluded from strict matching.
+Optional [native pair explanations](docs/clones-pair-differences.md) show ordered
+scalar differences with separate coverage through `--explain-pairs`.
 
 Other top-level folders:
 

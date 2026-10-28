@@ -39,6 +39,7 @@ struct Scope<'a> {
 
 #[derive(Serialize)]
 pub struct Report<'a> {
+    pub pair_explanations: super::analysis::pair_reports::Report<'a>,
     pub analysis: super::analysis::Report<'a>,
     report_detail: Detail,
     scope: Scope<'a>,
@@ -111,11 +112,10 @@ fn ctx_profile_is_data(args: &Args) -> bool {
 
 pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
     let scope = selected_scope(&ctx);
-    let analysis =
-        super::analysis::evaluate(ctx.handoff, ctx.capture, ctx.analysis_config, ctx.args);
 
     Ok(Report {
-        analysis,
+        pair_explanations: ctx.pair_explanations()?,
+        analysis: ctx.local_analysis(),
         report_detail: ctx.args.report_detail,
         verification_policy: if ctx.args.replay_run.is_some() {
             "strict-replay"
@@ -161,6 +161,21 @@ pub fn make<'a>(ctx: Context<'a>) -> Result<Report<'a>, String> {
     })
 }
 
+impl<'a> Context<'a> {
+    fn local_analysis(&self) -> super::analysis::Report<'a> {
+        super::analysis::evaluate(self.handoff, self.capture, self.analysis_config, self.args)
+    }
+
+    fn pair_explanations(&self) -> Result<super::analysis::pair_reports::Report<'a>, String> {
+        super::analysis::pair_reports::evaluate(
+            self.handoff,
+            self.matching,
+            self.args.explain_pairs,
+            self.complete,
+        )
+    }
+}
+
 fn selected_scope<'a>(ctx: &Context<'a>) -> Scope<'a> {
     Scope {
         packages: &ctx.cli.packages,
@@ -204,7 +219,11 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         })
         .collect::<String>();
 
-    format!("{summary}{pairs}{}", report.analysis.render())
+    format!(
+        "{summary}{pairs}{}{}",
+        report.analysis.render(),
+        report.pair_explanations.render()
+    )
 }
 
 fn coverage_summary(report: &Report<'_>) -> String {

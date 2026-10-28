@@ -47,6 +47,9 @@ pub struct Args {
     /// Exit 1 if any pair is accepted; similarity does not prove equivalence.
     #[arg(long)]
     fail_on_accepted_pairs: bool,
+    /// Explain ordered native scalar differences in accepted pairs; incomplete explanations exit 2.
+    #[arg(long)]
+    explain_pairs: bool,
     /// Evaluate source length and signature arity independently of graph admission.
     #[arg(long)]
     source_rules: bool,
@@ -302,7 +305,10 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         analysis_config: config.analysis.as_ref(),
     })?;
     let output = report.publish(cli.format, accepted)?;
-    let code = if !complete || !report.analysis.permits_success() {
+    let code = if !complete
+        || !report.analysis.permits_success()
+        || !report.pair_explanations.permits_success()
+    {
         2
     } else {
         u8::from(

@@ -32,7 +32,7 @@ Heavy captures and integrated gates run serially.
 | C04 | Local + lead / source rules and opt-in CLI | delivered (checkpoint) | `644151d` | Length/parameters with separate availability, execution, scope and outcomes | Five leaf tests, six source-rule CLI cases; live labeled corpus agrees; both legacy gates and full tests pass |
 | C05 | Acceptance + lead / comparison | delivered (bounded comparison) | `3e1f4c9` | Compare same-scope legacy/new results against independent labels | Fifteen Python tests and actual serial captures: ten evaluated agreements; explicit unavailable/context/regression classifications |
 | C06 | Local + lead / guards and independent opt-in | delivered (checkpoint) | `115cd07` | Bounded advisory guard opportunities | Seven unit and five real-Cargo CLI cases; graph-excluded callee does not gate advice; full checkpoint passes |
-| C07 | Pair / `analysis/pair_differences` | awaiting integration | pending | Ordered native correspondence and differences | Unregistered leaf and authored fixtures; real native capture validation pending |
+| C07 | Pair + lead / native differences, opt-in CLI/report | delivered (checkpoint) | this C07 implementation commit | Ordered native correspondence and differences in accepted strict pairs | Thirteen native unit and three real-Cargo CLI cases; literal/formal roles, context/width, whole-tree rejection and budgets; matching unchanged |
 | C08 | Pair / helper proposals | ready (independent labels frozen) | acceptance-preparation commit | Parameterized helper proposals with counter-evidence | Eight source-authored cases in `proposal-review-cases.json`; depends on C07; labels are not implementation evidence |
 | C09 | Acceptance + lead / versioned review | ready (independent labels frozen) | acceptance-preparation commit | Persistent review separate from report handles | Nine lifecycle/collision/context cases prepared; no review implementation claimed |
 
@@ -98,6 +98,43 @@ A manual saved standalone-capture source-rule reevaluation exits two because
 remains a required later workflow gap. This is not a passed replay gate or a
 reason to weaken import validation. Next is real native C07 integration, C08
 helper proposals and versioned C09 review; quality/replay can advance independently.
+
+## Native pair-difference checkpoint (2026-10-28)
+
+`--explain-pairs` adds a separate versioned report over accepted strict pairs.
+It retains ordered native correspondence and compact literal/formal/operator/shape
+holes without changing matching decisions. Whole-tree validation is bounded and
+borrowed, performed once per requested endpoint and reused across pairs, including
+negative outcomes. No new extraction permission, hash, suppression or threshold
+change was introduced. Unknown matching denominators, unsupported/ambiguous trees
+and exhausted native budgets cannot become a complete empty explanation.
+
+Thirteen native unit cases and three real-Cargo CLI cases cover binder changes,
+ordered subtraction, repeated reads, unsupported whole rosters, exact identity,
+context/native-width isolation, depth/parameter budgets, full/compact/text and
+opt-in/default behavior. The integrated checkpoint passes formatting, all-target
+workspace Clippy with warnings denied, all 2,382 nextest cases (five skipped),
+doc tests and both legacy gates. Nextest runtime is 157.981 seconds. Style reports
+zero violations across 8,271 functions. Unfiltered patterns retains the same 15
+candidates without new dismissals. Logs are retained at
+`/tmp/clones-migration-c07-{tests,clippy,style,patterns}.*` and the separate
+`patterns-unfiltered.{json,log}`.
+
+The fresh fixed-corpus report `/tmp/clones-migration-c07-live.json` evaluates all
+nine accepted pairs: four complete native comparisons and five explicitly
+unsupported comparisons, completed execution with incomplete coverage and exit
+two. Both independently labeled difference cases pass: add-one/add-two has four
+correspondences and one right-literal hole; reordered/original subtraction has
+four correspondences and both ordered formal-role holes. Owning evidence is kept
+under `/tmp/clones-migration-c07-live-target`. Linux aarch64 only; macOS and exact
+Go comparisons remain unverified.
+
+C08 helper proposals are next: consume completed ordered evidence, retain useful
+computation and literal arguments, reject changed formal roles/operators and
+never infer an all-member group from connected pair edges. The eight frozen
+proposal labels remain requirements, not implemented behavior. Versioned review,
+quality/effects, saved standalone reevaluation and planning remain required;
+legacy consumers are not retired.
 
 ## Hashing exceptions
 
