@@ -161,3 +161,15 @@ bounded across units; this does not establish safe removal or propagation.
 external callers, replacement design, whole-plan independence and stack order
 remain unknown. Strict saved-run replay supports this consumer without original
 source/tools. Legacy parameter grouping remains available for its broader scope.
+
+
+## Opt-in guard planning and shared coordination
+
+Use `clones --guard-clauses --guard-plans` to retain each guard finding's required
+original terminal-if region. Request helper or parameter plans alongside it to
+see `edit_coordination`: typed family/local references, exact overlap witnesses,
+known-region disjointness, conflicting snapshots and explicit coverage/budgets.
+These source regions share captured snapshots; strict replay needs no live files.
+Unknown caller populations remain incomplete even when an overlap is witnessed.
+No report proves whole-plan independence, rewrite correctness or a stack order.
+See `docs/clones-edit-planning.md` for limits and intent semantics.

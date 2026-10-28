@@ -7,6 +7,8 @@ pub(in crate::clones) struct Consumers<'a> {
     pub(super) dispatch: analysis::dispatch_reports::Report<'a>,
     pub(super) capabilities: analysis::capability_reports::Report<'a>,
     pub(super) edit_planning: planning::Report,
+    pub(super) guard_planning: Option<planning::guards::Report>,
+    pub(super) edit_coordination: Option<planning::coordination::Report>,
     pub(super) parameter_planning: Option<planning::parameters::Report>,
     pub(super) analysis: analysis::Report<'a>,
     pub(super) mutation: analysis::mutation_reports::Report<'a>,
@@ -21,12 +23,18 @@ pub(in crate::clones) struct Consumers<'a> {
 impl<'a> Consumers<'a> {
     pub(in crate::clones) fn new(ctx: &Context<'a>) -> Result<Self, String> {
         let analysis = ctx.local_analysis();
+        let guard_planning = planning::guards::evaluate(ctx, &analysis)?;
         let parameter_planning = planning::parameters::evaluate(ctx, &analysis)?;
         let pairs = ctx.pair_reports()?;
         let indices = ctx.declaration_indices()?;
         let dispatch = ctx.dispatch_report(&indices)?;
         let capabilities = ctx.capability_report(&indices)?;
         let edit_planning = ctx.edit_planning(&pairs.helper_proposals)?;
+        let edit_coordination = planning::coordination::evaluate(
+            &edit_planning,
+            parameter_planning.as_ref(),
+            guard_planning.as_ref(),
+        );
         let mutation = ctx.mutation_report()?;
         let effects = ctx.effect_report()?;
         let accepted = locations::accepted(ctx.handoff, ctx.matching)?;
@@ -44,6 +52,8 @@ impl<'a> Consumers<'a> {
             pairs,
             analysis,
             parameter_planning,
+            guard_planning,
+            edit_coordination,
             dispatch,
             capabilities,
             edit_planning,

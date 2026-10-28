@@ -136,3 +136,19 @@ fn recursive_and_flat_syntax_exhausts_before_guard_parsing() {
         assert!(result.opportunity.is_none());
     }
 }
+
+#[test]
+fn opportunity_span_is_exact_final_if_in_original_utf8_crlf_bytes() {
+    let branch = "if π == 0 { 0 } else { let next = π + 1; next }";
+    let source = format!(
+        "fn café(π: u32) -> u32 {{\r\n    let prior = π;\r\n    {branch} /* after */\r\n}}"
+    );
+    let opportunity = assessed(&source).opportunity.unwrap();
+    let start = source.find("if π").unwrap();
+    assert_eq!(opportunity.span.start as usize, start);
+    assert_eq!(opportunity.span.end as usize, start + branch.len());
+    assert_eq!(
+        &source[opportunity.span.start as usize..opportunity.span.end as usize],
+        branch
+    );
+}

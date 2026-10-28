@@ -54,6 +54,10 @@ pub struct Report<'a> {
     pub edit_planning: super::planning::Report,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameter_planning: Option<super::planning::parameters::Report>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guard_planning: Option<super::planning::guards::Report>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub edit_coordination: Option<super::planning::coordination::Report>,
     pub mutation_analysis: super::analysis::mutation_reports::Report<'a>,
     pub mutation_effects: super::analysis::effect_reports::Report<'a>,
     pub enum_dispatch: super::analysis::dispatch_reports::Report<'a>,
@@ -162,6 +166,8 @@ pub(super) fn make<'a>(ctx: Context<'a>, consumers: Consumers<'a>) -> Report<'a>
     Report {
         edit_planning: consumers.edit_planning,
         parameter_planning: consumers.parameter_planning,
+        guard_planning: consumers.guard_planning,
+        edit_coordination: consumers.edit_coordination,
         pair_reports: consumers.pairs,
         review: consumers.review,
         abstraction_review: consumers.abstraction_review,
@@ -329,7 +335,7 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         .collect::<String>();
 
     format!(
-        "{summary}{pairs}{}{}{}{}{}{}{}{}{}{}{}{}",
+        "{summary}{pairs}{}{}{}{}{}{}{}{}{}{}{}",
         report.analysis.render(),
         report.pair_reports.render(),
         report.review.render(),
@@ -346,9 +352,24 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         report.capability_proposals.render(),
         report.mutation_analysis.render(),
         report.mutation_effects.render(),
+        planning_summary(report)
+    )
+}
+
+fn planning_summary(report: &Report<'_>) -> String {
+    format!(
+        "{}{}{}{}",
         report.edit_planning.render(),
         report
             .parameter_planning
+            .as_ref()
+            .map_or_else(String::new, |planning| planning.render()),
+        report
+            .guard_planning
+            .as_ref()
+            .map_or_else(String::new, |planning| planning.render()),
+        report
+            .edit_coordination
             .as_ref()
             .map_or_else(String::new, |planning| planning.render())
     )

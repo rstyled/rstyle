@@ -669,17 +669,73 @@ impl Scan<'_> {
     }
 
     fn expression(&mut self, expression: &Expr) -> Result<(), String> {
+        if self.calls.is_some() && self.result.execution == Execution::BudgetExhausted {
+            return Ok(());
+        }
+        if self.calls.is_some()
+            && let Expr::If(branch) = expression
+            && branch.attrs.is_empty()
+            && plain_condition(&branch.cond)
+        {
+            return self.conditional_calls(branch);
+        }
         if self.calls.is_some()
             && let Expr::Call(call) = expression
             && call.attrs.is_empty()
         {
             return self.observe_call(call);
         }
+
+        self.regular_expression(expression)
+    }
+
+    fn regular_expression(&mut self, expression: &Expr) -> Result<(), String> {
         if self.uses.is_some() {
             self.expression_use(expression, UseMode::Expression)?;
         }
+
         let plan = self.expression_plan(expression)?;
         self.evaluate_plan(plan)
+    }
+
+    fn conditional_calls(&mut self, branch: &syn::ExprIf) -> Result<(), String> {
+        let span = self.span(branch);
+        self.use_boundary(
+            span,
+            "Conditional control flow leaves formal-use coverage incomplete",
+        );
+        self.apply(Effects::opaque(
+            span,
+            "Conditional control flow is not effect-certified",
+        ));
+        self.conditional_branches(branch)
+    }
+
+    fn conditional_branches(&mut self, branch: &syn::ExprIf) -> Result<(), String> {
+        self.conditional_piece(ConditionalPiece::Expression(&branch.cond))?;
+        self.conditional_piece(ConditionalPiece::Block(&branch.then_branch))?;
+        if let Some((_, alternative)) = &branch.else_branch {
+            self.conditional_piece(ConditionalPiece::Expression(alternative))?;
+        }
+        Ok(())
+    }
+
+    fn conditional_piece(&mut self, piece: ConditionalPiece<'_>) -> Result<(), String> {
+        if self.result.execution == Execution::BudgetExhausted {
+            return Ok(());
+        }
+
+        self.invalidate_roots();
+        let result = self.evaluate_conditional_piece(piece);
+        self.invalidate_roots();
+        result
+    }
+
+    fn evaluate_conditional_piece(&mut self, piece: ConditionalPiece<'_>) -> Result<(), String> {
+        match piece {
+            ConditionalPiece::Expression(expression) => self.expression(expression),
+            ConditionalPiece::Block(block) => self.block(block),
+        }
     }
 
     fn evaluate_plan(&mut self, plan: ExpressionPlan<'_>) -> Result<(), String> {
@@ -1382,6 +1438,40 @@ impl Scan<'_> {
         match transparent(syntax) {
             Expr::Path(path) => self.path_use(path, role),
             _ => self.expression_use(syntax, UseMode::Operand),
+        }
+    }
+}
+
+enum ConditionalPiece<'a> {
+    Expression(&'a Expr),
+    Block(&'a syn::Block),
+}
+
+fn plain_condition(expression: &Expr) -> bool {
+    let mut condition = ConditionShape { plain: true };
+    condition.visit_expr(expression);
+    condition.plain
+}
+
+struct ConditionShape {
+    plain: bool,
+}
+
+impl<'ast> Visit<'ast> for ConditionShape {
+    fn visit_expr(&mut self, expression: &'ast Expr) {
+        self.plain &= crate::conditional_source::expression_attributes(expression).is_empty()
+            && matches!(
+                expression,
+                Expr::Path(_)
+                    | Expr::Lit(_)
+                    | Expr::Binary(_)
+                    | Expr::Unary(_)
+                    | Expr::Paren(_)
+                    | Expr::Group(_)
+                    | Expr::Call(_)
+            );
+        if self.plain {
+            syn::visit::visit_expr(self, expression);
         }
     }
 }

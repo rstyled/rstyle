@@ -594,6 +594,52 @@ impl FunctionReport<'_> {
 }
 
 impl Report<'_> {
+    pub(in crate::clones) fn guard_findings(
+        &self,
+    ) -> impl Iterator<Item = (super::FunctionKey, rstyle_pdg::ByteSpan)> + '_ {
+        self.functions.iter().filter_map(|function| {
+            let guard = function.guard_clause.as_ref()?;
+            (guard.outcome == Outcome::Finding)
+                .then(|| {
+                    guard
+                        .opportunity
+                        .as_ref()
+                        .map(|opportunity| (function.key, opportunity.span))
+                })
+                .flatten()
+        })
+    }
+
+    pub(in crate::clones) fn guard_population_complete(&self) -> bool {
+        self.population_complete(|function| {
+            function.guard_clause.as_ref().is_some_and(|guard| {
+                guard.execution == Execution::Completed && guard.coverage == Coverage::Complete
+            })
+        })
+    }
+
+    pub(in crate::clones) fn guard_execution(&self) -> Execution {
+        if self.scope.expected_functions.is_none()
+            || self.functions.iter().any(|function| {
+                function
+                    .guard_clause
+                    .as_ref()
+                    .is_some_and(|guard| guard.execution == Execution::Failed)
+            })
+        {
+            Execution::Failed
+        } else if self.functions.iter().any(|function| {
+            function
+                .guard_clause
+                .as_ref()
+                .is_some_and(|guard| guard.execution == Execution::BudgetExhausted)
+        }) {
+            Execution::BudgetExhausted
+        } else {
+            Execution::Completed
+        }
+    }
+
     pub(in crate::clones) fn parameter_findings(
         &self,
     ) -> impl Iterator<Item = super::FunctionKey> + '_ {
@@ -611,25 +657,28 @@ impl Report<'_> {
     }
 
     pub(in crate::clones) fn parameter_population_complete(&self) -> bool {
+        self.population_complete(|function| {
+            function.execution == Execution::Completed
+                && function.assessments.iter().any(|assessment| {
+                    assessment.rule_id == "fn_params" && assessment.coverage == Coverage::Complete
+                })
+                && function
+                    .source_exclusion
+                    .as_ref()
+                    .is_some_and(|exclusion| exclusion.complete())
+                && (function
+                    .source_exclusion
+                    .as_ref()
+                    .is_some_and(|exclusion| exclusion.excluded())
+                    || function
+                        .source_suppression
+                        .as_ref()
+                        .is_some_and(|suppression| suppression.complete()))
+        })
+    }
+
+    fn population_complete(&self, completed: impl Fn(&FunctionReport<'_>) -> bool) -> bool {
         self.scope.expected_functions == Some(self.functions.len())
-            && self.functions.iter().all(|function| {
-                function.execution == Execution::Completed
-                    && function.assessments.iter().any(|assessment| {
-                        assessment.rule_id == "fn_params"
-                            && assessment.coverage == Coverage::Complete
-                    })
-                    && function
-                        .source_exclusion
-                        .as_ref()
-                        .is_some_and(|exclusion| exclusion.complete())
-                    && (function
-                        .source_exclusion
-                        .as_ref()
-                        .is_some_and(|exclusion| exclusion.excluded())
-                        || function
-                            .source_suppression
-                            .as_ref()
-                            .is_some_and(|suppression| suppression.complete()))
-            })
+            && self.functions.iter().all(completed)
     }
 }

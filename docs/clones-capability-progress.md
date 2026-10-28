@@ -1041,3 +1041,65 @@ JSON use `/tmp/clones-header-{style,patterns}`. Guard edit intents and shared
 cross-family physical edit coordination remain the next ready planning slice;
 whole-plan independence, arbitrary propagation/removal, broader signatures,
 macOS, exact Go comparison and legacy retirement remain unverified/open.
+
+
+## C12e: guard regions and cross-family edit coordination
+
+The lead owns CLI/report wiring, shared family adapters and documentation;
+leaf workers own guard/source-region evidence, union coordination and independent
+acceptance. The frozen slice adds opt-in `--guard-clauses --guard-plans` with one
+required whole terminal-if region per completed advisory finding. The span comes
+from the existing bounded parse; the library maps the body-contained original
+subrange to its checked immutable census snapshot without another parse, source
+copy, graph proof or hash. Contradictory native body/snippet/ranges and corrupt
+ownership fail before a usable region is returned. Guard finding populations
+remain independent of source-rule suppressions and path exclusions.
+
+`edit_coordination` automatically joins requested helper/parameter/guard intents.
+It borrows their existing footprints, uses deterministic family-plus-local
+references and dense union IDs, then reuses the existing bounded overlap engine.
+A single union retention cap and relation/region/snapshot budgets apply across
+families. Missing regions, conflicting snapshots, incomplete populations, failed
+execution and exhausted limits remain visible. Exact known-region witnesses can
+coexist with incomplete caller scope. Expected counts remain unknown for
+incomplete families. Whole-plan independence stays unknown and stack order is
+not proved; no rewrite or argument-removal permission is introduced.
+
+The necessary caller prerequisite retains exact original native call witnesses
+inside bounded plain conditionals. Condition/branch scans explicitly preserve an
+opaque control/effect boundary and incomplete formal-use coverage; lexical roots
+are invalidated before/after each piece and between branches. Binding/opaque or
+attributed conditions remain skipped. Mutation-only inspection is unchanged.
+This enables a real call-inside-tail-if overlap witness while retaining unknown
+caller coverage, rather than omitting the call or certifying conditional effects.
+
+Independent tests cover original UTF-8/CRLF terminal-if offsets and shared owners,
+corrupt/missing/expanded evidence, nonempty containment, conditional source/native
+joins and root invalidation, equal family-local IDs, union truncation, snapshot
+conflicts and shared comparison budgets. Real locked Cargo cases distinguish
+calls before/inside guards, own-signature disjointness, complete-empty versus
+opaque/budget-incomplete planning and source-policy independence. Combined
+full/compact strict replay removes source files and tools and preserves all four
+planning reports. Helper/guard overlap is tested at the pure union boundary:
+the current bounded expression-helper vocabulary cannot itself contain a guard.
+
+Focused verification passes 377 tests plus doc tests. The frozen integrated
+snapshot passes all 2,779 nextest tests (five skipped) in 179.514 seconds, doc
+tests, workspace/all-targets locked Clippy with warnings denied, zero style
+violations across 9,003 functions, and all 56 Python comparison tests. Reviewed patterns passes after sharing the consumer population-completeness
+helper; unfiltered patterns retains exactly the same 15 baseline IDs as C04e.
+Format/diff checks pass. Retained logs use `/tmp/clones-guard-plans-*`.
+External caller closure, broader formal/signature families, replacement design,
+lifetimes/drops, safe removal/propagation, exact Go/macOS comparison and legacy
+retirement remain open. No new extraction permission, ignore, threshold change,
+cryptographic hash or budget increase was introduced.
+
+
+The next ready bounded resource fix is completed snapshot-equality reuse in
+`planning::overlap::SnapshotLedger`. Current code keeps the first allocation for
+a resource, so a second equal immutable snapshot is compared again for every
+region referencing it. Independent equal owners should pay for a completed
+comparison once per resource/analysis; distinct owners, conflicting bytes and
+exhausted comparisons must retain the existing budget behavior. A scoped borrowed
+owner identity can retain equality without hashes or source copies. This is a
+source-inspected readiness finding, not a measured wall-time improvement.

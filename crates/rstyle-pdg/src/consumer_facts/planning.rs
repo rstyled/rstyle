@@ -73,6 +73,55 @@ pub fn inspect_regions(facts: &HirFnFacts) -> Result<Availability<SourceRegions>
     )?))
 }
 
+/// Locate an original function subrange without parsing or certifying its semantics.
+pub fn inspect_subregion(
+    facts: &HirFnFacts,
+    relative: ByteSpan,
+) -> Result<Availability<BodyRegion>, String> {
+    let source = match super::owned_source(facts)? {
+        Availability::Known(source) => source,
+        Availability::Unknown { reason } => return Ok(Availability::Unknown { reason }),
+        Availability::Unsupported { reason } | Availability::NotApplicable { reason } => {
+            return Ok(Availability::Unsupported { reason });
+        }
+    };
+
+    checked_subrange(facts, source, relative)?;
+    let span = absolute_span(facts.fn_span, relative)?;
+    let owner = facts
+        .build
+        .frontend_options
+        .data::<Arc<census::Census>>()?
+        .into_owned();
+    let file = file_index(facts, &owner)?;
+    if crate::source_evidence::byte_range(&owner.files[file].bytes, span)?
+        != crate::source_evidence::byte_range(source, relative)?
+    {
+        return Err("Planning subregion differs from its original file region".into());
+    }
+
+    Ok(Availability::Known(BodyRegion { owner, file, span }))
+}
+
+fn checked_subrange(facts: &HirFnFacts, source: &str, relative: ByteSpan) -> Result<(), String> {
+    let body = facts.body.span;
+    let original = crate::source_evidence::byte_range(source, body)?;
+    if body.end as usize != source.len()
+        || !original.starts_with('{')
+        || !original.ends_with('}')
+        || original.len() < 2
+        || original != facts.body.snippet
+    {
+        return Err("Planning native body contradicts its original source range".into());
+    }
+
+    crate::source_evidence::byte_range(source, relative)?;
+    if relative.start >= relative.end || relative.start < body.start || relative.end > body.end {
+        return Err("Planning subregion escapes its original body range".into());
+    }
+    Ok(())
+}
+
 fn checked_regions(
     facts: &HirFnFacts,
     source: &str,
@@ -143,7 +192,7 @@ pub fn absolute_span(function: ByteSpan, body: ByteSpan) -> Result<ByteSpan, Str
 mod tests {
     use super::*;
 
-    fn facts(source: &str, prefix: &str) -> HirFnFacts {
+    pub(super) fn facts(source: &str, prefix: &str) -> HirFnFacts {
         let mut facts: HirFnFacts = serde_json::from_str(include_str!(
             "../nominal_boundary/resolution/selected/function_cleanup_tests/facts.json"
         ))
@@ -364,3 +413,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod subregion_tests;

@@ -1,4 +1,6 @@
 //! Advisory edit coordination from chosen helper wrapper intents.
+pub(super) mod coordination;
+pub(super) mod guards;
 mod model;
 mod overlap;
 pub(super) mod parameters;
@@ -285,22 +287,7 @@ impl Contents {
         let plans = self
             .plans
             .iter()
-            .map(|plan| model::Plan {
-                required_regions: 2,
-                id: plan.id,
-                regions: plan
-                    .required_regions
-                    .iter()
-                    .map(|index| {
-                        let region = &self.regions[*index];
-                        model::Region {
-                            resource: &region.resource,
-                            snapshot: region.original.snapshot(),
-                            span: region.span,
-                        }
-                    })
-                    .collect(),
-            })
+            .map(|plan| plan.footprint(&self.regions))
             .collect::<Vec<_>>();
         overlap::analyze(&plans, complete)
     }
@@ -354,6 +341,22 @@ impl Summary {
 }
 
 impl Report {
+    pub(super) fn requested(&self) -> bool {
+        self.execution != Execution::NotRequested
+    }
+
+    pub(super) fn execution(&self) -> Execution {
+        self.execution
+    }
+
+    pub(super) fn complete(&self) -> bool {
+        self.permits_success()
+    }
+
+    fn footprints(&self) -> impl Iterator<Item = model::Plan<'_>> {
+        self.plans.iter().map(|plan| plan.footprint(&self.regions))
+    }
+
     fn new(contents: Contents, population: Population) -> Self {
         let complete =
             population.scope_complete && population.expected_plans == Some(contents.plans.len());
@@ -397,5 +400,29 @@ impl Report {
             self.plans.len(),
             self.overlap_groups.len()
         )
+    }
+}
+
+impl Region {
+    fn footprint(&self) -> model::Region<'_> {
+        model::Region {
+            resource: &self.resource,
+            snapshot: self.original.snapshot(),
+            span: self.span,
+        }
+    }
+}
+
+impl Plan {
+    fn footprint<'a>(&self, regions: &'a [Region]) -> model::Plan<'a> {
+        model::Plan {
+            id: self.id,
+            required_regions: 2,
+            regions: self
+                .required_regions
+                .iter()
+                .map(|index| regions[*index].footprint())
+                .collect(),
+        }
     }
 }

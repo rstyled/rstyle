@@ -155,7 +155,7 @@ pub(crate) fn syntax_span(bytes: &str, syntax: &impl syn::spanned::Spanned) -> B
 }
 
 /// Convert a parser span to original UTF-8 offsets, retaining a leading BOM.
-pub(crate) fn original_span(bytes: &str, span: proc_macro2::Span) -> ByteSpan {
+pub fn original_span(bytes: &str, span: proc_macro2::Span) -> ByteSpan {
     let prefix = if bytes.starts_with('\u{feff}') { 3 } else { 0 };
     let range = span.byte_range();
     ByteSpan {

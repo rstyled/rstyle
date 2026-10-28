@@ -106,6 +106,18 @@ impl Collected {
 }
 
 impl Report {
+    pub(super) fn footprints(&self) -> impl Iterator<Item = model::Plan<'_>> {
+        self.plans.iter().map(Plan::footprint)
+    }
+
+    pub(super) fn execution(&self) -> Execution {
+        self.execution
+    }
+
+    pub(super) fn complete(&self) -> bool {
+        self.permits_success()
+    }
+
     fn new(collected: Collected, findings: usize, population_complete: bool) -> Self {
         let coordination =
             collected.analyze(population_complete && findings == collected.plans.len());

@@ -1,9 +1,9 @@
 //! Advisory guard shapes over exact original source, without rewrite authority.
 
 use super::{Coverage, Execution, FactAvailability, Outcome};
-use rstyle_pdg::consumer_facts::Availability;
+use rstyle_pdg::{ByteSpan, consumer_facts::Availability, source_evidence::original_span};
 use serde::Serialize;
-use syn::{Expr, Stmt, visit::Visit};
+use syn::{Expr, Stmt, spanned::Spanned, visit::Visit};
 
 #[derive(Debug, Serialize)]
 pub(super) struct GuardAssessment {
@@ -17,7 +17,8 @@ pub(super) struct GuardAssessment {
 }
 
 #[derive(Debug, Serialize)]
-pub(super) struct GuardOpportunity {
+pub(in crate::clones) struct GuardOpportunity {
+    pub span: ByteSpan,
     pub fallback_branch: Branch,
     pub continuing_statements: usize,
     pub advisory: &'static str,
@@ -74,7 +75,7 @@ fn inspect(source: &str) -> GuardAssessment {
         );
     }
 
-    let opportunity = candidate(&function.block);
+    let opportunity = candidate(&function.block, source);
     GuardAssessment {
         rule_id: "guard_clause",
         execution: Execution::Completed,
@@ -94,7 +95,7 @@ fn unsupported(reason: &str) -> GuardAssessment {
     unavailable(FactAvailability::Unsupported, reason)
 }
 
-fn candidate(block: &syn::Block) -> Option<GuardOpportunity> {
+fn candidate(block: &syn::Block, source: &str) -> Option<GuardOpportunity> {
     let Stmt::Expr(Expr::If(branch), None) = block.stmts.last()? else {
         return None;
     };
@@ -119,6 +120,7 @@ fn candidate(block: &syn::Block) -> Option<GuardOpportunity> {
     };
 
     continuing_shape(continuing).then_some(GuardOpportunity {
+        span: original_span(source, branch.span()),
         fallback_branch,
         continuing_statements: continuing.stmts.len(),
         advisory: "consider an early scalar return and lifting the continuing branch; review lifetimes, drops, and condition inversion before editing",

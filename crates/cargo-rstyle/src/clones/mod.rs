@@ -65,6 +65,9 @@ pub struct Args {
     /// Plan signature and witnessed caller edits for visible parameter-count findings.
     #[arg(long, requires = "source_rules")]
     parameter_plans: bool,
+    /// Plan the original tail-if region of advisory guard-clause findings.
+    #[arg(long, requires = "guard_clauses")]
+    guard_plans: bool,
     /// Evaluate source length and signature arity independently of graph admission.
     #[arg(long)]
     source_rules: bool,
@@ -395,6 +398,14 @@ fn analyses_complete(report: &report::Report<'_>) -> bool {
         && report.edit_planning.permits_success()
         && report
             .parameter_planning
+            .as_ref()
+            .is_none_or(analysis::Completion::permits_success)
+        && report
+            .guard_planning
+            .as_ref()
+            .is_none_or(analysis::Completion::permits_success)
+        && report
+            .edit_coordination
             .as_ref()
             .is_none_or(analysis::Completion::permits_success)
         && report.pair_reports.permits_success()

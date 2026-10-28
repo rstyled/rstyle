@@ -161,5 +161,50 @@ neither safe argument removal nor permission to propagate a signature edit.
 Full/compact strict replay uses the retained original source and native evidence
 without reopening source files or invoking build tools.
 
-Local guard intents, external caller closure and broader signatures remain pending.
+External caller closure and broader signatures remain pending.
 Legacy grouping and stacking remain operational.
+
+## Guard intents and shared coordination
+
+`--guard-clauses --guard-plans` requests one advisory intent for each completed
+guard finding. `guard_planning` records the whole original terminal `if/else`
+expression as its required region: condition and both branches, without the
+surrounding function signature or earlier statements. The detector retains this
+span during its existing bounded parse. Planning maps it to the checked original
+file owner without reparsing, copying source bytes or computing another hash.
+Regions use absolute, half-open UTF-8 byte offsets and share the captured snapshot.
+Source-rule suppressions and path exclusions do not remove guard intents.
+
+Requested helper, parameter and guard plans also produce `edit_coordination`.
+Its ordered `plans` references have a dense `id`, a `family` (`helper`, `parameter`
+or `guard`) and that family's `local_id`. Relation endpoints and overlap groups
+use the dense IDs; witness region indices refer to that plan's existing ordered
+required regions (guard has one, parameter has signature then witnessed callers,
+helper has its existing required-region order). Equal local IDs across families
+remain distinct. Families are joined in helper/parameter/guard order. Existing
+per-family reports remain available.
+
+One union pass borrows all retained footprints and applies the existing caps:
+4,096 plans, 65,536 relations, 65,536 region comparisons and 16 MiB of actual snapshot
+byte comparisons. The cap applies across requested families. Conflicting exact
+snapshots, unavailable required regions, incomplete finding/caller populations
+and truncation remain explicit. `expected_plans` is known only when every
+participating family is complete. A complete empty population differs from an
+incomplete empty population. Failed execution takes precedence over exhausted
+budgets; either prevents successful exit. Shared coordination covers declared
+known edits, not unexamined external callers or unspecified edits.
+
+A checked call within a guard region can now supply a parameter-call overlap
+witness. Call observation walks bounded plain conditionals with original native
+call correspondence, but conditional effects and formal-use coverage remain
+incomplete. Opaque/binding conditions are skipped; outer lexical roots are
+invalidated across conditions, branches and following statements. This does not
+grant unchanged-formal claims or certify conditional mutation behavior. Calls
+before a terminal guard retain disjoint known regions. Missing calls remain a
+coverage gap, not evidence of disjoint whole plans.
+
+Overlap witnesses request coordinated review. `disjoint_known_regions` describes
+only the declared footprints. Replacement design, condition inversion, comments,
+lifetimes, drops, helper insertion and external uses remain unknown;
+`whole_plan_independence` is `unknown` and `stack_order` is `not_proven`.
+Full/compact strict replay reevaluates these reports without source files or tools.

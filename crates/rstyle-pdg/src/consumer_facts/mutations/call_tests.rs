@@ -916,3 +916,5 @@ fn formal_use_syntax_exhaustion_and_duplicate_native_occurrences_never_complete(
     facts.body.children.push(facts.body.children[0].clone());
     assert!(inspect_calls_with_uses(&facts).is_err());
 }
+
+mod conditional;
