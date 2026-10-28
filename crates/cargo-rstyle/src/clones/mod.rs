@@ -109,6 +109,19 @@ pub struct Args {
     /// Fail on new density findings or baseline policy/build-context drift.
     #[arg(long, requires = "density_baseline")]
     fail_on_new_density: bool,
+    /// Compare completed source-rule findings with a saved whole-scope inventory.
+    #[arg(
+        long,
+        requires = "source_rules",
+        conflicts_with = "write_source_baseline"
+    )]
+    source_baseline: Option<PathBuf>,
+    /// Publish a new complete source-rule inventory without overwriting a file.
+    #[arg(long, requires = "source_rules", conflicts_with_all = ["changed_files", "source_baseline"])]
+    write_source_baseline: Option<PathBuf>,
+    /// Fail for new or changed selected source findings, or baseline header drift.
+    #[arg(long, requires = "source_baseline")]
+    fail_on_new_source: bool,
     /// TOML side_effects and workspace exclude policy for static density.
     #[arg(long, requires = "effect_density")]
     effect_config: Option<PathBuf>,
@@ -217,6 +230,7 @@ struct Configuration {
     mutation: Option<analysis::mutation_reports::Settings>,
     effects: Option<analysis::effect_reports::Settings>,
     density_baseline: Option<review::density_baseline::Baseline>,
+    source_baseline: Option<review::source_baseline::Baseline>,
 }
 
 fn configuration(cli: &Cli, args: &Args) -> Result<Configuration, String> {
@@ -237,6 +251,11 @@ fn configuration(cli: &Cli, args: &Args) -> Result<Configuration, String> {
         analysis: analysis::configuration(args)?,
         mutation: analysis::mutation_reports::configuration(args)?,
         effects: analysis::effect_reports::configuration(args)?,
+        source_baseline: args
+            .source_baseline
+            .as_deref()
+            .map(review::source_baseline::load)
+            .transpose()?,
         density_baseline: args
             .density_baseline
             .as_deref()
@@ -426,12 +445,19 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
         mutation_config: config.mutation.as_ref(),
         effect_config: config.effects.as_ref(),
         density_baseline: config.density_baseline.as_ref(),
+        source_baseline: config.source_baseline.as_ref(),
         matching_config: &config.matching,
     };
     let consumers = report::Consumers::new(&context)?;
     let report = report::make(context, consumers);
-    report.numeric_reviews.density_review.publish_baseline(
+    review::baseline_common::publish_optional(
+        report.numeric_reviews.density_review.baseline.as_ref(),
         args.write_density_baseline.as_deref(),
+        complete && analyses_complete(&report),
+    )?;
+    review::baseline_common::publish_optional(
+        report.source_reviews.source_baseline.as_ref(),
+        args.write_source_baseline.as_deref(),
         complete && analyses_complete(&report),
     )?;
     let output = report.publish(cli.format, accepted)?;
@@ -476,7 +502,8 @@ fn analyses_complete(report: &report::Report<'_>) -> bool {
 }
 
 fn finding_exit_requested(report: &report::Report<'_>, args: &Args, accepted: usize) -> bool {
-    (args.fail_on_new_density && report.numeric_reviews.density_review.baseline_gate_fails())
+    (args.fail_on_new_source && report.source_reviews.baseline_gate_fails())
+        || (args.fail_on_new_density && report.numeric_reviews.density_review.baseline_gate_fails())
         || (args.fail_on_accepted_pairs && accepted > 0)
         || (args.fail_on_findings
             && (source_finding_exit_count(report) > 0

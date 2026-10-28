@@ -14,6 +14,8 @@ impl Indices {
         } else if args.capability_proposals
             || ((args.source_rules || args.mutation_rules || args.effect_density)
                 && (args.review_file.is_some()
+                    || args.source_baseline.is_some()
+                    || args.write_source_baseline.is_some()
                     || args.density_baseline.is_some()
                     || args.write_density_baseline.is_some()))
         {

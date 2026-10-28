@@ -9,16 +9,17 @@ use crate::clones::{FunctionKey, analysis, report};
 
 type Identity = (Locator, local::BuildContext);
 
-pub(super) struct Observations {
+pub(in crate::clones::review) struct Observations {
     pub rows: Vec<Row>,
     pub truncated: bool,
     pub unavailable_scope: bool,
     pub spacing_requested: bool,
 }
 
-pub(super) struct Rule<P> {
+pub(in crate::clones::review) struct Rule<P> {
     pub visible: bool,
     pub complete: bool,
+    pub numeric_negative: bool,
     pub policy: P,
     error: Option<String>,
 }
@@ -28,6 +29,11 @@ impl<P> Rule<P> {
         Self {
             visible: review.visible,
             complete: review.complete,
+            numeric_negative: review.complete
+                && !review.suppressed
+                && review.assessment.is_some_and(|rule| {
+                    rule.outcome == analysis::Outcome::EvaluatedNoFinding && rule.actual.is_some()
+                }),
             policy,
             error,
         }
@@ -44,7 +50,7 @@ impl<P> Rule<P> {
     }
 }
 
-pub(super) struct Row {
+pub(in crate::clones::review) struct Row {
     pub key: FunctionKey,
     pub selected: bool,
     pub parameters: Rule<source_rules::Policy>,
@@ -229,7 +235,7 @@ impl Row {
 }
 
 impl Observations {
-    pub(super) fn complete(&self, family: Family) -> bool {
+    pub(in crate::clones::review) fn complete(&self, family: Family) -> bool {
         !family.requested(self)
             || self.scope_complete()
                 && self.rows.iter().all(|row| {
@@ -243,7 +249,7 @@ impl Observations {
     }
 }
 
-pub(super) fn collect(
+pub(in crate::clones::review) fn collect(
     inputs: &workflow::Inputs<'_, '_>,
     ctx: &report::Context<'_>,
 ) -> Observations {

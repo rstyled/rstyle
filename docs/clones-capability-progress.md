@@ -1925,7 +1925,7 @@ scope. Broader external-module identities, source-rule CI baselines, project
 coverage/quality, native macOS, external Go comparisons and capability-specific
 retirement remain open. PR19 is still outside this branch.
 
-## C13d: original external free-function review identities
+## C13d: original external free-function review identities (`f344f37`)
 
 The lead owns declaration-index routing, existing analysis boundaries and
 parameter-review acceptance; the locator worker owns `dispatch/locations.rs` and
@@ -1974,3 +1974,52 @@ remain open. PR19 remains outside this branch.
 Next ready work is explicit source-rule CI baselines over shared completed
 length/parameter/configured-spacing observations, retaining empty policy/context
 headers and keeping numeric resolution distinct from suppression visibility.
+
+## C13e: source-rule CI baseline inventories
+
+The model worker owns the closed source baseline format and independent unit
+cases; the I/O worker extracts bounded create-new baseline publication; acceptance
+owns real-Cargo cases. The lead integrates source observations, policy headers,
+CLI/configuration, reports, shared baseline comparisons and documentation. All
+worker writes are finished before integrated validation.
+
+`--source-rules --write-source-baseline NEW_PATH` exports complete whole-scope
+parameter, length and configured-spacing inventories. Input comparison uses
+`--source-baseline PATH`, with a separate `--fail-on-new-source` gate for new or
+changed selected visible findings and policy/exclusion/build-context drift.
+Existing findings and ordinary finding exits remain intact. Empty inventories
+retain full headers. Disabled spacing is explicit; source/tool-free full/compact
+replay shares the same current assessments. Export refuses changed-file selection,
+incomplete analysis, invalid suppression, overwrite, and exhausted budgets.
+
+All three families reuse one completed owner/measurement roster with saved
+reviews applied before baseline counts. Exact comparisons borrow compact
+snapshots; only requested export copies measurement metadata. Source and density
+baselines share bounded I/O, checked construction/publication, current comparison,
+retained-state mapping and report/gate behavior. No source/graph clone, new hash,
+extraction permission, threshold, budget or review ledger change is introduced.
+Source baseline negatives additionally require a completed numeric observation
+under the retained policy without suppression. Missing/excluded/unavailable
+owners remain distinct from resolved; unselected owners and disabled spacing
+remain unselected. Existing saved-review pruning keeps its visibility semantics.
+
+The closed source model uses a 4-MiB byte limit and a combined 4,096-entry bound,
+with independently checked version/policy/context/exclusion headers and exact
+per-family/locator/compilation-target uniqueness. Original root/inline and checked
+ordinary external free-function owner limits still apply. Broader external
+methods, project-scoped quality/coverage, native macOS, external Go comparison
+and capability-specific legacy retirement remain open. PR19 is still outside
+this feature branch. The next ready frontier is project-scoped coverage/quality
+measurement using the independently specified source and density consumers.
+
+Integrated validation on the frozen C13e snapshot passes all 3,151 nextest tests
+(five skipped) in 199.869 seconds and workspace doc tests, including both original
+NonZero regressions, u32 widening composition and 14 real-Cargo source-baseline
+cases. Eleven pure source model cases cover closed schema, exact family policy,
+headers, bounds and duplicate identity. The existing source/density review
+regressions pass. Formatting, workspace/all-target Clippy with warnings denied
+and diff checks pass. Legacy style reports zero violations across 9,478 functions;
+reviewed patterns reports zero visible candidates. Unfiltered patterns retains
+exactly the previous fifteen IDs, with no ledger edits. Evidence is retained in
+`/tmp/clones-source-baseline-*`, with final gates named `*-final.*`. This is a
+delivered source-baseline increment, not full migration or legacy retirement.

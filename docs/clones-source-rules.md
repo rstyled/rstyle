@@ -267,3 +267,47 @@ The same manifest can independently select `--effect-density` presentation via
 `mutation_effects.changed_scope`. When both consumers are requested, their
 selected coverage and visible findings remain independent; neither selection
 relaxes whole-analysis completeness. See [density reporting](clones-mutation-effects.md).
+
+## Source-rule CI baseline inventories
+
+Export a whole-scope inventory after complete source analysis:
+
+```sh
+cargo rstyle clones --extraction-profile hir-data-v3 --locked \
+  --source-rules --analysis-config analysis.toml \
+  --write-source-baseline source-baseline.json
+```
+
+Compare live capture or an explicit saved run with
+`--source-baseline source-baseline.json --fail-on-new-source`. This separate gate
+exits one for new or changed selected visible source findings, or for changed
+policy, exclusions or build contexts. `--fail-on-findings` continues to include
+existing findings. Raw findings remain in the analysis report. Saved reviews
+apply before selected baseline counts; the baseline itself creates no dismissals.
+Changed-file selection can narrow comparison counts, but export requires whole
+scope. Neither selection nor an empty baseline makes incomplete analysis clean.
+Incomplete analysis exits two and cannot publish an export.
+
+The closed `rstyle.source-baseline/1` format retains parameter, length and
+configured spacing findings with exact measurement, detector, locator and build
+context values. Rule tags are `parameter`, `length` and `spacing`; they remain
+separate even on one function. An absent spacing policy or a zero minimum is
+stored as disabled (`spacings: null`). Empty inventories retain the same complete
+headers and detect configuration drift. No hash or executable graph is needed.
+Comparison borrows completed source-review observations; export copies compact
+measurement metadata, without repeating source extraction or identity resolution.
+
+The top-level `source_baseline` report lists current and retained states. Exact
+numeric findings are existing; changed measurements or policy require review.
+Only an observed completed numeric negative under the retained policy resolves a
+finding. Suppression and exclusion remain unavailable; missing owners remain
+unobserved. Disabled spacing is unselected. Existing saved-review pruning retains
+its own visibility semantics. Baseline input never supplies current evidence.
+
+Load and export are bounded to 4 MiB, with at most 4,096 entries, contexts and
+exclusions. Export creates a new destination atomically and refuses overwrite.
+The shared original owner index also bounds scope: root/inline owners and checked
+ordinary external free functions are supported; external methods, remapped or
+ambiguous ownership and exhausted identities remain unavailable. Live and
+source/tool-free saved-run comparison and export use the same policy. These
+limits remain visible prerequisites for any project-wide CI gate.

@@ -1,6 +1,6 @@
 //! Source reviews consume completed numeric measurements, never body proofs.
-mod observed;
-mod retained;
+pub(super) mod observed;
+pub(super) mod retained;
 
 use super::{
     ReviewStore, length_rules, outcome, source_rules, spacing_rules, status, summary, workflow,
@@ -13,10 +13,11 @@ pub(in crate::clones) struct Reports {
     pub parameters: Report,
     pub lengths: Report,
     pub spacings: Report,
+    pub baseline: Option<super::source_baseline::Report>,
 }
 
 #[derive(Clone, Copy)]
-enum Family {
+pub(super) enum Family {
     Parameter,
     Length,
     Spacing,
@@ -48,14 +49,32 @@ pub(super) fn apply(
     store: Option<&mut ReviewStore>,
 ) -> Result<(Reports, Vec<status::Record>), String> {
     let requested = ctx.args.source_rules;
-    let Some(store) = store.filter(|_| requested || ctx.args.review_status_requested()) else {
+    let baseline_requested =
+        ctx.args.source_baseline.is_some() || ctx.args.write_source_baseline.is_some();
+    let store = store.filter(|_| requested || ctx.args.review_status_requested());
+    if store.is_none() && !baseline_requested {
         return Ok((Reports::not_requested(), Vec::new()));
-    };
+    }
 
     let observations = observed::collect(inputs, ctx);
-    dismiss(store, &observations, ctx)?;
-    let reports = reports(&observations, store, requested)?;
-    let records = retained::records(store, &observations, ctx);
+    let (mut reports, records) = if let Some(store) = store {
+        dismiss(store, &observations, ctx)?;
+        (
+            reports(&observations, store, requested)?,
+            retained::records(store, &observations, ctx),
+        )
+    } else {
+        (Reports::not_requested(), Vec::new())
+    };
+
+    if baseline_requested {
+        reports.baseline = Some(super::source_baseline::evaluate(
+            &observations,
+            &reports,
+            inputs,
+            ctx,
+        )?);
+    }
     Ok((reports, records))
 }
 
@@ -83,6 +102,7 @@ fn reports(
         requested,
     };
     Ok(Reports {
+        baseline: None,
         parameters: Family::Parameter.report(&inputs, |row| {
             outcome::Outcome::checked(row.checked_parameter().map(|current| {
                 let lookup: source_rules::Lookup<'_> = parameters.lookup(&current);
@@ -276,6 +296,7 @@ impl Family {
 impl Reports {
     fn not_requested() -> Self {
         Self {
+            baseline: None,
             parameters: Family::Parameter.not_requested(),
             lengths: Family::Length.not_requested(),
             spacings: Family::Spacing.not_requested(),

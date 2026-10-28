@@ -11,7 +11,7 @@ pub(in crate::clones) struct Report {
     #[serde(flatten)]
     review: numeric_workflow::Presentation<Decision>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    baseline: Option<super::density_baseline::Report>,
+    pub(in crate::clones) baseline: Option<super::density_baseline::Report>,
 }
 
 #[derive(Serialize)]
@@ -105,20 +105,6 @@ fn dismiss(
 }
 
 impl Report {
-    pub(in crate::clones) fn publish_baseline(
-        &self,
-        path: Option<&std::path::Path>,
-        complete: bool,
-    ) -> Result<(), String> {
-        if let Some(path) = path {
-            self.baseline
-                .as_ref()
-                .ok_or("Density baseline was not evaluated")?
-                .publish(path, complete)?;
-        }
-        Ok(())
-    }
-
     pub(in crate::clones) fn baseline_gate_fails(&self) -> bool {
         self.baseline
             .iter()

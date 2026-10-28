@@ -21,6 +21,15 @@ impl Hidden {
 }
 
 impl Report<'_> {
+    pub(in crate::clones) fn source_baseline_valid(&self) -> bool {
+        self.functions.iter().all(|function| {
+            function
+                .assessments
+                .iter()
+                .all(|assessment| assessment.rule_id != "invalid_suppression")
+        })
+    }
+
     pub(in crate::clones) fn spacing_policy(&self) -> Option<usize> {
         self.effective_config
             .as_ref()
@@ -70,10 +79,39 @@ impl FunctionReport<'_> {
     fn source_rule_review(&self, rule_id: &str) -> RuleReview<'_> {
         let assessment = self.assessments.iter().find(|rule| rule.rule_id == rule_id);
         RuleReview {
+            suppressed: self
+                .source_suppression
+                .as_ref()
+                .is_some_and(|suppression| suppression.allows(rule_id)),
             assessment,
             complete: assessment.is_some_and(|rule| rule.coverage == Coverage::Complete)
                 && self.source_policy_complete(),
             visible: assessment.is_some_and(|rule| self.visible(rule)),
         }
+    }
+}
+
+impl super::Config {
+    pub(in crate::clones) fn source_baseline_header(
+        &self,
+    ) -> Option<(review::source_baseline::Policy, Vec<String>)> {
+        let source = self.source.as_ref()?;
+        let settings = Settings::new(source);
+        Some((
+            review::source_baseline::Policy {
+                parameters: review::source_rules::Policy {
+                    max_params: settings.max_params,
+                    count_self: settings.count_self,
+                },
+                lengths: review::length_rules::Policy {
+                    max_lines: settings.max_lines,
+                },
+                spacings: settings
+                    .min_statements
+                    .filter(|minimum| *minimum > 0)
+                    .map(|min_statements| review::spacing_rules::Policy { min_statements }),
+            },
+            settings.exclude.to_vec(),
+        ))
     }
 }

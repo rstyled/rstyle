@@ -11200,3 +11200,5 @@ mod scalar_result_line_tail {
         });
     }
 }
+
+mod migration_source_baseline;

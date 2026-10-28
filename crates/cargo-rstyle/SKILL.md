@@ -332,3 +332,18 @@ explicit rather than resolved. Empty baseline headers still detect policy drift.
 Both live analysis and source/tool-free replay work. Original root/inline and
 checked ordinary external free-function identities and bounded inventory limits apply; see
 `docs/clones-mutation-effects.md` before using this as a project-wide CI gate.
+
+## Source-rule CI baseline inventories
+
+`clones --source-rules --write-source-baseline NEW_PATH` exports completed
+whole-scope parameter, length and configured-spacing findings. Export creates a
+new file and conflicts with changed-file selection. Compare using
+`--source-baseline PATH --fail-on-new-source`; new/changed selected visible
+findings or policy/exclusion/build-context drift fail separately from ordinary
+`--fail-on-findings`. Reviews apply before selected counts; raw findings remain.
+Only a completed same-policy numeric negative resolves a retained finding.
+Suppressed, excluded, missing and unavailable owners are never silently resolved.
+Incomplete analysis exits two and cannot export; empty headers still check drift.
+Live capture and explicit source/tool-free replay share completed observations.
+The 4-MiB/4,096-entry bounds and checked original owner limitations apply; see
+`docs/clones-source-rules.md` before adopting the gate across a project.

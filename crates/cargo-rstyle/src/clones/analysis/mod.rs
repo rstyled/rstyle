@@ -80,6 +80,7 @@ pub(in crate::clones) struct SourceReview<'a> {
 }
 
 pub(in crate::clones) struct RuleReview<'a> {
+    pub suppressed: bool,
     pub assessment: Option<&'a Assessment>,
     pub complete: bool,
     pub visible: bool,

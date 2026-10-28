@@ -25,22 +25,17 @@ impl Baseline {
     pub(in crate::clones) fn new(
         entries: Vec<Snapshot>,
         policy: density_rules::Policy,
-        mut contexts: Vec<local::BuildContext>,
+        contexts: Vec<local::BuildContext>,
         exclude: Vec<String>,
     ) -> Result<Self, String> {
-        contexts.sort();
-        contexts.dedup();
-
-        let baseline = Self {
+        super::super::baseline_common::build(entries, contexts, |entries, contexts| Self {
             schema: SCHEMA.into(),
             policy,
             versions: local_adapter::versions("side_effect_density"),
             contexts,
             exclude,
             entries,
-        };
-        baseline.validate()?;
-        Ok(baseline)
+        })
     }
 
     pub(in crate::clones) fn validate(&self) -> Result<(), String> {
@@ -97,3 +92,17 @@ impl Baseline {
 
 #[cfg(test)]
 mod tests;
+
+impl super::super::baseline_common::Inventory for Baseline {
+    const REPORT_SCHEMA: &'static str = "rstyle.density-baseline-report/1";
+    const INCOMPLETE: &'static str = "Current density evidence, capture, identity or source policy is incomplete; a baseline cannot establish clean analysis";
+    fn same_scope(&self, previous: &Self) -> bool {
+        self.policy == previous.policy
+            && self.contexts == previous.contexts
+            && self.exclude == previous.exclude
+    }
+    type Entry = density_rules::Snapshot;
+    fn replace_entries(&mut self, entries: Vec<Self::Entry>) {
+        self.entries = entries;
+    }
+}

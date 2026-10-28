@@ -101,7 +101,10 @@ impl<'a> Entry<'a> {
     }
 }
 
-fn parameter_owner(owner: &Row, previous: &source_rules::Snapshot) -> Assessment {
+pub(in crate::clones::review) fn parameter_owner(
+    owner: &Row,
+    previous: &source_rules::Snapshot,
+) -> Assessment {
     if let Some(assessment) = gate(
         &owner.parameters,
         &previous.policy,
@@ -117,7 +120,10 @@ fn parameter_owner(owner: &Row, previous: &source_rules::Snapshot) -> Assessment
     )
 }
 
-fn length_owner(owner: &Row, previous: &length_rules::Snapshot) -> Assessment {
+pub(in crate::clones::review) fn length_owner(
+    owner: &Row,
+    previous: &length_rules::Snapshot,
+) -> Assessment {
     if let Some(assessment) = gate(
         &owner.lengths,
         &previous.policy,
@@ -129,7 +135,10 @@ fn length_owner(owner: &Row, previous: &length_rules::Snapshot) -> Assessment {
     assess_positive(owner.checked_length(), owner.length_snapshot(), previous)
 }
 
-fn spacing_owner(owner: &Row, previous: &spacing_rules::Snapshot) -> Assessment {
+pub(in crate::clones::review) fn spacing_owner(
+    owner: &Row,
+    previous: &spacing_rules::Snapshot,
+) -> Assessment {
     if !owner.spacing_requested {
         return (
             status::State::NotRequested,
