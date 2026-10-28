@@ -156,9 +156,6 @@ includes source evidence, all findings, and counts for every analyzed function. 
 [the shared scoring policy and Rust mapping](docs/complexity.md) for the counting
 rules, coverage, frontend contract, and configuration.
 
-This repo starts with limits of 40 CC and 32 COG. Follow-up refactoring PRs can
-lower them toward the tool defaults of 12.
-
 Run on another project:
 
 ```sh
