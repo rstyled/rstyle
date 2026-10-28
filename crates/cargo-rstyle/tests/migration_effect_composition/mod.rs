@@ -69,7 +69,7 @@ fn function_source<'a>(source: &'a str, function: &Value) -> &'a str {
 fn complete(report: &Value, name: &str, visible: &str) {
     assert_eq!(
         report["mutation_effects"]["schema"],
-        "rstyle.mutation-effects/2"
+        "rstyle.mutation-effects/3"
     );
     let evidence = &function(report, name)["evidence"];
     assert_eq!(evidence["coverage"], "complete", "{evidence}");

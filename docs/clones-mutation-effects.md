@@ -6,7 +6,7 @@ Request the optional consumer separately from direct mutation budgets:
 cargo rstyle clones --extraction-profile hir-data-v3 --locked --mutation-effects --format json --report-detail compact
 ```
 
-`mutation_effects` (`rstyle.mutation-effects/2`) describes original direct writes
+`mutation_effects` (`rstyle.mutation-effects/3`) describes original direct writes
 and calls through at most two original same-selected-unit helper edges:
 `caller → wrapper → leaf`. It does not require strict clone admission. The
 vocabulary covers ordinary nongeneric free functions with owned `u32` or direct
@@ -41,6 +41,28 @@ builtin `u32` formal types. Source spelling and rendered compiler type names do
 not establish primitive referents. This observation supplies no graph admission,
 alias, access or rewrite permission. Original source ownership, native binding
 identity, signatures, call arguments and selected-unit context still have to agree.
+
+The report also exposes the independent `statement_metric`
+`rstyle.original-source-statements/1`. Each function's `statement_inventory`
+contains availability and execution for a complete source-syntax count. Every
+statement in every lexical block counts once, including block tails and control
+statements. A bare match-arm body contributes one additional statement; block
+arms contribute their contained statements. Both branches, empty loop bodies'
+authored statements and source after transfers count once. Nested expressions
+and calls do not count separately unless they contain blocks. This is an owned
+original-source metric, not a native HIR or PDG node count.
+
+Closures, nested items, macros, attributes, async/await, const and unsafe blocks
+make the entire count unavailable. No supported-remainder denominator is emitted.
+Function budgets prevent the inspection altogether. Its availability is separate
+from scalar-effect coverage: a match can have a known source statement count
+while its scalar effects remain incomplete. Full and compact saved replay use
+the same owned source bytes without reopening project files.
+
+A density ratio remains unevaluated. The numerator still needs a complete event
+vocabulary and configured weights/classification, including unknown calls and
+non-mutation effects. A known denominator or complete scalar-write summary
+cannot certify that numerator.
 
 Each function's evidence reports `caller_visible_mutation`:
 

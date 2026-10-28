@@ -257,7 +257,9 @@ evidence/rules and completeness remain unchanged. Status/prune distinguish
 omitted, missing, stale and unavailable owners; only an exact-context completed
 selected negative can authorize pruning. Older review schemas remain readable.
 
-`clones --mutation-effects` uses schema `rstyle.mutation-effects/2` for original
+`clones --mutation-effects` includes an independent original-source nested statement
+inventory (`rstyle.original-source-statements/1`); unavailable counts never
+authorize a density ratio. It uses schema `rstyle.mutation-effects/3` for original
 scalar writes through at most two same-unit call edges (`caller → wrapper → leaf`).
 Checked ordinary branches and primitive loops retain each original call/write
 site once, including mutually exclusive arms and zero-iteration bodies. Lexical

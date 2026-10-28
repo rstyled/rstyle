@@ -4,7 +4,7 @@ mod witnesses;
 use super::{Coverage, Execution};
 use crate::clones::{Args, Function, FunctionKey, Handoff, capture};
 use rstyle_pdg::{
-    consumer_facts::{effects, mutations},
+    consumer_facts::{Availability, InspectionExecution, effects, mutations, statement_inventory},
     unit_store::UnitStore,
 };
 use serde::Serialize;
@@ -12,6 +12,7 @@ use serde::Serialize;
 #[derive(Serialize)]
 pub(crate) struct Report<'a> {
     schema: &'static str,
+    statement_metric: &'static str,
     #[serde(flatten)]
     scope: scope::Summary,
     functions: Vec<FunctionReport<'a>>,
@@ -28,6 +29,7 @@ struct FunctionReport<'a> {
     source_file: Option<&'a str>,
     fn_span: rstyle_pdg::ByteSpan,
     evidence: effects::Assessment,
+    statement_inventory: statement_inventory::Inventory,
     direct_sites: Vec<mutations::WriteSite>,
     boundaries: Vec<mutations::Boundary>,
 }
@@ -76,12 +78,14 @@ pub(in crate::clones) fn evaluate<'a>(
     args: &Args,
 ) -> Result<Report<'a>, String> {
     let mut report = Report {
-        schema: "rstyle.mutation-effects/2",
+        schema: "rstyle.mutation-effects/3",
+        statement_metric: "rstyle.original-source-statements/1",
         scope: scope::Summary::new(handoff, capture, args.mutation_effects),
         functions: Vec::new(),
         summaries: Vec::new(),
         units: Vec::new(),
         limitations: &[
+            "Statement inventory independently counts original nested source statements and bare match arms; unavailable counts do not alter scalar-effect coverage and never authorize a density ratio.",
             "Caller-visible scalar mutation only; no purity, panic freedom, termination, density or rewrite-safety claim.",
             "Original same-unit nongeneric scalar helpers through at most two call edges; deeper or incomplete summaries, unsupported signatures and arguments remain incomplete.",
             "Direct assignment sites and distinct summarized call occurrences are separate; witnesses describe syntax, never runtime frequency.",
@@ -136,7 +140,10 @@ impl<'a> Report<'a> {
             .map(|(ordinal, function)| {
                 let evidence = session.assess(function.facts.index)?;
                 let observed = session.observations(function.facts.index);
-                Ok((ordinal, function_report(unit, function, evidence, observed)))
+                Ok((
+                    ordinal,
+                    function_report(unit, function, evidence, observed)?,
+                ))
             })
             .collect::<Result<Vec<_>, String>>()?;
 
@@ -193,8 +200,18 @@ fn function_report<'a>(
     function: &'a Function,
     evidence: effects::Assessment,
     observed: Option<&mutations::Observations>,
-) -> FunctionReport<'a> {
-    FunctionReport {
+) -> Result<FunctionReport<'a>, String> {
+    let statement_inventory = if evidence.execution == mutations::Execution::BudgetExhausted {
+        statement_inventory::Inventory {
+            statements: Availability::Unknown {
+                reason: "Analysis function budget exhausted".into(),
+            },
+            execution: InspectionExecution::BudgetExhausted,
+        }
+    } else {
+        statement_inventory::inspect(&function.facts)?
+    };
+    Ok(FunctionReport {
         key: function.key,
         unit,
         name: &function.facts.name,
@@ -206,6 +223,7 @@ fn function_report<'a>(
             .and_then(serde_json::Value::as_str),
         fn_span: function.facts.fn_span,
         evidence,
+        statement_inventory,
         direct_sites: observed
             .map(|observed| observed.direct.sites.iter().map(copy_site).collect())
             .unwrap_or_default(),
@@ -219,7 +237,7 @@ fn function_report<'a>(
                     .collect()
             })
             .unwrap_or_default(),
-    }
+    })
 }
 
 fn export_summaries<'a>(

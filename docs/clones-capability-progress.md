@@ -1611,3 +1611,52 @@ Next ready work remains a complete bounded event/statement contract for density
 and broader project-quality reporting. This extension does not retire legacy
 effects or establish full C11 completion; native macOS and external Go comparison
 remain unverified.
+
+
+## C11j: independent original-source statement denominator
+
+Added a bounded statement inventory prerequisite for general effect density,
+exposed by `--mutation-effects` schema 3 as the independent versioned metric
+`rstyle.original-source-statements/1`. Every lexical block statement/tail counts
+once, plus bare match-arm bodies; nested blocks, both branches, loop bodies and
+source after transfers preserve authored sites without runtime multiplication.
+Expressions/calls do not contribute extra units unless they contain blocks.
+The input reuses original whole-file ownership/signature checks and source syntax
+budgets, without new hashes, graph permissions or source/graph copies. This is
+an explicitly defined source metric, not a native HIR/PDG count or an assertion
+of identical legacy counting.
+
+Opaque closures/items/macros/attributes, async/await, unsafe/const syntax and
+compile-time array lengths/repeats/const generic arguments make the entire
+inventory unavailable. No remainder count is published. An exhausted function
+budget skips this inspection. Source statement availability and scalar-effect
+coverage remain independent: supported source match syntax can supply a complete
+count while scalar-effect analysis stays incomplete. Neither an available count
+nor a completed scalar-write proof authorizes a density ratio. Event vocabulary,
+configured call classification/weights and complete numeric policy evaluation
+remain the next required work; general density and full C11 are incomplete.
+
+Five low-level cases cover independently expected counts, opaque/compile-time
+boundaries, original ownership/signature contradictions and preparse budgets.
+Live control-chain counts are 10/3/1 for leaf/wrapper/caller. Additional live cases
+cover empty and match bodies, opaque syntax and explicit function budgets;
+existing full/compact strict replay verifies equal inventories without project
+source or tools. All 3,029 workspace nextest tests pass (five skipped) in 192.978
+seconds, plus doc tests. Both original NonZero regressions and the u32 widening
+reader pass. Workspace/all-target Clippy with warnings denied passes; all 56
+migration comparison and 50 auxiliary script tests pass. Runtime is checkpoint
+evidence, not a measured speedup claim.
+
+Legacy style reports zero violations across 9,286 functions after a spacing-only
+phase-break correction; reviewed patterns passes with zero visible candidates,
+and unfiltered discovery retains exactly the fifteen C11i baseline IDs. Formatting
+and diff checks pass. A separate locked compact `hir-data-v3 --mutation-effects`
+capture over the independent three-function control corpus completes with the
+same 10/3/1 source counts. Logs/reports are under `/tmp/clones-statements-*`.
+
+Next ready work is the complete event numerator: original resolved-call
+classification, direct versus delegated mutation event units, non-mutation and
+unknown effects, checked weighted arithmetic and policy/threshold decisions.
+Do not infer it from the deduplicated scalar root union. Full migration remains
+active; legacy retirement, native macOS and external Go comparison remain
+unverified. Main/PR19 has not been merged into this feature branch.

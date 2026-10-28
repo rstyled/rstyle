@@ -19,6 +19,7 @@ pub mod mutations;
 pub mod planning;
 mod preceding_comment;
 mod selected_context;
+pub mod statement_inventory;
 mod syntax_budget;
 mod top_statements;
 

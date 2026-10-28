@@ -44,6 +44,12 @@ fn primitive_control_sites_compose_through_two_edges_without_runtime_multiplicat
     complete(&report, "leaf", 5, 0);
     complete(&report, "wrapper", 0, 2);
     complete(&report, "caller", 0, 1);
+    for (name, count) in [("leaf", 10), ("wrapper", 3), ("caller", 1)] {
+        assert_eq!(
+            function(&report, name)["statement_inventory"]["statements"],
+            serde_json::json!({"status":"known", "value":count})
+        );
+    }
     let wrapper = function(&report, "wrapper");
     let calls = wrapper["evidence"]["calls"].as_array().unwrap();
     assert_ne!(calls[0]["span"], calls[1]["span"]);
@@ -162,6 +168,14 @@ fn conditional_third_edge_and_omitted_owners_remain_bounded() {
     assert_eq!(output.status.code(), Some(2));
     assert_eq!(bounded["mutation_effects"]["execution"], "budget_exhausted");
     for function in bounded["mutation_effects"]["functions"].as_array().unwrap() {
+        assert_eq!(
+            function["statement_inventory"]["execution"],
+            "budget_exhausted"
+        );
+        assert_eq!(
+            function["statement_inventory"]["statements"]["status"],
+            "unknown"
+        );
         assert_eq!(function["evidence"]["coverage"], "incomplete");
         assert_eq!(function["evidence"]["caller_visible_mutation"], "unknown");
     }
@@ -184,5 +198,33 @@ fn control_summaries_replay_strictly_without_source_or_tools_in_both_details() {
             original["owned_source_inventory"]
         );
         assert_eq!(replay["matching"], original["matching"]);
+    }
+}
+
+#[test]
+fn original_statement_counts_are_independent_of_scalar_effect_completeness() {
+    let source = r#"
+pub fn empty() {}
+pub fn arms(value:u32) -> u32 { match value { 0 => 1, _ => { let n=2; n } } }
+pub fn opaque() { let work = || { let a=1; a }; work(); }
+pub fn expansion() { let value = std::hint::black_box(1); println!("{}",value); }
+"#;
+    let (_directory, output, report) = capture(source);
+    assert_eq!(output.status.code(), Some(2));
+    for (name, expected) in [("empty", 0), ("arms", 4)] {
+        assert_eq!(
+            function(&report, name)["statement_inventory"]["statements"],
+            serde_json::json!({"status":"known", "value":expected})
+        );
+    }
+    assert_eq!(
+        function(&report, "arms")["evidence"]["coverage"],
+        "incomplete"
+    );
+    for name in ["opaque", "expansion"] {
+        assert_eq!(
+            function(&report, name)["statement_inventory"]["statements"]["status"],
+            "unsupported"
+        );
     }
 }
