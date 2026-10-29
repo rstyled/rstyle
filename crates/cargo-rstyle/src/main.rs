@@ -36,6 +36,9 @@ struct Cli {
     config: Option<PathBuf>,
     #[arg(long, global = true)]
     manifest_path: Option<PathBuf>,
+    /// Style backend: legacy, or opt-in authored compiler diagnostics and plans.
+    #[arg(long, value_enum, default_value_t = Engine::Legacy)]
+    style_engine: Engine,
     /// Ignore ledger (default: <workspace root>/rstyle-ignore.toml).
     #[arg(long, global = true)]
     ignore_file: Option<PathBuf>,
@@ -74,7 +77,7 @@ struct PatternsArgs {
 }
 
 #[derive(Clone, Copy, Default, PartialEq, ValueEnum)]
-enum PatternEngine {
+enum Engine {
     #[default]
     Legacy,
     Compiler,
@@ -84,8 +87,8 @@ enum PatternEngine {
 #[derive(Args, Default)]
 struct PatternRouteArgs {
     /// Choose the existing legacy miner or captured compiler observations.
-    #[arg(long, value_enum, default_value_t = PatternEngine::Legacy)]
-    engine: PatternEngine,
+    #[arg(long, value_enum, default_value_t = Engine::Legacy)]
+    engine: Engine,
     /// Compiler proposal population; authored excludes explicitly generated signatures.
     #[arg(long, value_enum)]
     compiler_pattern_scope: Option<clones::CompilerSourceScope>,
@@ -223,14 +226,18 @@ enum Format {
 
 // rstyle-allow(side_effect_density): IO boundary: reads rstyle.toml
 fn load_config(explicit: Option<&Path>, root: &Path) -> Result<Config, String> {
-    let default = root.join("rstyle.toml");
-    let path = match explicit {
-        Some(path) => path,
-        None if default.exists() => &default,
-        None => return Ok(Config::default()),
+    let Some(path) = config_path(explicit.map(Path::to_path_buf), root) else {
+        return Ok(Config::default());
     };
-    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     Config::parse(&text).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+fn config_path(explicit: Option<PathBuf>, root: &Path) -> Option<PathBuf> {
+    explicit.or_else(|| {
+        let default = root.join("rstyle.toml");
+        default.exists().then_some(default)
+    })
 }
 
 /// Runs the driver over the selected crates and reads back their facts.
@@ -297,7 +304,7 @@ fn mine_options(mine: &MineArgs) -> patterns_report::Options {
 const FOUND: u8 = 1;
 
 fn patterns(cli: Cli, args: PatternsArgs) -> Result<(String, u8), String> {
-    if args.route.engine == PatternEngine::Compiler {
+    if args.route.engine == Engine::Compiler {
         return clones::patterns_route::run(cli, args);
     }
     if args.route.compiler_options_requested() {
@@ -441,6 +448,10 @@ fn main() -> ExitCode {
         print!("{SKILL}");
         return ExitCode::SUCCESS;
     }
+    if cli.style_engine != Engine::Legacy && cli.command.is_some() {
+        eprintln!("--style-engine applies to the default style command only");
+        return ExitCode::from(2);
+    }
     match cli.command.take() {
         Some(Command::Clones(args)) => return exit_with(clones::run(&cli, &args)),
         Some(Command::Patterns(args)) => return exit_with(patterns(cli, args)),
@@ -448,6 +459,9 @@ fn main() -> ExitCode {
             return exit_with(ignore_cmd(&cli, &args).map(|output| (output, 0)));
         }
         None => {}
+    }
+    if cli.style_engine == Engine::Compiler {
+        return exit_with(clones::style_route::run(cli));
     }
     let result = analyze(&cli).and_then(|report| Ok((render(&report, cli.format)?, report)));
 

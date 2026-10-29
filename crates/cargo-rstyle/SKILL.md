@@ -398,6 +398,17 @@ The 4-MiB/4,096-entry bounds and checked original owner limitations apply; see
 
 ## Compiler advisory migration
 
+The root style command can opt into this path with
+`cargo rstyle --style-engine compiler --format json`. It automatically selects
+all authored compiler diagnostics and existing plans, loads workspace rstyle.toml
+or global --config, and exits0/1/2 for clean/findings/incomplete-or-error.
+Package, all-targets, manifest and format flags retain their ordinary selection.
+The JSON is the compiler report with per-unit evaluations and separate planning
+completion, not the legacy top-level diagnostics schema. Strict matching and
+pattern mining are unrequested; --ignore-file remains irrelevant to style rules.
+The default backend stays legacy. Live compiler captures use fresh build
+directories; saved replay is separate from incremental live analysis.
+
 For existing compiler mutation/effect observations and core fix plans on a clones
 run, use `cargo rstyle clones --extraction-profile hir-data-v3 --compiler-advisory`.
 An explicit `--compiler-advisory-config PATH` selects core TOML policy; otherwise

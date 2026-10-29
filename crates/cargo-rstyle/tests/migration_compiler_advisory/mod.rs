@@ -1,6 +1,7 @@
 mod authored_ranking;
 mod scoped_diagnostic_baseline;
 mod selected_diagnostics;
+mod style_routing;
 use super::*;
 
 mod complexity;

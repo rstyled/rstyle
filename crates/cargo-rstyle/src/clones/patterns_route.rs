@@ -21,7 +21,8 @@ fn prepare(cli: &mut Cli, args: &mut Routed) -> Result<Captured, String> {
     let capture = capture_input(cli, &args.options)?;
     resolve_ledger(cli, args, &capture.plan.root)?;
 
-    args.options.compiler_advisory_config = config_path(cli, &capture.plan.root);
+    args.options.compiler_advisory_config =
+        crate::config_path(cli.config.take(), &capture.plan.root);
     cli.ignore_file = None;
     let config = configuration(cli, &args.options)?;
     Ok(Captured { config, capture })
@@ -100,11 +101,4 @@ fn check_ledger(cli: &Cli, root: &Path, no_ignore: bool) -> Result<(), String> {
         return Err("Compiler patterns do not automatically migrate legacy dismissals; use --preview-legacy-reviews to inspect migration or --no-ignore to explicitly bypass the legacy ledger, and --review-file for scoped compiler reviews. The legacy ledger is unchanged.".into());
     }
     Ok(())
-}
-
-fn config_path(cli: &mut Cli, root: &Path) -> Option<std::path::PathBuf> {
-    cli.config.take().or_else(|| {
-        let default = root.join("rstyle.toml");
-        default.exists().then_some(default)
-    })
 }

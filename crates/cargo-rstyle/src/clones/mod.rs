@@ -12,6 +12,7 @@ mod planning;
 mod report;
 mod review;
 mod selected_context;
+pub(crate) mod style_route;
 use crate::Cli;
 use analysis::Completion;
 use clap::Args as ClapArgs;
@@ -790,12 +791,19 @@ fn capture_input(cli: &Cli, args: &Args) -> Result<capture::Capture, String> {
 }
 
 fn capture_fresh(cli: &Cli, args: &Args) -> Result<capture::Capture, String> {
-    let mut capture =
-        Stage::new("cli.prepare", "run", None).observe(|| capture::prepare(cli, args))?;
+    let capture = prepare_capture(cli, args)?;
+    Ok(compile_capture(capture, cli, args))
+}
+
+fn prepare_capture(cli: &Cli, args: &Args) -> Result<capture::Capture, String> {
+    Stage::new("cli.prepare", "run", None).observe(|| capture::prepare(cli, args))
+}
+
+fn compile_capture(mut capture: capture::Capture, cli: &Cli, args: &Args) -> capture::Capture {
     if let Err(error) = capture::compile(&mut capture, cli, args) {
         capture.failures.push(error);
     }
-    Ok(capture)
+    capture
 }
 
 fn evaluate_matching(

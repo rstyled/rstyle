@@ -6430,3 +6430,67 @@ the exact authored-diagnostic default-readiness comparison: coverage, suppressio
 exit compatibility and runtime against the existing command. Remaining density
 helper reviews stay open, separating known static unknown-call weights from
 unknown runtime behavior. No additional completeness layer is needed.
+
+### C88 — opt-in root compiler style route (2026-10-29)
+
+Lead owns root CLI/shared capture seams, route tests, docs/artifact and index;
+read-only leaf reviews audited compatibility and runtime reuse. The root command
+now accepts --style-engine compiler, retaining legacy as the default and explicit
+legacy choice. It selects existing advisory-only HIR-data-v3 capture, all authored
+compiler diagnostics and cross-unit plans; matching and pattern mining remain
+unrequested. It reuses the same core evaluator, collector and planner. Findings
+return1 without another flag; incomplete capture/requested diagnostics return2.
+
+Extracted the existing config-path decision for legacy style and compiler routes:
+explicit global --config wins over workspace rstyle.toml, with existing defaults
+when absent. Captured planning root supplies that path without another metadata
+query. Split existing prepare/compile capture helpers so config validates before
+compilation, preserving compiler-failure accumulation and ordinary clones behavior.
+The irrelevant pattern ledger remains unused for style. Source suppressions and
+rule/complexity/effect semantics reuse their existing implementations. Compiler
+JSON keeps per-unit evaluations and metric/context identity; no flattening into a
+legacy-shaped report or fallback to invented measurements. Full planning status
+remains separate from requested diagnostic and required-edit completeness.
+
+Six independent root-route tests cover automatic/explicit config, valid/invalid
+suppressions, finding and compile-failure exits, test contexts, external manifest
+and package selection, irrelevant ledger and subcommand misrouting. All6 pass
+in0.57s; all7 existing compiler-pattern routing tests pass in1.35s after the shared
+config extraction. Independent diff review found no concrete regression; exact
+root excluded-helper/generated-helper fixture extensions remain useful future
+coverage alongside existing underlying consumer tests.
+
+The exact default rstyle-core selection has424 authored owners with identical
+names, original source coordinates and all-rule clean summaries. Both routes
+exit0, with no missing authored names or complexity scores and no unresolved
+callees. The829 generated numeric owners remain explicitly unavailable/outside
+the authored population; requested all-rule diagnostics complete. Full planning
+is false, required-edit completion true. A second live report equals the first
+advisory payload, as does explicit saved replay. No strict work was requested.
+
+Measured prebuilt normal commands serially: legacy first3.976s/repeat0.214s,
+compiler first8.646s/repeat7.284s, saved replay0.767s. Legacy uses its existing
+Cargo cache; compiler live capture creates a fresh private build directory and
+disables incremental, so these single observations are not equal-cold-build or
+statistical runtime comparisons. They identify a real default-readiness blocker,
+not a speedup. Evidence: project-authored-style-route-study.json; complete logs,
+reports and original facts remain under its recorded temporary root.
+
+No new proof/policy framework, checksum, source scan, collector, budget increase
+or strict-matching change. No old command is retired and no production default
+is switched. Next ready runtime increment is reuse of Cargo's dependency build
+cache while still forcing requested owners to emit fresh observations. Fast
+owner reuse then needs immutable artifact-associated raw sidecars for artifacts
+that current Cargo reports fresh; a shared directory alone loses wrapper ledgers.
+Use existing associations and an ordinary lane lock, without SHA/source scans
+or a new proof framework. Broader diagnostic quality, suppression/exit/report
+compatibility across real projects and per-capability retirement remain open.
+C85 and C86 native CI now pass on Ubuntu x86/ARM and macOS. C87 CI remains
+running at the latest observation; this increment awaits publication.
+Checkpoint validation: all3,656 Rust tests pass in278.890s, five skips, plus
+doctests. Formatting, Clippy,247 capability Python tests and50 script tests pass.
+Both legacy gates pass: zero style violations across9,971 functions and the same
+13 unfiltered pattern IDs. The style gate prompted separating route preparation
+from execution; all six root-route tests pass again after that extraction, along
+with formatting, Clippy and both legacy gates. No suppressions or threshold
+changes were added. Native CI for this increment remains pending publication.

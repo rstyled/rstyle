@@ -841,3 +841,22 @@ context-only stateful helpers and2 uncertain orchestration cases. These judgment
 are distinct from numerical correctness and do not assert bugs. This checkpoint
 does not justify changing the whole default command; authored-diagnostic default
 readiness needs its own coverage, suppression/exit and runtime comparison.
+
+### Opt-in normal style routing (C88)
+
+`project-authored-style-route-study.json` records the exact normal rstyle-core
+command with --style-engine compiler, automatic unchanged workspace config,
+all authored rules, finding exits and shared plans. Its424 original owners and
+source coordinates match legacy, both all-rule summaries are clean and equal,
+and requested diagnostics complete while full planning remains incomplete.
+Generated numeric owners stay outside the authored scope. Repeat live reports
+and explicit saved replay retain equal advisory payloads.
+
+The artifact retains exact serial commands and single wall-clock measurements:
+legacy repeat0.214s, live compiler repeat7.284s, saved replay0.767s. The compiler
+creates a fresh private build directory per capture; legacy uses its existing
+Cargo cache. This is evidence about current developer workflows, not an equal
+cold-cache benchmark or general performance ratio. Runtime reuse is still a
+prerequisite to changing the default. The six independent root CLI cases live in
+migration_compiler_advisory/style_routing.rs. Compiler report shape/context and
+metric semantics remain explicit; no legacy retirement is claimed.

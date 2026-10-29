@@ -1,5 +1,29 @@
 # Compiler advisory reuse
 
+The normal style command offers an opt-in route:
+
+```sh
+cargo rstyle --style-engine compiler -p my-package --format json
+```
+
+It selects all authored compiler diagnostics and the existing cross-unit planner,
+uses workspace `rstyle.toml` or global `--config`, and returns0/1/2 for completed
+clean/findings/incomplete-or-error. Package, manifest, all-targets and format
+selection use the existing capture path. Strict matching and pattern mining are
+unrequested; the pattern ledger does not affect style findings. The compiler
+JSON retains per-unit evaluations, metric versions, outside-scope generated
+owners and separate full/required-edit planning completeness. It is not the legacy
+JSON schema. The legacy backend remains the default, available explicitly through
+`--style-engine legacy`. The style-engine option applies only without a subcommand;
+`patterns --engine compiler` retains its separate opt-in route.
+
+Live compiler captures currently create a fresh private Cargo build directory.
+A measured rstyle-core repeat took7.28s versus0.21s for the cached legacy repeat;
+explicit saved replay took0.77s. These single measurements use different cache
+states and do not establish a general runtime ratio. Incremental live reuse and
+broader default-readiness comparisons remain open; see
+`eval/clones-capability/project-authored-style-route-study.json`.
+
 `clones --extraction-profile hir-data-v3 --compiler-advisory` captures the existing
 Rust style observations during the same compiler invocation. It calls the driver
 mutation collector (`ExprUseVisitor`) and effect/call/parameter-use collector,
