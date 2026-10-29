@@ -589,3 +589,65 @@ is unchanged. The next collector investigation should use compiler identities
 and source origins within the existing collector, preserving metric-version
 compatibility. No hashes, source scans, proofs or runtime caches were added by
 this offline review.
+
+## Source mutation roots without lowered iterator targets (C28)
+
+The C27 source labels are unchanged. The existing expression-use collector now
+tags roots whose binding HIR span carries rustc's `ForLoop` desugaring origin;
+the existing core source mutation-budget evaluator skips those events before
+grouping. All raw mutation events, escaping/delegated effects and workspace
+type hints remain available.
+It does not filter the name `iter`, parse source, walk the body again or add
+proofs/checksums. Original iterator variables, mutable loop-pattern bindings,
+borrowed iterators, macro-local mutations and closure captures continue to count.
+Both legacy style and fresh advisory capture reuse this corrected collector.
+Fresh advisory observations use `rstyle.compiler-style-metrics/2`.
+
+The C27 two-target command replayed with the current implementation on historical
+`run-ynuMSl` preserves the entire metric-1 advisory and strict matching output
+exactly against `/tmp/clones-compiler-quality-boundary-1/stdout.log`. This includes
+the two historical discrepancies; replay never fabricates corrected facts.
+Evidence: `/tmp/clones-source-mutation-legacy-replay-final-1`, exit 2, 16.83 seconds,
+1,439,952 KiB peak RSS. Diagnostic snapshots and exported baselines retain their
+actual observed metric. Cross-version positives become stale, negatives cannot
+retire old choices, and even empty baselines report metric scope drift. Mixed
+captured metric versions require separate analyses.
+
+Fresh capture uses the C25/C26 declared non-test CLI/core selection and the C27
+two-target policy:
+
+```sh
+env PATH=/home/dev/.cargo/bin:$PATH CARGO_TARGET_DIR=target \
+python3 scripts/watchdog.py --timeout 180 \
+  --output /tmp/clones-source-mutation-project-capture-final-1 -- \
+  /usr/bin/time -v target/debug/cargo-rstyle rstyle \
+  -p cargo-rstyle -p rstyle-core --format json clones \
+  --extraction-profile hir-data-v3 --compiler-advisory --compiler-plans \
+  --compiler-advisory-config eval/clones-capability/project-compiler-quality-policy.toml \
+  --max-pairs 0 --locked --report-detail compact
+```
+
+Saved `run-WbHJ11` has 1,582 known owners (1,199 CLI, 383 core), 1,430/735
+unavailable owners and 87 unresolved CLI callees. All twenty-two independent
+sample comparisons agree at limit two: `dependencies::select` and `resolve`
+have no target-budget finding. The observation is
+[`project-source-mutation-boundary-results.json`](project-source-mutation-boundary-results.json).
+Derive labels from C27 by changing only the explicit run, metric version and
+two-target policy/limit; source counts and roots remain fixed.
+
+Replay that exact run with the one-target planning policy, without package/build
+flags, writing `/tmp/clones-source-mutation-project-replay-final-1`. All twenty-two
+comparisons also agree here. The two functions now each report exactly two
+targets with their source-root labels (`requested, selected` and `exact, named`),
+as recorded in
+[`project-source-mutation-results.json`](project-source-mutation-results.json).
+Only run and metric version differ from the original one-target label input.
+
+Fresh capture/replay take 56.70/16.48 seconds and 1,790,244/1,453,264 KiB peak RSS.
+Both exit 2 for the existing incomplete scope. These are different workloads,
+and the source snapshot contains the implementation increment; no speedup or
+project-wide accuracy comparison is claimed. Metric-1 discrepancies remain in
+the original C27 artifacts. The measured gain is removal of two source-policy
+false findings in the independently labeled sample. Other generated bindings,
+shadowed-root identity, broad quality, effect absence, safety and retirement
+remain unverified; strict admission/matching policy and all budgets are unchanged.

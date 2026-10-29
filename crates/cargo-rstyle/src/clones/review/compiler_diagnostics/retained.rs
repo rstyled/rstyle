@@ -12,6 +12,7 @@ pub(in crate::clones) struct Row<'a> {
     pub assessed: &'a Assessed,
     pub snapshots: &'a [Result<Snapshot, String>],
     pub policy: &'a Rc<serde_json::Value>,
+    pub metrics: &'static str,
     pub selected: bool,
     pub effect_scope_complete: bool,
 }
@@ -75,7 +76,7 @@ impl numeric_workflow::Retained for Row<'_> {
                 "Compiler effect propagation has unavailable owners or unresolved callees",
             );
         }
-        negative(self.policy, previous)
+        negative(self, previous)
     }
 }
 
@@ -99,13 +100,13 @@ fn positive(
     }
 }
 
-fn negative(policy: &Rc<serde_json::Value>, previous: &Snapshot) -> owner_population::Assessment {
+fn negative(current: &Row<'_>, previous: &Snapshot) -> owner_population::Assessment {
     if previous.versions != local_adapter::versions("compiler-diagnostics")
-        || previous.metrics != rstyle_core::advisory::METRICS
+        || previous.metrics != current.metrics
     {
         return unavailable("Compiler diagnostic versions do not establish a current negative");
     }
-    if policy != &previous.policy {
+    if current.policy != &previous.policy {
         return (
             status::State::Stale,
             "Compiler policy changed; the current negative cannot retire the retained choice"

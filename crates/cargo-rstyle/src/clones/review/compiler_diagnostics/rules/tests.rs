@@ -86,6 +86,35 @@ fn separate_rules_on_the_same_owner_never_reuse_or_stale_each_other() {
 }
 
 #[test]
+fn historical_metrics_are_readable_but_cannot_establish_current_negatives() {
+    use crate::clones::review::{compiler_diagnostics, numeric_workflow::Retained, status};
+    let mut previous = snapshot();
+    previous.metrics = rstyle_core::advisory::LEGACY_METRICS.into();
+    assert!(previous.validate().is_ok());
+    assert_eq!(
+        previous.changed(&snapshot()),
+        Some(exact_rules::StaleReason::Policy)
+    );
+    let assessed = compiler_diagnostics::observed::Assessed {
+        owner: Ok(Rc::clone(&previous.owner)),
+        path: "src/lib.rs".into(),
+        suppression: Some(rstyle_core::suppress::Suppression::None),
+        findings: Default::default(),
+    };
+    let mut current = compiler_diagnostics::retained::Row {
+        assessed: &assessed,
+        snapshots: &[],
+        policy: &previous.policy,
+        metrics: rstyle_core::advisory::METRICS,
+        selected: true,
+        effect_scope_complete: true,
+    };
+    assert_eq!(current.assess(&previous).0, status::State::Unavailable);
+    current.metrics = rstyle_core::advisory::LEGACY_METRICS;
+    assert_eq!(current.assess(&previous).0, status::State::NoFinding);
+}
+
+#[test]
 fn complete_fields_metrics_versions_and_visible_threshold_are_required() {
     let original = snapshot();
     let wire = serde_json::to_value(&original).unwrap();

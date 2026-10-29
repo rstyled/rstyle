@@ -3179,3 +3179,86 @@ Style passes with zero violations over 9,714 functions
 (`/tmp/clones-compiler-quality-patterns-1`), and diff checks pass. Rust
 implementation is unchanged; the C26 full-suite checkpoint remains
 the prior Rust validation, not a new full-suite run for this offline-only change.
+
+## C28: reuse compiler origins to remove lowered iterator mutation targets
+
+The existing `rstyle-driver::mutations` expression-use collector now checks the
+root binding's HIR span for `ForLoop` desugaring. This constant-time lookup
+tags the compiler's generated iterator. The existing core budget evaluator
+filters that typed origin before grouping, preserving source bindings regardless
+of their spelling. Every mutation event remains available to escaping/delegated
+effect propagation and workspace type hints. It adds no parsing, body traversal, type/source proofs,
+checksums, artifact scans or graph/body clones. Both legacy style and compiler
+advisory reuse that collector. Statement counts and effect propagation retain
+their existing semantics; this does not prove iterator purity.
+
+Fresh advisory capture uses compiler-style metric 2. Metric-1 observations and
+diagnostic artifacts remain readable and retain their original measurements on
+replay, including historical baseline exports. Reports and snapshots carry the
+actual observed version. Mixed versions reject before propagation/planning;
+cross-version positive reviews stale, numeric negatives cannot retire old
+choices, and empty baselines detect metric drift. Shared baseline construction,
+comparison and I/O remain reused. Strict clone decisions are unchanged.
+
+One real-Cargo fixture covers automatic/explicit/borrowed/nested iterators,
+mutable loop-pattern bindings named `iter`, macro-local mutation, closure
+capture, known-empty loops, custom workspace iterators, their borrowed delegated
+events/type hints and source-free exact replay. Core regression checks preserve
+escaping effects and delegated call propagation for generated roots, while
+same-spelled user roots still count. Version tests cover
+historical reads, unit consistency, cross-version negatives and positive/empty
+baseline drift. The initial focused fixture incorrectly assumed crate-qualified
+names in the core group report and failed its lookup; using the actual existing
+name representation fixes the harness. All 87 compiler advisory integration
+cases then pass (`/tmp/clones-source-mutation-focused-2`).
+
+The first full checkpoint passes all 3,319 tests and doc tests
+(`/tmp/clones-source-mutation-tests-1`, nextest 215.548 seconds). Subsequent
+read-only review identified that removing generated events could also remove
+workspace type hints and borrowed-iterator delegated effects. The final typed
+origin seam retains all events and filters only source budgets. The expanded
+fixture initially queried a compact name in a full report; correcting that
+harness lookup and rerunning passes (`/tmp/clones-source-mutation-focused-final-3`).
+Metric 2 requires origins explicitly; metric 1 defaults missing origins to Source
+and rejects claims of desugared origins. Final validation follows these changes.
+
+The first origin-based full run caught an incorrect fixture expectation that
+the generated borrow of `for value in counter` was delegated. Rustc's blanket
+iterator call borrows the generated binding itself here; its flags are false.
+That run was interrupted after the failure
+(`/tmp/clones-source-mutation-tests-final-1`), not treated as passing evidence.
+The corrected fixture asserts those original flags and adds an explicit source
+reborrow whose `counter` event is delegated and remains a source budget target.
+This focused final fixture passes
+(`/tmp/clones-source-mutation-focused-final-4`). Core tests independently check
+that generated events marked escaping/delegated retain their effects.
+
+Historical production replay of `run-ynuMSl` preserves the entire advisory and
+strict matching output exactly, retaining metric 1 and its C27 disagreements
+(`/tmp/clones-source-mutation-legacy-replay-final-1`, exit 2, 16.83 seconds,
+1,439,952 KiB RSS). Fresh `run-WbHJ11` captures 1,582 known CLI/core owners;
+1,430/735 remain unavailable, with 87 unresolved CLI callees. The unchanged
+eleven-function C27 source labels now agree on all twenty-two comparisons at
+both explicit limits. At limit one, `select`/`resolve` report exactly their two
+source containers. At limit two, neither is a target-budget finding. Both
+result artifacts retain their label derivations; the C27 disagreements stay
+untouched. Project study records commands and scope/resource limits.
+
+Fresh capture/replay take 56.70/16.48 seconds and 1,790,244/1,453,264 KiB RSS.
+Both retain incomplete exit 2. These are distinct workloads, not a speedup
+comparison; the measured quality gain is two removed source-policy false
+findings. Other generated roots, shadowed-root identity, broad quality and
+retirement remain open. All 119 migration Python tests pass
+(`/tmp/clones-source-mutation-python-tests-1.log`).
+
+The reviewed pattern gate initially rejected duplicated compiler baseline
+construction. Both consumers now reuse `CompilerInventory` with their existing
+policy inputs; no new ignore or suppression was added. The final gate passes
+with zero candidates and the same fourteen unchanged reviewed exclusions
+(`/tmp/clones-source-mutation-patterns-final-2`). Final workspace validation
+passes all 3,321 tests, five existing skips and doc tests (nextest 218.045
+seconds, `/tmp/clones-source-mutation-tests-final-2`). Final style reports zero
+violations and all-target Clippy passes with warnings denied
+(`/tmp/clones-source-mutation-style-final-2`,
+`/tmp/clones-source-mutation-clippy-final-2`). These changes introduce no hashes,
+source rescans or additional proof passes.

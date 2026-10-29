@@ -16,13 +16,18 @@ pub(in crate::clones) struct Baseline {
     pub entries: Vec<Snapshot>,
 }
 
-impl baseline_common::CompilerInventory for Baseline {
-    fn empty(policy: Rc<serde_json::Value>, contexts: Vec<local::BuildContext>) -> Self {
+impl baseline_common::CompilerInventory<super::super::compiler_diagnostics::observed::Policy<'_>>
+    for Baseline
+{
+    fn empty(
+        policy: super::super::compiler_diagnostics::observed::Policy<'_>,
+        contexts: Vec<local::BuildContext>,
+    ) -> Self {
         Self {
             schema: "rstyle.compiler-baseline/1".into(),
-            policy,
+            policy: Rc::clone(policy.config),
             versions: local_adapter::versions("compiler-diagnostics"),
-            metrics: rstyle_core::advisory::METRICS.into(),
+            metrics: policy.metrics.into(),
             contexts,
             entries: Vec::new(),
         }
@@ -33,7 +38,7 @@ impl Baseline {
     fn validate_header(&self) -> Result<(), String> {
         if self.schema != "rstyle.compiler-baseline/1"
             || self.versions != local_adapter::versions("compiler-diagnostics")
-            || self.metrics != rstyle_core::advisory::METRICS
+            || rstyle_core::advisory::metric_version(&self.metrics).is_none()
         {
             return Err("Unsupported compiler baseline schema or versions".into());
         }
@@ -85,7 +90,9 @@ impl baseline_common::Inventory for Baseline {
     const REPORT_SCHEMA: &'static str = "rstyle.compiler-baseline-report/1";
     const INCOMPLETE: &'static str = "Compiler inputs, diagnostic identities or capture are incomplete; a baseline cannot establish clean analysis";
     fn same_scope(&self, previous: &Self) -> bool {
-        self.policy == previous.policy && self.contexts == previous.contexts
+        self.policy == previous.policy
+            && self.contexts == previous.contexts
+            && self.metrics == previous.metrics
     }
     fn replace_entries(&mut self, entries: Vec<Snapshot>) {
         self.entries = entries;

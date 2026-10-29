@@ -44,7 +44,7 @@ impl exact_rules::ReviewSnapshot for Snapshot {
         use super::super::ReviewError;
         exact_rules::validate_identity(self, "compiler-diagnostics")?;
         if self.versions != local_adapter::versions("compiler-diagnostics")
-            || self.metrics != rstyle_core::advisory::METRICS
+            || rstyle_core::advisory::metric_version(&self.metrics).is_none()
         {
             return Err(ReviewError::InvalidVersion);
         }

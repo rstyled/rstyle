@@ -1,13 +1,14 @@
 //! Mutation events from rustc's own expression-use analysis (`ExprUseVisitor`).
 //! This sees autoref'd `&mut self` method calls, so no method-name heuristics.
 
-use rstyle_core::facts::MutationEvent;
+use rstyle_core::facts::{MutationEvent, MutationOrigin};
 use rustc_hir::HirId;
 use rustc_hir::def_id::LocalDefId;
 use rustc_hir_typeck::expr_use_visitor::{Delegate, ExprUseVisitor};
 use rustc_lint::LateContext;
 use rustc_middle::hir::place::{Place, PlaceBase, PlaceWithHirId, ProjectionKind};
 use rustc_middle::ty::{self, BorrowKind, Ty, TyCtxt};
+use rustc_span::DesugaringKind;
 use std::collections::BTreeSet;
 use std::path::Path;
 
@@ -55,17 +56,24 @@ struct Collector<'a, 'tcx> {
 
 impl<'tcx> Collector<'_, 'tcx> {
     fn record(&mut self, place: &PlaceWithHirId<'tcx>, at: HirId, is_helper_call: bool) {
-        let Some(root) = self.root_name(&place.place) else {
+        let Some(root) = Self::root_id(&place.place) else {
             return;
         };
 
         self.note_type(place.place.base_ty);
+        let origin = if self.tcx.hir_span(root).desugaring_kind() == Some(DesugaringKind::ForLoop) {
+            MutationOrigin::ForDesugaring
+        } else {
+            MutationOrigin::Source
+        };
+        let root = self.tcx.hir_name(root).to_string();
         let span = self.tcx.hir_span(at);
         let line = line_of(self.tcx, span);
         let (field_path, escapes) = self.describe(&place.place);
         let delegated = escapes && is_helper_call && self.is_workspace_reborrow(&place.place);
         let escapes = escapes && !delegated;
         self.events.push(MutationEvent {
+            origin,
             root,
             field_path,
             line,
@@ -100,13 +108,12 @@ impl<'tcx> Collector<'_, 'tcx> {
     }
 
     /// Statics are reported as `global` effects by the expression visitor instead.
-    fn root_name(&self, place: &Place<'tcx>) -> Option<String> {
-        let id = match place.base {
-            PlaceBase::Local(id) => id,
-            PlaceBase::Upvar(upvar) => upvar.var_path.hir_id,
-            PlaceBase::Rvalue | PlaceBase::StaticItem => return None,
-        };
-        Some(self.tcx.hir_name(id).to_string())
+    fn root_id(place: &Place<'tcx>) -> Option<HirId> {
+        match place.base {
+            PlaceBase::Local(id) => Some(id),
+            PlaceBase::Upvar(upvar) => Some(upvar.var_path.hir_id),
+            PlaceBase::Rvalue | PlaceBase::StaticItem => None,
+        }
     }
 
     /// Dotted field path below the root, and whether the write escapes the

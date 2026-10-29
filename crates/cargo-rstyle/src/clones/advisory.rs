@@ -4,9 +4,11 @@ mod patterns;
 mod planning;
 mod propagation;
 mod selection;
+#[cfg(test)]
+mod tests;
 use super::{analysis::Completion, identity::UnitId, report::Context};
 use rstyle_core::{
-    advisory::{KEY, METRICS, Observation},
+    advisory::{KEY, METRICS, Observation, metric_version},
     config::Config,
     facts::FnFacts,
 };
@@ -19,7 +21,7 @@ use std::{
 #[derive(Serialize)]
 pub(super) struct Report {
     schema: &'static str,
-    metrics: &'static str,
+    pub(super) metrics: &'static str,
     effective_config: Rc<serde_json::Value>,
     complete: bool,
     pub findings: usize,
@@ -219,6 +221,7 @@ impl Report {
                         assessed,
                         snapshots: &unit.diagnostic_snapshots,
                         policy: &self.effective_config,
+                        metrics: self.metrics,
                         selected: selection
                             .is_none_or(|selection| selection.contains(&assessed.path)),
                         effect_scope_complete: ctx.capture.failures.is_empty()
@@ -304,6 +307,7 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
         .iter()
         .map(|unit| collect_inputs(ctx, unit.id))
         .collect::<Result<Vec<_>, _>>()?;
+    let metrics = collected_metrics(&inputs)?;
     let propagated = propagation::evaluate(ctx, &inputs, config)?;
     let (units, planning) = evaluate_units(ctx, &policy, inputs, propagated)?;
     let complete = ctx.capture.failures.is_empty()
@@ -313,7 +317,7 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
 
     Ok(Some(Report {
         schema: "rstyle.compiler-advisory/1",
-        metrics: METRICS,
+        metrics,
         effective_config: policy,
         complete,
         findings: units.iter().map(Unit::findings).sum(),
@@ -410,6 +414,7 @@ fn evaluate_unit(
         diagnostics::Inputs {
             facts: inputs.facts,
             effects: effects.values,
+            metrics: inputs.metrics.unwrap_or(METRICS),
         },
         policy,
     )?;
@@ -473,6 +478,7 @@ fn evaluate_patterns(
 
 #[derive(Default)]
 struct Collected {
+    metrics: Option<&'static str>,
     facts: Vec<FnFacts>,
     observations: Vec<Measurement>,
     unavailable: Vec<Missing>,
@@ -488,7 +494,12 @@ fn collect_inputs(ctx: &Context<'_>, unit: UnitId) -> Result<Collected, String> 
         .filter(|function| function.key.unit() == unit)
     {
         match observation(function, &ctx.capture.plan.root)? {
-            Observation::Known { facts, .. } => {
+            Observation::Known { metrics, facts } => {
+                let metrics = metric_version(&metrics).ok_or("Unknown compiler metric version")?;
+                if inputs.metrics.is_some_and(|previous| previous != metrics) {
+                    return Err("Mixed compiler metric versions require separate analyses".into());
+                }
+                inputs.metrics = Some(metrics);
                 inputs.push_known(function, *facts, ctx.args.compiler_patterns)?
             }
             Observation::Unavailable { reason } => inputs.unavailable.push(Missing {
@@ -498,6 +509,15 @@ fn collect_inputs(ctx: &Context<'_>, unit: UnitId) -> Result<Collected, String> 
         }
     }
     Ok(inputs)
+}
+
+fn collected_metrics(inputs: &[Collected]) -> Result<&'static str, String> {
+    let mut versions = inputs.iter().filter_map(|input| input.metrics);
+    let metrics = versions.next().unwrap_or(METRICS);
+    if versions.any(|version| version != metrics) {
+        return Err("Mixed compiler metric versions require separate analyses".into());
+    }
+    Ok(metrics)
 }
 
 impl Collected {
@@ -587,10 +607,8 @@ fn observation(function: &super::Function, root: &std::path::Path) -> Result<Obs
         });
     };
     let mut observation = Observation::read(raw)?;
-    if let Observation::Known { metrics, facts } = &mut observation {
-        if metrics != METRICS
-            || facts.name != function.facts.name
-            || facts.source != function.facts.source.bytes.as_str()
+    if let Observation::Known { facts, .. } = &mut observation {
+        if facts.name != function.facts.name || facts.source != function.facts.source.bytes.as_str()
         {
             return Err(
                 "Compiler advisory metrics or source owner disagree with captured function".into(),

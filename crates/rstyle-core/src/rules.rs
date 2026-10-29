@@ -115,6 +115,9 @@ pub fn fn_spacing(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
 fn mutation_groups(f: &FnFacts, granularity: Granularity) -> BTreeMap<String, Vec<usize>> {
     let mut groups: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for event in &f.mutations {
+        if event.origin == crate::facts::MutationOrigin::ForDesugaring {
+            continue;
+        }
         let key = match granularity {
             Granularity::Field if !event.field_path.is_empty() => {
                 format!("{}.{}", event.root, event.field_path)
@@ -273,6 +276,7 @@ mod tests {
 
     fn mutation(root: &str, field: &str, line: usize) -> MutationEvent {
         MutationEvent {
+            origin: crate::facts::MutationOrigin::Source,
             root: root.into(),
             field_path: field.into(),
             line,
@@ -362,6 +366,35 @@ mod tests {
     }
 
     #[test]
+    fn lowered_iterators_do_not_inflate_source_budgets_or_erase_escaping_effects() {
+        let mut f = sample("f");
+        let mut source = mutation("iter", "", 1);
+        source.escapes = false;
+        f.mutations.push(source);
+        for line in 2..6 {
+            let mut generated = mutation("iter", "", line);
+            generated.origin = crate::facts::MutationOrigin::ForDesugaring;
+            f.mutations.push(generated);
+        }
+        let cfg = MutationBudgetConfig {
+            max_mutated_targets: 0,
+            max_mutations_per_target: 0,
+            ..MutationBudgetConfig::default()
+        };
+        let out = mutation_budget(&f, &cfg);
+        assert_eq!(out.len(), 2);
+        assert!(out.iter().all(|diagnostic| diagnostic.actual == 1));
+        assert!(
+            out.iter()
+                .all(|diagnostic| diagnostic.details[0].count == 1)
+        );
+        let effects = effects_of(&f, &Config::default());
+        assert_eq!(effects.len(), 1);
+        assert_eq!(effects[0].kind, EffectKind::Mutation);
+        assert_eq!(effects[0].line, 2);
+    }
+
+    #[test]
     fn field_granularity_splits_targets() {
         let mut f = sample("f");
         f.mutations = (0..4)
@@ -443,6 +476,7 @@ mod tests {
         f.statements = 4;
         f.mutations = (1..=4)
             .map(|line| MutationEvent {
+                origin: crate::facts::MutationOrigin::Source,
                 escapes: false,
                 ..mutation("acc", "", line)
             })

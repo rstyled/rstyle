@@ -18,6 +18,7 @@ pub(super) struct Completed {
 pub(super) struct Inputs {
     pub facts: Vec<FnFacts>,
     pub effects: Option<std::collections::BTreeMap<String, Vec<rstyle_core::rules::Effect>>>,
+    pub metrics: &'static str,
 }
 
 pub(super) fn evaluate(
@@ -46,9 +47,13 @@ pub(super) fn evaluate(
         });
     }
 
+    let policy = compiler_diagnostics::observed::Policy {
+        config: policy,
+        metrics: inputs.metrics,
+    };
     let mut evaluated = evaluate_core(inputs, config, retention)?;
     let compiler_diagnostics::observed::Completed { snapshots, owners } =
-        compiler_diagnostics::observed::collect(ctx, unit, &mut evaluated, policy);
+        compiler_diagnostics::observed::collect(ctx, unit, &mut evaluated, &policy);
     Ok(Completed {
         evaluation: evaluated.report,
         facts: evaluated.facts,
@@ -77,7 +82,7 @@ fn evaluate_core(
     config: &rstyle_core::config::Config,
     retention: rstyle_core::Retention,
 ) -> Result<rstyle_core::Evaluation, String> {
-    let Inputs { facts, effects } = inputs;
+    let Inputs { facts, effects, .. } = inputs;
     if let Some(effects) = effects {
         return rstyle_core::evaluate_with_effects(facts, config, retention, effects);
     }

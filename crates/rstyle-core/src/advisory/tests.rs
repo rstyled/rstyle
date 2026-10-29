@@ -9,6 +9,7 @@ fn original() -> serde_json::Value {
         uses: 2,
     });
     facts.mutations.push(MutationEvent {
+        origin: crate::facts::MutationOrigin::Source,
         root: "value".into(),
         field_path: String::new(),
         line: 1,
@@ -55,6 +56,7 @@ fn compiler_observations_reject_legacy_defaults_instead_of_fabricating_zero_fact
     for (roster, field) in [
         ("param_list", "uses"),
         ("mutations", "delegated"),
+        ("mutations", "origin"),
         ("calls", "dynamic"),
         ("edges", "args"),
     ] {
@@ -70,6 +72,11 @@ fn compiler_observations_reject_legacy_defaults_instead_of_fabricating_zero_fact
 #[test]
 fn compiler_metric_versions_and_missing_observations_stay_distinct() {
     let mut changed = original();
+    changed["metrics"] = LEGACY_METRICS.into();
+    let Observation::Known { metrics, .. } = Observation::read(&changed).unwrap() else {
+        panic!("Historical observation must remain known");
+    };
+    assert_eq!(metrics, LEGACY_METRICS);
     changed["metrics"] = "unregistered/2".into();
     assert!(Observation::read(&changed).is_err());
     let unavailable = serde_json::json!({"status":"unavailable", "reason":"No original source"});
@@ -78,4 +85,28 @@ fn compiler_metric_versions_and_missing_observations_stay_distinct() {
         Ok(Observation::Unavailable { .. })
     ));
     assert!(Observation::read(&serde_json::json!({"status":"known", "facts":null})).is_err());
+}
+
+#[test]
+fn mutation_origins_require_current_evidence_and_preserve_historical_semantics() {
+    let mut raw = original();
+    raw["facts"]["mutations"][0]["origin"] = "for_desugaring".into();
+    assert!(Observation::read(&raw).is_ok());
+    raw["metrics"] = LEGACY_METRICS.into();
+    assert!(Observation::read(&raw).is_err());
+    raw["facts"]["mutations"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("origin");
+    let Observation::Known { facts, .. } = Observation::read(&raw).unwrap() else {
+        panic!("Historical record must remain known");
+    };
+    assert_eq!(
+        facts.mutations[0].origin,
+        crate::facts::MutationOrigin::Source
+    );
+    raw["metrics"] = METRICS.into();
+    assert!(Observation::read(&raw).is_err());
+    raw["facts"]["mutations"][0]["origin"] = "unknown".into();
+    assert!(Observation::read(&raw).is_err());
 }

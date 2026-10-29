@@ -21,11 +21,16 @@ pub(in crate::clones) struct Assessed {
     pub(in crate::clones::review) findings: BTreeMap<String, usize>,
 }
 
+pub(in crate::clones) struct Policy<'a> {
+    pub config: &'a Rc<serde_json::Value>,
+    pub metrics: &'static str,
+}
+
 pub(in crate::clones) fn collect(
     ctx: &report::Context<'_>,
     unit: &UnitContext,
     evaluation: &mut Evaluation,
-    policy: &Rc<serde_json::Value>,
+    policy: &Policy<'_>,
 ) -> Completed {
     if evaluation.report.diagnostics.is_empty() && evaluation.scopes.is_none() {
         return Completed::default();
@@ -128,7 +133,7 @@ fn assessed(
 fn snapshots(
     evaluation: &Evaluation,
     owners: &BTreeMap<usize, Result<Rc<Owner>, String>>,
-    policy: &Rc<serde_json::Value>,
+    policy: &Policy<'_>,
 ) -> Vec<Result<Snapshot, String>> {
     evaluation
         .report
@@ -139,8 +144,8 @@ fn snapshots(
             let snapshot = Snapshot {
                 owner: Rc::clone(owners[owner].as_ref().map_err(Clone::clone)?),
                 versions: local_adapter::versions("compiler-diagnostics"),
-                metrics: rstyle_core::advisory::METRICS.into(),
-                policy: Rc::clone(policy),
+                metrics: policy.metrics.into(),
+                policy: Rc::clone(policy.config),
                 rule_id: diagnostic.rule_id.clone(),
                 actual: diagnostic.actual,
                 limit: diagnostic.limit,

@@ -448,6 +448,7 @@ mod tests {
         f.preceding_line = "// rstyle-allow(fn_params): ffi shim".into();
         f.mutations = (1..=4)
             .map(|line| MutationEvent {
+                origin: crate::facts::MutationOrigin::Source,
                 root: "v".into(),
                 field_path: String::new(),
                 line,

@@ -5,8 +5,18 @@ use serde::{Deserialize, Serialize};
 pub mod patterns;
 
 pub const KEY: &str = "rstyle.compiler-advisory/1";
-pub const METRICS: &str = "rstyle.compiler-style-metrics/1";
+pub const METRICS: &str = "rstyle.compiler-style-metrics/2";
+pub const LEGACY_METRICS: &str = "rstyle.compiler-style-metrics/1";
 pub const CAPTURE_ENV: &str = "RSTYLE_COMPILER_ADVISORY";
+
+/// Historical observations keep their measured semantics on replay.
+pub fn metric_version(value: &str) -> Option<&'static str> {
+    match value {
+        METRICS => Some(METRICS),
+        LEGACY_METRICS => Some(LEGACY_METRICS),
+        _ => None,
+    }
+}
 
 /// Absence of this record means not captured, rather than an empty body.
 #[derive(Debug, Serialize, Deserialize)]
@@ -49,21 +59,40 @@ impl Observation {
                     .ok_or("Missing compiler advisory roster")?
                 {
                     require_fields(entry, fields)?;
+                    if roster == "mutations" && raw["metrics"] == METRICS {
+                        require_fields(entry, &["origin"])?;
+                    }
                 }
             }
             require_signature(&raw["facts"]["sig"])?;
         }
         let observation = Self::deserialize(raw).map_err(|error| error.to_string())?;
-        match &observation {
-            Self::Known { metrics, .. } if metrics != METRICS => {
+        observation.validate()?;
+        Ok(observation)
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        match self {
+            Self::Known { metrics, .. } if metric_version(metrics).is_none() => {
                 return Err("Unknown compiler advisory metric version".into());
+            }
+            Self::Known { metrics, facts }
+                if metrics == LEGACY_METRICS
+                    && facts
+                        .mutations
+                        .iter()
+                        .any(|event| event.origin != crate::facts::MutationOrigin::Source) =>
+            {
+                return Err(
+                    "Legacy compiler metric cannot claim desugared mutation origins".into(),
+                );
             }
             Self::Unavailable { reason } if reason.is_empty() => {
                 return Err("Missing compiler advisory unavailability reason".into());
             }
             _ => {}
         }
-        Ok(observation)
+        Ok(())
     }
 }
 

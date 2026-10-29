@@ -77,12 +77,11 @@ pub(in crate::clones) trait Inventory: baseline_io::Artifact {
 }
 
 /// Compiler consumers differ in their snapshot/header fields, not header construction.
-pub(super) trait CompilerInventory: Inventory + Sized {
-    fn empty(policy: std::rc::Rc<serde_json::Value>, contexts: Vec<local::BuildContext>) -> Self;
-    fn new(
-        policy: std::rc::Rc<serde_json::Value>,
-        contexts: Vec<local::BuildContext>,
-    ) -> Result<Self, String> {
+pub(super) trait CompilerInventory<P = std::rc::Rc<serde_json::Value>>:
+    Inventory + Sized
+{
+    fn empty(policy: P, contexts: Vec<local::BuildContext>) -> Self;
+    fn new(policy: P, contexts: Vec<local::BuildContext>) -> Result<Self, String> {
         build(Vec::<Self::Entry>::new(), contexts, |_, contexts| {
             Self::empty(policy, contexts)
         })

@@ -1305,6 +1305,7 @@ mod tests {
         let clean = run(&corpus());
         let mut facts = corpus();
         facts[0].mutations.push(MutationEvent {
+            origin: crate::facts::MutationOrigin::Source,
             root: "self".into(),
             field_path: "n".into(),
             line: 1,

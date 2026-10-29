@@ -30,13 +30,35 @@ proposals have a separate review identity described below.
 The normal legacy style command remains available.
 
 Both the record and metric identities are versioned:
-`rstyle.compiler-advisory/1` and `rstyle.compiler-style-metrics/1`. These are
+`rstyle.compiler-advisory/1` and `rstyle.compiler-style-metrics/2`. These are
 compiler style metrics, not the newer source/native mutation-effect contract.
 Mutable borrows count as mutation events; compiler statement counts include HIR
 lowering; effect propagation uses the existing bounded depth, boundaries and
 trait-target policy. Unclassified external paths are governed by the reported
 core configuration. A policy density of zero does not establish effect absence,
 purity, termination, or safe refactoring.
+
+Metric version 2 omits lowered iterator roots from source mutation budgets.
+The shared expression-use collector tags these bindings by their HIR
+origin and `ForLoop` span, without parsing or rechecking the source. Explicit
+iterator bindings (including one named `iter`), borrowed source iterators,
+mutable loop-pattern bindings, closure captures and macro-local writes still
+count. All mutation events, escaping/delegated effects and workspace type hints
+remain available. Raw `direct_mutations`/`escaping_mutations` count those retained
+events; source budgets filter the typed `for_desugaring` origin before grouping.
+Metric 2 requires explicit origins, while historical missing origins mean source
+under metric 1. A metric-1 record cannot claim a desugared origin. Statement
+counts are unchanged; budget exclusion does not establish iterator purity.
+Legacy style reuses the same corrected collector.
+
+Version-1 saved compiler observations remain readable and replay with their
+original counts and metric identifier. No replay relabels or reconstructs them
+as version 2. Mixed metric versions in one advisory analysis are rejected;
+run their scopes separately. Diagnostic review/baseline artifacts retain the
+actual observed version, including historical exports. A version change makes
+positive reviews stale, prevents numeric negative retirement, and changes even
+an empty baseline's scope. Historical artifacts remain readable. No hashes,
+artifact scans, graphs, body copies or additional source proofs are needed.
 
 Captured observations replay through `--replay-run`, including changed core
 policy, without Cargo, rustc or original source files. Runs captured without the

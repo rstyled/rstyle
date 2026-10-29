@@ -8,7 +8,7 @@ use super::{
 use crate::clones::{advisory, identity::UnitId, report};
 pub(in crate::clones) use model::Baseline;
 use serde::Serialize;
-use std::{path::Path, rc::Rc};
+use std::path::Path;
 
 #[derive(Serialize)]
 pub(in crate::clones) struct Handle {
@@ -30,7 +30,10 @@ pub(in crate::clones) fn evaluate(
     let rows = advisory.diagnostic_reviews();
     let previous = ctx.compiler_baseline;
     let header = Baseline::new(
-        Rc::clone(advisory.policy()),
+        super::compiler_diagnostics::observed::Policy {
+            config: advisory.policy(),
+            metrics: advisory.metrics,
+        },
         baseline_common::contexts(ctx)?,
     )?;
     let complete = ctx.complete

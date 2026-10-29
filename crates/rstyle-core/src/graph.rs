@@ -373,6 +373,7 @@ mod tests {
 
     fn write(line: usize, delegated: bool) -> MutationEvent {
         MutationEvent {
+            origin: crate::facts::MutationOrigin::Source,
             root: "self".into(),
             field_path: String::new(),
             line,
@@ -383,20 +384,28 @@ mod tests {
 
     #[test]
     fn delegated_mutation_is_inherited_only_when_callee_writes() {
-        let (mut a, mut b, c) = (sample("a"), sample("b"), sample("c"));
-        a.edges = vec![edge("krate::b", 4), edge("krate::c", 5)];
-        a.mutations = vec![write(4, true), write(5, true)];
-        b.mutations = vec![write(9, false)];
-        let mutation = Effect {
-            kind: EffectKind::Mutation,
-            label: "self".into(),
-            line: 9,
-            via: None,
-        };
-        let direct = vec![vec![], vec![mutation], vec![]];
-        let out = run(&[a, b, c], &direct, &[false; 3], 1);
-        assert_eq!(out[0].len(), 1, "only the call to `b` brings a write");
-        assert_eq!(out[0][0].line, 4);
+        for origin in [
+            crate::facts::MutationOrigin::Source,
+            crate::facts::MutationOrigin::ForDesugaring,
+        ] {
+            let (mut a, mut b, c) = (sample("a"), sample("b"), sample("c"));
+            a.edges = vec![edge("krate::b", 4), edge("krate::c", 5)];
+            a.mutations = vec![write(4, true), write(5, true)];
+            for event in &mut a.mutations {
+                event.origin = origin;
+            }
+            b.mutations = vec![write(9, false)];
+            let mutation = Effect {
+                kind: EffectKind::Mutation,
+                label: "self".into(),
+                line: 9,
+                via: None,
+            };
+            let direct = vec![vec![], vec![mutation], vec![]];
+            let out = run(&[a, b, c], &direct, &[false; 3], 1);
+            assert_eq!(out[0].len(), 1, "only the call to `b` brings a write");
+            assert_eq!(out[0][0].line, 4);
+        }
     }
 
     #[test]

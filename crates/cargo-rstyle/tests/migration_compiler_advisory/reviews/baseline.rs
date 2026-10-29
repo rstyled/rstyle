@@ -92,6 +92,31 @@ fn six_family_baseline_replays_without_sources_and_preserves_raw_findings() {
 }
 
 #[test]
+fn historical_baseline_metrics_remain_readable_and_mark_scope_drift() {
+    let (directory, original) = exported();
+    let path = directory.path().join("baseline.json");
+    let mut saved: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    saved["metrics"] = "rstyle.compiler-style-metrics/1".into();
+    for entry in saved["entries"].as_array_mut().unwrap() {
+        entry["metrics"] = "rstyle.compiler-style-metrics/1".into();
+    }
+    std::fs::write(path, serde_json::to_vec(&saved).unwrap()).unwrap();
+    let (output, report) = replay(directory.path(), &original, COMPARE);
+    checked(&output, 1);
+    assert_eq!(baseline(&report)["scope_changed"], true);
+    assert_eq!(baseline(&report)["existing_findings"], 0);
+    assert_eq!(baseline(&report)["new_findings"], 6);
+    assert_eq!(baseline(&report)["coverage"], "complete");
+    assert!(
+        baseline(&report)["retained"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|row| row["state"] == "changed")
+    );
+}
+
+#[test]
 fn compiler_baseline_movement_preserves_equality_and_new_measurements_fail() {
     let (directory, _) = exported();
     std::fs::write(
@@ -168,6 +193,31 @@ fn empty_baselines_still_detect_policy_and_compilation_context_drift() {
     assert_eq!(baseline(&contexts)["coverage"], "incomplete");
     assert_eq!(baseline(&contexts)["scope_changed"], true);
     assert_eq!(baseline(&contexts)["new_findings"], 0);
+}
+
+#[test]
+fn empty_baseline_metric_drift_cannot_establish_a_clean_gate() {
+    let (directory, _, original) = capture(
+        "pub fn empty(){}",
+        &["--write-compiler-baseline", "baseline.json"],
+    );
+    let path = directory.path().join("baseline.json");
+    let mut saved: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    assert_eq!(saved["entries"], serde_json::json!([]));
+    saved["metrics"] = "rstyle.compiler-style-metrics/1".into();
+    std::fs::write(path, serde_json::to_vec(&saved).unwrap()).unwrap();
+    let (output, report) = replay(
+        directory.path(),
+        &original,
+        &[
+            "--compiler-baseline",
+            "baseline.json",
+            "--fail-on-new-compiler",
+        ],
+    );
+    checked(&output, 1);
+    assert_eq!(baseline(&report)["scope_changed"], true);
+    assert_eq!(baseline(&report)["new_findings"], 0);
 }
 
 #[test]
