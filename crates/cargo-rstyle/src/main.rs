@@ -369,7 +369,7 @@ fn main() -> ExitCode {
     match result {
         Ok((output, report)) => {
             println!("{output}");
-            ExitCode::from(u8::from(!report.diagnostics.is_empty()))
+            ExitCode::from(report.exit_code())
         }
         Err(message) => {
             eprintln!("{message}");

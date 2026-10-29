@@ -1,4 +1,4 @@
-# rstyle configuration. Every key is optional; these are the defaults.
+# Workspace policy. Omitted keys use the tool's defaults.
 # Unknown keys are errors, so typos never silently disable a rule.
 
 exclude = ["target/**"]
@@ -12,6 +12,11 @@ count_self = false        # `self` is the object, not an argument
 
 [fn_spacing]
 min_statements = 5
+
+[complexity]
+# Start at current maxima; lower these toward 12 in follow-up refactoring PRs.
+max_cyclomatic = 40
+max_cognitive = 32
 
 [mutation_budget]
 max_mutations_per_target = 3   # writes / `&mut` borrows of one root (local, param, self)

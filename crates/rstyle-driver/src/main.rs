@@ -15,6 +15,7 @@ extern crate rustc_middle;
 extern crate rustc_span;
 
 mod args;
+mod driver_complexity;
 mod driver_options;
 mod effects;
 mod extract;
@@ -71,12 +72,18 @@ struct Extract {
     root: PathBuf,
     /// Also record dependence graphs (`RSTYLE_PDG` set by `cargo rstyle patterns`).
     pdg: bool,
+    complexity: driver_complexity::Functions,
 }
 
 impl Callbacks for Extract {
+    fn after_expansion<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
+        self.complexity = driver_complexity::collect(tcx);
+        Compilation::Continue
+    }
+
     // rstyle-allow(side_effect_density): IO boundary: writes the facts file
     fn after_analysis<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
-        let facts = extract::crate_facts(tcx, &self.root, self.pdg);
+        let facts = extract::crate_facts(tcx, &self.root, self.pdg, &self.complexity);
         let json = serde_json::to_string_pretty(&facts).expect("facts serialize");
         std::fs::write(&self.out_file, json).expect("write facts file");
         Compilation::Continue
@@ -105,6 +112,7 @@ fn run(invocation: driver_options::Invocation) -> ExitCode {
             .map(PathBuf::from)
             .unwrap_or_else(|| std::env::current_dir().expect("cwd")),
         pdg: std::env::var_os("RSTYLE_PDG").is_some(),
+        complexity: Default::default(),
     });
 
     let document_dir = std::env::var_os("RSTYLE_HIR_DOCUMENT_DIR").map(PathBuf::from);

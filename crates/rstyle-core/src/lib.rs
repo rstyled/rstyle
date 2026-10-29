@@ -5,6 +5,8 @@ pub mod candidates;
 pub mod cli_args;
 pub mod clip;
 pub mod cluster;
+pub mod complexity;
+pub mod complexity_report;
 pub mod config;
 pub mod dispatch;
 pub mod facts;
@@ -49,6 +51,7 @@ fn rule_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec
         rules::fn_length(f, cfg),
         rules::fn_params(f, cfg),
         rules::fn_spacing(f, cfg),
+        rules::complexity(f, cfg),
         rules::mutation_budget(f, &cfg.mutation_budget),
         rules::side_effect_density(f, effects, cfg),
     ]
@@ -98,9 +101,15 @@ fn summarize(
         .map(|(f, e)| rules::density_milli(f, e, cfg))
         .collect();
     let densities = densities.into_iter();
+    let measured = facts
+        .iter()
+        .filter(|fact| fact.complexity.is_some())
+        .count();
     Summary {
         functions: facts.len(),
         violations,
+        complexity_measured: measured,
+        complexity_unavailable: facts.len() - measured,
         mean_density_milli: densities.clone().sum::<usize>() / facts.len().max(1),
         max_density_milli: densities.max().unwrap_or(0),
         effect_counts: effect_counts(effects.iter().flatten()),
@@ -138,10 +147,12 @@ pub fn evaluate(facts: Vec<FnFacts>, cfg: &Config) -> Result<Report, String> {
     report::sort(&mut diagnostics);
     let summary = summarize(&facts, &effects, cfg, diagnostics.len());
     let fix_groups = groups::build(&facts, &graph, &diagnostics, cfg);
+    let functions = complexity_report::findings(&facts, &diagnostics);
     Ok(Report {
         diagnostics,
         summary,
         fix_groups,
+        functions,
     })
 }
 

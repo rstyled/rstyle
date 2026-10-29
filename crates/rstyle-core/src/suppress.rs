@@ -4,6 +4,8 @@ pub const RULE_IDS: &[&str] = &[
     "fn_length",
     "fn_params",
     "fn_spacing",
+    "cyclomatic_complexity",
+    "cognitive_complexity",
     "mutation_per_target",
     "mutated_targets",
     "side_effect_density",

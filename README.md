@@ -142,6 +142,20 @@ scripts/style.sh            # builds driver + CLI, then runs rstyle
 cargo style                 # alias; needs `cargo build --workspace` once first
 ```
 
+The same command reports style findings, fix groups, and cyclomatic (CC) and
+cognitive (COG) complexity for functions with findings:
+
+```sh
+cargo style
+cargo style --format json
+```
+
+Both complexity limits default to 12; scores above either limit are findings.
+Clean functions are omitted. Text ranks reported functions by COG, then CC. JSON
+includes source evidence, all findings, and counts for every analyzed function. See
+[the shared scoring policy and Rust mapping](docs/complexity.md) for the counting
+rules, coverage, frontend contract, and configuration.
+
 Run on another project:
 
 ```sh
@@ -218,6 +232,8 @@ Drop an `rstyle.toml` in the project root (see the one in this repo for every ke
 | --- | --- | --- |
 | `fn_length.max_lines` | 50 | Code lines per fn (blank and comment lines excluded) |
 | `fn_params.max_params` | 4 | Params per fn (`self` not counted by default) |
+| `complexity.max_cyclomatic` | 12 | Cyclomatic score; report values above this limit |
+| `complexity.max_cognitive` | 12 | Cognitive score; report values above this limit |
 | `fn_spacing.min_statements` | 5 | Bodies with this many top-level statements need a blank line somewhere (0 disables) |
 | `mutation_budget.max_mutations_per_target` | 3 | Writes / `&mut` borrows of one root |
 | `mutation_budget.max_mutated_targets` | 3 | Distinct roots mutated in one fn |

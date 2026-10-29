@@ -5,6 +5,7 @@ mod byte_windows;
 mod checked_options;
 mod checksum_state;
 mod compact_report;
+mod complexity;
 mod component_helper_results;
 mod concrete_default;
 mod copy_owner_source;
@@ -151,6 +152,7 @@ fn clean_crate_exits_zero() {
     assert!(stdout(&output).contains("0 violations"));
     let report = json(dir.path());
     assert!(report["diagnostics"].as_array().unwrap().is_empty());
+    assert!(report["functions"].as_array().unwrap().is_empty());
     assert_eq!(report["summary"]["functions"], 4);
 }
 

@@ -48,6 +48,54 @@ pub fn fn_params(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
         .collect()
 }
 
+pub fn complexity(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
+    let Some(score) = &f.complexity else {
+        return vec![];
+    };
+    [
+        (
+            "cyclomatic_complexity",
+            score.cyclomatic,
+            cfg.complexity.max_cyclomatic,
+        ),
+        (
+            "cognitive_complexity",
+            score.cognitive,
+            cfg.complexity.max_cognitive,
+        ),
+    ]
+    .into_iter()
+    .filter_map(|(rule, actual, limit)| {
+        if actual <= limit {
+            return None;
+        }
+        let mut finding = diagnostic(
+            f,
+            rule,
+            format!("function `{}` has high {}", f.name, rule.replace('_', " ")),
+            Measure { actual, limit },
+        );
+        finding.details = score
+            .contributions
+            .iter()
+            .filter_map(|point| {
+                let count = if rule == "cyclomatic_complexity" {
+                    point.cyclomatic
+                } else {
+                    point.cognitive
+                };
+                (count > 0).then(|| Detail {
+                    label: format!("{:?} (nesting {})", point.kind, point.nesting),
+                    count,
+                    lines: vec![point.line],
+                })
+            })
+            .collect();
+        Some(finding)
+    })
+    .collect()
+}
+
 /// Flags fns with `min_statements`+ top-level statements and no blank line anywhere.
 /// Statements, not lines: a long initializer is still one thing to read. Reported as
 /// `actual > limit` with `limit = min_statements - 1`, like the other threshold rules.

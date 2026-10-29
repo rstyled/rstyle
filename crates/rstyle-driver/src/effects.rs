@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Default)]
 pub struct BodyFacts {
+    pub recursions: Vec<rstyle_core::complexity::Node>,
     pub statements: usize,
     pub calls: Vec<CallEvent>,
     pub effects: Vec<EffectEvent>,
@@ -52,6 +53,7 @@ pub fn collect<'tcx>(
     };
     let mut walker = Walker {
         tcx,
+        owner: def_id.to_def_id(),
         typeck: tcx.typeck(def_id),
         root: root.to_path_buf(),
         params,
@@ -73,6 +75,7 @@ struct Target {
 
 struct Walker<'tcx> {
     tcx: TyCtxt<'tcx>,
+    owner: DefId,
     typeck: &'tcx TypeckResults<'tcx>,
     root: PathBuf,
     params: ParamIndex,
@@ -126,6 +129,19 @@ impl<'tcx> Walker<'tcx> {
         });
     }
 
+    fn recursion(&mut self, target: DefId, span: Span) {
+        if target != self.owner || span.from_expansion() {
+            return;
+        }
+        let location = self.tcx.sess.source_map().lookup_char_pos(span.lo());
+        self.out.recursions.push(rstyle_core::complexity::Node {
+            kind: rstyle_core::complexity::Kind::Recursion,
+            line: location.line,
+            column: location.col.0 + 1,
+            children: vec![],
+        });
+    }
+
     /// Records a call into workspace code (same crate included) for the call graph.
     fn edge(&mut self, target: Target, expr: &Expr<'tcx>) {
         let Target {
@@ -133,6 +149,7 @@ impl<'tcx> Walker<'tcx> {
             dynamic,
             args,
         } = target;
+        self.recursion(def_id, expr.span);
 
         if !ids::in_workspace(self.tcx, def_id, &self.root) {
             return;

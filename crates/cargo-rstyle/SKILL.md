@@ -16,15 +16,41 @@ cargo rstyle -p <pkg> --all-targets   # one package, include tests/examples/benc
 
 Other flags: `--config PATH` (default `<workspace root>/rstyle.toml`), `--manifest-path PATH`.
 
-Exit codes: `0` clean, `1` violations found (not an error), `2` tool/config/compile error (message on stderr; fix the build first).
+Exit codes: `0` clean, `1` violations found, `2` tool/config/compile error or
+incomplete analysis. Tool errors appear on stderr; unavailable measurements stay
+in the report.
 
 ## Read the output
 
-JSON top level: `diagnostics`, `summary`, `fix_groups`.
+JSON top level: `diagnostics`, `summary`, `fix_groups`, `functions`.
 
 - `diagnostics[]`: `path`, `line`, `column`, `rule_id`, `message`, `actual`, `limit`, `details`.
-- Rule ids: `fn_length`, `fn_params`, `fn_spacing`, `mutation_per_target`, `mutated_targets`, `side_effect_density`, `invalid_suppression`.
+- Rule ids: `fn_length`, `fn_params`, `fn_spacing`, `cyclomatic_complexity`, `cognitive_complexity`, `mutation_per_target`, `mutated_targets`, `side_effect_density`, `invalid_suppression`.
 - `fix_groups[]`: violations whose fixes overlap. Different groups never conflict.
+
+## Complexity in the same report
+
+```sh
+cargo rstyle
+cargo rstyle --format json
+```
+
+CC counts source decisions; COG also charges nesting. Each function carries
+`complexity` with both scores, `policy_version`, and per-increment source evidence.
+JSON includes these under `functions` for functions with findings or missing
+measurements. Text ranks those functions by COG, then CC, together with all
+findings and fix groups. Clean functions are omitted from both formats.
+The summary reports `complexity_measured` and `complexity_unavailable`.
+Missing scores are unavailable, never zero; the command exits 2 on missing
+measurements and retains other findings. Closures contribute to their owner;
+compiler lowering and opaque macro expansions do not add hidden branches. See
+`docs/complexity.md` for policy.
+
+[complexity] settings `max_cyclomatic` and `max_cognitive` both default to 12.
+Scores strictly above their limit produce `cyclomatic_complexity` or
+`cognitive_complexity` findings. They use normal suppressions and fix groups.
+Prefer flatter control flow and cohesive helpers; do not split code just to lower
+a score. The same command returns 1 for findings or 2 for missing measurements.
 
 ## Fix workflow
 
