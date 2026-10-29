@@ -1,0 +1,119 @@
+{
+  "schema": "rstyle.authored-direct-density-cases/1",
+  "checkpoint": "C83",
+  "toolchain": "nightly-2026-09-30",
+  "metrics": "rstyle.compiler-style-metrics/7",
+  "basis": "Independent source-only expectations frozen before inspecting any C83 evaluated report. Only original owned source snippets were read from retained captures. No expected value was derived from captured event records or evaluated diagnostics.",
+  "request": {
+    "rules": [
+      "side_effect_density"
+    ],
+    "source_scope": "authored"
+  },
+  "density_policy": {
+    "max_density_milli": 499,
+    "min_statements": 0,
+    "min_lines": 0,
+    "transitive_depth": 0,
+    "weights": {
+      "mutation": 1,
+      "io": 3,
+      "network": 3,
+      "global": 2,
+      "unsafe": 4,
+      "time": 1,
+      "random": 1,
+      "panic": 0,
+      "unknown": 1
+    },
+    "paths": {
+      "io": [
+        "std::fs::write",
+        "std::io::"
+      ],
+      "network": [],
+      "time": [],
+      "random": [],
+      "panic": []
+    }
+  },
+  "source_comparison": "Compare each captured original function snippet exactly as recorded. The earlier lines::preceding_comment_line labels include leading documentation comments; their unchanged function text matches this snippet after removing only that declared leading documentation prefix. Do not normalize function-body whitespace or source changes.",
+  "samples": [
+    {
+      "run": "target/rstyle/clones/run-ChBnep",
+      "package": "rstyle-core",
+      "target_kind": "lib",
+      "function": "lines::preceding_comment_line",
+      "source_file": "crates/rstyle-core/src/lines.rs",
+      "source": "pub fn preceding_comment_line(lines: &[&str], fn_line_index: usize) -> String {\n    lines[..fn_line_index.min(lines.len())]\n        .iter()\n        .rev()\n        .map(|line| line.trim())\n        .find(|line| !line.starts_with(\"#[\") && !line.starts_with(\"///\"))\n        .unwrap_or(\"\")\n        .to_string()\n}",
+      "included": true,
+      "unsuppressed": true,
+      "basis": "One original block tail. Iterator adapters and closure predicates contain no direct escaping writes or configured effect calls. This reuses the frozen source-only zero-density label, not a purity claim.",
+      "density": {
+        "statements": 1,
+        "escaping_targets": [],
+        "events": {},
+        "other_direct_events": [],
+        "actual": 0,
+        "outcome": "evaluated_no_finding",
+        "complete": true,
+        "exempt": false
+      }
+    },
+    {
+      "run": "target/rstyle/clones/run-TKB31S",
+      "package": "rstyle-ccgraph",
+      "target_kind": "lib",
+      "function": "pipeline::check_reference",
+      "source_file": "crates/rstyle-ccgraph/src/pipeline.rs",
+      "source": "fn check_reference(func: &ImportedFunction, reasons: &mut Vec<String>) {\n    if func.reference_count.is_none() {\n        reasons.push(\"reference count must be known\".to_string());\n    }\n}",
+      "included": true,
+      "unsuppressed": true,
+      "basis": "The outer if and inner push are two authored statement sites. The mutable Vec receiver contributes one potential escaping mutation target reasons. The branch counts statically regardless of runtime condition. String construction and Option inspection add no configured direct event.",
+      "density": {
+        "statements": 2,
+        "escaping_targets": [
+          "reasons"
+        ],
+        "events": {
+          "mutation": 1
+        },
+        "other_direct_events": [],
+        "actual": 500,
+        "outcome": "finding",
+        "complete": true,
+        "exempt": false
+      }
+    },
+    {
+      "run": "target/rstyle/clones/run-TKB31S",
+      "package": "rstyle-ccgraph",
+      "target_kind": "lib",
+      "function": "pipeline::validate_imported",
+      "source_file": "crates/rstyle-ccgraph/src/pipeline.rs",
+      "source": "fn validate_imported(func: &ImportedFunction, reasons: &mut Vec<String>) -> bool {\n    check_name(func, reasons);\n    check_interface(func, reasons);\n    check_reference(func, reasons);\n    reasons.is_empty()\n}",
+      "included": true,
+      "unsuppressed": true,
+      "basis": "Three direct call statements reborrow the same mutable reasons target and one is_empty tail makes four authored statements. Escaping writes deduplicate to one target. Depth zero excludes inherited effects of the three checked helper calls; it does not assert those helpers are pure.",
+      "density": {
+        "statements": 4,
+        "escaping_targets": [
+          "reasons"
+        ],
+        "events": {
+          "mutation": 1
+        },
+        "other_direct_events": [],
+        "actual": 250,
+        "outcome": "evaluated_no_finding",
+        "complete": true,
+        "exempt": false
+      }
+    }
+  ],
+  "limitations": [
+    "These are static-event density expectations, not runtime mutation counts or purity proofs.",
+    "A complete selected authored depth-zero outcome does not establish complete propagated effects, generated source measurements, or plans.",
+    "If observed source, statements or events disagree, report the mismatch; do not replace expected labels with evaluation output."
+  ]
+}

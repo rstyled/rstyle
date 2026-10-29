@@ -62,8 +62,13 @@ Both selection flags require `--compiler-advisory`. Rule IDs also include
 the existing all-rule, captured population. Invalid suppressions always surface.
 The authored population lists explicitly generated missing owners outside scope;
 missing authored observations and unknown origins remain incomplete. Missing
-complexity matters when a requested rule consumes it. Density still requires
-the existing complete effect inputs and resolved calls.
+complexity matters when a requested rule consumes it. Density requires
+the existing complete effect inputs and resolved calls when propagation depth is
+positive. With existing `side_effects.transitive_depth=0`, explicitly requested
+authored density uses only the applicable direct events; missing generated source
+and unresolved callees do not block that numeric result. Missing authored facts
+still do. The default without diagnostic selection remains unchanged. Explicit
+captured selection still requires every captured owner's direct observations.
 
 Each unit's optional `diagnostic_scope` records the request, outside-scope owners,
 unavailable counts, requested completeness and original `diagnostic_indices`.

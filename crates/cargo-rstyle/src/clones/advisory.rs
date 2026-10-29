@@ -544,7 +544,7 @@ fn evaluate_unit(
         patterns: None,
         complexity_ranking: None,
     }
-    .with_diagnostic_scope(diagnostic_scope);
+    .with_diagnostic_scope(diagnostic_scope, ctx);
     Ok(Ready {
         unit: report,
         ranking,
@@ -761,9 +761,16 @@ impl Collected {
 }
 
 impl Unit {
-    fn with_diagnostic_scope(mut self, scope: Option<diagnostic_scope::Report>) -> Self {
+    fn with_diagnostic_scope(
+        mut self,
+        scope: Option<diagnostic_scope::Report>,
+        ctx: &Context<'_>,
+    ) -> Self {
+        let direct_effects_only = ctx
+            .compiler_advisory_config
+            .is_some_and(|config| config.side_effects.transitive_depth == 0);
         self.diagnostic_scope = scope.map(|mut scope| {
-            scope.finish(&self);
+            scope.finish(&self, direct_effects_only);
             self.visible_diagnostics = Some(scope.diagnostic_indices.clone());
             scope
         });

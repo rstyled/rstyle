@@ -415,6 +415,11 @@ Missing requested measurements remain incomplete. Optional `diagnostic_scope`
 lists original diagnostic indices, outside-scope owners and completeness;
 `evaluation`/summary retain the full unchanged core result. Effects can remain
 incomplete (`effect_inputs_complete: false`) while requested numeric rules complete.
+For explicit authored `side_effect_density`, existing config
+`side_effects.transitive_depth=0` needs only applicable direct events; unresolved
+callees and generated source do not block that requested numeric result. Missing
+authored observations still do. Positive depth retains effect prerequisites;
+full effect-input and plan completeness stay separate.
 Review visibility, changed files and plan seeds intersect requested rules;
 baseline headers retain that scope even when empty. Invalid suppressions surface.
 Fresh captures expose partial `generated_effects` rows for expanded functions:

@@ -58,13 +58,15 @@ impl Report {
         })
     }
 
-    pub(super) fn finish(&mut self, unit: &Unit) {
+    pub(super) fn finish(&mut self, unit: &Unit, direct_effects_only: bool) {
         self.effect_inputs_complete = unit.expected_functions.is_some()
             && unit.unavailable.is_empty()
             && unit.unresolved_callees.is_empty()
             && unit.propagation_complete;
         self.input_complete &= unit.expected_functions.is_some()
-            && (!self.request.includes("side_effect_density") || self.effect_inputs_complete);
+            && (!self.request.includes("side_effect_density")
+                || direct_effects_only
+                || self.effect_inputs_complete);
     }
 
     pub(super) fn outside_scope(&self) -> impl Iterator<Item = crate::clones::FunctionKey> + '_ {

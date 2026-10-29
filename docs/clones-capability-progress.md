@@ -6170,3 +6170,38 @@ Reuse that evaluator/config and existing independent density labels; keep full
 propagation, raw missing/generated inventories and plan completeness separate.
 Depth1/depth3 and missing authored facts must remain incomplete. Overall migration
 and per-capability legacy retirement gates remain open.
+
+### C83 — requested direct-density prerequisites (2026-10-29)
+
+Explicit authored density at configured transitive_depth=0 now depends on the
+applicable completed direct observations, matching the existing core evaluator's
+zero propagation rounds. Reused existing config; no new flag, collector, effect
+classification, evaluator, hashes or proofs. Default unselected behavior, captured-owner requirements and
+positive-depth propagation prerequisites stay unchanged. Missing applicable
+FnFacts and unknown generated origins remain incomplete. Full raw effect inputs,
+generated/missing inventories, unresolved routes and plan completeness remain
+separate. Four new CLI tests cover direct IO density and inclusive thresholds,
+tool/source-free baseline replay, inherited effects, incomplete plans, missing
+applicable owners and unknown generated origins. All nine focused density tests
+pass. Plans remain independently incomplete without blocking completed direct
+numeric diagnostics, preserving the existing report/exit contract.
+
+Retained core run-ChBnep and ccgraph run-TKB31S complete requested authored direct
+density over409/238 functions. Raw806/176 missing generated owners and8/23
+unresolved callees remain unchanged, as do full core evaluations. Independent
+exact-source labels yield densities0/500/250, including repeated mutable borrows
+deduplicated by the existing core effect classifier. At the499 probe threshold,
+complete baseline exports retain4/5 findings and compare with0new. Depth1/depth3
+controls remain incomplete. Evidence: project-authored-direct-density-cases.json
+and project-authored-direct-density-study.json. These are retained Linux replays,
+not fresh capture, broad density-quality, native-platform or speedup claims.
+Final integrated Rust gate passes: all3,634 tests in241.114s with five existing
+skips, plus doctests. Formatting, Clippy,244 capability Python and50 script tests
+pass. Both legacy gates pass with0 style violations over9,958 functions and
+unchanged13 unfiltered pattern IDs. No ignores or thresholds changed. C81/C82
+native CI remains in progress; C83 native CI awaits publication.
+
+Next ready work: measure the remaining inherited-effect coverage blockers against
+existing generated direct-event rows and local/dependency call identities. Reuse
+the core graph and preserve unavailable owners and ambiguous routes; do not infer
+purity from missing observations. Overall migration and retirement gates stay open.
