@@ -10,6 +10,7 @@ use serde::Serialize;
 #[derive(Serialize)]
 pub(super) struct Report {
     schema: &'static str,
+    policy_version: u32,
     policy: rstyle_core::cluster::Params,
     pub input_complete: bool,
     effect_evidence: EffectEvidence,
@@ -120,6 +121,7 @@ pub(super) fn evaluate(
     };
     Ok(Report {
         schema: "rstyle.compiler-patterns/1",
+        policy_version: rstyle_core::candidates::POLICY_VERSION,
         policy: options.params,
         effect_evidence: EffectEvidence::new(effects_complete),
         input_complete: missing.is_empty() && unavailable_functions == 0,

@@ -11,6 +11,7 @@ from project_coverage import boolean, integer, load, require, relative_path, uni
 KINDS = {'trait_method', 'capability_set', 'enum_dispatch', 'generic_fn', 'fn_param', 'parameterize'}
 JUDGMENTS = {'useful', 'needs_revision', 'not_useful'}
 ROLES = ('sites', 'definitions')
+FORWARDING_REASON = 'call-only forwarding through distinct single-use callee substitutions'
 
 
 def policy_checked(policy):
@@ -44,12 +45,14 @@ def role_key(candidate):
 
 def captured(report, labels):
     selected = units(report)
-    inventory, proposals, coverage = [], {}, {}
+    inventory, proposals, coverage, rejections = [], {}, {}, {}
     for unit, _ in selected:
         patterns = unit.get('patterns')
         if patterns is None:
             continue
         require(patterns['schema'] == 'rstyle.compiler-patterns/1', 'wrong proposal schema')
+        version = integer(patterns.get('policy_version', 1), 'proposal policy version')
+        require(version == labels.get('policy_version', 1), 'different proposal policy version')
         require(policy_checked(patterns['policy']) == labels['policy'], 'different proposal policy')
         boolean(patterns['input_complete'], 'proposal input completion')
         candidates = patterns['evaluation']['candidates']
@@ -76,7 +79,17 @@ def captured(report, labels):
                     row[field] = candidate[field]
             inventory.append(row)
             proposals[key] = candidate, row
-    return selected, inventory, proposals, coverage
+        if version == 2:
+            suppressed = patterns['evaluation']['suppressed']
+            require(isinstance(suppressed, list), 'suppressed proposal roster missing')
+            for record in suppressed:
+                identity = role_key({'kind': 'parameterize', 'sites': record['sites'], 'definitions': []})
+                key = unit['unit'], identity
+                require(key not in rejections, 'duplicate suppressed proposal site identity')
+                require(record.get('reason') != FORWARDING_REASON or key not in proposals,
+                        'forwarding proposal is both emitted and policy rejected')
+                rejections[key] = record
+    return selected, inventory, proposals, coverage, rejections
 
 
 def owners(report, sample, selected, coverage):
@@ -107,10 +120,26 @@ def owners(report, sample, selected, coverage):
     return unit_id, identities, None
 
 
-def inspect_sample(report, sample, selected, proposals, coverage):
+def site_reason(candidate, source_owners):
+    for role in ROLES:
+        for site in candidate[role]:
+            owner, context = source_owners[site['id']]
+            if (site['name'] != owner['function']
+                    or relative_path(site['path'], context['source_root']) != owner['source_file']):
+                return 'proposal member differs from labeled source owner'
+    return None
+
+
+def inspect_sample(report, sample, selected, proposals, coverage, rejections):
     require(sample['judgment'] in JUDGMENTS and isinstance(sample.get('rationale'), str)
             and sample['rationale'], 'independent usefulness review missing')
     require(all(isinstance(sample[role], list) for role in ROLES), 'missing source role labels')
+    outcome = sample.get('expected_outcome', 'structural_agreement')
+    require(outcome in ('structural_agreement', 'forwarding_rejected'), 'unknown expected proposal outcome')
+    if outcome == 'forwarding_rejected':
+        require(sample['kind'] == 'parameterize' and not sample['definitions']
+                and sample.get('expected_policy_reason') == FORWARDING_REASON
+                and sample['judgment'] == 'not_useful', 'unreviewed forwarding rejection expectation')
     expected = {'kind': sample['kind'], **{role: [{'id': owner['compiler_id']} for owner in sample[role]] for role in ROLES}}
     identity = role_key(expected)
     unit, source_owners, reason = owners(report, sample, selected, coverage)
@@ -119,18 +148,25 @@ def inspect_sample(report, sample, selected, proposals, coverage):
         return row
     match = proposals.get((unit, identity))
     if match is None:
+        rejected = rejections.get((unit, identity))
+        if (outcome == 'forwarding_rejected' and rejected is not None
+                and rejected.get('reason') == sample['expected_policy_reason']):
+            reason = site_reason({'sites': rejected['sites'], 'definitions': []}, source_owners)
+            if reason:
+                row['reason'] = reason
+                return row
+            row.update(result='policy_rejection', reason=rejected['reason'], unit=unit,
+                       judgment=sample['judgment'], rationale=sample['rationale'])
+            return row
         complete = coverage[unit][0]['input_complete']
         row.update(result='not_observed' if complete else 'unavailable',
                    reason='labeled proposal not observed' if complete else 'proposal absent over incomplete input')
         return row
     candidate, inventory = match
-    for role in ROLES:
-        for site in candidate[role]:
-            owner, context = source_owners[site['id']]
-            if (site['name'] != owner['function']
-                    or relative_path(site['path'], context['source_root']) != owner['source_file']):
-                row['reason'] = 'proposal member differs from labeled source owner'
-                return row
+    reason = site_reason(candidate, source_owners)
+    if reason:
+        row['reason'] = reason
+        return row
     inventory['sampled_by'].append(sample['id'])
     row.update(result='structural_agreement', reason=None, unit=unit, index=inventory['index'],
                judgment=sample['judgment'], rationale=sample['rationale'])
@@ -146,11 +182,17 @@ def compare(report, labels):
     require(advisory['metrics'] == labels['metrics'], 'different compiler metric')
     boolean(advisory['complete'], 'advisory completion')
     policy_checked(labels['policy'])
+    require(integer(labels.get('policy_version', 1), 'proposal policy version') in (1, 2),
+            'unsupported proposal policy version')
     require(isinstance(labels['samples'], list) and labels['samples'], 'empty proposal sample')
     unique(labels['samples'], 'id', 'proposal source labels')
-    selected, inventory, proposals, coverage = captured(report, labels)
-    rows = [inspect_sample(report, sample, selected, proposals, coverage) for sample in labels['samples']]
-    return {'schema': 'rstyle.compiler-proposal-quality-observation/1', 'run': labels['run'],
+    selected, inventory, proposals, coverage, rejections = captured(report, labels)
+    rows = [inspect_sample(report, sample, selected, proposals, coverage, rejections) for sample in labels['samples']]
+    for sample, row in zip(labels['samples'], rows):
+        if 'expected_outcome' in sample:
+            wanted = 'policy_rejection' if sample['expected_outcome'] == 'forwarding_rejected' else 'structural_agreement'
+            row.update(expected_outcome=sample['expected_outcome'], expected_fulfilled=row['result'] == wanted)
+    result = {'schema': 'rstyle.compiler-proposal-quality-observation/1', 'run': labels['run'],
             'metrics': advisory['metrics'], 'policy': labels['policy'],
             'scope_complete': advisory['complete'],
             'input_complete': {str(unit): state[0]['input_complete'] for unit, state in coverage.items()},
@@ -159,6 +201,9 @@ def compare(report, labels):
             'judgments': dict(sorted(Counter(row['judgment'] for row in rows if 'judgment' in row).items())),
             'samples': rows, 'inventory': inventory,
             'limitation': 'Source-role agreement is separate from usefulness. Unreviewed raw candidates remain in inventory; incomplete input cannot establish absent proposals or whole-project quality.'}
+    if 'policy_version' in labels:
+        result['policy_version'] = labels['policy_version']
+    return result
 
 
 def main():
@@ -173,7 +218,9 @@ def main():
             stream.write('\n')
         if result['counts'].get('unavailable', 0):
             parser.exit(2)
-        if result['judgments'].get('not_useful', 0) or result['judgments'].get('needs_revision', 0):
+        if any(row.get('expected_fulfilled') is False
+               or (row['result'] == 'structural_agreement' and row.get('judgment') in ('not_useful', 'needs_revision'))
+               for row in result['samples']):
             parser.exit(1)
     except (ValueError, KeyError, TypeError, OSError) as error:
         parser.exit(2, 'compiler proposal quality: ' + str(error) + '\n')

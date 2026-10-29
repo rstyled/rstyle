@@ -118,7 +118,11 @@ pub(in crate::clones) fn capability(
 pub(super) fn versions(detector: &str) -> Versions {
     Versions {
         detector: detector.into(),
-        detector_version: 1,
+        detector_version: if detector == "compiler-patterns" {
+            rstyle_core::candidates::POLICY_VERSION
+        } else {
+            1
+        },
         identity_version: 1,
         locator_version: 1,
         context_version: 1,

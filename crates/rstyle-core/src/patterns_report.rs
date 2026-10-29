@@ -15,7 +15,7 @@ pub struct PatternsReport {
     /// Ranked abstraction candidates (layer 2), best first. Absent facts give none.
     #[serde(default)]
     pub candidates: Vec<Candidate>,
-    /// Patterns that look like candidates but are already abstracted.
+    /// Patterns excluded by proposal policy, including already abstracted work.
     #[serde(default)]
     pub suppressed: Vec<Suppressed>,
     /// Candidates the ignore ledger hid, with the entry responsible.
@@ -245,7 +245,7 @@ pub fn text_selected(report: &PatternsReport, visible: impl Fn(usize) -> bool) -
             .map(suppressed_text)
             .collect::<Vec<_>>();
         parts.push(format!(
-            "{} suppressed (already abstracted)\n{}",
+            "{} suppressed by proposal policy\n{}",
             lines.len(),
             lines.join("\n")
         ));

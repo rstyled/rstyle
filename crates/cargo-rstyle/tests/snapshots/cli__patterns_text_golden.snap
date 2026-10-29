@@ -52,5 +52,5 @@ fn(&Self) -> String  [4 types, score 0.85]
     src/lib.rs:15  Dog::bark
     src/lib.rs:30  Cat::meow
 
-1 suppressed (already abstracted)
+1 suppressed by proposal policy
   all 2 impls are of trait method animals::Speak::speak (src/lib.rs:101  emit_cow, src/lib.rs:107  emit_hen)

@@ -58,6 +58,9 @@ pub struct Cluster {
     pub members: Vec<usize>,
     pub coverage_milli: Vec<u32>,
     pub columns: Vec<Column>,
+    /// Every retained alignment only forwards through distinct, single-use callee holes.
+    /// Missing identities, shared calls, repeated holes or other node kinds keep this false.
+    pub forwarding_only: bool,
 }
 
 fn classes_of(pdg: &Pdg) -> BTreeSet<String> {
@@ -225,6 +228,20 @@ fn columns_of(joined: &[Joined]) -> Vec<Column> {
         .collect()
 }
 
+/// Reuse completed holes and call counts: with no fn-item/literal nodes, each callee
+/// hole site is a call. Equality to the smaller call count accounts for every such call.
+/// This is proposal policy about shared work, not a body-equivalence or purity proof.
+fn forwards_calls(a: &Wl, b: &Wl, alignment: &Alignment) -> bool {
+    let calls = a.calls.min(b.calls);
+    a.forwarding_shape
+        && b.forwarding_shape
+        && calls > 0
+        && alignment.holes.len() == calls
+        && alignment.holes.iter().all(|hole| {
+            matches!(hole.kind, HoleKind::Method | HoleKind::FreeFn) && hole.sites.len() == 1
+        })
+}
+
 fn build(pdgs: &[&Pdg], wls: &[Wl], group: &[usize], params: &Params) -> Option<Cluster> {
     let template = medoid(wls, group);
     let joined: Vec<Joined> = group
@@ -241,6 +258,9 @@ fn build(pdgs: &[&Pdg], wls: &[Wl], group: &[usize], params: &Params) -> Option<
             .chain(joined.iter().map(|j| j.alignment.coverage_milli))
             .collect(),
         columns: columns_of(&joined),
+        forwarding_only: joined
+            .iter()
+            .all(|member| forwards_calls(&wls[template], &wls[member.index], &member.alignment)),
     })
 }
 

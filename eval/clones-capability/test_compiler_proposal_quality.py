@@ -1,8 +1,13 @@
 """Independent source-role labels for completed compiler proposal reviews."""
 from copy import deepcopy
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import unittest
 
-from compiler_proposal_quality import compare
+from compiler_proposal_quality import FORWARDING_REASON, compare
 from test_compiler_quality import fixture as historical_fixture
 
 
@@ -60,6 +65,19 @@ def fixture():
                            'sites': owners[:2], 'definitions': owners[2:],
                            'judgment': 'useful',
                            'rationale': 'The two source operations share a useful callable seam.'}]}
+    return report, labels
+
+
+def forwarding_fixture():
+    report, labels = fixture()
+    labels['policy_version'] = 2
+    sample = labels['samples'][0]
+    sample.update(kind='parameterize', definitions=[], judgment='not_useful',
+                  expected_outcome='forwarding_rejected', expected_policy_reason=FORWARDING_REASON)
+    patterns = report['compiler_advisory']['units'][0]['patterns']
+    patterns['policy_version'] = 2
+    candidate = patterns['evaluation']['candidates'].pop()
+    patterns['evaluation']['suppressed'] = [{'reason': FORWARDING_REASON, 'sites': candidate['sites']}]
     return report, labels
 
 
@@ -228,6 +246,142 @@ class CompilerProposalQualityTests(unittest.TestCase):
         compare(report, labels)
         self.assertEqual(report, original_report)
         self.assertEqual(labels, original_labels)
+
+
+class CompilerForwardingPolicyQualityTests(unittest.TestCase):
+    def test_explicit_completed_rejection_is_distinct_from_incomplete_absence(self):
+        report, labels = forwarding_fixture()
+        result = compare(report, labels)
+        self.assertEqual(result['counts'], {'policy_rejection': 1})
+        self.assertTrue(result['sample_complete'])
+        self.assertFalse(result['scope_complete'])
+        self.assertEqual(result['policy_version'], 2)
+        row = result['samples'][0]
+        self.assertTrue(row['expected_fulfilled'])
+        self.assertEqual(row['judgment'], 'not_useful')
+        self.assertEqual(row['reason'], FORWARDING_REASON)
+        self.assertEqual(result['inventory'], [])
+
+    def test_version_drift_and_boolean_versions_are_rejected(self):
+        for side, value in [('labels', 1), ('report', 1), ('labels', True), ('report', True)]:
+            report, labels = forwarding_fixture()
+            target = labels if side == 'labels' else report['compiler_advisory']['units'][0]['patterns']
+            target['policy_version'] = value
+            with self.assertRaises(ValueError):
+                compare(report, labels)
+
+    def test_reason_or_site_roster_mismatch_cannot_authorize_rejection(self):
+        for changed in ('reason', 'sites'):
+            report, labels = forwarding_fixture()
+            record = report['compiler_advisory']['units'][0]['patterns']['evaluation']['suppressed'][0]
+            if changed == 'reason':
+                record['reason'] = 'different policy decision'
+            else:
+                record['sites'].pop()
+            result = compare(report, labels)
+            self.assertEqual(result['counts'], {'unavailable': 1})
+            self.assertFalse(result['samples'][0]['expected_fulfilled'])
+            self.assertNotIn('judgment', result['samples'][0])
+
+    def test_rejection_source_names_and_paths_must_match_reviewed_owners(self):
+        for field, value in [('name', 'other'), ('path', 'src/other.rs')]:
+            report, labels = forwarding_fixture()
+            record = report['compiler_advisory']['units'][0]['patterns']['evaluation']['suppressed'][0]
+            record['sites'][0][field] = value
+            self.assertEqual(compare(report, labels)['counts'], {'unavailable': 1})
+
+    def test_duplicate_rejection_records_and_duplicate_source_sites_reject(self):
+        for duplicate in ('record', 'site'):
+            report, labels = forwarding_fixture()
+            records = report['compiler_advisory']['units'][0]['patterns']['evaluation']['suppressed']
+            if duplicate == 'record':
+                records.append(deepcopy(records[0]))
+            else:
+                records[0]['sites'].append(deepcopy(records[0]['sites'][0]))
+            with self.assertRaises(ValueError):
+                compare(report, labels)
+
+    def test_plain_absence_does_not_become_policy_rejection(self):
+        report, labels = forwarding_fixture()
+        report['compiler_advisory']['units'][0]['patterns']['evaluation']['suppressed'] = []
+        result = compare(report, labels)
+        self.assertEqual(result['counts'], {'unavailable': 1})
+        self.assertFalse(result['samples'][0]['expected_fulfilled'])
+
+    def test_emitted_and_rejected_same_role_identity_is_contradictory(self):
+        report, labels = forwarding_fixture()
+        original, _ = fixture()
+        candidate = original['compiler_advisory']['units'][0]['patterns']['evaluation']['candidates'][0]
+        candidate.update(kind='parameterize', definitions=[])
+        report['compiler_advisory']['units'][0]['patterns']['evaluation']['candidates'] = [candidate]
+        with self.assertRaises(ValueError):
+            compare(report, labels)
+
+    def test_unexpected_rejection_cannot_fulfill_an_expected_emitted_proposal(self):
+        report, labels = forwarding_fixture()
+        labels['samples'][0]['expected_outcome'] = 'structural_agreement'
+        result = compare(report, labels)
+        self.assertEqual(result['counts'], {'unavailable': 1})
+        self.assertFalse(result['samples'][0]['expected_fulfilled'])
+
+    def test_useful_judgment_cannot_be_quieted_by_rejection_expectation(self):
+        report, labels = forwarding_fixture()
+        labels['samples'][0]['judgment'] = 'useful'
+        with self.assertRaises(ValueError):
+            compare(report, labels)
+
+    def test_emitted_forwarding_group_still_retains_negative_usefulness_judgment(self):
+        report, labels = forwarding_fixture()
+        evaluation = report['compiler_advisory']['units'][0]['patterns']['evaluation']
+        original_report, _ = fixture()
+        candidate = original_report['compiler_advisory']['units'][0]['patterns']['evaluation']['candidates'][0]
+        candidate.update(kind='parameterize', definitions=[])
+        evaluation['candidates'] = [candidate]
+        evaluation['suppressed'] = []
+        result = compare(report, labels)
+        self.assertEqual(result['counts'], {'structural_agreement': 1})
+        self.assertEqual(result['samples'][0]['judgment'], 'not_useful')
+        self.assertFalse(result['samples'][0]['expected_fulfilled'])
+
+    def test_changed_sources_and_missing_graphs_keep_rejection_unavailable(self):
+        for changed in ('source', 'graph'):
+            report, labels = forwarding_fixture()
+            if changed == 'source':
+                report['owned_source_inventory'][0]['source_functions'][0]['source'] += '\n'
+            else:
+                patterns = report['compiler_advisory']['units'][0]['patterns']
+                patterns['unavailable_graphs'] = [{'key': 'function:u0:f0', 'reason': 'missing graph'}]
+                patterns['observed_graphs'] = 2
+            self.assertEqual(compare(report, labels)['counts'], {'unavailable': 1})
+
+    def test_historical_output_keeps_implicit_version_and_original_fields(self):
+        report, labels = fixture()
+        result = compare(report, labels)
+        self.assertNotIn('policy_version', result)
+        self.assertNotIn('expected_outcome', result['samples'][0])
+        self.assertNotIn('expected_fulfilled', result['samples'][0])
+
+    def test_cli_success_for_expected_rejection_does_not_hide_remaining_emitted_negative(self):
+        for remaining in (False, True):
+            report, labels = forwarding_fixture()
+            if remaining:
+                original, _ = fixture()
+                candidate = original['compiler_advisory']['units'][0]['patterns']['evaluation']['candidates'][0]
+                report['compiler_advisory']['units'][0]['patterns']['evaluation']['candidates'] = [candidate]
+                sample = deepcopy(labels['samples'][0])
+                sample.update(id='remaining-negative', kind='fn_param', expected_outcome='structural_agreement')
+                sample['definitions'] = fixture()[1]['samples'][0]['definitions']
+                labels['samples'].append(sample)
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'report').write_text(json.dumps(report))
+                (root / 'labels').write_text(json.dumps(labels))
+                output = subprocess.run([
+                    sys.executable, str(Path(__file__).with_name('compiler_proposal_quality.py')),
+                    '--report', str(root / 'report'), '--labels', str(root / 'labels'),
+                    '--output', str(root / 'output'),
+                ], capture_output=True)
+                self.assertEqual(output.returncode, 1 if remaining else 0, output.stderr)
 
 
 if __name__ == '__main__':

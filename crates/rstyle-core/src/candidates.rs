@@ -15,6 +15,12 @@ use crate::{ledger, locator, wl};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Version of the advisory proposal policy, independent of graph/metric versions.
+pub const POLICY_VERSION: u32 = 2;
+/// Inspectable policy rejection, independent of user review/ignore entries.
+pub const FORWARDING_REASON: &str =
+    "call-only forwarding through distinct single-use callee substitutions";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CandidateKind {
@@ -611,7 +617,9 @@ fn parameterize(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option
     if same_trait_method(sites).is_some_and(|t| in_crate_of(&t, sites)) {
         return None;
     }
-    if !parameterizable(sites, cluster, ix.max_holes) || sites.iter().any(|f| !has_substance(ix, f))
+    if cluster.forwarding_only
+        || !parameterizable(sites, cluster, ix.max_holes)
+        || sites.iter().any(|f| !has_substance(ix, f))
     {
         return None;
     }
@@ -647,6 +655,15 @@ fn without_trait<'a>(
             sites: sites.iter().map(|f| site(f)).collect(),
         }),
         Some(_) => Outcome::Nothing,
+        None if cluster.forwarding_only
+            && parameterizable(sites, cluster, ix.max_holes)
+            && sites.iter().all(|f| has_substance(ix, f)) =>
+        {
+            Outcome::Hidden(Suppressed {
+                reason: FORWARDING_REASON.into(),
+                sites: sites.iter().map(|f| site(f)).collect(),
+            })
+        }
         None => generic_fn(ix, sites, cluster)
             .or_else(|| parameterize(ix, sites, cluster))
             .map_or(Outcome::Nothing, |c| Outcome::Ready(Box::new(c))),
@@ -864,6 +881,7 @@ mod tests {
     mod alignment_evidence;
     mod completed_effect_evidence;
     mod effect_evidence;
+    mod forwarded_pipelines;
     use super::tests_support::{caller, corpus, getter};
     use super::*;
     use crate::facts::{MutationEvent, PdgNode, TyShape, sample};
@@ -1080,6 +1098,7 @@ mod tests {
             .for_each(|f| f.implements = Some("ext::Sink::poll_ready".into()));
         assert!(run(&forced).candidates.is_empty());
         let cluster = Cluster {
+            forwarding_only: false,
             members: vec![0, 1],
             coverage_milli: vec![1000, 1000],
             columns: (0..=Params::default().max_holes)

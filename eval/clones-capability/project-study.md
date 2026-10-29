@@ -1047,3 +1047,28 @@ Style reports zero violations over 9,720 functions; reviewed patterns reports
 zero candidates and the fourteen unfiltered IDs are unchanged. All 169 Python
 tests pass. The progress ledger records exact logs. Linux is verified; no local
 macOS, complete-project precision or retirement claim is made.
+
+
+## C37: remove one independently reviewed forwarding proposal
+
+Core proposal policy 2 reuses the existing call-count pass and completed alignment
+holes to reject call-only pipelines through distinct, single-use substitutions.
+It does not infer common behavior from substitutable transformation stages.
+Known shared calls, repeated substitutions and additional work retain proposals;
+unknown identities fail open for advisory review. This is proposal usefulness
+policy, not a semantic-equivalence or purity proof. No new hash, graph traversal,
+body copy or strict-matching change is required.
+
+The saved C33 core run is replayed using the C35 command with output directory
+`/tmp/clones-forwarded-pipelines-project-replay-1`. The quality reducer uses
+`project-compiler-proposal-forwarding-cases.json`; its original source labels
+and independent judgments are unchanged. Policy-version matching and exact
+source-site/reason matching distinguish explicit rejection from incomplete
+absence. `project-compiler-proposal-forwarding-results.json` records seven to six
+raw proposals, one explicit decision for `normalize::{unify_case,counter_loops}`,
+and two remaining not-useful proposals. The other six candidates are exactly
+unchanged; strict and other advisory results are unchanged. Replay takes 4.45s
+at 443,360KiB RSS and exits 2 for incomplete scope. The reducer exits 1 for
+remaining quality debt. This is a bounded improvement, with no speedup, broad
+precision or retirement claim. Compiler reviews from policy 1 become stale;
+version-1 proposal baselines require explicit regeneration.

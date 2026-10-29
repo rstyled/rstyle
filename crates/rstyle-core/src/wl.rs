@@ -38,6 +38,26 @@ pub fn combine(acc: u64, value: u64) -> u64 {
     })
 }
 
+/// Small summaries collected together during the existing call-count pass.
+struct CallSummary {
+    calls: usize,
+    forwarding_shape: bool,
+}
+
+impl CallSummary {
+    fn observe(self, node: &PdgNode) -> Self {
+        let forwarding = match node.kind {
+            NodeKind::Param | NodeKind::Return => true,
+            NodeKind::Call => node.callee_id.as_ref().is_some_and(|id| !id.is_empty()),
+            _ => false,
+        };
+        Self {
+            calls: self.calls + usize::from(node.kind == NodeKind::Call),
+            forwarding_shape: self.forwarding_shape && forwarding,
+        }
+    }
+}
+
 /// Signature class of a call: normalized callee signature, or the callee id without one.
 pub fn call_class(node: &PdgNode) -> String {
     match (&node.callee_sig, &node.callee_id) {
@@ -178,11 +198,21 @@ pub struct Wl {
     pub rounds: Vec<Vec<u64>>,
     hists: Vec<Vec<(u64, usize)>>,
     pub calls: usize,
+    /// Only parameter/return glue and calls with recorded identities; not semantic purity.
+    pub(crate) forwarding_shape: bool,
     pub diameter: usize,
 }
 
 impl Wl {
     pub fn new(pdg: &Pdg) -> Wl {
+        let calls = pdg.nodes.iter().fold(
+            CallSummary {
+                calls: 0,
+                forwarding_shape: true,
+            },
+            CallSummary::observe,
+        );
+
         let g = graph(pdg);
         let mut rounds = vec![g.labels.clone()];
         for _ in 1..MAX_LEVELS {
@@ -190,11 +220,8 @@ impl Wl {
         }
         Wl {
             hists: rounds.iter().map(|colors| histogram(colors)).collect(),
-            calls: pdg
-                .nodes
-                .iter()
-                .filter(|n| n.kind == NodeKind::Call)
-                .count(),
+            calls: calls.calls,
+            forwarding_shape: calls.forwarding_shape,
             diameter: diameter(&g),
             rounds,
             graph: g,

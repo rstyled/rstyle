@@ -3669,3 +3669,50 @@ quality debt through existing core proposer policy and source-labeled cases;
 keep configured-effect evidence borrowed from the completed evaluation. General
 refactoring safety, broad project coverage and per-capability retirement remain
 unproven. This effect handoff does not establish those outcomes.
+
+
+## C37: reject call-only pipelines through the existing proposer
+
+The independently source-reviewed `normalize::{unify_case,counter_loops}` pair
+contains different ordered transformation stages. Proposal policy 2 rejects the
+fallback helper when every retained alignment consists entirely of distinct,
+single-use callee substitutions and parameter/return glue. The existing WL
+call-count pass also collects this small shape flag; the existing cluster consumes
+completed alignment holes. No hash, body proof, new traversal, graph copy, threshold
+or strict-admission change is introduced. Common calls, repeated substitutions,
+unknown callees, additional operations and trait/generic proposals remain covered
+by independent controls.
+
+The built-in decision is explicit in `evaluation.suppressed`, with its original
+source sites and reason. No user ignore or suppression annotation is added.
+Compiler proposal detector version 2 isolates the semantic policy: version-1
+reviews remain readable but stale, and old proposal baselines require explicit
+regeneration. Graph schemas, compiler metrics and strict matching stay unchanged.
+
+Saved run `run-OFIAA9` still has 383 known and 735 unavailable owners. Replay
+(`/tmp/clones-forwarded-pipelines-project-replay-1`) takes 4.45s and 443,360KiB RSS,
+exiting 2 for incomplete scope. Six remaining candidates are exactly unchanged;
+the seventh becomes the explicit policy decision and the finding count falls
+by one. All other report fields, including strict results, are exactly equal.
+`project-compiler-proposal-forwarding-{cases,results}.json` preserves the three
+independent source judgments: one explicit rejection and two emitted not-useful
+proposals. The quality reducer intentionally exits 1. Absence over incomplete
+input does not count as successful rejection. No speedup or whole-project quality
+claim follows.
+
+Final C37 checkpoint: all 3,377 tests pass in 217.011 seconds with five existing
+skips; doc tests, locked all-target Clippy, formatting and diff checks pass.
+Style is zero over 9,728 functions (`/tmp/clones-forwarded-pipelines-style-final-2`);
+reviewed patterns is zero (`/tmp/clones-forwarded-pipelines-patterns-final-1`).
+Unfiltered patterns falls from fourteen to thirteen, removing only the intended
+`8758139492e7` pipeline (`/tmp/clones-forwarded-pipelines-patterns-unfiltered-final-1`).
+The existing ignore ledger is unchanged. All 182 Python tests pass. Full test
+and Clippy logs use `/tmp/clones-forwarded-pipelines-{tests,clippy}-final-1`;
+Python log is `/tmp/clones-forwarded-pipelines-python-final-1.log`. Both original
+NonZero CI regressions pass. This verifies Linux; macOS is not locally verified.
+
+Remaining source-reviewed proposal debt is the opaque dedup closure contracts
+and already-shared mirrored reductions. No defensible new filter follows from
+the available completed facts; further policy must preserve useful wrappers
+and needs independent positive/negative cases. Broader capability and retirement
+gates remain open.

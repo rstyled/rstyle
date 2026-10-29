@@ -495,3 +495,15 @@ resolution. Incomplete inputs exit 2 and cannot export. Shared 4 MiB and 4,096
 owner/entry/context bounds and create-new publication apply. Source/tool-free
 replay supports full/compact reports. Keep legacy patterns until its independent
 quality and retirement gates pass.
+
+
+Compiler proposal policy version 2 rejects fallback helpers whose completed
+alignment contains only distinct, single-use callee substitutions and
+parameter/return glue. The existing call-count pass collects the shape flag;
+completed alignment holes supply the decision. Shared calls, repeated
+substitutions, unknown identities and additional work retain advisory review.
+Built-in decisions appear in `patterns.evaluation.suppressed` with source sites
+and a reason; these are independent of user ignore/review entries. Earlier
+compiler proposal reviews are readable but stale by detector version, and
+version-1 compiler proposal baselines require explicit regeneration. No graph
+schema, compiler metric, strict admission, hashing or body-proof change follows.

@@ -45,6 +45,7 @@ fn cluster(kind: CandidateKind, coverage: &[u32], empty_columns: bool) -> Cluste
         }]
     };
     Cluster {
+        forwarding_only: false,
         members: (0..coverage.len()).collect(),
         coverage_milli: coverage.to_vec(),
         columns,
@@ -181,6 +182,7 @@ fn trait_proposals_receive_the_same_partial_alignment_caveat() {
     let ix = Index::new(&facts, &groups, &Params::default());
     let fns: Vec<_> = facts.iter().collect();
     let cluster = Cluster {
+        forwarding_only: false,
         members: vec![2, 3],
         coverage_milli: vec![1000, 800],
         columns: vec![Column {

@@ -330,3 +330,12 @@ structural review persistence, unavailable generated callees, distinct test/lib
 units and source-free replay. Recorded kinds are not purity, weighted density or
 refactoring safety. Structural reviews do not approve recomputed effect notes.
 The measured single replay is comparable to C35; no speedup is claimed.
+
+
+`project-compiler-proposal-forwarding-{cases,results}.json` records C37 policy 2.
+It preserves C33 source judgments and requires the pipeline sample's exact
+built-in rejection reason and source sites. One negative proposal is rejected;
+two remain emitted and the reducer still exits 1. Missing proposals over
+incomplete input stay unavailable. Historical implicit-version-1 observations
+remain unchanged. Policy version drift is an error, and explicit rejection is
+not a user review or proof that extraction is safe.
