@@ -3457,3 +3457,37 @@ Next ready frontier: broaden compiler proposal quality with independent original
 project source labels while reusing the existing proposer and completed reports.
 Generated owners, more dispatch/call shapes, complete project quality and
 per-capability retirement remain open.
+
+
+## C33: review production abstraction proposals from completed reports
+
+Owner/write set: lead owns the offline reducer, cases/results and docs;
+acceptance worker independently reviewed original source; reducer reviewer owns
+the new Python test leaf. State: bounded quality evidence delivered; runtime Rust
+snapshot remains `53e1704`.
+
+Reuse-first: `compiler_proposal_quality.py` consumes existing `patterns_report`
+output and reuses original-source association from `compiler_quality`. Exact
+family and separate role sets match labels; candidate fingerprints are opaque.
+All raw candidates, scores and counter-evidence survive independently of visibility.
+No collector, proposer, hashing, artifact scan, source/type/body proof or runtime
+graph/body clone was added.
+
+The fresh default-library `rstyle-core` capture `run-OFIAA9` has 383 available /
+735 unavailable owners and seven proposals. Three independently pre-labeled
+negative groups are emitted: already-shared `mirrored` traversal wrappers,
+distinct normalization pipelines and different dedup contracts. All three exact
+structural associations agree; all three remain independently not useful. Four
+other proposals remain unreviewed. Incomplete scope/input and reducer exit 1 are
+explicit; no new ignores, suppressions, threshold/budget changes or quality-gain
+claim. `project-study.md` records the initial unsupported `--lib` attempt and
+corrected command, 15.79s / 585,692KiB capture, sources and reproduction.
+
+All 169 Python tests pass, including 17 new controls for roles, opaque IDs,
+visibility, unknown/foreign graph owners, original source, contexts, policies and
+incomplete absence. Formatting/diff checks pass. No Rust runtime changes: prior
+3,330 passing tests, zero legacy style/pattern findings and unchanged unfiltered
+pattern IDs remain evidence for that exact checkpoint, not newly executed gates.
+Next ready frontier: improve proposal usefulness through existing core policy,
+with independent useful positives and these frozen production negatives. Broad
+project quality, generated-owner coverage and per-capability retirement stay open.

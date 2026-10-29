@@ -297,3 +297,17 @@ label corrections, replay commands, numeric results and resource limits. Run
 `python3 -m unittest discover -s eval/clones-capability -p 'test*.py'` for the
 independent reducer controls. This does not establish runtime purity or retire
 legacy density policy.
+
+
+`compiler_proposal_quality.py` reviews completed core proposal reports using
+independent original-source labels. It reuses `compiler_quality.sample_owner`
+and matches exact family and separate site/definition owner sets, without
+candidate fingerprints, reanalysis or a second proposer. The production
+`project-compiler-proposal-quality-{cases,results}.json` sample records three
+structural matches independently judged not useful. All seven raw proposals stay
+in its inventory; unreviewed entries remain unreviewed and visibility is separate.
+Counts describe labeled reviews, not whole-project precision. Missing source,
+graphs or selected-owner rosters remain unavailable; absence over incomplete
+input cannot establish a negative. The reducer exits 1 for observed not-useful or
+needs-revision judgments and 2 for unavailable samples. See the project study for
+capture scope, resource measurements and a reproduction command.

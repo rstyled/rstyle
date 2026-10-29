@@ -868,3 +868,71 @@ exit 2; the sample reducer exits 0 after the documented detail correction. No
 runtime change, performance improvement, complete-project precision, semantic
 purity or retirement claim follows. Broader dispatch, unknown external behavior,
 other call shapes and project quality remain open.
+
+
+## C33: independent production proposal quality
+
+This study consumes the existing Rust collector and `patterns_report` proposer;
+it adds an offline comparison, not another consumer algorithm. Before the fresh
+capture, independent source review froze three negative examples in
+`/tmp/clones-proposal-quality-source-labels-frozen-1.json`. The tracked
+`project-compiler-proposal-quality-cases.json` changes only pending run/toolchain/
+metric provenance after capture. Candidate family, role membership, original
+source bytes and usefulness judgments were not relabeled from emitted output.
+
+| Source group | Independent usefulness judgment |
+| --- | --- |
+| `align::{evidence,reverse_conflicts}` | Not useful: the traversal already lives in `mirrored`; maps, directions and result reductions differ. |
+| `normalize::{unify_case,counter_loops}` | Not useful: different ordered normalization pipelines are not a shared semantic operation. |
+| `candidates::distinct_in_order`, `normalize::dedup` | Not useful: tiny set/filter glue with different borrowing and equality contracts. |
+
+The default-library `rstyle-core` capture at runtime snapshot `53e1704` produced
+run `run-OFIAA9`, advisory metric 3, 383 known / 735 unavailable owners, and 383
+compiler pattern graphs. All seven raw candidates are `parameterize` proposals.
+All three labeled groups match exact family and separate site/definition sets,
+retaining their independently negative judgments. The other four proposals remain
+unreviewed. Candidate IDs are opaque report data; they do not associate labels.
+No new ignores, dismissals, policy thresholds or discovery budgets were added.
+This is measured proposal-quality debt, not improved precision or retirement.
+
+The reducer reuses existing original-source owner association and validates the
+full proposal Params policy and compilation context. It does not collect facts,
+propagate effects, prove bodies/types, hash data or implement proposal discovery.
+It retains raw scored proposals and counter-evidence independently of review
+visibility. Aggregate graph counts cannot conceal a foreign missing-owner key.
+Scope and proposal input remain incomplete, even though all three sample
+associations are available. Counts are per labeled review, not project precision;
+manual source judgments are not equivalence or safe-rewrite proofs.
+
+The first command used unsupported `--lib` and exited immediately; its retained
+logs are `/tmp/clones-proposal-quality-capture-1`. The CLI's default package
+selection already captures the ordinary library target, confirmed by the saved
+unit context. The corrected bounded command was:
+
+```sh
+CARGO_TARGET_DIR=target python3 scripts/watchdog.py --timeout 180 \
+  --output /tmp/clones-proposal-quality-capture-2 -- \
+  /usr/bin/time -v target/debug/cargo-rstyle rstyle -p rstyle-core \
+  --format json clones --extraction-profile hir-data-v3 --compiler-advisory \
+  --compiler-patterns --max-pairs 0 --locked --report-detail compact
+python3 eval/clones-capability/compiler_proposal_quality.py \
+  --report /tmp/clones-proposal-quality-capture-2/stdout.log \
+  --labels eval/clones-capability/project-compiler-proposal-quality-cases.json \
+  --output /tmp/clones-proposal-quality-results-reproduced.json
+```
+
+The capture took 15.79 seconds, peaking at 585,692 KiB RSS. Capture exit 2 records
+incomplete advisory scope; reducer exit 1 records the three observed not-useful
+judgments. Neither is hidden as successful whole-scope validation. There are no
+strict accepted pairs in this scope; the configured strict budget supplies no
+broader strict-validation evidence. Saved report output and command/resource logs
+remain under the explicit capture directory above. The compact tracked results
+retain all seven proposals rather than copying the large source report.
+
+All 169 Python tests pass, including 17 proposal controls, in
+`/tmp/clones-proposal-quality-python-final-1.log`. No Rust code changed; the C31
+3,330-test/style/Clippy checkpoint remains evidence for that runtime snapshot,
+not a new Rust gate run. Formatting and diff checks pass. No speedup or whole
+project proposal-quality claim follows. The next bounded improvement should use
+existing core abstraction policy, with independent useful positives and these
+negative controls, before changing shared proposer behavior.
