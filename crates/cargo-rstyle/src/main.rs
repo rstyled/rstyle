@@ -99,7 +99,7 @@ struct IgnoreArgs {
 }
 
 /// Flags that change what `patterns` mines; `ignore` takes them too so ids line up.
-#[derive(Args)]
+#[derive(Args, Default, PartialEq, serde::Serialize)]
 struct MineArgs {
     /// Evaluation oracle: ignore trait-impl links whose trait method id contains this text
     /// (repeatable; `*` hides all), so existing traits look like undiscovered abstractions.
@@ -126,6 +126,12 @@ struct MineArgs {
     /// Most differing parts a `parameterize` suggestion may have [default: 3].
     #[arg(long)]
     max_holes: Option<usize>,
+}
+
+impl MineArgs {
+    fn is_default(&self) -> bool {
+        self == &Self::default()
+    }
 }
 
 /// Facts directory names under `target/rstyle`. Dependence graphs are large, so only

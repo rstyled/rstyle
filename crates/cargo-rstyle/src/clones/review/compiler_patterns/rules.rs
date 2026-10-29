@@ -38,6 +38,9 @@ pub(crate) struct Snapshot {
     pub(super) versions: Versions,
     pub(super) context: local::BuildContext,
     pub(in crate::clones::review) policy: Params,
+    /// Older records were captured with no trait-hiding oracle.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(in crate::clones::review) hide_implements: Vec<String>,
     pub(in crate::clones::review) kind: CandidateKind,
     pub(super) sites: Vec<Member>,
     pub(super) definitions: Vec<Rc<Declaration>>,
@@ -103,7 +106,7 @@ impl exact_rules::ReviewSnapshot for Snapshot {
         Ok(())
     }
     fn changed(&self, current: &Self) -> Option<exact_rules::StaleReason> {
-        if self.policy != current.policy {
+        if self.policy != current.policy || self.hide_implements != current.hide_implements {
             return Some(exact_rules::StaleReason::Policy);
         }
         (self.kind != current.kind

@@ -13,6 +13,8 @@ pub(in crate::clones) struct Baseline {
     schema: String,
     pub compiler_policy: Rc<serde_json::Value>,
     pub proposal_policy: Params,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hide_implements: Vec<String>,
     versions: Versions,
     graph_schema: String,
     pub contexts: Vec<local::BuildContext>,
@@ -25,6 +27,7 @@ impl baseline_common::CompilerInventory for Baseline {
             schema: "rstyle.compiler-pattern-baseline/1".into(),
             compiler_policy,
             proposal_policy: Params::default(),
+            hide_implements: Vec::new(),
             versions: local_adapter::versions("compiler-patterns"),
             graph_schema: rstyle_core::advisory::patterns::KEY.into(),
             contexts,
@@ -34,11 +37,16 @@ impl baseline_common::CompilerInventory for Baseline {
 }
 
 impl Baseline {
+    pub(super) fn with_options(mut self, options: rstyle_core::patterns_report::Options) -> Self {
+        self.proposal_policy = options.params;
+        self.hide_implements = options.hide_implements;
+        self
+    }
+
     fn validate_header(&self) -> Result<(), String> {
         if self.schema != "rstyle.compiler-pattern-baseline/1"
             || self.versions != local_adapter::versions("compiler-patterns")
             || self.graph_schema != rstyle_core::advisory::patterns::KEY
-            || self.proposal_policy != Params::default()
         {
             return Err("Unsupported compiler proposal baseline schema, versions or policy".into());
         }
@@ -83,7 +91,9 @@ impl baseline_common::Inventory for Baseline {
         .validate_keys(
             &self.entries,
             |finding| {
-                finding.versions() == &self.versions && finding.policy == self.proposal_policy
+                finding.versions() == &self.versions
+                    && finding.policy == self.proposal_policy
+                    && finding.hide_implements == self.hide_implements
             },
             Snapshot::baseline_key,
         )
@@ -91,6 +101,7 @@ impl baseline_common::Inventory for Baseline {
     fn same_scope(&self, previous: &Self) -> bool {
         self.compiler_policy == previous.compiler_policy
             && self.proposal_policy == previous.proposal_policy
+            && self.hide_implements == previous.hide_implements
             && self.contexts == previous.contexts
     }
     fn replace_entries(&mut self, entries: Vec<Snapshot>) {

@@ -30,6 +30,7 @@ use std::{
 
 #[derive(ClapArgs, Serialize)]
 #[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density", "compiler_advisory", "compiler_patterns"]).multiple(true)),
+    group(clap::ArgGroup::new("compiler_mining").args(["hide_implements", "threshold", "min_coverage", "pair_coverage", "normalize", "single_call_guard", "max_holes"]).requires("compiler_patterns").multiple(true)),
     group(clap::ArgGroup::new("compiler_inputs").args(["compiler_advisory", "compiler_patterns"]).multiple(true)),
     group(clap::ArgGroup::new("changed_analysis").args(["source_rules", "effect_density", "compiler_advisory", "compiler_patterns", "select_guards"]).multiple(true)),
     group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules", "mutation_rules", "effect_density", "compiler_patterns", "compiler_advisory", "guard_clauses"]).multiple(true)),
@@ -88,6 +89,9 @@ pub struct Args {
     /// Reuse compiler graphs and core proposals independently of numeric style diagnostics.
     #[arg(long)]
     compiler_patterns: bool,
+    #[command(flatten, next_help_heading = "Compiler pattern mining")]
+    #[serde(skip_serializing_if = "crate::MineArgs::is_default")]
+    mine: crate::MineArgs,
     /// Select compiler proposals touching changed files at any usage site or definition.
     #[arg(long, requires_all = ["compiler_patterns", "changed_files"])]
     select_compiler_patterns: bool,

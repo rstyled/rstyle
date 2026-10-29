@@ -69,6 +69,7 @@ fn snapshot() -> Snapshot {
         versions: local_adapter::versions("compiler-patterns"),
         context: context(),
         policy: Params::default(),
+        hide_implements: Vec::new(),
         kind: CandidateKind::Parameterize,
         sites: vec![Member {
             declaration: declaration("sample::first"),
@@ -130,7 +131,7 @@ fn shared_graph_owners_and_full_values_control_lookup_without_fingerprints() {
 fn policy_context_signature_kind_membership_and_opaque_changes_cannot_hide() {
     let original = snapshot();
     let entries = entries(&original);
-    let mut variants = vec![snapshot(); 6];
+    let mut variants = vec![snapshot(); 7];
     variants[0].policy.max_holes += 1;
     variants[1].context.overflow_checks = false;
     variants[2].kind = CandidateKind::GenericFn;
@@ -144,6 +145,7 @@ fn policy_context_signature_kind_membership_and_opaque_changes_cannot_hide() {
         graph: Pdg::default(),
         opaque_source: Some("changed closure".into()),
     });
+    variants[6].hide_implements.push("not-matched".into());
     let store = exact_rules::ValidatedStore::new(&entries).unwrap();
     for changed in &variants {
         let live = exact_rules::LiveFinding::checked(changed).unwrap();

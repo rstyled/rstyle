@@ -13,6 +13,8 @@ pub(super) struct Report {
     schema: &'static str,
     policy_version: u32,
     policy: rstyle_core::cluster::Params,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    hide_implements: Vec<String>,
     pub input_complete: bool,
     effect_evidence: EffectEvidence,
     policy_selected_functions: usize,
@@ -99,7 +101,7 @@ pub(super) fn evaluate(
         effects_complete,
     } = input;
 
-    let options = patterns_report::Options::default();
+    let options = crate::mine_options(&ctx.args.mine);
     let policy_selected_functions = facts.len();
     let observed_graphs = facts
         .iter()
@@ -115,6 +117,7 @@ pub(super) fn evaluate(
         schema: "rstyle.compiler-patterns/1",
         policy_version: rstyle_core::candidates::POLICY_VERSION,
         policy: options.params,
+        hide_implements: options.hide_implements,
         effect_evidence: EffectEvidence::new(effects_complete),
         input_complete: missing.is_empty() && unavailable_functions == 0,
         policy_selected_functions,

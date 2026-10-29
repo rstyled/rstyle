@@ -306,6 +306,23 @@ Default clustering also borrows these graphs: with no normalization rules it
 does not copy their nodes, edges or metadata. Explicit normalization still uses
 an owned rewrite, preserving the original observations.
 
+Compiler proposals accept the existing legacy mining controls directly:
+`--threshold`, `--min-coverage`, `--pair-coverage`, `--normalize`,
+`--single-call-guard`, `--max-holes` and repeatable `--hide-implements`.
+They require `--compiler-patterns` and reuse the same CLI conversion and core
+options as `cargo rstyle patterns`; defaults are unchanged. These controls affect
+advisory proposals only. They do not relax strict clone matching. Existing
+experimental controls retain their experimental status.
+
+Saved captures can be reevaluated with these options without source files or
+compiler tools. Reports retain actual `policy` values and a nonempty
+`hide_implements` list. Reviews retain both inputs and become stale when either
+changes. Baseline headers retain them even when no proposal exists, so a different
+configuration produces explicit scope drift. The existing schema-1 records read
+an absent hide list as empty: earlier versions could only use the default empty
+oracle. Empty lists are omitted on publication, preserving default record bytes.
+No hash or source scan is needed for these configuration comparisons.
+
 For a standalone capture without strict matching:
 
 ```sh
@@ -324,7 +341,7 @@ owners/graphs and failed capture remain incomplete. Strict matching runs normall
 unless `--compiler-advisory-only` explicitly skips it.
 
 Each unit gains a `patterns` result with schema `rstyle.compiler-patterns/1`,
-the actual default clustering parameters and the existing core report, including
+the actual clustering parameters and the existing core report, including
 signature groups, candidates, definitions and counter-evidence. Paths are
 relative to that unit's `source_root` (absolute for outside sources). Text output also displays the core
 proposals. `--fail-on-findings` counts proposal candidates in addition to style

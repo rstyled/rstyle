@@ -1,3 +1,4 @@
+mod mining_options;
 use super::*;
 
 mod baseline;

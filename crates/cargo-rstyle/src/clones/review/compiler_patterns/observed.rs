@@ -9,7 +9,6 @@ use crate::clones::{
 };
 use rstyle_core::{
     candidates::Candidate,
-    cluster::Params,
     facts::{FnFacts, NodeKind},
 };
 use std::{
@@ -85,9 +84,10 @@ pub(in crate::clones) fn collect(
         })
         .collect();
 
+    let options = crate::mine_options(&ctx.args.mine);
     candidates
         .iter()
-        .map(|candidate| snapshot(candidate, &endpoints))
+        .map(|candidate| snapshot(candidate, &endpoints, &options))
         .collect()
 }
 
@@ -159,17 +159,23 @@ impl Resolver<'_, '_> {
     }
 }
 
+fn retained_endpoint<'a>(
+    endpoints: &'a BTreeMap<String, Result<Endpoint, String>>,
+    id: &str,
+) -> Result<&'a Endpoint, String> {
+    endpoints
+        .get(id)
+        .ok_or("Compiler proposal endpoint is not observed")?
+        .as_ref()
+        .map_err(Clone::clone)
+}
+
 fn snapshot(
     candidate: &Candidate,
     endpoints: &BTreeMap<String, Result<Endpoint, String>>,
+    options: &rstyle_core::patterns_report::Options,
 ) -> Result<Snapshot, String> {
-    let get = |id: &str| {
-        endpoints
-            .get(id)
-            .ok_or("Compiler proposal endpoint is not observed")?
-            .as_ref()
-            .map_err(Clone::clone)
-    };
+    let get = |id: &str| retained_endpoint(endpoints, id);
     let first = candidate
         .sites
         .first()
@@ -203,7 +209,8 @@ fn snapshot(
     let snapshot = Snapshot {
         versions: local_adapter::versions("compiler-patterns"),
         context: context.clone(),
-        policy: Params::default(),
+        policy: options.params,
+        hide_implements: options.hide_implements.clone(),
         kind: candidate.kind,
         sites,
         definitions,

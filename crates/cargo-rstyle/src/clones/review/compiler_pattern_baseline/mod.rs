@@ -33,7 +33,8 @@ pub(in crate::clones) fn evaluate(
     let header = Baseline::new(
         Rc::clone(advisory.policy()),
         baseline_common::contexts(ctx)?,
-    )?;
+    )?
+    .with_options(crate::mine_options(&ctx.args.mine));
     let complete = ctx.complete
         && advisory.pattern_inputs_complete()
         && ctx.handoff.assessed.len() <= 4096

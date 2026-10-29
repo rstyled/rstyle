@@ -439,6 +439,13 @@ Older version-4/5 bundles retain their original grammar and strict checks.
 `--changed-files PATH` selects numeric compiler diagnostic presentation and finding
 exits after reviews. Raw evaluations/fix plans remain intact; proposals stay
 global by default and invalid suppressions always stay global.
+With `--compiler-patterns`, the legacy mining controls `--threshold`,
+`--min-coverage`, `--pair-coverage`, `--normalize`, `--single-call-guard`,
+`--max-holes` and `--hide-implements` reuse the same core options. Defaults stay
+unchanged; experimental controls remain experiments. Saved replay can reevaluate
+these options without source/compiler access. Actual clustering and trait-hiding
+inputs are retained in proposal reviews/baselines; changing them stales reviews
+and changes baseline scope even for empty inventories. Strict matching is unchanged.
 Add `--select-compiler-patterns` with `--compiler-patterns --changed-files PATH`
 to select proposals touching a changed file at any usage site or definition.
 `patterns.selected_candidates` records the file mask independently of review

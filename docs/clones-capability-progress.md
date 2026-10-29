@@ -5519,3 +5519,47 @@ reuse-first frontier is legacy patterns option/routing compatibility, followed
 by explicit ledger migration; generated structural boilerplate is not a
 prerequisite for the legacy collector's authored scope. Full replacement and
 broader useful-project quality/retirement gates remain open.
+
+### C70 — share legacy mining controls with compiler proposals (2026-10-29)
+
+Compiler patterns now accept the existing MineArgs controls: threshold,
+min-coverage, pair-coverage, normalize, single-call-guard, max-holes and repeatable
+hide-implements. Both CLI paths reuse the same argument type, conversion and core
+Options/proposer. These flags require compiler-patterns; defaults and strict
+matching remain unchanged. This delivers configurable proposal reevaluation over
+saved compiler graphs rather than another mining algorithm. Score/top display
+filters, command routing and deliberate legacy ledger migration remain open.
+
+Reports retain actual Params and nonempty hide strings. Existing exact review
+snapshots and baseline headers now consume those same concrete values rather
+than hardcoding defaults, including empty inventories. Changed inputs stale
+reviews and drift baseline scope; missing positives remain unavailable. The
+schema-1 hide field is additive, absent historical lists mean the previously
+fixed empty oracle, and empty lists are omitted to preserve default publication.
+No proof, hash, source scan, trust policy or new configuration framework is added.
+
+Independent acceptance covers getter work versus forwarding controls, literal
+helper hole limits, all input values, source/tool-free reevaluation, exact/stale
+reviews, empty baseline drift and CLI prerequisites. A trait-hiding oracle fixture
+exactly agrees with legacy evaluation. The acceptance worker owns only the new
+leaf; lead owns shared CLI, report/review/baseline seams, registration and docs.
+All worker writes are frozen for integrated validation.
+
+The retained C69 rstyle-ccgraph run replays with an exactly unchanged default
+compiler report. Explicit single-call-guard/max-holes4 produces three candidates
+instead of one; its full evaluation exactly equals a same-scope legacy run with
+those options. Independent source inspection rates both extra candidates low
+value: trivial count getters and collection pipelines with different output and
+ordering. No quality gain or extraction recommendation is claimed, defaults and
+ledger remain intact. Replay samples take0.432/0.415s versus23.822s for legacy
+source extraction; these measure different work and do not establish a speedup.
+See project-compiler-mining-options-study.json. Generated coverage remains
+incomplete and replay exits2. Multi-unit grouping and retirement remain open.
+
+All62 focused pattern/review tests, locked all-target Clippy, formatting/diff
+checks and244 Python tests pass. Style reports zero violations over9,894 functions.
+The initially oversized snapshot helper was split at its retained-endpoint lookup,
+without changing semantics or adding suppressions. All3,543 Rust tests pass in
+233.545s with five existing skips, plus doc tests. Patterns has zero unreviewed
+candidates and the same13 unfiltered IDs as main; logs use /tmp/clones-c70-*. C69 native CI remains in progress
+(run40906051494); no C70 native platform result is claimed before push.
