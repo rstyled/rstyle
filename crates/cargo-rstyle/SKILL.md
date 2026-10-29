@@ -131,7 +131,8 @@ Needs the pinned nightly from the project's `rust-toolchain.toml` (installed by 
 
 `cargo rstyle clones --extraction-profile hir-data-v3 --source-rules` evaluates
 captured length and parameter evidence independently of strict graph admission.
-Use `--analysis-config analysis.toml` for those two policies and
+Use `--analysis-config rstyle.toml` with the existing full core configuration
+schema; unrelated sections are validated without requesting other analyses. Use
 `--fail-on-findings` for exit one on visible findings; incomplete scope exits two.
 Existing `rstyle-allow(fn_length, fn_params): reason` comments use captured source
 and apply only to those named rules. Invalid annotations remain findings. JSON

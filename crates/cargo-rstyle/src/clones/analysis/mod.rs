@@ -23,11 +23,9 @@ mod source_spacing;
 mod source_suppressions;
 
 use super::{Args, Function, Handoff, capture};
-use rstyle_core::config::{
-    Config as SourcePolicy, Excludes, FnLengthConfig, FnParamsConfig, FnSpacingConfig,
-};
+use rstyle_core::config::Config as SourcePolicy;
 use rstyle_pdg::consumer_facts::{Availability, LocalFacts};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 /// Whether requested work has enough completed coverage to permit a clean exit.
 /// Implementations retain their consumer-specific execution and scope rules.
@@ -165,15 +163,6 @@ struct Settings<'a> {
     count_self: bool,
 }
 
-#[derive(Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-struct SourceConfig {
-    exclude: Excludes,
-    fn_length: FnLengthConfig,
-    fn_params: FnParamsConfig,
-    fn_spacing: Option<FnSpacingConfig>,
-}
-
 pub(super) struct Config {
     source: Option<ConfiguredSource>,
     guards: bool,
@@ -222,23 +211,21 @@ impl<'a> Settings<'a> {
 }
 
 fn source_policy(args: &Args) -> Result<ConfiguredSource, String> {
-    let local: SourceConfig = match &args.analysis_config {
+    let (rules, spacing) = match &args.analysis_config {
         Some(path) => {
             let text = std::fs::read_to_string(path)
                 .map_err(|error| format!("{}: {error}", path.display()))?;
-            toml::from_str(&text).map_err(|error| format!("{}: {error}", path.display()))?
+            let document: toml::Value =
+                toml::from_str(&text).map_err(|error| format!("{}: {error}", path.display()))?;
+            let spacing = document.get("fn_spacing").is_some();
+            let rules: SourcePolicy = document
+                .try_into()
+                .map_err(|error| format!("{}: {error}", path.display()))?;
+            (rules, spacing)
         }
-        None => SourceConfig::default(),
+        None => (SourcePolicy::default(), false),
     };
 
-    let spacing = local.fn_spacing.is_some();
-    let rules = SourcePolicy {
-        exclude: local.exclude,
-        fn_length: local.fn_length,
-        fn_params: local.fn_params,
-        fn_spacing: local.fn_spacing.unwrap_or_default(),
-        ..SourcePolicy::default()
-    };
     let exclusions = rstyle_core::exclusions::Matcher::compile(&rules.exclude.0)?;
     Ok(ConfiguredSource {
         spacing,

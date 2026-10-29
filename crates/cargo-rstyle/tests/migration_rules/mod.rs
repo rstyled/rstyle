@@ -211,7 +211,7 @@ fn failed_capture_does_not_become_a_clean_empty_source_rule_run() {
 }
 
 #[test]
-fn source_rule_configuration_rejects_unrelated_policy_before_capture() {
+fn source_rule_configuration_rejects_invalid_policy_before_capture() {
     let directory = source_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), "pub fn broken( {").unwrap();
     for policy in [

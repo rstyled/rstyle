@@ -5998,3 +5998,38 @@ Default length reviews. C77 native CI has both Ubuntu jobs passing; macOS remain
 pending. C78 native CI follows the pushed commit. The overall migration remains
 active; the full-config parser reuse task is ready with retained rejection
 evidence in /tmp/clones-c79-config-before.stderr and independent fixture targets.
+
+
+### C79 — reuse the full core source configuration (2026-10-29)
+
+Removed the duplicate source-only configuration schema. Source analysis now
+deserializes the existing full core Config from one parsed TOML document, while
+retaining explicit fn_spacing section presence. Unrelated valid sections are
+validated without requesting their consumers; unknown keys and invalid grouping
+rules still reject before capture. No hashes, collectors, authority proofs or
+strict matching changes. Source review/baseline identity depends on source settings
+only. Implementation and acceptance changes are limited to the source config
+seam and the new shared_config CLI leaf; docs and project evidence accompany them.
+
+All five focused cases pass: actual workspace schema with aggressive unrelated
+limits, full/subset result parity and unchanged saved identities, absent/explicit/
+disabled spacing, invalid outer/nested keys before tools, and source/tool-free raw
+replay in both report details. Unrequested report records are checked for their
+existing not_requested status rather than incorrectly requiring their omission.
+
+Measured retained core run-ChBnep under the actual repository rstyle.toml now
+passes configuration parsing. Length and parameters each evaluate409 authored
+owners;806 generated owners remain explicitly outside source applicability.
+Spacing evaluates328 authored owners, with62 syntax-budget and19 transformation
+unavailable results. Exit2 and incomplete scope are retained, with0 findings.
+The entire analysis equals a declared source-only projection of the full config.
+Evidence: project-shared-source-config-study.json. This is configuration reuse
+and honest coverage evidence, not a clean default-policy or retirement claim.
+
+Formatting, Clippy and244 Python checks pass. All3,610 Rust tests pass with
+five existing skips, plus doctests. Legacy style reports0 violations over9,941
+functions; patterns reports0 unreviewed candidates and the same13 unfiltered
+IDs as main. C78 native CI40934545172 is still running on both Ubuntu runners
+and macOS. Next investigate whether existing captured statement
+observations can remove redundant whole-body parsing for source spacing, keeping
+missing-data and metric distinctions without increasing budgets.

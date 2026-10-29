@@ -10,8 +10,10 @@ cargo rstyle clones --manifest-path path/to/Cargo.toml \
   --analysis-config analysis.toml --format json --report-detail compact
 ```
 
-`analysis.toml` accepts path exclusions and these sections; omitted settings use the legacy
-rule defaults. It is separate from the JSON `--matching-config` policy.
+`--analysis-config` accepts the existing full `rstyle.toml` schema, including path
+exclusions and the source sections below. Omitted settings use the legacy rule
+defaults. Other valid sections are validated but do not request additional
+analyses. Unknown keys remain errors. It is separate from JSON `--matching-config`.
 
 ```toml
 exclude = ["target/**"]
