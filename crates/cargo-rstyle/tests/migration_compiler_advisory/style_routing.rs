@@ -34,11 +34,79 @@ fn diagnostics(report: &Value) -> Vec<&Value> {
         .collect()
 }
 
+fn projected_rows(report: &Value, field: &str, contexts: &str) {
+    let mut expected = Vec::new();
+    for unit in report["compiler_advisory"]["units"].as_array().unwrap() {
+        for row in unit["evaluation"][field].as_array().unwrap() {
+            expected.push(serde_json::to_string(&(row, &unit["unit"])).unwrap());
+        }
+    }
+    let rows = report[field].as_array().unwrap();
+    let units = report[contexts].as_array().unwrap();
+    assert_eq!(rows.len(), units.len());
+    let mut actual: Vec<_> = rows
+        .iter()
+        .zip(units)
+        .map(|pair| serde_json::to_string(&pair).unwrap())
+        .collect();
+    actual.sort();
+    expected.sort();
+    assert_eq!(
+        actual, expected,
+        "{field} must preserve evaluated rows and unit identities"
+    );
+}
+
+fn root_projection(report: &Value) {
+    projected_rows(report, "diagnostics", "diagnostic_units");
+    projected_rows(report, "functions", "function_units");
+    let planning = &report["compiler_advisory"]["planning"];
+    let groups: Vec<_> = planning["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|group| &group["evaluation"])
+        .collect();
+    assert_eq!(report["fix_groups"], serde_json::json!(groups));
+    assert_eq!(
+        report["planning_input_complete"],
+        planning["input_complete"]
+    );
+    assert_eq!(
+        report["planning_required_edits_complete"],
+        planning["required_edits_complete"]
+    );
+    assert_eq!(report["summary_complete"], true);
+}
+
+fn evidence_archive(report: &Value) {
+    let path = Path::new(report["run_directory"].as_str().unwrap()).join("report.json");
+    let archive: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    assert_eq!(archive["compiler_advisory"], report["compiler_advisory"]);
+    let facts = archive["functions"].as_array().unwrap();
+    assert!(!facts.is_empty());
+    assert!(facts.iter().all(|fact| fact.get("key").is_some()));
+    assert!(
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|row| row.get("complexity").is_some())
+    );
+    assert!(archive.get("diagnostic_units").is_none());
+}
+
 #[test]
 fn root_style_route_uses_workspace_config_suppressions_and_finding_exit() {
     let directory = fixture(SOURCE);
     let (output, report) = capture(directory.path(), &[]);
     checked(&output, 1);
+    root_projection(&report);
+    evidence_archive(&report);
+    assert_eq!(
+        report["summary"],
+        report["compiler_advisory"]["units"][0]["evaluation"]["summary"]
+    );
     assert_eq!(report["strict_assessment_execution"], "not_requested");
     assert_eq!(report["matching_execution"], "not_requested");
     assert_eq!(report["compiler_advisory"]["complete"], true);
@@ -95,6 +163,8 @@ fn root_style_route_retains_invalid_suppression_and_compile_failure_exits() {
     std::fs::write(directory.path().join("src/lib.rs"), "pub fn broken( {}\n").unwrap();
     let (output, report) = capture(directory.path(), &[]);
     checked(&output, 2);
+    assert_eq!(report["summary_complete"], false);
+    assert!(report["summary"].is_null());
     assert_eq!(report["capture_complete"], false);
     assert_eq!(report["compiler_advisory"]["complete"], false);
 }
@@ -122,7 +192,54 @@ fn root_style_route_preserves_test_compilation_contexts() {
         2
     );
     assert_eq!(diagnostics(&report).len(), 1);
+    root_projection(&report);
+    let summaries: Vec<_> = report["compiler_advisory"]["units"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|unit| &unit["evaluation"]["summary"])
+        .collect();
+    for field in [
+        "functions",
+        "violations",
+        "complexity_measured",
+        "complexity_unavailable",
+    ] {
+        let total: u64 = summaries
+            .iter()
+            .map(|summary| summary[field].as_u64().unwrap())
+            .sum();
+        assert_eq!(report["summary"][field], total);
+    }
+    assert_eq!(report["summary"]["mean_density_milli"], 0);
     assert_eq!(report["compiler_advisory"]["complete"], true);
+}
+
+#[test]
+fn root_style_summary_keeps_exact_density_totals_across_compilation_contexts() {
+    let directory = fixture(
+        "pub fn io() {\nlet _ = std::fs::read(\"unused\");\n\nlet _=1; let _=2; let _=3; let _=4; let _=5; let _=6; let _=7; let _=8;\n}\n#[cfg(test)] pub fn clean() {}\n",
+    );
+    let (output, report) = capture(directory.path(), &["--all-targets"]);
+    checked(&output, 0);
+    root_projection(&report);
+    let units = report["compiler_advisory"]["units"].as_array().unwrap();
+    let mut means: Vec<_> = units
+        .iter()
+        .map(|unit| {
+            unit["evaluation"]["summary"]["mean_density_milli"]
+                .as_u64()
+                .unwrap()
+        })
+        .collect();
+    means.sort();
+    assert_eq!(means, [166, 333]);
+    assert_eq!(report["summary"]["functions"], 3);
+    // Two IO owners each have floor(3000 / 9) = 333; the clean owner has zero.
+    // Aggregating rounded unit means would incorrectly produce 221.
+    assert_eq!(report["summary"]["mean_density_milli"], 222);
+    assert_eq!(report["summary"]["max_density_milli"], 333);
+    assert_eq!(report["summary"]["effect_counts"]["io"], 2);
 }
 
 #[test]
@@ -260,9 +377,20 @@ fn root_style_inherits_generated_io_into_authored_findings_and_replays_reused_ow
     let (output, original) = capture(directory.path(), &[]);
     checked(&output, 1);
     authored_inherited_finding(&original);
+    root_projection(&original);
+    evidence_archive(&original);
     let (output, warm) = capture(directory.path(), &[]);
     checked(&output, 1);
     authored_inherited_finding(&warm);
+    root_projection(&warm);
+    let text = rstyle(directory.path(), &["--style-engine", "compiler"]);
+    checked(&text, 1);
+    let rendered = stdout(&text);
+    assert!(rendered.contains("side_effect_density:"));
+    assert!(rendered.contains("rstyle:"));
+    assert!(rendered.contains("fix groups: 1 (0 stacked, 1 independent)"));
+    assert!(!rendered.contains("land together"));
+    assert!(rendered.contains("compiler style: summary complete=true, planning input complete=false, required edits complete=true"));
     fresh_selected_owner(&warm);
     assert_eq!(original["compiler_advisory"], warm["compiler_advisory"]);
 

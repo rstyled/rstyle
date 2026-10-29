@@ -6852,3 +6852,56 @@ source-located diagnostics, summary and fix_groups. Reuse completed core units
 through a small borrowed render seam before serialization, preserve compilation
 contexts and incomplete planning, and avoid JSON roundtrips or reevaluation.
 Defaults remain unchanged until the required per-capability gates pass.
+
+### C96 — project completed compiler evaluations into root style output (2026-10-29)
+
+The opt-in root style route now presents diagnostics, summary, global fix groups
+and completed complexity rows directly. A small borrowed publication seam shares
+the existing capture/consumer/exit pipeline; the full clones report is still
+written to report.json for inspection and tool-free replay. There is no JSON
+parse roundtrip, fresh evaluation, effect propagation, fact clone or hash scan.
+
+Retain the exact per-function density total in the existing core summary before
+serialization, replacing its temporary density vector with one fold. Aggregate
+completed unit summaries with checked arithmetic and round the workspace mean
+only once. The extra total is not serialized: existing legacy JSON is unchanged.
+Missing totals or arithmetic overflow cannot produce a clean summary. No completed
+units produce a null summary; partial known summaries retain summary_complete=false.
+Scope and metric versions remain in compiler_advisory; diagnostic_units and
+function_units retain compilation identity beside the borrowed root rows. Global
+planner groups and independent input/required-edit statuses are reused unchanged.
+
+The root renderer also shares existing diagnostic ordering, complexity ranking,
+text rows, summary footer and fix-group display policy. Focused cases exercise
+config/suppression/exit behavior, source-identical check/test owners, missing
+capture, generated effects with complete authored numeric scope and incomplete
+caller inputs, full archive retention and source/tool-free replay. An independent
+nine-statement IO fixture yields unit means166/333 but exact workspace mean222;
+averaging rounded unit means would incorrectly yield221. Core tests retain
+unknown/known-empty/overflow distinctions and the old serialized summary shape.
+
+Implementation and acceptance leaf write sets were disjoint; read-only review
+caught the initial text fix-group policy divergence, fixed by sharing the existing
+renderer. The pattern gate identified duplicated unit traversal/sorting; one
+borrowed evaluated_rows helper now handles both diagnostic and complexity rows.
+Publication also shares the existing archive-first stages and flush behavior.
+
+A live rstyle-core library check covers431 authored functions, with0 findings,
+summary_complete=true, planning_input_complete=false and required edits complete.
+The projected summary equals the completed unit summary; global fix groups and
+compiler_advisory equal the full retained archive. One invocation takes4.708s,
+including Cargo freshness/build costs, with no speedup claim. The exact command,
+scope, statuses and report locations are retained in
+eval/clones-capability/project-root-style-projection-study.json.
+
+Focused core/root tests pass340/340. Formatting, workspace/all-target Clippy and
+both legacy gates pass:0 violations over10,050 functions, and the same13 unfiltered
+candidate IDs as the main-rebase baseline. All248 capability and50 script Python
+tests pass. After the publication/row helper cleanup, all3,688 Rust tests pass
+in266.304s with five existing skips, plus doctests.
+Defaults and strict matching remain unchanged; finding usefulness, caller coverage
+and native CI still govern retirement.
+
+Native reconciliation: C95/96b57042 run40973928053 now has successful check jobs
+on macos-15, ubuntu-24.04 and ubuntu-24.04-arm. This verifies that preceding
+checkpoint, not the current C96 diff; C96 native CI remains pending publication.

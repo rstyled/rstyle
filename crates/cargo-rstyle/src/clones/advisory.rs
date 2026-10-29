@@ -9,6 +9,7 @@ mod propagation;
 mod ranking;
 mod selection;
 mod source_scope;
+pub(super) mod style;
 #[cfg(test)]
 mod tests;
 use super::review::compiler_diagnostics::demand::Demand;

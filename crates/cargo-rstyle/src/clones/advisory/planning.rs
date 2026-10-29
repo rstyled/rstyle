@@ -201,6 +201,18 @@ struct Inputs<'a> {
 }
 
 impl Report {
+    pub(super) fn groups(&self) -> impl Iterator<Item = &rstyle_core::report::FixGroup> {
+        self.groups.iter().map(|group| &group.evaluation)
+    }
+
+    pub(super) fn input_complete(&self) -> bool {
+        self.input_complete
+    }
+
+    pub(super) fn required_edits_complete(&self) -> bool {
+        self.required_edits_complete
+    }
+
     pub(super) fn render(&self) -> String {
         let mut lines = vec![format!(
             "\nCompiler planning: {} known functions, {} groups; input complete={}, required edits complete={}. Captured callers only; advisory.",

@@ -629,6 +629,26 @@ fn run_captured(
     config: Configuration,
     capture: capture::Capture,
 ) -> Result<(String, u8), String> {
+    run_captured_with(
+        cli,
+        args,
+        CapturedRun { config, capture },
+        |report, accepted| report.publish(cli.format, accepted),
+    )
+}
+
+struct CapturedRun {
+    config: Configuration,
+    capture: capture::Capture,
+}
+
+fn run_captured_with(
+    cli: &Cli,
+    args: &Args,
+    captured: CapturedRun,
+    publish: impl FnOnce(&report::Report<'_>, usize) -> Result<String, String>,
+) -> Result<(String, u8), String> {
+    let CapturedRun { config, capture } = captured;
     let handoff = Handoff::capture(&capture, args)?;
     let mut evaluation = (!args.compiler_advisory_only)
         .then(|| evaluate_matching(&handoff, &config.matching, args))
@@ -663,7 +683,7 @@ fn run_captured(
     let report = report::make(context, consumers);
     publish_baselines(&report, args, complete && analyses_complete(&report))?;
     publish_compiler_pattern_baseline(&report, args, complete && analyses_complete(&report))?;
-    let output = report.publish(cli.format, accepted)?;
+    let output = publish(&report, accepted)?;
     let code = if complete && analyses_complete(&report) {
         u8::from(finding_exit_requested(&report, args, accepted))
     } else {

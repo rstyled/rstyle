@@ -41,6 +41,13 @@ fn cognitive_then_cyclomatic_scores_precede_unavailable_owners() {
         ["tie_cog", "high_cog", "high_cc", "zero_cog", "unknown"]
     );
     assert_eq!(facts[0].complexity, None);
+    let mut completed: Vec<_> = facts.iter().map(Function::from).collect();
+    completed.sort_by(ordering);
+    let expected: Vec<_> = ranked(&facts).into_iter().map(Function::from).collect();
+    assert_eq!(completed, expected);
+    let rows = completed.iter().collect::<Vec<_>>();
+    assert_eq!(text_refs(rows), text(&completed));
+    assert!(text_refs([]).is_empty());
 }
 
 fn located(name: &str, path: &str, line: usize, column: usize) -> FnFacts {

@@ -93,12 +93,13 @@ fn summarize(
     cfg: &Config,
     violations: usize,
 ) -> Summary {
-    let densities: Vec<usize> = facts
+    let (density_sum, max_density_milli) = facts
         .iter()
         .zip(effects)
         .map(|(f, e)| rules::density_milli(f, e, cfg))
-        .collect();
-    let densities = densities.into_iter();
+        .fold((0u128, 0), |(sum, maximum), density| {
+            (sum + density as u128, maximum.max(density))
+        });
     let measured = facts
         .iter()
         .filter(|fact| fact.complexity.is_some())
@@ -108,8 +109,9 @@ fn summarize(
         violations,
         complexity_measured: measured,
         complexity_unavailable: facts.len() - measured,
-        mean_density_milli: densities.clone().sum::<usize>() / facts.len().max(1),
-        max_density_milli: densities.max().unwrap_or(0),
+        mean_density_milli: (density_sum / facts.len().max(1) as u128) as usize,
+        density_sum_milli: usize::try_from(density_sum).ok(),
+        max_density_milli,
         effect_counts: effect_counts(effects.iter().flatten()),
     }
 }
@@ -458,6 +460,10 @@ mod tests {
         let owned =
             evaluate_with_owners(vec![four_params("original")], &Config::default()).unwrap();
         assert!(plain.scopes.is_none());
+        assert_eq!(
+            plain.report.summary.density_sum_milli,
+            Some(plain.report.summary.mean_density_milli)
+        );
         assert!(owned.scopes.is_none());
         assert_eq!(plain.diagnostic_owners.capacity(), 0);
         assert_eq!(plain.report, owned.report);

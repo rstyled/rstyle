@@ -28,6 +28,8 @@ Try that path for normal style checks with
 `rstyle.toml` (or `--config`), checks all authored rules and returns 1 for findings.
 The legacy backend remains the default. This route reuses private builds and completed owner observations when Cargo
 reports the exact artifacts fresh; reports retain separate compilation contexts.
+Root JSON exposes diagnostics, summary, fix groups and complexity rows, with
+explicit scope and planning completeness. Full evidence remains available for replay.
 Optional [native pair explanations](docs/clones-pair-differences.md) show ordered
 scalar differences with separate coverage through `--explain-pairs`.
 Bounded [helper proposals](docs/clones-helper-proposals.md) use that evidence

@@ -6,6 +6,7 @@ mod functions;
 mod locations;
 mod matching;
 mod source_reviews;
+mod style;
 pub(in crate::clones) use source_reviews::SourceReviews;
 
 use super::{Args, Handoff, capture};
@@ -498,10 +499,20 @@ pub fn write(path: &Path, report: &Report<'_>) -> Result<(), String> {
 
 impl Report<'_> {
     pub fn publish(&self, format: Format, accepted: usize) -> Result<String, String> {
+        self.publish_with(|| self.render_published(format, accepted))
+    }
+
+    fn publish_with(
+        &self,
+        render: impl FnOnce() -> Result<String, String>,
+    ) -> Result<String, String> {
+        self.publish_archive()?;
+        rstyle_pdg::diagnostics::Stage::new("cli.report_render", "run", None).observe(render)
+    }
+
+    fn publish_archive(&self) -> Result<(), String> {
         rstyle_pdg::diagnostics::Stage::new("cli.report_write", "run", None)
-            .observe(|| write(&self.run_directory.join("report.json"), self))?;
-        rstyle_pdg::diagnostics::Stage::new("cli.report_render", "run", None)
-            .observe(|| self.render_published(format, accepted))
+            .observe(|| write(&self.run_directory.join("report.json"), self))
     }
 
     fn render_published(&self, format: Format, accepted: usize) -> Result<String, String> {

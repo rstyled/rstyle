@@ -1,5 +1,7 @@
 //! Opt-in style routing through the existing authored compiler diagnostic workflow.
-use super::{Args, compile_capture, configuration, prepare_capture, run_captured};
+use super::{
+    Args, CapturedRun, compile_capture, configuration, prepare_capture, run_captured_with,
+};
 use crate::Cli;
 use clap::{Args as _, FromArgMatches};
 
@@ -8,7 +10,9 @@ pub(crate) fn run(mut cli: Cli) -> Result<(String, u8), String> {
     super::with_capture_verification(false, || {
         let Prepared { config, capture } = prepare(&mut cli, &mut args)?;
         let capture = compile_capture(capture, &cli, &args);
-        run_captured(&cli, &args, config, capture)
+        run_captured_with(&cli, &args, CapturedRun { config, capture }, |report, _| {
+            report.publish_style(cli.format)
+        })
     })
 }
 

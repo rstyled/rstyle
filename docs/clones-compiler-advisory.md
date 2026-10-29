@@ -11,9 +11,23 @@ uses workspace `rstyle.toml` or global `--config`, and returns0/1/2 for complete
 clean/findings/incomplete-or-error. Package, manifest, all-targets and format
 selection use the existing capture path. Strict matching and pattern mining are
 unrequested; the pattern ledger does not affect style findings. The compiler
-JSON retains per-unit evaluations, metric versions, outside-scope generated
-owners and separate full/required-edit planning completeness. It is not the legacy
-JSON schema. The legacy backend remains the default, available explicitly through
+JSON exposes the usual `diagnostics`, `summary`, `fix_groups` and complexity
+`functions` fields, borrowed from completed evaluations and the cross-unit planner.
+The parallel `diagnostic_units` and `function_units` arrays identify each row's
+compilation context through `unit_contexts` and `observed_units`; identical source
+locations in different builds remain separate rows. The summary combines exact
+completed density totals before rounding. It describes known evaluated functions;
+`summary_complete=false` identifies partial scope, and no completed evaluations
+produce `summary=null`, rather than a fabricated clean summary.
+
+`compiler_advisory` retains per-unit evaluations, metric versions, outside-scope
+generated owners and limitations. `planning_input_complete` and
+`planning_required_edits_complete` preserve the planner's independent statuses;
+numeric completion does not imply complete callers or safe rewrites. The full
+clones evidence report remains at `<run_directory>/report.json` for inspection and
+saved replay. This is an extended style report, with compiler metric semantics;
+equal field names do not imply equal legacy density denominators or scores.
+The legacy backend remains the default, available explicitly through
 `--style-engine legacy`. The style-engine option applies only without a subcommand;
 `patterns --engine compiler` retains its separate opt-in route.
 
