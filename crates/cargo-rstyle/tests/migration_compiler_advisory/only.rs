@@ -201,7 +201,7 @@ fn advisory_only_missing_and_generated_dependency_owners_remain_incomplete() {
 }
 
 #[test]
-fn advisory_only_requires_compiler_advisory_and_rejects_strict_consumers() {
+fn advisory_only_requires_compiler_advisory_and_rejects_graph_consumers() {
     let directory = clone_workspace();
     let output = rstyle(directory.path(), &["clones", "--compiler-advisory-only"]);
     checked(&output, 2);
@@ -210,11 +210,9 @@ fn advisory_only_requires_compiler_advisory_and_rejects_strict_consumers() {
         "--fail-on-accepted-pairs",
         "--explain-pairs",
         "--helper-proposals",
-        "--source-rules",
         "--mutation-rules",
         "--mutation-effects",
         "--effect-density",
-        "--guard-clauses",
         "--enum-dispatch",
         "--capability-proposals",
     ] {

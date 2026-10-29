@@ -7,6 +7,7 @@ mod function_extraction;
 mod instance_extraction;
 mod mutations;
 mod only;
+mod only_sources;
 mod patterns;
 mod planning;
 mod propagation;

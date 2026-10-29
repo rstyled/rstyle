@@ -5022,3 +5022,61 @@ C58 Ubuntu jobs are green while its macOS test job is still live at this checkpo
 
 Migration remains active; broader project quality and full captured-owner coverage,
 plus capability-specific legacy retirement gates, remain open.
+
+### C60 — reuse local source consumers in advisory-only captures (2026-10-29)
+
+Advisory-only captures can now request the existing source rules and guard advice,
+including parameter and guard plans. Removing the CLI conflict alone was
+insufficient: raw snapshots lacked original file ownership. The advisory capture
+entry point now optionally reuses the existing file census and compiler source
+buffers/checksums, retaining the same shared ownership and compilation context.
+The full census still uses the same file collector before adding its existing
+namespace, documentation and expansion inputs. Compiler-only captures skip this
+optional census. No second consumer algorithm, parser, hash, strict proof or live
+source fallback is introduced. Strict assessment and matching stay not_requested;
+raw snapshots still cannot be imported as certified UnitStore input.
+
+The existing 256-file/8MiB census limits are unchanged. Explicit source requests
+that exceed those limits fail capture; a regression covers the file limit while
+showing that compiler-only capture still succeeds. Older raw snapshots cannot
+acquire missing ownership during replay. The original PDG run-WizKMH therefore
+retains zero evaluated source/guard rules and 40,584 unavailable rules over all
+13,528 owners, with incomplete coverage and exit 2. No whole-package cleanliness
+is inferred from its zero findings. Existing parameter planning also keeps opaque
+formal-use evidence incomplete even when direct callers and edit regions exist.
+
+project-core-local-source-cases.json freezes four original rstyle-core library
+check signatures before report observation. The explicit study parameter limit
+is 3; the repository default remains 4. The source-enabled full-package capture
+run-VPEfSy agrees on both four-parameter positives and both clean controls, and
+its entire compiler_advisory result equals the matched compiler-only control
+run-QH9TTq. Original source slices match the labels byte for byte. The package
+still has incomplete source/guard coverage: 1,153 assessed of 1,215 expected owners,
+904 evaluated and 2,741 unavailable rules, 806 unavailable suppression/exclusion
+observations, 29 finding assessments and zero guard plans. Findings do not confer
+complete guard coverage. project-advisory-local-source-study.json records scope,
+exact outcomes and limitations.
+
+These are single ordered resource observations, not a benchmark or speedup claim:
+source-enabled capture took 7.52s with 403,360 KiB peak RSS and 44,285,215 bundle bytes;
+compiler-only took 7.05s with 391,600 KiB and 37,730,290 bytes. Source bytes are shared,
+but current transport repeats census metadata per function and reconstructs those
+records on decode; no metadata deduplication gain is claimed. Broader PDG source
+coverage above the existing census budget remains open.
+
+Acceptance covers combined/raw result parity, clean/finding/incomplete exit
+semantics, source/tool-free full and compact replay, strict import rejection,
+missing bundles, generated/opaque bodies, absent ownership and explicit budget
+failure. The first full run passed all 3,479 Rust tests in 225.758s with 5 existing
+skips and passing doc tests. Final Clippy and fmt pass; workspace style has 0
+violations over 9,819 functions. The pattern gate has 0 unreviewed candidates and
+all 13 unfiltered IDs equal main. All 244 offline Python tests pass. Validation logs
+use /tmp/clones-c60-*. The final capture-entry cleanup rerun also passed all 3,479 Rust tests
+in 226.225s, plus doc tests. Final production replay exactly preserves analysis,
+compiler advice, guard plans and strict execution status.
+
+Origin/main 1689392 remains an ancestor, including the complexity changes. The
+previous macOS temporary-parent canonicalization fix remains present; C59 CI
+40868094682 is now green on macOS15 and both Ubuntu runners. No new macOS
+test defect was observed. Migration and capability-specific retirement gates
+remain open.

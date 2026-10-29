@@ -12,38 +12,57 @@ pub fn capture(
     options: &Options<'_>,
     facts: &mut [HirFnFacts],
 ) -> Result<(), String> {
-    let Some(context) = options.unit_context else {
+    let Some(mut census) = file_census(tcx, options)? else {
         return Ok(());
     };
-    let mut captured = local_buffers(tcx, &options.sources)?;
-    captured.sort_by(|a, b| a.path.cmp(&b.path));
 
-    let census = Census {
+    if options
+        .selected()
+        .supports(census::external_imports::CAPABILITY)
+    {
+        census.external_imports = super::external_imports::capture(tcx, &options.sources)?;
+    }
+    if options
+        .selected()
+        .supports(census::documentation::CAPABILITY)
+    {
+        census.documentation = super::documentation_inputs::capture(tcx, &options.sources)?;
+    }
+    if options.selected().supports("rust.cfg-if-module-ownership") {
+        census.expansions = super::module_expansions::capture(tcx, &options.sources)?;
+    }
+    retain(census, facts)
+}
+
+/// Reuse original buffers for local consumers without namespace or proof inputs.
+pub fn capture_files(
+    tcx: TyCtxt<'_>,
+    options: &Options<'_>,
+    facts: &mut [HirFnFacts],
+) -> Result<(), String> {
+    let Some(census) = file_census(tcx, options)? else {
+        return Ok(());
+    };
+    retain(census, facts)
+}
+
+fn file_census(tcx: TyCtxt<'_>, options: &Options<'_>) -> Result<Option<Census>, String> {
+    let Some(context) = options.unit_context else {
+        return Ok(None);
+    };
+    let mut files = local_buffers(tcx, &options.sources)?;
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(Some(Census {
         identity: census::IDENTITY.into(),
         context: context.clone(),
-        files: captured,
-        external_imports: if options
-            .selected()
-            .supports(census::external_imports::CAPABILITY)
-        {
-            super::external_imports::capture(tcx, &options.sources)?
-        } else {
-            Vec::new()
-        },
-        documentation: if options
-            .selected()
-            .supports(census::documentation::CAPABILITY)
-        {
-            super::documentation_inputs::capture(tcx, &options.sources)?
-        } else {
-            Vec::new()
-        },
-        expansions: if options.selected().supports("rust.cfg-if-module-ownership") {
-            super::module_expansions::capture(tcx, &options.sources)?
-        } else {
-            Vec::new()
-        },
-    };
+        files,
+        external_imports: Vec::new(),
+        documentation: Vec::new(),
+        expansions: Vec::new(),
+    }))
+}
+
+fn retain(census: Census, facts: &mut [HirFnFacts]) -> Result<(), String> {
     census::check_budget(&census)?;
     let census = std::sync::Arc::new(census);
     for function in facts {

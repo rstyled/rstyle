@@ -1,0 +1,128 @@
+{
+  "schema": "rstyle.compiler-local-source-cases/1",
+  "source_commit": "8712aae69b4b2e459575d6adf91932e7e231a234",
+  "toolchain": "nightly-2026-09-30",
+  "label_basis": "Frozen from original authored source signatures and preceding source context before production capture or report observation. No detector, scorer, parser, or report was run. Function sources start at fn and exclude preceding documentation, matching original native function spans.",
+  "scope": "Four original rstyle-core library check owners with test=false. Per-owner availability and parameter-rule outcomes only; no whole-package completeness or clean claim.",
+  "study_policy": {
+    "fn_params": {
+      "max_params": 3,
+      "count_self": false
+    },
+    "exclude": [
+      "target/**"
+    ]
+  },
+  "policy_caveat": "This study explicitly lowers max_params to 3 to exercise source-backed positives. The repository policy is max_params=4,count_self=false; neither four-parameter function is claimed to violate repository defaults. Other rule outcomes are outside this label set.",
+  "samples": [
+    {
+      "package": "rstyle-core",
+      "target_name": "rstyle_core",
+      "target_kind": "lib",
+      "test": false,
+      "function": "align::evidence",
+      "source_file": "crates/rstyle-core/src/align.rs",
+      "source_line": 214,
+      "source_column": 1,
+      "attributes": [],
+      "leading_documentation": [
+        "/// Neighbours of `a` that are matched, split into those the counterpart `b` mirrors",
+        "/// (agree) and those it does not (conflict)."
+      ],
+      "source": "fn evidence(ctx: &Ctx<'_>, m: &Matching, a: usize, b: usize) -> (usize, usize) {\n    let sides = [\n        (&ctx.wa.graph.inc[a][..], &ctx.wb.graph.inc[b][..]),\n        (&ctx.wa.graph.out[a][..], &ctx.wb.graph.out[b][..]),\n    ];\n    mirrored(sides, &m.fwd).fold((0, 0), |(agree, conflict), ok| {\n        (agree + usize::from(ok), conflict + usize::from(!ok))\n    })\n}",
+      "unsuppressed": true,
+      "path_excluded": false,
+      "role": "study_limit_positive",
+      "expected": {
+        "available": true,
+        "parameters": 4,
+        "finding_ids": [
+          "fn_params"
+        ]
+      },
+      "manual_rationale": [
+        "Four explicit formals: ctx, m, a and b. Closure parameters inside the body are not function formals.",
+        "This production free function has no self parameter or function attributes and no applicable rstyle-allow(fn_params) preceding comment. Its original workspace-relative path does not match the sole workspace exclusion target/**."
+      ]
+    },
+    {
+      "package": "rstyle-core",
+      "target_name": "rstyle_core",
+      "target_kind": "lib",
+      "test": false,
+      "function": "align::best_partner",
+      "source_file": "crates/rstyle-core/src/align.rs",
+      "source_line": 257,
+      "source_column": 1,
+      "attributes": [],
+      "leading_documentation": [
+        "/// Best unmatched same-color partner of `a`: most mirrored neighbours, then lowest ordinal."
+      ],
+      "source": "fn best_partner(\n    ctx: &Ctx<'_>,\n    m: &Matching,\n    a: usize,\n    kb: &BTreeMap<u64, Vec<usize>>,\n) -> Option<(usize, usize)> {\n    let candidates = kb.get(&ctx.ca[a])?.iter().filter(|b| m.back[**b].is_none());\n    let scored = candidates.map(|b| (evidence(ctx, m, a, *b), *b));\n    let best = scored\n        .filter(|((_, conflict), _)| *conflict == 0)\n        .min_by_key(|((agree, _), b)| (usize::MAX - agree, ctx.ob[*b]))?;\n    Some((best.0.0, best.1))\n}",
+      "unsuppressed": true,
+      "path_excluded": false,
+      "role": "study_limit_positive",
+      "expected": {
+        "available": true,
+        "parameters": 4,
+        "finding_ids": [
+          "fn_params"
+        ]
+      },
+      "manual_rationale": [
+        "Four explicit formals: ctx, m, a and kb. Multi-line signature still has four formals; iterator closure parameters do not add formals.",
+        "This production free function has no self parameter or function attributes and no applicable rstyle-allow(fn_params) preceding comment. Its original workspace-relative path does not match the sole workspace exclusion target/**."
+      ]
+    },
+    {
+      "package": "rstyle-core",
+      "target_name": "rstyle_core",
+      "target_kind": "lib",
+      "test": false,
+      "function": "align::has_edge",
+      "source_file": "crates/rstyle-core/src/align.rs",
+      "source_line": 194,
+      "source_column": 1,
+      "attributes": [],
+      "leading_documentation": [],
+      "source": "fn has_edge(list: &[Nb], node: usize, tag: u64) -> bool {\n    list.iter().any(|nb| nb.node == node && nb.tag == tag)\n}",
+      "unsuppressed": true,
+      "path_excluded": false,
+      "role": "study_limit_equality_negative",
+      "expected": {
+        "available": true,
+        "parameters": 3,
+        "finding_ids": []
+      },
+      "manual_rationale": [
+        "Three explicit formals: list, node and tag. Equality at the explicit study maximum is not a finding.",
+        "This production free function has no self parameter or function attributes and no applicable rstyle-allow(fn_params) preceding comment. Its original workspace-relative path does not match the sole workspace exclusion target/**."
+      ]
+    },
+    {
+      "package": "rstyle-core",
+      "target_name": "rstyle_core",
+      "target_kind": "lib",
+      "test": false,
+      "function": "align::classes",
+      "source_file": "crates/rstyle-core/src/align.rs",
+      "source_line": 233,
+      "source_column": 1,
+      "attributes": [],
+      "leading_documentation": [],
+      "source": "fn classes(colors: &[u64], ordinal: &[usize]) -> BTreeMap<u64, Vec<usize>> {\n    let mut by_color: BTreeMap<u64, Vec<usize>> = BTreeMap::new();\n    for (v, color) in colors.iter().enumerate() {\n        by_color.entry(*color).or_default().push(v);\n    }\n    by_color\n        .values_mut()\n        .for_each(|nodes| nodes.sort_by_key(|v| ordinal[*v]));\n    by_color\n}",
+      "unsuppressed": true,
+      "path_excluded": false,
+      "role": "study_limit_below_negative",
+      "expected": {
+        "available": true,
+        "parameters": 2,
+        "finding_ids": []
+      },
+      "manual_rationale": [
+        "Two explicit formals: colors and ordinal. Loop binders and closure parameters in the body do not add formals.",
+        "This production free function has no self parameter or function attributes and no applicable rstyle-allow(fn_params) preceding comment. Its original workspace-relative path does not match the sole workspace exclusion target/**."
+      ]
+    }
+  ]
+}

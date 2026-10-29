@@ -35,6 +35,8 @@ pub struct Plan {
     pub compiler_advisory: bool,
     #[serde(default)]
     pub compiler_patterns: bool,
+    #[serde(default)]
+    pub local_source_facts: bool,
     pub ledger_schema: String,
     pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     pub root: PathBuf,
@@ -53,6 +55,8 @@ impl Plan {
             compiler_advisory_only: args.compiler_advisory_only,
             compiler_advisory: args.compiler_advisory,
             compiler_patterns: args.compiler_patterns,
+            local_source_facts: args.compiler_advisory_only
+                && (args.source_rules || args.guard_clauses),
             ..self
         }
     }
@@ -156,6 +160,7 @@ fn plan(
         compiler_advisory_only: false,
         compiler_advisory: false,
         compiler_patterns: false,
+        local_source_facts: false,
         ledger_schema: ledger::SCHEMA.into(),
         extraction_profile,
         root,
@@ -627,6 +632,8 @@ fn driver_command(
                 .then_some(("RSTYLE_COMPILER_ADVISORY_ONLY", "1")),
             plan.compiler_patterns
                 .then_some((rstyle_core::advisory::patterns::CAPTURE_ENV, "1")),
+            plan.local_source_facts
+                .then_some(("RSTYLE_LOCAL_SOURCE_FACTS", "1")),
         ];
         command
             .envs(flags.into_iter().flatten())

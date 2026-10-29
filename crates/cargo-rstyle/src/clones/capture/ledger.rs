@@ -61,6 +61,7 @@ mod tests {
             compiler_advisory_only: false,
             compiler_advisory: false,
             compiler_patterns: false,
+            local_source_facts: false,
             ledger_schema: SCHEMA.into(),
             extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile::R0,
             root: "/run".into(),

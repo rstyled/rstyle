@@ -26,8 +26,23 @@ run without source files or compiler tools. Selected dependencies and separate
 check/test contexts keep their original Cargo scope. Compiler reviews, changed
 files, policy reevaluation and baselines use the ordinary advisory workflow.
 
-Pair and native source/effect consumers conflict with this mode; use the ordinary
-combined command to request those analyses. Raw extraction keeps the original
+Source rules and guard advice can be requested alongside this mode with
+`--source-rules` and `--guard-clauses`, including `--parameter-plans` and
+`--guard-plans`. Fresh captures then reuse the existing original file census,
+sharing compiler-owned buffers and checksums. Compiler-only captures retain their
+existing path. Local source capture preserves the census limits of 256 files and
+8MiB per unit; exceeding them fails capture, rather than publishing truncated
+ownership. It captures no namespace/import/documentation/expansion proof inputs.
+All existing source ownership, generated-function, syntax, caller and planning
+coverage checks still apply. Conditional callers and opaque bodies can leave
+planning incomplete even with exact known edit regions.
+
+Replay cannot add a missing census to an older advisory-only capture: source
+assessment remains unknown, with incomplete coverage and exit 2. No live source
+fallback is used. The saved plan records whether local source facts were
+requested; replay keeps the original optional evidence and compilation contexts.
+Pair and native effect/dispatch/capability consumers still require the ordinary
+combined mode. Raw extraction keeps the original
 source/type observations, source ownership, census and generated-source markers.
 It omits strict correspondence and generic/slice instance projections. Raw source
 diagnostics therefore omit correspondence processing; compiler advice uses its

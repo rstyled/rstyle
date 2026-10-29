@@ -328,3 +328,11 @@ trait methods, remapped or ambiguous ownership and exhausted identities remain
 unavailable. Live and
 source/tool-free saved-run comparison and export use the same policy. These
 limits remain visible prerequisites for any project-wide CI gate.
+
+Source rules and guard advice also support `--compiler-advisory
+--compiler-advisory-only`. Fresh requests capture the same bounded original file
+ownership needed by these consumers, without strict certification or matching.
+Their parameter/guard plans retain the same unknown caller and edit-safety
+boundaries. Older raw snapshots without source ownership remain unavailable;
+replay never fills that gap from live files. See
+[compiler advisory reuse](clones-compiler-advisory.md) for capture limits.

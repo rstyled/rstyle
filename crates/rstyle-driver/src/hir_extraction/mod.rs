@@ -110,7 +110,11 @@ pub fn advisory_crate_facts(
     scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<Vec<HirFnFacts>, String> {
-    collect_crate_facts(tcx, scanned, options, FunctionEvidence::Advisory)
+    let mut facts = collect_crate_facts(tcx, scanned, options, FunctionEvidence::Advisory)?;
+    if rstyle_pdg::diagnostics::switch("RSTYLE_LOCAL_SOURCE_FACTS") {
+        nominal_census::capture_files(tcx, options, &mut facts)?;
+    }
+    Ok(facts)
 }
 
 enum FunctionEvidence {

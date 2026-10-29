@@ -82,7 +82,7 @@ pub struct Args {
     #[serde(skip_serializing_if = "Option::is_none")]
     compiler_complexity_top: Option<std::num::NonZeroUsize>,
     /// Capture compiler advice without strict helper certification, admission or matching.
-    #[arg(long, requires = "compiler_advisory", conflicts_with_all = ["matching_config", "trace", "fail_on_accepted_pairs", "explain_pairs", "helper_proposals", "source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density", "max_pairs"])]
+    #[arg(long, requires = "compiler_advisory", conflicts_with_all = ["matching_config", "trace", "fail_on_accepted_pairs", "explain_pairs", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density", "max_pairs"])]
     compiler_advisory_only: bool,
     /// Reuse compiler graphs and existing core abstraction proposal policy; advisory only.
     #[arg(long, requires = "compiler_advisory")]

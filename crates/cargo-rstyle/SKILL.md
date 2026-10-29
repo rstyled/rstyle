@@ -394,7 +394,12 @@ Compiler patterns/plans and their review/baseline workflows still work. Strict
 execution is `not_requested`, raw artifacts have no strict namespace, and replay
 requires the original mode. Omitted records are not complete empty inventories.
 Missing/generated owners and unresolved calls remain incomplete, including in
-test builds. Pair and native source/effect consumers require the combined mode;
+test builds. Source rules/guard advice and their parameter/guard plans can run
+in advisory-only mode. Fresh requests reuse the existing original file census
+within its256-file/8MiB limits; compiler-only requests omit it. Older raw captures
+without that ownership stay unknown on source replay. Exact known regions do not
+establish complete caller/planning coverage. Pair and native effect/dispatch/
+capability consumers still require the combined mode;
 ordinary raw/strict capture and explicit instance diagnostics retain their records
 and existing census budgets. Large advisory captures can publish useful findings
 without establishing complete coverage or a clean result.
