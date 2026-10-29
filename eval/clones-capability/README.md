@@ -421,3 +421,49 @@ and contribution behavior are independently checked by the shared scorer tests
 and the advisory CLI fixtures, including source-free replay, suppressions,
 exclusions, exact reviews and changed-limit staleness. Offline reducer tests run
 with the existing Python unittest discovery command.
+
+### Large-project complexity quality (C49)
+
+`project-pdg-complexity-cases.json` freezes four original `rstyle-pdg` library
+owners against the same metric 6/policy 1/default 12 limits. Labels were audited
+from source before comparing target scores, then associated with the explicitly
+saved C48 run `run-WizKMH`. That capture already existed; this is an independent
+source-label comparison, not a prospective capture experiment. All four exact
+source strings match the captured inventory without metadata corrections.
+
+The existing reducer finds eight agreements: four positive rule outcomes on
+`check_contents` (CC 24 / COG 17) and `recursive_element` (19 / 18), and four
+negative outcomes on `check` and `check_nominal_fields`. Expected clean scores
+are source labels; observed clean outcomes do not claim numeric measurements.
+The project has 7,034 measured owners, 6,494 unavailable owners and 142 unresolved
+callees. These eight outcomes do not establish whole-project quality or cleanliness.
+
+```sh
+python3 eval/clones-capability/compiler_complexity.py \
+  --report /tmp/clones-advisory-function-measure/pdg-after.json \
+  --labels eval/clones-capability/project-pdg-complexity-cases.json \
+  --output /tmp/project-pdg-complexity-results.json
+python3 -m unittest discover -s eval/clones-capability -p 'test_*.py'
+```
+
+For a fresh capture use the C42 command with `-p rstyle-pdg` and
+`--compiler-advisory-only`, then bind a copy of `labels.run` to that explicit
+new run, retaining the frozen labels. The checked-in results refer only to
+`run-WizKMH`. The raw capture and command/resource observations are described in
+`docs/performance/advisory-function-enrichment-samples.json`.
+
+`project-pdg-complexity-review-results.json` records three serialized saved-run
+replays using an ephemeral review file outside this repository. Dismissing unit
+0 diagnostic 285 hides exactly the CC finding on `check_contents`; repeated
+lookup retains `hidden_exact`. Raw evaluations and completed plans are unchanged
+(the reviewed report additionally contains visible-diagnostic indices).
+Reevaluating with `[complexity] max_cyclomatic=24, max_cognitive=12` removes that
+CC finding at equality and retains its COG 17 finding. All replays exit 2 because
+the original scope remains incomplete.
+
+Retained review **status remains unavailable**: the existing original-owner
+population exhausts its 4,096-identity budget on this project. This study therefore
+does not verify changed-policy staleness or pruning. No budget increase, ignore,
+suppression, repository dismissal, new collector/scorer or checksum was added.
+The next bounded improvement is retained-owner observation reuse/selection while
+preserving complete ambiguity checks and unavailable outcomes.

@@ -1,0 +1,118 @@
+{
+  "schema": "rstyle.compiler-complexity-cases/1",
+  "run": "run-WizKMH",
+  "toolchain": "nightly-2026-09-30",
+  "metrics": "rstyle.compiler-style-metrics/6",
+  "complexity_policy_version": 1,
+  "limits": {
+    "max_cyclomatic": 12,
+    "max_cognitive": 12
+  },
+  "label_basis": "Source-only audit frozen before comparing any target measurement; no scorer executed and no captured scores consulted. Reuse an explicit already-captured run whose selected project source is unchanged. Raw extraction and numeric finding quality are separate.",
+  "scope": "Four original rstyle-pdg library check owners; test=false. Independent rule outcomes only, no whole-project clean claim.",
+  "policy_sources": [
+    "docs/complexity.md",
+    "crates/rstyle-core/src/complexity.rs",
+    "crates/rstyle-driver/src/driver_complexity.rs"
+  ],
+  "samples": [
+    {
+      "package": "rstyle-pdg",
+      "target_name": "rstyle_pdg",
+      "target_kind": "lib",
+      "test": false,
+      "function": "data_types::check_contents",
+      "source_file": "crates/rstyle-pdg/src/data_types.rs",
+      "source_line": 518,
+      "source_column": 1,
+      "attributes": [],
+      "source": "fn check_contents(token: &TypeToken, depth: usize, entries: &mut usize) -> Result<(), String> {\n    match token {\n        TypeToken::NonZero(observation) => observation.check_shape(),\n        TypeToken::MutableScalar(value) if depth == 0 && value == \"usize\" => Ok(()),\n        TypeToken::Scalar(value)\n            if scalar(value) || depth == 0 && matches!(value.as_str(), \"char\" | \"f32\" | \"f64\") =>\n        {\n            Ok(())\n        }\n        TypeToken::NeverError => Ok(()),\n        TypeToken::Tuple(values) => check_tuple(values, depth, entries),\n        TypeToken::Result { ok, err } => check_result(ok, err, depth, entries),\n        TypeToken::Str => Ok(()),\n        TypeToken::RangeUsize | TypeToken::RangeToUsize | TypeToken::RangeFromUsize\n            if depth == 0 =>\n        {\n            Ok(())\n        }\n        TypeToken::FieldlessEnum { nominal, variants }\n            if nominal\n                .source_identity\n                .as_ref()\n                .is_some_and(|id| !id.is_empty())\n                && !variants.is_empty()\n                && variants.len() <= crate::concrete_types::MAX_FIELDS =>\n        {\n            check_fieldless_variants(variants)\n        }\n        TypeToken::IntConversionResult(value)\n            if matches!(value.as_str(), \"usize\" | \"u16\" | \"u64\") =>\n        {\n            Ok(())\n        }\n        TypeToken::SliceArrayResult { length, .. }\n            if *length <= crate::concrete_types::MAX_FIELDS as u64 =>\n        {\n            Ok(())\n        }\n        TypeToken::ScalarProductInstance { .. }\n        | TypeToken::MixedEnum { .. }\n        | TypeToken::Struct { .. }\n        | TypeToken::Enum { .. } => check_nominal(token, depth, entries),\n        // Admission additionally requires independently verified nominal source/effects.\n        _ => Err(\"Data type token lacks a registered concrete proof\".into()),\n    }\n}",
+      "role": "default_limit_positive",
+      "expected": {
+        "available": true,
+        "policy_version": 1,
+        "cyclomatic": 24,
+        "cognitive": 17,
+        "finding_ids": [
+          "cyclomatic_complexity",
+          "cognitive_complexity"
+        ]
+      },
+      "manual_rationale": [
+        "Thirteen match arms give 12 CC and 1 COG; six guards give 6 CC and 12 COG; five authored boolean operators outside macros give 5 CC and 4 COG. Base CC 1. Opaque matches! syntax and OR patterns are not extra decisions."
+      ]
+    },
+    {
+      "package": "rstyle-pdg",
+      "target_name": "rstyle_pdg",
+      "target_kind": "lib",
+      "test": false,
+      "function": "data_types::recursive_element",
+      "source_file": "crates/rstyle-pdg/src/data_types.rs",
+      "source_line": 633,
+      "source_column": 1,
+      "attributes": [],
+      "source": "fn recursive_element(token: &TypeToken) -> Option<&TypeToken> {\n    match token {\n        TypeToken::NeverConversionResult { ok } if never_conversion_payload(ok) => Some(ok),\n        TypeToken::MappedIntConversionResult { ok } if mapped_int_conversion_payload(ok) => {\n            Some(ok)\n        }\n        TypeToken::Option(payload) if matches!(payload.as_ref(), TypeToken::NonZero(_)) => {\n            Some(payload)\n        }\n        TypeToken::Option(payload)\n            if matches!(payload.as_ref(), TypeToken::ScalarProductInstance { .. }) =>\n        {\n            Some(payload)\n        }\n        TypeToken::Option(payload) if shared_byte_slice(payload.as_ref()) => Some(payload),\n        TypeToken::Array { element, .. }\n        | TypeToken::Shared(element)\n        | TypeToken::Slice(element) => Some(element),\n        TypeToken::Option(payload) if matches!(payload.as_ref(), TypeToken::Shared(value) if matches!(value.as_ref(), TypeToken::Scalar(scalar) if scalar != \"unit\" && crate::concrete_types::scalar(scalar))) => {\n            Some(payload)\n        }\n        TypeToken::Option(payload)\n            if matches!(\n                payload.as_ref(),\n                TypeToken::Tuple(_) | TypeToken::Struct { .. }\n            ) && option_product(payload) =>\n        {\n            Some(payload)\n        }\n        TypeToken::Option(payload) if matches!(payload.as_ref(), TypeToken::Scalar(scalar) if scalar != \"unit\" && crate::concrete_types::scalar(scalar)) => {\n            Some(payload)\n        }\n        _ => None,\n    }\n}",
+      "role": "default_limit_positive",
+      "expected": {
+        "available": true,
+        "policy_version": 1,
+        "cyclomatic": 19,
+        "cognitive": 18,
+        "finding_ids": [
+          "cyclomatic_complexity",
+          "cognitive_complexity"
+        ]
+      },
+      "manual_rationale": [
+        "Ten match arms give 9 CC and 1 COG; eight guards give 8 CC and 16 COG; one outside-macro && gives 1 CC / 1 COG. Base CC 1. Despite name there is no direct self-call; boolean text inside matches! remains opaque."
+      ]
+    },
+    {
+      "package": "rstyle-pdg",
+      "target_name": "rstyle_pdg",
+      "target_kind": "lib",
+      "test": false,
+      "function": "data_types::check",
+      "source_file": "crates/rstyle-pdg/src/data_types.rs",
+      "source_line": 506,
+      "source_column": 1,
+      "attributes": [],
+      "source": "fn check(token: &TypeToken, depth: usize, entries: &mut usize) -> Result<(), String> {\n    *entries += 1;\n    if depth > crate::concrete_types::MAX_DEPTH || *entries > crate::concrete_types::MAX_ENTRIES {\n        return Err(\"Data interface token exceeds recursive budget\".into());\n    }\n    if let Some(element) = recursive_element(token) {\n        return check(element, depth + 1, entries);\n    }\n\n    check_contents(token, depth, entries)\n}",
+      "role": "default_limit_negative",
+      "expected": {
+        "available": true,
+        "policy_version": 1,
+        "cyclomatic": 4,
+        "cognitive": 4,
+        "finding_ids": []
+      },
+      "manual_rationale": [
+        "Two guards give 2 CC / 2 COG; one || gives 1 CC / 1 COG; one actual direct self-call gives 0 CC / 1 COG. Base CC 1. Indirect helper calls are not direct recursion."
+      ]
+    },
+    {
+      "package": "rstyle-pdg",
+      "target_name": "rstyle_pdg",
+      "target_kind": "lib",
+      "test": false,
+      "function": "data_types::check_nominal_fields",
+      "source_file": "crates/rstyle-pdg/src/data_types.rs",
+      "source_line": 669,
+      "source_column": 1,
+      "attributes": [],
+      "source": "fn check_nominal_fields(\n    fields: &[(String, TypeToken)],\n    depth: usize,\n    entries: &mut usize,\n) -> Result<(), String> {\n    let mut names = std::collections::BTreeSet::new();\n    for (name, field) in fields {\n        if name.is_empty() || !names.insert(name) {\n            return Err(\"Invalid nominal field vocabulary\".into());\n        }\n        check(field, depth + 1, entries)?;\n    }\n    Ok(())\n}",
+      "role": "default_limit_negative",
+      "expected": {
+        "available": true,
+        "policy_version": 1,
+        "cyclomatic": 5,
+        "cognitive": 4,
+        "finding_ids": []
+      },
+      "manual_rationale": [
+        "For gives 1 CC / 1 COG, nested guard 1 CC / 2 COG, OR 1 CC / 1 COG and propagation 1 CC / 0 COG. Base CC 1. check is another function, not direct self-recursion."
+      ]
+    }
+  ]
+}

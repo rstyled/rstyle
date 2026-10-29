@@ -4441,3 +4441,54 @@ not yet independently labeled quality. Freeze source construct counts before
 comparing captured measurements; preserve package incompleteness, metric/context
 identity, saved review and baseline semantics. This advances project usefulness
 and disagreement validation rather than requiring another representation change.
+
+
+### C49 — independently label newly reachable project complexity (2026-10-29)
+
+Acceptance/review slice; lead owns the frozen rstyle-pdg labels, existing-reducer
+results, temporary-review study and docs. No production Rust changes. Reuse the
+existing `compiler_complexity.py`, `compiler_quality.py` and completed shared
+core plans/diagnostics; add no scorer, parser, proof, graph copy or checksum.
+
+Four original `data_types` library owners were audited from source before target
+score comparison. Their frozen source strings match the explicit C48 saved run
+`run-WizKMH` exactly. That capture existed before labels were compared; this is
+an independent source-label study, not a prospective capture. Metric 6/policy 1
+and default CC/COG limits 12 are explicit. The existing reducer reports eight
+agreements: four positive outcomes on `check_contents` (24/17) and
+`recursive_element` (19/18), plus four evaluated-no-finding controls on `check`
+and `check_nominal_fields`. Clean numeric expectations remain labels, not
+fabricated observed scores. Results and exact source/rationale are in
+`eval/clones-capability/project-pdg-complexity-{cases,results}.json`.
+
+This validates a bounded sample within the newly reachable project, not all 826
+findings or whole-project quality. Scope remains incomplete: 13,528 captured,
+7,034 measured / 6,494 unavailable owners and 142 unresolved callees. Go behavior,
+broad proposal quality and legacy retirement remain unverified.
+
+Three serialized explicit saved-run replays use a temporary review file outside
+the repository. Unit 0 diagnostic 285 (`check_contents` CC24) becomes
+`hidden_exact` and stays hidden on unchanged lookup. Raw unit evaluations and
+completed plans remain equal (review adds visible diagnostic indices). A policy
+replay with CC limit24/COG limit12 correctly removes the CC equality-boundary
+finding and retains COG17. All replays exit2 for incomplete scope. Retained status
+is **unavailable**, with `Compiler diagnostic identity budget exhausted; uniqueness
+is unknown`: the original-owner status roster exceeds its existing 4,096 limit.
+No staleness/pruning success is claimed. Study outcomes and caveats are in
+`project-pdg-complexity-review-results.json`; no actual repository dismissal,
+ignore, suppression or budget change was made.
+
+Validation: all 198 offline Python tests pass; the existing reducer exits0 with
+8 agreements/0 unavailable/0 disagreements on the declared samples. Three saved
+replays exercise exact review and changed policy. C48's integrated Rust checks
+remain the relevant unchanged-production-code evidence (3,438 tests, zero style
+and reviewed-pattern violations, locked all-target Clippy and formatting); no
+additional full Rust build was needed for this corpus/docs-only increment.
+Reproduction and remaining limits are in `eval/clones-capability/README.md`.
+
+Next ready capability work: reuse/select retained owner observations for status
+on large saved projects without raising budgets or assuming unique identities
+from a truncated prefix. Preserve full target/build-context and duplicate-owner
+checks; exact completed diagnostics already support review lookup, while status
+currently reconstructs a broader bounded population. This is a demonstrated
+headless-workflow limitation. Migration remains active.
