@@ -696,3 +696,56 @@ not evidence of a speedup or a statistical performance conclusion. Four new
 real-Cargo cases cover static, receiver, generic and same-named inherent methods,
 missing/excluded owners, trait aliases, receiver argument planning and source-free
 replay. Existing route/context/collision tests remain unchanged.
+
+## Direct compiler-density quality sample (C30)
+
+Five independently source-labeled functions exercise the existing core density
+metric at depth zero: `clones::capture::save_logs`,
+`lines::preceding_comment_line`, and `diagnostic_process::{collect,emit,tee}`.
+Policies explicitly classify `std::fs::write` and `std::io::` using the existing
+weights. This is a declared direct static-event study, not a semantic purity or
+syscall count. The wrapper `tee` deliberately has no inherited effect at depth
+zero; broader transitive quality remains open.
+
+`project-compiler-density-{probe,boundary,small}-cases.json` froze source,
+authored statements, code lines and direct event counts before reading density
+reports. Limits are respectively 0, 3000 and 500; the last uses the existing
+3-statement/10-line exemptions, while the first two use zero minima. Exact
+source equality uses the existing source inventory without hashes. The pure
+leaf's original doc comments were added to its exact source label after the
+initial unavailable result; code-line and statement expectations did not change.
+
+Repeat each mode explicitly against the same saved capture:
+
+```sh
+# Set mode to probe, boundary, small, or threshold; use a new output directory.
+mode=probe
+CARGO_TARGET_DIR=target python3 scripts/watchdog.py --timeout 180 \
+  --output "/tmp/clones-compiler-density-$mode-replay-1" -- \
+  /usr/bin/time -v target/debug/cargo-rstyle rstyle --format json clones \
+  --extraction-profile hir-data-v3 --compiler-advisory --compiler-plans \
+  --compiler-advisory-config "eval/clones-capability/project-compiler-density-$mode-policy.toml" \
+  --max-pairs 0 --report-detail compact \
+  --replay-run target/rstyle/clones/run-WbHJ11
+python3 eval/clones-capability/compiler_quality.py \
+  --report "/tmp/clones-compiler-density-$mode-replay-1/stdout.log" \
+  --labels "eval/clones-capability/project-compiler-density-$mode-cases.json" \
+  --output "/tmp/clones-compiler-density-$mode-results.json"
+```
+
+Each of the first three modes records three agreements and two denominator
+disagreements in its corresponding `project-compiler-density-*-results.json`.
+The producer reports `save_logs` as four statements/density1500 instead of two/
+3000, and `collect` as five/600 instead of three/1000. Classified positive IO
+event counts agree. The reducer reports denominator disagreement even when a
+size exemption or threshold makes both visible outcomes clean; it never infers
+numeric density from missing diagnostics. These are unresolved discrepancies,
+not passing quality evidence. A fourth threshold2000 probe was chosen after the
+initial mismatch to measure its finding impact, preserving the source labels.
+It misses the expected `save_logs` finding and retains three agreements/two
+disagreements (16.80 seconds, 1,453,616 KiB RSS).
+
+Probe/boundary/small replays take 17.07/16.23/16.15 seconds and peak at
+1,453,368/1,453,400/1,453,588 KiB RSS. Every replay uses the same incomplete
+saved input, metric2, and exits2. Reducer disagreement exits1. No performance
+improvement, full-project precision or complete matching claim follows.

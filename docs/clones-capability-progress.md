@@ -3313,3 +3313,52 @@ reusing completed core evaluations and the existing offline quality reducer.
 Current C27/C28 source labels cover parameters and mutation roots only. Broader
 trait dispatch, generated-owner availability, project quality and capability
 retirement remain open.
+
+## C30: independently review compiler density measurements
+
+Owner/write set: lead owns existing offline quality/policy reducers, frozen
+source labels, explicit study policies/results and docs; independent acceptance
+reviewer supplied source-only labels; reducer reviewer owns only the new Python
+test file. State: delivered quality evidence; two production discrepancies open.
+
+The existing `compiler_quality.py` now accepts direct-only density samples in
+addition to historical parameter/mutation labels. It reuses `legacy_assessment`,
+completed core plan owner associations, and the existing density arithmetic and
+policy validators. A small policy-validator seam retains the old depth-two
+default while this study explicitly requires depth zero. It checks full policy,
+exact independently labeled source bytes, known statement observations and
+weighted positive event details; known-clean results remain outcome-only.
+Missing inputs, source changes, dropped/duplicate owner rosters and unreviewed
+source policy cannot become clean numeric evidence. No Rust runtime algorithm,
+hash, proof, collector, graph or artifact scan was added.
+
+Five source-reviewed original owners cover filesystem writes, generic reading,
+stderr emission, an unclassified leaf and a direct-only wrapper. Three policies
+were frozen before report inspection: all positive densities, the 3000 boundary,
+and the existing 3-statement/10-line size exemptions. Exact source labeling of
+`preceding_comment_line` initially omitted its captured doc comments, making it
+unavailable; including the independently reviewed original comments corrected
+that harness precondition without changing any numeric label. Every policy now
+records three agreements and two statement-denominator disagreements. The event
+counts agree: `save_logs` reports two IO events but four statements instead of
+two (density 1500 instead of 3000); `collect` reports one IO event but five
+statements instead of three (600 instead of 1000). Do not relabel these numbers
+to match the producer. A later explicit 2000 threshold probe measures the
+finding impact of the same frozen source discrepancy: `save_logs` incorrectly
+has no finding instead of the expected density3000 finding.
+
+Read-only pinned-lowering inspection identifies two synthetic bare match arms
+per `?`. Their body spans differ, but both arm spans carry
+`DesugaringKind::QuestionMark`. The current collector counts both before body
+traversal. The next ready semantic fix is to exclude these synthetic arm counts
+while preserving traversal, calls and authored operand statements. It needs a
+new compiler metric version with versions 1/2 replay preserved, not a hash or
+another source/proof pass.
+
+All 134 Python acceptance tests pass
+(`/tmp/clones-compiler-density-python-final-2.log`), including fifteen new density
+controls and unchanged historical parameter/mutation contracts. The Rust
+snapshot is unchanged from integrated-green `cd330e9`; this evidence increment
+does not claim another Rust full-suite run. The saved C28 capture `run-WbHJ11`
+retains metric 2 and incomplete scope/exit 2 for every replay. Study commands,
+resource values and frozen disagreements are recorded in the project study.

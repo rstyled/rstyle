@@ -14,10 +14,10 @@ PATH_KINDS = frozenset(("io", "network", "time", "random", "panic"))
 SUCCESSES = frozenset(("evaluated-agreement", "intentional-difference", "expected-uncovered", "policy-excluded-agreement"))
 
 
-def policy_error(policy):
+def policy_error(policy, *, depths=(2,)):
     if not isinstance(policy, dict) or set(policy) != {"max_density_milli", "min_statements", "min_lines", "transitive_depth", "weights", "paths", "exclude"}:
         return "effective density policy missing or malformed"
-    if any(not nonnegative_integer(policy[key]) for key in ("max_density_milli", "min_statements", "min_lines", "transitive_depth")) or policy["transitive_depth"] != 2:
+    if any(not nonnegative_integer(policy[key]) for key in ("max_density_milli", "min_statements", "min_lines", "transitive_depth")) or policy["transitive_depth"] not in depths:
         return "density numeric policy malformed or unsupported"
     weights, paths = policy["weights"], policy["paths"]
     if not isinstance(weights, dict) or set(weights) != KINDS or any(not nonnegative_integer(value) for value in weights.values()):

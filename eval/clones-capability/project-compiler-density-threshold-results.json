@@ -1,0 +1,187 @@
+{
+  "schema": "rstyle.compiler-quality-observation/1",
+  "sample_complete": true,
+  "run": "run-WbHJ11",
+  "metrics": "rstyle.compiler-style-metrics/2",
+  "effective_config": {
+    "exclude": [
+      "target/**"
+    ],
+    "fn_length": {
+      "max_lines": 50
+    },
+    "fn_params": {
+      "count_self": false,
+      "max_params": 4
+    },
+    "fn_spacing": {
+      "min_statements": 5
+    },
+    "grouping": {
+      "caller_hops": 1,
+      "caller_rules": [
+        "fn_params"
+      ]
+    },
+    "mutation_budget": {
+      "granularity": "root",
+      "max_mutated_targets": 3,
+      "max_mutations_per_target": 3
+    },
+    "side_effects": {
+      "max_density_milli": 2000,
+      "min_lines": 0,
+      "min_statements": 0,
+      "paths": {
+        "io": [
+          "std::fs::write",
+          "std::io::"
+        ],
+        "network": [],
+        "panic": [],
+        "random": [],
+        "time": []
+      },
+      "transitive_depth": 0,
+      "weights": {
+        "global": 2,
+        "io": 3,
+        "mutation": 1,
+        "network": 3,
+        "panic": 0,
+        "random": 1,
+        "time": 1,
+        "unknown": 1,
+        "unsafe": 4
+      }
+    }
+  },
+  "scope_complete": false,
+  "planning_input_complete": false,
+  "counts": {
+    "agreement": 3,
+    "disagreement": 2
+  },
+  "comparisons": [
+    {
+      "package": "cargo-rstyle",
+      "function": "clones::capture::save_logs",
+      "source_file": "crates/cargo-rstyle/src/clones/capture.rs",
+      "key": "function:u0:f671",
+      "rule": "side_effect_density",
+      "expected": {
+        "outcome": "finding",
+        "actual": 3000,
+        "limit": 2000
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "disagreement",
+      "reason": null,
+      "statements": {
+        "expected": 2,
+        "observed": 4
+      }
+    },
+    {
+      "package": "rstyle-core",
+      "function": "lines::preceding_comment_line",
+      "source_file": "crates/rstyle-core/src/lines.rs",
+      "key": "function:u1:f785",
+      "rule": "side_effect_density",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 0,
+        "limit": 2000
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null,
+      "statements": {
+        "expected": 1,
+        "observed": 1
+      }
+    },
+    {
+      "package": "cargo-rstyle",
+      "function": "diagnostic_process::collect",
+      "source_file": "crates/cargo-rstyle/src/diagnostic_process.rs",
+      "key": "function:u0:f2504",
+      "rule": "side_effect_density",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 1000,
+        "limit": 2000
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "disagreement",
+      "reason": null,
+      "statements": {
+        "expected": 3,
+        "observed": 5
+      }
+    },
+    {
+      "package": "cargo-rstyle",
+      "function": "diagnostic_process::emit",
+      "source_file": "crates/cargo-rstyle/src/diagnostic_process.rs",
+      "key": "function:u0:f2507",
+      "rule": "side_effect_density",
+      "expected": {
+        "outcome": "finding",
+        "actual": 4000,
+        "limit": 2000
+      },
+      "observed": {
+        "outcome": "finding",
+        "actual": 4000,
+        "limit": 2000
+      },
+      "result": "agreement",
+      "reason": null,
+      "statements": {
+        "expected": 3,
+        "observed": 3
+      },
+      "events": {
+        "expected": {
+          "io": 4
+        },
+        "observed": {
+          "io": 4
+        }
+      }
+    },
+    {
+      "package": "cargo-rstyle",
+      "function": "diagnostic_process::tee",
+      "source_file": "crates/cargo-rstyle/src/diagnostic_process.rs",
+      "key": "function:u0:f2505",
+      "rule": "side_effect_density",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 0,
+        "limit": 2000
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null,
+      "statements": {
+        "expected": 1,
+        "observed": 1
+      }
+    }
+  ],
+  "measurement_limit": "No-finding rows compare outcomes only; clean numeric values are absent and are never synthesized.",
+  "limitation": "Five selected original owners; direct compiler static-event policy only. No pure/no-write/semantic-effect or whole-project precision claim. Global incomplete scope stays incomplete; no-finding outcomes do not provide numeric density. Code-line labels are source expectations, not independently exported compiler line measurements.",
+  "preconditions": "Original included owners with no source suppressions; full explicit policy and depth zero; missing sources/owners remain unavailable.",
+  "evidence": "/tmp/clones-compiler-density-threshold-replay-1",
+  "label_derivation": "Threshold 2000 chosen after probe revealed statement-denominator disagreement; original source/numeric labels unchanged."
+}

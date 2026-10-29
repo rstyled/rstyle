@@ -1,0 +1,146 @@
+{
+  "schema": "rstyle.compiler-quality-cases/1",
+  "run": "run-WbHJ11",
+  "toolchain": "nightly-2026-09-30",
+  "metrics": "rstyle.compiler-style-metrics/2",
+  "policy": "project-compiler-density-small-policy.toml",
+  "limits": {
+    "side_effect_density": 500
+  },
+  "density_policy": {
+    "max_density_milli": 500,
+    "min_statements": 3,
+    "min_lines": 10,
+    "transitive_depth": 0,
+    "weights": {
+      "mutation": 1,
+      "io": 3,
+      "network": 3,
+      "global": 2,
+      "unsafe": 4,
+      "time": 1,
+      "random": 1,
+      "panic": 0,
+      "unknown": 1
+    },
+    "paths": {
+      "io": [
+        "std::fs::write",
+        "std::io::"
+      ],
+      "network": [],
+      "time": [],
+      "random": [],
+      "panic": []
+    },
+    "exclude": [
+      "target/**"
+    ]
+  },
+  "samples": [
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "clones::capture::save_logs",
+      "source_file": "crates/cargo-rstyle/src/clones/capture.rs",
+      "source": "fn save_logs(capture: &Capture, output: &std::process::Output) -> Result<(), String> {\n    std::fs::write(capture.directory.join(\"cargo.jsonl\"), &output.stdout)\n        .map_err(|e| e.to_string())?;\n    std::fs::write(capture.directory.join(\"cargo.stderr\"), &output.stderr)\n        .map_err(|e| e.to_string())\n}",
+      "unsuppressed": true,
+      "included": true,
+      "basis": "One authored semicolon and one tail; two filesystem write calls, generated try arms excluded.",
+      "density": {
+        "events": {
+          "io": 2
+        },
+        "statements": 2,
+        "code_lines": 6,
+        "complete": true,
+        "exempt": true,
+        "actual": null,
+        "outcome": "evaluated_no_finding"
+      }
+    },
+    {
+      "package": "rstyle-core",
+      "target_kind": "lib",
+      "function": "lines::preceding_comment_line",
+      "source_file": "crates/rstyle-core/src/lines.rs",
+      "source": "/// Picks the line a suppression comment may live on: the nearest line above\n/// `fn_line_index` (0-based) that is not an attribute or doc comment.\npub fn preceding_comment_line(lines: &[&str], fn_line_index: usize) -> String {\n    lines[..fn_line_index.min(lines.len())]\n        .iter()\n        .rev()\n        .map(|line| line.trim())\n        .find(|line| !line.starts_with(\"#[\") && !line.starts_with(\"///\"))\n        .unwrap_or(\"\")\n        .to_string()\n}",
+      "unsuppressed": true,
+      "included": true,
+      "basis": "One authored block tail; bare closure bodies add no block statements; no classified direct effects.",
+      "density": {
+        "events": {},
+        "statements": 1,
+        "code_lines": 9,
+        "complete": true,
+        "exempt": true,
+        "actual": null,
+        "outcome": "evaluated_no_finding"
+      }
+    },
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "diagnostic_process::collect",
+      "source_file": "crates/cargo-rstyle/src/diagnostic_process.rs",
+      "source": "fn collect(mut reader: impl Read) -> io::Result<Vec<u8>> {\n    let mut bytes = Vec::new();\n    reader.read_to_end(&mut bytes)?;\n\n    Ok(bytes)\n}",
+      "unsuppressed": true,
+      "included": true,
+      "basis": "Local bytes declaration, read_to_end statement and Ok tail; one IO trait call; owned locals do not escape.",
+      "density": {
+        "events": {
+          "io": 1
+        },
+        "statements": 3,
+        "code_lines": 5,
+        "complete": true,
+        "exempt": true,
+        "actual": null,
+        "outcome": "evaluated_no_finding"
+      }
+    },
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "diagnostic_process::emit",
+      "source_file": "crates/cargo-rstyle/src/diagnostic_process.rs",
+      "source": "fn emit(bytes: &[u8]) {\n    let mut stderr = io::stderr().lock();\n    let _ = stderr.write_all(bytes);\n    let _ = stderr.flush();\n}",
+      "unsuppressed": true,
+      "included": true,
+      "basis": "Three local statements; stderr, lock, write_all and flush each match the explicitly declared std::io prefix.",
+      "density": {
+        "events": {
+          "io": 4
+        },
+        "statements": 3,
+        "code_lines": 5,
+        "complete": true,
+        "exempt": true,
+        "actual": null,
+        "outcome": "evaluated_no_finding"
+      }
+    },
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "diagnostic_process::tee",
+      "source_file": "crates/cargo-rstyle/src/diagnostic_process.rs",
+      "source": "fn tee(reader: impl Read) -> io::Result<Vec<u8>> {\n    collect(StderrTee(reader))\n}",
+      "unsuppressed": true,
+      "included": true,
+      "basis": "One block tail calling collect; depth zero deliberately does not inherit effects. This is not a purity label.",
+      "density": {
+        "events": {},
+        "statements": 1,
+        "code_lines": 3,
+        "complete": true,
+        "exempt": true,
+        "actual": null,
+        "outcome": "evaluated_no_finding"
+      }
+    }
+  ],
+  "basis": "Source-only manual review completed before reading density diagnostics; full exact source labels preserve the reviewed bodies without hashes.",
+  "limitations": "Five selected original owners; direct compiler static-event policy only. No pure/no-write/semantic-effect or whole-project precision claim. Global incomplete scope stays incomplete; no-finding outcomes do not provide numeric density. Code-line labels are source expectations, not independently exported compiler line measurements.",
+  "preconditions": "Original included owners with no source suppressions; full explicit policy and depth zero; missing sources/owners remain unavailable."
+}

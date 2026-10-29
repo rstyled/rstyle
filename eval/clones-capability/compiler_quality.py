@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from compare import legacy_assessment
+from density_compare import KINDS, label_error, policy_error
 from project_coverage import boolean, integer, load, require, relative_path, unique
 
 
@@ -38,7 +39,7 @@ def validate_planning(report, owners):
     for unit in report['compiler_advisory']['units']:
         diagnostics = unit['evaluation']['diagnostics']
         require(unit['evaluation']['summary']['violations'] == len(diagnostics), 'incomplete diagnostics')
-        for rule in ('fn_params', 'mutated_targets'):
+        for rule in ('fn_params', 'mutated_targets', 'side_effect_density'):
             planned = sum(rule in function['rules'] for key, function in owners.items()
                           if known[key][0] == unit['unit'])
             require(planned == sum(row['rule_id'] == rule for row in diagnostics),
@@ -74,11 +75,13 @@ def sample_owner(report, sample, selected):
                and relative_path(source['source_file'], unit['source_root']) == sample['source_file']]
     if len(sources) != 1:
         return unit, None, 'original source association unavailable or ambiguous'
+    if 'source' in sample and sources[0].get('source') != sample['source']:
+        return unit, None, 'independent source label differs from captured source'
     return unit, owner['key'], None
 
 
-def check_rule(unit, key, function, sample, rule, actual, limit):
-    wanted = {'outcome': 'finding' if actual > limit else 'evaluated_no_finding',
+def check_rule(unit, key, function, sample, rule, actual, limit, expected=None):
+    wanted = expected or {'outcome': 'finding' if actual > limit else 'evaluated_no_finding',
               'actual': actual, 'limit': limit}
     observed = {'outcome': 'evaluated_no_finding'}
     reason = None
@@ -97,12 +100,69 @@ def check_rule(unit, key, function, sample, rule, actual, limit):
             else:
                 wanted['roots'] = sorted(sample['mutated_roots'])
                 observed['roots'] = sorted(row['label'] for row in diagnostic['details'])
+    if observed is not None and observed['outcome'] == 'finding':
+        integer(observed.get('actual'), 'observed actual')
+        integer(observed.get('limit'), 'observed limit')
     agrees = observed is not None and observed['outcome'] == wanted['outcome']
     if agrees and wanted['outcome'] == 'finding':
         agrees = all(observed.get(field) == wanted[field] for field in wanted)
     return {'key': key, 'rule': rule, 'expected': wanted, 'observed': observed,
             'result': 'unavailable' if reason else 'agreement' if agrees else 'disagreement',
             'reason': reason}
+
+
+def density_events(unit, function):
+    diagnostic = next(row for row in unit['evaluation']['diagnostics']
+                      if row['rule_id'] == 'side_effect_density' and row['path'] == function['path']
+                      and row['line'] == function['line'])
+    details = diagnostic.get('details')
+    if not isinstance(details, list) or not details:
+        return None
+    counts = Counter()
+    for detail in details:
+        if not isinstance(detail, dict):
+            return None
+        label = detail.get('label')
+        if not isinstance(label, str) or ': ' not in label or ' (via ' in label:
+            return None
+        kind = label.split(': ', 1)[0]
+        if kind not in KINDS:
+            return None
+        count = integer(detail.get('count'), 'effect detail count')
+        require(count > 0, 'effect detail count must be positive')
+        counts[kind] += count
+    return dict(counts)
+
+
+def check_density(unit, key, function, sample, policy, reason):
+    expected = sample.get('density')
+    error = label_error({'expected': expected}, policy)
+    require(error is None, error)
+    require(expected['complete'] is True, 'density sample requires reviewed complete direct events')
+    require(sample.get('included') is True and isinstance(sample.get('source'), str)
+            and sample['source'], 'density source and inclusion preconditions missing')
+    wanted = {field: expected[field] for field in ('outcome', 'actual')}
+    wanted['limit'] = policy['max_density_milli']
+    if reason:
+        return {'key': key, 'rule': 'side_effect_density', 'expected': wanted,
+                'observed': None, 'result': 'unavailable', 'reason': reason}
+    row = check_rule(unit, key, function, sample, 'side_effect_density',
+                     expected['actual'], policy['max_density_milli'], wanted)
+    observation = next(entry for entry in unit['observations'] if entry['key'] == key)
+    statements = integer(observation.get('statements'), 'observed statements')
+    row['statements'] = {'expected': expected['statements'], 'observed': statements}
+    if row['result'] != 'unavailable' and statements != expected['statements']:
+        row['result'] = 'disagreement'
+    if row['observed'] and row['observed']['outcome'] == 'finding':
+        events = density_events(unit, function)
+        if events is None:
+            row.update(result='unavailable', reason='direct weighted event details unavailable')
+        else:
+            weighted = {kind: count for kind, count in expected['events'].items() if policy['weights'][kind] > 0}
+            row['events'] = {'expected': weighted, 'observed': events}
+            if events != weighted:
+                row['result'] = 'disagreement'
+    return row
 
 
 def compare(report, labels):
@@ -113,16 +173,29 @@ def compare(report, labels):
     boolean(advisory.get('complete'), 'advisory completion')
     require(advisory['schema'] == 'rstyle.compiler-advisory/1', 'wrong advisory schema')
     require(advisory['metrics'] == labels['metrics'], 'different compiler metric')
-    require(set(labels['limits']) == {'fn_params', 'mutated_targets'}, 'unknown rule limits')
+    rules = set(labels['limits'])
+    require(rules and rules <= {'fn_params', 'mutated_targets', 'side_effect_density'}, 'unknown rule limits')
     for rule, limit in labels['limits'].items():
         integer(limit, rule + ' limit')
     require(isinstance(labels['samples'], list) and labels['samples'], 'empty sample')
     config = advisory['effective_config']
-    require(config['fn_params']['max_params'] == labels['limits']['fn_params']
-            and config['fn_params']['count_self'] is False
-            and config['mutation_budget']['max_mutated_targets'] == labels['limits']['mutated_targets']
-            and config['mutation_budget']['granularity'] == 'root'
-            and config['exclude'] == ['target/**'], 'different sample policy')
+    require(config['exclude'] == ['target/**'], 'different sample exclusions')
+    if 'fn_params' in rules:
+        require(config['fn_params']['max_params'] == labels['limits']['fn_params']
+                and config['fn_params']['count_self'] is False, 'different parameter policy')
+    if 'mutated_targets' in rules:
+        require(config['mutation_budget']['max_mutated_targets'] == labels['limits']['mutated_targets']
+                and config['mutation_budget']['granularity'] == 'root', 'different mutation policy')
+    if 'side_effect_density' in rules:
+        density_policy = labels.get('density_policy')
+        error = policy_error(density_policy, depths=(0,))
+        require(error is None, error)
+        observed_policy = {**config['side_effects'], 'exclude': config['exclude']}
+        error = policy_error(observed_policy, depths=(0,))
+        require(error is None, error)
+        require(density_policy['max_density_milli'] == labels['limits']['side_effect_density']
+                and density_policy == observed_policy,
+                'different complete density policy')
     planning = advisory['planning']
     boolean(planning.get('input_complete'), 'planning input completion')
     require(planning['schema'] == 'rstyle.compiler-planning/1', 'wrong planning schema')
@@ -136,11 +209,18 @@ def compare(report, labels):
         require(identity not in seen, 'duplicate label identity')
         seen.add(identity)
         require(sample.get('unsuppressed') is True, 'sample suppression precondition not reviewed')
-        roots = sample['mutated_roots']
-        require(isinstance(roots, list) and all(isinstance(root, str) and root for root in roots)
-                and len(set(roots)) == len(roots), 'invalid independent root labels')
+        measurements = {}
+        if 'fn_params' in rules:
+            measurements['fn_params'] = sample['parameters']
+        if 'mutated_targets' in rules:
+            roots = sample['mutated_roots']
+            require(isinstance(roots, list) and all(isinstance(root, str) and root for root in roots)
+                    and len(set(roots)) == len(roots), 'invalid independent root labels')
+            measurements['mutated_targets'] = len(roots)
         unit, key, reason = sample_owner(report, sample, selected)
-        measurements = {'fn_params': sample['parameters'], 'mutated_targets': len(sample['mutated_roots'])}
+        if 'side_effect_density' in rules:
+            row = check_density(unit, key, owners.get(key), sample, density_policy, reason)
+            rows.append({**{field: sample[field] for field in ('package', 'function', 'source_file')}, **row})
         for rule, actual in measurements.items():
             require(type(actual) is int and actual >= 0, 'invalid source label')
             if reason:
