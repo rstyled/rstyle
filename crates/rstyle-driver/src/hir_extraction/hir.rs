@@ -907,15 +907,12 @@ impl Context<'_> {
         expression: &Expr<'_>,
         callee: rustc_hir::def_id::DefId,
     ) -> Option<rustc_hir::def_id::DefId> {
-        let environment = ty::TypingEnv::post_analysis(self.tcx, expression.hir_id.owner.def_id);
-        ty::Instance::try_resolve(
+        crate::ids::selected_instance(
             self.tcx,
-            environment,
+            expression.hir_id.owner.def_id,
             callee,
             self.typeck.node_args(expression.hir_id),
         )
-        .ok()
-        .flatten()
         .map(|instance| instance.def_id())
     }
 

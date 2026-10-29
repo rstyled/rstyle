@@ -2,7 +2,7 @@
 //! that need no config (`unsafe`, `static mut`, indirect calls).
 
 use crate::args::{self, ParamIndex};
-use crate::extract::{Options, StatementMetric, line_of};
+use crate::extract::{Metric, Options, line_of};
 use crate::ids;
 use rstyle_core::facts::{ArgSource, CallEvent, Edge, EffectEvent, EffectKind};
 use rstyle_core::paths::strip_generics;
@@ -11,7 +11,7 @@ use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_hir::intravisit::{self, Visitor};
 use rustc_hir::{BlockCheckMode, Body, Expr, ExprKind, PatKind, QPath, Stmt, UnsafeSource};
 use rustc_middle::hir::nested_filter::OnlyBodies;
-use rustc_middle::ty::{self, TyCtxt, TypeckResults};
+use rustc_middle::ty::{self, TyCtxt, TypeVisitableExt, TypeckResults};
 use rustc_span::{DesugaringKind, Span};
 use std::path::PathBuf;
 
@@ -56,7 +56,8 @@ pub fn collect<'tcx>(
         owner: def_id.to_def_id(),
         typeck: tcx.typeck(def_id),
         root: options.root.to_path_buf(),
-        statements: options.statements,
+        metric: options.metric,
+        owner: def_id,
         params,
         out,
         generated_depth: 0,
@@ -79,7 +80,8 @@ struct Walker<'tcx> {
     owner: DefId,
     typeck: &'tcx TypeckResults<'tcx>,
     root: PathBuf,
-    statements: StatementMetric,
+    metric: Metric,
+    owner: LocalDefId,
     params: ParamIndex,
     out: BodyFacts,
     /// Nonzero while inside macro/desugaring-generated code. Generated statements
@@ -103,7 +105,7 @@ impl<'tcx> Walker<'tcx> {
         !span.from_expansion() || self.generated_depth == 0
     }
 
-    fn call(&mut self, target: Target, expr: &Expr<'tcx>) {
+    fn call(&mut self, target: Target, declaration: DefId, expr: &Expr<'tcx>) {
         let Target {
             def_id, dynamic, ..
         } = target;
@@ -112,12 +114,16 @@ impl<'tcx> Walker<'tcx> {
             return;
         }
         self.edge(target, expr);
-        if def_id.is_local() {
+        if declaration.is_local() {
             return;
         }
-        let callee = strip_generics(&self.tcx.def_path_str(def_id));
+        // Keep configured external-call and safety classification on the source signature.
+        let callee = strip_generics(&self.tcx.def_path_str(declaration));
         let line = self.line(expr.span);
-        if self.unsafe_depth == 0 && !expr.span.from_expansion() && is_unsafe_fn(self.tcx, def_id) {
+        if self.unsafe_depth == 0
+            && !expr.span.from_expansion()
+            && is_unsafe_fn(self.tcx, declaration)
+        {
             self.effect(
                 EffectKind::Unsafe,
                 format!("call to unsafe fn {callee}"),
@@ -183,11 +189,12 @@ impl<'tcx> Walker<'tcx> {
 
     fn on_call(&mut self, expr: &Expr<'tcx>, callee: &Expr<'tcx>, args: &[Expr<'tcx>]) {
         match self.typeck.expr_ty(callee).kind() {
-            ty::FnDef(def_id, _) => {
+            ty::FnDef(def_id, arguments) => {
                 // `Type::method(recv, ..)`: the receiver is not a parameter in `FnFacts`.
                 let skip = usize::from(has_self(self.tcx, *def_id));
                 let sources = self.sources(args.get(skip..).unwrap_or_default());
-                self.call(target(*def_id, false, sources), expr);
+                let selected = self.selected(*def_id, arguments.skip_binder());
+                self.call(target(selected, false, sources), *def_id, expr);
             }
             ty::Closure(..) | ty::CoroutineClosure(..) => {}
             ty::FnPtr(..) => self.indirect("<fn pointer>", expr),
@@ -203,7 +210,26 @@ impl<'tcx> Walker<'tcx> {
         let dynamic = matches!(receiver_ty.kind(), ty::Dynamic(..));
         let sources = self.sources(args);
 
-        self.call(target(def_id, dynamic, sources), expr);
+        let selected = self.selected(def_id, self.typeck.node_args(expr.hir_id));
+        self.call(target(selected, dynamic, sources), def_id, expr);
+    }
+
+    fn selected(&self, callee: DefId, args: ty::GenericArgsRef<'tcx>) -> DefId {
+        if self.metric != Metric::Advisory
+            || self
+                .tcx
+                .opt_associated_item(callee)
+                .and_then(|item| item.trait_container(self.tcx))
+                .is_none()
+            || args.has_non_region_param()
+            || args.has_infer()
+            || args.has_escaping_bound_vars()
+        {
+            return callee;
+        }
+        ids::selected_instance(self.tcx, self.owner, callee, args)
+            .filter(|instance| matches!(instance.def, ty::InstanceKind::Item(_)))
+            .map_or(callee, |instance| instance.def_id())
     }
 
     fn on_path(&mut self, expr: &Expr<'tcx>, qpath: &QPath<'tcx>) {
@@ -291,7 +317,7 @@ impl<'tcx> Visitor<'tcx> for Walker<'tcx> {
     fn visit_arm(&mut self, arm: &'tcx rustc_hir::Arm<'tcx>) {
         // Block bodies count their own statements/tail; bare-expression arms count as one.
         let bare = !matches!(arm.body.kind, ExprKind::Block(..))
-            && (self.statements == StatementMetric::Legacy
+            && (self.metric == Metric::Legacy
                 || arm.span.desugaring_kind() != Some(DesugaringKind::QuestionMark));
         self.out.statements += usize::from(bare && self.counts(arm.body.span));
         intravisit::walk_arm(self, arm);

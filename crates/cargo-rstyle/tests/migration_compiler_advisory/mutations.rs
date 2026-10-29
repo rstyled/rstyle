@@ -78,7 +78,7 @@ fn expected() -> [(&'static str, &'static [&'static str]); 11] {
 }
 
 fn check_roots(advisory: &Value) {
-    assert_eq!(advisory["metrics"], "rstyle.compiler-style-metrics/3");
+    assert_eq!(advisory["metrics"], "rstyle.compiler-style-metrics/4");
     let evaluation = &advisory["units"][0]["evaluation"];
     let diagnostics = evaluation["diagnostics"].as_array().unwrap();
     for (name, roots) in expected() {

@@ -517,3 +517,15 @@ missing queried owners, suppression/exclusion, selection and version/context/
 policy checks remain in force. Status is read-only; only explicit saved-run prune
 removes eligible review entries. Global incompleteness and export restrictions
 remain unchanged; this numeric result does not establish purity.
+
+
+Compiler advisory metric4 reuses rustc's instance selection during the existing
+collector walk to record concrete ordinary trait implementation call edges.
+Method and UFCS calls feed the existing effect propagation and parameter planner;
+UFCS receivers stay outside the parameter list. External effect-path and safety
+classification keep the original call signature. Generic, dynamic, inferred and
+non-Item targets keep their declaration/unknown behavior. Existing owner, Cargo
+route, generated/missing/excluded and default-body alias handling remains in
+force. Metrics1–3 remain readable with their original measured edges and counts;
+metric drift makes retained diagnostics stale and baseline scopes different.
+This adds no hashing, repeated source proof, graph copy or strict permission.

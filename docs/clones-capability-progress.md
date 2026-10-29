@@ -3782,3 +3782,68 @@ A separate original-source coverage gap affects workspace-shared files outside
 a member package root; it needs a small location-root seam, not another collector.
 These are pending candidates, not delivered capabilities or blanket permission
 to broaden strict extraction.
+
+
+## C39: reuse concrete compiler-selected trait implementation edges
+
+The existing Rust effect collector records trait declaration IDs, losing exact
+implementation edges for concrete calls. The compiler extraction path already
+uses Instance selection. A small shared `ids::selected_instance` seam reuses
+that query in the existing owner/typeck context; strict extraction preserves the
+same query and result handling. The existing single collector walk uses it only
+for advisory concrete trait calls with no non-region parameters, inference or
+escaping bound variables and an ordinary Item result. Method calls use captured
+node arguments; UFCS calls use the callee FnDef arguments. Receiver removal uses
+the original signature. Existing external path policy and unsafe-call classification
+also use the original signature, while the graph edge uses the selected impl.
+
+Collector options now name the cohesive legacy/advisory metric choice instead
+of a statement-only flag. Metric4 records the changed call-edge semantics;
+metrics1–3 remain readable without recomputation or reinterpretation. Historical
+mutation-origin requirements remain intact. Existing exact metric comparisons
+make retained review negatives unavailable across versions and baseline scopes
+drift even for empty inventories. Legacy collectors and strict matching are unchanged.
+
+Five independent live-Cargo tests cover concrete method/UFCS/default calls,
+namesake implementations, effect counts, shared parameter plans and receiver
+mapping, source/tool-free replay, generic/dynamic declarations, omitted/generated/
+excluded implementation owners and configured external-trait effects. They reuse
+the existing propagation fixture and consumers; no new graph algorithm is added.
+Default methods whose selected ID remains the trait declaration retain existing
+alias routing. This does not claim general exact dispatch or broaden strict admission.
+
+`project-compiler-concrete-trait-cases.json` freezes two authored Default-call
+labels plus generic/dynamic controls before fresh capture. On run `run-iI2odI`,
+SideEffectsConfig::default now records the original Weights Default implementation
+edge, and density Policy::default records a resolved direct-dependency edge to
+the original SideEffectsConfig Default implementation. Caller and target authored
+sources match saved metric3 run `run-bS3zMn`; that run had neither edge. The
+source-reviewed Weights leaf has no calls or escaping effects. Generic Decision
+edges and the boxed dyn Fn call events remain equal to baseline. Overall owner
+rosters differ because source changed, so aggregate totals are not a controlled
+gain comparison. The fresh capture has 1,591 known / 2,166 unavailable owners,
+remains incomplete/exit2 and takes 58.93s / 1,787,796KiB. This measures edge/owner
+coverage, not project IO/planner improvement or speedup. The compact result
+artifact records the actual edges and these limits. No hashes, repeated body/type/
+source proofs, artifact scans, body/graph copies or second traversals are added.
+
+Final C39 checkpoint: all 3,387 Rust tests pass in 219.230s, five existing skips,
+and doc tests pass (`/tmp/clones-concrete-trait-tests-final-1.log`). Both original
+NonZero regressions pass. Locked all-target Clippy, fmt and diff checks pass.
+Style is zero over 9,730 functions; reviewed patterns is zero and all thirteen
+unfiltered candidate IDs match C38. All 182 Python tests pass. Logs use
+`/tmp/clones-concrete-trait-{clippy,style,patterns,patterns-unfiltered,python}-final-1`.
+
+Historical saved metric3 run `run-bS3zMn` replays under the exact prior density
+policy and retained review/prune arguments. Every top-level report section equals
+C38 output `/tmp/clones-direct-density-project-current-1/stdout.log`, including
+raw observations, numerical evaluations, plans, review lifecycle, matching and
+accepted pairs. It remains metric3/incomplete/exit2, with no relabeled bundle.
+Evidence is `/tmp/clones-concrete-trait-history-1`; the result artifact records
+this comparison. Linux is verified; macOS and per-capability retirement remain
+pending. No new ignores, suppressions, budgets, thresholds or strict semantics.
+
+Next ready candidate: the original-source location-root seam for workspace-shared
+files outside a member package root. It should reuse the same collector and
+preserve package/build ownership, with frozen outside-package and foreign-file
+controls before implementation. Broader capability and retirement work remains active.

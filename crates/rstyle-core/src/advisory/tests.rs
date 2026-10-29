@@ -113,7 +113,7 @@ fn mutation_origins_require_current_evidence_and_preserve_historical_semantics()
 
 #[test]
 fn historical_statement_counts_and_v2_origin_requirements_are_preserved() {
-    for version in [LEGACY_METRICS, V2_METRICS, METRICS] {
+    for version in [LEGACY_METRICS, V2_METRICS, V3_METRICS, METRICS] {
         let mut raw = original();
         raw["metrics"] = version.into();
         raw["facts"]["statements"] = 5.into();

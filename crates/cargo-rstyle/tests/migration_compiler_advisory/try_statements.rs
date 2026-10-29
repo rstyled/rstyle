@@ -52,7 +52,7 @@ fn fixture() -> (TempDir, Value) {
     assert!(output.status.success(), "{}", stdout(&output));
     assert_eq!(
         report["compiler_advisory"]["metrics"],
-        "rstyle.compiler-style-metrics/3"
+        "rstyle.compiler-style-metrics/4"
     );
     assert_eq!(report["compiler_advisory"]["complete"], true);
     (directory, report)

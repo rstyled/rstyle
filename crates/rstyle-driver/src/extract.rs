@@ -10,20 +10,20 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::{FileName, SourceFile, Span};
 use std::path::Path;
 
-/// Statement-count semantics selected by the consumer, without another HIR walk.
+/// Collector semantics selected by the consumer, without another HIR walk.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum StatementMetric {
+pub(crate) enum Metric {
     /// Preserve the legacy style denominator.
     Legacy,
-    /// Exclude synthetic question-mark arms; other statement counting is unchanged.
-    Authored,
+    /// Authored statements and compiler-selected concrete trait implementation calls.
+    Advisory,
 }
 
 pub(crate) struct Options<'a> {
     pub root: &'a Path,
     pub with_pdg: bool,
     pub complexity: Option<&'a crate::driver_complexity::Functions>,
-    pub statements: StatementMetric,
+    pub metric: Metric,
 }
 
 /// How many lines above a function we look for an `rstyle-allow` comment.
@@ -47,7 +47,7 @@ pub fn crate_facts(
         root,
         with_pdg,
         complexity: Some(complexity),
-        statements: StatementMetric::Legacy,
+        metric: Metric::Legacy,
     };
     let mut facts: Vec<FnFacts> = tcx
         .hir_body_owners()

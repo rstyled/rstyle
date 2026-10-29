@@ -91,6 +91,7 @@ fn historical_metrics_are_readable_but_cannot_establish_current_negatives() {
     for version in [
         rstyle_core::advisory::LEGACY_METRICS,
         rstyle_core::advisory::V2_METRICS,
+        rstyle_core::advisory::V3_METRICS,
     ] {
         let mut previous = snapshot();
         previous.metrics = version.into();

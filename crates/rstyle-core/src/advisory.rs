@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 pub mod patterns;
 
 pub const KEY: &str = "rstyle.compiler-advisory/1";
-pub const METRICS: &str = "rstyle.compiler-style-metrics/3";
+pub const METRICS: &str = "rstyle.compiler-style-metrics/4";
+pub const V3_METRICS: &str = "rstyle.compiler-style-metrics/3";
 pub const V2_METRICS: &str = "rstyle.compiler-style-metrics/2";
 pub const LEGACY_METRICS: &str = "rstyle.compiler-style-metrics/1";
 pub const CAPTURE_ENV: &str = "RSTYLE_COMPILER_ADVISORY";
@@ -16,6 +17,7 @@ pub fn metric_version(value: &str) -> Option<&'static str> {
         METRICS => Some(METRICS),
         LEGACY_METRICS => Some(LEGACY_METRICS),
         V2_METRICS => Some(V2_METRICS),
+        V3_METRICS => Some(V3_METRICS),
         _ => None,
     }
 }
@@ -62,7 +64,10 @@ impl Observation {
                 {
                     require_fields(entry, fields)?;
                     if roster == "mutations"
-                        && matches!(raw["metrics"].as_str(), Some(V2_METRICS | METRICS))
+                        && matches!(
+                            raw["metrics"].as_str(),
+                            Some(V2_METRICS | V3_METRICS | METRICS)
+                        )
                     {
                         require_fields(entry, &["origin"])?;
                     }
