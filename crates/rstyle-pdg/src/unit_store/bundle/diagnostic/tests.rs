@@ -397,3 +397,57 @@ fn failed_raw_publication_flush_cannot_return_a_seal() {
             .contains("advisory flush failure")
     );
 }
+
+#[test]
+fn header_reader_preserves_every_nonbody_field_and_shared_source() {
+    let (original, wire) = encoded();
+    let headers = read_diagnostic_snapshot_headers_phase(
+        &serde_json::to_vec(&wire).unwrap(),
+        "before-helper-certification",
+    )
+    .unwrap();
+    let mut expected = serde_json::to_value(&original).unwrap();
+    for (value, facts) in expected.as_array_mut().unwrap().iter_mut().zip(&original) {
+        value["body"] = serde_json::to_value(&facts.body.hir).unwrap();
+    }
+    assert_eq!(serde_json::to_value(&headers).unwrap(), expected);
+    assert!(crate::SourceSnapshot::ptr_eq(
+        headers[0].source.bytes.snapshot_range().unwrap().0,
+        headers[1].source.bytes.snapshot_range().unwrap().0,
+    ));
+}
+
+#[test]
+fn header_reader_preserves_snapshot_reference_and_phase_validation() {
+    let (_, wire) = encoded();
+    let mut bad_schema = wire.clone();
+    bad_schema["schema"] = json!("unknown");
+    let mut bad_source = wire.clone();
+    bad_source["facts"][0]["source"]["snapshot"] = json!(u32::MAX);
+    let mut unused_source = wire.clone();
+    unused_source["sources"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!("unused"));
+    let mut bad_inventory = wire.clone();
+    bad_inventory["inherent_units"] = json!([{}]);
+    let mut extra_field = wire.clone();
+    extra_field["certified"] = json!(true);
+    for malformed in [
+        bad_schema,
+        bad_source,
+        unused_source,
+        bad_inventory,
+        extra_field,
+    ] {
+        let bytes = serde_json::to_vec(&malformed).unwrap();
+        assert!(read_diagnostic_snapshot(&bytes).is_err());
+        assert!(
+            read_diagnostic_snapshot_headers_phase(&bytes, "before-helper-certification").is_err()
+        );
+    }
+    assert!(
+        read_diagnostic_snapshot_headers_phase(&serde_json::to_vec(&wire).unwrap(), "other-phase",)
+            .is_err()
+    );
+}

@@ -1,4 +1,5 @@
 mod authored_ranking;
+mod body_projection;
 mod build_reuse;
 mod owner_reuse;
 mod scoped_diagnostic_baseline;

@@ -381,7 +381,7 @@ impl MemberResolver<'_, '_> {
             let snapshot = self.members.entry(record.key).or_insert_with(|| {
                 let unit = unit(self.ctx.handoff, self.ctx.capture, record)?;
                 super::adapter::member(
-                    &record.facts,
+                    record.facts.full()?,
                     unit,
                     &self.ctx.capture.plan,
                     super::adapter::Policies {

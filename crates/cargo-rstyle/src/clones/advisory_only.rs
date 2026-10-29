@@ -11,17 +11,74 @@ pub(super) fn consume(request: &UnitRequest<'_>, result: &mut Handoff) -> Result
 
     let snapshot = Stage::new("cli.advisory.load_inventory", &unit.target.package, None)
         .observe(|| capture::load_inventory(unit))?;
-    let facts = Stage::new(
+    let stage = Stage::new(
         "cli.advisory.decode",
         &unit.target.package,
         Some(snapshot.bundle.bytes()),
-    )
-    .observe(|| {
-        rstyle_pdg::unit_store::read_diagnostic_snapshot_phase(
-            snapshot.bundle.bytes(),
-            "compiler-advisory-only",
+    );
+    if header_only(request.args) {
+        let facts = stage.observe(|| {
+            rstyle_pdg::unit_store::read_diagnostic_snapshot_headers_phase(
+                snapshot.bundle.bytes(),
+                "compiler-advisory-only",
+            )
+        })?;
+        consume_facts(
+            Decoded {
+                facts,
+                owner: FactOwner::Numeric,
+            },
+            request,
+            &snapshot,
+            result,
         )
-    })?;
+    } else {
+        let facts = stage.observe(|| {
+            rstyle_pdg::unit_store::read_diagnostic_snapshot_phase(
+                snapshot.bundle.bytes(),
+                "compiler-advisory-only",
+            )
+        })?;
+        consume_facts(
+            Decoded {
+                facts,
+                owner: FactOwner::Advisory,
+            },
+            request,
+            &snapshot,
+            result,
+        )
+    }
+}
+
+fn header_only(args: &Args) -> bool {
+    matches!(args.report_detail, report::Detail::Compact)
+        && args.compiler_inputs_requested()
+        && !args.compiler_patterns
+        && !args.source_rules
+        && !args.guard_clauses
+        && !args.mutation_rules
+        && !args.mutation_effects
+        && !args.effect_density
+        && !args.enum_dispatch
+        && !args.capability_proposals
+        && args.review_file.is_none()
+        && !args.compiler_baseline_requested(CompilerBaseline::Diagnostics)
+}
+
+struct Decoded<B> {
+    facts: Vec<HirFnFacts<B>>,
+    owner: fn(Arc<Vec<HirFnFacts<B>>>) -> FactOwner,
+}
+
+fn consume_facts<B: identity::BodyOwner>(
+    decoded: Decoded<B>,
+    request: &UnitRequest<'_>,
+    snapshot: &capture::Snapshot,
+    result: &mut Handoff,
+) -> Result<(), String> {
+    let Decoded { facts, owner } = decoded;
+    let unit = request.unit;
     let context_stage = Stage::new("cli.advisory.context", &unit.target.package, None).enter();
     let selected = selected_context::SelectedContext::new(unit)?;
 
@@ -33,28 +90,30 @@ pub(super) fn consume(request: &UnitRequest<'_>, result: &mut Handoff) -> Result
 
     result
         .source_inventory
-        .extend(source_inventory(unit, &snapshot)?);
+        .extend(source_inventory(unit, snapshot)?);
     result.build_contexts.push(UnitBuildContexts {
         unit_bundle: unit.directory.join("unit.evidence.json"),
         builds,
     });
     context_stage.finish(Ok::<_, String>(()))?;
-    Stage::new("cli.advisory.retain", &unit.target.package, None)
-        .observe(|| retain(Arc::new(facts), request, result))
+    Stage::new("cli.advisory.retain", &unit.target.package, None).observe(|| {
+        let keys = identity::functions(request.id, &facts)?;
+        retain(owner(Arc::new(facts)), keys, request, result)
+    })
 }
 
 fn retain(
-    facts: Arc<Vec<HirFnFacts>>,
+    owner: FactOwner,
+    keys: Vec<FunctionKey>,
     request: &UnitRequest<'_>,
     result: &mut Handoff,
 ) -> Result<(), String> {
-    let keys = identity::functions(request.id, &facts)?;
     for (index, key) in keys.into_iter().enumerate() {
         if !result.keys.insert(key) {
             return Err(format!("duplicate function key {key}"));
         }
         let facts = ReportFacts {
-            owner: FactOwner::Advisory(Arc::clone(&facts)),
+            owner: owner.clone(),
             index,
         };
         let mut record = function_record(facts, key, request.unit, index);

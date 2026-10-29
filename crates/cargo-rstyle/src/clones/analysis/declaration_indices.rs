@@ -32,7 +32,7 @@ impl Indices {
             units
                 .entry(function.key.unit())
                 .or_insert_with(Vec::new)
-                .push(&*function.facts);
+                .push(function.facts.full()?);
         }
         let units = units
             .into_iter()

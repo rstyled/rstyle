@@ -48,7 +48,7 @@ impl<'a> From<&'a Function> for UnavailableFunction<'a> {
     fn from(function: &'a Function) -> Self {
         Self {
             key: &function.key,
-            name: &function.facts.name,
+            name: function.facts.view().name,
             outcome: &function.outcome,
             reasons: &function.reasons,
         }

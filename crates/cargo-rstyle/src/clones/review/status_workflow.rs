@@ -214,7 +214,7 @@ fn helper_observations(ctx: &report::Context<'_>) -> Observations<Context> {
     observe(ctx, |function| {
         let unit = workflow::unit(ctx.handoff, ctx.capture, function)?;
         let member = adapter::member_key(
-            &function.facts,
+            function.facts.full()?,
             unit,
             &ctx.capture.plan,
             adapter::Policies {
@@ -354,7 +354,7 @@ fn local_observations(
     observe(ctx, |function| {
         let unit = workflow::unit(ctx.handoff, ctx.capture, function)?;
         local_adapter::member_key(local_adapter::Input {
-            facts: &function.facts,
+            facts: function.facts.full()?,
             unit,
             plan: &ctx.capture.plan,
             index: inputs.indices.get(function.key.unit())?,

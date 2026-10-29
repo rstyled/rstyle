@@ -910,3 +910,16 @@ inventory load takes1.553s. Peak RSS is about2.16GiB. These measurements identif
 body materialization as the next seam to investigate; they do not demonstrate a
 speedup or validate a compact projection. Exact commands, raw events, memory
 receipts and comparison results are retained in the artifact.
+
+
+### Numeric body retention (C93)
+
+`project-advisory-body-projection-study.json` compares compact numeric advisory
+replays of the unchanged C91 raw snapshot with C92. All three complete decoded
+reports match. Peak RSS falls40.5%, from2,262,520KiB to1,345,272–1,346,084KiB;
+warm wall time is9.35–9.45s versus the retained9.80s observation. The first run
+includes disk input. These are local debug-build measurements, with no broad
+latency or live-capture claim. The artifact retains commands, performance events,
+wall/resource receipts and equality checks. The existing raw schema and typed
+body validation remain; only unrequested tree payload retention changes. Full,
+local, pattern, review, baseline and strict requests retain full bodies.

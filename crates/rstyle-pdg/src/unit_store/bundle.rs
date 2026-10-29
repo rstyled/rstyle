@@ -8,8 +8,8 @@ mod product_instances;
 mod reference_forwarders;
 mod reference_instances;
 pub use diagnostic::{
-    RAW_FACTS_SCHEMA, read_diagnostic_snapshot, read_diagnostic_snapshot_phase,
-    write_diagnostic_snapshot, write_sealed_diagnostic_snapshot,
+    RAW_FACTS_SCHEMA, read_diagnostic_snapshot, read_diagnostic_snapshot_headers_phase,
+    read_diagnostic_snapshot_phase, write_diagnostic_snapshot, write_sealed_diagnostic_snapshot,
 };
 pub use instances::ScalarInstanceReplay;
 pub use product_instances::ProductConstructorReplay;

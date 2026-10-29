@@ -6702,3 +6702,65 @@ Task-owned snapshot contains only the two observational code changes, profile
 artifact and matching migration documentation. No default or analysis policy is
 changed. Next implementation: demand-aware body allocation through the existing
 raw decoder, with metadata equivalence and malformed-input/full-path acceptance.
+
+
+### C93 — retain numeric metadata without full body trees (2026-10-29)
+
+C92 found raw JSON parsing dominant and HIR body payloads occupy two thirds of
+the larger snapshot. Reuse the existing diagnostic reader with a body retention
+choice rather than constructing a second codec. The shared HIR field declaration
+now generates both full and payload-discarding typed readers. The latter validates
+field types, missing/duplicate/unknown fields, nested children and flat preorder
+rosters before retaining the original root HirRef. Existing schema/phase/source
+reference/options/publication checks are unchanged. Binding evidence is still
+retained; no empty or fabricated HIR tree is supplied.
+
+HirFnFacts defaults to its full body type; the numeric reader returns the same
+metadata with HirRef as its body payload. CLI ReportFacts exposes a borrowed view
+for navigation, signature, source diagnostics and compiler observations. Full-body
+consumers request their original facts explicitly and fail honestly if unavailable;
+there is no lazy reparse fallback, metadata clone or fake complete body.
+
+Selection is demand-driven: advisory-only compact numeric diagnostics, plans and
+complexity ranking can use headers. Full reports, local source/guard/mutation/
+effect/dispatch/capability requests, compiler patterns, reviews, baselines and
+strict matching keep full bodies. This introduces no CLI flag, Plan field, schema,
+cache key, hash or analysis-policy version. Existing raw snapshots remain usable.
+The generic extraction selector still inspects only its existing build options.
+
+Three same-C91-snapshot serial replays produce complete decoded reports equal to
+C92, including the authored findings, generated/unavailable rows, plans, contexts,
+source inventory, navigation and exit1. Peak RSS is1,345,272–1,346,084KiB versus
+the retained2,262,520KiB baseline:40.5% lower (about1.28GiB instead of2.16GiB).
+Warm wall times9.35–9.45s compare with the retained9.80s warm baseline. The first
+projection run includes filesystem input and takes9.94s. This is a measured local
+memory improvement with only modest latency movement; it is not a statistical,
+release, whole-workspace, native-platform or live-capture speedup claim. Parsing
+continues to scan and validate body bytes and remains the dominant cost.
+
+Evidence: eval/clones-capability/project-advisory-body-projection-study.json.
+Codec tests cover shallow/deep roots and historical flat-version rejection,
+field types, missing/duplicate/unknown nested fields, malformed flat rosters,
+metadata/source ownership equality and schema/phase/reference validation. Three
+CLI tests compare source-free full/compact numeric findings/plans/ranking and
+original full body/bindings, full/compact local consumers/patterns with honest
+incomplete direct mutation coverage, and resealed malformed bodies in both modes.
+Successful capture remains distinct from failed handoff decoding.
+
+Independent density quality, broader report compatibility, native CI, default
+switching and per-capability retirement remain open. Next measured candidate is
+remaining typed JSON decoding and repeated build-option payloads, using this same
+snapshot before selecting any additional representation change.
+
+CI reconciliation during C93: GitHub run40966130332 for C91/1f83e58 now reports
+success for check(macos-15), check(ubuntu-24.04) and check(ubuntu-24.04-arm).
+C90/72aecc2 run40964064832 also completed successfully. C92/100b03b
+run40967779351 remains in_progress at the latest observation. These results do
+not validate the unpushed C93 diff or change its default-readiness requirements.
+
+Integrated C93 validation: all3,682 Rust tests pass in270.120s with five existing
+skips, plus doctests;247 capability and50 script Python tests pass. Formatting
+and workspace/all-target Clippy pass. Legacy style remains0 violations over
+10,030 functions; the pattern gate passes and unfiltered output preserves the
+same13 candidate IDs as the main-rebase baseline. Native CI for this change
+remains pending. Default behavior and strict matching are unchanged.

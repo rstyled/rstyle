@@ -30,7 +30,13 @@ impl<'a, 'graph> Endpoint<'a, 'graph> {
         if record.outcome != "admitted" || admitted.key != record.key.to_string() {
             return Err("native evidence differs from admitted endpoint");
         }
-        Ok(Self::from_native(admitted, &record.facts))
+        Ok(Self::from_native(
+            admitted,
+            record
+                .facts
+                .full()
+                .map_err(|_| "Original HIR body unavailable")?,
+        ))
     }
 
     fn from_native(admitted: &'graph ImportedFunction, facts: &'a HirFnFacts) -> Self {

@@ -84,7 +84,7 @@ fn identity(
     let record = record.ok_or("Missing original review owner")?;
     let unit = workflow::unit(ctx.handoff, ctx.capture, record)?;
     local_adapter::member_key(local_adapter::Input {
-        facts: &record.facts,
+        facts: record.facts.full()?,
         unit,
         plan: &ctx.capture.plan,
         index: inputs.indices.get(key.unit())?,

@@ -17,7 +17,7 @@ impl Regions {
     fn owner(&mut self, record: &Function) -> Result<&Availability<SourceRegions>, String> {
         let index = record.facts.index;
         if let std::collections::btree_map::Entry::Vacant(entry) = self.owners.entry(index) {
-            entry.insert(planning::inspect_regions(&record.facts)?);
+            entry.insert(planning::inspect_regions(record.facts.full()?)?);
         }
         Ok(&self.owners[&index])
     }
@@ -49,7 +49,7 @@ impl Regions {
             | Availability::NotApplicable { reason } => return Ok(Err(reason.clone())),
         };
 
-        let span = absolute(record.facts.fn_span, span)?;
+        let span = absolute(record.facts.view().fn_span, span)?;
         if span.start < original.span.start || span.end > original.span.end {
             return Err("Caller edit region escapes its original body".into());
         }

@@ -80,7 +80,7 @@ pub(in crate::clones) fn collect(
             let endpoint = originals
                 .get(id.as_str())
                 .ok_or_else(|| "Missing compiler review original owner".into())
-                .and_then(|record| resolver.endpoint(&record.facts, facts));
+                .and_then(|record| resolver.endpoint(record.facts.full()?, facts));
             (id, endpoint)
         })
         .collect();

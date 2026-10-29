@@ -213,7 +213,7 @@ fn located_region(
 
 fn original_region(record: &Function) -> Result<Result<BodyRegion, Unavailable>, String> {
     Ok(
-        match rstyle_pdg::consumer_facts::planning::inspect(&record.facts)? {
+        match rstyle_pdg::consumer_facts::planning::inspect(record.facts.full()?)? {
             Availability::Known(region) => Ok(region),
             Availability::Unknown { reason } => {
                 Err(unavailable(record, FactAvailability::Unknown, reason))

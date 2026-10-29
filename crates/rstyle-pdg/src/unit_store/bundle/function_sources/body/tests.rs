@@ -165,3 +165,68 @@ fn historical_shallow_bundles_preserve_complete_original_records() {
         assert_eq!(imported.functions(), store.functions());
     }
 }
+
+#[test]
+fn headers_validate_shallow_and_deep_bodies_without_retaining_trees() {
+    for depth in [2, 96] {
+        let original = tree(depth);
+        let bytes = serde_json::to_vec(&Export(&original)).unwrap();
+        let header: Import<HeaderNode> = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(header.into_node(true).unwrap(), original.hir);
+        let header: Import<HeaderNode> = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(header.into_node(false).is_ok(), depth < 32);
+    }
+}
+
+#[test]
+fn headers_preserve_full_body_field_validation() {
+    let leaf = serde_json::to_value(node(1, vec![])).unwrap();
+    for field in [
+        "kind",
+        "snippet",
+        "binding",
+        "lit",
+        "ty",
+        "res",
+        "dispatch",
+        "expansion",
+        "span",
+        "hir",
+        "children",
+        "is_unsafe_block",
+    ] {
+        let mut malformed = leaf.clone();
+        malformed[field] = json!(42);
+        let bytes = serde_json::to_vec(&malformed).unwrap();
+        assert!(serde_json::from_slice::<Import>(&bytes).is_err(), "{field}");
+        assert!(
+            serde_json::from_slice::<Import<HeaderNode>>(&bytes).is_err(),
+            "{field}"
+        );
+    }
+    for wire in [
+        json!([]),
+        json!([{"node":leaf,"children":1}]),
+        json!([{"node":leaf,"children":0},{"node":leaf,"children":0}]),
+        json!([{"node":node(2,vec![node(3,vec![])]),"children":0}]),
+        json!([{"node":leaf,"children":0,"extra":true}]),
+    ] {
+        assert!(serde_json::from_value::<Import<HeaderNode>>(wire).is_err());
+    }
+}
+
+#[test]
+fn headers_reject_nested_missing_duplicate_and_unknown_fields() {
+    let leaf = serde_json::to_string(&node(1, vec![])).unwrap();
+    for malformed in [
+        leaf.replacen("\"kind\":", "\"extra\":0,\"kind\":", 1),
+        leaf.replacen("\"kind\":", "\"kind\":\"duplicate\",\"kind\":", 1),
+        leaf.replacen("\"kind\":\"unsupported-1\",", "", 1),
+    ] {
+        let nested = serde_json::to_string(&node(2, vec![]))
+            .unwrap()
+            .replace("\"children\":[]", &format!("\"children\":[{malformed}]"));
+        assert!(serde_json::from_str::<Import>(&nested).is_err());
+        assert!(serde_json::from_str::<Import<HeaderNode>>(&nested).is_err());
+    }
+}

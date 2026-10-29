@@ -97,7 +97,26 @@ fn order(unit: &capture::Unit) -> (&str, &Path, &str, &[String], bool, &[String]
 
 /// HIR owners distinguish definitions within this unit, including expansions.
 /// Display paths and callsite spans are navigation only, not definition identity.
-pub(super) fn functions(unit: UnitId, facts: &[HirFnFacts]) -> Result<Vec<FunctionKey>, String> {
+pub(super) trait BodyOwner {
+    fn owner(&self) -> &rstyle_pdg::HirRef;
+}
+
+impl BodyOwner for rstyle_pdg::HirNode {
+    fn owner(&self) -> &rstyle_pdg::HirRef {
+        &self.hir
+    }
+}
+
+impl BodyOwner for rstyle_pdg::HirRef {
+    fn owner(&self) -> &rstyle_pdg::HirRef {
+        self
+    }
+}
+
+pub(super) fn functions<B: BodyOwner>(
+    unit: UnitId,
+    facts: &[HirFnFacts<B>],
+) -> Result<Vec<FunctionKey>, String> {
     let mut seen = BTreeSet::new();
     facts
         .iter()
@@ -109,7 +128,7 @@ pub(super) fn functions(unit: UnitId, facts: &[HirFnFacts]) -> Result<Vec<Functi
                 .get("source_file")
                 .and_then(serde_json::Value::as_str)
                 .ok_or("missing captured source-file navigation")?;
-            let owner = &function.body.hir;
+            let owner = function.body.owner();
             if !seen.insert((owner.krate, owner.owner)) {
                 return Err("Duplicate compiler function owner in one compilation unit".into());
             }

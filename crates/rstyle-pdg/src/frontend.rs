@@ -102,19 +102,22 @@ pub struct ExpansionSite {
     pub snippet: String,
 }
 
-/// One faithfully recorded HIR construct with resolved evidence.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct HirNode {
+// Keep the full and payload-discarding readers on one exact wire schema.
+macro_rules! hir_node {
+    ($visibility:vis $name:ident, $text:ty, $children:ty, $($derive:ident),+) => {
+        /// One faithfully recorded HIR construct with resolved evidence.
+        #[derive($($derive),+)]
+        #[serde(deny_unknown_fields)]
+        $visibility struct $name {
     /// HIR identity for cross-referencing within this document.
     pub hir: HirRef,
     /// Faithful HIR kind tag (for example `block`, `binary`, `call`).
     /// The classifier interprets these; the walk never pre-classifies.
-    pub kind: String,
+    pub kind: $text,
     /// Function-relative source span.
     pub span: ByteSpan,
     /// Exact source text covered by the span.
-    pub snippet: String,
+    pub snippet: $text,
     /// Resolved value type for typed nodes.
     pub ty: Option<ResolvedTy>,
     /// Path resolution for path expressions and patterns.
@@ -124,19 +127,24 @@ pub struct HirNode {
     /// Call-site evidence for expanded constructs.
     pub expansion: Option<ExpansionSite>,
     /// Binding symbol defined by a binding pattern.
-    pub binding: Option<String>,
+    pub binding: Option<$text>,
     /// Binding-pattern mutability (`mut x` versus `x`).
     pub binding_mut: Option<bool>,
     /// Rendered literal value for literal nodes.
-    pub lit: Option<String>,
+    pub lit: Option<$text>,
     /// Source-order position for parameter nodes.
     pub param_index: Option<u32>,
     /// Whether a block carries an `unsafe` modifier.
     #[serde(default)]
     pub is_unsafe_block: bool,
     /// Nested constructs in source order.
-    pub children: Vec<HirNode>,
+    pub children: $children,
+        }
+    };
 }
+pub(crate) use hir_node;
+
+hir_node!(pub HirNode, String, Vec<HirNode>, Clone, Debug, PartialEq, Eq, Serialize, Deserialize);
 
 impl HirNode {
     /// Observed resolution tag only; this accessor grants no semantic permission.
@@ -328,10 +336,11 @@ impl<Options> BuildFacts<Options> {
     }
 }
 
-/// One assessed function's complete frontend evidence.
+/// One assessed function's frontend evidence; the default retains its complete body.
+/// Numeric readers may retain only the validated original body identity.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct HirFnFacts {
+pub struct HirFnFacts<Body = HirNode> {
     /// Function path for navigation (never a matching label).
     pub name: String,
     /// Span of the whole function within its file, in file bytes.
@@ -342,8 +351,8 @@ pub struct HirFnFacts {
     pub signature: SignatureFacts,
     /// Lexical bindings in walk order.
     pub bindings: Vec<BindingFact>,
-    /// Faithful construct tree of the owned body.
-    pub body: HirNode,
+    /// Original body payload selected by the reader; a tree by default.
+    pub body: Body,
     /// Captured build and semantic-setting evidence.
     pub build: BuildFacts,
     /// Findings from the owned source before expansion and cfg removal.

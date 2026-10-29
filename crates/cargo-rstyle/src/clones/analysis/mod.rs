@@ -482,10 +482,10 @@ fn assess<'a>(
 
     FunctionReport {
         key: function.key,
-        name: &function.facts.name,
+        name: function.facts.view().name,
         source_file: source_file(function),
-        fn_span: function.facts.fn_span,
-        source_digest: &function.facts.source.digest,
+        fn_span: function.facts.view().fn_span,
+        source_digest: &function.facts.view().source.digest,
         changed_file: None,
         signature: match facts.signature {
             Availability::Known(signature) => Some(signature),
@@ -539,6 +539,7 @@ fn source_assessments(
     if matches!(facts.source, Availability::Unsupported { .. })
         && function
             .facts
+            .view()
             .source_diagnostics
             .iter()
             .any(|finding| finding.construct == "macro_generated_function")
@@ -584,16 +585,18 @@ fn inputs(function: &Function, exhausted: bool, statements: bool) -> (Execution,
             unavailable("Analysis function budget exhausted"),
         );
     }
-    let source = function.facts.source.bytes.as_str();
+    let source = function.facts.view().source.bytes.as_str();
     let statements = statements
         && (!rstyle_core::lines::has_blank_line(source)
             || rstyle_pdg::consumer_facts::within_source_budget(source));
 
-    let inspected = if statements {
-        rstyle_pdg::consumer_facts::inspect_with_statements(&function.facts)
-    } else {
-        rstyle_pdg::consumer_facts::inspect(&function.facts)
-    };
+    let inspected = function.facts.full().and_then(|original| {
+        if statements {
+            rstyle_pdg::consumer_facts::inspect_with_statements(original)
+        } else {
+            rstyle_pdg::consumer_facts::inspect(original)
+        }
+    });
     match inspected {
         Ok(facts) => {
             let execution = match facts.execution {
@@ -820,6 +823,7 @@ impl Report<'_> {
 pub(super) fn source_file(function: &Function) -> Option<&str> {
     function
         .facts
+        .view()
         .build
         .frontend_options
         .get("source_file")

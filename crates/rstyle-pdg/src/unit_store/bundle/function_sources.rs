@@ -38,13 +38,13 @@ pub(super) struct Export<'a> {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Import {
+pub(super) struct Import<B = body::Import> {
     name: String,
     fn_span: ByteSpan,
     source: ImportedReference,
     signature: SignatureFacts,
     bindings: Vec<BindingFact>,
-    body: body::Import,
+    body: B,
     build: BuildFacts<option_bundle::Import>,
     source_diagnostics: Vec<HirDiagnostic>,
     source_scan_complete: bool,
@@ -120,13 +120,28 @@ impl ImportedReference {
     }
 }
 
-impl Import {
+pub(super) type FullBody = body::Import;
+pub(super) type Headers = body::Import<body::HeaderNode>;
+
+pub(super) trait BodyImport {
+    type Output;
+    fn into_body(self, flat_bodies: bool) -> Result<Self::Output, String>;
+}
+
+impl<N: body::BodyNode> BodyImport for body::Import<N> {
+    type Output = N::Output;
+    fn into_body(self, flat_bodies: bool) -> Result<Self::Output, String> {
+        self.into_node(flat_bodies)
+    }
+}
+
+impl<B: BodyImport> Import<B> {
     pub(super) fn into_facts(
         self,
         sources: &mut source_table::Imported<'_>,
         inventories: &mut option_bundle::ImportedInventories,
         flat_bodies: bool,
-    ) -> Result<HirFnFacts, String> {
+    ) -> Result<HirFnFacts<B::Output>, String> {
         let bytes = sources.range(self.source.snapshot, self.source.range)?;
         Ok(HirFnFacts {
             name: self.name,
@@ -137,7 +152,7 @@ impl Import {
             },
             signature: self.signature,
             bindings: self.bindings,
-            body: self.body.into_node(flat_bodies)?,
+            body: self.body.into_body(flat_bodies)?,
             build: self
                 .build
                 .try_map_options(|options| options.decode(sources, inventories))?,

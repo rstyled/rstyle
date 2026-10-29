@@ -187,7 +187,7 @@ impl<'a> Context<'a> {
         record: &Function,
         remaining_rows: &mut usize,
     ) -> Result<FunctionUses, String> {
-        let retained = reserve_formals(record.facts.signature.params.len(), remaining_rows);
+        let retained = reserve_formals(record.facts.view().signature.params.len(), remaining_rows);
         let Some(observations) = self.session.observations(record.facts.index) else {
             return Ok(FunctionUses::unavailable(record, retained));
         };
@@ -206,8 +206,8 @@ impl<'a> Context<'a> {
         let complete = matches!(inventory.availability, Availability::Known(()))
             && inventory.coverage == mutations::Coverage::Complete
             && inventory.execution == mutations::Execution::Completed
-            && inventory.formals.len() == record.facts.signature.params.len()
-            && retained == record.facts.signature.params.len();
+            && inventory.formals.len() == record.facts.view().signature.params.len()
+            && retained == record.facts.view().signature.params.len();
         let mut occurrences = self.occurrences(record, observations)?;
         let declarations: BTreeMap<_, _> = observations
             .uses
@@ -245,7 +245,7 @@ impl<'a> Context<'a> {
                 .or_default()
                 .push(Occurrence {
                     native: original.native.clone(),
-                    span: super::regions::absolute(record.facts.fn_span, original.span)?,
+                    span: super::regions::absolute(record.facts.view().fn_span, original.span)?,
                     role: original.role,
                     selected_call,
                     target_resolved: match original.role {
@@ -295,7 +295,7 @@ impl<'a> Context<'a> {
             .map(|target| {
                 Ok(SelectedCall {
                     function: target.key.to_string(),
-                    span: super::regions::absolute(record.facts.fn_span, call.span)?,
+                    span: super::regions::absolute(record.facts.view().fn_span, call.span)?,
                 })
             })
             .transpose()
@@ -321,13 +321,13 @@ impl FunctionUses {
                 Coverage::Incomplete
             },
             execution: if inventory.execution == mutations::Execution::BudgetExhausted
-                || formals.len() < record.facts.signature.params.len()
+                || formals.len() < record.facts.view().signature.params.len()
             {
                 Execution::BudgetExhausted
             } else {
                 Execution::Completed
             },
-            expected_formals: record.facts.signature.params.len(),
+            expected_formals: record.facts.view().signature.params.len(),
             assessed_formals: inventory.formals.len(),
             formals,
             boundaries: inventory
@@ -335,7 +335,7 @@ impl FunctionUses {
                 .iter()
                 .map(|boundary| {
                     Ok(Boundary {
-                        span: super::regions::absolute(record.facts.fn_span, boundary.span)?,
+                        span: super::regions::absolute(record.facts.view().fn_span, boundary.span)?,
                         availability: boundary.availability,
                         reason: boundary.reason.clone(),
                     })
@@ -345,7 +345,7 @@ impl FunctionUses {
     }
 
     fn unavailable(record: &Function, retained: usize) -> Self {
-        let expected = record.facts.signature.params.len();
+        let expected = record.facts.view().signature.params.len();
         Self {
             function: record.key.to_string(),
             availability: Availability::Unknown {
@@ -385,7 +385,7 @@ impl Formal {
         Ok(Self {
             formal,
             declaration: declaration
-                .map(|formal| super::regions::absolute(record.facts.fn_span, formal.span))
+                .map(|formal| super::regions::absolute(record.facts.view().fn_span, formal.span))
                 .transpose()?,
             mutable: declaration.map(|formal| formal.mutable),
             outcome,

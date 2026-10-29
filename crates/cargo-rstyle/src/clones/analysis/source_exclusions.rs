@@ -34,6 +34,7 @@ pub(super) fn evaluate_source(
     }
     let path = function
         .facts
+        .view()
         .build
         .frontend_options
         .get("source_file")

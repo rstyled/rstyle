@@ -91,7 +91,7 @@ fn inspect<'a>(
             let evidence = if ordinal < limit {
                 indices
                     .get(function.key.unit())?
-                    .evaluate_capability_wrapper(&function.facts)?
+                    .evaluate_capability_wrapper(function.facts.full()?)?
             } else {
                 capabilities::Assessment {
                     availability: Availability::Unknown {
@@ -103,14 +103,15 @@ fn inspect<'a>(
             };
             Ok(FunctionReport {
                 key: function.key,
-                name: &function.facts.name,
+                name: function.facts.view().name,
                 source_file: function
                     .facts
+                    .view()
                     .build
                     .frontend_options
                     .get("source_file")
                     .and_then(serde_json::Value::as_str),
-                fn_span: function.facts.fn_span,
+                fn_span: function.facts.view().fn_span,
                 execution: if evidence.budget_exhausted {
                     Execution::BudgetExhausted
                 } else {

@@ -75,7 +75,7 @@ pub(in crate::clones) fn collect(
         originals
             .get(facts.id.as_str())
             .ok_or_else(|| "Missing compiler diagnostic owner".to_string())
-            .and_then(|original| resolver.resolve(facts, &original.facts))
+            .and_then(|original| resolver.resolve(facts, original.facts.full()?))
     };
 
     let (owners, owner_scope_truncated) =

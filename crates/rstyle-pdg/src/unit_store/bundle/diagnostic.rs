@@ -17,12 +17,12 @@ struct Export<'a> {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Import {
+struct Import<B> {
     schema: String,
     phase: String,
     sources: Vec<SourceSnapshot>,
     inherent_units: Vec<serde_json::Value>,
-    facts: Vec<function_sources::Import>,
+    facts: Vec<function_sources::Import<B>>,
 }
 
 /// Stream raw facts through the existing source-reference codec, without graphs.
@@ -57,7 +57,7 @@ pub fn write_sealed_diagnostic_snapshot(
 /// Restore raw evidence and validate local references only. No certificates,
 /// helper summaries, graph pairs, or inherited admission permissions are loaded.
 pub fn read_diagnostic_snapshot(bytes: &[u8]) -> Result<Vec<HirFnFacts>, String> {
-    read_snapshot(bytes, None)
+    read_snapshot::<function_sources::FullBody>(bytes, None)
 }
 
 /// Restore observations only from the explicitly requested publication phase.
@@ -65,12 +65,28 @@ pub fn read_diagnostic_snapshot_phase(
     bytes: &[u8],
     expected: &str,
 ) -> Result<Vec<HirFnFacts>, String> {
-    read_snapshot(bytes, Some(expected))
+    read_snapshot::<function_sources::FullBody>(bytes, Some(expected))
 }
 
-fn read_snapshot(bytes: &[u8], expected: Option<&str>) -> Result<Vec<HirFnFacts>, String> {
-    let wire: Import = crate::diagnostics::Stage::new("diagnostic.parse", "snapshot", Some(bytes))
-        .observe(|| serde_json::from_slice(bytes).map_err(|error| error.to_string()))?;
+/// Read compiler metadata while validating and discarding original HIR payloads.
+/// The body contains only its original root identity, with no fabricated tree.
+pub fn read_diagnostic_snapshot_headers_phase(
+    bytes: &[u8],
+    expected: &str,
+) -> Result<Vec<HirFnFacts<crate::HirRef>>, String> {
+    read_snapshot::<function_sources::Headers>(bytes, Some(expected))
+}
+
+fn read_snapshot<B>(
+    bytes: &[u8],
+    expected: Option<&str>,
+) -> Result<Vec<HirFnFacts<B::Output>>, String>
+where
+    B: function_sources::BodyImport + serde::de::DeserializeOwned,
+{
+    let wire: Import<B> =
+        crate::diagnostics::Stage::new("diagnostic.parse", "snapshot", Some(bytes))
+            .observe(|| serde_json::from_slice(bytes).map_err(|error| error.to_string()))?;
     let restore = crate::diagnostics::Stage::new("diagnostic.restore", "snapshot", None).enter();
     if ![
         RAW_FACTS_SCHEMA,

@@ -124,7 +124,7 @@ impl Resolver<'_, '_, '_> {
         let unit = workflow::unit(self.ctx.handoff, self.ctx.capture, record)?;
         local_adapter::dispatch(
             local_adapter::Input {
-                facts: &record.facts,
+                facts: record.facts.full()?,
                 unit,
                 plan: &self.ctx.capture.plan,
                 index: self.inputs.indices.get(key.unit())?,
@@ -146,7 +146,7 @@ impl Resolver<'_, '_, '_> {
             let unit = workflow::unit(self.ctx.handoff, self.ctx.capture, record)?;
             local_adapter::capability_member(
                 local_adapter::Input {
-                    facts: &record.facts,
+                    facts: record.facts.full()?,
                     unit,
                     plan: &self.ctx.capture.plan,
                     index: self.inputs.indices.get(key.unit())?,

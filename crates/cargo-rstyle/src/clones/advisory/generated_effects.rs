@@ -89,14 +89,15 @@ pub(super) fn read(
     config: &Config,
     root: &std::path::Path,
 ) -> Result<Option<Measurement>, String> {
-    let options = &function.facts.build.frontend_options;
+    let options = &function.facts.view().build.frontend_options;
     let Some(raw) = options.get(CONNECTED_KEY).or_else(|| options.get(KEY)) else {
         return Ok(None);
     };
     let observation = Observation::read(raw)?;
-    if observation.name != function.facts.name
+    if observation.name != function.facts.view().name
         || !function
             .facts
+            .view()
             .source_diagnostics
             .iter()
             .any(|finding| finding.construct == "macro_generated_function")

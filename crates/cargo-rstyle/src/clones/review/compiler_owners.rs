@@ -34,6 +34,7 @@ pub(super) fn originals<'a>(
         .filter_map(|record| {
             record
                 .facts
+                .view()
                 .build
                 .frontend_options
                 .get(rstyle_core::advisory::KEY)?["facts"]["id"]

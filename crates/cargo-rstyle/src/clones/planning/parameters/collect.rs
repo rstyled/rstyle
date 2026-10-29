@@ -48,7 +48,7 @@ pub(super) fn evaluate(
     let selected: BTreeSet<_> = keys.iter().copied().collect();
     let mut use_rows = callers::Limits::default().uses;
 
-    for group in groups(ctx) {
+    for group in groups(ctx)? {
         let targets: Vec<_> = group
             .records
             .values()
@@ -64,10 +64,10 @@ pub(super) fn evaluate(
     Ok(collector.result)
 }
 
-fn groups<'a>(ctx: &report::Context<'a>) -> Vec<Group<'a>> {
+fn groups<'a>(ctx: &report::Context<'a>) -> Result<Vec<Group<'a>>, String> {
     let mut groups: Vec<Group<'a>> = Vec::new();
     for record in &ctx.handoff.assessed {
-        let functions = record.facts.functions();
+        let functions = record.facts.functions()?;
         if let Some(group) = groups
             .iter_mut()
             .find(|group| std::ptr::eq(group.functions, functions))
@@ -81,7 +81,7 @@ fn groups<'a>(ctx: &report::Context<'a>) -> Vec<Group<'a>> {
             });
         }
     }
-    groups
+    Ok(groups)
 }
 
 impl Collector<'_, '_> {
@@ -193,7 +193,7 @@ impl CallCollector<'_, '_, '_> {
                 .iter()
                 .map(|argument| {
                     Ok(Argument {
-                        span: super::regions::absolute(record.facts.fn_span, argument.span)?,
+                        span: super::regions::absolute(record.facts.view().fn_span, argument.span)?,
                         formal: argument.formal.clone(),
                         unchanged_formal: argument.unchanged_formal.clone(),
                     })

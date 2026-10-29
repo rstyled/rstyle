@@ -52,7 +52,7 @@ fn locate<'a>(
     let function = functions
         .get(key)
         .ok_or_else(|| format!("Accepted pair references absent function {key}"))?;
-    let facts = &function.facts;
+    let facts = function.facts.full()?;
     let path = facts
         .build
         .frontend_options

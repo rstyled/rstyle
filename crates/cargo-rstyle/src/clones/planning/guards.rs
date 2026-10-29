@@ -65,7 +65,7 @@ fn plan(
     let record = records
         .get(&finding.0)
         .ok_or("Missing planned guard function")?;
-    let region = match planning::inspect_subregion(&record.facts, finding.1.span)? {
+    let region = match planning::inspect_subregion(record.facts.full()?, finding.1.span)? {
         Availability::Known(original) => located_region(record, ctx, original)?,
         Availability::Unknown { reason } => {
             Err(unavailable(record, FactAvailability::Unknown, reason))

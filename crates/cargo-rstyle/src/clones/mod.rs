@@ -26,7 +26,6 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeSet,
-    ops::Deref,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -435,37 +434,70 @@ struct ReportFacts {
     index: usize,
 }
 
+#[derive(Clone)]
 enum FactOwner {
     Strict(Arc<rstyle_pdg::unit_store::UnitStore>),
     Advisory(Arc<Vec<HirFnFacts>>),
+    Numeric(Arc<Vec<HirFnFacts<rstyle_pdg::HirRef>>>),
+}
+
+/// Borrowed navigation and compiler observations shared by full and numeric inputs.
+struct FactView<'a> {
+    name: &'a str,
+    fn_span: rstyle_pdg::ByteSpan,
+    source: &'a rstyle_pdg::SourceFacts,
+    signature: &'a rstyle_pdg::SignatureFacts,
+    build: &'a rstyle_pdg::BuildFacts,
+    source_diagnostics: &'a [rstyle_pdg::HirDiagnostic],
+}
+
+impl<'a, B> From<&'a HirFnFacts<B>> for FactView<'a> {
+    fn from(facts: &'a HirFnFacts<B>) -> Self {
+        Self {
+            name: &facts.name,
+            fn_span: facts.fn_span,
+            source: &facts.source,
+            signature: &facts.signature,
+            build: &facts.build,
+            source_diagnostics: &facts.source_diagnostics,
+        }
+    }
 }
 
 impl ReportFacts {
-    fn functions(&self) -> &[HirFnFacts] {
+    fn functions(&self) -> Result<&[HirFnFacts], String> {
         match &self.owner {
-            FactOwner::Strict(store) => store.functions(),
-            FactOwner::Advisory(facts) => facts,
+            FactOwner::Strict(store) => Ok(store.functions()),
+            FactOwner::Advisory(facts) => Ok(facts),
+            FactOwner::Numeric(_) => Err("Original HIR bodies were not requested".into()),
+        }
+    }
+
+    fn full(&self) -> Result<&HirFnFacts, String> {
+        Ok(&self.functions()?[self.index])
+    }
+
+    fn view(&self) -> FactView<'_> {
+        match &self.owner {
+            FactOwner::Strict(store) => (&store.functions()[self.index]).into(),
+            FactOwner::Advisory(facts) => (&facts[self.index]).into(),
+            FactOwner::Numeric(facts) => (&facts[self.index]).into(),
         }
     }
 
     fn namespace(&self) -> Option<rstyle_pdg::unit_store::UnitNamespace> {
         match &self.owner {
             FactOwner::Strict(store) => Some(*store.namespace()),
-            FactOwner::Advisory(_) => None,
+            FactOwner::Advisory(_) | FactOwner::Numeric(_) => None,
         }
-    }
-}
-
-impl Deref for ReportFacts {
-    type Target = HirFnFacts;
-    fn deref(&self) -> &HirFnFacts {
-        &self.functions()[self.index]
     }
 }
 
 impl Serialize for ReportFacts {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.deref().serialize(serializer)
+        self.full()
+            .map_err(serde::ser::Error::custom)?
+            .serialize(serializer)
     }
 }
 
@@ -1041,8 +1073,8 @@ fn function_record(
     }
 }
 
-fn verify_frontend_invocation(
-    facts: &HirFnFacts,
+fn verify_frontend_invocation<B>(
+    facts: &HirFnFacts<B>,
     unit: &capture::Unit,
     capture: &capture::Capture,
     selected_context: &selected_context::SelectedContext,
@@ -1077,8 +1109,8 @@ fn verify_frontend_invocation(
     verify_data_compiler_commit(facts, capture)
 }
 
-fn verify_data_compiler_commit(
-    facts: &HirFnFacts,
+fn verify_data_compiler_commit<B>(
+    facts: &HirFnFacts<B>,
     capture: &capture::Capture,
 ) -> Result<(), String> {
     if !capture.plan.extraction_profile.is_data() {

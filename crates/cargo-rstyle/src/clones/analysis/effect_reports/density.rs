@@ -48,7 +48,7 @@ pub(super) fn evaluate(
     let observed = session.observations(function.facts.index);
     let inventory = events::inspect(session, assessment, &settings.side_effects.paths, cache)?;
     let original = if observed.is_some() {
-        Some(consumer_facts::inspect(&function.facts)?)
+        Some(consumer_facts::inspect(function.facts.full()?)?)
     } else {
         None
     };

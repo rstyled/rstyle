@@ -79,7 +79,7 @@ fn evaluate_functions<'a>(
             } else {
                 let assessment = indices
                     .get(function.key.unit())?
-                    .evaluate(&function.facts)?;
+                    .evaluate(function.facts.full()?)?;
                 Ok(assess(function, assessment))
             }
         })
@@ -113,9 +113,9 @@ fn assess(function: &Function, assessment: dispatch::Assessment) -> FunctionRepo
     };
     FunctionReport {
         key: function.key,
-        name: &function.facts.name,
+        name: function.facts.view().name,
         source_file: super::source_file(function),
-        fn_span: function.facts.fn_span,
+        fn_span: function.facts.view().fn_span,
         execution: Execution::Completed,
         outcome,
         coverage: if outcome == Outcome::NotEvaluated {
@@ -136,9 +136,9 @@ fn unavailable<'a>(
 ) -> FunctionReport<'a> {
     FunctionReport {
         key: function.key,
-        name: &function.facts.name,
+        name: function.facts.view().name,
         source_file: super::source_file(function),
-        fn_span: function.facts.fn_span,
+        fn_span: function.facts.view().fn_span,
         execution,
         outcome: Outcome::NotEvaluated,
         coverage: Coverage::Incomplete,

@@ -116,7 +116,7 @@ pub(super) fn attach(
     facts: &mut FnFacts,
     missing: &mut Vec<Missing>,
 ) -> Result<(), String> {
-    let Some(raw) = function.facts.build.frontend_options.get(KEY) else {
+    let Some(raw) = function.facts.view().build.frontend_options.get(KEY) else {
         missing.push(Missing {
             key: function.key,
             reason: "Compiler pattern graph was not captured".into(),

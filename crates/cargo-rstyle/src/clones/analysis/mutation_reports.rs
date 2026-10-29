@@ -57,14 +57,15 @@ impl<'a> Location<'a> {
     fn new(function: &'a Function) -> Self {
         Self {
             key: function.key,
-            name: &function.facts.name,
+            name: function.facts.view().name,
             source_file: function
                 .facts
+                .view()
                 .build
                 .frontend_options
                 .get("source_file")
                 .and_then(serde_json::Value::as_str),
-            fn_span: function.facts.fn_span,
+            fn_span: function.facts.view().fn_span,
         }
     }
 }
@@ -140,7 +141,7 @@ fn evaluate_functions<'a>(
             } else {
                 assess(
                     function,
-                    mutations::inspect_with_policy(&function.facts)?,
+                    mutations::inspect_with_policy(function.facts.full()?)?,
                     settings,
                     root,
                 )

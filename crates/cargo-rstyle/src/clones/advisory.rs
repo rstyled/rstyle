@@ -705,6 +705,7 @@ impl Collected {
             || ctx.args.compiler_diagnostic_scope == super::CompilerSourceScope::Authored)
             && function
                 .facts
+                .view()
                 .source_diagnostics
                 .iter()
                 .any(|finding| finding.construct == "macro_generated_function")
@@ -917,14 +918,15 @@ impl Unit {
 }
 
 fn observation(function: &super::Function, root: &std::path::Path) -> Result<Observation, String> {
-    let Some(raw) = function.facts.build.frontend_options.get(KEY) else {
+    let Some(raw) = function.facts.view().build.frontend_options.get(KEY) else {
         return Ok(Observation::Unavailable {
             reason: "Compiler advisory observations were not captured".into(),
         });
     };
     let mut observation = Observation::read(raw)?;
     if let Observation::Known { facts, metrics } = &mut observation {
-        if facts.name != function.facts.name || facts.source != function.facts.source.bytes.as_str()
+        if facts.name != function.facts.view().name
+            || facts.source != function.facts.view().source.bytes.as_str()
         {
             return Err(
                 "Compiler advisory metrics or source owner disagree with captured function".into(),
@@ -938,7 +940,8 @@ fn observation(function: &super::Function, root: &std::path::Path) -> Result<Obs
                 rstyle_core::advisory::V5_METRICS | rstyle_core::advisory::V6_METRICS | METRICS
             ),
         )?;
-        if facts.params + usize::from(facts.has_self) != function.facts.signature.params.len()
+        if facts.params + usize::from(facts.has_self)
+            != function.facts.view().signature.params.len()
             || facts.param_list.len() != facts.params
             || facts.pdg.is_some()
         {
@@ -990,6 +993,7 @@ fn source_path(
 ) -> Result<String, String> {
     let source = function
         .facts
+        .view()
         .build
         .frontend_options
         .get("source_file")

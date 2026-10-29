@@ -177,7 +177,7 @@ impl<'a> Report<'a> {
         let mut remaining = args
             .max_analysis_functions
             .unwrap_or(effects::Limits::default().functions);
-        let batches = groups(handoff)
+        let batches = groups(handoff)?
             .into_iter()
             .enumerate()
             .map(|(unit, group)| {
@@ -289,10 +289,10 @@ impl<'a> Report<'a> {
     }
 }
 
-fn groups(handoff: &Handoff) -> Vec<Group<'_>> {
+fn groups(handoff: &Handoff) -> Result<Vec<Group<'_>>, String> {
     let mut groups: Vec<Group<'_>> = Vec::new();
     for (ordinal, function) in handoff.assessed.iter().enumerate() {
-        let roster = function.facts.functions();
+        let roster = function.facts.functions()?;
         if let Some(group) = groups
             .iter_mut()
             .find(|group| std::ptr::eq(group.roster, roster))
@@ -305,7 +305,7 @@ fn groups(handoff: &Handoff) -> Vec<Group<'_>> {
             });
         }
     }
-    groups
+    Ok(groups)
 }
 
 struct FunctionRequest<'a, 'r> {
@@ -356,10 +356,10 @@ fn function_report<'a>(
         density,
         key: function.key,
         unit,
-        name: &function.facts.name,
+        name: function.facts.view().name,
         source_file: super::source_file(function),
         changed_file: None,
-        fn_span: function.facts.fn_span,
+        fn_span: function.facts.view().fn_span,
         evidence,
         statement_inventory,
         direct_sites: direct.sites,
@@ -402,7 +402,7 @@ fn inspect_statements(
                 execution: InspectionExecution::BudgetExhausted,
             }
         } else {
-            statement_inventory::inspect(&function.facts)?
+            statement_inventory::inspect(function.facts.full()?)?
         },
     )
 }
