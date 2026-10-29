@@ -46,6 +46,28 @@ def fixture(depth=1):
 
 
 class CompilerPropagatedDensityQualityTests(unittest.TestCase):
+    def test_explicit_propagation_input_target_is_not_substituted(self):
+        report, labels = fixture()
+        report['observed_units'][0]['target']['name'] = 'first'
+        sample = labels['samples'][0]
+        sample['target_name'] = 'first'
+        sample['propagation_inputs'][0]['target_name'] = 'first'
+        self.assertEqual(compare(report, labels)['counts'], {'agreement': 1})
+        sample['propagation_inputs'][0]['target_name'] = 'other'
+        result = compare(report, labels)
+        self.assertEqual(result['counts'], {'unavailable': 1})
+        self.assertIn('propagation input unavailable', result['comparisons'][0]['reason'])
+
+    def test_overlapping_target_selectors_cannot_duplicate_a_propagation_owner(self):
+        report, labels = fixture()
+        report['observed_units'][0]['target']['name'] = 'first'
+        inputs = labels['samples'][0]['propagation_inputs']
+        duplicate = deepcopy(inputs[0])
+        duplicate['target_name'] = 'first'
+        inputs.append(duplicate)
+        with self.assertRaisesRegex(ValueError, 'duplicate completed propagation input'):
+            compare(report, labels)
+
     def test_depth_one_and_two_compare_completed_provenance_without_completing_scope(self):
         for depth in (1, 2):
             with self.subTest(depth=depth):

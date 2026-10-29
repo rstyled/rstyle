@@ -32,7 +32,8 @@
           "source": "/// Neighbours of `a` that are matched, split into those the counterpart `b` mirrors\n/// (agree) and those it does not (conflict).\nfn evidence(ctx: &Ctx<'_>, m: &Matching, a: usize, b: usize) -> (usize, usize) {\n    let sides = [\n        (&ctx.wa.graph.inc[a][..], &ctx.wb.graph.inc[b][..]),\n        (&ctx.wa.graph.out[a][..], &ctx.wb.graph.out[b][..]),\n    ];\n    mirrored(sides, &m.fwd).fold((0, 0), |(agree, conflict), ok| {\n        (agree + usize::from(ok), conflict + usize::from(!ok))\n    })\n}",
           "included": true,
           "unsuppressed": true,
-          "compiler_id": "rstyle_core::align::evidence"
+          "compiler_id": "rstyle_core::align::evidence",
+          "target_name": "rstyle_core"
         },
         {
           "package": "rstyle-core",
@@ -42,7 +43,8 @@
           "source": "/// Edges of `b` into matched nodes that `a` does not mirror.\nfn reverse_conflicts(ctx: &Ctx<'_>, m: &Matching, a: usize, b: usize) -> usize {\n    let sides = [\n        (&ctx.wb.graph.inc[b][..], &ctx.wa.graph.inc[a][..]),\n        (&ctx.wb.graph.out[b][..], &ctx.wa.graph.out[a][..]),\n    ];\n    mirrored(sides, &m.back).filter(|ok| !ok).count()\n}",
           "included": true,
           "unsuppressed": true,
-          "compiler_id": "rstyle_core::align::reverse_conflicts"
+          "compiler_id": "rstyle_core::align::reverse_conflicts",
+          "target_name": "rstyle_core"
         }
       ],
       "definitions": [],
@@ -62,7 +64,8 @@
           "source": "/// `if`, `else if`, `if let` and `match` all become `Case`; patterns spelled as `== literal` and\n/// else-if chains over one scrutinee disappear into the arms.\nfn unify_case(pdg: Pdg) -> Pdg {\n    let lets = contract_lets(pdg);\n    let cases = relabel_cases(literal_scrutinees(lets));\n    flatten_else_if(cases)\n}",
           "included": true,
           "unsuppressed": true,
-          "compiler_id": "rstyle_core::normalize::unify_case"
+          "compiler_id": "rstyle_core::normalize::unify_case",
+          "target_name": "rstyle_core"
         },
         {
           "package": "rstyle-core",
@@ -72,7 +75,8 @@
           "source": "fn counter_loops(pdg: Pdg) -> Pdg {\n    loop_guards(manual_counters(range_loops(pdg)))\n}",
           "included": true,
           "unsuppressed": true,
-          "compiler_id": "rstyle_core::normalize::counter_loops"
+          "compiler_id": "rstyle_core::normalize::counter_loops",
+          "target_name": "rstyle_core"
         }
       ],
       "definitions": [],
@@ -93,7 +97,8 @@
           "source": "fn distinct_in_order(values: &[String]) -> Vec<&String> {\n    let mut seen = BTreeSet::new();\n    values.iter().filter(|v| seen.insert(*v)).collect()\n}",
           "included": true,
           "unsuppressed": true,
-          "compiler_id": "rstyle_core::candidates::distinct_in_order"
+          "compiler_id": "rstyle_core::candidates::distinct_in_order",
+          "target_name": "rstyle_core"
         },
         {
           "package": "rstyle-core",
@@ -103,7 +108,8 @@
           "source": "/// First occurrence of each edge wins, so adding an edge that exists is a no-op.\nfn dedup(edges: Vec<PdgEdge>) -> Vec<PdgEdge> {\n    let mut seen = BTreeSet::new();\n    edges\n        .into_iter()\n        .filter(|e| seen.insert((e.from, e.to, e.kind, e.arg_pos)))\n        .collect()\n}",
           "included": true,
           "unsuppressed": true,
-          "compiler_id": "rstyle_core::normalize::dedup"
+          "compiler_id": "rstyle_core::normalize::dedup",
+          "target_name": "rstyle_core"
         }
       ],
       "definitions": [],

@@ -575,3 +575,47 @@ python3 eval/clones-capability/compiler_proposal_quality.py \
   --output /tmp/closure-project-quality.json
 # Quality exit1 retains the two independently unsuitable emitted proposals.
 ```
+
+### Exact target contexts in shared quality review (C53)
+
+All compiler-quality consumers now honor an optional `target_name` through the
+shared `sample_owner` association: numeric/spacing/density labels, propagation
+inputs, complexity labels, proposal sites/definitions and parameter-plan labels.
+An explicit name must be a nonempty string and match the captured target name
+in addition to package, kind and check/test selectors. Omitted names retain the
+historical unique-context requirement; ambiguity stays unavailable. Numeric
+comparison rows retain explicit target names, and independent labels for the
+same shared function in different targets remain distinct. Overlapping named and
+unnamed selectors cannot double-count a completed root or propagation owner.
+C51 no longer needs
+a separate prefilter. No runtime collection, proof, graph or hash changes.
+
+`target-context-corpus` declares two binary targets that compile one shared
+five-parameter function. `target-context-cases.json` freezes two positive shared
+function outcomes and two clean `main` controls before capture. Locked run
+`run-2ntpNc` has four measured owners, no unavailable owners and complete input
+for that small declared scope. All four checks agree; the previous shared
+association classified all four as ambiguous because it ignored target names.
+`target-context-study.json` records commands and one 0.31s / 90,248KiB capture
+sample, not a production-project quality or speedup claim.
+
+```sh
+target/debug/cargo-rstyle clones \
+  --manifest-path eval/clones-capability/target-context-corpus/Cargo.toml \
+  --extraction-profile hir-data-v3 --locked --compiler-advisory \
+  --compiler-advisory-only --compiler-plans --format json \
+  --report-detail compact > /tmp/target-context-report.json
+# Bind a copy of labels.run to that explicit fresh run, keeping the source labels.
+python3 eval/clones-capability/compiler_quality.py \
+  --report /tmp/target-context-report.json \
+  --labels eval/clones-capability/target-context-cases.json \
+  --output /tmp/target-context-results.json
+```
+
+C49 complexity, C51 parameter-plan and C52 proposal results reproduce exactly
+with their explicit saved report inputs. C52's frozen proposal owner labels now
+also declare `rstyle_core` explicitly. Tests cover wrong/invalid names, two binary
+targets sharing source, missing target-specific inventory, propagated callee
+contexts and both proposal roles. The independent source-only check for a new
+production concrete-trait IO study found generic callers instead; it supplies no
+concrete-dispatch effect/planning quality claim.

@@ -167,6 +167,60 @@ class CompilerQualityTests(unittest.TestCase):
         report['owned_source_inventory'].pop()
         self.assertEqual(compare(report, labels)['counts'], {'agreement': 1, 'unavailable': 1})
 
+    def test_explicit_target_name_is_checked_in_shared_source_association(self):
+        report, labels = spacing_fixture()
+        report['observed_units'][0]['target']['name'] = 'first'
+        labels['samples'][0]['target_name'] = 'first'
+        self.assertEqual(compare(report, labels)['counts'], {'agreement': 1})
+        labels['samples'][0]['target_name'] = 'other'
+        self.assertEqual(compare(report, labels)['counts'], {'unavailable': 1})
+        for invalid in (None, '', False, 7):
+            labels['samples'][0]['target_name'] = invalid
+            with self.assertRaises(ValueError):
+                compare(report, labels)
+
+    def test_overlapping_named_and_unnamed_selectors_cannot_double_count_an_owner(self):
+        report, labels = spacing_fixture()
+        report['observed_units'][0]['target']['name'] = 'first'
+        duplicate = deepcopy(labels['samples'][0])
+        duplicate['target_name'] = 'first'
+        labels['samples'].append(duplicate)
+        with self.assertRaisesRegex(ValueError, 'duplicate completed source owner'):
+            compare(report, labels)
+
+    def test_same_named_source_in_distinct_targets_keeps_exact_context(self):
+        report, labels = spacing_fixture()
+        report['observed_units'][0]['target']['kind'] = ['bin']
+        labels['samples'][0]['target_kind'] = 'bin'
+        report['observed_units'][0]['target']['name'] = 'first'
+        second = deepcopy(report['compiler_advisory']['units'][0])
+        second.update(unit=1, observations=[{'key': 'function:u1:f0', 'name': 'f'}])
+        second['evaluation'] = {'summary': {'violations': 0}, 'diagnostics': [], 'fix_groups': []}
+        report['compiler_advisory']['units'].append(second)
+        report['unit_contexts'].append({'id': 1, 'observed_unit': 1})
+        observed = deepcopy(report['observed_units'][0])
+        observed['target']['name'] = 'second'
+        report['observed_units'].append(observed)
+        owner = deepcopy(report['functions'][0])
+        owner.update(key='function:u1:f0', unit_evidence={'report_unit': 1})
+        report['functions'].append(owner)
+        inventory = deepcopy(report['owned_source_inventory'][0])
+        inventory['compilation_unit'] = deepcopy(observed['target'])
+        report['owned_source_inventory'].append(inventory)
+        self.assertEqual(compare(report, labels)['counts'], {'unavailable': 1})
+        labels['samples'][0]['target_name'] = 'first'
+        sample = deepcopy(labels['samples'][0])
+        sample.update(target_name='second', spacing={
+            'outcome': 'evaluated_no_finding', 'actual': 5, 'limit': 4})
+        labels['samples'].append(sample)
+        result = compare(report, labels)
+        self.assertEqual(result['counts'], {'agreement': 2})
+        self.assertEqual([row['key'] for row in result['comparisons']],
+                         ['function:u0:f0', 'function:u1:f0'])
+        self.assertEqual([row['target_name'] for row in result['comparisons']], ['first', 'second'])
+        report['owned_source_inventory'].pop()
+        self.assertEqual(compare(report, labels)['counts'], {'agreement': 1, 'unavailable': 1})
+
     def test_missing_ambiguous_and_invalid_context_selectors_are_not_guessed(self):
         report, labels = spacing_fixture()
         labels['samples'][0]['test'] = True

@@ -1,0 +1,43 @@
+{
+  "schema": "rstyle.compiler-target-context-study/1",
+  "run": "run-2ntpNc",
+  "toolchain": "nightly-2026-09-30",
+  "metrics": "rstyle.compiler-style-metrics/6",
+  "capture_command": [
+    "target/debug/cargo-rstyle",
+    "clones",
+    "--manifest-path",
+    "eval/clones-capability/target-context-corpus/Cargo.toml",
+    "--extraction-profile",
+    "hir-data-v3",
+    "--locked",
+    "--compiler-advisory",
+    "--compiler-advisory-only",
+    "--compiler-plans",
+    "--format",
+    "json",
+    "--report-detail",
+    "compact"
+  ],
+  "scope": "Two authored binary check targets in one package, shared source compiled separately.",
+  "captured_owners": 4,
+  "unavailable_owners": 0,
+  "scope_complete": true,
+  "capture_exit": 0,
+  "before_shared_source_association": {
+    "unavailable": 4,
+    "reasons": [
+      "missing or ambiguous selected unit"
+    ]
+  },
+  "after": {
+    "agreement": 4
+  },
+  "elapsed_seconds": 0.31,
+  "max_rss_kib": 90248,
+  "limitations": [
+    "Small independent acceptance corpus, not production-project quality or speedup evidence.",
+    "No exact target is inferred when label omits target_name and multiple package/kind/test contexts remain.",
+    "Observed clean outcomes do not synthesize numeric zero."
+  ]
+}

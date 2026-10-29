@@ -82,6 +82,17 @@ def forwarding_fixture():
 
 
 class CompilerProposalQualityTests(unittest.TestCase):
+    def test_explicit_target_name_applies_to_both_proposal_source_roles(self):
+        for role in ('sites', 'definitions'):
+            report, labels = fixture()
+            report['observed_units'][0]['target']['name'] = 'first'
+            sample = labels['samples'][0]
+            for owner in sample['sites'] + sample['definitions']:
+                owner['target_name'] = 'first'
+            self.assertEqual(compare(report, labels)['counts'], {'structural_agreement': 1})
+            sample[role][0]['target_name'] = 'other'
+            self.assertEqual(compare(report, labels)['counts'], {'unavailable': 1})
+
     def test_exact_roles_agree_without_completing_scope(self):
         report, labels = fixture()
         result = compare(report, labels)

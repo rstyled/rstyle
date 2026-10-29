@@ -4639,3 +4639,48 @@ A separate ready quality frontier is real-project effect/planner validation of
 already selected concrete trait targets; existing C39 evidence deliberately
 validates target coverage, not numeric effect/planning improvements. Legacy
 retirement and whole-project completeness remain unverified.
+
+### C53 — share exact target-name association across quality tools (2026-10-29)
+
+Lead owns the existing offline association/comparison helpers, independent
+multi-target corpus, tests and docs. A read-only source reviewer checked the
+proposed production concrete-trait effect study. `StderrTee<R>::read` calls IO
+helper `emit`, but its reader and authored callers stay generic; the driver
+callback's framework caller is not an authored concrete invocation. Those
+sources cannot justify the proposed concrete-dispatch effect/planning claim.
+No source labels or complete counts were manufactured to force that study.
+
+A concrete workflow defect was independently identified: shared `sample_owner`
+ignored explicit target_name labels, while C51 had a local prefilter. The shared
+helper now validates and applies the optional exact name alongside existing
+package/kind/check-test selection. Omitted names still need one unambiguous
+context; wrong/missing/ambiguous matches remain unavailable. Source inventories
+must match that exact captured compilation target. Numeric/spacing/density rows
+retain explicit names, and root/propagation label identities distinguish targets. Overlapping named
+and unnamed selectors cannot double-count one completed owner.
+Complexity, proposal sites/definitions and plans reuse the same association;
+C51's redundant prefilter is removed. No Rust runtime, collector, scoring, proof,
+copy or hashing change is introduced.
+
+The independently authored two-binary corpus compiles one shared five-parameter
+function into first/second plus a clean main per binary. Locked run-2ntpNc has
+four measured owners, no unavailable owners and complete small-scope input.
+All four outcomes agree with source labels, whereas the previous shared helper
+marks all four ambiguous. Existing no-name ambiguity and missing target-specific
+source remain unavailable. A single capture took 0.31s with 90,248KiB RSS; no
+production-project quality or speedup claim follows.
+
+All 214 offline Python tests pass, including new wrong/invalid target, shared
+binary source, propagation input, complexity and proposal role controls.
+C49 saved complexity, C51 saved parameter plans and C52 saved proposal results
+reproduce exactly (C52 retains its intentional quality exit1). C52 owner labels
+now explicitly select rstyle_core. Fixture formatting and diff checks pass.
+Rust is unchanged; C52's 3,446 passing tests, zero style/unreviewed patterns and
+unchanged 13 unfiltered IDs remain the runtime checkpoint evidence. No new
+ignore, suppression, threshold or budget change. Native CI remains separate.
+
+The migration remains active. Real-project concrete trait target coverage is
+verified, but the proposed positive effect/planner production study remains
+unverified because no suitable authored concrete caller was found. Continue
+consumer-led work from demonstrated source/evidence requirements; keep existing
+legacy and strict paths until their individual replacement gates pass.

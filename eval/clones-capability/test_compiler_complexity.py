@@ -30,6 +30,14 @@ def fixture():
 
 
 class CompilerComplexityTests(unittest.TestCase):
+    def test_explicit_source_target_name_is_required_by_shared_association(self):
+        report, labels = fixture()
+        report['observed_units'][0]['target']['name'] = 'first'
+        labels['samples'][0]['target_name'] = 'first'
+        self.assertEqual(compare(report, labels)['counts'], {'agreement': 2})
+        labels['samples'][0]['target_name'] = 'other'
+        self.assertEqual(compare(report, labels)['counts'], {'unavailable': 2})
+
     def test_completed_independent_findings_agree_without_claiming_complete_scope(self):
         report, labels = fixture()
         result = compare(report, labels)

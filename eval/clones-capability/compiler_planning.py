@@ -89,8 +89,7 @@ def compare(report, labels):
     owners = planned_owners(advisory['planning'])
     validate_planning(report, owners, ('fn_params',))
     groups = indexed_plans(report)
-    selected = [(unit, observed) for unit, observed in units(report)
-                if observed['target'].get('name') == labels['target_name']]
+    selected = units(report)
     keys, reasons, rows = {}, {}, []
     samples = unique(labels['samples'], 'function', 'source labels')
     relation = labels['caller_relationship']

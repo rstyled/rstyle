@@ -46,12 +46,21 @@ def validate_planning(report, owners, rules=('fn_params', 'mutated_targets', 'si
                     'incomplete completed rule-owner roster')
 
 
+def target_name(sample):
+    name = sample.get('target_name')
+    require('target_name' not in sample or isinstance(name, str) and bool(name),
+            'invalid sample target name')
+    return name
+
+
 def sample_owner(report, sample, selected):
     test = boolean(sample.get('test', False), 'sample test context')
+    target = target_name(sample)
     candidates = [(unit, observed) for unit, observed in selected
                   if observed['target']['package_context']['name'] == sample['package']
                   and observed['target']['kind'] == [sample['target_kind']]
-                  and observed['test'] is test]
+                  and observed['test'] is test
+                  and (target is None or observed['target'].get('name') == target)]
     if len(candidates) != 1:
         return None, None, 'missing or ambiguous selected unit'
     unit, observed = candidates[0]
@@ -192,18 +201,20 @@ def propagation_reason(report, sample, selected, depth):
     require(sample.get('propagation_reviewed') is True, 'propagation source inventory not reviewed')
     inputs = sample.get('propagation_inputs')
     require(isinstance(inputs, list), 'propagation input roster missing')
-    identities = set()
+    identities, completed = set(), set()
     for entry in inputs:
         require(isinstance(entry, dict) and entry.get('included') is True
                 and entry.get('unsuppressed') is True and isinstance(entry.get('source'), str)
                 and entry['source'], 'propagation input source policy not reviewed')
         identity = tuple(entry[field] for field in ('package', 'target_kind', 'function', 'source_file')) + (
-            boolean(entry.get('test', False), 'propagation test context'),)
+            boolean(entry.get('test', False), 'propagation test context'), target_name(entry))
         require(identity not in identities, 'duplicate propagation input')
         identities.add(identity)
-        _, _, reason = sample_owner(report, entry, selected)
+        _, key, reason = sample_owner(report, entry, selected)
         if reason:
             return 'sampled propagation input unavailable: ' + reason
+        require(key not in completed, 'duplicate completed propagation input')
+        completed.add(key)
     return None
 
 
@@ -288,12 +299,17 @@ def compare(report, labels):
     selected = units(report)
     spacing = {unit['unit']: spacing_owners(unit) for unit, _ in selected} if 'fn_spacing' in rules else {}
     rows = []
-    seen = set()
+    seen, completed = set(), set()
     for sample in labels['samples']:
         test = boolean(sample.get('test', False), 'sample test context')
-        identity = (sample['package'], sample['target_kind'], sample['function'], sample['source_file'], test)
+        identity = (sample['package'], sample['target_kind'], sample['function'],
+                    sample['source_file'], test, target_name(sample))
         require(identity not in seen, 'duplicate label identity')
         seen.add(identity)
+        location = {field: sample[field] for field in ('package', 'function', 'source_file')}
+        location['test'] = test
+        if 'target_name' in sample:
+            location['target_name'] = sample['target_name']
         require(sample.get('unsuppressed') is True, 'sample suppression precondition not reviewed')
         measurements = {}
         if 'fn_params' in rules:
@@ -304,6 +320,9 @@ def compare(report, labels):
                     and len(set(roots)) == len(roots), 'invalid independent root labels')
             measurements['mutated_targets'] = len(roots)
         unit, key, reason = sample_owner(report, sample, selected)
+        if reason is None:
+            require(key not in completed, 'duplicate completed source owner')
+            completed.add(key)
         if 'fn_spacing' in rules:
             wanted = spacing_label(sample, labels['limits']['fn_spacing'])
             if reason:
@@ -313,14 +332,12 @@ def compare(report, labels):
                 function = spacing[unit['unit']].get(sample['function'])
                 row = check_rule(unit, key, function, sample, 'fn_spacing',
                                  wanted['actual'], wanted['limit'], wanted)
-            rows.append({**{field: sample[field] for field in ('package', 'function', 'source_file')},
-                         'test': test, **row})
+            rows.append({**location, **row})
         if 'side_effect_density' in rules:
             propagation = propagation_reason(report, sample, selected, density_policy['transitive_depth'])
             reason = reason or propagation
             row = check_density(unit, key, owners.get(key), sample, density_policy, reason)
-            rows.append({**{field: sample[field] for field in ('package', 'function', 'source_file')},
-                         'test': test, **row})
+            rows.append({**location, **row})
         for rule, actual in measurements.items():
             require(type(actual) is int and actual >= 0, 'invalid source label')
             if reason:
@@ -328,8 +345,7 @@ def compare(report, labels):
                        'expected': {'actual': actual, 'limit': labels['limits'][rule]}, 'observed': None}
             else:
                 row = check_rule(unit, key, owners.get(key), sample, rule, actual, labels['limits'][rule])
-            rows.append({**{field: sample[field] for field in ('package', 'function', 'source_file')},
-                         'test': test, **row})
+            rows.append({**location, **row})
     return {'schema': 'rstyle.compiler-quality-observation/1',
             'sample_complete': all(row['result'] != 'unavailable' for row in rows), 'run': labels['run'],
             'metrics': advisory['metrics'], 'effective_config': config,
