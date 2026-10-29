@@ -533,3 +533,45 @@ unresolved callees. A single local replay took 13.48s and 2,109,120KiB peak RSS;
 this is not a speedup measurement. These source samples do not establish global
 quality, full caller closure, safe rewrites or migration retirement. No new
 production collector, planner, proof, checksum or capture was introduced.
+
+### Opaque closure counter-evidence (C52)
+
+The existing graph collector represents ordinary closures as opaque nodes; their
+bodies and captures are not compared. `for_each` bodies handled as iteration by
+the existing collector remain distinct from these opaque nodes. The existing WL
+call-summary pass now retains one boolean and the existing cluster forwards it
+from retained members. Helper/generic candidates expose the limitation as
+counter-evidence, including at full recorded-node coverage. This adds no scan,
+body copy, proof or hash. Candidate selection, score and identity policy stay
+unchanged; no warning does not establish semantic equivalence.
+
+`project-compiler-proposal-closure-cases.json` reuses C33's independent unchanged
+source judgments and C37's explicit pipeline rejection expectation against fresh
+metric-6 advisory-only `rstyle-core` run `run-mycjUM`. The corresponding results
+retain two emitted not-useful groups and one explicit policy rejection; quality
+exit1 is deliberate. All six emitted proposals contain opaque closures and now
+warn. Their full candidate records equal the saved C37 records after removing
+only the new warning and source line numbers. The source revision has advanced,
+so this is not an identical-input or timing comparison. Four other proposals
+remain unreviewed. Capture has 408 measured / 806 unavailable owners and exits2.
+The study artifact records the single 7.65s / 433,784KiB observation without a
+speedup claim.
+
+The attempted historical `run-OFIAA9` replay rejected an unexpected `policy`
+field in its saved pointer-width fact before analysis. It supplies no successful
+current replay evidence; the original artifacts were preserved and the importer
+was not weakened. The fresh capture and a separate real-Cargo source-free replay
+exercise the warning through supported current observations.
+
+```sh
+target/debug/cargo-rstyle clones -p rstyle-core \
+  --extraction-profile hir-data-v3 --locked --compiler-advisory \
+  --compiler-advisory-only --compiler-patterns --format json \
+  --report-detail compact > /tmp/closure-project-report.json
+# Bind a copy of labels.run to that explicit fresh run; frozen source judgments stay unchanged.
+python3 eval/clones-capability/compiler_proposal_quality.py \
+  --report /tmp/closure-project-report.json \
+  --labels eval/clones-capability/project-compiler-proposal-closure-cases.json \
+  --output /tmp/closure-project-quality.json
+# Quality exit1 retains the two independently unsuitable emitted proposals.
+```

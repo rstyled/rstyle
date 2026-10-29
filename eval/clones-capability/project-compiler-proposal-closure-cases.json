@@ -1,0 +1,117 @@
+{
+  "schema": "rstyle.compiler-proposal-quality-cases/1",
+  "run": "run-mycjUM",
+  "toolchain": "nightly-2026-09-30",
+  "metrics": "rstyle.compiler-style-metrics/6",
+  "policy": {
+    "threshold_milli": 600,
+    "min_coverage_milli": 600,
+    "pair_coverage_milli": null,
+    "normalize": {
+      "ctor": false,
+      "pred": false,
+      "case": false,
+      "exit": false,
+      "counter": false,
+      "cmp": false,
+      "propagate": false
+    },
+    "single_call_guard": false,
+    "max_holes": 3
+  },
+  "samples": [
+    {
+      "id": "shared-mirrored-traversal",
+      "kind": "parameterize",
+      "sites": [
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "function": "align::evidence",
+          "source_file": "crates/rstyle-core/src/align.rs",
+          "source": "/// Neighbours of `a` that are matched, split into those the counterpart `b` mirrors\n/// (agree) and those it does not (conflict).\nfn evidence(ctx: &Ctx<'_>, m: &Matching, a: usize, b: usize) -> (usize, usize) {\n    let sides = [\n        (&ctx.wa.graph.inc[a][..], &ctx.wb.graph.inc[b][..]),\n        (&ctx.wa.graph.out[a][..], &ctx.wb.graph.out[b][..]),\n    ];\n    mirrored(sides, &m.fwd).fold((0, 0), |(agree, conflict), ok| {\n        (agree + usize::from(ok), conflict + usize::from(!ok))\n    })\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::align::evidence"
+        },
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "function": "align::reverse_conflicts",
+          "source_file": "crates/rstyle-core/src/align.rs",
+          "source": "/// Edges of `b` into matched nodes that `a` does not mirror.\nfn reverse_conflicts(ctx: &Ctx<'_>, m: &Matching, a: usize, b: usize) -> usize {\n    let sides = [\n        (&ctx.wb.graph.inc[b][..], &ctx.wa.graph.inc[a][..]),\n        (&ctx.wb.graph.out[b][..], &ctx.wa.graph.out[a][..]),\n    ];\n    mirrored(sides, &m.back).filter(|ok| !ok).count()\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::align::reverse_conflicts"
+        }
+      ],
+      "definitions": [],
+      "judgment": "not_useful",
+      "rationale": "Both already reuse mirrored for the traversal. Directions, matching maps and result reductions differ; another helper adds indirection without a shared semantic operation.",
+      "expected_outcome": "structural_agreement"
+    },
+    {
+      "id": "distinct-normalization-pipelines",
+      "kind": "parameterize",
+      "sites": [
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "function": "normalize::unify_case",
+          "source_file": "crates/rstyle-core/src/normalize.rs",
+          "source": "/// `if`, `else if`, `if let` and `match` all become `Case`; patterns spelled as `== literal` and\n/// else-if chains over one scrutinee disappear into the arms.\nfn unify_case(pdg: Pdg) -> Pdg {\n    let lets = contract_lets(pdg);\n    let cases = relabel_cases(literal_scrutinees(lets));\n    flatten_else_if(cases)\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::normalize::unify_case"
+        },
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "function": "normalize::counter_loops",
+          "source_file": "crates/rstyle-core/src/normalize.rs",
+          "source": "fn counter_loops(pdg: Pdg) -> Pdg {\n    loop_guards(manual_counters(range_loops(pdg)))\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::normalize::counter_loops"
+        }
+      ],
+      "definitions": [],
+      "judgment": "not_useful",
+      "rationale": "Ordered transformation pipelines perform different normalizations. Function composition alone does not justify another abstraction.",
+      "expected_outcome": "forwarding_rejected",
+      "expected_policy_reason": "call-only forwarding through distinct single-use callee substitutions"
+    },
+    {
+      "id": "different-dedup-contracts",
+      "kind": "parameterize",
+      "sites": [
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "function": "candidates::distinct_in_order",
+          "source_file": "crates/rstyle-core/src/candidates.rs",
+          "source": "fn distinct_in_order(values: &[String]) -> Vec<&String> {\n    let mut seen = BTreeSet::new();\n    values.iter().filter(|v| seen.insert(*v)).collect()\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::candidates::distinct_in_order"
+        },
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "function": "normalize::dedup",
+          "source_file": "crates/rstyle-core/src/normalize.rs",
+          "source": "/// First occurrence of each edge wins, so adding an edge that exists is a no-op.\nfn dedup(edges: Vec<PdgEdge>) -> Vec<PdgEdge> {\n    let mut seen = BTreeSet::new();\n    edges\n        .into_iter()\n        .filter(|e| seen.insert((e.from, e.to, e.kind, e.arg_pos)))\n        .collect()\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::normalize::dedup"
+        }
+      ],
+      "definitions": [],
+      "judgment": "not_useful",
+      "rationale": "Small set-filter glue has different borrowing and equality contracts: whole borrowed strings versus owned edges keyed by endpoints, kind and argument position.",
+      "expected_outcome": "structural_agreement"
+    }
+  ],
+  "derivation": "Source roles, original source bytes, usefulness judgments and rationales are copied unchanged from the frozen C33 labels. Before C37 fresh capture, proposal policy version 2 independently expects explicit rejection of the distinct single-use forwarding pipelines; the other two groups remain unhelpful emitted proposals. Only saved-run provenance will be bound after capture. C52 reuses the unchanged source judgments against an explicit fresh metric-6 capture; ordinary closure opacity is presentation counter-evidence, not a usefulness-policy rejection.",
+  "policy_version": 2
+}

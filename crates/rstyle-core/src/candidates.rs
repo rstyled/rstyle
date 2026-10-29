@@ -586,8 +586,18 @@ fn generic_fn(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option<C
         ),
         sites: sites.iter().map(|f| site(f)).collect(),
         definitions: vec![],
-        counter_evidence: effect_mismatch(sites).into_iter().collect(),
+        counter_evidence: helper_counter_evidence(sites, cluster),
     })
+}
+
+/// Borrow completed graph summaries; aligned closure nodes do not compare their bodies.
+fn helper_counter_evidence(sites: &[&FnFacts], cluster: &Cluster) -> Vec<String> {
+    effect_mismatch(sites)
+        .into_iter()
+        .chain(cluster.opaque_closure.then(|| {
+            "Ordinary closure bodies are opaque in these graphs; aligned nodes do not establish matching closure behavior or captures.".into()
+        }))
+        .collect()
 }
 
 /// Code whose repetition is not a refactoring target: tests repeat arrange/act on purpose,
@@ -638,7 +648,7 @@ fn parameterize(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option
         ),
         sites: sites.iter().map(|f| site(f)).collect(),
         definitions: vec![],
-        counter_evidence: effect_mismatch(sites).into_iter().collect(),
+        counter_evidence: helper_counter_evidence(sites, cluster),
     })
 }
 
@@ -1099,6 +1109,7 @@ mod tests {
         assert!(run(&forced).candidates.is_empty());
         let cluster = Cluster {
             forwarding_only: false,
+            opaque_closure: false,
             members: vec![0, 1],
             coverage_milli: vec![1000, 1000],
             columns: (0..=Params::default().max_holes)

@@ -3,6 +3,7 @@ use super::*;
 mod baseline;
 mod completed_effects;
 mod forwarded_pipelines;
+mod opaque_closures;
 mod reviews;
 
 const ANIMALS: &str = include_str!("../fixtures/animals/src/lib.rs");

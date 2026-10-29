@@ -4590,3 +4590,52 @@ an ancestor of this branch, so no rebase is necessary.
 
 This sample validates advisory reuse, not full caller closure, safe edits,
 package-wide quality or capability retirement. Migration remains active.
+
+### C52 — surface opaque closure contracts in reused helper proposals (2026-10-29)
+
+Lead owns the core summary/cluster/helper seams, live Cargo acceptance and docs;
+a read-only worker verified that compiler proposal and concrete-trait propagation
+reuse already exist end-to-end. No parallel proposer or new consumer algorithm
+was needed. The next bounded deficiency is presentation: ordinary closures are
+opaque in the existing graph collector, so even 1000/1000 recorded-node alignment
+does not compare their bodies or captures.
+
+The existing WL call-summary pass now retains one boolean. Clusters combine it
+only across retained members, and helper/generic proposals borrow that completed
+summary for explicit counter-evidence. Iterate nodes remain distinct. No extra
+node walk, body/graph copy, source proof, checksum or policy filter is added.
+Candidate IDs, membership, scores, structural review/baseline policy and strict
+matching stay unchanged. Absence of a warning does not establish equivalence.
+
+Unit controls cover full-alignment warnings with exact equality after removing
+only the note, both helper/generic families, no opaque node, and an unrelated
+unretained graph that must not leak its flag. A real Cargo fixture uses borrowed
+whole-string dedup versus owned edges keyed by four fields. It retains the helper
+with the warning, agrees exactly with legacy patterns, and replays after deleting
+source/manifest/lockfile. Existing missing/empty graph controls remain unchanged.
+
+The attempted historical run-OFIAA9 replay rejected an unexpected policy field
+in its saved pointer-width fact before analysis. Original artifacts were kept;
+no importer weakening or successful-replay claim follows. Instead a fresh
+advisory-only rstyle-core metric6 capture run-mycjUM has 408 known/806 unavailable
+owners and six proposals. All six now warn on opaque closures. Their full
+candidate records equal the C37 saved report after removing only the new warning
+and source line numbers; source has advanced, so this is not identical-input
+performance evidence. The two emitted independently unsuitable groups remain
+quality debt, the pipeline is still explicitly rejected, and four other groups
+remain unreviewed. Existing quality reduction exits1, capture exits2. One capture
+sample is 7.65s/433,784KiB RSS with no speedup claim. Source cases, complete quality
+results and a resource/comparison artifact use project-compiler-proposal-closure-*.
+
+Validation: all 3,446 Rust tests pass in 223.866s with five existing skips; doc tests,
+locked all-target Clippy, formatting/diff checks and all 207 offline Python tests
+pass. Style reports zero violations over 9,799 functions. Reviewed patterns reports zero candidates with the 13 existing ignored entries.
+All 13 unfiltered candidate IDs match the main-rebase baseline; no ignore or
+suppression changed. Logs use /tmp/clones-c52-*.
+
+Migration stays active. The remaining closure/reduction usefulness negatives need
+stronger facts and independent useful controls before changing proposal policy.
+A separate ready quality frontier is real-project effect/planner validation of
+already selected concrete trait targets; existing C39 evidence deliberately
+validates target coverage, not numeric effect/planning improvements. Legacy
+retirement and whole-project completeness remain unverified.
