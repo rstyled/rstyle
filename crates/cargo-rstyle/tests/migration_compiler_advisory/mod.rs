@@ -5,6 +5,7 @@ use super::*;
 
 mod complexity;
 mod complexity_ranking;
+mod demanded_diagnostic_owners;
 mod direct_density_scope;
 mod extraction;
 mod function_extraction;

@@ -11,6 +11,7 @@ mod selection;
 mod source_scope;
 #[cfg(test)]
 mod tests;
+use super::review::compiler_diagnostics::demand::Demand;
 use super::{analysis::Completion, identity::UnitId, report::Context};
 use rstyle_core::{
     advisory::{KEY, METRICS, Observation, metric_version},
@@ -389,11 +390,15 @@ impl Report {
     }
 }
 
-pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
+pub(super) fn evaluate(
+    ctx: &Context<'_>,
+    store: Option<&super::review::ReviewStore>,
+) -> Result<Option<Report>, String> {
     let Some(config) = ctx.compiler_advisory_config else {
         return Ok(None);
     };
     let policy = Rc::new(serde_json::to_value(config).map_err(|error| error.to_string())?);
+    let demand = Demand::new(Rc::clone(&policy), ctx.compiler_baseline, store);
     let inputs = ctx
         .handoff
         .unit_contexts
@@ -402,7 +407,7 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
         .collect::<Result<Vec<_>, _>>()?;
     let metrics = collected_metrics(&inputs)?;
     let propagated = propagation::evaluate(ctx, &inputs, config)?;
-    let (units, planning) = evaluate_units(ctx, &policy, inputs, propagated)?;
+    let (units, planning) = evaluate_units(ctx, &demand, inputs, propagated)?;
     let complete = ctx.capture.failures.is_empty()
         && ctx.handoff.failures.is_empty()
         && !units.is_empty()
@@ -446,7 +451,7 @@ fn requested_execution(requested: bool) -> super::analysis::Execution {
 
 fn evaluate_units(
     ctx: &Context<'_>,
-    policy: &Rc<serde_json::Value>,
+    demand: &Demand<'_>,
     inputs: Vec<Collected>,
     propagated: propagation::Evaluation,
 ) -> Result<(Vec<Unit>, Option<planning::Report>), String> {
@@ -457,7 +462,7 @@ fn evaluate_units(
         .zip(inputs)
         .zip(propagated.units)
         .map(|((unit, inputs), effects)| {
-            evaluate_unit(ctx, unit, policy, Prepared { inputs, effects })
+            evaluate_unit(ctx, unit, demand, Prepared { inputs, effects })
         });
 
     let Some(captured) = propagated.planning else {
@@ -507,7 +512,7 @@ struct Prepared {
 fn evaluate_unit(
     ctx: &Context<'_>,
     unit: &super::identity::UnitContext,
-    policy: &Rc<serde_json::Value>,
+    demand: &Demand<'_>,
     Prepared {
         mut inputs,
         mut effects,
@@ -518,7 +523,7 @@ fn evaluate_unit(
     let ranking = ranking::Captured::new(ctx.args, &inputs);
     inputs.retain_propagated(&mut effects.generated);
     let completed =
-        diagnostics::evaluate(ctx, unit, inputs.take_diagnostics(effects.values), policy)?;
+        diagnostics::evaluate(ctx, unit, inputs.take_diagnostics(effects.values), demand)?;
 
     let diagnostic_scope = diagnostic_scope::Report::new(ctx.args, &inputs, &completed);
     let report = Unit {

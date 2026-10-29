@@ -750,3 +750,23 @@ library capture and exact historical replay: 176 generated owners gain direct
 collector observations, while authored results and missing source/pattern
 coverage remain unchanged. Mutable formatter borrows are existing core mutation
 semantics. Empty direct classifications are not purity or transitive coverage.
+
+### Requested diagnostic owner payloads (C85)
+
+`project-demanded-diagnostic-owners-study.json` reuses C84's exact saved
+ccgraph/pdg capture. Requested authored inherited density exports15 findings and
+two build contexts, then compares with complete coverage,15existing and0new.
+Full evaluations and raw owner observations match C84. Tool-free replay from an
+empty working directory preserves the baseline report; real-project sources
+remain on disk. No performance comparison is claimed.
+
+The complete compiler-name census is unchanged. Only requested positive findings
+and saved review/baseline names demand owner payloads, with a shared4,096 budget
+across units. Entry/context/file limits remain bounded. This supersedes the C50
+acceptance expectation that a retained tail owner must be unavailable solely
+because its inventory index exceeds4,096. Both saved fixture owners now resolve
+exactly and both become stale after a policy change, with zero pruning candidates.
+Independent new CLI cases also cover missing late measurements, source/manifest
+removal before replay, completed negative pruning, release-context drift and
+4,101 demanded positives refusing baseline export. No strict matching, collector,
+policy/proof layer, fingerprint or numeric measurement change is involved.

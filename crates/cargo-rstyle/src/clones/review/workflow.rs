@@ -182,8 +182,11 @@ impl CompilerReviews {
 impl Inputs<'_, '_> {
     /// One load and atomic publication across all requested review families.
     /// A failed selector or snapshot leaves every retained entry untouched on disk.
-    pub(in crate::clones) fn apply(self, ctx: &report::Context<'_>) -> Result<Reports, String> {
-        let mut store = ctx.args.review_file.as_deref().map(load).transpose()?;
+    pub(in crate::clones) fn apply(
+        self,
+        ctx: &report::Context<'_>,
+        mut store: Option<ReviewStore>,
+    ) -> Result<Reports, String> {
         let mut reports = evaluate(&self, ctx, store.as_mut())?;
         reports.pruning = pruning(store.as_mut(), reports.status.as_ref(), ctx)?;
 
@@ -547,7 +550,11 @@ fn summarize(
     Report { summary, pairs }
 }
 
-fn load(path: &Path) -> Result<ReviewStore, String> {
+pub(in crate::clones) fn load(path: Option<&Path>) -> Result<Option<ReviewStore>, String> {
+    path.map(load_file).transpose()
+}
+
+fn load_file(path: &Path) -> Result<ReviewStore, String> {
     match baseline_io::read_bounded(path) {
         Ok(bytes) => {
             ReviewStore::from_json(std::str::from_utf8(&bytes).map_err(|error| error.to_string())?)

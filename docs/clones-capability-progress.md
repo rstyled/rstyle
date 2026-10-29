@@ -6262,3 +6262,60 @@ Next ready work: inspect bounded/streaming reuse for the existing diagnostic
 baseline owner census, rather than increasing its retention limit or substituting
 positive review coverage for complete negative-owner coverage. Overall migration
 and per-capability retirement gates remain open.
+
+### C85 — resolve requested diagnostic owner payloads (2026-10-29)
+
+Reused the existing complete compiler declaration-name census and review resolver.
+Owner payloads are now materialized for requested positive diagnostics and saved
+review/baseline owner names, including excluded candidates. The census still
+covers every owner and matching feature variant, preserving ambiguity. Retained
+names select candidates without filtering away changed build contexts. Review
+files load once before advisory evaluation; the same store moves into the
+existing atomic review workflow afterward. No collector, evaluator, proof,
+policy layer, fingerprint or body clone added.
+
+The existing4,096 owner-payload budget now applies to demanded payloads across
+units; positive-entry and distinct-context bounds remain4,096. Complete build
+context headers inspect every captured owner and retain distinct contexts instead
+of truncating the first4,096 functions. Missing measurements, demanded-budget
+exhaustion, ambiguous names, excluded/suppressed owners and unavailable contexts
+still cannot establish clean negatives or publish incomplete baselines.
+
+Five independent CLI cases use4,100 clean source functions followed by a late
+five-parameter finding: baseline export and source/tool-free replay; completed
+late negative versus release-context drift; retained review status/pruning;
+missing late measurement; and4,101 demanded positives rejecting export without
+an artifact. All19 focused baseline/review tests pass in33.016s. One initial
+acceptance assertion expected context drift to mean unavailable execution; the
+existing completed-comparison contract instead reports context_changed with
+scope drift and exit1. The test now requires that precise state. Production
+comparison semantics were unchanged.
+
+Reused exactly C84's saved ccgraph/pdg run-aSRnsx, with238/7,043 authored owners
+and176/6,494 generated effect rows. Export now succeeds with15 existing density
+findings and two distinct build contexts; comparison reports complete coverage,
+0new and no scope drift. Tool-free replay from an empty working directory gives
+the same baseline report. Full evaluations, observations, unavailable inventories,
+generated rows and unresolved targets match C84 exactly. Real-project sources
+remain on disk; the independent fixture deletes source and manifest before
+replay. Generated numeric/default analysis and plans remain incomplete.
+Evidence: project-demanded-diagnostic-owners-study.json. No speedup claim.
+
+The first full run passed3,644/3,645 tests and found one historical test that
+expected a saved tail owner to stay unavailable solely because its inventory
+position exceeded4,096. Updated that case to require both saved owners to match
+exactly and both to become stale after a policy change. The new demanded-budget
+rejection remains a separate positive resource control. Final integrated Rust
+validation passes all3,645 tests in264.041s with five existing skips, plus
+doctests. Formatting, Clippy,244 capability Python and50 script tests pass.
+Both legacy gates pass:0 style violations over9,965 functions, with the same13
+unfiltered pattern IDs. The style gate initially found a constructor one line
+over budget and a missing phase break; extracted review-load/advisory preparation
+and added spacing, without changing thresholds or suppressions. Native checks
+for this increment await publication; C84 Ubuntu/macOS checks were still running
+at the last observation. Overall migration and legacy retirement remain open;
+next ready work is to reuse the core configured caller-footprint decision for
+authored body-local worklists. Distinguish complete required local edits from
+incomplete caller graphs and optional hints; preserve custom caller_rules and
+keep signature/caller plans incomplete when caller edits are unavailable. The
+saved15 density findings provide a bounded real-project acceptance target.

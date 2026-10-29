@@ -39,7 +39,7 @@ pub(in crate::clones) fn evaluate(
     header.request = ctx.args.compiler_diagnostic_request();
     let complete = ctx.complete
         && advisory.advisory_inputs_complete()
-        && ctx.handoff.assessed.len() <= 4096
+        && !advisory.diagnostic_owner_scope_truncated()
         && rows.len() <= 4096
         && rows.iter().all(|row| row.snapshot.is_ok());
 

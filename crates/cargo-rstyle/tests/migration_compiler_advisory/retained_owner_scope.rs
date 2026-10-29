@@ -61,8 +61,8 @@ fn changed_policy(directory: &Path, original: &Value) {
             "--review-prune-dry-run",
         ],
     );
-    assert_eq!(output.status.code(), Some(2), "{}", stdout(&output));
-    assert_eq!(states(&changed), ["stale", "unavailable"]);
+    assert!(output.status.success(), "{}", stdout(&output));
+    assert_eq!(states(&changed), ["stale", "stale"]);
     assert_eq!(changed["review_prune"]["eligible_entries"], 0);
     assert_eq!(changed["review_prune"]["retained_entries"], 2);
     assert_eq!(
@@ -76,7 +76,7 @@ fn changed_policy(directory: &Path, original: &Value) {
 }
 
 #[test]
-fn complete_name_census_resolves_retained_prefix_and_keeps_omitted_payloads_unknown() {
+fn complete_name_census_resolves_both_retained_owners_without_unrelated_payloads() {
     let (directory, output, original) = capture(&large_source(), OPTIONS);
     assert!(output.status.success(), "{}", stdout(&output));
     let evaluated = &original["compiler_advisory"]["units"][0]["evaluation"];
@@ -100,7 +100,7 @@ fn complete_name_census_resolves_retained_prefix_and_keeps_omitted_payloads_unkn
     );
 
     let (output, status) = replay(directory.path(), &original, &["--review-status"]);
-    assert_eq!(output.status.code(), Some(2), "{}", stdout(&output));
-    assert_eq!(states(&status), ["hidden_exact", "unavailable"]);
+    assert!(output.status.success(), "{}", stdout(&output));
+    assert_eq!(states(&status), ["hidden_exact", "hidden_exact"]);
     changed_policy(directory.path(), &original);
 }

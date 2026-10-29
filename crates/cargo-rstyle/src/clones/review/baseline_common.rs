@@ -11,13 +11,19 @@ use serde::Serialize;
 use std::{collections::BTreeMap, path::Path};
 
 pub(super) fn contexts(ctx: &report::Context<'_>) -> Result<Vec<local::BuildContext>, String> {
-    let observed: std::collections::BTreeSet<_> = ctx
-        .handoff
-        .assessed
-        .iter()
-        .take(4096)
-        .map(|function| function.key.unit())
-        .collect();
+    let mut observed = std::collections::BTreeSet::new();
+    let mut contexts = std::collections::BTreeSet::new();
+    for function in &ctx.handoff.assessed {
+        observed.insert(function.key.unit());
+        contexts.insert(local_adapter::context(
+            &function.facts,
+            workflow::unit(ctx.handoff, ctx.capture, function)?,
+        )?);
+        if contexts.len() > 4096 {
+            return Err("Baseline exceeds 4096 distinct build contexts".into());
+        }
+    }
+
     if ctx
         .handoff
         .unit_contexts
@@ -26,22 +32,7 @@ pub(super) fn contexts(ctx: &report::Context<'_>) -> Result<Vec<local::BuildCont
     {
         return Err("Baseline build context is unavailable for a compilation unit without captured function owners".into());
     }
-
-    let mut contexts = ctx
-        .handoff
-        .assessed
-        .iter()
-        .take(4096)
-        .map(|function| {
-            local_adapter::context(
-                &function.facts,
-                workflow::unit(ctx.handoff, ctx.capture, function)?,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    contexts.sort_unstable();
-    contexts.dedup();
-    Ok(contexts)
+    Ok(contexts.into_iter().collect())
 }
 
 pub(super) fn baseline_state(state: status::State, reason: String) -> (&'static str, String) {

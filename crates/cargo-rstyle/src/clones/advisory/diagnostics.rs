@@ -1,11 +1,11 @@
 //! Retain completed core owners only for explicit review requests.
+use crate::clones::review::compiler_diagnostics::demand::Demand;
 use crate::clones::{
     identity::{UnitContext, UnitId},
     report::Context,
     review::compiler_diagnostics,
 };
 use rstyle_core::{facts::FnFacts, report::Report};
-use std::rc::Rc;
 
 #[derive(Default)]
 pub(super) struct Completed {
@@ -29,7 +29,7 @@ pub(super) fn evaluate(
     ctx: &Context<'_>,
     unit: &UnitContext,
     inputs: Inputs,
-    policy: &Rc<serde_json::Value>,
+    demand: &Demand<'_>,
 ) -> Result<Completed, String> {
     let config = ctx
         .compiler_advisory_config
@@ -54,11 +54,20 @@ pub(super) fn evaluate(
     }
 
     let policy = compiler_diagnostics::observed::Policy {
-        config: policy,
+        config: &demand.policy,
         metrics: inputs.metrics,
     };
     let mut evaluated = evaluate_core(inputs, config, retention, ctx.args.compiler_patterns)?;
-    let observed = compiler_diagnostics::observed::collect(ctx, unit, &mut evaluated, &policy);
+    let observed = compiler_diagnostics::observed::collect(
+        ctx,
+        unit,
+        &mut evaluated,
+        compiler_diagnostics::observed::Request {
+            policy,
+            demand,
+            rules: ctx.args.compiler_diagnostic_request(),
+        },
+    );
     Ok(Completed {
         snapshots: observed.snapshots,
         owners: observed.owners,

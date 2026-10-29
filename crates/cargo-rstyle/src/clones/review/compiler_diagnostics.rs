@@ -1,4 +1,5 @@
 //! Compiler style choices reuse exact numeric review accounting and completed owner scopes.
+pub(in crate::clones) mod demand;
 pub(in crate::clones) mod observed;
 pub(in crate::clones) mod retained;
 mod rules;

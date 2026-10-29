@@ -26,7 +26,7 @@ pub(in crate::clones) struct Consumers<'a> {
 
 impl<'a> Consumers<'a> {
     pub(in crate::clones) fn new(ctx: &Context<'a>) -> Result<Self, String> {
-        let compiler_advisory = crate::clones::advisory::evaluate(ctx)?;
+        let (compiler_advisory, store) = ctx.prepare_advisory()?;
         let mut analysis = ctx.local_analysis();
         let guard_planning = planning::guards::evaluate(ctx, &analysis)?;
         let parameter_planning = planning::parameters::evaluate(ctx, &analysis)?;
@@ -49,7 +49,7 @@ impl<'a> Consumers<'a> {
             capabilities: &capabilities,
             indices: &indices,
         }
-        .apply(ctx)?;
+        .apply(ctx, store)?;
         analysis.hide_reviewed_guards(&reviews.guards);
         mutation.hide_reviewed(&reviews.mutations);
         ctx.present_effects(&mut effects, &reviews.density);
@@ -98,6 +98,20 @@ impl NumericReviews {
 }
 
 impl<'a> Context<'a> {
+    fn prepare_advisory(
+        &self,
+    ) -> Result<
+        (
+            Option<crate::clones::advisory::Report>,
+            Option<review::ReviewStore>,
+        ),
+        String,
+    > {
+        let store = review::workflow::load(self.args.review_file.as_deref())?;
+        let report = crate::clones::advisory::evaluate(self, store.as_ref())?;
+        Ok((report, store))
+    }
+
     fn accepted_pairs(&self) -> Result<Vec<locations::AcceptedPair<'a>>, String> {
         self.matching
             .map(|matching| locations::accepted(self.handoff, matching))

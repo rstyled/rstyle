@@ -1,6 +1,9 @@
 //! Use the core evaluator's retained owner indices; never infer owners from positions.
 use super::super::{compiler_owners, local_adapter};
-use super::rules::{Owner, Snapshot};
+use super::{
+    demand::Demand,
+    rules::{Owner, Snapshot},
+};
 use crate::clones::{identity::UnitContext, report};
 use rstyle_core::{Evaluation, facts::FnFacts};
 use std::{
@@ -38,11 +41,17 @@ pub(in crate::clones) struct Policy<'a> {
     pub metrics: &'static str,
 }
 
+pub(in crate::clones) struct Request<'a> {
+    pub policy: Policy<'a>,
+    pub demand: &'a Demand<'a>,
+    pub rules: Option<crate::clones::diagnostic_selection::Request>,
+}
+
 pub(in crate::clones) fn collect(
     ctx: &report::Context<'_>,
     unit: &UnitContext,
     evaluation: &mut Evaluation,
-    policy: &Policy<'_>,
+    request: Request<'_>,
 ) -> Completed {
     if evaluation.report.diagnostics.is_empty() && evaluation.scopes.is_none() {
         return Completed::default();
@@ -69,14 +78,12 @@ pub(in crate::clones) fn collect(
             .and_then(|original| resolver.resolve(facts, &original.facts))
     };
 
-    let owners = resolve_owners(evaluation, scopes.is_some(), resolve);
-    let snapshots = snapshots(evaluation, &owners, policy);
-    let owner_scope_truncated = scopes
-        .as_ref()
-        .is_some_and(|scopes| evaluation.facts.len() + scopes.excluded.len() > 4096);
+    let (owners, owner_scope_truncated) =
+        resolve_owners(evaluation, scopes.as_ref(), &request, resolve);
+    let snapshots = snapshots(evaluation, &owners, &request.policy);
     let (owners, owner_names) = scopes.map_or_else(
         || (Vec::new(), BTreeMap::new()),
-        |scopes| (assessed(evaluation, scopes, owners, resolve), names.counts),
+        |scopes| (assessed(evaluation, scopes, owners), names.counts),
     );
     Completed {
         snapshots,
@@ -86,21 +93,79 @@ pub(in crate::clones) fn collect(
     }
 }
 
-type Owners = BTreeMap<usize, Result<Rc<Owner>, String>>;
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Index {
+    Selected(usize),
+    Excluded(usize),
+}
+
+type Owners = BTreeMap<Index, Result<Rc<Owner>, String>>;
+
+fn needed(
+    evaluation: &Evaluation,
+    scopes: Option<&rstyle_core::Scopes>,
+    request: &Request<'_>,
+) -> BTreeSet<Index> {
+    let mut needed: BTreeSet<_> = evaluation
+        .report
+        .diagnostics
+        .iter()
+        .zip(&evaluation.diagnostic_owners)
+        .filter(|(diagnostic, _)| {
+            request
+                .rules
+                .as_ref()
+                .is_none_or(|rules| rules.includes(&diagnostic.rule_id))
+        })
+        .map(|(_, index)| Index::Selected(*index))
+        .collect();
+    if let Some(scopes) = scopes {
+        needed.extend(
+            evaluation
+                .facts
+                .iter()
+                .enumerate()
+                .filter(|(_, facts)| request.demand.includes(facts))
+                .map(|(index, _)| Index::Selected(index)),
+        );
+        needed.extend(
+            scopes
+                .excluded
+                .iter()
+                .enumerate()
+                .filter(|(_, facts)| request.demand.includes(facts))
+                .map(|(index, _)| Index::Excluded(index)),
+        );
+    }
+    needed
+}
 
 fn resolve_owners(
     evaluation: &Evaluation,
-    retain_scopes: bool,
+    scopes: Option<&rstyle_core::Scopes>,
+    request: &Request<'_>,
     resolve: impl Fn(&FnFacts) -> Result<Rc<Owner>, String>,
-) -> Owners {
-    let mut needed: BTreeSet<_> = evaluation.diagnostic_owners.iter().copied().collect();
-    if retain_scopes {
-        needed.extend(0..evaluation.facts.len().min(4096));
-    }
-    needed
+) -> (Owners, bool) {
+    let mut truncated = false;
+    let owners = needed(evaluation, scopes, request)
         .into_iter()
-        .map(|index| (index, resolve(&evaluation.facts[index])))
-        .collect()
+        .map(|index| {
+            let owner = if request.demand.claim() {
+                let facts = match index {
+                    Index::Selected(index) => &evaluation.facts[index],
+                    Index::Excluded(index) => {
+                        &scopes.expect("Retained core scopes").excluded[index]
+                    }
+                };
+                resolve(facts)
+            } else {
+                truncated = true;
+                Err("Compiler diagnostic owner payload budget exhausted".into())
+            };
+            (index, owner)
+        })
+        .collect();
+    (owners, truncated)
 }
 
 fn findings(evaluation: &Evaluation) -> BTreeMap<usize, BTreeMap<String, usize>> {
@@ -114,48 +179,43 @@ fn findings(evaluation: &Evaluation) -> BTreeMap<usize, BTreeMap<String, usize>>
     findings
 }
 
-fn assessed(
-    evaluation: &Evaluation,
-    scopes: rstyle_core::Scopes,
-    mut owners: Owners,
-    resolve: impl Fn(&FnFacts) -> Result<Rc<Owner>, String>,
-) -> Vec<Assessed> {
+fn assessed(evaluation: &Evaluation, scopes: rstyle_core::Scopes, owners: Owners) -> Vec<Assessed> {
     let mut findings = findings(evaluation);
-    let mut assessed: Vec<_> = evaluation
-        .facts
-        .iter()
-        .zip(scopes.suppressions)
-        .take(4096)
+    let mut suppressions: BTreeMap<_, _> = scopes
+        .suppressions
+        .into_iter()
         .enumerate()
-        .map(|(index, (facts, suppression))| Assessed {
-            owner: owners.remove(&index).expect("Retained core owner"),
-            path: facts.path.clone(),
-            complexity_measured: facts.complexity.is_some(),
-            suppression: Some(suppression),
-            findings: findings.remove(&index).unwrap_or_default(),
-        })
+        .filter(|(index, _)| owners.contains_key(&Index::Selected(*index)))
         .collect();
-
-    let remaining = 4096 - assessed.len();
-    assessed.extend(
-        scopes
-            .excluded
-            .iter()
-            .take(remaining)
-            .map(|facts| Assessed {
-                owner: resolve(facts),
+    owners
+        .into_iter()
+        .map(|(index, owner)| {
+            let (facts, suppression, findings) = match index {
+                Index::Selected(index) => (
+                    &evaluation.facts[index],
+                    Some(
+                        suppressions
+                            .remove(&index)
+                            .expect("Retained core suppression"),
+                    ),
+                    findings.remove(&index).unwrap_or_default(),
+                ),
+                Index::Excluded(index) => (&scopes.excluded[index], None, BTreeMap::new()),
+            };
+            Assessed {
+                owner,
                 path: facts.path.clone(),
                 complexity_measured: facts.complexity.is_some(),
-                suppression: None,
-                findings: BTreeMap::new(),
-            }),
-    );
-    assessed
+                suppression,
+                findings,
+            }
+        })
+        .collect()
 }
 
 fn snapshots(
     evaluation: &Evaluation,
-    owners: &BTreeMap<usize, Result<Rc<Owner>, String>>,
+    owners: &Owners,
     policy: &Policy<'_>,
 ) -> Vec<Result<Snapshot, String>> {
     evaluation
@@ -165,7 +225,13 @@ fn snapshots(
         .zip(&evaluation.diagnostic_owners)
         .map(|(diagnostic, owner)| {
             let snapshot = Snapshot {
-                owner: Rc::clone(owners[owner].as_ref().map_err(Clone::clone)?),
+                owner: Rc::clone(
+                    owners
+                        .get(&Index::Selected(*owner))
+                        .ok_or("Compiler diagnostic rule was not requested")?
+                        .as_ref()
+                        .map_err(Clone::clone)?,
+                ),
                 versions: local_adapter::versions("compiler-diagnostics"),
                 metrics: policy.metrics.into(),
                 policy: Rc::clone(policy.config),

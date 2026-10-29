@@ -676,8 +676,10 @@ are added. Incomplete compiler coverage keeps exit 2 even when all findings are 
 Compiler retained status reuses the complete declaration-name counts already
 computed for diagnostic identities, including excluded and ambiguous names.
 Matching package/target feature variants share this census; check/test targets
-stay distinct. The existing 4,096 owner-payload cap per unit remains: known
-unique retained owners can be assessed, while omitted payloads stay unavailable.
+stay distinct. Owner payloads are resolved only for requested positive findings
+and retained review/baseline names, with a shared 4,096-payload budget across
+units. The complete name census still detects ambiguity; demanded payloads over
+budget stay unavailable. Large unrelated inventories do not consume this budget.
 Changed policy makes a current numeric negative stale, so it cannot prune the
 retained choice. Whole-scope compiler baseline export keeps its existing limits.
 
@@ -692,7 +694,9 @@ counts existing findings. Reviews can hide new findings but cannot hide header
 drift. Old findings resolve only through the same completed owner/rule scopes
 used by numeric review status; missing positives alone never imply resolution.
 Incomplete or oversized scope exits 2 and cannot export; bounds are 4 MiB and
-4,096 owners/entries/contexts. Exports create a new file without overwriting.
+4,096 demanded owner payloads/entries/distinct contexts. Context headers cover all
+captured owners, including owners without findings. Exports create a new file
+without overwriting.
 Changed-file selection filters new visible numeric findings in comparisons;
 whole-scope policy/context drift remains global. Export conflicts with selection.
 No proposal-baseline or legacy-retirement claim follows from this workflow.
