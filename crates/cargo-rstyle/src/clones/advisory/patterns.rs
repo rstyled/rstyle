@@ -190,6 +190,7 @@ fn review_snapshots(
     evaluation: &patterns_report::PatternsReport,
 ) -> Vec<Result<observed::Snapshot, String>> {
     if ctx.args.review_file.is_some()
+        || ctx.args.legacy_pattern_ledger.is_some()
         || ctx
             .args
             .compiler_baseline_requested(crate::clones::CompilerBaseline::Patterns)

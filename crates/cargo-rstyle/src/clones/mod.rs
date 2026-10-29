@@ -36,7 +36,7 @@ use std::{
     group(clap::ArgGroup::new("compiler_inputs").args(["compiler_advisory", "compiler_patterns"]).multiple(true)),
     group(clap::ArgGroup::new("changed_analysis").args(["source_rules", "effect_density", "compiler_advisory", "compiler_patterns", "select_guards"]).multiple(true)),
     group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules", "mutation_rules", "effect_density", "compiler_patterns", "compiler_advisory", "guard_clauses"]).multiple(true)),
-    group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_guard", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density", "dismiss_compiler_pattern", "dismiss_compiler_diagnostic"])),
+    group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_guard", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density", "dismiss_compiler_pattern", "dismiss_compiler_diagnostic", "import_legacy_pattern"])),
     group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules", "effect_density", "compiler_advisory", "compiler_patterns"]).multiple(true)))]
 pub struct Args {
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
@@ -91,6 +91,18 @@ pub struct Args {
     /// Reuse compiler graphs and core proposals independently of numeric style diagnostics.
     #[arg(long)]
     compiler_patterns: bool,
+    /// Preview legacy ledger matches against raw scoped compiler proposals; never edits the ledger.
+    #[arg(long, requires = "compiler_patterns")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    legacy_pattern_ledger: Option<PathBuf>,
+    /// Import one explicit legacy match as a current exact compiler review.
+    #[arg(long, num_args = 3, value_names = ["LEGACY_ID", "UNIT", "CANDIDATE_ID"], requires_all = ["legacy_pattern_ledger", "review_file", "replay_run"])]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    import_legacy_pattern: Vec<String>,
+    /// Explicitly convert a growth dismissal to the current exact membership only.
+    #[arg(long, requires = "import_legacy_pattern")]
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    legacy_current_members_only: bool,
     #[command(flatten, next_help_heading = "Compiler pattern mining")]
     #[serde(skip_serializing_if = "crate::MineArgs::is_default")]
     mine: crate::MineArgs,

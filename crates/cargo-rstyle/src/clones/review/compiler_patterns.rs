@@ -1,4 +1,5 @@
 //! Exact advisory reviews reuse prepared compiler observations, never clone proof.
+mod legacy_migration;
 pub(in crate::clones) mod observed;
 mod rules;
 use super::{ReviewStore, outcome, positive_workflow, status, summary, workflow};
@@ -14,6 +15,8 @@ pub(in crate::clones) struct Report {
     decisions: Vec<Decision>,
     #[serde(skip)]
     hidden: BTreeSet<(UnitId, usize)>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    legacy_migration: Option<legacy_migration::Report>,
 }
 
 #[derive(Serialize)]
@@ -34,16 +37,23 @@ impl summary::Decision for Decision {
 pub(super) fn apply(
     inputs: &workflow::Inputs<'_, '_>,
     ctx: &report::Context<'_>,
-    store: Option<&mut ReviewStore>,
+    mut store: Option<&mut ReviewStore>,
 ) -> Result<(Report, Vec<status::Record>), String> {
     let requested = ctx.args.compiler_patterns;
-    let Some(store) = store else {
-        return Ok((summarize(Vec::new(), 0, false, true), Vec::new()));
-    };
     let rows = inputs
         .compiler_advisory
         .map(|report| report.pattern_reviews())
         .unwrap_or_default();
+    let complete = inputs
+        .compiler_advisory
+        .is_some_and(|report| report.pattern_inputs_complete());
+    let migration = legacy_migration::apply(&rows, ctx, store.as_deref_mut(), complete)?;
+    let Some(store) = store else {
+        return Ok((
+            summarize(Vec::new(), 0, false, true).with_migration(migration),
+            Vec::new(),
+        ));
+    };
     if !ctx.args.dismiss_compiler_pattern.is_empty() {
         dismiss(store, &rows, ctx)?;
     }
@@ -62,26 +72,30 @@ pub(super) fn apply(
     let decisions = rows
         .iter()
         .zip(evaluated.outcomes)
-        .map(|(row, outcome)| Decision {
-            unit: row.unit,
-            candidate_index: row.index,
-            candidate_id: row.id.into(),
-            outcome,
-        })
+        .map(|(row, outcome)| Decision::new(row, outcome))
         .collect();
 
-    let complete = inputs
-        .compiler_advisory
-        .is_some_and(|report| report.pattern_inputs_complete());
     Ok((
         summarize(
             decisions,
             store.compiler_pattern_entries.len(),
             requested,
             complete,
-        ),
+        )
+        .with_migration(migration),
         evaluated.records,
     ))
+}
+
+impl Decision {
+    fn new(row: &observed::Row<'_>, outcome: outcome::Outcome) -> Self {
+        Self {
+            unit: row.unit,
+            candidate_index: row.index,
+            candidate_id: row.id.into(),
+            outcome,
+        }
+    }
 }
 
 fn dismiss(
@@ -108,6 +122,14 @@ fn selected<'a>(
             "A compiler proposal dismissal requires a saved-run unit and candidate ID".into(),
         );
     };
+    selected_candidate(rows, unit, id)
+}
+
+fn selected_candidate<'a>(
+    rows: &'a [observed::Row<'_>],
+    unit: &str,
+    id: &str,
+) -> Result<&'a observed::Row<'a>, String> {
     let unit: u32 = unit
         .parse()
         .map_err(|_| "Compiler proposal unit must be an unsigned integer")?;
@@ -147,12 +169,18 @@ fn summarize(decisions: Vec<Decision>, retained: usize, requested: bool, complet
         summary,
         decisions,
         hidden,
+        legacy_migration: None,
     }
 }
 
 impl Report {
+    fn with_migration(mut self, migration: Option<legacy_migration::Report>) -> Self {
+        self.legacy_migration = migration;
+        self
+    }
+
     pub(in crate::clones) fn requested(&self) -> bool {
-        self.summary.requested()
+        self.summary.requested() || self.legacy_migration.is_some()
     }
     pub(in crate::clones) fn hidden_for(&self, unit: UnitId, index: usize) -> bool {
         self.hidden.contains(&(unit, index))
@@ -169,6 +197,9 @@ impl Report {
                 row.outcome.reason.as_deref().unwrap_or("")
             ));
         }
+        if let Some(migration) = &self.legacy_migration {
+            output.push_str(&format!("\n{}", migration.render()));
+        }
         output
     }
 }
@@ -176,5 +207,9 @@ impl Report {
 impl crate::clones::analysis::Completion for Report {
     fn permits_success(&self) -> bool {
         self.summary.permits_success()
+            && self
+                .legacy_migration
+                .as_ref()
+                .is_none_or(|migration| migration.complete)
     }
 }

@@ -86,6 +86,18 @@ struct PatternRouteArgs {
     /// Choose the existing legacy miner or captured compiler observations.
     #[arg(long, value_enum, default_value_t = PatternEngine::Legacy)]
     engine: PatternEngine,
+    /// Preview current legacy ledger matches against scoped compiler proposals without writing.
+    #[arg(long)]
+    preview_legacy_reviews: bool,
+    /// Import an explicit legacy match into the scoped review file; leaves the ledger unchanged.
+    #[arg(long, num_args = 3, value_names = ["LEGACY_ID", "UNIT", "CANDIDATE_ID"], requires_all = ["review_file", "replay_run"], conflicts_with = "review_status")]
+    import_legacy_pattern: Vec<String>,
+    /// Convert a growth dismissal to an exact review of current members only.
+    #[arg(long, requires = "import_legacy_pattern")]
+    legacy_current_members_only: bool,
+    /// Override the imported ledger reason, including when it was absent.
+    #[arg(long, requires = "import_legacy_pattern")]
+    review_reason: Option<String>,
     /// Reevaluate an exact saved compiler run without compiling (compiler engine only).
     #[arg(long)]
     replay_run: Option<PathBuf>,
@@ -102,7 +114,12 @@ struct PatternRouteArgs {
 
 impl PatternRouteArgs {
     fn compiler_options_requested(&self) -> bool {
-        self.replay_run.is_some() || self.review_file.is_some() || self.review_status || self.locked
+        self.replay_run.is_some()
+            || self.review_file.is_some()
+            || self.review_status
+            || self.locked
+            || self.preview_legacy_reviews
+            || !self.import_legacy_pattern.is_empty()
     }
 }
 

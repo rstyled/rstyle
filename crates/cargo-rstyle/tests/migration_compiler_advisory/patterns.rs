@@ -1,3 +1,4 @@
+mod legacy_migration;
 mod mining_options;
 mod presentation;
 mod routing;

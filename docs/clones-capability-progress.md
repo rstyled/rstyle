@@ -5633,3 +5633,50 @@ Final style reports zero violations over9,912 functions; patterns has zero
 unreviewed candidates. The same13 unfiltered candidate IDs as main remain. Logs use
 /tmp/clones-c72-*. Native C72 platform checks remain pending until push; C70 native
 CI passed while C71 remained in progress at the latest check.
+
+### C73 — explicit legacy dismissal migration (2026-10-29)
+
+Compiler patterns now previews a requested legacy ledger and imports one explicitly
+selected legacy ID/unit/candidate into the existing scoped review store. Routed
+patterns exposes preview/import alongside the direct clones workflow. Preview
+borrows raw candidates and completed snapshot outcomes, reuses ledger::matches,
+and keeps top/score presentation independent. Import uses the existing exact
+review recorder and atomic save; the original ledger is never written. Growth
+entries require explicit current-members-only conversion; later members are not
+implicitly dismissed. No new hash, source scan, clone admission or proof gate is
+introduced. A missing explicitly requested ledger errors rather than becoming an
+empty inventory.
+
+Seven independent acceptance cases cover raw top0 preview, direct entry parity,
+exact import, source/tool-free replay, reason override, membership/body/settings
+staleness, multi-context selection, growth conversion, incomplete scope and atomic
+failure. A literal edit retains the old shape-ID match while invalidating the
+imported full snapshot. This verifies that legacy matches suggest migration,
+while current scoped observations define review identity.
+
+Read-only replay of the retained C69 rstyle-ccgraph capture finds one matching
+legacy dismissal among26 entries;25 unmatched entries remain unavailable over the
+incomplete scope. Top0 displays no candidates while preserving the migration
+match. Raw proposal evaluation and display masks equal the direct configured
+entry, both preserve exit2, and the repository ledger remains byte-identical.
+No actual repository dismissals were imported. See
+project-patterns-legacy-migration-study.json. This establishes compatibility
+workflow, not expanded coverage, quality, speedup or retirement readiness.
+
+Initial focused checks pass all82 pattern/review tests and244 Python checks.
+Clippy's oversized acceptance function was split at its direct-entry comparison.
+Style's oversized orchestration function now delegates row-to-decision construction
+to Decision::new. An intermediate collection helper triggered a new legacy
+abstraction candidate and was replaced by that constructor, without suppressions
+or ignores. All3,564 Rust tests pass in235.099s with five existing skips, plus
+doc tests;244 Python checks pass. Final style has zero violations over9,922
+functions. Patterns has zero unreviewed candidates and the same13 unfiltered
+IDs as main. Locked all-target Clippy, formatting and diff checks pass; logs use
+/tmp/clones-c73-*. Next discovery frontier:
+cross-package compiler proposal grouping through the existing core miner,
+preserving compilation contexts and shared-source identity rather than flattening
+raw function IDs. A useful independently reviewed cross-package positive is still
+needed; existing closure caveats do not justify blanket suppression or a new
+proof gate. C71 native CI passed; C72 Ubuntu x64/ARM passed while macOS remained
+in progress at the latest check (run40914176818). C73 native CI remains pending
+until push.

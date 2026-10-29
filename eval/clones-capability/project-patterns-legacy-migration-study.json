@@ -1,0 +1,84 @@
+{
+  "checkpoint": "C73",
+  "source_revision": "00b8ab2+dirty",
+  "scope": "rstyle-ccgraph library; exact retained C69 capture with repository rstyle.toml and unmodified legacy ledger",
+  "host": "aarch64-unknown-linux-gnu",
+  "toolchain": "nightly-2026-09-30",
+  "run_directory": "target/rstyle/clones/run-TKB31S",
+  "measurements": {
+    "preview": {
+      "command": [
+        "target/debug/cargo-rstyle",
+        "patterns",
+        "--engine",
+        "compiler",
+        "--format",
+        "json",
+        "--preview-legacy-reviews",
+        "--top",
+        "0",
+        "--replay-run",
+        "target/rstyle/clones/run-TKB31S"
+      ],
+      "exit": 2,
+      "elapsed_seconds": 0.45633590198121965
+    },
+    "direct": {
+      "command": [
+        "target/debug/cargo-rstyle",
+        "clones",
+        "--extraction-profile",
+        "hir-data-v3",
+        "--compiler-patterns",
+        "--compiler-advisory-only",
+        "--report-detail",
+        "compact",
+        "--compiler-advisory-config",
+        "/home/dev/src/rstyle-main/rstyle/rstyle.toml",
+        "--format",
+        "json",
+        "--top",
+        "0",
+        "--replay-run",
+        "target/rstyle/clones/run-TKB31S"
+      ],
+      "exit": 2,
+      "elapsed_seconds": 0.43645293498411775
+    }
+  },
+  "results": {
+    "raw_compiler_evaluation_equal_to_direct_entry": true,
+    "presentation_equal_to_direct_entry": true,
+    "top_zero_displayed_candidates": 0,
+    "legacy_entries": 26,
+    "states": {
+      "unavailable": 25,
+      "matched": 1
+    },
+    "matches": [
+      {
+        "legacy_id": "c5f442ffa59a",
+        "matches": [
+          {
+            "unit": 0,
+            "candidate_index": 0,
+            "candidate_id": "c5f442ffa59a",
+            "matched": "exact",
+            "snapshot_available": true
+          }
+        ]
+      }
+    ],
+    "scope_complete": false,
+    "complete": false,
+    "legacy_ledger_unchanged": true,
+    "no_repository_review_import_performed": true,
+    "incomplete_exit_preserved": true
+  },
+  "limitations": [
+    "Preview adds review visibility indices and a migration report; raw proposal evaluation and display masks remain equal.",
+    "Unmatched entries are unavailable over this incomplete single-package scope; this provides no pruning authority.",
+    "No real repository dismissals were imported, retired or modified.",
+    "Fixture acceptance verifies import, growth conversion and staleness separately; this read-only project study establishes no coverage expansion, quality gain, speedup or retirement readiness."
+  ]
+}
