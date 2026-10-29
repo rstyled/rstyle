@@ -15,7 +15,7 @@ pub use reference_instances::ReferenceConstructorReplay;
 mod function_sources;
 mod graph_sources;
 
-pub const BUNDLE_SCHEMA: &str = "rstyle.shared-unit/5";
+pub const BUNDLE_SCHEMA: &str = "rstyle.shared-unit/6";
 const LEGACY_SCHEMA: &str = "rstyle.shared-unit/4";
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
@@ -69,7 +69,7 @@ struct Decoded {
 impl Import {
     fn decode(bytes: &[u8]) -> Result<Decoded, String> {
         let mut wire: Self = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
-        if ![BUNDLE_SCHEMA, LEGACY_SCHEMA].contains(&wire.schema.as_str()) {
+        if ![BUNDLE_SCHEMA, "rstyle.shared-unit/5", LEGACY_SCHEMA].contains(&wire.schema.as_str()) {
             return Err("Unsupported shared unit schema".into());
         }
 
@@ -78,9 +78,10 @@ impl Import {
             wire.schema == LEGACY_SCHEMA,
         )?;
         let mut sources = crate::source_table::Imported::new(&wire.sources);
+        let flat_bodies = wire.schema == BUNDLE_SCHEMA;
         let functions = std::mem::take(&mut wire.functions)
             .into_iter()
-            .map(|function| function.into_facts(&mut sources, &mut inventories))
+            .map(|function| function.into_facts(&mut sources, &mut inventories, flat_bodies))
             .collect::<Result<_, _>>()?;
         sources.finish()?;
         inventories.finish()?;

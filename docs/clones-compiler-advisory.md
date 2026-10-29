@@ -47,9 +47,16 @@ deserialization would fill with zero/empty defaults. The enclosing bundle and
 selected compiler invocation retain the compilation context. No new hash is used.
 Strict clone matching and certification do not consume this advisory record.
 
+Shared bundle version 6 encodes deep HIR bodies as flat preorder records, so
+compiler-generated derives cannot lose an entire unit's advisory observations
+solely through recursive JSON nesting. Every node and its order are retained;
+generated functions still have the collector's original unavailable outcome.
+The JSON nesting limit, source census budget and strict checks are unchanged.
+Older version-4/5 bundles remain readable within their original tree grammar.
+
 ## Cross-package compiler effects
 
-Captured non-test library selections can reuse core effect propagation across
+Captured non-test selections can reuse core effect propagation across
 uniquely identified direct Cargo dependency edges. Select both workspace packages
 with the existing package selection; missing packages are not captured implicitly.
 Each callee remains scoped by its report unit and compiler function ID. The

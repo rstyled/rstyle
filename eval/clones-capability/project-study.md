@@ -410,3 +410,63 @@ limits (256 files and 8 MiB), strict admission and pair budget are unchanged.
 This project coverage target remains unverified. Independent small real-Cargo
 acceptance tests validate the bounded connection; they do not establish the
 larger project's coverage gain or a performance improvement.
+
+## Deep-body transport and production core call coverage
+
+The smaller non-test `cargo-rstyle` binary plus `rstyle-core` library selection
+fits the unchanged source census budget. Before capture,
+[`project-compiler-core-cases.json`](project-compiler-core-cases.json) labels
+seven ordinary core callees from existing source call sites; uncaptured
+`rstyle-pdg` callees must remain unresolved. This is a call-coverage expectation,
+not a diagnostic-quality or purity label.
+
+```sh
+env PATH=/home/dev/.cargo/bin:$PATH CARGO_TARGET_DIR=target \
+python3 scripts/watchdog.py --timeout 180 \
+  --output /tmp/clones-cross-unit-core-project-capture-2 -- \
+  /usr/bin/time -v target/debug/cargo-rstyle rstyle \
+  -p cargo-rstyle -p rstyle-core --format json clones \
+  --extraction-profile hir-data-v3 --compiler-advisory \
+  --compiler-advisory-config eval/clones-capability/project-compiler-review-policy.toml \
+  --max-pairs 0 --locked --report-detail compact
+```
+
+The version-5 baseline `run-HeBbkZ` completes compilation but loses the entire
+CLI unit during bundle import: `recursion limit exceeded at line 1 column
+210297864`. Its CLI observation roster is empty with an unknown denominator;
+this is not a zero-function or clean result. The compiler-generated HIR body
+exceeds JSON container nesting. Compilation itself and the census budget pass.
+
+The version-6 run `run-ynuMSl` completes capture and assessment without handoff
+failures. The CLI now retains 1,190 observed and 1,428 unavailable functions out
+of 2,618; its 28 resolved core dependency targets include all seven independently
+pre-labeled targets. Eighty-seven other workspace targets remain unresolved,
+including uncaptured PDG/ccgraph functions and associated core methods. There
+are 140 raw CLI diagnostics; their individual truth/quality is not independently
+reviewed here. The core unit's 378 observed, 722 unavailable, 48 diagnostics and
+entire evaluation are identical before and after. Source location/outcome/reason
+rows for its 1,100 assessed functions are also unchanged.
+
+Both runs exit 2 because advisory inputs remain incomplete. The final strict
+population contains 3,718 excluded functions, zero admitted functions and zero
+accepted pairs; its complete empty pair roster is not evidence of broad strict
+Rust coverage. No matching permissions or budgets changed. These measurements
+establish recovered production advisory coverage and dependency resolution.
+
+Resource observations are 48.07/58.03 seconds and 1,785,696/1,788,984 KiB peak RSS
+before/after. The latter performs the previously discarded unit's assessment;
+these are not equivalent successful workloads and establish no speedup.
+Evidence is `/tmp/clones-cross-unit-core-project-capture-{1,2}`. The machine
+observation is [`project-compiler-core-results.json`](project-compiler-core-results.json).
+The larger two-library PDG census limitation above remains unresolved.
+
+Strict saved-run replay also completes without capture/handoff failures and
+preserves the entire advisory, matching and accepted-pair reports exactly. It
+retains exit 2. Replay evidence is `/tmp/clones-flat-hir-project-replay-2`:
+16.67 seconds and 1,439,088 KiB peak RSS. This is a different operation from fresh
+capture and is not a speed comparison. Replay uses the original saved build
+options; the first attempted invocation repeated `--locked` and was correctly
+rejected before loading evidence. The successful command is the preceding
+capture command with package/build options removed and
+`--replay-run target/rstyle/clones/run-ynuMSl` appended (no `--locked`). The small
+compiler regression separately deletes its source before replay.

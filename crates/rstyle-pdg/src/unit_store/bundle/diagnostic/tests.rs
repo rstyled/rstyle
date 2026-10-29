@@ -40,6 +40,9 @@ fn full_roster_and_evidence_roundtrip_with_shared_sources() {
         serde_json::to_value(original).unwrap(),
         serde_json::to_value(decoded).unwrap()
     );
+    let mut legacy = wire.clone();
+    legacy["schema"] = "rstyle.diagnostic.raw-facts/2".into();
+    assert!(read_diagnostic_snapshot(&serde_json::to_vec(&legacy).unwrap()).is_ok());
     assert_eq!(wire["facts"].as_array().unwrap().len(), 2);
     let sources = wire["sources"].as_array().unwrap();
     assert_eq!(

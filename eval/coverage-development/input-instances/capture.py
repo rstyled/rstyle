@@ -83,7 +83,7 @@ def summarize(directory, completed, selection):
     if len(raw) != 1:
         raise ValueError('missing complete original definition roster')
     roster = json.loads(raw[0].read_text())
-    if roster.get('schema') != 'rstyle.diagnostic.raw-facts/2':
+    if roster.get('schema') not in ('rstyle.diagnostic.raw-facts/2', 'rstyle.diagnostic.raw-facts/3'):
         raise ValueError('expected shared-source original roster')
     return {'definition_count': len(roster['facts']), 'observed_instances': len(observed),
             'admission_authority': False,

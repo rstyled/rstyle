@@ -2924,3 +2924,84 @@ Final unfiltered pattern discovery contains exactly the same fourteen reviewed
 IDs as C23, with no new or absent IDs. Evidence is
 `/tmp/clones-cross-unit-propagation-patterns-unfiltered-final-1`; the ignore ledger
 is unchanged.
+
+## C25: preserve compiler advisory units across deep HIR transport
+
+The lead owns the existing shared function-body codec, its bundle/diagnostic
+version handoffs, real compiler regression, Python navigation compatibility and
+production measurements. The failed C24 PDG census is a genuine scope limit;
+its 256-file/8-MiB budget is unchanged. A smaller production selection of
+`cargo-rstyle` plus `rstyle-core` instead exposed a separate handoff defect:
+the version-5 writer could emit generated HIR bodies that its ordinary JSON
+reader rejected for nesting. The CLI unit then contributed no advisory facts.
+
+Version 6 keeps readable shallow bodies and streams deep bodies as borrowed
+preorder records with original child counts. Import moves the nodes into the
+exact ordered tree; there is no body/graph copy, new collector, evaluation
+algorithm, source/type/body proof, hash, checksum or artifact scan. The JSON
+nesting limit and all semantic/evidence budgets are unchanged. Versions 4/5
+remain readable in their original tree grammar. Shared diagnostic snapshots
+use version 3 with the same codec and retain version-2 tree reads. Source/graph
+validation and strict clone matching remain unchanged. The Python diagnostic
+reducers only count/locate raw functions and accept the new snapshot version;
+the narrow navigation reader accepts bundle version 6 without becoming another
+HIR or evidence verifier.
+
+Five core codec cases cover exact field/order preservation beyond the default
+JSON limit, shallow wire stability/borrowing, old formats, malformed/orphan/hidden
+child rosters and strict excluded-body plus diagnostic replay. The real-Cargo
+96-field derive case preserves its original function's advisory observation and
+source-free replay while generated owners remain unavailable. Its final focused
+run passes (`/tmp/clones-flat-hir-cli-tests-3`); earlier failures were test setup
+compile/argument mistakes, not passing evidence. All 24 Python navigation tests
+pass with the documented pinned `uv` dependencies. Plain system Python lacked
+`jsonschema`; that unsuccessful invocation is not passing evidence. Final
+all-target Clippy passes (`/tmp/clones-flat-hir-clippy-final-1`). Style returns to
+zero over 9,703 functions after adding the phase separation it requested
+(`/tmp/clones-flat-hir-style-2`). Final full-suite/pattern gates follow below.
+
+Independent production labels precede capture in
+`eval/clones-capability/project-compiler-core-cases.json`. The new run retains
+1,190 CLI observations out of 2,618 functions and resolves 28 core targets,
+including all seven pre-labeled callees. The baseline discarded this entire
+unit on JSON nesting failure. The core unit's entire evaluation and its 1,100
+source location/outcome/reason rows are unchanged. Both runs exit 2: generated
+owners and 87 CLI workspace targets remain unavailable/unresolved. There are
+no strict admitted functions in this scope; the complete empty pair roster
+does not establish broad matching coverage. The raw CLI diagnostic quality has
+not been independently reviewed. Resource observations are 48.07/58.03 seconds
+and 1,785,696/1,788,984 KiB RSS before/after; the latter does additional useful
+work and establishes no speedup. Commands, limitations and machine observations
+are in the project study and `project-compiler-core-results.json`.
+
+The full migration remains incomplete. Next ready work is to reuse the existing
+compiler/core planning seams for broader advisory planning and independently
+review the newly available production findings. Associated-method dependency
+resolution, large-unit source availability and per-capability retirement remain
+open; do not raise the census budget or add redundant proofs to address them.
+
+Final reviewed patterns reports zero; unfiltered discovery contains exactly the
+previous fourteen reviewed IDs, with no new or absent IDs. Evidence is
+`/tmp/clones-flat-hir-patterns-{final-1,unfiltered-final-1}`. The ignore ledger is
+unchanged. Final Clippy is `/tmp/clones-flat-hir-clippy-final-2`.
+
+The first full suite passed 3,300 cases and exposed one malformed new historical
+fixture: it relabeled a version-5 inventory table as version 4. The reader
+correctly rejected it. The fixture now removes the absent-in-version-4 empty
+table; no implementation check was relaxed. All five codec cases pass directly
+(`/tmp/clones-flat-hir-body-tests-final-1`); the integrated rerun follows below.
+
+The larger production capture also replays through strict import with no
+capture/handoff failures and exact equality of the full advisory, matching and
+accepted-pair reports. Exit remains 2. Evidence is
+`/tmp/clones-flat-hir-project-replay-2`, with 16.67 seconds and 1,439,088 KiB RSS.
+The earlier replay request repeated `--locked` and was correctly rejected for
+attempting to respecify original build options; it is not passing evidence.
+
+The final integrated rerun passes all 3,301 nextest cases with five existing
+skips, plus workspace doc tests (`/tmp/clones-flat-hir-tests-final-2`). Both
+original NonZero CI regressions and the u32 widening composition pass. The
+earlier 3,300-pass/one-fixture-failure run remains recorded as unsuccessful.
+Final Clippy, formatting, diff checks, zero-violation style and both reviewed/
+unfiltered pattern gates pass. No uncommitted unrelated source or pre-existing
+untracked work is included in this increment.

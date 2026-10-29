@@ -195,7 +195,7 @@ def summarize(output, selection, context, target, root, exit_code, require_membe
     matches = []
     for path in files:
         raw = json.loads(path.read_text())
-        require(raw["schema"] == "rstyle.diagnostic.raw-facts/2"
+        require(raw["schema"] in ("rstyle.diagnostic.raw-facts/2", "rstyle.diagnostic.raw-facts/3")
                 and raw["phase"] == "pre-helper-certification", "unexpected raw snapshot schema/phase")
         selected = []
         for expected in selection["functions"]:

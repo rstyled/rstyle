@@ -1,9 +1,27 @@
-# Shared unit bundle version 4
+# Shared unit bundle version 6
 
-The internal `rstyle.shared-unit/4` JSON bundle contains one unit's owned
+The internal `rstyle.shared-unit/6` JSON bundle contains one unit's owned
 frontend and graph records. It is available through
 `UnitStore::{write_bundle,from_bundle}` and is the normal driver/CLI handoff. It does not replace the pinned standalone PDG/CFG
 schemas or reinterpret their existing manifest hashes.
+
+Version 6 preserves shallow HIR bodies as their readable trees. Bodies reaching
+32 nested HIR levels use a flat preorder array of `{node, children}` records:
+each `node` retains every original field with an empty `children` array, and
+the sibling `children` count supplies its original arity. Export streams borrowed
+nodes; import moves the decoded nodes into the exact ordered tree. This avoids
+JSON container nesting failures in wide compiler-generated derives without
+copying bodies or increasing the JSON recursion limit or any evidence budget.
+Missing children, extra roots, hidden nested children and unknown record fields
+are rejected. Representation selection is unrelated to semantic admission.
+
+Versions 4 and 5 remain readable with their original nested-body grammar. Flat
+bodies require version 6; merely changing a schema label does not enable them
+in historical formats. Shared diagnostic snapshots use
+`rstyle.diagnostic.raw-facts/3` with the same body codec and still read version 2
+trees. Neither format change grants generated trust or strict admission. Graph
+and source validation and metric identities are unchanged. No new hashes,
+checksums, source proofs or artifact scans are introduced.
 
 | Field | Meaning |
 | --- | --- |

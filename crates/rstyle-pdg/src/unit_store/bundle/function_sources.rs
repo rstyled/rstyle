@@ -5,6 +5,7 @@ use crate::{
     source_table::{self, SourceId},
 };
 use serde::{Deserialize, Serialize};
+mod body;
 mod build;
 
 #[derive(Serialize)]
@@ -29,7 +30,7 @@ pub(super) struct Export<'a> {
     source: Reference<'a>,
     signature: &'a SignatureFacts,
     bindings: &'a [BindingFact],
-    body: &'a HirNode,
+    body: body::Export<'a>,
     build: build::Export<'a>,
     source_diagnostics: &'a [HirDiagnostic],
     source_scan_complete: bool,
@@ -43,7 +44,7 @@ pub(super) struct Import {
     source: ImportedReference,
     signature: SignatureFacts,
     bindings: Vec<BindingFact>,
-    body: HirNode,
+    body: body::Import,
     build: BuildFacts<option_bundle::Import>,
     source_diagnostics: Vec<HirDiagnostic>,
     source_scan_complete: bool,
@@ -101,7 +102,7 @@ impl<'a> Export<'a> {
             source,
             signature: &facts.signature,
             bindings: &facts.bindings,
-            body: &facts.body,
+            body: body::Export(&facts.body),
             build: build::Export::new(&facts.build, sources, inventories)?,
             source_diagnostics: &facts.source_diagnostics,
             source_scan_complete: facts.source_scan_complete,
@@ -124,6 +125,7 @@ impl Import {
         self,
         sources: &mut source_table::Imported<'_>,
         inventories: &mut option_bundle::ImportedInventories,
+        flat_bodies: bool,
     ) -> Result<HirFnFacts, String> {
         let bytes = sources.range(self.source.snapshot, self.source.range)?;
         Ok(HirFnFacts {
@@ -135,7 +137,7 @@ impl Import {
             },
             signature: self.signature,
             bindings: self.bindings,
-            body: self.body,
+            body: self.body.into_node(flat_bodies)?,
             build: self
                 .build
                 .try_map_options(|options| options.decode(sources, inventories))?,

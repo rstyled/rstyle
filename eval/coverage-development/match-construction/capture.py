@@ -149,7 +149,7 @@ def summarize(directory, selection, context, exit_code, expected_target=None):
     require(len(raw) == 1, 'missing complete original raw roster')
     roster = json.loads(raw[0].read_text())
     count = 2582 if context['default_features'] else 590
-    require(roster.get('schema') == 'rstyle.diagnostic.raw-facts/2'
+    require(roster.get('schema') in ('rstyle.diagnostic.raw-facts/2', 'rstyle.diagnostic.raw-facts/3')
             and len(roster['facts']) == count, 'complete raw definition roster differs')
     return {'context': context['name'], 'target': build['frontend_options']['target'],
             'definition_count': count, 'instances': observations,

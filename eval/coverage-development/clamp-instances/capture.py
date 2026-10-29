@@ -127,7 +127,7 @@ def summarize(directory):
     inventory = json.loads(snapshots[0].read_text())
     summary['obligations_verified'] = inventory['obligations_verified']
     roster = json.loads(rosters[0].read_text())
-    if roster.get('schema') != 'rstyle.diagnostic.raw-facts/2':
+    if roster.get('schema') not in ('rstyle.diagnostic.raw-facts/2', 'rstyle.diagnostic.raw-facts/3'):
         raise ValueError('expected complete shared-source diagnostic snapshot')
     facts = roster['facts']
     summary['definition_count'] = len(facts)

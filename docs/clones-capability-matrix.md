@@ -44,6 +44,12 @@ declared project coverage and docs/skill migration remain required. Existing Go
 comparison is unavailable and unverified. Integrated gate results and commits
 belong in the lead-owned progress ledger, not inferred from this matrix.
 
+Deep compiler-generated HIR bodies use the shared bundle's version-6 flat preorder
+transport, preserving ordinary compiler advisory observations without requiring
+strict admission or raising JSON/census limits. Exact field/order roundtrips,
+historical formats, malformed rosters and source-free real-Cargo replay are
+covered. This transport change grants no new extraction semantics or purity.
+
 The shared core proposer borrows graphs when normalization is disabled. The
 238-function rstyle-ccgraph saved-fact comparison retains exactly the same report
 while reducing cumulative allocation traffic; it establishes no new proposal

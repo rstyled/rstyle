@@ -367,13 +367,17 @@ It reuses `ExprUseVisitor`, core propagation, fix groups and parameter stacking;
 strict clone admission is not required. Captured observations support source-free
 `--replay-run` and policy reevaluation. These metric versions differ from strict
 mutation-effect metrics; zero policy density is not a purity proof.
+The version-6 shared bundle preserves deep generated HIR through flat preorder
+transport. Generated functions remain unavailable to the advisory collector;
+their JSON nesting no longer discards original functions in the same unit.
+Older version-4/5 bundles retain their original grammar and strict checks.
 `--changed-files PATH` selects numeric compiler diagnostic presentation and finding
 exits after reviews. Raw evaluations/fix plans remain intact; proposals and
 invalid suppressions stay global. `changed_scope` reports file owner availability;
 unknown files or whole-scope missing inputs still prevent a clean result.
 See [compiler advisory](../../docs/clones-compiler-advisory.md).
 
-When both workspace library packages are selected, compiler effects follow
+When the caller and dependency workspace packages are selected, compiler effects follow
 unique captured direct Cargo edges to known free functions. The report's
 `resolved_dependency_callees` maps compiler IDs to report-local unit IDs.
 Core propagation borrows captured owners and completed effects move into rule
