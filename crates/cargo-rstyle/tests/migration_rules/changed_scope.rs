@@ -273,8 +273,14 @@ fn exact_paths_distinguish_same_named_files_and_all_compiled_owner_occurrences()
     .unwrap();
     select(directory.path(), &["src/left/same.rs"]);
     let (output, report) = requested(directory.path(), &["--all-targets", "--fail-on-findings"]);
-    assert_eq!(output.status.code(), Some(2), "{}", report["analysis"]);
-    assert_eq!(report["analysis"]["scope"]["coverage"], "incomplete");
+    assert_eq!(output.status.code(), Some(1), "{}", report["analysis"]);
+    assert_eq!(report["analysis"]["scope"]["coverage"], "complete");
+    assert!(
+        report["analysis"]["scope"]["outside_source_functions"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
     assert_eq!(scope(&report)["coverage"], "complete");
     assert_eq!(
         selected_path(&report, "src/left/same.rs")["coverage"],

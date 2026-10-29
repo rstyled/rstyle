@@ -127,7 +127,13 @@ fn library_and_test_compilation_contexts_do_not_share_a_spacing_dismissal() {
     ]);
     let report = parsed(&output);
     counts(&report, 1, 1);
-    assert_eq!(report["spacing_review"]["coverage"], "incomplete");
+    assert_eq!(report["spacing_review"]["coverage"], "complete");
+    assert!(
+        report["analysis"]["scope"]["outside_source_functions"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
     let store: Value =
         serde_json::from_slice(&std::fs::read(directory.path().join("reviews.json")).unwrap())
             .unwrap();

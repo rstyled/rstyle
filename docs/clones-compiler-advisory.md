@@ -17,7 +17,10 @@ and pair-completeness flags are false. Success still requires complete capture,
 handoff and requested advisory consumers. Missing owners remain incomplete;
 unresolved callees also keep requested numeric style/effect coverage incomplete.
 Use `--compiler-patterns` without `--compiler-advisory` for structural proposals
-without numeric rule evaluation. The raw capture mode accepts either consumer.
+without numeric rule evaluation. The raw capture mode accepts either consumer. Local source, guard, mutation and
+effect consumers can also run alone with `--compiler-advisory-only`; no compiler
+numeric observations are captured or evaluated unless a compiler consumer is
+requested. A local-only report omits `compiler_advisory`.
 
 Fresh compiler-input captures also retain direct mutation, external-call and
 intrinsic-effect events for macro-generated function signatures. Per-unit

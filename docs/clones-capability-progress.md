@@ -5793,3 +5793,79 @@ zero unreviewed candidates and the same 13 unfiltered IDs as main. Logs use
 /tmp/clones-c75-*. C73 and C74 native CI pass on Ubuntu x64/ARM and macOS
 (runs 40916805535 and 40920137235). C75 native CI remains pending until push.
 Current remote main is 1689392 and is already an ancestor of this branch.
+
+
+### C76 — independent local advice and original-source applicability (2026-10-29)
+
+Lead owns request routing, source assessment/report adapters, docs and project
+study; acceptance workers own local_only and generated_applicability test leaves.
+Local source, guard, mutation and effect consumers now run with the existing raw
+advisory mode without requiring compiler numeric advice, ranking or patterns.
+Only requested metadata is captured. Local-only runs omit compiler observations
+and the compiler report, reuse the same local collectors/evaluators, and skip
+strict certification and matching. No new hash, source scan or authority proof.
+
+Explicit generated signatures are outside original-source rule applicability,
+matching the legacy authored-source scope. Classification reuses the existing
+source inspection result plus captured expansion marker, after original source
+and context checks. It retains each generated owner, reason and not-applicable
+assessment with no measurement, plus an outside_source_functions count. Unknown
+origins, missing authored ownership and invalid bytes stay incomplete. Generated
+owners do not supply original source review observations, resolve/prune previously
+reviewed authored findings, or complete a parameter planner's edit population.
+Guards, effects, compiler numeric advice and strict matching are unchanged.
+
+Nine new acceptance cases plus existing baseline/raw-advice controls pass (53
+focused checks). A fixture initially conflated direct mutation completeness with
+helper-effect summary completeness; independent expectations now preserve the
+direct caller's unknown boundaries while asserting completed effect summaries.
+One overlong test was split into a cohesive review setup helper for Clippy.
+
+Fresh rstyle-ccgraph source-only capture run-VfkAd5 evaluates 476 length/parameter
+rules over 238 authored functions and retains 176 generated signatures outside
+applicability, with zero unavailable source rules and zero findings. Complete
+empty baseline export and comparison both exit zero. Raw artifacts contain no
+compiler numeric/pattern observations; strict execution is not requested. See
+project-original-source-applicability-study.json. Spacing was not requested; no
+whole-workspace, speedup, proposal-quality or retirement claim is made. Missing
+and source/tool-free controls are fixture evidence; real-project replay retained
+live sources. Full integrated gates are pending below. C75 native CI was still
+running on Ubuntu x64/ARM and macOS at the latest poll (40923413434).
+
+Next bounded investigation: source review location lookup currently reuses a
+dispatch declaration locator that rejects type/const generic impl owners. Reuse
+its declaration-naming seam (or the existing core locator) without extending
+dispatch eligibility. Three source-inspected study candidates in rstyle-core are
+Ctx::step and Ctx::plan in stacking.rs, and GroupReports::group in groups.rs;
+all use impl<F: Borrow<FnFacts>>. A study-only length10/params2 policy would expose
+nonempty source findings. First measure their current review/baseline failures,
+then test generic owner/context disambiguation and unrelated-impl stability. No
+implementation or measured gain for this next candidate is claimed yet.
+
+The initial full suite passed 3,584 cases and exposed four stale expectations
+that generated test-harness owners make source review/changed-scope coverage
+incomplete. Updated those cases to require complete authored-source coverage and
+an explicit positive outside-owner count, preserving check/test review isolation
+and exact changed-path occurrence assertions. The changed-file findings gate
+now correctly exits1 instead of incomplete2. Legacy style found assess at51
+lines; extracted its unchanged guard execution mapping into a borrowed helper.
+Final frozen validation follows after these corrections.
+
+While the final suite ran, lightweight source-only replay of retained core run-ChBnep
+confirmed the next gap: 409 authored owners /806 outside signatures give complete
+source assessment under the study policy, including exact counts17/3,37/2,34/3
+for Ctx::step, Ctx::plan and GroupReports::group. Baseline export still exits2
+("Incomplete analysis cannot publish a source baseline"); direct length dismissal
+of Ctx::step also exits2. Evidence is retained in /tmp/clones-c77-core-before.json,
+/tmp/clones-c77-core-baseline-before.log and /tmp/clones-c77-dismiss-before.log.
+This is confirmed remaining review-locator work, not a C76 baseline-completeness
+claim for rstyle-core or a C77 implementation.
+
+Final frozen validation passes all3,588 Rust tests in237.130s with five existing
+skips, plus doc tests,244 Python checks, locked all-target Clippy, formatting and
+diff checks. Legacy style reports zero violations over9,936 functions; reviewed
+patterns has zero unreviewed candidates and the same13 unfiltered IDs as main.
+Two independent read-only reviews found no correctness blockers. Logs use
+/tmp/clones-c76-*. C75 Ubuntu x64/ARM passed; macOS remained in progress at the
+latest poll. C76 native CI is pending push. No legacy backend is retired; the
+full capability migration remains active.

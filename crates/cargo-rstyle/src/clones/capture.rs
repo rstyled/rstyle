@@ -630,9 +630,10 @@ fn driver_command(
     let mut command = Command::new(&plan.driver);
     run::clear_rstyle_environment(&mut command);
 
-    if plan.compiler_advisory && target.is_some() {
+    if (plan.compiler_advisory || plan.compiler_advisory_only) && target.is_some() {
         let flags = [
-            Some((rstyle_core::advisory::CAPTURE_ENV, "1")),
+            plan.compiler_advisory
+                .then_some((rstyle_core::advisory::CAPTURE_ENV, "1")),
             plan.compiler_advisory_only
                 .then_some(("RSTYLE_COMPILER_ADVISORY_ONLY", "1")),
             plan.compiler_patterns

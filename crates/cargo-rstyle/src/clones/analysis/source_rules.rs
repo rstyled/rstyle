@@ -28,7 +28,7 @@ pub(super) fn evaluate(facts: &LocalFacts<'_>, config: &Config, spacing: bool) -
     rules
 }
 
-pub(super) fn excluded(config: &Config, spacing: bool) -> Vec<Assessment> {
+pub(super) fn not_applicable(config: &Config, spacing: bool, reason: &str) -> Vec<Assessment> {
     [
         ("fn_length", config.fn_length.max_lines),
         ("fn_params", config.fn_params.max_params),
@@ -45,7 +45,7 @@ pub(super) fn excluded(config: &Config, spacing: bool) -> Vec<Assessment> {
         availability: FactAvailability::NotApplicable,
         actual: None,
         limit,
-        reasons: vec!["Original source path is excluded by the configured workspace policy".into()],
+        reasons: vec![reason.into()],
     })
     .collect()
 }

@@ -40,6 +40,7 @@ impl Report<'_> {
         self.effective_config.iter().flat_map(move |settings| {
             self.functions
                 .iter()
+                .filter(|function| !function.outside_source_rules)
                 .map(move |function| function.source_review(settings, self.changed_scope.is_none()))
         })
     }
@@ -60,7 +61,7 @@ impl Report<'_> {
 
 impl FunctionReport<'_> {
     pub(super) fn parameter_source_complete(&self) -> bool {
-        self.source_rule_review("fn_params").complete
+        !self.outside_source_rules && self.source_rule_review("fn_params").complete
     }
 
     fn source_review(&self, settings: &Settings<'_>, unfiltered: bool) -> SourceReview<'_> {

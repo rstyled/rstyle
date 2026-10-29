@@ -342,10 +342,23 @@ unavailable. Live and
 source/tool-free saved-run comparison and export use the same policy. These
 limits remain visible prerequisites for any project-wide CI gate.
 
-Source rules and guard advice also support `--compiler-advisory
---compiler-advisory-only`. Fresh requests capture the same bounded original file
+Source rules and guard advice also support `--compiler-advisory-only` without
+requesting compiler numeric advice. Fresh requests capture the same bounded original file
 ownership needed by these consumers, without strict certification or matching.
 Their parameter/guard plans retain the same unknown caller and edit-safety
 boundaries. Older raw snapshots without source ownership remain unavailable;
 replay never fills that gap from live files. See
 [compiler advisory reuse](clones-compiler-advisory.md) for capture limits.
+
+Original-source rules apply to authored function signatures. Explicitly captured
+expansion-generated signatures are reported as `outside_source_rules`, with
+not-applicable assessments and no numeric measurement. The scope retains their
+count as `outside_source_functions`; generated owners do not block an otherwise
+complete original-source baseline. This classification uses the existing checked
+source inspection result and generated-function marker. Missing source ownership,
+invalid snapshots and unknown origins remain incomplete. Guards, effects, numeric
+compiler advice and strict matching retain their independent coverage rules.
+
+Generated owners do not supply source review observations or complete a parameter
+plan's caller/edit population. A previously reviewed authored function replaced by
+a generated owner stays unobserved; it cannot resolve or prune that review.

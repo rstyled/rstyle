@@ -50,7 +50,7 @@ fn family<'a>(
         function.changed_file = path.map(|path| selection.contains(path));
         changed_scope::Owner {
             path,
-            outside_scope: false,
+            outside_scope: matches!(family, Family::Source) && function.outside_source_rules,
             complete: match family {
                 Family::Source => source_complete(function),
                 Family::Guard => function.guard_clause.as_ref().is_some_and(|guard| {
@@ -93,6 +93,9 @@ impl FunctionReport<'_> {
     }
 
     pub(super) fn source_policy_complete(&self) -> bool {
+        if self.outside_source_rules {
+            return true;
+        }
         let Some(exclusion) = &self.source_exclusion else {
             return false;
         };

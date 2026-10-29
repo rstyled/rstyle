@@ -51,6 +51,7 @@ impl CompilerPatternScope {
     group(clap::ArgGroup::new("compiler_presentation").args(["min_score", "top"]).requires("compiler_patterns").multiple(true)),
     group(clap::ArgGroup::new("compiler_mining").args(["hide_implements", "threshold", "min_coverage", "pair_coverage", "normalize", "single_call_guard", "max_holes"]).requires("compiler_patterns").multiple(true)),
     group(clap::ArgGroup::new("compiler_inputs").args(["compiler_advisory", "compiler_patterns", "compiler_complexity_top"]).multiple(true)),
+    group(clap::ArgGroup::new("advisory_inputs").args(["compiler_advisory", "compiler_patterns", "compiler_complexity_top", "source_rules", "guard_clauses", "mutation_rules", "mutation_effects", "effect_density"]).multiple(true)),
     group(clap::ArgGroup::new("changed_analysis").args(["source_rules", "effect_density", "compiler_advisory", "compiler_patterns", "select_guards"]).multiple(true)),
     group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules", "mutation_rules", "effect_density", "compiler_patterns", "compiler_advisory", "guard_clauses"]).multiple(true)),
     group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_guard", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density", "dismiss_compiler_pattern", "dismiss_compiler_diagnostic", "import_legacy_pattern"])),
@@ -103,7 +104,7 @@ pub struct Args {
     #[serde(skip_serializing_if = "Option::is_none")]
     compiler_complexity_top: Option<std::num::NonZeroUsize>,
     /// Capture compiler advice without strict helper certification, admission or matching.
-    #[arg(long, requires = "compiler_inputs", conflicts_with_all = ["matching_config", "trace", "fail_on_accepted_pairs", "explain_pairs", "helper_proposals", "enum_dispatch", "capability_proposals", "max_pairs"])]
+    #[arg(long, requires = "advisory_inputs", conflicts_with_all = ["matching_config", "trace", "fail_on_accepted_pairs", "explain_pairs", "helper_proposals", "enum_dispatch", "capability_proposals", "max_pairs"])]
     compiler_advisory_only: bool,
     /// Reuse compiler graphs and core proposals independently of numeric style diagnostics.
     #[arg(long)]

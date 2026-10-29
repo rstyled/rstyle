@@ -416,7 +416,12 @@ execution is `not_requested`, raw artifacts have no strict namespace, and replay
 requires the original mode. Omitted records are not complete empty inventories.
 Missing/generated owners and unresolved calls remain incomplete, including in
 test builds. Source rules/guard advice, `--mutation-rules`, `--mutation-effects`,
-`--effect-density`, and parameter/guard plans can run in advisory-only mode. Fresh requests reuse the
+`--effect-density`, and parameter/guard plans can run in advisory-only mode without
+requesting compiler numeric advice. Local-only capture omits compiler observations
+and the compiler advisory report. Explicit expansion-generated signatures remain
+listed outside original-source rules, without numeric measurements; they do not
+block authored source baselines. Missing/invalid authored ownership stays incomplete,
+and generated replacements cannot resolve authored reviews or complete edit plans. Fresh requests reuse the
 existing original file census within its256-file/8MiB limits; compiler-only
 requests omit it. Older raw captures without that ownership stay unknown on source
 replay. Missing optional mutable-formal/control types

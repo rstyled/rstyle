@@ -230,7 +230,7 @@ fn advisory_only_requires_compiler_inputs_and_rejects_graph_consumers() {
     }
 }
 
-pub(super) fn ledger_path(report: &Value) -> PathBuf {
+pub(in super::super) fn ledger_path(report: &Value) -> PathBuf {
     std::fs::read_dir(report["run_directory"].as_str().unwrap())
         .unwrap()
         .map(|entry| entry.unwrap().path())
@@ -246,7 +246,7 @@ pub(super) fn ledger_path(report: &Value) -> PathBuf {
         .unwrap()
 }
 
-pub(super) fn reseal_raw(report: &Value, ledger: &Path, wire: &Value) {
+pub(in super::super) fn reseal_raw(report: &Value, ledger: &Path, wire: &Value) {
     let bundle = Path::new(
         report["functions"][0]["unit_evidence"]["bundle"]
             .as_str()

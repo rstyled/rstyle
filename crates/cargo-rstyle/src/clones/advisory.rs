@@ -463,11 +463,13 @@ fn evaluate_units(
 }
 
 pub(super) fn configuration(args: &super::Args) -> Result<Option<Config>, String> {
+    if (args.compiler_inputs_requested() || args.compiler_advisory_only)
+        && args.extraction_profile != rstyle_pdg::extraction_profile::ExtractionProfile::DataV3
+    {
+        return Err("Compiler advisory requires --extraction-profile hir-data-v3".into());
+    }
     if !args.compiler_inputs_requested() {
         return Ok(None);
-    }
-    if args.extraction_profile != rstyle_pdg::extraction_profile::ExtractionProfile::DataV3 {
-        return Err("Compiler advisory requires --extraction-profile hir-data-v3".into());
     }
     let config = match &args.compiler_advisory_config {
         None => Config::default(),

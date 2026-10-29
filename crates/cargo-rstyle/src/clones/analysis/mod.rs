@@ -146,6 +146,8 @@ struct FunctionReport<'a> {
     guard_review_source: Option<&'a str>,
     execution: Execution,
     assessments: Vec<Assessment>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    outside_source_rules: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     source_suppression: Option<source_suppressions::Report>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -365,6 +367,12 @@ struct SourceScope {
     unavailable_source_exclusions: usize,
     excluded_source_functions: usize,
     excluded_rules: usize,
+    #[serde(skip_serializing_if = "is_zero")]
+    outside_source_functions: usize,
+}
+
+fn is_zero(value: &usize) -> bool {
+    *value == 0
 }
 
 fn source_scope(functions: &[FunctionReport<'_>]) -> SourceScope {
@@ -389,11 +397,14 @@ fn source_scope(functions: &[FunctionReport<'_>]) -> SourceScope {
                     .as_ref()
                     .is_some_and(|value| value.excluded()),
             );
+            scope.outside_source_functions += usize::from(function.outside_source_rules);
             scope.excluded_rules += function
                 .assessments
                 .iter()
                 .filter(|rule| {
-                    rule.outcome == Outcome::NotEvaluated && rule.coverage == Coverage::Complete
+                    !function.outside_source_rules
+                        && rule.outcome == Outcome::NotEvaluated
+                        && rule.coverage == Coverage::Complete
                 })
                 .count();
             scope
@@ -480,13 +491,7 @@ fn assess<'a>(
     let guard_clause = config
         .guards
         .then(|| assess_guard(&facts.source, execution));
-    let execution = if execution == Execution::Completed {
-        guard_clause
-            .as_ref()
-            .map_or(execution, |guard| guard.execution)
-    } else {
-        execution
-    };
+    let execution = guard_execution(execution, guard_clause.as_ref());
 
     FunctionReport {
         key: function.key,
@@ -507,9 +512,18 @@ fn assess<'a>(
         },
         execution,
         assessments: source.rules,
+        outside_source_rules: source.outside,
         source_suppression: source.suppression,
         source_exclusion: source.exclusion,
         guard_clause,
+    }
+}
+
+fn guard_execution(execution: Execution, guard: Option<&guards::GuardAssessment>) -> Execution {
+    if execution == Execution::Completed {
+        guard.map_or(execution, |assessment| assessment.execution)
+    } else {
+        execution
     }
 }
 
@@ -526,6 +540,7 @@ struct SourceAssessments {
     rules: Vec<Assessment>,
     exclusion: Option<source_exclusions::Report>,
     suppression: Option<source_suppressions::Report>,
+    outside: bool,
 }
 
 fn source_assessments(
@@ -534,12 +549,33 @@ fn source_assessments(
     facts: &LocalFacts<'_>,
     root: &std::path::Path,
 ) -> SourceAssessments {
+    if matches!(facts.source, Availability::Unsupported { .. })
+        && function
+            .facts
+            .source_diagnostics
+            .iter()
+            .any(|finding| finding.construct == "macro_generated_function")
+    {
+        return SourceAssessments {
+            rules: source_rules::not_applicable(
+                &policy.rules,
+                policy.spacing,
+                "Expansion-generated signatures are outside original source rules",
+            ),
+            outside: true,
+            ..SourceAssessments::default()
+        };
+    }
     let exclusion = source_exclusions::evaluate(facts, function, root, &policy.exclusions);
     if exclusion.excluded() {
         return SourceAssessments {
-            rules: source_rules::excluded(&policy.rules, policy.spacing),
+            rules: source_rules::not_applicable(
+                &policy.rules,
+                policy.spacing,
+                "Original source path is excluded by the configured workspace policy",
+            ),
             exclusion: Some(exclusion),
-            suppression: None,
+            ..SourceAssessments::default()
         };
     }
 
@@ -550,6 +586,7 @@ fn source_assessments(
         rules,
         exclusion: Some(exclusion),
         suppression: Some(suppression),
+        outside: false,
     }
 }
 
