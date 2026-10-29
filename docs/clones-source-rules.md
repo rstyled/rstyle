@@ -212,12 +212,16 @@ numeric policy and detector-version changes require review; changed build
 contexts cannot inherit it. Identity requires a uniquely indexed original
 declaration in captured root source, inline modules or checked ordinary external
 modules. External free functions and inherent/local-trait impl methods on unique
-same-module structs/enums with no type or const parameters are supported. Plain
-lifetime parameters and matching impl lifetime arguments are allowed; bounds and
-where clauses remain unavailable. Type/const-generic impls/owners, aliases,
-imported/qualified owners or traits, default trait methods, ambiguous declarations,
-missing ownership/index evidence and exhausted bounds remain unavailable when
-review identity is needed. See the shared finding-review owner contract.
+same-module structs/enums are supported. Generic owner and local-trait type/const
+arguments retain their original canonical token spelling, so specializations
+remain distinct. Type/const bounds and where clauses do not require dispatch
+proofs. Lifetime-only owners keep the existing external nominal names; their
+original lifetime arity restrictions remain. Aliases, imported/qualified owners
+or traits, default trait methods, ambiguous declarations, missing ownership/index
+evidence and exhausted bounds remain unavailable when review identity is needed.
+Existing complete root names keep their original lookup path and resource scope;
+incomplete generic/lifetime root names use the shared cached declaration index.
+Old malformed root locator names are not silently transferred or pruned. See the shared finding-review owner contract.
 
 JSON `parameter_review` reports original, hidden and visible counts plus selected
 hidden counts and decisions. Text and `--fail-on-findings` hide only exact reviewed
@@ -336,7 +340,8 @@ Load and export are bounded to 4 MiB, with at most 4,096 entries, contexts and
 exclusions. Export creates a new destination atomically and refuses overwrite.
 The shared original owner index also bounds scope: root/inline owners and checked
 ordinary external free functions and concrete same-module inherent/local-trait
-impl methods are supported. Generic/aliased/qualified/imported owners, default
+impl methods, including explicitly named generic owner/trait arguments, are supported.
+Aliased/qualified/imported owners, default
 trait methods, remapped or ambiguous ownership and exhausted identities remain
 unavailable. Live and
 source/tool-free saved-run comparison and export use the same policy. These

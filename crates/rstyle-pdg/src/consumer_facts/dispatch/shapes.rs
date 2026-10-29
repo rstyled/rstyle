@@ -73,6 +73,7 @@ struct Trait {
     supported: bool,
 }
 struct Method {
+    review_named: bool,
     owner: String,
     name: String,
     header: ByteSpan,
@@ -533,6 +534,7 @@ impl IndexBuilder<'_> {
         self.remaining -= item.items.len();
 
         let owner = ImplOwner::from_item(&item);
+        let review_named = !owner.nonlocal(&item);
         let reason = item
             .items
             .iter()
@@ -555,7 +557,7 @@ impl IndexBuilder<'_> {
                 let syn::ImplItem::Fn(function) = member else {
                     return None;
                 };
-                let facts = method_facts(self.source, function, &owner);
+                let facts = method_facts(self.source, function, &owner, review_named);
                 Some((facts.function, facts.method))
             })
             .unzip();
@@ -579,8 +581,14 @@ fn impl_member_reason(member: &syn::ImplItem) -> Option<&'static str> {
     }
 }
 
-fn method_facts(source: &str, function: syn::ImplItemFn, owner: &ImplOwner) -> MethodFacts {
+fn method_facts(
+    source: &str,
+    function: syn::ImplItemFn,
+    owner: &ImplOwner,
+    review_named: bool,
+) -> MethodFacts {
     let method = Method {
+        review_named,
         owner: owner.name.clone().unwrap_or_default(),
         name: function.sig.ident.to_string(),
         header: signature_header(source, &function.vis, &function.sig),
@@ -1095,6 +1103,13 @@ fn review_declaration(item: &Item, source: &str) -> Option<ReviewDeclaration> {
 }
 
 impl Module {
+    pub(super) fn review_name_available(&self, header: ByteSpan) -> bool {
+        self.methods
+            .iter()
+            .filter(|method| method.header == header)
+            .all(|method| method.review_named)
+    }
+
     pub(super) fn review_method(
         &self,
         header: ByteSpan,

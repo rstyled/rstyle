@@ -235,7 +235,7 @@ fn item_and_byte_budget_exhaustion_never_publishes_a_partial_population() {
 }
 
 #[test]
-fn root_and_generated_functions_do_not_acquire_external_free_identity() {
+fn root_functions_share_the_declaration_index_and_generated_functions_remain_unavailable() {
     let source = "fn value() {} struct Item; impl Item { fn method() {} }";
     let proof = census(&[
         ("/sample/src/lib.rs", "mod worker; fn root() {}"),
@@ -243,10 +243,11 @@ fn root_and_generated_functions_do_not_acquire_external_free_identity() {
     ]);
     let locations = Locations::new(&proof, &[]).unwrap();
     let root = facts("/sample/src/lib.rs", "mod worker; fn root() {}", "root");
-    assert!(
+    assert_eq!(
         locations
             .location(&root, "mod worker; fn root() {}")
-            .is_err()
+            .unwrap(),
+        ("crate::root".into(), "free-function")
     );
     let mut generated = facts("/sample/src/worker.rs", source, "value");
     generated.source_diagnostics.push(crate::HirDiagnostic {
@@ -292,7 +293,8 @@ fn mismatched_method_headers_do_not_acquire_external_free_identity() {
 }
 
 fn associated_facts(source: &str, name: &str) -> HirFnFacts {
-    let declarations = methods::declarations(syn::parse_file(source).unwrap().items, &[]).unwrap();
+    let declarations =
+        methods::declarations(syn::parse_file(source).unwrap().items, &[], source).unwrap();
     let (_, function, _) = declarations
         .iter()
         .find(|(candidate, _, _)| candidate == name)

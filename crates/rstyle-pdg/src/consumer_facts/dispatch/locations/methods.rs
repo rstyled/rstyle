@@ -15,7 +15,8 @@ enum Kind {
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct Nominal {
     kind: Kind,
-    lifetimes: usize,
+    arity: usize,
+    generic: bool,
 }
 
 #[derive(Default)]
@@ -78,6 +79,7 @@ fn import_bindings<'a>(
 pub(super) fn declarations(
     items: Vec<syn::Item>,
     cfgs: &[String],
+    source: &str,
 ) -> Result<Vec<Declaration>, String> {
     let names = nominal_names(&items);
     let configuration = Configuration::new(cfgs);
@@ -88,7 +90,7 @@ pub(super) fn declarations(
                 declarations.push((function.sig.ident.to_string(), function, "free-function"))
             }
             syn::Item::Impl(item) => {
-                declarations.extend(implementation(item, &names, &configuration)?);
+                declarations.extend(implementation(item, &names, &configuration, source)?);
             }
             _ => {}
         }
@@ -123,13 +125,26 @@ fn nominal_names(items: &[syn::Item]) -> Names {
 }
 
 fn eligible(generics: &syn::Generics, kind: Kind) -> Option<Nominal> {
+    let generic = generics
+        .params
+        .iter()
+        .any(|parameter| !matches!(parameter, syn::GenericParam::Lifetime(_)));
+    if generic {
+        return generic_parameters(generics).then_some(Nominal {
+            kind,
+            arity: generics.params.len(),
+            generic,
+        });
+    }
+
     let parameters = lifetimes::parameters(generics)?;
     if kind == Kind::Trait && !parameters.is_empty() {
         return None;
     }
     Some(Nominal {
         kind,
-        lifetimes: parameters.len(),
+        arity: parameters.len(),
+        generic,
     })
 }
 
@@ -137,8 +152,9 @@ fn implementation(
     item: syn::ItemImpl,
     names: &Names,
     configuration: &Configuration<'_>,
+    source: &str,
 ) -> Result<Vec<Declaration>, String> {
-    let Some((owner, origin)) = owner(&item, names) else {
+    let Some((owner, origin)) = owner(&item, names, source) else {
         return Ok(Vec::new());
     };
     let mut declarations = Vec::new();
@@ -165,27 +181,78 @@ fn implementation(
     Ok(declarations)
 }
 
-fn owner(item: &syn::ItemImpl, names: &Names) -> Option<(String, Option<String>)> {
-    let parameters = lifetimes::parameters(&item.generics)?;
+fn owner(item: &syn::ItemImpl, names: &Names, source: &str) -> Option<(String, Option<String>)> {
     if item.unsafety.is_some() || item.defaultness.is_some() {
         return None;
     }
-
     let path = lifetimes::owner_path(&item.self_ty)?;
-    let owner = path.ident.to_string();
-    let nominal = names.nominal(&owner, Kind::Owner)?;
-    lifetimes::arguments(&path.arguments, nominal.lifetimes, &parameters)?;
+    let nominal = names.nominal(&path.ident.to_string(), Kind::Owner)?;
+    let owner = nominal_name(path, nominal, &item.generics, source)?;
 
     let origin = match &item.trait_ {
-        Some((None, path, _)) => {
-            let origin = super::super::shapes::plain_path(path)?;
-            names.nominal(&origin, Kind::Trait)?;
-            Some(origin)
+        Some((None, path, _)) if path.leading_colon.is_none() && path.segments.len() == 1 => {
+            let path = path.segments.first()?;
+            let nominal = names.nominal(&path.ident.to_string(), Kind::Trait)?;
+            Some(if nominal.generic {
+                nominal_name(path, nominal, &item.generics, source)?
+            } else if matches!(path.arguments, syn::PathArguments::None) {
+                path.ident.to_string()
+            } else {
+                return None;
+            })
         }
         Some(_) => return None,
         None => None,
     };
     Some((owner, origin))
+}
+
+fn nominal_name(
+    path: &syn::PathSegment,
+    nominal: Nominal,
+    generics: &syn::Generics,
+    source: &str,
+) -> Option<String> {
+    if !nominal.generic
+        && nominal.arity == 0
+        && matches!(path.arguments, syn::PathArguments::None)
+        && generic_parameters(generics)
+    {
+        return Some(path.ident.to_string());
+    }
+    if !nominal.generic {
+        let parameters = lifetimes::parameters(generics)?;
+        lifetimes::arguments(&path.arguments, nominal.arity, &parameters)?;
+        return Some(path.ident.to_string());
+    }
+
+    if !generic_parameters(generics) {
+        return None;
+    }
+    let syn::PathArguments::AngleBracketed(arguments) = &path.arguments else {
+        return None;
+    };
+    if arguments.colon2_token.is_some() || arguments.args.len() != nominal.arity {
+        return None;
+    }
+    use syn::spanned::Spanned;
+    let range = super::shapes::span(source, path.span());
+    let spelling = crate::source_evidence::byte_range(source, range).ok()?;
+    super::super::review::canonical(spelling).ok()
+}
+
+fn generic_parameters(generics: &syn::Generics) -> bool {
+    let mut names = std::collections::BTreeSet::new();
+    generics.params.iter().all(|parameter| {
+        let (name, attributes) = match parameter {
+            syn::GenericParam::Lifetime(parameter) => {
+                (parameter.lifetime.ident.to_string(), &parameter.attrs)
+            }
+            syn::GenericParam::Type(parameter) => (parameter.ident.to_string(), &parameter.attrs),
+            syn::GenericParam::Const(parameter) => (parameter.ident.to_string(), &parameter.attrs),
+        };
+        attributes.is_empty() && names.insert(name)
+    })
 }
 
 #[cfg(test)]

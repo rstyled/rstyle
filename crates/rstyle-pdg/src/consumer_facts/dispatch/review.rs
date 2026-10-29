@@ -282,7 +282,7 @@ impl<'ast> Visit<'ast> for Bindings<'_> {
     }
 }
 
-fn canonical(source: &str) -> Result<String, String> {
+pub(super) fn canonical(source: &str) -> Result<String, String> {
     proc_macro2::TokenStream::from_str(source)
         .map(|tokens| tokens.to_string())
         .map_err(|error| error.to_string())

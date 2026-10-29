@@ -1,0 +1,158 @@
+{
+  "schema": "rstyle.generic-source-review-study/1",
+  "checkpoint": "C77",
+  "base_revision": "83c9d70",
+  "scope": {
+    "package": "rstyle-core",
+    "mode": "check",
+    "run": "target/rstyle/clones/run-ChBnep",
+    "input": "retained original-source raw capture; no fresh compilation",
+    "host": "aarch64-unknown-linux-gnu",
+    "toolchain": "nightly-2026-09-30",
+    "study_only_policy": {
+      "fn_length": {
+        "max_lines": 10
+      },
+      "fn_params": {
+        "max_params": 2,
+        "count_self": false
+      }
+    }
+  },
+  "command": [
+    "target/debug/cargo-rstyle",
+    "clones",
+    "--extraction-profile",
+    "hir-data-v3",
+    "--compiler-advisory-only",
+    "--source-rules",
+    "--analysis-config",
+    "/tmp/clones-c77-source-study.toml",
+    "--replay-run",
+    "target/rstyle/clones/run-ChBnep",
+    "--format",
+    "json",
+    "--report-detail",
+    "compact"
+  ],
+  "before_evidence": {
+    "Ctx_step_length_dismissal_exit": 2,
+    "reason": "Review requires an original indexed external declaration",
+    "source_baseline_export_exit": 2,
+    "baseline_reason": "Incomplete analysis cannot publish a source baseline",
+    "logs": [
+      "/tmp/clones-c77-dismiss-before.log",
+      "/tmp/clones-c77-core-baseline-before.log"
+    ]
+  },
+  "after_results": {
+    "source_scope": {
+      "population": "captured function owners; inactive definitions remain in owned_source_inventory",
+      "coverage": "complete",
+      "assessed_functions": 1215,
+      "expected_functions": 1215,
+      "evaluated_rules": 818,
+      "unavailable_rules": 0,
+      "unavailable_source_suppressions": 0,
+      "unavailable_source_exclusions": 0,
+      "excluded_source_functions": 0,
+      "excluded_rules": 0,
+      "outside_source_functions": 806,
+      "reasons": []
+    },
+    "raw_findings": 263,
+    "targeted_methods": [
+      {
+        "name": "groups::GroupReports::<'_, F>::group",
+        "key": "function:u0:f783",
+        "source_file": "crates/rstyle-core/src/groups.rs",
+        "captured_function_bytes_match_current_original_source": true,
+        "findings": [
+          {
+            "rule": "fn_length",
+            "actual": 34,
+            "limit": 10
+          },
+          {
+            "rule": "fn_params",
+            "actual": 3,
+            "limit": 2
+          }
+        ],
+        "reviewed_states": {
+          "length": "hidden_exact",
+          "parameter": "hidden_exact"
+        }
+      },
+      {
+        "name": "stacking::Ctx::<'_, F>::step",
+        "key": "function:u0:f1117",
+        "source_file": "crates/rstyle-core/src/stacking.rs",
+        "captured_function_bytes_match_current_original_source": true,
+        "findings": [
+          {
+            "rule": "fn_length",
+            "actual": 17,
+            "limit": 10
+          },
+          {
+            "rule": "fn_params",
+            "actual": 3,
+            "limit": 2
+          }
+        ],
+        "reviewed_states": {
+          "length": "hidden_exact",
+          "parameter": "hidden_exact"
+        }
+      },
+      {
+        "name": "stacking::Ctx::<'_, F>::plan",
+        "key": "function:u0:f1118",
+        "source_file": "crates/rstyle-core/src/stacking.rs",
+        "captured_function_bytes_match_current_original_source": true,
+        "findings": [
+          {
+            "rule": "fn_length",
+            "actual": 37,
+            "limit": 10
+          }
+        ],
+        "reviewed_states": {
+          "length": "hidden_exact",
+          "parameter": null
+        }
+      }
+    ],
+    "exact_saved_reviews": 5,
+    "length_review": {
+      "coverage": "incomplete",
+      "findings": 186,
+      "hidden_findings": 3,
+      "visible_findings": 183
+    },
+    "parameter_review": {
+      "coverage": "complete",
+      "findings": 77,
+      "hidden_findings": 2,
+      "visible_findings": 75
+    },
+    "remaining_unavailable_length_owners": [
+      "<config::Weights as std::default::Default>::default",
+      "<config::EffectPaths as std::default::Default>::default"
+    ],
+    "source_baseline_export_exit": 2,
+    "review_commands_exit": 2,
+    "exit_reason": "The two unresolved plain-prelude-trait source identities keep the requested length review population incomplete; five selected reviews are nonetheless saved and replay hidden_exact.",
+    "compiler_report_requested": false,
+    "strict_assessment_execution": "not_requested",
+    "matching_execution": "not_requested"
+  },
+  "limitations": [
+    "Only the original Ctx::step length dismissal has retained before-command failure evidence; other target counts are independently source-inspected and after-command verified.",
+    "Full core baseline still cannot export. No whole-package review/retirement or speedup claim.",
+    "Source/tool-free replay, root/external generic and distinct type/const/trait arguments, malformed old root names and missing/duplicate evidence are independent CLI acceptance cases.",
+    "Existing complete root names keep their original resource scope; newly named generic root methods share bounded Locations with external methods.",
+    "No new hashes, source fingerprint scans or dispatch/strict permissions."
+  ]
+}

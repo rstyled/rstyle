@@ -188,13 +188,16 @@ require review, and changed build contexts cannot inherit it. Identity covers
 uniquely indexed original declarations in captured root source, inline modules and
 independently checked
 ordinary external modules. External methods support unique same-module
-struct/enum owners with no type/const parameters and inherent/nongeneric local-trait
-impls, with exact cfg/source/header checks. Plain lifetime-only owner/impl
-parameters are allowed with matching lifetime argument counts; locator names omit
-lifetimes and canonical method collisions refuse identity. Lifetime bounds, where
-clauses, generic traits, type/const-generic, aliased/imported/qualified owners or traits, default trait methods,
-remapped/generated modules, ambiguity, missing ownership and exhausted bounds
-stay unavailable.
+struct/enum owners and local traits, including type/const arguments with canonical
+original token names. Bounds and where clauses on generic declarations require
+no dispatch proof. Specializations keep distinct reviews. Lifetime-only external
+owner names and arity rules stay unchanged; mixed generic paths retain lifetime
+tokens. Existing complete root names retain their old lookup/resource scope;
+incomplete generic/lifetime names use the cached declaration index. Old malformed
+root names stay unobserved and cannot hide findings or be pruned as negatives.
+Aliased/imported/qualified owners or traits, lifetime-generic-only traits, default
+trait methods, remapped/generated modules, ambiguity, missing ownership and
+exhausted bounds stay unavailable. No new hashes or strict permissions.
 Only selected hidden parameter findings leave the text/finding gate. Raw analysis
 counts, assessments and advisory parameter plans remain unfiltered; other rules
 and incomplete-scope exits retain their meaning. Explicit saved-run

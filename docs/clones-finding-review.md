@@ -143,20 +143,26 @@ unavailable, invalid or duplicate selections reject without writing.
 Identity covers uniquely indexed original declarations in captured root source,
 inline modules and independently checked ordinary external modules (`name.rs` or
 `name/mod.rs`). External locators support free functions and methods on unique
-same-module structs/enums with no type or const parameters. Plain lifetime-only
-parameters are supported when the impl supplies exactly the declared number of
-lifetime arguments (`'static`, `'_` or a declared impl lifetime). Lifetime bounds,
-where clauses and lifetime-generic traits remain unavailable. Inherent methods use
-`crate::module::Owner::method`; local-trait impl methods use
-`crate::module::<Owner as Trait>::method`, with declaration kind `method`.
-Member cfgs use the exact captured compiler selection before checking duplicates.
-Original file/range/header/receiver correspondence remains mandatory. These are
-source identities, not dispatch, effect or refactoring proofs. Locator names omit
-lifetime arguments: binder renaming preserves identity, while duplicate canonical
-method names refuse the index. Type/const-generic impl/owner,
-aliased/imported/qualified owners or traits, default trait methods, remapped or
-generated ownership, ambiguous declarations and exhausted bounded work remain
-unavailable. Observation and retained-entry work are each bounded to 4,096 entries.
+same-module structs/enums, including type/const-generic inherent and local-trait
+implementations. Generic owner/trait arguments retain canonical original tokens;
+`Owner<u8>` and `Owner<u16>`, or `Trait<u8>` and `Trait<u16>`, cannot share a review.
+Bounds and where clauses on these declarations do not require dispatch proofs.
+Lifetime-only owners retain their existing external nominal locator spelling and
+arity rules; mixed generic paths retain their lifetime tokens as written.
+Inherent methods use `crate::module::Owner::method`; local-trait methods use
+`crate::module::<Owner as Trait>::method`, with declaration kind `method` and the
+applicable generic arguments. Member cfgs use the captured compiler selection
+before checking duplicates. Original file/range/header/receiver correspondence
+remains mandatory. These source identities grant no dispatch, effect, strict
+clone or refactoring permission. Existing complete root names retain the old
+source-index route; generic/lifetime root names that were incomplete use the same
+cached declaration index as external methods. Old malformed names such as
+`crate::::method` remain unobserved and cannot hide findings or be pruned as
+numeric negatives.
+
+Aliases, imported/qualified owners or traits, lifetime-generic-only traits,
+default trait methods, remapped/generated ownership, ambiguity and exhausted
+bounded work remain unavailable. Observation and retained-entry work are each bounded to 4,096 entries.
 
 JSON `parameter_review` (`rstyle.parameter-review/1`) reports execution, coverage,
 original/visible/hidden counts, retained entries, `hidden_selected_findings` and

@@ -1,7 +1,7 @@
 use super::*;
 
 fn selected(source: &str, cfgs: &[String]) -> Result<Vec<Declaration>, String> {
-    declarations(syn::parse_file(source).unwrap().items, cfgs)
+    declarations(syn::parse_file(source).unwrap().items, cfgs, source)
 }
 
 #[test]
@@ -37,12 +37,11 @@ fn method_cfg_selection_precedes_identity_collisions_and_preserves_attributes() 
 }
 
 #[test]
-fn aliases_imported_qualified_generic_and_missing_owners_remain_unavailable() {
+fn aliases_imported_qualified_and_missing_or_incomplete_owners_remain_unavailable() {
     for source in [
         "struct Item; type Alias = Item; impl Alias { fn read() {} }",
         "use foreign::Item; impl Item { fn read() {} }",
         "mod nested { struct Item; } impl nested::Item { fn read() {} }",
-        "struct Item<T>(T); impl<T> Item<T> { fn read() {} }",
         "struct Item<T>(T); impl Item { fn read() {} }",
         "impl Item { fn read() {} }",
         "struct Item; trait Measure<T> {} impl Measure for Item { fn read() {} }",
@@ -90,7 +89,7 @@ fn default_trait_methods_and_nested_item_impls_are_not_external_locations() {
 fn converted_method_retains_exact_original_span_with_bom_crlf_unicode_and_attributes() {
     let source = "\u{feff}// 🦀\r\nstruct Item; impl Item { #[inline] pub fn café<T>(&self, value:T) {} }\r\n";
     let parsed = syn::parse_file(source.trim_start_matches('\u{feff}')).unwrap();
-    let declarations = declarations(parsed.items, &[]).unwrap();
+    let declarations = declarations(parsed.items, &[], source).unwrap();
     let (_, function, _) = &declarations[0];
     let span = super::super::super::shapes::function_range(source, function);
     assert_eq!(
@@ -189,5 +188,38 @@ fn lifetime_owners_preserve_cfg_selection_and_type_namespace_ambiguity() {
         let source =
             format!("struct Item<'a>(&'a str); {conflicting} impl Item<'_> {{ fn read() {{}} }}");
         assert!(selected(&source, &[]).unwrap().is_empty(), "{source}");
+    }
+}
+
+#[test]
+fn generic_declaration_names_preserve_owner_and_trait_arguments_without_dispatch_proofs() {
+    for (source, expected) in [
+        (
+            "struct Item<T>(T); impl<T: Copy> Item<T> where T: Clone { fn read() {} }",
+            "Item < T >::read",
+        ),
+        (
+            "struct Item<T>(T); impl Item<u8> { fn read() {} } impl Item<u16> { fn read() {} }",
+            "Item < u8 >::read",
+        ),
+        (
+            "struct Item<const N: usize>; impl<const N: usize> Item<N> { fn read() {} }",
+            "Item < N >::read",
+        ),
+        (
+            "struct Item; trait Read<T> {} impl Read<u8> for Item { fn read() {} }",
+            "<Item as Read < u8 >>::read",
+        ),
+        (
+            "struct Item; trait Read<T> {} impl<T> Read<T> for Item { fn read() {} }",
+            "<Item as Read < T >>::read",
+        ),
+    ] {
+        let declarations = selected(source, &[]).unwrap();
+        assert_eq!(declarations[0].0, expected);
+        assert!(declarations.iter().all(|(_, _, kind)| *kind == "method"));
+        if declarations.len() == 2 {
+            assert_ne!(declarations[0].0, declarations[1].0);
+        }
     }
 }

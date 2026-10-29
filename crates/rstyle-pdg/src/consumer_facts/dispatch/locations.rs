@@ -40,9 +40,7 @@ impl Locations {
 
         let mut names = BTreeSet::new();
         for module in modules {
-            if module.path != census.context.root_source {
-                locations.insert_module(module, &mut names)?;
-            }
+            locations.insert_module(module, &mut names)?;
         }
         Ok(locations)
     }
@@ -53,8 +51,12 @@ impl Locations {
         names: &mut BTreeSet<String>,
     ) -> Result<(), String> {
         let source = &self.files[&module.path];
-        for (name, function, kind) in methods::declarations(module.items, &self.cfgs)? {
-            let qualified_name = format!("crate::{}::{name}", module.namespace.join("::"));
+        for (name, function, kind) in methods::declarations(module.items, &self.cfgs, source)? {
+            let qualified_name = if module.namespace.is_empty() {
+                format!("crate::{name}")
+            } else {
+                format!("crate::{}::{name}", module.namespace.join("::"))
+            };
             if !names.insert(qualified_name.clone()) {
                 return Err("Review source has ambiguous qualified declaration identity".into());
             }

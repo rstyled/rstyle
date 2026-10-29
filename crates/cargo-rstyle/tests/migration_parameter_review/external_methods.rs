@@ -328,48 +328,86 @@ fn parameter_finding(report: &Value) -> &Value {
 }
 
 #[test]
-fn unsupported_external_method_owner_forms_keep_raw_findings_and_refuse_dismissal() {
-    for source in [
-        "pub struct Unit<T>(pub T); impl<T> Unit<T> { pub fn read(a:u32,b:u32)->u32 { a+b } }\n",
-        "pub struct Unit<const N:usize>; impl<const N:usize> Unit<N> { pub fn read(a:u32,b:u32)->u32 { a+b } }\n",
-        "pub struct Unit<'a>(pub &'a u32); pub trait Local<'a> { fn read(a:u32,b:u32)->u32; } impl<'a> Local<'a> for Unit<'a> { fn read(a:u32,b:u32)->u32 { a+b } }\n",
-        "pub struct Unit; type Alias=Unit; impl Alias { pub fn read(a:u32,b:u32)->u32 { a+b } }\n",
-        "pub struct Unit; impl crate::external::Unit { pub fn read(a:u32,b:u32)->u32 { a+b } }\n",
-        "pub struct Unit; impl std::ops::Add for Unit { type Output=Self; fn add(self,_rhs:Self)->Self { self } }\n",
-        "pub struct Unit; mod names { pub trait Local { fn read(a:u32,b:u32)->u32; } } use names::Local; impl Local for Unit { fn read(a:u32,b:u32)->u32 { a+b } }\n",
-        "pub trait Local { fn read(a:u32,b:u32)->u32 { a+b } }\n",
+fn external_method_owner_forms_preserve_findings_and_require_original_declaration_names() {
+    for (source, supported) in [
+        (
+            "pub struct Unit<T>(pub T); impl<T> Unit<T> { pub fn read(a:u32,b:u32)->u32 { a+b } }\n",
+            true,
+        ),
+        (
+            "pub struct Unit<const N:usize>; impl<const N:usize> Unit<N> { pub fn read(a:u32,b:u32)->u32 { a+b } }\n",
+            true,
+        ),
+        (
+            "pub struct Unit<'a>(pub &'a u32); pub trait Local<'a> { fn read(a:u32,b:u32)->u32; } impl<'a> Local<'a> for Unit<'a> { fn read(a:u32,b:u32)->u32 { a+b } }\n",
+            false,
+        ),
+        (
+            "pub struct Unit; type Alias=Unit; impl Alias { pub fn read(a:u32,b:u32)->u32 { a+b } }\n",
+            false,
+        ),
+        (
+            "pub struct Unit; impl crate::external::Unit { pub fn read(a:u32,b:u32)->u32 { a+b } }\n",
+            false,
+        ),
+        (
+            "pub struct Unit; impl std::ops::Add for Unit { type Output=Self; fn add(self,_rhs:Self)->Self { self } }\n",
+            false,
+        ),
+        (
+            "pub struct Unit; mod names { pub trait Local { fn read(a:u32,b:u32)->u32; } } use names::Local; impl Local for Unit { fn read(a:u32,b:u32)->u32 { a+b } }\n",
+            false,
+        ),
+        (
+            "pub trait Local { fn read(a:u32,b:u32)->u32 { a+b } }\n",
+            false,
+        ),
     ] {
-        let directory = external(source);
-        std::fs::write(
-            directory.path().join("analysis.toml"),
-            "[fn_length]\nmax_lines=100\n[fn_params]\nmax_params=0\ncount_self=false\n",
-        )
-        .unwrap();
-        let (output, original) = capture(directory.path(), &[]);
-        assert_eq!(
-            output.status.code(),
-            Some(2),
-            "{source}: {}",
-            original["parameter_review"]
-        );
-        assert_eq!(original["analysis"]["findings"], 1, "{source}");
-        counts(&original, 0, 1);
-        assert_eq!(
-            original["parameter_review"]["decisions"][0]["state"], "unavailable",
-            "{source}"
-        );
-        let function = parameter_finding(&original);
-        let output = Replay {
-            directory: directory.path(),
-            original: &original,
-        }
-        .run(&[
-            "--dismiss-parameter",
-            function["key"].as_str().unwrap(),
-            "--review-reason",
-            REASON,
-        ]);
-        assert_eq!(output.status.code(), Some(2), "{source}");
-        assert!(!directory.path().join("reviews.json").exists(), "{source}");
+        check_external_method_owner(source, supported);
     }
+}
+
+fn check_external_method_owner(source: &str, supported: bool) {
+    let directory = external(source);
+    std::fs::write(
+        directory.path().join("analysis.toml"),
+        "[fn_length]\nmax_lines=100\n[fn_params]\nmax_params=0\ncount_self=false\n",
+    )
+    .unwrap();
+    let (output, original) = capture(directory.path(), &[]);
+    let code = if supported { 0 } else { 2 };
+    assert_eq!(
+        output.status.code(),
+        Some(code),
+        "{source}: {}",
+        original["parameter_review"]
+    );
+    assert_eq!(original["analysis"]["findings"], 1, "{source}");
+    counts(&original, 0, 1);
+    let state = if supported {
+        "visible_new"
+    } else {
+        "unavailable"
+    };
+    assert_eq!(
+        original["parameter_review"]["decisions"][0]["state"], state,
+        "{source}"
+    );
+    let function = parameter_finding(&original);
+    let output = Replay {
+        directory: directory.path(),
+        original: &original,
+    }
+    .run(&[
+        "--dismiss-parameter",
+        function["key"].as_str().unwrap(),
+        "--review-reason",
+        REASON,
+    ]);
+    assert_eq!(output.status.code(), Some(code), "{source}");
+    assert_eq!(
+        directory.path().join("reviews.json").exists(),
+        supported,
+        "{source}"
+    );
 }

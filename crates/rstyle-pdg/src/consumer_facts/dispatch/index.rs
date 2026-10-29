@@ -88,22 +88,33 @@ impl Index {
         let Some(file) = unit.file(facts)? else {
             return Err("Review requires an original function source path".into());
         };
-        if file.path != unit.census.context.root_source {
-            let locations = unit
-                .locations
-                .get_or_init(|| super::locations::Locations::new(&unit.census, &facts.build.cfgs));
-            return locations
-                .as_ref()
-                .map_err(Clone::clone)?
-                .location(facts, &file.bytes);
+        if file.path == unit.census.context.root_source
+            && unit.source.as_ref().is_ok_and(|source| {
+                source
+                    .declarations
+                    .get(&(facts.fn_span.start, facts.fn_span.end))
+                    .is_some_and(|&(module, function)| {
+                        let declaration = &source.modules[module];
+                        declaration.review_name_available(shapes::function_header(
+                            &file.bytes,
+                            &declaration.functions[function],
+                        ))
+                    })
+            })
+        {
+            return available(unit.query_file(facts, file, |declaration| Assessment {
+                availability: super::super::Availability::Known(Some(Ok(review::location(
+                    &declaration,
+                )))),
+                reason: None,
+                budget_exhausted: false,
+            })?);
         }
-        available(unit.query_file(facts, file, |declaration| Assessment {
-            availability: super::super::Availability::Known(Some(Ok(review::location(
-                &declaration,
-            )))),
-            reason: None,
-            budget_exhausted: false,
-        })?)
+        unit.locations
+            .get_or_init(|| super::locations::Locations::new(&unit.census, &facts.build.cfgs))
+            .as_ref()
+            .map_err(Clone::clone)?
+            .location(facts, &file.bytes)
     }
 
     pub fn review_dispatch(

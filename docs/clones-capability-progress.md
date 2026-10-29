@@ -5869,3 +5869,67 @@ Two independent read-only reviews found no correctness blockers. Logs use
 /tmp/clones-c76-*. C75 Ubuntu x64/ARM passed; macOS remained in progress at the
 latest poll. C76 native CI is pending push. No legacy backend is retired; the
 full capability migration remains active.
+
+
+### C77 — generic original declaration review names (2026-10-29)
+
+Lead owns the existing source location/index and naming seam, registration,
+docs/study and integration. Acceptance worker owns only generic_methods.rs;
+read-only review owns no writes. The previous source-only core replay established
+complete source assessment but failed generic method dismissal and baseline
+identity. This increment extends the existing declaration locator rather than
+adding another consumer or requiring compiler numeric advice. Generic owner and
+local-trait arguments use the shared canonical original-token helper; type/const
+specializations stay distinct. Bounds and where clauses on these names require
+no dispatch proofs. Existing same-module naming, exact original context/header
+checks and bounded immutable source ownership remain. No hash, identity digest,
+source fingerprint scan, new collector or dispatch/strict matching permission.
+
+The shared cached declaration index can now name root methods whose original
+parser could not obtain a complete owner/trait name, as well as external methods.
+Read-only review caught two issues before integration: nongeneric owners in
+generic local-trait impls initially rejected impl type binders, and routing all
+root lookups through Locations added unrelated-file resource limits. Both are
+fixed. Already complete root names keep the original SourceIndex path; its
+existing owner parser now records whether the name is complete. Missing generic,
+lifetime or trait-argument names use cached Locations. Original root names such
+as crate::::many or names missing trait arguments were incomplete; they are not
+transferred to the new identity. External lifetime-only nominal names stay stable.
+
+Eight independent real-Cargo acceptance cases cover root/external generic
+methods, nonempty source baselines and saved reviews after unrelated impl
+insertion, exact type/const/local-trait distinctions, generic traits on nongeneric
+owners, source/tool-free replay, existing root review beside an unrelated300KiB
+file, malformed retained root names that cannot hide/prune, and missing/duplicate
+evidence. Existing tests that explicitly rejected generic owner names now require
+successful review for those two forms while keeping aliases, qualified/imported
+owners/traits, default trait methods and lifetime-generic-only traits unavailable.
+Focused50 PDG cases and37 source CLI cases pass; all eight final new cases pass.
+Clippy identified an overlong test; its unrelated-impl setup is now a coherent
+helper. Legacy style spacing findings were corrected without changing limits.
+
+Retained rstyle-core run-ChBnep verifies original captured function bytes still
+match current source for Ctx::step (17 lines/3params), Ctx::plan (37/2) and
+GroupReports::group (34/3). Under study-only length10/params2, all five positive
+findings now save and replay hidden_exact. The retained before-command shows
+Ctx::step length dismissal exiting2 for missing indexed declaration. Full source
+assessment remains409 authored/806 outside functions,263 raw findings. All77
+positive parameter findings now have complete review coverage. Length review
+still has two unavailable plain-prelude-trait impl identities (reported by the
+compiler as std::default::Default); the
+package baseline still refuses export and the overall reviewed run exits2.
+These limitations are explicit in project-generic-source-review-study.json.
+No full-core baseline, speedup, broader proposal quality or retirement claim.
+
+The next confirmed source workflow blocker is naming the original config::Weights
+and config::EffectPaths implementations, whose source spells `impl Default`.
+Existing captured compiler names already contain the resolved trait path,
+independently of numeric capture. Assess reusing those names as opaque review
+locators after existing declaration/context checks, without resolving imports
+again or treating the names as dispatch authority. This gain is not yet measured.
+Final integrated snapshot: 3,597 Rust tests pass in238.869s with five existing
+skips, plus doctests; Clippy, formatting and244 Python checks pass. Legacy style
+reports0 violations over9,939 functions. Reviewed patterns reports0 unreviewed
+candidates; unfiltered discovery retains exactly the same13 IDs as main.
+Native CI for the preceding C76 commit (run40926858455) has both Ubuntu jobs
+passing; macOS remains pending. C77 native validation follows the pushed commit.
