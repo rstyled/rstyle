@@ -69,7 +69,9 @@ pub fn read_diagnostic_snapshot_phase(
 }
 
 fn read_snapshot(bytes: &[u8], expected: Option<&str>) -> Result<Vec<HirFnFacts>, String> {
-    let wire: Import = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
+    let wire: Import = crate::diagnostics::Stage::new("diagnostic.parse", "snapshot", Some(bytes))
+        .observe(|| serde_json::from_slice(bytes).map_err(|error| error.to_string()))?;
+    let restore = crate::diagnostics::Stage::new("diagnostic.restore", "snapshot", None).enter();
     if ![
         RAW_FACTS_SCHEMA,
         "rstyle.diagnostic.raw-facts/3",
@@ -98,7 +100,7 @@ fn read_snapshot(bytes: &[u8], expected: Option<&str>) -> Result<Vec<HirFnFacts>
 
     sources.finish()?;
     inventories.finish()?;
-    Ok(facts)
+    restore.finish(Ok(facts))
 }
 
 #[cfg(test)]

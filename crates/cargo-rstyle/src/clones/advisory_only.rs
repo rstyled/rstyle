@@ -9,11 +9,20 @@ pub(super) fn consume(request: &UnitRequest<'_>, result: &mut Handoff) -> Result
         return Err("Compiler advisory unit mode or extraction profile disagrees with plan".into());
     }
 
-    let snapshot = capture::load_inventory(unit)?;
-    let facts = rstyle_pdg::unit_store::read_diagnostic_snapshot_phase(
-        snapshot.bundle.bytes(),
-        "compiler-advisory-only",
-    )?;
+    let snapshot = Stage::new("cli.advisory.load_inventory", &unit.target.package, None)
+        .observe(|| capture::load_inventory(unit))?;
+    let facts = Stage::new(
+        "cli.advisory.decode",
+        &unit.target.package,
+        Some(snapshot.bundle.bytes()),
+    )
+    .observe(|| {
+        rstyle_pdg::unit_store::read_diagnostic_snapshot_phase(
+            snapshot.bundle.bytes(),
+            "compiler-advisory-only",
+        )
+    })?;
+    let context_stage = Stage::new("cli.advisory.context", &unit.target.package, None).enter();
     let selected = selected_context::SelectedContext::new(unit)?;
 
     let mut builds = rstyle_pdg::nominal_binding::BuildContexts::default();
@@ -29,7 +38,9 @@ pub(super) fn consume(request: &UnitRequest<'_>, result: &mut Handoff) -> Result
         unit_bundle: unit.directory.join("unit.evidence.json"),
         builds,
     });
-    retain(Arc::new(facts), request, result)
+    context_stage.finish(Ok::<_, String>(()))?;
+    Stage::new("cli.advisory.retain", &unit.target.package, None)
+        .observe(|| retain(Arc::new(facts), request, result))
 }
 
 fn retain(

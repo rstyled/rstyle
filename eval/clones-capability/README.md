@@ -898,3 +898,15 @@ runner source and all15 difference classifications. No production default or
 collector changes. The root generated IO-chain fixture independently checks a
 positive finding, preserved numeric gaps, warm reuse and replay without tools,
 source/build inputs, prior run or reuse index.
+
+
+### Advisory handoff profile (C92)
+
+`project-advisory-handoff-profile.json` records three serial replays of the same
+C91 saved compiler snapshot using opt-in `RSTYLE_PERF=1` events and
+`/usr/bin/time -v`. The complete decoded report is equal before and after added
+observations. Parsing dominates at5.164s, versus0.290s restoring source/options;
+inventory load takes1.553s. Peak RSS is about2.16GiB. These measurements identify
+body materialization as the next seam to investigate; they do not demonstrate a
+speedup or validate a compact projection. Exact commands, raw events, memory
+receipts and comparison results are retained in the artifact.

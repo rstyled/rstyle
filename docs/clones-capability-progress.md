@@ -6654,3 +6654,51 @@ validation awaits publication. Default switch, report/workflow compatibility,
 remaining independent quality reviews and per-capability retirement remain open.
 Next ready performance inquiry is the existing raw-capture/loading seam for
 numeric-only root advice; do not add another collector/evaluator or source proof.
+
+
+### C92 — localize compiler advisory handoff cost (2026-10-29)
+
+The C91 unchanged two-package authored diagnostic/plan replay took10.09s under
+/usr/bin/time, with7.806s in cli.handoff and peak RSS2,260,164KiB. Before changing
+representation, reuse existing opt-in Stage diagnostics to time inventory loading,
+raw diagnostic decoding, frontend context/source-inventory checks and report owner
+retention. Split raw decoding into parsing and source/options restoration as well.
+These are observational stages only: no new evidence, checksum, cache, policy,
+admission rule or body projection is introduced.
+
+On the same retained run-7AVOmO snapshot, the final serial observation measured:
+
+- JSON/typed parsing5.164s across both units, including flat-body restoration
+  performed inside Deserialize, allocation and typed field decoding.
+- Source-reference/options restoration0.290s.
+- Inventory reading and existing transport checks1.553s.
+- Context/source-inventory checks0.328s; retaining report owners0.036s.
+- Handoff7.440s; report writing0.751s. Complete decoded JSON reports equal the
+  uninstrumented baseline in both instrumented observations, including exit1 for
+  the existing findings. Peak memory remains about2.16GiB.
+
+Artifact: eval/clones-capability/project-advisory-handoff-profile.json includes
+exact command, all event records, memory receipts and equality checks for all three
+runs. Single-run timing variation is not a speedup. The dominant next candidate is
+avoiding complete HIR body/binding materialization for compact numeric-only
+advisory consumers, while preserving the existing raw codec, full reports, body
+consumers, source/build contexts and malformed-input distinctions. This requires
+an explicit metadata seam; empty or fabricated HirNode values are not acceptable.
+A temporary standard-library Rust byte-span census, cross-checked against nested,
+escaped and UTF8 fixture field lengths, locates367,745,700 bytes in pdg body
+values (66.75% of550,928,572 total) and135,442,639 in build values (24.58%).
+The source and results are retained in the artifact. Byte size is not independent
+CPU attribution; build-field allocation remains a candidate too.
+
+C90/C91 native CI remained in_progress at the latest API observation; this is
+not a native-platform pass or default readiness claim. Independent density review,
+report compatibility, default switching and per-capability retirement remain open.
+
+Integrated checkpoint: formatting and workspace/all-target Clippy pass; all3,674
+Rust tests pass in270.173s (five existing skips), plus doctests. All247 capability
+and50 script Python tests pass. Legacy style remains0 violations/10,011 functions;
+the pattern gate passes and unfiltered output retains the same13 candidate IDs.
+Task-owned snapshot contains only the two observational code changes, profile
+artifact and matching migration documentation. No default or analysis policy is
+changed. Next implementation: demand-aware body allocation through the existing
+raw decoder, with metadata equivalence and malformed-input/full-path acceptance.
