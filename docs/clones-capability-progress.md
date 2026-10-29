@@ -4004,3 +4004,31 @@ Next ready work: use the existing source-rule and compiler-quality paths to
 measure a declared original-package scope, with independent labels for remaining
 unreviewed owners. Keep proposal quality and strict matching separate. Broader
 migration and per-capability retirement remain active.
+
+### Main rebase and macOS fixture compatibility (2026-10-29)
+
+Rebased the 84 feature commits onto main `1689392`, including its shared
+cyclomatic/cognitive metrics and native PDG transport updates. Kept main's
+complexity diagnostics, report ranking and configured limits. The shared HIR
+collector now uses one local owner ID for both concrete-call selection and
+recursion detection; complexity scoring is a small helper around main's existing
+scoring path. Advisory complexity remains unavailable rather than claiming a
+measurement from missing input. No new hashes, source proofs, extra collector
+passes, strict-admission changes, suppressions or threshold changes.
+
+The latest failed macOS run `40793046330` had two fixture path mismatches:
+`default_target_exclusion_can_be_disabled_from_a_saved_generated_source` supplied
+an unresolved absolute temporary path while Cargo saved a resolved workspace
+root, and `member_proposal_locations_use_workspace_source_root_separately_from_package_root`
+expected an unresolved root. Fixtures now resolve their generated source or
+expected root once, accounting for macOS `/var` versus `/private/var`. Production
+lexical matching and replay remain unchanged, with no additional filesystem work.
+
+All 3,407 Rust tests pass in 217.466s, with five existing skips; doc tests and all
+191 Python tests pass. Locked all-target Clippy, formatting and diff checks pass.
+The post-rebase style scan has zero violations over 9,763 functions, all with
+complexity measurements; reviewed patterns has zero candidates and the same
+thirteen unchanged reviewed entries. Logs are `/tmp/clones-main-rebase-*`.
+Both macOS regressions pass on Linux; macOS execution awaits CI after the push.
+This checkpoint integrates main and repairs fixtures; it makes no new migration
+coverage or performance claim.
