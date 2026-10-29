@@ -6,6 +6,7 @@ mod analysis;
 pub mod capture;
 mod identity;
 mod linking;
+pub(crate) mod patterns_route;
 mod planning;
 mod report;
 mod review;
@@ -520,16 +521,29 @@ fn matching_profile(args: &Args) -> rstyle_ccgraph::MatchingProfile {
 }
 
 pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
-    if args.replay_run.is_some() {
-        rstyle_pdg::verification_policy::strict(|| run_generated(cli, args))
+    with_capture_verification(args.replay_run.is_some(), || run_generated(cli, args))
+}
+
+fn with_capture_verification<T>(replay: bool, execute: impl FnOnce() -> T) -> T {
+    if replay {
+        rstyle_pdg::verification_policy::strict(execute)
     } else {
-        rstyle_pdg::verification_policy::generated(|| run_generated(cli, args))
+        rstyle_pdg::verification_policy::generated(execute)
     }
 }
 
 fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     let config = configuration(cli, args)?;
     let capture = capture_input(cli, args)?;
+    run_captured(cli, args, config, capture)
+}
+
+fn run_captured(
+    cli: &Cli,
+    args: &Args,
+    config: Configuration,
+    capture: capture::Capture,
+) -> Result<(String, u8), String> {
     let handoff = Handoff::capture(&capture, args)?;
     let mut evaluation = (!args.compiler_advisory_only)
         .then(|| evaluate_matching(&handoff, &config.matching, args))
@@ -537,11 +551,7 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     let partitions = matching_partitions(&mut evaluation);
     let matching = evaluation.as_ref().map(|value| &value.report);
 
-    let accepted = matching
-        .into_iter()
-        .flat_map(|report| &report.pairs)
-        .filter(|p| p.decision == Decision::Accepted)
-        .count();
+    let accepted = accepted_count(matching);
     let capture_complete = capture.failures.is_empty();
     let assessment_complete = handoff.failures.is_empty();
     let complete =
@@ -576,6 +586,14 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     };
 
     Ok((output, code))
+}
+
+fn accepted_count(matching: Option<&rstyle_ccgraph::RunReport>) -> usize {
+    matching
+        .into_iter()
+        .flat_map(|report| &report.pairs)
+        .filter(|p| p.decision == Decision::Accepted)
+        .count()
 }
 
 fn matching_partitions(

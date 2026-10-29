@@ -508,6 +508,28 @@ cannot turn missing inputs into a complete result. Review identity, baseline
 inventories and baseline-new exits remain independent of these display options.
 Defaults omit the presentation object and preserve existing reports.
 
+The legacy command can opt into the compiler workflow with
+`cargo rstyle patterns --engine compiler --format json`. The default engine stays
+`legacy`. The compiler route performs one advisory-only HIR-data-v3 capture and
+returns the existing scoped compiler report, including run directory, unit
+contexts, coverage and counter-evidence; strict matching and numeric rules are
+not requested. Shared mining and score/top flags keep their existing meaning.
+`--fail-on-candidates` uses displayed compiler proposals; incomplete scope exits2.
+
+This route consumes `--config` or the workspace `rstyle.toml` for core selection
+and effect classification. Package, manifest and all-target selection remain
+explicit. `--locked` applies to fresh capture. Use `--replay-run PATH` to reevaluate
+an exact saved run, including without source/compiler tools; configuration and
+review files remain explicit runtime inputs. `--review-file PATH --review-status`
+uses the existing scoped compiler review workflow.
+
+Legacy dismissals are not automatically converted into compiler reviews. A
+nonempty legacy ledger produces a migration message; `--no-ignore` explicitly
+bypasses it and leaves its bytes unchanged. Scoped compiler reviews still apply.
+`--show-ignored` lists legacy records and is rejected for the compiler route; use
+compiler review status instead. Deliberate ledger migration remains pending.
+Compiler-only options reject the legacy engine. No legacy backend is retired.
+
 Add `--compiler-patterns` to reuse existing compiler graphs and the core
 trait/capability/generic/helper/dispatch proposer. It can run without
 `--compiler-advisory`; add `--compiler-advisory-only` to skip strict matching too.

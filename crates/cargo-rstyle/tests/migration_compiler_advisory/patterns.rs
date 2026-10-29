@@ -1,5 +1,6 @@
 mod mining_options;
 mod presentation;
+mod routing;
 use super::*;
 
 mod baseline;

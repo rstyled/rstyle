@@ -5595,3 +5595,41 @@ has zero violations over9,902 functions. Patterns has zero unreviewed candidates
 and the same13 unfiltered IDs as main; logs use /tmp/clones-c71-*. No native C71 platform result is claimed
 before push. C69 native CI passed; C70 Ubuntu x64 passed while ARM/macOS were
 still running at the latest check.
+
+### C72 — opt-in patterns command routing (2026-10-29)
+
+Patterns now accepts engine=compiler while retaining legacy by default. The route
+moves shared mining/display options into the existing compiler-patterns,
+advisory-only compact workflow, initialized from the same clap defaults. Shared
+capture verification and run_captured seams keep extraction, handoff, evaluation,
+reviews, reporting and exits single-sourced. No new collector/proposer, body proof,
+hash or policy framework is added. Strict matching and numeric rules are not
+requested. Scoped unit reports and missing-input exits remain intact.
+
+Global package/manifest/all-target selection remains available. The route consumes
+explicit/default legacy rstyle.toml for core exclusions/effects, supports locked
+capture and exact source/tool-free replay, and accepts existing scoped review
+files/status. Nonempty legacy ledgers require an explicit no-ignore bypass until
+deliberate migration is delivered; originals remain unchanged. Compiler-only flags
+reject legacy routing and show-ignored rejects compiler routing with the scoped
+review alternative. No existing engine is retired.
+
+Independent acceptance targets shared option/report parity, per-unit scope,
+source-free replay, exact scoped reviews, generated missing-input exits, unchanged
+legacy dismissal/default behavior, malformed/nonempty ledger handling and config
+selection. The retained C69 rstyle-ccgraph replay produces an exactly equal compiler
+report through routed and direct entries with the same repository config; strict
+and numeric execution are not requested, legacy ledger bytes remain unchanged,
+and both runs exit2. No coverage expansion, speedup or retirement claim is made.
+See project-patterns-routing-study.json. All75 focused pattern/review tests pass.
+Clippy initially flagged one long acceptance test; its direct-entry comparison is
+now a reusable helper. Legacy style identified orchestration/spacing/assignment
+issues; argument construction now uses an immutable Args update, capture/config
+preparation is a thin boundary, and accepted-pair counting is shared separately.
+No suppressions, threshold changes or ignores were added. Independent production
+review found no correctness regression. All3,557 Rust tests pass in234.053s with
+five existing skips, plus doc tests,244 Python checks, Clippy and formatting.
+Final style reports zero violations over9,912 functions; patterns has zero
+unreviewed candidates. The same13 unfiltered candidate IDs as main remain. Logs use
+/tmp/clones-c72-*. Native C72 platform checks remain pending until push; C70 native
+CI passed while C71 remained in progress at the latest check.

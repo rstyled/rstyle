@@ -57,6 +57,8 @@ enum Command {
 #[derive(Args)]
 struct PatternsArgs {
     #[command(flatten)]
+    route: PatternRouteArgs,
+    #[command(flatten)]
     display: PatternDisplayArgs,
     /// Report every candidate, ignoring the ignore ledger for this run.
     #[arg(long)]
@@ -69,6 +71,39 @@ struct PatternsArgs {
     fail_on_candidates: bool,
     #[command(flatten)]
     mine: MineArgs,
+}
+
+#[derive(Clone, Copy, Default, PartialEq, ValueEnum)]
+enum PatternEngine {
+    #[default]
+    Legacy,
+    Compiler,
+}
+
+/// Opt-in routing reuses the standalone compiler-pattern workflow and its reports.
+#[derive(Args, Default)]
+struct PatternRouteArgs {
+    /// Choose the existing legacy miner or captured compiler observations.
+    #[arg(long, value_enum, default_value_t = PatternEngine::Legacy)]
+    engine: PatternEngine,
+    /// Reevaluate an exact saved compiler run without compiling (compiler engine only).
+    #[arg(long)]
+    replay_run: Option<PathBuf>,
+    /// Scoped compiler review store (compiler engine only).
+    #[arg(long)]
+    review_file: Option<PathBuf>,
+    /// Include scoped compiler review status (compiler engine only).
+    #[arg(long, requires = "review_file")]
+    review_status: bool,
+    /// Require the existing lockfile during compiler capture.
+    #[arg(long)]
+    locked: bool,
+}
+
+impl PatternRouteArgs {
+    fn compiler_options_requested(&self) -> bool {
+        self.replay_run.is_some() || self.review_file.is_some() || self.review_status || self.locked
+    }
 }
 
 /// Presentation over ranked proposals; does not change mining or review identity.
@@ -240,8 +275,14 @@ fn mine_options(mine: &MineArgs) -> patterns_report::Options {
 /// `--fail-on-candidates`).
 const FOUND: u8 = 1;
 
-fn patterns(cli: &Cli, args: &PatternsArgs) -> Result<(String, u8), String> {
-    let (facts, root) = gather(cli, SEMANTIC_FACTS, true)?;
+fn patterns(cli: Cli, args: PatternsArgs) -> Result<(String, u8), String> {
+    if args.route.engine == PatternEngine::Compiler {
+        return clones::patterns_route::run(cli, args);
+    }
+    if args.route.compiler_options_requested() {
+        return Err("Compiler pattern options require --engine compiler".into());
+    }
+    let (facts, root) = gather(&cli, SEMANTIC_FACTS, true)?;
     let ledger = match args.no_ignore {
         true => None,
         false => Some(ignore::load(&ignore::ledger_path(
@@ -374,16 +415,16 @@ fn main() -> ExitCode {
     let args = std::env::args()
         .enumerate()
         .filter(|(i, a)| !(*i == 1 && a == "rstyle"));
-    let cli = Cli::parse_from(args.map(|(_, a)| a));
+    let mut cli = Cli::parse_from(args.map(|(_, a)| a));
     if cli.skill {
         print!("{SKILL}");
         return ExitCode::SUCCESS;
     }
-    match &cli.command {
-        Some(Command::Clones(args)) => return exit_with(clones::run(&cli, args)),
-        Some(Command::Patterns(args)) => return exit_with(patterns(&cli, args)),
+    match cli.command.take() {
+        Some(Command::Clones(args)) => return exit_with(clones::run(&cli, &args)),
+        Some(Command::Patterns(args)) => return exit_with(patterns(cli, args)),
         Some(Command::Ignore(args)) => {
-            return exit_with(ignore_cmd(&cli, args).map(|output| (output, 0)));
+            return exit_with(ignore_cmd(&cli, &args).map(|output| (output, 0)));
         }
         None => {}
     }

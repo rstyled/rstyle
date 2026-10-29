@@ -1,0 +1,66 @@
+{
+  "checkpoint": "C72",
+  "source_revision": "8fd2668+dirty",
+  "scope": "rstyle-ccgraph library; exact retained C69 capture with repository rstyle.toml",
+  "host": "aarch64-unknown-linux-gnu",
+  "toolchain": "nightly-2026-09-30",
+  "run_directory": "target/rstyle/clones/run-TKB31S",
+  "measurements": {
+    "routed": {
+      "command": [
+        "target/debug/cargo-rstyle",
+        "patterns",
+        "--engine",
+        "compiler",
+        "--no-ignore",
+        "--format",
+        "json",
+        "--top",
+        "1",
+        "--single-call-guard",
+        "--max-holes",
+        "4",
+        "--replay-run",
+        "target/rstyle/clones/run-TKB31S"
+      ],
+      "exit": 2,
+      "elapsed_seconds": 0.6307286489754915
+    },
+    "direct": {
+      "command": [
+        "target/debug/cargo-rstyle",
+        "clones",
+        "--extraction-profile",
+        "hir-data-v3",
+        "--compiler-patterns",
+        "--compiler-advisory-only",
+        "--report-detail",
+        "compact",
+        "--compiler-advisory-config",
+        "/home/dev/src/rstyle-main/rstyle/rstyle.toml",
+        "--format",
+        "json",
+        "--top",
+        "1",
+        "--single-call-guard",
+        "--max-holes",
+        "4",
+        "--replay-run",
+        "target/rstyle/clones/run-TKB31S"
+      ],
+      "exit": 2,
+      "elapsed_seconds": 0.4496992190834135
+    }
+  },
+  "results": {
+    "compiler_advisory_equal_to_direct_entry": true,
+    "legacy_ledger_explicitly_bypassed_and_unchanged": true,
+    "incomplete_exit_preserved": true,
+    "strict_and_numeric_execution_not_requested": true
+  },
+  "limitations": [
+    "Opt-in routing does not expand extraction coverage or establish retirement readiness.",
+    "Legacy dismissals require deliberate migration; --no-ignore is an explicit bypass.",
+    "Both samples replay the same capture; no speedup is claimed."
+  ]
+}
