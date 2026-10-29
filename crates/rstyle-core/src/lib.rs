@@ -241,6 +241,11 @@ pub struct EffectObservations {
     pub effects: BTreeMap<String, Vec<rules::Effect>>,
 }
 
+/// Reuse observation ordering, merging and path exclusions without evaluating effects or rules.
+pub fn selected_observations(facts: Vec<FnFacts>, cfg: &Config) -> Result<Vec<FnFacts>, String> {
+    select_facts(facts, cfg, &mut None)
+}
+
 /// Reuse the evaluator's merge, exclusion and propagation steps without numeric diagnostics.
 /// Supplied effects have the same owner/configuration contract as `evaluate_with_effects`.
 pub fn effect_observations(
@@ -248,7 +253,7 @@ pub fn effect_observations(
     cfg: &Config,
     completed: Option<BTreeMap<String, Vec<rules::Effect>>>,
 ) -> Result<EffectObservations, String> {
-    let facts = select_facts(facts, cfg, &mut None)?;
+    let facts = selected_observations(facts, cfg)?;
     let effects = match completed {
         Some(completed) => take_completed_effects(&facts, completed)?,
         None => all_effects(&facts, &graph::build(&facts), cfg),

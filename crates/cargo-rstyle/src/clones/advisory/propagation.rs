@@ -30,6 +30,9 @@ pub(super) fn evaluate(
     inputs: &[Collected],
     config: &Config,
 ) -> Result<Evaluation, String> {
+    if !ctx.args.compiler_effects_requested() {
+        return Ok(local(inputs.len()));
+    }
     let generated = inputs
         .iter()
         .any(|input| owners::generated(input).next().is_some());

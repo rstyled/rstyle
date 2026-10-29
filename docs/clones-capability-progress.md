@@ -5735,3 +5735,61 @@ x64/ARM passed while macOS remained in progress at the latest check
 (run40916805535). C74 native CI remains pending until push. Cross-package
 proposal discovery and broader independently reviewed quality remain open; no
 legacy backend is retired.
+
+
+### C75 — independent compiler complexity ranking (2026-10-29)
+
+Lead owns compiler request routing, shared core selection seam, execution/report
+status and documentation; acceptance worker owns the independent_ranking leaf.
+Compiler complexity ranking now runs without full numeric advice or pattern
+proposals. It directly reuses captured measurements, the evaluator's existing
+merge/exclusion step and core complexity ordering. Ranking-only requests skip
+numeric rules, generated effect classification, propagation and fix planning.
+Diagnostic/effect execution is explicitly not_requested; empty unrequested effect
+outputs do not mean purity or measured-empty. Direct unresolved calls remain
+visible, without generated-body resolution or inherited unresolved references.
+They do not invalidate measured complexity. Missing owners and historical/null
+scores still make the ranking incomplete. Combined numeric/pattern behavior,
+compilation identities and strict matching remain unchanged. No new collector,
+score algorithm, scope flag, proof, hash, source scan or dependency permission.
+
+Five independent acceptance cases cover ranking-only unresolved dependency calls
+versus numeric incompleteness, identical ranked scores and combined numeric
+findings, exclusions, source/tool-free replay, missing generated owners and
+historical/modern scores, and separate check/test denominators. One initial test
+incorrectly required the generated test harness population to be complete; it
+now independently checks completeness against missing-owner/measurement counts.
+All 13 focused ranking checks pass. Independent read-only implementation review
+found no correctness issues. Clippy's orchestration length limit was addressed
+with a shared execution-state mapping; style's length finding was addressed by
+moving existing completed-result construction into a constructor, preserving
+ownership and avoiding copies or repeated evaluation.
+
+The retained C69 rstyle-ccgraph replay preserves identical rankings and measured
+owner observations for 238 functions, while skipping 176 generated effect-owner
+classifications. Both modes still exit 2 for 176 unavailable complexity owners;
+no authored ranking scope or coverage improvement is claimed. Six serialized
+alternating warm replays have median wall times 0.305s for numeric advice plus
+ranking and 0.285s for ranking alone. These small samples include replay/JSON costs
+and do not establish a general speedup. See
+project-independent-ranking-study.json. Strict execution remains unrequested in
+this study; the existing strict additive-ranking controls remain in the suite.
+
+The first full run passed all 3,579 Rust tests before the style-only constructor
+refactor. The final frozen code was checked again with the full Rust suite;
+final results and native status follow below. Both legacy backends remain active.
+Next ready semantic investigation: explicitly generated owners are outside the
+original-source rules' applicability, yet currently block source baselines.
+Assess that contract through the existing source assessment/review adapters,
+retaining keys/reasons and keeping missing authored data incomplete. Do not
+substitute expanded HIR statement counts for original spacing evidence or add
+another policy/proof layer. Broader proposal quality and cross-package discovery
+remain open; the migration is not complete.
+
+Final frozen validation passes all 3,579 Rust tests in 235.969s with five existing
+skips, plus doc tests, 244 Python checks, locked all-target Clippy, formatting and
+diff checks. Style has zero violations over 9,934 functions; reviewed patterns has
+zero unreviewed candidates and the same 13 unfiltered IDs as main. Logs use
+/tmp/clones-c75-*. C73 and C74 native CI pass on Ubuntu x64/ARM and macOS
+(runs 40916805535 and 40920137235). C75 native CI remains pending until push.
+Current remote main is 1689392 and is already an ancestor of this branch.

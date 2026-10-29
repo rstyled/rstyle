@@ -153,6 +153,26 @@ the requested display rows; it does not rescore, parse source or add proof/hash
 checks. Core policy exclusions apply; diagnostic suppressions and review or
 changed-file masks do not filter this raw ranking. Finding counts stay unchanged.
 
+Ranking can also run without `--compiler-advisory` or `--compiler-patterns`:
+
+```sh
+cargo rstyle clones --extraction-profile hir-data-v3 --compiler-advisory-only \
+  --compiler-complexity-top 20 --locked --format json
+```
+
+This uses the same captured scores, core observation selection and ordering,
+without numeric diagnostics, effect classification/propagation or fix planning.
+`diagnostic_execution` and `effect_execution` are `not_requested`; absent effect
+results do not mean pure or measured-empty. Direct unresolved calls stay visible;
+without propagation, they do not include generated-body routing or its unresolved
+callees. They do not invalidate complexity scores. Missing scores or owners still
+prevent a complete ranking, including generated signatures with unavailable measurements.
+Add `--compiler-advisory` for threshold findings and effects, or
+`--compiler-patterns` for proposals; each retains its own input requirements.
+Ranking alone has no findings to dismiss or threshold exit; `--fail-on-findings`
+requires a requested finding analysis. Strict matching stays independent; the
+example explicitly leaves it unrequested.
+
 Each unit's optional `complexity_ranking` uses schema
 `rstyle.compiler-complexity-ranking/1`. Parallel `owners` and `functions` arrays
 pair report-local handles with score/location rows. `known_functions`,

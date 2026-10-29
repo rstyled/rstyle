@@ -28,6 +28,7 @@ pub(super) struct Report {
     effective_config: Rc<serde_json::Value>,
     complete: bool,
     diagnostic_execution: super::analysis::Execution,
+    effect_execution: super::analysis::Execution,
     pub findings: usize,
     limitations: &'static [&'static str],
     units: Vec<Unit>,
@@ -394,11 +395,8 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
         metrics,
         effective_config: policy,
         complete,
-        diagnostic_execution: if ctx.args.compiler_advisory {
-            super::analysis::Execution::Completed
-        } else {
-            super::analysis::Execution::NotRequested
-        },
+        diagnostic_execution: requested_execution(ctx.args.compiler_advisory),
+        effect_execution: requested_execution(ctx.args.compiler_effects_requested()),
         findings: units
             .iter()
             .map(|unit| unit.findings(patterns::Report::findings))
@@ -406,7 +404,7 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
         limitations: &[
             "Advisory compiler observations and existing core policy; no strict clone or purity authority.",
             "Core effect propagation follows unique captured direct Cargo dependencies; missing or ambiguous units remain unresolved.",
-            "Missing functions make requested coverage incomplete; unresolved workspace callees keep requested numeric and effect coverage incomplete. No zero facts are substituted.",
+            "Missing functions make requested coverage incomplete; unresolved workspace callees keep requested numeric and effect coverage incomplete, independently of complexity ranking. No zero facts are substituted.",
             "Core metrics count mutable borrows and use bounded effect propagation; they differ from strict mutation-effect metrics.",
             "Compiler patterns use approximate advisory graphs and bounded core discovery; input completeness is not exhaustive proposal coverage or refactoring safety.",
         ],
@@ -418,6 +416,14 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
         pattern_baseline: None,
         changed_scope: None,
     }))
+}
+
+fn requested_execution(requested: bool) -> super::analysis::Execution {
+    if requested {
+        super::analysis::Execution::Completed
+    } else {
+        super::analysis::Execution::NotRequested
+    }
 }
 
 fn evaluate_units(
@@ -649,7 +655,9 @@ impl Collected {
         reason: String,
         ctx: &Context<'_>,
     ) -> Result<(), String> {
-        self.push_generated_effects(function, ctx)?;
+        if ctx.args.compiler_effects_requested() {
+            self.push_generated_effects(function, ctx)?;
+        }
         if ctx.args.compiler_pattern_scope == super::CompilerPatternScope::Authored
             && function
                 .facts

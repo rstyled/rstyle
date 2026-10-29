@@ -464,6 +464,16 @@ The optional `complexity_ranking` pairs `owners` with `functions` and reports fu
 measured/unavailable denominators. It works in source/tool-free replay and
 advisory-only mode, without new source scans or hashes.
 
+`--compiler-complexity-top N` also works without `--compiler-advisory` or
+`--compiler-patterns`. Pair it with `--compiler-advisory-only` to rank captured
+scores without strict matching, numeric rules or effect propagation. It reuses
+core observation selection/exclusions and ordering. `diagnostic_execution` and
+`effect_execution` are `not_requested`; absent effects are not purity or zero.
+Unresolved calls do not invalidate complexity ranking. Missing scores and owners
+still make it incomplete, including generated signatures. Add numeric advice or
+patterns explicitly when wanted; their requirements remain independent. Ranking
+alone does not enable `--fail-on-findings` or diagnostic reviews.
+
 For independently labeled numeric validation, the offline
 `eval/clones-capability/compiler_complexity.py --require-scores` compares exact
 completed policy/CC/COG values separately from threshold outcomes. Missing or

@@ -7,6 +7,7 @@ mod function_extraction;
 mod generated_effects;
 mod generated_propagation;
 mod generated_trait_propagation;
+mod independent_ranking;
 mod instance_extraction;
 mod mutations;
 mod only;

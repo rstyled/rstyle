@@ -50,7 +50,7 @@ impl CompilerPatternScope {
 #[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density", "compiler_advisory", "compiler_patterns"]).multiple(true)),
     group(clap::ArgGroup::new("compiler_presentation").args(["min_score", "top"]).requires("compiler_patterns").multiple(true)),
     group(clap::ArgGroup::new("compiler_mining").args(["hide_implements", "threshold", "min_coverage", "pair_coverage", "normalize", "single_call_guard", "max_holes"]).requires("compiler_patterns").multiple(true)),
-    group(clap::ArgGroup::new("compiler_inputs").args(["compiler_advisory", "compiler_patterns"]).multiple(true)),
+    group(clap::ArgGroup::new("compiler_inputs").args(["compiler_advisory", "compiler_patterns", "compiler_complexity_top"]).multiple(true)),
     group(clap::ArgGroup::new("changed_analysis").args(["source_rules", "effect_density", "compiler_advisory", "compiler_patterns", "select_guards"]).multiple(true)),
     group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules", "mutation_rules", "effect_density", "compiler_patterns", "compiler_advisory", "guard_clauses"]).multiple(true)),
     group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_guard", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density", "dismiss_compiler_pattern", "dismiss_compiler_diagnostic", "import_legacy_pattern"])),
@@ -99,7 +99,7 @@ pub struct Args {
     #[arg(long)]
     compiler_advisory: bool,
     /// Rank up to N compiler functions per unit by existing COG then CC scores, including clean functions.
-    #[arg(long, requires = "compiler_advisory")]
+    #[arg(long)]
     #[serde(skip_serializing_if = "Option::is_none")]
     compiler_complexity_top: Option<std::num::NonZeroUsize>,
     /// Capture compiler advice without strict helper certification, admission or matching.
@@ -1134,6 +1134,10 @@ enum CompilerBaseline {
 
 impl Args {
     fn compiler_inputs_requested(&self) -> bool {
+        self.compiler_effects_requested() || self.compiler_complexity_top.is_some()
+    }
+
+    fn compiler_effects_requested(&self) -> bool {
         self.compiler_advisory || self.compiler_patterns
     }
 

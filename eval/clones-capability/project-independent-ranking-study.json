@@ -1,0 +1,150 @@
+{
+  "schema": "rstyle.independent-compiler-ranking-study/1",
+  "checkpoint": "C75",
+  "base_revision": "e96922fb21a700a745fc29ca72636ba3a3bb8fdd",
+  "scope": {
+    "package": "rstyle-ccgraph",
+    "mode": "check",
+    "run": "target/rstyle/clones/run-TKB31S",
+    "source": "retained C69 capture, not fresh compilation",
+    "host": "aarch64-unknown-linux-gnu",
+    "toolchain": "nightly-2026-09-30",
+    "metrics": "rstyle.compiler-style-metrics/7"
+  },
+  "command": [
+    "target/debug/cargo-rstyle",
+    "clones",
+    "--format",
+    "json",
+    "--report-detail",
+    "compact",
+    "--extraction-profile",
+    "hir-data-v3",
+    "--compiler-advisory-only",
+    "--compiler-complexity-top",
+    "10",
+    "--compiler-advisory-config",
+    "rstyle.toml",
+    "--replay-run",
+    "target/rstyle/clones/run-TKB31S"
+  ],
+  "comparison": "numeric adds --compiler-advisory; ranking uses the command above",
+  "results": {
+    "owners": 414,
+    "known_and_measured": 238,
+    "unavailable_owners": 176,
+    "identical_rankings_and_raw_observations": true,
+    "numeric_evaluation_requested_only_in_numeric_mode": true,
+    "classified_generated_effect_owners": {
+      "numeric": 176,
+      "ranking": 0
+    },
+    "effect_execution": {
+      "numeric": "completed",
+      "ranking": "not_requested"
+    },
+    "complete": {
+      "numeric": false,
+      "ranking": false
+    },
+    "unresolved_calls": {
+      "numeric": [
+        "rstyle_pdg::cfg::reachable_vertices",
+        "rstyle_pdg::cfg::read_operation_map",
+        "rstyle_pdg::cfg::validate_cfg",
+        "rstyle_pdg::cfg::validate_correspondence",
+        "rstyle_pdg::cfg::validate_paired_agreement",
+        "rstyle_pdg::collection::collect_present",
+        "rstyle_pdg::data_documents::read_keys",
+        "rstyle_pdg::data_types::parse",
+        "rstyle_pdg::data_types::{impl#0}::native_width",
+        "rstyle_pdg::extraction_profile::policy_supports",
+        "rstyle_pdg::extraction_profile::{impl#0}::policy",
+        "rstyle_pdg::frontend::_#29::{impl#0}::deserialize",
+        "rstyle_pdg::helper_calls::native_width",
+        "rstyle_pdg::model::{impl#24}::clone",
+        "rstyle_pdg::model::{impl#33}::clone",
+        "rstyle_pdg::model::{impl#6}::known_value",
+        "rstyle_pdg::producer::matching_build::settings",
+        "rstyle_pdg::producer::verify::verify",
+        "rstyle_pdg::producer::verify::verify_view",
+        "rstyle_pdg::validate::validate_source_text",
+        "rstyle_pdg::validate::validate_sources",
+        "rstyle_pdg::validate::{impl#2}::new",
+        "rstyle_pdg::value_sites::validate_value_sites"
+      ],
+      "ranking": [
+        "rstyle_ccgraph::graph::{impl#55}::default",
+        "rstyle_ccgraph::pipeline::{impl#21}::clone",
+        "rstyle_pdg::cfg::reachable_vertices",
+        "rstyle_pdg::cfg::read_operation_map",
+        "rstyle_pdg::cfg::validate_cfg",
+        "rstyle_pdg::cfg::validate_correspondence",
+        "rstyle_pdg::cfg::validate_paired_agreement",
+        "rstyle_pdg::collection::collect_present",
+        "rstyle_pdg::data_documents::read_keys",
+        "rstyle_pdg::data_types::parse",
+        "rstyle_pdg::data_types::{impl#0}::native_width",
+        "rstyle_pdg::extraction_profile::policy_supports",
+        "rstyle_pdg::extraction_profile::{impl#0}::policy",
+        "rstyle_pdg::frontend::_#29::{impl#0}::deserialize",
+        "rstyle_pdg::helper_calls::native_width",
+        "rstyle_pdg::model::{impl#6}::known_value",
+        "rstyle_pdg::producer::matching_build::settings",
+        "rstyle_pdg::producer::verify::verify",
+        "rstyle_pdg::producer::verify::verify_view",
+        "rstyle_pdg::validate::validate_source_text",
+        "rstyle_pdg::validate::validate_sources",
+        "rstyle_pdg::validate::{impl#2}::new",
+        "rstyle_pdg::value_sites::validate_value_sites"
+      ]
+    },
+    "strict_execution_remains_not_requested": true
+  },
+  "measurements": {
+    "kind": "subprocess wall time; six serialized alternating warm replays, no concurrent test/build job",
+    "samples": [
+      {
+        "mode": "numeric",
+        "seconds": 0.3193308780901134,
+        "exit_code": 2
+      },
+      {
+        "mode": "ranking",
+        "seconds": 0.2974120689323172,
+        "exit_code": 2
+      },
+      {
+        "mode": "ranking",
+        "seconds": 0.2823470609728247,
+        "exit_code": 2
+      },
+      {
+        "mode": "numeric",
+        "seconds": 0.3051853890065104,
+        "exit_code": 2
+      },
+      {
+        "mode": "numeric",
+        "seconds": 0.29526752803940326,
+        "exit_code": 2
+      },
+      {
+        "mode": "ranking",
+        "seconds": 0.28474747494328767,
+        "exit_code": 2
+      }
+    ],
+    "median_seconds": {
+      "numeric": 0.3051853890065104,
+      "ranking": 0.28474747494328767
+    }
+  },
+  "limitations": [
+    "Both modes exit2 because 176 generated owners lack complexity; no authored ranking scope was added.",
+    "Scores, sorting and complexity policy are unchanged; no added coverage, purity, discovery-quality or retirement claim.",
+    "Ranking keeps direct unresolved references; numeric analysis also resolves generated-body routes and includes their unresolved callees.",
+    "Timing includes replay and JSON I/O; small warm samples do not establish a general speedup.",
+    "No source scans, new hashes, proof gates or fresh capture were added."
+  ]
+}

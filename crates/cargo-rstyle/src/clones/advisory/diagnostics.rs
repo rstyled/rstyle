@@ -7,6 +7,7 @@ use crate::clones::{
 use rstyle_core::{facts::FnFacts, report::Report};
 use std::rc::Rc;
 
+#[derive(Default)]
 pub(super) struct Completed {
     pub evaluation: Option<Report>,
     pub facts: Vec<FnFacts>,
@@ -33,6 +34,12 @@ pub(super) fn evaluate(
     let config = ctx
         .compiler_advisory_config
         .ok_or("Compiler input policy was not requested")?;
+    if !ctx.args.compiler_effects_requested() {
+        return Ok(Completed {
+            facts: rstyle_core::selected_observations(inputs.facts, config)?,
+            ..Completed::default()
+        });
+    }
     if !ctx.args.compiler_advisory {
         return patterns_only(inputs, config);
     }
@@ -42,18 +49,8 @@ pub(super) fn evaluate(
             .args
             .compiler_baseline_requested(crate::clones::CompilerBaseline::Diagnostics)
     {
-        let evaluated = evaluate_core(inputs, config, retention, ctx.args.compiler_patterns)?;
-        let (evaluation, facts) = (evaluated.report, evaluated.facts);
-        return Ok(Completed {
-            evaluation: Some(evaluation),
-            facts,
-            diagnostic_indices: evaluated.diagnostic_owners,
-            effects: evaluated.effects,
-            snapshots: Vec::new(),
-            owners: Vec::new(),
-            owner_names: std::collections::BTreeMap::new(),
-            owner_scope_truncated: false,
-        });
+        return evaluate_core(inputs, config, retention, ctx.args.compiler_patterns)
+            .map(Completed::from_evaluation);
     }
 
     let policy = compiler_diagnostics::observed::Policy {
@@ -63,15 +60,24 @@ pub(super) fn evaluate(
     let mut evaluated = evaluate_core(inputs, config, retention, ctx.args.compiler_patterns)?;
     let observed = compiler_diagnostics::observed::collect(ctx, unit, &mut evaluated, &policy);
     Ok(Completed {
-        evaluation: Some(evaluated.report),
-        facts: evaluated.facts,
-        diagnostic_indices: evaluated.diagnostic_owners,
-        effects: evaluated.effects,
         snapshots: observed.snapshots,
         owners: observed.owners,
         owner_names: observed.owner_names,
         owner_scope_truncated: observed.owner_scope_truncated,
+        ..Completed::from_evaluation(evaluated)
     })
+}
+
+impl Completed {
+    fn from_evaluation(evaluated: rstyle_core::Evaluation) -> Self {
+        Self {
+            evaluation: Some(evaluated.report),
+            facts: evaluated.facts,
+            diagnostic_indices: evaluated.diagnostic_owners,
+            effects: evaluated.effects,
+            ..Self::default()
+        }
+    }
 }
 
 fn patterns_only(

@@ -51,7 +51,7 @@ fn unchanged(original: &Value, ranked: &Value) {
 }
 
 #[test]
-fn complexity_top_requires_advisory_and_a_positive_limit() {
+fn complexity_top_requires_compiler_inputs_and_a_positive_limit() {
     let directory = clone_workspace();
     for args in [
         vec!["clones", "--compiler-complexity-top", "1"],
