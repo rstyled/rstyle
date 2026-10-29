@@ -13,12 +13,16 @@ pub(super) struct GuardAssessment {
     pub coverage: Coverage,
     pub availability: FactAvailability,
     pub opportunity: Option<GuardOpportunity>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub closure_opportunities: Vec<GuardOpportunity>,
     pub reasons: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
 pub(in crate::clones) struct GuardOpportunity {
     pub span: ByteSpan,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub closure_span: Option<ByteSpan>,
     pub fallback_branch: Branch,
     pub continuing_statements: usize,
     pub advisory: &'static str,
@@ -26,7 +30,7 @@ pub(in crate::clones) struct GuardOpportunity {
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub(super) enum Branch {
+pub(in crate::clones) enum Branch {
     Then,
     Else,
 }
@@ -50,6 +54,7 @@ fn unavailable(availability: FactAvailability, reason: &str) -> GuardAssessment 
         coverage: Coverage::Incomplete,
         availability,
         opportunity: None,
+        closure_opportunities: vec![],
         reasons: vec![reason.into()],
     }
 }
@@ -67,12 +72,19 @@ fn inspect(source: &str) -> GuardAssessment {
         Ok(function) => function,
         Err(_) => return unsupported("original source is not a complete function"),
     };
-    let mut boundaries = Boundaries::default();
+    if function.sig.unsafety.is_some() || function.sig.asyncness.is_some() {
+        return unsupported("unsafe or async functions are outside the guard contract");
+    }
+    let mut boundaries = Boundaries::for_source(source);
     boundaries.visit_item_fn(&function);
-    if boundaries.opaque || function.sig.unsafety.is_some() || function.sig.asyncness.is_some() {
-        return unsupported(
-            "opaque syntax or ambiguous control flow is outside the guard contract",
-        );
+    if boundaries.opaque {
+        let mut result =
+            unsupported("opaque syntax or ambiguous control flow is outside the guard contract");
+        result.closure_opportunities = boundaries.opportunities;
+        if !result.closure_opportunities.is_empty() {
+            result.outcome = Outcome::Finding;
+        }
+        return result;
     }
 
     let opportunity = candidate(&function.block, source);
@@ -87,6 +99,7 @@ fn inspect(source: &str) -> GuardAssessment {
         coverage: Coverage::Complete,
         availability: FactAvailability::Known,
         opportunity,
+        closure_opportunities: vec![],
         reasons: vec![],
     }
 }
@@ -121,6 +134,7 @@ fn candidate(block: &syn::Block, source: &str) -> Option<GuardOpportunity> {
 
     continuing_shape(continuing).then_some(GuardOpportunity {
         span: original_span(source, branch.span()),
+        closure_span: None,
         fallback_branch,
         continuing_statements: continuing.stmts.len(),
         advisory: "consider an early scalar return and lifting the continuing branch; review lifetimes, drops, and condition inversion before editing",
@@ -156,12 +170,61 @@ fn continuing_shape(block: &syn::Block) -> bool {
 }
 
 #[derive(Default)]
-struct Boundaries {
+struct Boundaries<'source> {
+    source: Option<&'source str>,
+    opportunities: Vec<GuardOpportunity>,
     opaque: bool,
     terminal: bool,
 }
 
-impl<'ast> Visit<'ast> for Boundaries {
+impl<'source> Boundaries<'source> {
+    fn for_source(source: &'source str) -> Self {
+        Self {
+            source: Some(source),
+            ..Self::default()
+        }
+    }
+
+    fn inspect_closure(&mut self, closure: &syn::ExprClosure) {
+        let Some(source) = self.source else { return };
+        if closure.asyncness.is_some()
+            || closure.constness.is_some()
+            || closure.movability.is_some()
+            || closure.lifetimes.is_some()
+            || !closure.attrs.is_empty()
+        {
+            return;
+        }
+        let Expr::Block(body) = &*closure.body else {
+            return;
+        };
+        if body.label.is_some() || !body.attrs.is_empty() {
+            return;
+        }
+
+        let mut local = Self::for_source(source);
+        for input in &closure.inputs {
+            local.visit_pat(input);
+        }
+        local.visit_return_type(&closure.output);
+        local.visit_block(&body.block);
+        if !local.opaque
+            && let Some(mut opportunity) = candidate(&body.block, source)
+        {
+            opportunity.closure_span = Some(original_span(source, closure.span()));
+            opportunity.advisory = "consider an early scalar return within this closure and lifting the continuing branch; review lifetimes, drops, and condition inversion before editing";
+            self.opportunities.push(opportunity);
+        }
+        self.opportunities.extend(local.opportunities);
+    }
+}
+
+impl<'ast> Visit<'ast> for Boundaries<'_> {
+    fn visit_expr_closure(&mut self, closure: &'ast syn::ExprClosure) {
+        self.opaque = true;
+        self.inspect_closure(closure);
+    }
+
     fn visit_expr(&mut self, expression: &'ast Expr) {
         self.terminal |= matches!(expression, Expr::Return(_));
         self.opaque |= opaque_expression(expression);

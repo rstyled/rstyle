@@ -7,7 +7,7 @@ pub(super) mod changed_scope;
 pub(super) mod declaration_indices;
 pub(super) mod dispatch_reports;
 pub(super) mod effect_reports;
-mod guards;
+pub(in crate::clones) mod guards;
 pub(super) mod helper_reports;
 mod helpers;
 mod local_scope;
@@ -303,7 +303,9 @@ fn scope(
         .collect();
     let expected_functions = reasons.is_empty().then_some(handoff.assessed.len());
     let source = source_scope(functions);
-    let unavailable_rules = count(functions, Outcome::NotEvaluated) - source.excluded_rules;
+    let unavailable_rules = rule_statuses(functions)
+        .filter(|(_, coverage)| *coverage == Coverage::Incomplete)
+        .count();
     if unavailable_rules > 0 {
         reasons.push(
             "Some requested rules could not be evaluated; see per-function evidence reasons".into(),
@@ -397,17 +399,26 @@ impl SourceScope {
     }
 }
 
+fn rule_statuses<'a>(
+    functions: &'a [FunctionReport<'_>],
+) -> impl Iterator<Item = (Outcome, Coverage)> + 'a {
+    functions.iter().flat_map(|function| {
+        function
+            .assessments
+            .iter()
+            .map(|assessment| (assessment.outcome, assessment.coverage))
+            .chain(
+                function
+                    .guard_clause
+                    .iter()
+                    .map(|guard| (guard.outcome, guard.coverage)),
+            )
+    })
+}
+
 fn count(functions: &[FunctionReport<'_>], outcome: Outcome) -> usize {
-    functions
-        .iter()
-        .flat_map(|function| {
-            function
-                .assessments
-                .iter()
-                .map(|assessment| assessment.outcome)
-                .chain(function.guard_clause.iter().map(|guard| guard.outcome))
-        })
-        .filter(|value| *value == outcome)
+    rule_statuses(functions)
+        .filter(|(value, _)| *value == outcome)
         .count()
 }
 
@@ -665,14 +676,15 @@ impl FunctionReport<'_> {
         let guard = self
             .guard_clause
             .as_ref()
-            .and_then(|guard| guard.opportunity.as_ref())
+            .into_iter()
+            .flat_map(|guard| guard.opportunity.iter().chain(&guard.closure_opportunities))
             .map(|opportunity| {
                 format!(
                     "\nguard_clause {location}: {} (fallback {:?}).",
                     opportunity.advisory, opportunity.fallback_branch
                 )
             })
-            .unwrap_or_default();
+            .collect::<String>();
         format!("{source}{guard}")
     }
 }
@@ -680,17 +692,15 @@ impl FunctionReport<'_> {
 impl Report<'_> {
     pub(in crate::clones) fn guard_findings(
         &self,
-    ) -> impl Iterator<Item = (super::FunctionKey, rstyle_pdg::ByteSpan)> + '_ {
-        self.functions.iter().filter_map(|function| {
-            let guard = function.guard_clause.as_ref()?;
-            (guard.outcome == Outcome::Finding)
-                .then(|| {
-                    guard
-                        .opportunity
-                        .as_ref()
-                        .map(|opportunity| (function.key, opportunity.span))
-                })
-                .flatten()
+    ) -> impl Iterator<Item = (super::FunctionKey, &guards::GuardOpportunity)> + '_ {
+        self.functions.iter().flat_map(|function| {
+            function.guard_clause.iter().flat_map(move |guard| {
+                guard
+                    .opportunity
+                    .iter()
+                    .chain(&guard.closure_opportunities)
+                    .map(move |opportunity| (function.key, opportunity))
+            })
         })
     }
 

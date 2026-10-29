@@ -249,8 +249,18 @@ identifies which branch is the fallback and advises reviewing condition inversio
 lifetimes and drops before lifting the continuing branch. It performs no rewrite
 and establishes no effect, equivalence or refactoring-safety proof.
 
+Synchronous block-bodied closures reuse the same tail-if detector in their own
+return scope. Findings appear in `closure_opportunities`, with `closure_span`
+identifying the entire closure and `span` its guard, both relative to the original
+function source. Advice explicitly says “within this closure”. Earlier returns
+in one closure cannot poison sibling closures or authorize an outer return.
+The containing function remains unsupported/incomplete; a witnessed finding does
+not establish clean coverage of its remainder. Analysis counts one finding per
+function assessment, while planning counts each individual opportunity.
+Async and expression-bodied closures provide no opportunities.
+
 Already flat code, two working branches and single-expression work branches
-produce no opportunity under this contract. Macros, closures, unsafe/async
+produce no opportunity under this contract. Macros, unsafe/async
 syntax, attributes, loops, labels, `match`, `?`, let conditions and else-if chains
 remain explicitly unsupported. Statement and guard parsers share a conservative
 lexical bound: 256 KiB, delimiter depth 128, 128 punctuation bytes and 128 word

@@ -195,3 +195,5 @@ fn guard_advice_does_not_require_the_called_body_to_be_clone_admitted() {
 }
 
 mod resources;
+
+mod closures;

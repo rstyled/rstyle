@@ -4964,3 +4964,61 @@ checkpoint. The existing macOS fixture fix stays in place.
 Migration remains active. Broader source/effect/proposal quality, genuinely useful
 production guard positives, full captured-owner coverage and capability-specific
 legacy retirement gates remain open.
+
+
+### C59 — reuse guard advice within synchronous closure return scopes (2026-10-29)
+
+The previous continuation verified the macOS fixture repair on a subsequent green
+three-platform CI run; no additional macOS defect was observed. This increment
+returns to a measured production advisory capability. A source-only reviewer froze
+within/contains/remember cases before detector changes in
+project-guard-closure-cases.json. `verification_session::within` contains a useful
+scalar fallback inside its session-initialization closure. Returning from the
+outer function would break cleanup/operation semantics; the advice must explicitly
+keep the return inside that closure.
+
+Lead owns the detector/input seam, analysis summary, rendering, plans, registration,
+study and docs. Acceptance workers own the new closure CLI leaf and source labels;
+a read-only review checked the integrated return scopes and spans. The existing
+Boundaries walk now enters supported synchronous block closures with independent
+control-flow state and invokes the existing candidate algorithm. Nested return
+flags cannot poison siblings or authorize outer opportunities. No second parser,
+consumer algorithm, hash, source scan, proof or cloned fact owner is introduced.
+Async, const, static, higher-ranked and expression-bodied closures stay outside
+this contract; opaque syntax in a closure keeps that scope unsupported.
+
+Each local opportunity retains its exact closure and guard spans relative to the
+original function. The enclosing root stays unsupported/incomplete and has no
+root opportunity. Rendering says “within this closure”; planning borrows each
+completed opportunity and uses the existing original-region mapper once. Multiple
+opportunities can share a function owner and still receive distinct plan IDs.
+Analysis finding counts remain per assessment, planning counts opportunities, and
+unavailable rule counts now use coverage independently of finding outcome. Thus
+a partial witnessed finding cannot accidentally make the whole scope clean.
+
+The production study copies the complete, byte-identical verification_session.rs
+and verification_policy.rs modules into a bounded standalone package. This is an
+original-module source slice with its own declared compilation context, not a
+full original-package capture. Baseline351c3a2 and the changed detector evaluate
+the same saved run-cHsQ4u: within gains exactly one independently labeled local
+finding and exact terminal-if plan; contains and remember gain none. All three
+roots and planning remain incomplete. Matching, accepted pairs and original
+function records are identical. project-guard-closure-study.json retains the
+comparison, source mapping, exact spans and limitations. Lifetimes, borrow duration,
+captures, drops, equivalence, rewrites, Go parity and performance remain unproved.
+
+Final validation logs use /tmp/clones-c59-*. All3,473 Rust tests pass in225.449s,
+with5 existing skips; doc tests pass. Focused guard CLI10 and detector11 tests
+cover sibling/nested returns, original UTF-8/CRLF offsets, unsupported controls
+and source/tool-free replay. All244 offline Python tests pass. Final locked
+all-target Clippy, fmt and diff checks pass; workspace style reports0 violations
+over9,816 functions. Patterns reports0 unreviewed candidates and all13 unfiltered
+IDs equal the main baseline. The first pattern check identified duplicated rule
+status iteration; a shared outcome/coverage iterator removed it, without adding
+ignores. The entire Rust suite was rerun on this final refactor. Final production
+replay is exactly equal as JSON to the checked study. Current origin/main
+1689392 is already an ancestor. C57 CI40862639413 is green on all three platforms;
+C58 Ubuntu jobs are green while its macOS test job is still live at this checkpoint.
+
+Migration remains active; broader project quality and full captured-owner coverage,
+plus capability-specific legacy retirement gates, remain open.

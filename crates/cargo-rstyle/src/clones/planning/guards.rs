@@ -29,6 +29,8 @@ struct Plan {
     id: usize,
     function: String,
     region: Option<Region>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    closure_span: Option<ByteSpan>,
     unavailable_regions: Vec<Unavailable>,
 }
 
@@ -58,12 +60,12 @@ fn plan(
     ctx: &report::Context<'_>,
     records: &BTreeMap<FunctionKey, &Function>,
     id: usize,
-    finding: (FunctionKey, ByteSpan),
+    finding: (FunctionKey, &analysis::guards::GuardOpportunity),
 ) -> Result<Plan, String> {
     let record = records
         .get(&finding.0)
         .ok_or("Missing planned guard function")?;
-    let region = match planning::inspect_subregion(&record.facts, finding.1)? {
+    let region = match planning::inspect_subregion(&record.facts, finding.1.span)? {
         Availability::Known(original) => located_region(record, ctx, original)?,
         Availability::Unknown { reason } => {
             Err(unavailable(record, FactAvailability::Unknown, reason))
@@ -83,6 +85,7 @@ fn plan(
         id,
         function: finding.0.to_string(),
         region,
+        closure_span: finding.1.closure_span,
         unavailable_regions,
     })
 }

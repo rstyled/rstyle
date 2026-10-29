@@ -239,7 +239,9 @@ source/tools. Legacy parameter grouping remains available for its broader scope.
 ## Opt-in guard planning and shared coordination
 
 Use `clones --guard-clauses --guard-plans` to retain each guard finding's required
-original terminal-if region. Request helper or parameter plans alongside it to
+original terminal-if region. Synchronous block closure opportunities identify
+their closure return scope with `closure_span`; never move that return into the
+enclosing function. The enclosing assessment stays incomplete. Request helper or parameter plans alongside it to
 see `edit_coordination`: typed family/local references, exact overlap witnesses,
 known-region disjointness, conflicting snapshots and explicit coverage/budgets.
 These source regions share captured snapshots; strict replay needs no live files.

@@ -175,12 +175,16 @@ Legacy grouping and stacking remain operational.
 ## Guard intents and shared coordination
 
 `--guard-clauses --guard-plans` requests one advisory intent for each completed
-guard finding. `guard_planning` records the whole original terminal `if/else`
+guard opportunity, including independently scoped closure opportunities. `guard_planning` records the whole original terminal `if/else`
 expression as its required region: condition and both branches, without the
 surrounding function signature or earlier statements. The detector retains this
 span during its existing bounded parse. Planning maps it to the checked original
 file owner without reparsing, copying source bytes or computing another hash.
 Regions use absolute, half-open UTF-8 byte offsets and share the captured snapshot.
+A closure plan additionally retains `closure_span` relative to the function source:
+the suggested return belongs inside that closure. Its required edit region is
+still only the terminal if/else. Closure findings leave whole-function coverage
+incomplete and `expected_plans` unavailable.
 Source-rule suppressions and path exclusions do not remove guard intents.
 
 Requested helper, parameter and guard plans also produce `edit_coordination`.

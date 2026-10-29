@@ -152,3 +152,29 @@ fn opportunity_span_is_exact_final_if_in_original_utf8_crlf_bytes() {
         branch
     );
 }
+
+#[test]
+fn closure_qualifiers_do_not_acquire_local_guard_coverage() {
+    for qualifier in ["const", "async", "static", "for<'a>"] {
+        let source = format!(
+            "fn outer() {{ let _ = {qualifier} || {{ if true {{ false }} else {{ let next = true; next }} }}; }}"
+        );
+        let result = assessed(&source);
+        assert_eq!(result.coverage, Coverage::Incomplete, "{qualifier}");
+        assert!(result.closure_opportunities.is_empty(), "{qualifier}");
+    }
+}
+
+#[test]
+fn nested_closure_returns_keep_their_own_scope_without_authorizing_outer_guards() {
+    let source = "fn outer() { let _ = || { let _ = || { if true { return false; } else { let next = true; next } }; if true { false } else { let next = true; next } }; }";
+    let result = assessed(source);
+    assert_eq!(result.outcome, Outcome::Finding);
+    assert_eq!(result.coverage, Coverage::Incomplete);
+    assert!(result.opportunity.is_none());
+    assert_eq!(result.closure_opportunities.len(), 1);
+    let opportunity = &result.closure_opportunities[0];
+    assert_eq!(opportunity.fallback_branch, Branch::Then);
+    let closure = opportunity.closure_span.unwrap();
+    assert!(source[closure.start as usize..closure.end as usize].starts_with("|| { if true"));
+}
