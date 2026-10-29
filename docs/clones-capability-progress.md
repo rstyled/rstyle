@@ -6494,3 +6494,52 @@ Both legacy gates pass: zero style violations across9,971 functions and the same
 from execution; all six root-route tests pass again after that extraction, along
 with formatting, Clippy and both legacy gates. No suppressions or threshold
 changes were added. Native CI for this increment remains pending publication.
+
+### C89 — reuse advisory dependency builds (2026-10-29)
+
+Lead owns the private build lane, capture integration and acceptance; read-only
+review checked cleanup selection, lock lifetime, target contexts and replay.
+Advisory-only live captures without selected dependency capture now share the
+workspace's private rstyle/clones/advisory-build directory. The existing Cargo
+command environment is shared by planning, checking and package cleanup. An
+ordinary File lock spans planning, cleanup, compilation, log publication and
+reconciliation. Each selected package is cleaned by exact Cargo package ID, once
+for host outputs and for each current planned target platform, retaining other
+packages' build artifacts. No profile restriction leaves stale test/release
+owners. Cleanup failure stops capture. Run-local ledgers and immutable captured
+observations are still emitted anew; compiler incremental remains disabled.
+Strict and explicit dependency capture keep isolated run/build directories.
+
+Acceptance covers unchanged selected-owner recapture with dependency fresh=true,
+source edits, feature and graph-collector changes, check/test mode transitions,
+concurrent captures, source/build-free saved replay and both isolation branches.
+Explicit host target/release transitions exposed a real initial failure: Cargo's
+default clean did not remove explicit-target outputs, so reconciliation correctly
+rejected a missing fresh run-local ledger. Current planned-platform cleanup fixes
+that failure; configured targets and host proc-macros are separate controls.
+Existing generated/unresolved advisory incompleteness remains explicit/exit2.
+
+Four serial live root-style commands on unchanged rstyle-core source took7.657s
+for the first lane build and5.199/5.198/5.348s for warm runs. The latter retained30
+Cargo dependency artifacts fresh and rebuilt only rstyle_core. All424 authored
+observations, diagnostics and numeric summaries agree with C88, and advisory
+payloads agree across all four current runs. Strict work remains unrequested;
+full planning remains incomplete with required edits complete. The earlier C88
+isolated repeat was7.284s; these are single-scope observations across checkpoints,
+not a randomized/equal-cache benchmark or a general speedup claim. Evidence:
+project-advisory-build-reuse-study.json and its recorded logs/run directories.
+
+No new hash, source scan, proof/policy framework, collector or budget increase.
+This removes dependency recompilation, not selected-owner compilation: warm live
+analysis still costs about5.2s versus C88's0.214s cached legacy observation. Next
+ready runtime work is reuse of completed advisory raw sidecars only for artifacts
+that current Cargo reports fresh, with existing exact build associations. A rebuilt
+owner must invalidate its old association even if another package later fails;
+missing-sidecar retries must preserve separate attempt ledgers. Broader quality/
+report comparisons and default retirement remain open.
+Checkpoint validation: all3,664 Rust tests pass in269.946s, five skips, plus
+doctests. All eight new CLI cases pass again in2.34s after extracting test fixture
+setup to satisfy Clippy's function-length limit. Formatting, Clippy,247 capability
+Python tests and50 script tests pass. Both legacy gates pass: zero style violations
+across9,983 functions and the same13 unfiltered pattern IDs. No suppressions,
+threshold changes or relaxed matching were added. Native CI awaits publication.

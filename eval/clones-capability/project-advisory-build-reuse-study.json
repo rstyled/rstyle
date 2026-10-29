@@ -1,0 +1,223 @@
+{
+  "root": "/tmp/clones-c89-live-_80c_uan",
+  "scope": {
+    "package": "rstyle-core",
+    "all_targets": false,
+    "config": "workspace rstyle.toml",
+    "legacy_cache": "existing developer target/build cache; first is not a cold-build measurement",
+    "compiler_capture": "persistent private advisory dependency builds; selected owners cleaned and observed afresh each run; compiler incremental disabled"
+  },
+  "commands": [
+    {
+      "name": "compiler-1",
+      "command": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "rstyle",
+        "--package",
+        "rstyle-core",
+        "--style-engine",
+        "compiler",
+        "--format",
+        "json"
+      ],
+      "elapsed_seconds": 7.656725344946608,
+      "exit_code": 0,
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-kkION2",
+      "fresh_artifacts": 0,
+      "rebuilt_artifacts": [
+        "unicode_ident",
+        "build-script-build",
+        "build-script-build",
+        "build-script-build",
+        "winnow",
+        "memchr",
+        "build-script-build",
+        "zmij",
+        "build-script-build",
+        "toml_parser",
+        "build-script-build",
+        "log",
+        "bstr",
+        "toml_writer",
+        "itoa",
+        "regex_syntax",
+        "aho_corasick",
+        "quote",
+        "proc_macro2",
+        "winnow",
+        "serde_core",
+        "serde_spanned",
+        "toml_datetime",
+        "regex_automata",
+        "serde_json",
+        "toml",
+        "syn",
+        "globset",
+        "serde_derive",
+        "serde",
+        "rstyle_core"
+      ]
+    },
+    {
+      "name": "compiler-2",
+      "command": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "rstyle",
+        "--package",
+        "rstyle-core",
+        "--style-engine",
+        "compiler",
+        "--format",
+        "json"
+      ],
+      "elapsed_seconds": 5.198922976036556,
+      "exit_code": 0,
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-jHw0Jg",
+      "fresh_artifacts": 30,
+      "rebuilt_artifacts": [
+        "rstyle_core"
+      ]
+    },
+    {
+      "name": "compiler-3",
+      "command": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "rstyle",
+        "--package",
+        "rstyle-core",
+        "--style-engine",
+        "compiler",
+        "--format",
+        "json"
+      ],
+      "elapsed_seconds": 5.197958995006047,
+      "exit_code": 0,
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-KYvpDi",
+      "fresh_artifacts": 30,
+      "rebuilt_artifacts": [
+        "rstyle_core"
+      ]
+    },
+    {
+      "name": "compiler-4",
+      "command": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "rstyle",
+        "--package",
+        "rstyle-core",
+        "--style-engine",
+        "compiler",
+        "--format",
+        "json"
+      ],
+      "elapsed_seconds": 5.347527037025429,
+      "exit_code": 0,
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-jJ3XKE",
+      "fresh_artifacts": 30,
+      "rebuilt_artifacts": [
+        "rstyle_core"
+      ]
+    }
+  ],
+  "previous_commands": [
+    {
+      "name": "legacy-first",
+      "command": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "rstyle",
+        "--package",
+        "rstyle-core",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 3.9762770329834893
+    },
+    {
+      "name": "legacy-repeat",
+      "command": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "rstyle",
+        "--package",
+        "rstyle-core",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.2139722810825333
+    },
+    {
+      "name": "compiler-first",
+      "command": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "rstyle",
+        "--package",
+        "rstyle-core",
+        "--format",
+        "json",
+        "--style-engine",
+        "compiler"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 8.64610236196313
+    },
+    {
+      "name": "compiler-repeat",
+      "command": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "rstyle",
+        "--package",
+        "rstyle-core",
+        "--format",
+        "json",
+        "--style-engine",
+        "compiler"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 7.284400184056722
+    },
+    {
+      "name": "compiler-replay",
+      "command": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "clones",
+        "--replay-run",
+        "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-WHbY4U",
+        "--extraction-profile",
+        "hir-data-v3",
+        "--compiler-advisory-only",
+        "--compiler-advisory",
+        "--compiler-diagnostic-scope",
+        "authored",
+        "--compiler-plans",
+        "--fail-on-findings",
+        "--report-detail",
+        "compact",
+        "--compiler-advisory-config",
+        "/home/dev/src/rstyle-main/rstyle/rstyle.toml",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.7665903680026531
+    }
+  ],
+  "advisory_equal_across_runs": true,
+  "previous_numeric_summaries_equal": true,
+  "previous_diagnostics_equal": true,
+  "compiler_complete": true,
+  "observed_authored": [
+    424
+  ],
+  "unresolved_callees": [
+    []
+  ],
+  "planning": {
+    "input_complete": false,
+    "required_edits_complete": true,
+    "known_functions": 424
+  },
+  "strict_not_requested": true,
+  "measurement_limits": "Four serial live observations on one package; previous baseline is C88 on unchanged rstyle-core source, not a randomized/equal-cache benchmark. First lane build includes dependencies. No general speedup claim.",
+  "previous_advisory_equal": true
+}

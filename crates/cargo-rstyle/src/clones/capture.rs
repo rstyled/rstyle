@@ -1,5 +1,6 @@
 //! Isolated Cargo compilation and an explicit compiler-unit ledger.
 pub(super) mod associations;
+mod build_lane;
 mod dependencies;
 pub(super) mod ledger;
 mod saved;
@@ -330,17 +331,22 @@ fn target_record(
     })
 }
 
-fn command(capture: &Capture, cli: &Cli, args: &Args) -> Result<Command, String> {
+fn cargo_command() -> Command {
     let mut command = Command::new("cargo");
     run::clear_rstyle_environment(&mut command);
-
     command
-        .args(["check", "--message-format=json"])
         .env("RUSTUP_TOOLCHAIN", run::pinned_toolchain())
         .env("RUSTC_WORKSPACE_WRAPPER", "")
         .env("RUSTC_WRAPPER", "")
-        .env_remove("RUSTC")
-        .env("CARGO_TARGET_DIR", capture.directory.join("build"))
+        .env_remove("RUSTC");
+    command
+}
+
+fn command(capture: &Capture, cli: &Cli, args: &Args) -> Result<Command, String> {
+    let mut command = cargo_command();
+    command
+        .args(["check", "--message-format=json"])
+        .env("CARGO_TARGET_DIR", build_lane::directory(capture, args))
         .env("CARGO_INCREMENTAL", "0")
         .env("RSTYLE_CAPTURE_PLAN", capture.directory.join("plan.json"));
     let wrapper = if args.capture_dependencies.is_empty() {
@@ -406,13 +412,18 @@ fn build_args(args: &Args) -> Vec<std::ffi::OsString> {
 }
 
 pub fn compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
+    let _lane = build_lane::acquire(capture, args)?;
+    compile_in_lane(capture, cli, args)
+}
+
+fn compile_in_lane(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
     let graph = expected_units(capture, cli, args)?;
     let selected = dependencies::from_cargo(&graph, cli, args)?;
     capture.plan = configured_plan(&capture.plan, &graph, selected)?;
     capture.expected_unit_graph = graph;
     write_json(&capture.directory.join("plan.json"), &capture.plan)?;
 
-    perform_compile(capture, cli, args)
+    refresh_and_compile(capture, cli, args)
 }
 
 fn configured_plan(
@@ -450,6 +461,11 @@ fn primary_units(graph: &Value) -> Result<Vec<Value>, String> {
                 .ok_or_else(|| "Cargo root index outside unit inventory".into())
         })
         .collect()
+}
+
+fn refresh_and_compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
+    build_lane::refresh_selected(capture, args)?;
+    perform_compile(capture, cli, args)
 }
 
 fn perform_compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {

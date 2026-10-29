@@ -17,12 +17,19 @@ JSON schema. The legacy backend remains the default, available explicitly throug
 `--style-engine legacy`. The style-engine option applies only without a subcommand;
 `patterns --engine compiler` retains its separate opt-in route.
 
-Live compiler captures currently create a fresh private Cargo build directory.
-A measured rstyle-core repeat took7.28s versus0.21s for the cached legacy repeat;
-explicit saved replay took0.77s. These single measurements use different cache
-states and do not establish a general runtime ratio. Incremental live reuse and
-broader default-readiness comparisons remain open; see
-`eval/clones-capability/project-authored-style-route-study.json`.
+Live advisory-only captures without dependency capture reuse Cargo dependency
+builds in a private `target/rstyle/clones/advisory-build` directory. Selected
+packages are cleaned and observed afresh on every run, including host and target
+variants, under one lock through compilation and reconciliation. Compiler
+incremental compilation remains disabled. Strict and dependency captures retain
+isolated per-run build directories. Saved replay needs neither build directory.
+
+Measured warm rstyle-core captures took5.20–5.35s with30 dependency artifacts fresh
+and only the selected owner rebuilt; the earlier isolated repeat took7.28s.
+Reports and numeric summaries agree. These observations are not a randomized or
+equal-cache benchmark. Reusing completed owner captures and broader default-readiness
+comparisons remain open; see
+`eval/clones-capability/project-advisory-build-reuse-study.json`.
 
 `clones --extraction-profile hir-data-v3 --compiler-advisory` captures the existing
 Rust style observations during the same compiler invocation. It calls the driver

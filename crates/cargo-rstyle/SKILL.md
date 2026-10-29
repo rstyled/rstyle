@@ -406,8 +406,10 @@ Package, all-targets, manifest and format flags retain their ordinary selection.
 The JSON is the compiler report with per-unit evaluations and separate planning
 completion, not the legacy top-level diagnostics schema. Strict matching and
 pattern mining are unrequested; --ignore-file remains irrelevant to style rules.
-The default backend stays legacy. Live compiler captures use fresh build
-directories; saved replay is separate from incremental live analysis.
+The default backend stays legacy. Advisory-only live captures without dependency
+capture reuse private dependency builds under a lock, cleaning selected packages
+to emit fresh observations. Strict/dependency captures keep isolated builds;
+saved replay is independent of both. Compiler incremental compilation stays off.
 
 For existing compiler mutation/effect observations and core fix plans on a clones
 run, use `cargo rstyle clones --extraction-profile hir-data-v3 --compiler-advisory`.

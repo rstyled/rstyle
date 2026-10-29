@@ -1,4 +1,5 @@
 mod authored_ranking;
+mod build_reuse;
 mod scoped_diagnostic_baseline;
 mod selected_diagnostics;
 mod style_routing;

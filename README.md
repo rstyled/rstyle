@@ -26,8 +26,8 @@ missing scores and owners remain explicit, including on saved-facts replay.
 Try that path for normal style checks with
 `cargo rstyle --style-engine compiler --format json`. It reads workspace
 `rstyle.toml` (or `--config`), checks all authored rules and returns 1 for findings.
-The legacy backend remains the default; compiler captures currently rebuild in a
-fresh directory, and their reports retain separate compilation contexts.
+The legacy backend remains the default. This route reuses private dependency builds
+and collects selected owners afresh; reports retain separate compilation contexts.
 Optional [native pair explanations](docs/clones-pair-differences.md) show ordered
 scalar differences with separate coverage through `--explain-pairs`.
 Bounded [helper proposals](docs/clones-helper-proposals.md) use that evidence

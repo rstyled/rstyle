@@ -860,3 +860,9 @@ cold-cache benchmark or general performance ratio. Runtime reuse is still a
 prerequisite to changing the default. The six independent root CLI cases live in
 migration_compiler_advisory/style_routing.rs. Compiler report shape/context and
 metric semantics remain explicit; no legacy retirement is claimed.
+
+`project-advisory-build-reuse-study.json` records four serial rstyle-core root
+compiler-style captures, per-run Cargo freshness and selected rebuilds, exact
+C88 numeric/diagnostic agreement and scope/cache limitations. Warm runs keep30
+dependency artifacts fresh and rebuild only the selected owner; this is dependency
+build reuse, not completed-owner or compiler incremental reuse.
