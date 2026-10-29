@@ -159,6 +159,8 @@ pub struct Evaluation {
     pub diagnostic_owners: Vec<usize>,
     /// Explicit consumers may retain completed suppression scopes and excluded observations.
     pub scopes: Option<Scopes>,
+    /// Opt-in completed effects, keyed by the original selected owner ID.
+    pub effects: Option<BTreeMap<String, Vec<rules::Effect>>>,
 }
 
 #[derive(Default)]
@@ -202,6 +204,33 @@ pub fn evaluate_with_effects(
     effects: BTreeMap<String, Vec<rules::Effect>>,
 ) -> Result<Evaluation, String> {
     evaluate_inputs(facts, cfg, retention, Some(effects))
+}
+
+/// Retain the effects already used for diagnostics, moving their vectors without reevaluation.
+/// Supplied effects must belong to these scoped owners and the same configuration, as in
+/// `evaluate_with_effects`. Retention of effects is independent of diagnostic scope metadata.
+pub fn evaluate_retaining_effects(
+    facts: Vec<FnFacts>,
+    cfg: &Config,
+    retention: Retention,
+    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,
+) -> Result<Evaluation, String> {
+    evaluate_observations(
+        EvaluationInputs {
+            facts,
+            retention,
+            completed,
+            retain_effects: true,
+        },
+        cfg,
+    )
+}
+
+struct EvaluationInputs {
+    facts: Vec<FnFacts>,
+    retention: Retention,
+    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,
+    retain_effects: bool,
 }
 
 struct RuleInputs<'a> {
@@ -258,21 +287,26 @@ fn evaluate_inputs(
     retention: Retention,
     completed: Option<BTreeMap<String, Vec<rules::Effect>>>,
 ) -> Result<Evaluation, String> {
-    let excluded = exclusions::Matcher::compile(&cfg.exclude.0)?;
+    evaluate_observations(
+        EvaluationInputs {
+            facts,
+            retention,
+            completed,
+            retain_effects: false,
+        },
+        cfg,
+    )
+}
+
+fn evaluate_observations(inputs: EvaluationInputs, cfg: &Config) -> Result<Evaluation, String> {
+    let EvaluationInputs {
+        facts,
+        retention,
+        completed,
+        retain_effects,
+    } = inputs;
     let mut scopes = matches!(retention, Retention::Scopes).then(Scopes::default);
-    let facts: Vec<FnFacts> = facts::merge(facts)
-        .into_iter()
-        .filter_map(|fact| {
-            if excluded.is_excluded(std::path::Path::new(&fact.path)) {
-                if let Some(scopes) = scopes.as_mut() {
-                    scopes.excluded.push(fact);
-                }
-                None
-            } else {
-                Some(fact)
-            }
-        })
-        .collect();
+    let facts = select_facts(facts, cfg, &mut scopes)?;
     let graph = graph::build(&facts);
     let effects = completed_effects(&facts, &graph, cfg, completed)?;
 
@@ -288,6 +322,13 @@ fn evaluate_inputs(
     let summary = summarize(&facts, &effects, cfg, diagnostics.len());
     let fix_groups = groups::build(&facts, &graph, &diagnostics, cfg);
     let functions = complexity_report::findings(&facts, &diagnostics);
+    let effects = retain_effects.then(|| {
+        facts
+            .iter()
+            .zip(effects)
+            .map(|(fact, effects)| (fact.id.clone(), effects))
+            .collect()
+    });
     Ok(Evaluation {
         report: Report {
             diagnostics,
@@ -298,7 +339,29 @@ fn evaluate_inputs(
         facts,
         diagnostic_owners,
         scopes,
+        effects,
     })
+}
+
+fn select_facts(
+    facts: Vec<FnFacts>,
+    cfg: &Config,
+    scopes: &mut Option<Scopes>,
+) -> Result<Vec<FnFacts>, String> {
+    let excluded = exclusions::Matcher::compile(&cfg.exclude.0)?;
+    Ok(facts::merge(facts)
+        .into_iter()
+        .filter_map(|fact| {
+            if excluded.is_excluded(std::path::Path::new(&fact.path)) {
+                if let Some(scopes) = scopes.as_mut() {
+                    scopes.excluded.push(fact);
+                }
+                None
+            } else {
+                Some(fact)
+            }
+        })
+        .collect())
 }
 
 fn completed_effects(
@@ -322,6 +385,7 @@ fn completed_effects(
 
 #[cfg(test)]
 mod tests {
+    mod completed_effects;
     use super::*;
     use facts::{MutationEvent, sample};
 

@@ -1,6 +1,7 @@
 use super::*;
 
 mod baseline;
+mod completed_effects;
 mod reviews;
 
 const ANIMALS: &str = include_str!("../fixtures/animals/src/lib.rs");

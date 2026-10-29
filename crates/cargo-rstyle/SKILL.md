@@ -423,6 +423,17 @@ Default core clustering borrows captured graphs without copying their contents;
 enabled normalization retains owned rewrites. No extra hashing or source proof
 is required for that reuse.
 
+Compiler helper/generic notes also borrow the completed effects already used by
+core diagnostics. `core-policy effect mismatch` compares recorded kinds under
+`compiler_advisory.effective_config`, including its bounded propagation depth;
+empty kinds do not mean purity. `patterns.effect_evidence` identifies that basis,
+the parent metric/build context, and effect-input completeness separately from
+graph completeness. Missing owner results are errors; unavailable owners or
+unresolved workspace callees keep effect coverage incomplete. This display-only
+annotation changes neither ranking/membership nor strict results. Structural
+reviews/baselines keep their existing identity; these notes are recomputed under
+the current effect policy and are not themselves reviewed policy evidence.
+
 Compiler proposals accept `--review-file PATH` for read-only exact lookup. Only
 after the user agrees a finding should remain separate, replay its explicit run
 and pass `--dismiss-compiler-pattern UNIT CANDIDATE_ID --review-reason REASON`.

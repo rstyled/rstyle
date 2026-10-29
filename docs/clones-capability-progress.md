@@ -3596,3 +3596,76 @@ invariance. Independent ready controls compare `Path::is_file` versus lexical
 acceptance targets, not delivered scope; the seven C33 production proposals are
 not expected to recover useful effect contrast. Broad quality/retirement remain
 open.
+
+
+## C36: reuse completed core effects for compiler helper warnings
+
+Owner/write set: lead owns core opt-in retention, shared effect-kind comparison,
+compiler handoff/report integration, registration and documentation; test worker
+owns two disjoint core test leaves; acceptance worker owns the live-Cargo leaf.
+State: delivered; integrated checkpoint passes.
+
+The existing evaluator moves its completed effect vectors into an opt-in
+original-owner map after using them for diagnostics. Default APIs retain none.
+Compiler patterns borrow those same-unit results after the existing proposer;
+helper/generic `core-policy effect mismatch` notes compare recorded kinds,
+including configured and inherited calls. Existing intrinsic warnings reuse the
+same comparator, with borrowed static kind names instead of allocated strings;
+identical recorded warnings are not duplicated. No additional classification,
+propagation, source/graph walk, body proof, hash, or graph/body copy is introduced.
+Only small owner-ID keys are copied when retaining the moved vectors.
+
+Effect evidence references the containing advisory report's effective config,
+metric and compilation unit; availability is separate from graph completeness.
+Missing result entries error. Unavailable owners, unresolved workspace callees,
+incomplete propagation or capture keep effect-input completeness false. Empty
+recorded kinds do not establish purity, even with complete declared inputs.
+Annotations are display-only; proposal IDs, scores, order, membership, structural
+reviews/baselines and strict matching remain unchanged. Reviews do not assert
+that recomputed effect annotations are invariant under policy changes.
+
+Independent controls target direct `Path::is_file` versus lexical `is_absolute`,
+equal-IO `is_dir`, and inherited disk/lexical wrappers at depths0/1; exact IDs,
+unknown/missing results, moved allocations and source-free contextual replay.
+Production replay will retain the C33 negative usefulness labels; do not infer
+precision improvement from additional counter-evidence.
+
+
+Focused evidence: all 293 core tests pass
+(`/tmp/clones-completed-effects-core-2`); the four new live-Cargo controls pass
+(`/tmp/clones-completed-effects-cli-3`). The first CLI attempt exposed a test
+expectation error: an all-target capture has an unavailable generated test
+harness, so its test unit and replay must remain incomplete/exit2. Replay also
+retains the original scope and correctly rejects a new `--all-targets` flag;
+the test now uses saved selection. Neither correction changed production code.
+All 169 Python tests pass (`/tmp/clones-completed-effects-python-1.log`). Style
+reports zero over 9,726 functions (`/tmp/clones-completed-effects-style-1`).
+
+C33 production replay completes in 4.48s / 443,604KiB
+(`/tmp/clones-completed-effects-project-replay-1`), compared with C35's
+4.44s / 443,212KiB; these single runs do not establish a speed change. All existing
+report fields are exactly equal after removing the new `effect_evidence` field,
+including all seven proposals and strict matching. Its 383 known / 735 unavailable
+owners remain incomplete, exit 2; the quality reducer retains all three negative
+usefulness labels and expected exit 1. The compact effect results reference the
+unchanged quality inventory. This scope has no new policy-effect mismatch; do
+not claim recovered useful production proposals or retirement.
+
+
+Final C36 checkpoint: all 3,362 tests pass in 216.846 seconds with five existing
+skips; doc tests pass (`/tmp/clones-completed-effects-tests-final-1`). Both
+originally reported nonzero tests pass. Locked all-target Clippy passes
+(`/tmp/clones-completed-effects-clippy-final-1`); formatting and diff checks pass.
+Style reports zero violations over 9,726 functions
+(`/tmp/clones-completed-effects-style-final-1`). Reviewed patterns reports zero
+candidates (`/tmp/clones-completed-effects-patterns-final-1`), and unfiltered
+patterns preserves exactly the fourteen existing IDs
+(`/tmp/clones-completed-effects-patterns-unfiltered-final-1`). All 169 Python
+tests pass. Linux only; no local macOS claim. No ignores, suppressions, thresholds,
+budgets, hashing or strict semantics changed.
+
+Next ready frontier: improve the independently reviewed production proposal
+quality debt through existing core proposer policy and source-labeled cases;
+keep configured-effect evidence borrowed from the completed evaluation. General
+refactoring safety, broad project coverage and per-capability retirement remain
+unproven. This effect handoff does not establish those outcomes.

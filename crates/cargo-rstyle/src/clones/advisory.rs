@@ -357,7 +357,7 @@ fn evaluate_units(
     let Some(captured) = propagated.planning else {
         let units = evaluated
             .zip(&ctx.handoff.unit_contexts)
-            .map(|(ready, unit)| ready.map(|ready| ready.finish(ctx, unit)))
+            .map(|(ready, unit)| ready.and_then(|ready| ready.finish(ctx, unit)))
             .collect::<Result<Vec<_>, _>>()?;
         return Ok((units, None));
     };
@@ -370,7 +370,7 @@ fn evaluate_units(
         .into_iter()
         .zip(&ctx.handoff.unit_contexts)
         .map(|(ready, unit)| ready.finish(ctx, unit))
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
     Ok((units, Some(planning)))
 }
 
@@ -440,6 +440,7 @@ fn evaluate_unit(
         unit: report,
         facts: completed.facts,
         diagnostic_indices: completed.diagnostic_indices,
+        effects: completed.effects,
         missing_graphs: inputs.missing_graphs,
     })
 }
@@ -448,11 +449,16 @@ struct Ready {
     unit: Unit,
     facts: Vec<FnFacts>,
     diagnostic_indices: Vec<usize>,
+    effects: Option<std::collections::BTreeMap<String, Vec<rstyle_core::rules::Effect>>>,
     missing_graphs: Vec<Missing>,
 }
 
 impl Ready {
-    fn finish(mut self, ctx: &Context<'_>, unit: &super::identity::UnitContext) -> Unit {
+    fn finish(
+        mut self,
+        ctx: &Context<'_>,
+        unit: &super::identity::UnitContext,
+    ) -> Result<Unit, String> {
         self.unit.patterns = evaluate_patterns(
             ctx,
             unit,
@@ -460,9 +466,14 @@ impl Ready {
                 facts: self.facts,
                 missing: self.missing_graphs,
                 unavailable_functions: self.unit.unavailable.len(),
+                effects: self.effects,
+                effects_complete: self.unit.expected_functions.is_some()
+                    && self.unit.unavailable.is_empty()
+                    && self.unit.unresolved_callees.is_empty()
+                    && self.unit.propagation_complete,
             },
-        );
-        self.unit
+        )?;
+        Ok(self.unit)
     }
 }
 
@@ -470,10 +481,11 @@ fn evaluate_patterns(
     ctx: &Context<'_>,
     unit: &super::identity::UnitContext,
     inputs: patterns::Inputs,
-) -> Option<patterns::Report> {
+) -> Result<Option<patterns::Report>, String> {
     ctx.args
         .compiler_patterns
         .then(|| patterns::evaluate(ctx, unit, inputs))
+        .transpose()
 }
 
 #[derive(Default)]

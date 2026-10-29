@@ -1,0 +1,52 @@
+{
+  "schema": "rstyle.compiler-proposal-effect-observation/1",
+  "run": "run-OFIAA9",
+  "labels": "project-compiler-proposal-quality-cases.json",
+  "unchanged_quality_inventory": "project-compiler-proposal-alignment-results.json",
+  "metrics": "rstyle.compiler-style-metrics/3",
+  "scope_complete": false,
+  "source_owners": {
+    "known": 383,
+    "unavailable": 735
+  },
+  "raw_proposals": 7,
+  "new_policy_mismatch_notes": 0,
+  "quality": {
+    "sample_complete": true,
+    "counts": {
+      "structural_agreement": 3
+    },
+    "judgments": {
+      "not_useful": 3
+    }
+  },
+  "comparison": {
+    "all_existing_report_fields_equal": true,
+    "candidate_evaluations_equal": true,
+    "strict_matching_equal": true,
+    "only_added_fields": "patterns.effect_evidence"
+  },
+  "effect_evidence": [
+    {
+      "unit": 0,
+      "effect_evidence": {
+        "schema": "rstyle.compiler-pattern-effects/1",
+        "basis": "completed_core_policy_effect_kinds",
+        "policy": "compiler_advisory.effective_config",
+        "metrics": "compiler_advisory.metrics",
+        "context": "containing compiler_advisory unit",
+        "input_complete": false,
+        "review_identity": "structural; effect annotations recomputed under current policy"
+      }
+    }
+  ],
+  "measurement": {
+    "elapsed_seconds": 4.488908872939646,
+    "max_rss_kib": 443604,
+    "exit_code": 2,
+    "previous_elapsed_seconds": 4.446454295073636,
+    "previous_max_rss_kib": 443212,
+    "interpretation": "Single saved-run measurements; no speed or precision improvement claim."
+  },
+  "limitation": "Incomplete captured scope. No additional policy-effect contrasts in these seven proposals; the three independent not-useful labels remain. Fixture gains do not prove project-wide usefulness or retirement."
+}

@@ -12,6 +12,7 @@ pub(super) struct Report {
     schema: &'static str,
     policy: rstyle_core::cluster::Params,
     pub input_complete: bool,
+    effect_evidence: EffectEvidence,
     policy_selected_functions: usize,
     observed_graphs: usize,
     unavailable_functions: usize,
@@ -22,6 +23,33 @@ pub(super) struct Report {
     #[serde(skip)]
     pub snapshots:
         Vec<Result<crate::clones::review::compiler_patterns::observed::Snapshot, String>>,
+}
+
+/// References to the containing report avoid copying configuration or build context.
+/// These annotations are recomputed; structural reviews do not approve effect policy.
+#[derive(Serialize)]
+struct EffectEvidence {
+    schema: &'static str,
+    basis: &'static str,
+    policy: &'static str,
+    metrics: &'static str,
+    context: &'static str,
+    input_complete: bool,
+    review_identity: &'static str,
+}
+
+impl EffectEvidence {
+    fn new(input_complete: bool) -> Self {
+        Self {
+            schema: "rstyle.compiler-pattern-effects/1",
+            basis: "completed_core_policy_effect_kinds",
+            policy: "compiler_advisory.effective_config",
+            metrics: "compiler_advisory.metrics",
+            context: "containing compiler_advisory unit",
+            input_complete,
+            review_identity: "structural; effect annotations recomputed under current policy",
+        }
+    }
 }
 
 pub(super) fn attach(
@@ -49,17 +77,21 @@ pub(super) struct Inputs {
     pub facts: Vec<FnFacts>,
     pub missing: Vec<Missing>,
     pub unavailable_functions: usize,
+    pub effects: Option<std::collections::BTreeMap<String, Vec<rstyle_core::rules::Effect>>>,
+    pub effects_complete: bool,
 }
 
 pub(super) fn evaluate(
     ctx: &crate::clones::report::Context<'_>,
     unit: &crate::clones::identity::UnitContext,
     input: Inputs,
-) -> Report {
+) -> Result<Report, String> {
     let Inputs {
         facts,
         missing,
         unavailable_functions,
+        effects,
+        effects_complete,
     } = input;
 
     let options = patterns_report::Options::default();
@@ -69,7 +101,9 @@ pub(super) fn evaluate(
         .filter(|function| function.pdg.is_some())
         .count();
 
-    let (evaluation, prepared) = patterns_report::run_owned_and_retain(facts, &options);
+    let (mut evaluation, prepared) = patterns_report::run_owned_and_retain(facts, &options);
+    let effects = effects.ok_or("Compiler patterns require completed core effects")?;
+    rstyle_core::candidates::annotate_completed_effects(&mut evaluation.candidates, &effects)?;
     let snapshots = if ctx.args.review_file.is_some()
         || ctx
             .args
@@ -84,9 +118,10 @@ pub(super) fn evaluate(
     } else {
         Vec::new()
     };
-    Report {
+    Ok(Report {
         schema: "rstyle.compiler-patterns/1",
         policy: options.params,
+        effect_evidence: EffectEvidence::new(effects_complete),
         input_complete: missing.is_empty() && unavailable_functions == 0,
         policy_selected_functions,
         observed_graphs,
@@ -95,7 +130,7 @@ pub(super) fn evaluate(
         evaluation,
         snapshots,
         visible_candidates: None,
-    }
+    })
 }
 
 impl Report {

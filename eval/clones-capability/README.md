@@ -318,3 +318,15 @@ source labels on an explicit saved-run replay. It adds unmatched-node warnings
 to five proposals from existing completed coverage, retaining all numeric fields,
 roles and three negative usefulness judgments. See C35 in the project study;
 this is clearer evidence presentation, not improved proposal precision.
+
+
+`project-compiler-proposal-effect-results.json` records the C36 completed-effect
+handoff replay against that same captured core library and C33 source labels.
+All seven candidate evaluations, quality judgments and strict results remain
+identical; the only added report field is effect-evidence provenance. This sample
+has no additional configured/inherited kind contrast. Four live-Cargo controls
+separately show configured IO/lexical versus equal-IO, inherited depth0/1,
+structural review persistence, unavailable generated callees, distinct test/lib
+units and source-free replay. Recorded kinds are not purity, weighted density or
+refactoring safety. Structural reviews do not approve recomputed effect notes.
+The measured single replay is comparable to C35; no speedup is claimed.

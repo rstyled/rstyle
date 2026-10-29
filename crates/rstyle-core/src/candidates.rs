@@ -1,6 +1,10 @@
 //! Layer 2 join: hole columns of function clusters (and enum dispatch inside one function)
 //! are matched against layer-1 signature groups to propose traits, generic fns or parameters.
 
+mod effects;
+pub use effects::annotate_completed_effects;
+use effects::effect_mismatch;
+
 use crate::align::HoleKind;
 use crate::cluster::{Cluster, Column, Params, cluster};
 use crate::dispatch::{Dispatch, find};
@@ -246,36 +250,6 @@ fn judge<'a>(ix: &Index<'a>, values: &[String]) -> Verdict<'a> {
         Some(group) => Verdict::Trait { group, defs },
         None => Verdict::Skip,
     }
-}
-
-fn effect_class(f: &FnFacts) -> BTreeSet<String> {
-    let writes = f.mutations.iter().any(|m| m.escapes);
-    let kinds = f.effects.iter().map(|e| e.kind.name().to_string());
-    kinds
-        .chain(writes.then(|| "mutation".to_string()))
-        .collect()
-}
-
-/// Notes differences in recorded intrinsic effects and escaping mutations.
-/// Calls, configured classifications and propagation are outside this comparison.
-fn effect_mismatch(defs: &[&FnFacts]) -> Option<String> {
-    let classes: Vec<BTreeSet<String>> = defs.iter().map(|f| effect_class(f)).collect();
-    let uniform = classes.windows(2).all(|pair| pair[0] == pair[1]);
-    let show = |c: &BTreeSet<String>| {
-        if c.is_empty() {
-            "no recorded intrinsic or escaping-mutation effects".to_string()
-        } else {
-            c.iter().cloned().collect::<Vec<_>>().join("+")
-        }
-    };
-    (!uniform).then(|| {
-        let parts: Vec<String> = defs
-            .iter()
-            .zip(&classes)
-            .map(|(f, c)| format!("{} is {}", f.name, show(c)))
-            .collect();
-        format!("recorded effect mismatch: {}", parts.join(", "))
-    })
 }
 
 /// `1000 * ln(support)` plus lift, scaled by coverage, damped by many holes and effect mismatch.
@@ -888,6 +862,7 @@ pub(crate) mod tests_support {
 #[cfg(test)]
 mod tests {
     mod alignment_evidence;
+    mod completed_effect_evidence;
     mod effect_evidence;
     use super::tests_support::{caller, corpus, getter};
     use super::*;

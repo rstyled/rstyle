@@ -11,6 +11,7 @@ pub(super) struct Completed {
     pub evaluation: Report,
     pub facts: Vec<FnFacts>,
     pub diagnostic_indices: Vec<usize>,
+    pub effects: Option<std::collections::BTreeMap<String, Vec<rstyle_core::rules::Effect>>>,
     pub snapshots: Vec<Result<compiler_diagnostics::Snapshot, String>>,
     pub owners: Vec<compiler_diagnostics::observed::Assessed>,
 }
@@ -36,12 +37,13 @@ pub(super) fn evaluate(
             .args
             .compiler_baseline_requested(crate::clones::CompilerBaseline::Diagnostics)
     {
-        let evaluated = evaluate_core(inputs, config, retention)?;
+        let evaluated = evaluate_core(inputs, config, retention, ctx.args.compiler_patterns)?;
         let (evaluation, facts) = (evaluated.report, evaluated.facts);
         return Ok(Completed {
             evaluation,
             facts,
             diagnostic_indices: evaluated.diagnostic_owners,
+            effects: evaluated.effects,
             snapshots: Vec::new(),
             owners: Vec::new(),
         });
@@ -51,13 +53,14 @@ pub(super) fn evaluate(
         config: policy,
         metrics: inputs.metrics,
     };
-    let mut evaluated = evaluate_core(inputs, config, retention)?;
+    let mut evaluated = evaluate_core(inputs, config, retention, ctx.args.compiler_patterns)?;
     let compiler_diagnostics::observed::Completed { snapshots, owners } =
         compiler_diagnostics::observed::collect(ctx, unit, &mut evaluated, &policy);
     Ok(Completed {
         evaluation: evaluated.report,
         facts: evaluated.facts,
         diagnostic_indices: evaluated.diagnostic_owners,
+        effects: evaluated.effects,
         snapshots,
         owners,
     })
@@ -81,8 +84,12 @@ fn evaluate_core(
     inputs: Inputs,
     config: &rstyle_core::config::Config,
     retention: rstyle_core::Retention,
+    retain_effects: bool,
 ) -> Result<rstyle_core::Evaluation, String> {
     let Inputs { facts, effects, .. } = inputs;
+    if retain_effects {
+        return rstyle_core::evaluate_retaining_effects(facts, config, retention, effects);
+    }
     if let Some(effects) = effects {
         return rstyle_core::evaluate_with_effects(facts, config, retention, effects);
     }
