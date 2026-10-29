@@ -1,10 +1,19 @@
 //! Direct collector events for expanded owners without authored source metrics.
-use crate::facts::{CallEvent, EffectEvent, MutationEvent};
+use crate::facts::{CallEvent, Edge, EffectEvent, MutationEvent};
 use serde::{Deserialize, Serialize};
 
 pub const KEY: &str = "rstyle.compiler-generated-effects/1";
+pub const CONNECTED_KEY: &str = "rstyle.compiler-generated-effects/2";
 
-/// This record does not measure source size, purity or transitive effects.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Connections {
+    pub id: String,
+    pub implements: Option<String>,
+    pub edges: Vec<Edge>,
+}
+
+/// Raw collector events and optional connections; no authored size or purity claim.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Observation {
@@ -15,6 +24,8 @@ pub struct Observation {
     pub mutations: Vec<MutationEvent>,
     pub calls: Vec<CallEvent>,
     pub intrinsic_effects: Vec<EffectEvent>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connections: Option<Connections>,
 }
 
 impl Observation {
@@ -32,8 +43,10 @@ impl Observation {
                 super::require_fields(event, fields)?;
             }
         }
+
         let observation = Self::deserialize(raw).map_err(|error| error.to_string())?;
-        if observation.metrics != KEY
+        observation.check_connections(raw)?;
+        if !matches!(observation.metrics.as_str(), KEY | CONNECTED_KEY)
             || observation.name.is_empty()
             || observation.line == 0
             || observation.column == 0
@@ -42,11 +55,63 @@ impl Observation {
         }
         Ok(observation)
     }
+
+    fn check_connections(&self, raw: &serde_json::Value) -> Result<(), String> {
+        match (&self.connections, self.metrics.as_str()) {
+            (None, KEY) => Ok(()),
+            (Some(connections), CONNECTED_KEY) if !connections.id.is_empty() => {
+                super::require_fields(&raw["connections"], &["implements"])?;
+                for edge in raw["connections"]["edges"]
+                    .as_array()
+                    .ok_or("Missing generated call edges")?
+                {
+                    super::require_fields(edge, &["dynamic", "args"])?;
+                }
+                Ok(())
+            }
+            _ => Err("Missing or incompatible generated call connections".into()),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn connected_events_require_real_edges_and_preserve_direct_only_history() {
+        let mut raw = serde_json::json!({
+            "metrics":KEY, "name":"generated", "line":3, "column":1,
+            "mutations":[], "calls":[], "intrinsic_effects":[],
+        });
+        assert!(Observation::read(&raw).unwrap().connections.is_none());
+        raw["metrics"] = CONNECTED_KEY.into();
+        assert!(Observation::read(&raw).is_err());
+        raw["connections"] = serde_json::json!({"id":"crate::generated", "implements":null,
+            "edges":[{"callee":"crate::leaf", "line":3, "dynamic":false, "args":[]}]});
+        assert_eq!(
+            Observation::read(&raw)
+                .unwrap()
+                .connections
+                .unwrap()
+                .edges
+                .len(),
+            1
+        );
+        for field in ["dynamic", "args"] {
+            let mut missing = raw.clone();
+            missing["connections"]["edges"][0]
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
+            assert!(Observation::read(&missing).is_err());
+        }
+        raw["metrics"] = KEY.into();
+        assert!(
+            Observation::read(&raw).is_err(),
+            "Old direct-only metrics cannot claim edges"
+        );
+    }
 
     #[test]
     fn absent_rosters_and_defaulted_event_fields_are_not_measurements() {

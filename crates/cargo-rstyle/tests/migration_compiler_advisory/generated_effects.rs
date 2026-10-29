@@ -74,7 +74,7 @@ fn generated_owner_locations(report: &Value) {
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(keys.len(), 5);
     for row in rows {
-        assert_eq!(row["metrics"], "rstyle.compiler-generated-effects/1");
+        assert_eq!(row["metrics"], "rstyle.compiler-generated-effects/2");
         assert_eq!(row["path"], "src/lib.rs");
         assert!(row["line"].as_u64().unwrap() > 0);
         assert!(row["column"].as_u64().unwrap() > 0);

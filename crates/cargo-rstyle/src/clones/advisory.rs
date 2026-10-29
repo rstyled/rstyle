@@ -485,14 +485,14 @@ fn evaluate_unit(
 ) -> Result<Ready, String> {
     let Prepared {
         mut inputs,
-        effects,
+        mut effects,
     } = prepared;
     let root = &ctx.capture.units[unit.observed_unit].target.manifest_dir;
-    let unresolved_callees =
-        propagation::unresolved(&inputs.facts, effects.unresolved, &effects.resolved)?;
+    let unresolved_callees = effects.unresolved_callees(&inputs.facts)?;
     let expected_functions = (ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty())
         .then_some(inputs.observations.len() + inputs.unavailable.len());
     let ranking = ranking::Captured::new(ctx.args.compiler_complexity_top, &inputs);
+    inputs.retain_propagated(&mut effects.generated);
     let completed =
         diagnostics::evaluate(ctx, unit, inputs.take_diagnostics(effects.values), policy)?;
 
@@ -598,10 +598,7 @@ fn collect_inputs(ctx: &Context<'_>, unit: UnitId) -> Result<Collected, String> 
         match observation(function, &ctx.capture.plan.root)? {
             Observation::Known { metrics, facts } => {
                 let metrics = metric_version(&metrics).ok_or("Unknown compiler metric version")?;
-                if inputs.metrics.is_some_and(|previous| previous != metrics) {
-                    return Err("Mixed compiler metric versions require separate analyses".into());
-                }
-                inputs.metrics = Some(metrics);
+                inputs.retain_metrics(metrics)?;
                 inputs.push_known(function, *facts, ctx.args.compiler_patterns)?
             }
             Observation::Unavailable { reason } => {
@@ -622,6 +619,25 @@ fn collected_metrics(inputs: &[Collected]) -> Result<&'static str, String> {
 }
 
 impl Collected {
+    fn retain_propagated(
+        &mut self,
+        effects: &mut BTreeMap<String, Vec<rstyle_core::rules::Effect>>,
+    ) {
+        for row in &mut self.generated_effects {
+            row.propagated_effects = row
+                .connections()
+                .and_then(|connections| effects.remove(&connections.id));
+        }
+    }
+
+    fn retain_metrics(&mut self, metrics: &'static str) -> Result<(), String> {
+        if self.metrics.is_some_and(|previous| previous != metrics) {
+            return Err("Mixed compiler metric versions require separate analyses".into());
+        }
+        self.metrics = Some(metrics);
+        Ok(())
+    }
+
     fn push_unavailable(
         &mut self,
         function: &super::Function,
@@ -632,6 +648,9 @@ impl Collected {
             && let Some(measurement) =
                 generated_effects::read(function, config, &ctx.capture.plan.root)?
         {
+            if measurement.connections().is_some() {
+                self.retain_metrics(METRICS)?;
+            }
             self.generated_effects.push(measurement);
         }
         self.unavailable.push(Missing {
@@ -661,7 +680,11 @@ impl Collected {
         if with_graph {
             patterns::attach(function, &mut facts, &mut self.missing_graphs)?;
         }
-        if self.metrics == Some(METRICS) && facts.complexity.is_none() {
+        if self
+            .metrics
+            .is_some_and(rstyle_core::advisory::has_complexity)
+            && facts.complexity.is_none()
+        {
             self.unavailable_complexity.push(Missing {
                 key: function.key,
                 reason:
@@ -781,7 +804,7 @@ fn observation(function: &super::Function, root: &std::path::Path) -> Result<Obs
             root,
             matches!(
                 metrics.as_str(),
-                rstyle_core::advisory::V5_METRICS | METRICS
+                rstyle_core::advisory::V5_METRICS | rstyle_core::advisory::V6_METRICS | METRICS
             ),
         )?;
         if facts.params + usize::from(facts.has_self) != function.facts.signature.params.len()

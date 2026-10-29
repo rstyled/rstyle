@@ -34,7 +34,7 @@ fn concrete_method_ufcs_and_default_calls_select_original_implementation_effects
     checked(&output, 0);
     assert_eq!(
         report["compiler_advisory"]["metrics"],
-        "rstyle.compiler-style-metrics/6"
+        "rstyle.compiler-style-metrics/7"
     );
     let caller = unit(&report, "caller");
     let leaf = unit(&report, "leaf");
@@ -151,7 +151,7 @@ pub fn dynamic(value:&dyn renamed::Action) { value.act(); }
 }
 
 #[test]
-fn missing_generated_and_excluded_selected_implementations_remain_unresolved() {
+fn generated_implementations_propagate_but_missing_and_excluded_targets_do_not() {
     let callers = "use renamed::Action; pub fn method() { renamed::Reader.act(); }";
     let directory = fixture(LEAF, callers);
     let (output, missing) = clones(
@@ -188,7 +188,7 @@ fn missing_generated_and_excluded_selected_implementations_remain_unresolved() {
     std::fs::write(directory.path().join("leaf/src/lib.rs"), generated).unwrap();
     let (output, generated) = capture(directory.path(), &["--compiler-plans"]);
     checked(&output, 2);
-    for report in [&missing, &excluded, &generated] {
+    for report in [&missing, &excluded] {
         let caller = unit(report, "caller");
         assert_eq!(io(caller), 0);
         let unresolved = caller["unresolved_callees"].as_array().unwrap();
@@ -202,6 +202,20 @@ fn missing_generated_and_excluded_selected_implementations_remain_unresolved() {
             false
         );
     }
+    let caller = unit(&generated, "caller");
+    let leaf = unit(&generated, "leaf");
+    assert_eq!(io(caller), 1);
+    assert_eq!(caller["unresolved_callees"], serde_json::json!([]));
+    let resolved = caller["resolved_dependency_callees"].as_object().unwrap();
+    assert_eq!(resolved.len(), 1);
+    assert!(resolved.values().all(|target| target == &leaf["unit"]));
+    assert!(!resolved.contains_key("leaf::Action::act"));
+    assert_eq!(leaf["unavailable"].as_array().unwrap().len(), 1);
+    assert_eq!(generated["compiler_advisory"]["complete"], false);
+    assert_eq!(
+        generated["compiler_advisory"]["planning"]["input_complete"],
+        false
+    );
 }
 
 #[test]

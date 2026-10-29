@@ -61,7 +61,7 @@ fn independent_advice(report: &Value) {
             .as_array()
             .unwrap()
             .iter()
-            .any(|name| name.as_str().unwrap().ends_with("generated"))
+            .all(|name| !name.as_str().unwrap().ends_with("generated"))
     );
     assert_eq!(advisory["complete"], false);
     assert_eq!(advisory["planning"]["input_complete"], false);

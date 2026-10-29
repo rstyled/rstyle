@@ -92,6 +92,7 @@ impl Captured {
                 "Advisory core edit footprints and parameter suggestions over captured compiler facts; no rewrite or refactoring-safety authority.",
                 "Only captured resolved calls are enumerated; callers outside the selected Cargo scope remain unenumerated even when input_complete is true.",
                 "Missing or ambiguous targets are not independent or no-call evidence; counts describe the known graph only.",
+                "Generated effect owners have no authored edit coordinates; plans project onto authored owners and remain incomplete when generated source is unavailable.",
                 "Core bundle names and types are heuristic display keys, not cross-unit semantic type equivalence.",
                 "Raw completed diagnostics drive these plans; reviews and changed-file presentation do not filter the raw planning scope.",
             ],

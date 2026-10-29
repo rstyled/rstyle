@@ -1,0 +1,107 @@
+{
+  "checkpoint": "C69",
+  "scope": "rstyle-ccgraph library, fresh compiler capture and exact C68 metric6 replay",
+  "source_revision": "83cc5c6971144538be2b2b6b9e5a6ce0e880409a+dirty",
+  "toolchain": "nightly-2026-09-30",
+  "host": "aarch64-unknown-linux-gnu",
+  "fresh": {
+    "command": [
+      "target/debug/cargo-rstyle",
+      "rstyle",
+      "--package",
+      "rstyle-ccgraph",
+      "--format",
+      "json",
+      "clones",
+      "--extraction-profile",
+      "hir-data-v3",
+      "--locked",
+      "--report-detail",
+      "compact",
+      "--compiler-advisory",
+      "--compiler-advisory-only",
+      "--compiler-patterns"
+    ],
+    "exit": 2,
+    "elapsed_seconds": 17.087983375997283,
+    "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-TKB31S"
+  },
+  "historical_replay": {
+    "command": [
+      "target/debug/cargo-rstyle",
+      "clones",
+      "--format",
+      "json",
+      "--extraction-profile",
+      "hir-data-v3",
+      "--report-detail",
+      "compact",
+      "--compiler-advisory",
+      "--compiler-advisory-only",
+      "--compiler-patterns",
+      "--replay-run",
+      "target/rstyle/clones/run-d9cDbw"
+    ],
+    "exit": 2,
+    "elapsed_seconds": 0.4401027139974758,
+    "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-d9cDbw"
+  },
+  "observations": {
+    "authored_owners": 238,
+    "generated_owners": 176,
+    "generated_with_completed_propagation": 176,
+    "unresolved_before": 23,
+    "unresolved_after": 23,
+    "resolved_generated_targets": [
+      "rstyle_ccgraph::graph::{impl#55}::default",
+      "rstyle_ccgraph::pipeline::{impl#21}::clone"
+    ],
+    "new_unresolved_targets": [
+      "rstyle_pdg::model::{impl#24}::clone",
+      "rstyle_pdg::model::{impl#33}::clone"
+    ],
+    "authored_summary_before": {
+      "functions": 238,
+      "violations": 4,
+      "complexity_measured": 238,
+      "complexity_unavailable": 0,
+      "mean_density_milli": 28,
+      "max_density_milli": 750,
+      "effect_counts": {
+        "mutation": 27,
+        "panic": 1,
+        "unknown": 4
+      }
+    },
+    "authored_summary_after": {
+      "functions": 238,
+      "violations": 4,
+      "complexity_measured": 238,
+      "complexity_unavailable": 0,
+      "mean_density_milli": 28,
+      "max_density_milli": 750,
+      "effect_counts": {
+        "mutation": 27,
+        "panic": 1,
+        "unknown": 4
+      }
+    },
+    "unchanged_fields": {
+      "observations": true,
+      "unavailable": true,
+      "unavailable_complexity": true
+    },
+    "structural_evaluation_unchanged": true,
+    "historical_compiler_report_exactly_equal": true,
+    "generated_rows_with_changed_effects": 0,
+    "generated_direct_effects": 41,
+    "generated_completed_effects": 41
+  },
+  "limits": [
+    "Generated source/numeric/structural coverage remains unavailable; exit2 is preserved.",
+    "One fresh sample and one historical replay measure different work; no speedup claimed.",
+    "Partial observed propagation does not establish purity or complete effect coverage.",
+    "Native macOS execution and Go comparison are unverified for this checkpoint.",
+    "Two local generated targets resolve but their expanded callees expose two new missing dependency targets; unresolved total and authored findings stay unchanged. No numeric quality gain claimed."
+  ]
+}

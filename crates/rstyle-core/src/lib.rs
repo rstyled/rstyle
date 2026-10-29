@@ -114,20 +114,29 @@ fn summarize(
     }
 }
 
+/// Observed effects and existing suppression boundaries for a borrowed graph owner.
+pub trait EffectSource: graph::EffectInput {
+    fn direct_effects(&self, config: &Config) -> Vec<rules::Effect>;
+    fn effect_boundary(&self) -> bool;
+}
+
+impl<F: std::borrow::Borrow<FnFacts>> EffectSource for F {
+    fn direct_effects(&self, config: &Config) -> Vec<rules::Effect> {
+        rules::effects_of(self.borrow(), config)
+    }
+    fn effect_boundary(&self) -> bool {
+        graph::is_boundary(self.borrow())
+    }
+}
+
 /// Direct effects of every function plus what it inherits through the call graph.
-pub fn all_effects<F: std::borrow::Borrow<FnFacts>>(
+pub fn all_effects<F: EffectSource>(
     facts: &[F],
     graph: &graph::Graph,
     cfg: &Config,
 ) -> Vec<Vec<rules::Effect>> {
-    let direct: Vec<_> = facts
-        .iter()
-        .map(|f| rules::effects_of(f.borrow(), cfg))
-        .collect();
-    let boundary: Vec<_> = facts
-        .iter()
-        .map(|facts| graph::is_boundary(facts.borrow()))
-        .collect();
+    let direct: Vec<_> = facts.iter().map(|f| f.direct_effects(cfg)).collect();
+    let boundary: Vec<_> = facts.iter().map(EffectSource::effect_boundary).collect();
     let inputs = graph::Inputs {
         facts,
         graph,

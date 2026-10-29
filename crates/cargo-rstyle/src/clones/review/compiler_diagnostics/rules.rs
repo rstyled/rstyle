@@ -64,7 +64,7 @@ impl exact_rules::ReviewSnapshot for Snapshot {
         {
             return Err(ReviewError::InvalidSchema);
         }
-        if is_complexity(&self.rule_id) && self.metrics != rstyle_core::advisory::METRICS {
+        if is_complexity(&self.rule_id) && !rstyle_core::advisory::has_complexity(&self.metrics) {
             return Err(ReviewError::InvalidVersion);
         }
         Ok(())

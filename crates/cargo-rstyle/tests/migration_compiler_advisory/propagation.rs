@@ -118,7 +118,7 @@ fn cross_unit_hops_and_suppression_boundaries_use_the_existing_policy() {
 }
 
 #[test]
-fn omitted_and_generated_dependency_owners_remain_unresolved() {
+fn omitted_dependencies_stay_unresolved_while_generated_effects_propagate() {
     let directory = workspace(IO);
     let (output, omitted) = clones(
         directory.path(),
@@ -145,8 +145,14 @@ fn omitted_and_generated_dependency_owners_remain_unresolved() {
     checked(&output, 2);
     assert_eq!(
         unit(&generated, "caller")["unresolved_callees"],
-        serde_json::json!(["leaf::leaf"])
+        serde_json::json!([])
     );
+    assert_eq!(io(unit(&generated, "caller")), 1);
+    assert_eq!(
+        unit(&generated, "caller")["resolved_dependency_callees"]["leaf::leaf"],
+        unit(&generated, "leaf")["unit"]
+    );
+    assert_eq!(generated["compiler_advisory"]["complete"], false);
     assert!(
         !unit(&generated, "leaf")["unavailable"]
             .as_array()
@@ -358,7 +364,7 @@ fn reviewed_density_workspace() -> TempDir {
 }
 
 #[test]
-fn missing_dependency_effect_inputs_cannot_retire_a_retained_density_finding() {
+fn generated_dependency_io_preserves_a_retained_positive_density_review() {
     let directory = reviewed_density_workspace();
     let path = directory.path().join("reviews.json");
     let bytes = std::fs::read(&path).unwrap();
@@ -380,7 +386,49 @@ fn missing_dependency_effect_inputs_cannot_retire_a_retained_density_finding() {
     checked(&output, 2);
     assert_eq!(
         report["review_status"]["records"][0]["state"],
+        "hidden_exact"
+    );
+    assert_eq!(io(unit(&report, "caller")), 1);
+    assert_eq!(
+        unit(&report, "caller")["unresolved_callees"],
+        serde_json::json!([])
+    );
+    assert_eq!(
+        unit(&report, "leaf")["unavailable"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(report["compiler_advisory"]["complete"], false);
+    assert_eq!(std::fs::read(path).unwrap(), bytes);
+}
+
+#[test]
+fn omitted_dependency_effect_inputs_cannot_retire_a_retained_density_finding() {
+    let directory = reviewed_density_workspace();
+    let path = directory.path().join("reviews.json");
+    let bytes = std::fs::read(&path).unwrap();
+    let (output, report) = capture(
+        directory.path(),
+        &[
+            "-p",
+            "caller",
+            "--compiler-advisory-config",
+            "policy.toml",
+            "--review-file",
+            "reviews.json",
+            "--review-status",
+        ],
+    );
+    checked(&output, 2);
+    assert_eq!(
+        report["review_status"]["records"][0]["state"],
         "unavailable"
+    );
+    assert_eq!(
+        unit(&report, "caller")["unresolved_callees"],
+        serde_json::json!(["leaf::leaf"])
     );
     assert_eq!(std::fs::read(path).unwrap(), bytes);
 }

@@ -23,7 +23,7 @@ fn shared_workspace_source_reuses_effects_and_parameter_planning_without_strict_
     let (output, report) = capture(directory.path(), &["--compiler-plans"]);
     checked(&output, 0);
     let advisory = &report["compiler_advisory"];
-    assert_eq!(advisory["metrics"], "rstyle.compiler-style-metrics/6");
+    assert_eq!(advisory["metrics"], "rstyle.compiler-style-metrics/7");
     assert_eq!(advisory["complete"], true);
     let caller = unit(&report, "caller");
     assert_eq!(caller["observations"].as_array().unwrap().len(), 2);
@@ -111,17 +111,14 @@ fn excluded_shared_source_does_not_supply_effects_or_a_completed_plan() {
 }
 
 #[test]
-fn generated_shared_owner_remains_unavailable_and_its_call_unresolved() {
+fn generated_shared_effects_propagate_without_authorizing_source_metrics_or_plans() {
     let directory = fixture(&format!("macro_rules! make {{()=>{{{SHARED}}}}} make!();"));
     let (output, report) = capture(directory.path(), &["--compiler-plans"]);
     checked(&output, 2);
     let caller = unit(&report, "caller");
-    assert_eq!(io(caller), 0);
+    assert_eq!(io(caller), 1);
     assert_eq!(caller["unavailable"].as_array().unwrap().len(), 1);
-    assert_eq!(
-        caller["unresolved_callees"],
-        serde_json::json!(["caller::shared::helper"])
-    );
+    assert_eq!(caller["unresolved_callees"], serde_json::json!([]));
     assert_eq!(report["compiler_advisory"]["complete"], false);
     assert_eq!(
         report["compiler_advisory"]["planning"]["input_complete"],

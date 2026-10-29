@@ -57,7 +57,7 @@ fn state(report: &Value, expected: &str) {
 }
 
 #[test]
-fn direct_density_negative_retires_only_its_review_while_missing_input_remains() {
+fn direct_density_negative_retires_only_its_review_while_generated_source_is_missing() {
     let (directory, _) = initial(0);
     let path = directory.path().join("reviews.json");
     let bytes = std::fs::read(&path).unwrap();
@@ -71,7 +71,14 @@ fn direct_density_negative_retires_only_its_review_while_missing_input_remains()
     assert_eq!(clean["compiler_advisory"]["complete"], false);
     assert_eq!(
         clean["compiler_advisory"]["units"][0]["unresolved_callees"],
-        serde_json::json!(["clone_fixture::generated"])
+        serde_json::json!([])
+    );
+    assert_eq!(
+        clean["compiler_advisory"]["units"][0]["unavailable"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
     );
     assert!(diagnostics(&clean).is_empty());
     assert_eq!(std::fs::read(&path).unwrap(), bytes);

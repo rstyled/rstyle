@@ -5462,3 +5462,60 @@ lines, without suppressions or configuration changes. Logs use /tmp/clones-c68-*
 Native CI for C68 remains pending until push. Generated propagation, structural
 coverage, ledger/routing migration and broader replacement gates remain open;
 the full goal stays active.
+
+
+### C69 — reuse propagation through generated callees (2026-10-29)
+
+Generated effects now retain already-collected call edges, function IDs and trait
+implementation targets. A borrowed EffectInput/EffectSource seam lets the existing
+core graph builder, all_effects setup and bounded propagation consume authored
+and generated owners together. No generated FnFacts or source metrics are
+manufactured. Completed generated classifications are reused; collector buffers
+move and graph inputs borrow. No new policy framework, strict admission gate,
+source/artifact scan, authority proof or hash is introduced.
+
+Fresh aggregate metrics use rstyle.compiler-style-metrics/7 and generated records
+use rstyle.compiler-generated-effects/2. Historical metric6 and direct-only /1
+replay retain their original behavior. Local IDs remain scoped to compilation
+units, foreign resolution requires selected direct Cargo contexts, and ambiguous
+or missing targets remain unresolved. Generated source, numeric and structural
+coverage remains unavailable with exit2. Existing authored suppression boundaries
+and local-only unsafe/unknown semantics remain unchanged. Plans project onto
+actual authored owners and explicitly retain incomplete coverage.
+
+Independent CLI cases cover generated chains/cycles at depths0–3, delegated
+writes, authored suppression boundaries, invocation comments, source/tool-free
+configuration replay, exact selected dependency units, dynamic trait target
+intersection and generated default methods. Core fixtures compare full facts
+against borrowed views. Acceptance worker owns only its trait test leaf; all
+worker writes are frozen. Lead owns shared seams, registration and integration.
+Fresh rstyle-ccgraph capture completes propagation for all176 generated owners
+and resolves two previously missing local generated targets. Their expanded call
+edges expose two additional missing dependency targets, so unresolved total stays
+23. Authored summaries/findings and structural proposals remain exactly unchanged;
+no numeric quality gain is claimed. Replaying the exact C68 metric6 capture yields
+an exactly equal compiler report. The fresh sample takes17.088s; replay takes0.440s,
+measuring different work with no speedup claim. See
+project-generated-propagation-study.json. Broader generated source/structural
+coverage and legacy command/ledger migration remain open.
+
+The first integrated run found eight failing cases: outdated generated-unresolved
+expectations and an associated check/test coverage isolation issue. Expectations now distinguish
+resolved generated observations from unavailable source metrics; a separate omitted
+dependency case retains the missing-input review guard. Coverage follows each
+unit's resolved dependency scope rather than allowing a missing test harness to
+invalidate its separate library unit. All201 focused compiler-advisory tests pass;
+final integrated validation follows below.
+
+
+Final source-snapshot validation: all3,537 Rust tests pass in233.051s with five
+existing skips, plus doc tests. All201 focused compiler-advisory cases, locked
+all-target Clippy, formatting/diff and244 offline Python tests pass. Style has
+zero violations over9,891 functions. Patterns has zero unreviewed candidates and
+the same13 unfiltered IDs as main. Logs use
+/tmp/clones-c69-*. Prior C68 native CI is green on Ubuntu ARM, Ubuntu x64 and
+macOS15 (run40901258489); C69 native CI remains pending until push. The next
+reuse-first frontier is legacy patterns option/routing compatibility, followed
+by explicit ledger migration; generated structural boilerplate is not a
+prerequisite for the legacy collector's authored scope. Full replacement and
+broader useful-project quality/retirement gates remain open.

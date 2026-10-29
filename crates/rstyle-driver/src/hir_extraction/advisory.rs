@@ -63,7 +63,7 @@ fn capture_generated(
     facts: &mut HirFnFacts,
     options: &Options<'_>,
 ) -> Result<(), String> {
-    use rstyle_core::advisory::generated_effects::{KEY, Observation};
+    use rstyle_core::advisory::generated_effects::{CONNECTED_KEY, Connections, Observation};
     let node = ctx.tcx.hir_node_by_def_id(id);
     let Some(sig) = node.fn_sig().filter(|sig| sig.span.from_expansion()) else {
         return Ok(());
@@ -80,16 +80,21 @@ fn capture_generated(
     let collected = crate::effects::collect(ctx.tcx, id, body, options);
     let (mutations, _) = crate::mutations::collect(ctx.tcx, id, options);
     let observation = Observation {
-        metrics: KEY.into(),
+        metrics: CONNECTED_KEY.into(),
         name: facts.name.clone(),
         line: start.line,
         column: start.col.0 + 1,
         mutations,
         calls: collected.calls,
         intrinsic_effects: collected.effects,
+        connections: Some(Connections {
+            id: crate::ids::def_id_str(ctx.tcx, id.to_def_id()),
+            implements: crate::extract::implemented_trait_method(ctx.tcx, id),
+            edges: collected.edges,
+        }),
     };
     facts.build.frontend_options.insert(
-        KEY.into(),
+        CONNECTED_KEY.into(),
         serde_json::to_value(observation).map_err(|error| error.to_string())?,
     );
     Ok(())

@@ -397,10 +397,13 @@ strict clone admission is not required. Captured observations support source-fre
 `--replay-run` and policy reevaluation. These metric versions differ from strict
 mutation-effect metrics; zero policy density is not a purity proof.
 Fresh captures expose partial `generated_effects` rows for expanded functions:
-existing collector events and direct core classifications, replayable under the
-same config options. These rows have no source/density/complexity measurements
-or transitive coverage; generated owners still remain unavailable and exit 2.
-Absent older records are not known-empty events.
+existing collector events, direct classifications and bounded propagated effects,
+replayable under the same config options. Borrowed call connections reuse core
+propagation, including effects inherited by authored callers. These rows have no
+source/density/complexity measurements; generated owners remain unavailable and
+exit 2. Fresh authored metric7 identifies this additional propagation; metric6
+replay and old direct-only records preserve their original behavior. Absent older
+records are not known-empty events.
 Add `--compiler-advisory-only` to request compiler advice without strict unit
 metadata, source correspondence, call instances/projections, body type enrichment,
 local-consumer location records, helper certification, admission or matching.

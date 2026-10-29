@@ -27,7 +27,7 @@ fn advisory_complexity_reuses_original_constructs_and_core_scores_without_strict
     assert!(output.status.success(), "{}", stdout(&output));
     assert_eq!(
         report["compiler_advisory"]["metrics"],
-        "rstyle.compiler-style-metrics/6"
+        "rstyle.compiler-style-metrics/7"
     );
     assert_eq!(evaluation(&report)["summary"]["complexity_measured"], 4);
     assert_eq!(evaluation(&report)["summary"]["complexity_unavailable"], 0);

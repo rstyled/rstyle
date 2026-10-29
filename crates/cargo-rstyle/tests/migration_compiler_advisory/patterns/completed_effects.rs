@@ -174,7 +174,7 @@ fn completed_effect_notes_replay_without_sources_and_stay_with_their_units() {
 }
 
 #[test]
-fn unavailable_workspace_callees_do_not_claim_complete_effect_evidence() {
+fn generated_workspace_callees_resolve_with_incomplete_effect_evidence() {
     let generated = TRANSITIVE.replace(
         "fn disk(p: &Path) -> bool { p.is_file() }",
         "macro_rules! define_disk { () => { fn disk(p: &Path) -> bool { p.is_file() } }; } define_disk!();",
@@ -187,7 +187,7 @@ fn unavailable_workspace_callees_do_not_claim_complete_effect_evidence() {
             .as_array()
             .unwrap()
             .iter()
-            .any(|callee| callee.as_str().unwrap().ends_with("::disk"))
+            .all(|callee| !callee.as_str().unwrap().ends_with("::disk"))
     );
     assert_eq!(report["compiler_advisory"]["complete"], false);
 }

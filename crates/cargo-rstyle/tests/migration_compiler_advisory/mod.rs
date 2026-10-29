@@ -5,6 +5,8 @@ mod complexity_ranking;
 mod extraction;
 mod function_extraction;
 mod generated_effects;
+mod generated_propagation;
+mod generated_trait_propagation;
 mod instance_extraction;
 mod mutations;
 mod only;
@@ -40,7 +42,7 @@ fn compiler_collectors_cover_u128_tuple_writes_without_strict_admission() {
     let (_directory, output, report) = capture(&source, &[]);
     assert!(output.status.success(), "{}", stdout(&output));
     let advisory = &report["compiler_advisory"];
-    assert_eq!(advisory["metrics"], "rstyle.compiler-style-metrics/6");
+    assert_eq!(advisory["metrics"], "rstyle.compiler-style-metrics/7");
     assert_eq!(advisory["complete"], true);
     let unit = &advisory["units"][0];
     assert_eq!(unit["expected_functions"], 2);

@@ -1,6 +1,8 @@
 //! Borrow captured owners and reuse core propagation across unique direct Cargo edges.
+mod owners;
 use super::{Collected, UnitId, planning};
 use crate::clones::{capture, report::Context};
+use owners::{Owner, Row};
 use rstyle_core::{config::Config, facts::FnFacts, graph, rules::Effect};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -11,6 +13,8 @@ pub(super) struct Completed {
     pub resolved: BTreeMap<String, UnitId>,
     pub unresolved: BTreeSet<String>,
     pub complete: bool,
+    pub generated: BTreeMap<String, Vec<Effect>>,
+    pub local: BTreeSet<String>,
 }
 
 pub(super) struct Evaluation {
@@ -26,12 +30,15 @@ pub(super) fn evaluate(
     inputs: &[Collected],
     config: &Config,
 ) -> Result<Evaluation, String> {
-    if inputs.len() < 2 && !ctx.args.compiler_plans {
+    let generated = inputs
+        .iter()
+        .any(|input| owners::generated(input).next().is_some());
+    if inputs.len() < 2 && !ctx.args.compiler_plans && !generated {
         return Ok(local(inputs.len()));
     }
     let routes = routes(ctx);
     let rows = selected_rows(ctx, inputs, config)?;
-    let identities = identities(&rows);
+    let identities = identities(&rows)?;
     let targets = Targets {
         rows: &rows,
         identities: &identities,
@@ -43,9 +50,9 @@ pub(super) fn evaluate(
         .iter()
         .map(|unit| (unit.id, Completed::default()))
         .collect();
-    let facts: Vec<_> = rows.iter().map(|(_, facts)| *facts).collect();
-    let (graph, resolved) = targets.graph(&facts, &mut completed);
-    if !ctx.args.compiler_plans
+    let graph = targets.graph(&rows, &mut completed);
+    if !generated
+        && !ctx.args.compiler_plans
         && completed
             .values()
             .all(|unit| unit.resolved.is_empty() && unit.unresolved.is_empty())
@@ -53,13 +60,13 @@ pub(super) fn evaluate(
         return Ok(local(inputs.len()));
     }
 
-    let effects = rstyle_core::all_effects(&facts, &graph, config);
-    let complete = resolved && inputs.iter().all(|input| input.unavailable.is_empty());
+    let effects = rstyle_core::all_effects(&rows, &graph, config);
+    let complete = completeness(ctx, inputs, &completed);
     let effects = effects_by_unit(&rows, effects);
     let planning = ctx
         .args
         .compiler_plans
-        .then(|| planning::Captured::new(ctx, inputs, &rows, graph));
+        .then(|| capture_planning(ctx, inputs, &rows, graph));
     Ok(Evaluation {
         units: finish(ctx, completed, effects, complete),
         planning,
@@ -70,27 +77,52 @@ fn selected_rows<'a>(
     ctx: &Context<'_>,
     inputs: &'a [Collected],
     config: &Config,
-) -> Result<Vec<(UnitId, &'a FnFacts)>, String> {
+) -> Result<Vec<Row<'a>>, String> {
     let excluded = rstyle_core::exclusions::Matcher::compile(&config.exclude.0)?;
     Ok(ctx
         .handoff
         .unit_contexts
         .iter()
         .zip(inputs)
-        .flat_map(|(unit, input)| input.facts.iter().map(move |facts| (unit.id, facts)))
-        .filter(|(_, facts)| !excluded.is_excluded(std::path::Path::new(&facts.path)))
+        .flat_map(|(unit, input)| {
+            let authored = input.facts.iter().map(move |facts| Row {
+                unit: unit.id,
+                owner: Owner::Authored(facts),
+            });
+            let generated = owners::generated(input).map(move |facts| Row {
+                unit: unit.id,
+                owner: Owner::Generated(facts),
+            });
+            authored.chain(generated)
+        })
+        .filter(|row| !excluded.is_excluded(std::path::Path::new(row.path())))
         .collect())
 }
 
-pub(super) fn unresolved(
+impl Completed {
+    pub(super) fn unresolved_callees(
+        &mut self,
+        facts: &[FnFacts],
+    ) -> Result<BTreeSet<String>, String> {
+        unresolved(
+            facts,
+            std::mem::take(&mut self.unresolved),
+            &self.resolved,
+            &self.local,
+        )
+    }
+}
+
+fn unresolved(
     facts: &[FnFacts],
     missing: BTreeSet<String>,
     resolved: &BTreeMap<String, UnitId>,
+    local: &BTreeSet<String>,
 ) -> Result<BTreeSet<String>, String> {
     Ok(super::unresolved(facts)?
         .into_iter()
         .chain(missing)
-        .filter(|callee| !resolved.contains_key(callee))
+        .filter(|callee| !resolved.contains_key(callee) && !local.contains(callee))
         .collect())
 }
 
@@ -107,23 +139,79 @@ fn local(units: usize) -> Evaluation {
 }
 
 type UnitEffects = BTreeMap<UnitId, BTreeMap<String, Vec<Effect>>>;
+struct Effects {
+    authored: UnitEffects,
+    generated: UnitEffects,
+}
 
-fn effects_by_unit(rows: &[(UnitId, &FnFacts)], effects: Vec<Vec<Effect>>) -> UnitEffects {
-    let mut grouped = UnitEffects::new();
-    for ((unit, facts), effects) in rows.iter().zip(effects) {
+fn effects_by_unit(rows: &[Row<'_>], effects: Vec<Vec<Effect>>) -> Effects {
+    let mut authored = UnitEffects::new();
+    let mut generated = UnitEffects::new();
+    for (row, effects) in rows.iter().zip(effects) {
+        let grouped = if row.authored().is_some() {
+            &mut authored
+        } else {
+            &mut generated
+        };
         grouped
-            .entry(*unit)
+            .entry(row.unit)
             .or_default()
-            .insert(facts.id.clone(), effects);
+            .insert(row.id().to_owned(), effects);
     }
-    grouped
+    Effects {
+        authored,
+        generated,
+    }
+}
+
+fn completeness(
+    ctx: &Context<'_>,
+    inputs: &[Collected],
+    completed: &BTreeMap<UnitId, Completed>,
+) -> BTreeMap<UnitId, bool> {
+    let available: BTreeMap<_, _> = ctx
+        .handoff
+        .unit_contexts
+        .iter()
+        .zip(inputs)
+        .map(|(unit, input)| {
+            (
+                unit.id,
+                input.unavailable.is_empty() && completed[&unit.id].unresolved.is_empty(),
+            )
+        })
+        .collect();
+    if !inputs
+        .iter()
+        .any(|input| owners::generated(input).next().is_some())
+    {
+        let complete = available.values().all(|value| *value);
+        return available.keys().map(|unit| (*unit, complete)).collect();
+    }
+    available
+        .keys()
+        .map(|unit| {
+            let mut pending = vec![*unit];
+            let mut seen = BTreeSet::new();
+            while let Some(dependency) = pending.pop() {
+                if !seen.insert(dependency) {
+                    continue;
+                }
+                if !available[&dependency] {
+                    return (*unit, false);
+                }
+                pending.extend(completed[&dependency].resolved.values().copied());
+            }
+            (*unit, true)
+        })
+        .collect()
 }
 
 fn finish(
     ctx: &Context<'_>,
     mut completed: BTreeMap<UnitId, Completed>,
-    mut effects: UnitEffects,
-    complete: bool,
+    mut effects: Effects,
+    complete: BTreeMap<UnitId, bool>,
 ) -> Vec<Completed> {
     ctx.handoff
         .unit_contexts
@@ -132,39 +220,46 @@ fn finish(
             let mut completed = completed
                 .remove(&unit.id)
                 .expect("Captured propagation unit");
-            completed.values = Some(effects.remove(&unit.id).unwrap_or_default());
-            completed.complete = complete;
+            completed.values = Some(effects.authored.remove(&unit.id).unwrap_or_default());
+            completed.complete = complete[&unit.id];
+            completed.generated = effects.generated.remove(&unit.id).unwrap_or_default();
             completed
         })
         .collect()
 }
 
-fn identities<'a>(rows: &[(UnitId, &'a FnFacts)]) -> Identities<'a> {
+fn identities<'a>(rows: &[Row<'a>]) -> Result<Identities<'a>, String> {
     let mut identities = Identities::new();
-    for (index, (unit, facts)) in rows.iter().enumerate() {
+    let mut owners = BTreeSet::new();
+    for (index, row) in rows.iter().enumerate() {
+        if row.id().is_empty() || !owners.insert((row.unit, row.id())) {
+            return Err(
+                "Compiler advisory has missing or duplicate function identities in one unit".into(),
+            );
+        }
         identities
-            .entry((*unit, &facts.id))
+            .entry((row.unit, row.id()))
             .or_default()
             .push(index);
-        if let Some(implements) = &facts.implements {
+        if let Some(implements) = row.implements() {
             identities
-                .entry((*unit, implements))
+                .entry((row.unit, implements))
                 .or_default()
                 .push(index);
         }
     }
-    identities
+    Ok(identities)
 }
 
 struct Targets<'a> {
-    rows: &'a [(UnitId, &'a FnFacts)],
+    rows: &'a [Row<'a>],
     identities: &'a Identities<'a>,
     routes: &'a Routes,
 }
 
 impl Targets<'_> {
     fn resolve(&self, caller: usize, callee: &str) -> Vec<usize> {
-        let unit = self.rows[caller].0;
+        let unit = self.rows[caller].unit;
         let local = self.identities.get(&(unit, callee));
         let candidates: Vec<_> = self
             .routes
@@ -174,7 +269,7 @@ impl Targets<'_> {
             .filter_map(|unit| self.identities.get(&(*unit, callee)))
             .flatten()
             .copied()
-            .filter(|index| self.rows[*index].1.id == callee)
+            .filter(|index| self.rows[*index].id() == callee)
             .collect();
         match (local, candidates.as_slice()) {
             (Some(local), []) => local.clone(),
@@ -185,14 +280,12 @@ impl Targets<'_> {
 
     fn graph(
         &self,
-        facts: &[&FnFacts],
+        facts: &[Row<'_>],
         completed: &mut BTreeMap<UnitId, Completed>,
-    ) -> (graph::Graph, bool) {
-        let mut complete = true;
-        let graph = graph::build_resolved(facts, |caller, edge| {
+    ) -> graph::Graph {
+        graph::build_resolved(facts, |caller, edge| {
             let targets = self.resolve(caller, &edge.callee);
-            complete &= !targets.is_empty();
-            let unit = self.rows[caller].0;
+            let unit = self.rows[caller].unit;
             if targets.is_empty() {
                 completed
                     .get_mut(&unit)
@@ -200,16 +293,25 @@ impl Targets<'_> {
                     .unresolved
                     .insert(edge.callee.clone());
             }
-            if let Some(target) = targets.iter().find(|target| self.rows[**target].0 != unit) {
+            if let Some(target) = targets
+                .iter()
+                .find(|target| self.rows[**target].unit != unit)
+            {
                 completed
                     .get_mut(&unit)
                     .expect("Captured propagation unit")
                     .resolved
-                    .insert(edge.callee.clone(), self.rows[*target].0);
+                    .insert(edge.callee.clone(), self.rows[*target].unit);
+            }
+            if !targets.is_empty() && targets.iter().all(|target| self.rows[*target].unit == unit) {
+                completed
+                    .get_mut(&unit)
+                    .expect("Captured propagation unit")
+                    .local
+                    .insert(edge.callee.clone());
             }
             targets
-        });
-        (graph, complete)
+        })
     }
 }
 
@@ -285,4 +387,46 @@ fn matches(candidate: &Value, unit: &capture::Unit) -> bool {
                 None => platform.is_null(),
             },
         )
+}
+
+fn capture_planning(
+    ctx: &Context<'_>,
+    inputs: &[Collected],
+    rows: &[Row<'_>],
+    graph: graph::Graph,
+) -> planning::Captured {
+    let authored: Vec<_> = rows
+        .iter()
+        .enumerate()
+        .filter_map(|(index, row)| row.authored().map(|facts| (index, (row.unit, facts))))
+        .collect();
+
+    let indices: BTreeMap<_, _> = authored
+        .iter()
+        .enumerate()
+        .map(|(projected, (index, _))| (*index, projected))
+        .collect();
+
+    let callees = authored
+        .iter()
+        .map(|(index, _)| {
+            graph.callees[*index]
+                .iter()
+                .filter_map(|call| {
+                    let targets: Vec<_> = call
+                        .targets
+                        .iter()
+                        .filter_map(|target| indices.get(target).copied())
+                        .collect();
+                    (!targets.is_empty()).then(|| graph::Callee {
+                        line: call.line,
+                        targets,
+                        args: call.args.clone(),
+                    })
+                })
+                .collect()
+        })
+        .collect();
+    let facts: Vec<_> = authored.into_iter().map(|(_, row)| row).collect();
+    planning::Captured::new(ctx, inputs, &facts, graph::Graph { callees })
 }

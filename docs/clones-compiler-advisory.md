@@ -24,16 +24,27 @@ intrinsic-effect events for macro-generated function signatures. Per-unit
 `generated_effects` rows give the function key/name and expansion callsite, raw
 events and classifications under the ordinary core config. They use the existing
 collectors and classifier; source/tool-free replay can reclassify retained calls.
-The separate metric is `rstyle.compiler-generated-effects/1`. An empty event list
-means the collector observed no events in that category; it does not establish
-purity. Local calls and opaque behavior can still have effects.
+Fresh captures use `rstyle.compiler-generated-effects/2`, retaining function IDs,
+implemented trait methods and call edges already produced by those collectors.
+Borrowed authored/generated owner views feed the existing core call graph and
+bounded effect propagation once. Authored callers can therefore inherit observed
+effects through generated functions. Per-unit generated rows also expose the
+completed `propagated_effects`. Configuration, propagation depth, authored
+suppression boundaries and the local-only unsafe/unknown rules remain unchanged.
+Generated expansion comments do not supply authored function suppression scopes.
 
-These partial rows do not provide authored source, complexity, density, structural
-graphs, suppression scope or propagated effects. Generated owners remain in
-`unavailable`, requested coverage remains incomplete, and the exit remains 2.
-Older captures without the record produce no row, rather than a fabricated empty
-measurement. Existing authored metrics, propagation and strict matching are
-unchanged. No additional hash or source verification pass is used.
+These partial rows do not provide authored source, complexity, density or
+structural graphs. Generated owners remain in `unavailable`, requested coverage
+remains incomplete, and the exit remains 2. Empty observations do not establish
+purity; opaque behavior and unresolved calls remain coverage gaps. Edit plans
+include authored owners only and remain incomplete when generated owners exist.
+
+Fresh authored aggregate metrics use `rstyle.compiler-style-metrics/7` to identify
+the additional propagation. Historical metric-6 replay preserves its original
+results; generated-effects/1 records remain direct-only. Older captures without
+a generated record produce no row, rather than a fabricated empty measurement.
+Strict matching remains unchanged. No additional hash, source verification pass
+or authority proof is used.
 
 The mode publishes the existing shared raw-facts format with an exact
 `compiler-advisory-only` phase, using the existing streaming transport seal and
@@ -104,7 +115,7 @@ proposals have a separate review identity described below.
 The normal legacy style command remains available.
 
 Both the record and metric identities are versioned:
-`rstyle.compiler-advisory/1` and `rstyle.compiler-style-metrics/6`. These are
+`rstyle.compiler-advisory/1` and `rstyle.compiler-style-metrics/7`. These are
 compiler style metrics, not the newer source/native mutation-effect contract.
 Mutable borrows count as mutation events; compiler statement counts use the
 existing HIR traversal, excluding synthetic question-mark arms in metric 3;

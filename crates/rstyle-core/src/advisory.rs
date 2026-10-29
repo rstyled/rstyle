@@ -6,7 +6,8 @@ pub mod generated_effects;
 pub mod patterns;
 
 pub const KEY: &str = "rstyle.compiler-advisory/1";
-pub const METRICS: &str = "rstyle.compiler-style-metrics/6";
+pub const METRICS: &str = "rstyle.compiler-style-metrics/7";
+pub const V6_METRICS: &str = "rstyle.compiler-style-metrics/6";
 pub const V5_METRICS: &str = "rstyle.compiler-style-metrics/5";
 pub const V4_METRICS: &str = "rstyle.compiler-style-metrics/4";
 pub const V3_METRICS: &str = "rstyle.compiler-style-metrics/3";
@@ -24,6 +25,7 @@ pub fn metric_version(value: &str) -> Option<&'static str> {
         V3_METRICS => Some(V3_METRICS),
         V4_METRICS => Some(V4_METRICS),
         V5_METRICS => Some(V5_METRICS),
+        V6_METRICS => Some(V6_METRICS),
         _ => None,
     }
 }
@@ -70,17 +72,16 @@ impl Observation {
                 {
                     require_fields(entry, fields)?;
                     if roster == "mutations"
-                        && matches!(
-                            raw["metrics"].as_str(),
-                            Some(V2_METRICS | V3_METRICS | V4_METRICS | V5_METRICS | METRICS)
-                        )
+                        && raw["metrics"].as_str().is_some_and(|metrics| {
+                            metrics != LEGACY_METRICS && metric_version(metrics).is_some()
+                        })
                     {
                         require_fields(entry, &["origin"])?;
                     }
                 }
             }
             require_signature(&raw["facts"]["sig"])?;
-            if raw["metrics"] == METRICS {
+            if has_complexity(raw["metrics"].as_str().unwrap_or_default()) {
                 require_fields(&raw["facts"], &["complexity"])?;
             } else if !raw["facts"]["complexity"].is_null() {
                 return Err(
@@ -116,6 +117,11 @@ impl Observation {
         }
         Ok(())
     }
+}
+
+/// Versions that retained measured complexity independently of source availability.
+pub fn has_complexity(metrics: &str) -> bool {
+    matches!(metrics, METRICS | V6_METRICS)
 }
 
 pub fn require_signature(raw: &serde_json::Value) -> Result<(), String> {

@@ -119,6 +119,7 @@ fn historical_statement_counts_and_v2_origin_requirements_are_preserved() {
         V3_METRICS,
         V4_METRICS,
         V5_METRICS,
+        V6_METRICS,
         METRICS,
     ] {
         let mut raw = original();
@@ -152,6 +153,11 @@ fn complexity_capability_is_versioned_and_absence_does_not_fabricate_measurement
     assert!(Observation::read(&raw).is_err());
     raw["metrics"] = METRICS.into();
     assert!(Observation::read(&raw).is_ok());
+    raw["metrics"] = V6_METRICS.into();
+    assert!(
+        Observation::read(&raw).is_ok(),
+        "Metric6 retained complexity on replay"
+    );
     raw["facts"]["complexity"] = serde_json::Value::Null;
     let Observation::Known { facts, .. } = Observation::read(&raw).unwrap() else {
         panic!("Other measurements remain usable");

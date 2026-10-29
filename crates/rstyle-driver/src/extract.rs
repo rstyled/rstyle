@@ -124,7 +124,7 @@ impl Options<'_> {
     }
 }
 
-fn implemented_trait_method(tcx: TyCtxt<'_>, def_id: LocalDefId) -> Option<String> {
+pub(crate) fn implemented_trait_method(tcx: TyCtxt<'_>, def_id: LocalDefId) -> Option<String> {
     tcx.opt_associated_item(def_id.to_def_id())
         .and_then(|item| item.trait_item_def_id())
         .map(|trait_fn| ids::def_id_str(tcx, trait_fn))
