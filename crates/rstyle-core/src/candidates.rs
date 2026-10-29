@@ -256,13 +256,14 @@ fn effect_class(f: &FnFacts) -> BTreeSet<String> {
         .collect()
 }
 
-/// Notes when the implementations differ in observable effects (one mutates, one is pure).
+/// Notes differences in recorded intrinsic effects and escaping mutations.
+/// Calls, configured classifications and propagation are outside this comparison.
 fn effect_mismatch(defs: &[&FnFacts]) -> Option<String> {
     let classes: Vec<BTreeSet<String>> = defs.iter().map(|f| effect_class(f)).collect();
     let uniform = classes.windows(2).all(|pair| pair[0] == pair[1]);
     let show = |c: &BTreeSet<String>| {
         if c.is_empty() {
-            "pure".to_string()
+            "no recorded intrinsic or escaping-mutation effects".to_string()
         } else {
             c.iter().cloned().collect::<Vec<_>>().join("+")
         }
@@ -273,7 +274,7 @@ fn effect_mismatch(defs: &[&FnFacts]) -> Option<String> {
             .zip(&classes)
             .map(|(f, c)| format!("{} is {}", f.name, show(c)))
             .collect();
-        format!("effect mismatch: {}", parts.join(", "))
+        format!("recorded effect mismatch: {}", parts.join(", "))
     })
 }
 
@@ -602,7 +603,7 @@ fn generic_fn(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option<C
         ),
         sites: sites.iter().map(|f| site(f)).collect(),
         definitions: vec![],
-        counter_evidence: vec![],
+        counter_evidence: effect_mismatch(sites).into_iter().collect(),
     })
 }
 
@@ -655,7 +656,7 @@ fn parameterize(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option
         ),
         sites: sites.iter().map(|f| site(f)).collect(),
         definitions: vec![],
-        counter_evidence: vec![],
+        counter_evidence: effect_mismatch(sites).into_iter().collect(),
     })
 }
 
@@ -872,6 +873,7 @@ pub(crate) mod tests_support {
 
 #[cfg(test)]
 mod tests {
+    mod effect_evidence;
     use super::tests_support::{caller, corpus, getter};
     use super::*;
     use crate::facts::{MutationEvent, PdgNode, TyShape, sample};

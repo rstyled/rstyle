@@ -102,6 +102,11 @@ Kinds:
 
 Score (natural-log units, a ranking and not a probability): `(ln(support) + lift) * coverage`, divided by `holes / 3` when holes > 3, halved on effect mismatch. `lift` is how rare the shared signature is (`ln(methods in workspace / methods sharing it)`, about 0 for getters). `generic_fn` is halved and `parameterize` divided by 3, with lift 0, so compare scores within a kind: those two stay below about 1 even when good. For the trait kinds, a score under about 0.7, or counter-evidence "signature is common in this codebase", is noise. `capability_set` loses half its score to 6 holes (types times methods) without being weak; read it anyway.
 
+Helper and generic-function candidates also show recorded-effect mismatch
+counter-evidence, without additional score damping. This compares intrinsic
+kinds and escaping mutations, excluding configured calls and propagation.
+An empty class or no warning does not establish purity or shared semantics.
+
 Workflow: take the top candidates, open each `sites` entry, confirm the parallel bodies really mean the same thing, then extract the trait or generic fn. A candidate is a hint, not a verdict: low `lift_milli` (common signature) or effect-mismatch counter-evidence means be skeptical, and support 2 is thin evidence. Opt out with `// rstyle-allow(abstraction): reason` above the function. Oracle for evaluation: `--hide-implements Trait` pretends the trait is not implemented. Output is deterministic; facts are cached in `target/rstyle/facts-sem` (separate from style facts).
 
 Reviewed and rejected candidates: every candidate has an `id`. Only when the user agrees a candidate is not worth merging, run `cargo rstyle ignore <id> --reason "why"` (add `--allow-growth` to keep it hidden when more functions join). That writes `rstyle-ignore.toml`, which `patterns` then applies as a filter (`ignored_count` and `ignored[]` in JSON, `--show-ignored` in text, `--no-ignore` to see everything; `--fail-on-candidates` exits 1 while any candidate is left, the CI gate). Never dismiss to quiet the output unprompted. `cargo rstyle ignore --status` shows where each entry's functions are now and why an entry went stale; `--prune [--dry-run]` removes entries that match nothing. Delete the file to re-review everything. Pass the same clustering flags to `ignore` as to `patterns`.

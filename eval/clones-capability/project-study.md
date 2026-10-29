@@ -936,3 +936,52 @@ not a new Rust gate run. Formatting and diff checks pass. No speedup or whole
 project proposal-quality claim follows. The next bounded improvement should use
 existing core abstraction policy, with independent useful positives and these
 negative controls, before changing shared proposer behavior.
+
+
+## C34: reuse recorded-effect counter-evidence for helper families
+
+The existing core `effect_mismatch` helper now supplies `counter_evidence` for
+`parameterize` and `generic_fn`, as it already did for trait proposals. It reads
+borrowed intrinsic-effect and escaping-mutation observations; it adds no new
+collector, graph/body walk, propagation, proof or hashing. Scores, candidate IDs,
+roles, thresholds, emission, review policy and strict matching are unchanged.
+Trait mismatch score damping is unchanged. Empty classes now say
+`no recorded intrinsic or escaping-mutation effects` instead of claiming purity.
+The helper does not evaluate calls, configured IO, delegated mutations or
+propagation; matching classes cannot establish common semantics.
+
+Five new core controls cover both families: IO/empty, explicit unknown/empty,
+local versus escaping mutation, matching escaping classes and one-sided escaping
+mutation. They compare IDs, scores, breakdowns and all source roles. Existing
+trait mismatch scoring remains tested. A real-Cargo positive captures an
+otherwise identical helper with an explicit unsafe block: the recorded class
+adds counter-evidence without changing its existing proposal. Saved replay
+retains the exact result. This is a warning about recorded syntax, not a claim
+that the safe operation inside the unnecessary unsafe block behaves differently.
+
+The saved production `run-OFIAA9` replays in 4.41 seconds at 443,248 KiB peak RSS:
+
+```sh
+CARGO_TARGET_DIR=target python3 scripts/watchdog.py --timeout 180 \
+  --output /tmp/clones-helper-effects-project-replay-1 -- \
+  /usr/bin/time -v target/debug/cargo-rstyle rstyle --format json clones \
+  --extraction-profile hir-data-v3 --compiler-advisory --compiler-patterns \
+  --max-pairs 0 --report-detail compact \
+  --replay-run target/rstyle/clones/run-OFIAA9
+```
+
+All seven production candidates retain empty counter-evidence; the entire
+advisory and strict matching objects are unchanged from C33. The three frozen
+not-useful judgments therefore remain unresolved. Replay keeps exit 2 and
+incomplete scope. There is no measured project precision improvement or speedup
+claim; the new evidence is demonstrated by independent core and live-Cargo
+controls. Configuration-sensitive effects need a separately designed reuse of
+completed core effect results before they can enrich these warnings.
+
+
+C34 integrated checkpoint passes all 3,336 tests plus doc tests (five existing
+skips), locked all-target Clippy, formatting and diff checks. Legacy style remains
+zero over 9,719 functions; reviewed patterns remains zero and all fourteen
+unfiltered IDs are unchanged. All 169 Python tests pass. Exact logs are listed
+in the progress ledger. This verifies the frozen Linux snapshot; macOS and broad
+proposal usefulness remain unverified.

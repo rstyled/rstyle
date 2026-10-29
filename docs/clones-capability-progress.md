@@ -3491,3 +3491,46 @@ pattern IDs remain evidence for that exact checkpoint, not newly executed gates.
 Next ready frontier: improve proposal usefulness through existing core policy,
 with independent useful positives and these frozen production negatives. Broad
 project quality, generated-owner coverage and per-capability retirement stay open.
+
+
+## C34: share existing recorded-effect warnings with helper proposals
+
+Owner/write set: lead owns core integration, real-Cargo test and docs/embedded
+skill; acceptance worker independently reviewed the existing policy seam and
+controls; test worker owns the new core test leaf. State: delivered; integrated checkpoint passes.
+
+`parameterize` and `generic_fn` reuse the existing borrowed `effect_mismatch`
+helper; no new collector/evaluator/proof/hash or graph/body clone. Candidate
+IDs, scores, thresholds, emission, role membership and strict matching stay
+unchanged. Existing trait mismatch damping stays unchanged. Empty classes now
+say no recorded intrinsic or escaping-mutation effects, rather than pure.
+Calls, configured classifications, delegated mutation and propagation remain
+outside this comparison; an absent warning proves no common semantics.
+
+Five new core controls cover both families; all 33 candidate tests pass. A new
+real-Cargo test confirms that an intrinsic unsafe-class difference adds warning
+text without changing the proposal and retains exact saved replay. The production
+C33 replay takes 4.41s / 443,248KiB and preserves the entire advisory
+and strict report objects exactly: all seven candidates still have no recorded class
+mismatch, so the three independently unsuitable groups remain quality debt.
+The project study records exact commands and limitations; no speedup or measured
+project precision improvement is claimed.
+
+
+Final C34 checkpoint: all 3,336 tests pass in 215.521 seconds, with five existing
+skips, and doc tests pass (`/tmp/clones-helper-effects-tests-final-1`). Both
+previously reported nonzero tests pass. Locked all-target Clippy passes
+(`/tmp/clones-helper-effects-clippy-1`); formatting/diff checks pass. Style reports
+zero violations over 9,719 functions (`/tmp/clones-helper-effects-style-final-1`),
+reviewed patterns reports zero candidates (`/tmp/clones-helper-effects-patterns-final-1`),
+and unfiltered patterns preserves exactly the fourteen reviewed IDs
+(`/tmp/clones-helper-effects-patterns-unfiltered-final-1`). All 169 Python tests
+pass (`/tmp/clones-helper-effects-python-final-1.log`). These are Linux results;
+macOS was not run locally. No ignores, suppressions or thresholds changed.
+
+Next ready frontier: use completed alignment coverage to correct proposal text
+that currently claims functions differ only at the recorded holes despite
+unmatched graph nodes. Template/member alignment is not all-pairs coverage or
+semantic equivalence. Reuse existing Cluster/Breakdown fields without another
+source/graph walk; retain scores, IDs, memberships, strict matching and these
+production negative labels. Broad quality and retirement remain unproven.

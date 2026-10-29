@@ -271,3 +271,33 @@ fn member_proposal_locations_use_workspace_source_root_separately_from_package_r
             .all(|site| site["path"] == "member/src/lib.rs")
     );
 }
+
+#[test]
+fn compiler_helpers_report_intrinsic_effect_mismatch_without_changing_proposals() {
+    let (_directory, _output, clean) = capture(FAMILIES, &["--compiler-patterns"]);
+    let source = FAMILIES.replace(
+        "std::hint::black_box(value.wrapping_add(7)).wrapping_mul(3)",
+        "unsafe {std::hint::black_box(value.wrapping_add(7)).wrapping_mul(3)}",
+    );
+    let (directory, output, changed) = capture(&source, &["--compiler-patterns"]);
+    assert!(output.status.success(), "{}", stdout(&output));
+    let before = candidate_at(&proposals(&clean)["evaluation"], "tag_left").unwrap();
+    let after = candidate_at(&proposals(&changed)["evaluation"], "tag_left").unwrap();
+    for field in [
+        "id",
+        "kind",
+        "score_milli",
+        "breakdown",
+        "sites",
+        "definitions",
+    ] {
+        assert_eq!(before[field], after[field], "{field}");
+    }
+    assert_eq!(before["counter_evidence"], serde_json::json!([]));
+    let warning = after["counter_evidence"][0].as_str().unwrap();
+    assert!(warning.contains("recorded effect mismatch"));
+    assert!(warning.contains("unsafe"));
+    assert!(warning.contains("no recorded intrinsic or escaping-mutation effects"));
+    let (_output, replayed) = replay(directory.path(), &changed, &[]);
+    assert_eq!(proposals(&changed), proposals(&replayed));
+}

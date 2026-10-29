@@ -178,6 +178,14 @@ loaded implicitly. An explicit review file can hide exact reviewed proposals;
 explicit compiler proposal baselines are described below. Core candidate IDs retain their existing fingerprint convention and
 must not be treated as the newer compilation-context review identities.
 
+Helper and generic-function proposals reuse core's existing recorded-effect
+comparison for counter-evidence. A difference in intrinsic effect kinds or
+escaping mutations adds a warning without changing their score, candidate ID or
+emission. The comparison does not evaluate calls, configured IO or propagated
+effects. An empty class means no recorded intrinsic or escaping-mutation effects;
+absence of a warning establishes neither purity nor compatible behavior. Trait
+proposal score damping retains its existing policy.
+
 The separate `rstyle.compiler-pattern-graph/1` capture record keeps the original
 style metric contract unchanged. Missing graph capture in an earlier saved run
 remains unavailable, while a known-empty graph remains observed. The adapter
