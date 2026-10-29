@@ -923,3 +923,13 @@ latency or live-capture claim. The artifact retains commands, performance events
 wall/resource receipts and equality checks. The existing raw schema and typed
 body validation remain; only unrequested tree payload retention changes. Full,
 local, pattern, review, baseline and strict requests retain full bodies.
+
+
+### Existing checksum dependency code generation (C94)
+
+`project-advisory-dependency-codegen-study.json` records the same saved numeric
+replay after adding opt-level2 for the existing xxhash-rust dev dependency.
+All three reports equal C93. Warm inventory loading drops from1.58s to0.20–0.22s;
+warm wall time drops from9.35–9.45s to8.11s (13.7% at the two-run medians).
+This small local comparison preserves all checksum reads and checks; it is not
+a live-capture, release, native-platform or statistical performance claim.

@@ -6764,3 +6764,36 @@ and workspace/all-target Clippy pass. Legacy style remains0 violations over
 10,030 functions; the pattern gate passes and unfiltered output preserves the
 same13 candidate IDs as the main-rebase baseline. Native CI for this change
 remains pending. Default behavior and strict matching are unchanged.
+
+
+### C94 — optimize existing transport checksum code generation (2026-10-29)
+
+C93 still spends about1.58s loading the two-unit inventory. Inspection found
+one required large transport checksum scan, with no redundant scan to remove.
+The existing xxhash-rust dependency was compiled without optimization in dev
+builds. Extend the existing serde_json/syn/proc-macro2 dependency overrides with
+opt-level2 for xxhash-rust. This changes machine code only: no new checksum,
+hash algorithm, artifact scan, cache, wire field, identity or analysis policy.
+
+Three serial replays of the same C91 snapshot equal the complete C93 report,
+including expected exit1. The first run takes8.306s with0.523s in inventory load;
+the next two take8.109/8.111s with0.223/0.197s in inventory load, versus retained
+C93 warm9.448/9.351s and1.583/1.582s in inventory load. Median warm wall time
+is13.7% lower in this small local study. This is not a statistical, release,
+live-capture, native-platform or whole-workspace speedup claim. Parsing remains
+the dominant remaining cost; default/quality/retirement requirements remain open.
+
+Artifact: eval/clones-capability/project-advisory-dependency-codegen-study.json
+retains exact commands, raw events, resource receipts, complete report equality
+and the measurement script. All3,682 Rust tests pass in267.512s (five existing
+skips), plus doctests. Formatting and247 capability/50 script Python tests pass;
+workspace/all-target Clippy and both legacy dogfood gates pass:0 violations
+over10,030 functions and the same13 unfiltered pattern IDs. Native CI for C93
+remains in progress on Ubuntu x86/ARM and macOS; C94 native validation is pending.
+
+Next readiness work: independently finish the twelve default-density event labels
+and get_mut statement label, then exercise root report/exit/config/review
+compatibility per capability. Evaluate the existing configured static-effect
+metric, including explicit unknown-call weight; do not require strict clone
+admission or runtime purity proofs for advisory quality. The faster replay does
+not discharge those quality/default requirements.
