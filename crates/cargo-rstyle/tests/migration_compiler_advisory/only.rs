@@ -235,7 +235,7 @@ fn advisory_only_requires_compiler_advisory_and_rejects_strict_consumers() {
     }
 }
 
-fn ledger_path(report: &Value) -> PathBuf {
+pub(super) fn ledger_path(report: &Value) -> PathBuf {
     std::fs::read_dir(report["run_directory"].as_str().unwrap())
         .unwrap()
         .map(|entry| entry.unwrap().path())
@@ -251,7 +251,7 @@ fn ledger_path(report: &Value) -> PathBuf {
         .unwrap()
 }
 
-fn reseal_raw(report: &Value, ledger: &Path, wire: &Value) {
+pub(super) fn reseal_raw(report: &Value, ledger: &Path, wire: &Value) {
     let bundle = Path::new(
         report["functions"][0]["unit_evidence"]["bundle"]
             .as_str()

@@ -4792,3 +4792,63 @@ The migration remains active. Current evidence requires stronger meaningful
 visible-computation or closure facts and independently useful production controls
 before changing proposal policy. Broader project quality, guard production
 positives and all legacy retirement gates remain unverified.
+
+### C56 — rank completed compiler complexity, including clean functions (2026-10-29)
+
+Lead owns CLI, report integration, shared registration, artifacts and docs. The
+core ranking leaf owns its borrowed sorting seam/tests; the acceptance leaf owns
+CLI fixtures and minimal shared reseal-helper visibility. Both leaves are frozen.
+This adds an opt-in consumer of existing measurements, without another collector,
+scorer, proof, source/artifact scan or hash. No body/graph copies, metric version,
+strict matching, ignore, suppression, threshold or budget changes are introduced.
+
+`--compiler-complexity-top N` requires compiler advisory and a positive N. Core
+sorts borrowed facts by its existing COG/CC/location/name ordering, then the
+consumer projects only N score/location rows with original report-local owners.
+Only a small optional ID-to-owner map crosses core evaluation's merge/exclusion
+boundary. Existing findings reuse the same sorter and preserve their output.
+Policy exclusions apply; numeric reviews and changed-file presentation do not
+filter raw rankings. Default output is unchanged. Ranking does not create
+findings or change their exits, but requested missing complexity stays incomplete.
+
+Per-unit `complexity_ranking` records full known/measured/missing-score/missing-owner
+denominators separately from the display limit. Unknown scores sort last and
+remain null; missing owners retain original reasons. Historical metrics without
+scores and modern missing scores outside top1 retain exit2. Advisory-only and
+source/tool-free replay reuse the same finished facts, without rescoring.
+
+The exact saved C52 rstyle-core run-mycjUM replay exposes 10 or all408 score rows
+versus the previous diagnostics-only function projection. All408 are measured;
+806 unavailable owners still prevent a whole-project claim and retain exit2.
+Raw diagnostics, observations, plans, proposals, strict results and default
+checkpoint output remain exact. Single default/top10/all408 replay observations
+are about1.08/0.93/0.92s; concurrent analysis load and single observations preclude a
+speedup claim. Artifact: project-complexity-ranking-study.json.
+
+Frozen C42 source labels match three of four full scores and all four threshold
+outcomes. Namer::render's old COG4 label omitted three authored direct self.render
+calls; documented direct-recursion policy accounts for saved COG7. Its CC12 and
+no-default-finding outcome remain unchanged. Original frozen labels are retained
+and the discrepancy is recorded, rather than rewriting expectations to output.
+The clean lines::has_blank_line score1/0 is now inspectable at rank329; top10
+also includes below-threshold functions. This demonstrates useful score visibility,
+not broad metric quality, a whole-project maximum or legacy retirement.
+
+The final integrated snapshot passes all3,468 Rust tests in225.411s, with five
+existing skips, plus doc tests and all219 offline Python tests. Eight CLI cases
+cover clean scores, ordering/ties, positive limits, policy exclusion, context
+isolation, raw-result parity, source/tool-free replay, missing owners and actual
+resealed historical1–5/modern missing-score replay. Core tests retain finding
+filter/order parity and borrowed identity; denominator tests retain unknowns.
+Locked all-target Clippy, formatting and diff checks pass. Style reports zero
+violations over9,812 functions; reviewed patterns has zero candidates. All13
+unfiltered IDs match the main baseline. Logs use /tmp/clones-c56-checked-*;
+the final full suite is checked-tests-final.log. The initial full run also
+passed, but small integration/metadata changes were followed by this final run.
+
+Main1689392 was fetched again and is already an ancestor, so no new rebase rewrite
+is needed. Existing macOS /var versus /private/var fixture fix565803b remains in
+place. C54 run40857364923 now confirms success on macOS15 and both Ubuntu runners;
+C55 has both Ubuntu jobs green and macOS still in progress at this checkpoint.
+No new native pass is claimed for the unpushed C56 snapshot. Migration remains
+active; broader project quality and all legacy retirement gates remain open.

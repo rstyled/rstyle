@@ -27,11 +27,18 @@ impl From<&FnFacts> for Function {
     }
 }
 
-fn complexity_rank(function: &Function) -> Option<(usize, usize)> {
+fn complexity_rank(function: &FnFacts) -> Option<(usize, usize)> {
     function
         .complexity
         .as_ref()
         .map(|score| (score.cognitive, score.cyclomatic))
+}
+
+/// Borrow all functions, including clean and unavailable owners, in complexity order.
+pub fn ranked(facts: &[FnFacts]) -> Vec<&FnFacts> {
+    let mut functions: Vec<_> = facts.iter().collect();
+    rank_functions(&mut functions);
+    functions
 }
 
 /// Keep functions with findings or unavailable analysis; clean measurements stay in facts.
@@ -46,14 +53,13 @@ pub fn findings(facts: &[FnFacts], diagnostics: &[Diagnostic]) -> Vec<Function> 
             fact.complexity.is_none()
                 || locations.contains(&(fact.path.as_str(), fact.line, fact.column))
         })
-        .map(Function::from)
         .collect();
     rank_functions(&mut functions);
-    functions
+    functions.into_iter().map(Function::from).collect()
 }
 
 /// All functions are ranked by COG, then CC, then stable source identity.
-fn rank_functions(functions: &mut [Function]) {
+fn rank_functions(functions: &mut [&FnFacts]) {
     functions.sort_by(|a, b| {
         complexity_rank(b).cmp(&complexity_rank(a)).then_with(|| {
             (&a.path, a.line, a.column, &a.name).cmp(&(&b.path, b.line, b.column, &b.name))
@@ -79,3 +85,6 @@ pub fn text(functions: &[Function]) -> Vec<String> {
         .chain(rows)
         .collect()
 }
+
+#[cfg(test)]
+mod tests;

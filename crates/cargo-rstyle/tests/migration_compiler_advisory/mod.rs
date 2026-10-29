@@ -1,6 +1,7 @@
 use super::*;
 
 mod complexity;
+mod complexity_ranking;
 mod extraction;
 mod function_extraction;
 mod instance_extraction;

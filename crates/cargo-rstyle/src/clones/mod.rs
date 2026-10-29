@@ -77,6 +77,10 @@ pub struct Args {
     /// Reuse compiler style collectors, effect propagation and fix plans per compilation unit.
     #[arg(long)]
     compiler_advisory: bool,
+    /// Rank up to N compiler functions per unit by existing COG then CC scores, including clean functions.
+    #[arg(long, requires = "compiler_advisory")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    compiler_complexity_top: Option<std::num::NonZeroUsize>,
     /// Capture compiler advice without strict helper certification, admission or matching.
     #[arg(long, requires = "compiler_advisory", conflicts_with_all = ["matching_config", "trace", "fail_on_accepted_pairs", "explain_pairs", "helper_proposals", "source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density", "max_pairs"])]
     compiler_advisory_only: bool,

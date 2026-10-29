@@ -19,6 +19,10 @@ See [the integration workflow](docs/source-to-pair.md) for build selection,
 verified evidence, reports and exit codes. It does not activate abstraction mining.
 Clones also offers opt-in [source and signature rules](docs/clones-source-rules.md)
 whose evidence remains usable when a body is excluded from strict matching.
+[Compiler advisory](docs/clones-compiler-advisory.md) reuses existing Rust
+collectors and core policy. Add `--compiler-advisory --compiler-complexity-top 20`
+to rank clean and flagged functions by completed COG/CC scores per unit;
+missing scores and owners remain explicit, including on saved-facts replay.
 Optional [native pair explanations](docs/clones-pair-differences.md) show ordered
 scalar differences with separate coverage through `--explain-pairs`.
 Bounded [helper proposals](docs/clones-helper-proposals.md) use that evidence

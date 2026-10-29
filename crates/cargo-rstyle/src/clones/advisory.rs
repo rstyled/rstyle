@@ -4,6 +4,7 @@ mod owner_names;
 mod patterns;
 mod planning;
 mod propagation;
+mod ranking;
 mod selection;
 #[cfg(test)]
 mod tests;
@@ -71,6 +72,8 @@ struct Unit {
     selected_diagnostics: Option<Vec<usize>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     patterns: Option<patterns::Report>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    complexity_ranking: Option<ranking::Report>,
 }
 
 #[derive(Serialize)]
@@ -163,7 +166,16 @@ impl Report {
             .planning
             .as_ref()
             .map_or_else(String::new, planning::Report::render);
-        format!("{summary}{diagnostics}{patterns}{summaries}{planning}")
+        let ranking: String = self
+            .units
+            .iter()
+            .filter_map(|unit| {
+                unit.complexity_ranking
+                    .as_ref()
+                    .map(|report| report.render(unit.unit))
+            })
+            .collect();
+        format!("{summary}{diagnostics}{patterns}{ranking}{summaries}{planning}")
     }
 
     fn render_summaries(&self) -> String {
@@ -438,22 +450,18 @@ fn evaluate_unit(
     policy: &Rc<serde_json::Value>,
     prepared: Prepared,
 ) -> Result<Ready, String> {
-    let Prepared { inputs, effects } = prepared;
+    let Prepared {
+        mut inputs,
+        effects,
+    } = prepared;
     let root = &ctx.capture.units[unit.observed_unit].target.manifest_dir;
     let unresolved_callees =
         propagation::unresolved(&inputs.facts, effects.unresolved, &effects.resolved)?;
     let expected_functions = (ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty())
         .then_some(inputs.observations.len() + inputs.unavailable.len());
-    let completed = diagnostics::evaluate(
-        ctx,
-        unit,
-        diagnostics::Inputs {
-            facts: inputs.facts,
-            effects: effects.values,
-            metrics: inputs.metrics.unwrap_or(METRICS),
-        },
-        policy,
-    )?;
+    let ranking = ranking::Captured::new(ctx.args.compiler_complexity_top, &inputs);
+    let completed =
+        diagnostics::evaluate(ctx, unit, inputs.take_diagnostics(effects.values), policy)?;
 
     let report = Unit {
         unit: unit.id,
@@ -474,9 +482,11 @@ fn evaluate_unit(
         visible_diagnostics: None,
         selected_diagnostics: None,
         patterns: None,
+        complexity_ranking: None,
     };
     Ok(Ready {
         unit: report,
+        ranking,
         facts: completed.facts,
         diagnostic_indices: completed.diagnostic_indices,
         effects: completed.effects,
@@ -488,6 +498,7 @@ struct Ready {
     unit: Unit,
     facts: Vec<FnFacts>,
     diagnostic_indices: Vec<usize>,
+    ranking: Option<ranking::Captured>,
     effects: Option<std::collections::BTreeMap<String, Vec<rstyle_core::rules::Effect>>>,
     missing_graphs: Vec<Missing>,
 }
@@ -498,6 +509,10 @@ impl Ready {
         ctx: &Context<'_>,
         unit: &super::identity::UnitContext,
     ) -> Result<Unit, String> {
+        self.unit.complexity_ranking = self
+            .ranking
+            .map(|ranking| ranking.evaluate(&self.facts))
+            .transpose()?;
         self.unit.patterns = evaluate_patterns(
             ctx,
             unit,
@@ -573,6 +588,17 @@ fn collected_metrics(inputs: &[Collected]) -> Result<&'static str, String> {
 }
 
 impl Collected {
+    fn take_diagnostics(
+        &mut self,
+        effects: Option<BTreeMap<String, Vec<rstyle_core::rules::Effect>>>,
+    ) -> diagnostics::Inputs {
+        diagnostics::Inputs {
+            facts: std::mem::take(&mut self.facts),
+            effects,
+            metrics: self.metrics.unwrap_or(METRICS),
+        }
+    }
+
     fn push_known(
         &mut self,
         function: &super::Function,
@@ -647,7 +673,10 @@ impl Unit {
     }
 
     fn inputs_complete(&self) -> bool {
-        self.unavailable.is_empty()
+        self.complexity_ranking
+            .as_ref()
+            .is_none_or(|report| report.input_complete)
+            && self.unavailable.is_empty()
             && self.unavailable_complexity.is_empty()
             && self.unresolved_callees.is_empty()
             && self

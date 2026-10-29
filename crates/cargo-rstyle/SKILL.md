@@ -411,6 +411,15 @@ raw proposals, classifications, plans and baseline header checks stay global.
 Empty selection cannot hide incomplete inputs. Selection reuses captured paths
 and works in source-free replay. `changed_scope` reports file owner availability;
 unknown files or whole-scope missing inputs still prevent a clean result.
+Add `--compiler-complexity-top N` (positive N) to rank clean and flagged functions
+per unit using completed core COG/CC measurements. Policy exclusions apply;
+changed-file/review masks do not filter the raw ranking. Only N score/location
+rows are copied; compiler bodies and completed measurements are borrowed for
+sorting. Missing scores/owners remain incomplete even outside the displayed N;
+historical inputs without scores cannot become zero measurements or clean exits.
+The optional `complexity_ranking` pairs `owners` with `functions` and reports full
+measured/unavailable denominators. It works in source/tool-free replay and
+advisory-only mode, without new source scans or hashes.
 See [compiler advisory](../../docs/clones-compiler-advisory.md).
 
 When the caller and dependency workspace packages are selected, compiler effects follow

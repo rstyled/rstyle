@@ -86,6 +86,26 @@ remain readable with unavailable complexity and retain their original metric
 scope; they cannot claim modern measurements or establish current review
 negatives.
 
+Add `--compiler-complexity-top N` (positive N) to show the highest COG, then CC
+scores per compilation unit, including functions below diagnostic thresholds.
+This presentation reuses completed core measurements and its existing source
+location/name tie order. It borrows all selected facts for sorting and copies only
+the requested display rows; it does not rescore, parse source or add proof/hash
+checks. Core policy exclusions apply; diagnostic suppressions and review or
+changed-file masks do not filter this raw ranking. Finding counts stay unchanged.
+
+Each unit's optional `complexity_ranking` uses schema
+`rstyle.compiler-complexity-ranking/1`. Parallel `owners` and `functions` arrays
+pair report-local handles with score/location rows. `known_functions`,
+`measured_functions`, `unavailable_measurements` and `unavailable_owners` describe
+the full input, independently of `requested_limit`. Missing measurements sort
+last and retain an unavailable score; missing owners remain in the unit's
+`unavailable` list. Either makes the requested ranking incomplete, including when
+replaying historical metrics without scores, and prevents a successful exit.
+The limit truncates presentation only. The flag works on fresh captures and
+source/tool-free replay, including advisory-only mode. Without it, the existing
+report is unchanged. Rankings over incomplete input are not whole-project maxima.
+
 Metric version 2 omits lowered iterator roots from source mutation budgets.
 The shared expression-use collector tags these bindings by their HIR
 origin and `ForLoop` span, without parsing or rechecking the source. Explicit
