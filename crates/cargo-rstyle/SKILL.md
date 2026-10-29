@@ -401,8 +401,15 @@ transport. Generated functions remain unavailable to the advisory collector;
 their JSON nesting no longer discards original functions in the same unit.
 Older version-4/5 bundles retain their original grammar and strict checks.
 `--changed-files PATH` selects numeric compiler diagnostic presentation and finding
-exits after reviews. Raw evaluations/fix plans remain intact; proposals and
-invalid suppressions stay global. `changed_scope` reports file owner availability;
+exits after reviews. Raw evaluations/fix plans remain intact; proposals stay
+global by default and invalid suppressions always stay global.
+Add `--select-compiler-patterns` with `--compiler-patterns --changed-files PATH`
+to select proposals touching a changed file at any usage site or definition.
+`patterns.selected_candidates` records the file mask independently of review
+visibility. Text, finding exits and new-proposal baseline counts intersect both;
+raw proposals, classifications, plans and baseline header checks stay global.
+Empty selection cannot hide incomplete inputs. Selection reuses captured paths
+and works in source-free replay. `changed_scope` reports file owner availability;
 unknown files or whole-scope missing inputs still prevent a clean result.
 See [compiler advisory](../../docs/clones-compiler-advisory.md).
 

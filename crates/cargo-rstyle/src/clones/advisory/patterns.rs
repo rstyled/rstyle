@@ -1,5 +1,6 @@
 //! Adapt owned compiler graphs to existing core proposal policy.
 use super::Missing;
+use crate::clones::review::compiler_patterns::observed;
 use rstyle_core::{
     advisory::patterns::{KEY, Observation},
     facts::FnFacts,
@@ -21,6 +22,9 @@ pub(super) struct Report {
     pub evaluation: patterns_report::PatternsReport,
     #[serde(skip_serializing_if = "Option::is_none")]
     visible_candidates: Option<Vec<usize>>,
+    /// File selection is independent of review visibility; presentation intersects both masks.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    selected_candidates: Option<Vec<usize>>,
     #[serde(skip)]
     pub snapshots:
         Vec<Result<crate::clones::review::compiler_patterns::observed::Snapshot, String>>,
@@ -103,22 +107,10 @@ pub(super) fn evaluate(
         .count();
 
     let (mut evaluation, prepared) = patterns_report::run_owned_and_retain(facts, &options);
+    let selected_candidates = select_candidates(ctx, &evaluation)?;
     let effects = effects.ok_or("Compiler patterns require completed core effects")?;
     rstyle_core::candidates::annotate_completed_effects(&mut evaluation.candidates, &effects)?;
-    let snapshots = if ctx.args.review_file.is_some()
-        || ctx
-            .args
-            .compiler_baseline_requested(crate::clones::CompilerBaseline::Patterns)
-    {
-        crate::clones::review::compiler_patterns::observed::collect(
-            ctx,
-            unit,
-            prepared,
-            &evaluation.candidates,
-        )
-    } else {
-        Vec::new()
-    };
+    let snapshots = review_snapshots(ctx, unit, prepared, &evaluation);
     Ok(Report {
         schema: "rstyle.compiler-patterns/1",
         policy_version: rstyle_core::candidates::POLICY_VERSION,
@@ -132,7 +124,53 @@ pub(super) fn evaluate(
         evaluation,
         snapshots,
         visible_candidates: None,
+        selected_candidates,
     })
+}
+
+fn review_snapshots(
+    ctx: &crate::clones::report::Context<'_>,
+    unit: &crate::clones::identity::UnitContext,
+    prepared: Vec<FnFacts>,
+    evaluation: &patterns_report::PatternsReport,
+) -> Vec<Result<observed::Snapshot, String>> {
+    if ctx.args.review_file.is_some()
+        || ctx
+            .args
+            .compiler_baseline_requested(crate::clones::CompilerBaseline::Patterns)
+    {
+        observed::collect(ctx, unit, prepared, &evaluation.candidates)
+    } else {
+        Vec::new()
+    }
+}
+
+fn select_candidates(
+    ctx: &crate::clones::report::Context<'_>,
+    evaluation: &patterns_report::PatternsReport,
+) -> Result<Option<Vec<usize>>, String> {
+    if !ctx.args.select_compiler_patterns {
+        return Ok(None);
+    }
+    let selection = ctx
+        .analysis_config
+        .and_then(crate::clones::analysis::Config::changed_files)
+        .ok_or("Compiler proposal selection needs changed files")?;
+    Ok(Some(
+        evaluation
+            .candidates
+            .iter()
+            .enumerate()
+            .filter(|(_, candidate)| {
+                candidate
+                    .sites
+                    .iter()
+                    .chain(&candidate.definitions)
+                    .any(|site| selection.contains(&site.path))
+            })
+            .map(|(index, _)| index)
+            .collect(),
+    ))
 }
 
 impl Report {
@@ -156,11 +194,30 @@ impl Report {
             .as_ref()
             .map_or(self.evaluation.candidates.len(), Vec::len)
     }
+    pub(super) fn selection(&self) -> Option<&[usize]> {
+        self.selected_candidates.as_deref()
+    }
+
+    fn visible(&self, index: usize) -> bool {
+        self.visible_candidates
+            .as_ref()
+            .is_none_or(|visible| visible.binary_search(&index).is_ok())
+    }
+
+    fn selected(&self, index: usize) -> bool {
+        self.selection()
+            .is_none_or(|selected| selected.binary_search(&index).is_ok())
+    }
+
+    pub(super) fn selected_findings(&self) -> usize {
+        (0..self.evaluation.candidates.len())
+            .filter(|index| self.visible(*index) && self.selected(*index))
+            .count()
+    }
+
     pub(super) fn render(&self) -> String {
         patterns_report::text_selected(&self.evaluation, |index| {
-            self.visible_candidates
-                .as_ref()
-                .is_none_or(|visible| visible.contains(&index))
+            self.visible(index) && self.selected(index)
         })
     }
 }

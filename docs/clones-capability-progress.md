@@ -4585,7 +4585,7 @@ one local sample took13.48s with2,109,120KiB peak RSS, not a speedup claim.
 Unchanged Rust retains C50's full test/style/pattern validation. C48 and C49
 native CI are now confirmed successful on macOS and both Ubuntu runners.
 C50 native CI remains in progress. The macOS temporary-parent canonicalization
-fix565803b is included. Current origin/main1689392 (complexity changes) is already
+fix 565803b is included. Current origin/main1689392 (complexity changes) is already
 an ancestor of this branch, so no rebase is necessary.
 
 This sample validates advisory reuse, not full caller closure, safe edits,
@@ -4684,3 +4684,56 @@ verified, but the proposed positive effect/planner production study remains
 unverified because no suitable authored concrete caller was found. Continue
 consumer-led work from demonstrated source/evidence requirements; keep existing
 legacy and strict paths until their individual replacement gates pass.
+
+### C54 — select reused compiler proposals by changed files (2026-10-29)
+
+Lead owns CLI, report/baseline integration, docs and the production replay;
+a frozen acceptance leaf owns the selection tests. Main 1689392, including the
+cyclomatic-complexity changes, is already an ancestor of this branch.
+
+The explicit `--select-compiler-patterns` flag requires compiler patterns and the
+existing changed-file manifest. It checks completed candidate usage sites and
+definitions once, retaining only a sorted index mask. Text and finding exits
+intersect that mask with explicit review visibility. Baseline new/changed counts
+borrow the same mask; raw lifecycle classifications, retained choices and header
+drift keep their full scope. Default changed-file behavior remains diagnostics
+only. Numeric `changed_scope` counts retain their existing meaning.
+
+No collector, evaluator, proposer or source/graph traversal is duplicated. No new
+hash, proof, body copy, changed-line inference or selective compilation is added.
+Raw evaluations/candidates, observations, plans and strict matching remain global;
+missing inputs and unknown selected files still prevent clean results. Optional
+masks preserve default report serialization.
+
+Eight acceptance cases cover live opt-in/default behavior, usage versus definition
+paths, exact unknown paths and empty selection, source/tool-free text replay,
+independent review masks, baseline classifications and policy drift, distinct
+check/test occurrences, missing graphs and required CLI flags. The baseline test
+compares all raw current fields after accounting for the intentional `selected`
+marker. All eight pass.
+
+Saved production rstyle-core run-mycjUM replay retains all six raw proposals.
+Selecting align.rs yields candidate index3; selecting clip.rs yields an empty
+mask. Raw proposal/numeric evaluations, observations and strict results agree
+exactly with unfiltered replay. All three exit2 because the original capture has
+408 measured/806 unavailable owners. Single replay observations are about0.94s;
+there is no speedup, quality-improvement or complete-project claim. The artifact
+project-compiler-pattern-selection-study.json records commands, masks and limits.
+
+Validation on the final counter-sharing implementation: all 3,454 Rust tests
+pass in 224.941s, with five existing skips; doc tests and all 214 offline Python
+tests pass. Locked all-target Clippy, formatting and diff checks pass. Style
+reports zero violations over 9,806 functions. Reviewed patterns reports zero
+candidates; all 13 unfiltered IDs match the main-rebase baseline. No suppression,
+ignore entry, threshold or budget changed. Logs use /tmp/clones-c54-checked-*.
+
+The last observed macOS failure (8d3f651 CI) compared /var fixture roots with the
+compiler's resolved /private/var roots. Existing fix 565803b canonicalizes the
+shared temporary parent; eleven subsequent completed CI runs passed all platforms.
+For the preceding pushed HEAD 9fe20e0, both Ubuntu jobs are green and macOS remains
+in progress at this checkpoint. No new native macOS pass is claimed. Main 1689392
+was fetched again and remains an ancestor; no rebase rewrite is necessary.
+
+Migration remains active. This increment improves changed-file review/CI scope;
+it establishes neither complete project coverage nor proposal usefulness,
+semantic equivalence or any legacy retirement gate.

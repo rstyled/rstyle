@@ -83,6 +83,9 @@ pub struct Args {
     /// Reuse compiler graphs and existing core abstraction proposal policy; advisory only.
     #[arg(long, requires = "compiler_advisory")]
     compiler_patterns: bool,
+    /// Select compiler proposals touching changed files at any usage site or definition.
+    #[arg(long, requires_all = ["compiler_patterns", "changed_files"])]
+    select_compiler_patterns: bool,
     /// Reuse core fix groups and parameter plans across captured dependency units; advisory only.
     #[arg(long, requires = "compiler_advisory")]
     compiler_plans: bool,

@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 pub(super) fn current<'a>(
     rows: &'a [Row<'a>],
     reviews: &'a compiler_patterns::Report,
+    selected: &'a BTreeMap<crate::clones::identity::UnitId, &[usize]>,
 ) -> impl Iterator<
     Item = Observation<
         compiler_patterns::Key<'a>,
@@ -22,7 +23,9 @@ pub(super) fn current<'a>(
             candidate_index: row.index,
         },
         rule_id: None,
-        selected: true,
+        selected: selected
+            .get(&row.unit)
+            .is_none_or(|indices| indices.binary_search(&row.index).is_ok()),
         review_hidden: reviews.hidden_for(row.unit, row.index),
         finding: row
             .snapshot

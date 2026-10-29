@@ -5,6 +5,7 @@ mod completed_effects;
 mod forwarded_pipelines;
 mod opaque_closures;
 mod reviews;
+mod selection;
 
 const ANIMALS: &str = include_str!("../fixtures/animals/src/lib.rs");
 

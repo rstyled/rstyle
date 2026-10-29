@@ -434,15 +434,16 @@ compiler baseline with a changed-file manifest is rejected. Broader project
 coverage and legacy retirement remain open.
 
 
-## Changed-file compiler diagnostics
+## Changed-file compiler diagnostics and proposals
 
 Add `--changed-files PATH` with the shared manifest format:
 `{"schema":"rstyle.changed-files/1","paths":["src/lib.rs"]}`. Exact
 workspace-relative paths select numeric diagnostics after explicit saved reviews.
 Text and `--fail-on-findings` use `units[].selected_diagnostics`, zero-based
 indices into the unchanged raw diagnostic roster. Raw evaluations, totals and
-caller/fix plans remain intact. Compiler proposals and invalid-suppression
-diagnostics remain global. No source-rule analysis is implicitly enabled.
+caller/fix plans remain intact. Compiler proposals stay global by default;
+invalid-suppression diagnostics always remain global. No source-rule analysis is
+implicitly enabled.
 
 `compiler_advisory.changed_scope` reports per-file owner availability and selected
 finding counts using the shared source/density coverage aggregator. Unknown files
@@ -451,6 +452,17 @@ Generated/missing owners and unresolved callees still keep whole-analysis exit 2
 even when every selected file has available observations. Check/test occurrences
 remain distinct. Selection is file-level presentation, not changed-line analysis
 or selective compiler execution.
+
+Add `--select-compiler-patterns` with `--compiler-patterns --changed-files PATH`
+to select proposals whose usage sites or definitions touch any selected file.
+Each unit records `patterns.selected_candidates` as zero-based indices into its
+raw candidate roster, independent of `visible_candidates` from explicit reviews.
+Text, `--fail-on-findings`, and new-proposal baseline counts use the intersection
+of these masks. Raw candidates, totals, classifications, reviews, plans and strict
+matching retain their full scope. The mask is computed once from completed
+candidate locations and reused during replay; no source scan or graph copy is
+needed. Empty selection hides proposals but cannot hide missing inputs or
+baseline header drift. `changed_scope` counts numeric diagnostics only.
 
 Live analysis and source/tool-free replay use the same captured paths and owner
 IDs. Selection retains only diagnostic indices, scoped owner IDs and owned report
@@ -494,7 +506,10 @@ as identity. A baseline establishes neither equivalence nor rewrite safety.
 header drift. Explicit saved reviews can hide new proposals from that count;
 raw evaluations and exports retain them. Existing proposals still count under
 `--fail-on-findings`. Proposal comparison remains global with a changed-file
-manifest, just as proposal presentation does. Export conflicts with selection.
+manifest by default. With `--select-compiler-patterns`, new/changed visible
+proposal counts also require a matching usage or definition file; raw lifecycle
+classifications, retained choices and header drift remain global. Export
+conflicts with selection.
 Missing old proposals remain unavailable, never resolved or pruned: bounded
 heuristic discovery does not establish completed negatives.
 

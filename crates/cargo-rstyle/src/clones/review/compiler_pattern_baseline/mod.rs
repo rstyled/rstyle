@@ -29,6 +29,7 @@ pub(in crate::clones) fn evaluate(
 ) -> Result<Report, String> {
     let rows = advisory.pattern_reviews();
     let previous = ctx.compiler_pattern_baseline;
+    let selected = advisory.pattern_selections();
     let header = Baseline::new(
         Rc::clone(advisory.policy()),
         baseline_common::contexts(ctx)?,
@@ -50,7 +51,7 @@ pub(in crate::clones) fn evaluate(
                     .flat_map(|baseline| &baseline.entries)
                     .map(|finding| (finding.baseline_key(), finding))
                     .collect(),
-                observations::current(&rows, reviews),
+                observations::current(&rows, reviews, &selected),
             ),
             retained: observations::retained(&rows, previous),
             export_requested: ctx.args.write_compiler_pattern_baseline.is_some(),

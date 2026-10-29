@@ -51,7 +51,10 @@ impl Report {
     }
 
     pub(in crate::clones) fn finding_exit_count(&self) -> usize {
-        self.units.iter().map(Unit::findings).sum()
+        self.units
+            .iter()
+            .map(|unit| unit.findings(super::patterns::Report::selected_findings))
+            .sum()
     }
 }
 

@@ -278,6 +278,18 @@ impl Report {
             .collect()
     }
 
+    pub(in crate::clones) fn pattern_selections(&self) -> BTreeMap<UnitId, &[usize]> {
+        self.units
+            .iter()
+            .filter_map(|unit| {
+                unit.patterns
+                    .as_ref()
+                    .and_then(patterns::Report::selection)
+                    .map(|selected| (unit.unit, selected))
+            })
+            .collect()
+    }
+
     pub(super) fn pattern_inputs_complete(&self) -> bool {
         self.complete
     }
@@ -300,7 +312,10 @@ impl Report {
             .map(|unit| unit.with_reviews(&patterns, &diagnostics))
             .collect();
 
-        let findings = units.iter().map(Unit::findings).sum();
+        let findings = units
+            .iter()
+            .map(|unit| unit.findings(patterns::Report::findings))
+            .sum();
         let complete = self.complete && patterns.permits_success() && diagnostics.permits_success();
         Self {
             units,
@@ -338,7 +353,10 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
         metrics,
         effective_config: policy,
         complete,
-        findings: units.iter().map(Unit::findings).sum(),
+        findings: units
+            .iter()
+            .map(|unit| unit.findings(patterns::Report::findings))
+            .sum(),
         limitations: &[
             "Advisory compiler observations and existing core policy; no strict clone or purity authority.",
             "Core effect propagation follows unique captured direct Cargo dependencies; missing or ambiguous units remain unresolved.",
@@ -638,12 +656,12 @@ impl Unit {
                 .is_none_or(|report| report.input_complete)
     }
 
-    fn findings(&self) -> usize {
+    fn findings(&self, count_patterns: fn(&patterns::Report) -> usize) -> usize {
         self.selected_diagnostics
             .as_ref()
             .or(self.visible_diagnostics.as_ref())
             .map_or(self.evaluation.summary.violations, Vec::len)
-            + self.patterns.as_ref().map_or(0, |report| report.findings())
+            + self.patterns.as_ref().map_or(0, count_patterns)
     }
 }
 
