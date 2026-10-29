@@ -955,7 +955,8 @@ fn fail_on_candidates_exits_one_until_every_candidate_is_dismissed() {
 }
 
 fn clone_workspace() -> TempDir {
-    let directory = tempfile::tempdir().unwrap();
+    let root = std::env::temp_dir().canonicalize().unwrap();
+    let directory = tempfile::tempdir_in(root).unwrap();
     std::fs::create_dir(directory.path().join("src")).unwrap();
     std::fs::write(
         directory.path().join("Cargo.toml"),
