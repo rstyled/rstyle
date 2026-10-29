@@ -42,7 +42,7 @@ fn owned(report: &Value) {
 }
 
 #[test]
-fn advisory_builds_reuse_dependencies_but_refresh_selected_owners_and_source() {
+fn advisory_builds_reuse_dependencies_and_owners_but_refresh_changed_source() {
     let directory = workspace("pub fn leaf() {}\n");
     let first = live(directory.path(), &["-p", "caller"], 2);
     let second = live(directory.path(), &["-p", "caller"], 2);
@@ -50,7 +50,7 @@ fn advisory_builds_reuse_dependencies_but_refresh_selected_owners_and_source() {
     assert_eq!(first["compiler_advisory"], second["compiler_advisory"]);
     fresh(&artifacts(&first), "leaf", false);
     fresh(&artifacts(&second), "leaf", true);
-    fresh(&artifacts(&second), "caller", false);
+    fresh(&artifacts(&second), "caller", true);
     owned(&first);
     owned(&second);
 
@@ -146,7 +146,7 @@ fn advisory_build_lane_serializes_concurrent_captures_with_separate_run_owners()
     for report in [&first, &second] {
         owned(report);
         fresh(&artifacts(report), "leaf", true);
-        fresh(&artifacts(report), "caller", false);
+        fresh(&artifacts(report), "caller", true);
     }
 }
 
@@ -238,7 +238,7 @@ fn advisory_builds_refresh_host_target_and_release_variants() {
         configured["compiler_advisory"],
         configured_again["compiler_advisory"]
     );
-    fresh(&artifacts(&configured_again), "clone_fixture", false);
+    fresh(&artifacts(&configured_again), "clone_fixture", true);
 }
 
 #[test]
@@ -268,6 +268,6 @@ fn advisory_builds_refresh_host_proc_macros_with_configured_target() {
     let again = live(directory.path(), &[], 0);
     assert_eq!(first["compiler_advisory"], configured["compiler_advisory"]);
     assert_eq!(configured["compiler_advisory"], again["compiler_advisory"]);
-    fresh(&artifacts(&again), "clone_fixture", false);
+    fresh(&artifacts(&again), "clone_fixture", true);
     owned(&again);
 }

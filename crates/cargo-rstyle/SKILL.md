@@ -407,8 +407,11 @@ The JSON is the compiler report with per-unit evaluations and separate planning
 completion, not the legacy top-level diagnostics schema. Strict matching and
 pattern mining are unrequested; --ignore-file remains irrelevant to style rules.
 The default backend stays legacy. Advisory-only live captures without dependency
-capture reuse private dependency builds under a lock, cleaning selected packages
-to emit fresh observations. Strict/dependency captures keep isolated builds;
+capture reuse private builds under a lock. Completed raw owner snapshots are
+reused only for exact artifacts that current Cargo reports fresh, with matching
+collector/build context and tool metadata. Missing cache inputs force recapture;
+failed builds discard the completed index. Policy changes reevaluate retained
+facts. Strict/dependency captures keep isolated builds;
 saved replay is independent of both. Compiler incremental compilation stays off.
 
 For existing compiler mutation/effect observations and core fix plans on a clones

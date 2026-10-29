@@ -3,6 +3,7 @@ pub(super) mod associations;
 mod build_lane;
 mod dependencies;
 pub(super) mod ledger;
+mod owner_reuse;
 mod saved;
 pub(in crate::clones) use saved::load_saved;
 
@@ -28,7 +29,7 @@ pub struct Target {
     pub test: bool,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Plan {
     #[serde(default)]
     pub compiler_advisory_only: bool,
@@ -71,7 +72,7 @@ impl Plan {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Unit {
     #[serde(default)]
     pub compiler_advisory_only: bool,
@@ -83,7 +84,7 @@ pub struct Unit {
     pub artifacts: Vec<Artifact>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Artifact {
     pub file: String,
     pub checksum: String,
@@ -413,17 +414,27 @@ fn build_args(args: &Args) -> Vec<std::ffi::OsString> {
 
 pub fn compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
     let _lane = build_lane::acquire(capture, args)?;
-    compile_in_lane(capture, cli, args)
+    let previous = owner_reuse::take(capture, args)?;
+    compile_in_lane(capture, cli, args, previous)
 }
 
-fn compile_in_lane(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
+fn compile_in_lane(
+    capture: &mut Capture,
+    cli: &Cli,
+    args: &Args,
+    previous: Option<owner_reuse::Index>,
+) -> Result<(), String> {
+    configure_capture(capture, cli, args)?;
+    owner_reuse::compile(capture, cli, args, previous)
+}
+
+fn configure_capture(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
     let graph = expected_units(capture, cli, args)?;
     let selected = dependencies::from_cargo(&graph, cli, args)?;
     capture.plan = configured_plan(&capture.plan, &graph, selected)?;
     capture.expected_unit_graph = graph;
-    write_json(&capture.directory.join("plan.json"), &capture.plan)?;
 
-    refresh_and_compile(capture, cli, args)
+    write_json(&capture.directory.join("plan.json"), &capture.plan)
 }
 
 fn configured_plan(
@@ -463,20 +474,27 @@ fn primary_units(graph: &Value) -> Result<Vec<Value>, String> {
         .collect()
 }
 
-fn refresh_and_compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
-    build_lane::refresh_selected(capture, args)?;
-    perform_compile(capture, cli, args)
+fn perform_compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
+    let output = compile_output(capture, cli, args)?;
+    compilation_result(capture, &output);
+    Ok(())
 }
 
-fn perform_compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
+fn compile_output(
+    capture: &Capture,
+    cli: &Cli,
+    args: &Args,
+) -> Result<std::process::Output, String> {
     let observation =
         rstyle_pdg::diagnostics::Stage::new("capture.compile", "cargo check", None).enter();
+    observation.finish(run_compile(capture, cli, args))
+}
+
+fn run_compile(capture: &Capture, cli: &Cli, args: &Args) -> Result<std::process::Output, String> {
     let output = crate::diagnostic_process::output(&mut command(capture, cli, args)?)
         .map_err(|e| e.to_string())?;
     save_logs(capture, &output)?;
-
-    compilation_result(capture, &output);
-    observation.finish(Ok(()))
+    Ok(output)
 }
 
 fn expected_units(capture: &Capture, cli: &Cli, args: &Args) -> Result<Value, String> {
@@ -523,28 +541,11 @@ fn save_logs(capture: &Capture, output: &std::process::Output) -> Result<(), Str
 }
 
 fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
-    let artifacts: Vec<Value> = cargo
-        .split(|b| *b == b'\n')
-        .filter(|line| !line.is_empty())
-        .map(serde_json::from_slice)
-        .collect::<Result<_, _>>()
-        .map_err(|e| e.to_string())?;
-
-    for artifact in artifacts
-        .iter()
-        .filter(|a| a["reason"] == "compiler-artifact")
-    {
-        let Some(target) = capture
-            .plan
-            .targets
-            .iter()
-            .find(|t| matches_artifact(artifact, t))
-        else {
+    let artifacts = cargo_artifacts(cargo)?;
+    for artifact in &artifacts {
+        let Some(target) = selected_artifact(capture, artifact) else {
             continue;
         };
-        if !intended_artifact(capture, artifact, target) {
-            continue;
-        }
         verify_planned_context(capture, artifact, target)?;
         let test = artifact["profile"]["test"]
             .as_bool()
@@ -562,6 +563,29 @@ fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
     }
     check_expected(capture);
     Ok(())
+}
+
+fn cargo_artifacts(cargo: &[u8]) -> Result<Vec<Value>, String> {
+    let records: Vec<Value> = cargo
+        .split(|b| *b == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(serde_json::from_slice)
+        .collect::<Result<_, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(records
+        .into_iter()
+        .filter(|a| a["reason"] == "compiler-artifact")
+        .collect())
+}
+
+fn selected_artifact<'a>(capture: &'a Capture, artifact: &Value) -> Option<&'a Target> {
+    capture
+        .plan
+        .targets
+        .iter()
+        .find(|t| matches_artifact(artifact, t))
+        .filter(|target| intended_artifact(capture, artifact, target))
 }
 
 fn verify_planned_context(
@@ -795,10 +819,14 @@ fn invoke_unit(unit: &Unit, command: &mut Command) -> Result<std::process::ExitS
 
 fn publish_unit(plan: &Plan, root: &Path, mut unit: Unit) -> Result<(), String> {
     unit.artifacts = artifact_inventory(&unit.directory, unit.extraction_profile)?;
+    publish_ledger(plan, root, &unit)
+}
+
+fn publish_ledger(plan: &Plan, root: &Path, unit: &Unit) -> Result<(), String> {
     let path = ledger::path(plan, root, &unit.target, unit.test)?;
 
     let file = reserve_ledger(&path)?;
-    serde_json::to_writer(file, &unit).map_err(|e| e.to_string())?;
+    serde_json::to_writer(file, unit).map_err(|e| e.to_string())?;
     Ok(())
 }
 

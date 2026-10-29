@@ -6543,3 +6543,52 @@ setup to satisfy Clippy's function-length limit. Formatting, Clippy,247 capabili
 Python tests and50 script tests pass. Both legacy gates pass: zero style violations
 across9,983 functions and the same13 unfiltered pattern IDs. No suppressions,
 threshold changes or relaxed matching were added. Native CI awaits publication.
+
+### C90 — completed advisory owner reuse (2026-10-29)
+
+Lead owns capture integration, docs, measurement and index; acceptance worker
+owns nine cache-lifecycle tests and reviews stale association/context risks.
+Advisory-only captures without dependency capture reuse completed raw owners
+only for exact artifacts current Cargo reports fresh, with matching full Plan
+and canonical CLI/driver metadata (path, full modification time and length).
+No source/artifact content scan, new hash, collector or proof framework is added.
+Raw facts retain their existing publication checksums. Each run copies known
+snapshot files into its own invocation directory and publishes existing ledgers;
+strict/dependency paths retain isolated builds and strict semantics.
+
+The ordinary lane lock covers index consumption before planning through final
+reconciliation. The completed index is atomically republished only after Cargo
+and reconciliation succeed. Failed/interrupted work leaves no reusable index,
+so the next run cleans selected packages before capture. Missing/malformed index,
+missing snapshots and collector/tool changes also recapture. A current fresh
+artifact absent from the preceding exact association retries once with cleanup
+in a new run namespace, retaining existing duplicate-ledger rejection. Consumer
+config changes reevaluate completed raw observations without recompiling.
+
+All17 focused acceptance tests pass: nine owner cases and eight updated build-lane
+cases. They include partial leaf-success/caller-failure, A/B/A rustflags requiring
+an additional run namespace, concurrency, configured host/proc-macro contexts,
+source changes, missing cache inputs, changed tool metadata, collector changes,
+consumer-only reevaluation and replay after deleting the original run, sources,
+builds and index. Read-only review found no concrete association/replay defect.
+Corrupt existing snapshot contents fail normal downstream validation rather than
+silently becoming facts; missing snapshot files trigger recapture.
+
+Four serial root-style core runs took5.346s first, then1.141/1.182/1.084s warm.
+The warm runs retain all31 Cargo artifacts fresh and rebuild none; complete
+advisory payloads agree across runs and C88 diagnostics/numeric summaries agree.
+The preceding C89 warm observations were5.20–5.35s with selected owner rebuilding.
+Explicit saved replay with the same config/authored scope/plans also agrees.
+These are one-package observations with different cache states, not randomized
+or population speedup evidence. Artifact: project-advisory-owner-reuse-study.json.
+The first replay comparison omitted the root route's config/authored-scope/plans
+and therefore assessed different requested work; the corrected explicit command
+in the artifact matches. No production behavior change was needed for replay.
+
+Integrated validation passes all3,673 Rust tests in270.083s with five existing
+skips, plus doctests. Formatting, Clippy,247 capability Python tests and50 script
+tests pass. Both legacy gates pass: zero style violations across10,011 functions
+and the same13 unfiltered pattern IDs. Native CI for C90 remains pending publication.
+Broader real-project default-readiness, independently
+reviewed density totals, report compatibility and per-capability retirement remain
+open. No default is switched by this checkpoint.

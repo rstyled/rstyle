@@ -1,8 +1,8 @@
-//! Reuse dependency builds while collecting every requested advisory owner afresh.
+//! Serialize advisory build reuse and selected-package recapture.
 use super::{Args, Capture};
 use std::{collections::BTreeSet, fs::File, path::PathBuf, process::Command};
 
-fn shared(capture: &Capture, args: &Args) -> bool {
+pub(super) fn shared(capture: &Capture, args: &Args) -> bool {
     capture.plan.compiler_advisory_only && args.capture_dependencies.is_empty()
 }
 

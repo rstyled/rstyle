@@ -17,19 +17,26 @@ JSON schema. The legacy backend remains the default, available explicitly throug
 `--style-engine legacy`. The style-engine option applies only without a subcommand;
 `patterns --engine compiler` retains its separate opt-in route.
 
-Live advisory-only captures without dependency capture reuse Cargo dependency
-builds in a private `target/rstyle/clones/advisory-build` directory. Selected
-packages are cleaned and observed afresh on every run, including host and target
-variants, under one lock through compilation and reconciliation. Compiler
-incremental compilation remains disabled. Strict and dependency captures retain
-isolated per-run build directories. Saved replay needs neither build directory.
+Live advisory-only captures without dependency capture reuse private builds in
+`target/rstyle/clones/advisory-build`, under one lock through planning, compilation
+and reconciliation. Completed raw owner snapshots are reused only when current
+Cargo reports the exact artifact fresh and the build/collector plan and tool
+metadata match. Source changes follow Cargo's normal freshness decision. Missing
+or invalid indexes, missing snapshots and collector/tool changes force selected
+package cleanup and recapture, including host and target variants. A failed build
+leaves no completed index; an unmatched fresh artifact retries with cleanup in a
+new run directory. Consumer policy changes reevaluate retained raw facts.
 
-Measured warm rstyle-core captures took5.20–5.35s with30 dependency artifacts fresh
-and only the selected owner rebuilt; the earlier isolated repeat took7.28s.
-Reports and numeric summaries agree. These observations are not a randomized or
-equal-cache benchmark. Reusing completed owner captures and broader default-readiness
-comparisons remain open; see
-`eval/clones-capability/project-advisory-build-reuse-study.json`.
+Each successful run owns its evidence files, so saved replay remains independent
+of previous runs and builds. Compiler incremental compilation stays disabled;
+strict and explicit dependency captures retain isolated per-run build directories.
+No source or compiler-artifact content scans or new hashes identify cache entries.
+
+Measured warm rstyle-core captures took1.08–1.18s with all31 artifacts fresh and
+no rebuilt owners, compared with the preceding5.20–5.35s owner-rebuild observations.
+Reports and numeric summaries agree. These single-package observations are not a
+randomized or equal-cache benchmark. Broader default-readiness comparisons remain
+open; see `eval/clones-capability/project-advisory-owner-reuse-study.json`.
 
 `clones --extraction-profile hir-data-v3 --compiler-advisory` captures the existing
 Rust style observations during the same compiler invocation. It calls the driver

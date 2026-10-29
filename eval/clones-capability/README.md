@@ -866,3 +866,13 @@ compiler-style captures, per-run Cargo freshness and selected rebuilds, exact
 C88 numeric/diagnostic agreement and scope/cache limitations. Warm runs keep30
 dependency artifacts fresh and rebuild only the selected owner; this is dependency
 build reuse, not completed-owner or compiler incremental reuse.
+
+`project-advisory-owner-reuse-study.json` records four serial rstyle-core root
+compiler-style captures after completed raw owner reuse. The first rebuilds the
+owner; three warm runs retain all31 Cargo artifacts fresh, rebuild none and take
+1.08–1.18s. Complete advisory payloads agree across runs; C88 numeric summaries
+and diagnostics still agree. The preceding C89 warm observations were5.20–5.35s.
+This is one package with different cache states, not a randomized benchmark or
+population speedup. Focused acceptance includes source/collector/tool changes,
+missing index/snapshot fallback, partial failures, alternating RUSTFLAGS recovery
+and source/build-free saved replay of a reused run. Default retirement remains open.
