@@ -378,8 +378,8 @@ It reuses `ExprUseVisitor`, core propagation, fix groups and parameter stacking;
 strict clone admission is not required. Captured observations support source-free
 `--replay-run` and policy reevaluation. These metric versions differ from strict
 mutation-effect metrics; zero policy density is not a purity proof.
-Add `--compiler-advisory-only` to request compiler advice without helper
-certification, strict admission or matching. Compiler patterns/plans and their
+Add `--compiler-advisory-only` to request compiler advice without strict source
+correspondence, instance projections, helper certification, admission or matching. Compiler patterns/plans and their
 review/baseline workflows still work. Strict execution is `not_requested`, raw
 artifacts have no strict namespace, and replay requires the original mode.
 Missing/generated owners and unresolved calls remain incomplete, including in

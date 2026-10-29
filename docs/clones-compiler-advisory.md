@@ -10,8 +10,8 @@ admission requirement for these observations.
 
 Add `--compiler-advisory-only` when you want compiler advice without strict clone
 analysis. This explicit mode reuses the same collectors, evaluator, compiler
-patterns and compiler plans, but skips helper certification, strict bundle
-import, admission and pair matching. `matching_execution` and
+patterns and compiler plans, but skips strict source correspondence and instance
+projections, helper certification, strict bundle import, admission and pair matching. `matching_execution` and
 `strict_assessment_execution` are `not_requested`; the matching payload is absent
 and pair-completeness flags are false. Success still requires complete capture,
 handoff and requested advisory consumers. Missing owners or unresolved callees
@@ -27,10 +27,12 @@ check/test contexts keep their original Cargo scope. Compiler reviews, changed
 files, policy reevaluation and baselines use the ordinary advisory workflow.
 
 Pair and native source/effect consumers conflict with this mode; use the ordinary
-combined command to request those analyses. Raw extraction still collects the
-existing source, type, correspondence and projection observations. This mode
-removes unrequested certification and matching work; it does not make extraction
-free or change any strict matching permission.
+combined command to request those analyses. Raw extraction keeps the original
+source/type observations, source ownership, census and generated-source markers.
+It omits strict correspondence and generic/slice instance projections. Raw source
+diagnostics therefore omit correspondence processing; compiler advice uses its
+independent observations and keeps the same availability outcomes. This mode
+does not make extraction free or change any strict matching permission.
 
 The JSON `compiler_advisory` field contains separate compilation-unit results,
 source-located diagnostics and fix plans, observed statement/mutation counts,

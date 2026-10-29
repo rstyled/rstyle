@@ -4137,3 +4137,64 @@ projection capture when only compiler advice is requested. These are still
 captured in C43. Audit conditional-source diagnostics and compare advice,
 patterns, plans, reviews and baselines before removing any extraction work;
 strict capture and admission must retain their existing observations.
+
+
+### C44 — collect only requested advisory extraction inputs (2026-10-29)
+
+The existing crate collector now exposes `advisory_crate_facts`: it retains the
+same function/source/type observations, unit source ownership, nominal census,
+generated-source capture, library resolution and inherent inventories. Ordinary
+raw/strict capture calls that collector and then performs its existing source
+correspondence and generic/slice instance projections. Advisory-only capture
+returns before those strict inputs are constructed. No second owner traversal,
+proof, checksum, body/graph copy or cache was added.
+
+Correspondence also appends deferred-source diagnostics and filters inactive-body
+diagnostics, so raw artifacts intentionally differ. The advisory availability
+checks read the separate signature-level `macro_generated_function` marker;
+effects/callers inspect original syntax/native nodes rather than correspondence.
+Those observations remain captured. Original conditional expressions retain the
+consumer's existing unknown/unsupported outcomes instead of acquiring permission.
+
+Three real-Cargo acceptance cases compare compiler advice/patterns/plans over
+inactive cfg bodies, a disabled function, a workspace-shared I/O leaf/caller,
+generic scalar and selected generic-slice calls. They check strict inputs remain
+present in combined mode and absent in raw mode, generated owners keep their
+missing-data marker, and complete shared-source facts support source-free
+baseline/review/plan replay. The focused runs exposed a fixture mismatch and an
+existing review limitation: generic-slice projection accepts a specific reader
+signature, while parent-relative source paths such as `src/../shared.rs` cannot
+currently form review locators. The tests use the selected-slice family and a
+canonical-path baseline fixture, retaining parent-path shared-source parity
+controls separately. No product outcome was relaxed. Supporting parent-relative
+review locators through the existing lexical normalizer is the next capability
+fix; it is not implemented in C44.
+
+Four fresh debug rstyle-core captures, two C43 followed by two C44 samples,
+produce exactly equal compiler advisory reports; all retain incomplete scope and
+exit 2. Summed raw publications shrink from 63,140,408 to 60,508,680 bytes (4.2%).
+Peak RSS changes from 555,104–555,112KiB to 519,600–520,080KiB (about 6.4%).
+Wall samples are 10.72–10.91s before and 10.44–10.46s after. This small ordered
+sample does not establish a reliable runtime speedup or cross-platform result.
+Commands, context, stages and limitations are recorded in
+`docs/performance/advisory-extraction-samples.json`.
+
+C44 integrated validation: all 3,430 Rust tests pass in 218.218s, with five
+existing skips, and workspace doc tests pass. The 149-test focused advice,
+NonZero and widening-reader run passed 148 cases and exposed the parent-path
+baseline test limitation described above; the final full run includes all three
+corrected acceptance cases. Locked all-target Clippy, formatting and diff checks
+pass. The sole subsequent source edit separates collector/strict-processing
+phases with a blank line; style then reports zero violations over 9,784 functions.
+Reviewed patterns report zero candidates with thirteen existing review entries;
+the separate unfiltered run retains exactly the thirteen main-rebase IDs. No
+thresholds, budgets, suppressions or review entries changed. Logs use
+`/tmp/clones-advisory-extraction-` with `tests-final-1`, `clippy-2`,
+`style-final-2`, `patterns-final-1` and `patterns-unfiltered-final-1` suffixes.
+
+Next ready capability fix: reuse `nominal_binding::absolute_path` when constructing
+review-relative locators, retaining root containment and context/metric/stale
+checks. This must unlock parent-relative shared-file reviews and baseline replay
+without reopening files, adding hashes or changing strict matching. A separate
+later performance cut may omit the per-function call-instance visitor in
+advisory-only collection; it remains active in C44.

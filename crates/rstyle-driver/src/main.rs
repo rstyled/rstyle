@@ -210,7 +210,7 @@ impl HirExtract {
     }
 
     fn capture_advisory(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
-        let facts = hir_extraction::raw_crate_facts(tcx, &self.scanned, options)
+        let facts = hir_extraction::advisory_crate_facts(tcx, &self.scanned, options)
             .expect("capture compiler advisory facts");
         let inventory = self.inventory(tcx, options, &facts);
         self.output
