@@ -339,3 +339,40 @@ Status reports the `side_effect_density` family. A completed numeric negative
 requires the retained policy and current detector versions before pruning can
 remove an entry. Unknown, exempt, suppressed, excluded, unselected, unavailable,
 and budget-limited observations cannot authorize density negative pruning.
+
+
+## Guard opportunity reviews
+
+`--guard-clauses --review-file reviews.json` supports exact reviews in ordinary
+and advisory-only captures. Dismiss one completed opportunity from a saved run:
+
+```sh
+cargo rstyle clones --extraction-profile hir-data-v3 \
+  --replay-run /absolute/path/to/run --guard-clauses \
+  --review-file reviews.json --dismiss-guard function:u0:f0 0 \
+  --review-reason 'Reviewed this guard; retain the existing shape.'
+```
+
+The second selector is the zero-based opportunity index: the function-tail
+opportunity, when present, precedes `closure_opportunities` in report order.
+Each sibling closure has its own review. Persistent identity reuses the original
+qualified declaration and build context, the exact guard source, fallback branch
+and continuing-statement count. Closure reviews also retain the exact enclosing
+closure source and its opportunity ordinal. Moving an unchanged function preserves
+review; changed guard/closure text becomes stale. Inserting or reordering closure
+opportunities can conservatively invalidate ordinal-based reviews. No new parser,
+source scan, hash or strict clone admission is required.
+
+JSON `guard_review` reports opportunity counts and indexed decisions. Exact
+reviews hide only the selected guard text and its contribution to finding exits.
+An owner with another visible opportunity still counts once. Raw assessments,
+changed-scope totals and edit plans remain available. Changed-file selection also
+limits dismissal when `--select-guards` is requested. Completed closure advice can
+be reviewed within an incomplete enclosing owner, but incomplete global coverage
+still exits two even when all known opportunities are hidden.
+
+The store uses schema 10 for guard entries and reads schemas 1–9 without rewriting
+them during lookup. Whole-store status treats an absent opportunity as unavailable;
+it does not establish a completed negative or permit pruning. Guard baselines and
+completed-negative lifecycle remain open. Existing entry, source and file-size
+bounds apply, and invalid selectors or incomplete execution cannot publish reviews.

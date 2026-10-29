@@ -17,6 +17,7 @@ pub(in crate::clones) enum Family {
     SideEffectDensity,
     CompilerPattern,
     CompilerDiagnostic,
+    GuardClause,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]

@@ -143,15 +143,14 @@ impl Report<'_> {
             },
             |scope| scope.visible_findings,
         );
-        let guards = self.guard_changed_scope.as_ref().map_or_else(
-            || {
-                self.functions
-                    .iter()
-                    .filter(|function| function.guard_finding())
-                    .count()
-            },
-            |scope| scope.visible_findings,
-        );
+        let guards = self
+            .functions
+            .iter()
+            .filter(|function| {
+                (self.guard_changed_scope.is_none() || function.changed_file == Some(true))
+                    && function.visible_guard_finding()
+            })
+            .count();
         source + guards
     }
 }

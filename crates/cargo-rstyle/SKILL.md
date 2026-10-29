@@ -153,6 +153,13 @@ for text and finding exits. `analysis.guard_changed_scope` retains selected guar
 counts and availability; global assessments, completeness and guard plans remain
 intact. Multiple closure opportunities count once per owner, and incomplete global
 guard coverage still exits two. Without this flag guard presentation stays global.
+Add `--review-file reviews.json` for exact guard reviews. Dismiss a completed
+opportunity with `--replay-run RUN --dismiss-guard FUNCTION_KEY OPPORTUNITY_INDEX
+--review-reason TEXT`; indices list the function-tail opportunity before closures.
+Reviews hide individual guard text/finding exits, while raw advice and plans stay
+available. Exact guard and enclosing closure text define staleness; closure ordinals
+can conservatively stale after insertion/reordering. Absent advice remains unavailable
+for whole-store status and cannot authorize pruning. Global incompleteness stays exit two.
 
 Add `--changed-files PATH` for explicit changed-file source diagnostics and finding
 exits. JSON input is `{"schema":"rstyle.changed-files/1","paths":["src/lib.rs"]}`;

@@ -110,6 +110,7 @@ pub(in crate::clones) struct Reports {
     pub sources: super::source_workflow::Reports,
     pub helpers: Report,
     pub abstractions: super::local_workflow::Report,
+    pub guards: super::guard_workflow::Report,
     pub status: Option<status::Report>,
     pub pruning: Option<prune::Report>,
 }
@@ -197,6 +198,7 @@ impl Inputs<'_, '_> {
             || ctx.args.dismiss_density.is_some()
             || !ctx.args.dismiss_compiler_pattern.is_empty()
             || !ctx.args.dismiss_compiler_diagnostic.is_empty()
+            || !ctx.args.dismiss_guard.is_empty()
             || reports
                 .pruning
                 .as_ref()
@@ -217,8 +219,7 @@ fn evaluate(
     let (helpers, helper_records) = apply_helpers(inputs.helpers, ctx, store.as_deref_mut())?;
     let (abstractions, source_records) =
         super::local_workflow::apply(inputs, ctx, store.as_deref_mut())?;
-    let (sources, source_rule_records) =
-        super::source_workflow::apply(inputs, ctx, store.as_deref_mut())?;
+    let source = evaluate_source_reviews(inputs, ctx, store.as_deref_mut())?;
     let policy = evaluate_policy_reviews(inputs, ctx, store)?;
     let compiler = CompilerReviews::new(
         inputs,
@@ -229,7 +230,7 @@ fn evaluate(
     let records = [
         helper_records,
         source_records,
-        source_rule_records,
+        source.records,
         policy.records,
     ]
     .into_iter()
@@ -244,11 +245,32 @@ fn evaluate(
         compiler,
         density: policy.density,
         mutations: policy.mutations,
-        sources,
+        sources: source.rules,
         helpers,
         abstractions,
+        guards: source.guards,
         status,
         pruning: None,
+    })
+}
+
+struct SourceReviews {
+    rules: super::source_workflow::Reports,
+    guards: super::guard_workflow::Report,
+    records: Vec<status::Record>,
+}
+
+fn evaluate_source_reviews(
+    inputs: &Inputs<'_, '_>,
+    ctx: &report::Context<'_>,
+    mut store: Option<&mut ReviewStore>,
+) -> Result<SourceReviews, String> {
+    let (rules, rule_records) = super::source_workflow::apply(inputs, ctx, store.as_deref_mut())?;
+    let (guards, guard_records) = super::guard_workflow::apply(inputs, ctx, store)?;
+    Ok(SourceReviews {
+        rules,
+        guards,
+        records: rule_records.into_iter().chain(guard_records).collect(),
     })
 }
 

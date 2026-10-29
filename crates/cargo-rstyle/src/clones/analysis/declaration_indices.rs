@@ -12,7 +12,10 @@ impl Indices {
         let limit = if args.enum_dispatch {
             args.max_analysis_functions.unwrap_or(usize::MAX)
         } else if args.capability_proposals
-            || ((args.source_rules || args.mutation_rules || args.effect_density)
+            || ((args.source_rules
+                || args.guard_clauses
+                || args.mutation_rules
+                || args.effect_density)
                 && (args.review_file.is_some()
                     || args.source_baseline.is_some()
                     || args.write_source_baseline.is_some()

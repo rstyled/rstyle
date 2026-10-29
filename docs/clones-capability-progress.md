@@ -5270,3 +5270,50 @@ origin/main confirms it remains an ancestor. Logs use /tmp/clones-c64-*.
 The full migration remains open; next consumer improvements should prioritize
 measured real-source usefulness and existing collectors over adding algorithms
 or expanding proofs just to match unsupported diagnostic details.
+
+
+### C65 — reuse exact review workflow for guard opportunities (2026-10-29)
+
+Completed guard assessments now feed the existing exact/positive review workflow
+and original declaration index. No parallel detector, source parser, hash or
+proof scan was introduced. Borrowed assessment/source views retain the original
+owner population, while snapshots persist only the selected exact source region,
+context and existing versioned owner locator. The original function-tail guard
+and each closure opportunity are reviewed independently using a saved-run owner
+key and zero-based opportunity index. The store envelope advances to schema 10;
+schemas 1–9 remain readable without lookup writes.
+
+Exact review masks affect individual guard text and finding exits. Partial sibling
+dismissal leaves the owner visible; raw guard assessments, changed-scope totals,
+edit plans and strict results remain intact. Changed-file selection limits explicit
+dismissal. Completed closure opportunities can be reviewed inside incomplete
+owners, but failed/budgeted assessments cannot publish snapshots. Global incomplete
+coverage remains exit two even when every known opportunity is hidden. Absent
+opportunities remain unavailable during status and never authorize pruning.
+Completed-negative lifecycle, guard baselines and legacy retirement remain open.
+
+Seven independent CLI cases cover ordinary guard-only and raw modes, full/compact
+source/tool-free replay, line movement and changed source, sibling closure isolation,
+old schema read-only lookup, invalid selectors/stores and absent-opportunity pruning.
+Four model cases cover exact region equality, independent closure slots, source
+changes, contexts and versions. The real-source study reuses the original C59
+verification session module capture without recapture. Its within closure moves
+from one visible opportunity to zero; raw assessments/plans/functions/strict fields
+stay equal and both executions exit two for incomplete scope. Replay samples were
+0.064s before review and 0.029s with dismissal; these single samples establish a
+workflow result, not a benchmark or speedup. See project-guard-review-study.json.
+
+
+Integrated validation: all 3,511 Rust tests pass in 229.303s, with five existing
+skips, plus doc tests. An older density-envelope test initially rejected newly
+supported schema 10; it now checks schemas 7–10 and rejects schema 11. All 153
+review model tests also pass. Locked all-target Clippy, formatting/diff checks
+and all 244 Python checks pass. Style has zero violations over 9,853 functions;
+patterns has zero unreviewed candidates, with the same 13 unfiltered IDs as main.
+The new source slicing delegates to the existing byte_range helper through a
+small public seam. No added hash implementation was found. origin/main remains
+an ancestor, including complexity metrics. C64 CI run 40884157917 passed macOS 15,
+Ubuntu 24.04 and Ubuntu 24.04 ARM, confirming the earlier canonical temp-path fix.
+Logs use /tmp/clones-c65-*. The capability goal remains active and incomplete;
+next work should prioritize useful real-project coverage and consumer-specific
+prerequisites over new parallel algorithms or review-only expansion.

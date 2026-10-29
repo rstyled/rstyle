@@ -19,6 +19,7 @@ pub(in crate::clones) struct Consumers<'a> {
     pub(super) review_prune: Option<review::prune::Report>,
     pub(super) review_status: Option<review::status::Report>,
     pub(super) abstraction_review: review::local_workflow::Report,
+    pub(super) guard_review: review::guard_workflow::Report,
     pub(super) numeric_reviews: NumericReviews,
     pub(super) source_reviews: SourceReviews,
 }
@@ -49,12 +50,12 @@ impl<'a> Consumers<'a> {
             indices: &indices,
         }
         .apply(ctx)?;
-        let compiler_advisory = reviews.compiler.apply(compiler_advisory, ctx);
+        analysis.hide_reviewed_guards(&reviews.guards);
         mutation.hide_reviewed(&reviews.mutations);
         ctx.present_effects(&mut effects, &reviews.density);
         let source_reviews = SourceReviews::apply(reviews.sources, ctx.args, &mut analysis);
         Ok(Self {
-            compiler_advisory,
+            compiler_advisory: reviews.compiler.apply(compiler_advisory, ctx),
             pairs,
             analysis,
             edit_coordination: coordinate(&edit_planning, &parameter_planning, &guard_planning),
@@ -69,6 +70,7 @@ impl<'a> Consumers<'a> {
             accepted,
             review: reviews.helpers,
             abstraction_review: reviews.abstractions,
+            guard_review: reviews.guards,
             source_reviews,
             review_status: reviews.status,
             review_prune: reviews.pruning,

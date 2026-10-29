@@ -6,7 +6,7 @@ use serde::Serialize;
 use syn::{Expr, Stmt, spanned::Spanned, visit::Visit};
 
 #[derive(Debug, Serialize)]
-pub(super) struct GuardAssessment {
+pub(in crate::clones) struct GuardAssessment {
     pub rule_id: &'static str,
     pub execution: Execution,
     pub outcome: Outcome,
@@ -28,7 +28,7 @@ pub(in crate::clones) struct GuardOpportunity {
     pub advisory: &'static str,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(in crate::clones) enum Branch {
     Then,

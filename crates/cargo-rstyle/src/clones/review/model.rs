@@ -198,4 +198,6 @@ pub(crate) struct ReviewStore {
     pub compiler_pattern_entries: Vec<super::compiler_patterns::Entry>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub compiler_diagnostic_entries: Vec<super::compiler_diagnostics::Entry>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub guard_entries: Vec<super::guard_rules::Entry>,
 }

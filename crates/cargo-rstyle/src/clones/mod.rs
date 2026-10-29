@@ -31,8 +31,8 @@ use std::{
 #[derive(ClapArgs, Serialize)]
 #[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density", "compiler_advisory"]).multiple(true)),
     group(clap::ArgGroup::new("changed_analysis").args(["source_rules", "effect_density", "compiler_advisory", "select_guards"]).multiple(true)),
-    group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules", "mutation_rules", "effect_density", "compiler_patterns", "compiler_advisory"]).multiple(true)),
-    group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density", "dismiss_compiler_pattern", "dismiss_compiler_diagnostic"])),
+    group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules", "mutation_rules", "effect_density", "compiler_patterns", "compiler_advisory", "guard_clauses"]).multiple(true)),
+    group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_guard", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density", "dismiss_compiler_pattern", "dismiss_compiler_diagnostic"])),
     group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules", "effect_density", "compiler_advisory"]).multiple(true)))]
 pub struct Args {
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
@@ -205,6 +205,9 @@ pub struct Args {
     /// Dismiss an exact saved-run enum dispatch finding.
     #[arg(long, requires_all = ["review_file", "review_reason", "replay_run", "enum_dispatch"])]
     dismiss_enum_dispatch: Option<String>,
+    /// Dismiss one current guard opportunity by saved-run function key and opportunity index.
+    #[arg(long, num_args = 2, value_names = ["FUNCTION", "OPPORTUNITY_INDEX"], requires_all = ["review_file", "review_reason", "replay_run", "guard_clauses"])]
+    dismiss_guard: Vec<String>,
     /// Dismiss one exact saved-run visible parameter-count finding.
     #[arg(long, requires_all = ["review_file", "review_reason", "replay_run", "source_rules"])]
     dismiss_parameter: Option<String>,
@@ -644,6 +647,7 @@ fn analyses_complete(report: &report::Report<'_>) -> bool {
         && report.pair_reports.permits_success()
         && report.review.permits_success()
         && report.abstraction_review.permits_success()
+        && report.guard_review.permits_success()
         && report.source_reviews.permits_success()
         && report
             .review_status

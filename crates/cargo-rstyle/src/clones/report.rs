@@ -61,6 +61,7 @@ pub struct Report<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub review_prune: Option<super::review::prune::Report>,
     pub abstraction_review: super::review::local_workflow::Report,
+    pub guard_review: super::review::guard_workflow::Report,
     #[serde(flatten)]
     pub source_reviews: SourceReviews,
     pub edit_planning: super::planning::Report,
@@ -208,6 +209,7 @@ pub(super) fn make<'a>(ctx: Context<'a>, consumers: Consumers<'a>) -> Report<'a>
         pair_reports: consumers.pairs,
         review: consumers.review,
         abstraction_review: consumers.abstraction_review,
+        guard_review: consumers.guard_review,
         source_reviews: consumers.source_reviews,
         review_status: consumers.review_status,
         review_prune: consumers.review_prune,
@@ -411,7 +413,7 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
     let pairs = render_pairs(report);
 
     format!(
-        "{summary}{pairs}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        "{summary}{pairs}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
         report
             .compiler_advisory
             .as_ref()
@@ -420,6 +422,7 @@ fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String
         report.pair_reports.render(),
         report.review.render(),
         report.abstraction_review.render(),
+        report.guard_review.render(),
         report.source_reviews.render(),
         report
             .review_status

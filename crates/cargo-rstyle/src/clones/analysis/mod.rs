@@ -7,7 +7,9 @@ pub(super) mod changed_scope;
 pub(super) mod declaration_indices;
 pub(super) mod dispatch_reports;
 pub(super) mod effect_reports;
+mod guard_reviews;
 pub(in crate::clones) mod guards;
+pub(in crate::clones) use guard_reviews::GuardReview;
 pub(super) mod helper_reports;
 mod helpers;
 mod local_scope;
@@ -138,6 +140,10 @@ struct FunctionReport<'a> {
     signature: Option<rstyle_pdg::consumer_facts::Signature>,
     #[serde(skip)]
     source_review_hidden: source_reviews::Hidden,
+    #[serde(skip)]
+    guard_review_hidden: std::collections::BTreeSet<usize>,
+    #[serde(skip)]
+    guard_review_source: Option<&'a str>,
     execution: Execution,
     assessments: Vec<Assessment>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -485,12 +491,7 @@ fn assess<'a>(
     FunctionReport {
         key: function.key,
         name: &function.facts.name,
-        source_file: function
-            .facts
-            .build
-            .frontend_options
-            .get("source_file")
-            .and_then(|v| v.as_str()),
+        source_file: source_file(function),
         fn_span: function.facts.fn_span,
         source_digest: &function.facts.source.digest,
         changed_file: None,
@@ -499,6 +500,11 @@ fn assess<'a>(
             _ => None,
         },
         source_review_hidden: source_reviews::Hidden::default(),
+        guard_review_hidden: std::collections::BTreeSet::new(),
+        guard_review_source: match facts.source {
+            Availability::Known(source) if config.guards => Some(source),
+            _ => None,
+        },
         execution,
         assessments: source.rules,
         source_suppression: source.suppression,
@@ -696,7 +702,9 @@ impl FunctionReport<'_> {
             .filter(|_| show_guard)
             .into_iter()
             .flat_map(|guard| guard.opportunity.iter().chain(&guard.closure_opportunities))
-            .map(|opportunity| {
+            .enumerate()
+            .filter(|(index, _)| !self.guard_review_hidden.contains(index))
+            .map(|(_, opportunity)| {
                 format!(
                     "\nguard_clause {location}: {} (fallback {:?}).",
                     opportunity.advisory, opportunity.fallback_branch

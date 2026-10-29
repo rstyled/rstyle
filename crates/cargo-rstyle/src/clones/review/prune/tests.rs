@@ -124,6 +124,7 @@ fn store() -> ReviewStore {
         density_entries: vec![],
         compiler_pattern_entries: vec![],
         compiler_diagnostic_entries: vec![],
+        guard_entries: vec![],
     }
 }
 

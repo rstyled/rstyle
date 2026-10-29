@@ -43,6 +43,7 @@ enum Ordinal {
     Density(usize),
     CompilerPattern(usize),
     CompilerDiagnostic(usize),
+    Guard(usize),
 }
 
 pub(super) fn apply(
@@ -54,8 +55,7 @@ pub(super) fn apply(
     let plan = selection_plan(store, status)?;
 
     if !dry_run {
-        retain(&mut store.entries, &plan.states, Ordinal::Helper);
-        retain(&mut store.source_entries, &plan.states, Ordinal::Source);
+        retain_structural(store, &plan.states);
         retain_numeric(store, &plan.states);
     }
     Ok(Report {
@@ -71,6 +71,12 @@ pub(super) fn apply(
 struct SelectionPlan {
     states: BTreeMap<Ordinal, bool>,
     selections: Vec<Selection>,
+}
+
+fn retain_structural(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
+    retain(&mut store.entries, states, Ordinal::Helper);
+    retain(&mut store.source_entries, states, Ordinal::Source);
+    retain(&mut store.guard_entries, states, Ordinal::Guard);
 }
 
 fn selection_plan(store: &ReviewStore, status: &status::Report) -> Result<SelectionPlan, String> {
@@ -197,6 +203,12 @@ fn validate_record(store: &ReviewStore, record: &status::Record) -> Result<Ordin
         }
         status::Family::Spacing => {
             validate_numeric_record(&store.spacing_entries, record, Ordinal::Spacing)
+        }
+        status::Family::GuardClause => {
+            if record.state == status::State::NoFinding {
+                return Err("Guard review discovery does not establish completed negatives".into());
+            }
+            validate_numeric_record(&store.guard_entries, record, Ordinal::Guard)
         }
         status::Family::MutationPerTarget | status::Family::MutatedTargets => {
             validate_mutation_record(store, record)
