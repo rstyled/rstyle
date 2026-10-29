@@ -1,5 +1,6 @@
 //! Reuse core policy over compiler-collected inputs, scoped by compilation unit.
 mod diagnostics;
+mod owner_names;
 mod patterns;
 mod planning;
 mod propagation;
@@ -60,6 +61,10 @@ struct Unit {
     diagnostic_snapshots: Vec<Result<super::review::compiler_diagnostics::Snapshot, String>>,
     #[serde(skip)]
     diagnostic_owners: Vec<super::review::compiler_diagnostics::observed::Assessed>,
+    #[serde(skip)]
+    diagnostic_owner_names: BTreeMap<String, usize>,
+    #[serde(skip)]
+    diagnostic_owner_scope_truncated: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     visible_diagnostics: Option<Vec<usize>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -211,6 +216,7 @@ impl Report {
         &self,
         ctx: &Context<'_>,
     ) -> Vec<super::review::compiler_diagnostics::retained::Row<'_>> {
+        let names = owner_names::counts(self, ctx);
         let selection = ctx
             .analysis_config
             .and_then(super::analysis::Config::changed_files);
@@ -220,9 +226,11 @@ impl Report {
         self.units
             .iter()
             .flat_map(|unit| {
+                let names = &names;
                 unit.diagnostic_owners.iter().map(move |assessed| {
                     super::review::compiler_diagnostics::retained::Row {
                         assessed,
+                        unique: owner_names::unique(names, unit, assessed),
                         snapshots: &unit.diagnostic_snapshots,
                         policy: &self.effective_config,
                         metrics: self.metrics,
@@ -236,6 +244,12 @@ impl Report {
                 })
             })
             .collect()
+    }
+
+    pub(super) fn diagnostic_owner_scope_truncated(&self) -> bool {
+        self.units
+            .iter()
+            .any(|unit| unit.diagnostic_owner_scope_truncated)
     }
 
     pub(super) fn pattern_reviews(
@@ -437,6 +451,8 @@ fn evaluate_unit(
         evaluation: completed.evaluation,
         diagnostic_snapshots: completed.snapshots,
         diagnostic_owners: completed.owners,
+        diagnostic_owner_names: completed.owner_names,
+        diagnostic_owner_scope_truncated: completed.owner_scope_truncated,
         visible_diagnostics: None,
         selected_diagnostics: None,
         patterns: None,

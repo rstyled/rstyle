@@ -9,6 +9,7 @@ mod only;
 mod patterns;
 mod planning;
 mod propagation;
+mod retained_owner_scope;
 mod reviews;
 mod selection;
 mod shared_review_paths;

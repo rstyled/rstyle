@@ -467,3 +467,29 @@ does not verify changed-policy staleness or pruning. No budget increase, ignore,
 suppression, repository dismissal, new collector/scorer or checksum was added.
 The next bounded improvement is retained-owner observation reuse/selection while
 preserving complete ambiguity checks and unavailable outcomes.
+
+### Reuse full name counts for retained status (C50)
+
+`project-pdg-complexity-retained-results.json` repeats the C49 temporary-review
+study against exactly the same `run-WizKMH` inputs. No live recapture is needed.
+The retained `check_contents` diagnostic now reports `hidden_exact` at the
+original limits and `stale` when CC limit24 removes its CC finding. The policy
+change prevents that negative from retiring the prior review. Raw evaluations
+and plans equal their corresponding C49 replay outputs. Both project replays
+still exit2 for the unchanged incomplete scope.
+
+The implementation retains the existing complete compiler declaration-name
+counts rather than constructing more full owner identities. Counts include
+excluded/ambiguous declarations and are combined across matching package/target
+variants. Check/test targets stay distinct. Missing retained owner payloads
+remain unavailable; the 4,096 per-unit cap and whole-scope baseline limits are
+unchanged. No new checksum, parser, source scan or scoring path is introduced.
+
+The source-free Cargo acceptance case has 4,098 original owners. Both reviewed
+diagnostics remain hidden by exact lookup; status resolves the retained-prefix
+owner and keeps the omitted-tail owner unavailable. Changing the parameter
+limit produces stale/unavailable status, with zero pruning candidates. Unit
+cases also place a duplicate method beyond the 4,096 prefix and distinguish
+shared-target feature variants, disjoint names, package roots and check/test
+contexts. The project replay samples are 9.42s/9.26s at about 2.1GB peak RSS;
+these are single local observations, not a speedup measurement.

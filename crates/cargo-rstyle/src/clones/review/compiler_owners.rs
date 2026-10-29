@@ -43,28 +43,40 @@ pub(super) fn originals<'a>(
         .collect()
 }
 
+pub(super) struct Names {
+    pub by_id: BTreeMap<String, Result<String, String>>,
+    pub counts: BTreeMap<String, usize>,
+}
+
 pub(super) fn names<'a>(
     facts: impl IntoIterator<Item = &'a FnFacts>,
 ) -> BTreeMap<String, Result<String, String>> {
+    collect_names(facts).by_id
+}
+
+/// Preserve the full locator census without retaining additional owner payloads.
+pub(super) fn collect_names<'a>(facts: impl IntoIterator<Item = &'a FnFacts>) -> Names {
     let named: Vec<_> = facts
         .into_iter()
         .map(|facts| (&facts.id, locator::base(facts)))
         .collect();
     let mut counts = BTreeMap::new();
     for (_, name) in &named {
-        *counts.entry(name.as_str()).or_insert(0) += 1;
+        *counts.entry(name.clone()).or_insert(0) += 1;
     }
-    named
-        .iter()
+
+    let by_id = named
+        .into_iter()
         .map(|(id, name)| {
-            let result = if counts[name.as_str()] != 1 || name.contains("{impl#") {
+            let result = if counts[&name] != 1 || name.contains("{impl#") {
                 Err("Compiler review locator is ambiguous or lacks a stable owner".into())
             } else {
-                Ok(name.clone())
+                Ok(name)
             };
-            ((*id).clone(), result)
+            (id.clone(), result)
         })
-        .collect()
+        .collect();
+    Names { by_id, counts }
 }
 
 pub(super) fn signature(
@@ -97,3 +109,6 @@ fn read_method<'de, D: serde::Deserializer<'de>>(
     rstyle_core::advisory::require_signature(&raw).map_err(D::Error::custom)?;
     Option::<SigFacts>::deserialize(raw).map_err(D::Error::custom)
 }
+
+#[cfg(test)]
+mod tests;

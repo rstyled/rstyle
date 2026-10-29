@@ -14,6 +14,8 @@ pub(super) struct Completed {
     pub effects: Option<std::collections::BTreeMap<String, Vec<rstyle_core::rules::Effect>>>,
     pub snapshots: Vec<Result<compiler_diagnostics::Snapshot, String>>,
     pub owners: Vec<compiler_diagnostics::observed::Assessed>,
+    pub owner_names: std::collections::BTreeMap<String, usize>,
+    pub owner_scope_truncated: bool,
 }
 
 pub(super) struct Inputs {
@@ -46,6 +48,8 @@ pub(super) fn evaluate(
             effects: evaluated.effects,
             snapshots: Vec::new(),
             owners: Vec::new(),
+            owner_names: std::collections::BTreeMap::new(),
+            owner_scope_truncated: false,
         });
     }
 
@@ -54,15 +58,16 @@ pub(super) fn evaluate(
         metrics: inputs.metrics,
     };
     let mut evaluated = evaluate_core(inputs, config, retention, ctx.args.compiler_patterns)?;
-    let compiler_diagnostics::observed::Completed { snapshots, owners } =
-        compiler_diagnostics::observed::collect(ctx, unit, &mut evaluated, &policy);
+    let observed = compiler_diagnostics::observed::collect(ctx, unit, &mut evaluated, &policy);
     Ok(Completed {
         evaluation: evaluated.report,
         facts: evaluated.facts,
         diagnostic_indices: evaluated.diagnostic_owners,
         effects: evaluated.effects,
-        snapshots,
-        owners,
+        snapshots: observed.snapshots,
+        owners: observed.owners,
+        owner_names: observed.owner_names,
+        owner_scope_truncated: observed.owner_scope_truncated,
     })
 }
 

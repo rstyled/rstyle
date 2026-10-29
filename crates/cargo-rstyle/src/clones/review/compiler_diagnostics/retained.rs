@@ -10,6 +10,7 @@ use std::rc::Rc;
 
 pub(in crate::clones) struct Row<'a> {
     pub assessed: &'a Assessed,
+    pub unique: bool,
     pub snapshots: &'a [Result<Snapshot, String>],
     pub policy: &'a Rc<serde_json::Value>,
     pub metrics: &'static str,
@@ -21,12 +22,15 @@ pub(in crate::clones::review) fn observations<'a>(
     advisory: &'a crate::clones::advisory::Report,
     ctx: &crate::clones::report::Context<'_>,
 ) -> super::super::owner_observations::Observations<Row<'a>> {
+    let truncated = advisory.diagnostic_owner_scope_truncated();
     super::super::owner_observations::Observations {
         rows: advisory.diagnostic_owner_reviews(ctx),
         requested: ctx.args.compiler_advisory,
-        truncated: ctx.handoff.assessed.len() > 4096,
-        unavailable_scope: !advisory.pattern_inputs_complete(),
-        complete: advisory.pattern_inputs_complete(),
+        // The complete name census establishes uniqueness for retained rows.
+        // Omitted payloads remain unknown through unavailable_scope.
+        truncated: false,
+        unavailable_scope: truncated || !advisory.pattern_inputs_complete(),
+        complete: !truncated && advisory.pattern_inputs_complete(),
     }
 }
 
@@ -34,6 +38,9 @@ impl Owner for Row<'_> {
     fn identity(
         &self,
     ) -> Result<(&super::super::Locator, &super::super::local::BuildContext), &str> {
+        if !self.unique {
+            return Err("Compiler diagnostic owner is ambiguous in this target");
+        }
         self.assessed
             .owner
             .as_ref()

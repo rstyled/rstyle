@@ -12,6 +12,8 @@ use std::{
 pub(in crate::clones) struct Completed {
     pub snapshots: Vec<Result<Snapshot, String>>,
     pub owners: Vec<Assessed>,
+    pub owner_names: BTreeMap<String, usize>,
+    pub owner_scope_truncated: bool,
 }
 
 pub(in crate::clones) struct Assessed {
@@ -20,6 +22,15 @@ pub(in crate::clones) struct Assessed {
     pub(in crate::clones::review) complexity_measured: bool,
     pub(in crate::clones::review) suppression: Option<rstyle_core::suppress::Suppression>,
     pub(in crate::clones::review) findings: BTreeMap<String, usize>,
+}
+
+impl Assessed {
+    pub(in crate::clones) fn qualified_name(&self) -> Option<&str> {
+        self.owner
+            .as_ref()
+            .ok()
+            .map(|owner| owner.locator.qualified_name.as_str())
+    }
 }
 
 pub(in crate::clones) struct Policy<'a> {
@@ -38,7 +49,7 @@ pub(in crate::clones) fn collect(
     }
 
     let scopes = evaluation.scopes.take();
-    let names = compiler_owners::names(
+    let names = compiler_owners::collect_names(
         evaluation
             .facts
             .iter()
@@ -49,7 +60,7 @@ pub(in crate::clones) fn collect(
     let resolver = Resolver {
         ctx,
         captured: &ctx.capture.units[unit.observed_unit],
-        names: &names,
+        names: &names.by_id,
     };
     let resolve = |facts: &FnFacts| {
         originals
@@ -60,10 +71,19 @@ pub(in crate::clones) fn collect(
 
     let owners = resolve_owners(evaluation, scopes.is_some(), resolve);
     let snapshots = snapshots(evaluation, &owners, policy);
-    let owners = scopes.map_or_else(Vec::new, |scopes| {
-        assessed(evaluation, scopes, owners, resolve)
-    });
-    Completed { snapshots, owners }
+    let owner_scope_truncated = scopes
+        .as_ref()
+        .is_some_and(|scopes| evaluation.facts.len() + scopes.excluded.len() > 4096);
+    let (owners, owner_names) = scopes.map_or_else(
+        || (Vec::new(), BTreeMap::new()),
+        |scopes| (assessed(evaluation, scopes, owners, resolve), names.counts),
+    );
+    Completed {
+        snapshots,
+        owners,
+        owner_names,
+        owner_scope_truncated,
+    }
 }
 
 type Owners = BTreeMap<usize, Result<Rc<Owner>, String>>;

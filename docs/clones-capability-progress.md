@@ -4492,3 +4492,68 @@ from a truncated prefix. Preserve full target/build-context and duplicate-owner
 checks; exact completed diagnostics already support review lookup, while status
 currently reconstructs a broader bounded population. This is a demonstrated
 headless-workflow limitation. Migration remains active.
+
+
+### C50 — reuse complete compiler name counts for retained status (2026-10-29)
+
+Lead owns diagnostic completion/retained status, advisory integration, Cargo
+acceptance, docs and final gates. The delegated leaf owns only the existing
+`compiler_owners` name-index seam and tests; edits were frozen before integration.
+A separate read-only audit checked cross-unit/context ambiguity and missing data.
+
+C49 exposed a concrete headless workflow failure: exact diagnostic lookup worked
+on a large project but status rejected every owner because of a global 4,096
+handoff-size check. The existing name collector already checks the full completed
+and excluded declaration roster before resolving diagnostic owners. Its small
+count map is now retained only for explicit owner-scope requests, then borrowed
+and combined by manifest directory and compilation target. Feature/cfg variants
+with the same target share counts; check/test contexts remain distinct. Duplicate
+names, including those after the payload prefix, cannot become unique. The
+name-only grouping is conservative across source files/declaration kinds.
+
+The retained-status owner payload roster stays capped at 4,096 per unit.
+Existing positive diagnostic snapshots retain their separate unchanged path. Actual
+per-unit payload omission replaces the inaccurate global handoff-size proxy.
+A present row resolves only after full-census uniqueness; omitted rows keep
+unavailable scope. Existing numeric policy, context, exclusion, suppression,
+complexity-availability and density-completeness gates remain. Baseline retained
+comparison shares this seam; whole-scope export limits remain unchanged.
+No new body/signature copy, parser, source scan, hash, proof or consumer algorithm
+is introduced. Counts move from the existing collector; aggregation borrows name
+strings. Strict clone capture/admission/matching stay unchanged.
+
+The source-free 4,098-owner Cargo fixture captures two independent five-parameter
+findings, removes source/manifest, and exercises exact dismissal, status and policy
+replay. Both exact findings stay hidden without altering raw evaluations/plans;
+status reports hidden_exact for the retained prefix and unavailable for the
+omitted tail. A max_params5 equality replay reports stale/unavailable and zero
+pruning candidates, retaining both entries. Unit cases check duplicate normalized
+methods beyond the prefix, unstable names and wrapper compatibility, plus
+same-target variants/disjoint names and package/check/test separation.
+
+Two serialized project replays reuse `run-WizKMH` and C49's temporary review file.
+The retained CC24 choice now resolves hidden_exact under the original policy;
+CC limit24/COG limit12 correctly produces stale because a changed-policy negative
+cannot retire that choice. Raw evaluations and plans equal the corresponding C49
+outputs. The project stays incomplete (7,034 measured / 6,494 unavailable owners,
+142 unresolved callees), exit2. Single replay observations are 9.42s/9.26s and
+2,109,336/2,109,560KiB peak RSS; no speedup or cross-platform guarantee is claimed.
+The artifact is `eval/clones-capability/project-pdg-complexity-retained-results.json`.
+
+Final validation: 3,443 Rust tests pass in 223.319s, with five existing skips,
+plus doc tests. Locked all-target Clippy, formatting and diff checks pass.
+Style reports zero violations over 9,798 functions. Reviewed patterns have zero
+candidates; all 13 unfiltered candidate IDs match the main-rebase baseline.
+All 198 offline Python tests pass. Logs are `/tmp/clones-retained-census-*`.
+C48 native CI run40847311578 has passed both Ubuntu jobs plus macOS tests/style;
+macOS patterns remain in progress. C50 native CI awaits this commit/push and is
+not implied by prior checks. No new ignore, suppression or budget change.
+
+Next ready work: independently evaluate a source-frozen caller-aware parameter
+plan from original rstyle-pdg `eligibility::{diagnostic,error,site_of}` using the
+existing core planner and an explicit study-only max_params3 policy. Those
+four-parameter owners are clean at the unchanged default4; do not call them
+default violations. The source-only sample is frozen before target score/plan
+comparison, with exact forwarded arguments, a clean control and callee-before-
+caller expectations. No new planner or call scan is needed. Migration and
+per-capability retirement remain active.

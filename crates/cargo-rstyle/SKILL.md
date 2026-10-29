@@ -480,6 +480,14 @@ Only explicit saved-run `--review-prune` removes completed negative choices;
 Owners/policy values are shared; no graphs, repeated parsing, body proofs or hashes
 are added. Incomplete compiler coverage keeps exit 2 even when all findings are hidden.
 
+Compiler retained status reuses the complete declaration-name counts already
+computed for diagnostic identities, including excluded and ambiguous names.
+Matching package/target feature variants share this census; check/test targets
+stay distinct. The existing 4,096 owner-payload cap per unit remains: known
+unique retained owners can be assessed, while omitted payloads stay unavailable.
+Changed policy makes a current numeric negative stale, so it cannot prune the
+retained choice. Whole-scope compiler baseline export keeps its existing limits.
+
 
 Compiler diagnostics support `--write-compiler-baseline PATH` for a complete
 whole-scope inventory, then `--compiler-baseline PATH --fail-on-new-compiler`

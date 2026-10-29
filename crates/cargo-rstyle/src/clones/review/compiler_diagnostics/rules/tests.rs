@@ -110,6 +110,7 @@ fn historical_metrics_are_readable_but_cannot_establish_current_negatives() {
             findings: Default::default(),
         };
         let mut current = compiler_diagnostics::retained::Row {
+            unique: true,
             assessed: &assessed,
             snapshots: &[],
             policy: &previous.policy,
@@ -203,6 +204,7 @@ fn missing_complexity_cannot_retire_reviews_as_numeric_negatives() {
                 complexity_measured,
             };
             let current = compiler_diagnostics::retained::Row {
+                unique: true,
                 assessed: &assessed,
                 snapshots: &[],
                 policy: &previous.policy,
