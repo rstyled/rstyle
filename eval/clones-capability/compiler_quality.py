@@ -111,19 +111,24 @@ def check_rule(unit, key, function, sample, rule, actual, limit, expected=None):
             'reason': reason}
 
 
-def density_events(unit, function):
+def density_details(unit, function):
     diagnostic = next(row for row in unit['evaluation']['diagnostics']
                       if row['rule_id'] == 'side_effect_density' and row['path'] == function['path']
                       and row['line'] == function['line'])
-    details = diagnostic.get('details')
-    if not isinstance(details, list) or not details:
+    return diagnostic.get('details')
+
+
+def density_events(details, *, direct_only):
+    if not isinstance(details, list):
         return None
     counts = Counter()
     for detail in details:
         if not isinstance(detail, dict):
             return None
         label = detail.get('label')
-        if not isinstance(label, str) or ': ' not in label or ' (via ' in label:
+        if not isinstance(label, str) or ': ' not in label:
+            return None
+        if direct_only and ' (via ' in label:
             return None
         kind = label.split(': ', 1)[0]
         if kind not in KINDS:
@@ -134,11 +139,48 @@ def density_events(unit, function):
     return dict(counts)
 
 
+def detail_roster(details):
+    return sorted(({'label': detail['label'], 'count': detail['count']} for detail in details),
+                  key=lambda detail: (detail['label'], detail['count']))
+
+
+def reviewed_details(expected, policy):
+    if policy['transitive_depth'] == 0:
+        return None
+    details = expected.get('details')
+    events = density_events(details, direct_only=False)
+    weighted = {kind: count for kind, count in expected['events'].items() if policy['weights'][kind] > 0}
+    require(events is not None and events == weighted, 'reviewed weighted detail roster differs from events')
+    require(len({detail['label'] for detail in details}) == len(details), 'duplicate reviewed detail label')
+    return detail_roster(details)
+
+
+def propagation_reason(report, sample, selected, depth):
+    if depth == 0:
+        return None
+    require(sample.get('propagation_reviewed') is True, 'propagation source inventory not reviewed')
+    inputs = sample.get('propagation_inputs')
+    require(isinstance(inputs, list), 'propagation input roster missing')
+    identities = set()
+    for entry in inputs:
+        require(isinstance(entry, dict) and entry.get('included') is True
+                and entry.get('unsuppressed') is True and isinstance(entry.get('source'), str)
+                and entry['source'], 'propagation input source policy not reviewed')
+        identity = tuple(entry[field] for field in ('package', 'target_kind', 'function', 'source_file'))
+        require(identity not in identities, 'duplicate propagation input')
+        identities.add(identity)
+        _, _, reason = sample_owner(report, entry, selected)
+        if reason:
+            return 'sampled propagation input unavailable: ' + reason
+    return None
+
+
 def check_density(unit, key, function, sample, policy, reason):
     expected = sample.get('density')
     error = label_error({'expected': expected}, policy)
     require(error is None, error)
-    require(expected['complete'] is True, 'density sample requires reviewed complete direct events')
+    require(expected['complete'] is True, 'density sample requires reviewed complete static events')
+    wanted_details = reviewed_details(expected, policy)
     require(sample.get('included') is True and isinstance(sample.get('source'), str)
             and sample['source'], 'density source and inclusion preconditions missing')
     wanted = {field: expected[field] for field in ('outcome', 'actual')}
@@ -154,14 +196,19 @@ def check_density(unit, key, function, sample, policy, reason):
     if row['result'] != 'unavailable' and statements != expected['statements']:
         row['result'] = 'disagreement'
     if row['observed'] and row['observed']['outcome'] == 'finding':
-        events = density_events(unit, function)
-        if events is None:
-            row.update(result='unavailable', reason='direct weighted event details unavailable')
+        details = density_details(unit, function)
+        events = density_events(details, direct_only=policy['transitive_depth'] == 0)
+        if not events:
+            row.update(result='unavailable', reason='weighted event details unavailable')
         else:
             weighted = {kind: count for kind, count in expected['events'].items() if policy['weights'][kind] > 0}
             row['events'] = {'expected': weighted, 'observed': events}
             if events != weighted:
                 row['result'] = 'disagreement'
+            if wanted_details is not None:
+                row['details'] = {'expected': wanted_details, 'observed': detail_roster(details)}
+                if row['details']['expected'] != row['details']['observed']:
+                    row['result'] = 'disagreement'
     return row
 
 
@@ -188,10 +235,10 @@ def compare(report, labels):
                 and config['mutation_budget']['granularity'] == 'root', 'different mutation policy')
     if 'side_effect_density' in rules:
         density_policy = labels.get('density_policy')
-        error = policy_error(density_policy, depths=(0,))
+        error = policy_error(density_policy, depths=(0, 1, 2))
         require(error is None, error)
         observed_policy = {**config['side_effects'], 'exclude': config['exclude']}
-        error = policy_error(observed_policy, depths=(0,))
+        error = policy_error(observed_policy, depths=(0, 1, 2))
         require(error is None, error)
         require(density_policy['max_density_milli'] == labels['limits']['side_effect_density']
                 and density_policy == observed_policy,
@@ -219,6 +266,8 @@ def compare(report, labels):
             measurements['mutated_targets'] = len(roots)
         unit, key, reason = sample_owner(report, sample, selected)
         if 'side_effect_density' in rules:
+            propagation = propagation_reason(report, sample, selected, density_policy['transitive_depth'])
+            reason = reason or propagation
             row = check_density(unit, key, owners.get(key), sample, density_policy, reason)
             rows.append({**{field: sample[field] for field in ('package', 'function', 'source_file')}, **row})
         for rule, actual in measurements.items():

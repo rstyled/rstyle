@@ -792,3 +792,79 @@ with `/tmp/clones-compiler-density-probe-replay-1/stdout.log`; it takes 16.84
 seconds/1,452,684 KiB and remains incomplete/exit2. Logs are
 `/tmp/clones-try-metric-{boundary,small,threshold}-replay-1` and
 `/tmp/clones-try-historical-probe-replay-1`.
+
+
+## Production inherited-density review (C32)
+
+The existing core collector, `all_effects` and bounded graph propagation provide
+this capability. The offline compiler quality reducer now accepts depths 0, 1
+and 2 through the existing policy validator; it does not propagate effects or
+rebuild a call graph. At positive depths, source reviewers must explicitly
+assert a complete static call inventory and list sampled callee inputs through
+the requested depth. The reducer reuses existing exact source/owner association
+for these inputs, preserving unavailable results when inputs are missing or
+ambiguous. This assertion is manual acceptance data, not automatic proof of
+closure. Whole-project scope and planning completeness remain false.
+
+Independent review froze four original production owners before the replays.
+The policy uses the same explicit IO prefixes and default weights as C30/C31,
+zero size minima and limit 500. Source counts and numeric expectations are:
+
+| Owner | Statements / code lines | Depth 0 | Depth 1 | Depth 2 |
+| --- | --- | --- | --- | --- |
+| `diagnostic_process::collect` | 3 / 5 | 1000 | 1000 | 1000 |
+| `diagnostic_process::tee` | 1 / 3 | 0 | 3000 | 3000 |
+| `diagnostic_process::emit` | 3 / 5 | 4000 | 4000 | 4000 |
+| `StderrTee<R>::read` | 3 / 5 | 1666 | 2666 | 2666 |
+
+`tee` inherits one IO effect from `collect`. The static policy does not invent a
+runtime callback from external `Read::read_to_end` into `StderrTee::read`.
+`emit` has four classified direct IO calls; its caller inherits one collapsed IO
+effect. The read method also retains two potential escaping mutation targets,
+`self.0` and `buffer`, under the existing mutable-reborrow collector semantics;
+these are not confirmed runtime writes. No owner has a suppression boundary.
+The positive-depth reviewed input roster is `collect` for `tee`, `emit` for
+`read`, and explicitly empty for the two leaves. Depth 2 adds no further static
+local effect edges in these reviewed owners.
+
+The first depths 1/2 reduction found all four numeric labels correct but two exact
+detail-label expectations wrong. Initial predictions used internal `stdio`
+paths and assumed `stderr()` was the collapsed base. Existing `def_path_str`
+displays public `std::io` paths; `visit_expr` records the outer `Stderr::lock`
+before visiting its receiver, so `exported_by` uses
+`std::io::Stderr::lock +3 more (via diagnostic_process::emit)`. Source-only
+inspection independently confirmed that ordering. Only these display/order
+expectations changed; all source, count, policy and density labels stayed fixed.
+Initial labels/results remain in
+`/tmp/clones-propagated-density-depth{1,2}-{labels,results}-initial-1.json`.
+The corrected rendered-label rosters are explicit in the new case artifacts.
+The `+3 more` suffix describes collapsed contents; it is not three additional
+weighted events. Exact detail comparison checks the immediate `via` owner,
+collapsed payload and multiplicity while retaining raw numeric comparisons.
+
+Each `project-compiler-propagated-density-depth{0,1,2}-results.json` records four
+agreements. The depth0 `tee` no-finding observation remains outcome-only; it does
+not acquire a synthesized numeric density. Replay the saved metric3 capture
+explicitly, selecting depth0, depth1 or depth2:
+
+```sh
+depth=1
+CARGO_TARGET_DIR=target python3 scripts/watchdog.py --timeout 180 \
+  --output "/tmp/clones-propagated-density-depth$depth-replay-1" -- \
+  /usr/bin/time -v target/debug/cargo-rstyle rstyle --format json clones \
+  --extraction-profile hir-data-v3 --compiler-advisory --compiler-plans \
+  --compiler-advisory-config "eval/clones-capability/project-compiler-propagated-density-depth$depth-policy.toml" \
+  --max-pairs 0 --report-detail compact \
+  --replay-run target/rstyle/clones/run-bS3zMn
+python3 eval/clones-capability/compiler_quality.py \
+  --report "/tmp/clones-propagated-density-depth$depth-replay-1/stdout.log" \
+  --labels "eval/clones-capability/project-compiler-propagated-density-depth$depth-cases.json" \
+  --output "/tmp/clones-propagated-density-depth$depth-results.json"
+```
+
+These depths 0/1/2 replays take 16.56/16.33/16.23 seconds and peak at
+1,453,172/1,453,564/1,453,332 KiB RSS. Every replay retains incomplete scope and
+exit 2; the sample reducer exits 0 after the documented detail correction. No
+runtime change, performance improvement, complete-project precision, semantic
+purity or retirement claim follows. Broader dispatch, unknown external behavior,
+other call shapes and project quality remain open.

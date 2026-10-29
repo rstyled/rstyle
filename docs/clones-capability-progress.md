@@ -3416,3 +3416,44 @@ Style reports zero violations over 9,719 functions
 fourteen reviewed IDs (`/tmp/clones-try-metric-patterns-unfiltered-1`). Python
 acceptance remains 134 passing tests (`/tmp/clones-try-metric-python-1.log`).
 These are Linux checkpoint results; no macOS gate is claimed.
+
+
+## C32: review inherited production density without another evaluator
+
+Owner/write set: lead extends the existing offline compiler quality reducer,
+labels/policies/results and docs; independent acceptance worker reviews source
+expectations; reducer reviewer owns only the new Python test leaf. State:
+delivered bounded quality evidence. Runtime Rust snapshot remains `53e1704`.
+
+The existing compiler collector and core propagation remain the implementation.
+The reducer accepts depths 1/2 policies through existing validators, reuses source
+owner association for manually reviewed callee inventories, and compares exact
+positive weighted detail labels/counts as well as statement/event/numeric labels.
+It performs no new propagation, collector, source/type/body proof, hashing,
+artifact scan or runtime graph/body clone. Missing or ambiguous sampled callees
+stay unavailable; global scope/planning incompleteness is retained. Manual
+`propagation_reviewed` is an acceptance assertion, not automatic closure proof.
+
+Four independently labeled production owners (`collect`, `tee`, `emit`, and
+`StderrTee<R>::read`) agree at each of depths 0/1/2. `tee` gains one IO effect via
+`collect` (density 3000); the read method gains one collapsed IO effect via `emit`
+(density 1666 → 2666), retaining two potential mutable-reborrow targets. No runtime
+callback edges or actual-write guarantees are inferred. Initial depths 1/2 exact
+labels predicted internal stdio paths and the wrong pre-order collapse base;
+independent source inspection corrected only rendered label spelling/order.
+All numeric/source labels remained frozen. Both initial discrepancies and their
+correction are recorded with retained inputs/results in `project-study.md`.
+
+All 152 Python tests pass (`/tmp/clones-propagated-density-python-final-1.log`), including 18 new controls for provenance, collapsed
+counts, policy, missing/ambiguous inputs, unknowns and clean outcomes without
+invented numbers. The four positive detail rosters are compared exactly; `+N
+more` remains descriptive rather than additional weighted events. No Rust code
+changed: the preceding checkpoint's 3,330 passing tests, clean Clippy/style and
+fourteen unchanged pattern IDs remain evidence for that exact runtime snapshot,
+not a newly claimed Rust test run. Formatting/diff checks pass. Replay resources
+and exact saved capture/policies are in the project study; no speedup is claimed.
+
+Next ready frontier: broaden compiler proposal quality with independent original
+project source labels while reusing the existing proposer and completed reports.
+Generated owners, more dispatch/call shapes, complete project quality and
+per-capability retirement remain open.

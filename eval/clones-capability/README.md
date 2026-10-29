@@ -284,3 +284,16 @@ measurements are checked even when suppression/exclusion hides a finding.
 The [bounded project study](project-study.md) separately measures actual
 `rstyle-ccgraph` coverage with explicit policies and independent source samples.
 Its incomplete source/density results do not establish legacy retirement.
+
+
+The compiler-quality study also reviews completed compiler advisory diagnostics
+without reanalysis. `project-compiler-propagated-density-depth{0,1,2}-cases.json`
+freeze four production source/count expectations; the positive-depth cases list
+manually reviewed callee inputs and exact inherited detail labels. Missing
+inputs remain unavailable. The reducer compares the completed core results,
+including immediate `via` and collapsed-label multiplicity, and preserves global
+incompleteness. The [project study](project-study.md) records the initial display
+label corrections, replay commands, numeric results and resource limits. Run
+`python3 -m unittest discover -s eval/clones-capability -p 'test*.py'` for the
+independent reducer controls. This does not establish runtime purity or retire
+legacy density policy.
