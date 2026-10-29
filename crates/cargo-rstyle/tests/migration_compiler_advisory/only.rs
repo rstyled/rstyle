@@ -210,7 +210,6 @@ fn advisory_only_requires_compiler_advisory_and_rejects_graph_consumers() {
         "--fail-on-accepted-pairs",
         "--explain-pairs",
         "--helper-proposals",
-        "--mutation-rules",
         "--mutation-effects",
         "--effect-density",
         "--enum-dispatch",

@@ -7,6 +7,14 @@ pointees, including builtin compound assignments. Declaration initialization is
 excluded. One compound assignment counts once. Counts describe syntactic sites,
 not execution frequency, panic freedom, purity or rewrite safety.
 
+Add `--compiler-advisory --compiler-advisory-only` to run the same consumer without
+strict clone assessment. Fresh capture reuses the original file census and the
+existing mutable-u32 formal and builtin control-type collectors; it performs no
+body type enrichment or helper certification. Saved facts support the same policy,
+review, suppression and exclusion reevaluation without source files or compiler
+tools. Older raw captures cannot supply missing type observations on replay and
+remain incomplete. Compiler advisory mutation events are a separate metric.
+
 Ordinary unexpanded `if`/`else` branches contribute each original assignment site
 once, including mutually exclusive arms and nested branches. An `if` without
 `else` still has the sites authored in its arm; the report does not claim that

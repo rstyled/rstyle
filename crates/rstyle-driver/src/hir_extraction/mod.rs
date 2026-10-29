@@ -110,7 +110,10 @@ pub fn advisory_crate_facts(
     scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<Vec<HirFnFacts>, String> {
-    let mut facts = collect_crate_facts(tcx, scanned, options, FunctionEvidence::Advisory)?;
+    let evidence = FunctionEvidence::Advisory {
+        mutations: rstyle_pdg::diagnostics::switch("RSTYLE_LOCAL_MUTATION_FACTS"),
+    };
+    let mut facts = collect_crate_facts(tcx, scanned, options, evidence)?;
     if rstyle_pdg::diagnostics::switch("RSTYLE_LOCAL_SOURCE_FACTS") {
         nominal_census::capture_files(tcx, options, &mut facts)?;
     }
@@ -118,7 +121,7 @@ pub fn advisory_crate_facts(
 }
 
 enum FunctionEvidence {
-    Advisory,
+    Advisory { mutations: bool },
     All,
 }
 
@@ -172,11 +175,20 @@ impl FunctionCollector<'_> {
         let Some((facts, ctx)) = function_source(self.tcx, id, scanned, options) else {
             return Ok(None);
         };
-        match self.evidence {
-            FunctionEvidence::Advisory => capture_advisory_function(&ctx, id, facts, options),
+        let mut facts = match self.evidence {
+            FunctionEvidence::Advisory { .. } => {
+                capture_advisory_function(&ctx, id, facts, options)
+            }
             FunctionEvidence::All => capture_complete_function(&ctx, id, facts, options),
+        }?;
+        if matches!(
+            self.evidence,
+            FunctionEvidence::Advisory { mutations: true }
+        ) && ctx.profile == ExtractionProfile::DataV3
+        {
+            capture_mutation_types(&ctx, &mut facts)?;
         }
-        .map(Some)
+        Ok(Some(facts))
     }
 }
 
@@ -219,16 +231,16 @@ fn capture_callable_owner(
 fn capture_locations(ctx: &hir::Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
     rstyle_pdg::field_locations::capture(facts)?;
     if ctx.profile == ExtractionProfile::DataV3 {
-        capture_consumer_types(ctx, facts)?;
+        capture_mutation_types(ctx, facts)?;
+        mutable_scalar_formals::capture(ctx, facts)?;
     }
 
     Ok(())
 }
 
-fn capture_consumer_types(ctx: &hir::Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
+fn capture_mutation_types(ctx: &hir::Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
     consumer_formal_types::capture(ctx, facts)?;
-    consumer_control_types::capture(ctx, facts)?;
-    mutable_scalar_formals::capture(ctx, facts)
+    consumer_control_types::capture(ctx, facts)
 }
 
 fn function_source<'tcx>(

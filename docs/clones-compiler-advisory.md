@@ -26,8 +26,8 @@ run without source files or compiler tools. Selected dependencies and separate
 check/test contexts keep their original Cargo scope. Compiler reviews, changed
 files, policy reevaluation and baselines use the ordinary advisory workflow.
 
-Source rules and guard advice can be requested alongside this mode with
-`--source-rules` and `--guard-clauses`, including `--parameter-plans` and
+Source rules, guard advice and direct scalar mutation rules can be requested alongside this mode with
+`--source-rules`, `--guard-clauses` and `--mutation-rules`, including `--parameter-plans` and
 `--guard-plans`. Fresh captures then reuse the existing original file census,
 sharing compiler-owned buffers and checksums. Compiler-only captures retain their
 existing path. Local source capture preserves the census limits of 256 files and
@@ -41,6 +41,12 @@ Replay cannot add a missing census to an older advisory-only capture: source
 assessment remains unknown, with incomplete coverage and exit 2. No live source
 fallback is used. The saved plan records whether local source facts were
 requested; replay keeps the original optional evidence and compilation contexts.
+Mutation requests additionally reuse the existing mutable-u32 formal and builtin
+control-type collectors. Signature capture normalizes parameter bindings through
+the same completed type observations, without enriching the body. Old raw captures
+without these optional observations remain incomplete on mutation replay. The
+direct-u32 vocabulary, policy, numeric reviews and unknown boundaries are unchanged;
+compiler mutation events remain a separate metric.
 Pair and native effect/dispatch/capability consumers still require the ordinary
 combined mode. Raw extraction keeps the original
 source/type observations, source ownership, census and generated-source markers.

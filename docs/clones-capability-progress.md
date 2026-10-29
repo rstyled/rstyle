@@ -5180,3 +5180,46 @@ remains in progress at this checkpoint. Persistent guard reviews/baselines and
 capability retirement remain open. Next concrete reuse seam: enable the existing mutation-rule consumer
 on advisory-only captures using the gated source census and existing bounded
 formal-type collector, with raw/combined parity and unchanged resource limits.
+
+
+### C63 — reuse direct mutation rules in advisory-only captures (2026-10-29)
+
+The existing `--mutation-rules` consumer now runs with explicit
+`--compiler-advisory --compiler-advisory-only`. Fresh requests reuse the original
+file census and the existing mutable-u32 formal/builtin control-type collectors.
+The saved plan records optional mutation evidence; old captures cannot invent it
+on replay. Direct-u32 counts, primitive loop semantics, policy, numeric reviews,
+suppression and exclusions use the existing consumer, without strict admission,
+body enrichment, helper certification, new hashes or changed resource limits.
+
+The first real-core capture exposed signature/binding type incoherence: rich
+signature types were normalized but raw parameter bindings were not. Signature
+capture now normalizes only formal bindings through the same Capture and its
+completed type observations. It does not construct another type collector or
+relax contradiction checks. Ordinary full capture keeps its existing behavior.
+Six CLI cases cover raw/combined parity, loops, nonprimitive formal regression,
+unknown-call lower bounds, missing optional records and source/tool-free replay.
+
+Fresh rstyle-core library captures retain exactly equal mutation reports and
+compiler advice across 1,215 owners (409 known captured owners, 806 unsupported).
+All mutation assessments remain incomplete, with zero witnessed write sites:
+this is workflow parity, not broader vocabulary coverage or quality evidence.
+Both modes exit2. The single raw sample took7.10s/402,396KiB versus
+15.55s/585,900KiB combined; no generalized speedup claim follows. Exact commands,
+run handles, counts and limits are in project-raw-mutation-study.json.
+
+Main1689392 is already an ancestor, including the complexity additions; fetching
+origin/main required no further rebase. macOS fixture-parent canonicalization
+565803b is already pushed. C60/C61 CI completed successfully on macOS and both
+Ubuntu runners; C62 remained in progress when this checkpoint began.
+
+Final gates: all 3,494 Rust tests pass with five existing skips, plus doc tests.
+Locked all-target Clippy, formatting and diff checks pass; all244 offline Python
+checks pass. Style has zero violations over9,827 functions; patterns has zero
+unreviewed candidates and all13 unfiltered IDs equal main. Initial integration
+found the obsolete CLI conflict assertion; the test now reflects supported raw
+mutation rules. Style caught an orchestration mutation count and patterns caught
+a redundant wrapper; both were refactored without ignores or threshold changes.
+Logs use /tmp/clones-c63-*. C62 CI40878398294 is now green on macOS and both
+Ubuntu runners. Broader mutation vocabulary and capability retirement remain
+open; this checkpoint does not complete the migration.

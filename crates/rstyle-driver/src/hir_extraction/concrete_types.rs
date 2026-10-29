@@ -69,11 +69,7 @@ fn capture_with(
     let observations = capture.interface(facts)?;
     match enrichment {
         Enrichment::Body => capture.install_interface(facts, &observations)?,
-        Enrichment::Signature => {
-            if ctx.profile.supports("rust.concrete-read-only-data") {
-                interface_tokens(&mut facts.signature, &observations)?;
-            }
-        }
+        Enrichment::Signature => capture.install_signature(facts, &observations)?,
     }
     facts.build.frontend_options.insert_data(observations);
 
@@ -174,6 +170,20 @@ impl<'a, 'tcx> Capture<'a, 'tcx> {
         ctx.capture_usize_reader_callbacks(&mut facts.body, &mut |ty| self.observe(ty))
     }
 
+    fn install_signature(
+        &mut self,
+        facts: &mut HirFnFacts,
+        interface: &InterfaceObservations,
+    ) -> Result<(), String> {
+        if self.ctx.profile.supports("rust.concrete-read-only-data") {
+            interface_tokens(&mut facts.signature, interface)?;
+            // Local consumers join the signature to its original binding.
+            // Reuse this capture's completed types without enriching the body.
+            self.binding_tokens(&mut facts.bindings, true)?;
+        }
+        Ok(())
+    }
+
     fn install_tokens(
         &mut self,
         facts: &mut HirFnFacts,
@@ -181,12 +191,16 @@ impl<'a, 'tcx> Capture<'a, 'tcx> {
     ) -> Result<(), String> {
         interface_tokens(&mut facts.signature, interface)?;
         self.node_tokens(&mut facts.body, false)?;
-        self.binding_tokens(&mut facts.bindings)
+        self.binding_tokens(&mut facts.bindings, false)
     }
 
-    fn binding_tokens(&mut self, bindings: &mut [rstyle_pdg::BindingFact]) -> Result<(), String> {
+    fn binding_tokens(
+        &mut self,
+        bindings: &mut [rstyle_pdg::BindingFact],
+        formals_only: bool,
+    ) -> Result<(), String> {
         for binding in bindings {
-            if binding.ty.normalized.is_none() {
+            if (!formals_only || binding.is_param) && binding.ty.normalized.is_none() {
                 binding.ty.normalized = self.hir_token(&binding.hir, false)?;
             }
         }
