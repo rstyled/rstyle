@@ -38,7 +38,7 @@ Generated expansion comments do not supply authored function suppression scopes.
 
 These partial rows do not provide authored source, complexity, density or
 structural graphs. Generated owners remain in `unavailable`; default all-rule coverage
-remains incomplete, and the exit remains 2. Empty observations do not establish
+remains incomplete by default, and the default exit remains 2. Empty observations do not establish
 purity; opaque behavior and unresolved calls remain coverage gaps. Edit plans
 include authored owners only and remain incomplete when generated owners exist.
 
@@ -69,6 +69,11 @@ authored density uses only the applicable direct events; missing generated sourc
 and unresolved callees do not block that numeric result. Missing authored facts
 still do. The default without diagnostic selection remains unchanged. Explicit
 captured selection still requires every captured owner's direct observations.
+For inherited density, current connected generated-effect rows can supply the
+required callee events without authored numeric facts. Every missing effect owner
+and unresolved target still blocks completion. Old direct-only rows cannot supply
+call connections. Generated numeric inputs remain unavailable, so default/captured
+numeric checks and authored edit plans retain their separate incomplete status.
 
 Each unit's optional `diagnostic_scope` records the request, outside-scope owners,
 unavailable counts, requested completeness and original `diagnostic_indices`.

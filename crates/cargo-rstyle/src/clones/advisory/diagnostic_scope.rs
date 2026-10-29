@@ -52,15 +52,14 @@ impl Report {
             source_scope,
             diagnostic_indices,
             input_complete: unavailable_owners == 0 && unavailable_measurements == 0,
-            effect_inputs_complete: false,
+            effect_inputs_complete: inputs.effect_observations_complete(),
             unavailable_owners,
             unavailable_measurements,
         })
     }
 
     pub(super) fn finish(&mut self, unit: &Unit, direct_effects_only: bool) {
-        self.effect_inputs_complete = unit.expected_functions.is_some()
-            && unit.unavailable.is_empty()
+        self.effect_inputs_complete &= unit.expected_functions.is_some()
             && unit.unresolved_callees.is_empty()
             && unit.propagation_complete;
         self.input_complete &= unit.expected_functions.is_some()

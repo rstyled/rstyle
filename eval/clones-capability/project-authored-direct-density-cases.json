@@ -58,7 +58,8 @@
         "outcome": "evaluated_no_finding",
         "complete": true,
         "exempt": false
-      }
+      },
+      "capture_metrics": "rstyle.compiler-style-metrics/6"
     },
     {
       "run": "target/rstyle/clones/run-TKB31S",
@@ -83,7 +84,8 @@
         "outcome": "finding",
         "complete": true,
         "exempt": false
-      }
+      },
+      "capture_metrics": "rstyle.compiler-style-metrics/7"
     },
     {
       "run": "target/rstyle/clones/run-TKB31S",
@@ -108,12 +110,14 @@
         "outcome": "evaluated_no_finding",
         "complete": true,
         "exempt": false
-      }
+      },
+      "capture_metrics": "rstyle.compiler-style-metrics/7"
     }
   ],
   "limitations": [
     "These are static-event density expectations, not runtime mutation counts or purity proofs.",
     "A complete selected authored depth-zero outcome does not establish complete propagated effects, generated source measurements, or plans.",
     "If observed source, statements or events disagree, report the mismatch; do not replace expected labels with evaluation output."
-  ]
+  ],
+  "metrics_provenance": "Expected semantics target metric7. Source snapshots and C83 observed results use metric6 for old core and metric7 for ccgraph; each sample records its captured metric explicitly."
 }

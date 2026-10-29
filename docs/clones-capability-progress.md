@@ -6205,3 +6205,60 @@ Next ready work: measure the remaining inherited-effect coverage blockers agains
 existing generated direct-event rows and local/dependency call identities. Reuse
 the core graph and preserve unavailable owners and ambiguous routes; do not infer
 purity from missing observations. Overall migration and retirement gates stay open.
+
+### C84 — inherited-effect input census (2026-10-29)
+
+Reused connected generated collector rows when checking effect-input availability.
+Every unavailable numeric owner must have its own captured connected effect row;
+the existing exact local/dependency graph and unresolved-route closure still gate
+inherited effects. No collector, propagation algorithm, hash, proof, config flag,
+threshold or budget added. Authored numeric prerequisites and default/captured
+missing inventories remain unchanged. Plans still require authored edit inputs.
+
+Six independent CLI cases cover source-authored generated IO chains (depth1 no
+inherited IO; depth2/3 one inherited IO and density3000), complete scoped baseline
+replay without sources/tools, incomplete plans, missing connected rows, historical
+direct-only rows, missing authored observations, unknown origins, unresolved
+dependencies and a selected generated-only dependency through the exact unit edge.
+All14 focused inherited/generated/direct-density tests pass.
+
+Fresh core run-J9tLat, captured at0d720ae with metric7, has423 authored observations,
+829 connected generated effect rows and no unresolved targets. Replaying exactly
+that capture before/after preserves the full evaluation and raw rows; requested
+authored inherited density changes incomplete→complete. Actual config finds0;
+the499/minima0 probe finds5, with complete baselines and0new on replay. Default
+and captured numeric requests and plans stay incomplete with829 missing numeric
+owners. Older core run-ChBnep still lacks generated effect rows; ccgraph
+run-TKB31S still lacks23 dependency targets. Both remain incomplete. Different
+core captures have different source/metric versions and are not a performance or
+measurement-equivalence comparison. Evidence: project-authored-inherited-density-study.json.
+Corrected C83 source-label provenance: its older core observations were metric6,
+while ccgraph was metric7. The same independently labeled core source snippet now
+matches fresh metric7 bytes exactly and emits no density finding at a zero
+threshold with both minima zero. This validates that source case under metric7
+without relabeling or rewriting historical observations.
+
+Fresh ccgraph run-aSRnsx explicitly captures its direct rstyle-pdg dependency.
+Requested inherited density completes over238 ccgraph and7,043 pdg authored
+owners with0 unresolved targets;176/6,494 connected generated rows supply effects
+while their numeric facts remain unavailable. Full default/scoped evaluations
+and raw rows agree exactly; default numeric analysis remains incomplete. Actual
+config produces15 pdg findings with complete positive review identities. Baseline
+export correctly refuses publication: the existing4,096 retained-owner scope
+limit is below the7,043 pdg census. No limit was raised; large-scope baseline
+coverage remains a separate resource limitation, not missing effect evidence.
+
+Final integrated Rust gate passes: all3,640 tests in240.579s with five existing
+skips, plus doctests. The initial full run found one old diagnostic-selection
+assertion expecting incomplete effects despite connected rows; updated it to the
+new effect census, preserving its original missing numeric inventory checks.
+All13 focused selection/inheritance regression tests then pass. Formatting,
+Clippy,244 capability Python and50 script tests pass; both legacy gates pass with
+0 style violations over9,959 functions and unchanged13 unfiltered pattern IDs.
+No native-platform, broad density quality, purity, speedup or retirement claim.
+C81 native CI passes; C82/C83 remain running; C84 native checks await publication.
+
+Next ready work: inspect bounded/streaming reuse for the existing diagnostic
+baseline owner census, rather than increasing its retention limit or substituting
+positive review coverage for complete negative-owner coverage. Overall migration
+and per-capability retirement gates remain open.

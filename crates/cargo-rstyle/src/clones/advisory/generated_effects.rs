@@ -8,7 +8,7 @@ use serde::Serialize;
 
 #[derive(Serialize)]
 pub(super) struct Measurement {
-    key: crate::clones::FunctionKey,
+    pub(super) key: crate::clones::FunctionKey,
     path: String,
     #[serde(flatten)]
     observation: Observation,

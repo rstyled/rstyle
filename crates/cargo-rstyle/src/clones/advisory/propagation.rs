@@ -180,7 +180,7 @@ fn completeness(
         .map(|(unit, input)| {
             (
                 unit.id,
-                input.unavailable.is_empty() && completed[&unit.id].unresolved.is_empty(),
+                input.effect_observations_complete() && completed[&unit.id].unresolved.is_empty(),
             )
         })
         .collect();

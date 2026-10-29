@@ -650,6 +650,18 @@ fn collected_metrics(inputs: &[Collected]) -> Result<&'static str, String> {
 }
 
 impl Collected {
+    fn effect_observations_complete(&self) -> bool {
+        let generated: BTreeSet<_> = self
+            .generated_effects
+            .iter()
+            .filter(|row| row.connections().is_some())
+            .map(|row| row.key)
+            .collect();
+        self.unavailable
+            .iter()
+            .all(|missing| generated.contains(&missing.key))
+    }
+
     fn expected_functions(&self, ctx: &Context<'_>) -> Option<usize> {
         (ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty())
             .then_some(self.observations.len() + self.unavailable.len())

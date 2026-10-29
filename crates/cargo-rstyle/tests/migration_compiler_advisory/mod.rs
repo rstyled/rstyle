@@ -12,6 +12,7 @@ mod generated_effects;
 mod generated_propagation;
 mod generated_trait_propagation;
 mod independent_ranking;
+mod inherited_density_scope;
 mod instance_extraction;
 mod local_only;
 mod mutations;

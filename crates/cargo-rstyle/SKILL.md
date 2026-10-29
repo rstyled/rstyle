@@ -420,14 +420,19 @@ For explicit authored `side_effect_density`, existing config
 callees and generated source do not block that requested numeric result. Missing
 authored observations still do. Positive depth retains effect prerequisites;
 full effect-input and plan completeness stay separate.
+At positive depth, current connected generated-effect rows supply callee events
+without authored numeric facts. Missing effect rows, old direct-only records and
+unresolved targets remain incomplete; generated source metrics are never invented.
 Review visibility, changed files and plan seeds intersect requested rules;
 baseline headers retain that scope even when empty. Invalid suppressions surface.
 Fresh captures expose partial `generated_effects` rows for expanded functions:
 existing collector events, direct classifications and bounded propagated effects,
 replayable under the same config options. Borrowed call connections reuse core
 propagation, including effects inherited by authored callers. These rows have no
-source/density/complexity measurements; generated owners remain unavailable and
-exit 2. Fresh authored metric7 identifies this additional propagation; metric6
+source/density/complexity measurements; generated numeric owners remain unavailable
+and default/captured diagnostics exit 2. Requested authored density can complete
+using connected effect rows; plans still need authored edit coordinates.
+Fresh authored metric7 identifies this additional propagation; metric6
 replay and old direct-only records preserve their original behavior. Absent older
 records are not known-empty events.
 Add `--compiler-advisory-only` to request compiler advice without strict unit

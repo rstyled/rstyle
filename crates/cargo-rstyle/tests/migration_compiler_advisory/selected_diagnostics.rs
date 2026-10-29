@@ -156,7 +156,7 @@ fn authored_requested_diagnostics_complete_without_erasing_generated_missing_own
     checked(&output, 0);
     unchanged(&original, &authored);
     assert_eq!(scope(&authored)["input_complete"], true);
-    assert_eq!(scope(&authored)["effect_inputs_complete"], false);
+    assert_eq!(scope(&authored)["effect_inputs_complete"], true);
     assert_eq!(authored["compiler_advisory"]["complete"], true);
     assert_eq!(scope(&authored)["unavailable_owners"], 0);
     let outside = scope(&authored)["source_scope"]["outside_scope_functions"]

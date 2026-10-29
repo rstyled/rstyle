@@ -71,7 +71,8 @@
         "existing_findings": 4,
         "scope_changed": false,
         "exit": 0
-      }
+      },
+      "captured_metrics": "rstyle.compiler-style-metrics/6"
     },
     {
       "package": "rstyle-ccgraph",
@@ -105,7 +106,8 @@
         "existing_findings": 5,
         "scope_changed": false,
         "exit": 0
-      }
+      },
+      "captured_metrics": "rstyle.compiler-style-metrics/7"
     }
   ],
   "independent_source_labels": [
@@ -117,7 +119,8 @@
       "expected_density": 0,
       "observed_density": 0,
       "probe_finding": false,
-      "agreement": true
+      "agreement": true,
+      "captured_metrics": "rstyle.compiler-style-metrics/6"
     },
     {
       "package": "rstyle-ccgraph",
@@ -127,7 +130,8 @@
       "expected_density": 500,
       "observed_density": 500,
       "probe_finding": true,
-      "agreement": true
+      "agreement": true,
+      "captured_metrics": "rstyle.compiler-style-metrics/7"
     },
     {
       "package": "rstyle-ccgraph",
@@ -137,13 +141,15 @@
       "expected_density": 250,
       "observed_density": 250,
       "probe_finding": false,
-      "agreement": true
+      "agreement": true,
+      "captured_metrics": "rstyle.compiler-style-metrics/7"
     }
   ],
   "limitations": [
     "Requested authored direct density completion is separate from full effect-input and caller-plan completeness.",
     "Default all-rule/captured behavior and raw missing inventories remain incomplete.",
     "Independent three-source labels do not establish all-project density quality or purity.",
-    "No speedup, fresh native-platform or legacy retirement claim."
+    "No speedup, fresh native-platform or legacy retirement claim.",
+    "Old core source and evaluated observations are metric6; the source-authored expectation targets metric7 but C83 did not measure that core case under metric7. C84 verifies the unchanged snippet and zero-density expectation against a fresh metric7 capture."
   ]
 }

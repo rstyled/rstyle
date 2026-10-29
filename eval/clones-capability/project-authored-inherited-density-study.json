@@ -1,0 +1,156 @@
+{
+  "schema": "rstyle.authored-inherited-density-study/1",
+  "checkpoint": "C84",
+  "capture_revision": "0d720ae",
+  "host": "aarch64-unknown-linux-gnu",
+  "toolchain": "nightly-2026-09-30",
+  "fresh_capture": {
+    "run": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-J9tLat",
+    "package": "rstyle-core",
+    "metrics": "rstyle.compiler-style-metrics/7",
+    "flags": [
+      "--extraction-profile",
+      "hir-data-v3",
+      "--compiler-advisory-only",
+      "--compiler-advisory",
+      "--compiler-advisory-config",
+      "rstyle.toml",
+      "--compiler-diagnostic-rules",
+      "side_effect_density",
+      "--compiler-diagnostic-scope",
+      "authored",
+      "--package",
+      "rstyle-core",
+      "--locked"
+    ],
+    "before_requested_complete": false,
+    "before_effect_inputs_complete": false
+  },
+  "measurements": [
+    {
+      "config": "actual",
+      "authored_functions": 423,
+      "generated_connected_effect_owners": 829,
+      "generated_numeric_inputs_still_unavailable": 829,
+      "unresolved_callees": 0,
+      "authored_inherited_density_complete": true,
+      "effect_inputs_complete": true,
+      "findings": 0,
+      "full_evaluation_and_raw_rows_unchanged": true,
+      "default_and_captured_numeric_complete": false,
+      "planning_complete": false,
+      "baseline": {
+        "coverage": "complete",
+        "new_findings": 0,
+        "existing_findings": 0,
+        "scope_changed": false
+      }
+    },
+    {
+      "config": "probe",
+      "authored_functions": 423,
+      "generated_connected_effect_owners": 829,
+      "generated_numeric_inputs_still_unavailable": 829,
+      "unresolved_callees": 0,
+      "authored_inherited_density_complete": true,
+      "effect_inputs_complete": true,
+      "findings": 5,
+      "full_evaluation_and_raw_rows_unchanged": true,
+      "default_and_captured_numeric_complete": false,
+      "planning_complete": false,
+      "baseline": {
+        "coverage": "complete",
+        "new_findings": 0,
+        "existing_findings": 5,
+        "scope_changed": false
+      }
+    }
+  ],
+  "retained_missing_input_controls": [
+    {
+      "project": "core",
+      "run": "target/rstyle/clones/run-ChBnep",
+      "metrics": "rstyle.compiler-style-metrics/6",
+      "authored_observations": 409,
+      "connected_generated_rows": 0,
+      "missing_numeric_inputs": 806,
+      "unresolved_targets": 8,
+      "requested_complete": false
+    },
+    {
+      "project": "ccgraph",
+      "run": "target/rstyle/clones/run-TKB31S",
+      "metrics": "rstyle.compiler-style-metrics/7",
+      "authored_observations": 238,
+      "connected_generated_rows": 176,
+      "missing_numeric_inputs": 176,
+      "unresolved_targets": 23,
+      "requested_complete": false
+    }
+  ],
+  "independent_acceptance": "crates/cargo-rstyle/tests/migration_compiler_advisory/inherited_density_scope.rs; source-authored IO chain: depth1 has0 inherited IO, depth2/3 has1 with density3000 at mutation-free one-statement authored caller",
+  "limitations": [
+    "Same fresh immutable capture compared before and after; older core source/metric version is a missing-input control, not comparable performance or source-count evidence.",
+    "Complete effect inputs describe existing legacy core metric semantics, not purity or all-runtime effects.",
+    "Generated source metrics and edit coordinates remain unavailable; default/captured numeric analysis and planning remain incomplete.",
+    "No speedup, all-project quality, native-platform or legacy retirement claim."
+  ],
+  "fresh_source_label": {
+    "function": "lines::preceding_comment_line",
+    "source_expectation": "project-authored-direct-density-cases.json",
+    "source_snapshot_metrics": "rstyle.compiler-style-metrics/7",
+    "exact_source_match": true,
+    "statements": 1,
+    "expected_density": 0,
+    "max_density_milli": 0,
+    "min_statements": 0,
+    "min_lines": 0,
+    "observed_finding": false,
+    "requested_complete": true,
+    "note": "Exact source case reused from earlier metric6 snapshot; independently specified zero direct events also yield zero inherited effects under the existing core metric7 classifier. No purity claim."
+  },
+  "selected_dependency_study": {
+    "run": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-aSRnsx",
+    "primary_package": "rstyle-ccgraph",
+    "capture_dependency": "rstyle-pdg",
+    "fresh_capture": true,
+    "metrics": "rstyle.compiler-style-metrics/7",
+    "config": "rstyle.toml unchanged",
+    "requested_complete": true,
+    "default_numeric_complete": false,
+    "full_evaluations_and_raw_rows_unchanged": true,
+    "units": [
+      {
+        "package": "rstyle-ccgraph",
+        "authored_observations": 238,
+        "generated_connected_rows": 176,
+        "numeric_inputs_still_unavailable": 176,
+        "unresolved_targets": 0,
+        "requested_complete": true,
+        "effect_inputs_complete": true,
+        "selected_findings": 0
+      },
+      {
+        "package": "rstyle-pdg",
+        "authored_observations": 7043,
+        "generated_connected_rows": 6494,
+        "numeric_inputs_still_unavailable": 6494,
+        "unresolved_targets": 0,
+        "requested_complete": true,
+        "effect_inputs_complete": true,
+        "selected_findings": 15
+      }
+    ],
+    "positive_review": {
+      "coverage": "complete",
+      "findings": 15
+    },
+    "baseline_export": {
+      "exit": 2,
+      "published": false,
+      "stderr": "Incomplete analysis cannot publish a compiler diagnostic baseline",
+      "limitation": "Existing retained owner-scope limit4096 in compiler_diagnostics/observed.rs is below7043 pdg authored owners; owner_scope_truncated blocks baseline publication. This limit is unchanged."
+    },
+    "limitations": "Complete event analysis and positive reviews do not imply full negative-owner baseline coverage or purity. Generated numeric facts stay unavailable. No strict or refactoring-safety claim."
+  }
+}
