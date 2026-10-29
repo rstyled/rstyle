@@ -16,6 +16,7 @@ pub(in crate::clones) struct Row<'a> {
     pub metrics: &'static str,
     pub selected: bool,
     pub effect_scope_complete: bool,
+    pub request: Option<&'a crate::clones::diagnostic_selection::Request>,
 }
 
 pub(in crate::clones::review) fn observations<'a>(
@@ -57,6 +58,15 @@ impl numeric_workflow::Retained for Row<'_> {
         status::Family::CompilerDiagnostic
     }
     fn assess(&self, previous: &Snapshot) -> owner_population::Assessment {
+        if self
+            .request
+            .is_some_and(|request| !request.includes(&previous.rule_id))
+        {
+            return (
+                status::State::NotRequested,
+                "Compiler diagnostic rule is outside the requested rules".into(),
+            );
+        }
         if !self.selected {
             return (
                 status::State::NotRequested,

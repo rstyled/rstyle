@@ -1,4 +1,5 @@
 //! Reuse core policy over compiler-collected inputs, scoped by compilation unit.
+mod diagnostic_scope;
 mod diagnostics;
 mod generated_effects;
 mod owner_names;
@@ -64,6 +65,8 @@ struct Unit {
     propagation_complete: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     evaluation: Option<rstyle_core::report::Report>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    diagnostic_scope: Option<diagnostic_scope::Report>,
     #[serde(skip)]
     diagnostic_snapshots: Vec<Result<super::review::compiler_diagnostics::Snapshot, String>>,
     #[serde(skip)]
@@ -230,6 +233,7 @@ impl Report {
                     unit.diagnostic_snapshots
                         .iter()
                         .enumerate()
+                        .filter(move |(index, _)| unit.diagnostic_requested(*index))
                         .map(
                             move |(index, snapshot)| super::review::compiler_diagnostics::Row {
                                 unit: unit.unit,
@@ -261,6 +265,7 @@ impl Report {
                 unit.diagnostic_owners.iter().map(move |assessed| {
                     super::review::compiler_diagnostics::retained::Row {
                         assessed,
+                        request: unit.diagnostic_scope.as_ref().map(|scope| &scope.request),
                         unique: owner_names::unique(names, unit, assessed),
                         snapshots: &unit.diagnostic_snapshots,
                         policy: &self.effective_config,
@@ -269,8 +274,7 @@ impl Report {
                             .is_none_or(|selection| selection.contains(&assessed.path)),
                         effect_scope_complete: ctx.capture.failures.is_empty()
                             && ctx.handoff.failures.is_empty()
-                            && (direct_effects_only
-                                || (unit.inputs_complete() && unit.propagation_complete)),
+                            && (direct_effects_only || unit.effect_inputs_complete()),
                     }
                 })
             })
@@ -323,7 +327,20 @@ impl Report {
     }
 
     pub(super) fn advisory_inputs_complete(&self) -> bool {
-        self.diagnostic_execution == super::analysis::Execution::Completed && self.complete
+        if self
+            .units
+            .iter()
+            .all(|unit| unit.diagnostic_scope.is_none())
+        {
+            return self.diagnostic_execution == super::analysis::Execution::Completed
+                && self.complete;
+        }
+        self.diagnostic_execution == super::analysis::Execution::Completed
+            && !self.units.is_empty()
+            && self
+                .units
+                .iter()
+                .all(|unit| unit.expected_functions.is_some() && unit.diagnostics_complete())
     }
 
     pub(super) fn pattern_inputs_complete(&self) -> bool {
@@ -491,26 +508,24 @@ fn evaluate_unit(
     ctx: &Context<'_>,
     unit: &super::identity::UnitContext,
     policy: &Rc<serde_json::Value>,
-    prepared: Prepared,
-) -> Result<Ready, String> {
-    let Prepared {
+    Prepared {
         mut inputs,
         mut effects,
-    } = prepared;
+    }: Prepared,
+) -> Result<Ready, String> {
     let root = &ctx.capture.units[unit.observed_unit].target.manifest_dir;
     let unresolved_callees = effects.unresolved_callees(&inputs.facts)?;
-    let expected_functions = (ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty())
-        .then_some(inputs.observations.len() + inputs.unavailable.len());
     let ranking = ranking::Captured::new(ctx.args, &inputs);
     inputs.retain_propagated(&mut effects.generated);
     let completed =
         diagnostics::evaluate(ctx, unit, inputs.take_diagnostics(effects.values), policy)?;
 
+    let diagnostic_scope = diagnostic_scope::Report::new(ctx.args, &inputs, &completed);
     let report = Unit {
         unit: unit.id,
         package_root: root.clone(),
         source_root: ctx.capture.plan.root.clone(),
-        expected_functions,
+        expected_functions: inputs.expected_functions(ctx),
         observations: inputs.observations,
         generated_effects: inputs.generated_effects,
         unavailable: inputs.unavailable,
@@ -519,6 +534,7 @@ fn evaluate_unit(
         resolved_dependency_callees: effects.resolved,
         propagation_complete: effects.complete,
         evaluation: completed.evaluation,
+        diagnostic_scope: None,
         diagnostic_snapshots: completed.snapshots,
         diagnostic_owners: completed.owners,
         diagnostic_owner_names: completed.owner_names,
@@ -527,7 +543,8 @@ fn evaluate_unit(
         selected_diagnostics: None,
         patterns: None,
         complexity_ranking: None,
-    };
+    }
+    .with_diagnostic_scope(diagnostic_scope);
     Ok(Ready {
         unit: report,
         ranking,
@@ -633,6 +650,11 @@ fn collected_metrics(inputs: &[Collected]) -> Result<&'static str, String> {
 }
 
 impl Collected {
+    fn expected_functions(&self, ctx: &Context<'_>) -> Option<usize> {
+        (ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty())
+            .then_some(self.observations.len() + self.unavailable.len())
+    }
+
     fn retain_propagated(
         &mut self,
         effects: &mut BTreeMap<String, Vec<rstyle_core::rules::Effect>>,
@@ -662,7 +684,8 @@ impl Collected {
             self.push_generated_effects(function, ctx)?;
         }
         if (ctx.args.compiler_pattern_scope == super::CompilerSourceScope::Authored
-            || ctx.args.compiler_complexity_scope == super::CompilerSourceScope::Authored)
+            || ctx.args.compiler_complexity_scope == super::CompilerSourceScope::Authored
+            || ctx.args.compiler_diagnostic_scope == super::CompilerSourceScope::Authored)
             && function
                 .facts
                 .source_diagnostics
@@ -738,19 +761,35 @@ impl Collected {
 }
 
 impl Unit {
+    fn with_diagnostic_scope(mut self, scope: Option<diagnostic_scope::Report>) -> Self {
+        self.diagnostic_scope = scope.map(|mut scope| {
+            scope.finish(&self);
+            self.visible_diagnostics = Some(scope.diagnostic_indices.clone());
+            scope
+        });
+        self
+    }
+
     fn with_reviews(
         self,
         patterns: &super::review::compiler_patterns::Report,
         diagnostics: &super::review::compiler_diagnostics::Report,
     ) -> Self {
-        let visible_diagnostics = diagnostics.requested().then(|| {
-            (0..self
-                .evaluation
-                .as_ref()
-                .map_or(0, |report| report.diagnostics.len()))
-                .filter(|index| !diagnostics.hidden_for(self.unit, *index))
-                .collect()
-        });
+        let visible_diagnostics = if diagnostics.requested() {
+            Some(
+                (0..self
+                    .evaluation
+                    .as_ref()
+                    .map_or(0, |report| report.diagnostics.len()))
+                    .filter(|index| {
+                        self.diagnostic_requested(*index)
+                            && !diagnostics.hidden_for(self.unit, *index)
+                    })
+                    .collect(),
+            )
+        } else {
+            self.visible_diagnostics.clone()
+        };
         let patterns = self.patterns.map(|report| {
             if patterns.requested() {
                 report.with_reviews(self.unit, patterns)
@@ -769,12 +808,19 @@ impl Unit {
         self.evaluation
             .as_ref()
             .map_or_else(String::new, |evaluation| {
-                diagnostics::render(
-                    self.unit,
-                    evaluation,
-                    self.selected_diagnostics
-                        .as_deref()
-                        .or(self.visible_diagnostics.as_deref()),
+                let scope = self
+                    .diagnostic_scope
+                    .as_ref()
+                    .map_or_else(String::new, diagnostic_scope::Report::render);
+                format!(
+                    "{scope}{}",
+                    diagnostics::render(
+                        self.unit,
+                        evaluation,
+                        self.selected_diagnostics
+                            .as_deref()
+                            .or(self.visible_diagnostics.as_deref()),
+                    )
                 )
             })
     }
@@ -794,15 +840,40 @@ impl Unit {
         self.complexity_ranking
             .as_ref()
             .is_none_or(|report| report.input_complete)
-            && self.evaluation.as_ref().is_none_or(|_| {
-                self.unavailable.is_empty()
-                    && self.unavailable_complexity.is_empty()
-                    && self.unresolved_callees.is_empty()
-            })
+            && self.diagnostics_complete()
             && self
                 .patterns
                 .as_ref()
                 .is_none_or(|report| report.input_complete)
+    }
+
+    fn effect_inputs_complete(&self) -> bool {
+        if let Some(scope) = &self.diagnostic_scope {
+            return scope.effect_inputs_complete;
+        }
+        self.inputs_complete() && self.propagation_complete
+    }
+
+    fn full_diagnostics_complete(&self) -> bool {
+        self.evaluation.as_ref().is_none_or(|_| {
+            self.unavailable.is_empty()
+                && self.unavailable_complexity.is_empty()
+                && self.unresolved_callees.is_empty()
+        })
+    }
+
+    fn diagnostic_requested(&self, index: usize) -> bool {
+        self.diagnostic_scope
+            .as_ref()
+            .is_none_or(|scope| scope.diagnostic_indices.binary_search(&index).is_ok())
+    }
+
+    fn diagnostics_complete(&self) -> bool {
+        self.diagnostic_scope
+            .as_ref()
+            .map_or(self.full_diagnostics_complete(), |scope| {
+                scope.input_complete
+            })
     }
 
     fn findings(&self, count_patterns: fn(&patterns::Report) -> usize) -> usize {

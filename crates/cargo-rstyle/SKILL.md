@@ -407,6 +407,16 @@ It reuses `ExprUseVisitor`, core propagation, fix groups and parameter stacking;
 strict clone admission is not required. Captured observations support source-free
 `--replay-run` and policy reevaluation. These metric versions differ from strict
 mutation-effect metrics; zero policy density is not a purity proof.
+To request authored numeric rules independently of missing generated source and
+unrelated effect prerequisites, add `--compiler-diagnostic-scope authored` and
+`--compiler-diagnostic-rules fn_length,fn_params,fn_spacing,cyclomatic_complexity,cognitive_complexity`.
+Both require `--compiler-advisory`; omission preserves all rules/captured scope.
+Missing requested measurements remain incomplete. Optional `diagnostic_scope`
+lists original diagnostic indices, outside-scope owners and completeness;
+`evaluation`/summary retain the full unchanged core result. Effects can remain
+incomplete (`effect_inputs_complete: false`) while requested numeric rules complete.
+Review visibility, changed files and plan seeds intersect requested rules;
+baseline headers retain that scope even when empty. Invalid suppressions surface.
 Fresh captures expose partial `generated_effects` rows for expanded functions:
 existing collector events, direct classifications and bounded propagated effects,
 replayable under the same config options. Borrowed call connections reuse core

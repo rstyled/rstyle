@@ -2,6 +2,7 @@
 use super::super::{
     Versions, baseline_common, baseline_io, compiler_diagnostics::Snapshot, local, local_adapter,
 };
+use crate::clones::diagnostic_selection::Request;
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 
@@ -14,6 +15,8 @@ pub(in crate::clones) struct Baseline {
     metrics: String,
     pub contexts: Vec<local::BuildContext>,
     pub entries: Vec<Snapshot>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request: Option<Request>,
 }
 
 impl baseline_common::CompilerInventory<super::super::compiler_diagnostics::observed::Policy<'_>>
@@ -30,6 +33,7 @@ impl baseline_common::CompilerInventory<super::super::compiler_diagnostics::obse
             metrics: policy.metrics.into(),
             contexts,
             entries: Vec::new(),
+            request: None,
         }
     }
 }
@@ -44,6 +48,9 @@ impl Baseline {
         }
         if !self.policy.is_object() {
             return Err("Compiler baseline policy must be a complete observed object".into());
+        }
+        if let Some(request) = &self.request {
+            request.validate()?;
         }
         if self.entries.len() > 4096 || self.contexts.len() > 4096 {
             return Err("Compiler baseline exceeds 4096 entries or contexts".into());
@@ -82,6 +89,10 @@ impl baseline_common::Inventory for Baseline {
                 finding.policy == self.policy
                     && finding.versions == self.versions
                     && finding.metrics == self.metrics
+                    && self
+                        .request
+                        .as_ref()
+                        .is_none_or(|request| request.includes(&finding.rule_id))
             },
             |finding| &finding.rule_id,
         )
@@ -93,6 +104,8 @@ impl baseline_common::Inventory for Baseline {
         self.policy == previous.policy
             && self.contexts == previous.contexts
             && self.metrics == previous.metrics
+            && self.request.as_ref().unwrap_or(&Request::default())
+                == previous.request.as_ref().unwrap_or(&Request::default())
     }
     fn replace_entries(&mut self, entries: Vec<Snapshot>) {
         self.entries = entries;

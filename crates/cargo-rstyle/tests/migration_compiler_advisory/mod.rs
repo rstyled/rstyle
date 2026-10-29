@@ -1,4 +1,6 @@
 mod authored_ranking;
+mod scoped_diagnostic_baseline;
+mod selected_diagnostics;
 use super::*;
 
 mod complexity;

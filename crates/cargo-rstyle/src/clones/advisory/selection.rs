@@ -29,13 +29,24 @@ impl Report {
         selection: &changed_scope::Selection,
     ) -> changed_scope::Report<'static> {
         let known = self.known_selection_inputs();
-        let outside: BTreeSet<_> = self
+        let pattern_outside: BTreeSet<_> = self
             .units
             .iter()
-            .filter(|_| !ctx.args.compiler_advisory)
             .filter_map(|unit| unit.patterns.as_ref())
             .flat_map(super::patterns::Report::outside_scope)
             .collect();
+        let mut outside = if ctx.args.compiler_advisory {
+            BTreeSet::new()
+        } else {
+            pattern_outside.clone()
+        };
+        outside.extend(
+            self.units
+                .iter()
+                .filter_map(|unit| unit.diagnostic_scope.as_ref())
+                .flat_map(super::diagnostic_scope::Report::outside_scope)
+                .filter(|key| !ctx.args.compiler_patterns || pattern_outside.contains(key)),
+        );
         let owners = ctx
             .handoff
             .assessed

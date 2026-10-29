@@ -6123,3 +6123,50 @@ request through review visibility, changed-file selection, plan seeds and empty
 baseline scope so unrequested rules cannot produce plans or retained negatives.
 Missing requested complexity and missing authored owners must remain incomplete.
 The overall migration and capability retirement gates remain open.
+
+### C82 — requested authored numeric diagnostics (2026-10-29)
+
+Added explicit compiler diagnostic rules and authored/captured population. The
+adapter projects original indices from the completed core Evaluation; it keeps
+all raw diagnostics, measurements, summaries, effect rows and missing inventories.
+Only requested rules feed finding counts, visibility, changed-file presentation
+and cross-unit plan seeds. Existing core collectors/evaluator/planner remain the
+sole implementations; no new hashes, proofs, thresholds or budgets.
+
+Requested completeness depends on the applicable owner census and measurements
+actually consumed by those rules. Missing requested complexity and missing
+unmarked/authored observations remain incomplete. Generated missing owners are
+explicitly outside authored scope. Full effect completeness stays separate, and
+density retains its effect prerequisites. Plans preserve the full caller graph
+and cannot become complete merely from numeric selection. Defaults omit the new
+scope fields and preserve existing behavior.
+
+Baseline headers carry the requested rule/population scope even for empty
+baselines; scope drift remains visible. Retained unrequested rules do not become
+numeric negatives. Independent CLI acceptance covers default/full evaluation
+parity, original indices, generated/missing inputs, missing complexity, unknown
+origins, plans, changed paths, suppressions, empty baseline drift and tool-free
+replay. Ten new CLI tests and six existing diagnostic tests pass together.
+
+Measured actual-config retained runs core run-ChBnep and ccgraph run-TKB31S:
+five selected numeric rules complete over409 and238 authored functions with
+exactly unchanged full core evaluations and original selected indices. Raw missing
+rosters retain806/176 generated owners and8/23 unresolved callees; full effect
+inputs remain incomplete. Authored requests exit0; captured selection/default
+remain incomplete/exit2. Both scoped baseline exports and comparisons complete
+with0new and unchanged scope. Evidence: project-authored-numeric-diagnostics-study.json.
+Replay preserves each saved run's original build options; no fresh compilation,
+speedup, native-platform or legacy retirement claim. Final integrated Rust gate
+passes: all3,630 Rust tests in240.975s with five existing skips, plus doctests.
+Clippy, formatting,244 capability Python checks and50 script checks pass. Both
+legacy gates pass, with0 style violations over9,958 functions and the same13
+unfiltered pattern IDs as main. No ignores or thresholds changed. C79/C80 native
+CI passes on all three runners; C81 remains pending at publication. C82 native
+checks await publication.
+
+Next ready slice: explicit authored direct-density completion under the existing
+transitive_depth=0 config, where core consumes direct events without propagation.
+Reuse that evaluator/config and existing independent density labels; keep full
+propagation, raw missing/generated inventories and plan completeness separate.
+Depth1/depth3 and missing authored facts must remain incomplete. Overall migration
+and per-capability legacy retirement gates remain open.

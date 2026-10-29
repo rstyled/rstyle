@@ -4,6 +4,7 @@ mod advisory;
 mod advisory_only;
 mod analysis;
 pub mod capture;
+mod diagnostic_selection;
 mod identity;
 mod linking;
 pub(crate) mod patterns_route;
@@ -99,6 +100,19 @@ pub struct Args {
     /// Reuse compiler style collectors, effect propagation and fix plans per compilation unit.
     #[arg(long)]
     compiler_advisory: bool,
+    /// Select core numeric rules by ID; omitted means all rules. Invalid suppressions always surface.
+    #[arg(
+        long,
+        value_enum,
+        value_delimiter = ',',
+        requires = "compiler_advisory"
+    )]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    compiler_diagnostic_rules: Vec<diagnostic_selection::Rule>,
+    /// Diagnostic population; authored lists generated missing owners outside the requested scope.
+    #[arg(long, value_enum, default_value_t = CompilerSourceScope::Captured, requires = "compiler_advisory")]
+    #[serde(skip_serializing_if = "CompilerSourceScope::is_default")]
+    compiler_diagnostic_scope: CompilerSourceScope,
     /// Rank up to N compiler functions per unit by existing COG then CC scores, including clean functions.
     #[arg(long)]
     #[serde(skip_serializing_if = "Option::is_none")]

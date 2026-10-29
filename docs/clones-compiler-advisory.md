@@ -15,7 +15,7 @@ projections, helper certification, strict bundle import, admission and pair matc
 `strict_assessment_execution` are `not_requested`; the matching payload is absent
 and pair-completeness flags are false. Success still requires complete capture,
 handoff and requested advisory consumers. Missing owners remain incomplete;
-unresolved callees also keep requested numeric style/effect coverage incomplete.
+unresolved callees also keep default all-rule style/effect coverage incomplete.
 Use `--compiler-patterns` without `--compiler-advisory` for structural proposals
 without numeric rule evaluation. The raw capture mode accepts either consumer. Local source, guard, mutation and
 effect consumers can also run alone with `--compiler-advisory-only`; no compiler
@@ -37,7 +37,7 @@ suppression boundaries and the local-only unsafe/unknown rules remain unchanged.
 Generated expansion comments do not supply authored function suppression scopes.
 
 These partial rows do not provide authored source, complexity, density or
-structural graphs. Generated owners remain in `unavailable`, requested coverage
+structural graphs. Generated owners remain in `unavailable`; default all-rule coverage
 remains incomplete, and the exit remains 2. Empty observations do not establish
 purity; opaque behavior and unresolved calls remain coverage gaps. Edit plans
 include authored owners only and remain incomplete when generated owners exist.
@@ -48,6 +48,33 @@ results; generated-effects/1 records remain direct-only. Older captures without
 a generated record produce no row, rather than a fabricated empty measurement.
 Strict matching remains unchanged. No additional hash, source verification pass
 or authority proof is used.
+
+For a numeric workflow, select the rules and population explicitly:
+
+```sh
+cargo rstyle clones --extraction-profile hir-data-v3 --compiler-advisory-only \
+  --compiler-advisory --compiler-diagnostic-scope authored \
+  --compiler-diagnostic-rules fn_length,fn_params,fn_spacing,cyclomatic_complexity,cognitive_complexity
+```
+
+Both selection flags require `--compiler-advisory`. Rule IDs also include
+`mutation_per_target`, `mutated_targets` and `side_effect_density`. Omission keeps
+the existing all-rule, captured population. Invalid suppressions always surface.
+The authored population lists explicitly generated missing owners outside scope;
+missing authored observations and unknown origins remain incomplete. Missing
+complexity matters when a requested rule consumes it. Density still requires
+the existing complete effect inputs and resolved calls.
+
+Each unit's optional `diagnostic_scope` records the request, outside-scope owners,
+unavailable counts, requested completeness and original `diagnostic_indices`.
+The full `evaluation` and its summary remain the unchanged core result across all
+rules; its effect measurements can be incomplete even when requested numeric
+rules complete. `effect_inputs_complete` states this separately. Top-level
+findings, text, review visibility, changed-file presentation and plan seeds use
+the requested indices. Plans retain their full caller graph and its separate
+completeness requirements. Baselines record rule/population scope even when empty;
+scope changes cannot establish a clean comparison. Saved reviews for unrequested
+rules are not retired as numeric negatives. No new collector or evaluator runs.
 
 The mode publishes the existing shared raw-facts format with an exact
 `compiler-advisory-only` phase, using the existing streaming transport seal and

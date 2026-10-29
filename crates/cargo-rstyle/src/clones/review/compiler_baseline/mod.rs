@@ -29,13 +29,14 @@ pub(in crate::clones) fn evaluate(
 ) -> Result<Report, String> {
     let rows = advisory.diagnostic_reviews();
     let previous = ctx.compiler_baseline;
-    let header = Baseline::new(
+    let mut header = Baseline::new(
         super::compiler_diagnostics::observed::Policy {
             config: advisory.policy(),
             metrics: advisory.metrics,
         },
         baseline_common::contexts(ctx)?,
     )?;
+    header.request = ctx.args.compiler_diagnostic_request();
     let complete = ctx.complete
         && advisory.advisory_inputs_complete()
         && ctx.handoff.assessed.len() <= 4096

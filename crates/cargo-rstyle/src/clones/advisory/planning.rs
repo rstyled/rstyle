@@ -81,9 +81,11 @@ impl Captured {
         let input_complete = ctx.capture.failures.is_empty()
             && ctx.handoff.failures.is_empty()
             && !ready.is_empty()
-            && ready
-                .iter()
-                .all(|ready| ready.unit.inputs_complete() && ready.unit.propagation_complete);
+            && ready.iter().all(|ready| {
+                ready.unit.inputs_complete()
+                    && ready.unit.full_diagnostics_complete()
+                    && ready.unit.propagation_complete
+            });
         Ok(Report {
             schema: "rstyle.compiler-planning/1",
             input_complete,
@@ -94,7 +96,7 @@ impl Captured {
                 "Missing or ambiguous targets are not independent or no-call evidence; counts describe the known graph only.",
                 "Generated effect owners have no authored edit coordinates; plans project onto authored owners and remain incomplete when generated source is unavailable.",
                 "Core bundle names and types are heuristic display keys, not cross-unit semantic type equivalence.",
-                "Raw completed diagnostics drive these plans; reviews and changed-file presentation do not filter the raw planning scope.",
+                "Requested completed diagnostics drive these plans; reviews and changed-file presentation do not filter planning seeds.",
             ],
             groups,
         })
@@ -142,27 +144,42 @@ impl Captured {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let mut rules: BTreeMap<usize, BTreeSet<String>> = BTreeMap::new();
-        for ready in ready {
-            let evaluation = ready
-                .unit
-                .evaluation
-                .as_ref()
-                .ok_or("Compiler plans require numeric diagnostics")?;
-            for (&owner, diagnostic) in ready.diagnostic_indices.iter().zip(&evaluation.diagnostics)
-            {
-                let fact = &ready.facts[owner];
-                let index = indices
-                    .get(&(ready.unit.unit, fact.id.as_str()))
-                    .ok_or("Completed compiler diagnostic has no planning owner")?;
-                rules
-                    .entry(*index)
-                    .or_default()
-                    .insert(diagnostic.rule_id.clone());
-            }
-        }
+        let rules = selected_rules(ready, &indices)?;
         Ok(Inputs { facts, rules })
     }
+}
+
+fn selected_rules(
+    ready: &[Ready],
+    indices: &BTreeMap<(UnitId, &str), usize>,
+) -> Result<BTreeMap<usize, BTreeSet<String>>, String> {
+    let mut rules: BTreeMap<usize, BTreeSet<String>> = BTreeMap::new();
+    for ready in ready {
+        let evaluation = ready
+            .unit
+            .evaluation
+            .as_ref()
+            .ok_or("Compiler plans require numeric diagnostics")?;
+        for (diagnostic_index, (&owner, diagnostic)) in ready
+            .diagnostic_indices
+            .iter()
+            .zip(&evaluation.diagnostics)
+            .enumerate()
+        {
+            if !ready.unit.diagnostic_requested(diagnostic_index) {
+                continue;
+            }
+            let fact = &ready.facts[owner];
+            let index = indices
+                .get(&(ready.unit.unit, fact.id.as_str()))
+                .ok_or("Completed compiler diagnostic has no planning owner")?;
+            rules
+                .entry(*index)
+                .or_default()
+                .insert(diagnostic.rule_id.clone());
+        }
+    }
+    Ok(rules)
 }
 
 struct Inputs<'a> {
