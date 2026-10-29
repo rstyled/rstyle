@@ -770,3 +770,22 @@ Independent new CLI cases also cover missing late measurements, source/manifest
 removal before replay, completed negative pruning, release-context drift and
 4,101 demanded positives refusing baseline export. No strict matching, collector,
 policy/proof layer, fingerprint or numeric measurement change is involved.
+
+### Required local edit worklists (C86)
+
+`project-local-edit-worklist-study.json` reuses the exact C84 core and selected
+ccgraph/pdg captures. Requested authored density reports complete required local
+edits for5 core probe groups and15 dependency-scope groups. Core's actual config
+has a completed empty worklist. Full planning inputs stay incomplete; generated
+numeric owners remain unavailable. The core groups, owner indices and existing
+completion fields match C84's saved plan reports; all raw observations/evaluations
+match the corresponding saved reports for both scopes.
+
+The adapter consumes core's existing configured caller-hop decision and the
+already emitted signature plans. A positive caller-hop requirement or signature
+plan prevents the local shortcut. The real dependency control configures density
+to require caller edits and retains incomplete status. Tool-free saved replay
+from an empty directory agrees exactly. Independent fixture acceptance additionally
+deletes its source/manifest, checks zero-hop signature plans, missing measurements
+and effect routes, and distinguishes known-empty from incomplete empty worklists.
+No new collector, planner, proof, hash, budget or metric version is introduced.

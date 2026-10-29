@@ -79,15 +79,20 @@ fn footprint(
     callers: &[Vec<usize>],
     cfg: &Config,
 ) -> BTreeSet<usize> {
+    with_callers(index, required_caller_hops(rules, cfg), callers)
+}
+
+/// Caller reach required by grouping policy, independent of optional hints.
+/// Parameter stacking may separately require callsite edits even at zero hops.
+pub fn required_caller_hops(rules: &BTreeSet<String>, cfg: &Config) -> usize {
     let reaches_callers = rules
         .iter()
         .any(|r| cfg.grouping.caller_rules.0.contains(r));
-    let hops = if reaches_callers {
+    if reaches_callers {
         cfg.grouping.caller_hops
     } else {
         0
-    };
-    with_callers(index, hops, callers)
+    }
 }
 
 /// Members ordered callees-first (ties and cycles by source order).

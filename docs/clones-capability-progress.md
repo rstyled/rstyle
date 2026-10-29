@@ -6319,3 +6319,51 @@ authored body-local worklists. Distinguish complete required local edits from
 incomplete caller graphs and optional hints; preserve custom caller_rules and
 keep signature/caller plans incomplete when caller edits are unavailable. The
 saved15 density findings provide a bounded real-project acceptance target.
+
+### C86 — required local edit worklists (2026-10-29)
+
+Reused the existing core grouping decision through a small required_caller_hops
+input seam; legacy footprint construction calls the same function. The compiler
+planner now reports required_edits_complete independently of its unchanged full
+input_complete. The local case requires a successful capture/handoff, completed
+requested diagnostic assessments, zero required caller hops for every actual
+seed and no emitted core signature plan. Core stacking output detects parameter
+callsite requirements even when grouping caller_hops=0; no second rule classifier
+or planner was added. All groups, member/step/bundle indices, policy semantics,
+raw facts, strict decisions and budgets remain unchanged. Missing caller graphs
+and optional hints remain outside the new local status.
+
+Five independent CLI cases cover a generated IO chain's single authored density
+edit, configured density caller hops1/0, parameter signature plans with generated
+callers at zero grouping hops, missing selected observations/effect routes and
+known-empty versus incomplete empty worklists. The positive case deletes its
+source and manifest before tool-free replay. All47 focused core grouping,
+stacking, compiler planning, inherited-density and new local-worklist tests pass
+in1.944s, plus doctests. Snapshot review found no new proof/policy or hash layer.
+
+The exact C84 core captures retain identical evaluations, groups, owner indices
+and old completion fields: actual config has0 groups and the499/minima0 probe
+has5. Both now report complete required local edits while full inputs remain
+incomplete with829 generated numeric owners unavailable. The saved ccgraph/pdg
+capture has15 single-owner density groups over238/7,043 authored owners, with
+176/6,494 generated numeric owners still unavailable. Raw rows/evaluations remain
+identical. Tool-free replay from an empty working directory agrees exactly;
+configuring density to reach callers preserves incomplete required-edit status.
+Real sources remain on disk; fixture source deletion is separate evidence.
+Evidence: project-local-edit-worklist-study.json. No speedup or broad planning
+quality/refactoring-safety claim. Integrated validation passes all3,650 Rust
+tests in263.989s with five existing skips, plus doctests. Formatting, Clippy,
+244 capability Python and50 script tests pass. Both legacy gates pass with0
+style violations over9,966 functions and unchanged13 unfiltered pattern IDs.
+Native CI for C85 remained running at the last observation; this increment
+awaits native CI after publication. Overall migration and per-capability legacy
+retirement remain open.
+
+Next ready work is the finite quality gate for all15 actual-policy density
+findings in run-aSRnsx, using independently reviewed original owner/helper source
+and matched clean/threshold/minimum controls. Reuse the existing compiler-quality
+reducer and C86 groups; freeze expectations before comparing numeric details.
+Complete observations, baselines and local worklists establish availability,
+not independently reviewed usefulness. Preserve disagreements and fix any real
+metric problem in the existing core evaluator. No new collector or completeness
+layer is needed for this next task.

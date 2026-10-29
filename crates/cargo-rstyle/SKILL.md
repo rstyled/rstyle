@@ -546,6 +546,13 @@ already resolved effects graph; no new body proofs, hashes or graph copies.
 It can also be requested for the first time during saved-run replay. Raw plans
 retain the full assessed scope when reviews/changed files filter diagnostic
 presentation.
+`planning.required_edits_complete` separately reports whether required edits for
+the requested diagnostics are complete. Complete body-local worklists can coexist
+with incomplete full planning inputs: core grouping must require zero caller hops
+for every actual seed, and core stacking must emit no signature plan. Configured
+caller edits and parameter plans retain their caller prerequisites. Optional
+hints and the caller graph are outside this narrower status; groups and owner
+indices are unchanged. Empty worklists require complete requested assessments.
 Missing/ambiguous inputs remain incomplete; external callers and cross-context
 physical edit overlaps are not certified, and bundle type names remain heuristic.
 Default per-unit evaluation and strict clone matching stay unchanged.

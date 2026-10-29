@@ -20,6 +20,7 @@ pub(super) struct Captured {
 pub(super) struct Report {
     schema: &'static str,
     input_complete: bool,
+    required_edits_complete: bool,
     known_functions: usize,
     limitations: &'static [&'static str],
     groups: Vec<Group>,
@@ -73,28 +74,40 @@ impl Captured {
         config: &Config,
     ) -> Result<Report, String> {
         let inputs = self.inputs(ready)?;
-        let groups =
+        let groups: Vec<_> =
             rstyle_core::groups::build_indexed(&inputs.facts, &self.graph, &inputs.rules, config)
                 .into_iter()
                 .map(|group| self.group(group))
                 .collect();
-        let input_complete = ctx.capture.failures.is_empty()
-            && ctx.handoff.failures.is_empty()
-            && !ready.is_empty()
+
+        let captured =
+            ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty() && !ready.is_empty();
+        let input_complete = captured
             && ready.iter().all(|ready| {
                 ready.unit.inputs_complete()
                     && ready.unit.full_diagnostics_complete()
                     && ready.unit.propagation_complete
             });
+        let required_edits_complete = input_complete
+            || (captured
+                && ready.iter().all(|ready| ready.unit.diagnostics_complete())
+                && inputs
+                    .rules
+                    .values()
+                    .all(|rules| rstyle_core::groups::required_caller_hops(rules, config) == 0)
+                && groups.iter().all(|group| group.evaluation.plan.is_none()));
+
         Ok(Report {
             schema: "rstyle.compiler-planning/1",
             input_complete,
+            required_edits_complete,
             known_functions: inputs.facts.len(),
             limitations: &[
                 "Advisory core edit footprints and parameter suggestions over captured compiler facts; no rewrite or refactoring-safety authority.",
                 "Only captured resolved calls are enumerated; callers outside the selected Cargo scope remain unenumerated even when input_complete is true.",
                 "Missing or ambiguous targets are not independent or no-call evidence; counts describe the known graph only.",
                 "Generated effect owners have no authored edit coordinates; plans project onto authored owners and remain incomplete when generated source is unavailable.",
+                "required_edits_complete describes requested edit worklists only; missing caller graphs and optional hints remain outside that status. Parameter plans still require caller inputs.",
                 "Core bundle names and types are heuristic display keys, not cross-unit semantic type equivalence.",
                 "Requested completed diagnostics drive these plans; reviews and changed-file presentation do not filter planning seeds.",
             ],
@@ -190,10 +203,11 @@ struct Inputs<'a> {
 impl Report {
     pub(super) fn render(&self) -> String {
         let mut lines = vec![format!(
-            "\nCompiler planning: {} known functions, {} groups; input complete={}. Captured callers only; advisory.",
+            "\nCompiler planning: {} known functions, {} groups; input complete={}, required edits complete={}. Captured callers only; advisory.",
             self.known_functions,
             self.groups.len(),
-            self.input_complete
+            self.input_complete,
+            self.required_edits_complete
         )];
         for group in &self.groups {
             lines.extend(rstyle_core::report::group_lines(&group.evaluation));
