@@ -27,7 +27,7 @@ impl From<&FnFacts> for Function {
     }
 }
 
-fn key(function: &Function) -> Option<(usize, usize)> {
+fn complexity_rank(function: &Function) -> Option<(usize, usize)> {
     function
         .complexity
         .as_ref()
@@ -48,14 +48,14 @@ pub fn findings(facts: &[FnFacts], diagnostics: &[Diagnostic]) -> Vec<Function> 
         })
         .map(Function::from)
         .collect();
-    sort(&mut functions);
+    rank_functions(&mut functions);
     functions
 }
 
 /// All functions are ranked by COG, then CC, then stable source identity.
-fn sort(functions: &mut [Function]) {
+fn rank_functions(functions: &mut [Function]) {
     functions.sort_by(|a, b| {
-        key(b).cmp(&key(a)).then_with(|| {
+        complexity_rank(b).cmp(&complexity_rank(a)).then_with(|| {
             (&a.path, a.line, a.column, &a.name).cmp(&(&b.path, b.line, b.column, &b.name))
         })
     });

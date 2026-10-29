@@ -26,7 +26,7 @@ pub fn crate_facts(
     tcx: TyCtxt<'_>,
     root: &Path,
     with_pdg: bool,
-    complexity: &crate::complexity::Functions,
+    complexity: &crate::driver_complexity::Functions,
 ) -> Vec<FnFacts> {
     let mut facts: Vec<FnFacts> = tcx
         .hir_body_owners()

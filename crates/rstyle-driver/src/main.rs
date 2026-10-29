@@ -15,7 +15,7 @@ extern crate rustc_middle;
 extern crate rustc_span;
 
 mod args;
-mod complexity;
+mod driver_complexity;
 mod driver_options;
 mod effects;
 mod extract;
@@ -72,12 +72,12 @@ struct Extract {
     root: PathBuf,
     /// Also record dependence graphs (`RSTYLE_PDG` set by `cargo rstyle patterns`).
     pdg: bool,
-    complexity: complexity::Functions,
+    complexity: driver_complexity::Functions,
 }
 
 impl Callbacks for Extract {
     fn after_expansion<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
-        self.complexity = complexity::collect(tcx);
+        self.complexity = driver_complexity::collect(tcx);
         Compilation::Continue
     }
 
