@@ -1,7 +1,7 @@
 //! Pure rules over `FnFacts`. No IO, no compiler types.
 
 use crate::config::{Config, Granularity, MutationBudgetConfig};
-use crate::facts::{EffectKind, FnFacts};
+use crate::facts::{CallEvent, EffectEvent, EffectKind, FnFacts, MutationEvent};
 use crate::lines::code_lines;
 use crate::report::{Detail, Diagnostic};
 use std::collections::BTreeMap;
@@ -187,9 +187,28 @@ pub struct Effect {
 
 /// All effects of a function: mutations, classified calls, and driver-decided effects.
 pub fn effects_of(f: &FnFacts, cfg: &Config) -> Vec<Effect> {
+    effects_from_events(
+        EffectEvents {
+            mutations: &f.mutations,
+            calls: &f.calls,
+            effects: &f.effects,
+        },
+        cfg,
+    )
+}
+
+/// Compiler-observed events, independent of authored source and numeric measurements.
+pub struct EffectEvents<'a> {
+    pub mutations: &'a [MutationEvent],
+    pub calls: &'a [CallEvent],
+    pub effects: &'a [EffectEvent],
+}
+
+/// Reuse effect classification over borrowed events without inventing function metrics.
+pub fn effects_from_events(events: EffectEvents<'_>, cfg: &Config) -> Vec<Effect> {
     // One effect per written target: repeated writes are `mutation_per_target`'s business.
     let mut written = std::collections::BTreeSet::new();
-    let mutations = f
+    let mutations = events
         .mutations
         .iter()
         .filter(|m| m.escapes)
@@ -204,7 +223,7 @@ pub fn effects_of(f: &FnFacts, cfg: &Config) -> Vec<Effect> {
             line: m.line,
             via: None,
         });
-    let calls = f.calls.iter().filter_map(|c| {
+    let calls = events.calls.iter().filter_map(|c| {
         let classified = cfg.side_effects.paths.classify(&c.callee);
         let kind = classified.or(c.dynamic.then_some(EffectKind::Unknown))?;
         Some(Effect {
@@ -214,7 +233,7 @@ pub fn effects_of(f: &FnFacts, cfg: &Config) -> Vec<Effect> {
             via: None,
         })
     });
-    let intrinsic = f.effects.iter().map(|e| Effect {
+    let intrinsic = events.effects.iter().map(|e| Effect {
         kind: e.kind,
         label: e.detail.clone(),
         line: e.line,
@@ -283,6 +302,88 @@ mod tests {
             escapes: true,
             delegated: false,
         }
+    }
+
+    #[test]
+    fn borrowed_events_preserve_written_targets_and_exclude_owned_or_delegated_writes() {
+        let mutations = [
+            mutation("out", "first", 1),
+            mutation("out", "first", 2),
+            mutation("out", "second", 3),
+            MutationEvent {
+                escapes: false,
+                ..mutation("local", "", 4)
+            },
+            MutationEvent {
+                escapes: false,
+                delegated: true,
+                ..mutation("self", "", 5)
+            },
+        ];
+        let effects = effects_from_events(
+            EffectEvents {
+                mutations: &mutations,
+                calls: &[],
+                effects: &[],
+            },
+            &Config::default(),
+        );
+        let observed: Vec<_> = effects
+            .iter()
+            .map(|e| (e.kind, e.label.as_str(), e.line))
+            .collect();
+        assert_eq!(
+            observed,
+            [
+                (EffectKind::Mutation, "out.first", 1),
+                (EffectKind::Mutation, "out.second", 3),
+            ]
+        );
+        assert!(effects.iter().all(|effect| effect.via.is_none()));
+    }
+
+    #[test]
+    fn borrowed_events_preserve_call_classification_intrinsics_and_wrapper_results() {
+        let mut facts = sample("f");
+        facts.calls = vec![
+            call("std::fs::write"),
+            CallEvent {
+                callee: "<fn pointer>".into(),
+                line: 8,
+                dynamic: true,
+            },
+            call("unclassified::ordinary"),
+            CallEvent {
+                dynamic: true,
+                ..call("std::fs::read")
+            },
+        ];
+        facts.effects = vec![EffectEvent {
+            kind: EffectKind::Global,
+            detail: "static mut STATE".into(),
+            line: 9,
+        }];
+        let cfg = Config::default();
+        let effects = effects_from_events(
+            EffectEvents {
+                mutations: &facts.mutations,
+                calls: &facts.calls,
+                effects: &facts.effects,
+            },
+            &cfg,
+        );
+        assert_eq!(effects, effects_of(&facts, &cfg));
+        let observed: Vec<_> = effects.iter().map(|e| (e.kind, e.label.as_str())).collect();
+        assert_eq!(
+            observed,
+            [
+                (EffectKind::Io, "std::fs::write"),
+                (EffectKind::Unknown, "<fn pointer>"),
+                (EffectKind::Io, "std::fs::read"),
+                (EffectKind::Global, "static mut STATE"),
+            ]
+        );
+        assert_eq!((effects[1].line, effects[3].line), (8, 9));
     }
 
     fn density_diags(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {

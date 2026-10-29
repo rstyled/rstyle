@@ -5407,3 +5407,58 @@ Locked all-target Clippy, formatting/diff checks and all 244 offline Python test
 pass. Style has zero violations over 9,860 functions; patterns has zero unreviewed
 candidates and the same 13 unfiltered IDs as main. Logs use /tmp/clones-c67-*.
 Native C67 CI remains pending until push; the full migration goal stays active.
+
+### C68 — reuse direct effect collectors for generated owners (2026-10-29)
+
+Expanded function signatures previously returned before either existing event
+collector ran. Fresh compiler-input captures now retain their mutation, external
+call and intrinsic-effect observations under the separate
+rstyle.compiler-generated-effects/1 metric. A borrowed EffectEvents seam extracts
+the existing core classification body; the FnFacts wrapper keeps identical
+behavior. No duplicate classification, propagation, policy flags, source proof,
+hash or source/artifact scan is introduced. Buffers move from the collectors
+into the observation and classification borrows their event slices.
+Display paths reuse the captured owner source-file helper; the partial record
+does not duplicate paths or reread source files.
+
+Per-unit generated_effects rows identify the scoped function and expansion
+callsite, retain raw events and display direct classifications. Source/tool-free
+replay reuses those events under ordinary core configuration. This is partial
+collector coverage: local calls and opaque behavior can have further effects;
+empty event lists do not establish purity. Source, complexity, density, pattern
+graphs and suppression scopes are not fabricated. Generated owners stay in
+unavailable, full coverage stays incomplete and exit 2 remains. Existing authored
+metric versions, completed propagation, numeric/planning results and strict
+matching permissions are unchanged. Historical captures without this observation
+remain unavailable rather than acquiring known-empty event lists.
+
+Independent CLI acceptance covers five generated owners from one invocation,
+empty/write/IO/indirect/unsafe outcomes, distinct keys, authored/generated
+separation, missing transitive effects, raw source/tool-free replay, changed-call
+classification and absent historical records. Core differential tests preserve
+mutation deduplication/order, call precedence/dynamic unknown and intrinsic
+classification. Codec tests preserve missing rosters and explicit event fields.
+The acceptance worker owned only its new leaf; lead owns capture, transport,
+report wiring, docs and integration. Worker writes are frozen for integrated gates.
+
+A fresh rstyle-ccgraph library capture gains direct observations for all 176
+previously unavailable generated owners: 101 mutation/borrow events, 435 external
+calls and 41 classified escaping mutation targets. 135 owners have no classified
+direct event, without a purity claim. A derived Debug formatter's escaping mutable
+borrow and the Copy-handle Clone control are independently checked against the
+source derive. Replaying the exact C66 capture yields no generated rows; authored
+numeric evaluation, pattern report, unresolved callees, observations and missing
+owners exactly equal the fresh report. Both exit 2. Final capture takes 16.810s; this
+is one sample, not a speedup claim. See project-generated-direct-effects-study.json.
+Generated propagation and actual pattern/source replacement coverage remain open.
+
+Integrated final-snapshot validation: all 3,528 Rust tests pass with five existing
+skips, plus doc tests. Locked all-target Clippy, formatting/diff checks and all
+244 offline Python tests pass. Style reports zero violations over 9,867 functions;
+reviewed patterns has zero unreviewed candidates and unfiltered discovery retains
+the same 13 IDs as main. The style gate's initial accumulator-write and phase
+spacing findings were fixed through a small unavailable-owner helper and blank
+lines, without suppressions or configuration changes. Logs use /tmp/clones-c68-*.
+Native CI for C68 remains pending until push. Generated propagation, structural
+coverage, ledger/routing migration and broader replacement gates remain open;
+the full goal stays active.

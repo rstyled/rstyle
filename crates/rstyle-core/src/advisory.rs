@@ -2,6 +2,7 @@
 use crate::facts::FnFacts;
 use serde::{Deserialize, Serialize};
 
+pub mod generated_effects;
 pub mod patterns;
 
 pub const KEY: &str = "rstyle.compiler-advisory/1";

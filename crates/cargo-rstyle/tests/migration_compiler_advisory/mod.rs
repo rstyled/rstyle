@@ -4,6 +4,7 @@ mod complexity;
 mod complexity_ranking;
 mod extraction;
 mod function_extraction;
+mod generated_effects;
 mod instance_extraction;
 mod mutations;
 mod only;

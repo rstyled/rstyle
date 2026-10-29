@@ -1,0 +1,128 @@
+{
+  "checkpoint": "C68",
+  "scope": "rstyle-ccgraph library; new raw compiler capture versus exact C66 retained capture",
+  "source_revision": "a65be902ac44a88aaae420930af8627a4471a8b2+dirty",
+  "worktree_note": "Task-owned C68 changes only; unrelated untracked files preserved. rstyle-ccgraph sources unchanged from C66.",
+  "toolchain": "nightly-2026-09-30",
+  "host": "aarch64-unknown-linux-gnu",
+  "fresh": {
+    "command": [
+      "target/debug/cargo-rstyle",
+      "rstyle",
+      "--package",
+      "rstyle-ccgraph",
+      "--format",
+      "json",
+      "clones",
+      "--extraction-profile",
+      "hir-data-v3",
+      "--locked",
+      "--report-detail",
+      "compact",
+      "--compiler-advisory",
+      "--compiler-advisory-only",
+      "--compiler-patterns"
+    ],
+    "exit": 2,
+    "elapsed_seconds": 16.809628861024976,
+    "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-d9cDbw"
+  },
+  "prior_replay": {
+    "command": [
+      "target/debug/cargo-rstyle",
+      "clones",
+      "--extraction-profile",
+      "hir-data-v3",
+      "--format",
+      "json",
+      "--report-detail",
+      "compact",
+      "--compiler-advisory",
+      "--compiler-advisory-only",
+      "--compiler-patterns",
+      "--replay-run",
+      "target/rstyle/clones/run-TROKv9"
+    ],
+    "exit": 2,
+    "elapsed_seconds": 0.41333029395900667,
+    "run_directory": "target/rstyle/clones/run-TROKv9"
+  },
+  "observations": {
+    "authored_owners": 238,
+    "unavailable_source_owners": 176,
+    "generated_direct_observations_before": 0,
+    "generated_direct_observations_after": 176,
+    "generated_owners_with_classified_events": 41,
+    "generated_owners_without_classified_events": 135,
+    "event_counts": {
+      "mutations": 101,
+      "calls": 435,
+      "intrinsic_effects": 0,
+      "direct_effects": 41
+    },
+    "classified_kinds": {
+      "mutation": 41
+    },
+    "unchanged_fields": {
+      "evaluation": true,
+      "patterns": true,
+      "unresolved_callees": true,
+      "observations": true,
+      "unavailable": true
+    },
+    "capture_failures": [],
+    "handoff_failures": []
+  },
+  "independent_source_checks": [
+    {
+      "source": "crates/rstyle-ccgraph/src/compact.rs:7",
+      "owner": "<compact::NodeId as std::fmt::Debug>::fmt",
+      "expectation": "Derived formatting receives a mutable formatter; existing collector should retain an escaping mutable-borrow event, not infer source density or transitive completeness.",
+      "observed_mutation_root": "f",
+      "observed_classified_kinds": [
+        "mutation"
+      ]
+    },
+    {
+      "source": "crates/rstyle-ccgraph/src/compact.rs:7",
+      "owner": "<compact::NodeId as std::clone::Clone>::clone",
+      "expectation": "Clone of a Copy u32 handle does not directly mutate a supplied reference or make a configured external call. An empty event observation is not a general purity proof.",
+      "observed_classified_kinds": []
+    }
+  ],
+  "limits": [
+    "Direct observations only; local calls and opaque work can have unobserved effects.",
+    "Generated owners still lack source/numeric/pattern coverage; both runs exit2.",
+    "No real-project propagation or useful-proposal quality gain claimed.",
+    "Fresh capture and historical replay times measure different work; no speedup claimed.",
+    "Go comparison and native macOS execution unverified for this checkpoint."
+  ],
+  "compiler_identity": "rustc 1.101.0-nightly (5c543b0b8 2026-09-29)\nbinary: rustc\ncommit-hash: 5c543b0b8c73c7b72bc8284ced4fb22ead15734d\ncommit-date: 2026-09-29\nhost: aarch64-unknown-linux-gnu\nrelease: 1.101.0-nightly\nLLVM version: 23.1.1",
+  "context": {
+    "producer_revision": {
+      "status": "known",
+      "value": "a65be902ac44a88aaae420930af8627a4471a8b2+dirty"
+    },
+    "target_triple": {
+      "status": "known",
+      "value": "aarch64-unknown-linux-gnu"
+    },
+    "edition": {
+      "status": "known",
+      "value": "2024"
+    },
+    "features": [],
+    "opt_level": {
+      "status": "known",
+      "value": "No"
+    },
+    "overflow_checks": {
+      "status": "known",
+      "value": true
+    },
+    "debug_assertions": {
+      "status": "known",
+      "value": true
+    }
+  }
+}

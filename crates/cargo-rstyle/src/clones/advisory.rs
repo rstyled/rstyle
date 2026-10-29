@@ -1,5 +1,6 @@
 //! Reuse core policy over compiler-collected inputs, scoped by compilation unit.
 mod diagnostics;
+mod generated_effects;
 mod owner_names;
 mod patterns;
 mod planning;
@@ -51,6 +52,7 @@ struct Unit {
     source_root: std::path::PathBuf,
     expected_functions: Option<usize>,
     observations: Vec<Measurement>,
+    generated_effects: Vec<generated_effects::Measurement>,
     unavailable: Vec<Missing>,
     unavailable_complexity: Vec<Missing>,
     unresolved_callees: BTreeSet<String>,
@@ -163,6 +165,11 @@ impl Report {
             .map(Unit::render_diagnostics)
             .collect::<Vec<_>>()
             .join("\n");
+        let generated: String = self
+            .units
+            .iter()
+            .map(|unit| generated_effects::render(&unit.generated_effects))
+            .collect();
         let summaries = self.render_summaries();
         let planning = self
             .planning
@@ -177,7 +184,7 @@ impl Report {
                     .map(|report| report.render(unit.unit))
             })
             .collect();
-        format!("{summary}{diagnostics}{patterns}{ranking}{summaries}{planning}")
+        format!("{summary}{diagnostics}{generated}{patterns}{ranking}{summaries}{planning}")
     }
 
     fn render_summaries(&self) -> String {
@@ -495,6 +502,7 @@ fn evaluate_unit(
         source_root: ctx.capture.plan.root.clone(),
         expected_functions,
         observations: inputs.observations,
+        generated_effects: inputs.generated_effects,
         unavailable: inputs.unavailable,
         unavailable_complexity: inputs.unavailable_complexity,
         unresolved_callees,
@@ -573,6 +581,7 @@ struct Collected {
     metrics: Option<&'static str>,
     facts: Vec<FnFacts>,
     observations: Vec<Measurement>,
+    generated_effects: Vec<generated_effects::Measurement>,
     unavailable: Vec<Missing>,
     unavailable_complexity: Vec<Missing>,
     missing_graphs: Vec<Missing>,
@@ -595,10 +604,9 @@ fn collect_inputs(ctx: &Context<'_>, unit: UnitId) -> Result<Collected, String> 
                 inputs.metrics = Some(metrics);
                 inputs.push_known(function, *facts, ctx.args.compiler_patterns)?
             }
-            Observation::Unavailable { reason } => inputs.unavailable.push(Missing {
-                key: function.key,
-                reason,
-            }),
+            Observation::Unavailable { reason } => {
+                inputs.push_unavailable(function, reason, ctx)?;
+            }
         }
     }
     Ok(inputs)
@@ -614,6 +622,25 @@ fn collected_metrics(inputs: &[Collected]) -> Result<&'static str, String> {
 }
 
 impl Collected {
+    fn push_unavailable(
+        &mut self,
+        function: &super::Function,
+        reason: String,
+        ctx: &Context<'_>,
+    ) -> Result<(), String> {
+        if let Some(config) = ctx.compiler_advisory_config
+            && let Some(measurement) =
+                generated_effects::read(function, config, &ctx.capture.plan.root)?
+        {
+            self.generated_effects.push(measurement);
+        }
+        self.unavailable.push(Missing {
+            key: function.key,
+            reason,
+        });
+        Ok(())
+    }
+
     fn take_diagnostics(
         &mut self,
         effects: Option<BTreeMap<String, Vec<rstyle_core::rules::Effect>>>,
@@ -749,26 +776,14 @@ fn observation(function: &super::Function, root: &std::path::Path) -> Result<Obs
                 "Compiler advisory metrics or source owner disagree with captured function".into(),
             );
         }
-        let source = function
-            .facts
-            .build
-            .frontend_options
-            .get("source_file")
-            .and_then(serde_json::Value::as_str)
-            .ok_or("Missing compiler advisory source location")?;
-        let original = std::path::Path::new(source);
-        let normalized = (matches!(
-            metrics.as_str(),
-            rstyle_core::advisory::V5_METRICS | METRICS
-        ))
-        .then(|| rstyle_pdg::nominal_binding::absolute_path(original))
-        .transpose()?;
-        let path = normalized.as_deref().unwrap_or(original);
-        facts.path = path
-            .strip_prefix(root)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .replace('\\', "/");
+        facts.path = source_path(
+            function,
+            root,
+            matches!(
+                metrics.as_str(),
+                rstyle_core::advisory::V5_METRICS | METRICS
+            ),
+        )?;
         if facts.params + usize::from(facts.has_self) != function.facts.signature.params.len()
             || facts.param_list.len() != facts.params
             || facts.pdg.is_some()
@@ -812,4 +827,29 @@ fn unresolved(facts: &[FnFacts]) -> Result<BTreeSet<String>, String> {
         .filter(|edge| !ids.contains(edge.callee.as_str()))
         .map(|edge| edge.callee.clone())
         .collect())
+}
+
+fn source_path(
+    function: &super::Function,
+    root: &std::path::Path,
+    normalize: bool,
+) -> Result<String, String> {
+    let source = function
+        .facts
+        .build
+        .frontend_options
+        .get("source_file")
+        .and_then(serde_json::Value::as_str)
+        .ok_or("Missing compiler advisory source location")?;
+    let original = std::path::Path::new(source);
+    let normalized = normalize
+        .then(|| rstyle_pdg::nominal_binding::absolute_path(original))
+        .transpose()?;
+    let path = normalized.as_deref().unwrap_or(original);
+
+    Ok(path
+        .strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/"))
 }

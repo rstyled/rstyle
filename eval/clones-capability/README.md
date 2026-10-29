@@ -744,3 +744,9 @@ The three alternating timing samples per mode show negligible elapsed/RSS change
 not a speedup or a new quality/coverage result. Independent CLI acceptance covers
 complete structural proposals with unresolved effect-only dependencies, plus
 missing owners/graphs, replay, selection, reviews/baselines and strict matching.
+
+`project-generated-direct-effects-study.json` records C68's fresh rstyle-ccgraph
+library capture and exact historical replay: 176 generated owners gain direct
+collector observations, while authored results and missing source/pattern
+coverage remain unchanged. Mutable formatter borrows are existing core mutation
+semantics. Empty direct classifications are not purity or transitive coverage.

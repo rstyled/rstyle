@@ -42,11 +42,52 @@ pub(super) fn capture(
                 facts: Box::new(collected),
             }
         }
-        None => Observation::Unavailable {
-            reason: "Existing compiler collector has no original function source".into(),
-        },
+        None => {
+            capture_generated(ctx, id, facts, &options)?;
+            Observation::Unavailable {
+                reason: "Existing compiler collector has no original function source".into(),
+            }
+        }
     };
 
+    facts.build.frontend_options.insert(
+        KEY.into(),
+        serde_json::to_value(observation).map_err(|error| error.to_string())?,
+    );
+    Ok(())
+}
+
+fn capture_generated(
+    ctx: &Context<'_>,
+    id: LocalDefId,
+    facts: &mut HirFnFacts,
+    options: &Options<'_>,
+) -> Result<(), String> {
+    use rstyle_core::advisory::generated_effects::{KEY, Observation};
+    let node = ctx.tcx.hir_node_by_def_id(id);
+    let Some(sig) = node.fn_sig().filter(|sig| sig.span.from_expansion()) else {
+        return Ok(());
+    };
+    let Some(body) = node.body_id().map(|body| ctx.tcx.hir_body(body)) else {
+        return Ok(());
+    };
+    let start = ctx
+        .tcx
+        .sess
+        .source_map()
+        .lookup_char_pos(sig.span.source_callsite().lo());
+
+    let collected = crate::effects::collect(ctx.tcx, id, body, options);
+    let (mutations, _) = crate::mutations::collect(ctx.tcx, id, options);
+    let observation = Observation {
+        metrics: KEY.into(),
+        name: facts.name.clone(),
+        line: start.line,
+        column: start.col.0 + 1,
+        mutations,
+        calls: collected.calls,
+        intrinsic_effects: collected.effects,
+    };
     facts.build.frontend_options.insert(
         KEY.into(),
         serde_json::to_value(observation).map_err(|error| error.to_string())?,

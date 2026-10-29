@@ -19,6 +19,22 @@ unresolved callees also keep requested numeric style/effect coverage incomplete.
 Use `--compiler-patterns` without `--compiler-advisory` for structural proposals
 without numeric rule evaluation. The raw capture mode accepts either consumer.
 
+Fresh compiler-input captures also retain direct mutation, external-call and
+intrinsic-effect events for macro-generated function signatures. Per-unit
+`generated_effects` rows give the function key/name and expansion callsite, raw
+events and classifications under the ordinary core config. They use the existing
+collectors and classifier; source/tool-free replay can reclassify retained calls.
+The separate metric is `rstyle.compiler-generated-effects/1`. An empty event list
+means the collector observed no events in that category; it does not establish
+purity. Local calls and opaque behavior can still have effects.
+
+These partial rows do not provide authored source, complexity, density, structural
+graphs, suppression scope or propagated effects. Generated owners remain in
+`unavailable`, requested coverage remains incomplete, and the exit remains 2.
+Older captures without the record produce no row, rather than a fabricated empty
+measurement. Existing authored metrics, propagation and strict matching are
+unchanged. No additional hash or source verification pass is used.
+
 The mode publishes the existing shared raw-facts format with an exact
 `compiler-advisory-only` phase, using the existing streaming transport seal and
 successful Cargo/unit ledgers. Raw function references identify
