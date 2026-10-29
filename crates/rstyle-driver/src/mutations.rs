@@ -12,14 +12,14 @@ use rustc_span::DesugaringKind;
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use crate::extract::line_of;
+use crate::extract::{Metric, Options, line_of};
 use crate::ids;
 
 /// Mutation events plus the sorted ids of workspace types written through.
 pub fn collect<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
-    root: &Path,
+    options: &Options<'_>,
 ) -> (Vec<MutationEvent>, Vec<String>) {
     let body_id = tcx
         .hir_node_by_def_id(def_id)
@@ -37,7 +37,8 @@ pub fn collect<'tcx>(
     };
     let mut collector = Collector {
         tcx,
-        root,
+        root: options.root,
+        metric: options.metric,
         events: Vec::new(),
         types: BTreeSet::new(),
     };
@@ -50,6 +51,7 @@ pub fn collect<'tcx>(
 struct Collector<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     root: &'a Path,
+    metric: Metric,
     events: Vec<MutationEvent>,
     types: BTreeSet<String>,
 }
@@ -93,7 +95,7 @@ impl<'tcx> Collector<'_, 'tcx> {
             && place
                 .ty()
                 .ty_adt_def()
-                .is_some_and(|adt| ids::in_workspace(self.tcx, adt.did(), self.root))
+                .is_some_and(|adt| ids::in_workspace(self.tcx, adt.did(), self.root, self.metric))
     }
 
     /// Remembers the workspace type behind the written root (`&mut T`, `Box<T>` peeled).
@@ -101,7 +103,7 @@ impl<'tcx> Collector<'_, 'tcx> {
         let peeled = base.peel_refs();
         let peeled = peeled.boxed_ty().unwrap_or(peeled);
         if let Some(adt) = peeled.ty_adt_def()
-            && ids::in_workspace(self.tcx, adt.did(), self.root)
+            && ids::in_workspace(self.tcx, adt.did(), self.root, self.metric)
         {
             self.types.insert(ids::def_id_str(self.tcx, adt.did()));
         }

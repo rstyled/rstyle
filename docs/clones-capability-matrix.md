@@ -49,6 +49,8 @@ policy is five code lines/four parameters; production defaults are unchanged.
 
 | Concrete trait implementation edges | Existing compiler instance selection in the existing effect collector walk | Advisory metric4; concrete non-inferred ordinary Item instances; existing original owner and unique direct Cargo routing | Method/UFCS/default-body examples, exact effect/planning targets, receiver mapping, source-free replay, generic/dynamic/missing/generated/excluded and configured-call controls | C39 recovers two frozen real-project Default implementation edges; historical metrics1–3 replay unchanged. Default-body alias routing retains existing behavior; no general dispatch, IO/planner project gain, purity or retirement claim |
 
+| Shared compiler source locations | Existing Rust collectors and existing lexical absolute-path normalizer | Explicit workspace location root, separate selected package context; external selected dependency retains own package scope; metric5 | Relative/absolute shared modules, normalized exclusions, same-unit effects/plans, generated/foreign boundaries, check/test contexts, source-free replay and external dependency capture | C40 recovers 29 authored owner-context observations from unchanged original byte-window oracle sources in a declared routing-only study. Relative exclusions now apply consistently; old measured metrics/paths replay unchanged (unavailable-only bundles retain current-header fallback); no strict, project-purity, speedup or retirement claim |
+
 Both legacy style and patterns remain operational. The initial corpus alone does
 not satisfy retirement: independent quality review, stable review identity,
 configuration/suppression/exit compatibility, bounded resource evidence, broader

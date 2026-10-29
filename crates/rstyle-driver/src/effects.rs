@@ -159,7 +159,7 @@ impl<'tcx> Walker<'tcx> {
         } = target;
         self.recursion(def_id, expr.span);
 
-        if !ids::in_workspace(self.tcx, def_id, &self.root) {
+        if !ids::in_workspace(self.tcx, def_id, &self.root, self.metric) {
             return;
         }
         let line = self.line(expr.span);

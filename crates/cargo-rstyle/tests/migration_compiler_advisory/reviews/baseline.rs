@@ -100,6 +100,7 @@ fn historical_baseline_metrics_remain_readable_and_mark_scope_drift() {
         "rstyle.compiler-style-metrics/1",
         "rstyle.compiler-style-metrics/2",
         "rstyle.compiler-style-metrics/3",
+        "rstyle.compiler-style-metrics/4",
     ] {
         saved["metrics"] = version.into();
         for entry in saved["entries"].as_array_mut().unwrap() {
@@ -210,7 +211,7 @@ fn empty_baseline_metric_drift_cannot_establish_a_clean_gate() {
     let path = directory.path().join("baseline.json");
     let mut saved: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
     assert_eq!(saved["entries"], serde_json::json!([]));
-    saved["metrics"] = "rstyle.compiler-style-metrics/3".into();
+    saved["metrics"] = "rstyle.compiler-style-metrics/4".into();
     std::fs::write(path, serde_json::to_vec(&saved).unwrap()).unwrap();
     let (output, report) = replay(
         directory.path(),

@@ -5,10 +5,12 @@ use serde::{Deserialize, Serialize};
 pub mod patterns;
 
 pub const KEY: &str = "rstyle.compiler-advisory/1";
-pub const METRICS: &str = "rstyle.compiler-style-metrics/4";
+pub const METRICS: &str = "rstyle.compiler-style-metrics/5";
+pub const V4_METRICS: &str = "rstyle.compiler-style-metrics/4";
 pub const V3_METRICS: &str = "rstyle.compiler-style-metrics/3";
 pub const V2_METRICS: &str = "rstyle.compiler-style-metrics/2";
 pub const LEGACY_METRICS: &str = "rstyle.compiler-style-metrics/1";
+pub const SOURCE_ROOT_ENV: &str = "RSTYLE_COMPILER_SOURCE_ROOT";
 pub const CAPTURE_ENV: &str = "RSTYLE_COMPILER_ADVISORY";
 
 /// Historical observations keep their measured semantics on replay.
@@ -18,6 +20,7 @@ pub fn metric_version(value: &str) -> Option<&'static str> {
         LEGACY_METRICS => Some(LEGACY_METRICS),
         V2_METRICS => Some(V2_METRICS),
         V3_METRICS => Some(V3_METRICS),
+        V4_METRICS => Some(V4_METRICS),
         _ => None,
     }
 }
@@ -66,7 +69,7 @@ impl Observation {
                     if roster == "mutations"
                         && matches!(
                             raw["metrics"].as_str(),
-                            Some(V2_METRICS | V3_METRICS | METRICS)
+                            Some(V2_METRICS | V3_METRICS | V4_METRICS | METRICS)
                         )
                     {
                         require_fields(entry, &["origin"])?;

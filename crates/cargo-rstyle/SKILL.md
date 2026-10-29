@@ -529,3 +529,18 @@ route, generated/missing/excluded and default-body alias handling remains in
 force. Metrics1–3 remain readable with their original measured edges and counts;
 metric drift makes retained diagnostics stale and baseline scopes different.
 This adds no hashing, repeated source proof, graph copy or strict permission.
+
+
+Compiler advisory metric5 uses the declared workspace source root independently
+of package ownership. Authored shared `#[path]` modules inside that workspace can
+supply the existing collectors even when outside a member package directory.
+Explicitly captured dependencies outside the workspace retain their own package
+root. Compiler locations normalize lexically through the existing path helper;
+workspace-relative exclusions therefore treat relative and absolute spellings
+consistently. No filesystem canonicalization or new checksum is used. Foreign
+local source files and generated owners remain unavailable, and test/check
+compilation contexts remain distinct. Metrics1–4 retain captured paths and
+measurements on replay; unavailable-only bundles have no observed metric version
+and retain the existing current-header fallback. Metric changes remain visible
+to reviews and baselines.
+Strict source census, extraction permissions and matching are unchanged.

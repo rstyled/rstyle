@@ -622,7 +622,7 @@ fn observation(function: &super::Function, root: &std::path::Path) -> Result<Obs
         });
     };
     let mut observation = Observation::read(raw)?;
-    if let Observation::Known { facts, .. } = &mut observation {
+    if let Observation::Known { facts, metrics } = &mut observation {
         if facts.name != function.facts.name || facts.source != function.facts.source.bytes.as_str()
         {
             return Err(
@@ -636,7 +636,11 @@ fn observation(function: &super::Function, root: &std::path::Path) -> Result<Obs
             .get("source_file")
             .and_then(serde_json::Value::as_str)
             .ok_or("Missing compiler advisory source location")?;
-        let path = std::path::Path::new(source);
+        let original = std::path::Path::new(source);
+        let normalized = (metrics == METRICS)
+            .then(|| rstyle_pdg::nominal_binding::absolute_path(original))
+            .transpose()?;
+        let path = normalized.as_deref().unwrap_or(original);
         facts.path = path
             .strip_prefix(root)
             .unwrap_or(path)

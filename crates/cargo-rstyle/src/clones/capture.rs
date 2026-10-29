@@ -612,7 +612,9 @@ fn driver_command(
             plan.compiler_patterns
                 .then_some((rstyle_core::advisory::patterns::CAPTURE_ENV, "1")),
         ];
-        command.envs(flags.into_iter().flatten());
+        command
+            .envs(flags.into_iter().flatten())
+            .env(rstyle_core::advisory::SOURCE_ROOT_ENV, &plan.root);
     }
     command.args(arguments);
     Ok(command)

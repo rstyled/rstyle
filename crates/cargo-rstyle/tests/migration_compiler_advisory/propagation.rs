@@ -2,6 +2,7 @@ use super::*;
 
 mod associated;
 mod concrete_traits;
+mod shared_sources;
 
 const IO: &str = "pub fn leaf(){std::fs::write(\"/unused\",b\"x\").ok();}";
 const CALLER: &str = "pub fn caller(){renamed::leaf();}";

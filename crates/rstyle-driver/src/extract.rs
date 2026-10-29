@@ -76,17 +76,18 @@ pub(crate) fn function_facts(
     let body = tcx.hir_body(body_id);
     let source_map = tcx.sess.source_map();
     let start = source_map.lookup_char_pos(sig.span.lo());
+    let path = options.metric.display_path(tcx, &start.file, root)?;
     let source = source_map
         .span_to_snippet(sig.span.to(body.value.span))
         .ok()?;
     let has_self = sig.decl.implicit_self().has_implicit_self();
     let body_facts = effects::collect(tcx, def_id, body, options);
-    let (mutations, mutated_types) = mutations::collect(tcx, def_id, root);
+    let (mutations, mutated_types) = mutations::collect(tcx, def_id, options);
 
     Some(FnFacts {
         id: ids::def_id_str(tcx, def_id.to_def_id()),
         implements: implemented_trait_method(tcx, def_id),
-        path: display_path(&start.file, root)?,
+        path,
         line: start.line,
         column: start.col.0 + 1,
         name: tcx.def_path_str(def_id.to_def_id()),
@@ -174,4 +175,26 @@ pub(crate) fn display_path(file: &SourceFile, root: &Path) -> Option<String> {
     let path = real.local_path()?;
     let relative = path.strip_prefix(root).unwrap_or(path);
     (!relative.is_absolute()).then(|| relative.to_string_lossy().replace('\\', "/"))
+}
+
+impl Metric {
+    pub(crate) fn display_path(
+        self,
+        tcx: TyCtxt<'_>,
+        file: &SourceFile,
+        root: &Path,
+    ) -> Option<String> {
+        if self == Self::Legacy {
+            return display_path(file, root);
+        }
+        let FileName::Real(real) = &file.name else {
+            return None;
+        };
+
+        let path = real.local_path()?;
+        let absolute = tcx.sess.source_map().working_dir().local_path()?.join(path);
+        let normalized = rstyle_pdg::nominal_binding::absolute_path(&absolute).ok()?;
+        let relative = normalized.strip_prefix(root).ok()?;
+        Some(relative.to_string_lossy().replace('\\', "/"))
+    }
 }

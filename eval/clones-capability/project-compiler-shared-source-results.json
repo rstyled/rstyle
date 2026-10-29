@@ -1,0 +1,210 @@
+{
+  "schema": "rstyle.compiler-shared-source-results/1",
+  "labels": "project-compiler-shared-source-cases.json",
+  "host": "aarch64-unknown-linux-gnu",
+  "toolchain": "nightly-2026-09-30",
+  "source_revision": "a90e8ac",
+  "study_root": "/tmp/clones-shared-source-project-absolute-1",
+  "relative_control_root": "/tmp/clones-shared-source-project-relative-1",
+  "before": {
+    "run": "run-nNoP0x",
+    "metrics": "rstyle.compiler-style-metrics/4",
+    "complete": false,
+    "contexts": [
+      {
+        "unit": 0,
+        "known": 0,
+        "unavailable": 11,
+        "evaluated": 0,
+        "findings": 0
+      },
+      {
+        "unit": 1,
+        "known": 0,
+        "unavailable": 19,
+        "evaluated": 0,
+        "findings": 0
+      }
+    ],
+    "elapsed_time": "0:01.02",
+    "peak_rss_kib": 153744,
+    "exit_code": 2
+  },
+  "after": {
+    "run": "run-mb8gH8",
+    "metrics": "rstyle.compiler-style-metrics/5",
+    "complete": false,
+    "contexts": [
+      {
+        "unit": 0,
+        "known": 11,
+        "unavailable": 0,
+        "evaluated": 11,
+        "findings": 0
+      },
+      {
+        "unit": 1,
+        "known": 18,
+        "unavailable": 1,
+        "evaluated": 18,
+        "findings": 4
+      }
+    ],
+    "elapsed_time": "0:01.07",
+    "peak_rss_kib": 154076,
+    "exit_code": 2
+  },
+  "checks": [
+    {
+      "test": false,
+      "source_owner": "runtime::architecture::caller_arch",
+      "before": "unavailable",
+      "after": "known",
+      "path": "eval/coverage-development/arch-readers.rs",
+      "selected_original_callees": [
+        {
+          "source_owner": "runtime::architecture::batch_arch",
+          "observed_id": "rstyle_shared_source_study::runtime::architecture::batch_arch"
+        }
+      ]
+    },
+    {
+      "test": true,
+      "source_owner": "runtime::architecture_compositions_preserve_values_and_saved_base",
+      "before": "unavailable",
+      "after": "known",
+      "path": "eval/coverage-development/byte-window-oracle.rs",
+      "selected_original_callees": [
+        {
+          "source_owner": "runtime::expected",
+          "observed_id": "rstyle_shared_source_study::runtime::expected"
+        },
+        {
+          "source_owner": "runtime::architecture::batch_arch",
+          "observed_id": "rstyle_shared_source_study::runtime::architecture::batch_arch"
+        },
+        {
+          "source_owner": "runtime::architecture::saved_arch",
+          "observed_id": "rstyle_shared_source_study::runtime::architecture::saved_arch"
+        },
+        {
+          "source_owner": "runtime::architecture::result_local_arch",
+          "observed_id": "rstyle_shared_source_study::runtime::architecture::result_local_arch"
+        },
+        {
+          "source_owner": "runtime::architecture::caller_arch",
+          "observed_id": "rstyle_shared_source_study::runtime::architecture::caller_arch"
+        },
+        {
+          "source_owner": "runtime::architecture::snapshot_arch",
+          "observed_id": "rstyle_shared_source_study::runtime::architecture::snapshot_arch"
+        }
+      ]
+    }
+  ],
+  "controls": {
+    "same_contextual_owner_roster": true,
+    "all_original_function_sources_equal": true,
+    "strict_matching_equal": true,
+    "strict_accepted_pairs_equal": true,
+    "generated_test_harness_unavailable": true,
+    "relative_exclusion_before": {
+      "run": "run-qDzS6J",
+      "metrics": "rstyle.compiler-style-metrics/4",
+      "complete": false,
+      "contexts": [
+        {
+          "unit": 0,
+          "known": 11,
+          "unavailable": 0,
+          "evaluated": 11,
+          "findings": 0
+        },
+        {
+          "unit": 1,
+          "known": 18,
+          "unavailable": 1,
+          "evaluated": 18,
+          "findings": 4
+        }
+      ],
+      "elapsed_time": "0:01.04",
+      "peak_rss_kib": 153900,
+      "exit_code": 2
+    },
+    "relative_exclusion_after": {
+      "run": "run-eqFJxf",
+      "metrics": "rstyle.compiler-style-metrics/5",
+      "complete": false,
+      "contexts": [
+        {
+          "unit": 0,
+          "known": 11,
+          "unavailable": 0,
+          "evaluated": 0,
+          "findings": 0
+        },
+        {
+          "unit": 1,
+          "known": 18,
+          "unavailable": 1,
+          "evaluated": 0,
+          "findings": 0
+        }
+      ],
+      "elapsed_time": "0:01.03",
+      "peak_rss_kib": 153676,
+      "exit_code": 2
+    },
+    "absolute_exclusion_after": {
+      "run": "run-u5g07K",
+      "metrics": "rstyle.compiler-style-metrics/5",
+      "complete": false,
+      "contexts": [
+        {
+          "unit": 0,
+          "known": 11,
+          "unavailable": 0,
+          "evaluated": 0,
+          "findings": 0
+        },
+        {
+          "unit": 1,
+          "known": 18,
+          "unavailable": 1,
+          "evaluated": 0,
+          "findings": 0
+        }
+      ],
+      "elapsed_time": "0:01.02",
+      "peak_rss_kib": 153520,
+      "exit_code": 2
+    },
+    "absolute_cargo_target_preexisting_known_owners": 29
+  },
+  "limits": "Routing-only study preserves tracked Rust source bytes, with a one-line absolute module wrapper reproducing existing test integration. It is not a full-package or workspace replacement audit. 29 authored owner-context measurements gained; the generated test harness remains unavailable. Four observed test-context diagnostics have not been independently quality-labeled. Pair enumeration remains over the declared zero budget/exit2. No IO/planner quality, purity, general source ownership or speedup claim.",
+  "historical_replays": [
+    {
+      "saved_run": "run-nNoP0x",
+      "observed_metric_version": null,
+      "evaluated_functions": 0,
+      "changed_sections": [
+        "compiler_advisory"
+      ],
+      "original_observations_and_measurements_preserved": true,
+      "exit_code": 2,
+      "evidence_prefix": "/tmp/clones-shared-source-history-wrapper-before-1",
+      "limit": "This historical bundle has only unavailable records and carries no measured metric version. Existing effective-metric header fallback advances from4 to5; every other report field is equal, with no fabricated observations."
+    },
+    {
+      "saved_run": "run-qDzS6J",
+      "observed_metric_version": "rstyle.compiler-style-metrics/4",
+      "evaluated_functions": 29,
+      "changed_sections": [],
+      "original_observations_and_measurements_preserved": true,
+      "exit_code": 2,
+      "evidence_prefix": "/tmp/clones-shared-source-history-relative-before-1",
+      "limit": null
+    }
+  ]
+}

@@ -228,7 +228,8 @@ fn check_range(
     Ok(())
 }
 
-fn absolute_path(path: &Path) -> Result<PathBuf, String> {
+/// Normalize an absolute local path lexically, without reopening its source file.
+pub fn absolute_path(path: &Path) -> Result<PathBuf, String> {
     if !path.is_absolute() {
         return Err("Nominal binding requires an absolute source path".into());
     }

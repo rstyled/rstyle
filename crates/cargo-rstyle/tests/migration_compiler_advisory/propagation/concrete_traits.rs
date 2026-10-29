@@ -34,7 +34,7 @@ fn concrete_method_ufcs_and_default_calls_select_original_implementation_effects
     checked(&output, 0);
     assert_eq!(
         report["compiler_advisory"]["metrics"],
-        "rstyle.compiler-style-metrics/4"
+        "rstyle.compiler-style-metrics/5"
     );
     let caller = unit(&report, "caller");
     let leaf = unit(&report, "leaf");
@@ -97,7 +97,7 @@ pub fn ufcs(a:u128,b:u128,c:u128,d:u128,e:u128) { <renamed::Reader as Action>::a
     source_free_replay(directory.path(), &original);
 }
 
-fn source_free_replay(directory: &Path, original: &Value) {
+pub(super) fn source_free_replay(directory: &Path, original: &Value) {
     for path in ["caller", "leaf"] {
         std::fs::remove_dir_all(directory.join(path)).unwrap();
     }

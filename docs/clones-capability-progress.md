@@ -3847,3 +3847,99 @@ Next ready candidate: the original-source location-root seam for workspace-share
 files outside a member package root. It should reuse the same collector and
 preserve package/build ownership, with frozen outside-package and foreign-file
 controls before implementation. Broader capability and retirement work remains active.
+
+
+## C40: reuse workspace source locations in compiler advisory collectors
+
+State: delivered. Lead owns the capture/root seam, metric compatibility,
+consumer path normalization, shared registration and integration. Independent
+acceptance owns the new `propagation/shared_sources.rs` leaf; project review owns
+`project-compiler-shared-source-cases.json`. Workers are frozen before gates.
+
+The pre-fix tests exposed two different behaviors: relative shared modules already
+produce facts and exact edges, but retain `caller/src/../../shared/leaf.rs`, so a
+`shared/**` exclusion misses them. Absolute `#[path]` files outside the package
+root are unavailable. The Cargo absolute target route alone is already reduced
+by Cargo/rustc to a usable relative source location; it is explicitly a nonregression
+control, not a claimed gain. These findings refine the initial root-gap hypothesis.
+
+The capture wrapper now passes its existing declared workspace root to advisory
+extraction once per compiler invocation. The root is borrowed through capture
+options into the existing collector options; no root copy per function is added.
+Package/build/selected-unit identities remain unchanged. A requested dependency
+outside the workspace retains its existing package-root scope. The existing
+`nominal_binding::absolute_path` lexical helper is exposed and reused for
+advisory compiler location membership and presentation. No canonicalization,
+source reread, hash, body/type/source proof, artifact scan, second traversal or
+body/graph copy is introduced. Location availability is checked before calling
+body collectors, avoiding work for owners that cannot supply a location.
+Legacy collector membership and advisory approximate graph behavior retain
+their existing legacy choice; strict extraction/matching is unchanged.
+
+Metric5 records the changed membership/path semantics. Metrics1–4 remain readable
+and preserve captured paths/measurements on replay. Unavailable-only historical
+bundles contain no observed metric version; their existing effective header
+fallback uses the current metric. Existing origin requirements
+and mixed-metric rejection remain intact; metric drift makes retained negatives
+unavailable and baseline scopes different, including empty inventories.
+
+Seven live-Cargo tests cover relative and absolute shared modules, normalized
+workspace exclusions, existing effect propagation and parameter planning,
+source/tool-free replay, generated and outside-workspace owners, check/test
+contexts and explicitly requested outside-workspace dependencies. The test
+harness remains unavailable rather than being counted as an authored function.
+Focused propagation gates pass before full validation. The first full run was
+intentionally interrupted to add the external-dependency boundary case; its
+SIGTERM log is not a passed checkpoint (`/tmp/clones-shared-source-tests-final-1.log`).
+
+The bounded real-source experiment copies tracked revision `a90e8ac`, adds only a
+routing package and a one-line absolute module declaration referencing the
+unchanged tracked byte-window oracle and arch-readers. This models the existing
+rstyle-pdg test integration without capturing the whole package. Authored source
+bytes and contextual owner roster are equal across versions. Metric4 baseline
+`run-nNoP0x` has 0 known / 30 unavailable owner-contexts; metric5 `run-mb8gH8` has
+29 known / 1 unavailable (11 ordinary library + 18 test authored functions;
+the generated harness remains unavailable). Original caller_arch -> batch_arch
+and the composition test's six source-declared targets are now available to the
+existing graph consumers. Strict matching and accepted pairs are exactly equal.
+
+Relative-route exclusion controls evaluate 29 functions before and zero after
+with the same `eval/coverage-development/**` policy; raw owner observations are
+retained. The absolute-route exclusion also evaluates zero after. Four observed
+test-context diagnostics remain unreviewed quality data, not labeled useful
+findings. Both primary captures exit2 for incomplete scope and the explicit zero
+pair budget. Baseline is 1.02s / 153,744KiB and current is 1.07s / 154,076KiB;
+these single small measurements establish no speedup. Exact routes, labels,
+context counts and limitations are recorded in the new cases/results artifacts.
+
+Historical metric4 known-source run `run-qDzS6J` replays with all report
+sections exactly equal under the prior and current binaries, retaining its old
+paths, exclusions and 29 evaluated functions. Unavailable-only `run-nNoP0x`
+has no measured metric provenance: its effective header changes from4 to5 through
+the existing fallback. Every other report field is equal. No historical version
+is inferred from extra source reads or hashing. The result artifact records both
+checks and this limitation.
+
+The full Rust suite passes 3,394 tests in 219.599s with five existing skips,
+including both original NonZero regressions; doc tests pass. All 182 Python tests
+pass. The initial style gate found a missing phase break and callback effect
+density; configuration acquisition now occurs once beside invocation setup,
+with the owned root borrowed during analysis.
+
+Final frozen-code checkpoint: 3,394 Rust tests pass in 220.350s, five existing
+skips, with doc tests passing (`/tmp/clones-shared-source-tests-final-3.log`).
+Both original NonZero regressions pass. Locked all-target Clippy, fmt and diff
+checks pass. Style has zero violations over 9,731 functions; reviewed patterns
+has zero candidates. The thirteen unfiltered candidate IDs exactly match C39.
+All 182 Python tests pass. Logs use `/tmp/clones-shared-source-` with
+`clippy-final-2`, `style-final-2`, `patterns-final-1`,
+`patterns-unfiltered-final-1` and `python-final-1` suffixes. Linux is verified;
+macOS remains pending. No new ignores, suppressions, thresholds, budgets,
+hashes, source proofs or strict semantics.
+
+
+Next ready work: independently label the newly reachable shared-source findings
+and compare existing evaluator/planner outputs in a bounded real-package scope.
+Reuse completed owner associations and core policies; no new consumer algorithm,
+source checksum or second body walk is required for that review. Broader
+capability delivery and per-capability retirement remain open.

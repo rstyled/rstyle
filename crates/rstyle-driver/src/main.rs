@@ -128,6 +128,7 @@ fn run(invocation: driver_options::Invocation) -> ExitCode {
         invocation: args.clone(),
         profile: invocation.profile,
         unit_context: invocation.unit_context,
+        source_root: std::env::var_os(rstyle_core::advisory::SOURCE_ROOT_ENV).map(PathBuf::from),
     });
 
     rustc_driver::catch_with_exit_code(|| match (r0, extract) {
@@ -146,6 +147,7 @@ struct HirExtract {
     invocation: Vec<String>,
     profile: Option<rstyle_pdg::extraction_profile::ExtractionProfile>,
     unit_context: Option<rstyle_pdg::nominal_boundary::UnitContext>,
+    source_root: Option<PathBuf>,
 }
 
 impl Callbacks for HirExtract {
@@ -160,6 +162,7 @@ impl Callbacks for HirExtract {
 
     fn after_analysis<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
         let options = hir_extraction::Options {
+            source_root: self.source_root.as_deref(),
             sources: Default::default(),
             profile: self.profile,
             invocation: &self.invocation,
