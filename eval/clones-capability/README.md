@@ -789,3 +789,55 @@ from an empty directory agrees exactly. Independent fixture acceptance additiona
 deletes its source/manifest, checks zero-hop signature plans, missing measurements
 and effect routes, and distinguishes known-empty from incomplete empty worklists.
 No new collector, planner, proof, hash, budget or metric version is introduced.
+
+### Independent default-density source review (C87)
+
+`project-default-density-source-review.json` preserves source-only reviews of all
+15 positive worklists from run-aSRnsx, plus three clean/minimum controls. Labels
+were frozen before reading numeric observations or diagnostic details. Six
+statement differences were manual omissions of block tails/arms or incorrect
+counting of bare closure bodies; the original labels and source-only followups
+remain visible. No collector defect was found. Fourteen statement counts agree;
+get_mut remains uncertain. Only three positive propagated event totals are
+independently complete. The other twelve remain unverified, not clean or passed.
+
+`project-default-density-reviewed-cases.json` supplies those three complete
+positive labels, two full-size static clean controls and a statement-minimum
+exemption to the existing compiler_quality.py reducer. All six comparisons agree
+in `project-default-density-reviewed-results.json`. Source-qualified helper
+witness names use the existing crate-relative core report spelling. Clean rows
+compare outcomes and statement counts only: no observed zero density is invented.
+
+`project-default-density-quality-study.json` records these limits and twelve
+matched saved-facts comparisons: threshold750, threshold749, minimum10statements
+and minimum21lines applied separately to the three original source samples.
+All agree. These are explicit probe configurations, not production threshold
+changes. The original default config and captured rows remain unchanged.
+
+The offline reducer now accepts the already deployed depth3 and validates the
+reported diagnostic projection before comparing requested plans. Full raw core
+diagnostics retain unrequested rules. Missing, duplicate, retargeted and invalid
+indices reject comparison; unrequested label rules cannot become clean results.
+Unscoped and complexity evaluation retain their existing roster checks.
+
+To reproduce complete default comparisons from an explicit saved replay report:
+
+```sh
+python3 eval/clones-capability/compiler_quality.py --report /path/to/report.json \
+  --labels eval/clones-capability/project-default-density-reviewed-cases.json \
+  --output /path/to/new-results.json
+```
+
+Use the C86 replay selection (authored side_effect_density, compiler advisory and
+plans, hir-data-v3, rstyle.toml) on run-aSRnsx. No fresh capture is required.
+Generated-helper/source-deletion behavior remains covered by the C86 acceptance
+fixtures; independently complete production generated-helper quality labels are
+still absent. This checkpoint does not pass the finite production quality gate,
+claim population precision/runtime purity, or authorize legacy retirement.
+
+The separate source-only usefulness review (embedded in the source-review
+artifact) identifies3 conditional prepare/check-before-commit candidates,10
+context-only stateful helpers and2 uncertain orchestration cases. These judgments
+are distinct from numerical correctness and do not assert bugs. This checkpoint
+does not justify changing the whole default command; authored-diagnostic default
+readiness needs its own coverage, suppression/exit and runtime comparison.

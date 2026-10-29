@@ -1,0 +1,334 @@
+{
+  "schema": "rstyle.compiler-quality-cases/1",
+  "run": "run-aSRnsx",
+  "toolchain": "nightly-2026-09-30",
+  "metrics": "rstyle.compiler-style-metrics/7",
+  "limits": {
+    "side_effect_density": 500
+  },
+  "density_policy": {
+    "max_density_milli": 500,
+    "min_lines": 10,
+    "min_statements": 3,
+    "paths": {
+      "io": [
+        "std::fs::",
+        "std::io::",
+        "std::env::set_var",
+        "std::path::Path::exists",
+        "std::path::Path::try_exists",
+        "std::path::Path::is_file",
+        "std::path::Path::is_dir",
+        "std::path::Path::metadata",
+        "std::path::Path::canonicalize",
+        "std::path::Path::read_dir",
+        "std::process::Command::output",
+        "std::process::Command::spawn",
+        "std::process::Command::status",
+        "std::process::exit",
+        "std::process::abort"
+      ],
+      "network": [
+        "std::net::TcpStream::",
+        "std::net::TcpListener::",
+        "std::net::UdpSocket::",
+        "reqwest::",
+        "tokio::net::",
+        "hyper::"
+      ],
+      "panic": [
+        "core::panicking::",
+        "std::panicking::"
+      ],
+      "random": [
+        "rand::"
+      ],
+      "time": [
+        "std::time::SystemTime::now",
+        "std::time::Instant::now"
+      ]
+    },
+    "transitive_depth": 3,
+    "weights": {
+      "global": 2,
+      "io": 3,
+      "mutation": 1,
+      "network": 3,
+      "panic": 0,
+      "random": 1,
+      "time": 1,
+      "unknown": 1,
+      "unsafe": 4
+    },
+    "exclude": [
+      "target/**"
+    ]
+  },
+  "samples": [
+    {
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "data_documents::mutable_scalars::install_one",
+      "source_file": "crates/rstyle-pdg/src/data_documents/mutable_scalars.rs",
+      "source": "fn install_one(\n    pair: &mut Pair,\n    installation: &mut Installation,\n    prepared: Prepared,\n) -> Result<(), String> {\n    let node = &mut pair.pdg.nodes[prepared.position];\n    if installation.definitions.nodes.contains(&node.id) {\n        return Err(\"Mutable access already owns a definition\".into());\n    }\n    if let Some(definition) = install_effect(node, &prepared.site, &prepared.id)? {\n        if !installation.definitions.ids.insert(definition.id.clone()) {\n            return Err(\"Mutable definition ID collides\".into());\n        }\n        pair.pdg.definitions.push(definition);\n    }\n    installation\n        .locations\n        .insert(prepared.id, prepared.location);\n\n    Ok(())\n}",
+      "included": true,
+      "unsuppressed": true,
+      "propagation_reviewed": true,
+      "propagation_inputs": [
+        {
+          "package": "rstyle-pdg",
+          "target_kind": "lib",
+          "function": "data_documents::mutable_scalars::install_effect",
+          "source_file": "crates/rstyle-pdg/src/data_documents/mutable_scalars.rs",
+          "source": "fn install_effect(node: &mut PdgNode, site: &Site, id: &str) -> Result<Option<Definition>, String> {\n    if !node.attributes.reads.is_empty()\n        || !node.attributes.writes.is_empty()\n        || !node.attributes.defines.is_empty()\n    {\n        return Err(\"Mutable source access already has contradictory effects\".into());\n    }\n    if site.kind == AccessKind::Load {\n        node.attributes.reads = vec![effect(id, true)];\n        return Ok(None);\n    }\n    let definition = Definition {\n        id: format!(\"definition:mutable:{}\", node.id),\n        node_id: node.id.clone(),\n        symbol_id: None,\n        location_id: Some(id.into()),\n    };\n    node.attributes.writes = vec![effect(id, false)];\n    node.attributes.defines = vec![definition.id.clone()];\n\n    Ok(Some(definition))\n}",
+          "included": true,
+          "unsuppressed": true
+        },
+        {
+          "package": "rstyle-pdg",
+          "target_kind": "lib",
+          "function": "data_documents::mutable_scalars::effect",
+          "source_file": "crates/rstyle-pdg/src/data_documents/mutable_scalars.rs",
+          "source": "fn effect(location: &str, load: bool) -> Access {\n    Access {\n        symbol_id: None,\n        location_id: Some(location.into()),\n        unresolved_reason: None,\n        operand_position: load.then_some(0),\n    }\n}",
+          "included": true,
+          "unsuppressed": true
+        }
+      ],
+      "density": {
+        "complete": true,
+        "statements": 9,
+        "code_lines": 20,
+        "events": {
+          "mutation": 5
+        },
+        "details": [
+          {
+            "label": "mutation: pair.pdg.nodes",
+            "count": 1
+          },
+          {
+            "label": "mutation: installation.definitions.ids",
+            "count": 1
+          },
+          {
+            "label": "mutation: pair.pdg.definitions",
+            "count": 1
+          },
+          {
+            "label": "mutation: installation.locations",
+            "count": 1
+          },
+          {
+            "label": "mutation: &mut state (via data_documents::mutable_scalars::install_effect)",
+            "count": 1
+          }
+        ],
+        "actual": 555,
+        "outcome": "finding",
+        "exempt": false
+      }
+    },
+    {
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "data_documents::read_accesses::install_node",
+      "source_file": "crates/rstyle-pdg/src/data_documents/read_accesses.rs",
+      "source": "fn install_node(\n    pair: &mut Pair,\n    source: &HirNode,\n    effects: Effects,\n) -> Result<BTreeMap<String, MemoryLocation>, String> {\n    let node = super::serialized_operation_mut(pair, source)?;\n    node.attributes.reads = effects.reads;\n    node.annotations.extend(effects.annotations);\n\n    Ok(effects.locations)\n}",
+      "included": true,
+      "unsuppressed": true,
+      "propagation_reviewed": true,
+      "propagation_inputs": [
+        {
+          "package": "rstyle-pdg",
+          "target_kind": "lib",
+          "function": "data_documents::serialized_operation_mut",
+          "source_file": "crates/rstyle-pdg/src/data_documents.rs",
+          "source": "fn serialized_operation_mut<'a>(\n    pair: &'a mut Pair,\n    source: &crate::HirNode,\n) -> Result<&'a mut crate::PdgNode, String> {\n    let node_id = serialized_operation(pair.as_view(), &source.span, |node| {\n        matches!(\n            node.category,\n            NodeCategory::Read | NodeCategory::Computation | NodeCategory::Call\n        ) && node.original_kind.known_value() == Some(source.kind.as_str())\n            && node.attributes.construct.as_deref() != Some(\"data.mutable-index-check\")\n    })?\n    .id\n    .clone();\n    pair.pdg\n        .nodes\n        .iter_mut()\n        .find(|node| node.id == node_id)\n        .ok_or_else(|| \"Missing serialized source operation\".into())\n}",
+          "included": true,
+          "unsuppressed": true
+        },
+        {
+          "package": "rstyle-pdg",
+          "target_kind": "lib",
+          "function": "data_documents::serialized_operation",
+          "source_file": "crates/rstyle-pdg/src/data_documents.rs",
+          "source": "pub(crate) fn serialized_operation<'a>(\n    pair: crate::producer::PairView<'a>,\n    span: &crate::ByteSpan,\n    accepts: impl Fn(&crate::PdgNode) -> bool,\n) -> Result<&'a crate::PdgNode, String> {\n    let mut candidates = pair.pdg.nodes.iter().filter(|node| {\n        accepts(node)\n            && node.source_span.as_ref().is_some_and(|source| {\n                source.start == u64::from(span.start) && source.end == u64::from(span.end)\n            })\n    });\n    let node = candidates.next().ok_or_else(|| {\n        format!(\n            \"Missing serialized source operation at {}..{}\",\n            span.start, span.end\n        )\n    })?;\n    if candidates.next().is_some() {\n        return Err(\"Ambiguous serialized source operation\".into());\n    }\n    Ok(node)\n}",
+          "included": true,
+          "unsuppressed": true
+        },
+        {
+          "package": "rstyle-pdg",
+          "target_kind": "lib",
+          "function": "producer::emit::Pair::as_view",
+          "source_file": "crates/rstyle-pdg/src/producer/emit.rs",
+          "source": "pub fn as_view(&self) -> PairView<'_> {\n        PairView {\n            pdg: &self.pdg,\n            cfg: &self.cfg,\n        }\n    }",
+          "included": true,
+          "unsuppressed": true
+        },
+        {
+          "package": "rstyle-pdg",
+          "target_kind": "lib",
+          "function": "model::StringFact::known_value",
+          "source_file": "crates/rstyle-pdg/src/model.rs",
+          "source": "pub fn known_value(&self) -> Option<&str> {\n        match self.status {\n            FactStatus::Known => self.value.as_deref(),\n            _ => None,\n        }\n    }",
+          "included": true,
+          "unsuppressed": true
+        }
+      ],
+      "density": {
+        "complete": true,
+        "statements": 4,
+        "code_lines": 10,
+        "events": {
+          "mutation": 3
+        },
+        "details": [
+          {
+            "label": "mutation: node.attributes.reads",
+            "count": 1
+          },
+          {
+            "label": "mutation: node.annotations",
+            "count": 1
+          },
+          {
+            "label": "mutation: &mut state (via data_documents::serialized_operation_mut)",
+            "count": 1
+          }
+        ],
+        "actual": 750,
+        "outcome": "finding",
+        "exempt": false
+      }
+    },
+    {
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "frontend::options::FrontendOptions::intern_census",
+      "source_file": "crates/rstyle-pdg/src/frontend/options.rs",
+      "source": "pub(crate) fn intern_census(\n        &mut self,\n        owners: &mut Vec<Arc<crate::nominal_boundary::census::Census>>,\n    ) -> Result<(), String> {\n        let Some(Entry::Census(record)) = self.0.get_mut(crate::nominal_boundary::census::KEY)\n        else {\n            return Ok(());\n        };\n        record.value = intern_owner(&record.value, owners)?;\n        Ok(())\n    }",
+      "included": true,
+      "unsuppressed": true,
+      "propagation_reviewed": true,
+      "propagation_inputs": [
+        {
+          "package": "rstyle-pdg",
+          "target_kind": "lib",
+          "function": "frontend::options::intern_owner",
+          "source_file": "crates/rstyle-pdg/src/frontend/options.rs",
+          "source": "fn intern_owner(\n    census: &Arc<crate::nominal_boundary::census::Census>,\n    owners: &mut Vec<Arc<crate::nominal_boundary::census::Census>>,\n) -> Result<Arc<crate::nominal_boundary::census::Census>, String> {\n    for owner in owners.iter() {\n        if owner.context == census.context {\n            if **owner == **census {\n                return Ok(Arc::clone(owner));\n            }\n            if !same_inventory(owner, census)? {\n                return Err(\"Contradictory source snapshots in one selected-unit context\".into());\n            }\n            // Equivalent orderings keep separate owners to preserve readable order.\n        }\n    }\n    owners.push(Arc::clone(census));\n    Ok(Arc::clone(census))\n}",
+          "included": true,
+          "unsuppressed": true
+        },
+        {
+          "package": "rstyle-pdg",
+          "target_kind": "lib",
+          "function": "frontend::options::same_inventory",
+          "source_file": "crates/rstyle-pdg/src/frontend/options.rs",
+          "source": "fn same_inventory(\n    first: &crate::nominal_boundary::census::Census,\n    second: &crate::nominal_boundary::census::Census,\n) -> Result<bool, String> {\n    use crate::nominal_boundary::census::check_budget;\n    check_budget(first)?;\n    check_budget(second)?;\n\n    let files = |census: &crate::nominal_boundary::census::Census| {\n        census\n            .files\n            .iter()\n            .map(|file| (file.path.clone(), file.clone()))\n            .collect::<BTreeMap<_, _>>()\n    };\n    let a = files(first);\n    let b = files(second);\n\n    Ok(first.identity == second.identity\n        && first.expansions == second.expansions\n        && a.len() == first.files.len()\n        && b.len() == second.files.len()\n        && a == b)\n}",
+          "included": true,
+          "unsuppressed": true
+        },
+        {
+          "package": "rstyle-pdg",
+          "target_kind": "lib",
+          "function": "nominal_boundary::census::check_budget",
+          "source_file": "crates/rstyle-pdg/src/nominal_boundary/census.rs",
+          "source": "pub fn check_budget(census: &Census) -> Result<(), String> {\n    let bytes = census.files.iter().try_fold(0usize, |total, file| {\n        total\n            .checked_add(file.bytes.len())\n            .ok_or(\"Source census byte overflow\")\n    })?;\n    if census.external_imports.len() > MAX_FILES\n        || census\n            .external_imports\n            .iter()\n            .any(|import| import.exports.macros.len() > MAX_FILES)\n        || census.documentation.len() > MAX_FILES\n        || census.expansions.len() > MAX_FILES\n        || census\n            .expansions\n            .iter()\n            .any(|record| record.chain.len() > 128)\n    {\n        return Err(\"Module expansion inventory exceeds source census budget\".into());\n    }\n    if census.files.len() > MAX_FILES || bytes > MAX_BYTES {\n        return Err(\"Source census exceeds file/byte budget\".into());\n    }\n    Ok(())\n}",
+          "included": true,
+          "unsuppressed": true
+        }
+      ],
+      "density": {
+        "complete": true,
+        "statements": 4,
+        "code_lines": 11,
+        "events": {
+          "mutation": 3
+        },
+        "details": [
+          {
+            "label": "mutation: self.0",
+            "count": 1
+          },
+          {
+            "label": "mutation: record.value",
+            "count": 1
+          },
+          {
+            "label": "mutation: owners",
+            "count": 1
+          }
+        ],
+        "actual": 750,
+        "outcome": "finding",
+        "exempt": false
+      }
+    },
+    {
+      "package": "rstyle-ccgraph",
+      "target_kind": "lib",
+      "function": "admission::check_local_profile",
+      "source": "fn check_local_profile(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<bool, Vec<String>> {\n    use rstyle_pdg::extraction_profile::LOCAL_ID;\n    if pdg.profile.id != LOCAL_ID\n        && pdg.profile.id != \"rstyle.rust.hir-helpers\"\n        && pdg.profile.id != rstyle_pdg::extraction_profile::DATA_ID\n    {\n        return Ok(false);\n    }\n    if cfg.profile.name != pdg.profile.id || cfg.profile.version != pdg.profile.version {\n        return Err(vec![\"Paired extraction profiles disagree\".into()]);\n    }\n    Ok(true)\n}",
+      "source_file": "crates/rstyle-ccgraph/src/admission.rs",
+      "included": true,
+      "unsuppressed": true,
+      "propagation_reviewed": true,
+      "propagation_inputs": [],
+      "density": {
+        "complete": true,
+        "statements": 6,
+        "code_lines": 13,
+        "events": {},
+        "details": [],
+        "actual": 0,
+        "outcome": "evaluated_no_finding",
+        "exempt": false
+      }
+    },
+    {
+      "package": "rstyle-ccgraph",
+      "target_kind": "lib",
+      "function": "pipeline::StageName::token",
+      "source": "pub fn token(self) -> &'static str {\n        match self {\n            Self::Validation => \"validation\",\n            Self::Projection => \"projection\",\n            Self::Nonempty => \"nonempty\",\n            Self::SizeRatio => \"size_ratio\",\n            Self::Numerical => \"numerical\",\n            Self::Strings => \"strings\",\n            Self::WlFinal => \"wl_final\",\n        }\n    }",
+      "source_file": "crates/rstyle-ccgraph/src/pipeline.rs",
+      "included": true,
+      "unsuppressed": true,
+      "propagation_reviewed": true,
+      "propagation_inputs": [],
+      "density": {
+        "complete": true,
+        "statements": 8,
+        "code_lines": 11,
+        "events": {},
+        "details": [],
+        "actual": 0,
+        "outcome": "evaluated_no_finding",
+        "exempt": false
+      }
+    },
+    {
+      "package": "rstyle-ccgraph",
+      "target_kind": "lib",
+      "function": "pipeline::StageName::all",
+      "source": "pub fn all() -> [Self; 7] {\n        [\n            Self::Validation,\n            Self::Projection,\n            Self::Nonempty,\n            Self::SizeRatio,\n            Self::Numerical,\n            Self::Strings,\n            Self::WlFinal,\n        ]\n    }",
+      "source_file": "crates/rstyle-ccgraph/src/pipeline.rs",
+      "included": true,
+      "unsuppressed": true,
+      "propagation_reviewed": true,
+      "propagation_inputs": [],
+      "density": {
+        "complete": true,
+        "statements": 1,
+        "code_lines": 11,
+        "events": {},
+        "details": [],
+        "actual": null,
+        "outcome": "evaluated_no_finding",
+        "exempt": true
+      }
+    }
+  ],
+  "limitations": "Three positive complete propagated labels, two full-size static clean controls and one statement-minimum exemption. Twelve other positive candidates have incomplete propagated reviews; no population precision or purity claim.",
+  "preconditions": "Frozen source review precedes inspecting observations. Existing core definition names are crate-relative; crate prefix in two source-qualified witness names removed for report display."
+}

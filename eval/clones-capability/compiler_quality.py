@@ -31,7 +31,26 @@ def planned_owners(planning):
     return result
 
 
-def validate_planning(report, owners, rules=('fn_params', 'mutated_targets', 'side_effect_density')):
+def planned_diagnostics(unit, reviewed_rules):
+    diagnostics = unit['evaluation']['diagnostics']
+    scope = unit.get('diagnostic_scope')
+    if scope is None:
+        return diagnostics
+    requested = scope['request']['rules']
+    require(isinstance(requested, list) and all(isinstance(rule, str) for rule in requested)
+            and len(set(requested)) == len(requested), 'invalid requested rules')
+    require(not requested or set(reviewed_rules) <= set(requested), 'reviewed rule outside requested scope')
+    indices = scope['diagnostic_indices']
+    require(isinstance(indices, list) and all(type(index) is int and 0 <= index < len(diagnostics)
+            for index in indices), 'invalid requested diagnostic indices')
+    expected = [index for index, diagnostic in enumerate(diagnostics)
+                if not requested or diagnostic['rule_id'] in requested
+                or diagnostic['rule_id'] == 'invalid_suppression']
+    require(indices == expected, 'incomplete requested diagnostic projection')
+    return [diagnostics[index] for index in indices]
+
+
+def validate_planning(report, owners, rules=('fn_params', 'mutated_targets', 'side_effect_density'), *, reviewed_rules=None):
     known = {row['key']: (unit['unit'], row['name'])
              for unit in report['compiler_advisory']['units'] for row in unit['observations']}
     for key, function in owners.items():
@@ -39,6 +58,7 @@ def validate_planning(report, owners, rules=('fn_params', 'mutated_targets', 'si
     for unit in report['compiler_advisory']['units']:
         diagnostics = unit['evaluation']['diagnostics']
         require(unit['evaluation']['summary']['violations'] == len(diagnostics), 'incomplete diagnostics')
+        diagnostics = planned_diagnostics(unit, rules if reviewed_rules is None else reviewed_rules)
         for rule in rules:
             planned = sum(rule in function['rules'] for key, function in owners.items()
                           if known[key][0] == unit['unit'])
@@ -310,10 +330,10 @@ def compare(report, labels):
                 'different spacing policy')
     if 'side_effect_density' in rules:
         density_policy = labels.get('density_policy')
-        error = policy_error(density_policy, depths=(0, 1, 2))
+        error = policy_error(density_policy, depths=(0, 1, 2, 3))
         require(error is None, error)
         observed_policy = {**config['side_effects'], 'exclude': config['exclude']}
-        error = policy_error(observed_policy, depths=(0, 1, 2))
+        error = policy_error(observed_policy, depths=(0, 1, 2, 3))
         require(error is None, error)
         require(density_policy['max_density_milli'] == labels['limits']['side_effect_density']
                 and density_policy == observed_policy,
@@ -322,7 +342,7 @@ def compare(report, labels):
     boolean(planning.get('input_complete'), 'planning input completion')
     require(planning['schema'] == 'rstyle.compiler-planning/1', 'wrong planning schema')
     owners = planned_owners(planning)
-    validate_planning(report, owners)
+    validate_planning(report, owners, reviewed_rules=rules)
     selected = units(report)
     spacing = {unit['unit']: spacing_owners(unit) for unit, _ in selected} if 'fn_spacing' in rules else {}
     rows = []

@@ -31,12 +31,16 @@ def fixture(depth=1):
     sample['source'] = 'fn f() {\n    helper();\n    ()\n}'
     report['owned_source_inventory'][0]['source_functions'][0]['source'] = sample['source']
     helper_source = 'fn helper() {\n    std::fs::read("a");\n    std::fs::read("b");\n}'
-    if depth == 2:
+    if depth >= 2:
         helper_source = 'fn helper() {\n    leaf();\n    ()\n}'
     inputs = [add_input(report, 'helper', helper_source, 100)]
-    if depth == 2:
-        inputs.append(add_input(report, 'leaf',
-                                'fn leaf() {\n    std::fs::read("a");\n    std::fs::read("b");\n}', 200))
+    if depth >= 2:
+        leaf_source = ('fn leaf() {\n    last();\n    ()\n}' if depth == 3 else
+                       'fn leaf() {\n    std::fs::read("a");\n    std::fs::read("b");\n}')
+        inputs.append(add_input(report, 'leaf', leaf_source, 200))
+    if depth == 3:
+        inputs.append(add_input(report, 'last',
+                                'fn last() {\n    std::fs::read("a");\n    std::fs::read("b");\n}', 300))
     details = [{'label': 'io: std::fs::read +1 more (via helper)', 'count': 1}]
     sample.update(propagation_reviewed=True, propagation_inputs=inputs)
     sample['density'].update(events={'io': 1}, actual=1500, details=deepcopy(details))
@@ -68,8 +72,8 @@ class CompilerPropagatedDensityQualityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'duplicate completed propagation input'):
             compare(report, labels)
 
-    def test_depth_one_and_two_compare_completed_provenance_without_completing_scope(self):
-        for depth in (1, 2):
+    def test_depth_one_two_and_three_compare_completed_provenance_without_completing_scope(self):
+        for depth in (1, 2, 3):
             with self.subTest(depth=depth):
                 report, labels = fixture(depth)
                 result = compare(report, labels)
@@ -193,7 +197,7 @@ class CompilerPropagatedDensityQualityTests(unittest.TestCase):
             compare(report, labels)
 
     def test_depth_drift_unsupported_depth_and_boolean_depth_reject(self):
-        for side, depth in (('report', 2), ('labels', 3), ('labels', True), ('report', False)):
+        for side, depth in (('report', 2), ('labels', 4), ('labels', True), ('report', False)):
             report, labels = fixture()
             policy = (labels['density_policy'] if side == 'labels'
                       else report['compiler_advisory']['effective_config']['side_effects'])

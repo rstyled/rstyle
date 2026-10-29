@@ -73,6 +73,38 @@ def spacing_fixture():
 
 
 class CompilerQualityTests(unittest.TestCase):
+    def test_requested_plans_preserve_unrequested_core_diagnostics(self):
+        report, labels = fixture()
+        labels['limits'] = {'mutated_targets': 1}
+        unit = report['compiler_advisory']['units'][0]
+        unit['diagnostic_scope'] = {'request': {'rules': ['mutated_targets']},
+                                    'diagnostic_indices': [1]}
+        function = report['compiler_advisory']['planning']['groups'][0]['evaluation']['functions'][0]
+        function['rules'] = ['mutated_targets']
+        self.assertEqual(compare(report, labels)['counts'], {'agreement': 1})
+        self.assertEqual(unit['evaluation']['summary']['violations'], 2)
+        function['rules'] = ['fn_params', 'mutated_targets']
+        with self.assertRaisesRegex(ValueError, 'incomplete completed rule-owner roster'):
+            compare(report, labels)
+
+    def test_requested_diagnostic_projection_cannot_drop_or_repeat_findings(self):
+        for indices in ([], [0], [1, 1], [2], [True], ['1']):
+            report, labels = fixture()
+            labels['limits'] = {'mutated_targets': 1}
+            unit = report['compiler_advisory']['units'][0]
+            unit['diagnostic_scope'] = {'request': {'rules': ['mutated_targets']},
+                                        'diagnostic_indices': indices}
+            with self.subTest(indices=indices), self.assertRaises(ValueError):
+                compare(report, labels)
+
+    def test_unrequested_labels_cannot_be_reported_clean(self):
+        report, labels = fixture()
+        unit = report['compiler_advisory']['units'][0]
+        unit['diagnostic_scope'] = {'request': {'rules': ['mutated_targets']},
+                                    'diagnostic_indices': [1]}
+        with self.assertRaisesRegex(ValueError, 'reviewed rule outside requested scope'):
+            compare(report, labels)
+
     def test_default_exclusions_do_not_make_retained_generated_source_clean(self):
         report, labels = fixture()
         clean(report, labels)

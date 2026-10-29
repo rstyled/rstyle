@@ -1,0 +1,2297 @@
+{
+  "schema": "rstyle.source-density-review/1",
+  "method": "Frozen source-only leaf reviews before inspecting numeric observations or emitted event details. Uncertain totals remain null; source witnesses are not complete propagated labels.",
+  "samples": [
+    {
+      "case_index": 0,
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "data_documents::mutable_scalars::install_one",
+      "source_file": "crates/rstyle-pdg/src/data_documents/mutable_scalars.rs",
+      "source": "fn install_one(\n    pair: &mut Pair,\n    installation: &mut Installation,\n    prepared: Prepared,\n) -> Result<(), String> {\n    let node = &mut pair.pdg.nodes[prepared.position];\n    if installation.definitions.nodes.contains(&node.id) {\n        return Err(\"Mutable access already owns a definition\".into());\n    }\n    if let Some(definition) = install_effect(node, &prepared.site, &prepared.id)? {\n        if !installation.definitions.ids.insert(definition.id.clone()) {\n            return Err(\"Mutable definition ID collides\".into());\n        }\n        pair.pdg.definitions.push(definition);\n    }\n    installation\n        .locations\n        .insert(prepared.id, prepared.location);\n\n    Ok(())\n}",
+      "expectation_basis": "Manual original-source review and existing driver/core contracts only. No evaluated report, FnFacts, captured event record, actual metric or emitted detail inspected.",
+      "authored_statements": 9,
+      "code_lines": 20,
+      "statement_roster": [
+        "let node",
+        "if already-defined",
+        "first return Err",
+        "if let install_effect",
+        "if insert collision",
+        "second return Err",
+        "push definition",
+        "insert location",
+        "Ok tail"
+      ],
+      "direct_escaping_targets": [
+        "pair.pdg.nodes",
+        "installation.definitions.ids",
+        "pair.pdg.definitions",
+        "installation.locations"
+      ],
+      "other_direct_weighted_events": [],
+      "delegated_calls": [
+        {
+          "helper": "data_documents::mutable_scalars::install_effect",
+          "source_relative_line": 10,
+          "target": "node",
+          "reason": "Whole workspace PdgNode reborrow is delegated rather than a direct escaping write."
+        }
+      ],
+      "helpers": [
+        {
+          "function": "data_documents::mutable_scalars::install_effect",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/data_documents/mutable_scalars.rs",
+          "source": "fn install_effect(node: &mut PdgNode, site: &Site, id: &str) -> Result<Option<Definition>, String> {\n    if !node.attributes.reads.is_empty()\n        || !node.attributes.writes.is_empty()\n        || !node.attributes.defines.is_empty()\n    {\n        return Err(\"Mutable source access already has contradictory effects\".into());\n    }\n    if site.kind == AccessKind::Load {\n        node.attributes.reads = vec![effect(id, true)];\n        return Ok(None);\n    }\n    let definition = Definition {\n        id: format!(\"definition:mutable:{}\", node.id),\n        node_id: node.id.clone(),\n        symbol_id: None,\n        location_id: Some(id.into()),\n    };\n    node.attributes.writes = vec![effect(id, false)];\n    node.attributes.defines = vec![definition.id.clone()];\n\n    Ok(Some(definition))\n}"
+        },
+        {
+          "function": "data_documents::mutable_scalars::effect",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/data_documents/mutable_scalars.rs",
+          "source": "fn effect(location: &str, load: bool) -> Access {\n    Access {\n        symbol_id: None,\n        location_id: Some(location.into()),\n        unresolved_reason: None,\n        operand_position: load.then_some(0),\n    }\n}"
+        }
+      ],
+      "helper_source_effects": [
+        {
+          "helper": "data_documents::mutable_scalars::install_effect",
+          "direct_escaping_targets": [
+            "node.attributes.reads",
+            "node.attributes.writes",
+            "node.attributes.defines"
+          ],
+          "outward_kinds": []
+        },
+        {
+          "helper": "data_documents::mutable_scalars::effect",
+          "direct_escaping_targets": [],
+          "outward_kinds": []
+        }
+      ],
+      "expected_propagated_roster": [
+        {
+          "kind": "mutation",
+          "label": "pair.pdg.nodes",
+          "via": null
+        },
+        {
+          "kind": "mutation",
+          "label": "installation.definitions.ids",
+          "via": null
+        },
+        {
+          "kind": "mutation",
+          "label": "pair.pdg.definitions",
+          "via": null
+        },
+        {
+          "kind": "mutation",
+          "label": "installation.locations",
+          "via": null
+        },
+        {
+          "kind": "mutation",
+          "label": "&mut state",
+          "via": "rstyle_pdg::data_documents::mutable_scalars::install_effect",
+          "source_relative_line": 10
+        }
+      ],
+      "density": {
+        "status": "expected",
+        "weighted_total": 5,
+        "statements": 9,
+        "actual": 555,
+        "limit": 500,
+        "exempt": false,
+        "outcome": "finding",
+        "arithmetic": "floor(1000 * (4 direct mutation targets + 1 delegated helper mutation) / 9)"
+      },
+      "rationale": "Vec indexing borrow and field container writes cross mutable-reference roots. The helper static branches write three distinct node fields, but a delegated call inherits one mutation event, not three. Helper construction and string conversion have no configured outward kind. Source top-level and nested statements count once; ? arms add no authored statements."
+    },
+    {
+      "case_index": 1,
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "data_documents::read_accesses::install_node",
+      "source_file": "crates/rstyle-pdg/src/data_documents/read_accesses.rs",
+      "source": "fn install_node(\n    pair: &mut Pair,\n    source: &HirNode,\n    effects: Effects,\n) -> Result<BTreeMap<String, MemoryLocation>, String> {\n    let node = super::serialized_operation_mut(pair, source)?;\n    node.attributes.reads = effects.reads;\n    node.annotations.extend(effects.annotations);\n\n    Ok(effects.locations)\n}",
+      "expectation_basis": "Manual original-source review and existing driver/core contracts only. No evaluated report, FnFacts, captured event record, actual metric or emitted detail inspected.",
+      "authored_statements": 4,
+      "code_lines": 10,
+      "statement_roster": [
+        "let node",
+        "assign reads",
+        "extend annotations",
+        "Ok tail"
+      ],
+      "direct_escaping_targets": [
+        "node.attributes.reads",
+        "node.annotations"
+      ],
+      "other_direct_weighted_events": [],
+      "delegated_calls": [
+        {
+          "helper": "data_documents::serialized_operation_mut",
+          "source_relative_line": 6,
+          "target": "pair"
+        }
+      ],
+      "helpers": [
+        {
+          "function": "data_documents::serialized_operation_mut",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/data_documents.rs",
+          "source": "fn serialized_operation_mut<'a>(\n    pair: &'a mut Pair,\n    source: &crate::HirNode,\n) -> Result<&'a mut crate::PdgNode, String> {\n    let node_id = serialized_operation(pair.as_view(), &source.span, |node| {\n        matches!(\n            node.category,\n            NodeCategory::Read | NodeCategory::Computation | NodeCategory::Call\n        ) && node.original_kind.known_value() == Some(source.kind.as_str())\n            && node.attributes.construct.as_deref() != Some(\"data.mutable-index-check\")\n    })?\n    .id\n    .clone();\n    pair.pdg\n        .nodes\n        .iter_mut()\n        .find(|node| node.id == node_id)\n        .ok_or_else(|| \"Missing serialized source operation\".into())\n}"
+        },
+        {
+          "function": "data_documents::serialized_operation",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/data_documents.rs",
+          "source": "pub(crate) fn serialized_operation<'a>(\n    pair: crate::producer::PairView<'a>,\n    span: &crate::ByteSpan,\n    accepts: impl Fn(&crate::PdgNode) -> bool,\n) -> Result<&'a crate::PdgNode, String> {\n    let mut candidates = pair.pdg.nodes.iter().filter(|node| {\n        accepts(node)\n            && node.source_span.as_ref().is_some_and(|source| {\n                source.start == u64::from(span.start) && source.end == u64::from(span.end)\n            })\n    });\n    let node = candidates.next().ok_or_else(|| {\n        format!(\n            \"Missing serialized source operation at {}..{}\",\n            span.start, span.end\n        )\n    })?;\n    if candidates.next().is_some() {\n        return Err(\"Ambiguous serialized source operation\".into());\n    }\n    Ok(node)\n}"
+        },
+        {
+          "function": "producer::emit::Pair::as_view",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/producer/emit.rs",
+          "source": "pub fn as_view(&self) -> PairView<'_> {\n        PairView {\n            pdg: &self.pdg,\n            cfg: &self.cfg,\n        }\n    }"
+        },
+        {
+          "function": "model::StringFact::known_value",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/model.rs",
+          "source": "pub fn known_value(&self) -> Option<&str> {\n        match self.status {\n            FactStatus::Known => self.value.as_deref(),\n            _ => None,\n        }\n    }"
+        }
+      ],
+      "helper_source_effects": [
+        {
+          "helper": "data_documents::serialized_operation_mut",
+          "direct_escaping_targets": [
+            "pair.pdg.nodes"
+          ],
+          "outward_kinds": []
+        },
+        {
+          "helper": "data_documents::serialized_operation",
+          "outward_kinds": [],
+          "note": "Generic accepts callback can be recorded Unknown, which is not exported by graph::outward; the supplied callback source only reads node fields."
+        }
+      ],
+      "expected_propagated_roster": [
+        {
+          "kind": "mutation",
+          "label": "node.attributes.reads",
+          "via": null
+        },
+        {
+          "kind": "mutation",
+          "label": "node.annotations",
+          "via": null
+        },
+        {
+          "kind": "mutation",
+          "label": "&mut state",
+          "via": "rstyle_pdg::data_documents::serialized_operation_mut",
+          "source_relative_line": 6
+        }
+      ],
+      "density": {
+        "status": "expected",
+        "weighted_total": 3,
+        "statements": 4,
+        "actual": 750,
+        "limit": 500,
+        "exempt": false,
+        "outcome": "finding",
+        "arithmetic": "1000 * (2 direct mutation targets + 1 delegated helper mutation) / 4"
+      },
+      "rationale": "Returning a mutable node through iter_mut requires a direct borrow of the pair.pdg.nodes field. Caller reborrow of whole Pair is delegated; local node is itself a mutable reference, so its field writes escape. Unknown callback kinds do not propagate as outward effects."
+    },
+    {
+      "case_index": 2,
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "frontend::options::FrontendOptions::get_mut",
+      "source_file": "crates/rstyle-pdg/src/frontend/options.rs",
+      "source": "pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {\n        let entry = self.0.get_mut(key)?;\n        if !matches!(entry, Entry::Json(_)) {\n            let original = std::mem::replace(entry, Entry::Json(Value::Null));\n            *entry = Entry::Json(original.into_json());\n        }\n        let Entry::Json(value) = entry else {\n            unreachable!()\n        };\n        Some(value)\n    }",
+      "expectation_basis": "Manual original-source review and existing driver/core contracts only. No evaluated report, FnFacts, captured event record, actual metric or emitted detail inspected.",
+      "authored_statements": null,
+      "authored_statements_candidate": 7,
+      "code_lines": 11,
+      "statement_uncertainty": "Six authored sites excluding the unreachable! tail: let entry, outer if, inner let original, inner assignment, let-else, final Some tail. The candidate seven includes one original macro-invocation tail; exact expansion-span treatment must be source/contract-verified. Do not use the candidate for a complete comparison.",
+      "direct_escaping_targets": [
+        "self.0",
+        "entry"
+      ],
+      "other_direct_weighted_events": [],
+      "helpers": [
+        {
+          "function": "frontend::options::Entry::into_json",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/frontend/options.rs",
+          "source": "fn into_json(self) -> Value {\n        match self {\n            Self::Json(value) | Self::Invalid { value, .. } => value,\n            Self::Interface(record) => record.into_json(),\n            Self::Fields(record) => record.into_json(),\n            Self::Receivers(record) => record.into_json(),\n            Self::Census(record) => record.into_json(),\n            Self::GeneratedSources(record) => record.into_json(),\n            Self::DependencyNamespaces(record) => record.into_json(),\n            Self::Origins(record) => record.into_json(),\n            Self::InherentUnits(record) => record.record.into_json(),\n        }\n    }"
+        },
+        {
+          "function": "frontend::options::Record::<T>::into_json",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/frontend/options.rs",
+          "source": "fn into_json(mut self) -> Value {\n        self.json.take().unwrap_or_else(|| self.render())\n    }"
+        },
+        {
+          "function": "frontend::options::Record::<T>::render",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/frontend/options.rs",
+          "source": "fn render(&self) -> Value {\n        let mut json = serde_json::to_value(&self.value).expect(\"typed evidence serializes\");\n        for path in &self.nulls {\n            json.pointer_mut(path)\n                .expect(\"nominal evidence parent\")\n                .as_object_mut()\n                .expect(\"nominal evidence object\")\n                .insert(\"source_identity\".into(), Value::Null);\n        }\n        json\n    }"
+        }
+      ],
+      "expected_propagated_roster": null,
+      "density": {
+        "status": "unknown",
+        "reason": "Generic Entry variant dispatch reaches several concrete Record<T>::into_json/render instantiations; mutable-reference-return reborrow identity and macro tail counting are not fully established from source alone. Refuse a complete total or outward roster."
+      },
+      "rationale": "self.0.get_mut mutably borrows a non-workspace map field; explicit *entry assignment writes through a mutable reference. std::mem::replace mutable Entry borrow may be marked delegated by workspace pointee type despite external callee; no inferred extra mutation label. into_json branches require exact selected concrete source/edge roster before a propagated total."
+    },
+    {
+      "case_index": 3,
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "frontend::options::FrontendOptions::intern_census",
+      "source_file": "crates/rstyle-pdg/src/frontend/options.rs",
+      "source": "pub(crate) fn intern_census(\n        &mut self,\n        owners: &mut Vec<Arc<crate::nominal_boundary::census::Census>>,\n    ) -> Result<(), String> {\n        let Some(Entry::Census(record)) = self.0.get_mut(crate::nominal_boundary::census::KEY)\n        else {\n            return Ok(());\n        };\n        record.value = intern_owner(&record.value, owners)?;\n        Ok(())\n    }",
+      "expectation_basis": "Manual original-source review and existing driver/core contracts only. No evaluated report, FnFacts, captured event record, actual metric or emitted detail inspected.",
+      "authored_statements": 4,
+      "code_lines": 11,
+      "statement_roster": [
+        "let-else record",
+        "early return Ok",
+        "assign record.value",
+        "Ok tail"
+      ],
+      "direct_escaping_targets": [
+        "self.0",
+        "record.value",
+        "owners"
+      ],
+      "other_direct_weighted_events": [],
+      "helpers": [
+        {
+          "function": "frontend::options::intern_owner",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/frontend/options.rs",
+          "source": "fn intern_owner(\n    census: &Arc<crate::nominal_boundary::census::Census>,\n    owners: &mut Vec<Arc<crate::nominal_boundary::census::Census>>,\n) -> Result<Arc<crate::nominal_boundary::census::Census>, String> {\n    for owner in owners.iter() {\n        if owner.context == census.context {\n            if **owner == **census {\n                return Ok(Arc::clone(owner));\n            }\n            if !same_inventory(owner, census)? {\n                return Err(\"Contradictory source snapshots in one selected-unit context\".into());\n            }\n            // Equivalent orderings keep separate owners to preserve readable order.\n        }\n    }\n    owners.push(Arc::clone(census));\n    Ok(Arc::clone(census))\n}"
+        },
+        {
+          "function": "frontend::options::same_inventory",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/frontend/options.rs",
+          "source": "fn same_inventory(\n    first: &crate::nominal_boundary::census::Census,\n    second: &crate::nominal_boundary::census::Census,\n) -> Result<bool, String> {\n    use crate::nominal_boundary::census::check_budget;\n    check_budget(first)?;\n    check_budget(second)?;\n\n    let files = |census: &crate::nominal_boundary::census::Census| {\n        census\n            .files\n            .iter()\n            .map(|file| (file.path.clone(), file.clone()))\n            .collect::<BTreeMap<_, _>>()\n    };\n    let a = files(first);\n    let b = files(second);\n\n    Ok(first.identity == second.identity\n        && first.expansions == second.expansions\n        && a.len() == first.files.len()\n        && b.len() == second.files.len()\n        && a == b)\n}"
+        },
+        {
+          "function": "nominal_boundary::census::check_budget",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/nominal_boundary/census.rs",
+          "source": "pub fn check_budget(census: &Census) -> Result<(), String> {\n    let bytes = census.files.iter().try_fold(0usize, |total, file| {\n        total\n            .checked_add(file.bytes.len())\n            .ok_or(\"Source census byte overflow\")\n    })?;\n    if census.external_imports.len() > MAX_FILES\n        || census\n            .external_imports\n            .iter()\n            .any(|import| import.exports.macros.len() > MAX_FILES)\n        || census.documentation.len() > MAX_FILES\n        || census.expansions.len() > MAX_FILES\n        || census\n            .expansions\n            .iter()\n            .any(|record| record.chain.len() > 128)\n    {\n        return Err(\"Module expansion inventory exceeds source census budget\".into());\n    }\n    if census.files.len() > MAX_FILES || bytes > MAX_BYTES {\n        return Err(\"Source census exceeds file/byte budget\".into());\n    }\n    Ok(())\n}"
+        }
+      ],
+      "helper_source_effects": [
+        {
+          "helper": "frontend::options::intern_owner",
+          "direct_escaping_targets": [
+            "owners"
+          ],
+          "outward_kinds": []
+        },
+        {
+          "helper": "frontend::options::same_inventory",
+          "outward_kinds": []
+        },
+        {
+          "helper": "nominal_boundary::census::check_budget",
+          "outward_kinds": [],
+          "note": "Depth3 source reads census and uses owned local folds/iterator predicates; no escaping target or configured outward kind."
+        }
+      ],
+      "expected_propagated_roster": [
+        {
+          "kind": "mutation",
+          "label": "self.0",
+          "via": null
+        },
+        {
+          "kind": "mutation",
+          "label": "record.value",
+          "via": null
+        },
+        {
+          "kind": "mutation",
+          "label": "owners",
+          "via": null
+        }
+      ],
+      "density": {
+        "status": "expected",
+        "weighted_total": 3,
+        "statements": 4,
+        "actual": 750,
+        "limit": 500,
+        "exempt": false,
+        "outcome": "finding",
+        "arithmetic": "1000 * 3 escaping targets / 4"
+      },
+      "rationale": "get_mut borrows the map field, assignment crosses the record reference and passing owners reborrows a Vec (external container, not a deferred whole-workspace object). intern_owner writes owners, but that mutation is not an outward kind and the caller Vec reborrow is not delegated. same_inventory reads and builds owned local maps; no inherited weighted outward effect."
+    },
+    {
+      "case_index": 4,
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "helper_calls::digit_products::certify",
+      "source_file": "crates/rstyle-pdg/src/helper_calls/digit_products.rs",
+      "source": "pub(super) fn certify(\n    facts: &dyn EvidenceFacts,\n) -> Result<Option<(Summary, producer::Pair)>, String> {\n    // A raw match shape cannot substitute for the complete source receipt.\n    if activation::verify(facts).is_err() {\n        return Ok(None);\n    }\n    let pair = producer::produce(facts).map_err(|errors| errors.join(\"; \"))?;\n    let summary = crate::diagnostics::Stage::new(\"helper.digit-product-summary\", &facts.name, None)\n        .observe(|| derive(facts, &pair))?;\n\n    Ok(Some((summary, pair)))\n}",
+      "expectation_basis": "Manual original-source review and existing driver/core contracts only. No evaluated report, FnFacts, captured event record, actual metric or emitted detail inspected.",
+      "authored_statements": 5,
+      "code_lines": 11,
+      "statement_roster": [
+        "if verify error",
+        "return None",
+        "let pair",
+        "let summary",
+        "Ok tail"
+      ],
+      "direct_escaping_targets": [],
+      "other_direct_weighted_events": null,
+      "helpers": [
+        {
+          "function": "producer::produce",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/producer/mod.rs",
+          "source": "/// Build and validate one bounded normal-flow pair from captured frontend facts.\npub fn produce(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Pair, Vec<String>> {\n    crate::verification_session::within(|| produce_function(facts))\n}"
+        },
+        {
+          "function": "verification_session::within",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/verification_session.rs",
+          "source": "pub(crate) fn within<T>(operation: impl FnOnce() -> T) -> T {\n    let root = ACTIVE.with_borrow_mut(|active| {\n        if active.is_some() {\n            false\n        } else {\n            *active = Some(Session::default());\n            true\n        }\n    });\n    let _root = Root(root);\n\n    operation()\n}"
+        },
+        {
+          "function": "diagnostics::Stage::<'a>::new",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/diagnostics.rs",
+          "source": "pub fn new(stage: &'a str, identity: &'a str, evidence: Option<&'a [u8]>) -> Self {\n        Self {\n            stage,\n            identity,\n            evidence,\n        }\n    }"
+        },
+        {
+          "function": "diagnostics::Stage::<'a>::observe",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/diagnostics.rs",
+          "source": "/// Invoke once, retaining the original result even if diagnostic IO fails.\n    pub fn observe<T, E>(self, operation: impl FnOnce() -> Result<T, E>) -> Result<T, E> {\n        if enabled() {\n            Observation::start(self.stage, self.identity, self.evidence).run(operation)\n        } else {\n            operation()\n        }\n    }"
+        },
+        {
+          "function": "diagnostics::enabled",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/diagnostics.rs",
+          "source": "fn enabled() -> bool {\n    static ENABLED: OnceLock<bool> = OnceLock::new();\n    *ENABLED.get_or_init(|| switch(\"RSTYLE_PERF\"))\n}"
+        },
+        {
+          "function": "diagnostics::switch",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/diagnostics.rs",
+          "source": "/// Read an explicitly named opt-in diagnostic switch.\npub fn switch(name: &str) -> bool {\n    std::env::var_os(name).is_some_and(|value| value == \"1\")\n}"
+        },
+        {
+          "function": "diagnostics::Observation::<'a>::start",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/diagnostics.rs",
+          "source": "fn start(stage: &'a str, identity: &'a str, evidence: Option<&[u8]>) -> Self {\n        let (depth, visit) = COUNTS.with_borrow_mut(|counts| {\n            counts.depth += 1;\n            let visit = counts\n                .visits\n                .entry(format!(\"{stage}:{identity}\"))\n                .or_default();\n            *visit += 1;\n            (counts.depth, *visit)\n        });\n        let event = Event {\n            schema: \"rstyle.performance-event/2\",\n            observation_id: ObservationId::next(),\n            stage,\n            identity,\n            pid: std::process::id(),\n            event: \"start\",\n            depth,\n            visit,\n            evidence_bytes: evidence.map_or(0, <[u8]>::len),\n            elapsed_seconds: 0.0,\n            verification_policy: if crate::verification_policy::is_generated() {\n                \"trusted-generated\"\n            } else {\n                \"strict\"\n            },\n        };\n        event.emit();\n\n        Self {\n            event,\n            started: Instant::now(),\n        }\n    }"
+        },
+        {
+          "function": "diagnostics::Observation::<'_>::run",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/diagnostics.rs",
+          "source": "fn run<T, E>(mut self, operation: impl FnOnce() -> Result<T, E>) -> Result<T, E> {\n        let result = operation();\n        self.finish(result.is_ok());\n\n        result\n    }"
+        },
+        {
+          "function": "diagnostics::Event::<'_>::emit",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/diagnostics.rs",
+          "source": "fn emit(&self) {\n        if let Ok(json) = serde_json::to_string(self) {\n            let _ = writeln!(std::io::stderr().lock(), \"rstyle-perf {json}\");\n        }\n    }"
+        },
+        {
+          "function": "helper_calls::digit_products::derive",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/digit_products.rs",
+          "source": "fn derive(facts: &dyn EvidenceFacts, pair: &producer::Pair) -> Result<Summary, String> {\n    if !candidate(facts)\n        || !crate::extraction_profile::policy_supports(&pair.pdg.profile, CAPABILITY)\n        || pair.cfg.extraction_evidence.status != ExtractionStatus::Complete\n    {\n        return Err(\"Digit helper requires its complete registered parser contract\".into());\n    }\n    let checked = activation::verify(facts)?;\n    crate::scalar_product_instances::origins::documents::verify(pair.as_view(), &checked, facts)?;\n    let replay = graph::verify(pair.as_view(), checked.prefix())?;\n    let reads = reads(pair, &checked, &replay)?;\n    let suffix = Output {\n        selectors: vec![0, 0],\n        ty: TypeToken::from_tree(&checked.instance().fields[0].ty),\n        origins: vec![Origin {\n            parameter: 0,\n            path: vec![\n                Projection::SharedReferent,\n                Projection::PrefixSuffix {\n                    start: checked.prefix().consumed(),\n                },\n            ],\n        }],\n    };\n\n    Ok(Summary {\n        identity: SUMMARY.into(),\n        argument_types: argument_types(facts)?,\n        result_type: result_type(facts)?,\n        mutates_arguments: false,\n        memory_effects: true,\n        may_panic: false,\n        always_returns: true,\n        argument_evaluation: \"source-order-once/1\".into(),\n        result_dependence: DEPENDENCE.into(),\n        bounded_loop: None,\n        reference_outputs: None,\n        component_outputs: Some(vec![suffix]),\n        memory_reads: Some(reads),\n        tagged_output: None,\n    })\n}"
+        }
+      ],
+      "source_justified_reachable_events": [
+        {
+          "kind": "time",
+          "call": "std::time::Instant::now",
+          "path": [
+            "certify",
+            "Stage::observe",
+            "Observation::start"
+          ],
+          "hops": 2
+        },
+        {
+          "kind": "io",
+          "source_call": "std::io::stderr().lock() / writeln! write",
+          "path": [
+            "certify",
+            "Stage::observe",
+            "Observation::start",
+            "Event::emit"
+          ],
+          "hops": 3
+        }
+      ],
+      "expected_propagated_roster": null,
+      "density": {
+        "status": "unknown",
+        "reason": "Stage diagnostic IO/time sources are established, but producer/activation/within callback closure paths, implicit dyn EvidenceFacts access and generic call identity rosters have not been fully source-resolved through depth3. Do not fabricate collapse multiplicities or exact inherited labels."
+      },
+      "rationale": "Depth3 includes Event::emit below Observation::start, even though diagnostic IO is runtime opt-in. Runtime enabled guards do not eliminate static effects. Generic operation() callbacks may add direct Unknown to helper owners, but Unknown does not outward-propagate; exact caller callback and implicit trait-access events remain uncertain."
+    },
+    {
+      "case_index": 5,
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "helper_calls::transport::Reader::unpack",
+      "source_file": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+      "source": "fn unpack(&mut self, index: usize, depth: usize) -> Result<Value, String> {\n        check_depth(depth)?;\n        let fields = self\n            .nodes\n            .get(index)\n            .and_then(Value::as_array)\n            .ok_or(\"Missing or malformed helper transport node\")?\n            .clone();\n        self.used.insert(index);\n        self.charge(1)?;\n\n        self.value(&fields, index, depth)\n    }",
+      "authored_counts": {
+        "statements": 4,
+        "code_lines": 12,
+        "complete": true,
+        "reason": "Four source statements: check_depth; let fields; self.used.insert; self.charge. Tail self.value is not a statement."
+      },
+      "direct_escaping_root_field_targets": [
+        "self.used"
+      ],
+      "direct_weighted_events": [
+        {
+          "kind": "mutation",
+          "label": "self.used",
+          "via": null,
+          "weight": 1
+        }
+      ],
+      "direct_labels_complete": true,
+      "helper_source_roster": [
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::unpack",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn unpack(&mut self, index: usize, depth: usize) -> Result<Value, String> {\n        check_depth(depth)?;\n        let fields = self\n            .nodes\n            .get(index)\n            .and_then(Value::as_array)\n            .ok_or(\"Missing or malformed helper transport node\")?\n            .clone();\n        self.used.insert(index);\n        self.charge(1)?;\n\n        self.value(&fields, index, depth)\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::value",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn value(&mut self, fields: &[Value], index: usize, depth: usize) -> Result<Value, String> {\n        match fields.first().and_then(Value::as_str) {\n            Some(\"literal\")\n                if fields.len() == 2 && !fields[1].is_object() && !fields[1].is_array() =>\n            {\n                self.charge(fields[1].as_str().map_or(1, str::len))?;\n                Ok(fields[1].clone())\n            }\n            Some(\"json\" | \"quoted\") => self.encoded_string(fields, index, depth),\n            Some(\"text\" | \"array\" | \"object\") if fields.len() == 2 => {\n                self.collection(fields, index, depth)\n            }\n            _ => Err(\"Unsupported or malformed helper transport tag\".into()),\n        }\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::encoded_string",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn encoded_string(\n        &mut self,\n        fields: &[Value],\n        index: usize,\n        depth: usize,\n    ) -> Result<Value, String> {\n        let text = match fields[0].as_str() {\n            Some(\"json\") if fields.len() == 3 => {\n                let format = fields[1]\n                    .as_str()\n                    .ok_or(\"Malformed helper transport JSON format\")?;\n                let value = self.child(&fields[2], index, depth)?;\n                render(&value, format)?\n            }\n            Some(\"quoted\") if fields.len() == 2 => {\n                let text = super::transport_lexical::string(self.child(&fields[1], index, depth)?)?;\n                render(&Value::String(text), \"compact\")?\n            }\n            _ => return Err(\"Malformed helper transport string tag\".into()),\n        };\n        self.charge(text.len())?;\n\n        Ok(Value::String(text))\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::collection",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn collection(\n        &mut self,\n        fields: &[Value],\n        index: usize,\n        depth: usize,\n    ) -> Result<Value, String> {\n        match fields[0].as_str() {\n            Some(\"array\") => {\n                let ids = fields[1]\n                    .as_array()\n                    .ok_or(\"Malformed helper transport array\")?;\n                ids.iter()\n                    .map(|id| self.child(id, index, depth))\n                    .collect::<Result<_, _>>()\n                    .map(Value::Array)\n            }\n            Some(\"text\") => self.text(&fields[1], index, depth),\n            Some(\"object\") => self.object(&fields[1], index, depth),\n            _ => Err(\"Malformed helper transport collection tag\".into()),\n        }\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::child",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn child(&mut self, value: &Value, parent: usize, depth: usize) -> Result<Value, String> {\n        let index = value\n            .as_u64()\n            .and_then(|index| usize::try_from(index).ok())\n            .filter(|index| *index < parent)\n            .ok_or(\"Cyclic, forward or invalid helper transport index\")?;\n        self.unpack(index, depth + 1)\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::object",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn object(&mut self, value: &Value, index: usize, depth: usize) -> Result<Value, String> {\n        let entries = value\n            .as_array()\n            .ok_or(\"Malformed helper transport object\")?;\n        let mut object = serde_json::Map::new();\n        for entry in entries {\n            let fields = entry\n                .as_array()\n                .filter(|fields| fields.len() == 2)\n                .ok_or(\"Malformed helper transport object entry\")?;\n            let key = fields[0]\n                .as_str()\n                .ok_or(\"Malformed helper transport object key\")?;\n            self.charge(key.len())?;\n            let value = self.child(&fields[1], index, depth)?;\n            if object.insert(key.into(), value).is_some() {\n                return Err(\"Duplicate helper transport object key\".into());\n            }\n        }\n\n        Ok(Value::Object(object))\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::text",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn text(&mut self, value: &Value, index: usize, depth: usize) -> Result<Value, String> {\n        let ids = value\n            .as_array()\n            .ok_or(\"Malformed lexical helper transport fragments\")?;\n        let mut writer = BoundedWriter(Vec::new());\n        for id in ids {\n            let text = super::transport_lexical::string(self.child(id, index, depth)?)?;\n            writer\n                .write_all(text.as_bytes())\n                .map_err(|error| error.to_string())?;\n        }\n        let text = String::from_utf8(writer.0).map_err(|error| error.to_string())?;\n        self.charge(text.len())?;\n\n        Ok(Value::String(text))\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::charge",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn charge(&mut self, bytes: usize) -> Result<(), String> {\n        crate::evidence_budget::charge(\n            &mut self.remaining,\n            bytes,\n            \"Helper restoration exceeds explicit 8 MiB work budget\",\n        )\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::check_depth",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn check_depth(depth: usize) -> Result<(), String> {\n    if depth > MAX_TREE_DEPTH {\n        return Err(\"Helper transport exceeds explicit tree-depth budget 256\".into());\n    }\n\n    Ok(())\n}",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::render",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn render(value: &Value, format: &str) -> Result<String, String> {\n    let mut writer = BoundedWriter(Vec::new());\n    match format {\n        \"compact\" => serde_json::to_writer(&mut writer, value),\n        \"pretty\" => serde_json::to_writer_pretty(&mut writer, value),\n        _ => return Err(\"Unsupported helper JSON-string format\".into()),\n    }\n    .map_err(|error| error.to_string())?;\n\n    String::from_utf8(writer.0).map_err(|error| error.to_string())\n}",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "evidence_budget::charge",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/evidence_budget.rs",
+          "source": "pub(crate) fn charge(remaining: &mut usize, bytes: usize, reason: &str) -> Result<(), String> {\n    *remaining = remaining.checked_sub(bytes).ok_or(reason)?;\n    Ok(())\n}",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport_lexical::string",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport_lexical.rs",
+          "source": "pub(super) fn string(value: Value) -> Result<String, String> {\n    match value {\n        Value::String(text) => Ok(text),\n        _ => Err(\"Lexical helper transport requires string fragments\".into()),\n    }\n}",
+          "test": false
+        }
+      ],
+      "helper_direct_effects": {
+        "helper_calls::transport::Reader::charge": {
+          "escaping_targets": [
+            "self.remaining"
+          ],
+          "weighted_events": [
+            {
+              "kind": "mutation",
+              "label": "self.remaining",
+              "via": null,
+              "weight": 1
+            }
+          ],
+          "reason": "Mutable borrow of scalar field into evidence_budget::charge; this is not a whole-workspace-object reborrow."
+        },
+        "helper_calls::transport::Reader::text": {
+          "escaping_targets": [],
+          "weighted_events": [
+            {
+              "kind": "io",
+              "label": "std::io::Write::write_all",
+              "via": null,
+              "weight": 3
+            }
+          ],
+          "reason": "write_all declaration is std::io::Write::write_all; writer is local so its mutable borrow is not escaping."
+        },
+        "helper_calls::transport::Reader::unpack": {
+          "escaping_targets": [
+            "self.used"
+          ],
+          "weighted_events": [
+            {
+              "kind": "mutation",
+              "label": "self.used",
+              "via": null,
+              "weight": 1
+            }
+          ]
+        }
+      },
+      "expected_propagation_complete": false,
+      "propagation_uncertainty": [
+        "The numeric candidates below are independently source-derived, but exact collector delegation/closure capture placement and resolved trait declaration label have not been established from source alone. Treat as candidate labels, not a complete acceptance oracle until separately resolved without observed events."
+      ],
+      "candidate_depth_events": [
+        {
+          "depth": 0,
+          "events": [
+            {
+              "kind": "mutation",
+              "label": "self.used",
+              "via": null,
+              "weight": 1
+            }
+          ],
+          "weighted_total": 1,
+          "density_milli": 250
+        },
+        {
+          "depth": 1,
+          "events": [
+            {
+              "kind": "mutation",
+              "label": "self.used",
+              "via": null,
+              "weight": 1
+            },
+            {
+              "kind": "mutation",
+              "label": "&mut state",
+              "via": "helper_calls::transport::Reader::charge",
+              "weight": 1
+            }
+          ],
+          "weighted_total": 2,
+          "density_milli": 500
+        },
+        {
+          "depth": 2,
+          "events": [
+            {
+              "kind": "mutation",
+              "label": "self.used",
+              "via": null,
+              "weight": 1
+            },
+            {
+              "kind": "mutation",
+              "label": "&mut state",
+              "via": "helper_calls::transport::Reader::charge",
+              "weight": 1
+            }
+          ],
+          "weighted_total": 2,
+          "density_milli": 500
+        },
+        {
+          "depth": 3,
+          "events": [
+            {
+              "kind": "mutation",
+              "label": "self.used",
+              "via": null,
+              "weight": 1
+            },
+            {
+              "kind": "mutation",
+              "label": "&mut state",
+              "via": "helper_calls::transport::Reader::charge",
+              "weight": 1
+            },
+            {
+              "kind": "io",
+              "label": "std::io::Write::write_all",
+              "via": "helper_calls::transport::Reader::value",
+              "weight": 3
+            }
+          ],
+          "weighted_total": 5,
+          "density_milli": 1250
+        }
+      ],
+      "source_delegation_reason": "Reader::charge/value/encoded_string/collection/child/text/object borrow the whole workspace Reader through &mut self. Direct effects exclude these reborrows; a callee mutation can return one synthetic &mut state. Deduplication ignores via and matches kind,label."
+    },
+    {
+      "case_index": 6,
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "helper_calls::transport::Reader::value",
+      "source_file": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+      "source": "fn value(&mut self, fields: &[Value], index: usize, depth: usize) -> Result<Value, String> {\n        match fields.first().and_then(Value::as_str) {\n            Some(\"literal\")\n                if fields.len() == 2 && !fields[1].is_object() && !fields[1].is_array() =>\n            {\n                self.charge(fields[1].as_str().map_or(1, str::len))?;\n                Ok(fields[1].clone())\n            }\n            Some(\"json\" | \"quoted\") => self.encoded_string(fields, index, depth),\n            Some(\"text\" | \"array\" | \"object\") if fields.len() == 2 => {\n                self.collection(fields, index, depth)\n            }\n            _ => Err(\"Unsupported or malformed helper transport tag\".into()),\n        }\n    }",
+      "authored_counts": {
+        "statements": 1,
+        "code_lines": 15,
+        "complete": true,
+        "reason": "Only self.charge in literal arm is a statement. The outer match and arm results are tail expressions."
+      },
+      "direct_escaping_root_field_targets": [],
+      "direct_weighted_events": [],
+      "direct_labels_complete": true,
+      "helper_source_roster": [
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::unpack",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn unpack(&mut self, index: usize, depth: usize) -> Result<Value, String> {\n        check_depth(depth)?;\n        let fields = self\n            .nodes\n            .get(index)\n            .and_then(Value::as_array)\n            .ok_or(\"Missing or malformed helper transport node\")?\n            .clone();\n        self.used.insert(index);\n        self.charge(1)?;\n\n        self.value(&fields, index, depth)\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::value",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn value(&mut self, fields: &[Value], index: usize, depth: usize) -> Result<Value, String> {\n        match fields.first().and_then(Value::as_str) {\n            Some(\"literal\")\n                if fields.len() == 2 && !fields[1].is_object() && !fields[1].is_array() =>\n            {\n                self.charge(fields[1].as_str().map_or(1, str::len))?;\n                Ok(fields[1].clone())\n            }\n            Some(\"json\" | \"quoted\") => self.encoded_string(fields, index, depth),\n            Some(\"text\" | \"array\" | \"object\") if fields.len() == 2 => {\n                self.collection(fields, index, depth)\n            }\n            _ => Err(\"Unsupported or malformed helper transport tag\".into()),\n        }\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::encoded_string",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn encoded_string(\n        &mut self,\n        fields: &[Value],\n        index: usize,\n        depth: usize,\n    ) -> Result<Value, String> {\n        let text = match fields[0].as_str() {\n            Some(\"json\") if fields.len() == 3 => {\n                let format = fields[1]\n                    .as_str()\n                    .ok_or(\"Malformed helper transport JSON format\")?;\n                let value = self.child(&fields[2], index, depth)?;\n                render(&value, format)?\n            }\n            Some(\"quoted\") if fields.len() == 2 => {\n                let text = super::transport_lexical::string(self.child(&fields[1], index, depth)?)?;\n                render(&Value::String(text), \"compact\")?\n            }\n            _ => return Err(\"Malformed helper transport string tag\".into()),\n        };\n        self.charge(text.len())?;\n\n        Ok(Value::String(text))\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::collection",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn collection(\n        &mut self,\n        fields: &[Value],\n        index: usize,\n        depth: usize,\n    ) -> Result<Value, String> {\n        match fields[0].as_str() {\n            Some(\"array\") => {\n                let ids = fields[1]\n                    .as_array()\n                    .ok_or(\"Malformed helper transport array\")?;\n                ids.iter()\n                    .map(|id| self.child(id, index, depth))\n                    .collect::<Result<_, _>>()\n                    .map(Value::Array)\n            }\n            Some(\"text\") => self.text(&fields[1], index, depth),\n            Some(\"object\") => self.object(&fields[1], index, depth),\n            _ => Err(\"Malformed helper transport collection tag\".into()),\n        }\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::child",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn child(&mut self, value: &Value, parent: usize, depth: usize) -> Result<Value, String> {\n        let index = value\n            .as_u64()\n            .and_then(|index| usize::try_from(index).ok())\n            .filter(|index| *index < parent)\n            .ok_or(\"Cyclic, forward or invalid helper transport index\")?;\n        self.unpack(index, depth + 1)\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::object",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn object(&mut self, value: &Value, index: usize, depth: usize) -> Result<Value, String> {\n        let entries = value\n            .as_array()\n            .ok_or(\"Malformed helper transport object\")?;\n        let mut object = serde_json::Map::new();\n        for entry in entries {\n            let fields = entry\n                .as_array()\n                .filter(|fields| fields.len() == 2)\n                .ok_or(\"Malformed helper transport object entry\")?;\n            let key = fields[0]\n                .as_str()\n                .ok_or(\"Malformed helper transport object key\")?;\n            self.charge(key.len())?;\n            let value = self.child(&fields[1], index, depth)?;\n            if object.insert(key.into(), value).is_some() {\n                return Err(\"Duplicate helper transport object key\".into());\n            }\n        }\n\n        Ok(Value::Object(object))\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::text",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn text(&mut self, value: &Value, index: usize, depth: usize) -> Result<Value, String> {\n        let ids = value\n            .as_array()\n            .ok_or(\"Malformed lexical helper transport fragments\")?;\n        let mut writer = BoundedWriter(Vec::new());\n        for id in ids {\n            let text = super::transport_lexical::string(self.child(id, index, depth)?)?;\n            writer\n                .write_all(text.as_bytes())\n                .map_err(|error| error.to_string())?;\n        }\n        let text = String::from_utf8(writer.0).map_err(|error| error.to_string())?;\n        self.charge(text.len())?;\n\n        Ok(Value::String(text))\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::charge",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn charge(&mut self, bytes: usize) -> Result<(), String> {\n        crate::evidence_budget::charge(\n            &mut self.remaining,\n            bytes,\n            \"Helper restoration exceeds explicit 8 MiB work budget\",\n        )\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::check_depth",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn check_depth(depth: usize) -> Result<(), String> {\n    if depth > MAX_TREE_DEPTH {\n        return Err(\"Helper transport exceeds explicit tree-depth budget 256\".into());\n    }\n\n    Ok(())\n}",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::render",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn render(value: &Value, format: &str) -> Result<String, String> {\n    let mut writer = BoundedWriter(Vec::new());\n    match format {\n        \"compact\" => serde_json::to_writer(&mut writer, value),\n        \"pretty\" => serde_json::to_writer_pretty(&mut writer, value),\n        _ => return Err(\"Unsupported helper JSON-string format\".into()),\n    }\n    .map_err(|error| error.to_string())?;\n\n    String::from_utf8(writer.0).map_err(|error| error.to_string())\n}",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "evidence_budget::charge",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/evidence_budget.rs",
+          "source": "pub(crate) fn charge(remaining: &mut usize, bytes: usize, reason: &str) -> Result<(), String> {\n    *remaining = remaining.checked_sub(bytes).ok_or(reason)?;\n    Ok(())\n}",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport_lexical::string",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport_lexical.rs",
+          "source": "pub(super) fn string(value: Value) -> Result<String, String> {\n    match value {\n        Value::String(text) => Ok(text),\n        _ => Err(\"Lexical helper transport requires string fragments\".into()),\n    }\n}",
+          "test": false
+        }
+      ],
+      "helper_direct_effects": {
+        "helper_calls::transport::Reader::charge": {
+          "escaping_targets": [
+            "self.remaining"
+          ],
+          "weighted_events": [
+            {
+              "kind": "mutation",
+              "label": "self.remaining",
+              "via": null,
+              "weight": 1
+            }
+          ],
+          "reason": "Mutable borrow of scalar field into evidence_budget::charge; this is not a whole-workspace-object reborrow."
+        },
+        "helper_calls::transport::Reader::text": {
+          "escaping_targets": [],
+          "weighted_events": [
+            {
+              "kind": "io",
+              "label": "std::io::Write::write_all",
+              "via": null,
+              "weight": 3
+            }
+          ],
+          "reason": "write_all declaration is std::io::Write::write_all; writer is local so its mutable borrow is not escaping."
+        },
+        "helper_calls::transport::Reader::unpack": {
+          "escaping_targets": [
+            "self.used"
+          ],
+          "weighted_events": [
+            {
+              "kind": "mutation",
+              "label": "self.used",
+              "via": null,
+              "weight": 1
+            }
+          ]
+        }
+      },
+      "expected_propagation_complete": false,
+      "propagation_uncertainty": [
+        "The numeric candidates below are independently source-derived, but exact collector delegation/closure capture placement and resolved trait declaration label have not been established from source alone. Treat as candidate labels, not a complete acceptance oracle until separately resolved without observed events."
+      ],
+      "candidate_depth_events": [
+        {
+          "depth": 0,
+          "events": [],
+          "weighted_total": 0,
+          "density_milli": 0
+        },
+        {
+          "depth": 1,
+          "events": [
+            {
+              "kind": "mutation",
+              "label": "&mut state",
+              "via": "helper_calls::transport::Reader::charge",
+              "weight": 1
+            }
+          ],
+          "weighted_total": 1,
+          "density_milli": 1000
+        },
+        {
+          "depth": 2,
+          "events": [
+            {
+              "kind": "mutation",
+              "label": "&mut state",
+              "via": "helper_calls::transport::Reader::charge",
+              "weight": 1
+            },
+            {
+              "kind": "io",
+              "label": "std::io::Write::write_all",
+              "via": "helper_calls::transport::Reader::collection",
+              "weight": 3
+            }
+          ],
+          "weighted_total": 4,
+          "density_milli": 4000
+        },
+        {
+          "depth": 3,
+          "events": [
+            {
+              "kind": "mutation",
+              "label": "&mut state",
+              "via": "helper_calls::transport::Reader::charge",
+              "weight": 1
+            },
+            {
+              "kind": "io",
+              "label": "std::io::Write::write_all",
+              "via": "helper_calls::transport::Reader::collection",
+              "weight": 3
+            }
+          ],
+          "weighted_total": 4,
+          "density_milli": 4000
+        }
+      ],
+      "source_delegation_reason": "Reader::charge/value/encoded_string/collection/child/text/object borrow the whole workspace Reader through &mut self. Direct effects exclude these reborrows; a callee mutation can return one synthetic &mut state. Deduplication ignores via and matches kind,label."
+    },
+    {
+      "case_index": 7,
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "helper_calls::transport::Reader::collection",
+      "source_file": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+      "source": "fn collection(\n        &mut self,\n        fields: &[Value],\n        index: usize,\n        depth: usize,\n    ) -> Result<Value, String> {\n        match fields[0].as_str() {\n            Some(\"array\") => {\n                let ids = fields[1]\n                    .as_array()\n                    .ok_or(\"Malformed helper transport array\")?;\n                ids.iter()\n                    .map(|id| self.child(id, index, depth))\n                    .collect::<Result<_, _>>()\n                    .map(Value::Array)\n            }\n            Some(\"text\") => self.text(&fields[1], index, depth),\n            Some(\"object\") => self.object(&fields[1], index, depth),\n            _ => Err(\"Malformed helper transport collection tag\".into()),\n        }\n    }",
+      "authored_counts": {
+        "statements": 1,
+        "code_lines": 21,
+        "complete": true,
+        "reason": "Only let ids is a source statement; iterator closures/arms yield tail expressions."
+      },
+      "direct_escaping_root_field_targets": [],
+      "direct_weighted_events": [],
+      "direct_labels_complete": true,
+      "helper_source_roster": [
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::unpack",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn unpack(&mut self, index: usize, depth: usize) -> Result<Value, String> {\n        check_depth(depth)?;\n        let fields = self\n            .nodes\n            .get(index)\n            .and_then(Value::as_array)\n            .ok_or(\"Missing or malformed helper transport node\")?\n            .clone();\n        self.used.insert(index);\n        self.charge(1)?;\n\n        self.value(&fields, index, depth)\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::value",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn value(&mut self, fields: &[Value], index: usize, depth: usize) -> Result<Value, String> {\n        match fields.first().and_then(Value::as_str) {\n            Some(\"literal\")\n                if fields.len() == 2 && !fields[1].is_object() && !fields[1].is_array() =>\n            {\n                self.charge(fields[1].as_str().map_or(1, str::len))?;\n                Ok(fields[1].clone())\n            }\n            Some(\"json\" | \"quoted\") => self.encoded_string(fields, index, depth),\n            Some(\"text\" | \"array\" | \"object\") if fields.len() == 2 => {\n                self.collection(fields, index, depth)\n            }\n            _ => Err(\"Unsupported or malformed helper transport tag\".into()),\n        }\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::encoded_string",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn encoded_string(\n        &mut self,\n        fields: &[Value],\n        index: usize,\n        depth: usize,\n    ) -> Result<Value, String> {\n        let text = match fields[0].as_str() {\n            Some(\"json\") if fields.len() == 3 => {\n                let format = fields[1]\n                    .as_str()\n                    .ok_or(\"Malformed helper transport JSON format\")?;\n                let value = self.child(&fields[2], index, depth)?;\n                render(&value, format)?\n            }\n            Some(\"quoted\") if fields.len() == 2 => {\n                let text = super::transport_lexical::string(self.child(&fields[1], index, depth)?)?;\n                render(&Value::String(text), \"compact\")?\n            }\n            _ => return Err(\"Malformed helper transport string tag\".into()),\n        };\n        self.charge(text.len())?;\n\n        Ok(Value::String(text))\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::collection",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn collection(\n        &mut self,\n        fields: &[Value],\n        index: usize,\n        depth: usize,\n    ) -> Result<Value, String> {\n        match fields[0].as_str() {\n            Some(\"array\") => {\n                let ids = fields[1]\n                    .as_array()\n                    .ok_or(\"Malformed helper transport array\")?;\n                ids.iter()\n                    .map(|id| self.child(id, index, depth))\n                    .collect::<Result<_, _>>()\n                    .map(Value::Array)\n            }\n            Some(\"text\") => self.text(&fields[1], index, depth),\n            Some(\"object\") => self.object(&fields[1], index, depth),\n            _ => Err(\"Malformed helper transport collection tag\".into()),\n        }\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::child",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn child(&mut self, value: &Value, parent: usize, depth: usize) -> Result<Value, String> {\n        let index = value\n            .as_u64()\n            .and_then(|index| usize::try_from(index).ok())\n            .filter(|index| *index < parent)\n            .ok_or(\"Cyclic, forward or invalid helper transport index\")?;\n        self.unpack(index, depth + 1)\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::object",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn object(&mut self, value: &Value, index: usize, depth: usize) -> Result<Value, String> {\n        let entries = value\n            .as_array()\n            .ok_or(\"Malformed helper transport object\")?;\n        let mut object = serde_json::Map::new();\n        for entry in entries {\n            let fields = entry\n                .as_array()\n                .filter(|fields| fields.len() == 2)\n                .ok_or(\"Malformed helper transport object entry\")?;\n            let key = fields[0]\n                .as_str()\n                .ok_or(\"Malformed helper transport object key\")?;\n            self.charge(key.len())?;\n            let value = self.child(&fields[1], index, depth)?;\n            if object.insert(key.into(), value).is_some() {\n                return Err(\"Duplicate helper transport object key\".into());\n            }\n        }\n\n        Ok(Value::Object(object))\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::text",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn text(&mut self, value: &Value, index: usize, depth: usize) -> Result<Value, String> {\n        let ids = value\n            .as_array()\n            .ok_or(\"Malformed lexical helper transport fragments\")?;\n        let mut writer = BoundedWriter(Vec::new());\n        for id in ids {\n            let text = super::transport_lexical::string(self.child(id, index, depth)?)?;\n            writer\n                .write_all(text.as_bytes())\n                .map_err(|error| error.to_string())?;\n        }\n        let text = String::from_utf8(writer.0).map_err(|error| error.to_string())?;\n        self.charge(text.len())?;\n\n        Ok(Value::String(text))\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::Reader::charge",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn charge(&mut self, bytes: usize) -> Result<(), String> {\n        crate::evidence_budget::charge(\n            &mut self.remaining,\n            bytes,\n            \"Helper restoration exceeds explicit 8 MiB work budget\",\n        )\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::check_depth",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn check_depth(depth: usize) -> Result<(), String> {\n    if depth > MAX_TREE_DEPTH {\n        return Err(\"Helper transport exceeds explicit tree-depth budget 256\".into());\n    }\n\n    Ok(())\n}",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport::render",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport.rs",
+          "source": "fn render(value: &Value, format: &str) -> Result<String, String> {\n    let mut writer = BoundedWriter(Vec::new());\n    match format {\n        \"compact\" => serde_json::to_writer(&mut writer, value),\n        \"pretty\" => serde_json::to_writer_pretty(&mut writer, value),\n        _ => return Err(\"Unsupported helper JSON-string format\".into()),\n    }\n    .map_err(|error| error.to_string())?;\n\n    String::from_utf8(writer.0).map_err(|error| error.to_string())\n}",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "evidence_budget::charge",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/evidence_budget.rs",
+          "source": "pub(crate) fn charge(remaining: &mut usize, bytes: usize, reason: &str) -> Result<(), String> {\n    *remaining = remaining.checked_sub(bytes).ok_or(reason)?;\n    Ok(())\n}",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "helper_calls::transport_lexical::string",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/helper_calls/transport_lexical.rs",
+          "source": "pub(super) fn string(value: Value) -> Result<String, String> {\n    match value {\n        Value::String(text) => Ok(text),\n        _ => Err(\"Lexical helper transport requires string fragments\".into()),\n    }\n}",
+          "test": false
+        }
+      ],
+      "helper_direct_effects": {
+        "helper_calls::transport::Reader::charge": {
+          "escaping_targets": [
+            "self.remaining"
+          ],
+          "weighted_events": [
+            {
+              "kind": "mutation",
+              "label": "self.remaining",
+              "via": null,
+              "weight": 1
+            }
+          ],
+          "reason": "Mutable borrow of scalar field into evidence_budget::charge; this is not a whole-workspace-object reborrow."
+        },
+        "helper_calls::transport::Reader::text": {
+          "escaping_targets": [],
+          "weighted_events": [
+            {
+              "kind": "io",
+              "label": "std::io::Write::write_all",
+              "via": null,
+              "weight": 3
+            }
+          ],
+          "reason": "write_all declaration is std::io::Write::write_all; writer is local so its mutable borrow is not escaping."
+        },
+        "helper_calls::transport::Reader::unpack": {
+          "escaping_targets": [
+            "self.used"
+          ],
+          "weighted_events": [
+            {
+              "kind": "mutation",
+              "label": "self.used",
+              "via": null,
+              "weight": 1
+            }
+          ]
+        }
+      },
+      "expected_propagation_complete": false,
+      "propagation_uncertainty": [
+        "The numeric candidates below are independently source-derived, but exact collector delegation/closure capture placement and resolved trait declaration label have not been established from source alone. Treat as candidate labels, not a complete acceptance oracle until separately resolved without observed events."
+      ],
+      "candidate_depth_events": [
+        {
+          "depth": 0,
+          "events": [],
+          "weighted_total": 0,
+          "density_milli": 0
+        },
+        {
+          "depth": 1,
+          "events": [
+            {
+              "kind": "io",
+              "label": "std::io::Write::write_all",
+              "via": "helper_calls::transport::Reader::text",
+              "weight": 3
+            }
+          ],
+          "weighted_total": 3,
+          "density_milli": 3000
+        },
+        {
+          "depth": 2,
+          "events": [
+            {
+              "kind": "mutation",
+              "label": "&mut state",
+              "via": "helper_calls::transport::Reader::child",
+              "weight": 1
+            },
+            {
+              "kind": "io",
+              "label": "std::io::Write::write_all",
+              "via": "helper_calls::transport::Reader::text",
+              "weight": 3
+            }
+          ],
+          "weighted_total": 4,
+          "density_milli": 4000
+        },
+        {
+          "depth": 3,
+          "events": [
+            {
+              "kind": "mutation",
+              "label": "&mut state",
+              "via": "helper_calls::transport::Reader::child",
+              "weight": 1
+            },
+            {
+              "kind": "io",
+              "label": "std::io::Write::write_all",
+              "via": "helper_calls::transport::Reader::text",
+              "weight": 3
+            }
+          ],
+          "weighted_total": 4,
+          "density_milli": 4000
+        }
+      ],
+      "source_delegation_reason": "Reader::charge/value/encoded_string/collection/child/text/object borrow the whole workspace Reader through &mut self. Direct effects exclude these reborrows; a callee mutation can return one synthetic &mut state. Deduplication ignores via and matches kind,label."
+    },
+    {
+      "case_index": 8,
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::begin_module",
+      "source_file": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+      "source": "fn begin_module(\n        &mut self,\n        environment: &Environment,\n        module: &census::Module,\n    ) -> Result<(), String> {\n        self.enums.namespace = module.namespace.clone();\n        self.definitions = inherited(&environment.modules, &module.namespace, &self.configuration)?;\n        self.scopes = vec![self.scope(module.items.iter())?];\n        Ok(())\n    }",
+      "authored_counts": {
+        "statements": 3,
+        "code_lines": 10,
+        "complete": true,
+        "reason": "Three assignments are statements; Ok(()) is the tail expression. vec! expansion internals do not add authored statements."
+      },
+      "direct_escaping_root_field_targets": [
+        "self.enums.namespace",
+        "self.definitions",
+        "self.scopes"
+      ],
+      "direct_weighted_events": [
+        {
+          "kind": "mutation",
+          "label": "self.enums.namespace",
+          "via": null,
+          "weight": 1
+        },
+        {
+          "kind": "mutation",
+          "label": "self.definitions",
+          "via": null,
+          "weight": 1
+        },
+        {
+          "kind": "mutation",
+          "label": "self.scopes",
+          "via": null,
+          "weight": 1
+        }
+      ],
+      "direct_labels_complete": true,
+      "helper_source_roster": [
+        {
+          "package": "rstyle-pdg",
+          "function": "nominal_boundary::resolution::selected::no_drop::closure::inherited",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+          "source": "fn inherited(\n    modules: &[census::Module],\n    namespace: &[String],\n    configuration: &crate::conditional_source::Configuration<'_>,\n) -> Result<BTreeMap<String, syn::ItemMacro>, String> {\n    let mut definitions = BTreeMap::new();\n    for depth in 0..namespace.len() {\n        let parent = modules\n            .iter()\n            .find(|module| module.namespace == namespace[..depth])\n            .ok_or(\"Cleanup macro scope lacks its original ancestor\")?;\n        for item in &parent.items {\n            if !configuration.active(crate::conditional_source::item_attributes(item))? {\n                continue;\n            }\n            if matches!(item, syn::Item::Mod(module) if module.ident == namespace[depth]) {\n                break;\n            }\n            if let syn::Item::Macro(item) = item\n                && let Some(name) = &item.ident\n            {\n                definitions.insert(name.to_string(), item.clone());\n            }\n            if let syn::Item::Mod(module) = item\n                && imports_macros(module, configuration)?\n            {\n                definitions.extend(imported_definitions(\n                    modules,\n                    parent,\n                    module,\n                    configuration,\n                )?);\n            }\n        }\n    }\n    Ok(definitions)\n}",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "nominal_boundary::resolution::selected::no_drop::closure::imports_macros",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+          "source": "fn imports_macros(\n    module: &syn::ItemMod,\n    configuration: &crate::conditional_source::Configuration<'_>,\n) -> Result<bool, String> {\n    let mut imported = false;\n    for attribute in configuration.effective_attributes(&module.attrs)? {\n        if attribute.path().is_ident(\"macro_use\") {\n            if !matches!(attribute, syn::Meta::Path(_)) {\n                return Err(\n                    \"Cleanup module macro import requires exact whole-module grammar\".into(),\n                );\n            }\n            imported = true;\n        }\n    }\n    Ok(imported)\n}",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "nominal_boundary::resolution::selected::no_drop::closure::imported_definitions",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+          "source": "fn imported_definitions(\n    modules: &[census::Module],\n    parent: &census::Module,\n    module: &syn::ItemMod,\n    configuration: &crate::conditional_source::Configuration<'_>,\n) -> Result<BTreeMap<String, syn::ItemMacro>, String> {\n    let namespace: Vec<_> = parent\n        .namespace\n        .iter()\n        .cloned()\n        .chain([module.ident.to_string()])\n        .collect();\n    let child = modules\n        .iter()\n        .find(|child| child.namespace == namespace)\n        .ok_or(\"Missing verified macro import source\")?;\n    let mut definitions = BTreeMap::new();\n\n    for item in &child.items {\n        if !configuration.active(crate::conditional_source::item_attributes(item))? {\n            continue;\n        }\n        let syn::Item::Macro(item) = item else {\n            return Err(\"Cleanup macro import contains nondefinitions\".into());\n        };\n        if !item.mac.path.is_ident(\"macro_rules\") {\n            return Err(\"Cleanup macro import is not an original macro_rules definition\".into());\n        }\n        let name = item\n            .ident\n            .as_ref()\n            .ok_or(\"Cleanup macro import lacks definition\")?;\n        definitions.insert(name.to_string(), item.clone());\n    }\n    Ok(definitions)\n}",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::scope",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+          "source": "fn scope<'a>(\n        &self,\n        items: impl IntoIterator<Item = &'a syn::Item>,\n    ) -> Result<BTreeMap<String, bool>, String> {\n        let mut scope = BTreeMap::new();\n        for item in items {\n            if !self\n                .configuration\n                .active(crate::conditional_source::item_attributes(item))?\n            {\n                continue;\n            }\n            self.scope_item(item, &mut scope);\n        }\n        Ok(scope)\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::scope_item",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+          "source": "fn scope_item(&self, item: &syn::Item, scope: &mut BTreeMap<String, bool>) {\n        let binding = match item {\n            syn::Item::Struct(item) => Some((&item.ident, true)),\n            syn::Item::Enum(item) => Some((&item.ident, true)),\n            syn::Item::Union(item) => Some((&item.ident, true)),\n            syn::Item::Trait(item) => {\n                scope.insert(format!(\"trait:{}\", item.ident), true);\n                Some((&item.ident, false))\n            }\n            syn::Item::Type(item) => Some((&item.ident, false)),\n            syn::Item::Mod(item) => Some((&item.ident, false)),\n            syn::Item::Use(item) => {\n                self.scope_import(item, scope);\n                None\n            }\n            _ => None,\n        };\n\n        if let Some((name, nominal)) = binding {\n            source_imports::bind(scope, name.to_string(), nominal);\n        }\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::scope_import",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+          "source": "fn scope_import(&self, item: &syn::ItemUse, scope: &mut BTreeMap<String, bool>) {\n        if self.anonymous_import(item) {\n            return;\n        }\n        if let Some(receipt) = self.generated_import(item) {\n            for name in receipt.names() {\n                source_imports::bind(scope, name.to_string(), false);\n            }\n            return;\n        }\n\n        self.ordinary_import_bindings(item, scope);\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "conditional_source::Configuration::<'a>::active",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/conditional_source.rs",
+          "source": "pub fn active(&self, attributes: &[syn::Attribute]) -> Result<bool, String> {\n        let mut unknown = None;\n        for attribute in attributes {\n            match self.attribute(&attribute.meta) {\n                Ok(false) => return Ok(false),\n                Err(error) => unknown = Some(error),\n                Ok(true) => {}\n            }\n        }\n        unknown.map_or(Ok(true), Err)\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "conditional_source::Configuration::<'a>::effective_attributes",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/conditional_source.rs",
+          "source": "/// Return active attribute metadata without hiding non-cfg attributes.\n    /// Item presence must still be checked with `active`; this is not a proof\n    /// that an attribute's expansion or effects are supported.\n    pub fn effective_attributes(&self, attributes: &[syn::Attribute]) -> Result<Vec<Meta>, String> {\n        let mut effective = Vec::new();\n        for attribute in attributes {\n            self.expand_attribute(&attribute.meta, &mut effective)?;\n        }\n\n        Ok(effective)\n    }",
+          "test": false
+        }
+      ],
+      "expected_propagation_complete": false,
+      "propagation_uncertainty": [
+        "Helper source roster is partial; configuration visitors, source imports and generic/trait calls have not all been independently closed through three graph hops. No complete propagated event total is claimed."
+      ],
+      "direct_only_arithmetic": {
+        "weighted_total": 3,
+        "density_milli": 1000,
+        "reason": "Three distinct self field assignments, weight1 each. This is the direct contribution only, not a claim of depth3 total."
+      }
+    },
+    {
+      "case_index": 9,
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "nominal_boundary::resolution::Resolution::select_copies",
+      "source_file": "crates/rstyle-pdg/src/nominal_boundary/resolution.rs",
+      "source": "fn select_copies(\n        &mut self,\n        facts: &HirFnFacts,\n        origins: &declaration_origins::Origins,\n        owner: Option<&crate::product_instances::CheckedProjection>,\n    ) -> Result<(), String> {\n        let selected = selected::verify(facts, origins, self, owner)?;\n        self.copy_trees = selected.copies;\n        self.no_drop_trees = selected.no_drop;\n        self.source_requirements = selected.requirements;\n\n        Ok(())\n    }",
+      "authored_counts": {
+        "statements": 4,
+        "code_lines": 12,
+        "complete": true,
+        "reason": "let selected and three assignments are four statements. Ok(()) is tail; one blank line excluded from code_lines."
+      },
+      "direct_escaping_root_field_targets": [
+        "self.copy_trees",
+        "self.no_drop_trees",
+        "self.source_requirements"
+      ],
+      "direct_weighted_events": [
+        {
+          "kind": "mutation",
+          "label": "self.copy_trees",
+          "via": null,
+          "weight": 1
+        },
+        {
+          "kind": "mutation",
+          "label": "self.no_drop_trees",
+          "via": null,
+          "weight": 1
+        },
+        {
+          "kind": "mutation",
+          "label": "self.source_requirements",
+          "via": null,
+          "weight": 1
+        }
+      ],
+      "direct_labels_complete": true,
+      "helper_source_roster": [
+        {
+          "package": "rstyle-pdg",
+          "function": "nominal_boundary::resolution::selected::verify",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/nominal_boundary/resolution/selected.rs",
+          "source": "pub(super) fn verify(\n    facts: &HirFnFacts,\n    origins: &Origins,\n    resolution: &Resolution,\n    owner: Option<&crate::product_instances::CheckedProjection>,\n) -> Result<Selection, String> {\n    if let Some(selection) = no_drop::payload_errors::selection(facts, resolution)? {\n        return Ok(selection);\n    }\n    verify_ordinary_selection(facts, origins, resolution, owner)\n}",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "nominal_boundary::resolution::selected::verify_ordinary_selection",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/nominal_boundary/resolution/selected.rs",
+          "source": "fn verify_ordinary_selection(\n    facts: &HirFnFacts,\n    origins: &Origins,\n    resolution: &Resolution,\n    owner: Option<&crate::product_instances::CheckedProjection>,\n) -> Result<Selection, String> {\n    let trees = &resolution.trees;\n    let environment = &resolution.environment;\n    if trees.is_empty() && !supports(facts, \"rust.accelerator-packing\")? {\n        return Err(\"Mixed-unit boundary requires selected Copy declarations\".into());\n    }\n    if let Some(owner) = owner {\n        if owner.facts() != facts\n            || !supports(facts, crate::product_instances::activation::CAPABILITY)?\n        {\n            return Err(\"Product source receipt requires its exact owning active instance\".into());\n        }\n        no_drop::copy_products::verify_owner(owner.copy_source(), facts, environment)?;\n    }\n    let checker = DeclarationChecker {\n        owner,\n        facts,\n        origins,\n        environment,\n        resolution,\n    };\n    let mut selection = Selection::default();\n    // A closed source unit already proves its historical nominal grammar.\n    // Activate only new static products there; mixed units still require every\n    // selected declaration to pass the existing complete ownership boundary.\n    let static_only = !environment.copy_boundary && resolution.range_value.is_none();\n    for (key, tree) in trees {\n        if resolution.checked_scalar_product(facts, tree)? {\n            continue;\n        }\n        if static_only && !no_drop::copy_components::required(tree) {\n            continue;\n        }\n        selection.record(key, checker.verify(key, tree)?);\n    }\n\n    for (key, tree) in trees {\n        if resolution.checked_scalar_product(facts, tree)? {\n            continue;\n        }\n        if static_only && !no_drop::copy_components::required(tree) {\n            continue;\n        }\n        if !selection.copies.contains(key) && !selection.no_drop.contains(key) {\n            borrowed::verify(facts, tree, &selection.copies)?;\n        }\n    }\n    Ok(selection)\n}",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "nominal_boundary::resolution::selected::no_drop::payload_errors::selection",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/payload_errors.rs",
+          "source": "/// Select a complete error family and, when separately activated, its exact\n/// success product. Every collected dependency receives its own proof.\npub(in crate::nominal_boundary::resolution) fn selection(\n    facts: &HirFnFacts,\n    resolution: &Resolution,\n) -> Result<Option<super::super::Selection>, String> {\n    if !supports(facts, crate::named_error_payloads::CAPABILITY)? {\n        return Ok(None);\n    }\n    let interface = facts\n        .build\n        .frontend_options\n        .data::<InterfaceObservations>()?;\n    let Observation::Captured { ty } = &interface.result else {\n        return Ok(None);\n    };\n    let product = reader_product(facts, ty)?;\n    let id_product = id_reader_product(facts, ty)?;\n    let error = match ty {\n        TypeTree::Result { ok, err }\n            if product.is_some() || id_product.is_some() || scalar_success(facts, ok)? =>\n        {\n            err.as_ref()\n        }\n        TypeTree::Struct { fields, .. } if matches!(fields.as_slice(), [field] if matches!(field.ty, TypeTree::MixedEnum { .. })) => {\n            ty\n        }\n        _ => return Ok(None),\n    };\n    if !matches!(error, TypeTree::Struct { fields, .. } if matches!(fields.as_slice(), [field] if field.name == \"0\" && matches!(field.ty, TypeTree::MixedEnum { .. })))\n    {\n        return Ok(None);\n    }\n    if !supported(error) {\n        return Err(\"Named error requires its complete cleanup grammar\".into());\n    }\n    verify(facts, resolution, error)?;\n\n    Ok(Some(select_dependencies(\n        facts, resolution, product, id_product,\n    )?))\n}",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "nominal_boundary::resolution::selected::Selection::record",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/nominal_boundary/resolution/selected.rs",
+          "source": "fn record(&mut self, key: &Namespace, checked: CheckedDeclaration) {\n        if checked.copy {\n            self.copies.insert(key.clone());\n        }\n        if checked.no_drop {\n            self.no_drop.insert(key.clone());\n        }\n        self.requirements = self.requirements.including(&checked);\n    }",
+          "test": false
+        },
+        {
+          "package": "rstyle-pdg",
+          "function": "nominal_boundary::resolution::selected::DeclarationChecker::<'_>::verify",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/nominal_boundary/resolution/selected.rs",
+          "source": "fn verify(&self, key: &Namespace, tree: &TypeTree) -> Result<CheckedDeclaration, String> {\n        let conversion = self\n            .resolution\n            .copy_conversion_source\n            .as_ref()\n            .is_some_and(|source| source.permits_type(tree));\n        let static_product = if conversion {\n            None\n        } else {\n            no_drop::copy_components::verify_product(\n                self.facts,\n                self.resolution,\n                self.origins,\n                tree,\n            )?\n        };\n\n        verify_type(self.facts, tree, static_product.as_ref(), conversion)?;\n        if matches!(tree, TypeTree::GeneratedStruct { .. }) {\n            return self.generated(tree);\n        }\n        self.original(key, tree, static_product.as_ref())\n    }",
+          "test": false
+        }
+      ],
+      "expected_propagation_complete": false,
+      "propagation_uncertainty": [
+        "Helper source roster is partial; configuration visitors, source imports and generic/trait calls have not all been independently closed through three graph hops. No complete propagated event total is claimed."
+      ],
+      "direct_only_arithmetic": {
+        "weighted_total": 3,
+        "density_milli": 750,
+        "reason": "Three distinct self field assignments, weight1 each. This is the direct contribution only, not a claim of depth3 total."
+      }
+    },
+    {
+      "case_index": 10,
+      "authored_statements": 4,
+      "statement_witnesses": [
+        "self.bindings.insert(...) statement",
+        "self.scope.entry(...).or_default().push(...) statement",
+        "self.frames.last_mut().ok_or(...)?.push(...) statement",
+        "Ok(()) tail"
+      ],
+      "code_lines": 15,
+      "direct_escaping_targets": [
+        "self.bindings",
+        "self.scope",
+        "self.frames"
+      ],
+      "direct_events": [
+        {
+          "kind": "mutation",
+          "label": "self.bindings",
+          "weight": 1,
+          "witness": "mutable BTreeSet receiver through &mut self"
+        },
+        {
+          "kind": "mutation",
+          "label": "self.scope",
+          "weight": 1,
+          "witness": "mutable BTreeMap entry receiver through &mut self"
+        },
+        {
+          "kind": "mutation",
+          "label": "self.frames",
+          "weight": 1,
+          "witness": "mutable Vec last_mut receiver through &mut self"
+        }
+      ],
+      "direct_weight": 3,
+      "helper_roster": [],
+      "helper_roster_complete": false,
+      "helper_uncertainty": "clone targets for binding.symbol and binding.hir require field-type/captured-definition association not provided by this function source. No local helper target can be inferred merely from method spelling.",
+      "propagated_events": null,
+      "expected_total_weight": null,
+      "expected_density_milli": null,
+      "conditional_density": {
+        "if_no_additional_outward_or_delegated_helper_effects": 750,
+        "arithmetic": "1000*3/4"
+      },
+      "unknowns": [
+        "Exact clone target identities and transitive helper roster unresolved from permitted source slice."
+      ],
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "scalar_instances::source::Flow::<'a>::install_binding",
+      "source_file": "crates/rstyle-pdg/src/scalar_instances/source.rs",
+      "source": "fn install_binding(&mut self, binding: &BindingFact, value: Value) -> Result<()> {\n        self.bindings.insert(binding.symbol.clone());\n        self.scope\n            .entry(binding.name.clone())\n            .or_default()\n            .push(Binding {\n                hir: binding.hir.clone(),\n                value,\n            });\n        self.frames\n            .last_mut()\n            .ok_or(\"Missing scalar lexical frame\")?\n            .push(binding.name.clone());\n        Ok(())\n    }"
+    },
+    {
+      "case_index": 11,
+      "authored_statements": 14,
+      "statement_witnesses": [
+        "let import + closure Import::decode tail =2",
+        "Stage observe inspection statement + inspect closure tail =2",
+        "let store + import.into_store closure tail =2",
+        "if statement =1",
+        "then generated statement + outer callback Stage.observe tail + inner validate_evidence tail =3",
+        "else strict statement + outer callback Stage.observe tail + inner validate_evidence tail =3",
+        "Ok(store) tail =1"
+      ],
+      "code_lines": 24,
+      "direct_escaping_targets": [],
+      "direct_events": [
+        {
+          "kind": "unknown",
+          "label": "<indirect callable>",
+          "weight": 1,
+          "witness": "inspect(&import.functions) invokes the opaque FnOnce parameter inside an authored closure"
+        }
+      ],
+      "direct_weight": 1,
+      "helper_roster": [
+        {
+          "census_index": 2687,
+          "package": "rstyle-pdg",
+          "function": "diagnostics::Stage::<'a>::new",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/diagnostics.rs",
+          "source": "pub fn new(stage: &'a str, identity: &'a str, evidence: Option<&'a [u8]>) -> Self {\n        Self {\n            stage,\n            identity,\n            evidence,\n        }\n    }",
+          "test": false
+        },
+        {
+          "census_index": 2689,
+          "package": "rstyle-pdg",
+          "function": "diagnostics::Stage::<'a>::observe",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/diagnostics.rs",
+          "source": "/// Invoke once, retaining the original result even if diagnostic IO fails.\n    pub fn observe<T, E>(self, operation: impl FnOnce() -> Result<T, E>) -> Result<T, E> {\n        if enabled() {\n            Observation::start(self.stage, self.identity, self.evidence).run(operation)\n        } else {\n            operation()\n        }\n    }",
+          "test": false
+        },
+        {
+          "census_index": 7195,
+          "package": "rstyle-pdg",
+          "function": "verification_policy::generated",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/verification_policy.rs",
+          "source": "/// Trust the producer's source correspondence and certified helper summaries.\n/// Structural graph validation still runs. Use only around owned current-run\n/// production, or explicitly selected diagnostic replay of one's own facts.\n/// The policy is thread-local, nested, and restored on early return or unwind.\npub fn generated<T>(operation: impl FnOnce() -> T) -> T {\n    with_policy(true, operation)\n}",
+          "test": false
+        },
+        {
+          "census_index": 7196,
+          "package": "rstyle-pdg",
+          "function": "verification_policy::strict",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/verification_policy.rs",
+          "source": "/// Enforce independent imported verification even inside a generated scope.\npub fn strict<T>(operation: impl FnOnce() -> T) -> T {\n    with_policy(false, operation)\n}",
+          "test": false
+        },
+        {
+          "census_index": 2683,
+          "package": "rstyle-pdg",
+          "function": "diagnostics::Observation::<'a>::start",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/diagnostics.rs",
+          "source": "fn start(stage: &'a str, identity: &'a str, evidence: Option<&[u8]>) -> Self {\n        let (depth, visit) = COUNTS.with_borrow_mut(|counts| {\n            counts.depth += 1;\n            let visit = counts\n                .visits\n                .entry(format!(\"{stage}:{identity}\"))\n                .or_default();\n            *visit += 1;\n            (counts.depth, *visit)\n        });\n        let event = Event {\n            schema: \"rstyle.performance-event/2\",\n            observation_id: ObservationId::next(),\n            stage,\n            identity,\n            pid: std::process::id(),\n            event: \"start\",\n            depth,\n            visit,\n            evidence_bytes: evidence.map_or(0, <[u8]>::len),\n            elapsed_seconds: 0.0,\n            verification_policy: if crate::verification_policy::is_generated() {\n                \"trusted-generated\"\n            } else {\n                \"strict\"\n            },\n        };\n        event.emit();\n\n        Self {\n            event,\n            started: Instant::now(),\n        }\n    }",
+          "test": false
+        },
+        {
+          "census_index": 2691,
+          "package": "rstyle-pdg",
+          "function": "diagnostics::Observation::<'_>::run",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/diagnostics.rs",
+          "source": "fn run<T, E>(mut self, operation: impl FnOnce() -> Result<T, E>) -> Result<T, E> {\n        let result = operation();\n        self.finish(result.is_ok());\n\n        result\n    }",
+          "test": false
+        },
+        {
+          "census_index": 2693,
+          "package": "rstyle-pdg",
+          "function": "diagnostics::enabled",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/diagnostics.rs",
+          "source": "fn enabled() -> bool {\n    static ENABLED: OnceLock<bool> = OnceLock::new();\n    *ENABLED.get_or_init(|| switch(\"RSTYLE_PERF\"))\n}",
+          "test": false
+        },
+        {
+          "census_index": 7197,
+          "package": "rstyle-pdg",
+          "function": "verification_policy::with_policy",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/verification_policy.rs",
+          "source": "fn with_policy<T>(generated: bool, operation: impl FnOnce() -> T) -> T {\n    let previous = GENERATED.with(|active| active.replace(generated));\n    let _restore = Restore(previous);\n\n    operation()\n}",
+          "test": false
+        },
+        {
+          "census_index": 2682,
+          "package": "rstyle-pdg",
+          "function": "diagnostics::Event::<'_>::emit",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/diagnostics.rs",
+          "source": "fn emit(&self) {\n        if let Ok(json) = serde_json::to_string(self) {\n            let _ = writeln!(std::io::stderr().lock(), \"rstyle-perf {json}\");\n        }\n    }",
+          "test": false
+        },
+        {
+          "census_index": 2681,
+          "package": "rstyle-pdg",
+          "function": "diagnostics::ObservationId::next",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/diagnostics.rs",
+          "source": "fn next() -> Self {\n        static NEXT: AtomicU64 = AtomicU64::new(0);\n        Self(NEXT.fetch_add(1, Ordering::Relaxed))\n    }",
+          "test": false
+        },
+        {
+          "census_index": 2684,
+          "package": "rstyle-pdg",
+          "function": "diagnostics::Observation::<'a>::finish",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/diagnostics.rs",
+          "source": "fn finish(&mut self, success: bool) {\n        self.event.event = if success { \"finish\" } else { \"failure\" };\n    }",
+          "test": false
+        },
+        {
+          "census_index": 2692,
+          "package": "rstyle-pdg",
+          "function": "diagnostics::switch",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/diagnostics.rs",
+          "source": "/// Read an explicitly named opt-in diagnostic switch.\npub fn switch(name: &str) -> bool {\n    std::env::var_os(name).is_some_and(|value| value == \"1\")\n}",
+          "test": false
+        }
+      ],
+      "helper_roster_complete": false,
+      "helper_uncertainty": "Relevant diagnostic/policy helpers have exact census sources. Import::decode, Decoded::into_store, UnitStore::validate_evidence and their recursively invoked helpers form additional branches not completely source-enumerated here. Stage::observe/Observation::run and policy with_policy invoke opaque callbacks; no callback effect total is assumed.",
+      "propagated_events": null,
+      "expected_total_weight": null,
+      "expected_density_milli": null,
+      "unknowns": [
+        "Opaque inspect callback effects unknown.",
+        "Full three-hop helper outward-effect roster not established. Diagnostic start explicitly calls Instant::now and emit writes stderr; these are candidate inherited effects, not an exact propagated count/label."
+      ],
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "unit_store::bundle::<impl unit_store::UnitStore>::load_bundle",
+      "source_file": "crates/rstyle-pdg/src/unit_store/bundle.rs",
+      "source": "fn load_bundle(\n        bytes: &[u8],\n        inspect: impl FnOnce(&[HirFnFacts]) -> Result<(), String>,\n        current_run: bool,\n    ) -> Result<Self, String> {\n        let import = crate::diagnostics::Stage::new(\"unit.decode\", \"bundle\", None)\n            .observe(|| Import::decode(bytes))?;\n        crate::diagnostics::Stage::new(\"unit.inspect\", \"bundle\", None)\n            .observe(|| inspect(&import.functions))?;\n\n        let store = crate::diagnostics::Stage::new(\"unit.structure\", \"bundle\", None)\n            .observe(|| import.into_store())?;\n        if current_run {\n            crate::verification_policy::generated(|| {\n                crate::diagnostics::Stage::new(\"unit.verify\", \"bundle\", None)\n                    .observe(|| store.validate_evidence())\n            })?;\n        } else {\n            crate::verification_policy::strict(|| {\n                crate::diagnostics::Stage::new(\"unit.verify\", \"bundle\", None)\n                    .observe(|| store.validate_evidence())\n            })?;\n        }\n        Ok(store)\n    }"
+    },
+    {
+      "case_index": 12,
+      "authored_statements": 3,
+      "statement_witnesses": [
+        "builder.store.dependencies assignment",
+        "builder.store.namespace_associations assignment; map closure is a bare struct expression rather than a block with authored statement/tail",
+        "Ok(()) tail"
+      ],
+      "code_lines": 19,
+      "direct_escaping_targets": [
+        "builder.store.dependencies",
+        "builder.store.namespace_associations"
+      ],
+      "direct_events": [
+        {
+          "kind": "mutation",
+          "label": "builder.store.dependencies",
+          "weight": 1,
+          "witness": "explicit assignment through &mut builder"
+        },
+        {
+          "kind": "mutation",
+          "label": "builder.store.namespace_associations",
+          "weight": 1,
+          "witness": "explicit assignment through &mut builder"
+        }
+      ],
+      "direct_weight": 2,
+      "helper_roster": [
+        {
+          "census_index": 6783,
+          "package": "rstyle-pdg",
+          "function": "unit_store::dependency_closure::linked_dependencies",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/unit_store/dependency_closure.rs",
+          "source": "fn linked_dependencies(\n    index: usize,\n    plan: &Plan,\n    completed: &[Option<Arc<UnitStore>>],\n) -> Result<Vec<Arc<UnitStore>>, String> {\n    let mut dependencies = plan.dependencies[index]\n        .iter()\n        .map(|target| {\n            completed[*target]\n                .clone()\n                .ok_or_else(|| \"Missing completed dependency owner\".into())\n        })\n        .collect::<Result<Vec<_>, String>>()?;\n    let mut instances = vec![None; plan.instances[index].len()];\n\n    for ((unit, definition, argument), slot) in &plan.instances[index] {\n        let owner = Arc::clone(\n            completed[*unit]\n                .as_ref()\n                .ok_or(\"Missing original instance owner\")?,\n        );\n        instances[*slot] = Some(\n            super::instance_links::capture(owner, *definition, *argument)?\n                .ok_or(\"Projected scalar instance became unavailable during immutable replay\")?,\n        );\n    }\n    dependencies.extend(\n        instances\n            .into_iter()\n            .collect::<Option<Vec<_>>>()\n            .ok_or(\"Incomplete scalar instance dependency inventory\")?,\n    );\n    Ok(dependencies)\n}",
+          "test": false
+        },
+        {
+          "census_index": 6828,
+          "package": "rstyle-pdg",
+          "function": "unit_store::instance_links::capture",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/unit_store/instance_links.rs",
+          "source": "pub(super) fn capture(\n    owner: Arc<UnitStore>,\n    definition: FunctionId,\n    argument: ScalarArgument,\n) -> Result<Option<Arc<UnitStore>>, String> {\n    let entry = selected(&owner, definition, argument)?;\n    if entry[\"status\"] != \"projected\" {\n        return Ok(None);\n    }\n\n    let mut body = entry\n        .as_object()\n        .ok_or(\"Invalid scalar projection entry\")?\n        .clone();\n    body.remove(\"request\");\n    body.remove(\"status\");\n    let projection: Projection =\n        serde_json::from_value(Value::Object(body)).map_err(|e| e.to_string())?;\n    crate::verification_policy::strict(|| {\n        UnitStore::capture_scalar_instance(owner, definition.0 as usize, &projection)\n            .map(Arc::new)\n            .map(Some)\n    })\n}",
+          "test": false
+        },
+        {
+          "census_index": 7196,
+          "package": "rstyle-pdg",
+          "function": "verification_policy::strict",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/verification_policy.rs",
+          "source": "/// Enforce independent imported verification even inside a generated scope.\npub fn strict<T>(operation: impl FnOnce() -> T) -> T {\n    with_policy(false, operation)\n}",
+          "test": false
+        }
+      ],
+      "helper_roster_complete": false,
+      "helper_uncertainty": "linked_dependencies -> instance_links::capture -> strict/capture_scalar_instance branch is present in exact census source. Projected-instance capture and associated callees were not fully enumerated by the source-only audit.",
+      "propagated_events": null,
+      "expected_total_weight": null,
+      "expected_density_milli": null,
+      "conditional_density": {
+        "if_no_additional_outward_helper_effects": 666,
+        "arithmetic": "floor(1000*2/3)"
+      },
+      "unknowns": [
+        "Three-hop projected-instance helper effects not completely source-audited."
+      ],
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "unit_store::dependency_closure::install_dependency_owners",
+      "source_file": "crates/rstyle-pdg/src/unit_store/dependency_closure.rs",
+      "source": "fn install_dependency_owners(\n    builder: &mut Builder,\n    index: usize,\n    plan: &Plan,\n    completed: &[Option<Arc<UnitStore>>],\n) -> Result<(), String> {\n    builder.store.dependencies = linked_dependencies(index, plan, completed)?;\n    builder.store.namespace_associations = plan.namespace_associations[index]\n        .iter()\n        .enumerate()\n        .map(\n            |(dependency, observation)| dependency_namespaces::Association {\n                dependency,\n                compiled_dependency: observation.clone(),\n            },\n        )\n        .collect();\n\n    Ok(())\n}"
+    },
+    {
+      "case_index": 13,
+      "authored_statements": 3,
+      "statement_witnesses": [
+        "install_dependency(...)? statement",
+        "store.product_instance assignment",
+        "Ok(()) tail"
+      ],
+      "code_lines": 14,
+      "direct_escaping_targets": [
+        "store.product_instance"
+      ],
+      "delegated_borrows": [
+        {
+          "target": "store",
+          "callee": "unit_store::product_instances::install_dependency",
+          "reason": "whole workspace UnitStore passed by mutable reference; delegated rather than direct escaping write"
+        }
+      ],
+      "direct_events": [
+        {
+          "kind": "mutation",
+          "label": "store.product_instance",
+          "weight": 1,
+          "witness": "explicit field assignment through &mut store"
+        }
+      ],
+      "direct_weight": 1,
+      "helper_roster": [
+        {
+          "census_index": 6871,
+          "package": "rstyle-pdg",
+          "function": "unit_store::product_instances::install_dependency",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/unit_store/product_instances.rs",
+          "source": "fn install_dependency(\n    store: &mut UnitStore,\n    origin: &OriginalInstance<SpanArgument>,\n    checked: &CheckedProjection,\n    observation: &Value,\n) -> Result<(), String> {\n    let Some(local) = checked.local_from() else {\n        return if checked.argument() == SpanArgument::Span {\n            Ok(())\n        } else {\n            Err(\"Product Range projection lacks its checked local From\".into())\n        };\n    };\n\n    let (owner, _, argument) = origin.get();\n    let (ordinal, selected) = selected_local(owner, observation)?;\n    if argument != SpanArgument::RangeUsize || selected != local {\n        return Err(\"Product dependency differs from its checked original local From\".into());\n    }\n\n    store.external_links[0].insert(\n        site(checked.operation()),\n        ExternalTarget {\n            dependency: 0,\n            function: local_id(ordinal, FunctionId)?,\n        },\n    );\n    store.dependencies.push(Arc::clone(owner));\n    Ok(())\n}",
+          "test": false
+        },
+        {
+          "census_index": 6869,
+          "package": "rstyle-pdg",
+          "function": "unit_store::product_instances::selected_local",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/unit_store/product_instances.rs",
+          "source": "fn selected_local<'a>(\n    owner: &'a UnitStore,\n    observation: &Value,\n) -> Result<(usize, &'a HirFnFacts), String> {\n    let identity = observation[\"selected_local_from\"][\"definition\"][\"definition_identity\"]\n        .as_str()\n        .filter(|value| !value.is_empty())\n        .ok_or(\"Product Range instance lacks its selected local From identity\")?;\n    let mut candidates = owner.functions.iter().enumerate().filter(|(_, facts)| {\n        facts\n            .build\n            .frontend_options\n            .get(\"definition_identity\")\n            .and_then(Value::as_str)\n            == Some(identity)\n    });\n\n    let selected = candidates\n        .next()\n        .ok_or(\"Selected local From is absent from the original owner\")?;\n    if candidates.next().is_some() {\n        return Err(\"Selected local From is ambiguous in the original owner\".into());\n    }\n\n    if owner.pair(selected.0).is_none()\n        || owner.certified.get(selected.0).is_none_or(Option::is_none)\n    {\n        return Err(\"Selected local From lacks original complete certification\".into());\n    }\n\n    Ok(selected)\n}",
+          "test": false
+        },
+        {
+          "census_index": 5591,
+          "package": "rstyle-pdg",
+          "function": "product_instances::materialize::CheckedProjection::local_from",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/product_instances/materialize.rs",
+          "source": "pub fn local_from(&self) -> Option<&HirFnFacts> {\n        self.local_from.as_deref()\n    }",
+          "test": false
+        },
+        {
+          "census_index": 5593,
+          "package": "rstyle-pdg",
+          "function": "product_instances::materialize::CheckedProjection::argument",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/product_instances/materialize.rs",
+          "source": "pub fn argument(&self) -> SpanArgument {\n        self.argument\n    }",
+          "test": false
+        },
+        {
+          "census_index": 5595,
+          "package": "rstyle-pdg",
+          "function": "product_instances::materialize::CheckedProjection::operation",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/product_instances/materialize.rs",
+          "source": "pub fn operation(&self) -> &HirNode {\n        &self.operation\n    }",
+          "test": false
+        },
+        {
+          "census_index": 6832,
+          "package": "rstyle-pdg",
+          "function": "unit_store::instances::OriginalInstance::<A>::get",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/unit_store/instances.rs",
+          "source": "pub(super) fn get(&self) -> (&Arc<UnitStore>, usize, A) {\n        (&self.owner, self.definition.0 as usize, self.argument)\n    }",
+          "test": false
+        },
+        {
+          "census_index": 7045,
+          "package": "rstyle-pdg",
+          "function": "unit_store::local_id",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/unit_store.rs",
+          "source": "fn local_id<T>(index: usize, constructor: impl FnOnce(u32) -> T) -> Result<T, String> {\n    let id = u32::try_from(index).map_err(|_| \"Oversized unit evidence table\")?;\n    Ok(constructor(id))\n}",
+          "test": false
+        },
+        {
+          "census_index": 7046,
+          "package": "rstyle-pdg",
+          "function": "unit_store::site",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/unit_store.rs",
+          "source": "fn site(node: &HirNode) -> Site {\n    (node.hir.krate, node.hir.owner, node.hir.local)\n}",
+          "test": false
+        }
+      ],
+      "helper_roster_complete": false,
+      "expected_inherited_events": [
+        {
+          "kind": "mutation",
+          "label": "&mut state",
+          "weight": 1,
+          "via": "unit_store::product_instances::install_dependency",
+          "witness": "callee mutably borrows store.external_links for insert and store.dependencies for push; delegated caller inherits one synthetic mutation regardless of the two targets"
+        }
+      ],
+      "propagated_events": null,
+      "expected_total_weight": null,
+      "expected_density_milli": null,
+      "conditional_density": {
+        "if_remaining_read_only_getter_helpers_have_no_outward_effects": 666,
+        "arithmetic": "floor(1000*(1+1)/3)"
+      },
+      "unknowns": [
+        "selected_local calls UnitStore::pair; exact source body and descendants not audited here. local_id invokes a constructor callback; callback effects are not inferred from generic FnOnce spelling. The justified delegated mutation is retained, while the complete propagated total remains unproven."
+      ],
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "<unit_store::product_instances::ConstructorProof<'_> as unit_store::instances::InstanceProof>::install",
+      "source_file": "crates/rstyle-pdg/src/unit_store/product_instances.rs",
+      "source": "fn install(\n        self,\n        store: &mut UnitStore,\n        origin: OriginalInstance<SpanArgument>,\n        checked: CheckedProjection,\n    ) -> Result<(), String> {\n        install_dependency(store, &origin, &checked, self.observation)?;\n        store.product_instance = Some(ProductInstanceRecord {\n            origin,\n            checked,\n            observation: self.observation.clone(),\n        });\n        Ok(())\n    }"
+    },
+    {
+      "case_index": 14,
+      "authored_statements": 4,
+      "statement_witnesses": [
+        "let recorder initialization",
+        "publish(&mut recorder)? statement",
+        "recorder.flush().map_err(...)? statement",
+        "Ok(BundleManifest{...}) tail"
+      ],
+      "code_lines": 17,
+      "direct_escaping_targets": [],
+      "direct_events": [
+        {
+          "kind": "unknown",
+          "label": "<indirect callable>",
+          "weight": 1,
+          "witness": "opaque publish FnOnce parameter invocation"
+        }
+      ],
+      "direct_weight": 1,
+      "helper_roster": [
+        {
+          "census_index": 6851,
+          "package": "rstyle-pdg",
+          "function": "<unit_store::manifest::Recorder<W> as std::io::Write>::flush",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/unit_store/manifest.rs",
+          "source": "fn flush(&mut self) -> io::Result<()> {\n        self.writer.flush()\n    }",
+          "test": false
+        },
+        {
+          "census_index": 6846,
+          "package": "rstyle-pdg",
+          "function": "unit_store::manifest::encode",
+          "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/unit_store/manifest.rs",
+          "source": "fn encode(value: u64) -> String {\n    format!(\"xxh3-64:{value:016x}\")\n}",
+          "test": false
+        }
+      ],
+      "helper_roster_complete": false,
+      "helper_uncertainty": "Recorder::flush source forwards to generic W::flush. Its external std::io::Write signature is IO-classified, but generic/dynamic target association and any additional concrete implementations are not certified by source alone. encode uses format, no default weighted allocation effect.",
+      "propagated_events": null,
+      "expected_total_weight": null,
+      "expected_density_milli": null,
+      "conditional_density": {
+        "if_Recorder_flush_is_the_selected_callee_and_exports_one_io_effect": 1000,
+        "arithmetic": "1000*(unknown1+io3)/4"
+      },
+      "unknowns": [
+        "publish callback effects unknown.",
+        "Generic writer target roster is unresolved; no full propagated count is fabricated."
+      ],
+      "package": "rstyle-pdg",
+      "target_kind": "lib",
+      "function": "unit_store::manifest::seal",
+      "source_file": "crates/rstyle-pdg/src/unit_store/manifest.rs",
+      "source": "/// Seal the exact streamed publication bytes only after its final flush succeeds.\npub(super) fn seal<W: Write>(\n    writer: W,\n    publish: impl FnOnce(&mut dyn Write) -> Result<(), String>,\n) -> Result<BundleManifest, String> {\n    let mut recorder = Recorder {\n        writer,\n        hash: Xxh3::new(),\n        bytes: 0,\n    };\n    publish(&mut recorder)?;\n    recorder.flush().map_err(|error| error.to_string())?;\n\n    Ok(BundleManifest {\n        schema: SCHEMA.into(),\n        checksum: encode(recorder.hash.digest()),\n        bytes: recorder.bytes,\n    })\n}"
+    }
+  ],
+  "clean_controls": {
+    "schema": "rstyle.independent-source-labels/1",
+    "scope": "C87 independent clean controls",
+    "input": "/tmp/clones-c87-source-census.json original source only",
+    "basis": "Frozen without reading evaluated reports, diagnostics, FnFacts or event records. Manual statement/source-line counts; core and driver contracts establish no weighted event.",
+    "policy": {
+      "max_density_milli": 500,
+      "min_statements": 3,
+      "min_lines": 10,
+      "transitive_depth": 3
+    },
+    "samples": [
+      {
+        "package": "rstyle-ccgraph",
+        "function": "admission::check_local_profile",
+        "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-ccgraph/src/admission.rs",
+        "source": "fn check_local_profile(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<bool, Vec<String>> {\n    use rstyle_pdg::extraction_profile::LOCAL_ID;\n    if pdg.profile.id != LOCAL_ID\n        && pdg.profile.id != \"rstyle.rust.hir-helpers\"\n        && pdg.profile.id != rstyle_pdg::extraction_profile::DATA_ID\n    {\n        return Ok(false);\n    }\n    if cfg.profile.name != pdg.profile.id || cfg.profile.version != pdg.profile.version {\n        return Err(vec![\"Paired extraction profiles disagree\".into()]);\n    }\n    Ok(true)\n}",
+        "test": false,
+        "target_kind": "lib",
+        "authored_statements": 6,
+        "code_lines": 13,
+        "statement_roster": [
+          "use LOCAL_ID",
+          "first if",
+          "first return Ok(false)",
+          "second if",
+          "return Err",
+          "Ok(true) tail"
+        ],
+        "direct_escaping_targets": [],
+        "other_direct_weighted_events": [],
+        "helpers": [],
+        "helper_roster_basis": "No workspace helper invocation; constants/type paths and enum constructors do not supply effect edges.",
+        "expected_propagated_roster": [],
+        "density": {
+          "status": "expected",
+          "weighted_total": 0,
+          "statements": 6,
+          "actual": 0,
+          "limit": 500,
+          "exempt": false,
+          "outcome": "evaluated_no_finding",
+          "arithmetic": "1000 * 0 / 6"
+        },
+        "rationale": "Only shared profile/string comparisons, constants, and owned error construction. No mutable references, escaping writes, classified IO/time/network/global/random/unsafe calls, or callback invocations. std Result constructors, string comparison and owned vector/string construction introduce no weighted outward kind.",
+        "included": true,
+        "unsuppressed": true
+      },
+      {
+        "package": "rstyle-ccgraph",
+        "function": "pipeline::StageName::token",
+        "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-ccgraph/src/pipeline.rs",
+        "source": "pub fn token(self) -> &'static str {\n        match self {\n            Self::Validation => \"validation\",\n            Self::Projection => \"projection\",\n            Self::Nonempty => \"nonempty\",\n            Self::SizeRatio => \"size_ratio\",\n            Self::Numerical => \"numerical\",\n            Self::Strings => \"strings\",\n            Self::WlFinal => \"wl_final\",\n        }\n    }",
+        "test": false,
+        "target_kind": "lib",
+        "authored_statements": 8,
+        "code_lines": 11,
+        "statement_roster": [
+          "outer match tail",
+          "Validation arm",
+          "Projection arm",
+          "Nonempty arm",
+          "SizeRatio arm",
+          "Numerical arm",
+          "Strings arm",
+          "WlFinal arm"
+        ],
+        "direct_escaping_targets": [],
+        "other_direct_weighted_events": [],
+        "helpers": [],
+        "helper_roster_basis": "No workspace helper invocation; constants/type paths and enum constructors do not supply effect edges.",
+        "expected_propagated_roster": [],
+        "density": {
+          "status": "expected",
+          "weighted_total": 0,
+          "statements": 8,
+          "actual": 0,
+          "limit": 500,
+          "exempt": false,
+          "outcome": "evaluated_no_finding",
+          "arithmetic": "1000 * 0 / 8"
+        },
+        "rationale": "One match tail plus seven bare literal-return arms under the existing statement-count contract. Self is moved, every arm returns a static literal, and no helper or callback is called.",
+        "included": true,
+        "unsuppressed": true
+      },
+      {
+        "package": "rstyle-ccgraph",
+        "function": "pipeline::StageName::all",
+        "source_file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-ccgraph/src/pipeline.rs",
+        "source": "pub fn all() -> [Self; 7] {\n        [\n            Self::Validation,\n            Self::Projection,\n            Self::Nonempty,\n            Self::SizeRatio,\n            Self::Numerical,\n            Self::Strings,\n            Self::WlFinal,\n        ]\n    }",
+        "test": false,
+        "target_kind": "lib",
+        "authored_statements": 1,
+        "code_lines": 11,
+        "statement_roster": [
+          "array tail"
+        ],
+        "direct_escaping_targets": [],
+        "other_direct_weighted_events": [],
+        "helpers": [],
+        "helper_roster_basis": "No workspace helper invocation; constants/type paths and enum constructors do not supply effect edges.",
+        "expected_propagated_roster": [],
+        "density": {
+          "status": "expected",
+          "weighted_total": 0,
+          "statements": 1,
+          "actual": 0,
+          "limit": 500,
+          "exempt": true,
+          "outcome": "evaluated_no_finding",
+          "arithmetic": "1000 * 0 / 1"
+        },
+        "rationale": "An owned array of seven enum constants is the single block tail. No helper or callback. Exempt specifically because1statement<3, despite11code lines; this distinguishes statement minimum from line minimum.",
+        "included": true,
+        "unsuppressed": true
+      }
+    ],
+    "limitations": [
+      "No runtime purity claim; zero describes existing configured static-event metric.",
+      "StageName::all is a separately labeled statement-minimum exemption; the first two controls meet both minima.",
+      "Any statement/source discrepancy must be reported, not used to rewrite the frozen expectation."
+    ]
+  },
+  "followup_reviews": [
+    {
+      "schema": "clones.c87.source-label-followup/1",
+      "frozen_labels_preserved": "/tmp/clones-c87-labels-b.json",
+      "observed_actual_file_read": false,
+      "basis": [
+        "crates/rstyle-driver/src/effects.rs visit_stmt counts authored statements; visit_block separately counts each authored block tail; visit_arm separately counts bare authored arm bodies and excludes advisory question-mark desugaring",
+        "crates/cargo-rstyle/tests/migration_compiler_advisory/try_statements.rs independently exercises tails, authored match arms and operand blocks under metric7",
+        "Original sources in /tmp/clones-c87-source-only.json cases5..9"
+      ],
+      "conclusion": "All five discrepancies are manual omissions of the already-defined metric7 tail/arm constructs; none indicates a collector defect. The metric measures authored execution constructs, not only semicolon-terminated statements.",
+      "cases": [
+        {
+          "case_index": 5,
+          "function": "helper_calls::transport::Reader::unpack",
+          "frozen_manual_statements": 4,
+          "corrected_source_derived_statements": 5,
+          "source_breakdown": [
+            {
+              "construct": "authored check_depth(depth)? statement",
+              "count": 1
+            },
+            {
+              "construct": "let fields initializer statement",
+              "count": 1
+            },
+            {
+              "construct": "self.used.insert(index) statement",
+              "count": 1
+            },
+            {
+              "construct": "self.charge(1)? statement",
+              "count": 1
+            },
+            {
+              "construct": "function block tail self.value(&fields,index,depth)",
+              "count": 1
+            }
+          ],
+          "classification": "manual_label_omission",
+          "collector_error_found": false,
+          "code_lines_unchanged": 12,
+          "rationale": "Frozen manual count omitted the existing visit_block tail rule.",
+          "question_mark_note": "Advisory excludes question-mark desugared bare arms; each source ? contributes no additional synthetic statement count.",
+          "propagation_status": "Frozen propagated labels were incomplete; remain incomplete. No corrected density total asserted from observed effects."
+        },
+        {
+          "case_index": 6,
+          "function": "helper_calls::transport::Reader::value",
+          "frozen_manual_statements": 1,
+          "corrected_source_derived_statements": 6,
+          "source_breakdown": [
+            {
+              "construct": "function block tail: outer match",
+              "count": 1
+            },
+            {
+              "construct": "literal arm charge statement",
+              "count": 1
+            },
+            {
+              "construct": "literal arm block tail Ok(fields[1].clone())",
+              "count": 1
+            },
+            {
+              "construct": "bare json|quoted arm self.encoded_string(...)",
+              "count": 1
+            },
+            {
+              "construct": "text|array|object arm block tail self.collection(...)",
+              "count": 1
+            },
+            {
+              "construct": "bare fallback arm Err(...)",
+              "count": 1
+            }
+          ],
+          "classification": "manual_label_omission",
+          "collector_error_found": false,
+          "code_lines_unchanged": 15,
+          "rationale": "Frozen manual count omitted the existing visit_block tail rule and visit_arm bare-expression-arm rule.",
+          "question_mark_note": "Advisory excludes question-mark desugared bare arms; each source ? contributes no additional synthetic statement count.",
+          "propagation_status": "Frozen propagated labels were incomplete; remain incomplete. No corrected density total asserted from observed effects."
+        },
+        {
+          "case_index": 7,
+          "function": "helper_calls::transport::Reader::collection",
+          "frozen_manual_statements": 1,
+          "corrected_source_derived_statements": 6,
+          "source_breakdown": [
+            {
+              "construct": "function block tail: outer match",
+              "count": 1
+            },
+            {
+              "construct": "array arm let ids statement",
+              "count": 1
+            },
+            {
+              "construct": "array arm block tail iterator collect/map expression",
+              "count": 1
+            },
+            {
+              "construct": "bare text arm self.text(...)",
+              "count": 1
+            },
+            {
+              "construct": "bare object arm self.object(...)",
+              "count": 1
+            },
+            {
+              "construct": "bare fallback arm Err(...)",
+              "count": 1
+            }
+          ],
+          "classification": "manual_label_omission",
+          "collector_error_found": false,
+          "code_lines_unchanged": 21,
+          "rationale": "Frozen manual count omitted the existing visit_block tail rule and visit_arm bare-expression-arm rule.",
+          "question_mark_note": "Advisory excludes question-mark desugared bare arms; each source ? contributes no additional synthetic statement count.",
+          "propagation_status": "Frozen propagated labels were incomplete; remain incomplete. No corrected density total asserted from observed effects."
+        },
+        {
+          "case_index": 8,
+          "function": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::begin_module",
+          "frozen_manual_statements": 3,
+          "corrected_source_derived_statements": 4,
+          "source_breakdown": [
+            {
+              "construct": "self.enums.namespace assignment",
+              "count": 1
+            },
+            {
+              "construct": "self.definitions assignment",
+              "count": 1
+            },
+            {
+              "construct": "self.scopes assignment",
+              "count": 1
+            },
+            {
+              "construct": "function block tail Ok(())",
+              "count": 1
+            }
+          ],
+          "classification": "manual_label_omission",
+          "collector_error_found": false,
+          "code_lines_unchanged": 10,
+          "rationale": "Frozen manual count omitted the existing visit_block tail rule.",
+          "question_mark_note": "Advisory excludes question-mark desugared bare arms; each source ? contributes no additional synthetic statement count.",
+          "propagation_status": "Frozen propagated labels were incomplete; remain incomplete. No corrected density total asserted from observed effects."
+        },
+        {
+          "case_index": 9,
+          "function": "nominal_boundary::resolution::Resolution::select_copies",
+          "frozen_manual_statements": 4,
+          "corrected_source_derived_statements": 5,
+          "source_breakdown": [
+            {
+              "construct": "let selected statement",
+              "count": 1
+            },
+            {
+              "construct": "self.copy_trees assignment",
+              "count": 1
+            },
+            {
+              "construct": "self.no_drop_trees assignment",
+              "count": 1
+            },
+            {
+              "construct": "self.source_requirements assignment",
+              "count": 1
+            },
+            {
+              "construct": "function block tail Ok(())",
+              "count": 1
+            }
+          ],
+          "classification": "manual_label_omission",
+          "collector_error_found": false,
+          "code_lines_unchanged": 12,
+          "rationale": "Frozen manual count omitted the existing visit_block tail rule.",
+          "question_mark_note": "Advisory excludes question-mark desugared bare arms; each source ? contributes no additional synthetic statement count.",
+          "propagation_status": "Frozen propagated labels were incomplete; remain incomplete. No corrected density total asserted from observed effects."
+        }
+      ]
+    },
+    {
+      "schema": "rstyle.source-only-followup/1",
+      "frozen_labels_unchanged": "/tmp/clones-c87-labels-c.json",
+      "case_index": 11,
+      "function": "unit_store::bundle::<impl unit_store::UnitStore>::load_bundle",
+      "finding": "manual_statement_scope_error",
+      "metric_bug_found": false,
+      "original_manual_statements": 14,
+      "corrected_source_manual_statements": 9,
+      "contract": {
+        "source": "crates/rstyle-driver/src/effects.rs",
+        "visitor": "Walker uses NestedFilter=OnlyBodies and walks closure body expressions.",
+        "statement_rules": [
+          "visit_stmt counts authored HIR statements.",
+          "visit_block counts its optional authored tail expression.",
+          "visit_arm counts bare arm expressions except question-mark desugaring in Advisory metric.",
+          "There is no generic expression-body or visit_body increment. A bare-expression closure is walked for calls/effects but does not create a statement/tail count on its own."
+        ],
+        "metric_scope": "Metric7 does not exclude all closure bodies and does not count each closure body as one statement. Explicit block closures contribute their own statements/tail; bare-expression closures contribute nested calls/effects without an extra authored statement count."
+      },
+      "corrected_manual_statement_roster": [
+        {
+          "source": "let import = Stage::new(...).observe(|| Import::decode(bytes))?;",
+          "count": 1
+        },
+        {
+          "source": "Stage::new(...).observe(|| inspect(&import.functions))?;",
+          "count": 1
+        },
+        {
+          "source": "let store = Stage::new(...).observe(|| import.into_store())?;",
+          "count": 1
+        },
+        {
+          "source": "if current_run { ... } else { ... }",
+          "count": 1
+        },
+        {
+          "source": "then branch generated(|| { ... })?;",
+          "count": 1
+        },
+        {
+          "source": "then explicit callback block tail Stage::new(...).observe(|| store.validate_evidence())",
+          "count": 1
+        },
+        {
+          "source": "else branch strict(|| { ... })?;",
+          "count": 1
+        },
+        {
+          "source": "else explicit callback block tail Stage::new(...).observe(|| store.validate_evidence())",
+          "count": 1
+        },
+        {
+          "source": "Ok(store) outer block tail",
+          "count": 1
+        }
+      ],
+      "five_removed_incorrect_counts": [
+        "bare closure expression Import::decode(bytes)",
+        "bare closure expression inspect(&import.functions)",
+        "bare closure expression import.into_store()",
+        "bare closure expression store.validate_evidence() in then branch",
+        "bare closure expression store.validate_evidence() in else branch"
+      ],
+      "uncertainty_preserved": "Original helper/propagation uncertainty remains; corrected statement count does not certify a total density or callback effect total.",
+      "comparison_authorization": "Parent supplied observed9 for investigation. No actual report, FnFacts or event-record file inspected. Only original source and driver metric contract read.",
+      "repository_changes": false,
+      "builds_or_tests_run": false
+    }
+  ],
+  "usefulness_review": {
+    "schema": "clones.c87.source-usefulness-review/1",
+    "scope": "Independent review of all15 source snippets; separate from numeric correctness and capability coverage.",
+    "inputs_read": [
+      "/tmp/clones-c87-source-only.json"
+    ],
+    "evaluated_reports_or_event_records_used": false,
+    "classification_counts": {
+      "actionable": 3,
+      "context-only": 10,
+      "uncertain": 2
+    },
+    "interpretation": "Actionable means a concrete source-driven review candidate, not a demonstrated bug or an authorized implementation. Context-only means effects are coherent with the visible role; it is not a claim that the diagnostic is numerically false. Uncertain means helper/callback/instrumentation contracts are needed to judge refactoring usefulness.",
+    "recommendation_limits": "No algorithm edits, threshold increases, suppressions, policy changes, replacement hashes or extra proofs proposed. Density alone does not establish that an extraction improves the code.",
+    "cases": [
+      {
+        "case_index": 0,
+        "package": "rstyle-pdg",
+        "function": "data_documents::mutable_scalars::install_one",
+        "source_file": "crates/rstyle-pdg/src/data_documents/mutable_scalars.rs",
+        "source": "fn install_one(\n    pair: &mut Pair,\n    installation: &mut Installation,\n    prepared: Prepared,\n) -> Result<(), String> {\n    let node = &mut pair.pdg.nodes[prepared.position];\n    if installation.definitions.nodes.contains(&node.id) {\n        return Err(\"Mutable access already owns a definition\".into());\n    }\n    if let Some(definition) = install_effect(node, &prepared.site, &prepared.id)? {\n        if !installation.definitions.ids.insert(definition.id.clone()) {\n            return Err(\"Mutable definition ID collides\".into());\n        }\n        pair.pdg.definitions.push(definition);\n    }\n    installation\n        .locations\n        .insert(prepared.id, prepared.location);\n\n    Ok(())\n}",
+        "advisory_usefulness": "actionable",
+        "source_rationale": "Coordinates node effect installation, definition-ID registration, PDG definition insertion and location insertion. install_effect can mutate the node before the later duplicate-ID check returns Err.",
+        "useful_review_or_separation": "A useful review seam is validation/preparation followed by commit of the coordinated node/definition/location updates. This follows the independently fallible update order, rather than the mutation count.",
+        "limits": "Whether partial state survives Err depends on caller ownership/rollback. The source alone does not establish a bug or justify a new transactional abstraction.",
+        "numeric_correctness_assessed": false
+      },
+      {
+        "case_index": 1,
+        "package": "rstyle-pdg",
+        "function": "data_documents::read_accesses::install_node",
+        "source_file": "crates/rstyle-pdg/src/data_documents/read_accesses.rs",
+        "source": "fn install_node(\n    pair: &mut Pair,\n    source: &HirNode,\n    effects: Effects,\n) -> Result<BTreeMap<String, MemoryLocation>, String> {\n    let node = super::serialized_operation_mut(pair, source)?;\n    node.attributes.reads = effects.reads;\n    node.annotations.extend(effects.annotations);\n\n    Ok(effects.locations)\n}",
+        "advisory_usefulness": "context-only",
+        "source_rationale": "Already a narrow installer: resolves one serialized node, installs its read/annotation payload and returns leftover locations. The writes implement a single node update.",
+        "useful_review_or_separation": "No useful further separation is established by this source; the resolver/installer seam already exists.",
+        "limits": "Borrowing node mutably is an expected part of the operation, not independent evidence of architectural coupling.",
+        "numeric_correctness_assessed": false
+      },
+      {
+        "case_index": 2,
+        "package": "rstyle-pdg",
+        "function": "frontend::options::FrontendOptions::get_mut",
+        "source_file": "crates/rstyle-pdg/src/frontend/options.rs",
+        "source": "pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {\n        let entry = self.0.get_mut(key)?;\n        if !matches!(entry, Entry::Json(_)) {\n            let original = std::mem::replace(entry, Entry::Json(Value::Null));\n            *entry = Entry::Json(original.into_json());\n        }\n        let Entry::Json(value) = entry else {\n            unreachable!()\n        };\n        Some(value)\n    }",
+        "advisory_usefulness": "context-only",
+        "source_rationale": "get_mut performs lazy Entry-to-Json normalization in place, then returns the mutable JSON payload. Replacement and reassignment serve one representation transition.",
+        "useful_review_or_separation": "Treat the finding as context about a mutating accessor; extracting its few writes would not remove the conversion responsibility.",
+        "limits": "The lazy accessor contract may deserve documentation, but changing it requires caller/API evidence absent here.",
+        "numeric_correctness_assessed": false
+      },
+      {
+        "case_index": 3,
+        "package": "rstyle-pdg",
+        "function": "frontend::options::FrontendOptions::intern_census",
+        "source_file": "crates/rstyle-pdg/src/frontend/options.rs",
+        "source": "pub(crate) fn intern_census(\n        &mut self,\n        owners: &mut Vec<Arc<crate::nominal_boundary::census::Census>>,\n    ) -> Result<(), String> {\n        let Some(Entry::Census(record)) = self.0.get_mut(crate::nominal_boundary::census::KEY)\n        else {\n            return Ok(());\n        };\n        record.value = intern_owner(&record.value, owners)?;\n        Ok(())\n    }",
+        "advisory_usefulness": "context-only",
+        "source_rationale": "Locates one census entry, interns its shared owner with the supplied owners collection, and installs the interned value. This is inherently coordination between an entry and its owner table.",
+        "useful_review_or_separation": "The existing intern_owner helper already separates interning from entry lookup/assignment.",
+        "limits": "Failure behavior inside intern_owner is outside this snippet; a numerical finding alone does not establish another refactor.",
+        "numeric_correctness_assessed": false
+      },
+      {
+        "case_index": 4,
+        "package": "rstyle-pdg",
+        "function": "helper_calls::digit_products::certify",
+        "source_file": "crates/rstyle-pdg/src/helper_calls/digit_products.rs",
+        "source": "pub(super) fn certify(\n    facts: &dyn EvidenceFacts,\n) -> Result<Option<(Summary, producer::Pair)>, String> {\n    // A raw match shape cannot substitute for the complete source receipt.\n    if activation::verify(facts).is_err() {\n        return Ok(None);\n    }\n    let pair = producer::produce(facts).map_err(|errors| errors.join(\"; \"))?;\n    let summary = crate::diagnostics::Stage::new(\"helper.digit-product-summary\", &facts.name, None)\n        .observe(|| derive(facts, &pair))?;\n\n    Ok(Some((summary, pair)))\n}",
+        "advisory_usefulness": "uncertain",
+        "source_rationale": "certify is a short staged orchestrator over activation, production, derivation and diagnostic observation. There is no direct mutable state in its signature or visible body.",
+        "useful_review_or_separation": "Before proposing separation, distinguish helper work and diagnostic instrumentation from changes to the certification result. Existing production/derivation seams are visible.",
+        "limits": "Usefulness of a propagated density finding cannot be determined from this wrapper alone; no effect category or finding detail was used in this judgment.",
+        "numeric_correctness_assessed": false
+      },
+      {
+        "case_index": 5,
+        "package": "rstyle-pdg",
+        "function": "helper_calls::transport::Reader::unpack",
+        "source_file": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+        "source": "fn unpack(&mut self, index: usize, depth: usize) -> Result<Value, String> {\n        check_depth(depth)?;\n        let fields = self\n            .nodes\n            .get(index)\n            .and_then(Value::as_array)\n            .ok_or(\"Missing or malformed helper transport node\")?\n            .clone();\n        self.used.insert(index);\n        self.charge(1)?;\n\n        self.value(&fields, index, depth)\n    }",
+        "advisory_usefulness": "context-only",
+        "source_rationale": "unpack validates recursion/index structure, loads one node, records it as used, charges bounded work and delegates decoding. The used set and budget are reader invariants.",
+        "useful_review_or_separation": "The existing value decoder already separates decoding from node admission/accounting.",
+        "limits": "Splitting accounting solely to reduce a score could obscure the single-node reader invariant; no additional source-driven seam is established.",
+        "numeric_correctness_assessed": false
+      },
+      {
+        "case_index": 6,
+        "package": "rstyle-pdg",
+        "function": "helper_calls::transport::Reader::value",
+        "source_file": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+        "source": "fn value(&mut self, fields: &[Value], index: usize, depth: usize) -> Result<Value, String> {\n        match fields.first().and_then(Value::as_str) {\n            Some(\"literal\")\n                if fields.len() == 2 && !fields[1].is_object() && !fields[1].is_array() =>\n            {\n                self.charge(fields[1].as_str().map_or(1, str::len))?;\n                Ok(fields[1].clone())\n            }\n            Some(\"json\" | \"quoted\") => self.encoded_string(fields, index, depth),\n            Some(\"text\" | \"array\" | \"object\") if fields.len() == 2 => {\n                self.collection(fields, index, depth)\n            }\n            _ => Err(\"Unsupported or malformed helper transport tag\".into()),\n        }\n    }",
+        "advisory_usefulness": "context-only",
+        "source_rationale": "value dispatches transport tags and charges literal data; encoded strings and collections already have separate handlers. Stateful budget use is part of bounded decoding.",
+        "useful_review_or_separation": "The source shows a clear dispatch boundary, so a density finding is primarily context about decoder effects.",
+        "limits": "The presence of a literal branch and stateful child handlers does not by itself justify a parallel decoder or additional abstraction.",
+        "numeric_correctness_assessed": false
+      },
+      {
+        "case_index": 7,
+        "package": "rstyle-pdg",
+        "function": "helper_calls::transport::Reader::collection",
+        "source_file": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+        "source": "fn collection(\n        &mut self,\n        fields: &[Value],\n        index: usize,\n        depth: usize,\n    ) -> Result<Value, String> {\n        match fields[0].as_str() {\n            Some(\"array\") => {\n                let ids = fields[1]\n                    .as_array()\n                    .ok_or(\"Malformed helper transport array\")?;\n                ids.iter()\n                    .map(|id| self.child(id, index, depth))\n                    .collect::<Result<_, _>>()\n                    .map(Value::Array)\n            }\n            Some(\"text\") => self.text(&fields[1], index, depth),\n            Some(\"object\") => self.object(&fields[1], index, depth),\n            _ => Err(\"Malformed helper transport collection tag\".into()),\n        }\n    }",
+        "advisory_usefulness": "context-only",
+        "source_rationale": "collection dispatches array, text and object formats, invoking recursive child decoding. The branches already delegate specialized behavior.",
+        "useful_review_or_separation": "Treat recursive state/budget use as expected for a bounded deserializer; no useful further separation is apparent.",
+        "limits": "Source alone does not imply that all collection handlers should be pure or that extracted helpers would improve the design.",
+        "numeric_correctness_assessed": false
+      },
+      {
+        "case_index": 8,
+        "package": "rstyle-pdg",
+        "function": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::begin_module",
+        "source_file": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+        "source": "fn begin_module(\n        &mut self,\n        environment: &Environment,\n        module: &census::Module,\n    ) -> Result<(), String> {\n        self.enums.namespace = module.namespace.clone();\n        self.definitions = inherited(&environment.modules, &module.namespace, &self.configuration)?;\n        self.scopes = vec![self.scope(module.items.iter())?];\n        Ok(())\n    }",
+        "advisory_usefulness": "actionable",
+        "source_rationale": "begin_module sets the enum namespace before computing fallible inherited definitions and scope. A failure can leave only part of the new module state installed.",
+        "useful_review_or_separation": "Consider computing next definitions/scope first and then committing the module fields together, if caller behavior requires the closure to remain reusable after error. This is a concrete state-transition seam.",
+        "limits": "Need caller/error-lifetime evidence before changing order: if the traversal is always abandoned on Err, current partial updates may be harmless.",
+        "numeric_correctness_assessed": false
+      },
+      {
+        "case_index": 9,
+        "package": "rstyle-pdg",
+        "function": "nominal_boundary::resolution::Resolution::select_copies",
+        "source_file": "crates/rstyle-pdg/src/nominal_boundary/resolution.rs",
+        "source": "fn select_copies(\n        &mut self,\n        facts: &HirFnFacts,\n        origins: &declaration_origins::Origins,\n        owner: Option<&crate::product_instances::CheckedProjection>,\n    ) -> Result<(), String> {\n        let selected = selected::verify(facts, origins, self, owner)?;\n        self.copy_trees = selected.copies;\n        self.no_drop_trees = selected.no_drop;\n        self.source_requirements = selected.requirements;\n\n        Ok(())\n    }",
+        "advisory_usefulness": "context-only",
+        "source_rationale": "select_copies performs selected::verify before assigning the resulting copies/no_drop/requirements fields. Fallible selection and state commit are already separated.",
+        "useful_review_or_separation": "This is a useful example of an existing prepare-then-install seam; the three assignments are a coherent commit.",
+        "limits": "A raw density score does not show that these fields should be split or written through another helper.",
+        "numeric_correctness_assessed": false
+      },
+      {
+        "case_index": 10,
+        "package": "rstyle-pdg",
+        "function": "scalar_instances::source::Flow::<'a>::install_binding",
+        "source_file": "crates/rstyle-pdg/src/scalar_instances/source.rs",
+        "source": "fn install_binding(&mut self, binding: &BindingFact, value: Value) -> Result<()> {\n        self.bindings.insert(binding.symbol.clone());\n        self.scope\n            .entry(binding.name.clone())\n            .or_default()\n            .push(Binding {\n                hir: binding.hir.clone(),\n                value,\n            });\n        self.frames\n            .last_mut()\n            .ok_or(\"Missing scalar lexical frame\")?\n            .push(binding.name.clone());\n        Ok(())\n    }",
+        "advisory_usefulness": "actionable",
+        "source_rationale": "install_binding updates bindings and scope before checking whether a lexical frame exists. A missing frame returns Err after those first updates.",
+        "useful_review_or_separation": "Review checking the frame precondition before updating the coordinated binding/scope/frame state; this is a small concrete improvement candidate rather than a new subsystem.",
+        "limits": "It may be an unreachable invariant and callers may discard Flow on Err. Validate that contract before claiming an observable failure or changing semantics.",
+        "numeric_correctness_assessed": false
+      },
+      {
+        "case_index": 11,
+        "package": "rstyle-pdg",
+        "function": "unit_store::bundle::<impl unit_store::UnitStore>::load_bundle",
+        "source_file": "crates/rstyle-pdg/src/unit_store/bundle.rs",
+        "source": "fn load_bundle(\n        bytes: &[u8],\n        inspect: impl FnOnce(&[HirFnFacts]) -> Result<(), String>,\n        current_run: bool,\n    ) -> Result<Self, String> {\n        let import = crate::diagnostics::Stage::new(\"unit.decode\", \"bundle\", None)\n            .observe(|| Import::decode(bytes))?;\n        crate::diagnostics::Stage::new(\"unit.inspect\", \"bundle\", None)\n            .observe(|| inspect(&import.functions))?;\n\n        let store = crate::diagnostics::Stage::new(\"unit.structure\", \"bundle\", None)\n            .observe(|| import.into_store())?;\n        if current_run {\n            crate::verification_policy::generated(|| {\n                crate::diagnostics::Stage::new(\"unit.verify\", \"bundle\", None)\n                    .observe(|| store.validate_evidence())\n            })?;\n        } else {\n            crate::verification_policy::strict(|| {\n                crate::diagnostics::Stage::new(\"unit.verify\", \"bundle\", None)\n                    .observe(|| store.validate_evidence())\n            })?;\n        }\n        Ok(store)\n    }",
+        "advisory_usefulness": "uncertain",
+        "source_rationale": "load_bundle is an explicit decode-inspect-build-validate pipeline, with diagnostics around each phase and a caller-supplied inspection callback. These phases are already separated into helpers.",
+        "useful_review_or_separation": "Assess whether any finding represents application work, diagnostic output or arbitrary callback effects before proposing an extraction. The visible function is an orchestration boundary.",
+        "limits": "The callback effect contract and validation internals are not given by the snippet; source alone cannot rank this finding as a useful refactor target.",
+        "numeric_correctness_assessed": false
+      },
+      {
+        "case_index": 12,
+        "package": "rstyle-pdg",
+        "function": "unit_store::dependency_closure::install_dependency_owners",
+        "source_file": "crates/rstyle-pdg/src/unit_store/dependency_closure.rs",
+        "source": "fn install_dependency_owners(\n    builder: &mut Builder,\n    index: usize,\n    plan: &Plan,\n    completed: &[Option<Arc<UnitStore>>],\n) -> Result<(), String> {\n    builder.store.dependencies = linked_dependencies(index, plan, completed)?;\n    builder.store.namespace_associations = plan.namespace_associations[index]\n        .iter()\n        .enumerate()\n        .map(\n            |(dependency, observation)| dependency_namespaces::Association {\n                dependency,\n                compiled_dependency: observation.clone(),\n            },\n        )\n        .collect();\n\n    Ok(())\n}",
+        "advisory_usefulness": "context-only",
+        "source_rationale": "install_dependency_owners computes linked dependencies then installs namespace association rows for the same dependency graph. These are the two outputs of one installation operation.",
+        "useful_review_or_separation": "The fallible dependency computation already precedes the infallible mapping/collection; further extraction is not motivated by the writes alone.",
+        "limits": "Allocation failure is not treated as a new domain error; no hypothetical transactional requirement is inferred.",
+        "numeric_correctness_assessed": false
+      },
+      {
+        "case_index": 13,
+        "package": "rstyle-pdg",
+        "function": "<unit_store::product_instances::ConstructorProof<'_> as unit_store::instances::InstanceProof>::install",
+        "source_file": "crates/rstyle-pdg/src/unit_store/product_instances.rs",
+        "source": "fn install(\n        self,\n        store: &mut UnitStore,\n        origin: OriginalInstance<SpanArgument>,\n        checked: CheckedProjection,\n    ) -> Result<(), String> {\n        install_dependency(store, &origin, &checked, self.observation)?;\n        store.product_instance = Some(ProductInstanceRecord {\n            origin,\n            checked,\n            observation: self.observation.clone(),\n        });\n        Ok(())\n    }",
+        "advisory_usefulness": "context-only",
+        "source_rationale": "The constructor proof installer first performs a fallible dependency installation, then records the corresponding product instance. Installing a checked record is its named responsibility.",
+        "useful_review_or_separation": "The existing install_dependency helper provides the visible separation. No independent responsibility is exposed by the final assignment.",
+        "limits": "Atomicity of install_dependency itself needs its own caller/source review; the snippet does not prove a defect.",
+        "numeric_correctness_assessed": false
+      },
+      {
+        "case_index": 14,
+        "package": "rstyle-pdg",
+        "function": "unit_store::manifest::seal",
+        "source_file": "crates/rstyle-pdg/src/unit_store/manifest.rs",
+        "source": "/// Seal the exact streamed publication bytes only after its final flush succeeds.\npub(super) fn seal<W: Write>(\n    writer: W,\n    publish: impl FnOnce(&mut dyn Write) -> Result<(), String>,\n) -> Result<BundleManifest, String> {\n    let mut recorder = Recorder {\n        writer,\n        hash: Xxh3::new(),\n        bytes: 0,\n    };\n    publish(&mut recorder)?;\n    recorder.flush().map_err(|error| error.to_string())?;\n\n    Ok(BundleManifest {\n        schema: SCHEMA.into(),\n        checksum: encode(recorder.hash.digest()),\n        bytes: recorder.bytes,\n    })\n}",
+        "advisory_usefulness": "context-only",
+        "source_rationale": "seal invokes the publication callback through a recorder, flushes it, then returns the checksum and byte count of the completed stream. IO and recorder state are the operation itself.",
+        "useful_review_or_separation": "This is already an explicit streaming/publication boundary. Preserve the final-flush-before-manifest sequence; no score-driven extraction is justified here.",
+        "limits": "This review recommends no hash change, new hash, policy gate or extra validation. It evaluates source organization only.",
+        "numeric_correctness_assessed": false
+      }
+    ]
+  }
+}

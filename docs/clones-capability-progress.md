@@ -6367,3 +6367,66 @@ Complete observations, baselines and local worklists establish availability,
 not independently reviewed usefulness. Preserve disagreements and fix any real
 metric problem in the existing core evaluator. No new collector or completeness
 layer is needed for this next task.
+
+### C87 — independent default-density source review (2026-10-29)
+
+Lead owns offline evaluator/shared tests, artifacts, docs and index. Three leaf
+reviewers froze disjoint source-only reviews for all15 actual-policy density
+worklists before numeric observations or emitted details were inspected. The
+original labels preserve uncertainty, source witnesses and helper snippets.
+Followup review explains six statement discrepancies as manual omissions of
+block tails/arms or incorrect counting of bare closure bodies; no collector
+error was found. Fourteen source counts now agree; get_mut remains uncertain.
+Frozen labels were not overwritten by these corrections.
+
+Reused compiler_quality.py rather than another classifier. Its offline supported
+depths now include the already deployed depth3. Requested planning validates the
+existing diagnostic projection before checking owner counts; full core diagnostic
+summaries remain unchanged. Labels outside the requested rule scope, malformed,
+duplicate, omitted or retargeted indices cannot turn incomplete plans into clean
+samples. Unscoped and complexity roster checks retain their prior behavior.
+Three new projection tests and the existing propagated test matrix cover depth3,
+including exact helper provenance, missing inputs and unchanged incomplete scope.
+An initial broader Python run caught a positional API compatibility regression
+in the shared complexity checker; preserving the old third argument fixed it.
+All247 capability Python tests pass. No production Rust code changed.
+
+Three complete independent positive densities555/750/750 agree with weighted
+mutation rosters and helper provenance. Two full-size source-reviewed static
+clean controls and a statement-minimum exemption agree on outcomes and source
+statement counts; no observed clean numeric value is invented. Twelve matched
+saved-facts controls independently freeze equal750/below749 thresholds and
+minimum10statements/21lines before replay; all agree. These probe configurations
+do not modify production thresholds or facts. Existing C86 generated-helper and
+source-deletion acceptance remains separate from production quality labels.
+
+Artifacts: project-default-density-source-review.json preserves all15 source
+reviews, clean labels and followups; project-default-density-reviewed-cases.json
+and project-default-density-reviewed-results.json are the six complete reducer
+samples; project-default-density-quality-study.json includes all15 review states
+and the twelve policy controls. Only3/15 positive propagated totals are complete;
+12 remain unverified. This increment does not pass the finite production quality
+gate or establish population precision, runtime purity or refactoring safety.
+No new collector, proof/policy layer, checksum, metric or budget is introduced;
+strict matching and both legacy commands remain unchanged. No speedup claim.
+
+A separate source-only actionability review identifies3 conditional prepare/check-
+before-commit candidates,10 context-only stateful helpers and2 uncertain
+orchestration cases. These are review judgments, not bugs or population precision.
+Numeric agreement alone is not grounds to switch the whole default command.
+The next delivery milestone should assess the exact authored-diagnostic default
+route against legacy coverage, suppression/exit compatibility and runtime, while
+keeping pattern replacement and full caller planning gaps explicit.
+
+Integrated validation passes all3,650 Rust tests in264.370s with five existing
+skips, plus doctests. Formatting, Clippy,247 capability Python and50 script tests
+pass. The initial script invocation omitted the Cargo PATH and failed its sampler
+setup; rerunning with the documented PATH passes. Both legacy gates pass:0
+style violations over9,966 functions and the same13 unfiltered pattern IDs.
+C85 Ubuntu x86/ARM native jobs passed; its macOS
+job and all C86 native jobs were still running at the latest API observation.
+Overall migration and per-capability retirement remain open. Next ready work is
+the exact authored-diagnostic default-readiness comparison: coverage, suppression/
+exit compatibility and runtime against the existing command. Remaining density
+helper reviews stay open, separating known static unknown-call weights from
+unknown runtime behavior. No additional completeness layer is needed.
