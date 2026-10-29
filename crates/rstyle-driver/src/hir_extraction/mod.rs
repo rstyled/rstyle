@@ -90,7 +90,7 @@ pub fn raw_crate_facts(
     scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<Vec<HirFnFacts>, String> {
-    let mut facts = advisory_crate_facts(tcx, scanned, options)?;
+    let mut facts = collect_crate_facts(tcx, scanned, options, CallInstances::Capture)?;
 
     let sources = rstyle_pdg::unit_store::SourceAnalyses::default();
     for function in &mut facts {
@@ -102,15 +102,38 @@ pub fn raw_crate_facts(
 }
 
 /// Original compiler observations for advisory consumers, without strict source
-/// correspondence or instance projections. Unit ownership and census are retained.
+/// correspondence, call instances or projections. Unit ownership and census are retained.
 pub fn advisory_crate_facts(
     tcx: TyCtxt<'_>,
     scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<Vec<HirFnFacts>, String> {
+    collect_crate_facts(tcx, scanned, options, CallInstances::NotRequested)
+}
+
+enum CallInstances {
+    NotRequested,
+    Capture,
+}
+
+struct FunctionCollector<'tcx> {
+    tcx: TyCtxt<'tcx>,
+    call_instances: CallInstances,
+}
+
+fn collect_crate_facts(
+    tcx: TyCtxt<'_>,
+    scanned: &[source::Function],
+    options: &Options<'_>,
+    call_instances: CallInstances,
+) -> Result<Vec<HirFnFacts>, String> {
+    let collector = FunctionCollector {
+        tcx,
+        call_instances,
+    };
     let mut facts = tcx.hir_body_owners()
         .filter(|id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
-        .map(|id| function(tcx, id, scanned, options).map_err(|error| format!("{}: {error}", tcx.def_path_str(id.to_def_id()))).and_then(|facts| facts.ok_or_else(|| format!(
+        .map(|id| collector.function(id, scanned, options).map_err(|error| format!("{}: {error}", tcx.def_path_str(id.to_def_id()))).and_then(|facts| facts.ok_or_else(|| format!(
             "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
         ))))
         .collect::<Result<Vec<_>, _>>()?;
@@ -140,20 +163,25 @@ fn capture_source_evidence(
     generated_sources::capture(tcx, options, facts)
 }
 
-fn function(
-    tcx: TyCtxt<'_>,
-    id: LocalDefId,
-    scanned: &[source::Function],
-    options: &Options<'_>,
-) -> Result<Option<HirFnFacts>, String> {
-    let Some((mut facts, ctx)) = function_source(tcx, id, scanned, options) else {
-        return Ok(None);
-    };
-    concrete_types::capture(&ctx, &mut facts)?;
-    capture_callable_owner(&ctx, id, &mut facts, options)?;
-    capture_locations(&ctx, &mut facts)?;
+impl FunctionCollector<'_> {
+    fn function(
+        &self,
+        id: LocalDefId,
+        scanned: &[source::Function],
+        options: &Options<'_>,
+    ) -> Result<Option<HirFnFacts>, String> {
+        let Some((mut facts, ctx)) = function_source(self.tcx, id, scanned, options) else {
+            return Ok(None);
+        };
+        concrete_types::capture(&ctx, &mut facts)?;
+        capture_callable_owner(&ctx, id, &mut facts, options)?;
+        capture_locations(&ctx, &mut facts)?;
 
-    instances::capture(&ctx, id, facts).map(Some)
+        match self.call_instances {
+            CallInstances::NotRequested => Ok(Some(facts)),
+            CallInstances::Capture => instances::capture(&ctx, id, facts).map(Some),
+        }
+    }
 }
 
 fn capture_callable_owner(

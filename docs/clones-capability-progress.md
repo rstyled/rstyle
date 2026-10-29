@@ -4245,3 +4245,66 @@ macOS and both Ubuntu targets. C44 native CI is tracked separately from these
 local C45 results. Next ready performance frontier: omit unrequested call-instance
 observations during advisory-only collection after parity controls; large-source
 census coverage remains a distinct unresolved limitation.
+
+
+### C46 — omit unrequested call-instance collection (2026-10-29)
+
+The existing function collector now takes an explicit call-instance policy.
+Advisory-only collection selects `NotRequested`; ordinary raw/strict collection
+selects `Capture` before its existing correspondence/projection processing.
+This removes the additional instance HIR visitor, generic/trait selection and
+callback inventory serialization when their strict consumers are not requested.
+The same owner walk still captures original source/signature/body, concrete and
+consumer types, compiler advisory observations, inherent/trait observations and
+unit ownership. No global environment guard, second traversal, source proof,
+cache, body/graph copy or hashing was added. Missing call-instance data is omitted,
+not replaced by a fabricated complete empty inventory. Explicit instance
+feasibility diagnostics use their existing independent source entry points.
+
+One acceptance test exercises nonempty strict generic and concrete trait call
+records plus an immediate Option callback containing a generic call. The raw
+advisory mode omits the instance key on every owner while preserving the entire
+advisory report, patterns and plans. Original I/O leaf/caller and local dynamic
+trait propagation retain five I/O owners; generated callee evidence remains
+unavailable/unresolved, leaving overall and planning coverage incomplete.
+Source-free replay with no compiler on PATH retains the identical report.
+The initial fixture incorrectly expected a local dynamic call to be unresolved:
+the existing core collector conservatively propagates local implementation
+effects. A generated callee now supplies the independent missing-data control;
+no product behavior or existing expectation was weakened. The five-case focused
+run, including C44 extraction and strict callable observations, passes.
+
+Two serial before and two after fresh rstyle-core captures preserve exactly equal
+compiler advisory reports over 1,213 captured owners, with scope incomplete and
+exit 2 throughout. Raw publications shrink from 60,508,680 to 49,108,968 bytes
+(18.8%); the call-instance record is present on 1,213 owners before and zero
+after. Peak RSS changes from 519,476–519,836KiB to 433,768–433,800KiB (16.6%).
+Wall samples are 10.33–10.48s before and 8.97–9.27s after. These ordered samples
+show a local reduction, not a statistical or cross-platform speedup guarantee.
+Fresh raw bytes also differ in invocation routes, producer stamps and Cargo
+dependency identities; byte-identical raw artifacts are not claimed. Commands,
+full stage timings and caveats are recorded in
+`docs/performance/advisory-instance-samples.json`.
+
+C46 integrated validation passes all 3,435 Rust tests in 218.157s, with five
+existing skips; workspace doc tests and locked all-target Clippy pass. Native C44
+CI run 40840198496 is now confirmed successful on macOS and both Ubuntu targets.
+C45/C46 CI state is separate from these results.
+
+Next audited frontier: advisory-only mode conflicts with local source/guard/
+mutation/helper consumers. Its core planner and effect/caller sessions do not
+read the strict unit census, namespace, generated-helper, library or aggregated
+inherent metadata. Original source inventory and generated-function markers are
+captured independently. Omit those strict-only unit metadata passes through the
+existing collector seam, preserving all ordinary raw/strict paths, then validate
+shared roots, generated/missing owners, reviews/baselines and a bounded large-source
+project without raising census budgets. No alternative ownership proof or new
+source codec is needed for the requested advisory consumers.
+
+C46 final dog-food gates: zero style violations across 9,785 functions, all
+complexity measurements available; zero reviewed pattern candidates with the
+thirteen existing entries. The separate unfiltered comparison retains exactly
+the thirteen main-rebase IDs. Formatting and diff checks pass. Logs use
+`/tmp/clones-advisory-instance-` with `focused-2`, `tests-1`, `clippy-1`, `style-1`,
+`patterns-1` and `patterns-unfiltered-1` suffixes. No thresholds, budgets,
+suppressions or saved review entries changed.

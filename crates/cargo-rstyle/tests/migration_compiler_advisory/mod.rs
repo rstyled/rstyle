@@ -2,6 +2,7 @@ use super::*;
 
 mod complexity;
 mod extraction;
+mod instance_extraction;
 mod mutations;
 mod only;
 mod patterns;

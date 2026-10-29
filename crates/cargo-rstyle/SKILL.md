@@ -558,3 +558,11 @@ modules such as `src/../shared.rs` therefore use `shared.rs` in saved locators.
 Equivalent lexical spellings preserve review identity; outside-root, relative,
 empty and non-UTF8 locators remain unavailable. This uses captured paths without
 filesystem canonicalization, new hashes or metric/context changes.
+
+
+Advisory-only extraction also omits strict call-instance observations: generic
+selection and callback inventories are not constructed when their consumers are
+not requested. Ordinary raw/strict extraction and explicit instance diagnostics
+retain their existing records. Missing records are not complete empty inventories;
+compiler advice, conservative core propagation, patterns, plans and saved replay
+keep their independent evidence and coverage contracts.
