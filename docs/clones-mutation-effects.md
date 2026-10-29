@@ -6,6 +6,16 @@ Request the optional consumer separately from direct mutation budgets:
 cargo rstyle clones --extraction-profile hir-data-v3 --locked --mutation-effects --format json --report-detail compact
 ```
 
+Add `--compiler-advisory --compiler-advisory-only` to run this same summary
+consumer, static `--effect-density`, or both without strict clone assessment.
+Fresh requests retain the existing file census and bounded formal/control types;
+the existing summary session and density cache borrow raw facts directly. No body
+type enrichment or helper certification is needed for this bounded vocabulary.
+Saved replay, density reviews/baselines and changed-file policy remain available
+without source files or compiler tools. Old raw captures missing optional types
+remain incomplete. Unsupported body diagnostics/work-budget outcomes may differ
+from combined mode, without becoming complete measurements.
+
 `mutation_effects` (`rstyle.mutation-effects/4`) describes original direct writes
 and calls through at most two original same-selected-unit helper edges:
 `caller → wrapper → leaf`. It does not require strict clone admission. The

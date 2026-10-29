@@ -53,13 +53,14 @@ pub struct Plan {
 
 impl Plan {
     fn with_advisory(self, args: &Args) -> Self {
+        let mutations = args.mutation_rules || args.mutation_effects || args.effect_density;
         Self {
             compiler_advisory_only: args.compiler_advisory_only,
             compiler_advisory: args.compiler_advisory,
             compiler_patterns: args.compiler_patterns,
             local_source_facts: args.compiler_advisory_only
-                && (args.source_rules || args.guard_clauses || args.mutation_rules),
-            local_mutation_facts: args.compiler_advisory_only && args.mutation_rules,
+                && (args.source_rules || args.guard_clauses || mutations),
+            local_mutation_facts: args.compiler_advisory_only && mutations,
             ..self
         }
     }

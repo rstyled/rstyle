@@ -5223,3 +5223,50 @@ a redundant wrapper; both were refactored without ignores or threshold changes.
 Logs use /tmp/clones-c63-*. C62 CI40878398294 is now green on macOS and both
 Ubuntu runners. Broader mutation vocabulary and capability retirement remain
 open; this checkpoint does not complete the migration.
+
+
+### C64 — reuse scalar summaries and density in advisory-only capture (2026-10-29)
+
+The next reuse audit traced effects::Session, original statement inventory and
+the existing density event cache. Their supported primitive free calls already
+retain identity, safety, result tokens and selected context in raw HIR. Local
+unit/u32 helpers and external unit/never results need no additional body type
+capture, field locations, library proof, strict import or helper certification.
+The prerequisite worker audited those paths; acceptance worker owned only the
+new only_effects.rs leaf; lead owns CLI/demand integration, docs and validation.
+Worker writes are frozen for the checkpoint.
+
+Explicit --mutation-effects, --effect-density or both now work with
+--compiler-advisory --compiler-advisory-only. Plan demand reuses the existing
+local_source_facts/local_mutation_facts flags and narrow collectors, while the
+existing consumers borrow the same published owner roster. No new consumer,
+source/proof/artifact scan, hash, metric or resource-budget change is introduced.
+Scalar and density completion remain independent requested axes. Unknown calls,
+opaque work, missing optional types and deeper helpers remain incomplete; zero
+unknown weights never grant ratios or minimum-size exemptions. Existing saved
+density baselines, policy reevaluation and full/compact tool-free replay work.
+
+Six independent CLI cases cover scalar-only and density-only demand, two-edge
+borrowed chains with repeated call mappings, original loop sites, classified
+external unit/never events, callback/macro/depth boundaries, old capture gaps and
+source/tool-free numeric baseline/policy replay. Exact supported raw/combined
+reports agree. Read-only final runtime review found no concrete defects.
+
+The exact C63 saved core captures were replayed rather than recaptured. Compiler
+advice stays equal and 1,214 of1,215 effect rows agree exactly. The unsupported
+normalize::flatten_else_if owner differs: combined enrichment attempts a deeper
+summary and exhausts work; raw missing target stops earlier. Both remain
+incomplete with no ratio; all1,215 package density assessments remain incomplete.
+Raw replay observed0.88s/190,520KiB versus4.45s/393,528KiB combined, one sample per
+mode, not a fresh-capture benchmark or generalized speedup claim. The recorded
+project-raw-effect-study.json preserves commands, handles, counts and differences.
+This is a workflow gain without new numeric project coverage or a retirement claim.
+
+Integrated validation: all3,500 Rust tests pass with five existing skips, plus
+doc tests. Locked all-target Clippy, formatting/diff checks and all244 offline
+Python checks pass. Style has zero violations over9,827 functions; patterns has
+zero unreviewed candidates and all13 unfiltered IDs equal main. Fetching
+origin/main confirms it remains an ancestor. Logs use /tmp/clones-c64-*.
+The full migration remains open; next consumer improvements should prioritize
+measured real-source usefulness and existing collectors over adding algorithms
+or expanding proofs just to match unsupported diagnostic details.

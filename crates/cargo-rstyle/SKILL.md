@@ -400,15 +400,19 @@ Compiler patterns/plans and their review/baseline workflows still work. Strict
 execution is `not_requested`, raw artifacts have no strict namespace, and replay
 requires the original mode. Omitted records are not complete empty inventories.
 Missing/generated owners and unresolved calls remain incomplete, including in
-test builds. Source rules/guard advice, direct scalar `--mutation-rules`, and
-parameter/guard plans can run in advisory-only mode. Fresh requests reuse the
+test builds. Source rules/guard advice, `--mutation-rules`, `--mutation-effects`,
+`--effect-density`, and parameter/guard plans can run in advisory-only mode. Fresh requests reuse the
 existing original file census within its256-file/8MiB limits; compiler-only
 requests omit it. Older raw captures without that ownership stay unknown on source
 replay. Missing optional mutable-formal/control types
 in older raw captures stay unavailable. Fresh mutation requests reuse the existing
 bounded collectors; signature bindings share the completed interface type capture.
 Compiler mutation events remain a separate metric. Exact known regions do not
-establish complete caller/planning coverage. Pair and native effect/dispatch/
+establish complete caller/planning coverage. Scalar summaries and density reuse
+the existing bounded session/cache; density-only completion remains separate
+from scalar mutation completion. Unknown events cannot gain ratios through zero
+weights. Unsupported shapes may differ in diagnostic/work-budget details from
+combined body enrichment; no complete measurement follows. Pair, dispatch and
 capability consumers still require the combined mode;
 ordinary raw/strict capture and explicit instance diagnostics retain their records
 and existing census budgets. Large advisory captures can publish useful findings
