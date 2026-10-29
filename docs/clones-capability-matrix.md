@@ -61,3 +61,9 @@ diagnostic presentation and finding exits. It reuses completed core diagnostic
 paths and shared coverage aggregation; raw diagnostics and fix plans stay intact.
 Proposals and invalid suppressions remain global, and selection cannot hide
 whole-scope incompleteness. No extra review snapshots, hashes or proofs are needed.
+
+The C26 core planning input seam accepts borrowed facts and exact owner-indexed
+rules, retaining group, step and bundle-carrier indices even for identical
+source locations/names. Existing core entry points share that implementation.
+This is a prerequisite for contextual cross-unit advisory planning; CLI delivery,
+production capability measurements and its replacement gate remain pending.

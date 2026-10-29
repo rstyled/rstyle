@@ -14,6 +14,7 @@ use crate::facts::FnFacts;
 use crate::graph::Graph;
 use crate::report::{Diagnostic, FixGroup, GroupFunction, Hint};
 use crate::stacking;
+use std::borrow::Borrow;
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_HINTS: usize = 5;
@@ -116,10 +117,10 @@ struct Soft {
 }
 
 /// What a group's fixes might also touch, without forcing a stack.
-fn soft_items(
+fn soft_items<F: Borrow<FnFacts>>(
     members: &[usize],
     rules: &BTreeMap<usize, BTreeSet<String>>,
-    facts: &[FnFacts],
+    facts: &[F],
     callers: &[Vec<usize>],
 ) -> Soft {
     let mut soft = Soft {
@@ -129,7 +130,8 @@ fn soft_items(
     for &m in members {
         let mine = &rules[&m];
         if TYPE_RULES.iter().any(|r| mine.contains(*r)) {
-            soft.types.extend(facts[m].mutated_types.iter().cloned());
+            soft.types
+                .extend(facts[m].borrow().mutated_types.iter().cloned());
         }
         if mine.contains(CALLER_HINT_RULE) {
             soft.callers
@@ -139,11 +141,11 @@ fn soft_items(
     soft
 }
 
-fn hints_for(
+fn hints_for<F: Borrow<FnFacts>>(
     group: usize,
     softs: &[Soft],
     owner: &BTreeMap<usize, usize>,
-    facts: &[FnFacts],
+    facts: &[F],
 ) -> Vec<Hint> {
     let mine = &softs[group];
     let type_hints = mine.types.iter().filter_map(|t| {
@@ -169,7 +171,7 @@ fn hints_for(
         others.remove(&group);
         (!others.is_empty()).then(|| Hint {
             kind: "shared_caller".into(),
-            item: facts[c].name.clone(),
+            item: facts[c].borrow().name.clone(),
             other_groups: others.len(),
         })
     });
@@ -229,11 +231,35 @@ pub fn build(
     cfg: &Config,
 ) -> Vec<FixGroup> {
     let rules = violators(facts, diagnostics);
+    build_indexed(facts, graph, &rules, cfg)
+        .into_iter()
+        .map(|group| group.report)
+        .collect()
+}
+
+/// A fix group retaining exact owners for contextual adapters.
+pub struct IndexedGroup {
+    pub report: FixGroup,
+    /// Fact indices aligned with `report.functions`, in callee-first order.
+    pub members: Vec<usize>,
+    pub step_owners: Vec<usize>,
+    pub bundle_owners: Vec<Vec<usize>>,
+}
+
+/// Group already assessed rules using the caller's exact owner indices.
+/// `facts`, graph targets and rule keys must share one index space. This seam does
+/// not resolve diagnostics by source location or infer missing callers.
+pub fn build_indexed<F: Borrow<FnFacts>>(
+    facts: &[F],
+    graph: &Graph,
+    rules: &BTreeMap<usize, BTreeSet<String>>,
+    cfg: &Config,
+) -> Vec<IndexedGroup> {
     let callers = graph.callers();
-    let groups = components(&rules, &callers, cfg, facts.len());
+    let groups = components(rules, &callers, cfg, facts.len());
     let softs: Vec<Soft> = groups
         .iter()
-        .map(|members| soft_items(members, &rules, facts, &callers))
+        .map(|members| soft_items(members, rules, facts, &callers))
         .collect();
     let owner: BTreeMap<usize, usize> = groups
         .iter()
@@ -241,27 +267,65 @@ pub fn build(
         .flat_map(|(g, members)| members.iter().map(move |&m| (m, g)))
         .collect();
     let ordered: Vec<Vec<usize>> = groups.iter().map(|m| stack_order(m, graph)).collect();
-    let plans = stacking::plans(&ordered, &rules, facts, graph);
+    let plans = stacking::plans_indexed(&ordered, rules, facts, graph);
 
+    let reports = GroupReports {
+        facts,
+        rules,
+        softs: &softs,
+        owner: &owner,
+    };
     ordered
-        .iter()
+        .into_iter()
         .zip(plans)
         .enumerate()
-        .map(|(g, (members, plan))| FixGroup {
-            id: g + 1,
-            functions: members
-                .iter()
-                .map(|&m| GroupFunction {
-                    path: facts[m].path.clone(),
-                    line: facts[m].line,
-                    name: facts[m].name.clone(),
-                    rules: rules[&m].iter().cloned().collect(),
-                })
-                .collect(),
-            hints: hints_for(g, &softs, &owner, facts),
-            plan,
-        })
+        .map(|(g, (members, plan))| reports.group(g, members, plan))
         .collect()
+}
+
+struct GroupReports<'a, F> {
+    facts: &'a [F],
+    rules: &'a BTreeMap<usize, BTreeSet<String>>,
+    softs: &'a [Soft],
+    owner: &'a BTreeMap<usize, usize>,
+}
+
+impl<F: Borrow<FnFacts>> GroupReports<'_, F> {
+    fn group(
+        &self,
+        g: usize,
+        members: Vec<usize>,
+        plan: Option<stacking::IndexedPlan>,
+    ) -> IndexedGroup {
+        let (plan, step_owners, bundle_owners) = match plan {
+            Some(plan) => (Some(plan.report), plan.step_owners, plan.bundle_owners),
+            None => (None, Vec::new(), Vec::new()),
+        };
+        let functions = members
+            .iter()
+            .map(|&m| {
+                let facts = self.facts[m].borrow();
+                GroupFunction {
+                    path: facts.path.clone(),
+                    line: facts.line,
+                    name: facts.name.clone(),
+                    rules: self.rules[&m].iter().cloned().collect(),
+                }
+            })
+            .collect();
+
+        IndexedGroup {
+            report: FixGroup {
+                id: g + 1,
+                functions,
+                hints: hints_for(g, self.softs, self.owner, self.facts),
+                plan,
+            },
+            members,
+            step_owners,
+            bundle_owners,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -305,6 +369,66 @@ mod tests {
 
     fn names(group: &FixGroup) -> Vec<&str> {
         group.functions.iter().map(|f| f.name.as_str()).collect()
+    }
+
+    #[test]
+    fn indexed_rules_keep_same_location_contexts_separate() {
+        let first = function("same", 1, &[]);
+        let second = function("same", 1, &[]);
+        let facts = [&first, &second];
+        let graph = graph::build_resolved(&facts, |_, _| Vec::<usize>::new());
+        let rules = BTreeMap::from([(0, BTreeSet::from(["fn_length".into()]))]);
+        let groups = build_indexed(&facts, &graph, &rules, &Config::default());
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].members, [0]);
+        assert_eq!(groups[0].report.functions.len(), 1);
+        assert!(groups[0].step_owners.is_empty());
+        assert!(groups[0].bundle_owners.is_empty());
+        assert!(groups[0].report.plan.is_none());
+    }
+
+    #[test]
+    fn indexed_footprints_follow_scoped_targets_with_identical_locations() {
+        let first = function("same", 1, &[]);
+        let second = function("same", 1, &[]);
+        let caller = function("caller", 10, &["same"]);
+        let facts = [&first, &second, &caller];
+        let graph = graph::build_resolved(&facts, |_, _| [0]);
+        let rules = BTreeMap::from([
+            (0, BTreeSet::from(["fn_params".into()])),
+            (1, BTreeSet::from(["fn_params".into()])),
+            (2, BTreeSet::from(["fn_length".into()])),
+        ]);
+        let groups = build_indexed(&facts, &graph, &rules, &Config::default());
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0].members, [0, 2]);
+        assert_eq!(groups[0].step_owners, [0, 2]);
+        assert_eq!(groups[1].members, [1]);
+        assert_eq!(groups[1].step_owners, [1]);
+        let plan = groups[1].report.plan.as_ref().unwrap();
+        assert_eq!(plan.steps[0].incoming_sites, 0);
+    }
+
+    #[test]
+    fn borrowed_indexed_groups_preserve_existing_reports() {
+        let facts = [
+            function("caller", 1, &["callee"]),
+            function("callee", 10, &[]),
+        ];
+        let flags = [(0, "fn_length"), (1, "fn_params")];
+        let cfg = Config::default();
+        let expected = run(&facts, &flags, &cfg);
+        let diagnostics: Vec<_> = flags.iter().map(|(i, r)| flag(&facts[*i], r)).collect();
+        let rules = violators(&facts, &diagnostics);
+        let borrowed: Vec<_> = facts.iter().collect();
+        let groups = build_indexed(&borrowed, &graph::build(&facts), &rules, &cfg);
+        assert_eq!(groups[0].members, [1, 0]);
+        assert_eq!(groups[0].step_owners, [1, 0]);
+        let reports: Vec<_> = groups.into_iter().map(|group| group.report).collect();
+        assert_eq!(
+            serde_json::to_value(reports).unwrap(),
+            serde_json::to_value(expected).unwrap()
+        );
     }
 
     #[test]

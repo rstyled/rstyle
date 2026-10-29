@@ -3005,3 +3005,48 @@ earlier 3,300-pass/one-fixture-failure run remains recorded as unsuccessful.
 Final Clippy, formatting, diff checks, zero-violation style and both reviewed/
 unfiltered pattern gates pass. No uncommitted unrelated source or pre-existing
 untracked work is included in this increment.
+
+## C26a: reuse core planning with borrowed, indexed owners
+
+Owner/write set: lead; `rstyle-core/src/{groups,stacking}.rs`, capability
+matrix/progress. This is the core input seam for C26, not a delivered cross-unit
+advisory CLI or a production coverage/speedup claim.
+
+The existing fix-group and parameter-stacking algorithms now accept borrowed
+`FnFacts` through `build_indexed` and `plans_indexed`. Callers supply completed
+rule assessments by exact fact index in the resolved graph's roster. Results
+retain ordered group members, step owners and exact bundle carriers alongside
+the ordinary core reports. Equal display names or source locations do not merge
+these identities. The legacy entry points delegate to the same implementation;
+source-location diagnostic association remains their existing compatibility
+behavior. Grouping, caller hops, callee ordering, bundle support, pass-through
+policy and report serialization are unchanged.
+
+No new planner, hash, artifact scan, source/body/type proof, graph copy or fact
+copy is introduced. Numeric owner vectors are retained with completed plans;
+report fields are constructed once and moved. Existing graph-index preconditions
+apply; the seam does not add another graph validation pass or infer missing calls.
+
+Four independent regression cases cover same-location contexts, scoped call
+footprints, borrowed/legacy report equality, and duplicate display names in
+bundle carriers and pass-through steps. Before the fourth case was added, all
+263 core tests passed. Final integrated gates are recorded below.
+
+Next: opt-in compiler advisory planning must reuse the already resolved C24
+graph, map completed diagnostic owners into that exact roster, and expose
+unit-qualified group/step/carrier keys. Keep default capture/report behavior,
+missing-data outcomes and strict matching unchanged. Independently label the
+production planning targets before measuring saved-run capability gains. C26
+and the overall migration remain incomplete.
+
+C26a checkpoint: all 3,305 nextest cases pass with five existing skips, plus
+workspace doc tests, in 213.554 seconds (`/tmp/clones-indexed-planning-tests-1`).
+This includes all four new owner-index cases, both original NonZero regressions
+and the u32 widening composition. Final workspace/all-target Clippy passes
+(`/tmp/clones-indexed-planning-clippy-final-1`), as do formatting and diff checks.
+Style is zero over 9,706 functions (`/tmp/clones-indexed-planning-style-1`).
+Reviewed patterns passes; unfiltered discovery retains exactly the same fourteen
+reviewed IDs with none added or absent (`/tmp/clones-indexed-planning-patterns-1`
+and `/tmp/clones-indexed-planning-patterns-unfiltered-1`). No review entries,
+thresholds, budgets or extraction permissions changed. This checkpoint validates
+the reusable core seam only; contextual CLI planning remains the next ready task.
