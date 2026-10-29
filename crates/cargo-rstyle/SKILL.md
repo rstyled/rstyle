@@ -486,9 +486,16 @@ scores without strict matching, numeric rules or effect propagation. It reuses
 core observation selection/exclusions and ordering. `diagnostic_execution` and
 `effect_execution` are `not_requested`; absent effects are not purity or zero.
 Unresolved calls do not invalidate complexity ranking. Missing scores and owners
-still make it incomplete, including generated signatures. Add numeric advice or
+still make default captured scope incomplete, including generated signatures. Add numeric advice or
 patterns explicitly when wanted; their requirements remain independent. Ranking
 alone does not enable `--fail-on-findings` or diagnostic reviews.
+
+Use `--compiler-complexity-scope authored` with `--compiler-complexity-top` to
+exclude explicitly generated signatures from ranking applicability. They remain
+in the raw unit `unavailable` list and ranking `source_scope.outside_scope_functions`.
+Missing authored scores or unknown origins remain incomplete. Default captured
+scope, existing scores/order, numeric/effect completeness and compiler-pattern
+scope stay unchanged. Authored scope can be selected during source/tool-free replay.
 
 For independently labeled numeric validation, the offline
 `eval/clones-capability/compiler_complexity.py --require-scores` compares exact

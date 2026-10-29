@@ -88,7 +88,7 @@ struct PatternRouteArgs {
     engine: PatternEngine,
     /// Compiler proposal population; authored excludes explicitly generated signatures.
     #[arg(long, value_enum)]
-    compiler_pattern_scope: Option<clones::CompilerPatternScope>,
+    compiler_pattern_scope: Option<clones::CompilerSourceScope>,
     /// Preview current legacy ledger matches against scoped compiler proposals without writing.
     #[arg(long)]
     preview_legacy_reviews: bool,

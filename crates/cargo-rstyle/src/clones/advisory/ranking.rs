@@ -1,5 +1,5 @@
 //! Project existing core complexity ordering without copying compiler bodies.
-use super::Collected;
+use super::{Collected, source_scope::SourceScope};
 use crate::clones::FunctionKey;
 use rstyle_core::{complexity_report, facts::FnFacts};
 use serde::Serialize;
@@ -9,6 +9,7 @@ pub(super) struct Captured {
     limit: NonZeroUsize,
     owners: BTreeMap<String, FunctionKey>,
     unavailable: usize,
+    source_scope: Option<SourceScope>,
 }
 
 #[derive(Serialize)]
@@ -20,13 +21,22 @@ pub(super) struct Report {
     unavailable_measurements: usize,
     unavailable_owners: usize,
     pub input_complete: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source_scope: Option<SourceScope>,
     owners: Vec<FunctionKey>,
     functions: Vec<complexity_report::Function>,
 }
 
 impl Captured {
-    pub(super) fn new(limit: Option<NonZeroUsize>, inputs: &Collected) -> Option<Self> {
-        let limit = limit?;
+    pub(super) fn new(args: &crate::clones::Args, inputs: &Collected) -> Option<Self> {
+        let limit = args.compiler_complexity_top?;
+        let source_scope = SourceScope::select(
+            args.compiler_complexity_scope,
+            inputs.generated_functions.iter().copied(),
+        );
+        let outside = source_scope
+            .as_ref()
+            .map_or(0, |scope| scope.outside_scope_functions.len());
         Some(Self {
             limit,
             owners: inputs
@@ -35,12 +45,14 @@ impl Captured {
                 .zip(&inputs.observations)
                 .map(|(fact, observation)| (fact.id.clone(), observation.key))
                 .collect(),
-            unavailable: inputs.unavailable.len(),
+            unavailable: inputs.unavailable.len() - outside,
+            source_scope,
         })
     }
 
     pub(super) fn evaluate(self, facts: &[FnFacts]) -> Result<Report, String> {
         let mut report = Report::measurements(facts, self.limit, self.unavailable);
+        report.source_scope = self.source_scope;
         for fact in complexity_report::ranked(facts)
             .into_iter()
             .take(self.limit.get())
@@ -72,14 +84,21 @@ impl Report {
             unavailable_measurements: facts.len() - measured_functions,
             unavailable_owners: unavailable,
             input_complete: measured_functions == facts.len() && unavailable == 0,
+            source_scope: None,
             owners: Vec::new(),
             functions: Vec::new(),
         }
     }
 
     pub(super) fn render(&self, unit: super::UnitId) -> String {
+        let scope = self
+            .source_scope
+            .as_ref()
+            .map_or_else(String::new, |scope| {
+                scope.render(self.unavailable_owners + self.unavailable_measurements)
+            });
         format!(
-            "\nCompiler complexity ranking for unit {} (top {}, measured {}/{}, unavailable owners {}, input complete={}):\n{}\n",
+            "\nCompiler complexity ranking for unit {} (top {}, measured {}/{}, unavailable owners {}, input complete={}):\n{scope}{}\n",
             unit.ordinal(),
             self.requested_limit,
             self.measured_functions,

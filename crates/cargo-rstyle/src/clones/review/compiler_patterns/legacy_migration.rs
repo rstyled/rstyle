@@ -11,8 +11,8 @@ pub(super) struct Report {
     schema: &'static str,
     ledger_path: PathBuf,
     scope_complete: bool,
-    #[serde(skip_serializing_if = "crate::clones::CompilerPatternScope::is_default")]
-    source_scope: crate::clones::CompilerPatternScope,
+    #[serde(skip_serializing_if = "crate::clones::CompilerSourceScope::is_default")]
+    source_scope: crate::clones::CompilerSourceScope,
     pub complete: bool,
     entries: Vec<Entry>,
     #[serde(skip_serializing_if = "Option::is_none")]

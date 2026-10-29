@@ -1,3 +1,4 @@
+mod authored_ranking;
 use super::*;
 
 mod complexity;

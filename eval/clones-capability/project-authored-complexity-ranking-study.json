@@ -1,0 +1,91 @@
+{
+  "schema": "rstyle.authored-complexity-ranking-study/1",
+  "checkpoint": "C81",
+  "base_revision": "65e87f7",
+  "input": "retained raw captures; no fresh compilation",
+  "host": "aarch64-unknown-linux-gnu",
+  "toolchain": "nightly-2026-09-30",
+  "configuration": "repository rstyle.toml",
+  "requested_limit": 2000,
+  "projects": [
+    {
+      "package": "rstyle-core",
+      "run": "target/rstyle/clones/run-ChBnep",
+      "expected_raw_owners": 1215,
+      "measured_authored_functions": 409,
+      "outside_generated_functions": 806,
+      "before": {
+        "scope": "captured",
+        "unavailable_owners": 806,
+        "complete": false,
+        "exit": 2
+      },
+      "after": {
+        "scope": "authored",
+        "unavailable_owners": 0,
+        "unavailable_measurements": 0,
+        "complete": true,
+        "exit": 0
+      },
+      "full_scores_and_order_unchanged": true,
+      "raw_missing_roster_unchanged": true,
+      "all_scored_rows_compared": 409,
+      "diagnostic_execution": "not_requested",
+      "effect_execution": "not_requested",
+      "matching_execution": "not_requested"
+    },
+    {
+      "package": "rstyle-ccgraph",
+      "run": "target/rstyle/clones/run-TKB31S",
+      "expected_raw_owners": 414,
+      "measured_authored_functions": 238,
+      "outside_generated_functions": 176,
+      "before": {
+        "scope": "captured",
+        "unavailable_owners": 176,
+        "complete": false,
+        "exit": 2
+      },
+      "after": {
+        "scope": "authored",
+        "unavailable_owners": 0,
+        "unavailable_measurements": 0,
+        "complete": true,
+        "exit": 0
+      },
+      "full_scores_and_order_unchanged": true,
+      "raw_missing_roster_unchanged": true,
+      "all_scored_rows_compared": 238,
+      "diagnostic_execution": "not_requested",
+      "effect_execution": "not_requested",
+      "matching_execution": "not_requested"
+    }
+  ],
+  "reproduce": [
+    "target/debug/cargo-rstyle",
+    "clones",
+    "--extraction-profile",
+    "hir-data-v3",
+    "--compiler-advisory-only",
+    "--compiler-complexity-top",
+    "2000",
+    "--compiler-advisory-config",
+    "rstyle.toml",
+    "--replay-run",
+    "<declared run above>",
+    "--format",
+    "json",
+    "--report-detail",
+    "compact"
+  ],
+  "after_extra_args": [
+    "--compiler-complexity-scope",
+    "authored"
+  ],
+  "limitations": [
+    "Completeness applies only to the explicit authored ranking population, not numeric/effect or strict assessment.",
+    "Generated owners remain in raw unavailable inventories and outside-scope lists; no generated score is inferred.",
+    "This is complete-array preservation evidence, not a new independent validation of all compiler scores.",
+    "No speedup, fresh native platform or legacy retirement claim."
+  ]
+}

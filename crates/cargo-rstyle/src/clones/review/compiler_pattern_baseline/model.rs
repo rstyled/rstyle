@@ -17,9 +17,9 @@ pub(in crate::clones) struct Baseline {
     pub hide_implements: Vec<String>,
     #[serde(
         default,
-        skip_serializing_if = "crate::clones::CompilerPatternScope::is_default"
+        skip_serializing_if = "crate::clones::CompilerSourceScope::is_default"
     )]
-    pub source_scope: crate::clones::CompilerPatternScope,
+    pub source_scope: crate::clones::CompilerSourceScope,
     versions: Versions,
     graph_schema: String,
     pub contexts: Vec<local::BuildContext>,
@@ -33,7 +33,7 @@ impl baseline_common::CompilerInventory for Baseline {
             compiler_policy,
             proposal_policy: Params::default(),
             hide_implements: Vec::new(),
-            source_scope: crate::clones::CompilerPatternScope::Captured,
+            source_scope: crate::clones::CompilerSourceScope::Captured,
             versions: local_adapter::versions("compiler-patterns"),
             graph_schema: rstyle_core::advisory::patterns::KEY.into(),
             contexts,

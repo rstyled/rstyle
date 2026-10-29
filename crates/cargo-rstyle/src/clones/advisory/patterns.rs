@@ -1,5 +1,5 @@
 //! Adapt owned compiler graphs to existing core proposal policy.
-use super::Missing;
+use super::{Missing, source_scope::SourceScope};
 use crate::clones::review::compiler_patterns::observed;
 use rstyle_core::{
     advisory::patterns::{KEY, Observation},
@@ -34,25 +34,6 @@ pub(super) struct Report {
     #[serde(skip)]
     pub snapshots:
         Vec<Result<crate::clones::review::compiler_patterns::observed::Snapshot, String>>,
-}
-
-/// Outside the requested authored population, not measured-empty or unavailable authored input.
-#[derive(Serialize)]
-struct SourceScope {
-    kind: crate::clones::CompilerPatternScope,
-    outside_scope_functions: Vec<crate::clones::FunctionKey>,
-}
-
-impl SourceScope {
-    fn select(
-        kind: crate::clones::CompilerPatternScope,
-        generated_functions: Vec<crate::clones::FunctionKey>,
-    ) -> Option<Self> {
-        (kind == crate::clones::CompilerPatternScope::Authored).then_some(Self {
-            kind,
-            outside_scope_functions: generated_functions,
-        })
-    }
 }
 
 /// Indices borrow the raw ranked evaluation; review and baseline identity stay unchanged.
@@ -358,10 +339,6 @@ impl Report {
         let Some(scope) = &self.source_scope else {
             return evaluation;
         };
-        format!(
-            "Authored function scope: {} generated functions outside scope; {} applicable inputs unavailable.\n{evaluation}",
-            scope.outside_scope_functions.len(),
-            self.unavailable_functions
-        )
+        format!("{}{evaluation}", scope.render(self.unavailable_functions))
     }
 }

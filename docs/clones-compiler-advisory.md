@@ -169,12 +169,22 @@ without numeric diagnostics, effect classification/propagation or fix planning.
 results do not mean pure or measured-empty. Direct unresolved calls stay visible;
 without propagation, they do not include generated-body routing or its unresolved
 callees. They do not invalidate complexity scores. Missing scores or owners still
-prevent a complete ranking, including generated signatures with unavailable measurements.
+prevent a complete ranking in the default captured population, including generated
+signatures with unavailable measurements.
 Add `--compiler-advisory` for threshold findings and effects, or
 `--compiler-patterns` for proposals; each retains its own input requirements.
 Ranking alone has no findings to dismiss or threshold exit; `--fail-on-findings`
 requires a requested finding analysis. Strict matching stays independent; the
 example explicitly leaves it unrequested.
+
+Add `--compiler-complexity-scope authored` to rank authored functions explicitly.
+It requires `--compiler-complexity-top`. Expansion-generated signatures stay in
+the raw unit `unavailable` roster and are listed in ranking
+`source_scope.outside_scope_functions`; they do not count as missing authored
+scores. Missing authored scores and unknown origins still prevent completeness.
+Default/explicit `captured` scope is unchanged. This scope applies only to ranking;
+numeric diagnostics, effects and compiler-pattern populations keep their own
+requirements and scope. It works in source/tool-free replay without recapture.
 
 Each unit's optional `complexity_ranking` uses schema
 `rstyle.compiler-complexity-ranking/1`. Parallel `owners` and `functions` arrays
@@ -182,7 +192,7 @@ pair report-local handles with score/location rows. `known_functions`,
 `measured_functions`, `unavailable_measurements` and `unavailable_owners` describe
 the full input, independently of `requested_limit`. Missing measurements sort
 last and retain an unavailable score; missing owners remain in the unit's
-`unavailable` list. Either makes the requested ranking incomplete, including when
+`unavailable` list. Either makes the requested ranking incomplete within its selected population, including when
 replaying historical metrics without scores, and prevents a successful exit.
 The limit truncates presentation only. The flag works on fresh captures and
 source/tool-free replay, including advisory-only mode. Without it, the existing

@@ -29,18 +29,18 @@ use std::{
     sync::Arc,
 };
 
-/// Requested discovery population; never changes strict matching or numeric coverage.
+/// Requested consumer population; never changes raw capture or strict matching.
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum, Serialize, serde::Deserialize,
 )]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum CompilerPatternScope {
+pub(crate) enum CompilerSourceScope {
     #[default]
     Captured,
     Authored,
 }
 
-impl CompilerPatternScope {
+impl CompilerSourceScope {
     fn is_default(&self) -> bool {
         *self == Self::Captured
     }
@@ -103,6 +103,10 @@ pub struct Args {
     #[arg(long)]
     #[serde(skip_serializing_if = "Option::is_none")]
     compiler_complexity_top: Option<std::num::NonZeroUsize>,
+    /// Rank captured inputs or authored functions, retaining generated owners outside the scope.
+    #[arg(long, value_enum, default_value_t = CompilerSourceScope::Captured, requires = "compiler_complexity_top")]
+    #[serde(skip_serializing_if = "CompilerSourceScope::is_default")]
+    compiler_complexity_scope: CompilerSourceScope,
     /// Capture compiler advice without strict helper certification, admission or matching.
     #[arg(long, requires = "advisory_inputs", conflicts_with_all = ["matching_config", "trace", "fail_on_accepted_pairs", "explain_pairs", "helper_proposals", "enum_dispatch", "capability_proposals", "max_pairs"])]
     compiler_advisory_only: bool,
@@ -110,9 +114,9 @@ pub struct Args {
     #[arg(long)]
     compiler_patterns: bool,
     /// Select captured inputs or authored functions, explicitly excluding expansion signatures.
-    #[arg(long, value_enum, default_value_t = CompilerPatternScope::Captured, requires = "compiler_patterns")]
-    #[serde(skip_serializing_if = "CompilerPatternScope::is_default")]
-    compiler_pattern_scope: CompilerPatternScope,
+    #[arg(long, value_enum, default_value_t = CompilerSourceScope::Captured, requires = "compiler_patterns")]
+    #[serde(skip_serializing_if = "CompilerSourceScope::is_default")]
+    compiler_pattern_scope: CompilerSourceScope,
     /// Preview legacy ledger matches against raw scoped compiler proposals; never edits the ledger.
     #[arg(long, requires = "compiler_patterns")]
     #[serde(skip_serializing_if = "Option::is_none")]

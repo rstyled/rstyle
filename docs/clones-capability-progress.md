@@ -6078,3 +6078,48 @@ generated-owner scope machinery. Compiler-selected HIR statement counts will
 not silently replace the distinct original-source spacing metric. Full scoped
 diagnostics retain separate unresolved-callee/effect prerequisites; the overall
 migration and legacy retirement gates remain open.
+
+
+### C81 — authored compiler complexity population (2026-10-29)
+
+Added explicit --compiler-complexity-scope authored, requiring a ranking request.
+Reused the existing patterns source-scope adapter and core selector/ranker;
+the shared enum is named CompilerSourceScope internally. Pattern CLI values,
+serialized scopes and captured defaults remain unchanged. Generated missing
+owners remain in the raw unit roster and are listed outside authored ranking;
+missing authored measurements and unknown origins remain incomplete. No new
+collector, scoring algorithm, hash, proof or budgets. Numeric/effect/pattern
+requirements and strict matching remain independent. Text labels the scope.
+
+All five new real-Cargo cases pass: default/explicit captured parity and raw
+rosters, generated-only empty population without synthesized scores, missing
+authored score/observation and unknown-origin controls, config exclusions,
+check/test contexts, source/tool-free replay, required ranking flag before tools,
+and unchanged combined numeric findings/coverage. Leaf acceptance was delegated
+with exclusive ownership; production, registration, docs and staging remain lead
+owned. Worker writes are frozen for integrated validation.
+
+Actual-config replay compares every score and owner in retained core run-ChBnep
+and ccgraph run-TKB31S with top2000 (above both populations). Authored scope
+completes409 and238 scores respectively, with identical full score/order arrays.
+The806 and176 generated owners remain in raw missing lists and explicit scope
+lists. Both authored requests exit0; captured defaults remain incomplete/exit2.
+Numeric/effect and strict execution are unrequested. Evidence:
+project-authored-complexity-ranking-study.json. No fresh capture, all-project
+score oracle, speedup or legacy retirement claim.
+
+Final integrated snapshot: all3,620 Rust tests pass in240.435s with five existing
+skips, plus doctests. Formatting, Clippy and244 Python checks pass. Legacy style
+has0 violations over9,942 functions; patterns has0 unreviewed candidates and
+retains the same13 unfiltered IDs as main. Final binary reproduces both recorded
+project advisory reports exactly. No ignores, thresholds or budgets changed.
+C78 native CI now passes on all three runners, including macOS; C79/C80 native
+CI remains pending at the last poll. C81 native checks await publication.
+
+Next ready slice: explicit authored numeric diagnostic selection over the
+completed core Evaluation. Reuse original diagnostic indices and source scope;
+preserve the full core summary and effect/propagation incompleteness. Carry the
+request through review visibility, changed-file selection, plan seeds and empty
+baseline scope so unrequested rules cannot produce plans or retained negatives.
+Missing requested complexity and missing authored owners must remain incomplete.
+The overall migration and capability retirement gates remain open.

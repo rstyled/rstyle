@@ -7,6 +7,7 @@ mod planning;
 mod propagation;
 mod ranking;
 mod selection;
+mod source_scope;
 #[cfg(test)]
 mod tests;
 use super::{analysis::Completion, identity::UnitId, report::Context};
@@ -500,7 +501,7 @@ fn evaluate_unit(
     let unresolved_callees = effects.unresolved_callees(&inputs.facts)?;
     let expected_functions = (ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty())
         .then_some(inputs.observations.len() + inputs.unavailable.len());
-    let ranking = ranking::Captured::new(ctx.args.compiler_complexity_top, &inputs);
+    let ranking = ranking::Captured::new(ctx.args, &inputs);
     inputs.retain_propagated(&mut effects.generated);
     let completed =
         diagnostics::evaluate(ctx, unit, inputs.take_diagnostics(effects.values), policy)?;
@@ -660,7 +661,8 @@ impl Collected {
         if ctx.args.compiler_effects_requested() {
             self.push_generated_effects(function, ctx)?;
         }
-        if ctx.args.compiler_pattern_scope == super::CompilerPatternScope::Authored
+        if (ctx.args.compiler_pattern_scope == super::CompilerSourceScope::Authored
+            || ctx.args.compiler_complexity_scope == super::CompilerSourceScope::Authored)
             && function
                 .facts
                 .source_diagnostics
