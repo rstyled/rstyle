@@ -5080,3 +5080,62 @@ previous macOS temporary-parent canonicalization fix remains present; C59 CI
 40868094682 is now green on macOS15 and both Ubuntu runners. No new macOS
 test defect was observed. Migration and capability-specific retirement gates
 remain open.
+
+### C61 — share immutable census metadata through existing transport (2026-10-29)
+
+The previous turn delivered C60 as 83a6a3a. The detailed C55 record already
+completes the emitted proposal usefulness review; it is not a new review frontier.
+A fresh source-only core review found no justified narrow guard extension, so this
+increment addresses the measured C60 source-capture cost instead of adding an
+unsupported detector or a parallel consumer algorithm.
+
+Lead owns the option-bundle input seam, schema handling, probe and measurements;
+an acceptance worker owns raw codec regressions and a read-only reviewer checks
+ownership, compatibility and trust boundaries. The existing inventory owner now
+registers census allocations by pointer identity, retaining borrowed owners for
+the registration lifetime. The first function carries the existing census record;
+subsequent functions carry a dense backward reference. Import retains the decoded
+entry and clones its Arc. No full-value comparison, source walk, JSON rendering,
+checksum, hash or proof cache is added. Equal independent owners remain distinct;
+missing/malformed options consume no IDs. The source dictionary, inherent-unit
+inventory behavior, semantic validators and budgets are unchanged.
+
+Shared 7/raw 4 publish this grammar. Shared 4–6/raw 2–3 retain their original census
+records and reject new references. Raw 3/shared 6 still accept flat bodies after
+the version bump. Wrong-key, forward, dangling and malformed references fail;
+source-table usage checks still run. This is ordinary unvalidated evidence
+ownership, with no serialized certification or relaxation of strict matching.
+Historical snapshots are not merged by content equality on import. Existing
+strict-store census value interning is outside the measured decode improvement.
+
+A fresh original rstyle-core library capture run-ChBnep under the unchanged C60
+study policy retains exactly equal compiler advice, analysis, guard plans,
+accepted pairs and strict execution status. One census definition and 1,214
+references replace 1,215 repeated census records. Bundle size falls from 44,285,215
+to 37,819,451 bytes. The package remains incomplete with exit 2; no new source or
+proposal coverage is claimed. The single fresh capture is 7.19s/401,984 KiB RSS,
+not an end-to-end speedup measurement.
+
+The prebuilt census_replay_samples probe measures raw decode separately from
+input reads and owner counting. Its two inputs contain the same new captured
+records/source table: raw4 shared census and reconstructed raw3 inline census.
+Three decodes per process, inline then shared, show median 0.459s vs 0.357s and
+peak process RSS 208,448 vs 159,440 KiB. Decoded census owners fall 1,215→1. This is
+a single ordered transport comparison, not a statistical benchmark or a claim
+about full-analysis runtime. docs/performance/census-transport-samples.json retains
+raw samples, method, comparison scope and limitations.
+
+Focused bundle tests cover pointer sharing, exact byte savings, distinct equal
+owners/contexts, mixed absent/malformed/valid order, unrelated explicit nulls,
+current-only references, historical inline formats, flat bodies and unchanged
+raw strict-import rejection. Final Clippy passes; workspace style has 0 violations
+over 9,823 functions; patterns has 0 unreviewed candidates and all 13 unfiltered IDs
+equal main. All 244 Python tests pass. The first integrated run exposed two fixture assumptions: relabeling a new
+bundle as historical without expanding census references, and mutating a census
+reference as if it were an inline record. The mutation helper now expands census
+references before edits, preventing missing-definition errors from masking the
+intended semantic rejection. Normal strict replay still reads the shared format.
+Both affected tests pass individually; final integrated validation passes all
+3,484 Rust tests in 226.285s with 5 existing skips, plus doc tests. Final locked
+all-target Clippy, formatting and diff checks also pass.
+Logs use /tmp/clones-c61-*. Migration and capability retirement remain open.

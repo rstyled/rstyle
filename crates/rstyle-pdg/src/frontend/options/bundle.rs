@@ -18,6 +18,7 @@ enum EntryView<'a> {
 enum KnownExport<'a> {
     Inline(&'a Entry),
     Census(records::CensusExport<'a>),
+    CensusReference(u32),
     Origins(records::OriginsExport<'a>),
     InherentUnit(u32),
 }
@@ -32,6 +33,7 @@ enum KnownExport<'a> {
 enum KnownImport {
     Inline(Value),
     Census(Box<records::CensusImport>),
+    CensusReference(u32),
     Origins(records::OriginsImport),
     InherentUnit(u32),
 }
@@ -51,9 +53,15 @@ impl<'a> Export<'a> {
             .iter()
             .map(|(key, entry)| {
                 let value = match entry {
-                    Entry::Census(record) => EntryView::Source(KnownExport::Census(
-                        records::CensusExport::new(&record.value, sources)?,
-                    )),
+                    Entry::Census(record) => {
+                        EntryView::Source(match inventories.census_reference(&record.value)? {
+                            Some(index) => KnownExport::CensusReference(index),
+                            None => KnownExport::Census(records::CensusExport::new(
+                                &record.value,
+                                sources,
+                            )?),
+                        })
+                    }
                     Entry::Origins(record) => EntryView::Source(KnownExport::Origins(
                         records::OriginsExport::new(record, sources)?,
                     )),
@@ -117,7 +125,10 @@ impl KnownImport {
         match self {
             Self::Inline(value) => Ok(Entry::new(key, value)),
             Self::Census(value) if key == crate::nominal_boundary::census::KEY => {
-                (*value).decode(sources)
+                Ok(inventories.retain_census((*value).decode(sources)?))
+            }
+            Self::CensusReference(index) if key == crate::nominal_boundary::census::KEY => {
+                inventories.census(index)
             }
             Self::Origins(value) if key == crate::declaration_origins::KEY => value.decode(sources),
             Self::InherentUnit(index) if key == crate::inherent_calls::UNIT_KEY => {

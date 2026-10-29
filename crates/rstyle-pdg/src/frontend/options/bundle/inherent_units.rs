@@ -4,9 +4,24 @@ use super::*;
 #[derive(Default)]
 pub(crate) struct Inventories<'a> {
     records: Vec<&'a super::super::inherent_units::Inventory>,
+    censuses: BTreeMap<usize, (u32, &'a Arc<crate::nominal_boundary::census::Census>)>,
 }
 
 impl<'a> Inventories<'a> {
+    pub(super) fn census_reference(
+        &mut self,
+        census: &'a Arc<crate::nominal_boundary::census::Census>,
+    ) -> Result<Option<u32>, String> {
+        let next = u32::try_from(self.censuses.len()).map_err(|_| "Oversized census table")?;
+        match self.censuses.entry(Arc::as_ptr(census) as usize) {
+            std::collections::btree_map::Entry::Occupied(entry) => Ok(Some(entry.get().0)),
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert((next, census));
+                Ok(None)
+            }
+        }
+    }
+
     pub(super) fn reference(
         &mut self,
         record: &'a super::super::inherent_units::Inventory,
@@ -34,6 +49,8 @@ pub(crate) struct ImportedInventories {
     entries: Vec<Entry>,
     used: Vec<bool>,
     legacy: bool,
+    censuses: Vec<Entry>,
+    shared_censuses: bool,
 }
 
 impl ImportedInventories {
@@ -70,7 +87,30 @@ impl ImportedInventories {
             used: vec![false; entries.len()],
             entries,
             legacy,
+            censuses: Vec::new(),
+            shared_censuses: false,
         })
+    }
+
+    pub(crate) fn share_censuses(&mut self, enabled: bool) {
+        self.shared_censuses = enabled;
+    }
+
+    pub(super) fn retain_census(&mut self, entry: Entry) -> Entry {
+        if self.shared_censuses {
+            self.censuses.push(entry.clone());
+        }
+        entry
+    }
+
+    pub(super) fn census(&self, index: u32) -> Result<Entry, String> {
+        if !self.shared_censuses {
+            return Err("Shared census reference requires the current bundle schema".into());
+        }
+        self.censuses
+            .get(index as usize)
+            .cloned()
+            .ok_or_else(|| "Dangling or forward census reference".into())
     }
 
     pub(super) fn legacy(&self) -> bool {

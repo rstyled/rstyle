@@ -1,6 +1,6 @@
-# Shared unit bundle version 6
+# Shared unit bundle version 7
 
-The internal `rstyle.shared-unit/6` JSON bundle contains one unit's owned
+The internal `rstyle.shared-unit/7` JSON bundle contains one unit's owned
 frontend and graph records. It is available through
 `UnitStore::{write_bundle,from_bundle}` and is the normal driver/CLI handoff. It does not replace the pinned standalone PDG/CFG
 schemas or reinterpret their existing manifest hashes.
@@ -16,12 +16,21 @@ Missing children, extra roots, hidden nested children and unknown record fields
 are rejected. Representation selection is unrelated to semantic admission.
 
 Versions 4 and 5 remain readable with their original nested-body grammar. Flat
-bodies require version 6; merely changing a schema label does not enable them
+bodies require version 6 or 7; merely changing a schema label does not enable them
 in historical formats. Shared diagnostic snapshots use
-`rstyle.diagnostic.raw-facts/3` with the same body codec and still read version 2
-trees. Neither format change grants generated trust or strict admission. Graph
+`rstyle.diagnostic.raw-facts/4` with the same body codec and still read version 3
+flat bodies and version 2 trees. Neither format change grants generated trust or strict admission. Graph
 and source validation and metric identities are unchanged. No new hashes,
 checksums, source proofs or artifact scans are introduced.
+
+Version 7 retains a census definition at its first function occurrence. Later
+functions that borrow the same immutable census use `census_reference` with a
+publication-local dense ID. Import decodes the definition once and shares its
+`Arc` with subsequent owners. Separate equal census allocations remain distinct;
+there is no equality scan or hash. References must follow their definition and
+use the census option key. Historical shared versions 4–6 and raw versions 2–3
+retain inline census decoding and reject the new reference kind. This shares
+metadata in addition to file bytes, without changing source budgets or validation.
 
 | Field | Meaning |
 | --- | --- |
@@ -200,3 +209,30 @@ runtime fallback remains. See [matching build metadata](matching-build-metadata.
 Concrete struct/field source text now uses checked immutable ranges; exact
 origin bytes and full nominal keys select storage sharing, while semantic
 validation stays separate. See [declaration ranges](declaration-ranges.md).
+
+## Census metadata reuse
+
+The version-7/shared and version-4/raw change keeps first-use census definitions
+inline and replaces repeated occurrences of the same immutable owner with dense
+back-references. It reuses the existing option-bundle inventory lifetime and
+source dictionary. Registration holds borrowed owners; lookup uses allocation
+identity, without rendering JSON, comparing full files or hashing. Import retains
+the decoded census entry and clones its `Arc` for subsequent references. Missing
+and malformed original options do not consume IDs. The importer still checks
+source references, and semantic ownership checks remain with their consumers.
+
+The [C61 samples](census-transport-samples.json) use the original rstyle-core
+library check capture and the same explicit source policy as C60. Compiler advice,
+source assessments, guard plans and strict execution status are exactly equal.
+The 1,215-function payload has one census definition and 1,214 references, reducing
+44,285,215 bytes to 37,819,451 bytes. The inline comparison reconstructs the same
+snapshot's prior raw3 representation; it is not a recapture or another policy.
+
+A prebuilt debug `census_replay_samples` probe measured three decodes per process,
+inline first then shared. Median decode time was 0.459s versus 0.357s; peak process
+RSS was 208,448 versus 159,440 KiB. Input reads and owner counting are outside the
+decode timer. This single ordered comparison is a transport observation, not a
+whole-analysis speedup claim. The fresh capture took 7.19s and remained incomplete
+with exit 2. Historical inline snapshots retain separate recorded owners on load;
+they are not merged by content equality. Source budgets and strict clone matching
+are unchanged.

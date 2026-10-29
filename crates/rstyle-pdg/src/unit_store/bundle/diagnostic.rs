@@ -4,7 +4,7 @@ use crate::{HirFnFacts, SourceSnapshot, frontend::option_bundle, source_table};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 
-pub const RAW_FACTS_SCHEMA: &str = "rstyle.diagnostic.raw-facts/3";
+pub const RAW_FACTS_SCHEMA: &str = "rstyle.diagnostic.raw-facts/4";
 
 #[derive(Serialize)]
 struct Export<'a> {
@@ -70,7 +70,12 @@ pub fn read_diagnostic_snapshot_phase(
 
 fn read_snapshot(bytes: &[u8], expected: Option<&str>) -> Result<Vec<HirFnFacts>, String> {
     let wire: Import = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
-    if ![RAW_FACTS_SCHEMA, "rstyle.diagnostic.raw-facts/2"].contains(&wire.schema.as_str())
+    if ![
+        RAW_FACTS_SCHEMA,
+        "rstyle.diagnostic.raw-facts/3",
+        "rstyle.diagnostic.raw-facts/2",
+    ]
+    .contains(&wire.schema.as_str())
         || wire.phase.is_empty()
     {
         return Err("Unsupported or unlabelled raw diagnostic snapshot".into());
@@ -81,8 +86,10 @@ fn read_snapshot(bytes: &[u8], expected: Option<&str>) -> Result<Vec<HirFnFacts>
 
     let mut inventories =
         option_bundle::ImportedInventories::new(Some(wire.inherent_units), false)?;
+    inventories.share_censuses(wire.schema == RAW_FACTS_SCHEMA);
     let mut sources = source_table::Imported::new(&wire.sources);
-    let flat_bodies = wire.schema == RAW_FACTS_SCHEMA;
+    let flat_bodies =
+        [RAW_FACTS_SCHEMA, "rstyle.diagnostic.raw-facts/3"].contains(&wire.schema.as_str());
     let facts = wire
         .facts
         .into_iter()

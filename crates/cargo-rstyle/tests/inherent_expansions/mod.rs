@@ -169,6 +169,7 @@ fn check_strict_inherent_wire(wire: &Value) -> Result<rstyle_pdg::unit_store::Un
 }
 
 fn historical_inherent_wire(mut wire: Value) -> Value {
+    shared_evidence::expand_censuses(&mut wire);
     let inventories = wire
         .as_object_mut()
         .unwrap()
