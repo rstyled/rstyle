@@ -96,11 +96,7 @@ pub(crate) fn function_facts(
         has_self,
         statements: body_facts.statements,
         top_statements: top_statements(body),
-        complexity: options.complexity.and_then(|functions| functions.get(&sig.span.lo())).map(|nodes| {
-            let mut nodes = nodes.clone();
-            nodes.extend(body_facts.recursions);
-            rstyle_core::complexity::Measurement::score(&nodes)
-        }),
+        complexity: options.measure_complexity(sig.span, body_facts.recursions),
         source,
         preceding_line: lines_above(&start.file, start.line),
         mutations,
@@ -113,6 +109,19 @@ pub(crate) fn function_facts(
             .with_pdg
             .then(|| pdg::pdg_of(tcx, def_id, body, root)),
     })
+}
+
+impl Options<'_> {
+    fn measure_complexity(
+        &self,
+        span: Span,
+        recursions: Vec<rstyle_core::complexity::Node>,
+    ) -> Option<rstyle_core::complexity::Measurement> {
+        let nodes = self.complexity?.get(&span.lo())?;
+        let mut nodes = nodes.clone();
+        nodes.extend(recursions);
+        Some(rstyle_core::complexity::Measurement::score(&nodes))
+    }
 }
 
 fn implemented_trait_method(tcx: TyCtxt<'_>, def_id: LocalDefId) -> Option<String> {

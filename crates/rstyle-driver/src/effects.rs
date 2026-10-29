@@ -53,7 +53,6 @@ pub fn collect<'tcx>(
     };
     let mut walker = Walker {
         tcx,
-        owner: def_id.to_def_id(),
         typeck: tcx.typeck(def_id),
         root: options.root.to_path_buf(),
         metric: options.metric,
@@ -77,7 +76,6 @@ struct Target {
 
 struct Walker<'tcx> {
     tcx: TyCtxt<'tcx>,
-    owner: DefId,
     typeck: &'tcx TypeckResults<'tcx>,
     root: PathBuf,
     metric: Metric,
@@ -138,7 +136,7 @@ impl<'tcx> Walker<'tcx> {
     }
 
     fn recursion(&mut self, target: DefId, span: Span) {
-        if target != self.owner || span.from_expansion() {
+        if target != self.owner.to_def_id() || span.from_expansion() {
             return;
         }
         let location = self.tcx.sess.source_map().lookup_char_pos(span.lo());
