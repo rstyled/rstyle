@@ -3050,3 +3050,92 @@ reviewed IDs with none added or absent (`/tmp/clones-indexed-planning-patterns-1
 and `/tmp/clones-indexed-planning-patterns-unfiltered-1`). No review entries,
 thresholds, budgets or extraction permissions changed. This checkpoint validates
 the reusable core seam only; contextual CLI planning remains the next ready task.
+
+## C26: reuse completed core plans across captured dependency units
+
+Owner/write set: lead; compiler advisory CLI/adapter, core group text formatter,
+compiler advisory tests, embedded skill/contract and project study/matrix/progress.
+C26a (`4c1355a`) supplies the borrowed owner-indexed core seam. The new opt-in
+`--compiler-plans` retains the already resolved effect graph and its exact
+unit/function owner roster. Core diagnostic indices survive sorting and map
+into that roster by scoped compiler ID. The same core grouping/stacking policy
+then emits ordinary reports plus exact member, step and bundle-carrier keys.
+The core group formatter supplies text output, including bundle/pass-through
+suggestions. No second planner, graph/body copies, source/type/body proof,
+checksums, artifact scans or dependency resolution pass is introduced.
+
+Default evaluation still finishes and drops/moves one unit at a time; only the
+explicit plan request retains selected facts until shared planning is done.
+Completed facts then move into optional compiler proposal mining. Raw per-unit
+evaluations, summaries, finding counts and strict matching are unchanged. Named
+suppressions and core exclusions/caller policy apply; reviews and changed-file
+presentation leave raw plans intact. Plans describe captured calls and heuristic
+edit suggestions, not external caller completeness, semantic type equivalence,
+whole-plan independence or rewrite safety.
+
+Nine real-Cargo tests pass (`/tmp/clones-cross-unit-planning-focused-2`):
+cross-package signature order, bundles/pass-through, optional source-free
+full/compact replay, generated/missing/excluded targets, original suppressions
+and policy replay, ambiguous check/test contexts, known-empty single units,
+local/foreign compiler-path collisions, core text/CLI requirements and
+composition with patterns/reviews/changed-file selection. The previous seven-case
+focused run also passes. The first style run reported three spacing issues and
+a 51-line propagation function. Cohesive selected-row extraction and phase
+separation restore zero violations over 9,714 functions
+(`/tmp/clones-cross-unit-planning-style-2`), without thresholds or suppressions.
+Clippy passes (`/tmp/clones-cross-unit-planning-clippy-1`); final gates follow.
+
+Before running the production planner, source inspection labeled three concrete
+signature/caller relations in `project-compiler-planning-cases.json`. Explicit
+policy sets `fn_params.max_params=2`; no defaults changed. Serial replay of the
+same C25 `run-ynuMSl` yields the same 1,568 known owners and 509 diagnostics both
+ways. Baseline per-unit groups are 147 CLI + 51 core. Optional shared planning
+has 195 groups, three with steps in both units, and all three expected
+relations. Both `evaluate_retained` and `evaluate_with_effects` include their
+shared exact `diagnostics::evaluate_core` caller; `all_effects` includes
+`propagation::evaluate`. The entire advisory report minus optional planning,
+strict matching and accepted-pair output are exactly equal. Captured
+input completeness stays false; both exit 2, with 1,428/722 unavailable CLI/core
+owners and 87 unresolved CLI targets. All 3,718 strict functions remain excluded.
+Only the three labeled relations are quality-checked, not all raw plans or
+numeric findings. Commands, exact keys, observations and limits are in the
+project study and `project-compiler-planning-results.json`.
+
+The serial no-plan/plan samples take 16.89/16.81 seconds and
+1,440,112/1,440,148 KiB RSS. Filesystem page-cache states differ. This establishes
+no speedup; the capability gain is contextual caller-aware planning with the
+existing core algorithm. Source/tool-free replay is independently tested on
+fixtures; original production sources remain present. Broader quality and
+per-capability retirement remain incomplete. Next ready work includes
+independent review of production advisory findings, contextual planning-quality
+limits and dependency method resolution where it unlocks named consumer cases.
+
+The first full checkpoint passes all 3,314 tests with five existing skips, plus
+doc tests (`/tmp/clones-cross-unit-planning-tests-1`, 217.154 seconds). Its
+subsequent pattern gate finds one new cross-domain structural candidate,
+`2beffe78d944`, between the local fallback constructor and `CapturedSources::new`.
+The fallback needs only the number of units, so it now accepts that count instead
+of a collected-input slice and constructs the result directly. No unrelated
+validator or ignore entry changes. Reviewed patterns now pass
+(`/tmp/clones-cross-unit-planning-patterns-2`); unfiltered discovery is exactly
+the original fourteen reviewed IDs, none new or absent
+(`/tmp/clones-cross-unit-planning-patterns-unfiltered-2`). Final-snapshot style,
+full tests and Clippy follow this small constructor change. The production
+measurement paths both resolve cross-unit edges and do not use this local fallback.
+
+Final production snapshot: zero style violations over 9,714 functions
+(`/tmp/clones-cross-unit-planning-style-final-1`); all 3,314 nextest cases pass
+with five existing skips, plus doc tests, in 214.877 seconds
+(`/tmp/clones-cross-unit-planning-tests-final-1`). Both original NonZero cases
+and the u32 widening composition pass. Final all-target Clippy then exposed a
+61-line new acceptance test. Its review setup is now a named fixture helper;
+no production implementation or assertions changed. All nine affected cases
+pass after that test-only extraction
+(`/tmp/clones-cross-unit-planning-focused-final-1`), and final workspace/all-target
+Clippy passes (`/tmp/clones-cross-unit-planning-clippy-final-2`). Formatting and
+diff checks pass. The prior Clippy rejection is not passing evidence; the full
+suite above preceded only this test-helper extraction. Both pattern gates pass
+with exactly fourteen existing reviewed IDs. No thresholds, ignores,
+suppressions, budgets or extraction permissions changed. The contextual planning
+capability is delivered over its declared captured scope; broader quality and
+the full migration remain incomplete.

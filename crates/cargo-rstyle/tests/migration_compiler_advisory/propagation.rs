@@ -3,7 +3,7 @@ use super::*;
 const IO: &str = "pub fn leaf(){std::fs::write(\"/unused\",b\"x\").ok();}";
 const CALLER: &str = "pub fn caller(){renamed::leaf();}";
 
-fn workspace(leaf: &str) -> TempDir {
+pub(super) fn workspace(leaf: &str) -> TempDir {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("Cargo.toml"),
@@ -30,13 +30,13 @@ fn workspace(leaf: &str) -> TempDir {
     directory
 }
 
-fn capture(directory: &Path, extra: &[&str]) -> (Output, Value) {
+pub(super) fn capture(directory: &Path, extra: &[&str]) -> (Output, Value) {
     let mut args = vec!["--extraction-profile", "hir-data-v3", "--compiler-advisory"];
     args.extend_from_slice(extra);
     clones(directory, &args)
 }
 
-fn unit<'a>(report: &'a Value, name: &str) -> &'a Value {
+pub(super) fn unit<'a>(report: &'a Value, name: &str) -> &'a Value {
     report["compiler_advisory"]["units"]
         .as_array()
         .unwrap()
@@ -51,7 +51,7 @@ fn io(unit: &Value) -> u64 {
         .unwrap_or(0)
 }
 
-fn checked(output: &Output, code: i32) {
+pub(super) fn checked(output: &Output, code: i32) {
     assert_eq!(
         output.status.code(),
         Some(code),

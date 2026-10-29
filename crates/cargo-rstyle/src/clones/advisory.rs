@@ -1,6 +1,7 @@
 //! Reuse core policy over compiler-collected inputs, scoped by compilation unit.
 mod diagnostics;
 mod patterns;
+mod planning;
 mod propagation;
 mod selection;
 use super::{analysis::Completion, identity::UnitId, report::Context};
@@ -24,6 +25,8 @@ pub(super) struct Report {
     pub findings: usize,
     limitations: &'static [&'static str],
     units: Vec<Unit>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    planning: Option<planning::Report>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pattern_review: Option<super::review::compiler_patterns::Report>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -148,7 +151,11 @@ impl Report {
             .collect::<Vec<_>>()
             .join("\n");
         let summaries = self.render_summaries();
-        format!("{summary}{diagnostics}{patterns}{summaries}")
+        let planning = self
+            .planning
+            .as_ref()
+            .map_or_else(String::new, planning::Report::render);
+        format!("{summary}{diagnostics}{patterns}{summaries}{planning}")
     }
 
     fn render_summaries(&self) -> String {
@@ -297,17 +304,8 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
         .iter()
         .map(|unit| collect_inputs(ctx, unit.id))
         .collect::<Result<Vec<_>, _>>()?;
-    let effects = propagation::evaluate(ctx, &inputs, config)?;
-    let units = ctx
-        .handoff
-        .unit_contexts
-        .iter()
-        .zip(inputs)
-        .zip(effects)
-        .map(|((unit, inputs), effects)| {
-            evaluate_unit(ctx, unit, &policy, Prepared { inputs, effects })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let propagated = propagation::evaluate(ctx, &inputs, config)?;
+    let (units, planning) = evaluate_units(ctx, &policy, inputs, propagated)?;
     let complete = ctx.capture.failures.is_empty()
         && ctx.handoff.failures.is_empty()
         && !units.is_empty()
@@ -327,12 +325,49 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
             "Compiler patterns use approximate advisory graphs and bounded core discovery; input completeness is not exhaustive proposal coverage or refactoring safety.",
         ],
         units,
+        planning,
         pattern_review: None,
         diagnostic_review: None,
         diagnostic_baseline: None,
         pattern_baseline: None,
         changed_scope: None,
     }))
+}
+
+fn evaluate_units(
+    ctx: &Context<'_>,
+    policy: &Rc<serde_json::Value>,
+    inputs: Vec<Collected>,
+    propagated: propagation::Evaluation,
+) -> Result<(Vec<Unit>, Option<planning::Report>), String> {
+    let evaluated = ctx
+        .handoff
+        .unit_contexts
+        .iter()
+        .zip(inputs)
+        .zip(propagated.units)
+        .map(|((unit, inputs), effects)| {
+            evaluate_unit(ctx, unit, policy, Prepared { inputs, effects })
+        });
+
+    let Some(captured) = propagated.planning else {
+        let units = evaluated
+            .zip(&ctx.handoff.unit_contexts)
+            .map(|(ready, unit)| ready.map(|ready| ready.finish(ctx, unit)))
+            .collect::<Result<Vec<_>, _>>()?;
+        return Ok((units, None));
+    };
+    let ready = evaluated.collect::<Result<Vec<_>, _>>()?;
+    let config = ctx
+        .compiler_advisory_config
+        .ok_or("Compiler planning policy was not requested")?;
+    let planning = captured.evaluate(ctx, &ready, config)?;
+    let units = ready
+        .into_iter()
+        .zip(&ctx.handoff.unit_contexts)
+        .map(|(ready, unit)| ready.finish(ctx, unit))
+        .collect();
+    Ok((units, Some(planning)))
 }
 
 pub(super) fn configuration(args: &super::Args) -> Result<Option<Config>, String> {
@@ -362,7 +397,7 @@ fn evaluate_unit(
     unit: &super::identity::UnitContext,
     policy: &Rc<serde_json::Value>,
     prepared: Prepared,
-) -> Result<Unit, String> {
+) -> Result<Ready, String> {
     let Prepared { inputs, effects } = prepared;
     let root = &ctx.capture.units[unit.observed_unit].target.manifest_dir;
     let unresolved_callees =
@@ -378,17 +413,8 @@ fn evaluate_unit(
         },
         policy,
     )?;
-    let patterns = evaluate_patterns(
-        ctx,
-        unit,
-        patterns::Inputs {
-            facts: completed.facts,
-            missing: inputs.missing_graphs,
-            unavailable_functions: inputs.unavailable.len(),
-        },
-    );
 
-    Ok(Unit {
+    let report = Unit {
         unit: unit.id,
         package_root: root.clone(),
         source_root: ctx.capture.plan.root.clone(),
@@ -403,8 +429,36 @@ fn evaluate_unit(
         diagnostic_owners: completed.owners,
         visible_diagnostics: None,
         selected_diagnostics: None,
-        patterns,
+        patterns: None,
+    };
+    Ok(Ready {
+        unit: report,
+        facts: completed.facts,
+        diagnostic_indices: completed.diagnostic_indices,
+        missing_graphs: inputs.missing_graphs,
     })
+}
+
+struct Ready {
+    unit: Unit,
+    facts: Vec<FnFacts>,
+    diagnostic_indices: Vec<usize>,
+    missing_graphs: Vec<Missing>,
+}
+
+impl Ready {
+    fn finish(mut self, ctx: &Context<'_>, unit: &super::identity::UnitContext) -> Unit {
+        self.unit.patterns = evaluate_patterns(
+            ctx,
+            unit,
+            patterns::Inputs {
+                facts: self.facts,
+                missing: self.missing_graphs,
+                unavailable_functions: self.unit.unavailable.len(),
+            },
+        );
+        self.unit
+    }
 }
 
 fn evaluate_patterns(

@@ -384,8 +384,21 @@ Core propagation borrows captured owners and completed effects move into rule
 evaluation, with no extra hash, artifact scan, source proof or body/graph copy.
 Hop limits and suppression boundaries are unchanged. Missing, generated, excluded,
 ambiguous and associated-method targets remain unresolved; indistinguishable
-check/test graph descriptors never share inputs. Cross-unit plans/proposals stay
-out of scope. Strict clone admission and pair budgets remain independent.
+check/test graph descriptors never share inputs. Cross-unit plans require the
+explicit flag below; proposal mining remains per unit. Strict clone admission
+and pair budgets remain independent.
+
+Add `--compiler-plans` to reuse the existing core fix groups and parameter
+stacking across uniquely resolved captured dependency units. The optional
+`compiler_advisory.planning` reports exact unit-qualified member, step and bundle
+carrier keys alongside core plans. It consumes completed rule owners and the
+already resolved effects graph; no new body proofs, hashes or graph copies.
+It can also be requested for the first time during saved-run replay. Raw plans
+retain the full assessed scope when reviews/changed files filter diagnostic
+presentation.
+Missing/ambiguous inputs remain incomplete; external callers and cross-context
+physical edit overlaps are not certified, and bundle type names remain heuristic.
+Default per-unit evaluation and strict clone matching stay unchanged.
 
 Add `--compiler-patterns` to reuse existing compiler graphs and the core
 trait/capability/generic/helper/dispatch proposer. Graph collection is opt-in;

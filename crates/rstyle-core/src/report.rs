@@ -145,7 +145,8 @@ pub fn diagnostic_line(d: &Diagnostic) -> String {
     )
 }
 
-fn group_lines(group: &FixGroup) -> Vec<String> {
+/// Source-located members and parameter suggestions for one completed fix group.
+pub fn group_lines(group: &FixGroup) -> Vec<String> {
     let head = format!(
         "  group {} ({} functions; land together or stack in this order):",
         group.id,

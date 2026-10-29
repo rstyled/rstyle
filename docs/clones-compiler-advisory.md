@@ -69,7 +69,7 @@ report-local dependency unit IDs; unresolved IDs retain the existing roster.
 Facts are borrowed while core constructs and propagates the shared call graph.
 Completed effect vectors then move into each unit's ordinary rule evaluation,
 without copying bodies/graphs or repeating propagation. Source rules, fix groups,
-parameter plans and proposal mining remain separated by compilation unit.
+parameter plans and proposal mining remain separated by compilation unit by default.
 Existing hop limits, outward effect kinds and suppression boundaries apply to
 cross-package calls exactly as to local calls. This is the existing compiler
 metric, not a purity or semantic-equivalence proof.
@@ -80,9 +80,43 @@ uncaptured/generated/excluded targets and ambiguous Cargo contexts remain
 unresolved. Cargo can emit indistinguishable descriptors for check/test library
 occurrences; neither is chosen by order. A dependency's missing propagation inputs
 also prevent completed density negatives, while direct rule assessments remain
-independent. Single-unit runs retain their existing evaluation path. Matching
+independent. Without the planning flag below, single-unit runs retain their
+existing evaluation path. Matching
 budgets and strict clone admission do not grant or prevent advisory propagation.
 Source/tool-free replay uses the same captured graph and owner identities.
+
+## Cross-unit compiler planning
+
+Add `--compiler-plans` to `--compiler-advisory` to run the existing core fix-group
+and parameter-stacking planner over the same resolved graph used for compiler
+effects. This is an analysis switch, so an already captured advisory run can
+request it with `--replay-run` without source files, Cargo or rustc. Without this
+flag the shared graph and planning owner registry are not retained.
+
+`compiler_advisory.planning` has schema `rstyle.compiler-planning/1`, the known
+function count, captured `input_complete` status, limitations and groups. Each
+group contains the ordinary core `evaluation` plus report-local function keys:
+`members` align with its functions, `step_owners` align with plan steps, and
+`bundle_owners` retain the distinct carriers of each bundle. Source paths/names
+remain presentation fields; owners stay unit-qualified even when locations or
+names coincide. The existing core text formatter also displays these plans.
+
+Completed owner-indexed rule results feed the planner; it does not evaluate
+rules again, clone graphs/bodies, parse source, check hashes or resolve dependency
+edges again. Per-unit diagnostics, summaries, fix groups, findings and strict
+matching remain unchanged. After planning, original facts move into optional
+proposal mining. Named suppressions, core grouping/caller-hop policy and path
+exclusions apply. Reviews and changed-file selection affect diagnostic
+presentation as before; these raw plans continue to show the whole assessed scope.
+
+A plan describes captured callers and heuristic edits, not a safe rewrite or
+whole-program independence. Missing/generated/excluded targets and ambiguous
+contexts keep inputs incomplete. Even `input_complete=true` does not enumerate
+callers outside the selected Cargo scope. Same-body edits across compilation
+contexts may overlap. Parameter name/type bundle keys and shared-type hints
+retain core's advisory heuristic policy; they do not establish cross-unit semantic
+type identity. This flag neither grants strict clone admission nor changes
+finding-exit counts. Legacy style/planning remains available.
 
 Add `--compiler-patterns` to collect the existing compiler advisory dependence
 graphs and run the existing core abstraction proposer. This flag requires

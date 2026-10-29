@@ -1,0 +1,78 @@
+{
+  "schema": "rstyle.compiler-planning-project-observation/1",
+  "implementation": "C26 shared compiler planning after 4c1355a",
+  "host": "aarch64-unknown-linux-gnu",
+  "toolchain": "nightly-2026-09-30",
+  "saved_run": "run-ynuMSl",
+  "selection": [
+    "cargo-rstyle",
+    "rstyle-core"
+  ],
+  "labels": "project-compiler-planning-cases.json",
+  "policy": "project-compiler-planning-policy.toml",
+  "before": {
+    "elapsed_seconds": 16.89,
+    "peak_rss_kib": 1440112,
+    "exit_code": 2,
+    "shared_planning_requested": false,
+    "known_functions": 1568,
+    "per_unit_fix_groups": [
+      147,
+      51
+    ]
+  },
+  "after": {
+    "elapsed_seconds": 16.81,
+    "peak_rss_kib": 1440148,
+    "exit_code": 2,
+    "shared_planning_requested": true,
+    "input_complete": false,
+    "known_functions": 1568,
+    "groups": 195,
+    "groups_with_steps_in_multiple_units": 3
+  },
+  "checks": {
+    "advisory_without_optional_plans_exactly_equal": true,
+    "matching_exactly_equal": true,
+    "accepted_pairs_exactly_equal": true,
+    "capture_failures": [],
+    "handoff_failures": [],
+    "cases": [
+      {
+        "callee": "rstyle_core::evaluate_retained",
+        "caller": "cargo_rstyle::clones::advisory::diagnostics::evaluate_core",
+        "callee_owner": "function:u1:f1094",
+        "caller_owner": "function:u0:f2",
+        "group": 1,
+        "expected_signature_and_caller_present": true
+      },
+      {
+        "callee": "rstyle_core::evaluate_with_effects",
+        "caller": "cargo_rstyle::clones::advisory::diagnostics::evaluate_core",
+        "callee_owner": "function:u1:f1095",
+        "caller_owner": "function:u0:f2",
+        "group": 1,
+        "expected_signature_and_caller_present": true
+      },
+      {
+        "callee": "rstyle_core::all_effects",
+        "caller": "cargo_rstyle::clones::advisory::propagation::evaluate",
+        "callee_owner": "function:u1:f1087",
+        "caller_owner": "function:u0:f11",
+        "group": 1,
+        "expected_signature_and_caller_present": true
+      }
+    ]
+  },
+  "limits": [
+    "Both runs exit 2 because generated/unavailable owners and unresolved targets keep advisory inputs incomplete.",
+    "All 3718 strict functions are excluded and no pairs are accepted; this is not broad strict coverage.",
+    "Only the three pre-labeled cross-unit planning relationships are independently checked; the remaining raw plans and 509 diagnostics are not quality-reviewed.",
+    "One serial replay pair with different filesystem page-cache states establishes no wall-time speedup.",
+    "Plans are core heuristics over captured callers; no whole-program independence, cross-unit type equivalence or rewrite safety is certified."
+  ],
+  "evidence": [
+    "/tmp/clones-cross-unit-planning-project-before-1",
+    "/tmp/clones-cross-unit-planning-project-after-1"
+  ]
+}

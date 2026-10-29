@@ -10,6 +10,7 @@ use std::rc::Rc;
 pub(super) struct Completed {
     pub evaluation: Report,
     pub facts: Vec<FnFacts>,
+    pub diagnostic_indices: Vec<usize>,
     pub snapshots: Vec<Result<compiler_diagnostics::Snapshot, String>>,
     pub owners: Vec<compiler_diagnostics::observed::Assessed>,
 }
@@ -39,6 +40,7 @@ pub(super) fn evaluate(
         return Ok(Completed {
             evaluation,
             facts,
+            diagnostic_indices: evaluated.diagnostic_owners,
             snapshots: Vec::new(),
             owners: Vec::new(),
         });
@@ -50,6 +52,7 @@ pub(super) fn evaluate(
     Ok(Completed {
         evaluation: evaluated.report,
         facts: evaluated.facts,
+        diagnostic_indices: evaluated.diagnostic_owners,
         snapshots,
         owners,
     })
@@ -62,7 +65,7 @@ fn retention(ctx: &Context<'_>) -> rstyle_core::Retention {
             .compiler_baseline_requested(crate::clones::CompilerBaseline::Diagnostics)
     {
         rstyle_core::Retention::Scopes
-    } else if ctx.args.review_file.is_some() {
+    } else if ctx.args.review_file.is_some() || ctx.args.compiler_plans {
         rstyle_core::Retention::Owners
     } else {
         rstyle_core::Retention::Report

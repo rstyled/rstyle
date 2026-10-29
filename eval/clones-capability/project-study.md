@@ -470,3 +470,57 @@ rejected before loading evidence. The successful command is the preceding
 capture command with package/build options removed and
 `--replay-run target/rstyle/clones/run-ynuMSl` appended (no `--locked`). The small
 compiler regression separately deletes its source before replay.
+
+## Cross-unit compiler planning on the C25 saved project scope
+
+The source-inspected labels in
+[`project-compiler-planning-cases.json`](project-compiler-planning-cases.json)
+precede planner execution. With an explicit two-parameter study limit,
+`rstyle_core::{evaluate_retained,evaluate_with_effects,all_effects}` require
+signature steps and their exact existing cargo-rstyle caller owners. The first
+two share `diagnostics::evaluate_core`; the third is called by
+`propagation::evaluate`. This tests advisory planning, not strict clones or
+safe rewrites. The policy retains C25's one-mutated-target study limit; production
+defaults are unchanged.
+
+Both observations use the same current binary and explicit C25 saved run
+`run-ynuMSl`; they do not recapture or silently select a latest successful run.
+Run once without `--compiler-plans` (baseline) and once with it:
+
+```sh
+env PATH=/home/dev/.cargo/bin:$PATH CARGO_TARGET_DIR=target \
+python3 scripts/watchdog.py --timeout 180 \
+  --output /tmp/clones-cross-unit-planning-project-after-1 -- \
+  /usr/bin/time -v target/debug/cargo-rstyle rstyle --format json clones \
+  --extraction-profile hir-data-v3 --compiler-advisory --compiler-plans \
+  --compiler-advisory-config eval/clones-capability/project-compiler-planning-policy.toml \
+  --max-pairs 0 --report-detail compact \
+  --replay-run target/rstyle/clones/run-ynuMSl
+```
+
+Baseline per-unit groups are 147 CLI and 51 core. The optional shared planner
+returns 195 groups over the same 1,568 known functions; three groups contain
+steps from both units. All three labeled signature/caller relationships are
+present, and the first two callees share `evaluate_core`'s edit footprint. Their
+exact keys and group are in
+[`project-compiler-planning-results.json`](project-compiler-planning-results.json).
+The complete advisory report with only the new optional planning field removed
+is exactly equal to baseline, as are strict matching and accepted-pair reports.
+No findings or strict permissions changed.
+
+Both executions exit 2. The CLI/core still have 1,428/722 unavailable owners;
+87 CLI callees remain unresolved. Shared `input_complete` is false. All 3,718
+strict functions remain excluded, with zero accepted pairs. Only the three
+pre-labeled planning relationships are independently checked; the remaining raw
+plans and 509 diagnostics under this study policy are not quality-reviewed.
+External callers, physical edits across compilation contexts, type equivalence
+and safe rewrites remain outside this heuristic planning claim.
+
+One serial replay pair measures 16.89/16.81 seconds and
+1,440,112/1,440,148 KiB peak RSS without/with plans. The second run has a warm
+filesystem page cache (zero filesystem input reported by time versus 560,800
+baseline). These samples establish no speedup. Evidence is
+`/tmp/clones-cross-unit-planning-project-{before,after}-1`. Source/tool-free
+replay, policy changes, suppressions, missing/ambiguous contexts and raw-plan
+independence from reviews/changed-file presentation have separate real-Cargo
+fixture acceptance; the production study leaves original sources in place.

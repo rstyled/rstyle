@@ -79,6 +79,9 @@ pub struct Args {
     /// Reuse compiler graphs and existing core abstraction proposal policy; advisory only.
     #[arg(long, requires = "compiler_advisory")]
     compiler_patterns: bool,
+    /// Reuse core fix groups and parameter plans across captured dependency units; advisory only.
+    #[arg(long, requires = "compiler_advisory")]
+    compiler_plans: bool,
     /// TOML policy for compiler advisory metrics, independent of strict clone policy.
     #[arg(long, requires = "compiler_advisory")]
     compiler_advisory_config: Option<PathBuf>,

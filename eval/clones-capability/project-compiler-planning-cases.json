@@ -1,0 +1,29 @@
+{
+  "schema": "rstyle.compiler-planning-project-cases/1",
+  "scope": "Saved C25 cargo-rstyle + rstyle-core check units, run-ynuMSl",
+  "policy": "Core defaults with fn_params.max_params=2; mutation max_mutated_targets=1 retained from C25",
+  "label_basis": "Source inspection before executing the cross-unit planner; existing call sites and declared arities, not new planner output",
+  "cases": [
+    {
+      "callee": "rstyle_core::evaluate_retained",
+      "caller": "cargo_rstyle::clones::advisory::diagnostics::evaluate_core",
+      "expected": "One core parameter-plan signature step for this three-argument callee and an exact caller owner in the cargo-rstyle unit"
+    },
+    {
+      "callee": "rstyle_core::evaluate_with_effects",
+      "caller": "cargo_rstyle::clones::advisory::diagnostics::evaluate_core",
+      "expected": "One core parameter-plan signature step for this four-argument callee and the same cargo-rstyle caller owner; both callees share its edit footprint"
+    },
+    {
+      "callee": "rstyle_core::all_effects",
+      "caller": "cargo_rstyle::clones::advisory::propagation::evaluate",
+      "expected": "A core signature step for this three-argument callee and its exact cargo-rstyle caller owner"
+    }
+  ],
+  "invariants": [
+    "Default advisory unit evaluations, raw findings and strict matching do not change when plans are requested",
+    "No original source, compiler or Cargo access is needed to request plans during saved-run replay",
+    "Generated/unavailable owners and unresolved calls keep captured input coverage incomplete",
+    "Physical edits across contexts, external callers, type equivalence and safe rewrites are not certified by these heuristic plans"
+  ]
+}

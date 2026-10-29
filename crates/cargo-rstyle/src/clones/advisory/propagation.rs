@@ -1,5 +1,5 @@
 //! Borrow captured owners and reuse core propagation across unique direct Cargo edges.
-use super::{Collected, UnitId};
+use super::{Collected, UnitId, planning};
 use crate::clones::{capture, report::Context};
 use rstyle_core::{config::Config, facts::FnFacts, graph, rules::Effect};
 use serde_json::Value;
@@ -13,6 +13,11 @@ pub(super) struct Completed {
     pub complete: bool,
 }
 
+pub(super) struct Evaluation {
+    pub units: Vec<Completed>,
+    pub planning: Option<planning::Captured>,
+}
+
 type Routes = BTreeMap<UnitId, BTreeSet<UnitId>>;
 type Identities<'a> = BTreeMap<(UnitId, &'a str), Vec<usize>>;
 
@@ -20,20 +25,12 @@ pub(super) fn evaluate(
     ctx: &Context<'_>,
     inputs: &[Collected],
     config: &Config,
-) -> Result<Vec<Completed>, String> {
-    if inputs.len() < 2 {
-        return Ok(local(inputs));
+) -> Result<Evaluation, String> {
+    if inputs.len() < 2 && !ctx.args.compiler_plans {
+        return Ok(local(inputs.len()));
     }
     let routes = routes(ctx);
-    let excluded = rstyle_core::exclusions::Matcher::compile(&config.exclude.0)?;
-    let rows: Vec<_> = ctx
-        .handoff
-        .unit_contexts
-        .iter()
-        .zip(inputs)
-        .flat_map(|(unit, input)| input.facts.iter().map(move |facts| (unit.id, facts)))
-        .filter(|(_, facts)| !excluded.is_excluded(std::path::Path::new(&facts.path)))
-        .collect();
+    let rows = selected_rows(ctx, inputs, config)?;
     let identities = identities(&rows);
     let targets = Targets {
         rows: &rows,
@@ -48,17 +45,41 @@ pub(super) fn evaluate(
         .collect();
     let facts: Vec<_> = rows.iter().map(|(_, facts)| *facts).collect();
     let (graph, resolved) = targets.graph(&facts, &mut completed);
-    if completed
-        .values()
-        .all(|unit| unit.resolved.is_empty() && unit.unresolved.is_empty())
+    if !ctx.args.compiler_plans
+        && completed
+            .values()
+            .all(|unit| unit.resolved.is_empty() && unit.unresolved.is_empty())
     {
-        return Ok(local(inputs));
+        return Ok(local(inputs.len()));
     }
 
     let effects = rstyle_core::all_effects(&facts, &graph, config);
     let complete = resolved && inputs.iter().all(|input| input.unavailable.is_empty());
     let effects = effects_by_unit(&rows, effects);
-    Ok(finish(ctx, completed, effects, complete))
+    let planning = ctx
+        .args
+        .compiler_plans
+        .then(|| planning::Captured::new(ctx, inputs, &rows, graph));
+    Ok(Evaluation {
+        units: finish(ctx, completed, effects, complete),
+        planning,
+    })
+}
+
+fn selected_rows<'a>(
+    ctx: &Context<'_>,
+    inputs: &'a [Collected],
+    config: &Config,
+) -> Result<Vec<(UnitId, &'a FnFacts)>, String> {
+    let excluded = rstyle_core::exclusions::Matcher::compile(&config.exclude.0)?;
+    Ok(ctx
+        .handoff
+        .unit_contexts
+        .iter()
+        .zip(inputs)
+        .flat_map(|(unit, input)| input.facts.iter().map(move |facts| (unit.id, facts)))
+        .filter(|(_, facts)| !excluded.is_excluded(std::path::Path::new(&facts.path)))
+        .collect())
 }
 
 pub(super) fn unresolved(
@@ -73,14 +94,16 @@ pub(super) fn unresolved(
         .collect())
 }
 
-fn local(inputs: &[Collected]) -> Vec<Completed> {
-    inputs
-        .iter()
-        .map(|_| Completed {
-            complete: true,
-            ..Completed::default()
-        })
-        .collect()
+fn local(units: usize) -> Evaluation {
+    Evaluation {
+        units: (0..units)
+            .map(|_| Completed {
+                complete: true,
+                ..Completed::default()
+            })
+            .collect(),
+        planning: None,
+    }
 }
 
 type UnitEffects = BTreeMap<UnitId, BTreeMap<String, Vec<Effect>>>;
