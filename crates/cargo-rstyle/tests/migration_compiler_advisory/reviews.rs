@@ -366,4 +366,5 @@ fn hiding_a_compiler_diagnostic_cannot_erase_missing_generated_input() {
 }
 
 mod baseline;
+mod direct_density;
 mod negatives;

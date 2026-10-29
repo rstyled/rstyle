@@ -213,6 +213,9 @@ impl Report {
         let selection = ctx
             .analysis_config
             .and_then(super::analysis::Config::changed_files);
+        let direct_effects_only = ctx
+            .compiler_advisory_config
+            .is_some_and(|config| config.side_effects.transitive_depth == 0);
         self.units
             .iter()
             .flat_map(|unit| {
@@ -226,8 +229,8 @@ impl Report {
                             .is_none_or(|selection| selection.contains(&assessed.path)),
                         effect_scope_complete: ctx.capture.failures.is_empty()
                             && ctx.handoff.failures.is_empty()
-                            && unit.inputs_complete()
-                            && unit.propagation_complete,
+                            && (direct_effects_only
+                                || (unit.inputs_complete() && unit.propagation_complete)),
                     }
                 })
             })

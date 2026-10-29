@@ -507,3 +507,13 @@ and a reason; these are independent of user ignore/review entries. Earlier
 compiler proposal reviews are readable but stale by detector version, and
 version-1 compiler proposal baselines require explicit regeneration. No graph
 schema, compiler metric, strict admission, hashing or body-proof change follows.
+
+
+For retained compiler density reviews and baselines, `transitive_depth=0` uses
+the known owner's completed direct core assessment. Unrelated unavailable owners
+or unresolved callees do not prevent that same-policy numeric negative. Deeper
+policies still require complete propagation inputs. Capture/handoff failures,
+missing queried owners, suppression/exclusion, selection and version/context/
+policy checks remain in force. Status is read-only; only explicit saved-run prune
+removes eligible review entries. Global incompleteness and export restrictions
+remain unchanged; this numeric result does not establish purity.

@@ -1072,3 +1072,59 @@ at 443,360KiB RSS and exits 2 for incomplete scope. The reducer exits 1 for
 remaining quality debt. This is a bounded improvement, with no speedup, broad
 precision or retirement claim. Compiler reviews from policy 1 become stale;
 version-1 proposal baselines require explicit regeneration.
+
+
+## C38: complete owner-local direct-density review status
+
+The depth-zero metric uses only a known original owner's completed direct core
+events and denominator. Retained review status formerly required complete unit
+propagation even at depth zero, so unrelated generated owners blocked a valid
+numeric negative. The adapter now uses the existing typed depth policy and
+completed owner rows; no additional analysis or hashing is needed. Depths above
+zero and capture/handoff failure gates stay conservative. Missing queried owners,
+suppression/exclusion, selected files, context, metrics and policy remain distinct.
+A baseline may resolve a completed retained entry while its overall coverage
+remains incomplete; incomplete-scope export still fails.
+
+Before capture, `project-compiler-direct-density-review-cases.json` freezes a
+declared temporary source variant of the actual project. `save_logs` nests one
+extra write in its first write argument: three IO calls, two authored statements,
+density4500 at limit3000/depth0. This is a simulated repair lifecycle, not a
+historical production revision. The real C31 original source remains exactly
+the frozen independent label: two IO calls, two statements, density3000. A
+genuine captured variant finding is recorded in a temporary review store, then
+compared against the explicit original metric3 saved run `run-bS3zMn`.
+Only numeric review availability improves; whole-project coverage, strict matching
+and raw compiler diagnostics remain unchanged. No purity or retirement claim
+follows.
+
+For this saved experiment, the prior capture command uses `-p cargo-rstyle
+-p rstyle-core --manifest-path /tmp/clones-direct-density-project-workspace-1/Cargo.toml`
+and the same profile/policy/planning/max-pairs flags as C31. The copy contains
+tracked sources only; replace the exact `current_source` in the case file with
+its predeclared `prior_source` before capture. Capture `run-pjNQal` takes
+57.61s / 1,793,136KiB. Its unit0 diagnostic0 is the actual density4500 finding.
+Record that explicit finding using `--dismiss-compiler-diagnostic 0 0` and a
+temporary `--review-file`, replaying `run-pjNQal` at the boundary policy. Then:
+
+```sh
+CARGO_TARGET_DIR=target python3 scripts/watchdog.py --timeout 180 \
+  --output /tmp/clones-direct-density-project-current-reproduced -- \
+  /usr/bin/time -v target/debug/cargo-rstyle rstyle --format json clones \
+  --extraction-profile hir-data-v3 --compiler-advisory --compiler-plans \
+  --compiler-advisory-config eval/clones-capability/project-compiler-density-boundary-policy.toml \
+  --max-pairs 0 --report-detail compact \
+  --replay-run target/rstyle/clones/run-bS3zMn \
+  --review-file /tmp/clones-direct-density-project-reviews-1.json \
+  --review-status --review-prune --review-prune-dry-run
+```
+
+`project-compiler-direct-density-review-results.json` records verified before
+and after output. A binary built with the C37 adapter reports unavailable and
+zero eligible entries. The current adapter reports no_finding and one eligible
+entry. Only review_status/review_prune differ; every other top-level section is
+exactly equal. Current scope is still 1,582 known / 2,165 unavailable owners.
+Before/after status replay takes 16.23s / 1,453,636KiB and 17.00s /
+1,453,132KiB respectively, both exit2. These single observations do not establish
+a speed change. Explicit pruning and baseline resolution are separately covered
+by five live-Cargo controls; no repository review store is changed.

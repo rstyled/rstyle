@@ -3716,3 +3716,69 @@ and already-shared mirrored reductions. No defensible new filter follows from
 the available completed facts; further policy must preserve useful wrappers
 and needs independent positive/negative cases. Broader capability and retirement
 gates remain open.
+
+
+## C38: owner-local direct-density review completion
+
+At effect propagation depth zero, a known original owner's core numeric density
+assessment needs no callee propagation. The retained-review adapter now uses that
+completed measurement even when unrelated owners or workspace callees remain
+unavailable. It reads the existing typed policy once and borrows the completed
+owner/snapshot rows. Capture or handoff failures still block the negative, as do
+missing queried owners, suppression/exclusion, unselected files, metric/context
+or policy drift. Positive findings and depth-greater-than-zero completion gates
+are unchanged. No collector, propagation pass, hash, proof, graph copy or metric
+version is added.
+
+Five live-Cargo tests cover read-only status, dry-run and explicit source-free
+pruning, baseline resolution without incomplete-scope export, unresolved generated
+callees, inherited-depth control and the existing review gates. One initial
+context expectation was corrected: with incomplete identity scope and no exact
+context, the existing workflow reports unavailable rather than context_changed.
+No production logic changed to satisfy that assertion. Focused tests pass
+(`/tmp/clones-direct-density-cli-3`).
+
+`project-compiler-direct-density-review-cases.json` freezes a real-project
+experiment before capture. A temporary tracked copy adds one nested write to
+`save_logs`: three IO events / two authored statements = density4500 at limit3000.
+The frozen C31 original has two writes / two statements = density3000, a numeric
+negative at the same policy. The temporary variant is a declared experiment,
+not a claimed historical production revision. Its genuine captured finding is
+recorded only in a temporary review store; no repository ignore/review is added.
+The current side reuses explicit metric3 saved run `run-bS3zMn`. Global incomplete
+scope and exit2 persist.
+
+Production comparison is verified against a binary built with the C37 adapter
+(`/tmp/clones-direct-density-project-before-1`) and the current adapter
+(`/tmp/clones-direct-density-project-current-1`). Identical saved input, policy
+and temporary review store change unavailable/zero eligible to no_finding/one
+eligible. The ONLY changed top-level sections are review_status and review_prune;
+all raw advisory, planning, strict, coverage and context data are exactly equal.
+Current source scope retains 1,582 known / 2,165 unavailable owners. The prior
+variant capture is `run-pjNQal`, 57.61s / 1,793,136KiB; the review publication
+replay is 16.38s / 1,466,452KiB. Before/after status replays are 16.23s /
+1,453,636KiB and 17.00s / 1,453,132KiB. Every operation exits2 for global
+incompleteness. These single timings establish no speedup. The measured result
+artifact preserves both statuses/prune counts and resource observations.
+
+Final C38 checkpoint: all 3,382 tests pass in 219.106 seconds, five existing
+skips, and doc tests pass (`/tmp/clones-direct-density-tests-final-1`). Both
+original NonZero regressions pass. Locked all-target Clippy, formatting and diff
+checks pass (`/tmp/clones-direct-density-clippy-final-1`). Style remains zero
+over 9,728 functions (`/tmp/clones-direct-density-style-final-1`); reviewed
+patterns remains zero (`/tmp/clones-direct-density-patterns-final-1`), with all
+thirteen unfiltered IDs unchanged (`/tmp/clones-direct-density-patterns-unfiltered-final-1`).
+All 182 Python tests pass (`/tmp/clones-direct-density-python-final-1.log`).
+Linux is verified; macOS and per-capability retirement remain pending. No new
+hashes, source/body/type proofs, graph scans/copies, ignores, thresholds, budgets
+or strict semantics are introduced.
+
+Next ready candidate: concrete trait-method targets in the existing compiler
+effect collector. The current collector records declaration IDs; the existing
+compiler Instance selection query can supply a selected ordinary implementation
+for concrete calls without a second traversal. First freeze actual production
+positive/generic/dynamic/unselected controls and preserve historical metrics.
+A separate original-source coverage gap affects workspace-shared files outside
+a member package root; it needs a small location-root seam, not another collector.
+These are pending candidates, not delivered capabilities or blanket permission
+to broaden strict extraction.

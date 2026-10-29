@@ -339,3 +339,13 @@ two remain emitted and the reducer still exits 1. Missing proposals over
 incomplete input stay unavailable. Historical implicit-version-1 observations
 remain unchanged. Policy version drift is an error, and explicit rejection is
 not a user review or proof that extraction is safe.
+
+
+`project-compiler-direct-density-review-{cases,results}.json` records C38's
+real-project review lifecycle experiment. A declared temporary source variant
+creates a genuine density4500 finding; the frozen original is negative at the
+same limit3000/depth0 policy. Completed owner-local direct measurements now
+support retained review resolution despite unrelated missing input. Deeper
+propagation and whole-analysis completion keep their existing gates. The
+variant is not a historical-production claim, and no persistent repository
+review or ignore is added.
