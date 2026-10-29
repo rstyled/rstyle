@@ -504,6 +504,9 @@ unresolved workspace callees keep effect coverage incomplete. This display-only
 annotation changes neither ranking/membership nor strict results. Structural
 reviews/baselines keep their existing identity; these notes are recomputed under
 the current effect policy and are not themselves reviewed policy evidence.
+Structural proposal review/baseline coverage depends on function/graph inputs;
+unresolved effect callees alone do not invalidate it. Overall advisory completion
+and baseline publication still require all requested consumers to complete.
 
 Compiler proposals accept `--review-file PATH` for read-only exact lookup. Only
 after the user agrees a finding should remain separate, replay its explicit run

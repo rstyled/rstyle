@@ -5317,3 +5317,42 @@ Ubuntu 24.04 and Ubuntu 24.04 ARM, confirming the earlier canonical temp-path fi
 Logs use /tmp/clones-c65-*. The capability goal remains active and incomplete;
 next work should prioritize useful real-project coverage and consumer-specific
 prerequisites over new parallel algorithms or review-only expansion.
+
+
+### C66 — separate structural proposal input completion (2026-10-29)
+
+The proposal review and baseline adapters previously inherited full advisory
+completion, including unrelated complexity/effect gaps. They now consume the
+already-completed per-unit pattern graph report. Capture/handoff failures,
+unavailable functions, missing graphs and absent pattern requests remain
+incomplete. Numeric diagnostic review/baseline and retained-owner accounting
+keep their original full-advisory boundary through an explicitly named accessor.
+There are no new configuration flags, detectors, proofs, source scans, hashes or
+proposal algorithms. The optional proposal-policy patch remains deferred.
+
+An independent Cargo fixture captures a helper proposal and a caller while
+omitting its dependency's effect owners. Structural review input is complete;
+effect evidence, numeric review and overall advisory remain incomplete, with
+exit 2. Raw source/tool-free replay preserves the report. A separate generated
+owner fixture proves missing structural input still makes reviews incomplete.
+Strict matching remains unrequested in the raw-mode fixture. Proposal baseline
+input uses the same structural boundary, while publication still requires full
+successful analysis. This does not yet provide independent pattern invocation,
+change generated-owner scope, migrate the legacy ignore ledger or retire patterns.
+
+Integrated validation: all 3,513 Rust tests pass in 229.155s with five existing
+skips, plus doc tests. Locked all-target Clippy and all 244 offline Python checks
+pass. Style has zero violations over 9,854 functions; reviewed patterns has
+zero unreviewed candidates and the same 13 unfiltered IDs as main. Formatting
+and diff checks pass. Logs use /tmp/clones-c66-*.
+
+A fresh same-worktree rstyle-ccgraph comparison produces exactly equal complete
+proposal evaluations: two signature groups, one candidate and no suppressions.
+The shared run retains 238 known/176 unavailable owners and 23 unresolved callees;
+its structural/effect inputs remain incomplete and exit 2, versus legacy exit 0.
+Thus C66 does not itself gain real-project coverage or establish replacement.
+The study records the exact run, build context, commands and single timing samples
+in project-pattern-completion-study.json. The next priority is an independent
+structural consumer scope, then generated-owner scope and legacy ledger migration;
+no additional proposer or proof machinery is needed. C65 CI run 40888372155 is
+green; native CI for C66 remains pending until pushed.

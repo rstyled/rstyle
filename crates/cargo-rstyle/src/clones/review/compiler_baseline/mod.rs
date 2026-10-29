@@ -37,7 +37,7 @@ pub(in crate::clones) fn evaluate(
         baseline_common::contexts(ctx)?,
     )?;
     let complete = ctx.complete
-        && advisory.pattern_inputs_complete()
+        && advisory.advisory_inputs_complete()
         && ctx.handoff.assessed.len() <= 4096
         && rows.len() <= 4096
         && rows.iter().all(|row| row.snapshot.is_ok());

@@ -302,8 +302,19 @@ impl Report {
             .collect()
     }
 
-    pub(super) fn pattern_inputs_complete(&self) -> bool {
+    pub(super) fn advisory_inputs_complete(&self) -> bool {
         self.complete
+    }
+
+    pub(super) fn pattern_inputs_complete(&self) -> bool {
+        !self.units.is_empty()
+            && self.units.iter().all(|unit| {
+                unit.expected_functions.is_some()
+                    && unit
+                        .patterns
+                        .as_ref()
+                        .is_some_and(|report| report.input_complete)
+            })
     }
 
     pub(super) fn with_reviews(

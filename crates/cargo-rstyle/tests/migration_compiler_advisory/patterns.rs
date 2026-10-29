@@ -2,6 +2,7 @@ use super::*;
 
 mod baseline;
 mod completed_effects;
+mod completeness;
 mod forwarded_pipelines;
 mod opaque_closures;
 mod reviews;

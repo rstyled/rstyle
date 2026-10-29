@@ -366,6 +366,14 @@ the visible zero-based raw candidate indices when reviews are requested, and
 `compiler_advisory.pattern_review` reports each decision. Finding exits and text
 use that visibility. Missing input or unavailable positive review identity keeps
 the result incomplete; hiding findings cannot turn incomplete analysis clean.
+Structural proposal review coverage uses captured function/graph availability,
+independently of numeric diagnostics, complexity rankings and unresolved effect
+callees. `patterns.effect_evidence.input_complete` still records effect gaps.
+Capture/handoff failures and unavailable functions/graphs keep proposal review
+coverage incomplete. Overall advisory completion and exit codes continue to
+include every requested advisory consumer, so complete structural review coverage
+can coexist with overall exit 2. Proposal baseline coverage uses the same
+structural input boundary; publication still requires a successful complete run.
 Check/test contexts remain separate. Retained status reuses completed lookups
 instead of comparing the graphs again. `--review-status` accounts for every
 stored entry, including omitted families. Missing proposals remain unavailable:

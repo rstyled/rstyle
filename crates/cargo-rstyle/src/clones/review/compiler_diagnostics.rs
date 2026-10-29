@@ -99,7 +99,7 @@ pub(super) fn apply(
             ctx.args.compiler_advisory,
             inputs
                 .compiler_advisory
-                .is_some_and(|report| report.pattern_inputs_complete()),
+                .is_some_and(|report| report.advisory_inputs_complete()),
         ),
         records,
     ))

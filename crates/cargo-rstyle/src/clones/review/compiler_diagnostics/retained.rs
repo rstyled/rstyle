@@ -29,8 +29,8 @@ pub(in crate::clones::review) fn observations<'a>(
         // The complete name census establishes uniqueness for retained rows.
         // Omitted payloads remain unknown through unavailable_scope.
         truncated: false,
-        unavailable_scope: truncated || !advisory.pattern_inputs_complete(),
-        complete: !truncated && advisory.pattern_inputs_complete(),
+        unavailable_scope: truncated || !advisory.advisory_inputs_complete(),
+        complete: !truncated && advisory.advisory_inputs_complete(),
     }
 }
 
