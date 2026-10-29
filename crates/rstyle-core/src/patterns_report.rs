@@ -49,13 +49,22 @@ pub struct Options {
     pub ledger: Option<Ledger>,
 }
 
+/// Select ranked values by inclusive score, then limit, preserving their order.
+pub fn select_scored<T>(
+    items: impl IntoIterator<Item = T>,
+    score: impl Fn(&T) -> u32,
+    minimum: u32,
+    top: Option<usize>,
+) -> impl Iterator<Item = T> {
+    items
+        .into_iter()
+        .filter(move |item| score(item) >= minimum)
+        .take(top.unwrap_or(usize::MAX))
+}
+
 /// Keeps groups at or above `min_score_milli`, then the first `top` (all when `None`).
 pub fn build(groups: Vec<SigGroup>, min_score_milli: u32, top: Option<usize>) -> PatternsReport {
-    let kept = groups
-        .into_iter()
-        .filter(|g| g.score_milli >= min_score_milli)
-        .take(top.unwrap_or(usize::MAX))
-        .collect();
+    let kept = select_scored(groups, |g| g.score_milli, min_score_milli, top).collect();
     PatternsReport {
         signature_groups: kept,
         candidates: vec![],
@@ -115,12 +124,13 @@ pub fn run_owned_and_retain(
     let (groups, mined, prepared) = mine_all(facts, options);
     let ledger = options.ledger.clone().unwrap_or_default();
     let applied = ledger::apply(&ledger, mined.candidates);
-    let candidates = applied
-        .kept
-        .into_iter()
-        .filter(|c| c.score_milli >= options.min_score_milli)
-        .take(options.top.unwrap_or(usize::MAX))
-        .collect();
+    let candidates = select_scored(
+        applied.kept,
+        |c| c.score_milli,
+        options.min_score_milli,
+        options.top,
+    )
+    .collect();
     let ignored: Vec<Ignored> = applied
         .hidden
         .into_iter()
@@ -222,10 +232,23 @@ pub fn text(report: &PatternsReport) -> String {
 
 /// Present review visibility without copying the report or its candidate values.
 pub fn text_selected(report: &PatternsReport, visible: impl Fn(usize) -> bool) -> String {
-    let groups = section(
-        format!("{} signature groups", report.signature_groups.len()),
-        report.signature_groups.iter().map(group_text).collect(),
-    );
+    text_selected_with_groups(report, visible, |_| true)
+}
+
+/// Present selected groups and candidates while borrowing the complete evaluation.
+pub fn text_selected_with_groups(
+    report: &PatternsReport,
+    visible: impl Fn(usize) -> bool,
+    group_visible: impl Fn(usize) -> bool,
+) -> String {
+    let groups: Vec<_> = report
+        .signature_groups
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| group_visible(*index))
+        .map(|(_, group)| group_text(group))
+        .collect();
+    let groups = section(format!("{} signature groups", groups.len()), groups);
     let found: Vec<String> = report
         .candidates
         .iter()
@@ -315,6 +338,23 @@ mod tests {
         let groups = vec![group("a", 900), group("b", 500), group("c", 100)];
         assert_eq!(build(groups.clone(), 400, None).signature_groups.len(), 2);
         assert_eq!(build(groups, 0, Some(1)).signature_groups[0].key, "a");
+    }
+
+    #[test]
+    fn scored_selection_is_inclusive_stable_and_accepts_zero_limit() {
+        let values = [900, 500, 500, 100];
+        assert_eq!(
+            select_scored(values, |score| *score, 500, Some(2)).collect::<Vec<_>>(),
+            [900, 500]
+        );
+        assert_eq!(select_scored(values, |score| *score, 500, None).count(), 3);
+        assert_eq!(select_scored(values, |score| *score, 0, Some(0)).count(), 0);
+        let report = build(vec![group("kept", 900), group("hidden", 500)], 0, None);
+        let rendered = text_selected_with_groups(&report, |_| true, |index| index == 0);
+        assert!(rendered.starts_with("1 signature groups"));
+        assert!(rendered.contains("kept"));
+        assert!(!rendered.contains("hidden"));
+        assert_eq!(report.signature_groups.len(), 2);
     }
 
     #[test]

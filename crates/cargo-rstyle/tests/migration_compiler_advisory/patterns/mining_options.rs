@@ -8,7 +8,7 @@ impl Dog { pub fn dogs(&self)->usize { self.values.len() } }
 impl Cat { pub fn cats(&self)->usize { self.values.len() } }
 "#;
 
-fn checked(output: &Output, code: i32) {
+pub(super) fn checked(output: &Output, code: i32) {
     assert_eq!(
         output.status.code(),
         Some(code),
@@ -18,7 +18,7 @@ fn checked(output: &Output, code: i32) {
     );
 }
 
-fn saved(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) {
+pub(super) fn saved(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) {
     let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
     command
         .current_dir(directory)
@@ -49,7 +49,7 @@ fn saved(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) 
     (output, report)
 }
 
-fn remove_sources(directory: &Path) {
+pub(super) fn remove_sources(directory: &Path) {
     for path in ["src/lib.rs", "Cargo.toml", "Cargo.lock"] {
         std::fs::remove_file(directory.join(path)).unwrap();
     }

@@ -48,14 +48,13 @@ impl Report {
         let mut report = changed_scope::evaluate(selection, owners);
         if ctx.args.compiler_advisory {
             report.include_findings(self.units.iter().flat_map(Unit::selected_paths));
-        } else {
-            report.include_findings(
-                self.units
-                    .iter()
-                    .filter_map(|unit| unit.patterns.as_ref())
-                    .flat_map(|patterns| patterns.selected_paths(selection)),
-            );
         }
+        report.include_findings(
+            self.units
+                .iter()
+                .filter_map(|unit| unit.patterns.as_ref())
+                .flat_map(|patterns| patterns.selected_paths(selection)),
+        );
         report.into_owned()
     }
 

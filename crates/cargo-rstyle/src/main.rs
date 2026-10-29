@@ -56,12 +56,8 @@ enum Command {
 
 #[derive(Args)]
 struct PatternsArgs {
-    /// Hide groups scoring below this (natural-log units, e.g. 0.5).
-    #[arg(long, default_value_t = 0.0)]
-    min_score: f64,
-    /// Show only the best N groups and candidates.
-    #[arg(long)]
-    top: Option<usize>,
+    #[command(flatten)]
+    display: PatternDisplayArgs,
     /// Report every candidate, ignoring the ignore ledger for this run.
     #[arg(long)]
     no_ignore: bool,
@@ -73,6 +69,27 @@ struct PatternsArgs {
     fail_on_candidates: bool,
     #[command(flatten)]
     mine: MineArgs,
+}
+
+/// Presentation over ranked proposals; does not change mining or review identity.
+#[derive(Args, Default, PartialEq, serde::Serialize)]
+struct PatternDisplayArgs {
+    /// Hide groups scoring below this (natural-log units, e.g. 0.5).
+    #[arg(long)]
+    min_score: Option<f64>,
+    /// Show only the best N groups and candidates.
+    #[arg(long)]
+    top: Option<usize>,
+}
+
+impl PatternDisplayArgs {
+    fn min_score_milli(&self) -> u32 {
+        (self.min_score.unwrap_or_default().max(0.0) * 1000.0).round() as u32
+    }
+
+    fn is_default(&self) -> bool {
+        self.min_score_milli() == 0 && self.top.is_none()
+    }
 }
 
 #[derive(Args)]
@@ -233,8 +250,8 @@ fn patterns(cli: &Cli, args: &PatternsArgs) -> Result<(String, u8), String> {
         ))?),
     };
     let options = patterns_report::Options {
-        min_score_milli: (args.min_score.max(0.0) * 1000.0).round() as u32,
-        top: args.top,
+        min_score_milli: args.display.min_score_milli(),
+        top: args.display.top,
         ledger,
         ..mine_options(&args.mine)
     };

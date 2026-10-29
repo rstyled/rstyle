@@ -323,6 +323,17 @@ an absent hide list as empty: earlier versions could only use the default empty
 oracle. Empty lists are omitted on publication, preserving default record bytes.
 No hash or source scan is needed for these configuration comparisons.
 
+Compiler patterns also accept `--min-score N` (natural-log units) and `--top N`.
+These reuse the legacy inclusive score filter and ranking order per compilation
+unit, independently for candidates and signature groups. Reviews hide candidates
+before the top limit; changed-file selection intersects the resulting list
+without refilling it. Nondefault display settings publish `patterns.presentation`
+with candidate/group indices into the complete raw `evaluation`. Finding counts,
+text and finding exits use the displayed selection. `--top 0` hides all rows but
+cannot turn missing inputs into a complete result. Review identity, baseline
+inventories and baseline-new exits remain independent of these display options.
+Defaults omit the presentation object and preserve existing reports.
+
 For a standalone capture without strict matching:
 
 ```sh

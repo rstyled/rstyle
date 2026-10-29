@@ -497,6 +497,17 @@ Missing/ambiguous inputs remain incomplete; external callers and cross-context
 physical edit overlaps are not certified, and bundle type names remain heuristic.
 Default per-unit evaluation and strict clone matching stay unchanged.
 
+Compiler patterns also accept `--min-score N` (natural-log units) and `--top N`.
+These reuse the legacy inclusive score filter and ranking order per compilation
+unit, independently for candidates and signature groups. Reviews hide candidates
+before the top limit; changed-file selection intersects the resulting list
+without refilling it. Nondefault display settings publish `patterns.presentation`
+with candidate/group indices into the complete raw `evaluation`. Finding counts,
+text and finding exits use the displayed selection. `--top 0` hides all rows but
+cannot turn missing inputs into a complete result. Review identity, baseline
+inventories and baseline-new exits remain independent of these display options.
+Defaults omit the presentation object and preserve existing reports.
+
 Add `--compiler-patterns` to reuse existing compiler graphs and the core
 trait/capability/generic/helper/dispatch proposer. It can run without
 `--compiler-advisory`; add `--compiler-advisory-only` to skip strict matching too.

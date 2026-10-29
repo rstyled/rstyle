@@ -5563,3 +5563,35 @@ without changing semantics or adding suppressions. All3,543 Rust tests pass in
 233.545s with five existing skips, plus doc tests. Patterns has zero unreviewed
 candidates and the same13 unfiltered IDs as main; logs use /tmp/clones-c70-*. C69 native CI remains in progress
 (run40906051494); no C70 native platform result is claimed before push.
+
+### C71 — share score/top presentation for compiler proposals (2026-10-29)
+
+Shared PatternDisplayArgs and the existing core inclusive score/top selection now
+serve legacy and compiler patterns. Per-unit display masks refer to raw candidate
+and signature-group indices; they borrow the retained evaluation and do not mine,
+prove, hash or copy graphs again. Reviews apply before top, changed files intersect
+afterward, and raw snapshots/baseline inventories remain independent of display.
+Finding exits and text consume the same masks; missing input remains exit2 even
+with top0. Defaults omit presentation and preserve prior reports.
+
+Independent acceptance covers inclusive score boundaries, independent group masks,
+review refill, changed-file intersection, top0 raw baselines/text, per-unit limits,
+source/tool-free replay and missing-input/CLI prerequisites. The first focused run
+exposed an existing changed-scope accounting omission: when numeric advisory and
+patterns were both enabled, the path distribution counted only numeric findings.
+It now includes displayed patterns alongside numeric findings.
+
+The retained C69 rstyle-ccgraph capture preserves the default report exactly. With
+single-call-guard/max-holes4 the raw three-candidate evaluation is identical under
+top1 and top0, showing one/zero indices respectively. Both preserve incomplete
+exit2. This improves presentation, without claiming more useful proposals, better
+coverage or a speedup. See project-compiler-presentation-study.json. Command routing,
+explicit legacy ledger migration and broader retirement gates remain open.
+All3,550 Rust tests pass in233.002s with five existing skips, plus doc tests.
+All244 Python checks, Clippy and formatting pass. The pattern gate then identified
+duplicate total/selected counting logic; a shared shown-candidate iterator removes
+it, with all68 focused pattern/review tests and Clippy passing again. Final style
+has zero violations over9,902 functions. Patterns has zero unreviewed candidates
+and the same13 unfiltered IDs as main; logs use /tmp/clones-c71-*. No native C71 platform result is claimed
+before push. C69 native CI passed; C70 Ubuntu x64 passed while ARM/macOS were
+still running at the latest check.

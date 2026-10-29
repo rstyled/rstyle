@@ -23,6 +23,8 @@ pub(super) struct Report {
     unavailable_graphs: Vec<Missing>,
     pub evaluation: patterns_report::PatternsReport,
     #[serde(skip_serializing_if = "Option::is_none")]
+    presentation: Option<Presentation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     visible_candidates: Option<Vec<usize>>,
     /// File selection is independent of review visibility; presentation intersects both masks.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -30,6 +32,54 @@ pub(super) struct Report {
     #[serde(skip)]
     pub snapshots:
         Vec<Result<crate::clones::review::compiler_patterns::observed::Snapshot, String>>,
+}
+
+/// Indices borrow the raw ranked evaluation; review and baseline identity stay unchanged.
+#[derive(Serialize)]
+struct Presentation {
+    min_score_milli: u32,
+    top: Option<usize>,
+    candidate_indices: Vec<usize>,
+    signature_group_indices: Vec<usize>,
+}
+
+impl Presentation {
+    fn new(args: &crate::PatternDisplayArgs, evaluation: &patterns_report::PatternsReport) -> Self {
+        let min_score_milli = args.min_score_milli();
+        Self {
+            min_score_milli,
+            top: args.top,
+            candidate_indices: patterns_report::select_scored(
+                0..evaluation.candidates.len(),
+                |index| evaluation.candidates[*index].score_milli,
+                min_score_milli,
+                args.top,
+            )
+            .collect(),
+            signature_group_indices: patterns_report::select_scored(
+                0..evaluation.signature_groups.len(),
+                |index| evaluation.signature_groups[*index].score_milli,
+                min_score_milli,
+                args.top,
+            )
+            .collect(),
+        }
+    }
+
+    fn with_reviews(
+        mut self,
+        evaluation: &patterns_report::PatternsReport,
+        visible: &[usize],
+    ) -> Self {
+        self.candidate_indices = patterns_report::select_scored(
+            visible.iter().copied(),
+            |index| evaluation.candidates[*index].score_milli,
+            self.min_score_milli,
+            self.top,
+        )
+        .collect();
+        self
+    }
 }
 
 /// References to the containing report avoid copying configuration or build context.
@@ -124,6 +174,8 @@ pub(super) fn evaluate(
         observed_graphs,
         unavailable_functions,
         unavailable_graphs: missing,
+        presentation: (!ctx.args.pattern_display.is_default())
+            .then(|| Presentation::new(&ctx.args.pattern_display, &evaluation)),
         evaluation,
         snapshots,
         visible_candidates: None,
@@ -182,20 +234,24 @@ impl Report {
         unit: crate::clones::identity::UnitId,
         reviews: &crate::clones::review::compiler_patterns::Report,
     ) -> Self {
-        let visible_candidates = Some(
-            (0..self.evaluation.candidates.len())
-                .filter(|index| !reviews.hidden_for(unit, *index))
-                .collect(),
-        );
+        let visible_candidates: Vec<_> = (0..self.evaluation.candidates.len())
+            .filter(|index| !reviews.hidden_for(unit, *index))
+            .collect();
+        let presentation = self
+            .presentation
+            .map(|presentation| presentation.with_reviews(&self.evaluation, &visible_candidates));
         Self {
-            visible_candidates,
+            visible_candidates: Some(visible_candidates),
+            presentation,
             ..self
         }
     }
     pub(super) fn findings(&self) -> usize {
-        self.visible_candidates
-            .as_ref()
-            .map_or(self.evaluation.candidates.len(), Vec::len)
+        self.shown_candidates().count()
+    }
+
+    fn shown_candidates(&self) -> impl Iterator<Item = usize> + '_ {
+        (0..self.evaluation.candidates.len()).filter(|index| self.shown(*index))
     }
     pub(super) fn selection(&self) -> Option<&[usize]> {
         self.selected_candidates.as_deref()
@@ -207,14 +263,21 @@ impl Report {
             .is_none_or(|visible| visible.binary_search(&index).is_ok())
     }
 
+    fn shown(&self, index: usize) -> bool {
+        self.visible(index)
+            && self.presentation.as_ref().is_none_or(|presentation| {
+                presentation.candidate_indices.binary_search(&index).is_ok()
+            })
+    }
+
     fn selected(&self, index: usize) -> bool {
         self.selection()
             .is_none_or(|selected| selected.binary_search(&index).is_ok())
     }
 
     pub(super) fn selected_findings(&self) -> usize {
-        (0..self.evaluation.candidates.len())
-            .filter(|index| self.visible(*index) && self.selected(*index))
+        self.shown_candidates()
+            .filter(|index| self.selected(*index))
             .count()
     }
 
@@ -227,7 +290,7 @@ impl Report {
             .candidates
             .iter()
             .enumerate()
-            .filter(|(index, _)| self.visible(*index) && self.selected(*index))
+            .filter(|(index, _)| self.shown(*index) && self.selected(*index))
             .filter_map(|(_, candidate)| {
                 candidate
                     .sites
@@ -239,8 +302,17 @@ impl Report {
     }
 
     pub(super) fn render(&self) -> String {
-        patterns_report::text_selected(&self.evaluation, |index| {
-            self.visible(index) && self.selected(index)
-        })
+        patterns_report::text_selected_with_groups(
+            &self.evaluation,
+            |index| self.shown(index) && self.selected(index),
+            |index| {
+                self.presentation.as_ref().is_none_or(|presentation| {
+                    presentation
+                        .signature_group_indices
+                        .binary_search(&index)
+                        .is_ok()
+                })
+            },
+        )
     }
 }

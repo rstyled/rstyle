@@ -1,0 +1,92 @@
+{
+  "checkpoint": "C71",
+  "source_revision": "5350f7c+dirty",
+  "scope": "rstyle-ccgraph library; retained C69 compiler graphs",
+  "toolchain": "nightly-2026-09-30",
+  "host": "aarch64-unknown-linux-gnu",
+  "run_directory": "target/rstyle/clones/run-TKB31S",
+  "measurements": {
+    "default": {
+      "command": [
+        "target/debug/cargo-rstyle",
+        "clones",
+        "--format",
+        "json",
+        "--report-detail",
+        "compact",
+        "--extraction-profile",
+        "hir-data-v3",
+        "--compiler-advisory",
+        "--compiler-patterns",
+        "--compiler-advisory-only",
+        "--replay-run",
+        "target/rstyle/clones/run-TKB31S"
+      ],
+      "exit": 2,
+      "elapsed_seconds": 0.4588325070217252
+    },
+    "top_one": {
+      "command": [
+        "target/debug/cargo-rstyle",
+        "clones",
+        "--format",
+        "json",
+        "--report-detail",
+        "compact",
+        "--extraction-profile",
+        "hir-data-v3",
+        "--compiler-advisory",
+        "--compiler-patterns",
+        "--compiler-advisory-only",
+        "--replay-run",
+        "target/rstyle/clones/run-TKB31S",
+        "--single-call-guard",
+        "--max-holes",
+        "4",
+        "--top",
+        "1"
+      ],
+      "exit": 2,
+      "elapsed_seconds": 0.41981213504914194
+    },
+    "top_zero": {
+      "command": [
+        "target/debug/cargo-rstyle",
+        "clones",
+        "--format",
+        "json",
+        "--report-detail",
+        "compact",
+        "--extraction-profile",
+        "hir-data-v3",
+        "--compiler-advisory",
+        "--compiler-patterns",
+        "--compiler-advisory-only",
+        "--replay-run",
+        "target/rstyle/clones/run-TKB31S",
+        "--single-call-guard",
+        "--max-holes",
+        "4",
+        "--top",
+        "0"
+      ],
+      "exit": 2,
+      "elapsed_seconds": 0.45004303101450205
+    }
+  },
+  "results": {
+    "default_report_unchanged": true,
+    "raw_configured_evaluation_unchanged": true,
+    "configured_candidates": 3,
+    "top_one_candidate_indices": [
+      0
+    ],
+    "top_zero_candidate_indices": [],
+    "incomplete_exit_preserved": true
+  },
+  "limitations": [
+    "Presentation selection does not add useful proposals or improve extraction coverage.",
+    "Same retained incomplete capture; these samples do not establish a speedup.",
+    "Full retirement and native platform checks remain separate gates."
+  ]
+}
