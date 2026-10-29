@@ -107,6 +107,8 @@ fn default_target_exclusion_can_be_disabled_from_a_saved_generated_source() {
     std::fs::create_dir_all(&generated).unwrap();
     let source = generated.join("source.rs");
     std::fs::write(&source, MEASURED).unwrap();
+    // Use the same resolved workspace spelling as Cargo, including macOS /private/var.
+    let source = source.canonicalize().unwrap();
     std::fs::write(
         directory.path().join("src/lib.rs"),
         format!("#[path = {:?}]\npub mod generated;\n", source),

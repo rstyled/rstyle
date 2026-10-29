@@ -259,11 +259,9 @@ fn member_proposal_locations_use_workspace_source_root_separately_from_package_r
     );
     assert!(output.status.success(), "{}", stdout(&output));
     let unit = &report["compiler_advisory"]["units"][0];
-    assert_eq!(unit["source_root"], directory.path().to_str().unwrap());
-    assert_eq!(
-        unit["package_root"],
-        directory.path().join("member").to_str().unwrap()
-    );
+    let root = directory.path().canonicalize().unwrap();
+    assert_eq!(unit["source_root"], root.to_str().unwrap());
+    assert_eq!(unit["package_root"], root.join("member").to_str().unwrap());
     let helper = candidate_at(&unit["patterns"]["evaluation"], "tag_left").unwrap();
     assert!(
         helper["sites"]
