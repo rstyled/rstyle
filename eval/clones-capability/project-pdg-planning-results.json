@@ -1,0 +1,88 @@
+{
+  "schema": "rstyle.compiler-parameter-plan-results/1",
+  "run": "run-WizKMH",
+  "metrics": "rstyle.compiler-style-metrics/6",
+  "scope_complete": false,
+  "planning_input_complete": false,
+  "counts": {
+    "agreement": 8
+  },
+  "parameters": [
+    {
+      "function": "eligibility::diagnostic",
+      "key": "function:u0:f4233",
+      "rule": "fn_params",
+      "expected": {
+        "outcome": "finding",
+        "actual": 4,
+        "limit": 3
+      },
+      "observed": {
+        "outcome": "finding",
+        "actual": 4,
+        "limit": 3
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "eligibility::error",
+      "key": "function:u0:f4234",
+      "rule": "fn_params",
+      "expected": {
+        "outcome": "finding",
+        "actual": 4,
+        "limit": 3
+      },
+      "observed": {
+        "outcome": "finding",
+        "actual": 4,
+        "limit": 3
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "eligibility::site_of",
+      "key": "function:u0:f4232",
+      "rule": "fn_params",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 1,
+        "limit": 3
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    }
+  ],
+  "relationship": [
+    {
+      "check": "shared_edit_group",
+      "result": "agreement"
+    },
+    {
+      "check": "callee_before_caller",
+      "result": "agreement"
+    },
+    {
+      "check": "caller_pass_through",
+      "result": "agreement"
+    },
+    {
+      "check": "shared_parameter_bundle",
+      "result": "agreement"
+    },
+    {
+      "check": "clean_control_signature:eligibility::site_of",
+      "result": "agreement"
+    }
+  ],
+  "limitations": [
+    "Only the frozen source owners and relationship are checked.",
+    "Clean numeric scores are not synthesized from absent diagnostics.",
+    "Plans are advisory over captured callers; no whole-program or rewrite-safety claim."
+  ]
+}

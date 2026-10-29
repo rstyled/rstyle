@@ -4557,3 +4557,36 @@ default violations. The source-only sample is frozen before target score/plan
 comparison, with exact forwarded arguments, a clean control and callee-before-
 caller expectations. No new planner or call scan is needed. Migration and
 per-capability retirement remain active.
+
+### C51 — validate existing parameter plans against project source (2026-10-29)
+
+The original `rstyle-pdg` eligibility caller/callee/clean-control labels were
+frozen before consulting target scores or plans. The study uses explicit
+max_params3, leaving repository/default4 unchanged; these four-parameter owners
+are not default violations. Reusing C48 saved run `run-WizKMH` and the existing
+core evaluator/planner yields eight agreements: three parameter outcomes,
+shared edit group, callee-first signatures, exact capability/construct/reason
+pass-through, their shared `&str` bundle and no clean-control signature change.
+The computed `&site_of(node)` argument stays outside bare forwarding.
+
+The offline comparator reuses compiler-quality source/context associations and
+completed diagnostic lookups. It validates step/bundle owner rosters without
+rebuilding plans. Mutation tests reject corrupted associations and contracts;
+changed/ambiguous/missing source, wrong/ambiguous target context and unavailable
+clean controls stay unavailable. Coordinated reordering, forwarding changes,
+unrelated bundle owners and clean-control signature changes disagree. Valid
+non-parameter groups may omit plans. No new production scan, proof, hash or clone
+is introduced; strict matching stays unchanged.
+
+All 207 offline Python tests pass. The checked-in project result records eight
+agreements with scope/planning still incomplete: 7,034 measured owners, 6,494
+unavailable and 142 unresolved callees. Serialized replay exited2 as expected;
+one local sample took13.48s with2,109,120KiB peak RSS, not a speedup claim.
+Unchanged Rust retains C50's full test/style/pattern validation. C48 and C49
+native CI are now confirmed successful on macOS and both Ubuntu runners.
+C50 native CI remains in progress. The macOS temporary-parent canonicalization
+fix565803b is included. Current origin/main1689392 (complexity changes) is already
+an ancestor of this branch, so no rebase is necessary.
+
+This sample validates advisory reuse, not full caller closure, safe edits,
+package-wide quality or capability retirement. Migration remains active.

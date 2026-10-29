@@ -493,3 +493,43 @@ cases also place a duplicate method beyond the 4,096 prefix and distinguish
 shared-target feature variants, disjoint names, package roots and check/test
 contexts. The project replay samples are 9.42s/9.26s at about 2.1GB peak RSS;
 these are single local observations, not a speedup measurement.
+
+### Source-labeled project parameter plans (C51)
+
+`project-pdg-planning-cases.json` freezes the original
+`eligibility::{diagnostic,error,site_of}` sources before consulting their target
+scores or plans. This study explicitly sets `fn_params.max_params=3`; the
+repository/default limit of four stays unchanged. The two four-parameter owners
+are study positives, not default violations.
+
+`compiler_planning.py` reuses the existing quality reducer's source/context and
+completed diagnostic associations, then checks completed core planner output.
+All eight checks agree: three parameter outcomes, one shared edit group,
+callee-before-caller signature order, exactly three bare forwarded parameters,
+their shared `&str` bundle, and no signature change for clean `site_of`.
+The computed `&site_of(node)` argument does not become a bare forwarded parameter.
+Other callers may enlarge the group; no exact total group/step count is asserted.
+The comparator checks parallel owner rosters and preserves unavailable sources
+and contexts, including the clean control, rather than inferring numeric zero.
+
+Reproduce using the existing C48 saved run and a temporary policy file:
+
+```sh
+printf '[fn_params]\nmax_params=3\n' > /tmp/project-plans-policy.toml
+target/debug/cargo-rstyle clones --extraction-profile hir-data-v3 \
+  --compiler-advisory --compiler-advisory-only --compiler-plans \
+  --replay-run target/rstyle/clones/run-WizKMH \
+  --compiler-advisory-config /tmp/project-plans-policy.toml \
+  --format json --report-detail compact > /tmp/project-plans-report.json
+# Replay exits 2 because captured scope remains incomplete.
+python3 eval/clones-capability/compiler_planning.py \
+  --report /tmp/project-plans-report.json \
+  --labels eval/clones-capability/project-pdg-planning-cases.json \
+  --output /tmp/project-plans-results.json
+```
+
+The replay retains 7,034 measured and 6,494 unavailable owners, with 142
+unresolved callees. A single local replay took 13.48s and 2,109,120KiB peak RSS;
+this is not a speedup measurement. These source samples do not establish global
+quality, full caller closure, safe rewrites or migration retirement. No new
+production collector, planner, proof, checksum or capture was introduced.
