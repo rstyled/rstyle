@@ -31,14 +31,14 @@ def fixture():
                                    'unit_evidence': {'report_unit': 0}})
         inventory.append({'function_span': span, 'active_functions': [name],
                           'source_file': '/workspace/src/lib.rs', 'source': source})
-        samples.append({'function': name, 'source_file': 'src/lib.rs', 'source': source,
+        samples.append({'function': name, 'source_file': 'src/lib.rs', 'source': source, 'unsuppressed': True,
                         'expected': {'params': 3 if i < 2 else 1, 'fn_params_finding': i < 2}})
         if i < 2:
             functions.append({'name': name, 'path': 'src/lib.rs', 'line': i + 1,
                               'rules': ['fn_params']})
             unit['evaluation']['diagnostics'].append({'path': 'src/lib.rs', 'line': i + 1,
                 'rule_id': 'fn_params', 'actual': 3, 'limit': 2})
-    unit['evaluation']['summary']['violations'] = 2
+    unit['evaluation']['summary'].update(violations=2, functions=3)
     keys = [row['key'] for row in unit['observations']]
     bundle = [{'name': 'a', 'type': '&str'}]
     group = {'members': keys[:2], 'step_owners': keys[:2], 'bundle_owners': [keys[:2]],
@@ -67,6 +67,34 @@ class CompilerPlanningTests(unittest.TestCase):
         self.assertFalse(result['scope_complete'])
         self.assertFalse(result['planning_input_complete'])
         self.assertEqual(result['parameters'][2]['observed'], {'outcome': 'evaluated_no_finding'})
+
+    def test_policy_excluded_clean_control_cannot_validate_parameter_plan(self):
+        report, labels = fixture()
+        policy = ['src/excluded.rs']
+        report['compiler_advisory']['effective_config']['exclude'] = policy
+        labels['policy']['exclude'] = policy
+        source = report['owned_source_inventory'][0]['source_functions'][2]
+        source['source_file'] = '/workspace/src/excluded.rs'
+        labels['samples'][2]['source_file'] = 'src/excluded.rs'
+        report['compiler_advisory']['units'][0]['evaluation']['summary']['functions'] = 2
+        result = compare(report, labels)
+        self.assertEqual(result['counts'], {'agreement': 2, 'unavailable': 2})
+        self.assertIsNone(result['parameters'][2]['observed'])
+        self.assertEqual(result['relationship'][0]['result'], 'unavailable')
+
+    def test_missing_selected_population_cannot_establish_a_clean_control(self):
+        report, labels = fixture()
+        del report['compiler_advisory']['units'][0]['evaluation']['summary']['functions']
+        result = compare(report, labels)
+        self.assertEqual(result['counts'], {'agreement': 2, 'unavailable': 2})
+        self.assertIsNone(result['parameters'][2]['observed'])
+
+    def test_suppression_precondition_requires_source_review(self):
+        for value in (False, None, 1):
+            report, labels = fixture()
+            labels['samples'][2]['unsuppressed'] = value
+            with self.assertRaisesRegex(ValueError, 'suppression precondition'):
+                compare(report, labels)
 
     def test_missing_changed_and_ambiguous_sources_stay_unavailable(self):
         for mutation in ('changed', 'duplicate', 'missing'):
@@ -140,6 +168,7 @@ class CompilerPlanningTests(unittest.TestCase):
         report, labels = fixture()
         unit = report['compiler_advisory']['units'][0]
         unit['observations'].pop()
+        unit['evaluation']['summary']['functions'] = 2
         unit['unavailable'].append({'key': 'function:u0:f2', 'reason': 'missing capture'})
         self.assertEqual(compare(report, labels)['counts'], {'agreement': 2, 'unavailable': 2})
 

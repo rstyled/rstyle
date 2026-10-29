@@ -5,7 +5,7 @@ from collections import Counter
 import json
 from pathlib import Path
 
-from compiler_quality import check_rule, planned_owners, sample_owner, units, validate_planning
+from compiler_quality import check_rule, evaluation_reason, planned_owners, sample_owner, units, validate_planning
 from project_coverage import boolean, integer, load, require, unique
 
 
@@ -100,7 +100,10 @@ def compare(report, labels):
             'unsupported signature ordering label')
     for name, label in samples.items():
         sample = {**labels, **label}
+        require(sample.get('unsuppressed') is True, 'sample suppression precondition not reviewed')
         unit, key, reason = sample_owner(report, sample, selected)
+        if reason is None:
+            reason = evaluation_reason(unit, key, owners)
         keys[name], reasons[name] = key, reason
         actual = integer(label['expected']['params'], 'independent parameter count')
         limit = integer(labels['policy']['fn_params']['max_params'], 'independent limit')

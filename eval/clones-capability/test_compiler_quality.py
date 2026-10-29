@@ -22,7 +22,7 @@ def fixture():
     diagnostics[1]['details'] = [{'label': 'a'}, {'label': 'b'}]
     unit = {'unit': 0, 'source_root': '/workspace',
             'observations': [{'key': key, 'name': 'f'}], 'unavailable': [],
-            'evaluation': {'diagnostics': diagnostics, 'summary': {'violations': 2}}}
+            'evaluation': {'diagnostics': diagnostics, 'summary': {'violations': 2, 'functions': 1}}}
     report = {'run_directory': '/saved/run-sample', 'toolchain': 'nightly',
               'unit_contexts': [{'id': 0, 'observed_unit': 0}],
               'observed_units': [{'target': target, 'test': False}],
@@ -51,7 +51,7 @@ def fixture():
 def clean(report, labels):
     report['compiler_advisory']['planning']['groups'] = []
     unit = report['compiler_advisory']['units'][0]
-    unit['evaluation'] = {'diagnostics': [], 'summary': {'violations': 0}}
+    unit['evaluation'] = {'diagnostics': [], 'summary': {'violations': 0, 'functions': 1}}
     labels['samples'][0].update(parameters=2, mutated_roots=[])
 
 
@@ -65,7 +65,7 @@ def spacing_fixture():
     advisory = report['compiler_advisory']
     advisory['effective_config']['fn_spacing'] = {'min_statements': 5}
     advisory['units'][0]['evaluation'] = {
-        'summary': {'violations': 1},
+        'summary': {'violations': 1, 'functions': 1},
         'diagnostics': [{'path': 'src/lib.rs', 'line': 1, 'rule_id': 'fn_spacing', 'actual': 5, 'limit': 4}],
         'fix_groups': [{'functions': [{'name': 'f', 'path': 'src/lib.rs', 'line': 1,
                                      'rules': ['fn_spacing']}]}]}
@@ -73,6 +73,25 @@ def spacing_fixture():
 
 
 class CompilerQualityTests(unittest.TestCase):
+    def test_default_exclusions_do_not_make_retained_generated_source_clean(self):
+        report, labels = fixture()
+        clean(report, labels)
+        labels['samples'][0]['source_file'] = 'target/generated.rs'
+        source = report['owned_source_inventory'][0]['source_functions'][0]
+        source['source_file'] = '/workspace/target/generated.rs'
+        report['compiler_advisory']['units'][0]['evaluation']['summary']['functions'] = 0
+        result = compare(report, labels)
+        self.assertEqual(result['counts'], {'unavailable': 2})
+        self.assertTrue(all(row['observed'] is None for row in result['comparisons']))
+
+    def test_missing_selected_population_is_unknown_without_completed_owners(self):
+        report, labels = fixture()
+        clean(report, labels)
+        del report['compiler_advisory']['units'][0]['evaluation']['summary']['functions']
+        result = compare(report, labels)
+        self.assertEqual(result['counts'], {'unavailable': 2})
+        self.assertFalse(result['sample_complete'])
+
     def test_spacing_reuses_completed_location_without_a_planner_owner(self):
         report, labels = spacing_fixture()
         result = compare(report, labels)
@@ -83,7 +102,7 @@ class CompilerQualityTests(unittest.TestCase):
     def test_spacing_clean_outcome_is_independent_of_the_statement_threshold(self):
         report, labels = spacing_fixture()
         unit = report['compiler_advisory']['units'][0]
-        unit['evaluation'] = {'summary': {'violations': 0}, 'diagnostics': [], 'fix_groups': []}
+        unit['evaluation'] = {'summary': {'violations': 0, 'functions': 1}, 'diagnostics': [], 'fix_groups': []}
         labels['samples'][0]['spacing']['outcome'] = 'evaluated_no_finding'
         result = compare(report, labels)
         self.assertEqual(result['counts'], {'agreement': 1})
@@ -148,7 +167,7 @@ class CompilerQualityTests(unittest.TestCase):
         report, labels = spacing_fixture()
         unit = deepcopy(report['compiler_advisory']['units'][0])
         unit.update(unit=1, observations=[{'key': 'function:u1:f0', 'name': 'f'}])
-        unit['evaluation'] = {'summary': {'violations': 0}, 'diagnostics': [], 'fix_groups': []}
+        unit['evaluation'] = {'summary': {'violations': 0, 'functions': 1}, 'diagnostics': [], 'fix_groups': []}
         report['compiler_advisory']['units'].append(unit)
         report['unit_contexts'].append({'id': 1, 'observed_unit': 1})
         report['observed_units'].append({**deepcopy(report['observed_units'][0]), 'test': True})
@@ -195,7 +214,7 @@ class CompilerQualityTests(unittest.TestCase):
         report['observed_units'][0]['target']['name'] = 'first'
         second = deepcopy(report['compiler_advisory']['units'][0])
         second.update(unit=1, observations=[{'key': 'function:u1:f0', 'name': 'f'}])
-        second['evaluation'] = {'summary': {'violations': 0}, 'diagnostics': [], 'fix_groups': []}
+        second['evaluation'] = {'summary': {'violations': 0, 'functions': 1}, 'diagnostics': [], 'fix_groups': []}
         report['compiler_advisory']['units'].append(second)
         report['unit_contexts'].append({'id': 1, 'observed_unit': 1})
         observed = deepcopy(report['observed_units'][0])

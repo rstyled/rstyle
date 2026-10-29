@@ -50,7 +50,7 @@ def no_finding(report, labels, limit=3000):
     advisory = report['compiler_advisory']
     advisory['effective_config']['side_effects']['max_density_milli'] = limit
     advisory['planning']['groups'] = []
-    advisory['units'][0]['evaluation'] = {'summary': {'violations': 0}, 'diagnostics': []}
+    advisory['units'][0]['evaluation'] = {'summary': {'violations': 0, 'functions': len(advisory['units'][0]['observations'])}, 'diagnostics': []}
 
 
 class CompilerDensityQualityTests(unittest.TestCase):

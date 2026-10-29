@@ -425,7 +425,10 @@ For independently labeled numeric validation, the offline
 `eval/clones-capability/compiler_complexity.py --require-scores` compares exact
 completed policy/CC/COG values separately from threshold outcomes. Missing or
 truncated rows remain unavailable; a clean diagnostic result cannot imply zero
-or validate an unobserved score. Default outcome-only validation is unchanged.
+or validate an unobserved score. Numeric validation requires completed core
+evaluation membership before inferring a clean outcome. Complexity and parameter
+plan source labels require an independently reviewed `unsuppressed: true`;
+captured-but-excluded owners remain unavailable. No extra runtime scans are added.
 See [compiler advisory](../../docs/clones-compiler-advisory.md).
 
 When the caller and dependency workspace packages are selected, compiler effects follow

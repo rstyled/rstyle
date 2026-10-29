@@ -32,7 +32,8 @@
       "expected": {
         "params": 4,
         "fn_params_finding": true
-      }
+      },
+      "unsuppressed": true
     },
     {
       "function": "eligibility::error",
@@ -45,7 +46,8 @@
       "expected": {
         "params": 4,
         "fn_params_finding": true
-      }
+      },
+      "unsuppressed": true
     },
     {
       "function": "eligibility::site_of",
@@ -58,7 +60,8 @@
       "expected": {
         "params": 1,
         "fn_params_finding": false
-      }
+      },
+      "unsuppressed": true
     }
   ],
   "caller_relationship": {
@@ -129,5 +132,6 @@
   },
   "toolchain": "nightly-2026-09-30",
   "metrics": "rstyle.compiler-style-metrics/6",
-  "planning_schema": "rstyle.compiler-planning/1"
+  "planning_schema": "rstyle.compiler-planning/1",
+  "suppression_review": "C58 source-only review of diagnostic, error, and site_of attributes and preceding lines confirms no fn_params suppression; original parameter and relationship labels are unchanged."
 }

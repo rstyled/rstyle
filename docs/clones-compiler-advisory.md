@@ -108,7 +108,11 @@ report is unchanged. Rankings over incomplete input are not whole-project maxima
 The offline [complexity validator](../eval/clones-capability/README.md) accepts
 `--require-scores` to compare these completed rows with independent numeric
 labels, including clean functions. Missing/truncated rows remain unavailable;
-ordinary threshold-outcome comparisons stay separate.
+ordinary threshold-outcome comparisons stay separate. Numeric validators require
+completed core evaluation membership before interpreting absent diagnostics as
+clean; captured owners excluded by policy remain unavailable. Complexity and
+parameter-plan labels require an independently reviewed `unsuppressed: true`
+precondition. These checks reuse existing report data without new runtime work.
 
 Metric version 2 omits lowered iterator roots from source mutation budgets.
 The shared expression-use collector tags these bindings by their HIR

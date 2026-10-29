@@ -92,7 +92,8 @@
           "cognitive_increment": 0,
           "reason": "CC base1; total13 is strictly above12, COG5 is below12."
         }
-      ]
+      ],
+      "unsuppressed": true
     },
     {
       "package": "rstyle-core",
@@ -174,7 +175,8 @@
           "cognitive_increment": 3,
           "reason": "Three authored self.render calls are direct recursion; the documented existing collector adds one COG each. C42 frozen label omitted them. C56 recorded saved7 versus frozen4; this new label explicitly corrects that reviewed source-label omission, without rewriting the original cases or results."
         }
-      ]
+      ],
+      "unsuppressed": true
     },
     {
       "package": "rstyle-core",
@@ -246,7 +248,8 @@
           "cognitive_increment": 0,
           "reason": "CC10, COG12; equality at12 is allowed, so neither rule finds a violation."
         }
-      ]
+      ],
+      "unsuppressed": true
     },
     {
       "package": "rstyle-core",
@@ -286,7 +289,9 @@
           "cognitive_increment": 0,
           "reason": "Only the CC entry base remains. COG0 is an available measured zero, not missing evidence."
         }
-      ]
+      ],
+      "unsuppressed": true
     }
-  ]
+  ],
+  "suppression_review": "C58 source-only review of the original owner attributes and preceding lines confirms no cyclomatic_complexity or cognitive_complexity suppression; numeric labels are unchanged."
 }

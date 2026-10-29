@@ -40,7 +40,8 @@
       },
       "manual_rationale": [
         "Thirteen match arms give 12 CC and 1 COG; six guards give 6 CC and 12 COG; five authored boolean operators outside macros give 5 CC and 4 COG. Base CC 1. Opaque matches! syntax and OR patterns are not extra decisions."
-      ]
+      ],
+      "unsuppressed": true
     },
     {
       "package": "rstyle-pdg",
@@ -66,7 +67,8 @@
       },
       "manual_rationale": [
         "Ten match arms give 9 CC and 1 COG; eight guards give 8 CC and 16 COG; one outside-macro && gives 1 CC / 1 COG. Base CC 1. Despite name there is no direct self-call; boolean text inside matches! remains opaque."
-      ]
+      ],
+      "unsuppressed": true
     },
     {
       "package": "rstyle-pdg",
@@ -89,7 +91,8 @@
       },
       "manual_rationale": [
         "Two guards give 2 CC / 2 COG; one || gives 1 CC / 1 COG; one actual direct self-call gives 0 CC / 1 COG. Base CC 1. Indirect helper calls are not direct recursion."
-      ]
+      ],
+      "unsuppressed": true
     },
     {
       "package": "rstyle-pdg",
@@ -112,7 +115,9 @@
       },
       "manual_rationale": [
         "For gives 1 CC / 1 COG, nested guard 1 CC / 2 COG, OR 1 CC / 1 COG and propagation 1 CC / 0 COG. Base CC 1. check is another function, not direct self-recursion."
-      ]
+      ],
+      "unsuppressed": true
     }
-  ]
+  ],
+  "suppression_review": "C58 source-only review of the original owner attributes and preceding lines confirms no cyclomatic_complexity or cognitive_complexity suppression; numeric labels are unchanged."
 }

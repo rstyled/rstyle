@@ -709,3 +709,28 @@ scores then agree in `project-core-complexity-score-results.json`; the PDG score
 results use the unchanged C49 labels. Core408/806 and PDG7034/6494
 measured/unavailable-owner scopes retain exit2. Single replay observations are
 not performance comparisons or legacy-retirement evidence.
+
+### Evaluated owners and source-policy review (C58)
+
+Captured compiler observations are retained even when core policy excludes their
+paths. Numeric quality and parameter-plan validators now require evidence that a
+sample was selected for evaluation before inferring a clean outcome from absent
+diagnostics. They reuse completed plan owners, displayed complexity-ranking
+owners, or an exact full selected-function count. When some owners were excluded
+and no individual membership is available, the sample stays unavailable. Missing
+population counts also stay unavailable. These offline checks do not implement a
+second glob matcher, parse source again, or change native analysis.
+
+Complexity and parameter-plan labels now require `unsuppressed: true`, matching
+the existing compiler-quality precondition. Review the original owner attributes
+and preceding source lines before setting it; an absent diagnostic alone cannot
+establish this precondition. All existing numeric labels are preserved.
+
+`project-compiler-evaluation-membership-study.json` records a native saved core
+replay with `crates/rstyle-core/src/lines.rs` excluded. It retains408 captured
+owners but evaluates404. The old comparator incorrectly accepted both clean
+complexity outcomes for `lines::has_blank_line` and exited0. The corrected
+comparator marks those two outcomes unavailable and exits2; the other six
+threshold comparisons agree. The original core/PDG score results and PDG
+parameter-plan results reproduce exactly. These are validation corrections,
+not new runtime capability coverage, performance or retirement claims.

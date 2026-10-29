@@ -4903,3 +4903,64 @@ patterns; those gates are not redundantly repeated for an offline-tool change.
 C56 native CI is still in progress at this checkpoint; C55 is green on macOS15
 and both Ubuntu runners. Broader migration and every legacy-retirement gate stay
 active; this increment improves numeric-quality validation rather than scoring.
+
+### C58 — retain core policy evaluation membership in quality checks (2026-10-29)
+
+The preceding continuation yielded evidence that changed the next action: native
+function spans omit leading docs, so the proposed literal-documentation guard
+change would not improve measured coverage. Its implementation and new test leaf
+were removed from the checkout; the experiment is retained in /tmp only. A bounded
+source review also found no qualifying new selected-concrete-trait IO/planning
+positive; generic receivers and external default-method/serializer boundaries
+remain explicit rather than being presented as propagation gains.
+
+The next acceptance audit found an actual quality-validation gap. Compiler
+observations retain policy-excluded owners, while core evaluation filters them.
+The offline numeric reducer inferred evaluated-no-finding from absent diagnostics
+without establishing selected membership. This also affected complexity outcomes
+and parameter-plan clean controls. Lead owns the shared reducer, planning adapter,
+project evidence and docs; a separate acceptance leaf froze complexity exclusion
+and suppression tests before implementation.
+
+The shared check now reuses completed core selected-function counts, plan owners
+or paired complexity-ranking owners. An exact full selected count proves every
+known captured owner was selected; individual completed owners support mixed
+scopes. Missing membership stays unavailable, including when some owners were
+excluded and the requested ranking omits the sample. No second glob matcher,
+collector, evaluator, scorer, parser, proof, source/artifact scan or hash is added.
+Runtime analysis, native policies, metric versions, reports and strict matching
+are unchanged. Synthetic native fixtures now retain actual selected-population
+counters instead of relying on missing denominators.
+
+Complexity and parameter-plan labels additionally require independently reviewed
+unsuppressed:true, matching the existing compiler-quality precondition. The source
+review checked all eight unique core/PDG complexity owners and the three PDG
+parameter owners; their function attributes and preceding lines contain no
+applicable named suppression. Only this precondition and its review note were
+added; original source and numeric/relationship labels remain unchanged.
+
+A native run-mycjUM replay excludes crates/rstyle-core/src/lines.rs under the same
+complexity limits. It retains408 captured known owners but selects404. The old
+comparator falsely accepted both clean complexity outcomes for excluded
+lines::has_blank_line and exited0. The new comparator reports six agreements and
+two unavailable outcomes, exiting2; exact-score mode reports three agreements
+and one unavailable. This evidence is recorded in
+project-compiler-evaluation-membership-study.json. The original core/PDG score
+results and PDG parameter-plan results reproduce exactly, including all eight
+threshold/relationship agreements in each corresponding study. Whole-capture
+incompleteness remains unchanged. No performance or new runtime coverage claim.
+
+All244 offline Python tests pass, including13 new regressions covering excluded
+paths, missing selected counts, mixed ranked membership, actual CLI exit2,
+parameter clean-control unavailability and required suppression review. Current
+CLI rebuild, formatting and diff checks pass. Rust runtime source is unchanged
+since C56's final3,468 passing Rust tests/doc tests, locked all-target Clippy,
+zero style violations and zero unreviewed patterns; those expensive gates are
+not redundantly repeated for an offline-tool change. Logs use
+/tmp/clones-c58-checked-*. C56 CI40861421408 is now green on macOS15 and both Ubuntu
+runners; C57's Ubuntu jobs are green while its macOS job remains live at this
+checkpoint. The existing macOS fixture fix stays in place.
+
+Migration remains active. Broader source/effect/proposal quality, genuinely useful
+production guard positives, full captured-owner coverage and capability-specific
+legacy retirement gates remain open.

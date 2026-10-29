@@ -5,7 +5,7 @@ from collections import Counter
 import json
 from pathlib import Path
 
-from compiler_quality import check_rule, planned_owners, sample_owner, units, validate_planning
+from compiler_quality import check_rule, evaluation_reason, planned_owners, sample_owner, units, validate_planning
 from project_coverage import boolean, integer, load, require, unique
 
 RULES = ('cyclomatic_complexity', 'cognitive_complexity')
@@ -99,6 +99,7 @@ def compare(report, labels, require_scores=False):
     scores = {unit['unit']: ranked_scores(unit) for unit, _ in selected} if require_scores else {}
     rows, score_rows = [], []
     for sample in labels['samples']:
+        require(sample.get('unsuppressed') is True, 'sample suppression precondition not reviewed')
         unit, key, reason = sample_owner(report, sample, selected)
         require(sample['expected']['available'] is True, 'missing independent availability label')
         require(sample['expected']['policy_version'] == 1, 'different sample complexity policy')
@@ -106,6 +107,8 @@ def compare(report, labels, require_scores=False):
             missing = unique(unit['unavailable_complexity'], 'key', 'unavailable complexity')
             if key in missing:
                 reason = missing[key].get('reason') or 'Compiler complexity is unavailable'
+        if reason is None:
+            reason = evaluation_reason(unit, key, owners)
         if require_scores:
             score_rows.append({'function': sample['function'], 'source_file': sample['source_file'],
                                'test': sample['test'],

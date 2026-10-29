@@ -46,6 +46,30 @@ def validate_planning(report, owners, rules=('fn_params', 'mutated_targets', 'si
                     'incomplete completed rule-owner roster')
 
 
+def evaluation_reason(unit, key, owners):
+    """Use completed core membership, without reimplementing path exclusions."""
+    count = unit['evaluation']['summary'].get('functions')
+    if count is not None:
+        selected = integer(count, 'evaluated functions')
+        require(selected <= len(unit['observations']), 'evaluated count exceeds captured owners')
+        if selected == len(unit['observations']):
+            return None
+    if key in owners:
+        return None
+    ranking = unit.get('complexity_ranking')
+    if ranking is not None:
+        require(ranking.get('schema') == 'rstyle.compiler-complexity-ranking/1', 'wrong complexity ranking schema')
+        keys, rows = ranking.get('owners'), ranking.get('functions')
+        require(isinstance(keys, list) and isinstance(rows, list) and len(keys) == len(rows)
+                and len(set(keys)) == len(keys), 'incomplete ranking owner roster')
+        if key in keys:
+            row = rows[keys.index(key)]
+            known = next(item for item in unit['observations'] if item['key'] == key)
+            require(row.get('name') == known['name'], 'ranked owner name mismatch')
+            return None
+    return 'Core policy evaluation membership unavailable; captured owners can be excluded'
+
+
 def target_name(sample):
     name = sample.get('target_name')
     require('target_name' not in sample or isinstance(name, str) and bool(name),
@@ -124,7 +148,10 @@ def check_rule(unit, key, function, sample, rule, actual, limit, expected=None):
     wanted = expected or {'outcome': 'finding' if actual > limit else 'evaluated_no_finding',
               'actual': actual, 'limit': limit}
     observed = {'outcome': 'evaluated_no_finding'}
-    reason = None
+    reason = evaluation_reason(unit, key, (key,) if function else ())
+    if reason:
+        return {'key': key, 'rule': rule, 'expected': wanted, 'observed': None,
+                'result': 'unavailable', 'reason': reason}
     if function and rule in function['rules']:
         require(function['path'] == sample['source_file'], 'planned source path differs')
         metadata = {'complete': True, 'functions': [{

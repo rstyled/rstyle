@@ -92,7 +92,8 @@
           "cognitive_increment": 0,
           "reason": "CC base1; total13 is strictly above12, COG5 is below12."
         }
-      ]
+      ],
+      "unsuppressed": true
     },
     {
       "package": "rstyle-core",
@@ -163,7 +164,8 @@
           "cognitive_increment": 0,
           "reason": "TotalCC12 is allowed by the strict-greater-than default threshold."
         }
-      ]
+      ],
+      "unsuppressed": true
     },
     {
       "package": "rstyle-core",
@@ -235,7 +237,8 @@
           "cognitive_increment": 0,
           "reason": "CC10, COG12; equality at12 is allowed, so neither rule finds a violation."
         }
-      ]
+      ],
+      "unsuppressed": true
     },
     {
       "package": "rstyle-core",
@@ -275,7 +278,9 @@
           "cognitive_increment": 0,
           "reason": "Only the CC entry base remains. COG0 is an available measured zero, not missing evidence."
         }
-      ]
+      ],
+      "unsuppressed": true
     }
-  ]
+  ],
+  "suppression_review": "C58 source-only review of the original owner attributes and preceding lines confirms no cyclomatic_complexity or cognitive_complexity suppression; numeric labels are unchanged."
 }
