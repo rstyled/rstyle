@@ -118,6 +118,8 @@ pub struct Report<'a> {
     pub suppressed_findings: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     changed_scope: Option<changed_scope::Report<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    guard_changed_scope: Option<changed_scope::Report<'a>>,
     effective_config: Option<Settings<'a>>,
     limitations: &'static [&'static str],
     functions: Vec<FunctionReport<'a>>,
@@ -244,29 +246,22 @@ pub(super) fn evaluate<'a>(
     args: &Args,
 ) -> Report<'a> {
     let config = config.filter(|config| config.source.is_some() || config.guards);
-    let limit = args.max_analysis_functions.unwrap_or(usize::MAX);
-    let mut functions: Vec<_> = config
-        .map(|config| {
-            handoff
-                .assessed
-                .iter()
-                .enumerate()
-                .map(|(index, function)| {
-                    assess(function, config, index >= limit, &capture.plan.root)
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    let mut functions = assess_functions(
+        handoff,
+        &capture.plan.root,
+        config,
+        args.max_analysis_functions.unwrap_or(usize::MAX),
+    );
     let scope = scope(&functions, handoff, capture, config.is_some());
     let execution = execution(&functions, &scope, config.is_some());
     let findings = count(&functions, Outcome::Finding);
     let visible_findings = functions.iter().map(FunctionReport::visible_findings).sum();
-    let changed_scope = config
-        .filter(|config| config.source.is_some())
-        .and_then(Config::changed_files)
-        .map(|selection| {
-            changed_file_reports::evaluate(selection, &mut functions, &capture.plan.root)
-        });
+    let changed = changed_file_reports::evaluate(
+        config,
+        &mut functions,
+        &capture.plan.root,
+        args.select_guards,
+    );
 
     Report {
         schema: "rstyle.consumer-analysis/1",
@@ -275,7 +270,8 @@ pub(super) fn evaluate<'a>(
         findings,
         visible_findings,
         suppressed_findings: findings - visible_findings,
-        changed_scope,
+        changed_scope: changed.sources,
+        guard_changed_scope: changed.guards,
         effective_config: config
             .and_then(|config| config.source.as_ref())
             .map(Settings::new),
@@ -287,6 +283,24 @@ pub(super) fn evaluate<'a>(
         ],
         functions,
     }
+}
+
+fn assess_functions<'a>(
+    handoff: &'a Handoff,
+    root: &std::path::Path,
+    config: Option<&Config>,
+    limit: usize,
+) -> Vec<FunctionReport<'a>> {
+    config
+        .map(|config| {
+            handoff
+                .assessed
+                .iter()
+                .enumerate()
+                .map(|(index, function)| assess(function, config, index >= limit, root))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn scope(
@@ -583,7 +597,10 @@ impl Report<'_> {
             self.execution,
             self.scope.coverage,
             self.changed_scope.as_ref(),
-        )
+        ) && self
+            .guard_changed_scope
+            .as_ref()
+            .is_none_or(changed_scope::Report::permits_success)
     }
 
     pub fn render(&self) -> String {
@@ -604,13 +621,18 @@ impl Report<'_> {
         if let Some(changed) = &self.changed_scope {
             output.push_str(&changed.render());
         }
+        if let Some(changed) = &self.guard_changed_scope {
+            output.push_str(&changed.render_for("guard advice"));
+        }
         output.push_str(
             &self
                 .functions
                 .iter()
                 .map(|function| {
-                    function
-                        .render(self.changed_scope.is_none() || function.changed_file == Some(true))
+                    function.render(
+                        self.changed_scope.is_none() || function.changed_file == Some(true),
+                        self.guard_changed_scope.is_none() || function.changed_file == Some(true),
+                    )
                 })
                 .collect::<String>(),
         );
@@ -628,12 +650,7 @@ impl FunctionReport<'_> {
     }
 
     fn visible_findings(&self) -> usize {
-        self.source_visible_findings()
-            + usize::from(
-                self.guard_clause
-                    .as_ref()
-                    .is_some_and(|guard| guard.outcome == Outcome::Finding),
-            )
+        self.source_visible_findings() + usize::from(self.guard_finding())
     }
 
     fn source_visible_findings(&self) -> usize {
@@ -653,7 +670,7 @@ impl FunctionReport<'_> {
         )
     }
 
-    fn render(&self, show_source: bool) -> String {
+    fn render(&self, show_source: bool, show_guard: bool) -> String {
         let location = self.location();
         let source = self
             .assessments
@@ -676,6 +693,7 @@ impl FunctionReport<'_> {
         let guard = self
             .guard_clause
             .as_ref()
+            .filter(|_| show_guard)
             .into_iter()
             .flat_map(|guard| guard.opportunity.iter().chain(&guard.closure_opportunities))
             .map(|opportunity| {

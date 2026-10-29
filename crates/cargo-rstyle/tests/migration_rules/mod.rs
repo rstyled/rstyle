@@ -3,6 +3,7 @@ use super::*;
 mod call_tokens;
 mod changed_scope;
 mod exclusions;
+mod guard_selection;
 mod match_guards;
 mod spacing;
 mod suppressions;

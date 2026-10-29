@@ -1,0 +1,85 @@
+{
+  "schema": "rstyle.guard-selection-project-study/1",
+  "source_cases": "project-guard-closure-cases.json",
+  "source_scope": "Unchanged C59 original verification_policy.rs and verification_session.rs standalone module slice; not full-package coverage.",
+  "capture": "/tmp/clones-c59-source-slice/target/rstyle/clones/run-cHsQ4u",
+  "method": "Replay the same saved capture with --guard-clauses --guard-plans --fail-on-findings; selected variants add --select-guards --changed-files with explicit rstyle.changed-files/1 manifests. No fresh capture or source edits.",
+  "invariants_checked": [
+    "Whole analysis scope, raw finding and visibility counts exactly equal global replay.",
+    "Every raw guard assessment exactly equal global replay.",
+    "guard_planning, functions, matching and accepted_pairs exactly equal global replay."
+  ],
+  "samples": [
+    {
+      "id": "global",
+      "selected_paths": null,
+      "exit_code": 2,
+      "selection": null,
+      "global_guard_findings": 1
+    },
+    {
+      "id": "session",
+      "selected_paths": [
+        "src/verification_session.rs"
+      ],
+      "exit_code": 2,
+      "selection": {
+        "coverage": "incomplete",
+        "visible_findings": 1,
+        "unclassified_functions": 0,
+        "paths": [
+          {
+            "path": "src/verification_session.rs",
+            "matched_functions": 5,
+            "unavailable_functions": 5,
+            "visible_findings": 1,
+            "coverage": "incomplete",
+            "status": "observed"
+          }
+        ]
+      },
+      "global_guard_findings": 1
+    },
+    {
+      "id": "policy",
+      "selected_paths": [
+        "src/verification_policy.rs"
+      ],
+      "exit_code": 2,
+      "selection": {
+        "coverage": "incomplete",
+        "visible_findings": 0,
+        "unclassified_functions": 0,
+        "paths": [
+          {
+            "path": "src/verification_policy.rs",
+            "matched_functions": 5,
+            "unavailable_functions": 2,
+            "visible_findings": 0,
+            "coverage": "incomplete",
+            "status": "observed"
+          }
+        ]
+      },
+      "global_guard_findings": 1
+    },
+    {
+      "id": "empty",
+      "selected_paths": [],
+      "exit_code": 2,
+      "selection": {
+        "coverage": "complete",
+        "visible_findings": 0,
+        "unclassified_functions": 0,
+        "paths": []
+      },
+      "global_guard_findings": 1
+    }
+  ],
+  "limitations": [
+    "This adds file-scoped presentation and finding exits, not new detector coverage.",
+    "Global guard coverage remains incomplete in every variant, so every exit remains 2 including empty selection.",
+    "Selected file denominators count captured owners only; no absent or opaque owner is synthesized clean.",
+    "No full-project precision, performance or retirement claim."
+  ]
+}

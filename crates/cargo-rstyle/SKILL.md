@@ -148,6 +148,12 @@ and exit two. Saved replay uses the same bounds without requiring source files.
 Source policy also accepts top-level workspace-relative `exclude` globs (default
 `["target/**"]`; `[]` disables). Excluded owners remain explicit complete skips
 in `source_exclusion` and scope counters; other consumers still evaluate them.
+Add `--select-guards --guard-clauses --changed-files PATH` to select guard advice
+for text and finding exits. `analysis.guard_changed_scope` retains selected guard
+counts and availability; global assessments, completeness and guard plans remain
+intact. Multiple closure opportunities count once per owner, and incomplete global
+guard coverage still exits two. Without this flag guard presentation stays global.
+
 Add `--changed-files PATH` for explicit changed-file source diagnostics and finding
 exits. JSON input is `{"schema":"rstyle.changed-files/1","paths":["src/lib.rs"]}`;
 paths are normalized workspace-relative Rust paths. All assessments and totals

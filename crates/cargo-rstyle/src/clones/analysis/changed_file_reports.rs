@@ -2,11 +2,47 @@
 use super::{Coverage, FunctionReport, Outcome, Report, changed_scope};
 use std::path::Path;
 
+#[derive(Clone, Copy)]
+enum Family {
+    Source,
+    Guard,
+}
+
+pub(super) struct Scopes<'a> {
+    pub sources: Option<changed_scope::Report<'a>>,
+    pub guards: Option<changed_scope::Report<'a>>,
+}
+
 pub(super) fn evaluate<'a>(
-    selection: &'a changed_scope::Selection,
+    config: Option<&'a super::Config>,
     functions: &mut [FunctionReport<'_>],
     root: &Path,
-) -> changed_scope::Report<'a> {
+    select_guards: bool,
+) -> Scopes<'a> {
+    let selection = config.and_then(super::Config::changed_files);
+    Scopes {
+        sources: family(
+            selection.filter(|_| config.is_some_and(|config| config.source.is_some())),
+            functions,
+            root,
+            Family::Source,
+        ),
+        guards: family(
+            selection.filter(|_| select_guards),
+            functions,
+            root,
+            Family::Guard,
+        ),
+    }
+}
+
+fn family<'a>(
+    selection: Option<&'a changed_scope::Selection>,
+    functions: &mut [FunctionReport<'_>],
+    root: &Path,
+    family: Family,
+) -> Option<changed_scope::Report<'a>> {
+    let selection = selection?;
     let owners = functions.iter_mut().map(|function| {
         let path = function
             .source_file
@@ -14,11 +50,20 @@ pub(super) fn evaluate<'a>(
         function.changed_file = path.map(|path| selection.contains(path));
         changed_scope::Owner {
             path,
-            complete: source_complete(function),
-            visible_findings: function.source_visible_findings(),
+            complete: match family {
+                Family::Source => source_complete(function),
+                Family::Guard => function.guard_clause.as_ref().is_some_and(|guard| {
+                    guard.execution == super::Execution::Completed
+                        && guard.coverage == Coverage::Complete
+                }),
+            },
+            visible_findings: match family {
+                Family::Source => function.source_visible_findings(),
+                Family::Guard => usize::from(function.guard_finding()),
+            },
         }
     });
-    changed_scope::evaluate(selection, owners)
+    Some(changed_scope::evaluate(selection, owners))
 }
 
 pub(in crate::clones) fn selected_file(
@@ -40,6 +85,12 @@ fn source_complete(function: &FunctionReport<'_>) -> bool {
 }
 
 impl FunctionReport<'_> {
+    pub(super) fn guard_finding(&self) -> bool {
+        self.guard_clause
+            .as_ref()
+            .is_some_and(|guard| guard.outcome == Outcome::Finding)
+    }
+
     pub(super) fn source_policy_complete(&self) -> bool {
         let Some(exclusion) = &self.source_exclusion else {
             return false;
@@ -92,17 +143,16 @@ impl Report<'_> {
             },
             |scope| scope.visible_findings,
         );
-        source
-            + self
-                .functions
-                .iter()
-                .filter(|function| {
-                    function
-                        .guard_clause
-                        .as_ref()
-                        .is_some_and(|guard| guard.outcome == Outcome::Finding)
-                })
-                .count()
+        let guards = self.guard_changed_scope.as_ref().map_or_else(
+            || {
+                self.functions
+                    .iter()
+                    .filter(|function| function.guard_finding())
+                    .count()
+            },
+            |scope| scope.visible_findings,
+        );
+        source + guards
     }
 }
 

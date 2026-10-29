@@ -30,7 +30,7 @@ use std::{
 
 #[derive(ClapArgs, Serialize)]
 #[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density", "compiler_advisory"]).multiple(true)),
-    group(clap::ArgGroup::new("changed_analysis").args(["source_rules", "effect_density", "compiler_advisory"]).multiple(true)),
+    group(clap::ArgGroup::new("changed_analysis").args(["source_rules", "effect_density", "compiler_advisory", "select_guards"]).multiple(true)),
     group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules", "mutation_rules", "effect_density", "compiler_patterns", "compiler_advisory"]).multiple(true)),
     group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density", "dismiss_compiler_pattern", "dismiss_compiler_diagnostic"])),
     group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules", "effect_density", "compiler_advisory"]).multiple(true)))]
@@ -102,6 +102,9 @@ pub struct Args {
     /// Suggest bounded guard-clause shapes from original source; advisory only.
     #[arg(long)]
     guard_clauses: bool,
+    /// Select guard advice in changed files for presentation and finding exits; coverage stays global.
+    #[arg(long, requires_all = ["guard_clauses", "changed_files"])]
+    select_guards: bool,
     /// Suggest bounded local enum dispatch abstractions from original source and signatures.
     #[arg(long)]
     enum_dispatch: bool,

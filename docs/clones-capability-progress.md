@@ -5139,3 +5139,44 @@ Both affected tests pass individually; final integrated validation passes all
 3,484 Rust tests in 226.285s with 5 existing skips, plus doc tests. Final locked
 all-target Clippy, formatting and diff checks also pass.
 Logs use /tmp/clones-c61-*. Migration and capability retirement remain open.
+
+### C62 — select changed-file guard advice with the existing selector (2026-10-29)
+
+The preceding turn verified pushed macOS CI and current main ancestry. A read-only
+frontier audit identified guard selection as a missing headless workflow: source
+rules already had changed-file selection, while guard findings/text remained
+global. Lead owns CLI/report integration and the shared selection adapter; the
+acceptance worker owns the new guard_selection CLI leaf. Worker writes are frozen.
+
+Explicit --select-guards requires --guard-clauses and --changed-files. The existing
+changed-file manifest, checked borrowed paths, owner aggregation, unavailable
+counts and completion contract now serve both source rules and guard advice.
+analysis.guard_changed_scope keeps independent selected counts/coverage. Each owner
+counts once even with multiple closure opportunities. Source rules need not be
+requested. Raw assessments, global counts/coverage, plans, strict outcomes and
+ordinary default behavior stay intact. No new detector, source parse/proof,
+checksum, hash, matching permission or budget is introduced. Incomplete global
+analysis cannot become clean through an empty or clean selection.
+
+Four CLI cases cover ordinary/raw parity, explicit/default exits, guard-only
+policy, selected guard/clean/unobserved paths, source/tool-free full/compact/text
+replay, multiple closure opportunities and required flags. The C59 unchanged
+original session/policy module slice replays with one selected guard in the session
+file, zero in the policy file and zero in an empty selection. All variants remain
+exit2 for incomplete global coverage. Global assessments/plans and strict fields
+are exactly equal. project-guard-selection-study.json retains counts and limits;
+this is a workflow gain, not new extraction coverage or a performance claim.
+
+Delivered with final integrated validation: all 3,488 Rust tests pass in 226.269s
+with 5 existing skips, plus doc tests. Locked all-target Clippy and formatting pass;
+all 244 offline Python tests pass. Initial style checks found expanded orchestration
+over the function-length limit; selection setup now lives in the existing
+changed-file module and the existing function-assessment loop is a separate helper.
+Final style has zero violations over 9,826 functions. Patterns has zero unreviewed
+candidates; all 13 unfiltered IDs equal main. The final binary reproduces all four
+recorded project selections exactly. Read-only runtime review found no concrete
+defects. Logs use /tmp/clones-c62-*. C61 CI is green on both Ubuntu runners; macOS
+remains in progress at this checkpoint. Persistent guard reviews/baselines and
+capability retirement remain open. Next concrete reuse seam: enable the existing mutation-rule consumer
+on advisory-only captures using the gated source census and existing bounded
+formal-type collector, with raw/combined parity and unchanged resource limits.

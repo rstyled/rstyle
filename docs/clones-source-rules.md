@@ -179,6 +179,19 @@ exit two, even with an empty selection or a clean selected file. Guard, mutation
 proposal and accepted-pair gates retain their own populations and policies.
 Parameter and guard edit plans continue to include all applicable findings.
 
+Add `--select-guards` with `--guard-clauses --changed-files changed.json` to
+select guard advice for text output and finding exits too. The separate
+`analysis.guard_changed_scope` records guard availability and findings for each
+selected path. A function with multiple closure opportunities counts once, matching
+the global guard finding count. Source-rule selection and guard selection have
+independent counts; requesting only guards does not require source-rule policy.
+
+Guard assessments, global counts, strict results and every guard edit plan remain
+available in JSON. Global incomplete guard coverage still exits two, including
+when an opaque enclosing function contains a known closure opportunity and the
+selection is empty. Without `--select-guards`, guard presentation and finding exits
+retain their whole-scope behavior.
+
 The same manifest option works with `--replay-run`: change the selection against
 one saved capture after removing original source files and compiler tools.
 Full and compact reports retain identical selected results. This provides an
