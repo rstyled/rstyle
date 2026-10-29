@@ -1,0 +1,6 @@
+# Explicit quality boundary study; production defaults remain unchanged.
+[fn_params]
+max_params = 2
+
+[mutation_budget]
+max_mutated_targets = 2

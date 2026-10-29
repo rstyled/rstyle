@@ -524,3 +524,68 @@ baseline). These samples establish no speedup. Evidence is
 replay, policy changes, suppressions, missing/ambiguous contexts and raw-plan
 independence from reviews/changed-file presentation have separate real-Cargo
 fixture acceptance; the production study leaves original sources in place.
+
+## Independent compiler finding quality sample (C27)
+
+[`project-compiler-quality-cases.json`](project-compiler-quality-cases.json)
+labels eleven unchanged original functions before looking up their diagnostics:
+parameter counts and distinct explicitly mutated source roots. The last three
+functions extend the initial eight-function sample to include newly recovered
+CLI mutation findings. These labels remain independent of the producer output.
+`save_logs` has filesystem effects but no mutated source root; that label does
+not assert purity. Owned local containers count as mutation targets.
+
+The offline [`compiler_quality.py`](compiler_quality.py) reducer reads completed
+JSON only. It reuses the existing legacy diagnostic assessment and original
+owner/context associations, including the C26 indexed plans. It checks the
+complete parameter/mutation finding-owner roster before interpreting an absent
+finding. Missing or ambiguous observations remain unavailable. Clean rows
+compare outcomes only: no numeric zero or other clean metric is synthesized.
+The sample explicitly requires reviewed, unsuppressed original owners under the
+reported root-granularity policy and target exclusion.
+
+At C26's one-target limit, twenty of twenty-two comparisons agree. Two mutation
+counts/provenances disagree: `dependencies::select` has source roots
+`requested, selected`, and `dependencies::resolve` has `exact, named`. The
+collector reports an additional `iter` in both. Both remain findings at limit
+one. These disagreements are preserved in
+[`project-compiler-quality-results.json`](project-compiler-quality-results.json).
+Reproduce against the explicitly retained C26 report:
+
+```sh
+python3 eval/clones-capability/compiler_quality.py \
+  --report /tmp/clones-cross-unit-planning-project-after-1/stdout.log \
+  --labels eval/clones-capability/project-compiler-quality-cases.json \
+  --output /tmp/compiler-quality-limit-one.json
+```
+
+The reducer exits 1 for these disagreements, 2 for unavailable/invalid input,
+and 0 for agreement. Output creation never overwrites an existing file.
+
+The existing `rstyle-driver::mutations` collector uses rustc's `ExprUseVisitor`
+and names every local/upvar root through `tcx.hir_name`; this includes the
+compiler-generated iterator of a lowered `for` loop. It is reused by legacy
+style and compiler advisory. This is a source-versus-compiler metric discrepancy;
+it does not establish a migration regression. No collector behavior or metric
+version changed in C27, and filtering by the spelling `iter` would be unsound.
+
+The explicit [`project-compiler-quality-policy.toml`](project-compiler-quality-policy.toml)
+sets the mutation limit to two. Replay C26's command above with this policy and
+output directory `/tmp/clones-compiler-quality-boundary-1`. Both source functions
+are now below the finding threshold while the collector still reports three
+roots, creating two outcome disagreements. The source labels are unchanged;
+derive the second label input by changing only `limits.mutated_targets` to 2
+and `policy` to the new policy filename. Compare this input with that replay's
+`stdout.log`. All twenty other comparisons agree. The full observation, including
+that derivation, is in
+[`project-compiler-quality-boundary-results.json`](project-compiler-quality-boundary-results.json).
+
+Boundary replay takes 16.60 seconds and 1,439,752 KiB peak RSS; this is a single
+observation, not a speed comparison. Replay exits 2 because the captured scope
+remains incomplete. Both quality samples are fully evaluated, but neither makes
+the project complete or establishes project-wide precision/recall, density
+quality, effect absence, rewrite safety or retirement readiness. Strict matching
+is unchanged. The next collector investigation should use compiler identities
+and source origins within the existing collector, preserving metric-version
+compatibility. No hashes, source scans, proofs or runtime caches were added by
+this offline review.

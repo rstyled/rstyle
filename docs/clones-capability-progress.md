@@ -3139,3 +3139,43 @@ with exactly fourteen existing reviewed IDs. No thresholds, ignores,
 suppressions, budgets or extraction permissions changed. The contextual planning
 capability is delivered over its declared captured scope; broader quality and
 the full migration remain incomplete.
+
+## C27: independently review completed production compiler findings
+
+Offline `compiler_quality.py` reuses completed core diagnostic assessment and
+C26 indexed owner associations; it does not analyze Rust, run Cargo or add any
+runtime collector, proof, hashing or caching work. Eleven independently
+source-labeled functions cover twenty-two parameter/mutation comparisons,
+including three newly recovered CLI mutation positives. Exact policy, context,
+original source associations and the full positive rule-owner roster are
+required. Clean numeric values are absent rather than synthesized as zero;
+missing/ambiguous/unavailable owners retain that distinction.
+
+The expanded sample has twenty agreements and two disagreements at each of
+two explicit policies. `dependencies::select` and `dependencies::resolve` each
+have two explicitly mutated source containers, but the existing shared rustc
+expression-use collector also counts the lowered `for` iterator named `iter`.
+At the one-target study limit both remain findings; at the two-target boundary
+these are outcome discrepancies. Original labels and both disagreement results
+are retained in `project-compiler-quality-{cases,results,boundary-results}.json`.
+The first eight-function observation agreed on all sixteen checks; expansion
+exposed this gap and the labels were not changed to match the producer.
+
+The existing collector already serves legacy style. This finding does not
+establish a migration regression. No Rust code or metric version changes here;
+never filter roots by the spelling `iter`. A subsequent fix should inspect
+compiler root/source origins in that same collector and preserve metric-version
+compatibility. Full scope is still incomplete. Neither source quality sample
+claims whole-project precision/recall, density quality or retirement readiness.
+Commands, results and limitations are in the project study.
+
+Explicit boundary-policy replay of saved `run-ynuMSl` completes in 16.60 seconds
+at 1,439,752 KiB peak RSS (`/tmp/clones-compiler-quality-boundary-1`). Exit 2
+retains existing scope incompleteness; reducer disagreements correctly exit 1.
+This is not a speed comparison. All 119 migration Python tests pass, including
+fourteen new reducer tests (`/tmp/clones-compiler-quality-python-tests-final-2.log`).
+Style passes with zero violations over 9,714 functions
+(`/tmp/clones-compiler-quality-style-1`). Reviewed patterns pass
+(`/tmp/clones-compiler-quality-patterns-1`), and diff checks pass. Rust
+implementation is unchanged; the C26 full-suite checkpoint remains
+the prior Rust validation, not a new full-suite run for this offline-only change.
