@@ -1,6 +1,7 @@
 //! Opt-in, verified source-to-pair analysis; no legacy miner involvement.
 
 mod advisory;
+mod advisory_only;
 mod analysis;
 pub mod capture;
 mod identity;
@@ -76,6 +77,9 @@ pub struct Args {
     /// Reuse compiler style collectors, effect propagation and fix plans per compilation unit.
     #[arg(long)]
     compiler_advisory: bool,
+    /// Capture compiler advice without strict helper certification, admission or matching.
+    #[arg(long, requires = "compiler_advisory", conflicts_with_all = ["matching_config", "trace", "fail_on_accepted_pairs", "explain_pairs", "helper_proposals", "source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density", "max_pairs"])]
+    compiler_advisory_only: bool,
     /// Reuse compiler graphs and existing core abstraction proposal policy; advisory only.
     #[arg(long, requires = "compiler_advisory")]
     compiler_patterns: bool,
@@ -340,7 +344,10 @@ struct Function {
 #[derive(Serialize)]
 struct UnitEvidence {
     report_unit: identity::UnitId,
-    namespace: rstyle_pdg::unit_store::UnitNamespace,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    namespace: Option<rstyle_pdg::unit_store::UnitNamespace>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    artifact_kind: Option<&'static str>,
     bundle: PathBuf,
     #[serde(skip_serializing_if = "Option::is_none")]
     dependency_closure: Option<PathBuf>,
@@ -348,14 +355,35 @@ struct UnitEvidence {
 }
 
 struct ReportFacts {
-    store: Arc<rstyle_pdg::unit_store::UnitStore>,
+    owner: FactOwner,
     index: usize,
+}
+
+enum FactOwner {
+    Strict(Arc<rstyle_pdg::unit_store::UnitStore>),
+    Advisory(Arc<Vec<HirFnFacts>>),
+}
+
+impl ReportFacts {
+    fn functions(&self) -> &[HirFnFacts] {
+        match &self.owner {
+            FactOwner::Strict(store) => store.functions(),
+            FactOwner::Advisory(facts) => facts,
+        }
+    }
+
+    fn namespace(&self) -> Option<rstyle_pdg::unit_store::UnitNamespace> {
+        match &self.owner {
+            FactOwner::Strict(store) => Some(*store.namespace()),
+            FactOwner::Advisory(_) => None,
+        }
+    }
 }
 
 impl Deref for ReportFacts {
     type Target = HirFnFacts;
     fn deref(&self) -> &HirFnFacts {
-        &self.store.functions()[self.index]
+        &self.functions()[self.index]
     }
 }
 
@@ -481,24 +509,28 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     let config = configuration(cli, args)?;
     let capture = capture_input(cli, args)?;
     let handoff = Handoff::capture(&capture, args)?;
-    let evaluation = evaluate_matching(&handoff, &config.matching, args)?;
-    let matching = evaluation.report;
+    let mut evaluation = (!args.compiler_advisory_only)
+        .then(|| evaluate_matching(&handoff, &config.matching, args))
+        .transpose()?;
+    let partitions = matching_partitions(&mut evaluation);
+    let matching = evaluation.as_ref().map(|value| &value.report);
 
     let accepted = matching
-        .pairs
-        .iter()
+        .into_iter()
+        .flat_map(|report| &report.pairs)
         .filter(|p| p.decision == Decision::Accepted)
         .count();
     let capture_complete = capture.failures.is_empty();
     let assessment_complete = handoff.failures.is_empty();
-    let complete = capture_complete && assessment_complete && !matching.incomplete;
+    let complete =
+        capture_complete && assessment_complete && matching.is_none_or(|report| !report.incomplete);
     let context = report::Context {
         cli,
         args,
         capture: &capture,
         handoff: &handoff,
-        matching: &matching,
-        partitions: evaluation.partitions,
+        matching,
+        partitions,
         complete,
         compiler_advisory_config: config.compiler_advisory.as_ref(),
         analysis_config: config.analysis.as_ref(),
@@ -522,6 +554,15 @@ fn run_generated(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
     };
 
     Ok((output, code))
+}
+
+fn matching_partitions(
+    evaluation: &mut Option<rstyle_ccgraph::pipeline::Evaluation>,
+) -> rstyle_ccgraph::pipeline::WlPartitions {
+    evaluation
+        .as_mut()
+        .map(|value| std::mem::take(&mut value.partitions))
+        .unwrap_or_default()
 }
 
 fn publish_baselines(
@@ -698,7 +739,8 @@ fn handoff(capture: &capture::Capture, args: &Args) -> Handoff {
             };
         }
     };
-    if !capture.plan.dependency_units.is_empty()
+    if !args.compiler_advisory_only
+        && !capture.plan.dependency_units.is_empty()
         && args
             .extraction_profile
             .supports("rust.verified-cross-unit-scalar-helpers")
@@ -727,6 +769,9 @@ fn handoff(capture: &capture::Capture, args: &Args) -> Handoff {
 }
 
 fn consume_unit(request: &UnitRequest<'_>, result: &mut Handoff) -> Result<(), String> {
+    if request.args.compiler_advisory_only {
+        return advisory_only::consume(request, result);
+    }
     let (store, bindings) = load_unit(request, result)?;
     let store = store.with_slice_length_instances()?;
     consume_store(Arc::new(store), bindings, request, result)
@@ -790,7 +835,7 @@ fn consume_store(
             return Err(format!("duplicate function key {key}"));
         }
         let facts = ReportFacts {
-            store: Arc::clone(&store),
+            owner: FactOwner::Strict(Arc::clone(&store)),
             index,
         };
         let mut record = function_record(facts, key, request.unit, index);
@@ -877,7 +922,11 @@ fn function_record(
         ),
         unit_evidence: UnitEvidence {
             report_unit: key.unit(),
-            namespace: *function.store.namespace(),
+            namespace: function.namespace(),
+            artifact_kind: function
+                .namespace()
+                .is_none()
+                .then_some("advisory-raw-facts"),
             bundle: unit.directory.join("unit.evidence.json"),
             dependency_closure: None,
             function: u32::try_from(index).expect("checked unit function table"),

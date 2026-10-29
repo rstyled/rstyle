@@ -58,6 +58,7 @@ mod tests {
 
     fn plan(targets: Vec<Target>) -> Plan {
         Plan {
+            compiler_advisory_only: false,
             compiler_advisory: false,
             compiler_patterns: false,
             ledger_schema: SCHEMA.into(),

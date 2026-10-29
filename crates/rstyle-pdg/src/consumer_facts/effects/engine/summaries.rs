@@ -35,7 +35,7 @@ impl Session<'_> {
             ));
         }
 
-        let Some(parameters) = parameters(&self.unit.functions()[index])? else {
+        let Some(parameters) = parameters(&self.functions[index])? else {
             return Ok(Prepared::unavailable(
                 "Callee formal type authority is unavailable",
                 false,

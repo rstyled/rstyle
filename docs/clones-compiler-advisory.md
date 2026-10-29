@@ -8,6 +8,30 @@ rule policy, bounded call-graph propagation, fix groups and parameter stacking.
 There is no second implementation of those algorithms and no strict clone
 admission requirement for these observations.
 
+Add `--compiler-advisory-only` when you want compiler advice without strict clone
+analysis. This explicit mode reuses the same collectors, evaluator, compiler
+patterns and compiler plans, but skips helper certification, strict bundle
+import, admission and pair matching. `matching_execution` and
+`strict_assessment_execution` are `not_requested`; the matching payload is absent
+and pair-completeness flags are false. Success still requires complete capture,
+handoff and requested advisory consumers. Missing owners or unresolved callees
+still produce an incomplete result and exit 2.
+
+The mode publishes the existing shared raw-facts format with an exact
+`compiler-advisory-only` phase, using the existing streaming transport seal and
+successful Cargo/unit ledgers. Raw function references identify
+`artifact_kind: advisory-raw-facts` and carry no strict namespace. They cannot be
+imported as strict evidence. Replay requires the original capture mode and can
+run without source files or compiler tools. Selected dependencies and separate
+check/test contexts keep their original Cargo scope. Compiler reviews, changed
+files, policy reevaluation and baselines use the ordinary advisory workflow.
+
+Pair and native source/effect consumers conflict with this mode; use the ordinary
+combined command to request those analyses. Raw extraction still collects the
+existing source, type, correspondence and projection observations. This mode
+removes unrequested certification and matching work; it does not make extraction
+free or change any strict matching permission.
+
 The JSON `compiler_advisory` field contains separate compilation-unit results,
 source-located diagnostics and fix plans, observed statement/mutation counts,
 missing-function reasons and unresolved workspace callees. Diagnostic paths are

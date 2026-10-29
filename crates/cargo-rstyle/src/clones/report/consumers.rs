@@ -36,7 +36,7 @@ impl<'a> Consumers<'a> {
         let edit_planning = ctx.edit_planning(&pairs.helper_proposals)?;
         let mut mutation = ctx.mutation_report()?;
         let mut effects = ctx.effect_report()?;
-        let accepted = locations::accepted(ctx.handoff, ctx.matching)?;
+        let accepted = ctx.accepted_pairs()?;
 
         let reviews = review::workflow::Inputs {
             compiler_advisory: compiler_advisory.as_ref(),
@@ -96,6 +96,13 @@ impl NumericReviews {
 }
 
 impl<'a> Context<'a> {
+    fn accepted_pairs(&self) -> Result<Vec<locations::AcceptedPair<'a>>, String> {
+        self.matching
+            .map(|matching| locations::accepted(self.handoff, matching))
+            .transpose()
+            .map(Option::unwrap_or_default)
+    }
+
     fn present_effects(
         &self,
         effects: &mut analysis::effect_reports::Report<'a>,

@@ -29,7 +29,8 @@ impl Default for BuildContexts {
 }
 
 impl BuildContexts {
-    pub(super) fn intern(&mut self, build: &BuildFacts) -> Result<BuildId, String> {
+    /// Retain the existing exact compiler settings, excluding per-function observations.
+    pub fn intern(&mut self, build: &BuildFacts) -> Result<BuildId, String> {
         if let Some(index) = self.contexts.iter().position(|value| same(value, build)) {
             return Ok(BuildId(index as u32));
         }

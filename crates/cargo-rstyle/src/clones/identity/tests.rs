@@ -3,6 +3,7 @@ use rstyle_pdg::extraction_profile::ExtractionProfile;
 
 fn unit(package: &str, test: bool) -> capture::Unit {
     capture::Unit {
+        compiler_advisory_only: false,
         extraction_profile: ExtractionProfile::R0,
         target: capture::Target {
             package: package.into(),

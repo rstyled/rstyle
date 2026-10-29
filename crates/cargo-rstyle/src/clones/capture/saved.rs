@@ -44,7 +44,9 @@ fn check_completion(cargo: &[u8]) -> Result<Vec<Value>, String> {
 }
 
 fn check_plan(plan: &Plan, graph: &Value) -> Result<(), String> {
-    if plan.ledger_schema != ledger::SCHEMA || !plan.dependency_units.is_empty() {
+    if plan.ledger_schema != ledger::SCHEMA
+        || (!plan.compiler_advisory_only && !plan.dependency_units.is_empty())
+    {
         return Err("Standalone replay requires a current standalone capture plan".into());
     }
     if graph["version"] != 1 {
@@ -66,7 +68,15 @@ fn check_plan(plan: &Plan, graph: &Value) -> Result<(), String> {
     // Distinct Cargo root indices can have identical metadata for check/test
     // units. Their actual compiler modes remain distinct in the unit ledgers.
     check_targets(plan)?;
-    for unit in &selected {
+    for unit in &plan.dependency_units {
+        if !graph["units"]
+            .as_array()
+            .is_some_and(|units| units.contains(unit))
+        {
+            return Err("Saved selected dependency is absent from Cargo unit graph".into());
+        }
+    }
+    for unit in plan.planned_units() {
         check_root(plan, unit)?;
     }
     Ok(())
@@ -82,10 +92,7 @@ fn check_targets(plan: &Plan) -> Result<(), String> {
             || target.name.is_empty()
             || target.kind.is_empty()
             || target.source.as_os_str().is_empty()
-            || !plan
-                .primary_units
-                .iter()
-                .any(|unit| target_agrees(target, unit))
+            || !plan.planned_units().any(|unit| target_agrees(target, unit))
         {
             return Err("Duplicate or unexplained saved capture target".into());
         }
@@ -141,7 +148,7 @@ fn check_artifacts(plan: &Plan, records: &[Value]) -> Result<(), String> {
         {
             continue;
         }
-        if !plan.primary_units.iter().any(|unit| {
+        if !plan.planned_units().any(|unit| {
             unit["pkg_id"] == record["package_id"] && unit["target"] == record["target"]
         }) {
             return Err("Saved Cargo artifact target disagrees with selected roots".into());
@@ -157,6 +164,7 @@ fn check_units(capture: &Capture) -> Result<(), String> {
         let path = ledger::path(&capture.plan, &capture.directory, &unit.target, unit.test)?;
         if !ledgers.insert(path)
             || !directories.insert(&unit.directory)
+            || unit.compiler_advisory_only != capture.plan.compiler_advisory_only
             || unit.extraction_profile != capture.plan.extraction_profile
             || unit.test != unit.invocation.iter().any(|argument| argument == "--test")
             || !intended_invocation(&capture.plan, &unit.target, &unit.invocation)

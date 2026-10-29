@@ -4,7 +4,7 @@ use crate::{HirFnFacts, SourceSnapshot, frontend::option_bundle, source_table};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 
-const SCHEMA: &str = "rstyle.diagnostic.raw-facts/3";
+pub const RAW_FACTS_SCHEMA: &str = "rstyle.diagnostic.raw-facts/3";
 
 #[derive(Serialize)]
 struct Export<'a> {
@@ -34,7 +34,7 @@ pub fn write_diagnostic_snapshot(
 ) -> Result<(), String> {
     let encoded = function_sources::encode(facts)?;
     let export = Export {
-        schema: SCHEMA,
+        schema: RAW_FACTS_SCHEMA,
         phase,
         sources: encoded.snapshots,
         inherent_units: encoded.inventories,
@@ -43,20 +43,46 @@ pub fn write_diagnostic_snapshot(
     serde_json::to_writer(writer, &export).map_err(|error| error.to_string())
 }
 
+/// Publish raw observations with the shared transport seal, without certification.
+pub fn write_sealed_diagnostic_snapshot(
+    writer: impl Write,
+    phase: &str,
+    facts: &[HirFnFacts],
+) -> Result<super::super::BundleManifest, String> {
+    super::super::manifest::seal(writer, |writer| {
+        write_diagnostic_snapshot(writer, phase, facts)
+    })
+}
+
 /// Restore raw evidence and validate local references only. No certificates,
 /// helper summaries, graph pairs, or inherited admission permissions are loaded.
 pub fn read_diagnostic_snapshot(bytes: &[u8]) -> Result<Vec<HirFnFacts>, String> {
+    read_snapshot(bytes, None)
+}
+
+/// Restore observations only from the explicitly requested publication phase.
+pub fn read_diagnostic_snapshot_phase(
+    bytes: &[u8],
+    expected: &str,
+) -> Result<Vec<HirFnFacts>, String> {
+    read_snapshot(bytes, Some(expected))
+}
+
+fn read_snapshot(bytes: &[u8], expected: Option<&str>) -> Result<Vec<HirFnFacts>, String> {
     let wire: Import = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
-    if ![SCHEMA, "rstyle.diagnostic.raw-facts/2"].contains(&wire.schema.as_str())
+    if ![RAW_FACTS_SCHEMA, "rstyle.diagnostic.raw-facts/2"].contains(&wire.schema.as_str())
         || wire.phase.is_empty()
     {
         return Err("Unsupported or unlabelled raw diagnostic snapshot".into());
+    }
+    if expected.is_some_and(|expected| wire.phase != expected) {
+        return Err("Raw diagnostic publication phase disagrees with requested mode".into());
     }
 
     let mut inventories =
         option_bundle::ImportedInventories::new(Some(wire.inherent_units), false)?;
     let mut sources = source_table::Imported::new(&wire.sources);
-    let flat_bodies = wire.schema == SCHEMA;
+    let flat_bodies = wire.schema == RAW_FACTS_SCHEMA;
     let facts = wire
         .facts
         .into_iter()

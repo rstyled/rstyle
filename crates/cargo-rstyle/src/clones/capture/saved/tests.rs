@@ -27,6 +27,7 @@ impl Fixture {
         }});
 
         let plan = Plan {
+            compiler_advisory_only: false,
             compiler_advisory: false,
             compiler_patterns: false,
             ledger_schema: ledger::SCHEMA.into(),
@@ -74,6 +75,7 @@ impl Fixture {
             invocation.push("--test".into());
         }
         let unit = Unit {
+            compiler_advisory_only: false,
             extraction_profile: self.plan.extraction_profile,
             target: self.plan.targets[0].clone(),
             test,

@@ -1,14 +1,14 @@
 use super::{Argument, Caller, Collected, Plan, UnitCensus, regions::Regions};
 use crate::clones::{Function, FunctionKey, report};
 use rstyle_pdg::{
+    HirFnFacts,
     consumer_facts::{callers, mutations},
-    unit_store::UnitStore,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
 struct Group<'a> {
     unit: usize,
-    store: &'a UnitStore,
+    functions: &'a [HirFnFacts],
     records: BTreeMap<usize, &'a Function>,
 }
 
@@ -67,16 +67,16 @@ pub(super) fn evaluate(
 fn groups<'a>(ctx: &report::Context<'a>) -> Vec<Group<'a>> {
     let mut groups: Vec<Group<'a>> = Vec::new();
     for record in &ctx.handoff.assessed {
-        let store = record.facts.store.as_ref();
+        let functions = record.facts.functions();
         if let Some(group) = groups
             .iter_mut()
-            .find(|group| std::ptr::eq(group.store, store))
+            .find(|group| std::ptr::eq(group.functions, functions))
         {
             group.records.insert(record.facts.index, record);
         } else {
             groups.push(Group {
                 unit: groups.len(),
-                store,
+                functions,
                 records: BTreeMap::from([(record.facts.index, record)]),
             });
         }
@@ -109,8 +109,8 @@ impl Collector<'_, '_> {
         targets: &[&Function],
         use_rows: &mut usize,
     ) -> Result<(), String> {
-        let functions = self.allowance(group.store.functions().len());
-        let session = inspect_session(group.store, functions, self.use_remaining)?;
+        let functions = self.allowance(group.functions.len());
+        let session = inspect_session(group.functions, functions, self.use_remaining)?;
         self.retain_plans(&group, &session, targets)?;
         let parameter_uses = super::uses::evaluate(&group.records, &session, targets, use_rows)?;
 
@@ -210,17 +210,18 @@ impl CallCollector<'_, '_, '_> {
 }
 
 fn inspect_session(
-    store: &UnitStore,
+    roster: &[HirFnFacts],
     functions: usize,
     uses: usize,
 ) -> Result<callers::Session<'_>, String> {
-    let mut session = callers::Session::new_with_uses(
-        store,
+    let mut session = callers::Session::new(
+        roster,
         callers::Limits {
             functions,
             uses,
             ..Default::default()
         },
+        true,
     )?;
     session.inspect_all()?;
     Ok(session)

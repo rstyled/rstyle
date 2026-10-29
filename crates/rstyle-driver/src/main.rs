@@ -209,8 +209,21 @@ impl HirExtract {
         );
     }
 
+    fn capture_advisory(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
+        let facts = hir_extraction::raw_crate_facts(tcx, &self.scanned, options)
+            .expect("capture compiler advisory facts");
+        let inventory = self.inventory(tcx, options, &facts);
+        self.output
+            .write_advisory_capture(&facts, inventory.as_ref())
+            .expect("write compiler advisory facts");
+    }
+
     fn capture_complete(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
-        rstyle_pdg::verification_policy::generated(|| self.capture_generated(tcx, options));
+        if rstyle_pdg::diagnostics::switch("RSTYLE_COMPILER_ADVISORY_ONLY") {
+            self.capture_advisory(tcx, options);
+        } else {
+            rstyle_pdg::verification_policy::generated(|| self.capture_generated(tcx, options));
+        }
     }
 
     fn capture_generated(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {

@@ -4075,3 +4075,65 @@ Next ready performance frontier: an explicit advisory-only capture/report seam
 that avoids unrequested strict certification and matching, while preserving
 existing strict admission and honest missing-data reporting. That seam is not
 implemented in C42; no speedup is claimed for it.
+
+### C43 — compiler advice without unrequested strict work (2026-10-29)
+
+`--compiler-advisory-only` reuses the existing raw-facts codec, streaming
+publication seal and successful Cargo/unit ledgers. The driver returns normally
+after publishing raw observations; diagnostic capture-only remains a distinct
+stopped, unpublished path. Raw replay checks its exact publication phase,
+original mode, artifact bytes and selected compilation contexts. It never enters
+strict bundle import. Strict execution is `not_requested`, matching is absent,
+pair completeness is false and raw references have no strict namespace.
+
+The existing advisory evaluator, propagation, proposer, compiler plans, reviews
+and baselines consume the same borrowed observations. The existing effects/caller session constructors accept borrowed function rosters
+through `AsRef<[HirFnFacts]>`, shared by UnitStore and raw observations without
+inventing a UnitStore, adding compatibility wrappers or copying bodies.
+Build contexts reuse the existing settings interner. Missing/generated owners,
+unresolved callees and incomplete planning keep their original outcomes. No
+SHA-256, replacement hash, artifact scan, new proof or matching permission was
+introduced. Legacy commands and strict matching remain available unchanged.
+
+Ten real-Cargo acceptance tests cover combined/raw parity, full/compact/text
+reports, finding exits, source-free replay, reviews, raw strict-import rejection,
+resealed wrong phase/context, ledger-mode changes, selected dependency
+effects/plans and separate check/test owners. The test build's generated owner
+remains unavailable rather than becoming a clean observation. The broader
+45-test transport/effect/caller run initially exposed two incorrect acceptance
+assumptions; corrected ten-test integration run passes. The missing generated
+owner and raw JSON rejection reasons were preserved in product behavior.
+
+Four instrumented debug captures of rstyle-core, ordered combined/raw/raw/combined,
+produce exactly equal compiler advisory reports: 407 measured originals, 806
+unavailable generated owners, eight unresolved callees and six diagnostics.
+All four honestly exit 2. Combined samples take 16.32–16.70s and raw samples
+10.58–10.61s, with peak RSS 589,024–589,120KiB versus 555,336–555,468KiB.
+This is about 36% less median wall time and 6% less peak RSS for this declared
+scope, not a statistical or cross-platform benchmark. Existing stage observations
+show certification/import/handoff removal; matching itself was nearly empty.
+Raw extraction still captures source/type/correspondence/projection observations.
+Commands, contexts, stage counts and limitations are recorded in
+`docs/performance/advisory-only-samples.json`.
+
+C42 and the macOS fixture fix are now natively verified: CI run `40834197766`
+passes all tests, Clippy, style and pattern gates on Ubuntu x86, Ubuntu ARM and
+macOS.
+
+C43 integrated validation on the final source snapshot: 3,427 Rust tests pass in
+219.585s, with five existing skips; workspace doc tests pass. All 198 capability
+Python tests pass, as do the 50 script tests with Cargo on PATH. Locked all-target
+Clippy, formatting and diff checks pass. Style reports zero violations over
+9,783 functions, with all complexity observations available. Reviewed patterns
+report zero candidates and thirteen existing review entries; the separate
+unfiltered run has exactly the same thirteen candidate IDs as the main-rebase
+baseline. No thresholds, budgets, suppressions or review entries changed.
+Logs use `/tmp/clones-advisory-only-` with suffixes `tests-final-2`,
+`clippy-final-3`, `python-final-3`, `python-scripts`, `style-final-4`,
+`patterns-final-3` and `patterns-unfiltered-final-1`.
+
+Next ready performance frontier: avoid correspondence and generic/slice instance
+projection capture when only compiler advice is requested. These are still
+captured in C43. Audit conditional-source diagnostics and compare advice,
+patterns, plans, reviews and baselines before removing any extraction work;
+strict capture and admission must retain their existing observations.

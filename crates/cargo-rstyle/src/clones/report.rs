@@ -28,7 +28,7 @@ pub struct Context<'a> {
     pub args: &'a Args,
     pub capture: &'a capture::Capture,
     pub handoff: &'a Handoff,
-    pub matching: &'a RunReport,
+    pub matching: Option<&'a RunReport>,
     pub partitions: rstyle_ccgraph::pipeline::WlPartitions,
     pub complete: bool,
     pub mutation_config: Option<&'a super::analysis::mutation_reports::Settings>,
@@ -103,9 +103,10 @@ pub struct Report<'a> {
     functions: functions::Functions<'a>,
     build_contexts: &'a [super::UnitBuildContexts],
     owned_source_inventory: &'a [Value],
-    pair_evaluation_complete: bool,
-    pair_enumeration_complete: bool,
-    matching: matching::Matching<'a>,
+    #[serde(flatten)]
+    strict_execution: StrictExecution,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    matching: Option<matching::Matching<'a>>,
     accepted_pairs: Vec<locations::AcceptedPair<'a>>,
     claim: &'static str,
 }
@@ -140,10 +141,14 @@ struct ProducerMetadata {
 }
 
 impl ProducerMetadata {
-    fn current() -> Self {
+    fn current(args: &Args) -> Self {
         Self {
             contract_revision: "04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f",
-            unit_bundle_schema: rstyle_pdg::unit_store::BUNDLE_SCHEMA,
+            unit_bundle_schema: if args.compiler_advisory_only {
+                rstyle_pdg::unit_store::RAW_FACTS_SCHEMA
+            } else {
+                rstyle_pdg::unit_store::BUNDLE_SCHEMA
+            },
             function_identity_schema: super::identity::SCHEMA,
             schema_versions: SchemaVersions::current(),
             producer_name: "rstyle-hir-extraction",
@@ -219,7 +224,7 @@ pub(super) fn make<'a>(ctx: Context<'a>, consumers: Consumers<'a>) -> Report<'a>
         toolchain: crate::run::pinned_toolchain(),
         compiler_identity: &ctx.capture.plan.compiler_identity,
         cargo_identity: &ctx.capture.plan.cargo_identity,
-        producer: ProducerMetadata::current(),
+        producer: ProducerMetadata::current(ctx.args),
         unit_contexts: &ctx.handoff.unit_contexts,
         extraction_selection: extraction_selection(ctx.args),
         extraction_policy: extraction_policy(ctx.args),
@@ -234,9 +239,10 @@ pub(super) fn make<'a>(ctx: Context<'a>, consumers: Consumers<'a>) -> Report<'a>
         functions: functions::Functions::new(&ctx.handoff.assessed, ctx.args.report_detail),
         build_contexts: &ctx.handoff.build_contexts,
         owned_source_inventory: &ctx.handoff.source_inventory,
-        pair_evaluation_complete: ctx.complete,
-        pair_enumeration_complete: enumeration_complete(&ctx),
-        matching: matching::Matching::new(ctx.matching, ctx.args.trace, ctx.partitions),
+        strict_execution: StrictExecution::new(&ctx),
+        matching: ctx
+            .matching
+            .map(|matching| matching::Matching::new(matching, ctx.args.trace, ctx.partitions)),
         accepted_pairs: consumers.accepted,
         claim: "Accepted pairs are similarity decisions, not equivalence or safe refactoring.",
     }
@@ -283,7 +289,11 @@ impl<'a> Context<'a> {
     }
 
     fn verification_policy(&self) -> &'static str {
-        if self.args.replay_run.is_some() {
+        if self.args.compiler_advisory_only && self.args.replay_run.is_some() {
+            "raw-replay"
+        } else if self.args.compiler_advisory_only {
+            "raw-current-run"
+        } else if self.args.replay_run.is_some() {
             "strict-replay"
         } else {
             "trusted-generated"
@@ -310,7 +320,7 @@ impl<'a> Context<'a> {
             super::analysis::pair_reports::Requests {
                 explain: self.args.explain_pairs,
                 helpers: self.args.helper_proposals,
-                matching_complete: self.complete,
+                matching_complete: self.matching.is_some() && self.complete,
             },
         )
     }
@@ -337,26 +347,67 @@ fn selected_scope<'a>(ctx: &Context<'a>) -> Scope<'a> {
 }
 
 fn enumeration_complete(ctx: &Context<'_>) -> bool {
+    let Some(matching) = ctx.matching else {
+        return false;
+    };
     let count = ctx.handoff.admitted.len();
     let expected = count.checked_mul(count.saturating_sub(1)).map(|n| n / 2);
 
     ctx.capture.failures.is_empty()
         && ctx.handoff.failures.is_empty()
-        && expected == Some(ctx.matching.pairs.len())
+        && expected == Some(matching.pairs.len())
+}
+
+#[derive(Serialize)]
+struct StrictExecution {
+    pair_evaluation_complete: bool,
+    pair_enumeration_complete: bool,
+    matching_execution: super::analysis::Execution,
+    strict_assessment_execution: super::analysis::Execution,
+}
+
+impl StrictExecution {
+    fn new(ctx: &Context<'_>) -> Self {
+        let execution = if ctx.args.compiler_advisory_only {
+            super::analysis::Execution::NotRequested
+        } else {
+            super::analysis::Execution::Completed
+        };
+        Self {
+            pair_evaluation_complete: ctx.matching.is_some() && ctx.complete,
+            pair_enumeration_complete: enumeration_complete(ctx),
+            matching_execution: execution,
+            strict_assessment_execution: execution,
+        }
+    }
+}
+
+fn render_summary(report: &Report<'_>, accepted: usize, directory: &Path) -> String {
+    if let Some(matching) = &report.matching {
+        format!(
+            "CCGraph strict: {} units; {}; {} pairs, {accepted} accepted; capture={}, assessment={}, enumeration={}, evaluation={}.\nReport: {}\nAccepted pairs indicate similarity, not equivalence or safe refactoring.",
+            report.observed_units.len(),
+            coverage_summary(report),
+            matching.report.pairs.len(),
+            report.capture_status.capture_complete,
+            report.capture_status.assessment_complete,
+            report.strict_execution.pair_enumeration_complete,
+            report.strict_execution.pair_evaluation_complete,
+            directory.join("report.json").display()
+        )
+    } else {
+        format!(
+            "Compiler advisory only: {} units; capture={}, assessment={}. Strict assessment and matching: not_requested.\nReport: {}\n",
+            report.observed_units.len(),
+            report.capture_status.capture_complete,
+            report.capture_status.assessment_complete,
+            directory.join("report.json").display()
+        )
+    }
 }
 
 fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String {
-    let summary = format!(
-        "CCGraph strict: {} units; {}; {} pairs, {accepted} accepted; capture={}, assessment={}, enumeration={}, evaluation={}.\nReport: {}\nAccepted pairs indicate similarity, not equivalence or safe refactoring.",
-        report.observed_units.len(),
-        coverage_summary(report),
-        report.matching.report.pairs.len(),
-        report.capture_status.capture_complete,
-        report.capture_status.assessment_complete,
-        report.pair_enumeration_complete,
-        report.pair_evaluation_complete,
-        directory.join("report.json").display()
-    );
+    let summary = render_summary(report, accepted, directory);
     let pairs = render_pairs(report);
 
     format!(

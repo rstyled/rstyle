@@ -3,13 +3,15 @@ use super::{
     super::{Availability, formal_types, mutations, selected_context},
     model::*,
 };
-use crate::{HirFnFacts, nominal_boundary::UnitContext, unit_store::UnitStore};
+#[cfg(test)]
+use crate::unit_store::UnitStore;
+use crate::{HirFnFacts, nominal_boundary::UnitContext};
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_FUNCTION_POPULATION: usize = 4096;
 
 pub struct Session<'a> {
-    unit: &'a UnitStore,
+    functions: &'a [HirFnFacts],
     limits: Limits,
     definitions: BTreeMap<&'a str, usize>,
     observations: BTreeMap<usize, Result<Option<mutations::Observations>, String>>,
@@ -94,11 +96,16 @@ impl QueryKind {
 }
 
 impl<'a> Session<'a> {
-    pub fn new(unit: &'a UnitStore, limits: Limits) -> Result<Self, String> {
+    /// Inspect borrowed compiler observations without requiring strict clone admission.
+    pub fn new(
+        functions: &'a (impl AsRef<[HirFnFacts]> + ?Sized),
+        limits: Limits,
+    ) -> Result<Self, String> {
+        let functions = functions.as_ref();
         Ok(Self {
-            unit,
+            functions,
             limits,
-            definitions: definitions(unit)?,
+            definitions: definitions(functions)?,
             observations: BTreeMap::new(),
             contexts: BTreeMap::new(),
             summaries: Vec::new(),
@@ -134,7 +141,7 @@ impl<'a> Session<'a> {
         let Some(&callee) = self.definitions.get(target.as_str()) else {
             return Ok(None);
         };
-        let facts = &self.unit.functions()[callee];
+        let facts = &self.functions[callee];
 
         if call.target_path.as_deref() != Some(facts.name.as_str()) {
             return Err(
@@ -212,11 +219,10 @@ impl<'a> Session<'a> {
             return result.as_ref().map(Option::is_some).map_err(Clone::clone);
         }
         let facts = self
-            .unit
-            .functions()
+            .functions
             .get(index)
             .ok_or("Effect function ordinal is outside its owning unit")?;
-        if self.unit.functions().len() > MAX_FUNCTION_POPULATION
+        if self.functions.len() > MAX_FUNCTION_POPULATION
             || self.work.statistics.observations >= self.limits.functions
         {
             return Ok(false);
@@ -259,10 +265,10 @@ impl<'a> Session<'a> {
         let Some(callee) = self.definitions.get(target.as_str()).copied() else {
             return Ok(Prepared::unavailable(
                 "Exact callee body is absent from the bounded owning-unit roster",
-                self.unit.functions().len() > MAX_FUNCTION_POPULATION,
+                self.functions.len() > MAX_FUNCTION_POPULATION,
             ));
         };
-        if call.target_path.as_deref() != Some(self.unit.functions()[callee].name.as_str()) {
+        if call.target_path.as_deref() != Some(self.functions[callee].name.as_str()) {
             return Err(
                 "Effect selected callee identity contradicts its captured native path".into(),
             );
@@ -277,8 +283,8 @@ impl<'a> Session<'a> {
     }
 
     fn check_contexts(&mut self, caller: usize, callee: usize) -> Result<bool, String> {
-        selected_context::retain(&mut self.contexts, self.unit, caller)?;
-        selected_context::retain(&mut self.contexts, self.unit, callee)?;
+        selected_context::retain(&mut self.contexts, self.functions, caller)?;
+        selected_context::retain(&mut self.contexts, self.functions, callee)?;
         match (&self.contexts[&caller], &self.contexts[&callee]) {
             (Availability::Known(left), Availability::Known(right)) if left != right => {
                 Err("Effect call target belongs to another selected-unit context".into())
@@ -312,7 +318,7 @@ impl<'a> Session<'a> {
             ));
         }
 
-        let Some(parameters) = parameters(&self.unit.functions()[index])? else {
+        let Some(parameters) = parameters(&self.functions[index])? else {
             return Ok(Prepared::unavailable(
                 "Callee formal type authority is unavailable",
                 false,
@@ -381,17 +387,12 @@ fn owned_scalar_arguments(facts: &HirFnFacts, call: &mutations::Call) -> bool {
         })
 }
 
-fn definitions(unit: &UnitStore) -> Result<BTreeMap<&str, usize>, String> {
-    if unit.functions().len() > MAX_FUNCTION_POPULATION {
+fn definitions(functions: &[HirFnFacts]) -> Result<BTreeMap<&str, usize>, String> {
+    if functions.len() > MAX_FUNCTION_POPULATION {
         return Ok(BTreeMap::new());
     }
     let mut definitions = BTreeMap::new();
-    for (index, facts) in unit
-        .functions()
-        .iter()
-        .take(MAX_FUNCTION_POPULATION)
-        .enumerate()
-    {
+    for (index, facts) in functions.iter().take(MAX_FUNCTION_POPULATION).enumerate() {
         if let Some(identity) = facts
             .build
             .frontend_options
@@ -900,6 +901,19 @@ mod session_tests {
         let missing = contextual_unit(&[Some(context), None]);
         let mut session = Session::new(&missing, Limits::default()).unwrap();
         assert!(!session.check_contexts(0, 1).unwrap());
+    }
+
+    #[test]
+    fn borrowed_observations_preserve_selected_context_failures_and_missing_data() {
+        let context = nominal_boundary::tests::context();
+        let mut other = context.clone();
+        other.crate_name = "other".into();
+        let unit = contextual_unit(&[Some(context.clone()), Some(other)]);
+        let mut borrowed = Session::new(unit.functions(), Limits::default()).unwrap();
+        assert!(borrowed.check_contexts(0, 1).is_err());
+        let missing = contextual_unit(&[Some(context), None]);
+        let mut borrowed = Session::new(missing.functions(), Limits::default()).unwrap();
+        assert!(!borrowed.check_contexts(0, 1).unwrap());
     }
 
     #[test]

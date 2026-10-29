@@ -34,7 +34,10 @@ pub(super) fn load_capture(directory: &Path, args: &Args) -> Result<capture::Cap
     if plan.extraction_profile != args.extraction_profile {
         return Err("Saved-run replay requires its original extraction profile".into());
     }
-    if plan.dependency_units.is_empty() {
+    if plan.compiler_advisory_only != args.compiler_advisory_only {
+        return Err("Saved-run replay requires its original capture mode".into());
+    }
+    if plan.dependency_units.is_empty() || plan.compiler_advisory_only {
         return capture::load_saved(directory, plan);
     }
     let manifest = manifest(directory)?;

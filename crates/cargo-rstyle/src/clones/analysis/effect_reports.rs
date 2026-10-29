@@ -9,8 +9,8 @@ mod witnesses;
 use super::{Coverage, Execution};
 use crate::clones::{Args, Function, FunctionKey, Handoff, capture};
 use rstyle_pdg::{
+    HirFnFacts,
     consumer_facts::{Availability, InspectionExecution, effects, mutations, statement_inventory},
-    unit_store::UnitStore,
 };
 use serde::Serialize;
 
@@ -82,7 +82,7 @@ struct Summary<'a> {
 }
 
 struct Group<'a> {
-    store: &'a UnitStore,
+    roster: &'a [HirFnFacts],
     functions: Vec<(usize, &'a Function)>,
 }
 
@@ -181,7 +181,7 @@ impl<'a> Report<'a> {
             .into_iter()
             .enumerate()
             .map(|(unit, group)| {
-                let allowance = remaining.min(group.store.functions().len());
+                let allowance = remaining.min(group.roster.len());
                 remaining -= allowance;
                 let limits = effects::Limits {
                     functions: allowance,
@@ -217,7 +217,7 @@ impl<'a> Report<'a> {
             limits,
             options: request,
         } = context;
-        let mut session = effects::Session::new(group.store, limits)?;
+        let mut session = effects::Session::new(group.roster, limits)?;
         let mut density_cache = density::Cache::new();
         let functions = group
             .functions
@@ -241,7 +241,7 @@ impl<'a> Report<'a> {
             .collect::<Result<Vec<_>, String>>()?;
 
         self.summaries
-            .extend(export_summaries(unit, group.store, &session)?);
+            .extend(export_summaries(unit, group.roster, &session)?);
         self.units.push(UnitWork {
             unit,
             statistics: session.statistics(),
@@ -292,15 +292,15 @@ impl<'a> Report<'a> {
 fn groups(handoff: &Handoff) -> Vec<Group<'_>> {
     let mut groups: Vec<Group<'_>> = Vec::new();
     for (ordinal, function) in handoff.assessed.iter().enumerate() {
-        let store = function.facts.store.as_ref();
+        let roster = function.facts.functions();
         if let Some(group) = groups
             .iter_mut()
-            .find(|group| std::ptr::eq(group.store, store))
+            .find(|group| std::ptr::eq(group.roster, roster))
         {
             group.functions.push((ordinal, function));
         } else {
             groups.push(Group {
-                store,
+                roster,
                 functions: vec![(ordinal, function)],
             });
         }
@@ -409,7 +409,7 @@ fn inspect_statements(
 
 fn export_summaries<'a>(
     unit: usize,
-    store: &'a UnitStore,
+    functions: &'a [HirFnFacts],
     session: &effects::Session<'_>,
 ) -> Result<Vec<Summary<'a>>, String> {
     session
@@ -418,7 +418,7 @@ fn export_summaries<'a>(
         .enumerate()
         .map(|(summary_index, summary)| {
             let sites = witnesses::sites(summary, session)?;
-            let facts = &store.functions()[summary.function_index];
+            let facts = &functions[summary.function_index];
             Ok(Summary {
                 unit,
                 summary_index,

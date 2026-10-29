@@ -1,20 +1,19 @@
 //! Retain independently validated selected-unit context for immutable owner queries.
 use super::Availability;
 use crate::{
+    HirFnFacts,
     nominal_boundary::{self, UnitContext},
-    unit_store::UnitStore,
 };
 use serde::Deserialize;
 use std::collections::{BTreeMap, btree_map::Entry};
 
 pub(super) fn retain(
     contexts: &mut BTreeMap<usize, Availability<UnitContext>>,
-    unit: &UnitStore,
+    functions: &[HirFnFacts],
     index: usize,
 ) -> Result<(), String> {
     if let Entry::Vacant(entry) = contexts.entry(index) {
-        let facts = unit
-            .functions()
+        let facts = functions
             .get(index)
             .ok_or("Consumer function ordinal is outside its owning unit")?;
         let context = match facts

@@ -30,6 +30,8 @@ pub struct Target {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Plan {
     #[serde(default)]
+    pub compiler_advisory_only: bool,
+    #[serde(default)]
     pub compiler_advisory: bool,
     #[serde(default)]
     pub compiler_patterns: bool,
@@ -46,6 +48,15 @@ pub struct Plan {
 }
 
 impl Plan {
+    fn with_advisory(self, args: &Args) -> Self {
+        Self {
+            compiler_advisory_only: args.compiler_advisory_only,
+            compiler_advisory: args.compiler_advisory,
+            compiler_patterns: args.compiler_patterns,
+            ..self
+        }
+    }
+
     fn planned_units(&self) -> impl Iterator<Item = &Value> {
         self.primary_units.iter().chain(&self.dependency_units)
     }
@@ -53,6 +64,8 @@ impl Plan {
 
 #[derive(Serialize, Deserialize)]
 pub struct Unit {
+    #[serde(default)]
+    pub compiler_advisory_only: bool,
     pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     pub target: Target,
     pub test: bool,
@@ -79,8 +92,7 @@ pub fn prepare(cli: &Cli, args: &Args) -> Result<Capture, String> {
     let metadata = selected_workspace(cli)?;
     let mut capture = initial_capture(metadata, args.extraction_profile)?;
     capture.plan.targets = targets(cli, args.extraction_profile)?;
-    capture.plan.compiler_advisory = args.compiler_advisory;
-    capture.plan.compiler_patterns = args.compiler_patterns;
+    capture.plan = capture.plan.with_advisory(args);
 
     publish_plan(capture)
 }
@@ -141,6 +153,7 @@ fn plan(
     environment: CaptureEnvironment,
 ) -> Plan {
     Plan {
+        compiler_advisory_only: false,
         compiler_advisory: false,
         compiler_patterns: false,
         ledger_schema: ledger::SCHEMA.into(),
@@ -513,6 +526,7 @@ fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
         let unit_path = ledger::path(&capture.plan, &capture.directory, target, test)?;
         let unit: Unit = read_json(&unit_path)?;
         if &unit.target != target
+            || unit.compiler_advisory_only != capture.plan.compiler_advisory_only
             || unit.test != test
             || unit.directory.parent() != Some(capture.directory.as_path())
         {
@@ -609,6 +623,8 @@ fn driver_command(
     if plan.compiler_advisory && target.is_some() {
         let flags = [
             Some((rstyle_core::advisory::CAPTURE_ENV, "1")),
+            plan.compiler_advisory_only
+                .then_some(("RSTYLE_COMPILER_ADVISORY_ONLY", "1")),
             plan.compiler_patterns
                 .then_some((rstyle_core::advisory::patterns::CAPTURE_ENV, "1")),
         ];
@@ -722,6 +738,7 @@ fn capture_unit(
         .keep();
     let test = invocation.iter().any(|a| a == "--test");
     let unit = Unit {
+        compiler_advisory_only: selected_plan.compiler_advisory_only,
         extraction_profile: selected_plan.extraction_profile,
         target,
         test,
@@ -983,6 +1000,30 @@ mod snapshot_tests {
         assert_eq!(bundle.checksum, manifest.checksum);
     }
 
+    fn snapshot_unit(directory: &Path) -> Unit {
+        Unit {
+            compiler_advisory_only: false,
+            extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile::R0,
+            target: Target {
+                package: "snapshot".into(),
+                manifest_dir: directory.into(),
+                package_context: None,
+                source: directory.join("lib.rs"),
+                name: "snapshot".into(),
+                kind: vec!["lib".into()],
+                test: false,
+            },
+            test: false,
+            invocation: Vec::new(),
+            directory: directory.into(),
+            artifacts: artifact_inventory(
+                directory,
+                rstyle_pdg::extraction_profile::ExtractionProfile::R0,
+            )
+            .unwrap(),
+        }
+    }
+
     #[test]
     fn verified_snapshot_survives_file_edits_without_rereading() {
         let directory = tempfile::tempdir().unwrap();
@@ -995,26 +1036,7 @@ mod snapshot_tests {
             &manifest,
         )
         .unwrap();
-        let mut unit = Unit {
-            extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile::R0,
-            target: Target {
-                package: "snapshot".into(),
-                manifest_dir: directory.path().into(),
-                package_context: None,
-                source: directory.path().join("lib.rs"),
-                name: "snapshot".into(),
-                kind: vec!["lib".into()],
-                test: false,
-            },
-            test: false,
-            invocation: Vec::new(),
-            directory: directory.path().into(),
-            artifacts: artifact_inventory(
-                directory.path(),
-                rstyle_pdg::extraction_profile::ExtractionProfile::R0,
-            )
-            .unwrap(),
-        };
+        let mut unit = snapshot_unit(directory.path());
         let snapshot = load_inventory(&unit).unwrap();
         let original = unit.artifacts[0].checksum.clone();
         unit.artifacts[0].checksum = rstyle_pdg::unit_store::transport_checksum(b"different seal");

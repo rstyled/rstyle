@@ -95,11 +95,12 @@ impl<'a> From<&'a HirNode> for Node<'a> {
 
 pub(in crate::clones) fn evaluate<'a>(
     handoff: &'a Handoff,
-    matching: &'a RunReport,
+    matching: Option<&'a RunReport>,
     requests: Requests,
 ) -> Result<Reports<'a>, String> {
     let requested = requests.explain || requests.helpers;
     let compared = if requested {
+        let matching = matching.ok_or("Pair analysis requires strict matching")?;
         explain_accepted(handoff, matching, requests.helpers)?
     } else {
         Vec::new()

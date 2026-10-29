@@ -96,3 +96,50 @@ fn diagnostic_input_cannot_carry_graph_or_certification_authority() {
         assert!(read_diagnostic_snapshot(&serde_json::to_vec(&wire).unwrap()).is_err());
     }
 }
+
+#[test]
+fn sealed_advisory_publication_requires_exact_phase_and_grants_no_strict_import() {
+    let facts = roster();
+    let mut bytes = Vec::new();
+    let manifest =
+        write_sealed_diagnostic_snapshot(&mut bytes, "compiler-advisory-only", &facts).unwrap();
+    let snapshot = manifest.verify_owned(bytes).unwrap();
+    let decoded =
+        read_diagnostic_snapshot_phase(snapshot.bytes(), "compiler-advisory-only").unwrap();
+    assert_eq!(decoded.len(), facts.len());
+    assert!(read_diagnostic_snapshot_phase(snapshot.bytes(), "pre-helper-certification").is_err());
+    assert!(crate::unit_store::UnitStore::from_bundle(snapshot.bytes()).is_err());
+    assert!(
+        crate::unit_store::UnitStore::from_verified_current_run(&snapshot, |_| Ok(())).is_err()
+    );
+
+    let (_, diagnostic) = encoded();
+    assert!(
+        read_diagnostic_snapshot_phase(
+            &serde_json::to_vec(&diagnostic).unwrap(),
+            "compiler-advisory-only"
+        )
+        .is_err()
+    );
+}
+
+struct FlushFailure;
+
+impl std::io::Write for FlushFailure {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Err(std::io::Error::other("injected advisory flush failure"))
+    }
+}
+
+#[test]
+fn failed_raw_publication_flush_cannot_return_a_seal() {
+    assert!(
+        write_sealed_diagnostic_snapshot(FlushFailure, "compiler-advisory-only", &[])
+            .unwrap_err()
+            .contains("advisory flush failure")
+    );
+}

@@ -2,8 +2,9 @@
 mod bundle;
 pub use bundle::BUNDLE_SCHEMA;
 pub use bundle::{
-    ProductConstructorReplay, ReferenceConstructorReplay, ReferenceForwarderReplay,
-    ScalarInstanceReplay, read_diagnostic_snapshot, write_diagnostic_snapshot,
+    ProductConstructorReplay, RAW_FACTS_SCHEMA, ReferenceConstructorReplay,
+    ReferenceForwarderReplay, ScalarInstanceReplay, read_diagnostic_snapshot,
+    read_diagnostic_snapshot_phase, write_diagnostic_snapshot, write_sealed_diagnostic_snapshot,
 };
 mod dependency_closure;
 mod dependency_namespaces;
@@ -720,6 +721,12 @@ impl HelperView<'_> {
             .proofs()
             .borrow_mut()
             .insert((self.id, crate::verification_policy::is_generated()));
+    }
+}
+
+impl AsRef<[HirFnFacts]> for UnitStore {
+    fn as_ref(&self) -> &[HirFnFacts] {
+        self.functions()
     }
 }
 

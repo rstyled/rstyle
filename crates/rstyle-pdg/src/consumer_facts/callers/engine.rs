@@ -1,12 +1,14 @@
 use super::super::{Availability, mutations, selected_context};
 use super::{Census, Limits, Witness};
-use crate::{nominal_boundary::UnitContext, unit_store::UnitStore};
+#[cfg(test)]
+use crate::unit_store::UnitStore;
+use crate::{HirFnFacts, nominal_boundary::UnitContext};
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_FUNCTIONS: usize = 4096;
 
 pub struct Session<'a> {
-    unit: &'a UnitStore,
+    functions: &'a [HirFnFacts],
     limits: Limits,
     observe_uses: bool,
     definitions: BTreeMap<&'a str, usize>,
@@ -18,20 +20,19 @@ pub struct Session<'a> {
 }
 
 impl<'a> Session<'a> {
-    pub fn new(unit: &'a UnitStore, limits: Limits) -> Result<Self, String> {
-        Self::configured(unit, limits, false)
-    }
-
-    pub fn new_with_uses(unit: &'a UnitStore, limits: Limits) -> Result<Self, String> {
-        Self::configured(unit, limits, true)
-    }
-
-    fn configured(unit: &'a UnitStore, limits: Limits, observe_uses: bool) -> Result<Self, String> {
+    /// Inspect borrowed observations, optionally retaining argument-use evidence.
+    /// This does not require strict clone admission.
+    pub fn new(
+        functions: &'a (impl AsRef<[HirFnFacts]> + ?Sized),
+        limits: Limits,
+        observe_uses: bool,
+    ) -> Result<Self, String> {
+        let functions = functions.as_ref();
         Ok(Self {
-            unit,
+            functions,
             limits,
             observe_uses,
-            definitions: definitions(unit)?,
+            definitions: definitions(functions)?,
             observations: BTreeMap::new(),
             contexts: BTreeMap::new(),
             targets: BTreeMap::new(),
@@ -90,10 +91,9 @@ impl<'a> Session<'a> {
     }
 
     fn inspect(&mut self) -> Result<Census, String> {
-        let mut census = Census::new(self.unit.functions().len());
+        let mut census = Census::new(self.functions.len());
         let count = self
-            .unit
-            .functions()
+            .functions
             .len()
             .min(self.limits.functions)
             .min(MAX_FUNCTIONS);
@@ -114,9 +114,9 @@ impl<'a> Session<'a> {
 
     fn observe(&mut self, owner: usize, census: &mut Census) -> Result<bool, String> {
         let observed = if self.observe_uses {
-            mutations::inspect_calls_with_uses(&self.unit.functions()[owner])?
+            mutations::inspect_calls_with_uses(&self.functions[owner])?
         } else {
-            mutations::inspect_calls(&self.unit.functions()[owner])?
+            mutations::inspect_calls(&self.functions[owner])?
         };
         self.retain_observation(owner, observed, census)
     }
@@ -179,7 +179,7 @@ impl<'a> Session<'a> {
         observed: &mutations::Observations,
         census: &mut Census,
     ) -> Result<(), String> {
-        selected_context::retain(&mut self.contexts, self.unit, owner)?;
+        selected_context::retain(&mut self.contexts, self.functions, owner)?;
         self.original_coverage(owner, observed, census);
 
         if observed.direct.execution == mutations::Execution::BudgetExhausted {
@@ -215,7 +215,7 @@ impl<'a> Session<'a> {
             );
         }
 
-        let identity = self.unit.functions()[owner]
+        let identity = self.functions[owner]
             .build
             .frontend_options
             .get("definition_identity")
@@ -271,13 +271,13 @@ impl<'a> Session<'a> {
         let Some(target) = self.definitions.get(identity.as_str()).copied() else {
             return Ok(None);
         };
-        if call.target_path.as_deref() != Some(self.unit.functions()[target].name.as_str()) {
+        if call.target_path.as_deref() != Some(self.functions[target].name.as_str()) {
             return Err(
                 "Caller selected definition identity contradicts its captured native path".into(),
             );
         }
 
-        selected_context::retain(&mut self.contexts, self.unit, target)?;
+        selected_context::retain(&mut self.contexts, self.functions, target)?;
         match (&self.contexts[&owner], &self.contexts[&target]) {
             (Availability::Known(left), Availability::Known(right)) if left != right => {
                 Err("Caller target belongs to another selected-unit context".into())
@@ -318,9 +318,9 @@ fn hidden_boundaries(observed: &mutations::Observations) -> Result<bool, String>
             && observed.direct.boundaries.is_empty()))
 }
 
-fn definitions(unit: &UnitStore) -> Result<BTreeMap<&str, usize>, String> {
+fn definitions(functions: &[HirFnFacts]) -> Result<BTreeMap<&str, usize>, String> {
     let mut definitions = BTreeMap::new();
-    for (index, facts) in unit.functions().iter().take(MAX_FUNCTIONS).enumerate() {
+    for (index, facts) in functions.iter().take(MAX_FUNCTIONS).enumerate() {
         if let Some(value) = facts.build.frontend_options.get("definition_identity") {
             let identity = value
                 .as_str()
@@ -405,7 +405,7 @@ mod tests {
     #[test]
     fn exact_call_index_does_not_require_complete_effects_or_supported_arguments() {
         let unit = unit();
-        let mut session = Session::new(&unit, Limits::default()).unwrap();
+        let mut session = Session::new(&unit, Limits::default(), false).unwrap();
         let mut observed = observed();
         observed.signature = Availability::Unsupported {
             reason: "Unbounded signature".into(),
@@ -436,7 +436,7 @@ mod tests {
     #[test]
     fn unmatched_original_boundary_cannot_become_complete_no_callers() {
         let unit = unit();
-        let mut session = Session::new(&unit, Limits::default()).unwrap();
+        let mut session = Session::new(&unit, Limits::default(), false).unwrap();
         let mut observed = observed();
         observed.calls.clear();
         let mut census = Census::new(2);
@@ -447,9 +447,24 @@ mod tests {
     }
 
     #[test]
+    fn borrowed_observations_preserve_census_and_use_budget_outcomes() {
+        let unit = unit();
+        let limits = Limits {
+            uses: 0,
+            ..Limits::default()
+        };
+        let mut stored = Session::new(&unit, limits, true).unwrap();
+        let mut borrowed = Session::new(unit.functions(), limits, true).unwrap();
+        assert_eq!(
+            serde_json::to_value(stored.inspect_all().unwrap()).unwrap(),
+            serde_json::to_value(borrowed.inspect_all().unwrap()).unwrap()
+        );
+    }
+
+    #[test]
     fn definition_path_and_selected_context_contradictions_error() {
         let unit = unit();
-        let mut session = Session::new(&unit, Limits::default()).unwrap();
+        let mut session = Session::new(&unit, Limits::default(), false).unwrap();
         let mut observed = observed();
         let mut census = Census::new(2);
         session.owner_coverage(0, &observed, &mut census).unwrap();
@@ -465,7 +480,7 @@ mod tests {
     #[test]
     fn global_census_is_retained_once_and_budgets_remain_incomplete() {
         let unit = unit();
-        let mut session = Session::new(&unit, Limits::default()).unwrap();
+        let mut session = Session::new(&unit, Limits::default(), false).unwrap();
         let census = session.inspect_all().unwrap();
         assert_eq!(census.scanned_functions, 2);
         assert_eq!(census.expected_functions, 2);
@@ -478,6 +493,7 @@ mod tests {
                 functions: 0,
                 ..Limits::default()
             },
+            false,
         )
         .unwrap();
         let census = session.inspect_all().unwrap();
@@ -489,12 +505,13 @@ mod tests {
     #[test]
     fn total_use_retention_cannot_multiply_the_allowance_per_owner() {
         let unit = unit();
-        let mut session = Session::new_with_uses(
+        let mut session = Session::new(
             &unit,
             Limits {
                 uses: 1,
                 ..Limits::default()
             },
+            true,
         )
         .unwrap();
         let mut census = Census::new(2);
@@ -523,7 +540,7 @@ mod tests {
     #[test]
     fn boundary_ownership_and_ambiguous_original_definitions_reject() {
         let unit = unit();
-        let mut session = Session::new(&unit, Limits::default()).unwrap();
+        let mut session = Session::new(&unit, Limits::default(), false).unwrap();
         let mut observed = observed();
         observed.calls[0].boundary_index = 1;
         assert!(
