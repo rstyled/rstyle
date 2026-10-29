@@ -4027,8 +4027,11 @@ lexical matching and replay remain unchanged, with no additional filesystem work
 All 3,407 Rust tests pass in 217.466s, with five existing skips; doc tests and all
 191 Python tests pass. Locked all-target Clippy, formatting and diff checks pass.
 The post-rebase style scan has zero violations over 9,763 functions, all with
-complexity measurements; reviewed patterns has zero candidates and the same
-thirteen unchanged reviewed entries. Logs are `/tmp/clones-main-rebase-*`.
+complexity measurements; reviewed patterns has zero candidates and thirteen
+reviewed entries. Twelve unfiltered candidate IDs match the pre-rebase baseline;
+main expanded the remaining `shape_ok` group with `CountFact` and already carries
+its reviewed ledger entry. No new ignores were added. Logs are
+`/tmp/clones-main-rebase-*`.
 Both macOS regressions pass on Linux; macOS execution awaits CI after the push.
 This checkpoint integrates main and repairs fixtures; it makes no new migration
 coverage or performance claim.
