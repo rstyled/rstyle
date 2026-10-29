@@ -35,7 +35,7 @@ def counts_valid(counts):
     return isinstance(counts, dict) and set(counts) <= KINDS and all(nonnegative_integer(count) and count > 0 for count in counts.values())
 
 
-def label_error(case, policy):
+def label_error(case, policy, *, known_unknown_events=False):
     expected = case.get("expected", {})
     if not isinstance(expected, dict) or not counts_valid(expected.get("events")):
         return "independent event counts missing or malformed"
@@ -49,7 +49,7 @@ def label_error(case, policy):
         if expected.get("actual") is not None or expected.get("outcome") != "not_evaluated" or expected.get("exempt", False):
             return "incomplete label cannot authorize numeric or clean results"
         return None
-    if expected["events"].get("unknown", 0):
+    if expected["events"].get("unknown", 0) and not known_unknown_events:
         return "unknown events cannot authorize complete labels"
     exempt = expected["statements"] < policy["min_statements"] or expected["code_lines"] < policy["min_lines"]
     actual = None if exempt else sum(count * policy["weights"][kind] for kind, count in expected["events"].items()) * 1000 // max(1, expected["statements"])

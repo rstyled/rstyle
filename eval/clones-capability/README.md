@@ -933,3 +933,25 @@ All three reports equal C93. Warm inventory loading drops from1.58s to0.20–0.2
 warm wall time drops from9.35–9.45s to8.11s (13.7% at the two-run medians).
 This small local comparison preserves all checksum reads and checks; it is not
 a live-capture, release, native-platform or statistical performance claim.
+
+
+### Expanded default-density metric review (C95)
+
+`project-default-density-source-followup.json` retains three source-only reviews
+for the twelve unresolved C87 functions, compiler THIR evidence for contextual
+mutable reborrows and Write source declarations, and the initial uncertainties.
+`project-default-density-expanded-cases.json` supplies all15 positive source labels
+and three prior clean/minimum controls to the existing compiler_quality reducer.
+The initial comparison preserves three provenance-label differences; source owner
+identity and compiler lowering explain them without changing any event totals.
+The final expanded-results file has18 agreements. The expanded-quality-study
+records exact commands, limits and unchanged source-usefulness classification.
+
+Compiler static metrics count captured indirect calls at configured unknown
+weight; this is independent of unknown runtime behavior. A small shared-checker
+input seam allows those compiler labels; bounded-effects unknown labels retain
+their prior incomplete semantics. No production collector, evaluator, metric
+version, policy, hash, source scan or admission change is introduced. This finite
+metric review does not establish whole-project quality or authorize the default
+switch: usefulness, report/exit/config/review compatibility and retirement remain
+separate requirements.

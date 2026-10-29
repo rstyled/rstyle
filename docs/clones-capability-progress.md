@@ -6797,3 +6797,58 @@ compatibility per capability. Evaluate the existing configured static-effect
 metric, including explicit unknown-call weight; do not require strict clone
 admission or runtime purity proofs for advisory quality. The faster replay does
 not discharge those quality/default requirements.
+
+
+### C95 — complete the finite default-density metric review (2026-10-29)
+
+Three independent source-only reviews derive the twelve previously unresolved
+static-effect totals from existing mutation/call collectors, configured external
+paths and core depth3 propagation. This reviews the configured advisory metric,
+not runtime purity or strict clone eligibility. All15 positive numeric findings
+and three clean/minimum controls now agree with the same C91 saved scope.
+Original C87 labels and uncertainties remain unchanged.
+
+The get_mut statement gap is closed by a focused fixture: let-else unreachable
+macro tail and semicolon forms each count once; matches-generated arms do not
+add authored statements. Independent rustc THIR confirms Some(value) contextually
+reborrows its mutable reference, giving the fourth escaping root under the
+existing collector. Seven authored statements and weight4 independently yield571.
+No collector or production metric changes.
+
+The existing offline density checker incorrectly required every unknown-kind
+event to imply incomplete work, even for compiler metrics whose captured indirect
+calls carry a known configured weight. Add one small input option to the shared
+label arithmetic check and use it only for compiler-quality comparison; bounded
+effect labels keep their previous rule. A new test checks known indirect-call
+weight, event-count disagreement and unchanged bounded-effect handling.
+
+Initial comparison agrees on all18 outcomes, numeric values, statement counts and
+event-kind counts, but differs on three provenance labels. Preserve these results.
+Two omit the lifetime segment in the exact-source Stage owner name; one initially
+attributes flush IO only to its selected helper. Independent rustc THIR shows
+Write::flush as the source declaration even for Recorder<W>, matching the existing
+collector's direct external classification. Correct only provenance labels;
+final comparison has18 agreements. Source witnesses, original expectations,
+compiler lowering, commands and initial/final comparisons are retained in
+eval/clones-capability/project-default-density-{source-followup,expanded-cases,
+initial-comparison,expanded-results,expanded-quality-study}.json.
+
+This closes the finite metric-label gap, not the full usefulness/default gate.
+C87 source usefulness remains3 actionable,10 context-only and2 uncertain. The selected authored numeric scope completes; caller-planning inputs remain
+incomplete. No missing facts become zero or pure. Root report/exit/config/review compatibility,
+native CI and per-capability retirement remain open. No new hash, collector,
+policy version, admission change, suppression or threshold/budget change.
+
+Integrated C95 validation: all3,683 Rust tests pass in267.284s with five existing
+skips, plus doctests;248 capability and50 script Python tests pass. Formatting,
+workspace/all-target Clippy, diff whitespace and both legacy dogfood gates pass:
+0 violations/10,030 functions, with the same13 unfiltered pattern candidate IDs.
+Read-only integration review found no issues. C94 native CI run40971804372 remains
+in progress on macOS and Ubuntu x86/ARM at this observation; C95 native CI pending.
+
+Next ready implementation: root style report compatibility. style_route::run
+currently renders the full clones report, while legacy root output exposes
+source-located diagnostics, summary and fix_groups. Reuse completed core units
+through a small borrowed render seam before serialization, preserve compilation
+contexts and incomplete planning, and avoid JSON roundtrips or reevaluation.
+Defaults remain unchanged until the required per-capability gates pass.

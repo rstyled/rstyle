@@ -32,8 +32,12 @@ pub fn expanded() -> std::io::Result<()> {
 "#;
 
 fn fixture() -> (TempDir, Value) {
+    fixture_with_source(SOURCE)
+}
+
+fn fixture_with_source(source: &str) -> (TempDir, Value) {
     let directory = clone_workspace();
-    std::fs::write(directory.path().join("src/lib.rs"), SOURCE).unwrap();
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
     std::fs::write(
         directory.path().join("policy.toml"),
         "[side_effects]\nmin_lines=0\nmin_statements=0\nmax_density_milli=500\ntransitive_depth=0\n",
@@ -103,6 +107,36 @@ fn authored_match_arms_operand_blocks_and_macro_io_remain_counted() {
         report["compiler_advisory"]["units"][0]["evaluation"]["summary"]["effect_counts"]["io"],
         6
     );
+}
+
+#[test]
+fn let_else_macro_tails_count_once_without_counting_generated_match_arms() {
+    let source = r#"
+pub fn macro_tail(input: Option<u8>) -> std::io::Result<()> {
+    let Some(_value) = input else { unreachable!() };
+    std::fs::write("/unused", b"tail")?;
+    Ok(())
+}
+pub fn macro_statement(input: Option<u8>) -> std::io::Result<()> {
+    let Some(_value) = input else { unreachable!(); };
+    std::fs::write("/unused", b"statement")?;
+    Ok(())
+}
+pub fn macro_condition(input: Option<u8>) -> std::io::Result<()> {
+    if !matches!(input, Some(_)) {}
+    let Some(_value) = input else { unreachable!() };
+    std::fs::write("/unused", b"condition")?;
+    Ok(())
+}
+"#;
+    let (_directory, report) = fixture_with_source(source);
+    for (name, statements) in [
+        ("macro_tail", 4),
+        ("macro_statement", 4),
+        ("macro_condition", 5),
+    ] {
+        check_sample(&report, name, statements, 1);
+    }
 }
 
 #[test]

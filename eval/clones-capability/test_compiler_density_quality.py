@@ -3,6 +3,7 @@ from copy import deepcopy
 import unittest
 
 from compiler_quality import compare
+from density_compare import label_error
 from test_compiler_quality import fixture as historical_fixture
 
 
@@ -54,6 +55,24 @@ def no_finding(report, labels, limit=3000):
 
 
 class CompilerDensityQualityTests(unittest.TestCase):
+    def test_captured_unknown_calls_have_a_known_static_weight_without_implying_purity(self):
+        report, labels = fixture()
+        sample = labels['samples'][0]
+        sample['density'].update(events={'io': 1, 'unknown': 1}, actual=2000)
+        source = 'fn f(callback: fn()) {\n    callback();\n    std::fs::read("a");\n}'
+        sample['source'] = source
+        report['owned_source_inventory'][0]['source_functions'][0]['source'] = source
+        diagnostic = report['compiler_advisory']['units'][0]['evaluation']['diagnostics'][0]
+        diagnostic.update(actual=2000, details=[
+            {'label': 'io: std::fs::read', 'count': 1},
+            {'label': 'unknown: <fn pointer>', 'count': 1},
+        ])
+        self.assertEqual(compare(report, labels)['counts'], {'agreement': 1})
+        # The bounded effect consumer still treats unknown work as incomplete.
+        self.assertIsNotNone(label_error({'expected': sample['density']}, labels['density_policy']))
+        diagnostic['details'][1]['count'] = 2
+        self.assertEqual(compare(report, labels)['counts'], {'disagreement': 1})
+
     def test_direct_sample_checks_numeric_findings_without_completing_scope(self):
         report, labels = fixture()
         result = compare(report, labels)
@@ -145,7 +164,7 @@ class CompilerDensityQualityTests(unittest.TestCase):
                 diagnostic['details'] = details
             self.assertEqual(compare(report, labels)['counts'], {'unavailable': 1})
 
-    def test_unknown_or_incomplete_independent_events_cannot_authorize_clean_results(self):
+    def test_malformed_or_incomplete_independent_events_are_rejected(self):
         for replacement in ({'events': {'unknown': 1}}, {'events': {'alien': 1}},
                             {'complete': False, 'actual': None, 'outcome': 'not_evaluated'}):
             report, labels = fixture()

@@ -267,7 +267,9 @@ def propagation_reason(report, sample, selected, depth):
 
 def check_density(unit, key, function, sample, policy, reason):
     expected = sample.get('density')
-    error = label_error({'expected': expected}, policy)
+    # Compiler metrics count captured indirect calls at their configured weight.
+    # Their runtime behavior is unknown; their static event count can be complete.
+    error = label_error({'expected': expected}, policy, known_unknown_events=True)
     require(error is None, error)
     require(expected['complete'] is True, 'density sample requires reviewed complete static events')
     wanted_details = reviewed_details(expected, policy)
