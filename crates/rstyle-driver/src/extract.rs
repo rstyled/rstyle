@@ -118,9 +118,9 @@ impl Options<'_> {
         recursions: Vec<rstyle_core::complexity::Node>,
     ) -> Option<rstyle_core::complexity::Measurement> {
         let nodes = self.complexity?.get(&span.lo())?;
-        let mut nodes = nodes.clone();
-        nodes.extend(recursions);
-        Some(rstyle_core::complexity::Measurement::score(&nodes))
+        Some(rstyle_core::complexity::Measurement::score(
+            nodes.iter().chain(&recursions),
+        ))
     }
 }
 

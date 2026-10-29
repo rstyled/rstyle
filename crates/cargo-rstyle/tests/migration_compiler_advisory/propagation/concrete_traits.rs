@@ -34,7 +34,7 @@ fn concrete_method_ufcs_and_default_calls_select_original_implementation_effects
     checked(&output, 0);
     assert_eq!(
         report["compiler_advisory"]["metrics"],
-        "rstyle.compiler-style-metrics/5"
+        "rstyle.compiler-style-metrics/6"
     );
     let caller = unit(&report, "caller");
     let leaf = unit(&report, "leaf");

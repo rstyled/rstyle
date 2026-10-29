@@ -71,6 +71,9 @@ impl numeric_workflow::Retained for Row<'_> {
                 "Suppressed or invalid-suppression scope cannot establish a numeric negative",
             );
         }
+        if super::rules::is_complexity(&previous.rule_id) && !self.assessed.complexity_measured {
+            return unavailable("Compiler complexity was not measured for this owner");
+        }
         if previous.rule_id == "side_effect_density" && !self.effect_scope_complete {
             return unavailable(
                 "Compiler effect propagation has unavailable owners or unresolved callees",

@@ -15,6 +15,7 @@ fn metric_versions_are_preserved_across_units_and_mixed_inputs_reject() {
         rstyle_core::advisory::V2_METRICS,
         rstyle_core::advisory::V3_METRICS,
         rstyle_core::advisory::V4_METRICS,
+        rstyle_core::advisory::V5_METRICS,
         METRICS,
     ] {
         let inputs = [collected(version), Collected::default(), collected(version)];
@@ -25,6 +26,7 @@ fn metric_versions_are_preserved_across_units_and_mixed_inputs_reject() {
         rstyle_core::advisory::V2_METRICS,
         rstyle_core::advisory::V3_METRICS,
         rstyle_core::advisory::V4_METRICS,
+        rstyle_core::advisory::V5_METRICS,
     ] {
         assert!(collected_metrics(&[collected(prior), collected(METRICS)]).is_err());
     }

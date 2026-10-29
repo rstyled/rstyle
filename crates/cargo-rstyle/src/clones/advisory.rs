@@ -49,6 +49,7 @@ struct Unit {
     expected_functions: Option<usize>,
     observations: Vec<Measurement>,
     unavailable: Vec<Missing>,
+    unavailable_complexity: Vec<Missing>,
     unresolved_callees: BTreeSet<String>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     resolved_dependency_callees: BTreeMap<String, UnitId>,
@@ -429,6 +430,7 @@ fn evaluate_unit(
         expected_functions,
         observations: inputs.observations,
         unavailable: inputs.unavailable,
+        unavailable_complexity: inputs.unavailable_complexity,
         unresolved_callees,
         resolved_dependency_callees: effects.resolved,
         propagation_complete: effects.complete,
@@ -497,6 +499,7 @@ struct Collected {
     facts: Vec<FnFacts>,
     observations: Vec<Measurement>,
     unavailable: Vec<Missing>,
+    unavailable_complexity: Vec<Missing>,
     missing_graphs: Vec<Missing>,
 }
 
@@ -545,9 +548,21 @@ impl Collected {
         if with_graph {
             patterns::attach(function, &mut facts, &mut self.missing_graphs)?;
         }
-        self.observations.push(measurement(function.key, &facts));
-        self.facts.push(facts);
+        if self.metrics == Some(METRICS) && facts.complexity.is_none() {
+            self.unavailable_complexity.push(Missing {
+                key: function.key,
+                reason:
+                    "Compiler complexity measurement is unavailable; other metrics remain usable"
+                        .into(),
+            });
+        }
+        self.retain_known(function.key, facts);
         Ok(())
+    }
+
+    fn retain_known(&mut self, key: super::FunctionKey, facts: FnFacts) {
+        self.observations.push(measurement(key, &facts));
+        self.facts.push(facts);
     }
 }
 
@@ -599,6 +614,7 @@ impl Unit {
 
     fn inputs_complete(&self) -> bool {
         self.unavailable.is_empty()
+            && self.unavailable_complexity.is_empty()
             && self.unresolved_callees.is_empty()
             && self
                 .patterns
@@ -637,9 +653,12 @@ fn observation(function: &super::Function, root: &std::path::Path) -> Result<Obs
             .and_then(serde_json::Value::as_str)
             .ok_or("Missing compiler advisory source location")?;
         let original = std::path::Path::new(source);
-        let normalized = (metrics == METRICS)
-            .then(|| rstyle_pdg::nominal_binding::absolute_path(original))
-            .transpose()?;
+        let normalized = (matches!(
+            metrics.as_str(),
+            rstyle_core::advisory::V5_METRICS | METRICS
+        ))
+        .then(|| rstyle_pdg::nominal_binding::absolute_path(original))
+        .transpose()?;
         let path = normalized.as_deref().unwrap_or(original);
         facts.path = path
             .strip_prefix(root)

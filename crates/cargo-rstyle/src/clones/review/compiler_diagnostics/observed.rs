@@ -17,6 +17,7 @@ pub(in crate::clones) struct Completed {
 pub(in crate::clones) struct Assessed {
     pub(in crate::clones::review) owner: Result<Rc<Owner>, String>,
     pub(in crate::clones) path: String,
+    pub(in crate::clones::review) complexity_measured: bool,
     pub(in crate::clones::review) suppression: Option<rstyle_core::suppress::Suppression>,
     pub(in crate::clones::review) findings: BTreeMap<String, usize>,
 }
@@ -109,6 +110,7 @@ fn assessed(
         .map(|(index, (facts, suppression))| Assessed {
             owner: owners.remove(&index).expect("Retained core owner"),
             path: facts.path.clone(),
+            complexity_measured: facts.complexity.is_some(),
             suppression: Some(suppression),
             findings: findings.remove(&index).unwrap_or_default(),
         })
@@ -123,6 +125,7 @@ fn assessed(
             .map(|facts| Assessed {
                 owner: resolve(facts),
                 path: facts.path.clone(),
+                complexity_measured: facts.complexity.is_some(),
                 suppression: None,
                 findings: BTreeMap::new(),
             }),

@@ -23,7 +23,7 @@ fn shared_workspace_source_reuses_effects_and_parameter_planning_without_strict_
     let (output, report) = capture(directory.path(), &["--compiler-plans"]);
     checked(&output, 0);
     let advisory = &report["compiler_advisory"];
-    assert_eq!(advisory["metrics"], "rstyle.compiler-style-metrics/5");
+    assert_eq!(advisory["metrics"], "rstyle.compiler-style-metrics/6");
     assert_eq!(advisory["complete"], true);
     let caller = unit(&report, "caller");
     assert_eq!(caller["observations"].as_array().unwrap().len(), 2);

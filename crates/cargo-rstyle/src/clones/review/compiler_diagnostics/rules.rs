@@ -54,6 +54,8 @@ impl exact_rules::ReviewSnapshot for Snapshot {
             "fn_length"
                 | "fn_params"
                 | "fn_spacing"
+                | "cyclomatic_complexity"
+                | "cognitive_complexity"
                 | "mutation_per_target"
                 | "mutated_targets"
                 | "side_effect_density"
@@ -61,6 +63,9 @@ impl exact_rules::ReviewSnapshot for Snapshot {
             || !self.policy.is_object()
         {
             return Err(ReviewError::InvalidSchema);
+        }
+        if is_complexity(&self.rule_id) && self.metrics != rstyle_core::advisory::METRICS {
+            return Err(ReviewError::InvalidVersion);
         }
         Ok(())
     }
@@ -82,6 +87,10 @@ impl positive_workflow::Snapshot for Snapshot {
     fn locators(&self) -> Vec<Locator> {
         vec![self.owner.locator.clone()]
     }
+}
+
+pub(super) fn is_complexity(rule: &str) -> bool {
+    matches!(rule, "cyclomatic_complexity" | "cognitive_complexity")
 }
 
 #[cfg(test)]

@@ -93,6 +93,7 @@ fn historical_metrics_are_readable_but_cannot_establish_current_negatives() {
         rstyle_core::advisory::V2_METRICS,
         rstyle_core::advisory::V3_METRICS,
         rstyle_core::advisory::V4_METRICS,
+        rstyle_core::advisory::V5_METRICS,
     ] {
         let mut previous = snapshot();
         previous.metrics = version.into();
@@ -104,6 +105,7 @@ fn historical_metrics_are_readable_but_cannot_establish_current_negatives() {
         let assessed = compiler_diagnostics::observed::Assessed {
             owner: Ok(Rc::clone(&previous.owner)),
             path: "src/lib.rs".into(),
+            complexity_measured: false,
             suppression: Some(rstyle_core::suppress::Suppression::None),
             findings: Default::default(),
         };
@@ -182,5 +184,40 @@ fn completed_status_prefers_exact_context_independently_of_row_order() {
         )
         .unwrap();
         assert_eq!(evaluated.records[0].state, status::State::HiddenExact);
+    }
+}
+
+#[test]
+fn missing_complexity_cannot_retire_reviews_as_numeric_negatives() {
+    use crate::clones::review::{compiler_diagnostics, numeric_workflow::Retained, status};
+    for rule in ["cyclomatic_complexity", "cognitive_complexity"] {
+        let mut previous = snapshot();
+        previous.rule_id = rule.into();
+        assert!(previous.validate().is_ok());
+        for complexity_measured in [false, true] {
+            let assessed = compiler_diagnostics::observed::Assessed {
+                owner: Ok(Rc::clone(&previous.owner)),
+                path: "src/lib.rs".into(),
+                suppression: Some(rstyle_core::suppress::Suppression::None),
+                findings: Default::default(),
+                complexity_measured,
+            };
+            let current = compiler_diagnostics::retained::Row {
+                assessed: &assessed,
+                snapshots: &[],
+                policy: &previous.policy,
+                metrics: rstyle_core::advisory::METRICS,
+                selected: true,
+                effect_scope_complete: true,
+            };
+            let expected = if complexity_measured {
+                status::State::NoFinding
+            } else {
+                status::State::Unavailable
+            };
+            assert_eq!(current.assess(&previous).0, expected);
+        }
+        previous.metrics = rstyle_core::advisory::V5_METRICS.into();
+        assert!(previous.validate().is_err());
     }
 }

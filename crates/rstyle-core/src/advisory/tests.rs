@@ -113,7 +113,14 @@ fn mutation_origins_require_current_evidence_and_preserve_historical_semantics()
 
 #[test]
 fn historical_statement_counts_and_v2_origin_requirements_are_preserved() {
-    for version in [LEGACY_METRICS, V2_METRICS, V3_METRICS, V4_METRICS, METRICS] {
+    for version in [
+        LEGACY_METRICS,
+        V2_METRICS,
+        V3_METRICS,
+        V4_METRICS,
+        V5_METRICS,
+        METRICS,
+    ] {
         let mut raw = original();
         raw["metrics"] = version.into();
         raw["facts"]["statements"] = 5.into();
@@ -128,4 +135,26 @@ fn historical_statement_counts_and_v2_origin_requirements_are_preserved() {
             .remove("origin");
         assert_eq!(Observation::read(&raw).is_ok(), version == LEGACY_METRICS);
     }
+}
+
+#[test]
+fn complexity_capability_is_versioned_and_absence_does_not_fabricate_measurements() {
+    let mut raw = original();
+    raw["facts"].as_object_mut().unwrap().remove("complexity");
+    assert!(Observation::read(&raw).is_err());
+    raw["metrics"] = V5_METRICS.into();
+    let Observation::Known { facts, .. } = Observation::read(&raw).unwrap() else {
+        panic!("Historical observations remain usable");
+    };
+    assert!(facts.complexity.is_none());
+    raw["facts"]["complexity"] =
+        serde_json::to_value(crate::complexity::Measurement::score(&[])).unwrap();
+    assert!(Observation::read(&raw).is_err());
+    raw["metrics"] = METRICS.into();
+    assert!(Observation::read(&raw).is_ok());
+    raw["facts"]["complexity"] = serde_json::Value::Null;
+    let Observation::Known { facts, .. } = Observation::read(&raw).unwrap() else {
+        panic!("Other measurements remain usable");
+    };
+    assert!(facts.complexity.is_none());
 }

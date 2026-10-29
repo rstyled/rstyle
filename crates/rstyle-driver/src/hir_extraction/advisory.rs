@@ -9,7 +9,7 @@ pub(super) fn capture(
     ctx: &Context<'_>,
     id: LocalDefId,
     facts: &mut HirFnFacts,
-    source_root: Option<&std::path::Path>,
+    capture: &super::Options<'_>,
 ) -> Result<(), String> {
     if std::env::var_os(CAPTURE_ENV).as_deref() != Some(std::ffi::OsStr::new("1")) {
         return Ok(());
@@ -26,8 +26,9 @@ pub(super) fn capture(
     let with_graph =
         std::env::var_os(patterns::CAPTURE_ENV).as_deref() == Some(std::ffi::OsStr::new("1"));
     let options = Options {
-        complexity: None,
-        root: source_root
+        complexity: Some(capture.complexity),
+        root: capture
+            .source_root
             .filter(|workspace| root.starts_with(workspace))
             .unwrap_or(root),
         with_pdg: with_graph,

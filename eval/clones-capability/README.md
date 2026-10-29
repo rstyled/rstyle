@@ -383,3 +383,41 @@ spacing groups contain no signature steps or bundles under the default
 parameter limit. Global advisory/planning scope stays incomplete because the
 generated test harness remains unavailable. Strict clone matching and existing
 metric versions are unaffected.
+
+### Shared complexity from main (C42)
+
+`project-complexity-cases.json` freezes four original `rstyle-core` library
+functions against shared complexity policy 1/default 12 limits. An independent
+source review specified one positive, two boundary controls and a straight-line
+control before capture. Source metadata was then corrected to include original
+doc comments and the lifetime-qualified method display name; score and outcome
+expectations did not change. No Go comparison or retirement claim is made.
+
+The explicit metric 6 run `run-4zkGtw` measured 407 original functions. All eight
+labeled CC/COG rule outcomes agree. Clean comparisons report outcomes only;
+absence of a diagnostic never invents a numeric score. Whole-package advisory
+coverage is incomplete: 806 generated owners and eight unresolved callees remain
+unavailable. The command exits 2 for that incomplete scope. The original capture
+observation took 18.21s with 588,176KiB peak RSS; this is not a speedup measurement.
+The source inventory, captured observation roster, completed core fix plans and
+numeric diagnostics supply the offline comparison; there is no extra parser,
+scorer, hash or live analysis.
+
+```sh
+CARGO_TARGET_DIR=target RSTYLE_DRIVER="$PWD/target/debug/rstyle-driver" \
+  timeout 600 target/debug/cargo-rstyle clones -p rstyle-core \
+  --extraction-profile hir-data-v3 --locked --compiler-advisory --compiler-plans \
+  --format json --report-detail compact > /tmp/project-complexity-report.json
+python3 eval/clones-capability/compiler_complexity.py \
+  --report /tmp/project-complexity-report.json \
+  --labels eval/clones-capability/project-complexity-cases.json \
+  --output /tmp/project-complexity-results.json
+```
+
+For a fresh capture, bind a copy of `labels.run` to that explicitly selected new
+run before reduction; retain the frozen sample expectations. The checked-in
+results describe `run-4zkGtw`, not an implicit latest run. Full complexity scores
+and contribution behavior are independently checked by the shared scorer tests
+and the advisory CLI fixtures, including source-free replay, suppressions,
+exclusions, exact reviews and changed-limit staleness. Offline reducer tests run
+with the existing Python unittest discovery command.

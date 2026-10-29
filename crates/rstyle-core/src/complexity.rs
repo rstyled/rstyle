@@ -71,7 +71,7 @@ impl Increment {
 
 impl Measurement {
     /// CC has a base of one; every other point in either score has source evidence.
-    pub fn score(nodes: &[Node]) -> Self {
+    pub fn score<'a>(nodes: impl IntoIterator<Item = &'a Node>) -> Self {
         let mut contributions = children(nodes, 0);
         contributions.sort_by_key(|point| (point.line, point.column));
 
@@ -102,8 +102,11 @@ fn point(node: &Node, nesting: usize, increment: Increment) -> Option<Contributi
     })
 }
 
-fn children(nodes: &[Node], nesting: usize) -> Vec<Contribution> {
-    nodes.iter().flat_map(|node| visit(node, nesting)).collect()
+fn children<'a>(nodes: impl IntoIterator<Item = &'a Node>, nesting: usize) -> Vec<Contribution> {
+    nodes
+        .into_iter()
+        .flat_map(|node| visit(node, nesting))
+        .collect()
 }
 
 fn selection(node: &Node, nesting: usize) -> Vec<Contribution> {

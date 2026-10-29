@@ -57,6 +57,7 @@ use rustc_hir::{self as rhir, def::DefKind, def_id::LocalDefId};
 use rustc_middle::ty::TyCtxt;
 
 pub struct Options<'a> {
+    pub complexity: &'a crate::driver_complexity::Functions,
     pub source_root: Option<&'a std::path::Path>,
     pub(super) sources: sources::Sources,
     pub profile: Option<ExtractionProfile>,
@@ -137,7 +138,7 @@ fn function(
         return Ok(None);
     };
     concrete_types::capture(&ctx, &mut facts)?;
-    capture_callable_owner(&ctx, id, &mut facts, options.source_root)?;
+    capture_callable_owner(&ctx, id, &mut facts, options)?;
     capture_locations(&ctx, &mut facts)?;
 
     instances::capture(&ctx, id, facts).map(Some)
@@ -147,9 +148,9 @@ fn capture_callable_owner(
     ctx: &hir::Context<'_>,
     id: LocalDefId,
     facts: &mut HirFnFacts,
-    source_root: Option<&std::path::Path>,
+    options: &Options<'_>,
 ) -> Result<(), String> {
-    advisory::capture(ctx, id, facts, source_root)?;
+    advisory::capture(ctx, id, facts, options)?;
     inherent::capture(ctx, id, facts)?;
     trait_members::capture(ctx, id, facts)
 }

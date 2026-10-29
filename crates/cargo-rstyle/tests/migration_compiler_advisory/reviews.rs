@@ -14,7 +14,7 @@ fn configured() -> (TempDir, Value) {
     (directory, configured)
 }
 
-fn replay(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) {
+pub(super) fn replay(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) {
     let mut args = vec![
         "--extraction-profile",
         "hir-data-v3",

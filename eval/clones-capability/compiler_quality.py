@@ -31,7 +31,7 @@ def planned_owners(planning):
     return result
 
 
-def validate_planning(report, owners):
+def validate_planning(report, owners, rules=('fn_params', 'mutated_targets', 'side_effect_density')):
     known = {row['key']: (unit['unit'], row['name'])
              for unit in report['compiler_advisory']['units'] for row in unit['observations']}
     for key, function in owners.items():
@@ -39,7 +39,7 @@ def validate_planning(report, owners):
     for unit in report['compiler_advisory']['units']:
         diagnostics = unit['evaluation']['diagnostics']
         require(unit['evaluation']['summary']['violations'] == len(diagnostics), 'incomplete diagnostics')
-        for rule in ('fn_params', 'mutated_targets', 'side_effect_density'):
+        for rule in rules:
             planned = sum(rule in function['rules'] for key, function in owners.items()
                           if known[key][0] == unit['unit'])
             require(planned == sum(row['rule_id'] == rule for row in diagnostics),

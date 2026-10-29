@@ -30,7 +30,7 @@ proposals have a separate review identity described below.
 The normal legacy style command remains available.
 
 Both the record and metric identities are versioned:
-`rstyle.compiler-advisory/1` and `rstyle.compiler-style-metrics/3`. These are
+`rstyle.compiler-advisory/1` and `rstyle.compiler-style-metrics/6`. These are
 compiler style metrics, not the newer source/native mutation-effect contract.
 Mutable borrows count as mutation events; compiler statement counts use the
 existing HIR traversal, excluding synthetic question-mark arms in metric 3;
@@ -38,6 +38,27 @@ effect propagation uses the existing bounded depth, boundaries and
 trait-target policy. Unclassified external paths are governed by the reported
 core configuration. A policy density of zero does not establish effect absence,
 purity, termination, or safe refactoring.
+
+Metric 6 reuses the shared [complexity policy](complexity.md). The existing
+expanded-AST collector runs once for an explicitly requested advisory capture,
+before HIR lowering adds synthetic branches. Its results are borrowed by the
+shared function collector, which adds the already collected direct-recursion
+events and scores them with `rstyle_core::complexity`. The existing evaluator
+supplies cyclomatic/cognitive diagnostics, contribution details, ranking,
+thresholds, exclusions, suppressions and fix groups. There is no separate
+advisory complexity algorithm. Strict clone eligibility and matching are
+unchanged.
+
+The core report summary exposes `complexity_measured` and
+`complexity_unavailable`. Modern owners without a score are also listed in
+`unavailable_complexity`; other observations remain usable, while the advisory
+scope stays incomplete. Missing measurements cannot retire saved complexity
+reviews as clean negatives. Exact numeric reviews and baselines use the existing
+compiler-diagnostic workflow for both complexity rules. Replays use completed
+measurements without rereading or parsing source. Historical metric versions
+remain readable with unavailable complexity and retain their original metric
+scope; they cannot claim modern measurements or establish current review
+negatives.
 
 Metric version 2 omits lowered iterator roots from source mutation budgets.
 The shared expression-use collector tags these bindings by their HIR
@@ -47,7 +68,7 @@ mutable loop-pattern bindings, closure captures and macro-local writes still
 count. All mutation events, escaping/delegated effects and workspace type hints
 remain available. Raw `direct_mutations`/`escaping_mutations` count those retained
 events; source budgets filter the typed `for_desugaring` origin before grouping.
-Metrics 2 and 3 require explicit origins, while historical missing origins mean source
+Metrics 2 through 6 require explicit origins, while historical missing origins mean source
 under metric 1. A metric-1 record cannot claim a desugared origin. Statement
 counts were unchanged in metric 2; budget exclusion does not establish iterator purity.
 Legacy style reuses the mutation-origin correction.

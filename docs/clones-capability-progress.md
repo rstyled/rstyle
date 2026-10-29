@@ -4035,3 +4035,43 @@ its reviewed ledger entry. No new ignores were added. Logs are
 Both macOS regressions pass on Linux; macOS execution awaits CI after the push.
 This checkpoint integrates main and repairs fixtures; it makes no new migration
 coverage or performance claim.
+
+### C42 — reuse shared complexity measurements (2026-10-29)
+
+Compiler advisory metric 6 reuses main's expanded-AST complexity collector and
+the existing function collector, scorer, evaluator and numeric-review workflow.
+The collector runs once for explicitly requested advisory capture. Scoring
+borrows construct trees and chains the existing recursion events without copying
+the trees. Historical metrics 1–5 remain readable; absent modern scores retain
+other facts, report unavailable complexity and cannot establish clean review
+negatives. Strict clone matching is unchanged. No new hashes, source proofs,
+ignores, suppressions, threshold changes or budgets were introduced.
+
+Independent original-project labels cover four rstyle-core functions, including
+the cyclomatic and cognitive boundaries. Capture `run-4zkGtw` measured all 407
+original functions and produced eight agreements across eight labeled rule
+outcomes. The 806 generated owners remain unavailable and eight callees remain
+unresolved; overall scope is honestly incomplete. Capture took 18.21s with
+588,176KiB peak RSS; this is an observation, not a speedup claim. The reducer
+consumes completed observations using existing compiler-quality helpers without
+rescoring. Artifacts and reproduction are in `eval/clones-capability/README.md`.
+
+macOS run `40830574364` exposed two further fixture aliases: an absolute shared
+source and an external-dependency source-root assertion. Both failures were
+reproduced on Linux with a symlinked TMPDIR before the fix. The common workspace
+fixture now resolves its temporary parent once, leaving production lexical
+matching unchanged. All nine focused tests pass with that aliased TMPDIR.
+Native macOS verification still requires the next CI run.
+
+Final integrated validation: 3,413 Rust tests pass in 215.905s with five existing
+skips; doc tests pass. All 198 Python tests pass. Locked all-target Clippy,
+formatting and diff checks pass. Style reports zero violations over 9,766
+functions; reviewed patterns reports zero candidates. All thirteen candidate IDs
+(including the reviewed entries) match the main-rebase unfiltered baseline.
+Final logs use `/tmp/clones-advisory-complexity-` with `tests-final-3`,
+`clippy-final-2`, `style-final-3`, `patterns-final-2` and `python-final-2`.
+
+Next ready performance frontier: an explicit advisory-only capture/report seam
+that avoids unrequested strict certification and matching, while preserving
+existing strict admission and honest missing-data reporting. That seam is not
+implemented in C42; no speedup is claimed for it.

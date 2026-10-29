@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 pub mod patterns;
 
 pub const KEY: &str = "rstyle.compiler-advisory/1";
-pub const METRICS: &str = "rstyle.compiler-style-metrics/5";
+pub const METRICS: &str = "rstyle.compiler-style-metrics/6";
+pub const V5_METRICS: &str = "rstyle.compiler-style-metrics/5";
 pub const V4_METRICS: &str = "rstyle.compiler-style-metrics/4";
 pub const V3_METRICS: &str = "rstyle.compiler-style-metrics/3";
 pub const V2_METRICS: &str = "rstyle.compiler-style-metrics/2";
@@ -21,6 +22,7 @@ pub fn metric_version(value: &str) -> Option<&'static str> {
         V2_METRICS => Some(V2_METRICS),
         V3_METRICS => Some(V3_METRICS),
         V4_METRICS => Some(V4_METRICS),
+        V5_METRICS => Some(V5_METRICS),
         _ => None,
     }
 }
@@ -69,7 +71,7 @@ impl Observation {
                     if roster == "mutations"
                         && matches!(
                             raw["metrics"].as_str(),
-                            Some(V2_METRICS | V3_METRICS | V4_METRICS | METRICS)
+                            Some(V2_METRICS | V3_METRICS | V4_METRICS | V5_METRICS | METRICS)
                         )
                     {
                         require_fields(entry, &["origin"])?;
@@ -77,6 +79,13 @@ impl Observation {
                 }
             }
             require_signature(&raw["facts"]["sig"])?;
+            if raw["metrics"] == METRICS {
+                require_fields(&raw["facts"], &["complexity"])?;
+            } else if !raw["facts"]["complexity"].is_null() {
+                return Err(
+                    "Historical compiler metric cannot claim complexity measurements".into(),
+                );
+            }
         }
         let observation = Self::deserialize(raw).map_err(|error| error.to_string())?;
         observation.validate()?;
