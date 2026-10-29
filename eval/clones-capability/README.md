@@ -349,3 +349,37 @@ support retained review resolution despite unrelated missing input. Deeper
 propagation and whole-analysis completion keep their existing gates. The
 variant is not a historical-production claim, and no persistent repository
 review or ignore is added.
+
+
+`project-shared-source-quality-{cases,results}.json` reviews C40's explicit saved
+metric5 `run-mb8gH8` using the same `compiler_quality.py` reducer. Independent
+source labels cover seven original functions in ten owner/compilation contexts:
+four authored test spacing findings, six clean spacing controls and ten checks
+each for parameter count and mutated-target count. All thirty checks agree;
+clean rows compare only outcomes, with no synthesized numeric observations.
+The sample remains separate from overall advisory/planning completeness.
+
+Labels may now select `test: true` or `test: false` explicitly; omission retains
+the old non-test selection. Spacing labels supply an explicit outcome because
+a blank line can make a function clean at the same statement count. The reducer
+reads existing completed core fix-group source locations, checks one-to-one
+diagnostic ownership and preserves exact original source association. It does
+not parse source, collect effects or run another evaluator. The initial attributed
+source-scope mismatch remained unavailable until the labels included the original
+`#[test]` attributes; the comparison was not relaxed.
+
+Reproduce against an explicit full/compact report from that saved run:
+
+```sh
+python3 eval/clones-capability/compiler_quality.py \
+  --report /path/to/run-mb8gH8-report.json \
+  --labels eval/clones-capability/project-shared-source-quality-cases.json \
+  --output /tmp/shared-source-quality-review.json
+```
+
+The output path must be new. This is a routing-only original-source sample,
+not a full-package precision/recall or runtime purity assessment. The four
+spacing groups contain no signature steps or bundles under the default
+parameter limit. Global advisory/planning scope stays incomplete because the
+generated test harness remains unavailable. Strict clone matching and existing
+metric versions are unaffected.

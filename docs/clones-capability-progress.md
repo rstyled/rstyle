@@ -3943,3 +3943,64 @@ and compare existing evaluator/planner outputs in a bounded real-package scope.
 Reuse completed owner associations and core policies; no new consumer algorithm,
 source checksum or second body walk is required for that review. Broader
 capability delivery and per-capability retirement remain open.
+
+
+## C41: review completed shared-source findings by compilation context
+
+State: delivered. Acceptance owns only the existing offline
+`compiler_quality.py` reducer and its leaf tests; independent source review owns
+`project-shared-source-quality-cases.json`. Lead owns integration, measured result
+artifact and documentation. The source reviewer freezes expectations before
+inspecting diagnostic output. Heavy captures remain serialized.
+
+C40 made original shared-file observations reachable but did not label the four
+observed spacing diagnostics. Reuse the existing compiler-quality reducer and
+completed core fix groups to review those diagnostics. The reducer previously
+selected only check units and parameter/mutation/density planning rules; a small
+input seam now selects explicit check/test contexts and spacing labels. This
+adds no evaluator, parser, collector, source hash or live analysis pass. Existing
+labels keep their default non-test selection. Missing/ambiguous owners, source
+associations and incomplete diagnostic ownership remain unavailable or errors;
+clean outcomes never invent numeric measurements.
+
+The study uses the explicit C40 saved metric5 run `run-mb8gH8`, preserving its
+routing-only scope and generated-harness incompleteness. Independent labels
+review source spacing and parameter counts under the default policy; they make
+no density/purity, safe-refactor, full-package quality or retirement claim.
+Source labels froze four spacing findings (13/8/10/5 top-level statements,
+limit4) plus six clean spacing controls. Ten parameter and ten mutated-target
+checks are also negative under production defaults. The first measured reduction
+returned 18 agreements/12 unavailable because four label strings omitted their
+authored `#[test]` attribute. The independent reviewer corrected the source span
+metadata against the original files without changing any expected count/outcome.
+Exact byte matching was retained. Final reduction reports 30 agreements across
+seven original functions/ten owner-contexts. Clean observations contain outcome
+only; no measured zero is synthesized. The four completed spacing groups have
+no signature steps or bundles; the forwarding reader receives no parameter plan
+under the default limit. Global advisory/planning completeness remains false.
+
+The existing reducer now builds a per-unit index from completed core spacing
+fix-group locations, validating one-to-one diagnostic ownership in linear work.
+The optional boolean test selector defaults to non-test for older labels and is
+part of sample identity, propagation-input identity and result rows. The new
+controls cover absent/ambiguous contexts, same-named check/test owners, source
+mismatches, missing/duplicated locations and an unmatched diagnostic. All 191
+Python tests pass. The completed-report reduction takes 0.02s/13,196KiB in one
+small observation; this is not a speedup or live-capture benchmark. Artifacts are
+`project-shared-source-quality-{cases,results}.json`; reproduction is in the
+acceptance README.
+
+Final checkpoint: all 3,394 Rust tests pass in 219.546s with five existing skips;
+doc tests pass. Both original NonZero regressions pass. All 191 Python tests,
+locked all-target Clippy, fmt and diff checks pass. Style has zero violations
+over 9,731 functions; reviewed patterns has zero candidates. Logs use
+`/tmp/clones-shared-source-quality-{tests,python,clippy,style,patterns}-final-1`
+(the final Python run is `python-final-2`). All thirteen unfiltered candidate IDs match C40
+(`/tmp/clones-shared-source-quality-patterns-unfiltered-final-1.json`). Linux is verified; macOS remains pending. No changes to Rust
+collectors, metric versions, strict matching, hashes, ignores, suppressions,
+thresholds or budgets.
+
+Next ready work: use the existing source-rule and compiler-quality paths to
+measure a declared original-package scope, with independent labels for remaining
+unreviewed owners. Keep proposal quality and strict matching separate. Broader
+migration and per-capability retirement remain active.

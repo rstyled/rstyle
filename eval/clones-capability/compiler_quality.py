@@ -47,12 +47,13 @@ def validate_planning(report, owners):
 
 
 def sample_owner(report, sample, selected):
+    test = boolean(sample.get('test', False), 'sample test context')
     candidates = [(unit, observed) for unit, observed in selected
                   if observed['target']['package_context']['name'] == sample['package']
                   and observed['target']['kind'] == [sample['target_kind']]
-                  and observed['test'] is False]
+                  and observed['test'] is test]
     if len(candidates) != 1:
-        return None, None, 'missing or ambiguous check unit'
+        return None, None, 'missing or ambiguous selected unit'
     unit, observed = candidates[0]
     owners = [row for row in report['functions']
               if row['unit_evidence']['report_unit'] == unit['unit']
@@ -68,7 +69,7 @@ def sample_owner(report, sample, selected):
     require(known[owner['key']]['name'] == sample['function'], 'observation owner mismatch')
     sources = [source for inventory in report['owned_source_inventory']
                if inventory['compilation_unit'] == observed['target']
-               and inventory['test'] is False
+               and inventory['test'] is test
                for source in inventory['source_functions']
                if source['function_span'] == owner['fn_span']
                and sample['function'] in source['active_functions']
@@ -78,6 +79,36 @@ def sample_owner(report, sample, selected):
     if 'source' in sample and sources[0].get('source') != sample['source']:
         return unit, None, 'independent source label differs from captured source'
     return unit, owner['key'], None
+
+
+def spacing_owners(unit):
+    known = Counter(row['name'] for row in unit['observations'])
+    result = {}
+    for group in unit['evaluation']['fix_groups']:
+        for function in group['functions']:
+            if 'fn_spacing' not in function['rules']:
+                continue
+            name = function['name']
+            require(known[name] == 1 and name not in result, 'missing or ambiguous spacing owner')
+            result[name] = function
+    diagnostics = Counter((row['path'], row['line']) for row in unit['evaluation']['diagnostics']
+                          if row['rule_id'] == 'fn_spacing')
+    locations = Counter((function['path'], function['line']) for function in result.values())
+    require(locations == diagnostics, 'incomplete completed spacing-owner roster')
+    require(all(count == 1 for count in locations.values()),
+            'missing or ambiguous completed spacing diagnostic')
+    return result
+
+
+def spacing_label(sample, limit):
+    require(isinstance(sample.get('source'), str) and sample['source'],
+            'independent spacing source missing')
+    wanted = sample.get('spacing')
+    require(isinstance(wanted, dict), 'missing independent spacing label')
+    require(wanted.get('outcome') in ('finding', 'evaluated_no_finding'), 'invalid spacing outcome')
+    integer(wanted.get('actual'), 'spacing actual')
+    require(integer(wanted.get('limit'), 'spacing limit') == limit, 'different spacing label limit')
+    return {field: wanted[field] for field in ('outcome', 'actual', 'limit')}
 
 
 def check_rule(unit, key, function, sample, rule, actual, limit, expected=None):
@@ -166,7 +197,8 @@ def propagation_reason(report, sample, selected, depth):
         require(isinstance(entry, dict) and entry.get('included') is True
                 and entry.get('unsuppressed') is True and isinstance(entry.get('source'), str)
                 and entry['source'], 'propagation input source policy not reviewed')
-        identity = tuple(entry[field] for field in ('package', 'target_kind', 'function', 'source_file'))
+        identity = tuple(entry[field] for field in ('package', 'target_kind', 'function', 'source_file')) + (
+            boolean(entry.get('test', False), 'propagation test context'),)
         require(identity not in identities, 'duplicate propagation input')
         identities.add(identity)
         _, _, reason = sample_owner(report, entry, selected)
@@ -221,7 +253,8 @@ def compare(report, labels):
     require(advisory['schema'] == 'rstyle.compiler-advisory/1', 'wrong advisory schema')
     require(advisory['metrics'] == labels['metrics'], 'different compiler metric')
     rules = set(labels['limits'])
-    require(rules and rules <= {'fn_params', 'mutated_targets', 'side_effect_density'}, 'unknown rule limits')
+    require(rules and rules <= {'fn_params', 'mutated_targets', 'side_effect_density', 'fn_spacing'},
+            'unknown rule limits')
     for rule, limit in labels['limits'].items():
         integer(limit, rule + ' limit')
     require(isinstance(labels['samples'], list) and labels['samples'], 'empty sample')
@@ -233,6 +266,10 @@ def compare(report, labels):
     if 'mutated_targets' in rules:
         require(config['mutation_budget']['max_mutated_targets'] == labels['limits']['mutated_targets']
                 and config['mutation_budget']['granularity'] == 'root', 'different mutation policy')
+    if 'fn_spacing' in rules:
+        minimum = integer(config['fn_spacing'].get('min_statements'), 'spacing policy minimum')
+        require(minimum > 0 and minimum - 1 == labels['limits']['fn_spacing'],
+                'different spacing policy')
     if 'side_effect_density' in rules:
         density_policy = labels.get('density_policy')
         error = policy_error(density_policy, depths=(0, 1, 2))
@@ -249,10 +286,12 @@ def compare(report, labels):
     owners = planned_owners(planning)
     validate_planning(report, owners)
     selected = units(report)
+    spacing = {unit['unit']: spacing_owners(unit) for unit, _ in selected} if 'fn_spacing' in rules else {}
     rows = []
     seen = set()
     for sample in labels['samples']:
-        identity = (sample['package'], sample['target_kind'], sample['function'], sample['source_file'])
+        test = boolean(sample.get('test', False), 'sample test context')
+        identity = (sample['package'], sample['target_kind'], sample['function'], sample['source_file'], test)
         require(identity not in seen, 'duplicate label identity')
         seen.add(identity)
         require(sample.get('unsuppressed') is True, 'sample suppression precondition not reviewed')
@@ -265,11 +304,23 @@ def compare(report, labels):
                     and len(set(roots)) == len(roots), 'invalid independent root labels')
             measurements['mutated_targets'] = len(roots)
         unit, key, reason = sample_owner(report, sample, selected)
+        if 'fn_spacing' in rules:
+            wanted = spacing_label(sample, labels['limits']['fn_spacing'])
+            if reason:
+                row = {'key': key, 'rule': 'fn_spacing', 'expected': wanted, 'observed': None,
+                       'result': 'unavailable', 'reason': reason}
+            else:
+                function = spacing[unit['unit']].get(sample['function'])
+                row = check_rule(unit, key, function, sample, 'fn_spacing',
+                                 wanted['actual'], wanted['limit'], wanted)
+            rows.append({**{field: sample[field] for field in ('package', 'function', 'source_file')},
+                         'test': test, **row})
         if 'side_effect_density' in rules:
             propagation = propagation_reason(report, sample, selected, density_policy['transitive_depth'])
             reason = reason or propagation
             row = check_density(unit, key, owners.get(key), sample, density_policy, reason)
-            rows.append({**{field: sample[field] for field in ('package', 'function', 'source_file')}, **row})
+            rows.append({**{field: sample[field] for field in ('package', 'function', 'source_file')},
+                         'test': test, **row})
         for rule, actual in measurements.items():
             require(type(actual) is int and actual >= 0, 'invalid source label')
             if reason:
@@ -277,7 +328,8 @@ def compare(report, labels):
                        'expected': {'actual': actual, 'limit': labels['limits'][rule]}, 'observed': None}
             else:
                 row = check_rule(unit, key, owners.get(key), sample, rule, actual, labels['limits'][rule])
-            rows.append({**{field: sample[field] for field in ('package', 'function', 'source_file')}, **row})
+            rows.append({**{field: sample[field] for field in ('package', 'function', 'source_file')},
+                         'test': test, **row})
     return {'schema': 'rstyle.compiler-quality-observation/1',
             'sample_complete': all(row['result'] != 'unavailable' for row in rows), 'run': labels['run'],
             'metrics': advisory['metrics'], 'effective_config': config,

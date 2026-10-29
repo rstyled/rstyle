@@ -55,7 +55,129 @@ def clean(report, labels):
     labels['samples'][0].update(parameters=2, mutated_roots=[])
 
 
+def spacing_fixture():
+    report, labels = fixture()
+    clean(report, labels)
+    labels['limits'] = {'fn_spacing': 4}
+    labels['samples'][0]['spacing'] = {'outcome': 'finding', 'actual': 5, 'limit': 4}
+    labels['samples'][0]['source'] = 'fn f() { one(); two(); three(); four(); five(); }'
+    report['owned_source_inventory'][0]['source_functions'][0]['source'] = labels['samples'][0]['source']
+    advisory = report['compiler_advisory']
+    advisory['effective_config']['fn_spacing'] = {'min_statements': 5}
+    advisory['units'][0]['evaluation'] = {
+        'summary': {'violations': 1},
+        'diagnostics': [{'path': 'src/lib.rs', 'line': 1, 'rule_id': 'fn_spacing', 'actual': 5, 'limit': 4}],
+        'fix_groups': [{'functions': [{'name': 'f', 'path': 'src/lib.rs', 'line': 1,
+                                     'rules': ['fn_spacing']}]}]}
+    return report, labels
+
+
 class CompilerQualityTests(unittest.TestCase):
+    def test_spacing_reuses_completed_location_without_a_planner_owner(self):
+        report, labels = spacing_fixture()
+        result = compare(report, labels)
+        self.assertEqual(result['counts'], {'agreement': 1})
+        self.assertEqual(result['comparisons'][0]['observed'],
+                         {'outcome': 'finding', 'actual': 5, 'limit': 4})
+
+    def test_spacing_clean_outcome_is_independent_of_the_statement_threshold(self):
+        report, labels = spacing_fixture()
+        unit = report['compiler_advisory']['units'][0]
+        unit['evaluation'] = {'summary': {'violations': 0}, 'diagnostics': [], 'fix_groups': []}
+        labels['samples'][0]['spacing']['outcome'] = 'evaluated_no_finding'
+        result = compare(report, labels)
+        self.assertEqual(result['counts'], {'agreement': 1})
+        self.assertEqual(result['comparisons'][0]['observed'], {'outcome': 'evaluated_no_finding'})
+
+    def test_spacing_wrong_actual_limit_and_outcome_disagree(self):
+        for field, value in [('actual', 6), ('limit', 3)]:
+            report, labels = spacing_fixture()
+            report['compiler_advisory']['units'][0]['evaluation']['diagnostics'][0][field] = value
+            self.assertEqual(compare(report, labels)['counts'], {'disagreement': 1})
+        report, labels = spacing_fixture()
+        labels['samples'][0]['spacing']['outcome'] = 'evaluated_no_finding'
+        self.assertEqual(compare(report, labels)['counts'], {'disagreement': 1})
+
+    def test_spacing_labels_and_policy_require_exact_valid_values(self):
+        for field, value in [('actual', True), ('limit', 3), ('outcome', 'unknown')]:
+            report, labels = spacing_fixture()
+            labels['samples'][0]['spacing'][field] = value
+            with self.assertRaises(ValueError):
+                compare(report, labels)
+        report, labels = spacing_fixture()
+        report['compiler_advisory']['effective_config']['fn_spacing']['min_statements'] = 0
+        with self.assertRaises(ValueError):
+            compare(report, labels)
+
+    def test_spacing_incomplete_or_ambiguous_completed_locations_cannot_become_clean(self):
+        for mutate in (
+            lambda evaluation: evaluation.update(fix_groups=[]),
+            lambda evaluation: evaluation['fix_groups'].append(deepcopy(evaluation['fix_groups'][0])),
+            lambda evaluation: evaluation['fix_groups'][0]['functions'][0].update(line=2),
+            lambda evaluation: evaluation['diagnostics'].append(deepcopy(evaluation['diagnostics'][0])),
+        ):
+            report, labels = spacing_fixture()
+            evaluation = report['compiler_advisory']['units'][0]['evaluation']
+            mutate(evaluation)
+            evaluation['summary']['violations'] = len(evaluation['diagnostics'])
+            with self.assertRaises(ValueError):
+                compare(report, labels)
+
+    def test_spacing_missing_or_mismatched_source_stays_unavailable(self):
+        for mutate in (
+            lambda report: report.update(owned_source_inventory=[]),
+            lambda report: report['owned_source_inventory'][0]['source_functions'][0].update(source='other'),
+        ):
+            report, labels = spacing_fixture()
+            mutate(report)
+            self.assertEqual(compare(report, labels)['counts'], {'unavailable': 1})
+
+    def test_spacing_locations_cannot_share_a_diagnostic_and_leave_another_unowned(self):
+        report, labels = spacing_fixture()
+        unit = report['compiler_advisory']['units'][0]
+        unit['observations'].append({'key': 'function:u0:f1', 'name': 'g'})
+        functions = unit['evaluation']['fix_groups'][0]['functions']
+        functions.append({**deepcopy(functions[0]), 'name': 'g'})
+        diagnostics = unit['evaluation']['diagnostics']
+        diagnostics.append({**deepcopy(diagnostics[0]), 'line': 2})
+        unit['evaluation']['summary']['violations'] = 2
+        with self.assertRaises(ValueError):
+            compare(report, labels)
+
+    def test_explicit_test_context_selects_its_own_owner_and_inventory(self):
+        report, labels = spacing_fixture()
+        unit = deepcopy(report['compiler_advisory']['units'][0])
+        unit.update(unit=1, observations=[{'key': 'function:u1:f0', 'name': 'f'}])
+        unit['evaluation'] = {'summary': {'violations': 0}, 'diagnostics': [], 'fix_groups': []}
+        report['compiler_advisory']['units'].append(unit)
+        report['unit_contexts'].append({'id': 1, 'observed_unit': 1})
+        report['observed_units'].append({**deepcopy(report['observed_units'][0]), 'test': True})
+        owner = deepcopy(report['functions'][0])
+        owner.update(key='function:u1:f0', unit_evidence={'report_unit': 1})
+        report['functions'].append(owner)
+        inventory = deepcopy(report['owned_source_inventory'][0])
+        inventory['test'] = True
+        report['owned_source_inventory'].append(inventory)
+        sample = deepcopy(labels['samples'][0])
+        sample.update(test=True, spacing={'outcome': 'evaluated_no_finding', 'actual': 5, 'limit': 4})
+        labels['samples'].append(sample)
+        result = compare(report, labels)
+        self.assertEqual(result['counts'], {'agreement': 2})
+        self.assertEqual([row['test'] for row in result['comparisons']], [False, True])
+        report['owned_source_inventory'].pop()
+        self.assertEqual(compare(report, labels)['counts'], {'agreement': 1, 'unavailable': 1})
+
+    def test_missing_ambiguous_and_invalid_context_selectors_are_not_guessed(self):
+        report, labels = spacing_fixture()
+        labels['samples'][0]['test'] = True
+        self.assertEqual(compare(report, labels)['counts'], {'unavailable': 1})
+        labels['samples'][0]['test'] = 'true'
+        with self.assertRaises(ValueError):
+            compare(report, labels)
+        report, labels = spacing_fixture()
+        report['compiler_advisory']['units'].append(deepcopy(report['compiler_advisory']['units'][0]))
+        self.assertEqual(compare(report, labels)['counts'], {'unavailable': 1})
+
     def test_sample_agreement_does_not_make_incomplete_scope_clean(self):
         report, labels = fixture()
         result = compare(report, labels)

@@ -1,0 +1,645 @@
+{
+  "schema": "rstyle.compiler-quality-observation/1",
+  "sample_complete": true,
+  "run": "run-mb8gH8",
+  "metrics": "rstyle.compiler-style-metrics/5",
+  "effective_config": {
+    "exclude": [
+      "target/**"
+    ],
+    "fn_length": {
+      "max_lines": 50
+    },
+    "fn_params": {
+      "count_self": false,
+      "max_params": 4
+    },
+    "fn_spacing": {
+      "min_statements": 5
+    },
+    "grouping": {
+      "caller_hops": 1,
+      "caller_rules": [
+        "fn_params"
+      ]
+    },
+    "mutation_budget": {
+      "granularity": "root",
+      "max_mutated_targets": 3,
+      "max_mutations_per_target": 3
+    },
+    "side_effects": {
+      "max_density_milli": 500,
+      "min_lines": 10,
+      "min_statements": 3,
+      "paths": {
+        "io": [
+          "std::fs::",
+          "std::io::",
+          "std::env::set_var",
+          "std::path::Path::exists",
+          "std::path::Path::try_exists",
+          "std::path::Path::is_file",
+          "std::path::Path::is_dir",
+          "std::path::Path::metadata",
+          "std::path::Path::canonicalize",
+          "std::path::Path::read_dir",
+          "std::process::Command::output",
+          "std::process::Command::spawn",
+          "std::process::Command::status",
+          "std::process::exit",
+          "std::process::abort"
+        ],
+        "network": [
+          "std::net::TcpStream::",
+          "std::net::TcpListener::",
+          "std::net::UdpSocket::",
+          "reqwest::",
+          "tokio::net::",
+          "hyper::"
+        ],
+        "panic": [
+          "core::panicking::",
+          "std::panicking::"
+        ],
+        "random": [
+          "rand::"
+        ],
+        "time": [
+          "std::time::SystemTime::now",
+          "std::time::Instant::now"
+        ]
+      },
+      "transitive_depth": 3,
+      "weights": {
+        "global": 2,
+        "io": 3,
+        "mutation": 1,
+        "network": 3,
+        "panic": 0,
+        "random": 1,
+        "time": 1,
+        "unknown": 1,
+        "unsafe": 4
+      }
+    }
+  },
+  "scope_complete": false,
+  "planning_input_complete": false,
+  "counts": {
+    "agreement": 30
+  },
+  "comparisons": [
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::surrounding_bytes_do_not_contribute_and_endian_is_observable",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": true,
+      "key": "function:u1:f12",
+      "rule": "fn_spacing",
+      "expected": {
+        "outcome": "finding",
+        "actual": 13,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "finding",
+        "actual": 13,
+        "limit": 4
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::surrounding_bytes_do_not_contribute_and_endian_is_observable",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": true,
+      "key": "function:u1:f12",
+      "rule": "fn_params",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 0,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::surrounding_bytes_do_not_contribute_and_endian_is_observable",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": true,
+      "key": "function:u1:f12",
+      "rule": "mutated_targets",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 1,
+        "limit": 3
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture_compositions_preserve_values_and_saved_base",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": true,
+      "key": "function:u1:f15",
+      "rule": "fn_spacing",
+      "expected": {
+        "outcome": "finding",
+        "actual": 8,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "finding",
+        "actual": 8,
+        "limit": 4
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture_compositions_preserve_values_and_saved_base",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": true,
+      "key": "function:u1:f15",
+      "rule": "fn_params",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 0,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture_compositions_preserve_values_and_saved_base",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": true,
+      "key": "function:u1:f15",
+      "rule": "mutated_targets",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 0,
+        "limit": 3
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture_borrow_preserves_offset_identity_and_failure",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": true,
+      "key": "function:u1:f16",
+      "rule": "fn_spacing",
+      "expected": {
+        "outcome": "finding",
+        "actual": 10,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "finding",
+        "actual": 10,
+        "limit": 4
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture_borrow_preserves_offset_identity_and_failure",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": true,
+      "key": "function:u1:f16",
+      "rule": "fn_params",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 0,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture_borrow_preserves_offset_identity_and_failure",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": true,
+      "key": "function:u1:f16",
+      "rule": "mutated_targets",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 0,
+        "limit": 3
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture_negative_controls_are_semantically_distinguishable",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": true,
+      "key": "function:u1:f17",
+      "rule": "fn_spacing",
+      "expected": {
+        "outcome": "finding",
+        "actual": 5,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "finding",
+        "actual": 5,
+        "limit": 4
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture_negative_controls_are_semantically_distinguishable",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": true,
+      "key": "function:u1:f17",
+      "rule": "fn_params",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 0,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture_negative_controls_are_semantically_distinguishable",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": true,
+      "key": "function:u1:f17",
+      "rule": "mutated_targets",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 0,
+        "limit": 3
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::get_batch_arch",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": false,
+      "key": "function:u0:f9",
+      "rule": "fn_spacing",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 3,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::get_batch_arch",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": false,
+      "key": "function:u0:f9",
+      "rule": "fn_params",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 2,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::get_batch_arch",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": false,
+      "key": "function:u0:f9",
+      "rule": "mutated_targets",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 0,
+        "limit": 3
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::get_batch_arch",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": true,
+      "key": "function:u1:f9",
+      "rule": "fn_spacing",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 3,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::get_batch_arch",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": true,
+      "key": "function:u1:f9",
+      "rule": "fn_params",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 2,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::get_batch_arch",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "test": true,
+      "key": "function:u1:f9",
+      "rule": "mutated_targets",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 0,
+        "limit": 3
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture::batch_arch",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "test": false,
+      "key": "function:u0:f0",
+      "rule": "fn_spacing",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 3,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture::batch_arch",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "test": false,
+      "key": "function:u0:f0",
+      "rule": "fn_params",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 2,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture::batch_arch",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "test": false,
+      "key": "function:u0:f0",
+      "rule": "mutated_targets",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 0,
+        "limit": 3
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture::batch_arch",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "test": true,
+      "key": "function:u1:f0",
+      "rule": "fn_spacing",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 3,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture::batch_arch",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "test": true,
+      "key": "function:u1:f0",
+      "rule": "fn_params",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 2,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture::batch_arch",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "test": true,
+      "key": "function:u1:f0",
+      "rule": "mutated_targets",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 0,
+        "limit": 3
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture::caller_arch",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "test": false,
+      "key": "function:u0:f7",
+      "rule": "fn_spacing",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 1,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture::caller_arch",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "test": false,
+      "key": "function:u0:f7",
+      "rule": "fn_params",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 2,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture::caller_arch",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "test": false,
+      "key": "function:u0:f7",
+      "rule": "mutated_targets",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 0,
+        "limit": 3
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture::caller_arch",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "test": true,
+      "key": "function:u1:f7",
+      "rule": "fn_spacing",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 1,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture::caller_arch",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "test": true,
+      "key": "function:u1:f7",
+      "rule": "fn_params",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 2,
+        "limit": 4
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "function": "runtime::architecture::caller_arch",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "test": true,
+      "key": "function:u1:f7",
+      "rule": "mutated_targets",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 0,
+        "limit": 3
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    }
+  ],
+  "measurement_limit": "No-finding rows compare outcomes only; clean numeric values are absent and are never synthesized.",
+  "limitation": "Selected original-source spacing/parameter/mutated-target quality only, not density-quality, effect absence, global recall, full-project coverage, migration completion or refactoring safety. Three local fills in surrounding_bytes meet but do not exceed default per-target limit3; source loop desugaring cannot manufacture budget findings. Panic assertions or callback effects are outside this quality comparison. Original executable oracle sources remain unchanged. Manual code-line counts are supporting metadata only; every selected function is below production max_lines50, and no length comparison is requested.",
+  "preconditions": "Original package-local routing-only #[path] module names shared oracle runtime and nested architecture. Separate ordinary lib and test=true compilations; compare exact source-selected owners in each. Selected functions are unsuppressed and outside default target/** exclusion. Missing/ambiguous/generated owners remain unavailable."
+}

@@ -1,0 +1,215 @@
+{
+  "schema": "rstyle.compiler-quality-cases/1",
+  "run": "run-mb8gH8",
+  "toolchain": "nightly-2026-09-30",
+  "metrics": "rstyle.compiler-style-metrics/5",
+  "policy": "production defaults (Config::default(), empty parsed config; no repository overrides)",
+  "limits": {
+    "fn_params": 4,
+    "mutated_targets": 3,
+    "fn_spacing": 4
+  },
+  "basis": "Manual inspection of unchanged tracked Rust and existing rstyle-core config/rules/spacing/lines/stacking policy before inspecting measured diagnostics for these quality labels. No hashing, execution outputs or absent diagnostics supplied labels. Function source is the exact full attributed authored function, including the original #[test] attribute where present. The source-span metadata was corrected after integration identified the omitted attributes; all independently frozen diagnostic expectations and counts are unchanged.",
+  "samples": [
+    {
+      "package": "rstyle-shared-source-study",
+      "target_kind": "lib",
+      "test": true,
+      "function": "runtime::surrounding_bytes_do_not_contribute_and_endian_is_observable",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "source": "#[test]\nfn surrounding_bytes_do_not_contribute_and_endian_is_observable() {\n    let mut input = [19, 23, 1, 2, 3, 4, 5, 6, 7, 8, 29, 31];\n    let width = core::mem::size_of::<usize>();\n    let scalar = get_batch(&input, 2);\n    let native = get_batch_arch(&input, 2);\n    assert_ne!(scalar, get_batch(&input, 1));\n    assert_ne!(scalar, scalar.swap_bytes());\n    assert_ne!(native, native.swap_bytes());\n    input[..2].fill(255);\n    input[2 + width..].fill(255);\n    assert_eq!(get_batch(&input, 2), scalar);\n    assert_eq!(get_batch_arch(&input, 2), native);\n    input[6..].fill(0);\n    assert_eq!(get_batch(&input, 2), scalar);\n}",
+      "parameters": 0,
+      "mutated_roots": [
+        "input"
+      ],
+      "unsuppressed": true,
+      "spacing": {
+        "outcome": "finding",
+        "actual": 13,
+        "limit": 4
+      },
+      "basis": "Manual source count: top-level authored const items, let bindings, loop/const expression statements, macros and tail expressions each count once; nested bodies do not add top-level phases. No internal blank line. Signature has 0 parameters; three local fill calls mutate input, exactly at the per-target default budget.",
+      "manual_code_lines": 15
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "target_kind": "lib",
+      "test": true,
+      "function": "runtime::architecture_compositions_preserve_values_and_saved_base",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "source": "#[test]\nfn architecture_compositions_preserve_values_and_saved_base() {\n    let input = [19u8, 23, 1, 2, 3, 4, 5, 6, 7, 8, 29, 31];\n    let other = [255u8; 12];\n    let width = core::mem::size_of::<usize>();\n    for start in 0..=input.len() - width {\n        let value = expected(&input[start..start + width]) as usize;\n        assert_eq!(architecture::batch_arch(&input, start), value);\n        assert_eq!(architecture::saved_arch(&input, start), value);\n        assert_eq!(architecture::result_local_arch(&input, start), value);\n        assert_eq!(architecture::caller_arch(&input, start), value);\n    }\n    let (snapshot, selected) = architecture::snapshot_arch(&input, &other);\n    assert_eq!(snapshot, expected(&input[..width]) as usize);\n    assert_ne!(snapshot, expected(&other[..width]) as usize);\n    assert_eq!(selected.as_ptr(), other.as_ptr());\n}",
+      "parameters": 0,
+      "mutated_roots": [],
+      "unsuppressed": true,
+      "spacing": {
+        "outcome": "finding",
+        "actual": 8,
+        "limit": 4
+      },
+      "basis": "Manual source count: top-level authored const items, let bindings, loop/const expression statements, macros and tail expressions each count once; nested bodies do not add top-level phases. No internal blank line. Signature has 0 parameters; no authored mutable source-root operation. Compiler for-desugaring is excluded from source mutation budgets.",
+      "manual_code_lines": 16
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "target_kind": "lib",
+      "test": true,
+      "function": "runtime::architecture_borrow_preserves_offset_identity_and_failure",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "source": "#[test]\nfn architecture_borrow_preserves_offset_identity_and_failure() {\n    const WIDTH: usize = core::mem::size_of::<usize>();\n    let input = [1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];\n    let view = &input[2..2 + WIDTH];\n    let result: Result<&[u8; WIDTH], _> = view.try_into();\n    let arr = result.unwrap();\n    assert_eq!(arr.as_ptr(), view.as_ptr());\n    assert_ne!(arr.as_ptr(), input.as_ptr());\n    assert_eq!(arr.as_slice(), view);\n    for length in [0, WIDTH - 1, WIDTH + 1] {\n        let result: Result<&[u8; WIDTH], _> = input[..length].try_into();\n        assert!(result.is_err());\n    }\n    assert!(std::panic::catch_unwind(|| architecture::wrong_length_arch(&input, 0)).is_err());\n}",
+      "parameters": 0,
+      "mutated_roots": [],
+      "unsuppressed": true,
+      "spacing": {
+        "outcome": "finding",
+        "actual": 10,
+        "limit": 4
+      },
+      "basis": "Manual source count: top-level authored const items, let bindings, loop/const expression statements, macros and tail expressions each count once; nested bodies do not add top-level phases. No internal blank line. Signature has 0 parameters; no authored mutable source-root operation. Compiler for-desugaring is excluded from source mutation budgets.",
+      "manual_code_lines": 15
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "target_kind": "lib",
+      "test": true,
+      "function": "runtime::architecture_negative_controls_are_semantically_distinguishable",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "source": "#[test]\nfn architecture_negative_controls_are_semantically_distinguishable() {\n    let input = [1u8, 2, 3, 4, 5, 6, 7, 8];\n    let native = architecture::batch_arch(&input, 0);\n    // The intended admission contract is native little-endian aarch64 only.\n    const {\n        assert!(cfg!(target_endian = \"little\"));\n        assert!(core::mem::size_of::<usize>() == 8);\n    }\n    assert_ne!(architecture::endian_arch(&input, 0), native);\n    // Equal values do not authorize a different constant initializer authority.\n    assert_eq!(architecture::other_size_authority_arch(&input, 0), native);\n}",
+      "parameters": 0,
+      "mutated_roots": [],
+      "unsuppressed": true,
+      "spacing": {
+        "outcome": "finding",
+        "actual": 5,
+        "limit": 4
+      },
+      "basis": "Manual source count: top-level authored const items, let bindings, loop/const expression statements, macros and tail expressions each count once; nested bodies do not add top-level phases. No internal blank line. Signature has 0 parameters; no authored mutable source-root operation. Compiler for-desugaring is excluded from source mutation budgets.",
+      "manual_code_lines": 10
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "target_kind": "lib",
+      "test": false,
+      "function": "runtime::get_batch_arch",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "source": "fn get_batch_arch(input: &[u8], n: usize) -> usize {\n    const USIZE_SIZE: usize = core::mem::size_of::<usize>();\n    let arr: &[u8; USIZE_SIZE] = input[n..n + USIZE_SIZE].try_into().unwrap();\n    usize::from_ne_bytes(*arr)\n}",
+      "parameters": 2,
+      "mutated_roots": [],
+      "unsuppressed": true,
+      "spacing": {
+        "outcome": "evaluated_no_finding",
+        "actual": 3,
+        "limit": 4
+      },
+      "basis": "Manual source count: top-level authored const items, let bindings, loop/const expression statements, macros and tail expressions each count once; nested bodies do not add top-level phases. No internal blank line. Signature has 2 parameters; no authored mutable source-root operation. Compiler for-desugaring is excluded from source mutation budgets.",
+      "manual_code_lines": 5
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "target_kind": "lib",
+      "test": true,
+      "function": "runtime::get_batch_arch",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "source": "fn get_batch_arch(input: &[u8], n: usize) -> usize {\n    const USIZE_SIZE: usize = core::mem::size_of::<usize>();\n    let arr: &[u8; USIZE_SIZE] = input[n..n + USIZE_SIZE].try_into().unwrap();\n    usize::from_ne_bytes(*arr)\n}",
+      "parameters": 2,
+      "mutated_roots": [],
+      "unsuppressed": true,
+      "spacing": {
+        "outcome": "evaluated_no_finding",
+        "actual": 3,
+        "limit": 4
+      },
+      "basis": "Manual source count: top-level authored const items, let bindings, loop/const expression statements, macros and tail expressions each count once; nested bodies do not add top-level phases. No internal blank line. Signature has 2 parameters; no authored mutable source-root operation. Compiler for-desugaring is excluded from source mutation budgets.",
+      "manual_code_lines": 5
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "target_kind": "lib",
+      "test": false,
+      "function": "runtime::architecture::batch_arch",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "source": "pub fn batch_arch(input: &[u8], n: usize) -> usize {\n    const USIZE_SIZE: usize = core::mem::size_of::<usize>();\n    let arr: &[u8; USIZE_SIZE] = input[n..n + USIZE_SIZE].try_into().unwrap();\n    usize::from_ne_bytes(*arr)\n}",
+      "parameters": 2,
+      "mutated_roots": [],
+      "unsuppressed": true,
+      "spacing": {
+        "outcome": "evaluated_no_finding",
+        "actual": 3,
+        "limit": 4
+      },
+      "basis": "Manual source count: top-level authored const items, let bindings, loop/const expression statements, macros and tail expressions each count once; nested bodies do not add top-level phases. No internal blank line. Signature has 2 parameters; no authored mutable source-root operation. Compiler for-desugaring is excluded from source mutation budgets.",
+      "manual_code_lines": 5
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "target_kind": "lib",
+      "test": true,
+      "function": "runtime::architecture::batch_arch",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "source": "pub fn batch_arch(input: &[u8], n: usize) -> usize {\n    const USIZE_SIZE: usize = core::mem::size_of::<usize>();\n    let arr: &[u8; USIZE_SIZE] = input[n..n + USIZE_SIZE].try_into().unwrap();\n    usize::from_ne_bytes(*arr)\n}",
+      "parameters": 2,
+      "mutated_roots": [],
+      "unsuppressed": true,
+      "spacing": {
+        "outcome": "evaluated_no_finding",
+        "actual": 3,
+        "limit": 4
+      },
+      "basis": "Manual source count: top-level authored const items, let bindings, loop/const expression statements, macros and tail expressions each count once; nested bodies do not add top-level phases. No internal blank line. Signature has 2 parameters; no authored mutable source-root operation. Compiler for-desugaring is excluded from source mutation budgets.",
+      "manual_code_lines": 5
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "target_kind": "lib",
+      "test": false,
+      "function": "runtime::architecture::caller_arch",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "source": "pub fn caller_arch(input: &[u8], n: usize) -> usize {\n    batch_arch(input, n)\n}",
+      "parameters": 2,
+      "mutated_roots": [],
+      "unsuppressed": true,
+      "spacing": {
+        "outcome": "evaluated_no_finding",
+        "actual": 1,
+        "limit": 4
+      },
+      "basis": "Manual source count: top-level authored const items, let bindings, loop/const expression statements, macros and tail expressions each count once; nested bodies do not add top-level phases. No internal blank line. Signature has 2 parameters; no authored mutable source-root operation. Compiler for-desugaring is excluded from source mutation budgets.",
+      "manual_code_lines": 3
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "target_kind": "lib",
+      "test": true,
+      "function": "runtime::architecture::caller_arch",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "source": "pub fn caller_arch(input: &[u8], n: usize) -> usize {\n    batch_arch(input, n)\n}",
+      "parameters": 2,
+      "mutated_roots": [],
+      "unsuppressed": true,
+      "spacing": {
+        "outcome": "evaluated_no_finding",
+        "actual": 1,
+        "limit": 4
+      },
+      "basis": "Manual source count: top-level authored const items, let bindings, loop/const expression statements, macros and tail expressions each count once; nested bodies do not add top-level phases. No internal blank line. Signature has 2 parameters; no authored mutable source-root operation. Compiler for-desugaring is excluded from source mutation budgets.",
+      "manual_code_lines": 3
+    }
+  ],
+  "preconditions": "Original package-local routing-only #[path] module names shared oracle runtime and nested architecture. Separate ordinary lib and test=true compilations; compare exact source-selected owners in each. Selected functions are unsuppressed and outside default target/** exclusion. Missing/ambiguous/generated owners remain unavailable.",
+  "denominator": {
+    "selected_original_functions": 7,
+    "selected_owner_contexts": 10,
+    "spacing_positive_checks": 4,
+    "spacing_negative_checks": 6,
+    "parameter_negative_checks": 10,
+    "mutated_targets_negative_checks": 10,
+    "original_source_function_population": 18,
+    "original_source_owner_context_population": 29,
+    "sampling": "Four source-positive spacing cases plus three representative clean functions in both check/test contexts. No exhaustive project recall claim."
+  },
+  "parameter_plan_quality": {
+    "expected_signature_plans_under_defaults": 0,
+    "basis": "All 18 original source function signatures contain at most two parameters; production limit is4. Existing stacking planner requires fn_params violators. Recovered edges must not invent a signature change, parameter bundle or pass-through recommendation.",
+    "negative_control": "runtime::architecture::caller_arch forwards both parameters unchanged to batch_arch, but neither violates the production parameter limit. This is no positive planner-quality gain."
+  },
+  "limitations": "Selected original-source spacing/parameter/mutated-target quality only, not density-quality, effect absence, global recall, full-project coverage, migration completion or refactoring safety. Three local fills in surrounding_bytes meet but do not exceed default per-target limit3; source loop desugaring cannot manufacture budget findings. Panic assertions or callback effects are outside this quality comparison. Original executable oracle sources remain unchanged. Manual code-line counts are supporting metadata only; every selected function is below production max_lines50, and no length comparison is requested."
+}

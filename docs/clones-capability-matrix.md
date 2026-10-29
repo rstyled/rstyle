@@ -51,6 +51,8 @@ policy is five code lines/four parameters; production defaults are unchanged.
 
 | Shared compiler source locations | Existing Rust collectors and existing lexical absolute-path normalizer | Explicit workspace location root, separate selected package context; external selected dependency retains own package scope; metric5 | Relative/absolute shared modules, normalized exclusions, same-unit effects/plans, generated/foreign boundaries, check/test contexts, source-free replay and external dependency capture | C40 recovers 29 authored owner-context observations from unchanged original byte-window oracle sources in a declared routing-only study. Relative exclusions now apply consistently; old measured metrics/paths replay unchanged (unavailable-only bundles retain current-header fallback); no strict, project-purity, speedup or retirement claim |
 
+| Shared-source finding quality | Existing offline compiler-quality reducer and completed core spacing fix groups | Explicit check/test context selectors, exact captured original source association; metric5 C40 saved run | Four independently labeled spacing positives, six clean spacing controls and twenty parameter/mutated-target negative checks across seven original functions | C41: all 30 checks agree; clean numeric observations remain absent. Routing-only sample, incomplete global scope; no density, full-package precision/recall, planner-safety or retirement claim |
+
 Both legacy style and patterns remain operational. The initial corpus alone does
 not satisfy retirement: independent quality review, stable review identity,
 configuration/suppression/exit compatibility, bounded resource evidence, broader
