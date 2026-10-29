@@ -86,7 +86,7 @@ adapter uses the existing captured Cargo unit graph, planned contexts, target,
 features and platform, requiring a unique correspondence. It performs no new
 artifact scans or checksums. Renamed imports preserve the compiler's callee ID.
 
-`units[].resolved_dependency_callees` maps resolved free-function IDs to their
+`units[].resolved_dependency_callees` maps resolved exact compiler definition IDs to their
 report-local dependency unit IDs; unresolved IDs retain the existing roster.
 Facts are borrowed while core constructs and propagates the shared call graph.
 Completed effect vectors then move into each unit's ordinary rule evaluation,
@@ -96,8 +96,12 @@ Existing hop limits, outward effect kinds and suppression boundaries apply to
 cross-package calls exactly as to local calls. This is the existing compiler
 metric, not a purity or semantic-equivalence proof.
 
-This connection covers uniquely identified free-function definitions. Associated
-methods, trait dispatch, same-path functions in multiple direct dependencies,
+This connection covers uniquely identified free functions and inherent associated
+functions/methods, including generic inherent bodies. Signature metadata does not
+exclude an exact compiler target. Trait implementation aliases alone cannot
+resolve a dependency call: the captured definition ID must equal the callee ID.
+This does not add open-world trait-dispatch resolution. Same-path functions in
+multiple direct dependencies,
 uncaptured/generated/excluded targets and ambiguous Cargo contexts remain
 unresolved. Cargo can emit indistinguishable descriptors for check/test library
 occurrences; neither is chosen by order. A dependency's missing propagation inputs

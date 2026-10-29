@@ -651,3 +651,48 @@ the original C27 artifacts. The measured gain is removal of two source-policy
 false findings in the independently labeled sample. Other generated bindings,
 shadowed-root identity, broad quality, effect absence, safety and retirement
 remain unverified; strict admission/matching policy and all budgets are unchanged.
+
+## Exact compiler associated targets (C29)
+
+The existing contextual resolver excluded every dependency definition with impl
+signature metadata. That metadata describes the signature; it does not make a
+compiler-resolved inherent target ambiguous. The resolver now accepts the same
+exact definition IDs for free and associated functions, keeping its existing
+unique direct Cargo route and owner requirements. Trait implementation aliases
+alone still do not match the target definition ID. No hash, source parse, type
+proof, body copy or additional propagation pass was added.
+
+[`project-compiler-associated-target-cases.json`](project-compiler-associated-target-cases.json)
+labels two production targets before replay: `Config::parse`, called by
+`load_config`/advisory configuration, and `Matcher::compile`, called by source
+exclusions and advisory input selection. Both are inherent associated functions;
+resolving them says nothing about purity of their external toml/globset calls.
+The compiler IDs are scoped to the explicit C28 saved capture `run-WbHJ11`.
+
+```sh
+CARGO_TARGET_DIR=target python3 scripts/watchdog.py --timeout 180 \
+  --output /tmp/clones-associated-target-project-replay-1 -- \
+  /usr/bin/time -v target/debug/cargo-rstyle rstyle --format json clones \
+  --extraction-profile hir-data-v3 --compiler-advisory --compiler-plans \
+  --compiler-advisory-config eval/clones-capability/project-compiler-planning-policy.toml \
+  --max-pairs 0 --report-detail compact \
+  --replay-run target/rstyle/clones/run-WbHJ11
+```
+
+[`project-compiler-associated-target-results.json`](project-compiler-associated-target-results.json)
+compares that replay with `/tmp/clones-source-mutation-project-replay-final-1`,
+which uses the same saved capture and policy. Both labeled targets resolve to the
+selected core unit. In total eight additional exact definitions resolve: CLI
+resolved dependency targets rise from 31 to 39 and unresolved targets fall from
+87 to 79. Captured known/unavailable owner rosters, complete unit rule evaluation
+JSON, shared planning JSON, functions, unit contexts, strict matching and accepted
+pairs remain exactly equal. Unselected PDG targets remain unresolved. Both runs
+retain incomplete scope and exit 2; this is a target-coverage gain, not newly
+observed findings or a complete-analysis claim.
+
+The earlier replay took 16.48 seconds / 1,453,264 KiB peak RSS; the new replay
+takes 17.20 seconds / 1,452,828 KiB. These are individual comparable replays,
+not evidence of a speedup or a statistical performance conclusion. Four new
+real-Cargo cases cover static, receiver, generic and same-named inherent methods,
+missing/excluded owners, trait aliases, receiver argument planning and source-free
+replay. Existing route/context/collision tests remain unchanged.

@@ -1,0 +1,34 @@
+{
+  "schema": "rstyle.compiler-associated-target-study-cases/1",
+  "scope": "Saved C28 cargo-rstyle binary and rstyle-core non-test library, run-WbHJ11",
+  "policy": "project-compiler-planning-policy.toml",
+  "cases": [
+    {
+      "callee": "rstyle_core::config::{impl#12}::parse",
+      "source_function": "config::Config::parse",
+      "source_file": "crates/rstyle-core/src/config.rs",
+      "caller_evidence": [
+        "crates/cargo-rstyle/src/main.rs: load_config",
+        "crates/cargo-rstyle/src/clones/advisory.rs: configuration"
+      ],
+      "expected": "exact direct-dependency target resolves"
+    },
+    {
+      "callee": "rstyle_core::exclusions::{impl#0}::compile",
+      "source_function": "exclusions::Matcher::compile",
+      "source_file": "crates/rstyle-core/src/exclusions.rs",
+      "caller_evidence": [
+        "crates/cargo-rstyle/src/clones/advisory/propagation.rs: selected_rows",
+        "crates/cargo-rstyle/src/clones/analysis/mod.rs: source exclusions"
+      ],
+      "expected": "exact direct-dependency target resolves"
+    }
+  ],
+  "invariants": [
+    "strict matching and accepted pairs remain exactly equal",
+    "known/unavailable owner rosters retain exact equality",
+    "unselected rstyle_pdg targets remain unresolved",
+    "whole scope remains incomplete with exit 2"
+  ],
+  "basis": "Source call sites and inherent definitions inspected before new replay. Compiler IDs recorded from prior C28 unresolved roster, independently associated by module/method spelling and captured source owner. A resolved definition does not prove purity of toml/globset or any external call. Historical compiler-style metric remains 2; this increment changes contextual target coverage only."
+}

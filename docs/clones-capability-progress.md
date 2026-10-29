@@ -3262,3 +3262,54 @@ violations and all-target Clippy passes with warnings denied
 (`/tmp/clones-source-mutation-style-final-2`,
 `/tmp/clones-source-mutation-clippy-final-2`). These changes introduce no hashes,
 source rescans or additional proof passes.
+
+## C29: reuse exact compiler-associated dependency targets
+
+Owner/write set: lead owns `clones/advisory/propagation.rs`, test registration,
+project labels/results and docs; acceptance worker owns only the new
+`tests/migration_compiler_advisory/propagation/associated.rs`; a second read-only
+worker reviewed compiler ID and trait-dispatch boundaries. State: delivered.
+
+The adapter previously rejected every dependency definition with `SigFacts`,
+even when compiler definition IDs and the existing direct Cargo route identified
+one captured body. Removing that redundant exclusion reuses the existing core
+resolved graph, effect propagation and planner. No collector, target resolver,
+proof algorithm or hashing path was added. Exact `facts.id == callee`, context,
+unique-owner and exclusion checks remain. Trait implementation aliases alone
+cannot resolve dependency dispatch; open-world/default-trait behavior is outside
+this increment.
+
+Four new real-Cargo tests cover static/receiver/generic inherent methods and a
+same-named pure method on another owner, unavailable/excluded targets, receiver
+argument positions in shared plans, source-free replay and unresolved generic
+trait dispatch. The initial fixture incorrectly expected three identical effect
+labels to survive core's existing within-caller deduplication and expected empty
+resolution maps to serialize as objects. The corrected independent fixture uses
+separate callers to test each method and checks omitted empty maps. All fourteen
+propagation cases pass (`/tmp/clones-associated-target-focused-3`), including the
+unchanged context, ambiguity and missing-density controls. Receiver plan/replay
+already passed in the initial run; failed runs are not passing evidence.
+
+Before the production replay, source labels required `Config::parse` and
+`Matcher::compile` to resolve. The explicit C28 `run-WbHJ11` replay resolves both
+and six other exact core methods. Resolved targets rise 31→39; unresolved targets
+fall 87→79. Known/unavailable rosters, unit rule evaluations, shared plans,
+functions, unit contexts and strict matching/accepted pairs remain exactly equal.
+The sample remains incomplete, exit 2. Results and commands live in
+`eval/clones-capability/project-compiler-associated-target-{cases,results}.json`
+and `project-study.md`. New replay resources are 17.20 seconds / 1,452,828 KiB RSS;
+no speedup or broad quality claim. All-target locked Clippy passes with warnings
+denied (`/tmp/clones-associated-target-clippy-1`). Full workspace validation
+passes 3,325 tests in 214.862 seconds, five existing skips and doc tests
+(`/tmp/clones-associated-target-tests-final-1`). Final style reports zero
+violations over 9,717 functions (`/tmp/clones-associated-target-style-final-1`);
+formatting and diff checks pass. The reviewed pattern gate passes with zero
+candidates and fourteen unchanged reviewed exclusions
+(`/tmp/clones-associated-target-patterns-final-1`). No ignore/suppression,
+threshold, budget, admission or metric-version changes were needed.
+
+The next ready frontier is independently labeled compiler effect-density quality,
+reusing completed core evaluations and the existing offline quality reducer.
+Current C27/C28 source labels cover parameters and mutation roots only. Broader
+trait dispatch, generated-owner availability, project quality and capability
+retirement remain open.

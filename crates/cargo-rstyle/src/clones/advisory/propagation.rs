@@ -174,7 +174,7 @@ impl Targets<'_> {
             .filter_map(|unit| self.identities.get(&(*unit, callee)))
             .flatten()
             .copied()
-            .filter(|index| self.rows[*index].1.id == callee && self.rows[*index].1.sig.is_none())
+            .filter(|index| self.rows[*index].1.id == callee)
             .collect();
         match (local, candidates.as_slice()) {
             (Some(local), []) => local.clone(),
