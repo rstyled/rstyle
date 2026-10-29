@@ -186,6 +186,16 @@ effects. An empty class means no recorded intrinsic or escaping-mutation effects
 absence of a warning establishes neither purity nor compatible behavior. Trait
 proposal score damping retains its existing policy.
 
+Cluster proposals describe aligned graph regions and recorded substitutions.
+When the completed mean node-alignment coverage is below 1000, counter-evidence
+calls out unmatched nodes and the refactoring sketch requires preserving their
+behavior. Coverage averages template-to-member alignment, including the template
+at 1000; it is not all-pairs coverage, source-line coverage or semantic equivalence.
+Even full coverage with no recorded substitutions does not establish an exact
+source clone. Aligned nodes need not form a contiguous source fragment; this
+adds no fragment discovery or automatic extraction behavior. Scores, candidate
+IDs, membership, thresholds and strict matching are unchanged.
+
 The separate `rstyle.compiler-pattern-graph/1` capture record keeps the original
 style metric contract unchanged. Missing graph capture in an earlier saved run
 remains unavailable, while a known-empty graph remains observed. The adapter

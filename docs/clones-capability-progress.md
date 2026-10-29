@@ -3534,3 +3534,65 @@ unmatched graph nodes. Template/member alignment is not all-pairs coverage or
 semantic equivalence. Reuse existing Cluster/Breakdown fields without another
 source/graph walk; retain scores, IDs, memberships, strict matching and these
 production negative labels. Broad quality and retirement remain unproven.
+
+
+## C35: retain unmatched behavior in abstraction advice
+
+Owner/write set: lead owns core presentation integration, live-Cargo test, golden
+snapshot and docs/embedded skill; acceptance worker independently specified
+existing coverage semantics; test worker owns only the new core test leaf.
+State: delivered; integrated checkpoint passes.
+
+The shared candidate completion path uses the already-computed mean node
+alignment coverage. Partial coverage adds unmatched-node counter-evidence and
+requires preserving work outside the aligned graph regions in the refactor
+sketch. Cluster observations describe aligned regions and recorded substitutions;
+zero substitutions no longer claims an exact clone. Helper/generic inference is
+conditional. There is no new graph/source walk, collector, alignment algorithm,
+proof or hashing. Candidate IDs, order, membership, scores, thresholds,
+existing recorded-effect notes and strict matching remain unchanged.
+
+Five core controls cover both helper families, independently specified means
+900/933/999, full/partial zero substitutions, retained unknown-effect warnings
+and the trait completion path. A live-Cargo helper with extra work
+outside the aligned part remains emitted with the caveat; saved replay and
+strict results are equal. Full integrated tests below cover the final snapshot.
+
+The C33 saved production run replays in 4.44s / 443,212KiB. Expectations frozen
+from its completed coverage before implementation predict warnings for five of
+seven proposals; all five are observed, including the three independently
+not-useful groups. Every non-presentation proposal field, all other advisory
+data and strict matching remain exactly equal. The three source usefulness
+judgments stay negative; adding honest limits does not make those proposals
+useful. Scope/input remain incomplete, replay exit 2 and quality reducer exit 1.
+The new compact results preserve all seven proposals and C33 labels unchanged.
+
+Next ready frontier: use the existing core planning/effect outputs for further
+quality work and independently useful project cases. Partial-alignment wording
+is not general source-fragment discovery, safe extraction or retirement.
+
+
+Final C35 checkpoint: all 3,342 tests pass in 216.255 seconds with five existing
+skips; doc tests pass (`/tmp/clones-alignment-evidence-tests-final-1`). Both
+previously reported nonzero tests pass. Locked all-target Clippy passes
+(`/tmp/clones-alignment-evidence-clippy-final-1`); formatting/diff checks pass.
+Style reports zero violations over 9,720 functions
+(`/tmp/clones-alignment-evidence-style-final-1`). Reviewed patterns reports zero
+candidates (`/tmp/clones-alignment-evidence-patterns-final-1`); unfiltered patterns
+preserves exactly the fourteen reviewed IDs
+(`/tmp/clones-alignment-evidence-patterns-unfiltered-final-1`). All 169 Python
+tests pass (`/tmp/clones-alignment-evidence-python-final-1.log`). These are Linux
+results; no macOS gate was run locally. No ignores, suppressions, thresholds or
+budgets changed.
+
+The next bounded effect handoff should retain and move the effects vector already
+computed in core evaluation, independently of owner/scope retention, then borrow
+same-unit results by exact original owner ID after proposal preparation. Missing
+results cannot become empty effects. An explicit compiler-only seam must retain
+policy/metric/context provenance: current pattern reviews record clustering
+policy, so configured/propagated evidence must not silently inherit policy
+invariance. Independent ready controls compare `Path::is_file` versus lexical
+`is_absolute`, equal-IO `is_dir`, and helper propagation at depths 0/1. These are
+acceptance targets, not delivered scope; the seven C33 production proposals are
+not expected to recover useful effect contrast. Broad quality/retirement remain
+open.

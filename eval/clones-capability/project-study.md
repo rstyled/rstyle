@@ -985,3 +985,65 @@ zero over 9,719 functions; reviewed patterns remains zero and all fourteen
 unfiltered IDs are unchanged. All 169 Python tests pass. Exact logs are listed
 in the progress ledger. This verifies the frozen Linux snapshot; macOS and broad
 proposal usefulness remain unverified.
+
+
+## C35: communicate incomplete alignment using completed coverage
+
+The existing core aligner counts aligned node pairs over the larger graph's
+node count, flooring to thousandths. Clustering keeps template/member results,
+assigns the template 1000 and reports their integer arithmetic mean. Coverage is
+not all-pairs alignment, source-line coverage or semantic equivalence. The former
+claim that functions share one dependence structure and differ only at recorded
+holes was too strong for unmatched nodes; even full node alignment does not
+establish exact source clones or common contracts.
+
+Shared candidate completion now appends an unmatched-node warning and a preserve-
+unmatched-behavior note when the completed average is below 1000. This detects
+any non-full member because all member values are at most 1000; integer flooring
+cannot round a partial member up to 1000. Summaries describe aligned graph
+regions, zero columns mean no recorded substitutions, and helper/generic
+inferences are conditional. Nodes may be disconnected in source: no fragment
+search, extraction algorithm, safety proof, hash or additional graph walk was
+introduced. The existing effect caveats remain visible.
+
+Before the new replay, `/tmp/clones-alignment-policy-expected-1.json` freezes
+warning expectations from the C33 completed metrics. The explicit replay is:
+
+```sh
+CARGO_TARGET_DIR=target python3 scripts/watchdog.py --timeout 180 \
+  --output /tmp/clones-alignment-evidence-project-replay-1 -- \
+  /usr/bin/time -v target/debug/cargo-rstyle rstyle --format json clones \
+  --extraction-profile hir-data-v3 --compiler-advisory --compiler-patterns \
+  --max-pairs 0 --report-detail compact \
+  --replay-run target/rstyle/clones/run-OFIAA9
+python3 eval/clones-capability/compiler_proposal_quality.py \
+  --report /tmp/clones-alignment-evidence-project-replay-1/stdout.log \
+  --labels eval/clones-capability/project-compiler-proposal-quality-cases.json \
+  --output /tmp/clones-alignment-quality-results-reproduced.json
+```
+
+`project-compiler-proposal-alignment-results.json` retains all seven raw
+proposals, the original three not-useful labels and incomplete scope. Five
+proposals now warn: existing mean coverages 925, 948, 937, 916 and 833. The two
+1000-coverage proposals have no unmatched-node warning; this does not make them
+useful. IDs, order, source roles, scores, breakdowns and all other non-presentation
+candidate fields are unchanged. All remaining advisory fields and strict
+matching are exactly equal to the original saved report. Replay takes 4.44s at
+443,212KiB RSS and exits 2 for incomplete scope; reducer exits 1 for the three
+observed not-useful judgments. There is no speedup, improved precision, complete
+project quality or retirement claim.
+
+Independent core controls fix full/partial and mixed-member coverages, including
+[1000,1000,999], preserving metadata and recorded-effect notes. A real-Cargo test
+adds an extra black-box observation outside the paired helper region and checks
+that the advisory remains visible with caveats and exact saved replay. The text
+golden updates only the stronger old observation wording. Both legacy gates
+remain required at the integrated checkpoint.
+
+
+C35 integrated checkpoint passes all 3,342 tests and doc tests, with five
+existing skips, clean locked all-target Clippy, formatting and diff checks.
+Style reports zero violations over 9,720 functions; reviewed patterns reports
+zero candidates and the fourteen unfiltered IDs are unchanged. All 169 Python
+tests pass. The progress ledger records exact logs. Linux is verified; no local
+macOS, complete-project precision or retirement claim is made.

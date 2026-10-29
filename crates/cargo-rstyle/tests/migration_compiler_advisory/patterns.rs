@@ -301,3 +301,39 @@ fn compiler_helpers_report_intrinsic_effect_mismatch_without_changing_proposals(
     let (_output, replayed) = replay(directory.path(), &changed, &[]);
     assert_eq!(proposals(&changed), proposals(&replayed));
 }
+
+#[test]
+fn compiler_helpers_preserve_unmatched_work_in_partial_alignment_advice() {
+    let source = FAMILIES.replace(
+        "pub fn tag_right(value:u128)->u128 {",
+        "pub fn tag_right(value:u128)->u128 {std::hint::black_box(value);",
+    );
+    let (directory, output, report) = capture(&source, &["--compiler-patterns"]);
+    assert!(output.status.success(), "{}", stdout(&output));
+    let candidate = candidate_at(&proposals(&report)["evaluation"], "tag_left").unwrap();
+    assert_eq!(candidate["kind"], "parameterize");
+    assert!(candidate["breakdown"]["coverage_milli"].as_u64().unwrap() < 1000);
+    let observation = candidate["observation"].as_str().unwrap();
+    assert!(observation.contains("aligned dependence-graph regions"));
+    assert!(!observation.contains("differ only"));
+    assert!(
+        candidate["counter_evidence"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|note| {
+                note.as_str()
+                    .unwrap()
+                    .contains("Some graph nodes are unmatched")
+            })
+    );
+    assert!(
+        candidate["possible_refactor"]
+            .as_str()
+            .unwrap()
+            .contains("Preserve behavior outside the aligned graph regions.")
+    );
+    let (_output, replayed) = replay(directory.path(), &report, &[]);
+    assert_eq!(proposals(&report), proposals(&replayed));
+    assert_eq!(report["matching"], replayed["matching"]);
+}

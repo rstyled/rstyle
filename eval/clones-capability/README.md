@@ -311,3 +311,10 @@ graphs or selected-owner rosters remain unavailable; absence over incomplete
 input cannot establish a negative. The reducer exits 1 for observed not-useful or
 needs-revision judgments and 2 for unavailable samples. See the project study for
 capture scope, resource measurements and a reproduction command.
+
+
+The later `project-compiler-proposal-alignment-results.json` uses the same frozen
+source labels on an explicit saved-run replay. It adds unmatched-node warnings
+to five proposals from existing completed coverage, retaining all numeric fields,
+roles and three negative usefulness judgments. See C35 in the project study;
+this is clearer evidence presentation, not improved proposal precision.

@@ -107,6 +107,12 @@ counter-evidence, without additional score damping. This compares intrinsic
 kinds and escaping mutations, excluding configured calls and propagation.
 An empty class or no warning does not establish purity or shared semantics.
 
+Cluster proposals describe aligned graph regions, with an unmatched-node warning
+when template/member node coverage is partial. Preserve unmatched behavior when
+considering a helper. Full coverage or no recorded substitutions establishes
+neither an exact source clone nor semantic equivalence; aligned nodes need not
+be one extractable source fragment. Ranking and candidate selection are unchanged.
+
 Workflow: take the top candidates, open each `sites` entry, confirm the parallel bodies really mean the same thing, then extract the trait or generic fn. A candidate is a hint, not a verdict: low `lift_milli` (common signature) or effect-mismatch counter-evidence means be skeptical, and support 2 is thin evidence. Opt out with `// rstyle-allow(abstraction): reason` above the function. Oracle for evaluation: `--hide-implements Trait` pretends the trait is not implemented. Output is deterministic; facts are cached in `target/rstyle/facts-sem` (separate from style facts).
 
 Reviewed and rejected candidates: every candidate has an `id`. Only when the user agrees a candidate is not worth merging, run `cargo rstyle ignore <id> --reason "why"` (add `--allow-growth` to keep it hidden when more functions join). That writes `rstyle-ignore.toml`, which `patterns` then applies as a filter (`ignored_count` and `ignored[]` in JSON, `--show-ignored` in text, `--no-ignore` to see everything; `--fail-on-candidates` exits 1 while any candidate is left, the CI gate). Never dismiss to quiet the output unprompted. `cargo rstyle ignore --status` shows where each entry's functions are now and why an entry went stale; `--prune [--dry-run]` removes entries that match nothing. Delete the file to re-review everything. Pass the same clustering flags to `ignore` as to `patterns`.

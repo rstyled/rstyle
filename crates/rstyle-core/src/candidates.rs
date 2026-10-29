@@ -419,7 +419,11 @@ fn finish(ev: Evidence<'_>) -> Candidate {
 
 /// `T0 = Dog | Cat; M0 = Dog::bark | Cat::meow`
 fn columns_text(ix: &Index<'_>, columns: &[Column]) -> String {
-    columns_text_of(ix, &columns.iter().collect::<Vec<_>>())
+    if columns.is_empty() {
+        "no recorded substitutions".into()
+    } else {
+        columns_text_of(ix, &columns.iter().collect::<Vec<_>>())
+    }
 }
 
 fn columns_text_of(ix: &Index<'_>, columns: &[&Column]) -> String {
@@ -539,7 +543,7 @@ fn call_count(f: &FnFacts) -> usize {
 
 fn summary_of(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> String {
     format!(
-        "{} functions share one dependence structure and differ only at {}",
+        "{} functions have aligned dependence-graph regions; recorded substitutions: {}",
         sites.len(),
         columns_text(ix, &cluster.columns)
     )
@@ -596,10 +600,9 @@ fn generic_fn(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option<C
         score_milli: score_milli(&breakdown, false) / 2,
         breakdown,
         observation: summary_of(ix, sites, cluster),
-        inference: "the same code runs over several workspace types that differ only by type"
-            .into(),
+        inference: "aligned graph regions use several workspace types".into(),
         possible_refactor: format!(
-            "one generic definition over {holes}; keep the existing names as type aliases"
+            "consider a generic definition over {holes}; verify type and call contracts"
         ),
         sites: sites.iter().map(|f| site(f)).collect(),
         definitions: vec![],
@@ -627,9 +630,9 @@ fn parameterizable(sites: &[&FnFacts], cluster: &Cluster, max_holes: usize) -> b
     !forced && !sites.iter().any(|f| is_boilerplate(f)) && cluster.columns.len() <= max_holes
 }
 
-/// A cluster that is neither a trait nor a generic fn over workspace types: the same body
-/// differing only at external callees, literals or foreign types. One helper taking those
-/// as parameters (or a closure) replaces the copies. Ranked below `generic_fn`.
+/// A cluster that is neither a trait nor a generic fn over workspace types: aligned regions
+/// with substitutions at external callees, literals or foreign types. A helper may share
+/// those regions while preserving unmatched work. Ranked below `generic_fn`.
 fn parameterize(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option<Candidate> {
     if same_trait_method(sites).is_some_and(|t| in_crate_of(&t, sites)) {
         return None;
@@ -639,10 +642,7 @@ fn parameterize(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option
         return None;
     }
     let breakdown = breakdown_of(sites, cluster, 0);
-    let holes = match cluster.columns.is_empty() {
-        true => "nothing (exact clone)".to_string(),
-        false => columns_text(ix, &cluster.columns),
-    };
+    let holes = columns_text(ix, &cluster.columns);
 
     Some(Candidate {
         id: String::new(),
@@ -650,9 +650,9 @@ fn parameterize(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option
         score_milli: score_milli(&breakdown, false) / 3,
         breakdown,
         observation: summary_of(ix, sites, cluster),
-        inference: "the same computation is written out once per site".into(),
+        inference: "aligned graph regions may support a shared computation".into(),
         possible_refactor: format!(
-            "extract one helper and pass the differing parts as parameters: {holes}"
+            "consider a helper for the aligned regions with these parameters: {holes}"
         ),
         sites: sites.iter().map(|f| site(f)).collect(),
         definitions: vec![],
@@ -765,6 +765,20 @@ impl Site {
     }
 }
 
+impl Candidate {
+    /// The completed template/member node coverage says nothing about unmatched work.
+    fn with_alignment_caveat(mut self) -> Self {
+        if self.breakdown.coverage_milli < 1000 {
+            self.counter_evidence.push(
+                "Some graph nodes are unmatched; recorded substitutions describe aligned regions, not complete functions.".into(),
+            );
+            self.possible_refactor
+                .push_str(" Preserve behavior outside the aligned graph regions.");
+        }
+        self
+    }
+}
+
 impl Mined {
     /// Final locators for every site, then every candidate's id (which hashes them).
     fn identified(self, names: &BTreeMap<String, String>) -> Mined {
@@ -794,8 +808,8 @@ impl Mined {
 
     fn with(mut self, outcome: Outcome<'_>) -> Mined {
         match outcome {
-            Outcome::Found(ev) => self.candidates.push(finish(ev)),
-            Outcome::Ready(c) => self.candidates.push(*c),
+            Outcome::Found(ev) => self.candidates.push(finish(ev).with_alignment_caveat()),
+            Outcome::Ready(c) => self.candidates.push((*c).with_alignment_caveat()),
             Outcome::Hidden(s) => self.suppressed.push(s),
             Outcome::Nothing => {}
         }
@@ -873,6 +887,7 @@ pub(crate) mod tests_support {
 
 #[cfg(test)]
 mod tests {
+    mod alignment_evidence;
     mod effect_evidence;
     use super::tests_support::{caller, corpus, getter};
     use super::*;
