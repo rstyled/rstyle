@@ -4308,3 +4308,68 @@ the thirteen main-rebase IDs. Formatting and diff checks pass. Logs use
 `/tmp/clones-advisory-instance-` with `focused-2`, `tests-1`, `clippy-1`, `style-1`,
 `patterns-1` and `patterns-unfiltered-1` suffixes. No thresholds, budgets,
 suppressions or saved review entries changed.
+
+
+### C47 — keep strict unit metadata out of advisory-only capture (2026-10-29)
+
+`collect_crate_facts` now returns the existing single function roster directly.
+Ordinary `raw_crate_facts` runs the unchanged `capture_unit_evidence` pass before
+its unchanged source correspondence and projections. Advisory-only capture skips
+that strict census, dependency namespace, generated-helper unit, library and
+aggregated inherent metadata pass. Original per-function source snapshots/ranges,
+signatures, compiler context, concrete/native observations and compiler collectors
+remain captured. Main's separate original-source inventory remains unchanged;
+the signature-level generated-function diagnostic does not depend on unit helper
+capture. No file/byte budget, source ownership format, proof, checksum, copy or
+strict matching permission was introduced or changed.
+
+The consumer audit initially found census reads in local consumer planning, then
+traced the requested mode: advisory-only rejects those local consumers, and
+`--compiler-plans` uses the existing core planner over captured `FnFacts` instead.
+Compiler advice/propagation/patterns/reviews/baselines do not read these strict
+unit inventories. Existing raw transport already retains full shared original
+source snapshots with exact ranges; no alternative ownership format is needed.
+
+Two acceptance tests add a 257-module/258-function Cargo package and a bounded
+original/nominal/generated/library fixture. The large package reports exactly
+two original parameter findings, one two-owner parameter plan, complete source
+inventory and completed review/baseline replay after deleting source. The same
+package still fails strict capture at the unchanged census budget. Bounded
+combined/raw reports and source inventories are exactly equal; the strict unit
+inventories remain populated in combined mode, absent only in raw advisory mode,
+and generated owner unavailability plus source/compiler context remain intact.
+The 33-test focused extraction/propagation/shared-review run passes.
+
+Real-project capture now publishes rstyle-pdg: 13,528 functions, 7,034 measured
+owners, 6,494 unavailable owners, 142 unresolved callees and 826 existing-core
+findings across 809 inventoried source files. The preceding C46 capture published
+zero functions because strict census exceeded its 256-file/8MiB budget. Capture
+and handoff now have zero failures, but advice correctly remains incomplete.
+This is an availability gain, not independently labeled finding quality or a
+claim of clean/complete project coverage. One before/after rstyle-core control
+preserves exactly equal advice while raw output shrinks from 49,108,968 to
+42,080,275 bytes (14.3%). The successful rstyle-pdg capture takes 85.86s, peaks at
+3,342,996KiB RSS and publishes 601,866,824 raw bytes; the failed preceding capture
+takes 39.27s and does less useful work, so their times are not a speed comparison.
+Commands, stages, counts and limitations are recorded in
+`docs/performance/advisory-unit-metadata-results.json`. Substantial full-function
+extraction/publication resource cost remains; no budget was increased to obtain
+these results.
+
+C47 integrated validation passes all 3,437 Rust tests in 219.063s with five
+existing skips; doc tests, locked all-target Clippy, formatting and diff checks
+pass. Style reports zero violations over 9,785 functions with all complexity
+measurements available; reviewed patterns report zero candidates with thirteen
+existing entries. The separate unfiltered comparison retains exactly the thirteen
+main-rebase IDs. Logs use `/tmp/clones-advisory-unit-` with `focused-1`, `tests-1`,
+`clippy-1`, `style-1`, `patterns-1` and `patterns-unfiltered-1` suffixes. No
+thresholds, budgets, suppressions or review entries changed.
+
+Next audited resource frontier: compiler review identity snapshots normalized
+parameter/result types, so dropping all concrete-type capture would change saved
+identity. Extract a small shared signature-only normalization seam from the
+existing concrete-type collector, retaining exact interface observations/tokens;
+then omit its body enrichment and remaining strict/local-consumer function
+metadata only in advisory-only mode. Retain the original native body/source
+records; do not replace bodies with fictitious empty facts or invent a new codec.
+Verify nested interfaces and review/baseline keys before claiming this cut safe.

@@ -91,6 +91,8 @@ pub fn raw_crate_facts(
     options: &Options<'_>,
 ) -> Result<Vec<HirFnFacts>, String> {
     let mut facts = collect_crate_facts(tcx, scanned, options, CallInstances::Capture)?;
+    capture_unit_evidence(tcx, options, &mut facts)
+        .map_err(|error| format!("Unit source evidence: {error}"))?;
 
     let sources = rstyle_pdg::unit_store::SourceAnalyses::default();
     for function in &mut facts {
@@ -102,7 +104,7 @@ pub fn raw_crate_facts(
 }
 
 /// Original compiler observations for advisory consumers, without strict source
-/// correspondence, call instances or projections. Unit ownership and census are retained.
+/// correspondence, call instances, projections or strict unit metadata.
 pub fn advisory_crate_facts(
     tcx: TyCtxt<'_>,
     scanned: &[source::Function],
@@ -131,16 +133,12 @@ fn collect_crate_facts(
         tcx,
         call_instances,
     };
-    let mut facts = tcx.hir_body_owners()
+    tcx.hir_body_owners()
         .filter(|id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
         .map(|id| collector.function(id, scanned, options).map_err(|error| format!("{}: {error}", tcx.def_path_str(id.to_def_id()))).and_then(|facts| facts.ok_or_else(|| format!(
             "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
         ))))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    capture_unit_evidence(tcx, options, &mut facts)
-        .map_err(|error| format!("Unit source evidence: {error}"))?;
-    Ok(facts)
+        .collect()
 }
 
 fn capture_unit_evidence(

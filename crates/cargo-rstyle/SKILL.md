@@ -566,3 +566,14 @@ not requested. Ordinary raw/strict extraction and explicit instance diagnostics
 retain their existing records. Missing records are not complete empty inventories;
 compiler advice, conservative core propagation, patterns, plans and saved replay
 keep their independent evidence and coverage contracts.
+
+
+Advisory-only capture omits unit-wide strict census, namespace, generated-helper,
+library and aggregated inherent metadata. Its requested core collectors/planner
+and compiler reviews do not consume those records; local consumers requiring
+them cannot be combined with this mode. Original function source snapshots/ranges,
+compiler contexts, generated-owner markers and separate source inventory remain
+captured. Ordinary raw/strict capture keeps its existing census limits and
+metadata. Large advisory captures can publish useful measurements while retaining
+unavailable owners and unresolved calls; successful publication is not complete
+coverage or a clean result.
