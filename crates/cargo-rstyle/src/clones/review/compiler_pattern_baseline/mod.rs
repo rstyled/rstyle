@@ -30,11 +30,12 @@ pub(in crate::clones) fn evaluate(
     let rows = advisory.pattern_reviews();
     let previous = ctx.compiler_pattern_baseline;
     let selected = advisory.pattern_selections();
-    let header = Baseline::new(
+    let mut header = Baseline::new(
         Rc::clone(advisory.policy()),
         baseline_common::contexts(ctx)?,
     )?
     .with_options(crate::mine_options(&ctx.args.mine));
+    header.source_scope = ctx.args.compiler_pattern_scope;
     let complete = ctx.complete
         && advisory.pattern_inputs_complete()
         && ctx.handoff.assessed.len() <= 4096

@@ -526,6 +526,7 @@ fn evaluate_unit(
         diagnostic_indices: completed.diagnostic_indices,
         effects: completed.effects,
         missing_graphs: inputs.missing_graphs,
+        generated_functions: inputs.generated_functions,
     })
 }
 
@@ -536,6 +537,7 @@ struct Ready {
     ranking: Option<ranking::Captured>,
     effects: Option<std::collections::BTreeMap<String, Vec<rstyle_core::rules::Effect>>>,
     missing_graphs: Vec<Missing>,
+    generated_functions: Vec<super::FunctionKey>,
 }
 
 impl Ready {
@@ -555,6 +557,7 @@ impl Ready {
                 facts: self.facts,
                 missing: self.missing_graphs,
                 unavailable_functions: self.unit.unavailable.len(),
+                generated_functions: self.generated_functions,
                 effects: self.effects,
                 effects_complete: self.unit.expected_functions.is_some()
                     && self.unit.unavailable.is_empty()
@@ -586,6 +589,7 @@ struct Collected {
     unavailable: Vec<Missing>,
     unavailable_complexity: Vec<Missing>,
     missing_graphs: Vec<Missing>,
+    generated_functions: Vec<super::FunctionKey>,
 }
 
 fn collect_inputs(ctx: &Context<'_>, unit: UnitId) -> Result<Collected, String> {
@@ -645,6 +649,28 @@ impl Collected {
         reason: String,
         ctx: &Context<'_>,
     ) -> Result<(), String> {
+        self.push_generated_effects(function, ctx)?;
+        if ctx.args.compiler_pattern_scope == super::CompilerPatternScope::Authored
+            && function
+                .facts
+                .source_diagnostics
+                .iter()
+                .any(|finding| finding.construct == "macro_generated_function")
+        {
+            self.generated_functions.push(function.key);
+        }
+        self.unavailable.push(Missing {
+            key: function.key,
+            reason,
+        });
+        Ok(())
+    }
+
+    fn push_generated_effects(
+        &mut self,
+        function: &super::Function,
+        ctx: &Context<'_>,
+    ) -> Result<(), String> {
         if let Some(config) = ctx.compiler_advisory_config
             && let Some(measurement) =
                 generated_effects::read(function, config, &ctx.capture.plan.root)?
@@ -654,10 +680,6 @@ impl Collected {
             }
             self.generated_effects.push(measurement);
         }
-        self.unavailable.push(Missing {
-            key: function.key,
-            reason,
-        });
         Ok(())
     }
 
@@ -760,9 +782,10 @@ impl Unit {
         self.complexity_ranking
             .as_ref()
             .is_none_or(|report| report.input_complete)
-            && self.unavailable.is_empty()
             && self.evaluation.as_ref().is_none_or(|_| {
-                self.unavailable_complexity.is_empty() && self.unresolved_callees.is_empty()
+                self.unavailable.is_empty()
+                    && self.unavailable_complexity.is_empty()
+                    && self.unresolved_callees.is_empty()
             })
             && self
                 .patterns

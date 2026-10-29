@@ -28,11 +28,13 @@ impl Report {
         ctx: &Context<'_>,
         selection: &changed_scope::Selection,
     ) -> changed_scope::Report<'static> {
-        let known: BTreeSet<_> = self
+        let known = self.known_selection_inputs();
+        let outside: BTreeSet<_> = self
             .units
             .iter()
-            .flat_map(|unit| &unit.observations)
-            .map(|owner| owner.key)
+            .filter(|_| !ctx.args.compiler_advisory)
+            .filter_map(|unit| unit.patterns.as_ref())
+            .flat_map(super::patterns::Report::outside_scope)
             .collect();
         let owners = ctx
             .handoff
@@ -42,6 +44,7 @@ impl Report {
                 path: analysis::source_file(function)
                     .and_then(|path| checked_path(path, &ctx.capture.plan.root)),
                 complete: known.contains(&function.key),
+                outside_scope: outside.contains(&function.key),
                 visible_findings: 0,
             });
 
@@ -56,6 +59,24 @@ impl Report {
                 .flat_map(|patterns| patterns.selected_paths(selection)),
         );
         report.into_owned()
+    }
+
+    fn known_selection_inputs(&self) -> BTreeSet<crate::clones::FunctionKey> {
+        let mut known: BTreeSet<_> = self
+            .units
+            .iter()
+            .flat_map(|unit| &unit.observations)
+            .map(|owner| owner.key)
+            .collect();
+        for key in self
+            .units
+            .iter()
+            .filter_map(|unit| unit.patterns.as_ref())
+            .flat_map(super::patterns::Report::missing_graphs)
+        {
+            known.remove(&key);
+        }
+        known
     }
 
     pub(in crate::clones) fn finding_exit_count(&self) -> usize {

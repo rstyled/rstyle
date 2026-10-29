@@ -86,6 +86,9 @@ struct PatternRouteArgs {
     /// Choose the existing legacy miner or captured compiler observations.
     #[arg(long, value_enum, default_value_t = PatternEngine::Legacy)]
     engine: PatternEngine,
+    /// Compiler proposal population; authored excludes explicitly generated signatures.
+    #[arg(long, value_enum)]
+    compiler_pattern_scope: Option<clones::CompilerPatternScope>,
     /// Preview current legacy ledger matches against scoped compiler proposals without writing.
     #[arg(long)]
     preview_legacy_reviews: bool,
@@ -120,6 +123,7 @@ impl PatternRouteArgs {
             || self.locked
             || self.preview_legacy_reviews
             || !self.import_legacy_pattern.is_empty()
+            || self.compiler_pattern_scope.is_some()
     }
 }
 

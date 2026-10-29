@@ -11,6 +11,8 @@ pub(super) struct Report {
     schema: &'static str,
     ledger_path: PathBuf,
     scope_complete: bool,
+    #[serde(skip_serializing_if = "crate::clones::CompilerPatternScope::is_default")]
+    source_scope: crate::clones::CompilerPatternScope,
     pub complete: bool,
     entries: Vec<Entry>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -76,6 +78,7 @@ pub(super) fn apply(
         schema: "rstyle.compiler-pattern-legacy-migration/1",
         ledger_path: path.clone(),
         scope_complete,
+        source_scope: ctx.args.compiler_pattern_scope,
         complete,
         entries,
         imported,

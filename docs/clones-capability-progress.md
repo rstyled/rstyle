@@ -5680,3 +5680,58 @@ needed; existing closure caveats do not justify blanket suppression or a new
 proof gate. C71 native CI passed; C72 Ubuntu x64/ARM passed while macOS remained
 in progress at the latest check (run40914176818). C73 native CI remains pending
 until push.
+
+
+### C74 — explicit authored compiler pattern population (2026-10-29)
+
+Lead owns CLI, consumer completion/selection, baseline header and documentation;
+acceptance worker owns the authored_scope leaf. The existing legacy collector
+already excludes expansion signatures. Compiler patterns now offers explicit
+compiler-pattern-scope=authored, using the captured macro_generated_function
+marker to report those unavailable owners outside the requested population.
+Captured remains the default. No new collector, proposer, hash, source scan or
+proof gate is introduced; IDs move into the scope report. Raw unavailable and
+generated effect inventories remain intact. Numeric/complexity/effect completion
+and strict decisions retain their prerequisites. Pattern-only completion and
+changed-file reports use the requested population, counting outside-scope owners
+separately. Missing observations/graphs and unknown origins stay incomplete.
+
+Proposal baseline headers retain population scope (historical absence means
+captured), so even empty inventories report drift across populations. Unchanged
+positive review identity remains tied to the same existing body/context. Legacy
+migration preview also names its requested population. Text names authored scope;
+default JSON/text omits new scope fields. A read-only review found changed-file
+coverage had treated known source metrics as enough when a requested graph was
+missing. Selection now removes those typed owner keys from its completed set,
+without another collection/evaluation pass.
+
+Nine independent real-Cargo acceptance cases cover derives, useful helper
+findings, source/tool-free replay, check/test populations, numeric incompleteness,
+strict decision equality, selected missing graphs, baseline export/header drift,
+review identity, missing observations and historical marker-only replay. One
+initial test incorrectly expected generated exclusions to make strict matching
+incomplete; comparison with standalone strict matching confirms its completed
+result is unchanged. Another fixture omitted the existing required review reason;
+both acceptance setup issues were corrected without adding runtime gates.
+
+The exact retained C69 rstyle-ccgraph capture contains414 owners:238 known authored
+graphs and176 unavailable generated signatures. Captured replay still exits2;
+explicit authored replay exits0 with the same raw proposals, measurements,
+unavailable roster and effect limitations. Authored baseline export and comparison
+complete, retaining one existing/zero new proposals. Captured comparison reports
+scope_changed and exits2. The one proposal remains independently unsuitable;
+this is a scope-aware workflow gain, not better proposal quality, more captured
+semantics, speedup, purity or retirement. See
+project-patterns-authored-scope-study.json. All106 focused checks and244 Python
+tests pass. Style initially found one long function and two per-target mutation
+counts; scope selection, generated-effect retention and coverage counting now
+have cohesive helpers without suppressions or threshold changes. Patterns has
+zero unreviewed candidates. All3,574 Rust tests pass in236.431s with five
+existing skips, plus doc tests. Final style has zero violations over9,930
+functions. Unfiltered patterns retains the same13 candidate IDs as main. Locked
+all-target Clippy,244 Python tests, formatting and diff checks pass. Logs use
+/tmp/clones-c74-*. C72 native CI passed on Ubuntu x64/ARM and macOS; C73 Ubuntu
+x64/ARM passed while macOS remained in progress at the latest check
+(run40916805535). C74 native CI remains pending until push. Cross-package
+proposal discovery and broader independently reviewed quality remain open; no
+legacy backend is retired.

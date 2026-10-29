@@ -15,6 +15,11 @@ pub(in crate::clones) struct Baseline {
     pub proposal_policy: Params,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hide_implements: Vec<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "crate::clones::CompilerPatternScope::is_default"
+    )]
+    pub source_scope: crate::clones::CompilerPatternScope,
     versions: Versions,
     graph_schema: String,
     pub contexts: Vec<local::BuildContext>,
@@ -28,6 +33,7 @@ impl baseline_common::CompilerInventory for Baseline {
             compiler_policy,
             proposal_policy: Params::default(),
             hide_implements: Vec::new(),
+            source_scope: crate::clones::CompilerPatternScope::Captured,
             versions: local_adapter::versions("compiler-patterns"),
             graph_schema: rstyle_core::advisory::patterns::KEY.into(),
             contexts,
@@ -102,6 +108,7 @@ impl baseline_common::Inventory for Baseline {
         self.compiler_policy == previous.compiler_policy
             && self.proposal_policy == previous.proposal_policy
             && self.hide_implements == previous.hide_implements
+            && self.source_scope == previous.source_scope
             && self.contexts == previous.contexts
     }
     fn replace_entries(&mut self, entries: Vec<Snapshot>) {

@@ -11,8 +11,28 @@ fn owner(path: Option<&str>, complete: bool, visible_findings: usize) -> Owner<'
     Owner {
         path,
         complete,
+        outside_scope: false,
         visible_findings,
     }
+}
+
+#[test]
+fn outside_scope_is_explicit_and_does_not_cover_a_missing_applicable_owner() {
+    let selected = selection(&["src/lib.rs"]);
+    let outside = || Owner {
+        path: Some("src/lib.rs"),
+        complete: false,
+        outside_scope: true,
+        visible_findings: 0,
+    };
+    let report = evaluate(&selected, [outside()]);
+    assert!(report.permits_success());
+    assert_eq!(report.paths[0].outside_scope_functions, 1);
+    assert_eq!(report.paths[0].unavailable_functions, 0);
+    let report = evaluate(&selected, [outside(), owner(Some("src/lib.rs"), false, 0)]);
+    assert!(!report.permits_success());
+    assert_eq!(report.paths[0].outside_scope_functions, 1);
+    assert_eq!(report.paths[0].unavailable_functions, 1);
 }
 
 #[test]

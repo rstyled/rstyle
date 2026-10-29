@@ -19,6 +19,7 @@ impl<'a> Report<'a> {
             function.changed_file = path.map(|path| selection.contains(path));
             changed_scope::Owner {
                 path,
+                outside_scope: false,
                 complete: function
                     .density
                     .as_ref()

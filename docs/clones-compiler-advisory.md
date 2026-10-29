@@ -355,6 +355,27 @@ unchanged. Original TOML bytes/comments are never rewritten. After import, use
 `--no-ignore --review-file reviews.json` to apply scoped reviews while explicitly
 bypassing the retained legacy ledger. No legacy backend or ledger is retired.
 
+Compiler patterns keeps the captured-function population by default. Add
+`--compiler-pattern-scope authored` to either entry to explicitly assess original
+function declarations, matching the population used by the existing legacy
+collector. Only unavailable owners with the captured compiler
+`macro_generated_function` marker fall outside this requested population. Missing
+observations, missing graphs and unknown-origin owners remain unavailable.
+`patterns.source_scope` records the authored selection and every outside-scope
+owner handle. The raw unit observations/unavailable inventory and effect
+limitations remain intact; outside scope is not a zero metric or a purity claim.
+
+Authored pattern-only analysis can complete in crates containing derives or
+macro-generated functions. Numeric diagnostics, effect/planning coverage and
+strict clone decisions retain their existing prerequisites. Changed-file pattern
+reports count outside-scope owners separately, including generated-only files;
+unknown selected files remain incomplete. Positive proposal reviews still refer
+to the same body/context. Proposal baselines retain the discovery scope in their
+header, so switching between authored and captured populations reports scope
+drift even for empty inventories. Historical baselines without the field retain
+the captured population. Saved runs can select authored scope using retained
+compiler markers without source files, compiler tools or new hashes/proofs.
+
 Compiler proposals accept the existing legacy mining controls directly:
 `--threshold`, `--min-coverage`, `--pair-coverage`, `--normalize`,
 `--single-call-guard`, `--max-holes` and repeatable `--hide-implements`.

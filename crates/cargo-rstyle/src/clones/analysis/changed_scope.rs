@@ -76,6 +76,7 @@ fn validate_path(path: &str) -> Result<(), String> {
 pub(in crate::clones) struct Owner<'a> {
     pub path: Option<&'a str>,
     pub complete: bool,
+    pub outside_scope: bool,
     pub visible_findings: usize,
 }
 
@@ -92,9 +93,15 @@ pub(in crate::clones) struct PathReport<'a> {
     pub path: Cow<'a, str>,
     pub matched_functions: usize,
     pub unavailable_functions: usize,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub outside_scope_functions: usize,
     pub visible_findings: usize,
     pub coverage: Coverage,
     pub status: Status,
+}
+
+fn is_zero(value: &usize) -> bool {
+    *value == 0
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -110,6 +117,7 @@ impl<'a> PathReport<'a> {
             path: Cow::Borrowed(path),
             matched_functions: 0,
             unavailable_functions: 0,
+            outside_scope_functions: 0,
             visible_findings: 0,
             coverage: Coverage::Incomplete,
             status: Status::Unobserved,
@@ -117,9 +125,14 @@ impl<'a> PathReport<'a> {
     }
 
     fn include(&mut self, owner: Owner<'_>) {
-        self.matched_functions += 1;
-        self.unavailable_functions += usize::from(!owner.complete);
+        self.include_coverage(&owner);
         self.visible_findings += owner.visible_findings;
+    }
+
+    fn include_coverage(&mut self, owner: &Owner<'_>) {
+        self.matched_functions += 1;
+        self.unavailable_functions += usize::from(!owner.complete && !owner.outside_scope);
+        self.outside_scope_functions += usize::from(owner.outside_scope);
     }
 
     fn finish(&mut self) {
@@ -218,6 +231,7 @@ impl Report<'_> {
                     path: Cow::Owned(path.path.into_owned()),
                     matched_functions: path.matched_functions,
                     unavailable_functions: path.unavailable_functions,
+                    outside_scope_functions: path.outside_scope_functions,
                     visible_findings: path.visible_findings,
                     coverage: path.coverage,
                     status: path.status,
@@ -248,6 +262,12 @@ impl Report<'_> {
                 path.path, path.status, path.coverage, path.matched_functions,
                 path.unavailable_functions, path.visible_findings
             ));
+            if path.outside_scope_functions > 0 {
+                output.push_str(&format!(
+                    " {} functions outside requested scope.",
+                    path.outside_scope_functions
+                ));
+            }
         }
         output
     }

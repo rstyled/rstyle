@@ -20,6 +20,8 @@ pub(super) struct Report {
     policy_selected_functions: usize,
     observed_graphs: usize,
     unavailable_functions: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source_scope: Option<SourceScope>,
     unavailable_graphs: Vec<Missing>,
     pub evaluation: patterns_report::PatternsReport,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -32,6 +34,25 @@ pub(super) struct Report {
     #[serde(skip)]
     pub snapshots:
         Vec<Result<crate::clones::review::compiler_patterns::observed::Snapshot, String>>,
+}
+
+/// Outside the requested authored population, not measured-empty or unavailable authored input.
+#[derive(Serialize)]
+struct SourceScope {
+    kind: crate::clones::CompilerPatternScope,
+    outside_scope_functions: Vec<crate::clones::FunctionKey>,
+}
+
+impl SourceScope {
+    fn select(
+        kind: crate::clones::CompilerPatternScope,
+        generated_functions: Vec<crate::clones::FunctionKey>,
+    ) -> Option<Self> {
+        (kind == crate::clones::CompilerPatternScope::Authored).then_some(Self {
+            kind,
+            outside_scope_functions: generated_functions,
+        })
+    }
 }
 
 /// Indices borrow the raw ranked evaluation; review and baseline identity stay unchanged.
@@ -134,6 +155,7 @@ pub(super) struct Inputs {
     pub facts: Vec<FnFacts>,
     pub missing: Vec<Missing>,
     pub unavailable_functions: usize,
+    pub generated_functions: Vec<crate::clones::FunctionKey>,
     pub effects: Option<std::collections::BTreeMap<String, Vec<rstyle_core::rules::Effect>>>,
     pub effects_complete: bool,
 }
@@ -147,9 +169,16 @@ pub(super) fn evaluate(
         facts,
         missing,
         unavailable_functions,
+        generated_functions,
         effects,
         effects_complete,
     } = input;
+
+    let source_scope = SourceScope::select(ctx.args.compiler_pattern_scope, generated_functions);
+    let unavailable_functions = unavailable_functions
+        - source_scope
+            .as_ref()
+            .map_or(0, |scope| scope.outside_scope_functions.len());
 
     let options = crate::mine_options(&ctx.args.mine);
     let policy_selected_functions = facts.len();
@@ -173,6 +202,7 @@ pub(super) fn evaluate(
         policy_selected_functions,
         observed_graphs,
         unavailable_functions,
+        source_scope,
         unavailable_graphs: missing,
         presentation: (!ctx.args.pattern_display.is_default())
             .then(|| Presentation::new(&ctx.args.pattern_display, &evaluation)),
@@ -230,6 +260,16 @@ fn select_candidates(
 }
 
 impl Report {
+    pub(super) fn missing_graphs(&self) -> impl Iterator<Item = crate::clones::FunctionKey> + '_ {
+        self.unavailable_graphs.iter().map(|missing| missing.key)
+    }
+
+    pub(super) fn outside_scope(&self) -> impl Iterator<Item = crate::clones::FunctionKey> + '_ {
+        self.source_scope
+            .iter()
+            .flat_map(|scope| scope.outside_scope_functions.iter().copied())
+    }
+
     pub(super) fn with_reviews(
         self,
         unit: crate::clones::identity::UnitId,
@@ -303,7 +343,7 @@ impl Report {
     }
 
     pub(super) fn render(&self) -> String {
-        patterns_report::text_selected_with_groups(
+        let evaluation = patterns_report::text_selected_with_groups(
             &self.evaluation,
             |index| self.shown(index) && self.selected(index),
             |index| {
@@ -314,6 +354,14 @@ impl Report {
                         .is_ok()
                 })
             },
+        );
+        let Some(scope) = &self.source_scope else {
+            return evaluation;
+        };
+        format!(
+            "Authored function scope: {} generated functions outside scope; {} applicable inputs unavailable.\n{evaluation}",
+            scope.outside_scope_functions.len(),
+            self.unavailable_functions
         )
     }
 }

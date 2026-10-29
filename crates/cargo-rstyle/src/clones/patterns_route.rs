@@ -63,6 +63,7 @@ fn compiler_args(patterns: PatternsArgs) -> Result<Routed, String> {
         mine: patterns.mine,
         pattern_display: patterns.display,
         fail_on_findings: patterns.fail_on_candidates,
+        compiler_pattern_scope: patterns.route.compiler_pattern_scope.unwrap_or_default(),
         replay_run: patterns.route.replay_run,
         review_file: patterns.route.review_file,
         review_status: patterns.route.review_status,

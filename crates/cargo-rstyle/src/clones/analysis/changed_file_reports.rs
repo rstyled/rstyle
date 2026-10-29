@@ -50,6 +50,7 @@ fn family<'a>(
         function.changed_file = path.map(|path| selection.contains(path));
         changed_scope::Owner {
             path,
+            outside_scope: false,
             complete: match family {
                 Family::Source => source_complete(function),
                 Family::Guard => function.guard_clause.as_ref().is_some_and(|guard| {

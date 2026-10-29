@@ -715,3 +715,16 @@ modules such as `src/../shared.rs` therefore use `shared.rs` in saved locators.
 Equivalent lexical spellings preserve review identity; outside-root, relative,
 empty and non-UTF8 locators remain unavailable. This uses captured paths without
 filesystem canonicalization, new hashes or metric/context changes.
+
+
+Compiler pattern population: keep default captured-function completeness, or
+explicitly pass `--compiler-pattern-scope authored` to compiler patterns/clones.
+This uses the existing compiler expansion marker to report generated signatures
+outside the authored proposal population. Missing authored/unknown-origin inputs
+stay unavailable; raw inventories and numeric/effect/strict semantics remain
+intact. JSON records `patterns.source_scope.outside_scope_functions`, text names
+the authored scope, and changed-file paths count outside-scope owners separately.
+Proposal baselines retain this scope and report header drift across populations;
+old baselines default to captured. This enables authored pattern-only baseline
+workflows in ordinary derive-using crates without new collection, hashing or
+proof gates. Individual unchanged positive reviews retain their existing identity.

@@ -29,6 +29,23 @@ use std::{
     sync::Arc,
 };
 
+/// Requested discovery population; never changes strict matching or numeric coverage.
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum, Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum CompilerPatternScope {
+    #[default]
+    Captured,
+    Authored,
+}
+
+impl CompilerPatternScope {
+    fn is_default(&self) -> bool {
+        *self == Self::Captured
+    }
+}
+
 #[derive(ClapArgs, Serialize)]
 #[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density", "compiler_advisory", "compiler_patterns"]).multiple(true)),
     group(clap::ArgGroup::new("compiler_presentation").args(["min_score", "top"]).requires("compiler_patterns").multiple(true)),
@@ -91,6 +108,10 @@ pub struct Args {
     /// Reuse compiler graphs and core proposals independently of numeric style diagnostics.
     #[arg(long)]
     compiler_patterns: bool,
+    /// Select captured inputs or authored functions, explicitly excluding expansion signatures.
+    #[arg(long, value_enum, default_value_t = CompilerPatternScope::Captured, requires = "compiler_patterns")]
+    #[serde(skip_serializing_if = "CompilerPatternScope::is_default")]
+    compiler_pattern_scope: CompilerPatternScope,
     /// Preview legacy ledger matches against raw scoped compiler proposals; never edits the ledger.
     #[arg(long, requires = "compiler_patterns")]
     #[serde(skip_serializing_if = "Option::is_none")]
