@@ -1,0 +1,1777 @@
+{
+  "schema": "rstyle.multi-package-style-route-study/1",
+  "checkpoint": "C91",
+  "revision": "72aecc2 (production unchanged)",
+  "root": "/tmp/clones-c91-live-0a8j0kru",
+  "scope": {
+    "packages": [
+      "rstyle-ccgraph",
+      "rstyle-pdg"
+    ],
+    "all_targets": false,
+    "policy": "unchanged workspace rstyle.toml",
+    "compiler": "root --style-engine compiler: authored all-rule diagnostics and existing plans",
+    "legacy": "root default engine",
+    "cache_limits": "Serial prebuilt developer runs, different cache states, not randomized/equal-cold-cache benchmark"
+  },
+  "commands": [
+    {
+      "name": "legacy-first",
+      "command": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "rstyle",
+        "-p",
+        "rstyle-ccgraph",
+        "-p",
+        "rstyle-pdg",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 19.411203849012963,
+      "summary": {
+        "functions": 7281,
+        "violations": 0,
+        "complexity_measured": 7281,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 56,
+        "max_density_milli": 4500,
+        "effect_counts": {
+          "io": 29,
+          "mutation": 1456,
+          "panic": 53,
+          "time": 42,
+          "unknown": 117
+        }
+      }
+    },
+    {
+      "name": "legacy-repeat",
+      "command": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "rstyle",
+        "-p",
+        "rstyle-ccgraph",
+        "-p",
+        "rstyle-pdg",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.7181296390481293,
+      "summary": {
+        "functions": 7281,
+        "violations": 0,
+        "complexity_measured": 7281,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 56,
+        "max_density_milli": 4500,
+        "effect_counts": {
+          "io": 29,
+          "mutation": 1456,
+          "panic": 53,
+          "time": 42,
+          "unknown": 117
+        }
+      }
+    },
+    {
+      "name": "compiler-first",
+      "command": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "rstyle",
+        "-p",
+        "rstyle-ccgraph",
+        "-p",
+        "rstyle-pdg",
+        "--format",
+        "json",
+        "--style-engine",
+        "compiler"
+      ],
+      "exit_code": 1,
+      "elapsed_seconds": 66.45044083590619,
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-GhoM8m",
+      "fresh_artifacts": 8,
+      "rebuilt_artifacts": [
+        "unicode_ident",
+        "version_check",
+        "quote",
+        "build-script-build",
+        "build-script-build",
+        "build-script-build",
+        "cfg_if",
+        "build-script-build",
+        "build-script-build",
+        "xxhash_rust",
+        "build-script-build",
+        "typenum",
+        "proc_macro2",
+        "quote",
+        "libc",
+        "generic_array",
+        "cpufeatures",
+        "crypto_common",
+        "block_buffer",
+        "digest",
+        "sha2",
+        "syn",
+        "serde_core",
+        "serde_json",
+        "syn",
+        "serde_derive",
+        "serde",
+        "rstyle_pdg",
+        "rstyle_ccgraph"
+      ],
+      "complete": true,
+      "findings": 15
+    },
+    {
+      "name": "compiler-repeat",
+      "command": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "rstyle",
+        "-p",
+        "rstyle-ccgraph",
+        "-p",
+        "rstyle-pdg",
+        "--format",
+        "json",
+        "--style-engine",
+        "compiler"
+      ],
+      "exit_code": 1,
+      "elapsed_seconds": 10.444933795952238,
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-coQCLG",
+      "fresh_artifacts": 37,
+      "rebuilt_artifacts": [],
+      "complete": true,
+      "findings": 15
+    },
+    {
+      "name": "compiler-repeat-2",
+      "command": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "rstyle",
+        "-p",
+        "rstyle-ccgraph",
+        "-p",
+        "rstyle-pdg",
+        "--format",
+        "json",
+        "--style-engine",
+        "compiler"
+      ],
+      "exit_code": 1,
+      "elapsed_seconds": 10.277275930042379,
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-7AVOmO",
+      "fresh_artifacts": 37,
+      "rebuilt_artifacts": [],
+      "complete": true,
+      "findings": 15
+    }
+  ],
+  "legacy_summary": {
+    "functions": 7281,
+    "violations": 0,
+    "complexity_measured": 7281,
+    "complexity_unavailable": 0,
+    "mean_density_milli": 56,
+    "max_density_milli": 4500,
+    "effect_counts": {
+      "io": 29,
+      "mutation": 1456,
+      "panic": 53,
+      "time": 42,
+      "unknown": 117
+    }
+  },
+  "compiler_units": [
+    {
+      "unit": 0,
+      "package_root": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-ccgraph",
+      "observed_authored": 238,
+      "generated_or_other_unavailable": 176,
+      "unavailable_complexity": [],
+      "unresolved_callees": [],
+      "diagnostic_scope": {
+        "request": {
+          "rules": [],
+          "source_scope": "authored"
+        },
+        "source_scope": {
+          "kind": "authored",
+          "outside_scope_function_count": 176,
+          "roster_reference": "compiler-first.json compiler_advisory.units[].diagnostic_scope.source_scope.outside_scope_functions"
+        },
+        "diagnostic_indices": [],
+        "input_complete": true,
+        "effect_inputs_complete": true,
+        "unavailable_owners": 0,
+        "unavailable_measurements": 0
+      },
+      "summary": {
+        "functions": 238,
+        "violations": 0,
+        "complexity_measured": 238,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 28,
+        "max_density_milli": 750,
+        "effect_counts": {
+          "mutation": 27,
+          "panic": 1,
+          "unknown": 4
+        }
+      }
+    },
+    {
+      "unit": 1,
+      "package_root": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg",
+      "observed_authored": 7043,
+      "generated_or_other_unavailable": 6494,
+      "unavailable_complexity": [],
+      "unresolved_callees": [],
+      "diagnostic_scope": {
+        "request": {
+          "rules": [],
+          "source_scope": "authored"
+        },
+        "source_scope": {
+          "kind": "authored",
+          "outside_scope_function_count": 6494,
+          "roster_reference": "compiler-first.json compiler_advisory.units[].diagnostic_scope.source_scope.outside_scope_functions"
+        },
+        "diagnostic_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        "input_complete": true,
+        "effect_inputs_complete": true,
+        "unavailable_owners": 0,
+        "unavailable_measurements": 0
+      },
+      "summary": {
+        "functions": 7043,
+        "violations": 15,
+        "complexity_measured": 7043,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 66,
+        "max_density_milli": 5000,
+        "effect_counts": {
+          "io": 29,
+          "mutation": 1439,
+          "panic": 52,
+          "time": 42,
+          "unknown": 113
+        }
+      }
+    }
+  ],
+  "authored_population": {
+    "legacy": 7281,
+    "compiler": 7281,
+    "missing": [],
+    "extra": [],
+    "key": "exact original name/lexically normalized workspace path/line/column; units retained separately in compiler report",
+    "legacy_path_aliases": [
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::nonzero_products::capture",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/nonzero_source.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/nonzero_source.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::nonzero_products::resolve",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/nonzero_source.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/nonzero_source.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::capture_checked",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::CheckedScalarProductInstance::output_source",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::CheckedScalarProductInstance::implementation",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::CheckedScalarProductInstance::instance",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::CheckedScalarProductInstance::digits",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::CheckedScalarProductInstance::verify_namespace",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::CheckedScalarProductInstance::verify_owner",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::CheckedScalarProductInstance::checked_namespace",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::verify_interface",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::reject_other_instances",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::verify_declaration",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::verify_fields",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof.rs"
+      },
+      {
+        "owner": "<nominal_boundary::resolution::selected::no_drop::scalar_product_instances::Substitution<'_> as concrete_types::source_proof::PathResolution>::resolve",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::source::Method::digits",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof/source.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof/source.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::source::verify_method",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof/source.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof/source.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::source::MethodSearch::<'_>::exact_methods",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof/source.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof/source.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::source::verify_signature",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof/source.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof/source.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::source::concrete_owner",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof/source.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof/source.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::source::literal_digits",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof/source.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof/source.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::source::verify_owner_declaration",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof/source.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof/source.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::source::verify_declaration",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof/source.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof/source.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::source::declaration_attributes",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof/source.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof/source.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::source::unshadowed_byte",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof/source.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof/source.rs"
+      },
+      {
+        "owner": "nominal_boundary::resolution::selected::no_drop::scalar_product_instances::source::byte_binding",
+        "original": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/../../../scalar_product_instances/proof/source.rs",
+        "normalized": "crates/rstyle-pdg/src/scalar_product_instances/proof/source.rs"
+      }
+    ]
+  },
+  "fact_field_difference_counts": {
+    "statements": 3362,
+    "edges": 497
+  },
+  "compiler_complete": true,
+  "planning": {
+    "input_complete": false,
+    "required_edits_complete": true,
+    "known_functions": 7281
+  },
+  "strict_not_requested": true,
+  "legacy_diagnostics": [],
+  "compiler_only_diagnostics": [
+    {
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/data_documents/mutable_scalars.rs",
+        "line": 81,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `data_documents::mutable_scalars::install_one` has a high side-effect density",
+        "actual": 555,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via data_documents::mutable_scalars::install_effect)",
+            "count": 1,
+            "lines": [
+              90
+            ]
+          },
+          {
+            "label": "mutation: installation.definitions.ids",
+            "count": 1,
+            "lines": [
+              91
+            ]
+          },
+          {
+            "label": "mutation: installation.locations",
+            "count": 1,
+            "lines": [
+              96
+            ]
+          },
+          {
+            "label": "mutation: pair.pdg.definitions",
+            "count": 1,
+            "lines": [
+              94
+            ]
+          },
+          {
+            "label": "mutation: pair.pdg.nodes",
+            "count": 1,
+            "lines": [
+              86
+            ]
+          }
+        ]
+      },
+      "owner": "data_documents::mutable_scalars::install_one",
+      "legacy_statements": 11,
+      "compiler_statements": 9,
+      "legacy_top_statements": 5,
+      "compiler_top_statements": 5,
+      "changed_fact_fields": [
+        "statements"
+      ],
+      "prior_source_review": {
+        "case_index": 0,
+        "function": "data_documents::mutable_scalars::install_one",
+        "source_file": "crates/rstyle-pdg/src/data_documents/mutable_scalars.rs",
+        "line": 81,
+        "frozen_statements": 9,
+        "followup_source_statements": null,
+        "observed_statements": 9,
+        "statement_review": "agreement",
+        "complete_density_review": true,
+        "frozen_density": 555,
+        "observed_density": 555,
+        "note": "Exact independent weighted events, denominator and provenance agree"
+      },
+      "classification": "explained_statement_denominator_change",
+      "classification_evidence": "Changing only legacy statements produces exact current diagnostic including actual/limit/details; no event/edge/source/policy edit in that control.",
+      "quality": "independent complete density review",
+      "unchanged_direct_events": {
+        "direct_mutations": true,
+        "calls": true
+      }
+    },
+    {
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/data_documents/read_accesses.rs",
+        "line": 155,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `data_documents::read_accesses::install_node` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via data_documents::serialized_operation_mut)",
+            "count": 1,
+            "lines": [
+              160
+            ]
+          },
+          {
+            "label": "mutation: node.annotations",
+            "count": 1,
+            "lines": [
+              162
+            ]
+          },
+          {
+            "label": "mutation: node.attributes.reads",
+            "count": 1,
+            "lines": [
+              161
+            ]
+          }
+        ]
+      },
+      "owner": "data_documents::read_accesses::install_node",
+      "legacy_statements": 6,
+      "compiler_statements": 4,
+      "legacy_top_statements": 4,
+      "compiler_top_statements": 4,
+      "changed_fact_fields": [
+        "statements"
+      ],
+      "prior_source_review": {
+        "case_index": 1,
+        "function": "data_documents::read_accesses::install_node",
+        "source_file": "crates/rstyle-pdg/src/data_documents/read_accesses.rs",
+        "line": 155,
+        "frozen_statements": 4,
+        "followup_source_statements": null,
+        "observed_statements": 4,
+        "statement_review": "agreement",
+        "complete_density_review": true,
+        "frozen_density": 750,
+        "observed_density": 750,
+        "note": "Exact independent weighted events, denominator and provenance agree"
+      },
+      "classification": "explained_statement_denominator_change",
+      "classification_evidence": "Changing only legacy statements produces exact current diagnostic including actual/limit/details; no event/edge/source/policy edit in that control.",
+      "quality": "independent complete density review",
+      "unchanged_direct_events": {
+        "direct_mutations": true,
+        "calls": true
+      }
+    },
+    {
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/frontend/options.rs",
+        "line": 201,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `frontend::options::FrontendOptions::get_mut` has a high side-effect density",
+        "actual": 571,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: entry",
+            "count": 1,
+            "lines": [
+              205
+            ]
+          },
+          {
+            "label": "mutation: entry.0",
+            "count": 1,
+            "lines": [
+              207
+            ]
+          },
+          {
+            "label": "mutation: self.0",
+            "count": 1,
+            "lines": [
+              202
+            ]
+          },
+          {
+            "label": "mutation: value",
+            "count": 1,
+            "lines": [
+              210
+            ]
+          }
+        ]
+      },
+      "owner": "frontend::options::FrontendOptions::get_mut",
+      "legacy_statements": 9,
+      "compiler_statements": 7,
+      "legacy_top_statements": 4,
+      "compiler_top_statements": 4,
+      "changed_fact_fields": [
+        "statements"
+      ],
+      "prior_source_review": {
+        "case_index": 2,
+        "function": "frontend::options::FrontendOptions::get_mut",
+        "source_file": "crates/rstyle-pdg/src/frontend/options.rs",
+        "line": 201,
+        "frozen_statements": null,
+        "followup_source_statements": null,
+        "observed_statements": 7,
+        "statement_review": "unverified",
+        "complete_density_review": false,
+        "frozen_density": null,
+        "observed_density": 571,
+        "note": "Full helper total remains unverified"
+      },
+      "classification": "explained_statement_denominator_change",
+      "classification_evidence": "Changing only legacy statements produces exact current diagnostic including actual/limit/details; no event/edge/source/policy edit in that control.",
+      "quality": "independent complete density review remains unverified",
+      "unchanged_direct_events": {
+        "direct_mutations": true,
+        "calls": true
+      }
+    },
+    {
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/frontend/options.rs",
+        "line": 276,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `frontend::options::FrontendOptions::intern_census` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: owners",
+            "count": 1,
+            "lines": [
+              284
+            ]
+          },
+          {
+            "label": "mutation: record.value",
+            "count": 1,
+            "lines": [
+              284
+            ]
+          },
+          {
+            "label": "mutation: self.0",
+            "count": 1,
+            "lines": [
+              280
+            ]
+          }
+        ]
+      },
+      "owner": "frontend::options::FrontendOptions::intern_census",
+      "legacy_statements": 6,
+      "compiler_statements": 4,
+      "legacy_top_statements": 3,
+      "compiler_top_statements": 3,
+      "changed_fact_fields": [
+        "statements"
+      ],
+      "prior_source_review": {
+        "case_index": 3,
+        "function": "frontend::options::FrontendOptions::intern_census",
+        "source_file": "crates/rstyle-pdg/src/frontend/options.rs",
+        "line": 276,
+        "frozen_statements": 4,
+        "followup_source_statements": null,
+        "observed_statements": 4,
+        "statement_review": "agreement",
+        "complete_density_review": true,
+        "frozen_density": 750,
+        "observed_density": 750,
+        "note": "Exact independent weighted events, denominator and provenance agree"
+      },
+      "classification": "explained_statement_denominator_change",
+      "classification_evidence": "Changing only legacy statements produces exact current diagnostic including actual/limit/details; no event/edge/source/policy edit in that control.",
+      "quality": "independent complete density review",
+      "unchanged_direct_events": {
+        "direct_mutations": true,
+        "calls": true
+      }
+    },
+    {
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/helper_calls/digit_products.rs",
+        "line": 21,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `helper_calls::digit_products::certify` has a high side-effect density",
+        "actual": 800,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_fmt +2 more (via diagnostics::Stage::<'a>::observe)",
+            "count": 1,
+            "lines": [
+              29
+            ]
+          },
+          {
+            "label": "time: std::time::Instant::now (via diagnostics::Stage::<'a>::observe)",
+            "count": 1,
+            "lines": [
+              29
+            ]
+          }
+        ]
+      },
+      "owner": "helper_calls::digit_products::certify",
+      "legacy_statements": 9,
+      "compiler_statements": 5,
+      "legacy_top_statements": 4,
+      "compiler_top_statements": 4,
+      "changed_fact_fields": [
+        "statements"
+      ],
+      "prior_source_review": {
+        "case_index": 4,
+        "function": "helper_calls::digit_products::certify",
+        "source_file": "crates/rstyle-pdg/src/helper_calls/digit_products.rs",
+        "line": 21,
+        "frozen_statements": 5,
+        "followup_source_statements": null,
+        "observed_statements": 5,
+        "statement_review": "agreement",
+        "complete_density_review": false,
+        "frozen_density": null,
+        "observed_density": 800,
+        "note": "Full helper total remains unverified"
+      },
+      "classification": "explained_statement_denominator_change",
+      "classification_evidence": "Changing only legacy statements produces exact current diagnostic including actual/limit/details; no event/edge/source/policy edit in that control.",
+      "quality": "independent complete density review remains unverified",
+      "unchanged_direct_events": {
+        "direct_mutations": true,
+        "calls": true
+      }
+    },
+    {
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+        "line": 202,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `helper_calls::transport::Reader::unpack` has a high side-effect density",
+        "actual": 1000,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_all (via helper_calls::transport::Reader::value)",
+            "count": 1,
+            "lines": [
+              213
+            ]
+          },
+          {
+            "label": "mutation: &mut state (via helper_calls::transport::Reader::charge)",
+            "count": 1,
+            "lines": [
+              211
+            ]
+          },
+          {
+            "label": "mutation: self.used",
+            "count": 1,
+            "lines": [
+              210
+            ]
+          }
+        ]
+      },
+      "owner": "helper_calls::transport::Reader::unpack",
+      "legacy_statements": 11,
+      "compiler_statements": 5,
+      "legacy_top_statements": 5,
+      "compiler_top_statements": 5,
+      "changed_fact_fields": [
+        "statements"
+      ],
+      "prior_source_review": {
+        "case_index": 5,
+        "function": "helper_calls::transport::Reader::unpack",
+        "source_file": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+        "line": 202,
+        "frozen_statements": 4,
+        "followup_source_statements": 5,
+        "observed_statements": 5,
+        "statement_review": "agreement",
+        "complete_density_review": false,
+        "frozen_density": null,
+        "observed_density": 1000,
+        "note": "Full helper total remains unverified"
+      },
+      "classification": "explained_statement_denominator_change",
+      "classification_evidence": "Changing only legacy statements produces exact current diagnostic including actual/limit/details; no event/edge/source/policy edit in that control.",
+      "quality": "independent complete density review remains unverified",
+      "unchanged_direct_events": {
+        "direct_mutations": true,
+        "calls": true
+      }
+    },
+    {
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+        "line": 216,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `helper_calls::transport::Reader::value` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_all (via helper_calls::transport::Reader::collection)",
+            "count": 1,
+            "lines": [
+              226
+            ]
+          },
+          {
+            "label": "mutation: &mut state (via helper_calls::transport::Reader::charge)",
+            "count": 1,
+            "lines": [
+              221
+            ]
+          }
+        ]
+      },
+      "owner": "helper_calls::transport::Reader::value",
+      "legacy_statements": 8,
+      "compiler_statements": 6,
+      "legacy_top_statements": 1,
+      "compiler_top_statements": 1,
+      "changed_fact_fields": [
+        "statements"
+      ],
+      "prior_source_review": {
+        "case_index": 6,
+        "function": "helper_calls::transport::Reader::value",
+        "source_file": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+        "line": 216,
+        "frozen_statements": 1,
+        "followup_source_statements": 6,
+        "observed_statements": 6,
+        "statement_review": "agreement",
+        "complete_density_review": false,
+        "frozen_density": null,
+        "observed_density": 666,
+        "note": "Full helper total remains unverified"
+      },
+      "classification": "explained_statement_denominator_change",
+      "classification_evidence": "Changing only legacy statements produces exact current diagnostic including actual/limit/details; no event/edge/source/policy edit in that control.",
+      "quality": "independent complete density review remains unverified",
+      "unchanged_direct_events": {
+        "direct_mutations": true,
+        "calls": true
+      }
+    },
+    {
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+        "line": 257,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `helper_calls::transport::Reader::collection` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_all (via helper_calls::transport::Reader::text)",
+            "count": 1,
+            "lines": [
+              273
+            ]
+          },
+          {
+            "label": "mutation: &mut state (via helper_calls::transport::Reader::child)",
+            "count": 1,
+            "lines": [
+              269
+            ]
+          }
+        ]
+      },
+      "owner": "helper_calls::transport::Reader::collection",
+      "legacy_statements": 8,
+      "compiler_statements": 6,
+      "legacy_top_statements": 1,
+      "compiler_top_statements": 1,
+      "changed_fact_fields": [
+        "statements"
+      ],
+      "prior_source_review": {
+        "case_index": 7,
+        "function": "helper_calls::transport::Reader::collection",
+        "source_file": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+        "line": 257,
+        "frozen_statements": 1,
+        "followup_source_statements": 6,
+        "observed_statements": 6,
+        "statement_review": "agreement",
+        "complete_density_review": false,
+        "frozen_density": null,
+        "observed_density": 666,
+        "note": "Full helper total remains unverified"
+      },
+      "classification": "explained_statement_denominator_change",
+      "classification_evidence": "Changing only legacy statements produces exact current diagnostic including actual/limit/details; no event/edge/source/policy edit in that control.",
+      "quality": "independent complete density review remains unverified",
+      "unchanged_direct_events": {
+        "direct_mutations": true,
+        "calls": true
+      }
+    },
+    {
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/nominal_boundary/resolution.rs",
+        "line": 148,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `nominal_boundary::resolution::Resolution::select_copies` has a high side-effect density",
+        "actual": 600,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: self.copy_trees",
+            "count": 1,
+            "lines": [
+              155
+            ]
+          },
+          {
+            "label": "mutation: self.no_drop_trees",
+            "count": 1,
+            "lines": [
+              156
+            ]
+          },
+          {
+            "label": "mutation: self.source_requirements",
+            "count": 1,
+            "lines": [
+              157
+            ]
+          }
+        ]
+      },
+      "owner": "nominal_boundary::resolution::Resolution::select_copies",
+      "legacy_statements": 7,
+      "compiler_statements": 5,
+      "legacy_top_statements": 5,
+      "compiler_top_statements": 5,
+      "changed_fact_fields": [
+        "statements"
+      ],
+      "prior_source_review": {
+        "case_index": 9,
+        "function": "nominal_boundary::resolution::Resolution::select_copies",
+        "source_file": "crates/rstyle-pdg/src/nominal_boundary/resolution.rs",
+        "line": 148,
+        "frozen_statements": 4,
+        "followup_source_statements": 5,
+        "observed_statements": 5,
+        "statement_review": "agreement",
+        "complete_density_review": false,
+        "frozen_density": null,
+        "observed_density": 600,
+        "note": "Full helper total remains unverified"
+      },
+      "classification": "explained_statement_denominator_change",
+      "classification_evidence": "Changing only legacy statements produces exact current diagnostic including actual/limit/details; no event/edge/source/policy edit in that control.",
+      "quality": "independent complete density review remains unverified",
+      "unchanged_direct_events": {
+        "direct_mutations": true,
+        "calls": true
+      }
+    },
+    {
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+        "line": 553,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::begin_module` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: self.definitions",
+            "count": 1,
+            "lines": [
+              559
+            ]
+          },
+          {
+            "label": "mutation: self.enums.namespace",
+            "count": 1,
+            "lines": [
+              558
+            ]
+          },
+          {
+            "label": "mutation: self.scopes",
+            "count": 1,
+            "lines": [
+              560
+            ]
+          }
+        ]
+      },
+      "owner": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::begin_module",
+      "legacy_statements": 7,
+      "compiler_statements": 4,
+      "legacy_top_statements": 4,
+      "compiler_top_statements": 4,
+      "changed_fact_fields": [
+        "statements"
+      ],
+      "prior_source_review": {
+        "case_index": 8,
+        "function": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::begin_module",
+        "source_file": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+        "line": 553,
+        "frozen_statements": 3,
+        "followup_source_statements": 4,
+        "observed_statements": 4,
+        "statement_review": "agreement",
+        "complete_density_review": false,
+        "frozen_density": null,
+        "observed_density": 750,
+        "note": "Full helper total remains unverified"
+      },
+      "classification": "explained_statement_denominator_change",
+      "classification_evidence": "Changing only legacy statements produces exact current diagnostic including actual/limit/details; no event/edge/source/policy edit in that control.",
+      "quality": "independent complete density review remains unverified",
+      "unchanged_direct_events": {
+        "direct_mutations": true,
+        "calls": true
+      }
+    },
+    {
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/scalar_instances/source.rs",
+        "line": 582,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `scalar_instances::source::Flow::<'a>::install_binding` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: self.bindings",
+            "count": 1,
+            "lines": [
+              583
+            ]
+          },
+          {
+            "label": "mutation: self.frames",
+            "count": 1,
+            "lines": [
+              591
+            ]
+          },
+          {
+            "label": "mutation: self.scope",
+            "count": 1,
+            "lines": [
+              584
+            ]
+          }
+        ]
+      },
+      "owner": "scalar_instances::source::Flow::<'a>::install_binding",
+      "legacy_statements": 6,
+      "compiler_statements": 4,
+      "legacy_top_statements": 4,
+      "compiler_top_statements": 4,
+      "changed_fact_fields": [
+        "statements",
+        "edges"
+      ],
+      "legacy_edges": [],
+      "compiler_edges": [
+        {
+          "args": [],
+          "callee": "rstyle_pdg::frontend::{impl#3}::clone",
+          "dynamic": false,
+          "line": 588
+        }
+      ],
+      "prior_source_review": {
+        "case_index": 10,
+        "function": "scalar_instances::source::Flow::<'a>::install_binding",
+        "source_file": "crates/rstyle-pdg/src/scalar_instances/source.rs",
+        "line": 582,
+        "frozen_statements": 4,
+        "followup_source_statements": null,
+        "observed_statements": 4,
+        "statement_review": "agreement",
+        "complete_density_review": false,
+        "frozen_density": null,
+        "observed_density": 750,
+        "note": "Full helper total remains unverified"
+      },
+      "classification": "explained_statement_denominator_change",
+      "classification_evidence": "Changing only legacy statements produces exact current diagnostic including actual/limit/details; no event/edge/source/policy edit in that control.",
+      "quality": "independent complete density review remains unverified",
+      "unchanged_direct_events": {
+        "direct_mutations": true,
+        "calls": true
+      }
+    },
+    {
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/unit_store/bundle.rs",
+        "line": 167,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `unit_store::bundle::<impl unit_store::UnitStore>::load_bundle` has a high side-effect density",
+        "actual": 555,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_fmt +2 more (via diagnostics::Stage::<'a>::observe)",
+            "count": 1,
+            "lines": [
+              172
+            ]
+          },
+          {
+            "label": "time: std::time::Instant::now (via diagnostics::Stage::<'a>::observe)",
+            "count": 1,
+            "lines": [
+              172
+            ]
+          },
+          {
+            "label": "unknown: <indirect callable>",
+            "count": 1,
+            "lines": [
+              175
+            ]
+          }
+        ]
+      },
+      "owner": "unit_store::bundle::<impl unit_store::UnitStore>::load_bundle",
+      "legacy_statements": 19,
+      "compiler_statements": 9,
+      "legacy_top_statements": 5,
+      "compiler_top_statements": 5,
+      "changed_fact_fields": [
+        "statements"
+      ],
+      "prior_source_review": {
+        "case_index": 11,
+        "function": "unit_store::bundle::<impl unit_store::UnitStore>::load_bundle",
+        "source_file": "crates/rstyle-pdg/src/unit_store/bundle.rs",
+        "line": 167,
+        "frozen_statements": 14,
+        "followup_source_statements": 9,
+        "observed_statements": 9,
+        "statement_review": "agreement",
+        "complete_density_review": false,
+        "frozen_density": null,
+        "observed_density": 555,
+        "note": "Full helper total remains unverified"
+      },
+      "classification": "explained_statement_denominator_change",
+      "classification_evidence": "Changing only legacy statements produces exact current diagnostic including actual/limit/details; no event/edge/source/policy edit in that control.",
+      "quality": "independent complete density review remains unverified",
+      "unchanged_direct_events": {
+        "direct_mutations": true,
+        "calls": true
+      }
+    },
+    {
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/unit_store/dependency_closure.rs",
+        "line": 369,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `unit_store::dependency_closure::install_dependency_owners` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: builder.store.dependencies",
+            "count": 1,
+            "lines": [
+              375
+            ]
+          },
+          {
+            "label": "mutation: builder.store.namespace_associations",
+            "count": 1,
+            "lines": [
+              376
+            ]
+          }
+        ]
+      },
+      "owner": "unit_store::dependency_closure::install_dependency_owners",
+      "legacy_statements": 5,
+      "compiler_statements": 3,
+      "legacy_top_statements": 3,
+      "compiler_top_statements": 3,
+      "changed_fact_fields": [
+        "statements"
+      ],
+      "prior_source_review": {
+        "case_index": 12,
+        "function": "unit_store::dependency_closure::install_dependency_owners",
+        "source_file": "crates/rstyle-pdg/src/unit_store/dependency_closure.rs",
+        "line": 369,
+        "frozen_statements": 3,
+        "followup_source_statements": null,
+        "observed_statements": 3,
+        "statement_review": "agreement",
+        "complete_density_review": false,
+        "frozen_density": null,
+        "observed_density": 666,
+        "note": "Full helper total remains unverified"
+      },
+      "classification": "explained_statement_denominator_change",
+      "classification_evidence": "Changing only legacy statements produces exact current diagnostic including actual/limit/details; no event/edge/source/policy edit in that control.",
+      "quality": "independent complete density review remains unverified",
+      "unchanged_direct_events": {
+        "direct_mutations": true,
+        "calls": true
+      }
+    },
+    {
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/unit_store/manifest.rs",
+        "line": 85,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `unit_store::manifest::seal` has a high side-effect density",
+        "actual": 1000,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::flush",
+            "count": 1,
+            "lines": [
+              95
+            ]
+          },
+          {
+            "label": "unknown: <indirect callable>",
+            "count": 1,
+            "lines": [
+              94
+            ]
+          }
+        ]
+      },
+      "owner": "unit_store::manifest::seal",
+      "legacy_statements": 8,
+      "compiler_statements": 4,
+      "legacy_top_statements": 4,
+      "compiler_top_statements": 4,
+      "changed_fact_fields": [
+        "statements"
+      ],
+      "prior_source_review": {
+        "case_index": 14,
+        "function": "unit_store::manifest::seal",
+        "source_file": "crates/rstyle-pdg/src/unit_store/manifest.rs",
+        "line": 85,
+        "frozen_statements": 4,
+        "followup_source_statements": null,
+        "observed_statements": 4,
+        "statement_review": "agreement",
+        "complete_density_review": false,
+        "frozen_density": null,
+        "observed_density": 1000,
+        "note": "Full helper total remains unverified"
+      },
+      "classification": "explained_statement_denominator_change",
+      "classification_evidence": "Changing only legacy statements produces exact current diagnostic including actual/limit/details; no event/edge/source/policy edit in that control.",
+      "quality": "independent complete density review remains unverified",
+      "unchanged_direct_events": {
+        "direct_mutations": true,
+        "calls": true
+      }
+    },
+    {
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/unit_store/product_instances.rs",
+        "line": 39,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `<unit_store::product_instances::ConstructorProof<'_> as unit_store::instances::InstanceProof>::install` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via unit_store::product_instances::install_dependency)",
+            "count": 1,
+            "lines": [
+              45
+            ]
+          },
+          {
+            "label": "mutation: store.product_instance",
+            "count": 1,
+            "lines": [
+              46
+            ]
+          }
+        ]
+      },
+      "owner": "<unit_store::product_instances::ConstructorProof<'_> as unit_store::instances::InstanceProof>::install",
+      "legacy_statements": 5,
+      "compiler_statements": 3,
+      "legacy_top_statements": 3,
+      "compiler_top_statements": 3,
+      "changed_fact_fields": [
+        "statements"
+      ],
+      "prior_source_review": {
+        "case_index": 13,
+        "function": "<unit_store::product_instances::ConstructorProof<'_> as unit_store::instances::InstanceProof>::install",
+        "source_file": "crates/rstyle-pdg/src/unit_store/product_instances.rs",
+        "line": 39,
+        "frozen_statements": 3,
+        "followup_source_statements": null,
+        "observed_statements": 3,
+        "statement_review": "agreement",
+        "complete_density_review": false,
+        "frozen_density": null,
+        "observed_density": 666,
+        "note": "Full helper total remains unverified"
+      },
+      "classification": "explained_statement_denominator_change",
+      "classification_evidence": "Changing only legacy statements produces exact current diagnostic including actual/limit/details; no event/edge/source/policy edit in that control.",
+      "quality": "independent complete density review remains unverified",
+      "unchanged_direct_events": {
+        "direct_mutations": true,
+        "calls": true
+      }
+    }
+  ],
+  "unchanged_repeats_equal": true,
+  "saved_replay": {
+    "name": "compiler-replay",
+    "command": [
+      "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+      "clones",
+      "--replay-run",
+      "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-7AVOmO",
+      "--extraction-profile",
+      "hir-data-v3",
+      "--compiler-advisory-only",
+      "--compiler-advisory",
+      "--compiler-diagnostic-scope",
+      "authored",
+      "--compiler-plans",
+      "--fail-on-findings",
+      "--report-detail",
+      "compact",
+      "--compiler-advisory-config",
+      "/home/dev/src/rstyle-main/rstyle/rstyle.toml",
+      "--format",
+      "json"
+    ],
+    "exit_code": 1,
+    "elapsed_seconds": 9.922691494924948,
+    "advisory_equal": true
+  },
+  "counterfactual": {
+    "method": "Use existing rstyle_core::evaluate directly with identical effective config. Three inputs: original complete legacy FnFacts; same facts changing only statements to captured compiler counts joined by exact owner/location; captured compiler authored FnFacts only (without generated rows). No production collector/evaluator changes.",
+    "runner_source": "use rstyle_core::{config::Config, facts::FnFacts};\nuse serde_json::Value;\nfn main() {\n    let input: Value = serde_json::from_reader(std::io::stdin()).unwrap();\n    let config: Config = serde_json::from_value(input[\"config\"].clone()).unwrap();\n    let facts: Vec<FnFacts> = serde_json::from_value(input[\"facts\"].clone()).unwrap();\n    let report = rstyle_core::evaluate(facts, &config).unwrap();\n    serde_json::to_writer(std::io::stdout(), &report).unwrap();\n}\n",
+    "runner_build": [
+      "cargo",
+      "build",
+      "--locked",
+      "-p",
+      "rstyle-core",
+      "--example",
+      "c91_density_counterfactual"
+    ],
+    "runner_lifecycle": "Temporary example source removed after measurements; compiled executable retained under target/debug/examples; exact JSON inputs and evaluation outputs retained under root.",
+    "evaluations": [
+      {
+        "mode": "legacy-original",
+        "command": [
+          "/home/dev/src/rstyle-main/rstyle/target/debug/examples/c91_density_counterfactual"
+        ],
+        "input": "/tmp/clones-c91-live-0a8j0kru/legacy-original-input.json",
+        "summary": {
+          "functions": 7281,
+          "violations": 0,
+          "complexity_measured": 7281,
+          "complexity_unavailable": 0,
+          "mean_density_milli": 56,
+          "max_density_milli": 4500,
+          "effect_counts": {
+            "io": 29,
+            "mutation": 1456,
+            "panic": 53,
+            "time": 42,
+            "unknown": 117
+          }
+        },
+        "diagnostics_equal_to_compiler_root": false,
+        "diagnostic_count": 0,
+        "diagnostics_reference": "empty"
+      },
+      {
+        "mode": "legacy-with-compiler-statements",
+        "command": [
+          "/home/dev/src/rstyle-main/rstyle/target/debug/examples/c91_density_counterfactual"
+        ],
+        "input": "/tmp/clones-c91-live-0a8j0kru/legacy-with-compiler-statements-input.json",
+        "summary": {
+          "functions": 7281,
+          "violations": 15,
+          "complexity_measured": 7281,
+          "complexity_unavailable": 0,
+          "mean_density_milli": 65,
+          "max_density_milli": 5000,
+          "effect_counts": {
+            "io": 29,
+            "mutation": 1456,
+            "panic": 53,
+            "time": 42,
+            "unknown": 117
+          }
+        },
+        "diagnostics_equal_to_compiler_root": true,
+        "diagnostic_count": 15,
+        "diagnostics_reference": "compiler_only_diagnostics[].diagnostic"
+      },
+      {
+        "mode": "compiler-authored-only",
+        "command": [
+          "/home/dev/src/rstyle-main/rstyle/target/debug/examples/c91_density_counterfactual"
+        ],
+        "input": "/tmp/clones-c91-live-0a8j0kru/compiler-authored-only-input.json",
+        "summary": {
+          "functions": 7281,
+          "violations": 15,
+          "complexity_measured": 7281,
+          "complexity_unavailable": 0,
+          "mean_density_milli": 65,
+          "max_density_milli": 5000,
+          "effect_counts": {
+            "io": 29,
+            "mutation": 1466,
+            "panic": 53,
+            "time": 42,
+            "unknown": 117
+          }
+        },
+        "diagnostics_equal_to_compiler_root": true,
+        "diagnostic_count": 15,
+        "diagnostics_reference": "compiler_only_diagnostics[].diagnostic"
+      }
+    ]
+  },
+  "comparison_limits": [
+    "All15 visible differences mechanically explained by denominator-only core reevaluation; that control is not an independent quality oracle.",
+    "C87 independent density review remains3/15 complete,12 unverified; fourteen source statement counts previously agreed and get_mut remains uncertain.",
+    "Default/report-schema/legacy-pattern retirement remains open. No default behavior changed.",
+    "Metric7, contexts, generated numeric unavailability and full planning incompleteness remain explicit.",
+    "Warm compiler10.28\u201310.44s vs legacy0.718s in serial developer-cache observations. Replay9.923s suggests remaining cost after compilation; no algorithmic attribution or general speedup claim."
+  ],
+  "raw_bundle_bytes": [
+    {
+      "path": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-GhoM8m/invocation-5ZVWMs/unit.evidence.json",
+      "bytes": 11704310
+    },
+    {
+      "path": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-GhoM8m/invocation-gkbNhK/unit.evidence.json",
+      "bytes": 550928572
+    }
+  ],
+  "fact_fields_compared": [
+    "id",
+    "param_list",
+    "sig",
+    "params",
+    "has_self",
+    "statements",
+    "top_statements",
+    "complexity",
+    "mutations",
+    "calls",
+    "effects",
+    "edges",
+    "mutated_types",
+    "source",
+    "preceding_line"
+  ],
+  "source_path_comparison": "Legacy parent-relative paths normalized lexically within the exact same workspace; all owner names and line/column coordinates remain part of full key equality. Original alias roster retained.",
+  "captured_context": {
+    "toolchain": "nightly-2026-09-30",
+    "compiler_identity": "rustc 1.101.0-nightly (5c543b0b8 2026-09-29)\nbinary: rustc\ncommit-hash: 5c543b0b8c73c7b72bc8284ced4fb22ead15734d\ncommit-date: 2026-09-29\nhost: aarch64-unknown-linux-gnu\nrelease: 1.101.0-nightly\nLLVM version: 23.1.1",
+    "cargo_identity": "cargo 1.101.0-nightly (3d7cf6e93 2026-09-25)",
+    "intended_primary_units": [
+      {
+        "dependencies": [
+          {
+            "extern_crate_name": "rstyle_pdg",
+            "index": 24,
+            "noprelude": false,
+            "nounused": false,
+            "public": false
+          },
+          {
+            "extern_crate_name": "serde",
+            "index": 25,
+            "noprelude": false,
+            "nounused": false,
+            "public": false
+          },
+          {
+            "extern_crate_name": "serde_json",
+            "index": 32,
+            "noprelude": false,
+            "nounused": false,
+            "public": false
+          }
+        ],
+        "features": [],
+        "mode": "check",
+        "pkg_id": "path+file:///home/dev/src/rstyle-main/rstyle/crates/rstyle-ccgraph#0.1.0",
+        "platform": null,
+        "profile": {
+          "codegen_backend": null,
+          "codegen_units": null,
+          "debug_assertions": true,
+          "debuginfo": 2,
+          "incremental": false,
+          "lto": "false",
+          "name": "dev",
+          "opt_level": "0",
+          "overflow_checks": true,
+          "panic": "unwind",
+          "rpath": false,
+          "split_debuginfo": null,
+          "strip": {
+            "deferred": "None"
+          },
+          "trim_paths": "none"
+        },
+        "target": {
+          "crate_types": [
+            "lib"
+          ],
+          "doc": true,
+          "doctest": true,
+          "edition": "2024",
+          "kind": [
+            "lib"
+          ],
+          "name": "rstyle_ccgraph",
+          "src_path": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-ccgraph/src/lib.rs",
+          "test": true
+        }
+      },
+      {
+        "dependencies": [
+          {
+            "extern_crate_name": "proc_macro2",
+            "index": 14,
+            "noprelude": false,
+            "nounused": false,
+            "public": false
+          },
+          {
+            "extern_crate_name": "serde",
+            "index": 25,
+            "noprelude": false,
+            "nounused": false,
+            "public": false
+          },
+          {
+            "extern_crate_name": "serde_json",
+            "index": 32,
+            "noprelude": false,
+            "nounused": false,
+            "public": false
+          },
+          {
+            "extern_crate_name": "sha2",
+            "index": 35,
+            "noprelude": false,
+            "nounused": false,
+            "public": false
+          },
+          {
+            "extern_crate_name": "syn",
+            "index": 36,
+            "noprelude": false,
+            "nounused": false,
+            "public": false
+          },
+          {
+            "extern_crate_name": "xxhash_rust",
+            "index": 42,
+            "noprelude": false,
+            "nounused": false,
+            "public": false
+          }
+        ],
+        "features": [],
+        "mode": "check",
+        "pkg_id": "path+file:///home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg#0.1.0",
+        "platform": null,
+        "profile": {
+          "codegen_backend": null,
+          "codegen_units": null,
+          "debug_assertions": true,
+          "debuginfo": 2,
+          "incremental": false,
+          "lto": "false",
+          "name": "dev",
+          "opt_level": "0",
+          "overflow_checks": true,
+          "panic": "unwind",
+          "rpath": false,
+          "split_debuginfo": null,
+          "strip": {
+            "deferred": "None"
+          },
+          "trim_paths": "none"
+        },
+        "target": {
+          "crate_types": [
+            "lib"
+          ],
+          "doc": true,
+          "doctest": true,
+          "edition": "2024",
+          "kind": [
+            "lib"
+          ],
+          "name": "rstyle_pdg",
+          "src_path": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/lib.rs",
+          "test": true
+        }
+      }
+    ],
+    "expected_compilation_unit_count": 3,
+    "dependency_context_roster_reference": "compiler-first.json expected_compilation_units"
+  },
+  "effective_config": {
+    "complexity": {
+      "max_cognitive": 32,
+      "max_cyclomatic": 40
+    },
+    "exclude": [
+      "target/**"
+    ],
+    "fn_length": {
+      "max_lines": 50
+    },
+    "fn_params": {
+      "count_self": false,
+      "max_params": 4
+    },
+    "fn_spacing": {
+      "min_statements": 5
+    },
+    "grouping": {
+      "caller_hops": 1,
+      "caller_rules": [
+        "fn_params"
+      ]
+    },
+    "mutation_budget": {
+      "granularity": "root",
+      "max_mutated_targets": 3,
+      "max_mutations_per_target": 3
+    },
+    "side_effects": {
+      "max_density_milli": 500,
+      "min_lines": 10,
+      "min_statements": 3,
+      "paths": {
+        "io": [
+          "std::fs::",
+          "std::io::",
+          "std::env::set_var",
+          "std::path::Path::exists",
+          "std::path::Path::try_exists",
+          "std::path::Path::is_file",
+          "std::path::Path::is_dir",
+          "std::path::Path::metadata",
+          "std::path::Path::canonicalize",
+          "std::path::Path::read_dir",
+          "std::process::Command::output",
+          "std::process::Command::spawn",
+          "std::process::Command::status",
+          "std::process::exit",
+          "std::process::abort"
+        ],
+        "network": [
+          "std::net::TcpStream::",
+          "std::net::TcpListener::",
+          "std::net::UdpSocket::",
+          "reqwest::",
+          "tokio::net::",
+          "hyper::"
+        ],
+        "panic": [
+          "core::panicking::",
+          "std::panicking::"
+        ],
+        "random": [
+          "rand::"
+        ],
+        "time": [
+          "std::time::SystemTime::now",
+          "std::time::Instant::now"
+        ]
+      },
+      "transitive_depth": 3,
+      "weights": {
+        "global": 2,
+        "io": 3,
+        "mutation": 1,
+        "network": 3,
+        "panic": 0,
+        "random": 1,
+        "time": 1,
+        "unknown": 1,
+        "unsafe": 4
+      }
+    }
+  },
+  "validation": {
+    "rust_tests_passed": 3674,
+    "rust_tests_skipped": 5,
+    "rust_seconds": 270.858,
+    "doctests": "passed",
+    "focused_root_route_tests": 7,
+    "format": "passed",
+    "clippy": "passed",
+    "capability_python_tests": 247,
+    "script_python_tests": 50,
+    "legacy_style_violations": 0,
+    "legacy_style_functions": 10011,
+    "unfiltered_pattern_ids": 13,
+    "unfiltered_pattern_ids_equal_to_baseline": true,
+    "native_ci": "C91 pending publication; C90 jobs still in progress at last API observation; C88/C89 completed success"
+  }
+}

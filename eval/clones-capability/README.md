@@ -876,3 +876,25 @@ This is one package with different cache states, not a randomized benchmark or
 population speedup. Focused acceptance includes source/collector/tool changes,
 missing index/snapshot fallback, partial failures, alternating RUSTFLAGS recovery
 and source/build-free saved replay of a reused run. Default retirement remains open.
+
+### Multi-package root style comparison (C91)
+
+`project-multi-package-style-route-study.json` assesses the exact normal root
+routes on rstyle-ccgraph+rstyle-pdg under unchanged rstyle.toml. Both assess all
+7,281 authored owners with matching normalized source coordinates and complexity;
+compiler requested diagnostics complete with zero unresolved routes while generated
+numeric owners and full planning gaps remain explicit. The legacy report is clean;
+all15 compiler density findings are the earlier C87 roster. Actual core reevaluation
+of complete legacy facts with ONLY compiler statement counts reproduces every
+current diagnostic and detail. This explains the measurement differences without
+promoting12 independently unverified density totals to quality passes.
+
+Two warm compiler observations take10.28–10.44s with37 fresh artifacts and no
+rebuilds; cached legacy takes0.718s. Explicit matching-config/scope replay takes
+9.923s and equals live advice. Raw bundles total562,632,882 bytes. These are serial
+single-scope developer-cache observations, not randomized or equal-cache results.
+The artifact preserves commands, counters, evidence paths, temporary pure-core
+runner source and all15 difference classifications. No production default or
+collector changes. The root generated IO-chain fixture independently checks a
+positive finding, preserved numeric gaps, warm reuse and replay without tools,
+source/build inputs, prior run or reuse index.

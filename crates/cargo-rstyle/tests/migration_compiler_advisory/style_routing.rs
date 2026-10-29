@@ -154,3 +154,126 @@ fn style_backend_option_rejects_subcommand_misrouting() {
     checked(&output, 2);
     assert!(String::from_utf8_lossy(&output.stderr).contains("default style command only"));
 }
+
+const GENERATED_IO_CHAIN: &str = r#"
+macro_rules! make {()=>{
+    pub fn generated_leaf() {let _ = std::fs::read("/unused");}
+    pub fn generated_middle() {generated_leaf();}
+}}
+make!();
+pub fn authored_chain() {generated_middle();}
+"#;
+
+fn authored_inherited_finding(report: &Value) {
+    assert_eq!(report["capture_complete"], true);
+    assert_eq!(report["strict_assessment_execution"], "not_requested");
+    assert_eq!(report["matching_execution"], "not_requested");
+    let advisory = &report["compiler_advisory"];
+    assert_eq!(advisory["complete"], true);
+    assert_eq!(advisory["planning"]["input_complete"], false);
+    let units = advisory["units"].as_array().unwrap();
+    assert_eq!(units.len(), 1);
+    let unit = &units[0];
+    assert!(unit.get("patterns").is_none());
+    assert_eq!(unit["unavailable"].as_array().unwrap().len(), 2);
+    assert_eq!(unit["generated_effects"].as_array().unwrap().len(), 2);
+    let scope = &unit["diagnostic_scope"];
+    assert_eq!(scope["request"]["source_scope"], "authored");
+    assert_eq!(scope["request"]["rules"], serde_json::json!([]));
+    assert_eq!(scope["input_complete"], true);
+    assert_eq!(scope["effect_inputs_complete"], true);
+    assert_eq!(scope["unavailable_owners"], 0);
+    let rows = diagnostics(report);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["rule_id"], "side_effect_density");
+    assert_eq!(rows[0]["actual"], 3000);
+    assert_eq!(rows[0]["limit"], 1);
+    assert!(rows[0]["details"].as_array().unwrap().iter().any(|detail| {
+        detail["count"] == 1 && detail["label"].as_str().unwrap().contains("std::fs::read")
+    }));
+    let observations = unit["observations"].as_array().unwrap();
+    assert_eq!(observations.len(), 1);
+    assert!(
+        observations[0]["name"]
+            .as_str()
+            .unwrap()
+            .ends_with("authored_chain")
+    );
+    assert_eq!(observations[0]["statements"], 1);
+}
+
+fn fresh_selected_owner(report: &Value) {
+    let run = Path::new(report["run_directory"].as_str().unwrap());
+    let text = std::fs::read_to_string(run.join("cargo.jsonl")).unwrap();
+    let owners: Vec<Value> = text
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap())
+        .filter(|row| {
+            row["reason"] == "compiler-artifact" && row["target"]["name"] == "clone_fixture"
+        })
+        .collect();
+    assert_eq!(owners.len(), 1);
+    assert_eq!(owners[0]["fresh"], true);
+}
+
+fn replay_authored_style_without_tools(directory: &Path, original: &Value) -> (Output, Value) {
+    let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
+    command
+        .current_dir(directory)
+        .args([
+            "clones",
+            "--format",
+            "json",
+            "--extraction-profile",
+            "hir-data-v3",
+            "--compiler-advisory-only",
+            "--compiler-advisory",
+            "--compiler-diagnostic-scope",
+            "authored",
+            "--compiler-plans",
+            "--fail-on-findings",
+            "--report-detail",
+            "compact",
+            "--compiler-advisory-config",
+            "rstyle.toml",
+            "--replay-run",
+            original["run_directory"].as_str().unwrap(),
+        ])
+        .env("PATH", directory.join("no-tools"))
+        .env("CARGO", directory.join("no-cargo"))
+        .env("RUSTC", directory.join("no-rustc"))
+        .env("RSTYLE_DRIVER", directory.join("no-driver"));
+    let output = diagnostic_process::output(&mut command).unwrap();
+    let report = serde_json::from_slice(&output.stdout)
+        .unwrap_or_else(|error| panic!("{error}: {}", String::from_utf8_lossy(&output.stderr)));
+    (output, report)
+}
+
+#[test]
+fn root_style_inherits_generated_io_into_authored_findings_and_replays_reused_owners() {
+    let directory = fixture(GENERATED_IO_CHAIN);
+    std::fs::write(
+        directory.path().join("rstyle.toml"),
+        "[side_effects]\nmax_density_milli=1\nmin_statements=0\nmin_lines=0\ntransitive_depth=3\n",
+    )
+    .unwrap();
+    let (output, original) = capture(directory.path(), &[]);
+    checked(&output, 1);
+    authored_inherited_finding(&original);
+    let (output, warm) = capture(directory.path(), &[]);
+    checked(&output, 1);
+    authored_inherited_finding(&warm);
+    fresh_selected_owner(&warm);
+    assert_eq!(original["compiler_advisory"], warm["compiler_advisory"]);
+
+    let old_run = Path::new(original["run_directory"].as_str().unwrap());
+    std::fs::remove_dir_all(old_run).unwrap();
+    std::fs::remove_dir_all(directory.path().join("src")).unwrap();
+    std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
+    std::fs::remove_dir_all(directory.path().join("target/rstyle/clones/advisory-build")).unwrap();
+    std::fs::remove_file(old_run.with_file_name("advisory-owners.json")).unwrap();
+    let (output, replayed) = replay_authored_style_without_tools(directory.path(), &warm);
+    checked(&output, 1);
+    authored_inherited_finding(&replayed);
+    assert_eq!(warm["compiler_advisory"], replayed["compiler_advisory"]);
+}

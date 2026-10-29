@@ -6592,3 +6592,65 @@ and the same13 unfiltered pattern IDs. Native CI for C90 remains pending publica
 Broader real-project default-readiness, independently
 reviewed density totals, report compatibility and per-capability retirement remain
 open. No default is switched by this checkpoint.
+
+### C91 — multi-package root style readiness comparison (2026-10-29)
+
+Lead owns serial measurement, counterfactual controls and docs; acceptance worker
+owns the exact root-route generated-helper regression. Production code is unchanged.
+The two explicitly selected packages are rstyle-ccgraph and rstyle-pdg, normal
+check-mode libraries with unchanged workspace rstyle.toml. Both root routes assess
+7,281 authored functions (238+7,043), with equal exact names, original line/column
+coordinates, signatures and complexity scores. Twenty-six legacy source paths
+contain lexical parent segments; normalizing within the same workspace matches
+all locations, with no missing/extra authored owners. No generated owner is
+invented:176+6,494 numeric owners remain outside the requested authored population.
+Requested all-rule diagnostics complete and both units have zero unresolved
+callees. Full planning remains incomplete, required edits complete; strict matching
+and pattern mining remain unrequested.
+
+Legacy exits0 with no findings; compiler exits1 with15 density findings, exactly
+the previous C87 roster/measurements. Across the matched population3,362 statement
+counts and497 local call-edge rosters differ; parameters, top-level statement
+counts, complexity, direct mutation/call/effect events and source bytes agree.
+An explicit counterfactual calls the existing core evaluator with the same config
+on three full populations: original legacy facts (zero findings), legacy facts
+changing ONLY statements to compiler counts (exactly the same15 diagnostics,
+actuals, limits and details as root compiler), and compiler authored-only facts
+(also the exact same15). This isolates all visible finding differences to the
+statement denominator; neither new evaluator behavior nor generated events are
+needed to reproduce this roster. The single changed edge roster among those15
+also does not change that result. It does not independently prove the numerator,
+source count or advice quality: C87's3/15 complete density labels and12 unverified
+labels remain as recorded. No thresholds, suppressions, budgets, hashes or strict
+contracts change. The temporary runner reuses rstyle_core::evaluate directly and
+was removed from the checkout after measurement; its source/input paths and
+receipts are recorded in the artifact.
+
+Serial prebuilt timings: legacy first19.411s/repeat0.718s; compiler first66.450s,
+then10.445/10.277s warm with all37 Cargo artifacts fresh and none rebuilt. Both
+warm advisory payloads equal the first; explicit saved replay under the same
+config/authored scope/plans equals them in9.923s. Raw unit evidence sizes are
+11,704,310 and550,928,572 bytes. These observations identify substantial remaining
+warm/replay cost after compilation; they do not attribute time to individual
+algorithms or establish a randomized/equal-cache performance comparison.
+
+The root regression independently specifies an authored one-statement caller
+through two generated helpers to std::fs::read: density3,000 under its explicit
+limit1, finding exit1, authored input/effects complete, both generated numeric gaps
+retained, and full planning incomplete. It checks warm current-Cargo freshness,
+unchanged advice and identical explicit replay after removing the first run,
+sources, manifest, shared builds and reuse index with all compiler tools absent.
+All seven focused root-routing tests pass in0.602s. Artifact:
+project-multi-package-style-route-study.json retains exact scope/commands,
+per-unit contexts/completeness/summaries, all15 explained differences, the earlier
+independent quality state, counters and raw evidence references.
+
+Integrated validation passes all3,674 Rust tests in270.858s with five existing
+skips, plus doctests. Formatting, Clippy,247 capability Python and50 script tests
+pass. Both legacy dog-food gates pass: zero style violations across10,011 functions
+and the same13 unfiltered pattern IDs. C88/C89 native CI now pass; C90 Ubuntu
+x86/ARM and macOS jobs remain running at the latest API observation. C91 native
+validation awaits publication. Default switch, report/workflow compatibility,
+remaining independent quality reviews and per-capability retirement remain open.
+Next ready performance inquiry is the existing raw-capture/loading seam for
+numeric-only root advice; do not add another collector/evaluator or source proof.
