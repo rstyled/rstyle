@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 
 mod lifetimes;
 
-type Declaration = (String, syn::ItemFn, &'static str);
+// Missing source names retain original declarations for compiler-named review only.
+type Declaration = (Option<String>, syn::ItemFn, &'static str);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
@@ -21,33 +22,42 @@ struct Nominal {
 
 #[derive(Default)]
 struct Names {
-    entries: BTreeMap<String, Option<Nominal>>,
+    entries: BTreeMap<String, Binding>,
     glob: bool,
 }
 
+enum Binding {
+    Nominal(Nominal),
+    Imported,
+    Other,
+}
+
 impl Names {
-    fn insert(&mut self, name: String, kind: Option<Nominal>) {
-        self.entries
-            .entry(name)
-            .and_modify(|value| *value = None)
-            .or_insert(kind);
+    fn insert(&mut self, name: String, kind: Binding) {
+        match self.entries.entry(name) {
+            std::collections::btree_map::Entry::Occupied(mut entry) => {
+                entry.insert(Binding::Other);
+            }
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(kind);
+            }
+        }
     }
 
     fn nominal(&self, name: &str, kind: Kind) -> Option<Nominal> {
         if self.glob {
             return None;
         }
-        self.entries
-            .get(name)
-            .copied()
-            .flatten()
-            .filter(|item| item.kind == kind)
+        match self.entries.get(name) {
+            Some(Binding::Nominal(item)) if item.kind == kind => Some(*item),
+            _ => None,
+        }
     }
 
     fn import(&mut self, tree: &syn::UseTree, parent: Option<&syn::Ident>) {
         for binding in import_bindings(tree, parent) {
             match binding {
-                Some(name) => self.insert(name.to_string(), None),
+                Some(name) => self.insert(name.to_string(), Binding::Imported),
                 None => self.glob = true,
             }
         }
@@ -86,9 +96,11 @@ pub(super) fn declarations(
     let mut declarations = Vec::new();
     for item in items {
         match item {
-            syn::Item::Fn(function) => {
-                declarations.push((function.sig.ident.to_string(), function, "free-function"))
-            }
+            syn::Item::Fn(function) => declarations.push((
+                Some(function.sig.ident.to_string()),
+                function,
+                "free-function",
+            )),
             syn::Item::Impl(item) => {
                 declarations.extend(implementation(item, &names, &configuration, source)?);
             }
@@ -119,7 +131,10 @@ fn nominal_names(items: &[syn::Item]) -> Names {
             }
             _ => continue,
         };
-        names.insert(name.to_string(), kind);
+        names.insert(
+            name.to_string(),
+            kind.map_or(Binding::Other, Binding::Nominal),
+        );
     }
     names
 }
@@ -154,9 +169,22 @@ fn implementation(
     configuration: &Configuration<'_>,
     source: &str,
 ) -> Result<Vec<Declaration>, String> {
-    let Some((owner, origin)) = owner(&item, names, source) else {
+    let Some(owner) = owner(&item, names, source) else {
         return Ok(Vec::new());
     };
+    let origin = match &item.trait_ {
+        Some((None, path, _)) => {
+            let origin = trait_name(path, names, &item.generics, source);
+            if origin.is_none() && !nonlocal_trait(path, names) {
+                return Ok(Vec::new());
+            }
+            origin
+        }
+        Some(_) => return Ok(Vec::new()),
+        None => None,
+    };
+    let source_named = item.trait_.is_none() || origin.is_some();
+
     let mut declarations = Vec::new();
     for member in item.items {
         let syn::ImplItem::Fn(function) = member else {
@@ -165,11 +193,13 @@ fn implementation(
         if function.defaultness.is_some() || !configuration.active(&function.attrs)? {
             continue;
         }
-        let name = super::super::review::method_name(
-            &owner,
-            &function.sig.ident.to_string(),
-            origin.as_deref(),
-        );
+        let name = source_named.then(|| {
+            super::super::review::method_name(
+                &owner,
+                &function.sig.ident.to_string(),
+                origin.as_deref(),
+            )
+        });
         let function = syn::ItemFn {
             attrs: function.attrs,
             vis: function.vis,
@@ -181,30 +211,40 @@ fn implementation(
     Ok(declarations)
 }
 
-fn owner(item: &syn::ItemImpl, names: &Names, source: &str) -> Option<(String, Option<String>)> {
+fn owner(item: &syn::ItemImpl, names: &Names, source: &str) -> Option<String> {
     if item.unsafety.is_some() || item.defaultness.is_some() {
         return None;
     }
     let path = lifetimes::owner_path(&item.self_ty)?;
     let nominal = names.nominal(&path.ident.to_string(), Kind::Owner)?;
-    let owner = nominal_name(path, nominal, &item.generics, source)?;
+    nominal_name(path, nominal, &item.generics, source)
+}
 
-    let origin = match &item.trait_ {
-        Some((None, path, _)) if path.leading_colon.is_none() && path.segments.len() == 1 => {
-            let path = path.segments.first()?;
-            let nominal = names.nominal(&path.ident.to_string(), Kind::Trait)?;
-            Some(if nominal.generic {
-                nominal_name(path, nominal, &item.generics, source)?
-            } else if matches!(path.arguments, syn::PathArguments::None) {
-                path.ident.to_string()
-            } else {
-                return None;
-            })
-        }
-        Some(_) => return None,
-        None => None,
-    };
-    Some((owner, origin))
+fn trait_name(
+    path: &syn::Path,
+    names: &Names,
+    generics: &syn::Generics,
+    source: &str,
+) -> Option<String> {
+    if path.leading_colon.is_some() || path.segments.len() != 1 {
+        return None;
+    }
+    let path = path.segments.first()?;
+    let nominal = names.nominal(&path.ident.to_string(), Kind::Trait)?;
+    if nominal.generic {
+        nominal_name(path, nominal, generics, source)
+    } else {
+        matches!(path.arguments, syn::PathArguments::None).then(|| path.ident.to_string())
+    }
+}
+
+fn nonlocal_trait(path: &syn::Path, names: &Names) -> bool {
+    path.leading_colon.is_some()
+        || path.segments.len() > 1
+        || path.segments.first().is_some_and(|segment| {
+            let name = segment.ident.to_string();
+            matches!(names.entries.get(&name), None | Some(Binding::Imported))
+        })
 }
 
 fn nominal_name(

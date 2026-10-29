@@ -195,7 +195,11 @@ owner names and arity rules stay unchanged; mixed generic paths retain lifetime
 tokens. Existing complete root names retain their old lookup/resource scope;
 incomplete generic/lifetime names use the cached declaration index. Old malformed
 root names stay unobserved and cannot hide findings or be pruned as negatives.
-Aliased/imported/qualified owners or traits, lifetime-generic-only traits, default
+Prelude/imported/qualified trait origins reuse the existing full captured compiler
+name as an opaque locator, with no numeric input, new resolver or dispatch proof.
+Actual local trait locators stay unchanged; old root names incorrectly naming
+nonlocal traits as local remain unobserved and cannot hide or prune findings.
+Aliased/imported/qualified owners, lifetime-generic-only local traits, default
 trait methods, remapped/generated modules, ambiguity, missing ownership and
 exhausted bounds stay unavailable. No new hashes or strict permissions.
 Only selected hidden parameter findings leave the text/finding gate. Raw analysis

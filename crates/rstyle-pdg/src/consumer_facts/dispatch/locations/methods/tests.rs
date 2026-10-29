@@ -1,7 +1,15 @@
 use super::*;
 
-fn selected(source: &str, cfgs: &[String]) -> Result<Vec<Declaration>, String> {
-    declarations(syn::parse_file(source).unwrap().items, cfgs, source)
+fn selected(
+    source: &str,
+    cfgs: &[String],
+) -> Result<Vec<(String, syn::ItemFn, &'static str)>, String> {
+    Ok(
+        declarations(syn::parse_file(source).unwrap().items, cfgs, source)?
+            .into_iter()
+            .filter_map(|(name, function, kind)| name.map(|name| (name, function, kind)))
+            .collect(),
+    )
 }
 
 #[test]
@@ -221,5 +229,31 @@ fn generic_declaration_names_preserve_owner_and_trait_arguments_without_dispatch
         if declarations.len() == 2 {
             assert_ne!(declarations[0].0, declarations[1].0);
         }
+    }
+}
+
+#[test]
+fn nonlocal_trait_methods_retain_unnamed_declarations_without_expanding_owner_support() {
+    for source in [
+        "struct Item; impl Default for Item { fn default() -> Self { Item } }",
+        "struct Item; impl core::default::Default for Item { fn default() -> Self { Item } }",
+        "struct Item; use core::default::Default as Build; impl Build for Item { fn default() -> Self { Item } }",
+    ] {
+        let declarations =
+            declarations(syn::parse_file(source).unwrap().items, &[], source).unwrap();
+        assert_eq!(declarations.len(), 1);
+        assert!(declarations[0].0.is_none());
+        assert_eq!(declarations[0].2, "method");
+    }
+    for source in [
+        "struct Item; type Alias=Item; impl Default for Alias { fn default() -> Self { Item } }",
+        "struct Item; unsafe impl Default for Item { fn default() -> Self { Item } }",
+        "trait Read { fn read() {} }",
+    ] {
+        assert!(
+            declarations(syn::parse_file(source).unwrap().items, &[], source)
+                .unwrap()
+                .is_empty()
+        );
     }
 }

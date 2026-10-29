@@ -1107,7 +1107,13 @@ impl Module {
         self.methods
             .iter()
             .filter(|method| method.header == header)
-            .all(|method| method.review_named)
+            .all(|method| {
+                method.review_named
+                    && method
+                        .origin
+                        .as_ref()
+                        .is_none_or(|name| self.traits.contains_key(name))
+            })
     }
 
     pub(super) fn review_method(

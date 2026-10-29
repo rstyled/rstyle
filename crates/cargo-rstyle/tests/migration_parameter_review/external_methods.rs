@@ -352,11 +352,11 @@ fn external_method_owner_forms_preserve_findings_and_require_original_declaratio
         ),
         (
             "pub struct Unit; impl std::ops::Add for Unit { type Output=Self; fn add(self,_rhs:Self)->Self { self } }\n",
-            false,
+            true,
         ),
         (
             "pub struct Unit; mod names { pub trait Local { fn read(a:u32,b:u32)->u32; } } use names::Local; impl Local for Unit { fn read(a:u32,b:u32)->u32 { a+b } }\n",
-            false,
+            true,
         ),
         (
             "pub trait Local { fn read(a:u32,b:u32)->u32 { a+b } }\n",

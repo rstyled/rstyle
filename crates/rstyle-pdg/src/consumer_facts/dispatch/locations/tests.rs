@@ -297,7 +297,10 @@ fn associated_facts(source: &str, name: &str) -> HirFnFacts {
         methods::declarations(syn::parse_file(source).unwrap().items, &[], source).unwrap();
     let (_, function, _) = declarations
         .iter()
-        .find(|(candidate, _, _)| candidate == name)
+        .find(|(candidate, function, _)| {
+            candidate.as_deref() == Some(name)
+                || (candidate.is_none() && function.sig.ident == name)
+        })
         .unwrap();
     let mut facts = facts("/sample/src/worker.rs", source, "seed");
     facts.fn_span = shapes::function_range(source, function);
@@ -410,4 +413,32 @@ fn canonical_lifetime_method_collisions_refuse_the_entire_location_index() {
         let error = Locations::new(&proof, &[]).err().unwrap();
         assert!(error.contains("ambiguous qualified"), "{error}");
     }
+}
+
+#[test]
+fn compiler_named_trait_method_reuses_original_location_checks_without_parsing_the_name() {
+    let source =
+        "fn seed() {} struct Item; impl Default for Item { fn default() -> Self { Item } }";
+    let proof = census(&[
+        ("/sample/src/lib.rs", "mod worker;"),
+        ("/sample/src/worker.rs", source),
+    ]);
+    let locations = Locations::new(&proof, &[]).unwrap();
+    let mut original = associated_facts(source, "default");
+    original.name = "<worker::Item as std::default::Default>::default".into();
+    assert_eq!(
+        locations.location(&original, source).unwrap(),
+        (original.name.clone(), "method")
+    );
+    for name in ["", "  ", "worker::{impl#0}::default"] {
+        let mut changed = original.clone();
+        changed.name = name.into();
+        assert!(locations.location(&changed, source).is_err());
+    }
+    let mut changed = original.clone();
+    changed.signature.sig_span.end += 1;
+    assert!(locations.location(&changed, source).is_err());
+    changed = original;
+    changed.build.cfgs.push("feature=\"different\"".into());
+    assert!(locations.location(&changed, source).is_err());
 }

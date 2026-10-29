@@ -216,8 +216,12 @@ same-module structs/enums are supported. Generic owner and local-trait type/cons
 arguments retain their original canonical token spelling, so specializations
 remain distinct. Type/const bounds and where clauses do not require dispatch
 proofs. Lifetime-only owners keep the existing external nominal names; their
-original lifetime arity restrictions remain. Aliases, imported/qualified owners
-or traits, default trait methods, ambiguous declarations, missing ownership/index
+original lifetime arity restrictions remain. Prelude/imported/qualified trait
+origins reuse the already captured full compiler name as an opaque review
+locator, without numeric observations or a second import resolver. Actual local
+trait names remain unchanged; old root names incorrectly attributing a nonlocal
+trait to a local declaration stay unobserved rather than transferring reviews.
+Aliased/imported/qualified owners, default trait methods, ambiguous declarations, missing ownership/index
 evidence and exhausted bounds remain unavailable when review identity is needed.
 Existing complete root names keep their original lookup path and resource scope;
 incomplete generic/lifetime root names use the shared cached declaration index.

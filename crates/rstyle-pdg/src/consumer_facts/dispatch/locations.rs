@@ -16,7 +16,7 @@ pub(super) struct Locations {
 }
 
 struct Declaration {
-    qualified_name: String,
+    qualified_name: Option<String>,
     function: syn::ItemFn,
     kind: &'static str,
 }
@@ -52,12 +52,17 @@ impl Locations {
     ) -> Result<(), String> {
         let source = &self.files[&module.path];
         for (name, function, kind) in methods::declarations(module.items, &self.cfgs, source)? {
-            let qualified_name = if module.namespace.is_empty() {
-                format!("crate::{name}")
-            } else {
-                format!("crate::{}::{name}", module.namespace.join("::"))
-            };
-            if !names.insert(qualified_name.clone()) {
+            let qualified_name = name.map(|name| {
+                if module.namespace.is_empty() {
+                    format!("crate::{name}")
+                } else {
+                    format!("crate::{}::{name}", module.namespace.join("::"))
+                }
+            });
+            if qualified_name
+                .as_ref()
+                .is_some_and(|name| !names.insert(name.clone()))
+            {
                 return Err("Review source has ambiguous qualified declaration identity".into());
             }
 
@@ -90,7 +95,14 @@ impl Locations {
             .get(&key)
             .ok_or("Review requires an original indexed external declaration")?;
         index::check_header(facts, &declaration.function, source)?;
-        Ok((declaration.qualified_name.clone(), declaration.kind))
+        let name = match &declaration.qualified_name {
+            Some(name) => name,
+            None if !facts.name.trim().is_empty() && !facts.name.contains("{impl#") => &facts.name,
+            None => {
+                return Err("Review compiler declaration name is unavailable or unstable".into());
+            }
+        };
+        Ok((name.clone(), declaration.kind))
     }
 
     fn check_context(&self, facts: &HirFnFacts) -> Result<(), String> {

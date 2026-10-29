@@ -1,4 +1,5 @@
 use super::*;
+mod compiler_named_methods;
 mod external_methods;
 mod generated_applicability;
 mod generic_methods;

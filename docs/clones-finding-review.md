@@ -160,7 +160,16 @@ cached declaration index as external methods. Old malformed names such as
 `crate::::method` remain unobserved and cannot hide findings or be pruned as
 numeric negatives.
 
-Aliases, imported/qualified owners or traits, lifetime-generic-only traits,
+For these original impl methods, prelude, imported and qualified trait origins
+reuse the complete captured compiler function name as an opaque locator when no
+local source trait name is available. This needs no numeric advisory input,
+import resolution or dispatch proof. Empty or unstable impl-index names remain
+unavailable; the existing review roster rejects duplicate final identities.
+Actual source-local locators stay unchanged. Root names that previously mistook
+a nonlocal trait for a local declaration are corrected; retained old names remain
+unobserved and cannot hide or prune current findings.
+
+Aliased/imported/qualified owners, lifetime-generic-only local traits,
 default trait methods, remapped/generated ownership, ambiguity and exhausted
 bounded work remain unavailable. Observation and retained-entry work are each bounded to 4,096 entries.
 

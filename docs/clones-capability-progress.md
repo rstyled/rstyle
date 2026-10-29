@@ -5933,3 +5933,68 @@ reports0 violations over9,939 functions. Reviewed patterns reports0 unreviewed
 candidates; unfiltered discovery retains exactly the same13 IDs as main.
 Native CI for the preceding C76 commit (run40926858455) has both Ubuntu jobs
 passing; macOS remains pending. C77 native validation follows the pushed commit.
+
+### C78 — reuse captured compiler names for source reviews (2026-10-29)
+
+Lead owns declaration indexing, registration, docs/study, integration and Git;
+acceptance worker owns only the new compiler_named_methods CLI leaf; reviewer
+checks fallback boundaries and next consumer blockers without edits.
+
+Existing HirFnFacts.name is always captured from rustc independently of numeric
+advisory requests. Original methods on supported same-module nominal owners now
+retain their checked declarations when only a nonlocal/prelude/imported trait
+origin lacks a local source name. After existing source/context/file/header
+checks, review uses the entire compiler name as an opaque locator. Existing
+owner_observations duplicate detection still rejects ambiguous final locators.
+The existing binding map distinguishes nominal, imported and other bindings;
+there is no separate import-name set. Duplicate entries explicitly become
+ambiguous through one map-entry lookup. There is no additional name census,
+import resolver, collector, hash, fingerprint
+scan, policy version or dispatch proof. Strict matching is unchanged.
+
+Focused acceptance caught a root shortcut that accepted plain trait syntax as a
+local source trait even when no such local declaration existed. Root lookup now
+consults the existing local trait map before using its source-name route. Actual
+local source locators remain unchanged; old incorrectly attributed root names
+remain unobserved, cannot hide current findings, and cannot be pruned as known
+negatives. Alias owners, unsafe/default impls, default trait bodies and other
+previously unavailable owner forms retain their bounded scope. Empty and
+impl-index compiler names remain unavailable.
+
+All six new real-Cargo cases pass: root/external prelude Default, explicit versus
+import-aliased trait spelling, unrelated impl movement, changed measurement
+staleness, source/tool-free raw replay without numeric observations, colliding
+compiler names, missing/unstable names/context, and old root review handling.
+Two PDG cases exercise unnamed declaration retention and original header/context
+checks. Existing external parameter controls now require successful review for
+qualified and imported trait origins while retaining unsupported-owner cases.
+Clippy passes; full integrated validation is in progress.
+
+Measured project gain uses the same retained core run-ChBnep and study-only
+length10/params2 policy as C77. Both config.rs Default method bodies still match
+the current original source bytes. Weights::default measures13 lines and
+EffectPaths::default16. Both save/replay hidden_exact with complete length review
+over186 positives. Full source baseline export now exits0 with263 entries, and
+comparison exits0 with263 existing/0 new and unchanged scope. Source assessment
+remains complete over1215 owners:409 authored,806 generated outside,818 evaluated
+rules,0 unavailable. Numeric compiler reports, strict assessment and matching
+remain unrequested. Evidence is project-compiler-named-source-review-study.json;
+no fresh capture, speedup, default-policy cleanliness or retirement claim.
+
+C76 native run40926858455 has now completed successfully on both Ubuntu runners
+and macOS. C77 run40930466411 is pending. The next concrete reuse-first consumer
+blocker is source analysis rejecting the repository's full rstyle.toml sections;
+reuse the existing core config parser while retaining explicit spacing opt-in
+and unknown-key errors, then measure under the real policy.
+
+Final integrated snapshot: all3,605 Rust tests pass in240.251s with five existing
+skips, plus doctests. Clippy, formatting and244 Python checks pass. Legacy style
+reports0 violations over9,941 functions; reviewed patterns has0 unreviewed
+candidates and unfiltered discovery retains the same13 IDs as main. Initial
+dog-food feedback removed redundant import-set state and made declaration
+collision handling explicit; no ignores, thresholds or limits changed. Final
+binary replay repeats263 baseline entries,263 existing/0 new and two exact
+Default length reviews. C77 native CI has both Ubuntu jobs passing; macOS remains
+pending. C78 native CI follows the pushed commit. The overall migration remains
+active; the full-config parser reuse task is ready with retained rejection
+evidence in /tmp/clones-c79-config-before.stderr and independent fixture targets.
