@@ -619,3 +619,47 @@ targets sharing source, missing target-specific inventory, propagated callee
 contexts and both proposal roles. The independent source-only check for a new
 production concrete-trait IO study found generic callers instead; it supplies no
 concrete-dispatch effect/planning quality claim.
+
+### Complete raw proposal review and file selection (C55)
+
+`project-compiler-proposal-complete-review-cases.json` preserves the three C52
+source judgments and independently labels the four previously unreviewed groups
+in the exact saved `run-mycjUM` rstyle-core capture. All six emitted groups are
+judged not useful. Their shared collection/predicate shells hide different
+closure computations, domain contracts or existing shared helpers. The seventh
+label is the already rejected forwarding pipeline. Every emitted raw candidate
+now has a source review in this declared sample; capture and discovery remain
+incomplete, and no useful production positive or automatic suppression policy
+has been established.
+
+The offline reducer validates both `visible_candidates` (explicit reviews) and
+`selected_candidates` (file selection) as unit-local index masks. Inventory
+`visible` is their intersection. When a file mask exists, optional
+`review_visible` and `file_selected` fields preserve the independent inputs;
+without it the historical output fields remain unchanged. All raw candidates,
+source-role matches and independent judgments remain inventoried. The quality
+command reviews that raw scope and still exits1 for emitted negative judgments,
+even when file selection hides every proposal. Missing inputs remain unavailable.
+This is separate from the runtime CLI's selected finding exit.
+
+`project-compiler-proposal-complete-review-results.json` records six structural
+agreements plus the explicit policy rejection, all seven judged not useful.
+`project-compiler-proposal-selection-quality-study.json` compares the exact C54
+saved replays: global/align.rs/clip.rs inventories now show 6/1/0 visible candidates
+rather than 6/6/6. Raw sample outcomes and judgments agree exactly in all three
+cases. The C52 default result reproduces exactly with its original labels. The
+study improves visibility accounting and completes source review; it does not
+improve proposal precision, complete the project, or establish safe refactoring.
+
+```sh
+python3 eval/clones-capability/compiler_proposal_quality.py \
+  --report /tmp/clones-c54-project/global.json \
+  --labels eval/clones-capability/project-compiler-proposal-complete-review-cases.json \
+  --output /tmp/complete-proposal-review.json
+# Expected quality exit1. Use the explicit saved C54 replay, not an implicit latest run.
+```
+
+Tests cover both mask intersections, independent compilation units, invalid
+indices, empty/absent candidates, unchanged historical fields, and a command-line
+negative judgment hidden by file selection. No Rust collector/evaluator/proposer,
+source scan, proof, graph copy or checksum changes.

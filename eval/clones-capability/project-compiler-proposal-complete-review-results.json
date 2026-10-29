@@ -1,0 +1,361 @@
+{
+  "schema": "rstyle.compiler-proposal-quality-observation/1",
+  "run": "run-mycjUM",
+  "metrics": "rstyle.compiler-style-metrics/6",
+  "policy": {
+    "threshold_milli": 600,
+    "min_coverage_milli": 600,
+    "pair_coverage_milli": null,
+    "normalize": {
+      "ctor": false,
+      "pred": false,
+      "case": false,
+      "exit": false,
+      "counter": false,
+      "cmp": false,
+      "propagate": false
+    },
+    "single_call_guard": false,
+    "max_holes": 3
+  },
+  "scope_complete": false,
+  "input_complete": {
+    "0": false
+  },
+  "sample_complete": true,
+  "counts": {
+    "policy_rejection": 1,
+    "structural_agreement": 6
+  },
+  "judgments": {
+    "not_useful": 7
+  },
+  "samples": [
+    {
+      "id": "shared-mirrored-traversal",
+      "result": "structural_agreement",
+      "reason": null,
+      "unit": 0,
+      "index": 3,
+      "judgment": "not_useful",
+      "rationale": "Both already reuse mirrored for the traversal. Directions, matching maps and result reductions differ; another helper adds indirection without a shared semantic operation.",
+      "expected_outcome": "structural_agreement",
+      "expected_fulfilled": true
+    },
+    {
+      "id": "distinct-normalization-pipelines",
+      "result": "policy_rejection",
+      "reason": "call-only forwarding through distinct single-use callee substitutions",
+      "unit": 0,
+      "judgment": "not_useful",
+      "rationale": "Ordered transformation pipelines perform different normalizations. Function composition alone does not justify another abstraction.",
+      "expected_outcome": "forwarding_rejected",
+      "expected_fulfilled": true
+    },
+    {
+      "id": "different-dedup-contracts",
+      "result": "structural_agreement",
+      "reason": null,
+      "unit": 0,
+      "index": 5,
+      "judgment": "not_useful",
+      "rationale": "Small set-filter glue has different borrowing and equality contracts: whole borrowed strings versus owned edges keyed by endpoints, kind and argument position.",
+      "expected_outcome": "structural_agreement",
+      "expected_fulfilled": true
+    },
+    {
+      "id": "call-classes-versus-data-endpoints",
+      "result": "structural_agreement",
+      "reason": null,
+      "unit": 0,
+      "index": 0,
+      "judgment": "not_useful",
+      "rationale": "Call classification and directional data-edge endpoints are different operations. The shared iterator shell hides distinct predicates and projections; ordered/multiple producers and distinct consumers also have different result contracts.",
+      "expected_outcome": "structural_agreement",
+      "expected_fulfilled": true
+    },
+    {
+      "id": "distinct-recursive-tree-predicates",
+      "result": "structural_agreement",
+      "reason": null,
+      "unit": 0,
+      "index": 1,
+      "judgment": "not_useful",
+      "rationale": "Constant trees require exclusive consumers and literal/constructor leaves. Predicate trees accept call leaves and logical combinators without the same ownership requirement. The callee substitution misses closure-body differences; a generic recursive validator would add policy callbacks around two short domain predicates.",
+      "expected_outcome": "structural_agreement",
+      "expected_fulfilled": true
+    },
+    {
+      "id": "distinct-loop-rewrite-contracts",
+      "result": "structural_agreement",
+      "reason": null,
+      "unit": 0,
+      "index": 2,
+      "judgment": "not_useful",
+      "rationale": "Manual counters remove initialization/increment nodes and rewire data reads; loop guards validate bound/comparison ownership, remove guards and rewire control edges. Both already share rewire. The observed iterator shell hides different closure computations; zero recorded substitutions do not establish shared behavior.",
+      "expected_outcome": "structural_agreement",
+      "expected_fulfilled": true
+    },
+    {
+      "id": "distinct-formatting-policy-shells",
+      "result": "structural_agreement",
+      "reason": null,
+      "unit": 0,
+      "index": 4,
+      "judgment": "not_useful",
+      "rationale": "Column formatting deduplicates assignments, renders callees specially and uses nested joins. Type-list formatting renders type items with a comma separator. A common map/collect/join wrapper would move each meaningful policy into callbacks without replacing a shared semantic operation.",
+      "expected_outcome": "structural_agreement",
+      "expected_fulfilled": true
+    }
+  ],
+  "inventory": [
+    {
+      "unit": 0,
+      "index": 0,
+      "id": "a6512f630b9a",
+      "kind": "parameterize",
+      "sampled_by": [
+        "call-classes-versus-data-endpoints"
+      ],
+      "visible": true,
+      "score_milli": 338,
+      "breakdown": {
+        "support": 3,
+        "lift_milli": 0,
+        "holes": 3,
+        "coverage_milli": 925
+      },
+      "counter_evidence": [
+        "Ordinary closure bodies are opaque in these graphs; aligned nodes do not establish matching closure behavior or captures.",
+        "Some graph nodes are unmatched; recorded substitutions describe aligned regions, not complete functions."
+      ],
+      "sites": [
+        {
+          "path": "crates/rstyle-core/src/cluster.rs",
+          "line": 68,
+          "id": "rstyle_core::cluster::classes_of",
+          "name": "cluster::classes_of",
+          "locator": "rstyle_core::cluster::classes_of",
+          "shape": "b1371e3a7fd1369b"
+        },
+        {
+          "path": "crates/rstyle-core/src/normalize.rs",
+          "line": 122,
+          "id": "rstyle_core::normalize::data_producers",
+          "name": "normalize::data_producers",
+          "locator": "rstyle_core::normalize::data_producers",
+          "shape": "d682ae4bb4d950a7"
+        },
+        {
+          "path": "crates/rstyle-core/src/normalize.rs",
+          "line": 130,
+          "id": "rstyle_core::normalize::data_consumers",
+          "name": "normalize::data_consumers",
+          "locator": "rstyle_core::normalize::data_consumers",
+          "shape": "d682ae4bb4d950a7"
+        }
+      ],
+      "definitions": []
+    },
+    {
+      "unit": 0,
+      "index": 1,
+      "id": "bd6ed2f06436",
+      "kind": "parameterize",
+      "sampled_by": [
+        "distinct-recursive-tree-predicates"
+      ],
+      "visible": true,
+      "score_milli": 231,
+      "breakdown": {
+        "support": 2,
+        "lift_milli": 0,
+        "holes": 1,
+        "coverage_milli": 1000
+      },
+      "counter_evidence": [
+        "Ordinary closure bodies are opaque in these graphs; aligned nodes do not establish matching closure behavior or captures."
+      ],
+      "sites": [
+        {
+          "path": "crates/rstyle-core/src/normalize.rs",
+          "line": 198,
+          "id": "rstyle_core::normalize::constant_tree",
+          "name": "normalize::constant_tree",
+          "locator": "rstyle_core::normalize::constant_tree",
+          "shape": "ee84e2f985aad9d0"
+        },
+        {
+          "path": "crates/rstyle-core/src/normalize.rs",
+          "line": 318,
+          "id": "rstyle_core::normalize::predicate_tree",
+          "name": "normalize::predicate_tree",
+          "locator": "rstyle_core::normalize::predicate_tree",
+          "shape": "ee84e2f985aad9d0"
+        }
+      ],
+      "definitions": []
+    },
+    {
+      "unit": 0,
+      "index": 2,
+      "id": "fdb66ce83259",
+      "kind": "parameterize",
+      "sampled_by": [
+        "distinct-loop-rewrite-contracts"
+      ],
+      "visible": true,
+      "score_milli": 231,
+      "breakdown": {
+        "support": 2,
+        "lift_milli": 0,
+        "holes": 0,
+        "coverage_milli": 1000
+      },
+      "counter_evidence": [
+        "Ordinary closure bodies are opaque in these graphs; aligned nodes do not establish matching closure behavior or captures."
+      ],
+      "sites": [
+        {
+          "path": "crates/rstyle-core/src/normalize.rs",
+          "line": 720,
+          "id": "rstyle_core::normalize::manual_counters",
+          "name": "normalize::manual_counters",
+          "locator": "rstyle_core::normalize::manual_counters",
+          "shape": "80c35b01c7ba62b8"
+        },
+        {
+          "path": "crates/rstyle-core/src/normalize.rs",
+          "line": 744,
+          "id": "rstyle_core::normalize::loop_guards",
+          "name": "normalize::loop_guards",
+          "locator": "rstyle_core::normalize::loop_guards",
+          "shape": "80c35b01c7ba62b8"
+        }
+      ],
+      "definitions": []
+    },
+    {
+      "unit": 0,
+      "index": 3,
+      "id": "114994040aee",
+      "kind": "parameterize",
+      "sampled_by": [
+        "shared-mirrored-traversal"
+      ],
+      "visible": true,
+      "score_milli": 219,
+      "breakdown": {
+        "support": 2,
+        "lift_milli": 0,
+        "holes": 3,
+        "coverage_milli": 948
+      },
+      "counter_evidence": [
+        "Ordinary closure bodies are opaque in these graphs; aligned nodes do not establish matching closure behavior or captures.",
+        "Some graph nodes are unmatched; recorded substitutions describe aligned regions, not complete functions."
+      ],
+      "sites": [
+        {
+          "path": "crates/rstyle-core/src/align.rs",
+          "line": 214,
+          "id": "rstyle_core::align::evidence",
+          "name": "align::evidence",
+          "locator": "rstyle_core::align::evidence",
+          "shape": "0deaed469e886922"
+        },
+        {
+          "path": "crates/rstyle-core/src/align.rs",
+          "line": 225,
+          "id": "rstyle_core::align::reverse_conflicts",
+          "name": "align::reverse_conflicts",
+          "locator": "rstyle_core::align::reverse_conflicts",
+          "shape": "be29cfda90bf2409"
+        }
+      ],
+      "definitions": []
+    },
+    {
+      "unit": 0,
+      "index": 4,
+      "id": "60e8af5f467a",
+      "kind": "parameterize",
+      "sampled_by": [
+        "distinct-formatting-policy-shells"
+      ],
+      "visible": true,
+      "score_milli": 216,
+      "breakdown": {
+        "support": 2,
+        "lift_milli": 0,
+        "holes": 2,
+        "coverage_milli": 937
+      },
+      "counter_evidence": [
+        "Ordinary closure bodies are opaque in these graphs; aligned nodes do not establish matching closure behavior or captures.",
+        "Some graph nodes are unmatched; recorded substitutions describe aligned regions, not complete functions."
+      ],
+      "sites": [
+        {
+          "path": "crates/rstyle-core/src/candidates.rs",
+          "line": 409,
+          "id": "rstyle_core::candidates::columns_text_of",
+          "name": "candidates::columns_text_of",
+          "locator": "rstyle_core::candidates::columns_text_of",
+          "shape": "bdcd91e5caf1dfb2"
+        },
+        {
+          "path": "crates/rstyle-core/src/shape.rs",
+          "line": 86,
+          "id": "rstyle_core::shape::{impl#0}::list",
+          "name": "shape::Namer::<'a>::list",
+          "locator": "rstyle_core::shape::Namer::list",
+          "shape": "065f11eca9c7ccbf"
+        }
+      ],
+      "definitions": []
+    },
+    {
+      "unit": 0,
+      "index": 5,
+      "id": "28ac5efc1baa",
+      "kind": "parameterize",
+      "sampled_by": [
+        "different-dedup-contracts"
+      ],
+      "visible": true,
+      "score_milli": 211,
+      "breakdown": {
+        "support": 2,
+        "lift_milli": 0,
+        "holes": 1,
+        "coverage_milli": 916
+      },
+      "counter_evidence": [
+        "Ordinary closure bodies are opaque in these graphs; aligned nodes do not establish matching closure behavior or captures.",
+        "Some graph nodes are unmatched; recorded substitutions describe aligned regions, not complete functions."
+      ],
+      "sites": [
+        {
+          "path": "crates/rstyle-core/src/candidates.rs",
+          "line": 429,
+          "id": "rstyle_core::candidates::distinct_in_order",
+          "name": "candidates::distinct_in_order",
+          "locator": "rstyle_core::candidates::distinct_in_order",
+          "shape": "926dd5d0e429d765"
+        },
+        {
+          "path": "crates/rstyle-core/src/normalize.rs",
+          "line": 168,
+          "id": "rstyle_core::normalize::dedup",
+          "name": "normalize::dedup",
+          "locator": "rstyle_core::normalize::dedup",
+          "shape": "e533770f1168de5b"
+        }
+      ],
+      "definitions": []
+    }
+  ],
+  "limitation": "Source-role agreement is separate from usefulness. Unreviewed raw candidates remain in inventory; incomplete input cannot establish absent proposals or whole-project quality.",
+  "policy_version": 2
+}

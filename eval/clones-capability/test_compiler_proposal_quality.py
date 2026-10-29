@@ -163,6 +163,78 @@ class CompilerProposalQualityTests(unittest.TestCase):
         self.assertFalse(result['inventory'][0]['visible'])
         self.assertEqual(result['inventory'][0]['sampled_by'], ['source-reviewed-family'])
 
+    def test_file_selection_intersects_reviews_without_hiding_raw_quality(self):
+        for selected in ([], [0]):
+            for visible in (None, [], [0]):
+                with self.subTest(selected=selected, visible=visible):
+                    report, labels = fixture()
+                    patterns = report['compiler_advisory']['units'][0]['patterns']
+                    patterns['selected_candidates'] = selected
+                    if visible is not None:
+                        patterns['visible_candidates'] = visible
+                    labels['samples'][0]['judgment'] = 'not_useful'
+                    result = compare(report, labels)
+                    row = result['inventory'][0]
+                    self.assertEqual(row['file_selected'], bool(selected))
+                    self.assertEqual(row['review_visible'], visible is None or bool(visible))
+                    self.assertEqual(row['visible'], row['file_selected'] and row['review_visible'])
+                    self.assertEqual(row['sampled_by'], ['source-reviewed-family'])
+                    self.assertEqual(result['counts'], {'structural_agreement': 1})
+                    self.assertEqual(result['judgments'], {'not_useful': 1})
+                    self.assertFalse(result['scope_complete'])
+
+    def test_no_file_mask_preserves_historical_inventory_fields(self):
+        report, labels = fixture()
+        result = compare(report, labels)
+        self.assertTrue(result['inventory'][0]['visible'])
+        self.assertNotIn('file_selected', result['inventory'][0])
+        self.assertNotIn('review_visible', result['inventory'][0])
+
+    def test_file_masks_remain_local_to_compilation_units(self):
+        report, labels = fixture()
+        report['observed_units'][0]['target']['name'] = 'first'
+        for owner in labels['samples'][0]['sites'] + labels['samples'][0]['definitions']:
+            owner['target_name'] = 'first'
+        other = deepcopy(report['compiler_advisory']['units'][0])
+        other['unit'] = 1
+        for row in other['observations']:
+            row['key'] = row['key'].replace(':u0:', ':u1:')
+        other['patterns']['selected_candidates'] = [0]
+        report['compiler_advisory']['units'][0]['patterns']['selected_candidates'] = []
+        report['compiler_advisory']['units'].append(other)
+        context = deepcopy(report['unit_contexts'][0])
+        context.update(id=1, observed_unit=1)
+        report['unit_contexts'].append(context)
+        observed = deepcopy(report['observed_units'][0])
+        observed['target']['name'] = 'second'
+        report['observed_units'].append(observed)
+        result = compare(report, labels)
+        self.assertEqual(result['counts'], {'structural_agreement': 1})
+        self.assertEqual([(row['unit'], row['visible']) for row in result['inventory']],
+                         [(0, False), (1, True)])
+        self.assertEqual(result['inventory'][1]['sampled_by'], [])
+
+    def test_both_candidate_masks_reject_invalid_indices(self):
+        for field in ('selected_candidates', 'visible_candidates'):
+            for invalid in ('0', [True], [-1], [1], [0, 0], ['0'], [[0]]):
+                with self.subTest(field=field, invalid=invalid):
+                    report, labels = fixture()
+                    report['compiler_advisory']['units'][0]['patterns'][field] = invalid
+                    with self.assertRaises(ValueError):
+                        compare(report, labels)
+
+    def test_empty_candidate_mask_cannot_select_an_absent_candidate(self):
+        report, labels = fixture()
+        patterns = report['compiler_advisory']['units'][0]['patterns']
+        patterns['evaluation']['candidates'] = []
+        patterns['selected_candidates'] = []
+        result = compare(report, labels)
+        self.assertEqual(result['inventory'], [])
+        self.assertEqual(result['counts'], {'unavailable': 1})
+        patterns['selected_candidates'] = [0]
+        with self.assertRaises(ValueError):
+            compare(report, labels)
+
     def test_changed_missing_or_ambiguous_original_source_is_unavailable(self):
         for changed in ('bytes', 'missing', 'ambiguous'):
             report, labels = fixture()
@@ -379,6 +451,7 @@ class CompilerForwardingPolicyQualityTests(unittest.TestCase):
                 original, _ = fixture()
                 candidate = original['compiler_advisory']['units'][0]['patterns']['evaluation']['candidates'][0]
                 report['compiler_advisory']['units'][0]['patterns']['evaluation']['candidates'] = [candidate]
+                report['compiler_advisory']['units'][0]['patterns']['selected_candidates'] = []
                 sample = deepcopy(labels['samples'][0])
                 sample.update(id='remaining-negative', kind='fn_param', expected_outcome='structural_agreement')
                 sample['definitions'] = fixture()[1]['samples'][0]['definitions']

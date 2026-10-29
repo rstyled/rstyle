@@ -43,6 +43,17 @@ def role_key(candidate):
     return candidate['kind'], *roles
 
 
+def candidate_indices(patterns, field, count):
+    indices = patterns.get(field)
+    if indices is None:
+        return None
+    require(isinstance(indices, list), 'invalid candidate mask: ' + field)
+    for index in indices:
+        require(integer(index, field) < count, 'invalid candidate index: ' + field)
+    require(len(set(indices)) == len(indices), 'duplicate candidate index: ' + field)
+    return set(indices)
+
+
 def captured(report, labels):
     selected = units(report)
     inventory, proposals, coverage, rejections = [], {}, {}, {}
@@ -57,11 +68,8 @@ def captured(report, labels):
         boolean(patterns['input_complete'], 'proposal input completion')
         candidates = patterns['evaluation']['candidates']
         require(isinstance(candidates, list), 'proposal roster missing')
-        visible = patterns.get('visible_candidates')
-        if visible is not None:
-            require(isinstance(visible, list) and len(set(visible)) == len(visible), 'invalid visibility roster')
-            for index in visible:
-                require(integer(index, 'visible candidate') < len(candidates), 'invalid visible candidate')
+        visible = candidate_indices(patterns, 'visible_candidates', len(candidates))
+        file_selected = candidate_indices(patterns, 'selected_candidates', len(candidates))
         missing = unique(patterns['unavailable_graphs'], 'key', 'missing proposal graphs')
         count = integer(patterns['policy_selected_functions'], 'selected proposal owners')
         graphs = integer(patterns['observed_graphs'], 'observed proposal graphs')
@@ -74,6 +82,9 @@ def captured(report, labels):
             require(key not in proposals, 'duplicate proposal role identity')
             row = {'unit': unit['unit'], 'index': index, 'id': candidate['id'], 'kind': candidate['kind'],
                    'sampled_by': [], 'visible': visible is None or index in visible}
+            if file_selected is not None:
+                row.update(review_visible=row['visible'], file_selected=index in file_selected)
+                row['visible'] = row['review_visible'] and row['file_selected']
             for field in ('score_milli', 'breakdown', 'counter_evidence', *ROLES):
                 if field in candidate:
                     row[field] = candidate[field]

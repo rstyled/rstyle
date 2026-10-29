@@ -4737,3 +4737,58 @@ was fetched again and remains an ancestor; no rebase rewrite is necessary.
 Migration remains active. This increment improves changed-file review/CI scope;
 it establishes neither complete project coverage nor proposal usefulness,
 semantic equivalence or any legacy retirement gate.
+
+### C55 — account for selected proposals in offline quality review (2026-10-29)
+
+The previous goal turn made authoritative progress in C54 (7e7872f): code, tests,
+measurements and a pushed feature. This increment reuses its completed proposal
+reports and the existing offline source-role association. Lead owns reducer,
+acceptance, artifacts and docs. Two read-only leaves reviewed production source;
+no unfinished worker code is part of the checkpoint.
+
+The new file mask exposed a validation gap: the quality inventory's visible flag
+accounted for explicit reviews only. Both masks now share one checked-index
+reader, then intersect per unit. Optional review_visible/file_selected fields
+retain the two inputs when selection is requested. Historical default fields and
+results remain exact. Raw candidates, source-role associations, judgments and
+negative-quality exits stay global. Empty selection cannot erase a negative
+source review or turn an absent candidate over incomplete input into a negative.
+No Rust runtime, collector, scoring/proposer algorithm, proof, source/graph scan,
+body copy, hash, admission or matching change is introduced.
+
+Independent source review completes the four previously unreviewed groups from
+run-mycjUM. All six emitted groups are not useful at their current scope: call
+classes versus directional data edges, distinct recursive tree predicates,
+distinct loop rewrites, already shared mirrored traversal, formatting policy
+shells, and different deduplication ownership/equality contracts. The seventh
+source label preserves the known forwarding rejection. All source bytes match
+both the saved inventory and current production files. The review found no
+useful emitted positive. Existing closure flags/zero substitutions cannot alone
+distinguish useless advice from useful repeated work, so no blanket rejection or
+ignore entry was added. The bounded guard source review also found no positive
+in rstyle-ccgraph; it does not establish a new guard capability or Go parity.
+
+Measured exact C54 global/align.rs/clip.rs inputs now report 6/1/0 visible
+proposals instead of the previous reducer's 6/6/6. All retain six raw emitted
+candidates, six structural agreements, one explicit policy rejection and seven
+independent not-useful judgments; no emitted candidate remains unreviewed in
+this declared sample. All three offline quality commands retain exit1, including
+the empty presentation selection. Capture/replays retain exit2 and incomplete
+408 measured/806 unavailable-owner scope. Artifacts use
+project-compiler-proposal-complete-review-* and
+project-compiler-proposal-selection-quality-study.json. No new capture, timing,
+speedup, production precision improvement or whole-project claim follows.
+
+All 219 offline Python tests pass, including mask intersection, unit isolation,
+malformed indices, known-empty versus missing inputs, historical field parity and
+hidden negative-quality command exits. The original C52 default quality artifact
+reproduces exactly. Formatting/diff checks pass. Rust source is unchanged from
+C54, so its final 3,454 passing tests, doc tests, locked Clippy, zero style violations
+and zero unreviewed patterns remain the runtime evidence; those tests were not
+repeated for this offline-tool change. Native CI for 9fe20e0 is now confirmed
+successful on macOS and both Ubuntu runners; C54 native CI remains in progress.
+
+The migration remains active. Current evidence requires stronger meaningful
+visible-computation or closure facts and independently useful production controls
+before changing proposal policy. Broader project quality, guard production
+positives and all legacy retirement gates remain unverified.

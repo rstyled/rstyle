@@ -1,0 +1,262 @@
+{
+  "schema": "rstyle.compiler-proposal-quality-cases/1",
+  "run": "run-mycjUM",
+  "toolchain": "nightly-2026-09-30",
+  "metrics": "rstyle.compiler-style-metrics/6",
+  "policy": {
+    "threshold_milli": 600,
+    "min_coverage_milli": 600,
+    "pair_coverage_milli": null,
+    "normalize": {
+      "ctor": false,
+      "pred": false,
+      "case": false,
+      "exit": false,
+      "counter": false,
+      "cmp": false,
+      "propagate": false
+    },
+    "single_call_guard": false,
+    "max_holes": 3
+  },
+  "samples": [
+    {
+      "id": "shared-mirrored-traversal",
+      "kind": "parameterize",
+      "sites": [
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "function": "align::evidence",
+          "source_file": "crates/rstyle-core/src/align.rs",
+          "source": "/// Neighbours of `a` that are matched, split into those the counterpart `b` mirrors\n/// (agree) and those it does not (conflict).\nfn evidence(ctx: &Ctx<'_>, m: &Matching, a: usize, b: usize) -> (usize, usize) {\n    let sides = [\n        (&ctx.wa.graph.inc[a][..], &ctx.wb.graph.inc[b][..]),\n        (&ctx.wa.graph.out[a][..], &ctx.wb.graph.out[b][..]),\n    ];\n    mirrored(sides, &m.fwd).fold((0, 0), |(agree, conflict), ok| {\n        (agree + usize::from(ok), conflict + usize::from(!ok))\n    })\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::align::evidence",
+          "target_name": "rstyle_core"
+        },
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "function": "align::reverse_conflicts",
+          "source_file": "crates/rstyle-core/src/align.rs",
+          "source": "/// Edges of `b` into matched nodes that `a` does not mirror.\nfn reverse_conflicts(ctx: &Ctx<'_>, m: &Matching, a: usize, b: usize) -> usize {\n    let sides = [\n        (&ctx.wb.graph.inc[b][..], &ctx.wa.graph.inc[a][..]),\n        (&ctx.wb.graph.out[b][..], &ctx.wa.graph.out[a][..]),\n    ];\n    mirrored(sides, &m.back).filter(|ok| !ok).count()\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::align::reverse_conflicts",
+          "target_name": "rstyle_core"
+        }
+      ],
+      "definitions": [],
+      "judgment": "not_useful",
+      "rationale": "Both already reuse mirrored for the traversal. Directions, matching maps and result reductions differ; another helper adds indirection without a shared semantic operation.",
+      "expected_outcome": "structural_agreement"
+    },
+    {
+      "id": "distinct-normalization-pipelines",
+      "kind": "parameterize",
+      "sites": [
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "function": "normalize::unify_case",
+          "source_file": "crates/rstyle-core/src/normalize.rs",
+          "source": "/// `if`, `else if`, `if let` and `match` all become `Case`; patterns spelled as `== literal` and\n/// else-if chains over one scrutinee disappear into the arms.\nfn unify_case(pdg: Pdg) -> Pdg {\n    let lets = contract_lets(pdg);\n    let cases = relabel_cases(literal_scrutinees(lets));\n    flatten_else_if(cases)\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::normalize::unify_case",
+          "target_name": "rstyle_core"
+        },
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "function": "normalize::counter_loops",
+          "source_file": "crates/rstyle-core/src/normalize.rs",
+          "source": "fn counter_loops(pdg: Pdg) -> Pdg {\n    loop_guards(manual_counters(range_loops(pdg)))\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::normalize::counter_loops",
+          "target_name": "rstyle_core"
+        }
+      ],
+      "definitions": [],
+      "judgment": "not_useful",
+      "rationale": "Ordered transformation pipelines perform different normalizations. Function composition alone does not justify another abstraction.",
+      "expected_outcome": "forwarding_rejected",
+      "expected_policy_reason": "call-only forwarding through distinct single-use callee substitutions"
+    },
+    {
+      "id": "different-dedup-contracts",
+      "kind": "parameterize",
+      "sites": [
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "function": "candidates::distinct_in_order",
+          "source_file": "crates/rstyle-core/src/candidates.rs",
+          "source": "fn distinct_in_order(values: &[String]) -> Vec<&String> {\n    let mut seen = BTreeSet::new();\n    values.iter().filter(|v| seen.insert(*v)).collect()\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::candidates::distinct_in_order",
+          "target_name": "rstyle_core"
+        },
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "function": "normalize::dedup",
+          "source_file": "crates/rstyle-core/src/normalize.rs",
+          "source": "/// First occurrence of each edge wins, so adding an edge that exists is a no-op.\nfn dedup(edges: Vec<PdgEdge>) -> Vec<PdgEdge> {\n    let mut seen = BTreeSet::new();\n    edges\n        .into_iter()\n        .filter(|e| seen.insert((e.from, e.to, e.kind, e.arg_pos)))\n        .collect()\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::normalize::dedup",
+          "target_name": "rstyle_core"
+        }
+      ],
+      "definitions": [],
+      "judgment": "not_useful",
+      "rationale": "Small set-filter glue has different borrowing and equality contracts: whole borrowed strings versus owned edges keyed by endpoints, kind and argument position.",
+      "expected_outcome": "structural_agreement"
+    },
+    {
+      "id": "call-classes-versus-data-endpoints",
+      "kind": "parameterize",
+      "sites": [
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "target_name": "rstyle_core",
+          "function": "cluster::classes_of",
+          "source_file": "crates/rstyle-core/src/cluster.rs",
+          "source": "fn classes_of(pdg: &Pdg) -> BTreeSet<String> {\n    let calls = pdg.nodes.iter().filter(|n| n.kind == NodeKind::Call);\n    calls.map(call_class).collect()\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::cluster::classes_of"
+        },
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "target_name": "rstyle_core",
+          "function": "normalize::data_producers",
+          "source_file": "crates/rstyle-core/src/normalize.rs",
+          "source": "fn data_producers(pdg: &Pdg, node: usize) -> Vec<usize> {\n    let ins = pdg\n        .edges\n        .iter()\n        .filter(|e| e.to == node && e.kind == EdgeKind::Data);\n    ins.map(|e| e.from).collect()\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::normalize::data_producers"
+        },
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "target_name": "rstyle_core",
+          "function": "normalize::data_consumers",
+          "source_file": "crates/rstyle-core/src/normalize.rs",
+          "source": "fn data_consumers(pdg: &Pdg, node: usize) -> BTreeSet<usize> {\n    let outs = pdg\n        .edges\n        .iter()\n        .filter(|e| e.from == node && e.kind == EdgeKind::Data);\n    outs.map(|e| e.to).collect()\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::normalize::data_consumers"
+        }
+      ],
+      "definitions": [],
+      "judgment": "not_useful",
+      "rationale": "Call classification and directional data-edge endpoints are different operations. The shared iterator shell hides distinct predicates and projections; ordered/multiple producers and distinct consumers also have different result contracts.",
+      "expected_outcome": "structural_agreement"
+    },
+    {
+      "id": "distinct-recursive-tree-predicates",
+      "kind": "parameterize",
+      "sites": [
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "target_name": "rstyle_core",
+          "function": "normalize::constant_tree",
+          "source_file": "crates/rstyle-core/src/normalize.rs",
+          "source": "/// True if `node` is a ctor/tuple whose whole input tree is literals and ctors owned by it.\nfn constant_tree(pdg: &Pdg, node: usize) -> bool {\n    is_ctor_op(&pdg.nodes[node])\n        && data_producers(pdg, node).into_iter().all(|p| {\n            let owned = data_consumers(pdg, p) == BTreeSet::from([node]);\n            owned && (is_value_leaf(&pdg.nodes[p]) || constant_tree(pdg, p))\n        })\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::normalize::constant_tree"
+        },
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "target_name": "rstyle_core",
+          "function": "normalize::predicate_tree",
+          "source_file": "crates/rstyle-core/src/normalize.rs",
+          "source": "/// Combinator whose operands are calls or (recursively) such combinators.\nfn predicate_tree(pdg: &Pdg, node: usize) -> bool {\n    is_combinator(&pdg.nodes[node])\n        && data_producers(pdg, node)\n            .into_iter()\n            .all(|p| pdg.nodes[p].kind == NodeKind::Call || predicate_tree(pdg, p))\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::normalize::predicate_tree"
+        }
+      ],
+      "definitions": [],
+      "judgment": "not_useful",
+      "rationale": "Constant trees require exclusive consumers and literal/constructor leaves. Predicate trees accept call leaves and logical combinators without the same ownership requirement. The callee substitution misses closure-body differences; a generic recursive validator would add policy callbacks around two short domain predicates.",
+      "expected_outcome": "structural_agreement"
+    },
+    {
+      "id": "distinct-loop-rewrite-contracts",
+      "kind": "parameterize",
+      "sites": [
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "target_name": "rstyle_core",
+          "function": "normalize::manual_counters",
+          "source_file": "crates/rstyle-core/src/normalize.rs",
+          "source": "/// The loop node stands for the counter: whatever read `n` reads the loop, and the\n/// initialisation and the `n += 1` step disappear.\nfn manual_counters(pdg: Pdg) -> Pdg {\n    let found: Vec<(usize, usize, usize, usize)> = (0..pdg.nodes.len())\n        .filter_map(|step| {\n            let (init, amount, looped) = manual_counter(&pdg, step)?;\n            Some((step, init, amount, looped))\n        })\n        .collect();\n    let counter_of = |n: usize| found.iter().find(|f| f.1 == n).map(|f| f.3);\n    let reads = pdg\n        .edges\n        .iter()\n        .filter_map(|e| {\n            let looped = counter_of(e.from)?;\n            let step = found.iter().any(|f| f.0 == e.to);\n            (e.kind == EdgeKind::Data && !step).then_some(PdgEdge { from: looped, ..*e })\n        })\n        .collect();\n    let dead = found.iter().flat_map(|&(s, i, a, _)| [s, i, a]).collect();\n\n    rewire(pdg, reads, &dead)\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::normalize::manual_counters"
+        },
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "target_name": "rstyle_core",
+          "function": "normalize::loop_guards",
+          "source_file": "crates/rstyle-core/src/normalize.rs",
+          "source": "/// `while n < 3 { body }` where `n` is a counter loop: the guard is the loop bound, so the body\n/// hangs directly under the loop, as in `for n in 1..=3`.\nfn loop_guards(pdg: Pdg) -> Pdg {\n    let guard = |g: usize| -> Option<(usize, usize, usize)> {\n        let is_case = matches!(pdg.nodes[g].kind, NodeKind::Case | NodeKind::Branch);\n        let owner = pdg\n            .edges\n            .iter()\n            .find(|e| e.to == g && e.kind == EdgeKind::Ctrl)?\n            .from;\n        let cond = data_producers(&pdg, g);\n        let [op] = cond.as_slice() else { return None };\n        let inputs = data_producers(&pdg, *op);\n        let bound = inputs\n            .iter()\n            .copied()\n            .find(|&n| is_int_lit(&pdg.nodes[n]))?;\n        let counts = inputs.contains(&owner) && inputs.len() == 2;\n        let ok = is_case\n            && pdg.nodes[owner].kind == NodeKind::Loop\n            && counts\n            && is_compare(&pdg.nodes[*op])\n            && owned_by(&pdg, bound, *op)\n            && owned_by(&pdg, *op, g)\n            && arms_of(&pdg, g).iter().all(|e| e.arg_pos == 0);\n        ok.then_some((owner, *op, bound))\n    };\n    let found: Vec<(usize, usize, usize, usize)> = (0..pdg.nodes.len())\n        .filter_map(|g| guard(g).map(|(owner, op, bound)| (g, owner, op, bound)))\n        .collect();\n    let body = pdg\n        .edges\n        .iter()\n        .filter_map(|e| {\n            let (_, owner, ..) = found.iter().find(|f| f.0 == e.from)?;\n            (e.kind == EdgeKind::Ctrl).then_some(PdgEdge { from: *owner, ..*e })\n        })\n        .collect();\n    let dead = found.iter().flat_map(|&(g, _, op, b)| [g, op, b]).collect();\n\n    rewire(pdg, body, &dead)\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::normalize::loop_guards"
+        }
+      ],
+      "definitions": [],
+      "judgment": "not_useful",
+      "rationale": "Manual counters remove initialization/increment nodes and rewire data reads; loop guards validate bound/comparison ownership, remove guards and rewire control edges. Both already share rewire. The observed iterator shell hides different closure computations; zero recorded substitutions do not establish shared behavior.",
+      "expected_outcome": "structural_agreement"
+    },
+    {
+      "id": "distinct-formatting-policy-shells",
+      "kind": "parameterize",
+      "sites": [
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "target_name": "rstyle_core",
+          "function": "candidates::columns_text_of",
+          "source_file": "crates/rstyle-core/src/candidates.rs",
+          "source": "fn columns_text_of(ix: &Index<'_>, columns: &[&Column]) -> String {\n    let parts: Vec<String> = columns\n        .iter()\n        .map(|c| {\n            let shown: Vec<String> = distinct_in_order(&c.values)\n                .iter()\n                .map(|v| {\n                    if method_like(c.kind) {\n                        ix.display_callee(v)\n                    } else {\n                        ix.display(v)\n                    }\n                })\n                .collect();\n            format!(\"{} = {}\", c.var, shown.join(\" | \"))\n        })\n        .collect();\n    parts.join(\"; \")\n}",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::candidates::columns_text_of"
+        },
+        {
+          "package": "rstyle-core",
+          "target_kind": "lib",
+          "target_name": "rstyle_core",
+          "function": "shape::Namer::<'a>::list",
+          "source_file": "crates/rstyle-core/src/shape.rs",
+          "source": "fn list(&self, items: &[TyShape]) -> String {\n        let parts: Vec<String> = items.iter().map(|item| self.render(item)).collect();\n        parts.join(\", \")\n    }",
+          "included": true,
+          "unsuppressed": true,
+          "compiler_id": "rstyle_core::shape::{impl#0}::list"
+        }
+      ],
+      "definitions": [],
+      "judgment": "not_useful",
+      "rationale": "Column formatting deduplicates assignments, renders callees specially and uses nested joins. Type-list formatting renders type items with a comma separator. A common map/collect/join wrapper would move each meaningful policy into callbacks without replacing a shared semantic operation.",
+      "expected_outcome": "structural_agreement"
+    }
+  ],
+  "derivation": "C55 independently completes source usefulness review of the four previously unreviewed groups in the declared C52 saved rstyle-core capture. The three C52 source judgments are preserved; new judgments come from reading authored production functions and do not infer usefulness from graph scores, candidate IDs, closure flags or legacy ignores. Exact captured source bytes are bound only after source review and match the current files. All six emitted proposals are judged not useful; one earlier forwarding pipeline remains explicitly rejected. No discovery completeness, useful positive, policy fix or retirement claim follows.",
+  "policy_version": 2
+}
