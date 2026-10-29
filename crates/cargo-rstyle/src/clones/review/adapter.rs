@@ -70,8 +70,11 @@ pub(super) fn member_key(
 }
 
 pub(super) fn relative(path: &Path, root: &Path) -> Result<String, String> {
+    let path = rstyle_pdg::nominal_binding::absolute_path(path)?;
+    let root = rstyle_pdg::nominal_binding::absolute_path(root)?;
+
     let suffix = path
-        .strip_prefix(root)
+        .strip_prefix(&root)
         .map_err(|_| "Review locator lies outside its declared root")?;
     let components = suffix
         .components()
@@ -446,6 +449,37 @@ mod tests {
             assert!(relative(&package.join("../other/lib.rs"), &package).is_err());
         }
         assert!(relative(Path::new("/outside/lib.rs"), Path::new("/workspace")).is_err());
+    }
+
+    #[test]
+    fn review_paths_reuse_lexical_normalization_before_root_containment() {
+        let root = Path::new("/project/nested/..");
+        assert_eq!(
+            relative(Path::new("/project/src/../shared.rs"), root).unwrap(),
+            "shared.rs"
+        );
+        assert_eq!(
+            relative(Path::new("/project/./shared.rs"), root).unwrap(),
+            "shared.rs"
+        );
+        for path in [
+            "/project/../outside.rs",
+            "/other/project/shared.rs",
+            "/project",
+            "/project/.",
+            "src/lib.rs",
+        ] {
+            assert!(relative(Path::new(path), root).is_err(), "{path}");
+        }
+        assert!(relative(Path::new("/project/shared.rs"), Path::new("project")).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_utf8_review_paths_remain_unavailable_after_normalization() {
+        use std::os::unix::ffi::OsStrExt;
+        let path = Path::new(std::ffi::OsStr::from_bytes(b"/project/src/../bad\xff.rs"));
+        assert!(relative(path, Path::new("/project")).is_err());
     }
 
     #[test]

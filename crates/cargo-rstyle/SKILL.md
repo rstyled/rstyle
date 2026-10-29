@@ -550,3 +550,11 @@ measurements on replay; unavailable-only bundles have no observed metric version
 and retain the existing current-header fallback. Metric changes remain visible
 to reviews and baselines.
 Strict source census, extraction permissions and matching are unchanged.
+
+
+Review and baseline locators normalize absolute source and root paths with the
+existing lexical path helper before checking containment. Within-root shared
+modules such as `src/../shared.rs` therefore use `shared.rs` in saved locators.
+Equivalent lexical spellings preserve review identity; outside-root, relative,
+empty and non-UTF8 locators remain unavailable. This uses captured paths without
+filesystem canonicalization, new hashes or metric/context changes.

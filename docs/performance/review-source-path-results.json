@@ -1,0 +1,98 @@
+{
+  "schema": "rstyle.review-source-path-study/1",
+  "base_revision": "1a41d9d6",
+  "platform": "Linux aarch64",
+  "source": "crates/rstyle-core/src/paths.rs",
+  "source_bytes": 1681,
+  "routing": "Unchanged tracked source copied to shared.rs; src/lib.rs declares #[path=\"../shared.rs\"] pub mod paths; independent std-only edition-2024 package",
+  "policy": "production defaults, compiler advisory metric 6",
+  "capture": "Single before-fix advisory-only hir-data-v3 capture; after-fix commands replay that exact saved run",
+  "command": [
+    "target/debug/cargo-rstyle",
+    "clones",
+    "--extraction-profile",
+    "hir-data-v3",
+    "--compiler-advisory",
+    "--compiler-advisory-only",
+    "--replay-run",
+    "<saved-before-run>",
+    "--review-file",
+    "<study-reviews.json>",
+    "--format",
+    "json",
+    "--report-detail",
+    "compact"
+  ],
+  "known_functions": 1,
+  "unavailable_functions": 0,
+  "finding": {
+    "rule": "cognitive_complexity",
+    "actual": 16,
+    "limit": 12
+  },
+  "evaluation_exactly_equal": true,
+  "before": {
+    "schema": "rstyle.compiler-diagnostic-review/1",
+    "execution": "completed",
+    "coverage": "incomplete",
+    "findings": 1,
+    "hidden_findings": 0,
+    "visible_findings": 1,
+    "retained_entries": 0,
+    "reasons": [],
+    "hidden_selected_findings": 0,
+    "decisions": [
+      {
+        "unit": 0,
+        "diagnostic_index": 0,
+        "state": "unavailable",
+        "reason": "Review locator contains an ambiguous path component"
+      }
+    ]
+  },
+  "after": {
+    "schema": "rstyle.compiler-diagnostic-review/1",
+    "execution": "completed",
+    "coverage": "complete",
+    "findings": 1,
+    "hidden_findings": 0,
+    "visible_findings": 1,
+    "retained_entries": 0,
+    "reasons": [],
+    "hidden_selected_findings": 0,
+    "decisions": [
+      {
+        "unit": 0,
+        "diagnostic_index": 0,
+        "state": "visible_new",
+        "reason": null
+      }
+    ]
+  },
+  "dismissed": {
+    "schema": "rstyle.compiler-diagnostic-review/1",
+    "execution": "completed",
+    "coverage": "complete",
+    "findings": 1,
+    "hidden_findings": 1,
+    "visible_findings": 0,
+    "retained_entries": 1,
+    "reasons": [],
+    "hidden_selected_findings": 1,
+    "decisions": [
+      {
+        "unit": 0,
+        "diagnostic_index": 0,
+        "state": "hidden_exact",
+        "reason": "Reviewed unchanged original source routing study"
+      }
+    ]
+  },
+  "baseline_entries": 1,
+  "locator_source": "shared.rs",
+  "limitations": [
+    "Routing study of one unchanged original source file, not a full-project quality or performance result.",
+    "Attempted full rstyle-pdg capture failed existing 256-file/8MiB source census budget before publication; budget unchanged.",
+    "No runtime speedup measured or claimed; no new numeric correctness oracle."
+  ]
+}

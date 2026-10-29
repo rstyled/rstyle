@@ -9,6 +9,7 @@ mod planning;
 mod propagation;
 mod reviews;
 mod selection;
+mod shared_review_paths;
 mod transport;
 mod try_statements;
 

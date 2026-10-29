@@ -4198,3 +4198,50 @@ checks. This must unlock parent-relative shared-file reviews and baseline replay
 without reopening files, adding hashes or changing strict matching. A separate
 later performance cut may omit the per-function call-instance visitor in
 advisory-only collection; it remains active in C44.
+
+
+### C45 — review parent-relative shared source paths (2026-10-29)
+
+Review locator construction now reuses `nominal_binding::absolute_path` for both
+captured source and declared root before containment. Authored paths such as
+`src/../shared.rs` and `src/.././shared.rs` yield the same `shared.rs` locator.
+Previously their compiler findings were available but reviews were unavailable
+and complete baseline export failed. No filesystem reads, canonicalization,
+hashing, new proof or metric version is needed; existing representable locators,
+policy/context staleness and strict matching retain their contracts. This is
+lexical path normalization, not a physical symlink identity guarantee.
+
+Focused tests pass all nine cases. Two new real-Cargo tests exercise both
+combined and advisory-only capture, unchanged effect propagation and parameter
+plans, baseline export, exact dismissal, equivalent-path recapture and source-free
+replay. Outside-package sources remain unavailable and cannot export a complete
+baseline; relative, empty, escaped and non-UTF8 locators remain rejected.
+
+A bounded routing package uses the unchanged tracked
+`crates/rstyle-core/src/paths.rs` through `#[path="../shared.rs"]`, with production
+default policy. Its existing cognitive-complexity finding is 16 against limit12.
+The measurement replays the same saved raw capture to isolate review behavior;
+it is not a full-project quality or performance claim. A separate attempted
+full rstyle-pdg capture failed the existing source census file/byte budget before
+publishing units. That project remains unmeasured; the budget is unchanged.
+
+The same saved capture moves from unavailable review coverage to complete
+coverage with `visible_new`, then to `hidden_exact` after explicit dismissal;
+complete baseline export contains one `shared.rs` entry. The raw evaluation is
+exactly equal throughout. See `docs/performance/review-source-path-results.json`.
+
+Integrated tests pass all 3,434 Rust cases in 218.583s with five existing skips;
+workspace doc tests and locked all-target Clippy pass. Formatting and diff checks
+pass. One subsequent whitespace-only edit separates path normalization from
+locator construction; style then reports zero violations over 9,784 functions.
+Reviewed patterns report zero candidates with thirteen existing entries. The
+separate unfiltered comparison preserves the same thirteen main-rebase IDs.
+No thresholds, budgets, suppressions or review entries changed. Logs use
+`/tmp/clones-review-path-` with `focused-1`, `tests-1`, `clippy-1`, `style-2`,
+`patterns-1` and `patterns-unfiltered-1` suffixes.
+
+The earlier macOS fixture fix is committed as `565803b`; C43 native CI passed on
+macOS and both Ubuntu targets. C44 native CI is tracked separately from these
+local C45 results. Next ready performance frontier: omit unrequested call-instance
+observations during advisory-only collection after parity controls; large-source
+census coverage remains a distinct unresolved limitation.
