@@ -1,0 +1,262 @@
+{
+  "schema": "rstyle.compiler-complexity-results/1",
+  "run": "run-WizKMH",
+  "metrics": "rstyle.compiler-style-metrics/6",
+  "scope_complete": false,
+  "coverage": [
+    {
+      "unit": 0,
+      "package": "rstyle-pdg",
+      "target_kind": [
+        "lib"
+      ],
+      "test": false,
+      "captured_functions": 13528,
+      "evaluation": {
+        "functions": 7034,
+        "violations": 826,
+        "complexity_measured": 7034,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 66,
+        "max_density_milli": 5000,
+        "effect_counts": {
+          "io": 29,
+          "mutation": 1436,
+          "panic": 52,
+          "time": 42,
+          "unknown": 113
+        }
+      },
+      "unavailable_owners": 6494,
+      "unavailable_complexity": 0,
+      "unresolved_callees": 142
+    }
+  ],
+  "counts": {
+    "agreement": 8
+  },
+  "comparisons": [
+    {
+      "function": "data_types::check_contents",
+      "source_file": "crates/rstyle-pdg/src/data_types.rs",
+      "test": false,
+      "key": "function:u0:f3677",
+      "rule": "cyclomatic_complexity",
+      "expected": {
+        "outcome": "finding",
+        "actual": 24,
+        "limit": 12
+      },
+      "observed": {
+        "outcome": "finding",
+        "actual": 24,
+        "limit": 12
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "data_types::check_contents",
+      "source_file": "crates/rstyle-pdg/src/data_types.rs",
+      "test": false,
+      "key": "function:u0:f3677",
+      "rule": "cognitive_complexity",
+      "expected": {
+        "outcome": "finding",
+        "actual": 17,
+        "limit": 12
+      },
+      "observed": {
+        "outcome": "finding",
+        "actual": 17,
+        "limit": 12
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "data_types::recursive_element",
+      "source_file": "crates/rstyle-pdg/src/data_types.rs",
+      "test": false,
+      "key": "function:u0:f3683",
+      "rule": "cyclomatic_complexity",
+      "expected": {
+        "outcome": "finding",
+        "actual": 19,
+        "limit": 12
+      },
+      "observed": {
+        "outcome": "finding",
+        "actual": 19,
+        "limit": 12
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "data_types::recursive_element",
+      "source_file": "crates/rstyle-pdg/src/data_types.rs",
+      "test": false,
+      "key": "function:u0:f3683",
+      "rule": "cognitive_complexity",
+      "expected": {
+        "outcome": "finding",
+        "actual": 18,
+        "limit": 12
+      },
+      "observed": {
+        "outcome": "finding",
+        "actual": 18,
+        "limit": 12
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "data_types::check",
+      "source_file": "crates/rstyle-pdg/src/data_types.rs",
+      "test": false,
+      "key": "function:u0:f3676",
+      "rule": "cyclomatic_complexity",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 4,
+        "limit": 12
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "data_types::check",
+      "source_file": "crates/rstyle-pdg/src/data_types.rs",
+      "test": false,
+      "key": "function:u0:f3676",
+      "rule": "cognitive_complexity",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 4,
+        "limit": 12
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "data_types::check_nominal_fields",
+      "source_file": "crates/rstyle-pdg/src/data_types.rs",
+      "test": false,
+      "key": "function:u0:f3684",
+      "rule": "cyclomatic_complexity",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 5,
+        "limit": 12
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "data_types::check_nominal_fields",
+      "source_file": "crates/rstyle-pdg/src/data_types.rs",
+      "test": false,
+      "key": "function:u0:f3684",
+      "rule": "cognitive_complexity",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 4,
+        "limit": 12
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    }
+  ],
+  "limitation": "Sample outcomes and explicitly requested completed ranked scores only; absent or truncated measurements remain unavailable. No rescoring or whole-project quality claim.",
+  "score_counts": {
+    "agreement": 4
+  },
+  "score_comparisons": [
+    {
+      "function": "data_types::check_contents",
+      "source_file": "crates/rstyle-pdg/src/data_types.rs",
+      "test": false,
+      "key": "function:u0:f3677",
+      "expected": {
+        "policy_version": 1,
+        "cyclomatic": 24,
+        "cognitive": 17
+      },
+      "observed": {
+        "policy_version": 1,
+        "cyclomatic": 24,
+        "cognitive": 17
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "data_types::recursive_element",
+      "source_file": "crates/rstyle-pdg/src/data_types.rs",
+      "test": false,
+      "key": "function:u0:f3683",
+      "expected": {
+        "policy_version": 1,
+        "cyclomatic": 19,
+        "cognitive": 18
+      },
+      "observed": {
+        "policy_version": 1,
+        "cyclomatic": 19,
+        "cognitive": 18
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "data_types::check",
+      "source_file": "crates/rstyle-pdg/src/data_types.rs",
+      "test": false,
+      "key": "function:u0:f3676",
+      "expected": {
+        "policy_version": 1,
+        "cyclomatic": 4,
+        "cognitive": 4
+      },
+      "observed": {
+        "policy_version": 1,
+        "cyclomatic": 4,
+        "cognitive": 4
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "data_types::check_nominal_fields",
+      "source_file": "crates/rstyle-pdg/src/data_types.rs",
+      "test": false,
+      "key": "function:u0:f3684",
+      "expected": {
+        "policy_version": 1,
+        "cyclomatic": 5,
+        "cognitive": 4
+      },
+      "observed": {
+        "policy_version": 1,
+        "cyclomatic": 5,
+        "cognitive": 4
+      },
+      "result": "agreement",
+      "reason": null
+    }
+  ]
+}

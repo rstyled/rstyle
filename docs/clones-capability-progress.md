@@ -4852,3 +4852,54 @@ place. C54 run40857364923 now confirms success on macOS15 and both Ubuntu runner
 C55 has both Ubuntu jobs green and macOS still in progress at this checkpoint.
 No new native pass is claimed for the unpushed C56 snapshot. Migration remains
 active; broader project quality and all legacy retirement gates remain open.
+
+### C57 — independently check clean compiler complexity scores (2026-10-29)
+
+The preceding goal turn delivered and pushed C56 (6289496), so this is continued
+implementation rather than a no-progress retry. Its newly inspectable clean
+scores exposed a validation gap: compiler_complexity.py compared exact numbers
+only for diagnostics. A below-threshold score could disagree while the sample
+still passed all rule outcomes. Lead owns the existing reducer, measured saved
+replays, artifacts and docs; a frozen acceptance leaf owns its existing Python
+test file. No Rust runtime changes are part of this increment.
+
+An opt-in --require-scores mode reuses the existing exact source/context/span
+association, then reads the completed unit-local complexity ranking. It checks
+policy_version/CC/COG without parsing, scoring, proof, source/artifact scans,
+body/graph copies or new hashes. Paired row/owner rosters, original names, valid
+IDs/navigation metadata, complete measurement counts, available summary counters
+and missing-owner denominators are checked. Source-label locations can include
+leading docs/attributes while ranked rows locate the function; they cannot replace
+exact original byte ownership. Malformed report claims reject; absent rankings,
+truncated owners and null measurements stay unavailable rather than becoming0.
+
+The mode adds score_counts/score_comparisons independently of ordinary threshold
+counts. Either family can fail the command; a clean threshold result cannot hide
+a wrong or unavailable score. Without the flag, both original core and PDG
+archived results reproduce exactly, including reports with no ranking. No existing
+metric version, strict decision, diagnostic result, policy, suppression, review,
+ignore, threshold, limit or evidence budget changes.
+
+Exact saved run-mycjUM core and run-WizKMH PDG replays retain eight agreeing
+threshold outcomes per package. All four PDG numeric labels agree. The original
+core label set reports three exact agreements and one disagreement: Namer::render
+expected COG4 but three authored direct self.render calls add3 under the documented
+policy, yielding saved7. Its CC12 and clean default outcome remain unchanged.
+Original frozen labels/results remain untouched; the frozen-score result records
+the discrepancy, and a separate reviewed core score-label set explicitly documents
+the source-label correction. All eight reviewed numeric samples then agree.
+Artifacts use project-{core,pdg}-complexity-*-score-* and
+project-complexity-score-quality-study.json. These samples do not claim broad
+precision/recall or complete quality. Core408/806 and PDG7034/6494 measured/missing
+owner scopes stay incomplete and capture/replay exits remain2. Single saved-input
+replays took about0.77s/9.59s with all408/all7034 ranking rows; these are observations,
+not a speedup comparison or new capture.
+
+All231 offline Python tests pass, including12 new exact-score cases and actual
+command negative exits, with historical default-output reproduction. Formatting
+and diff checks pass. Rust is unchanged since C56's final3,468 passing tests,
+doc tests, locked all-target Clippy, zero style violations and zero unreviewed
+patterns; those gates are not redundantly repeated for an offline-tool change.
+C56 native CI is still in progress at this checkpoint; C55 is green on macOS15
+and both Ubuntu runners. Broader migration and every legacy-retirement gate stay
+active; this increment improves numeric-quality validation rather than scoring.

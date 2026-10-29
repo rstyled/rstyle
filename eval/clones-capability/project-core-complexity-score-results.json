@@ -1,0 +1,253 @@
+{
+  "schema": "rstyle.compiler-complexity-results/1",
+  "run": "run-mycjUM",
+  "metrics": "rstyle.compiler-style-metrics/6",
+  "scope_complete": false,
+  "coverage": [
+    {
+      "unit": 0,
+      "package": "rstyle-core",
+      "target_kind": [
+        "lib"
+      ],
+      "test": false,
+      "captured_functions": 1214,
+      "evaluation": {
+        "functions": 408,
+        "violations": 6,
+        "complexity_measured": 408,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 16,
+        "max_density_milli": 1000,
+        "effect_counts": {
+          "mutation": 22,
+          "unknown": 5
+        }
+      },
+      "unavailable_owners": 806,
+      "unavailable_complexity": 0,
+      "unresolved_callees": 8
+    }
+  ],
+  "counts": {
+    "agreement": 8
+  },
+  "comparisons": [
+    {
+      "function": "normalize::loop_guards",
+      "source_file": "crates/rstyle-core/src/normalize.rs",
+      "test": false,
+      "key": "function:u0:f936",
+      "rule": "cyclomatic_complexity",
+      "expected": {
+        "outcome": "finding",
+        "actual": 13,
+        "limit": 12
+      },
+      "observed": {
+        "outcome": "finding",
+        "actual": 13,
+        "limit": 12
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "normalize::loop_guards",
+      "source_file": "crates/rstyle-core/src/normalize.rs",
+      "test": false,
+      "key": "function:u0:f936",
+      "rule": "cognitive_complexity",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 5,
+        "limit": 12
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "shape::Namer::<'a>::render",
+      "source_file": "crates/rstyle-core/src/shape.rs",
+      "test": false,
+      "key": "function:u0:f1083",
+      "rule": "cyclomatic_complexity",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 12,
+        "limit": 12
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "shape::Namer::<'a>::render",
+      "source_file": "crates/rstyle-core/src/shape.rs",
+      "test": false,
+      "key": "function:u0:f1083",
+      "rule": "cognitive_complexity",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 7,
+        "limit": 12
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "normalize::literal_scrutinees",
+      "source_file": "crates/rstyle-core/src/normalize.rs",
+      "test": false,
+      "key": "function:u0:f919",
+      "rule": "cyclomatic_complexity",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 10,
+        "limit": 12
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "normalize::literal_scrutinees",
+      "source_file": "crates/rstyle-core/src/normalize.rs",
+      "test": false,
+      "key": "function:u0:f919",
+      "rule": "cognitive_complexity",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 12,
+        "limit": 12
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "lines::has_blank_line",
+      "source_file": "crates/rstyle-core/src/lines.rs",
+      "test": false,
+      "key": "function:u0:f873",
+      "rule": "cyclomatic_complexity",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 1,
+        "limit": 12
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "lines::has_blank_line",
+      "source_file": "crates/rstyle-core/src/lines.rs",
+      "test": false,
+      "key": "function:u0:f873",
+      "rule": "cognitive_complexity",
+      "expected": {
+        "outcome": "evaluated_no_finding",
+        "actual": 0,
+        "limit": 12
+      },
+      "observed": {
+        "outcome": "evaluated_no_finding"
+      },
+      "result": "agreement",
+      "reason": null
+    }
+  ],
+  "limitation": "Sample outcomes and explicitly requested completed ranked scores only; absent or truncated measurements remain unavailable. No rescoring or whole-project quality claim.",
+  "score_counts": {
+    "agreement": 4
+  },
+  "score_comparisons": [
+    {
+      "function": "normalize::loop_guards",
+      "source_file": "crates/rstyle-core/src/normalize.rs",
+      "test": false,
+      "key": "function:u0:f936",
+      "expected": {
+        "policy_version": 1,
+        "cyclomatic": 13,
+        "cognitive": 5
+      },
+      "observed": {
+        "policy_version": 1,
+        "cyclomatic": 13,
+        "cognitive": 5
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "shape::Namer::<'a>::render",
+      "source_file": "crates/rstyle-core/src/shape.rs",
+      "test": false,
+      "key": "function:u0:f1083",
+      "expected": {
+        "policy_version": 1,
+        "cyclomatic": 12,
+        "cognitive": 7
+      },
+      "observed": {
+        "policy_version": 1,
+        "cyclomatic": 12,
+        "cognitive": 7
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "normalize::literal_scrutinees",
+      "source_file": "crates/rstyle-core/src/normalize.rs",
+      "test": false,
+      "key": "function:u0:f919",
+      "expected": {
+        "policy_version": 1,
+        "cyclomatic": 10,
+        "cognitive": 12
+      },
+      "observed": {
+        "policy_version": 1,
+        "cyclomatic": 10,
+        "cognitive": 12
+      },
+      "result": "agreement",
+      "reason": null
+    },
+    {
+      "function": "lines::has_blank_line",
+      "source_file": "crates/rstyle-core/src/lines.rs",
+      "test": false,
+      "key": "function:u0:f873",
+      "expected": {
+        "policy_version": 1,
+        "cyclomatic": 1,
+        "cognitive": 0
+      },
+      "observed": {
+        "policy_version": 1,
+        "cyclomatic": 1,
+        "cognitive": 0
+      },
+      "result": "agreement",
+      "reason": null
+    }
+  ]
+}

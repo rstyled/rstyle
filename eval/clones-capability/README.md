@@ -663,3 +663,49 @@ Tests cover both mask intersections, independent compilation units, invalid
 indices, empty/absent candidates, unchanged historical fields, and a command-line
 negative judgment hidden by file selection. No Rust collector/evaluator/proposer,
 source scan, proof, graph copy or checksum changes.
+
+### Exact completed complexity scores (C57)
+
+The historical complexity reducer checks rule outcomes. A clean threshold result
+alone cannot verify a numeric score. Add `--require-scores` to also compare
+`policy_version`, `cyclomatic` and `cognitive` against independently authored
+labels, including functions without diagnostics. Replay the explicitly selected
+saved run with `--compiler-complexity-top N --compiler-plans` first; choose N large
+enough to include the labeled owners. Ranking truncates presentation, not input
+coverage. Missing rankings, omitted rows or null scores remain unavailable and
+produce exit2, even if threshold comparisons agree. No scores are inferred from
+an absent diagnostic and no parser, scorer, proof or checksum is added.
+
+```sh
+python3 eval/clones-capability/compiler_complexity.py \
+  --report /tmp/clones-c57-core-ranked-report.json \
+  --labels eval/clones-capability/project-core-complexity-score-cases.json \
+  --require-scores --output /tmp/project-core-exact-scores.json
+```
+
+The opt-in output adds `score_counts` and `score_comparisons`; the ordinary
+`counts` and `comparisons` retain threshold outcomes. Either comparison family
+containing a disagreement or unavailable result makes the command exit2.
+`scope_complete` remains the original whole-capture status; exact sample
+agreement does not imply whole-project completeness. Without the flag, historical
+output is unchanged, including when ranking fields happen to be present.
+
+Exact score rows use the existing compilation-context/original source/span join,
+then the unit-local ranking owner handle. Display lines/columns are positive
+navigation metadata: leading doc comments/attributes mean a source label and its
+score row can start on different lines. They never replace the original exact
+source association. Paired owner rosters, identities, names, measurement counts,
+summary counters and full missing-owner denominators are checked before use.
+
+`project-complexity-score-quality-study.json` records explicit saved core and PDG
+replays: all eight threshold outcomes per package still agree. Four PDG scores
+agree exactly. Original core labels produce three exact agreements and one
+mismatch, preserved in `project-core-complexity-frozen-score-results.json`:
+Namer::render COG4 omitted three authored direct recursive self.render calls.
+The documented policy yields saved COG7; CC12 and its clean default outcome are
+unchanged. A separate `project-core-complexity-score-cases.json` records that
+reviewed source-label correction, without rewriting C42 inputs/results. All four
+scores then agree in `project-core-complexity-score-results.json`; the PDG score
+results use the unchanged C49 labels. Core408/806 and PDG7034/6494
+measured/unavailable-owner scopes retain exit2. Single replay observations are
+not performance comparisons or legacy-retirement evidence.

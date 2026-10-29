@@ -105,6 +105,10 @@ replaying historical metrics without scores, and prevents a successful exit.
 The limit truncates presentation only. The flag works on fresh captures and
 source/tool-free replay, including advisory-only mode. Without it, the existing
 report is unchanged. Rankings over incomplete input are not whole-project maxima.
+The offline [complexity validator](../eval/clones-capability/README.md) accepts
+`--require-scores` to compare these completed rows with independent numeric
+labels, including clean functions. Missing/truncated rows remain unavailable;
+ordinary threshold-outcome comparisons stay separate.
 
 Metric version 2 omits lowered iterator roots from source mutation budgets.
 The shared expression-use collector tags these bindings by their HIR
