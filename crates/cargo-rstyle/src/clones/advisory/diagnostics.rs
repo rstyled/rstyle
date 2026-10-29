@@ -8,7 +8,7 @@ use rstyle_core::{facts::FnFacts, report::Report};
 use std::rc::Rc;
 
 pub(super) struct Completed {
-    pub evaluation: Report,
+    pub evaluation: Option<Report>,
     pub facts: Vec<FnFacts>,
     pub diagnostic_indices: Vec<usize>,
     pub effects: Option<std::collections::BTreeMap<String, Vec<rstyle_core::rules::Effect>>>,
@@ -30,10 +30,13 @@ pub(super) fn evaluate(
     inputs: Inputs,
     policy: &Rc<serde_json::Value>,
 ) -> Result<Completed, String> {
-    let retention = retention(ctx);
     let config = ctx
         .compiler_advisory_config
-        .ok_or("Compiler diagnostic policy was not requested")?;
+        .ok_or("Compiler input policy was not requested")?;
+    if !ctx.args.compiler_advisory {
+        return patterns_only(inputs, config);
+    }
+    let retention = retention(ctx);
     if ctx.args.review_file.is_none()
         && !ctx
             .args
@@ -42,7 +45,7 @@ pub(super) fn evaluate(
         let evaluated = evaluate_core(inputs, config, retention, ctx.args.compiler_patterns)?;
         let (evaluation, facts) = (evaluated.report, evaluated.facts);
         return Ok(Completed {
-            evaluation,
+            evaluation: Some(evaluation),
             facts,
             diagnostic_indices: evaluated.diagnostic_owners,
             effects: evaluated.effects,
@@ -60,7 +63,7 @@ pub(super) fn evaluate(
     let mut evaluated = evaluate_core(inputs, config, retention, ctx.args.compiler_patterns)?;
     let observed = compiler_diagnostics::observed::collect(ctx, unit, &mut evaluated, &policy);
     Ok(Completed {
-        evaluation: evaluated.report,
+        evaluation: Some(evaluated.report),
         facts: evaluated.facts,
         diagnostic_indices: evaluated.diagnostic_owners,
         effects: evaluated.effects,
@@ -68,6 +71,23 @@ pub(super) fn evaluate(
         owners: observed.owners,
         owner_names: observed.owner_names,
         owner_scope_truncated: observed.owner_scope_truncated,
+    })
+}
+
+fn patterns_only(
+    inputs: Inputs,
+    config: &rstyle_core::config::Config,
+) -> Result<Completed, String> {
+    let prepared = rstyle_core::effect_observations(inputs.facts, config, inputs.effects)?;
+    Ok(Completed {
+        evaluation: None,
+        facts: prepared.facts,
+        diagnostic_indices: Vec::new(),
+        effects: Some(prepared.effects),
+        snapshots: Vec::new(),
+        owners: Vec::new(),
+        owner_names: std::collections::BTreeMap::new(),
+        owner_scope_truncated: false,
     })
 }
 

@@ -734,3 +734,13 @@ comparator marks those two outcomes unavailable and exits2; the other six
 threshold comparisons agree. The original core/PDG score results and PDG
 parameter-plan results reproduce exactly. These are validation corrections,
 not new runtime capability coverage, performance or retirement claims.
+
+
+C67's `project-independent-pattern-study.json` replays the exact C66 ccgraph
+capture with and without numeric advisory. Completed proposal reports and captured
+owner rosters agree; standalone patterns omit numeric evaluation rather than
+synthesizing a clean numeric report. Both remain incomplete for unavailable owners.
+The three alternating timing samples per mode show negligible elapsed/RSS changes,
+not a speedup or a new quality/coverage result. Independent CLI acceptance covers
+complete structural proposals with unresolved effect-only dependencies, plus
+missing owners/graphs, replay, selection, reviews/baselines and strict matching.

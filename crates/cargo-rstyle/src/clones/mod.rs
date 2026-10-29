@@ -29,11 +29,12 @@ use std::{
 };
 
 #[derive(ClapArgs, Serialize)]
-#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density", "compiler_advisory"]).multiple(true)),
-    group(clap::ArgGroup::new("changed_analysis").args(["source_rules", "effect_density", "compiler_advisory", "select_guards"]).multiple(true)),
+#[command(group(clap::ArgGroup::new("local_analysis").args(["source_rules", "guard_clauses", "enum_dispatch", "capability_proposals", "mutation_rules", "mutation_effects", "effect_density", "compiler_advisory", "compiler_patterns"]).multiple(true)),
+    group(clap::ArgGroup::new("compiler_inputs").args(["compiler_advisory", "compiler_patterns"]).multiple(true)),
+    group(clap::ArgGroup::new("changed_analysis").args(["source_rules", "effect_density", "compiler_advisory", "compiler_patterns", "select_guards"]).multiple(true)),
     group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules", "mutation_rules", "effect_density", "compiler_patterns", "compiler_advisory", "guard_clauses"]).multiple(true)),
     group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_guard", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density", "dismiss_compiler_pattern", "dismiss_compiler_diagnostic"])),
-    group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules", "effect_density", "compiler_advisory"]).multiple(true)))]
+    group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules", "effect_density", "compiler_advisory", "compiler_patterns"]).multiple(true)))]
 pub struct Args {
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
     #[arg(long, default_value = "r0", value_parser = rstyle_pdg::extraction_profile::ExtractionProfile::select)]
@@ -82,10 +83,10 @@ pub struct Args {
     #[serde(skip_serializing_if = "Option::is_none")]
     compiler_complexity_top: Option<std::num::NonZeroUsize>,
     /// Capture compiler advice without strict helper certification, admission or matching.
-    #[arg(long, requires = "compiler_advisory", conflicts_with_all = ["matching_config", "trace", "fail_on_accepted_pairs", "explain_pairs", "helper_proposals", "enum_dispatch", "capability_proposals", "max_pairs"])]
+    #[arg(long, requires = "compiler_inputs", conflicts_with_all = ["matching_config", "trace", "fail_on_accepted_pairs", "explain_pairs", "helper_proposals", "enum_dispatch", "capability_proposals", "max_pairs"])]
     compiler_advisory_only: bool,
-    /// Reuse compiler graphs and existing core abstraction proposal policy; advisory only.
-    #[arg(long, requires = "compiler_advisory")]
+    /// Reuse compiler graphs and core proposals independently of numeric style diagnostics.
+    #[arg(long)]
     compiler_patterns: bool,
     /// Select compiler proposals touching changed files at any usage site or definition.
     #[arg(long, requires_all = ["compiler_patterns", "changed_files"])]
@@ -93,8 +94,8 @@ pub struct Args {
     /// Reuse core fix groups and parameter plans across captured dependency units; advisory only.
     #[arg(long, requires = "compiler_advisory")]
     compiler_plans: bool,
-    /// TOML policy for compiler advisory metrics, independent of strict clone policy.
-    #[arg(long, requires = "compiler_advisory")]
+    /// TOML policy for compiler metrics, proposal effects and exclusions; independent of strict clones.
+    #[arg(long, requires = "compiler_inputs")]
     compiler_advisory_config: Option<PathBuf>,
     /// JSON workspace-relative changed-file selection for source, density and compiler diagnostic presentation and finding exits.
     #[arg(long, requires = "changed_analysis")]
@@ -1073,6 +1074,10 @@ enum CompilerBaseline {
 }
 
 impl Args {
+    fn compiler_inputs_requested(&self) -> bool {
+        self.compiler_advisory || self.compiler_patterns
+    }
+
     fn compiler_baseline_requested(&self, family: CompilerBaseline) -> bool {
         let (import, export) = match family {
             CompilerBaseline::Diagnostics => {

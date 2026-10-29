@@ -207,3 +207,29 @@ fn suppression_scopes_and_diagnostic_owners_compose_with_effect_retention() {
             .contains(&Suppression::Allow(vec!["side_effect_density".into()]))
     );
 }
+
+#[test]
+fn effect_observations_reuse_selected_core_effects_without_numeric_reports() {
+    let mut excluded = observed("excluded", EffectKind::Network);
+    excluded.path = "generated/file.rs".into();
+    let facts = vec![excluded, observed("kept", EffectKind::Io)];
+    let full =
+        evaluate_retaining_effects(facts.clone(), &config(), Retention::Report, None).unwrap();
+    let prepared = effect_observations(facts, &config(), None).unwrap();
+    assert_eq!(prepared.facts.len(), 1);
+    assert_eq!(prepared.facts[0].id, "krate::kept");
+    assert_eq!(prepared.effects, full.effects.unwrap());
+}
+
+#[test]
+fn effect_observations_move_supplied_buffers_and_reject_missing_owner_results() {
+    let facts = sample("owner");
+    let source_buffer = facts.source.as_ptr();
+    let effects = provided(EffectKind::Io);
+    let effect_buffer = effects.as_ptr();
+    let completed = BTreeMap::from([(facts.id.clone(), effects)]);
+    let prepared = effect_observations(vec![facts], &config(), Some(completed)).unwrap();
+    assert_eq!(prepared.facts[0].source.as_ptr(), source_buffer);
+    assert_eq!(prepared.effects["krate::owner"].as_ptr(), effect_buffer);
+    assert!(effect_observations(vec![sample("owner")], &config(), Some(BTreeMap::new())).is_err());
+}

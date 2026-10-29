@@ -1,0 +1,114 @@
+{
+  "checkpoint": "C67",
+  "scope": "Same immutable C66 rstyle-ccgraph library capture, replayed with current consumer code",
+  "run": "run-TROKv9",
+  "toolchain": "nightly-2026-09-30",
+  "input_source_revision": {
+    "status": "known",
+    "value": "90385f06a98c54468b2bf818d62753b6009d4083+dirty"
+  },
+  "samples": [
+    {
+      "mode": "combined",
+      "exit": 2,
+      "elapsed_seconds": 0.4667,
+      "peak_rss_kib": 106936,
+      "report_bytes": 581878
+    },
+    {
+      "mode": "patterns",
+      "exit": 2,
+      "elapsed_seconds": 0.4154,
+      "peak_rss_kib": 106936,
+      "report_bytes": 573870
+    },
+    {
+      "mode": "patterns",
+      "exit": 2,
+      "elapsed_seconds": 0.4156,
+      "peak_rss_kib": 106988,
+      "report_bytes": 573870
+    },
+    {
+      "mode": "combined",
+      "exit": 2,
+      "elapsed_seconds": 0.4156,
+      "peak_rss_kib": 106936,
+      "report_bytes": 581878
+    },
+    {
+      "mode": "combined",
+      "exit": 2,
+      "elapsed_seconds": 0.4176,
+      "peak_rss_kib": 106936,
+      "report_bytes": 581878
+    },
+    {
+      "mode": "patterns",
+      "exit": 2,
+      "elapsed_seconds": 0.4155,
+      "peak_rss_kib": 107096,
+      "report_bytes": 573870
+    }
+  ],
+  "observation": {
+    "patterns_equal": true,
+    "known_owners": 238,
+    "unavailable_owners": 176,
+    "unresolved_callees": 23,
+    "numeric_owners_in_combined_evaluation": 238,
+    "pattern_mode_diagnostic_execution": "not_requested",
+    "pattern_mode_omits_numeric_evaluation": true,
+    "structural_input_complete": false,
+    "effect_input_complete": false,
+    "both_modes_exit": 2,
+    "candidate_ids": [
+      "c5f442ffa59a"
+    ]
+  },
+  "reports_directory": "/tmp/clones-c67-project-replay",
+  "limitations": [
+    "Three alternating replay samples per mode, not fresh capture or a generalized speedup benchmark. Compilation time is absent.",
+    "Observed elapsed and peak-memory differences are negligible; this study establishes no speedup claim.",
+    "Generated/missing owners retain incomplete scope in both modes; this gains consumer independence without increasing this project source coverage.",
+    "Uncaptured effect-only dependencies are separately covered by independent Cargo acceptance fixtures, including 0/1 pattern exits versus combined exit 2.",
+    "Legacy patterns routing, generated-owner scope, ledger migration and broader usefulness remain open."
+  ],
+  "commands": {
+    "combined": [
+      "target/debug/cargo-rstyle",
+      "rstyle",
+      "--format",
+      "json",
+      "clones",
+      "--extraction-profile",
+      "hir-data-v3",
+      "--compiler-patterns",
+      "--compiler-advisory-only",
+      "--replay-run",
+      "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-TROKv9",
+      "--report-detail",
+      "compact",
+      "--compiler-advisory"
+    ],
+    "patterns": [
+      "target/debug/cargo-rstyle",
+      "rstyle",
+      "--format",
+      "json",
+      "clones",
+      "--extraction-profile",
+      "hir-data-v3",
+      "--compiler-patterns",
+      "--compiler-advisory-only",
+      "--replay-run",
+      "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-TROKv9",
+      "--report-detail",
+      "compact"
+    ]
+  },
+  "median_elapsed_seconds": {
+    "combined": 0.4176,
+    "patterns": 0.4155
+  }
+}

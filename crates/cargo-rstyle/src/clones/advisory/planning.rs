@@ -143,10 +143,12 @@ impl Captured {
 
         let mut rules: BTreeMap<usize, BTreeSet<String>> = BTreeMap::new();
         for ready in ready {
-            for (&owner, diagnostic) in ready
-                .diagnostic_indices
-                .iter()
-                .zip(&ready.unit.evaluation.diagnostics)
+            let evaluation = ready
+                .unit
+                .evaluation
+                .as_ref()
+                .ok_or("Compiler plans require numeric diagnostics")?;
+            for (&owner, diagnostic) in ready.diagnostic_indices.iter().zip(&evaluation.diagnostics)
             {
                 let fact = &ready.facts[owner];
                 let index = indices

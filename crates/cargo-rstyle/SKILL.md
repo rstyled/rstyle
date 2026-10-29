@@ -483,7 +483,11 @@ physical edit overlaps are not certified, and bundle type names remain heuristic
 Default per-unit evaluation and strict clone matching stay unchanged.
 
 Add `--compiler-patterns` to reuse existing compiler graphs and the core
-trait/capability/generic/helper/dispatch proposer. Graph collection is opt-in;
+trait/capability/generic/helper/dispatch proposer. It can run without
+`--compiler-advisory`; add `--compiler-advisory-only` to skip strict matching too.
+Pattern-only reports mark `diagnostic_execution: not_requested` and omit unit
+numeric evaluations. They reuse core selection/completed effects without numeric
+rules, summaries, fix groups or diagnostic review snapshots. Graph collection is opt-in;
 saved runs without graphs report unavailable inputs. Each unit's `patterns`
 report includes actual default clustering policy, input coverage and existing
 core proposals/counter-evidence. Explicit core path exclusions apply before
@@ -507,6 +511,8 @@ the current effect policy and are not themselves reviewed policy evidence.
 Structural proposal review/baseline coverage depends on function/graph inputs;
 unresolved effect callees alone do not invalidate it. Overall advisory completion
 and baseline publication still require all requested consumers to complete.
+In pattern-only mode, unresolved effect callees stay in effect metadata without
+forcing exit 2; missing owners/graphs and unobserved selected files still do.
 
 Compiler proposals accept `--review-file PATH` for read-only exact lookup. Only
 after the user agrees a finding should remain separate, replay its explicit run

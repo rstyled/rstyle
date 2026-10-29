@@ -46,7 +46,16 @@ impl Report {
             });
 
         let mut report = changed_scope::evaluate(selection, owners);
-        report.include_findings(self.units.iter().flat_map(Unit::selected_paths));
+        if ctx.args.compiler_advisory {
+            report.include_findings(self.units.iter().flat_map(Unit::selected_paths));
+        } else {
+            report.include_findings(
+                self.units
+                    .iter()
+                    .filter_map(|unit| unit.patterns.as_ref())
+                    .flat_map(|patterns| patterns.selected_paths(selection)),
+            );
+        }
         report.into_owned()
     }
 
@@ -60,8 +69,11 @@ impl Report {
 
 impl Unit {
     fn select_changed(&mut self, selection: &changed_scope::Selection) {
+        let Some(evaluation) = &self.evaluation else {
+            return;
+        };
         self.selected_diagnostics = Some(
-            self.evaluation
+            evaluation
                 .diagnostics
                 .iter()
                 .enumerate()
@@ -81,6 +93,10 @@ impl Unit {
         self.selected_diagnostics
             .iter()
             .flatten()
-            .map(|index| self.evaluation.diagnostics[*index].path.as_str())
+            .flat_map(|index| {
+                self.evaluation
+                    .as_ref()
+                    .map(|evaluation| evaluation.diagnostics[*index].path.as_str())
+            })
     }
 }

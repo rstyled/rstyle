@@ -5356,3 +5356,54 @@ in project-pattern-completion-study.json. The next priority is an independent
 structural consumer scope, then generated-owner scope and legacy ledger migration;
 no additional proposer or proof machinery is needed. C65 CI run 40888372155 is
 green; native CI for C66 remains pending until pushed.
+
+
+### C67 — request compiler patterns independently of numeric style (2026-10-29)
+
+`--compiler-patterns` no longer requires `--compiler-advisory`. The existing
+`--compiler-advisory-only` capture mode accepts either consumer. No new CLI flag,
+proposal policy, proof, hash or source/artifact scan is introduced. A small core
+input seam reuses its existing merge, path exclusions and completed effects;
+pattern-only evaluation skips numeric rules, density summaries, fix groups,
+numeric ownership/scopes and diagnostic review snapshots. Supplied effects avoid
+both propagation and local graph rebuilding. Buffer-identity tests verify that
+source and completed effect vectors move into the consumer.
+
+The existing containing compiler_advisory report explicitly marks
+`diagnostic_execution: not_requested` and omits unit evaluation objects. Combined
+requests retain their numeric evaluation and original completion semantics.
+Incomplete effect annotations remain visible without invalidating independently
+complete structural graph input. An omitted dependency fixture now exits 0/1 in
+pattern-only mode versus 2 with numeric advisory, with exactly equal proposals.
+Missing/generated owners, uncaptured graphs, failed captures and unobserved
+selected files remain incomplete. Numeric baselines and compiler plans still
+require numeric advisory. Existing proposal reviews/baselines work independently;
+no new review identity/schema or parallel proposer was added.
+
+Changed-file reporting reuses the existing owner aggregation. Combined mode
+retains numeric counts. Pattern-only mode counts each visible selected proposal
+once at its first matching usage or definition path; raw proposal inventories and
+whole-scope completion remain intact. Strict matching runs normally unless the
+existing raw capture flag skips it. Six independent CLI tests cover legacy/shared
+proposal parity, distinct effect/structural outcomes, source/tool-free replay,
+selection, known missing inputs, reviews/baselines and retained strict matching.
+Two core tests cover selected effect parity, moved buffers and missing results.
+Lead owns shared interfaces/integration; the independent acceptance worker wrote
+only its new test leaf, with no concurrent builds or commits.
+
+The exact C66 rstyle-ccgraph capture is replayed in three alternating samples per
+mode. Patterns, 238 known owners, 176 unavailable owners and 23 unresolved callees
+stay equal; pattern-only execution omits the 238-owner numeric evaluation. Both
+modes remain incomplete and exit 2. Median elapsed times are 0.4176s combined and
+0.4155s pattern-only, with approximately 104 MiB peak RSS in both. The differences
+are negligible: no speedup, useful-proposal quality or increased project coverage
+is claimed. See project-independent-pattern-study.json for commands, raw samples
+and input context. Generated-owner scope and legacy ledger/routing migration are
+the next actual replacement gaps; broader quality/retirement gates remain open.
+
+Integrated validation: all 3,521 Rust tests pass in 230.342s with five existing
+skips, plus doc tests; nine focused core effect cases and six new CLI cases pass.
+Locked all-target Clippy, formatting/diff checks and all 244 offline Python tests
+pass. Style has zero violations over 9,860 functions; patterns has zero unreviewed
+candidates and the same 13 unfiltered IDs as main. Logs use /tmp/clones-c67-*.
+Native C67 CI remains pending until push; the full migration goal stays active.

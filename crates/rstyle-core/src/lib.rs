@@ -226,6 +226,41 @@ pub fn evaluate_retaining_effects(
     )
 }
 
+/// Selected compiler observations and completed effects for consumers that do not request rules.
+pub struct EffectObservations {
+    pub facts: Vec<FnFacts>,
+    pub effects: BTreeMap<String, Vec<rules::Effect>>,
+}
+
+/// Reuse the evaluator's merge, exclusion and propagation steps without numeric diagnostics.
+/// Supplied effects have the same owner/configuration contract as `evaluate_with_effects`.
+pub fn effect_observations(
+    facts: Vec<FnFacts>,
+    cfg: &Config,
+    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,
+) -> Result<EffectObservations, String> {
+    let facts = select_facts(facts, cfg, &mut None)?;
+    let effects = match completed {
+        Some(completed) => take_completed_effects(&facts, completed)?,
+        None => all_effects(&facts, &graph::build(&facts), cfg),
+    };
+    Ok(EffectObservations {
+        effects: own_effects(&facts, effects),
+        facts,
+    })
+}
+
+fn own_effects(
+    facts: &[FnFacts],
+    effects: Vec<Vec<rules::Effect>>,
+) -> BTreeMap<String, Vec<rules::Effect>> {
+    facts
+        .iter()
+        .zip(effects)
+        .map(|(fact, effects)| (fact.id.clone(), effects))
+        .collect()
+}
+
 struct EvaluationInputs {
     facts: Vec<FnFacts>,
     retention: Retention,
@@ -322,13 +357,7 @@ fn evaluate_observations(inputs: EvaluationInputs, cfg: &Config) -> Result<Evalu
     let summary = summarize(&facts, &effects, cfg, diagnostics.len());
     let fix_groups = groups::build(&facts, &graph, &diagnostics, cfg);
     let functions = complexity_report::findings(&facts, &diagnostics);
-    let effects = retain_effects.then(|| {
-        facts
-            .iter()
-            .zip(effects)
-            .map(|(fact, effects)| (fact.id.clone(), effects))
-            .collect()
-    });
+    let effects = retain_effects.then(|| own_effects(&facts, effects));
     Ok(Evaluation {
         report: Report {
             diagnostics,
@@ -372,15 +401,22 @@ fn completed_effects(
 ) -> Result<Vec<Vec<rules::Effect>>, String> {
     match completed {
         None => Ok(all_effects(facts, graph, cfg)),
-        Some(mut completed) => facts
-            .iter()
-            .map(|fact| {
-                completed
-                    .remove(&fact.id)
-                    .ok_or_else(|| "Missing completed compiler effects".to_string())
-            })
-            .collect(),
+        Some(completed) => take_completed_effects(facts, completed),
     }
+}
+
+fn take_completed_effects(
+    facts: &[FnFacts],
+    mut completed: BTreeMap<String, Vec<rules::Effect>>,
+) -> Result<Vec<Vec<rules::Effect>>, String> {
+    facts
+        .iter()
+        .map(|fact| {
+            completed
+                .remove(&fact.id)
+                .ok_or_else(|| "Missing completed compiler effects".to_string())
+        })
+        .collect()
 }
 
 #[cfg(test)]

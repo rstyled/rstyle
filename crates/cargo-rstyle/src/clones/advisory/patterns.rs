@@ -215,6 +215,26 @@ impl Report {
             .count()
     }
 
+    /// Count a selected proposal once, at its first selected usage or definition path.
+    pub(super) fn selected_paths<'a>(
+        &'a self,
+        selection: &'a crate::clones::analysis::changed_scope::Selection,
+    ) -> impl Iterator<Item = &'a str> {
+        self.evaluation
+            .candidates
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| self.visible(*index) && self.selected(*index))
+            .filter_map(|(_, candidate)| {
+                candidate
+                    .sites
+                    .iter()
+                    .chain(&candidate.definitions)
+                    .find(|site| selection.contains(&site.path))
+                    .map(|site| site.path.as_str())
+            })
+    }
+
     pub(super) fn render(&self) -> String {
         patterns_report::text_selected(&self.evaluation, |index| {
             self.visible(index) && self.selected(index)

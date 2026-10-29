@@ -56,7 +56,7 @@ impl Plan {
         let mutations = args.mutation_rules || args.mutation_effects || args.effect_density;
         Self {
             compiler_advisory_only: args.compiler_advisory_only,
-            compiler_advisory: args.compiler_advisory,
+            compiler_advisory: args.compiler_inputs_requested(),
             compiler_patterns: args.compiler_patterns,
             local_source_facts: args.compiler_advisory_only
                 && (args.source_rules || args.guard_clauses || mutations),

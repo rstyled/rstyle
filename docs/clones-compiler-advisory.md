@@ -14,8 +14,10 @@ patterns and compiler plans, but skips strict source correspondence and instance
 projections, helper certification, strict bundle import, admission and pair matching. `matching_execution` and
 `strict_assessment_execution` are `not_requested`; the matching payload is absent
 and pair-completeness flags are false. Success still requires complete capture,
-handoff and requested advisory consumers. Missing owners or unresolved callees
-still produce an incomplete result and exit 2.
+handoff and requested advisory consumers. Missing owners remain incomplete;
+unresolved callees also keep requested numeric style/effect coverage incomplete.
+Use `--compiler-patterns` without `--compiler-advisory` for structural proposals
+without numeric rule evaluation. The raw capture mode accepts either consumer.
 
 The mode publishes the existing shared raw-facts format with an exact
 `compiler-advisory-only` phase, using the existing streaming transport seal and
@@ -261,17 +263,38 @@ type identity. This flag neither grants strict clone admission nor changes
 finding-exit counts. Legacy style/planning remains available.
 
 Add `--compiler-patterns` to collect the existing compiler advisory dependence
-graphs and run the existing core abstraction proposer. This flag requires
-`--compiler-advisory`; graph construction does no work without the explicit flag.
+graphs and run the existing core abstraction proposer. It can run independently
+of `--compiler-advisory`; graph construction does no work without the explicit flag.
 It reuses `pdg::pdg_of`, signature mining, trait-call preparation, clustering,
 alignment, proposal ranking and existing-trait/abstraction suppression policy.
 No new consumer algorithm, body proof, hash or strict clone permission is added.
 Collected graphs move between consumers rather than being copied during input
-preparation. The style evaluator retains its policy-selected facts for the
-proposer; the explicit core configuration's path exclusions apply to both.
+preparation. With numeric style requested, the evaluator retains its selected
+facts for the proposer. Without it, a small core input seam reuses the same
+merge, exclusion and completed-effect steps, skipping numeric rules, density
+summary, fix groups, diagnostic ownership and review snapshots. Supplied completed
+effects move without reevaluation or another graph build; original source buffers
+also move. The explicit core configuration's path exclusions apply to both.
 Default clustering also borrows these graphs: with no normalization rules it
 does not copy their nodes, edges or metadata. Explicit normalization still uses
 an owned rewrite, preserving the original observations.
+
+For a standalone capture without strict matching:
+
+```sh
+cargo rstyle clones --extraction-profile hir-data-v3 --compiler-patterns \
+  --compiler-advisory-only --locked --format json
+```
+
+The containing `compiler_advisory` report sets `diagnostic_execution` to
+`not_requested` and omits unit `evaluation` objects. Adding `--compiler-advisory`
+evaluates numeric rules as before and sets diagnostic execution to `completed`.
+Pattern-only completion depends on captured owners/graphs and selected-file
+coverage, while incomplete effects remain explicit in `patterns.effect_evidence`.
+It may exit 0 (or 1 with `--fail-on-findings`) despite unresolved effect callees;
+requesting numeric advisory on that same saved capture still exits 2. Missing
+owners/graphs and failed capture remain incomplete. Strict matching runs normally
+unless `--compiler-advisory-only` explicitly skips it.
 
 Each unit gains a `patterns` result with schema `rstyle.compiler-patterns/1`,
 the actual default clustering parameters and the existing core report, including
@@ -373,7 +396,8 @@ Capture/handoff failures and unavailable functions/graphs keep proposal review
 coverage incomplete. Overall advisory completion and exit codes continue to
 include every requested advisory consumer, so complete structural review coverage
 can coexist with overall exit 2. Proposal baseline coverage uses the same
-structural input boundary; publication still requires a successful complete run.
+structural input boundary; publication still requires all requested consumers
+to complete. Pattern-only export does not request numeric diagnostics.
 Check/test contexts remain separate. Retained status reuses completed lookups
 instead of comparing the graphs again. `--review-status` accounts for every
 stored entry, including omitted families. Missing proposals remain unavailable:
@@ -528,7 +552,10 @@ of these masks. Raw candidates, totals, classifications, reviews, plans and stri
 matching retain their full scope. The mask is computed once from completed
 candidate locations and reused during replay; no source scan or graph copy is
 needed. Empty selection hides proposals but cannot hide missing inputs or
-baseline header drift. `changed_scope` counts numeric diagnostics only.
+baseline header drift. With numeric advisory requested, `changed_scope` counts
+numeric diagnostics only. In pattern-only mode it reuses the same owner-coverage
+report and counts each visible selected proposal once at its first matching
+usage or definition path. Unknown selected files stay incomplete.
 
 Live analysis and source/tool-free replay use the same captured paths and owner
 IDs. Selection retains only diagnostic indices, scoped owner IDs and owned report
@@ -579,8 +606,10 @@ conflicts with selection.
 Missing old proposals remain unavailable, never resolved or pruned: bounded
 heuristic discovery does not establish completed negatives.
 
-Missing/generated owners, uncaptured graphs, unresolved callees, unavailable
-identities or incomplete capture keep exit 2 and prevent export. The existing
+Missing/generated owners, uncaptured graphs, unavailable identities or incomplete
+capture keep exit 2 and prevent export. Unresolved effect callees additionally
+prevent export when numeric advisory is requested; pattern-only baselines retain
+the separate effect-input limitation. The existing
 4 MiB artifact and 4,096 owner/entry/context bounds apply. Imports validate closed
 schemas, graph observations, versions, membership keys and build contexts; export
 creates a new file without overwriting an existing one. Broader project quality,

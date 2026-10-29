@@ -26,6 +26,7 @@ pub(super) struct Report {
     pub(super) metrics: &'static str,
     effective_config: Rc<serde_json::Value>,
     complete: bool,
+    diagnostic_execution: super::analysis::Execution,
     pub findings: usize,
     limitations: &'static [&'static str],
     units: Vec<Unit>,
@@ -57,7 +58,8 @@ struct Unit {
     resolved_dependency_callees: BTreeMap<String, UnitId>,
     #[serde(skip)]
     propagation_complete: bool,
-    evaluation: rstyle_core::report::Report,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    evaluation: Option<rstyle_core::report::Report>,
     #[serde(skip)]
     diagnostic_snapshots: Vec<Result<super::review::compiler_diagnostics::Snapshot, String>>,
     #[serde(skip)]
@@ -200,7 +202,13 @@ impl Report {
             .changed_scope
             .as_ref()
             .map_or_else(String::new, |scope| {
-                scope.render_for("compiler diagnostics")
+                scope.render_for(
+                    if self.diagnostic_execution == super::analysis::Execution::Completed {
+                        "compiler diagnostics"
+                    } else {
+                        "compiler proposals"
+                    },
+                )
             });
         format!("{reviews}{diagnostic_reviews}{baseline}{pattern_baseline}{selected}")
     }
@@ -209,17 +217,19 @@ impl Report {
         self.units
             .iter()
             .flat_map(|unit| {
-                unit.diagnostic_snapshots
-                    .iter()
-                    .enumerate()
-                    .map(
-                        move |(index, snapshot)| super::review::compiler_diagnostics::Row {
-                            unit: unit.unit,
-                            index,
-                            snapshot,
-                            path: &unit.evaluation.diagnostics[index].path,
-                        },
-                    )
+                unit.evaluation.iter().flat_map(move |evaluation| {
+                    unit.diagnostic_snapshots
+                        .iter()
+                        .enumerate()
+                        .map(
+                            move |(index, snapshot)| super::review::compiler_diagnostics::Row {
+                                unit: unit.unit,
+                                index,
+                                snapshot,
+                                path: &evaluation.diagnostics[index].path,
+                            },
+                        )
+                })
             })
             .collect()
     }
@@ -303,7 +313,7 @@ impl Report {
     }
 
     pub(super) fn advisory_inputs_complete(&self) -> bool {
-        self.complete
+        self.diagnostic_execution == super::analysis::Execution::Completed && self.complete
     }
 
     pub(super) fn pattern_inputs_complete(&self) -> bool {
@@ -376,6 +386,11 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
         metrics,
         effective_config: policy,
         complete,
+        diagnostic_execution: if ctx.args.compiler_advisory {
+            super::analysis::Execution::Completed
+        } else {
+            super::analysis::Execution::NotRequested
+        },
         findings: units
             .iter()
             .map(|unit| unit.findings(patterns::Report::findings))
@@ -383,7 +398,7 @@ pub(super) fn evaluate(ctx: &Context<'_>) -> Result<Option<Report>, String> {
         limitations: &[
             "Advisory compiler observations and existing core policy; no strict clone or purity authority.",
             "Core effect propagation follows unique captured direct Cargo dependencies; missing or ambiguous units remain unresolved.",
-            "Missing functions and unresolved workspace callees make coverage incomplete; no zero facts are substituted.",
+            "Missing functions make requested coverage incomplete; unresolved workspace callees keep requested numeric and effect coverage incomplete. No zero facts are substituted.",
             "Core metrics count mutable borrows and use bounded effect propagation; they differ from strict mutation-effect metrics.",
             "Compiler patterns use approximate advisory graphs and bounded core discovery; input completeness is not exhaustive proposal coverage or refactoring safety.",
         ],
@@ -434,7 +449,7 @@ fn evaluate_units(
 }
 
 pub(super) fn configuration(args: &super::Args) -> Result<Option<Config>, String> {
-    if !args.compiler_advisory {
+    if !args.compiler_inputs_requested() {
         return Ok(None);
     }
     if args.extraction_profile != rstyle_pdg::extraction_profile::ExtractionProfile::DataV3 {
@@ -644,7 +659,10 @@ impl Unit {
         diagnostics: &super::review::compiler_diagnostics::Report,
     ) -> Self {
         let visible_diagnostics = diagnostics.requested().then(|| {
-            (0..self.evaluation.diagnostics.len())
+            (0..self
+                .evaluation
+                .as_ref()
+                .map_or(0, |report| report.diagnostics.len()))
                 .filter(|index| !diagnostics.hidden_for(self.unit, *index))
                 .collect()
         });
@@ -663,13 +681,17 @@ impl Unit {
     }
 
     fn render_diagnostics(&self) -> String {
-        diagnostics::render(
-            self.unit,
-            &self.evaluation,
-            self.selected_diagnostics
-                .as_deref()
-                .or(self.visible_diagnostics.as_deref()),
-        )
+        self.evaluation
+            .as_ref()
+            .map_or_else(String::new, |evaluation| {
+                diagnostics::render(
+                    self.unit,
+                    evaluation,
+                    self.selected_diagnostics
+                        .as_deref()
+                        .or(self.visible_diagnostics.as_deref()),
+                )
+            })
     }
 
     fn render_patterns(&self) -> Option<String> {
@@ -688,8 +710,9 @@ impl Unit {
             .as_ref()
             .is_none_or(|report| report.input_complete)
             && self.unavailable.is_empty()
-            && self.unavailable_complexity.is_empty()
-            && self.unresolved_callees.is_empty()
+            && self.evaluation.as_ref().is_none_or(|_| {
+                self.unavailable_complexity.is_empty() && self.unresolved_callees.is_empty()
+            })
             && self
                 .patterns
                 .as_ref()
@@ -700,7 +723,14 @@ impl Unit {
         self.selected_diagnostics
             .as_ref()
             .or(self.visible_diagnostics.as_ref())
-            .map_or(self.evaluation.summary.violations, Vec::len)
+            .map_or_else(
+                || {
+                    self.evaluation
+                        .as_ref()
+                        .map_or(0, |report| report.summary.violations)
+                },
+                Vec::len,
+            )
             + self.patterns.as_ref().map_or(0, count_patterns)
     }
 }
