@@ -378,12 +378,21 @@ It reuses `ExprUseVisitor`, core propagation, fix groups and parameter stacking;
 strict clone admission is not required. Captured observations support source-free
 `--replay-run` and policy reevaluation. These metric versions differ from strict
 mutation-effect metrics; zero policy density is not a purity proof.
-Add `--compiler-advisory-only` to request compiler advice without strict source
-correspondence, instance projections, helper certification, admission or matching. Compiler patterns/plans and their
-review/baseline workflows still work. Strict execution is `not_requested`, raw
-artifacts have no strict namespace, and replay requires the original mode.
+Add `--compiler-advisory-only` to request compiler advice without strict unit
+metadata, source correspondence, call instances/projections, body type enrichment,
+local-consumer location records, helper certification, admission or matching.
+The existing concrete-type collector still normalizes the complete signature and
+retains its interface observations, preserving saved review/baseline identity.
+Original native bodies, bindings, source snapshots/ranges, compiler contexts,
+generated-function markers and separate source inventory remain captured.
+Compiler patterns/plans and their review/baseline workflows still work. Strict
+execution is `not_requested`, raw artifacts have no strict namespace, and replay
+requires the original mode. Omitted records are not complete empty inventories.
 Missing/generated owners and unresolved calls remain incomplete, including in
-test builds. Pair and native source/effect consumers require the combined mode.
+test builds. Pair and native source/effect consumers require the combined mode;
+ordinary raw/strict capture and explicit instance diagnostics retain their records
+and existing census budgets. Large advisory captures can publish useful findings
+without establishing complete coverage or a clean result.
 The version-6 shared bundle preserves deep generated HIR through flat preorder
 transport. Generated functions remain unavailable to the advisory collector;
 their JSON nesting no longer discards original functions in the same unit.
@@ -558,22 +567,3 @@ modules such as `src/../shared.rs` therefore use `shared.rs` in saved locators.
 Equivalent lexical spellings preserve review identity; outside-root, relative,
 empty and non-UTF8 locators remain unavailable. This uses captured paths without
 filesystem canonicalization, new hashes or metric/context changes.
-
-
-Advisory-only extraction also omits strict call-instance observations: generic
-selection and callback inventories are not constructed when their consumers are
-not requested. Ordinary raw/strict extraction and explicit instance diagnostics
-retain their existing records. Missing records are not complete empty inventories;
-compiler advice, conservative core propagation, patterns, plans and saved replay
-keep their independent evidence and coverage contracts.
-
-
-Advisory-only capture omits unit-wide strict census, namespace, generated-helper,
-library and aggregated inherent metadata. Its requested core collectors/planner
-and compiler reviews do not consume those records; local consumers requiring
-them cannot be combined with this mode. Original function source snapshots/ranges,
-compiler contexts, generated-owner markers and separate source inventory remain
-captured. Ordinary raw/strict capture keeps its existing census limits and
-metadata. Large advisory captures can publish useful measurements while retaining
-unavailable owners and unresolved calls; successful publication is not complete
-coverage or a clean result.

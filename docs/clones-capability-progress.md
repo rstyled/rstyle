@@ -4373,3 +4373,71 @@ then omit its body enrichment and remaining strict/local-consumer function
 metadata only in advisory-only mode. Retain the original native body/source
 records; do not replace bodies with fictitious empty facts or invent a new codec.
 Verify nested interfaces and review/baseline keys before claiming this cut safe.
+
+
+### C48 — retain signatures without unrequested body enrichment (2026-10-29)
+
+The existing concrete-type collector now shares its interface observation,
+validation and token installation through an explicit signature/body scope.
+`capture_signature` retains the same normalized `SignatureFacts` and concrete
+interface record; full capture still performs its unchanged body/binding token,
+receiver/callback, product-selection and declaration-origin installation. The
+function collector selects the signature seam plus the existing advisory collector
+only for advisory-only capture. Ordinary raw/strict capture retains full concrete,
+inherent/trait, location/formal/control and instance collection.
+
+Compiler review identity reads normalized signatures, so dropping the whole
+concrete pass would have changed saved identities. This seam preserves them
+without copying bodies, creating alternative type/proof algorithms, adding a cache
+or introducing checksums. Original native bodies, bindings, snippets, source
+snapshots/ranges, generated markers and selected compiler contexts remain; omitted
+strict/local-consumer metadata is absent, not a fabricated complete-empty record.
+
+One real-Cargo acceptance case exercises nested local nominal parameters/results,
+shared receiver/slice access, field and mutable scalar writes, loop/break, From
+and Default implementations, an immediate generic Option callback and an I/O
+leaf/caller plan. Combined/raw full signatures, interface observations, authored
+body/binding structure, source inventory and complete compiler advisory reports
+are equal. Nonempty strict receiver/field/formal/control inventories remain in
+combined mode and are absent raw. Two I/O owners and four authored update mutation
+sites are independently expected; generated owners stay unavailable. Source-free
+review dismissal retains evaluation and plans. All 38 focused extraction/review
+cases pass, including large units, instance controls and saved review semantics.
+
+One serial before/after capture of each unchanged project preserves exactly equal
+compiler advisory reports and original source inventories. rstyle-core raw output
+changes from 42,080,275 to 37,678,019 bytes; wall samples are 8.69s and 6.91s and
+peak RSS 425,248 and 392,856KiB. rstyle-pdg keeps all 13,528 captured functions,
+7,034 measured / 6,494 unavailable owners, 142 unresolved callees and 826 findings;
+raw output changes from 601,866,824 to 543,482,874 bytes (9.7%), wall samples from
+85.63s to 63.60s (25.7%), and peak RSS from 3,356,228 to 2,937,464KiB (12.5%).
+Both projects remain incomplete and exit 2. These are single ordered local
+samples with cache effects possible, not a statistical/cross-platform guarantee.
+Commands, stages and limitations are recorded in
+`docs/performance/advisory-function-enrichment-samples.json`. Native source/body
+extraction and the 543MB raw publication remain material costs.
+
+Main remains at `1689392` (complexity metrics), already an ancestor of this branch.
+C47 native CI (run 40844652318) is confirmed successful on macOS and both
+Ubuntu targets, including tests, style and patterns. This includes the macOS
+temporary-directory canonicalization fix from `565803b`. C48 native CI remains
+separate from this checkpoint's local validation.
+
+The first integrated run passes all 3,438 Rust cases in 218.686s with five
+existing skips, plus doc tests, locked all-target Clippy, formatting and diff
+checks. Style then found five mutations of one facts target across mutually
+exclusive branches. Separate advisory/full builders now take facts by value,
+preserving the same operations/order without copying body graphs; style reports
+zero violations over 9,791 functions. Measurements precede this ownership-only
+helper extraction. The final integrated run passes all 3,438 tests in 218.205s
+with five existing skips, plus doc tests. Locked all-target Clippy, formatting
+and diff checks pass. Reviewed patterns have zero candidates; all 13 unfiltered
+candidate IDs match the main-rebase baseline, with no new dismissals.
+
+Next ready capability work: independently label selected original rstyle-pdg
+complexity findings and clean controls using the existing `compiler_complexity.py`
+evaluation harness. The newly reachable 7,034-owner scope is availability evidence,
+not yet independently labeled quality. Freeze source construct counts before
+comparing captured measurements; preserve package incompleteness, metric/context
+identity, saved review and baseline semantics. This advances project usefulness
+and disagreement validation rather than requiring another representation change.

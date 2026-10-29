@@ -44,47 +44,37 @@ struct Capture<'a, 'tcx> {
 }
 
 pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
+    capture_with(ctx, facts, Enrichment::Body)
+}
+
+/// Retain the same observed interface and normalized signature without body enrichment.
+pub fn capture_signature(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
+    capture_with(ctx, facts, Enrichment::Signature)
+}
+
+enum Enrichment {
+    Signature,
+    Body,
+}
+
+fn capture_with(
+    ctx: &Context<'_>,
+    facts: &mut HirFnFacts,
+    enrichment: Enrichment,
+) -> Result<(), String> {
     if !has_data_interface(facts, ctx.profile) {
         return Ok(());
     }
-    let mut capture = Capture {
-        ctx,
-        entries: 0,
-        visiting: Vec::new(),
-        origins: std::collections::BTreeMap::new(),
-        generated_origins: std::collections::BTreeMap::new(),
-        product_selections: Vec::new(),
-        reuse: reuse::Completed::default(),
-    };
-    let parameters = facts
-        .signature
-        .params
-        .iter()
-        .map(|parameter| {
-            let id = rustc_hir::HirId {
-                owner: rustc_hir::OwnerId {
-                    def_id: rustc_hir::def_id::LocalDefId {
-                        local_def_index: rustc_hir::def_id::DefIndex::from_u32(
-                            parameter.pat.hir.owner,
-                        ),
-                    },
-                },
-                local_id: rustc_hir::ItemLocalId::from_u32(parameter.pat.hir.local),
-            };
-            let ty = ctx
-                .typeck
-                .node_type_opt(id)
-                .ok_or("Missing concrete parameter type")?;
-            capture.observe(ty)
-        })
-        .collect::<Result<Vec<_>, String>>()?;
-    let observations = InterfaceObservations {
-        identity: IDENTITY.into(),
-        parameters,
-        result: capture.observe(ctx.result)?,
-    };
-    observations.validate()?;
-    capture.install_interface(facts, &observations)?;
+    let mut capture = Capture::new(ctx);
+    let observations = capture.interface(facts)?;
+    match enrichment {
+        Enrichment::Body => capture.install_interface(facts, &observations)?,
+        Enrichment::Signature => {
+            if ctx.profile.supports("rust.concrete-read-only-data") {
+                interface_tokens(&mut facts.signature, &observations)?;
+            }
+        }
+    }
     facts.build.frontend_options.insert_data(observations);
 
     Ok(())
@@ -104,7 +94,53 @@ fn has_data_interface(
                     .any(|parameter| parameter.ty.normalized.is_none()))
 }
 
-impl<'tcx> Capture<'_, 'tcx> {
+impl<'a, 'tcx> Capture<'a, 'tcx> {
+    fn new(ctx: &'a Context<'tcx>) -> Self {
+        Self {
+            ctx,
+            entries: 0,
+            visiting: Vec::new(),
+            origins: std::collections::BTreeMap::new(),
+            generated_origins: std::collections::BTreeMap::new(),
+            product_selections: Vec::new(),
+            reuse: reuse::Completed::default(),
+        }
+    }
+
+    fn interface(&mut self, facts: &HirFnFacts) -> Result<InterfaceObservations, String> {
+        let parameters = facts
+            .signature
+            .params
+            .iter()
+            .map(|parameter| {
+                let id = rustc_hir::HirId {
+                    owner: rustc_hir::OwnerId {
+                        def_id: rustc_hir::def_id::LocalDefId {
+                            local_def_index: rustc_hir::def_id::DefIndex::from_u32(
+                                parameter.pat.hir.owner,
+                            ),
+                        },
+                    },
+                    local_id: rustc_hir::ItemLocalId::from_u32(parameter.pat.hir.local),
+                };
+                let ty = self
+                    .ctx
+                    .typeck
+                    .node_type_opt(id)
+                    .ok_or("Missing concrete parameter type")?;
+                self.observe(ty)
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let observations = InterfaceObservations {
+            identity: IDENTITY.into(),
+            parameters,
+            result: self.observe(self.ctx.result)?,
+        };
+        observations.validate()?;
+
+        Ok(observations)
+    }
+
     fn install_interface(
         mut self,
         facts: &mut HirFnFacts,

@@ -90,7 +90,7 @@ pub fn raw_crate_facts(
     scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<Vec<HirFnFacts>, String> {
-    let mut facts = collect_crate_facts(tcx, scanned, options, CallInstances::Capture)?;
+    let mut facts = collect_crate_facts(tcx, scanned, options, FunctionEvidence::All)?;
     capture_unit_evidence(tcx, options, &mut facts)
         .map_err(|error| format!("Unit source evidence: {error}"))?;
 
@@ -110,29 +110,26 @@ pub fn advisory_crate_facts(
     scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<Vec<HirFnFacts>, String> {
-    collect_crate_facts(tcx, scanned, options, CallInstances::NotRequested)
+    collect_crate_facts(tcx, scanned, options, FunctionEvidence::Advisory)
 }
 
-enum CallInstances {
-    NotRequested,
-    Capture,
+enum FunctionEvidence {
+    Advisory,
+    All,
 }
 
 struct FunctionCollector<'tcx> {
     tcx: TyCtxt<'tcx>,
-    call_instances: CallInstances,
+    evidence: FunctionEvidence,
 }
 
 fn collect_crate_facts(
     tcx: TyCtxt<'_>,
     scanned: &[source::Function],
     options: &Options<'_>,
-    call_instances: CallInstances,
+    evidence: FunctionEvidence,
 ) -> Result<Vec<HirFnFacts>, String> {
-    let collector = FunctionCollector {
-        tcx,
-        call_instances,
-    };
+    let collector = FunctionCollector { tcx, evidence };
     tcx.hir_body_owners()
         .filter(|id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
         .map(|id| collector.function(id, scanned, options).map_err(|error| format!("{}: {error}", tcx.def_path_str(id.to_def_id()))).and_then(|facts| facts.ok_or_else(|| format!(
@@ -168,18 +165,40 @@ impl FunctionCollector<'_> {
         scanned: &[source::Function],
         options: &Options<'_>,
     ) -> Result<Option<HirFnFacts>, String> {
-        let Some((mut facts, ctx)) = function_source(self.tcx, id, scanned, options) else {
+        let Some((facts, ctx)) = function_source(self.tcx, id, scanned, options) else {
             return Ok(None);
         };
-        concrete_types::capture(&ctx, &mut facts)?;
-        capture_callable_owner(&ctx, id, &mut facts, options)?;
-        capture_locations(&ctx, &mut facts)?;
-
-        match self.call_instances {
-            CallInstances::NotRequested => Ok(Some(facts)),
-            CallInstances::Capture => instances::capture(&ctx, id, facts).map(Some),
+        match self.evidence {
+            FunctionEvidence::Advisory => capture_advisory_function(&ctx, id, facts, options),
+            FunctionEvidence::All => capture_complete_function(&ctx, id, facts, options),
         }
+        .map(Some)
     }
+}
+
+fn capture_advisory_function(
+    ctx: &hir::Context<'_>,
+    id: LocalDefId,
+    mut facts: HirFnFacts,
+    options: &Options<'_>,
+) -> Result<HirFnFacts, String> {
+    concrete_types::capture_signature(ctx, &mut facts)?;
+    advisory::capture(ctx, id, &mut facts, options)?;
+
+    Ok(facts)
+}
+
+fn capture_complete_function(
+    ctx: &hir::Context<'_>,
+    id: LocalDefId,
+    mut facts: HirFnFacts,
+    options: &Options<'_>,
+) -> Result<HirFnFacts, String> {
+    concrete_types::capture(ctx, &mut facts)?;
+    capture_callable_owner(ctx, id, &mut facts, options)?;
+    capture_locations(ctx, &mut facts)?;
+
+    instances::capture(ctx, id, facts)
 }
 
 fn capture_callable_owner(
