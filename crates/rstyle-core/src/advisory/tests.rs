@@ -110,3 +110,22 @@ fn mutation_origins_require_current_evidence_and_preserve_historical_semantics()
     raw["facts"]["mutations"][0]["origin"] = "unknown".into();
     assert!(Observation::read(&raw).is_err());
 }
+
+#[test]
+fn historical_statement_counts_and_v2_origin_requirements_are_preserved() {
+    for version in [LEGACY_METRICS, V2_METRICS, METRICS] {
+        let mut raw = original();
+        raw["metrics"] = version.into();
+        raw["facts"]["statements"] = 5.into();
+        let Observation::Known { metrics, facts } = Observation::read(&raw).unwrap() else {
+            panic!("Known historical compiler observation");
+        };
+        assert_eq!(metrics, version);
+        assert_eq!(facts.statements, 5);
+        raw["facts"]["mutations"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("origin");
+        assert_eq!(Observation::read(&raw).is_ok(), version == LEGACY_METRICS);
+    }
+}

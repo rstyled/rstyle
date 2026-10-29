@@ -7,6 +7,7 @@ mod propagation;
 mod reviews;
 mod selection;
 mod transport;
+mod try_statements;
 
 const GCD: &str =
     "pub fn gcd(mut a:u128,mut b:u128)->u128 {while b!=0 {(a,b)=(b,a%b);} if a==0 {1} else {a}}";
@@ -26,7 +27,7 @@ fn compiler_collectors_cover_u128_tuple_writes_without_strict_admission() {
     let (_directory, output, report) = capture(&source, &[]);
     assert!(output.status.success(), "{}", stdout(&output));
     let advisory = &report["compiler_advisory"];
-    assert_eq!(advisory["metrics"], "rstyle.compiler-style-metrics/2");
+    assert_eq!(advisory["metrics"], "rstyle.compiler-style-metrics/3");
     assert_eq!(advisory["complete"], true);
     let unit = &advisory["units"][0];
     assert_eq!(unit["expected_functions"], 2);

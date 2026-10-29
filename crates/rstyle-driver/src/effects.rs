@@ -2,7 +2,7 @@
 //! that need no config (`unsafe`, `static mut`, indirect calls).
 
 use crate::args::{self, ParamIndex};
-use crate::extract::line_of;
+use crate::extract::{Options, StatementMetric, line_of};
 use crate::ids;
 use rstyle_core::facts::{ArgSource, CallEvent, Edge, EffectEvent, EffectKind};
 use rstyle_core::paths::strip_generics;
@@ -12,8 +12,8 @@ use rustc_hir::intravisit::{self, Visitor};
 use rustc_hir::{BlockCheckMode, Body, Expr, ExprKind, PatKind, QPath, Stmt, UnsafeSource};
 use rustc_middle::hir::nested_filter::OnlyBodies;
 use rustc_middle::ty::{self, TyCtxt, TypeckResults};
-use rustc_span::Span;
-use std::path::{Path, PathBuf};
+use rustc_span::{DesugaringKind, Span};
+use std::path::PathBuf;
 
 #[derive(Default)]
 pub struct BodyFacts {
@@ -44,7 +44,7 @@ pub fn collect<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
     body: &'tcx Body<'tcx>,
-    root: &Path,
+    options: &Options<'_>,
 ) -> BodyFacts {
     let params = param_index(tcx, def_id, body);
     let out = BodyFacts {
@@ -55,7 +55,8 @@ pub fn collect<'tcx>(
         tcx,
         owner: def_id.to_def_id(),
         typeck: tcx.typeck(def_id),
-        root: root.to_path_buf(),
+        root: options.root.to_path_buf(),
+        statements: options.statements,
         params,
         out,
         generated_depth: 0,
@@ -78,6 +79,7 @@ struct Walker<'tcx> {
     owner: DefId,
     typeck: &'tcx TypeckResults<'tcx>,
     root: PathBuf,
+    statements: StatementMetric,
     params: ParamIndex,
     out: BodyFacts,
     /// Nonzero while inside macro/desugaring-generated code. Generated statements
@@ -288,7 +290,9 @@ impl<'tcx> Visitor<'tcx> for Walker<'tcx> {
     // rstyle-allow(side_effect_density): visitor accumulates results in self by design
     fn visit_arm(&mut self, arm: &'tcx rustc_hir::Arm<'tcx>) {
         // Block bodies count their own statements/tail; bare-expression arms count as one.
-        let bare = !matches!(arm.body.kind, ExprKind::Block(..));
+        let bare = !matches!(arm.body.kind, ExprKind::Block(..))
+            && (self.statements == StatementMetric::Legacy
+                || arm.span.desugaring_kind() != Some(DesugaringKind::QuestionMark));
         self.out.statements += usize::from(bare && self.counts(arm.body.span));
         intravisit::walk_arm(self, arm);
     }

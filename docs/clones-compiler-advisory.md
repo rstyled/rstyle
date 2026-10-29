@@ -30,10 +30,11 @@ proposals have a separate review identity described below.
 The normal legacy style command remains available.
 
 Both the record and metric identities are versioned:
-`rstyle.compiler-advisory/1` and `rstyle.compiler-style-metrics/2`. These are
+`rstyle.compiler-advisory/1` and `rstyle.compiler-style-metrics/3`. These are
 compiler style metrics, not the newer source/native mutation-effect contract.
-Mutable borrows count as mutation events; compiler statement counts include HIR
-lowering; effect propagation uses the existing bounded depth, boundaries and
+Mutable borrows count as mutation events; compiler statement counts use the
+existing HIR traversal, excluding synthetic question-mark arms in metric 3;
+effect propagation uses the existing bounded depth, boundaries and
 trait-target policy. Unclassified external paths are governed by the reported
 core configuration. A policy density of zero does not establish effect absence,
 purity, termination, or safe refactoring.
@@ -46,14 +47,24 @@ mutable loop-pattern bindings, closure captures and macro-local writes still
 count. All mutation events, escaping/delegated effects and workspace type hints
 remain available. Raw `direct_mutations`/`escaping_mutations` count those retained
 events; source budgets filter the typed `for_desugaring` origin before grouping.
-Metric 2 requires explicit origins, while historical missing origins mean source
+Metrics 2 and 3 require explicit origins, while historical missing origins mean source
 under metric 1. A metric-1 record cannot claim a desugared origin. Statement
-counts are unchanged; budget exclusion does not establish iterator purity.
-Legacy style reuses the same corrected collector.
+counts were unchanged in metric 2; budget exclusion does not establish iterator purity.
+Legacy style reuses the mutation-origin correction.
 
-Version-1 saved compiler observations remain readable and replay with their
-original counts and metric identifier. No replay relabels or reconstructs them
-as version 2. Mixed metric versions in one advisory analysis are rejected;
+Metric version 3 excludes the two synthetic bare match arms created by each `?`
+from statement counts. The collector reads the existing arm-span
+`QuestionMark` desugaring marker; it does not parse source, recheck types or walk
+the body again. Authored match arms, operand-block statements and all calls and
+effects remain collected. Legacy style explicitly retains its original statement
+metric. The two extraction entry points select their metric in the same collector;
+only synthetic question-mark arm counting differs. The 44 density findings seen
+when applying the corrected denominator to the legacy workspace gate remain
+quality debt to assess before retirement, not resolved findings.
+
+Version-1 and version-2 saved compiler observations remain readable and replay
+with their original counts and metric identifiers. No replay relabels or
+reconstructs them as version 3. Mixed metric versions in one advisory analysis are rejected;
 run their scopes separately. Diagnostic review/baseline artifacts retain the
 actual observed version, including historical exports. A version change makes
 positive reviews stale, prevents numeric negative retirement, and changes even

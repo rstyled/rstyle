@@ -1,7 +1,6 @@
 //! Turns every local function body into a plain `FnFacts` record.
 
 use crate::{effects, ids, mutations, pdg, sig};
-use rstyle_core::complexity::Measurement;
 use rstyle_core::facts::{FnFacts, ParamFacts};
 use rstyle_core::lines::preceding_comment_line;
 use rustc_hir::def::DefKind;
@@ -10,6 +9,22 @@ use rustc_hir::{Body, ExprKind, FnSig, PatKind};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{FileName, SourceFile, Span};
 use std::path::Path;
+
+/// Statement-count semantics selected by the consumer, without another HIR walk.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StatementMetric {
+    /// Preserve the legacy style denominator.
+    Legacy,
+    /// Exclude synthetic question-mark arms; other statement counting is unchanged.
+    Authored,
+}
+
+pub(crate) struct Options<'a> {
+    pub root: &'a Path,
+    pub with_pdg: bool,
+    pub complexity: Option<&'a crate::driver_complexity::Functions>,
+    pub statements: StatementMetric,
+}
 
 /// How many lines above a function we look for an `rstyle-allow` comment.
 const LOOKBACK_LINES: usize = 40;
@@ -28,18 +43,15 @@ pub fn crate_facts(
     with_pdg: bool,
     complexity: &crate::driver_complexity::Functions,
 ) -> Vec<FnFacts> {
+    let options = Options {
+        root,
+        with_pdg,
+        complexity: Some(complexity),
+        statements: StatementMetric::Legacy,
+    };
     let mut facts: Vec<FnFacts> = tcx
         .hir_body_owners()
-        .filter_map(|def_id| {
-            let (mut facts, recursions) = function_facts(tcx, def_id, root, with_pdg)?;
-            let span = tcx.hir_node_by_def_id(def_id).fn_sig()?.span;
-            facts.complexity = complexity.get(&span.lo()).map(|nodes| {
-                let mut nodes = nodes.clone();
-                nodes.extend(recursions);
-                Measurement::score(&nodes)
-            });
-            Some(facts)
-        })
+        .filter_map(|def_id| function_facts(tcx, def_id, &options))
         .collect();
     facts.sort_by(|a, b| {
         (&a.path, a.line, a.column, &a.name).cmp(&(&b.path, b.line, b.column, &b.name))
@@ -50,9 +62,9 @@ pub fn crate_facts(
 pub(crate) fn function_facts(
     tcx: TyCtxt<'_>,
     def_id: LocalDefId,
-    root: &Path,
-    with_pdg: bool,
-) -> Option<(FnFacts, Vec<rstyle_core::complexity::Node>)> {
+    options: &Options<'_>,
+) -> Option<FnFacts> {
+    let root = options.root;
     if !matches!(tcx.def_kind(def_id), DefKind::Fn | DefKind::AssocFn) {
         return None;
     }
@@ -68,38 +80,41 @@ pub(crate) fn function_facts(
         .span_to_snippet(sig.span.to(body.value.span))
         .ok()?;
     let has_self = sig.decl.implicit_self().has_implicit_self();
-    let body_facts = effects::collect(tcx, def_id, body, root);
+    let body_facts = effects::collect(tcx, def_id, body, options);
     let (mutations, mutated_types) = mutations::collect(tcx, def_id, root);
 
-    Some((
-        FnFacts {
-            id: ids::def_id_str(tcx, def_id.to_def_id()),
-            implements: trait_method(tcx, def_id),
-            path: display_path(&start.file, root)?,
-            line: start.line,
-            column: start.col.0 + 1,
-            name: tcx.def_path_str(def_id.to_def_id()),
-            params: sig.decl.inputs.len() - usize::from(has_self),
-            param_list: param_list(tcx, sig, body, &body_facts.param_uses),
-            has_self,
-            statements: body_facts.statements,
-            top_statements: top_statements(body),
-            complexity: None,
-            source,
-            preceding_line: lines_above(&start.file, start.line),
-            mutations,
-            calls: body_facts.calls,
-            effects: body_facts.effects,
-            edges: body_facts.edges,
-            mutated_types,
-            sig: sig::sig_facts(tcx, def_id, sig),
-            pdg: with_pdg.then(|| pdg::pdg_of(tcx, def_id, body, root)),
-        },
-        body_facts.recursions,
-    ))
+    Some(FnFacts {
+        id: ids::def_id_str(tcx, def_id.to_def_id()),
+        implements: implemented_trait_method(tcx, def_id),
+        path: display_path(&start.file, root)?,
+        line: start.line,
+        column: start.col.0 + 1,
+        name: tcx.def_path_str(def_id.to_def_id()),
+        params: sig.decl.inputs.len() - usize::from(has_self),
+        param_list: param_list(tcx, sig, body, &body_facts.param_uses),
+        has_self,
+        statements: body_facts.statements,
+        top_statements: top_statements(body),
+        complexity: options.complexity.and_then(|functions| functions.get(&sig.span.lo())).map(|nodes| {
+            let mut nodes = nodes.clone();
+            nodes.extend(body_facts.recursions);
+            rstyle_core::complexity::Measurement::score(&nodes)
+        }),
+        source,
+        preceding_line: lines_above(&start.file, start.line),
+        mutations,
+        calls: body_facts.calls,
+        effects: body_facts.effects,
+        edges: body_facts.edges,
+        mutated_types,
+        sig: sig::sig_facts(tcx, def_id, sig),
+        pdg: options
+            .with_pdg
+            .then(|| pdg::pdg_of(tcx, def_id, body, root)),
+    })
 }
 
-fn trait_method(tcx: TyCtxt<'_>, def_id: LocalDefId) -> Option<String> {
+fn implemented_trait_method(tcx: TyCtxt<'_>, def_id: LocalDefId) -> Option<String> {
     tcx.opt_associated_item(def_id.to_def_id())
         .and_then(|item| item.trait_item_def_id())
         .map(|trait_fn| ids::def_id_str(tcx, trait_fn))

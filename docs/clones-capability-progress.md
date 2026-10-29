@@ -3362,3 +3362,57 @@ snapshot is unchanged from integrated-green `cd330e9`; this evidence increment
 does not claim another Rust full-suite run. The saved C28 capture `run-WbHJ11`
 retains metric 2 and incomplete scope/exit 2 for every replay. Study commands,
 resource values and frozen disagreements are recorded in the project study.
+
+
+## C31: correct advisory try-arm statement counts in the existing collector
+
+Owner/write set: lead owns extraction options, the shared collector, metric
+registration, compatibility tests, source-label derivatives and docs. Read-only
+review confirmed the seam changes only statement contributions in the existing
+walk. State: delivered; integrated checkpoint passes.
+
+Advisory metric 3 excludes the two pinned `QuestionMark` synthetic bare-arm
+contributions per `?`; authored arms, operand blocks and macro IO remain
+collected. A small borrowed options seam selects frozen legacy versus corrected
+advisory semantics at the two existing extraction entry points. No extra walk,
+source/type/body proof, hash, artifact scan or graph/body clone was introduced.
+The initial global correction exposed 44 legacy density findings; those remain
+quality debt before retirement. Preserving the original legacy metric is not a
+claim that these corrected-metric findings were fixed. No thresholds, budgets,
+suppressions or ignores changed. The helper extractions only name the existing
+trait identity lookup and optional graph publication.
+
+Four new real-Cargo tests cover one/multiple question marks, authored arms,
+operand blocks, macros, source-free replay and legacy 4/advisory 2 counts with
+identical call/effect/edge/mutation/parameter/type observations. Versions 1/2
+remain readable with unchanged statement counts; versions 2/3 still require
+mutation origins. Cross-version reviews, numeric negatives and even empty
+baselines remain distinct. The focused 96 CLI cases and core 7 cases pass; all 134
+Python acceptance cases pass. Locked all-target Clippy and formatting/diff
+checks pass. Legacy style is zero over 9,719 functions; reviewed patterns is zero.
+
+Fresh metric 3 `run-bS3zMn` evaluates the same bounded two-package scope while
+retaining 1,582 known / 2,165 unavailable owners and incomplete scope / exit 2. All five
+frozen C30 source labels agree under all four policies. `save_logs` now has
+statements 2 / density 3000; `collect` has statements 3 / density 1000; direct events
+are unchanged. Threshold 2000 recovers the expected `save_logs` finding.
+C30 artifacts remain frozen; the new `project-compiler-try-density-*` cases
+change only run/metric identity plus a derivation note. Historical metric 2 replay
+preserves exact advisory (including planning), edit-planning and strict matching
+output. Capture/replay resources and explicit commands are in `project-study.md`;
+there is no speedup, complete-project quality or strict-admission claim.
+
+Broader transitive density quality, other desugarings, generated-owner coverage,
+legacy corrected-metric quality debt and per-capability retirement remain open.
+
+
+Final frozen runtime snapshot: 3,330 tests pass in 216.417 seconds with five
+existing skips; doc tests pass (`/tmp/clones-try-metric-tests-final-1`). The two
+previously reported nonzero source/caller tests both pass. Locked all-target
+Clippy passes (`/tmp/clones-try-metric-clippy-1`); formatting and diff checks pass.
+Style reports zero violations over 9,719 functions
+(`/tmp/clones-try-metric-style-3`), reviewed patterns reports zero candidates
+(`/tmp/clones-try-metric-patterns-1`), and unfiltered patterns preserves all
+fourteen reviewed IDs (`/tmp/clones-try-metric-patterns-unfiltered-1`). Python
+acceptance remains 134 passing tests (`/tmp/clones-try-metric-python-1.log`).
+These are Linux checkpoint results; no macOS gate is claimed.

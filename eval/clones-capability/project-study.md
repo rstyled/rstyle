@@ -749,3 +749,46 @@ Probe/boundary/small replays take 17.07/16.23/16.15 seconds and peak at
 1,453,368/1,453,400/1,453,588 KiB RSS. Every replay uses the same incomplete
 saved input, metric2, and exits2. Reducer disagreement exits1. No performance
 improvement, full-project precision or complete matching claim follows.
+
+
+## Corrected question-mark statement metric (C31)
+
+The pinned compiler marks both synthetic `?` match-arm spans as
+`DesugaringKind::QuestionMark`. Advisory metric 3 excludes only their bare-arm
+statement contribution in the existing collector walk. Authored arms, operand
+blocks, macro calls and all event collection remain unchanged. Explicit options
+at the legacy/advisory extraction boundaries preserve the original legacy
+statement denominator. The initial global correction exposed 44 legacy density
+findings (`/tmp/clones-try-statements-style-1`); these remain quality debt to
+assess before retirement, rather than findings resolved by this migration. No
+thresholds, suppressions or ignores were added.
+
+Fresh capture `run-bS3zMn` uses the same two-package check scope (`cargo-rstyle`
+and `rstyle-core`), metric 3, 1,582 known observations and 2,165 unavailable
+observations. The capture retains incomplete scope/exit 2 and takes 59.42 seconds,
+1,787,096 KiB peak RSS (`/tmp/clones-try-metric-capture-1`). The command matches
+the earlier explicit probe capture, using `project-compiler-density-probe-policy.toml`.
+This is a new capture, not an incremental cache or speedup measurement.
+
+New `project-compiler-try-density-*-cases.json` derive from the frozen C30 labels:
+only run/metric identities and a derivation note change. Exact source, authored
+statement counts, event counts, code lines and policies stay fixed. C30 labels
+and discrepancy results remain unchanged. Probe now agrees on all five labels:
+`save_logs` statements2/density3000 and `collect` statements3/density1000, with
+the same direct IO events. The saved boundary, small and threshold policies are
+replayed against this exact fresh run, using the C30 command above with
+`run-bS3zMn` and the new labels/result names. Broader transitive quality, other
+lowering forms, generated owners and retirement remain open.
+
+
+All four policy results now contain five agreements/zero disagreements. The
+threshold2000 replay finds `save_logs` at density3000. Boundary/small/threshold
+replays take 16.30/16.67/16.28 seconds and peak at
+1,453,216/1,453,212/1,453,216 KiB RSS. Scope remains incomplete/exit2; the reducer
+exits0 because the five labeled owners agree, not because the project is clean.
+Replaying metric2 `run-WbHJ11` under the C30 probe policy preserves exact
+`compiler_advisory` (including planning), `edit_planning` and `matching` equality
+with `/tmp/clones-compiler-density-probe-replay-1/stdout.log`; it takes 16.84
+seconds/1,452,684 KiB and remains incomplete/exit2. Logs are
+`/tmp/clones-try-metric-{boundary,small,threshold}-replay-1` and
+`/tmp/clones-try-historical-probe-replay-1`.
