@@ -6033,3 +6033,48 @@ IDs as main. C78 native CI40934545172 is still running on both Ubuntu runners
 and macOS. Next investigate whether existing captured statement
 observations can remove redundant whole-body parsing for source spacing, keeping
 missing-data and metric distinctions without increasing budgets.
+
+
+### C80 — spacing outcomes without an unnecessary count (2026-10-29)
+
+Reused the existing core blank-line predicate: checked original source containing
+a blank line cannot violate spacing, independently of its statement count.
+Unavailable counts remain null with their own status/reason. Previously known
+counts remain measured. For an oversized source already containing a blank line,
+request existing header-only inspection instead of a doomed full-function parse;
+source/context checks still decide whether the source is usable. No new collector,
+parser, proof, hash or budget. Strict matching stays unchanged.
+
+Existing source review resolution already accepts a completed negative under the
+retained policy and detector/context. Baseline handling now uses the same complete,
+unsuppressed no-finding outcome without unnecessarily requiring a numeric count;
+the internal flag is named evaluated_negative. Disabled, excluded, unselected,
+suppressed and changed-policy handling remains separate. No synthetic zero.
+
+Measured actual-policy retained core run-ChBnep improves38 spacing outcomes:35
+syntax-budget cases use header-only inspection with unrequested counts, and3
+unsupported counts remain unsupported while their rule outcome completes. All
+prior known measurements are unchanged. Unavailable spacing falls81→43 (27
+syntax-budget and16 unsupported), evaluated rules rise1146→1184, and0 findings
+remain. Overall scope/exit2 and budget-exhausted execution remain incomplete.
+Evidence: project-spacing-short-circuit-study.json; no fresh capture, speedup or
+retirement claim. Existing seven spacing CLI tests and all five new real-Cargo
+cases pass, including unchanged known counts, signature blank lines, oversized
+and missing-source controls, source/tool-free replay, and same-policy saved
+review/baseline resolution with policy-drift controls.
+
+Final integrated snapshot: all3,615 Rust tests pass with five existing skips,
+plus doctests. Formatting, Clippy and244 Python checks pass. Legacy style has0
+violations over9,941 functions; patterns has0 unreviewed candidates and retains
+the same13 unfiltered IDs as main. Dog-food feedback removed repeated assessment
+mutation and separated input planning from inspection; no ignores or thresholds
+changed. Final binary reproduces the entire recorded project analysis exactly.
+C78 native CI has both Ubuntu jobs passing; macOS remains pending. C79 native
+CI remains pending on all three runners at the last poll.
+
+Next ready reuse-first slice: an explicit authored population for standalone
+compiler complexity ranking, reusing the existing core selector/ranker and
+generated-owner scope machinery. Compiler-selected HIR statement counts will
+not silently replace the distinct original-source spacing metric. Full scoped
+diagnostics retain separate unresolved-callee/effect prerequisites; the overall
+migration and legacy retirement gates remain open.

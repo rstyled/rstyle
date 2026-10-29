@@ -1,4 +1,4 @@
-//! Spacing uses complete direct statement evidence and the shared blank-line policy.
+//! Spacing uses the shared blank-line policy; positive findings need a complete count.
 use super::{Assessment, Coverage, FactAvailability, Outcome, source_rules};
 use rstyle_core::config::FnSpacingConfig;
 use rstyle_pdg::consumer_facts::{Availability, LocalFacts};
@@ -27,6 +27,20 @@ pub(super) fn evaluate(facts: &LocalFacts<'_>, policy: &FnSpacingConfig) -> Asse
             Outcome::Finding
         } else {
             Outcome::EvaluatedNoFinding
+        };
+    } else if rstyle_core::lines::has_blank_line(source) {
+        return Assessment {
+            outcome: Outcome::EvaluatedNoFinding,
+            coverage: Coverage::Complete,
+            reasons: assessment
+                .reasons
+                .into_iter()
+                .chain([
+                    "An original blank line satisfies spacing without a direct statement count"
+                        .into(),
+                ])
+                .collect(),
+            ..assessment
         };
     }
     assessment

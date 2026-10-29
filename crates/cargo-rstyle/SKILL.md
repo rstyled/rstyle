@@ -140,7 +140,10 @@ retains raw `analysis.findings` plus `visible_findings`, `suppressed_findings` a
 per-function `source_suppression`. Saved-run replay preserves original comments.
 Add `[fn_spacing]` to the analysis config to request spacing from checked original
 direct statements. Its default threshold is five; zero disables it. Unsupported
-statement transformations remain incomplete, independently of length/arity.
+statement transformations retain unavailable counts, independently of length/arity.
+A checked original blank line satisfies spacing even when its count is unavailable;
+the complete no-finding outcome retains `actual: null` and the count status.
+Same-policy saved reviews and baselines can resolve that definite negative.
 Named `fn_spacing` suppression applies when requested.
 Signature-only inspection parses a bounded borrowed header, independently of body
 size or support. Statement and guard parsing use the shared lexical syntax budget;

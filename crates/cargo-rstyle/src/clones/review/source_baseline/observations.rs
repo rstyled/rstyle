@@ -49,9 +49,9 @@ impl<'a> FindingRef<'a> {
         }
 
         let eligible = match self {
-            Self::Parameter(_) => owner.parameters.visible || owner.parameters.numeric_negative,
-            Self::Length(_) => owner.lengths.visible || owner.lengths.numeric_negative,
-            Self::Spacing(_) => owner.spacings.visible || owner.spacings.numeric_negative,
+            Self::Parameter(_) => owner.parameters.visible || owner.parameters.evaluated_negative,
+            Self::Length(_) => owner.lengths.visible || owner.lengths.evaluated_negative,
+            Self::Spacing(_) => owner.spacings.visible || owner.spacings.evaluated_negative,
         };
         if matches!(self, Self::Spacing(_))
             && (!owner.spacing_requested || owner.spacings.policy.min_statements == 0)
@@ -64,7 +64,7 @@ impl<'a> FindingRef<'a> {
         if !eligible {
             return (
                 status::State::Unavailable,
-                "Suppressed, excluded or unavailable source evidence is not a numeric negative"
+                "Suppressed, excluded or unavailable source evidence is not an evaluated negative"
                     .into(),
             );
         }

@@ -50,11 +50,15 @@ measured count. `effective_config.min_statements` is null when unrequested.
 The requested count uses one bounded full-function parse and checks the original block and each
 direct statement against captured kinds, byte ranges and snippets. Missing or
 changed children remain unknown. Direct macros, attributed statements/items,
-empty/verbatim statements and async lowering are initially unsupported. Length
-and parameter checks can still evaluate those functions; spacing incompleteness
-keeps the requested overall scope incomplete. Statement work runs only when
-spacing is enabled and uses one indexed byte-position table, with no new hashes,
-file reads, graph copies or second parse. Saved-run replay can enable or change
+empty/verbatim statements and async lowering have unavailable counts. A checked
+original blank line still gives a complete no-finding outcome without a count;
+`actual` remains null and the count availability/reason is retained. Known counts
+are preserved. For a source beyond the existing syntax budget that already has
+a blank line, only the existing header inspection is requested. Without a blank
+line, an unavailable count keeps spacing incomplete; length and parameter checks
+can still evaluate independently. Statement parsing runs when spacing is enabled,
+within its existing syntax budget, and uses one indexed byte-position table.
+This adds no hashes, file reads, graph copies or second parse. Saved-run replay can enable or change
 spacing policy without original source files or tools. The independent comparison
 adapter scores spacing only for independently labeled cases, using the direct
 count and authored blank-line outcome. Disabled and excluded policy agreement

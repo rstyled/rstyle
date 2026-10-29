@@ -19,7 +19,7 @@ pub(in crate::clones::review) struct Observations {
 pub(in crate::clones::review) struct Rule<P> {
     pub visible: bool,
     pub complete: bool,
-    pub numeric_negative: bool,
+    pub evaluated_negative: bool,
     pub policy: P,
     error: Option<String>,
 }
@@ -29,11 +29,11 @@ impl<P> Rule<P> {
         Self {
             visible: review.visible,
             complete: review.complete,
-            numeric_negative: review.complete
+            evaluated_negative: review.complete
                 && !review.suppressed
-                && review.assessment.is_some_and(|rule| {
-                    rule.outcome == analysis::Outcome::EvaluatedNoFinding && rule.actual.is_some()
-                }),
+                && review
+                    .assessment
+                    .is_some_and(|rule| rule.outcome == analysis::Outcome::EvaluatedNoFinding),
             policy,
             error,
         }

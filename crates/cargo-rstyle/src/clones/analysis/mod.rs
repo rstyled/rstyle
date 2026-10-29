@@ -584,6 +584,11 @@ fn inputs(function: &Function, exhausted: bool, statements: bool) -> (Execution,
             unavailable("Analysis function budget exhausted"),
         );
     }
+    let source = function.facts.source.bytes.as_str();
+    let statements = statements
+        && (!rstyle_core::lines::has_blank_line(source)
+            || rstyle_pdg::consumer_facts::within_source_budget(source));
+
     let inspected = if statements {
         rstyle_pdg::consumer_facts::inspect_with_statements(&function.facts)
     } else {

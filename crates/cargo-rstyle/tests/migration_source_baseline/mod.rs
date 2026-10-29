@@ -4,6 +4,7 @@ mod external_methods;
 mod generated_applicability;
 mod generic_methods;
 mod shared_config;
+mod spacing_short_circuit;
 
 const ORIGINAL: &str = "pub fn many(a: u32, b: u32) -> u32 {\n    let first = a + b;\n    let second = first + 1;\n    let third = second + 1;\n    let fourth = third + 1;\n    fourth + 1\n}\n";
 const POLICY: &str = "[fn_length]\nmax_lines=2\n[fn_params]\nmax_params=1\ncount_self=false\n[fn_spacing]\nmin_statements=5\n";
