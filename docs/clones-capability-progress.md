@@ -7607,3 +7607,45 @@ workspace/all-target Clippy, formatting and diff whitespace. Both originally
 reported NonZero failures pass in this final run. Native macOS CI remains
 unverified locally. The next measured frontier is the 25.5s/4.4GiB saved compiler-pattern replay;
 profile its actual loading/proposer cost before choosing another optimization.
+
+### C115 — reuse compact metadata decoding for compiler patterns (2026-10-30)
+
+Lead owns profiling, the two reader/review seams, validation and commit. On the
+same C114 saved input, existing Stage observations attribute about 10.4s to parsing
+899 MB of observations. Four temporary phase timers identify about 8.4s in the
+existing proposer, 1.86s collecting inputs and 0.30s propagating effects. Nested
+stage totals are not additive. Temporary instrumentation is removed; ordinary
+reports are exactly equal before/after the profiling-only run.
+
+Compact advisory-only patterns unnecessarily requested a retained full HIR tree.
+The proposer already consumes its independently captured advisory graph. Its
+review declaration only reads build/signature metadata. It now borrows the
+existing FactView and shares the existing validated header decoder with numeric
+consumers. The original root identity, source ownership, typed HIR structure
+validation, graph inputs, contexts, reviews and baselines are preserved. Full
+reports and requested body-dependent consumers still restore original bodies.
+No new decoder, wire format, cache, graph copy, hash or strict-matching change.
+
+Same-input replay changes observed peak process RSS from 4,643,052KiB to
+3,365,544/3,366,296KiB, about 27.5% lower. Wall observations 25.85s before and
+24.69/25.45s after establish no broad latency claim. All three reports compare
+exactly equal. Receipt: eval/clones-capability/compact-pattern-reader-study.json.
+All 99 focused pattern/header/style-payload workflows pass. Clippy, formatting,
+style over 10,142 functions and both pattern gates pass (zero visible findings,
+same 13 raw IDs).
+The final fresh live compiler gate takes 90.86s/4,271,920KiB; capture/compiler costs remain.
+The first full run caught a root-style-only replay boundary: broadening metadata
+decoding had changed rejection of absent pattern graphs into a generic incomplete
+report. Root-style captures now explicitly reject pattern requests because those
+graphs were not recorded; they do not regain body requirements. The focused
+regression and final integration pass: all 3,752 Rust tests (5 skipped, 263.838s),
+doctests, Clippy, formatting and both repository gates.
+
+Samply remains unavailable under perf_event_paranoid=4. Installed gprofng can run
+using a process timer, but its real replay trial warns that the interval changed;
+the sampled percentages are excluded from optimization decisions. Before changing
+the proposer algorithm, use a bounded reliable profile. The existing metadata producer is also a reuse candidate for avoiding unrequested
+HIR capture, rather than just discarding trees during decoding.
+C114 CI is externally observable through the public API: Ubuntu x86/ARM jobs
+complete successfully. macOS 15 passes its test step and is running self-checks;
+its remaining gates and C115 native CI are not claimed complete.

@@ -972,3 +972,17 @@ The observed compiler live run takes 90.66s and saved replay 25.51s, each around
 unfiltered evaluation 10.94s. These are sequential observations on a previously
 used target directory, not cold-build timings, cache claims or a speedup. The
 compiler default's resource cost remains a limitation; native macOS CI is pending.
+
+### Compact compiler-pattern reader cost (C115)
+
+`compact-pattern-reader-study.json` records the same retained workspace input,
+existing JSON performance events, temporary phase-timer results and plain report
+equality. The existing validated metadata reader replaces retained full HIR trees
+for compact advisory-only compiler patterns. Review declarations borrow the
+metadata view; their bodies still come from prepared advisory graphs. Full reports
+and body-dependent consumers retain original trees. No wire/caching/hash changes.
+
+Observed replay peak RSS falls from 4,643,052KiB to 3,365,544/3,366,296KiB (about 27.5%).
+Wall observations remain about 25s; this is a memory result, not a broad speedup.
+The process-timer gprofng trial is recorded as unreliable because the collector
+warned about a changed timer period; its percentages are not optimization evidence.

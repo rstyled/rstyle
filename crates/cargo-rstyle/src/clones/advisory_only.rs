@@ -66,6 +66,9 @@ fn consume_style(
     snapshot: &capture::Snapshot,
     result: &mut Handoff,
 ) -> Result<(), String> {
+    if request.args.compiler_patterns {
+        return Err("Root style inputs did not request compiler pattern graphs; use a compiler-pattern capture".into());
+    }
     if !header_only(request.args) {
         return Err("Root style inputs did not request original HIR bodies or bindings; requested consumers require a full body capture".into());
     }
@@ -87,7 +90,6 @@ fn consume_style(
 fn header_only(args: &Args) -> bool {
     matches!(args.report_detail, report::Detail::Compact)
         && args.compiler_inputs_requested()
-        && !args.compiler_patterns
         && !args.source_rules
         && !args.guard_clauses
         && !args.mutation_rules

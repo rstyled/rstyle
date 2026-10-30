@@ -29,14 +29,17 @@ replay. Root style captures the existing numeric collector inputs and original
 source/signature/build metadata, retaining the real body identity without building
 a HIR body tree. Bindings are explicitly not requested. Numeric replay needs no
 source files or compiler tools; consumers requiring bodies need a full clones
-capture. Direct `clones --compiler-advisory-only` captures, including compact
-reports, continue to retain full original body and binding snapshots. Saved plans
+capture. Direct `clones --compiler-advisory-only` captures publish full original body and
+binding snapshots. Compact numeric and compiler-pattern reports validate those
+bodies while decoding, then retain only the original root identity when no
+requested consumer needs the tree. Full reports and body-dependent consumers
+continue to restore the original bodies. Saved plans
 distinguish these payloads when reusing completed owners. This is an extended
 style report, with compiler metric semantics;
 equal field names do not imply equal legacy density denominators or scores.
 The legacy backend remains the default, available explicitly through
 `--style-engine legacy`. The style-engine option applies only without a subcommand;
-`patterns --engine compiler` retains its separate opt-in route.
+`patterns` independently defaults to compiler workspace discovery.
 
 The same style presentation is available when reevaluating an explicit saved run:
 
@@ -489,6 +492,12 @@ Strict matching and numeric rules are not requested. `--engine compiler` selects
 the same path explicitly; `--engine legacy` retains the reference collector for
 side-by-side evaluation. Mining and score/top flags keep their existing meaning.
 `--fail-on-candidates` uses displayed compiler proposals; incomplete scope exits2.
+
+Compact pattern decoding reuses the metadata reader: original HIR structure is
+validated and discarded, while advisory graphs remain the proposer input. Review
+and baseline declarations borrow the existing source/signature/build view rather
+than requiring a second body tree. Full reports and body-dependent analyses keep
+their original payloads.
 
 This route consumes `--config` or the workspace `rstyle.toml` for core selection
 and effect classification. Package, manifest and all-target selection remain

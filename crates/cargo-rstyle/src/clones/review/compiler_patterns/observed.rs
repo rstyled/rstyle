@@ -69,7 +69,7 @@ pub(in crate::clones) fn collect(
             let endpoint = originals
                 .get(id.as_str())
                 .ok_or_else(|| "Missing compiler review original owner".into())
-                .and_then(|(unit, record)| resolver.endpoint(record.facts.full()?, facts, unit));
+                .and_then(|(unit, record)| resolver.endpoint(record.facts.view(), facts, unit));
             (id, endpoint)
         })
         .collect();
@@ -156,7 +156,7 @@ impl Resolver<'_, '_> {
 
     fn endpoint(
         &self,
-        original: &rstyle_pdg::HirFnFacts,
+        original: crate::clones::FactView<'_>,
         mut facts: FnFacts,
         unit: &UnitContext,
     ) -> Result<Endpoint, String> {
@@ -170,18 +170,18 @@ impl Resolver<'_, '_> {
             .clone();
         let captured = &self.ctx.capture.units[unit.observed_unit];
         let identity =
-            local_adapter::Identity::new(&original.build, captured, &self.ctx.capture.plan)?;
+            local_adapter::Identity::new(original.build, captured, &self.ctx.capture.plan)?;
         let kind = if facts.sig.is_some() {
             "compiler-method"
         } else {
             "compiler-function"
         };
 
-        let signature = signature(&original.signature, facts.sig.take());
+        let signature = signature(original.signature, facts.sig.take());
         let declaration = Rc::new(Declaration {
             locator: identity.locator(name, kind),
             signature,
-            context: local_adapter::context(&original.build, captured)?,
+            context: local_adapter::context(original.build, captured)?,
             implements: facts.implements.take(),
         });
         let body = self.body(&mut facts, unit.id);
