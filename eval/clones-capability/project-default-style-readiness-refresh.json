@@ -1,0 +1,2223 @@
+{
+  "schema": "rstyle.default-style-readiness-refresh/1",
+  "checkpoint": "C126",
+  "source_revision": "240ba58a730625ffe8b31d54cb880fbf8a37386a",
+  "source_state": "Tracked sources match240ba58a; original pre-existing untracked files remain untouched. The producer accurately reports240ba58a+dirty, so this is not a clean-tree provenance claim.",
+  "scope": "Default authored workspace library/binary check, six captured contexts; original rstyle.toml; no all-targets. Native Linux ARM64, development binaries, warm dependency state.",
+  "method": "Build current workspace once with --locked, then run explicit reference initial/repeat and compiler initial/repeat serially. No cache eviction or clean build, source edits, temporary instrumentation or policy changes. CARGO_NET_OFFLINE=true; Cargo.lock remains byte-identical. Initial means first observation here, not a cold build. Each analysis is bounded at150 seconds.",
+  "configuration": "# Workspace policy. Omitted keys use the tool's defaults.\n# Unknown keys are errors, so typos never silently disable a rule.\n\nexclude = [\"target/**\"]\n\n[fn_length]\nmax_lines = 50            # code lines: blank, `//` and `/* */` lines are not counted\n\n[fn_params]\nmax_params = 4\ncount_self = false        # `self` is the object, not an argument\n\n[fn_spacing]\nmin_statements = 5\n\n[complexity]\n# Start at current maxima; lower these toward 12 in follow-up refactoring PRs.\nmax_cyclomatic = 40\nmax_cognitive = 32\n\n[mutation_budget]\nmax_mutations_per_target = 3   # writes / `&mut` borrows of one root (local, param, self)\nmax_mutated_targets = 3        # distinct roots mutated in one function\ngranularity = \"root\"           # \"field\" keys targets as `self.a`, `self.b` instead of `self`\n\n[side_effects]\n# density_milli = 1000 * sum(weights of effects) / statements. Flagged above the max.\nmax_density_milli = 500\nmin_statements = 3\nmin_lines = 10            # functions with fewer code lines than this skip the density rule\ntransitive_depth = 3      # call hops an effect travels up (io/network/global/time/random, delegated &mut writes); 0 = direct only\n\n[side_effects.weights]\nmutation = 1   # only writes that escape the function (through `&mut`), not owned locals\nio = 3\nnetwork = 3\nglobal = 2     # `static mut`\nunsafe = 4\ntime = 1\nrandom = 1\npanic = 0\nunknown = 1    # calls through dyn / fn pointers / generic callables\n\n# Callee path prefixes (longest match wins). Setting a list REPLACES its default.\n# [side_effects.paths]\n# io = [\"std::fs::\", \"std::io::\"]\n# network = [\"std::net::\", \"reqwest::\"]\n\n[grouping]\n# Which violations must be fixed together. A fix's footprint is the function itself plus,\n# for these rules, its callers (a signature change edits every call site). Violations with\n# overlapping footprints form one group: land them in one PR or stack them, callees first.\n# Everything else is independent. Wider footprints (e.g. density) create hub groups.\ncaller_rules = [\"fn_params\"]\ncaller_hops = 1\n",
+  "observations": [
+    {
+      "engine": "legacy",
+      "observation": "initial",
+      "args": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "--style-engine",
+        "legacy",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "elapsed_wall_seconds": 22.312,
+      "stdout": "/tmp/clones-c126-legacy-initial.json",
+      "stderr": "/tmp/clones-c126-legacy-initial.err",
+      "time": "/tmp/clones-c126-legacy-initial.time",
+      "elapsed_seconds": 22.29,
+      "peak_rss_kib": 1888568,
+      "summary": {
+        "functions": 10156,
+        "violations": 0,
+        "complexity_measured": 10156,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 81,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 338,
+          "mutation": 2133,
+          "panic": 56,
+          "time": 68,
+          "unknown": 167
+        }
+      }
+    },
+    {
+      "engine": "legacy",
+      "observation": "repeat",
+      "args": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "--style-engine",
+        "legacy",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "elapsed_wall_seconds": 0.868,
+      "stdout": "/tmp/clones-c126-legacy-repeat.json",
+      "stderr": "/tmp/clones-c126-legacy-repeat.err",
+      "time": "/tmp/clones-c126-legacy-repeat.time",
+      "elapsed_seconds": 0.85,
+      "peak_rss_kib": 91704,
+      "summary": {
+        "functions": 10156,
+        "violations": 0,
+        "complexity_measured": 10156,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 81,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 338,
+          "mutation": 2133,
+          "panic": 56,
+          "time": 68,
+          "unknown": 167
+        }
+      }
+    },
+    {
+      "engine": "compiler",
+      "observation": "initial",
+      "args": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "--style-engine",
+        "compiler",
+        "--format",
+        "json"
+      ],
+      "exit_code": 1,
+      "elapsed_wall_seconds": 31.062,
+      "stdout": "/tmp/clones-c126-compiler-initial.json",
+      "stderr": "/tmp/clones-c126-compiler-initial.err",
+      "time": "/tmp/clones-c126-compiler-initial.time",
+      "elapsed_seconds": 31.05,
+      "peak_rss_kib": 2431540,
+      "summary": {
+        "functions": 10156,
+        "violations": 48,
+        "complexity_measured": 10156,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 99,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 338,
+          "mutation": 2146,
+          "panic": 56,
+          "time": 68,
+          "unknown": 167
+        }
+      }
+    },
+    {
+      "engine": "compiler",
+      "observation": "repeat",
+      "args": [
+        "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+        "--style-engine",
+        "compiler",
+        "--format",
+        "json"
+      ],
+      "exit_code": 1,
+      "elapsed_wall_seconds": 6.004,
+      "stdout": "/tmp/clones-c126-compiler-repeat.json",
+      "stderr": "/tmp/clones-c126-compiler-repeat.err",
+      "time": "/tmp/clones-c126-compiler-repeat.time",
+      "elapsed_seconds": 5.99,
+      "peak_rss_kib": 852788,
+      "summary": {
+        "functions": 10156,
+        "violations": 48,
+        "complexity_measured": 10156,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 99,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 338,
+          "mutation": 2146,
+          "panic": 56,
+          "time": 68,
+          "unknown": 167
+        }
+      }
+    }
+  ],
+  "repeat_comparisons": {
+    "reference_complete_report_equal": true,
+    "compiler_projection_equal": {
+      "diagnostics": true,
+      "diagnostic_units": true,
+      "summary": true,
+      "summary_complete": true,
+      "functions": true,
+      "function_units": true,
+      "fix_groups": true,
+      "compiler_advisory": true
+    },
+    "compiler_unit_descriptors_equal_by_report_unit": true,
+    "compiler_complete_build_settings_equal": true,
+    "navigation": "Observed-unit order and run/bundle directories can differ. Compare complete unit descriptors by report-local unit ID and complete build-setting values without their run-local bundle paths; no compiler fields are rewritten."
+  },
+  "contexts": [
+    {
+      "unit": 0,
+      "package": "path+file:///home/dev/src/rstyle-main/rstyle/crates/cargo-rstyle#0.1.0",
+      "target": "cargo-rstyle",
+      "kind": [
+        "bin"
+      ],
+      "test": false,
+      "source": "/home/dev/src/rstyle-main/rstyle/crates/cargo-rstyle/src/main.rs"
+    },
+    {
+      "unit": 1,
+      "package": "path+file:///home/dev/src/rstyle-main/rstyle/crates/rstyle-ccgraph#0.1.0",
+      "target": "rstyle_ccgraph",
+      "kind": [
+        "lib"
+      ],
+      "test": false,
+      "source": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-ccgraph/src/lib.rs"
+    },
+    {
+      "unit": 2,
+      "package": "path+file:///home/dev/src/rstyle-main/rstyle/crates/rstyle-core#0.1.0",
+      "target": "rstyle_core",
+      "kind": [
+        "lib"
+      ],
+      "test": false,
+      "source": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-core/src/lib.rs"
+    },
+    {
+      "unit": 3,
+      "package": "path+file:///home/dev/src/rstyle-main/rstyle/crates/rstyle-driver#0.1.0",
+      "target": "rstyle-driver",
+      "kind": [
+        "bin"
+      ],
+      "test": false,
+      "source": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-driver/src/main.rs"
+    },
+    {
+      "unit": 4,
+      "package": "path+file:///home/dev/src/rstyle-main/rstyle/crates/rstyle-extraction-fixtures#0.1.0",
+      "target": "rstyle_extraction_fixtures",
+      "kind": [
+        "lib"
+      ],
+      "test": false,
+      "source": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-extraction-fixtures/src/lib.rs"
+    },
+    {
+      "unit": 5,
+      "package": "path+file:///home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg#0.1.0",
+      "target": "rstyle_pdg",
+      "kind": [
+        "lib"
+      ],
+      "test": false,
+      "source": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/lib.rs"
+    }
+  ],
+  "completion": {
+    "capture_complete": true,
+    "assessment_complete": true,
+    "summary_complete": true,
+    "planning_input_complete": false,
+    "planning_required_edits_complete": true
+  },
+  "summary": {
+    "functions": 10156,
+    "compiler_findings": 48,
+    "reference_findings": 0,
+    "all_rule_ids": [
+      "side_effect_density"
+    ],
+    "exact_C108_source_matches": 45,
+    "changed_C108_sources": 2,
+    "new_sources": 1,
+    "new_function": "clones::patterns_route::session::publish",
+    "old_function_no_longer_reported": "session",
+    "unchanged_prior_actual_and_limit": 47,
+    "current_classifications": {
+      "context_only": 48
+    },
+    "additional_actionable_refactors_established": 0
+  },
+  "source_reviews": [
+    {
+      "index": 0,
+      "unit": 0,
+      "function": "clones::advisory_only::consume",
+      "path": "crates/cargo-rstyle/src/clones/advisory_only.rs",
+      "line": 4,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/advisory_only.rs",
+        "line": 4,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::advisory_only::consume` has a high side-effect density",
+        "actual": 538,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read (via clones::capture::load_inventory)",
+            "count": 1,
+            "lines": [
+              9
+            ]
+          },
+          {
+            "label": "io: std::io::Write::write_fmt +2 more (via diagnostics::Stage::<'a>::observe)",
+            "count": 1,
+            "lines": [
+              8
+            ]
+          },
+          {
+            "label": "time: std::time::Instant::now (via diagnostics::Stage::<'a>::observe)",
+            "count": 1,
+            "lines": [
+              8
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 0,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/0",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 1,
+      "unit": 0,
+      "function": "clones::advisory_only::consume_facts",
+      "path": "crates/cargo-rstyle/src/clones/advisory_only.rs",
+      "line": 109,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/advisory_only.rs",
+        "line": 109,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::advisory_only::consume_facts` has a high side-effect density",
+        "actual": 571,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_fmt +2 more (via diagnostics::Stage::<'a>::enter)",
+            "count": 1,
+            "lines": [
+              117
+            ]
+          },
+          {
+            "label": "mutation: &mut state (via clones::advisory_only::retain)",
+            "count": 1,
+            "lines": [
+              136
+            ]
+          },
+          {
+            "label": "mutation: result.build_contexts",
+            "count": 1,
+            "lines": [
+              129
+            ]
+          },
+          {
+            "label": "mutation: result.source_inventory",
+            "count": 1,
+            "lines": [
+              126
+            ]
+          },
+          {
+            "label": "time: std::time::Instant::now (via diagnostics::Stage::<'a>::enter)",
+            "count": 1,
+            "lines": [
+              117
+            ]
+          },
+          {
+            "label": "unknown: <fn pointer>",
+            "count": 1,
+            "lines": [
+              136
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 1,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/1",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 2,
+      "unit": 0,
+      "function": "clones::analysis::configuration",
+      "path": "crates/cargo-rstyle/src/clones/analysis/mod.rs",
+      "line": 178,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/analysis/mod.rs",
+        "line": 178,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::analysis::configuration` has a high side-effect density",
+        "actual": 1000,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read_to_string (via clones::analysis::source_policy)",
+            "count": 1,
+            "lines": [
+              183
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 2,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/2",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 3,
+      "unit": 0,
+      "function": "clones::capture::selected_workspace",
+      "path": "crates/cargo-rstyle/src/clones/capture.rs",
+      "line": 136,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture.rs",
+        "line": 136,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::selected_workspace` has a high side-effect density",
+        "actual": 600,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::process::Command::output (via workspace::load_with_toolchain)",
+            "count": 1,
+            "lines": [
+              137
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 3,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/3",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 4,
+      "unit": 0,
+      "function": "clones::capture::tool_identity",
+      "path": "crates/cargo-rstyle/src/clones/capture.rs",
+      "line": 212,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture.rs",
+        "line": 212,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::tool_identity` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::process::Command::output",
+            "count": 1,
+            "lines": [
+              213
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 4,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/4",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 5,
+      "unit": 0,
+      "function": "clones::capture::expected_units",
+      "path": "crates/cargo-rstyle/src/clones/capture.rs",
+      "line": 493,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture.rs",
+        "line": 493,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::expected_units` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::write (via clones::write_json)",
+            "count": 1,
+            "lines": [
+              509
+            ]
+          },
+          {
+            "label": "io: std::process::Command::output",
+            "count": 1,
+            "lines": [
+              494
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 5,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/5",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 6,
+      "unit": 0,
+      "function": "clones::capture::capture_unit",
+      "path": "crates/cargo-rstyle/src/clones/capture.rs",
+      "line": 771,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture.rs",
+        "line": 771,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::capture_unit` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read (via clones::read_json)",
+            "count": 1,
+            "lines": [
+              784
+            ]
+          },
+          {
+            "label": "io: std::fs::read +5 more (via clones::capture::publish_unit)",
+            "count": 1,
+            "lines": [
+              806
+            ]
+          },
+          {
+            "label": "io: std::process::Command::status +1 more (via clones::capture::invoke_unit)",
+            "count": 1,
+            "lines": [
+              801
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 6,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/6",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 7,
+      "unit": 0,
+      "function": "clones::capture::read_artifact",
+      "path": "crates/cargo-rstyle/src/clones/capture.rs",
+      "line": 859,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture.rs",
+        "line": 859,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::read_artifact` has a high side-effect density",
+        "actual": 1000,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read",
+            "count": 2,
+            "lines": [
+              861,
+              870
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 7,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/7",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 8,
+      "unit": 0,
+      "function": "clones::capture::associations::associate_call",
+      "path": "crates/cargo-rstyle/src/clones/capture/associations.rs",
+      "line": 486,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture/associations.rs",
+        "line": 486,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::associations::associate_call` has a high side-effect density",
+        "actual": 600,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read (via clones::capture::associations::associate_foreign)",
+            "count": 1,
+            "lines": [
+              499
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 8,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/8",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 9,
+      "unit": 0,
+      "function": "clones::capture::associations::seal",
+      "path": "crates/cargo-rstyle/src/clones/capture/associations.rs",
+      "line": 707,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture/associations.rs",
+        "line": 707,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::associations::seal` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read",
+            "count": 1,
+            "lines": [
+              712
+            ]
+          },
+          {
+            "label": "mutation: seals",
+            "count": 1,
+            "lines": [
+              720
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 9,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/9",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 10,
+      "unit": 0,
+      "function": "clones::capture::dependencies::metadata::select",
+      "path": "crates/cargo-rstyle/src/clones/capture/dependencies/metadata.rs",
+      "line": 6,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture/dependencies/metadata.rs",
+        "line": 6,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::dependencies::metadata::select` has a high side-effect density",
+        "actual": 545,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read_to_string (via clones::capture::dependencies::select)",
+            "count": 1,
+            "lines": [
+              35
+            ]
+          },
+          {
+            "label": "io: std::process::Command::output",
+            "count": 1,
+            "lines": [
+              21
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 10,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/10",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 11,
+      "unit": 0,
+      "function": "clones::capture::owner_reuse::restart",
+      "path": "crates/cargo-rstyle/src/clones/capture/owner_reuse.rs",
+      "line": 218,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture/owner_reuse.rs",
+        "line": 218,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::owner_reuse::restart` has a high side-effect density",
+        "actual": 1000,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::write (via clones::write_json)",
+            "count": 1,
+            "lines": [
+              228
+            ]
+          },
+          {
+            "label": "mutation: capture.directory",
+            "count": 1,
+            "lines": [
+              220
+            ]
+          },
+          {
+            "label": "mutation: capture.failures",
+            "count": 1,
+            "lines": [
+              227
+            ]
+          },
+          {
+            "label": "mutation: capture.units",
+            "count": 1,
+            "lines": [
+              226
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 11,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/11",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 12,
+      "unit": 0,
+      "function": "clones::linking::manifest",
+      "path": "crates/cargo-rstyle/src/clones/linking.rs",
+      "line": 71,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/linking.rs",
+        "line": 71,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::linking::manifest` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read (via clones::read_json)",
+            "count": 1,
+            "lines": [
+              72
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 12,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/12",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 13,
+      "unit": 0,
+      "function": "clones::linking::consume",
+      "path": "crates/cargo-rstyle/src/clones/linking.rs",
+      "line": 82,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/linking.rs",
+        "line": 82,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::linking::consume` has a high side-effect density",
+        "actual": 909,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::File::open +2 more (via clones::linking::check_closure)",
+            "count": 1,
+            "lines": [
+              97
+            ]
+          },
+          {
+            "label": "io: std::fs::read (via clones::load_unit)",
+            "count": 1,
+            "lines": [
+              92
+            ]
+          },
+          {
+            "label": "io: std::fs::write (via clones::write_json)",
+            "count": 1,
+            "lines": [
+              108
+            ]
+          },
+          {
+            "label": "mutation: &mut state (via clones::load_unit)",
+            "count": 1,
+            "lines": [
+              92
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 13,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/13",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 14,
+      "unit": 0,
+      "function": "clones::linking::check_closure",
+      "path": "crates/cargo-rstyle/src/clones/linking.rs",
+      "line": 139,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/linking.rs",
+        "line": 139,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::linking::check_closure` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::File::open +1 more (via clones::linking::cargo_artifacts)",
+            "count": 1,
+            "lines": [
+              152
+            ]
+          },
+          {
+            "label": "io: std::fs::read (via clones::linking::manifest)",
+            "count": 1,
+            "lines": [
+              172
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 14,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/14",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 15,
+      "unit": 0,
+      "function": "clones::linking::cargo_artifacts",
+      "path": "crates/cargo-rstyle/src/clones/linking.rs",
+      "line": 180,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/linking.rs",
+        "line": 180,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::linking::cargo_artifacts` has a high side-effect density",
+        "actual": 857,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::File::open",
+            "count": 1,
+            "lines": [
+              181
+            ]
+          },
+          {
+            "label": "io: std::io::BufReader::new",
+            "count": 1,
+            "lines": [
+              182
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 15,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/15",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 16,
+      "unit": 0,
+      "function": "clones::configuration",
+      "path": "crates/cargo-rstyle/src/clones/mod.rs",
+      "line": 375,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/mod.rs",
+        "line": 375,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::configuration` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read_to_string (via clones::advisory::configuration)",
+            "count": 1,
+            "lines": [
+              394
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": false,
+      "prior_C108_index": 16,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/16",
+      "basis": "Current captured original-source review, with explicit comparison to C108 when present.",
+      "source": "fn configuration(cli: &Cli, args: &Args) -> Result<Configuration, String> {\n    if cli.config.is_some() || cli.ignore_file.is_some() {\n        return Err(\n            \"clones does not consume legacy --config or --ignore-file; use --matching-config\"\n                .into(),\n        );\n    }\n    let value = args\n        .matching_config\n        .as_deref()\n        .map(read_json::<Value>)\n        .transpose()?\n        .unwrap_or_else(|| json!({}));\n    Ok(Configuration {\n        pattern_ledger: args\n            .pattern_ledger\n            .as_deref()\n            .map(crate::ignore::load)\n            .transpose()?,\n        compiler_advisory: advisory::configuration(args)?,\n        compiler_pattern_baseline: args\n            .compiler_pattern_baseline\n            .as_deref()\n            .map(review::compiler_pattern_baseline::load)\n            .transpose()?,\n        compiler_baseline: args\n            .compiler_baseline\n            .as_deref()\n            .map(review::compiler_baseline::load)\n            .transpose()?,\n        matching: rstyle_ccgraph::parse_config(&value).map_err(|e| e.message)?,\n        analysis: analysis::configuration(args)?,\n        mutation: analysis::mutation_reports::configuration(args)?,\n        effects: analysis::effect_reports::configuration(args)?,\n        source_baseline: args\n            .source_baseline\n            .as_deref()\n            .map(review::source_baseline::load)\n            .transpose()?,\n        density_baseline: args\n            .density_baseline\n            .as_deref()\n            .map(review::density_baseline::load)\n            .transpose()?,\n    })\n}",
+      "rationale": "The only source addition since C108 loads the optional repository pattern ledger through the existing ignore loader. Matching, numeric, pattern and local policy loaders remain composed at the same configuration boundary. The diagnostic does not establish a separate operation needing extraction."
+    },
+    {
+      "index": 17,
+      "unit": 0,
+      "function": "clones::patterns_route::session::publish",
+      "path": "crates/cargo-rstyle/src/clones/patterns_route/session.rs",
+      "line": 32,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/patterns_route/session.rs",
+        "line": 32,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::patterns_route::session::publish` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read_to_string (via clones::run_captured)",
+            "count": 1,
+            "lines": [
+              39
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": null,
+      "prior_C108_index": null,
+      "classification": "context_only",
+      "basis": "Current captured original-source review, with explicit comparison to C108 when present.",
+      "source": "pub(super) fn publish(\n    cli: &Cli,\n    review: Option<Review<'_>>,\n    captured: Captured,\n    options: Args,\n) -> Result<(String, u8), String> {\n    let Some(review) = review else {\n        return super::super::run_captured(cli, &options, captured.config, captured.capture);\n    };\n    let evaluated = evaluate(cli, &review, captured, options)?;\n    finish(evaluated, review.args)\n}",
+      "rationale": "This short dispatcher selects normal listing versus repository-review evaluation, then delegates to run_captured or evaluate/finish. Its propagated file effects describe the requested command session. The existing stages already separate capture, evaluation and review publication; the density diagnostic does not identify another coherent computation to extract."
+    },
+    {
+      "index": 18,
+      "unit": 0,
+      "function": "clones::review::baseline_common::publish_optional",
+      "path": "crates/cargo-rstyle/src/clones/review/baseline_common.rs",
+      "line": 315,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/review/baseline_common.rs",
+        "line": 315,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::review::baseline_common::publish_optional` has a high side-effect density",
+        "actual": 1000,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_all +1 more (via clones::review::baseline_common::Report::<T, H>::publish)",
+            "count": 1,
+            "lines": [
+              321
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 17,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/17",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 19,
+      "unit": 0,
+      "function": "clones::review::publication::write",
+      "path": "crates/cargo-rstyle/src/clones/review/publication.rs",
+      "line": 9,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/review/publication.rs",
+        "line": 9,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::review::publication::write` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::flush",
+            "count": 1,
+            "lines": [
+              16
+            ]
+          },
+          {
+            "label": "io: std::io::Write::write_all",
+            "count": 1,
+            "lines": [
+              15
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 18,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/18",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 20,
+      "unit": 0,
+      "function": "clones::review::source_workflow::dismiss_one",
+      "path": "crates/cargo-rstyle/src/clones/review/source_workflow.rs",
+      "line": 159,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/review/source_workflow.rs",
+        "line": 159,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::review::source_workflow::dismiss_one` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via clones::review::source_workflow::record_choice)",
+            "count": 1,
+            "lines": [
+              165
+            ]
+          },
+          {
+            "label": "mutation: store.schema_version",
+            "count": 1,
+            "lines": [
+              166
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 19,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/19",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 21,
+      "unit": 0,
+      "function": "clones::review::workflow::Inputs::<'_, '_>::apply",
+      "path": "crates/cargo-rstyle/src/clones/review/workflow.rs",
+      "line": 185,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/review/workflow.rs",
+        "line": 185,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::review::workflow::Inputs::<'_, '_>::apply` has a high side-effect density",
+        "actual": 600,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_all +1 more (via clones::review::workflow::save)",
+            "count": 1,
+            "lines": [
+              211
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": false,
+      "prior_C108_index": 20,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/20",
+      "basis": "Current captured original-source review, with explicit comparison to C108 when present.",
+      "source": "pub(in crate::clones) fn apply(\n        self,\n        ctx: &report::Context<'_>,\n        mut store: Option<ReviewStore>,\n    ) -> Result<Reports, String> {\n        let mut reports = evaluate(&self, ctx, store.as_mut())?;\n        reports.pruning = pruning(store.as_mut(), reports.status.as_ref(), ctx)?;\n\n        if (!ctx.args.dismiss_helper_pair.is_empty()\n            || ctx.args.dismiss_enum_dispatch.is_some()\n            || !ctx.args.dismiss_capability_pair.is_empty()\n            || ctx.args.dismiss_parameter.is_some()\n            || ctx.args.dismiss_length.is_some()\n            || ctx.args.dismiss_spacing.is_some()\n            || ctx.args.dismiss_mutation_per_target.is_some()\n            || ctx.args.dismiss_mutated_targets.is_some()\n            || ctx.args.dismiss_density.is_some()\n            || !ctx.args.dismiss_compiler_pattern.is_empty()\n            || !ctx.args.dismiss_compiler_diagnostic.is_empty()\n            || !ctx.args.dismiss_guard.is_empty()\n            || reports\n                .pruning\n                .as_ref()\n                .is_some_and(|report| report.removed_entries > 0))\n            && let (Some(path), Some(store)) = (&ctx.args.review_file, &store)\n        {\n            save(path, store)?;\n        }\n        Ok(reports)\n    }",
+      "rationale": "The only source removal since C108 is the import_legacy_pattern condition, following removal of the unnecessary transition workflow. Completed evaluation, pruning and conditional publication of the same review store retain the reviewed role. No additional mutation/error-lifecycle refactor is established."
+    },
+    {
+      "index": 22,
+      "unit": 0,
+      "function": "diagnostic_process::streamed_output",
+      "path": "crates/cargo-rstyle/src/diagnostic_process.rs",
+      "line": 12,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/diagnostic_process.rs",
+        "line": 12,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `diagnostic_process::streamed_output` has a high side-effect density",
+        "actual": 583,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Read::read_to_end (via diagnostic_process::collect)",
+            "count": 1,
+            "lines": [
+              27
+            ]
+          },
+          {
+            "label": "io: std::process::Command::spawn",
+            "count": 1,
+            "lines": [
+              17
+            ]
+          },
+          {
+            "label": "mutation: command",
+            "count": 1,
+            "lines": [
+              13
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 21,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/21",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 23,
+      "unit": 3,
+      "function": "hir_extraction::concrete_types::Capture::<'a, 'tcx>::install_signature",
+      "path": "crates/rstyle-driver/src/hir_extraction/concrete_types.rs",
+      "line": 173,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/concrete_types.rs",
+        "line": 173,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::concrete_types::Capture::<'a, 'tcx>::install_signature` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via hir_extraction::concrete_types::Capture::<'a, 'tcx>::binding_tokens)",
+            "count": 1,
+            "lines": [
+              182
+            ]
+          },
+          {
+            "label": "mutation: facts.bindings",
+            "count": 1,
+            "lines": [
+              182
+            ]
+          },
+          {
+            "label": "mutation: facts.signature",
+            "count": 1,
+            "lines": [
+              179
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 23,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/23",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 24,
+      "unit": 3,
+      "function": "hir_extraction::concrete_types::interface_tokens",
+      "path": "crates/rstyle-driver/src/hir_extraction/concrete_types.rs",
+      "line": 1030,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/concrete_types.rs",
+        "line": 1030,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::concrete_types::interface_tokens` has a high side-effect density",
+        "actual": 571,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: parameter.pat.ty",
+            "count": 1,
+            "lines": [
+              1037
+            ]
+          },
+          {
+            "label": "mutation: parameter.ty.normalized",
+            "count": 1,
+            "lines": [
+              1036
+            ]
+          },
+          {
+            "label": "mutation: signature.params",
+            "count": 1,
+            "lines": [
+              1034
+            ]
+          },
+          {
+            "label": "mutation: signature.return_ty.normalized",
+            "count": 1,
+            "lines": [
+              1042
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 24,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/24",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 25,
+      "unit": 3,
+      "function": "hir_extraction::concrete_types::callbacks::<impl hir_extraction::concrete_types::Capture<'_, 'tcx>>::callback_environments_in",
+      "path": "crates/rstyle-driver/src/hir_extraction/concrete_types/callbacks.rs",
+      "line": 15,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/concrete_types/callbacks.rs",
+        "line": 15,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::concrete_types::callbacks::<impl hir_extraction::concrete_types::Capture<'_, 'tcx>>::callback_environments_in` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via hir_extraction::concrete_types::callbacks::<impl hir_extraction::concrete_types::Capture<'_, 'tcx>>::callback_environment)",
+            "count": 1,
+            "lines": [
+              22
+            ]
+          },
+          {
+            "label": "mutation: node.children",
+            "count": 1,
+            "lines": [
+              25
+            ]
+          },
+          {
+            "label": "mutation: node.res",
+            "count": 1,
+            "lines": [
+              22
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 25,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/25",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 26,
+      "unit": 3,
+      "function": "hir_extraction::dependency_namespaces::sites::Leaves::<'_, '_>::import",
+      "path": "crates/rstyle-driver/src/hir_extraction/dependency_namespaces/sites.rs",
+      "line": 286,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/dependency_namespaces/sites.rs",
+        "line": 286,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::dependency_namespaces::sites::Leaves::<'_, '_>::import` has a high side-effect density",
+        "actual": 600,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via hir_extraction::dependency_namespaces::sites::Leaves::<'_, '_>::import_inventory)",
+            "count": 1,
+            "lines": [
+              292
+            ]
+          },
+          {
+            "label": "mutation: self.context",
+            "count": 1,
+            "lines": [
+              288
+            ]
+          },
+          {
+            "label": "mutation: self.context.output.imports",
+            "count": 1,
+            "lines": [
+              294
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 26,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/26",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 27,
+      "unit": 3,
+      "function": "hir_extraction::id_error_maps::environment::signature_types",
+      "path": "crates/rstyle-driver/src/hir_extraction/id_error_maps/environment.rs",
+      "line": 115,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/id_error_maps/environment.rs",
+        "line": 115,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::id_error_maps::environment::signature_types` has a high side-effect density",
+        "actual": 1000,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: observe",
+            "count": 1,
+            "lines": [
+              122
+            ]
+          },
+          {
+            "label": "unknown: <indirect callable>",
+            "count": 2,
+            "lines": [
+              122,
+              125
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 27,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/27",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 28,
+      "unit": 3,
+      "function": "hir_extraction::instances::diagnostic_support::optional_requests",
+      "path": "crates/rstyle-driver/src/hir_extraction/instances/diagnostic_support.rs",
+      "line": 7,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/instances/diagnostic_support.rs",
+        "line": 7,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::instances::diagnostic_support::optional_requests` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::File::open",
+            "count": 1,
+            "lines": [
+              13
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 28,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/28",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 29,
+      "unit": 3,
+      "function": "hir_extraction::instances::product_diagnostic::capture",
+      "path": "crates/rstyle-driver/src/hir_extraction/instances/product_diagnostic.rs",
+      "line": 145,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/instances/product_diagnostic.rs",
+        "line": 145,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::instances::product_diagnostic::capture` has a high side-effect density",
+        "actual": 600,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::File::open (via hir_extraction::instances::diagnostic_support::optional_requests)",
+            "count": 1,
+            "lines": [
+              151
+            ]
+          },
+          {
+            "label": "io: std::fs::create_dir_all +4 more (via hir_extraction::instances::diagnostic_support::persist)",
+            "count": 1,
+            "lines": [
+              171
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 29,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/29",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 30,
+      "unit": 3,
+      "function": "hir_extraction::instances::reference_diagnostic::capture",
+      "path": "crates/rstyle-driver/src/hir_extraction/instances/reference_diagnostic.rs",
+      "line": 94,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/instances/reference_diagnostic.rs",
+        "line": 94,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::instances::reference_diagnostic::capture` has a high side-effect density",
+        "actual": 600,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::File::open (via hir_extraction::instances::diagnostic_support::optional_requests)",
+            "count": 1,
+            "lines": [
+              100
+            ]
+          },
+          {
+            "label": "io: std::fs::create_dir_all +4 more (via hir_extraction::instances::diagnostic_support::persist)",
+            "count": 1,
+            "lines": [
+              117
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 30,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/30",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 31,
+      "unit": 3,
+      "function": "hir_extraction::crate_facts",
+      "path": "crates/rstyle-driver/src/hir_extraction/mod.rs",
+      "line": 74,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/mod.rs",
+        "line": 74,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::crate_facts` has a high side-effect density",
+        "actual": 800,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::create_dir_all (via hir_extraction::diagnostics::snapshot)",
+            "count": 1,
+            "lines": [
+              80
+            ]
+          },
+          {
+            "label": "time: std::time::Instant::now +1 more (via unit_store::UnitStore::capture)",
+            "count": 1,
+            "lines": [
+              81
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 31,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/31",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 32,
+      "unit": 5,
+      "function": "data_documents::mutable_scalars::install_one",
+      "path": "crates/rstyle-pdg/src/data_documents/mutable_scalars.rs",
+      "line": 81,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/data_documents/mutable_scalars.rs",
+        "line": 81,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `data_documents::mutable_scalars::install_one` has a high side-effect density",
+        "actual": 555,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via data_documents::mutable_scalars::install_effect)",
+            "count": 1,
+            "lines": [
+              90
+            ]
+          },
+          {
+            "label": "mutation: installation.definitions.ids",
+            "count": 1,
+            "lines": [
+              91
+            ]
+          },
+          {
+            "label": "mutation: installation.locations",
+            "count": 1,
+            "lines": [
+              96
+            ]
+          },
+          {
+            "label": "mutation: pair.pdg.definitions",
+            "count": 1,
+            "lines": [
+              94
+            ]
+          },
+          {
+            "label": "mutation: pair.pdg.nodes",
+            "count": 1,
+            "lines": [
+              86
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 32,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/32",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 33,
+      "unit": 5,
+      "function": "data_documents::read_accesses::install_node",
+      "path": "crates/rstyle-pdg/src/data_documents/read_accesses.rs",
+      "line": 155,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/data_documents/read_accesses.rs",
+        "line": 155,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `data_documents::read_accesses::install_node` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via data_documents::serialized_operation_mut)",
+            "count": 1,
+            "lines": [
+              160
+            ]
+          },
+          {
+            "label": "mutation: node.annotations",
+            "count": 1,
+            "lines": [
+              162
+            ]
+          },
+          {
+            "label": "mutation: node.attributes.reads",
+            "count": 1,
+            "lines": [
+              161
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 33,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/33",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 34,
+      "unit": 5,
+      "function": "frontend::options::FrontendOptions::intern_census",
+      "path": "crates/rstyle-pdg/src/frontend/options.rs",
+      "line": 312,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/frontend/options.rs",
+        "line": 312,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `frontend::options::FrontendOptions::intern_census` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: owners",
+            "count": 1,
+            "lines": [
+              320
+            ]
+          },
+          {
+            "label": "mutation: record.value",
+            "count": 1,
+            "lines": [
+              320
+            ]
+          },
+          {
+            "label": "mutation: self.0",
+            "count": 1,
+            "lines": [
+              316
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 34,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/34",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 35,
+      "unit": 5,
+      "function": "helper_calls::digit_products::certify",
+      "path": "crates/rstyle-pdg/src/helper_calls/digit_products.rs",
+      "line": 21,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/helper_calls/digit_products.rs",
+        "line": 21,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `helper_calls::digit_products::certify` has a high side-effect density",
+        "actual": 800,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_fmt +2 more (via diagnostics::Stage::<'a>::observe)",
+            "count": 1,
+            "lines": [
+              29
+            ]
+          },
+          {
+            "label": "time: std::time::Instant::now (via diagnostics::Stage::<'a>::observe)",
+            "count": 1,
+            "lines": [
+              29
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 35,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/35",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 36,
+      "unit": 5,
+      "function": "helper_calls::transport::Reader::unpack",
+      "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+      "line": 202,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+        "line": 202,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `helper_calls::transport::Reader::unpack` has a high side-effect density",
+        "actual": 1000,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_all (via helper_calls::transport::Reader::value)",
+            "count": 1,
+            "lines": [
+              213
+            ]
+          },
+          {
+            "label": "mutation: &mut state (via helper_calls::transport::Reader::charge)",
+            "count": 1,
+            "lines": [
+              211
+            ]
+          },
+          {
+            "label": "mutation: self.used",
+            "count": 1,
+            "lines": [
+              210
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 36,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/36",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 37,
+      "unit": 5,
+      "function": "helper_calls::transport::Reader::value",
+      "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+      "line": 216,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+        "line": 216,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `helper_calls::transport::Reader::value` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_all (via helper_calls::transport::Reader::collection)",
+            "count": 1,
+            "lines": [
+              226
+            ]
+          },
+          {
+            "label": "mutation: &mut state (via helper_calls::transport::Reader::charge)",
+            "count": 1,
+            "lines": [
+              221
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 37,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/37",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 38,
+      "unit": 5,
+      "function": "helper_calls::transport::Reader::collection",
+      "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+      "line": 257,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+        "line": 257,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `helper_calls::transport::Reader::collection` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_all (via helper_calls::transport::Reader::text)",
+            "count": 1,
+            "lines": [
+              273
+            ]
+          },
+          {
+            "label": "mutation: &mut state (via helper_calls::transport::Reader::child)",
+            "count": 1,
+            "lines": [
+              269
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 38,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/38",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 39,
+      "unit": 5,
+      "function": "nominal_boundary::resolution::Resolution::select_copies",
+      "path": "crates/rstyle-pdg/src/nominal_boundary/resolution.rs",
+      "line": 148,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/nominal_boundary/resolution.rs",
+        "line": 148,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `nominal_boundary::resolution::Resolution::select_copies` has a high side-effect density",
+        "actual": 600,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: self.copy_trees",
+            "count": 1,
+            "lines": [
+              155
+            ]
+          },
+          {
+            "label": "mutation: self.no_drop_trees",
+            "count": 1,
+            "lines": [
+              156
+            ]
+          },
+          {
+            "label": "mutation: self.source_requirements",
+            "count": 1,
+            "lines": [
+              157
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 39,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/39",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 40,
+      "unit": 5,
+      "function": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::begin_module",
+      "path": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+      "line": 553,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+        "line": 553,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::begin_module` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: self.definitions",
+            "count": 1,
+            "lines": [
+              559
+            ]
+          },
+          {
+            "label": "mutation: self.enums.namespace",
+            "count": 1,
+            "lines": [
+              558
+            ]
+          },
+          {
+            "label": "mutation: self.scopes",
+            "count": 1,
+            "lines": [
+              560
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 40,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/40",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 41,
+      "unit": 5,
+      "function": "scalar_instances::source::Flow::<'a>::install_binding",
+      "path": "crates/rstyle-pdg/src/scalar_instances/source.rs",
+      "line": 582,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/scalar_instances/source.rs",
+        "line": 582,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `scalar_instances::source::Flow::<'a>::install_binding` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: self.bindings",
+            "count": 1,
+            "lines": [
+              583
+            ]
+          },
+          {
+            "label": "mutation: self.frames",
+            "count": 1,
+            "lines": [
+              591
+            ]
+          },
+          {
+            "label": "mutation: self.scope",
+            "count": 1,
+            "lines": [
+              584
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 41,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/41",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 42,
+      "unit": 5,
+      "function": "unit_store::bundle::<impl unit_store::UnitStore>::load_bundle",
+      "path": "crates/rstyle-pdg/src/unit_store/bundle.rs",
+      "line": 169,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/unit_store/bundle.rs",
+        "line": 169,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `unit_store::bundle::<impl unit_store::UnitStore>::load_bundle` has a high side-effect density",
+        "actual": 555,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_fmt +2 more (via diagnostics::Stage::<'a>::observe)",
+            "count": 1,
+            "lines": [
+              174
+            ]
+          },
+          {
+            "label": "time: std::time::Instant::now (via diagnostics::Stage::<'a>::observe)",
+            "count": 1,
+            "lines": [
+              174
+            ]
+          },
+          {
+            "label": "unknown: <indirect callable>",
+            "count": 1,
+            "lines": [
+              177
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 42,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/42",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 43,
+      "unit": 5,
+      "function": "unit_store::bundle::diagnostic::style::write_sealed_style_snapshot",
+      "path": "crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style.rs",
+      "line": 8,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style.rs",
+        "line": 8,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `unit_store::bundle::diagnostic::style::write_sealed_style_snapshot` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::flush (via unit_store::manifest::seal)",
+            "count": 1,
+            "lines": [
+              13
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 43,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/43",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 44,
+      "unit": 5,
+      "function": "unit_store::bundle::diagnostic::style::read_style_snapshot_phase",
+      "path": "crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style.rs",
+      "line": 31,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style.rs",
+        "line": 31,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `unit_store::bundle::diagnostic::style::read_style_snapshot_phase` has a high side-effect density",
+        "actual": 571,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_fmt +2 more (via diagnostics::Stage::<'a>::enter)",
+            "count": 1,
+            "lines": [
+              36
+            ]
+          },
+          {
+            "label": "time: std::time::Instant::now (via diagnostics::Stage::<'a>::enter)",
+            "count": 1,
+            "lines": [
+              36
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 44,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/44",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 45,
+      "unit": 5,
+      "function": "unit_store::dependency_closure::install_dependency_owners",
+      "path": "crates/rstyle-pdg/src/unit_store/dependency_closure.rs",
+      "line": 369,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/unit_store/dependency_closure.rs",
+        "line": 369,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `unit_store::dependency_closure::install_dependency_owners` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: builder.store.dependencies",
+            "count": 1,
+            "lines": [
+              375
+            ]
+          },
+          {
+            "label": "mutation: builder.store.namespace_associations",
+            "count": 1,
+            "lines": [
+              376
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 45,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/45",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 46,
+      "unit": 5,
+      "function": "unit_store::manifest::seal",
+      "path": "crates/rstyle-pdg/src/unit_store/manifest.rs",
+      "line": 85,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/unit_store/manifest.rs",
+        "line": 85,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `unit_store::manifest::seal` has a high side-effect density",
+        "actual": 1000,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::flush",
+            "count": 1,
+            "lines": [
+              95
+            ]
+          },
+          {
+            "label": "unknown: <indirect callable>",
+            "count": 1,
+            "lines": [
+              94
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 46,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/46",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    },
+    {
+      "index": 47,
+      "unit": 5,
+      "function": "<unit_store::product_instances::ConstructorProof<'_> as unit_store::instances::InstanceProof>::install",
+      "path": "crates/rstyle-pdg/src/unit_store/product_instances.rs",
+      "line": 39,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/unit_store/product_instances.rs",
+        "line": 39,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `<unit_store::product_instances::ConstructorProof<'_> as unit_store::instances::InstanceProof>::install` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via unit_store::product_instances::install_dependency)",
+            "count": 1,
+            "lines": [
+              45
+            ]
+          },
+          {
+            "label": "mutation: store.product_instance",
+            "count": 1,
+            "lines": [
+              46
+            ]
+          }
+        ]
+      },
+      "exact_C108_source_match": true,
+      "prior_C108_index": 47,
+      "classification": "context_only",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/current_cases/47",
+      "basis": "Exact captured original-source equality to the C108 source and existing bounded review; unchanged actual/limit. This is not a new independent arithmetic oracle."
+    }
+  ],
+  "caller_lifecycle_reconciliation": [
+    {
+      "function": "data_documents::mutable_scalars::install_one",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/caller_lifecycle_followups/0",
+      "callers": [
+        {
+          "function": "data_documents::apply",
+          "unit": 5,
+          "source_exactly_equal": true
+        },
+        {
+          "function": "data_documents::install_locations",
+          "unit": 5,
+          "source_exactly_equal": true
+        },
+        {
+          "function": "data_documents::install_memory",
+          "unit": 5,
+          "source_exactly_equal": true
+        }
+      ]
+    },
+    {
+      "function": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::begin_module",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/caller_lifecycle_followups/1",
+      "callers": [
+        {
+          "function": "nominal_boundary::resolution::selected::no_drop::closure::verify_mode",
+          "unit": 5,
+          "source_exactly_equal": true
+        },
+        {
+          "function": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::pass",
+          "unit": 5,
+          "source_exactly_equal": true
+        },
+        {
+          "function": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::module",
+          "unit": 5,
+          "source_exactly_equal": true
+        }
+      ]
+    },
+    {
+      "function": "scalar_instances::source::Flow::<'a>::install_binding",
+      "prior_review": "eval/clones-capability/project-current-default-style-review.json#/caller_lifecycle_followups/2",
+      "callers": [
+        {
+          "function": "scalar_instances::source::verify",
+          "unit": 5,
+          "source_exactly_equal": true
+        },
+        {
+          "function": "scalar_instances::source::Flow::<'a>::new",
+          "unit": 5,
+          "source_exactly_equal": true
+        },
+        {
+          "function": "scalar_instances::source::Flow::<'a>::block",
+          "unit": 5,
+          "source_exactly_equal": true
+        },
+        {
+          "function": "scalar_instances::source::Flow::<'a>::enter_block",
+          "unit": 5,
+          "source_exactly_equal": true
+        },
+        {
+          "function": "scalar_instances::source::Flow::<'a>::exit_block",
+          "unit": 5,
+          "source_exactly_equal": true
+        }
+      ]
+    }
+  ],
+  "interpretation": [
+    "Both engines enumerate10156 authored functions with complete complexity measurements. Compiler has48 reviewed informational density findings; reference remains clean. No raw finding is reclassified or suppressed in production.",
+    "Compiler initial31.05s/2431540KiB and repeat5.99s/852788KiB versus reference22.29s/1888568KiB and repeat0.85s/91704KiB are current sequential observations, not randomized benchmarks, an agreed resource envelope or a causal speedup claim.",
+    "The existing C95 independently labeled15 positives+3 controls remain the bounded arithmetic sample. This source-usefulness review adds no requirement for numeric oracles for every finding.",
+    "The source/caller review establishes no additional concrete refactor. Default behavior remains the pending explicit user choice; resource observations describe tradeoffs without introducing a new policy layer or arbitrary threshold."
+  ],
+  "validation": {
+    "current_source_build": "cargo build --workspace --locked passed",
+    "comparison_assertions": "All four commands, exits, coverage, source joins, unchanged prior actual/limit, exact caller sources, repeat projections and complete contextual settings checked.",
+    "source_checkpoint": "C125:3792 Rust tests passed,5 skipped; doctests, formatting, Clippy, zero reference style and both pattern gates passed. No production code changed in C126, so those source gates are not rerun or presented as new C126 executions.",
+    "policies_and_ledger_unchanged": true
+  },
+  "limitations": [
+    "Bounded source reviews do not prove purity, refactor safety, rollback guarantees or exhaustive absence of useful designs.",
+    "Saved reports/input bundles and timing logs are session artifacts. This receipt embeds current diagnostic rows and changed/new source excerpts and references durable C108 reviews for exact matches; it does not bundle full compiler evidence.",
+    "Original pre-existing untracked source/data remain unmodified and excluded from this commit. Native C125 CI is still pending at the latest poll.",
+    "Default style remains the reference route; broader capability replacement is not declared complete."
+  ],
+  "next_action": "Resolve the pending explicit default-density behavior choice, then implement the chosen route/policy with its existing collector/evaluator and independently verify exits, raw findings, reviews/baselines and contexts. No further micro-optimization is scheduled by this receipt."
+}

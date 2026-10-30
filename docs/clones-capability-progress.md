@@ -8093,3 +8093,36 @@ Full checkpoint results are recorded in
 eval/clones-capability/style-text-compilation-context-study.json.
 The default-style density disposition remains an explicit pending product choice;
 this reporting correction does not reclassify or suppress the reviewed findings.
+
+
+### C126 — current-source default-style comparison (2026-10-30)
+
+Evidence-only refresh at source revision `240ba58a` compares both engines under
+unchanged repository configuration and authored workspace scope. Both measure
+all 10,156 functions. Reference reports zero findings; compiler reports 48
+side-effect-density findings, with capture, assessment, summary and required
+local edits complete. Broader planning input completeness remains false.
+
+Current captured source reconciles with C108: 45 exact excerpts, two changed
+configuration/review excerpts and one new pattern-session dispatcher. All 47
+retained findings keep their actual values and limits. The changed/new functions
+remain coherent acquisition/publication boundaries in this bounded review; no
+additional actionable refactor is established. Eleven original caller excerpts
+for the earlier three mutation-lifecycle followups remain exact. All 48 findings
+are reviewed as informational; production findings, exits and policy are unchanged.
+
+Sequential native Linux ARM64 dev observations use warm dependencies without
+cache eviction: reference initial/repeat 22.29/0.85s, compiler 31.05/5.99s.
+Repeat peak process RSS is 91,704 versus 852,788KiB. Initial means first observation
+here, not a cold build. Repeated compiler findings, metrics, plans and complete
+build settings agree; transport paths and completion-order arrays differ, so
+whole-report byte equality is not claimed. Pre-existing untracked inputs produce
+`+dirty` provenance and remain excluded from the commit.
+
+Receipt: `eval/clones-capability/project-default-style-readiness-refresh.json`.
+Current workspace build and receipt assertions pass. C125's 3,792 tests/doctests,
+formatting, Clippy and style/pattern gates are prior source-checkpoint evidence,
+not rerun for this documentation-only change. C124 Ubuntu x86/ARM jobs pass with
+macOS still running; C125 native jobs remain running at the latest poll.
+The pending default-density choice is unchanged. No speedup, broader replacement
+completion or new metric/policy/cache/hash implementation is claimed.

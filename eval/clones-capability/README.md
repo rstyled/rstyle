@@ -986,3 +986,16 @@ Observed replay peak RSS falls from 4,643,052KiB to 3,365,544/3,366,296KiB (abou
 Wall observations remain about 25s; this is a memory result, not a broad speedup.
 The process-timer gprofng trial is recorded as unreliable because the collector
 warned about a changed timer period; its percentages are not optimization evidence.
+
+
+### Current default-style comparison (C126)
+
+`project-default-style-readiness-refresh.json` refreshes C108 at source revision
+`240ba58a`. Both engines measure 10,156 authored functions under unchanged config;
+reference reports zero findings and compiler reports 48 density findings. Original
+captured-source reconciliation finds 45 exact prior excerpts, two changed and one
+new; the bounded review establishes no additional actionable refactor. Findings,
+metrics, plans and complete build settings agree on repeat runs. Sequential warm
+repeat observations are 0.85s/91,704KiB reference and 5.99s/852,788KiB compiler;
+these are native Linux ARM64 dev observations, not cold builds or speedup claims.
+Default behavior and production finding severity remain unchanged.
