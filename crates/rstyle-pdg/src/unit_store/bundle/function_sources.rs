@@ -73,18 +73,20 @@ impl<'a> Owners<'a> {
 }
 
 pub(super) fn encode(facts: &[HirFnFacts]) -> Result<Encoded<'_>, String> {
-    encode_with(facts, |facts| {
-        (body::Export(&facts.body), facts.bindings.as_slice())
-    })
+    encode_with(
+        facts,
+        |facts| (body::Export(&facts.body), facts.bindings.as_slice()),
+        option_bundle::Inventories::default(),
+    )
 }
 
 /// Share source/build encoding while selecting the original payload representation.
 pub(super) fn encode_with<'a, B, Bindings, WireBody, WireBindings>(
     facts: &'a [HirFnFacts<B, Bindings>],
     payload: impl Fn(&'a HirFnFacts<B, Bindings>) -> (WireBody, WireBindings),
+    mut inventories: option_bundle::Inventories<'a>,
 ) -> Result<Encoded<'a, WireBody, WireBindings>, String> {
     let mut owners = Owners::default();
-    let mut inventories = option_bundle::Inventories::default();
     let functions = facts
         .iter()
         .map(|facts| {

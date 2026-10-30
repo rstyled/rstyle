@@ -2,7 +2,7 @@
 use super::*;
 use crate::{HirRef, StyleFnFacts, Uncaptured};
 
-pub const STYLE_FACTS_SCHEMA: &str = "rstyle.diagnostic.style-facts/1";
+pub const STYLE_FACTS_SCHEMA: &str = "rstyle.diagnostic.style-facts/2";
 
 /// Publish numeric observations with explicit omitted bindings and an actual body identity.
 pub fn write_sealed_style_snapshot(
@@ -11,7 +11,11 @@ pub fn write_sealed_style_snapshot(
     facts: &[StyleFnFacts],
 ) -> Result<super::super::super::BundleManifest, String> {
     super::super::super::manifest::seal(writer, |writer| {
-        let encoded = function_sources::encode_with(facts, |facts| (&facts.body, &facts.bindings))?;
+        let encoded = function_sources::encode_with(
+            facts,
+            |facts| (&facts.body, &facts.bindings),
+            option_bundle::Inventories::with_shared_options(),
+        )?;
         let export = Export {
             schema: STYLE_FACTS_SCHEMA,
             phase,
@@ -35,10 +39,14 @@ pub fn read_style_snapshot_phase(
 
     let restore =
         crate::diagnostics::Stage::new("diagnostic.restore", "style-snapshot", None).enter();
-    if wire.schema != STYLE_FACTS_SCHEMA || wire.phase.is_empty() || wire.phase != expected {
+    if ![STYLE_FACTS_SCHEMA, "rstyle.diagnostic.style-facts/1"].contains(&wire.schema.as_str())
+        || wire.phase.is_empty()
+        || wire.phase != expected
+    {
         return Err("Unsupported or mismatched root style snapshot schema or phase".into());
     }
-    restore.finish(restore_snapshot(wire, true, false))
+    let shared_options = wire.schema == STYLE_FACTS_SCHEMA;
+    restore.finish(restore_snapshot(wire, true, false, shared_options))
 }
 
 #[cfg(test)]

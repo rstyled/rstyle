@@ -3,6 +3,7 @@ use super::*;
 use crate::source_table;
 mod inherent_units;
 mod records;
+mod sharing;
 pub(crate) use inherent_units::{ImportedInventories, Inventories};
 use records::SourceRecord;
 
@@ -19,6 +20,7 @@ enum KnownExport<'a> {
     Inline(&'a Entry),
     Census(records::CensusExport<'a>),
     CensusReference(u32),
+    SharedReference(u32),
     Origins(records::OriginsExport<'a>),
     InherentUnit(u32),
 }
@@ -34,6 +36,7 @@ enum KnownImport {
     Inline(Value),
     Census(Box<records::CensusImport>),
     CensusReference(u32),
+    SharedReference(u32),
     Origins(records::OriginsImport),
     InherentUnit(u32),
 }
@@ -53,6 +56,14 @@ impl<'a> Export<'a> {
             .iter()
             .map(|(key, entry)| {
                 let value = match entry {
+                    _ if inventories.shared_options.enabled && sharing::key(key) => {
+                        EntryView::Source(
+                            match inventories.shared_options.reference(key, entry)? {
+                                Some(index) => KnownExport::SharedReference(index),
+                                None => KnownExport::Inline(entry),
+                            },
+                        )
+                    }
                     Entry::Census(record) => {
                         EntryView::Source(match inventories.census_reference(&record.value)? {
                             Some(index) => KnownExport::CensusReference(index),
@@ -104,7 +115,10 @@ fn decode_entry(
     sources: &mut source_table::Imported<'_>,
     inventories: &mut ImportedInventories,
 ) -> Result<Entry, String> {
-    if source_key(key) || !inventories.legacy() && key == crate::inherent_calls::UNIT_KEY {
+    if source_key(key)
+        || inventories.shared_options.enabled && sharing::key(key)
+        || !inventories.legacy() && key == crate::inherent_calls::UNIT_KEY
+    {
         let encoded: KnownImport =
             serde_json::from_value(value).map_err(|error| error.to_string())?;
         encoded.decode(key, sources, inventories)
@@ -123,7 +137,13 @@ impl KnownImport {
         inventories: &mut ImportedInventories,
     ) -> Result<Entry, String> {
         match self {
+            Self::Inline(value) if inventories.shared_options.enabled && sharing::key(key) => {
+                Ok(inventories.shared_options.retain(key, value))
+            }
             Self::Inline(value) => Ok(Entry::new(key, value)),
+            Self::SharedReference(index) if sharing::key(key) => {
+                inventories.shared_options.entry(key, index)
+            }
             Self::Census(value) if key == crate::nominal_boundary::census::KEY => {
                 Ok(inventories.retain_census((*value).decode(sources)?))
             }

@@ -38,6 +38,14 @@ The legacy backend remains the default, available explicitly through
 `--style-engine legacy`. The style-engine option applies only without a subcommand;
 `patterns --engine compiler` retains its separate opt-in route.
 
+Numeric snapshots use `rstyle.diagnostic.style-facts/2`: repeated invocation and
+selected-unit metadata appear inline once, then refer to that snapshot-local
+entry. Decoding shares immutable values; edits detach the changed value. Exact
+key/value equality preserves distinct compilation contexts, absent values, nulls
+and unrecognized JSON. The reader also accepts style `/1` snapshots with ordinary
+inline metadata. Full clones snapshots and ordinary frontend JSON retain their
+existing encoding.
+
 Capture preparation acquires Cargo metadata once through the shared workspace
 collector. Workspace validation and target selection consume the same result,
 preserving the selected manifest, pinned toolchain and rich package context.

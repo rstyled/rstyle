@@ -1,0 +1,316 @@
+{
+  "schema": "rstyle.root-style-metadata-sharing-study/1",
+  "checkpoint": "C106",
+  "base_revision": "d121371908c9baccb62550e99a3871964167e7f8",
+  "source_state": "C106 task-owned implementation and legacy gate cleanup, before commit",
+  "scope": "Default authored workspace libraries/binaries, unchanged rstyle.toml, Linux ARM64; dev binaries; 150 second bound",
+  "command": [
+    "target/debug/cargo-rstyle",
+    "--style-engine",
+    "compiler",
+    "--format",
+    "json"
+  ],
+  "observations": [
+    {
+      "label": "baseline-first",
+      "report": "/tmp/clones-c106-baseline-first.json",
+      "time_and_stage_log": "/tmp/clones-c106-baseline-first.log",
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-TexCJW",
+      "elapsed_seconds": 34.74,
+      "peak_rss_kib": 2430784,
+      "snapshot_bytes": 259029517,
+      "unit_snapshots": 6,
+      "reused_owner_directories": 0,
+      "summary_complete": true,
+      "capture_complete": true,
+      "summary": {
+        "functions": 10075,
+        "violations": 49,
+        "complexity_measured": 10075,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 98,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 343,
+          "mutation": 2097,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      },
+      "stage_seconds": {
+        "cli.prepare": 0.035687601,
+        "capture.source_restore": 0.004229969000000001,
+        "capture.compile": 28.166412906,
+        "cli.advisory.load_inventory": 0.13201823000000001,
+        "diagnostic.parse": 2.102315286,
+        "diagnostic.restore": 0.14277531499999999,
+        "cli.advisory.context": 0.508180594,
+        "cli.advisory.retain": 0.056173695,
+        "cli.handoff": 2.979193628,
+        "cli.report_write": 1.052708738,
+        "cli.report_render": 0.477808186
+      }
+    },
+    {
+      "label": "baseline-warm",
+      "report": "/tmp/clones-c106-baseline-warm.json",
+      "time_and_stage_log": "/tmp/clones-c106-baseline-warm.log",
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-0CP937",
+      "elapsed_seconds": 34.81,
+      "peak_rss_kib": 2430916,
+      "snapshot_bytes": 259032028,
+      "unit_snapshots": 6,
+      "reused_owner_directories": 2,
+      "summary_complete": true,
+      "capture_complete": true,
+      "summary": {
+        "functions": 10075,
+        "violations": 50,
+        "complexity_measured": 10075,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 98,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 343,
+          "mutation": 2097,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      },
+      "stage_seconds": {
+        "cli.prepare": 0.035075929,
+        "capture.source_restore": 0.0045558299999999986,
+        "capture.compile": 28.239446622,
+        "cli.advisory.load_inventory": 0.129998952,
+        "diagnostic.parse": 2.1210844890000002,
+        "diagnostic.restore": 0.145974517,
+        "cli.advisory.context": 0.509465755,
+        "cli.advisory.retain": 0.056392198000000004,
+        "cli.handoff": 2.999683351,
+        "cli.report_write": 1.065660793,
+        "cli.report_render": 0.475528183
+      }
+    },
+    {
+      "label": "baseline-reuse",
+      "report": "/tmp/clones-c106-baseline-reuse.json",
+      "time_and_stage_log": "/tmp/clones-c106-baseline-reuse.log",
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-CNLaXp",
+      "elapsed_seconds": 6.59,
+      "peak_rss_kib": 1187612,
+      "snapshot_bytes": 259032028,
+      "unit_snapshots": 6,
+      "reused_owner_directories": 6,
+      "summary_complete": true,
+      "capture_complete": true,
+      "summary": {
+        "functions": 10075,
+        "violations": 50,
+        "complexity_measured": 10075,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 98,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 343,
+          "mutation": 2097,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      },
+      "stage_seconds": {
+        "cli.prepare": 0.034552707,
+        "capture.source_restore": 0.004555829999999996,
+        "capture.compile": 0.162452281,
+        "cli.advisory.load_inventory": 0.105281629,
+        "diagnostic.parse": 2.0504200470000002,
+        "diagnostic.restore": 0.134782055,
+        "cli.advisory.context": 0.496988385,
+        "cli.advisory.retain": 0.054002629999999996,
+        "cli.handoff": 2.879001525,
+        "cli.report_write": 1.056560972,
+        "cli.report_render": 0.471648426
+      }
+    },
+    {
+      "label": "final-fresh",
+      "report": "/tmp/clones-c106-final-fresh.json",
+      "time_and_stage_log": "/tmp/clones-c106-final-fresh.log",
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-6EKO12",
+      "elapsed_seconds": 31.55,
+      "peak_rss_kib": 2435936,
+      "snapshot_bytes": 142310218,
+      "unit_snapshots": 6,
+      "reused_owner_directories": 0,
+      "summary_complete": true,
+      "capture_complete": true,
+      "summary": {
+        "functions": 10083,
+        "violations": 48,
+        "complexity_measured": 10083,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 98,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 343,
+          "mutation": 2102,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      },
+      "stage_seconds": {
+        "cli.prepare": 0.031314935,
+        "capture.source_restore": 0.004240574999999995,
+        "capture.compile": 25.42700482,
+        "cli.advisory.load_inventory": 0.07444748,
+        "diagnostic.parse": 1.752940064,
+        "diagnostic.restore": 0.17295524899999998,
+        "cli.advisory.context": 0.519618794,
+        "cli.advisory.retain": 0.05627770900000001,
+        "cli.handoff": 2.59764468,
+        "cli.report_write": 1.06626504,
+        "cli.report_render": 0.483252018
+      }
+    },
+    {
+      "label": "final-reuse",
+      "report": "/tmp/clones-c106-final-reuse.json",
+      "time_and_stage_log": "/tmp/clones-c106-final-reuse.log",
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-RTPV1r",
+      "elapsed_seconds": 6.12,
+      "peak_rss_kib": 853312,
+      "snapshot_bytes": 142310218,
+      "unit_snapshots": 6,
+      "reused_owner_directories": 6,
+      "summary_complete": true,
+      "capture_complete": true,
+      "summary": {
+        "functions": 10083,
+        "violations": 48,
+        "complexity_measured": 10083,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 98,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 343,
+          "mutation": 2102,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      },
+      "stage_seconds": {
+        "cli.prepare": 0.039090211,
+        "capture.source_restore": 0.004240574999999995,
+        "capture.compile": 0.174852366,
+        "cli.advisory.load_inventory": 0.059786475,
+        "diagnostic.parse": 1.712092818,
+        "diagnostic.restore": 0.16700574899999998,
+        "cli.advisory.context": 0.503306626,
+        "cli.advisory.retain": 0.053109923999999996,
+        "cli.handoff": 2.514108598,
+        "cli.report_write": 1.053111512,
+        "cli.report_render": 0.47612769
+      }
+    }
+  ],
+  "source_qualifications": {
+    "baseline-first": "Committed d1213719 source; old codec.",
+    "baseline-warm": "Ownership-only edits had landed; despite filename this is a mixed recapture using old codec/binary, with only two of six owners reused.",
+    "baseline-reuse": "Same ownership-only source as baseline-warm; old codec/binary; all six owners reused.",
+    "final-fresh": "Final C106 implementation plus get_mut/spacing refactor; schema2; all owners recaptured.",
+    "final-reuse": "Same source and binary as final-fresh; all six owners reused."
+  },
+  "repeat_projection_equal": {
+    "diagnostics": true,
+    "summary": true,
+    "functions": true,
+    "fix_groups": true,
+    "compiler_advisory": true
+  },
+  "controlled_size_comparison": {
+    "method": "Reconstruct style1 inline metadata from the exact final-fresh style2 snapshots and serialize compact UTF-8 JSON; no source/population drift in this size comparison.",
+    "captured_facts": 19693,
+    "schema2_bytes": 142310218,
+    "equivalent_inline_style1_bytes": 259150063,
+    "references_by_key": {
+      "invocation": 19687,
+      "rstyle.nominal_selected_unit": 19687
+    }
+  },
+  "limits": [
+    "Before/after runtime observations use different source revisions/populations; not a controlled benchmark or causal speedup claim.",
+    "Stage timings can nest and are not disjoint wall-time shares.",
+    "Fresh run overlapped a short Python script test suite, not another Rust capture/build. Repeat run had no other validation job.",
+    "Exit1 means completed compiler findings, not a failed capture.",
+    "No new hash, cache, integrity scan, rule threshold, suppression, collector or strict admission policy. Driver still constructs independent equal metadata values; exporter deduplicates with exact key/value equality.",
+    "Current compiler findings require separate usefulness disposition; this change does not establish default readiness."
+  ],
+  "current_finding_reconciliation": {
+    "baseline": "baseline-first committed d1213719",
+    "before": 49,
+    "after": 48,
+    "removed": [
+      {
+        "path": "crates/rstyle-pdg/src/frontend/options.rs",
+        "rule": "side_effect_density",
+        "function": "frontend::options::FrontendOptions::get_mut",
+        "previous_actual": 571
+      }
+    ],
+    "added": [],
+    "changed_actual": [
+      {
+        "path": "crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style.rs",
+        "rule": "side_effect_density",
+        "function": "unit_store::bundle::diagnostic::style::read_style_snapshot_phase",
+        "previous_actual": 666,
+        "actual": 571
+      }
+    ],
+    "interpretation": "The Entry-owned JSON edit refactor was required by the legacy mutation gate; compiler get_mut density is no longer reported. This is source change, not a metric or threshold change. Remaining usefulness disposition stays open."
+  },
+  "frozen_usefulness_roster_reconciliation": {
+    "frozen_reviewed_findings": 47,
+    "current_findings": 48,
+    "retained_function_names": 45,
+    "frozen_names_no_longer_reported": [
+      "clones::capture::targets",
+      "frontend::options::FrontendOptions::get_mut"
+    ],
+    "new_function_names": [
+      "hir_extraction::instances::diagnostic_support::optional_requests",
+      "unit_store::bundle::diagnostic::style::read_style_snapshot_phase",
+      "unit_store::bundle::diagnostic::style::write_sealed_style_snapshot"
+    ],
+    "limits": "Function names join the prior source review roster; changed-source metric and usefulness conclusions are not inferred solely from matching names."
+  },
+  "validation": {
+    "rust_toolchain": "rustc1.101.0-nightly (5c543b0b8 2026-09-29), aarch64-unknown-linux-gnu",
+    "focused_ownership_and_options_tests": 36,
+    "focused_diagnostic_snapshot_tests": 16,
+    "root_full_offline_acceptance": "passed",
+    "integrated_rust_tests": 3723,
+    "skipped_rust_tests": 5,
+    "integrated_test_seconds": 262.74,
+    "doctests": "passed",
+    "capability_python_tests": 248,
+    "script_python_tests": 50,
+    "formatting": "passed",
+    "workspace_all_target_clippy": "passed",
+    "legacy_style": {
+      "functions": 10083,
+      "violations": 0
+    },
+    "legacy_pattern_gate": "passed",
+    "unfiltered_pattern_ids_equal_C104": true,
+    "unfiltered_candidates": 13,
+    "native_C103": "run40987753521 completed successfully",
+    "native_C105": "run40988956210 Ubuntu x86/ARM passed, macOS in progress; not C106 validation",
+    "native_C106": "pending publication/CI"
+  }
+}

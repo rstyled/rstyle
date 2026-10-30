@@ -21,6 +21,7 @@ pub struct FrontendOptions(BTreeMap<String, Entry>);
 #[derive(Clone, Debug)]
 enum Entry {
     Json(Value),
+    SharedJson(Arc<Value>),
     Invalid { value: Value, error: String },
     Interface(Record<InterfaceObservations>),
     Fields(Record<FieldObservations>),
@@ -84,6 +85,7 @@ impl<T: Serialize> Record<T> {
 impl Entry {
     fn new(key: &str, json: Value) -> Self {
         match key {
+            "invocation" | crate::nominal_boundary::CONTEXT_KEY => Self::SharedJson(Arc::new(json)),
             crate::generated_sources::capture::KEY => Self::decode(json, Self::GeneratedSources),
             crate::dependency_namespaces::capture::KEY => {
                 Self::decode(json, Self::DependencyNamespaces)
@@ -97,6 +99,23 @@ impl Entry {
                 Self::InherentUnits(inherent_units::Inventory::new(record))
             }),
             _ => Self::Json(json),
+        }
+    }
+
+    fn materialize_for_edit(&mut self) {
+        if matches!(self, Self::Json(_) | Self::SharedJson(_)) {
+            return;
+        }
+        let original = std::mem::replace(self, Self::Json(Value::Null));
+        *self = Self::Json(original.into_json());
+    }
+
+    fn json_mut(&mut self) -> &mut Value {
+        self.materialize_for_edit();
+        match self {
+            Self::Json(value) => value,
+            Self::SharedJson(value) => Arc::make_mut(value),
+            _ => unreachable!(),
         }
     }
 
@@ -117,6 +136,7 @@ impl Entry {
     fn json(&self) -> &Value {
         match self {
             Self::Json(value) | Self::Invalid { value, .. } => value,
+            Self::SharedJson(value) => value,
             Self::Interface(record) => record.json(),
             Self::Fields(record) => record.json(),
             Self::Receivers(record) => record.json(),
@@ -130,6 +150,9 @@ impl Entry {
 
     fn equivalent(&self, other: &Self) -> bool {
         match (self, other) {
+            (Self::SharedJson(left), Self::SharedJson(right)) => {
+                Arc::ptr_eq(left, right) || left == right
+            }
             (Self::Fields(left), Self::Fields(right)) => {
                 left.value == right.value && left.nulls == right.nulls
             }
@@ -165,6 +188,7 @@ impl Entry {
     fn into_json(self) -> Value {
         match self {
             Self::Json(value) | Self::Invalid { value, .. } => value,
+            Self::SharedJson(value) => Arc::unwrap_or_clone(value),
             Self::Interface(record) => record.into_json(),
             Self::Fields(record) => record.into_json(),
             Self::Receivers(record) => record.into_json(),
@@ -181,6 +205,7 @@ impl Serialize for Entry {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Json(value) | Self::Invalid { value, .. } => value.serialize(serializer),
+            Self::SharedJson(value) => value.serialize(serializer),
             Self::Interface(record) => record.render().serialize(serializer),
             Self::Fields(record) => record.render().serialize(serializer),
             Self::Receivers(record) => record.render().serialize(serializer),
@@ -199,15 +224,7 @@ impl FrontendOptions {
     }
 
     pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
-        let entry = self.0.get_mut(key)?;
-        if !matches!(entry, Entry::Json(_)) {
-            let original = std::mem::replace(entry, Entry::Json(Value::Null));
-            *entry = Entry::Json(original.into_json());
-        }
-        let Entry::Json(value) = entry else {
-            unreachable!()
-        };
-        Some(value)
+        self.0.get_mut(key).map(Entry::json_mut)
     }
 
     pub fn insert(&mut self, key: String, value: Value) -> Option<Value> {
@@ -456,6 +473,8 @@ mod generated_sources_tests;
 mod origin_budgets_tests;
 #[cfg(test)]
 mod receivers_tests;
+#[cfg(test)]
+mod shared_json_tests;
 #[cfg(test)]
 mod tests;
 

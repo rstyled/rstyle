@@ -414,6 +414,9 @@ and the actual body identity; body trees and lexical bindings are not requested.
 Numeric replay works without source files or tools. Body-dependent consumers need
 a full clones capture; direct clones advisory captures retain their complete bodies
 and bindings even with compact reports. Owner reuse distinguishes these payloads.
+Style snapshot schema `/2` stores repeated invocation and selected-unit metadata
+once per snapshot and restores shared immutable values. The reader still accepts
+style `/1`; full clones and ordinary frontend JSON keep their existing formats.
 The default backend stays legacy. Advisory-only live captures without dependency
 capture reuse private builds under a lock. Completed raw owner snapshots are
 reused only for exact artifacts that current Cargo reports fresh, with matching

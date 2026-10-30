@@ -3,11 +3,18 @@ use super::*;
 
 #[derive(Default)]
 pub(crate) struct Inventories<'a> {
+    pub(super) shared_options: sharing::Export<'a>,
     records: Vec<&'a super::super::inherent_units::Inventory>,
     censuses: BTreeMap<usize, (u32, &'a Arc<crate::nominal_boundary::census::Census>)>,
 }
 
 impl<'a> Inventories<'a> {
+    pub(crate) fn with_shared_options() -> Self {
+        let mut inventories = Self::default();
+        inventories.shared_options.enabled = true;
+        inventories
+    }
+
     pub(super) fn census_reference(
         &mut self,
         census: &'a Arc<crate::nominal_boundary::census::Census>,
@@ -46,6 +53,7 @@ impl Serialize for Inventories<'_> {
 }
 
 pub(crate) struct ImportedInventories {
+    pub(super) shared_options: sharing::Import,
     entries: Vec<Entry>,
     used: Vec<bool>,
     legacy: bool,
@@ -84,12 +92,17 @@ impl ImportedInventories {
         }
 
         Ok(Self {
+            shared_options: sharing::Import::default(),
             used: vec![false; entries.len()],
             entries,
             legacy,
             censuses: Vec::new(),
             shared_censuses: false,
         })
+    }
+
+    pub(crate) fn share_options(&mut self, enabled: bool) {
+        self.shared_options.enabled = enabled;
     }
 
     pub(crate) fn share_censuses(&mut self, enabled: bool) {

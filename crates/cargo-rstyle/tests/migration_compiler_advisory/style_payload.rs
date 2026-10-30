@@ -55,7 +55,7 @@ fn snapshot(report: &Value) -> Value {
 }
 
 fn style_snapshot(wire: &Value) {
-    assert_eq!(wire["schema"], "rstyle.diagnostic.style-facts/1");
+    assert_eq!(wire["schema"], "rstyle.diagnostic.style-facts/2");
     assert_eq!(wire["phase"], "compiler-style-inputs");
     let facts = wire["facts"].as_array().unwrap();
     assert_eq!(facts.len(), 2);
@@ -69,6 +69,7 @@ fn style_snapshot(wire: &Value) {
 }
 
 fn complete_snapshot(style: &Value, full: &Value) {
+    shared_unit_options(style, full);
     assert_eq!(full["schema"], "rstyle.diagnostic.raw-facts/4");
     assert_eq!(full["phase"], "compiler-advisory-only");
     assert_eq!(style["sources"], full["sources"]);
@@ -92,6 +93,37 @@ fn complete_snapshot(style: &Value, full: &Value) {
             }
         }
     }
+}
+
+fn shared_unit_options(style: &Value, full: &Value) {
+    let bytes = serde_json::to_vec(style).unwrap();
+    let restored =
+        rstyle_pdg::unit_store::read_style_snapshot_phase(&bytes, "compiler-style-inputs").unwrap();
+    for key in ["invocation", rstyle_pdg::nominal_boundary::CONTEXT_KEY] {
+        let first = restored[0].build.frontend_options.get(key).unwrap();
+        for fact in &restored {
+            assert!(std::ptr::eq(
+                first,
+                fact.build.frontend_options.get(key).unwrap()
+            ));
+            let original = full["facts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|original| original["name"] == fact.name)
+                .unwrap();
+            assert_eq!(first, &original["build"]["frontend_options"][key]);
+        }
+    }
+    assert!(full["facts"][0]["build"]["frontend_options"]["invocation"].is_array());
+    assert_eq!(
+        style["facts"][0]["build"]["frontend_options"]["invocation"]["kind"],
+        "inline"
+    );
+    assert_eq!(
+        style["facts"][1]["build"]["frontend_options"]["invocation"]["kind"],
+        "shared_reference"
+    );
 }
 
 fn signature_identity(style: &Value, full: &Value) {

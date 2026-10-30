@@ -7241,3 +7241,45 @@ plus doctests. Capability/script Python suites pass248/50 tests.
 Default engines remain legacy. C103 native CI is still in progress at the last
 explicit poll. Next: commit/push the direct-review workflow, then continue the ready capability
 frontier and default disposition.
+
+### C106 — share repeated numeric capture metadata (2026-10-30)
+
+Root style snapshots repeated the compiler invocation and selected-unit JSON in
+every function. Reuse the existing FrontendOptions ownership and bundle adapter:
+these two ordinary values use Arc ownership with copy-on-write edits; numeric
+schema2 writes each exact key/value inline once and subsequent occurrences as
+snapshot-local references. Exact equality shares independently allocated equal
+values without merging distinct contexts. No hash, integrity scan, new cache,
+collector, rule policy or strict matching change. Driver construction is unchanged.
+Style1 reads and full/raw/ordinary JSON encoding retain their previous behavior.
+
+Seven new unit tests cover ownership/edit isolation, missing/null/unrecognized
+values, distinct contexts, reference errors and historical style1 compatibility.
+The real-Cargo root/full/offline test additionally checks shared decoded values
+against the full capture's original metadata. Focused tests pass. Legacy
+get_mut now delegates JSON edit materialization to its Entry owner; the legacy
+style gate passes with zero violations over10,083 functions. Both pattern gates
+pass, retaining the same13 unfiltered reviewed IDs. Clippy and formatting pass.
+
+project-root-style-metadata-sharing-study.json retains stage timings, reports,
+source qualifications and resource observations. The final six snapshots contain
+19,693 facts and142,310,218bytes. Reconstructing equivalent style1 inline metadata
+from these exact facts yields259,150,063bytes, a45.1% size reduction without
+population drift. Final fresh capture31.55s/2,435,936KiB; all-six owner reuse
+6.12s/853,312KiB, with identical diagnostics, summary, function metrics, fix groups
+and compiler advisory projections. The earlier old-codec repeat is
+6.59s/1,187,612KiB; its source contains ownership-only edits, so runtime differences
+are observations, not a controlled causal speedup claim. Parse stage sums move
+from2.0504s to1.7121s; report writing remains about1.05s. Fresh-capture peak memory
+is largely unchanged. Nested stages are not disjoint wall-time shares.
+
+The full integrated Rust suite passes all3,723 tests (262.740s,5 skipped), plus
+doctests. Python suites pass248/50 tests;
+the initial script-suite invocation lacked Cargo tools on PATH and was rerun with
+the normal environment. C103 native CI has completed successfully; C105's Ubuntu
+ARM and x86 jobs pass while macOS remains in progress at the explicit poll.
+Defaults remain legacy. Next: commit/push C106, then settle default diagnostic
+usefulness and resource disposition. The current48 findings retain45 frozen
+function names, omit targets/get_mut, and add optional_requests plus both numeric
+snapshot I/O boundaries; matching names alone do not establish unchanged source
+or usefulness. The study records this reconciliation for the default decision.

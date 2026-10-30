@@ -105,17 +105,19 @@ where
     let shared_censuses = wire.schema == RAW_FACTS_SCHEMA;
     let flat_bodies =
         [RAW_FACTS_SCHEMA, "rstyle.diagnostic.raw-facts/3"].contains(&wire.schema.as_str());
-    restore.finish(restore_snapshot(wire, shared_censuses, flat_bodies))
+    restore.finish(restore_snapshot(wire, shared_censuses, flat_bodies, false))
 }
 
 fn restore_snapshot<B: function_sources::BodyImport, Bindings>(
     wire: Import<B, Bindings>,
     shared_censuses: bool,
     flat_bodies: bool,
+    shared_options: bool,
 ) -> Result<Vec<HirFnFacts<B::Output, Bindings>>, String> {
     let mut inventories =
         option_bundle::ImportedInventories::new(Some(wire.inherent_units), false)?;
     inventories.share_censuses(shared_censuses);
+    inventories.share_options(shared_options);
     let mut sources = source_table::Imported::new(&wire.sources);
     let facts = wire
         .facts
