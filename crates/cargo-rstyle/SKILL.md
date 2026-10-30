@@ -81,8 +81,7 @@ findings and fix groups. Clean functions are omitted from both formats.
 The summary reports `complexity_measured` and `complexity_unavailable`.
 Missing scores are unavailable, never zero; the command exits 2 on missing
 measurements and retains other findings. Closures contribute to their owner;
-compiler lowering and opaque macro expansions do not add hidden branches. See
-`docs/complexity.md` for policy.
+compiler lowering and opaque macro expansions do not add hidden branches.
 
 [complexity] settings `max_cyclomatic` and `max_cognitive` both default to 12.
 Scores strictly above their limit produce `cyclomatic_complexity` or
@@ -212,7 +211,7 @@ exits two. Density can also use the manifest, independently of source rules, wit
 counts in `mutation_effects.changed_scope` after numeric reviews. Other consumers
 and planning populations retain their existing behavior. Selection
 can be changed during source/tool-free replay; no Git or live source lookup runs.
-See `docs/clones-source-rules.md` for scope and association limitations. Keep both
+Keep both
 compiler-default style and patterns gates.
 
 
@@ -250,7 +249,7 @@ and incomplete-scope exits retain their meaning. Explicit saved-run
 `--review-status` reports retained parameter entries. Explicit `--review-prune`
 can remove only completed negatives under the retained numeric policy and current
 detector versions; raised limits, missing owners and unavailable evidence never
-authorize pruning. See `docs/clones-finding-review.md` for commands and bounds.
+authorize pruning.
 
 
 Length choices use the same review workflow with `--dismiss-length FUNCTION_KEY`.
@@ -309,7 +308,7 @@ known-region disjointness, conflicting snapshots and explicit coverage/budgets.
 These source regions share captured snapshots; strict replay needs no live files.
 Unknown caller populations remain incomplete even when an overlap is witnessed.
 No report proves whole-plan independence, rewrite correctness or a stack order.
-See `docs/clones-edit-planning.md` for limits and intent semantics.
+
 
 ## Bounded scalar helper mutation effects
 
@@ -322,7 +321,7 @@ Wildcard and immutable scalar range binders retain exact body scopes. Pattern
 conditions, labels, value breaks, arbitrary iterators and opaque work remain
 incomplete. This direct inventory does not certify loop/conditional helper calls
 or parameter uses.
-See `docs/clones-mutations.md` for policy, provenance and replay semantics.
+
 
 Mutation schema `rstyle.mutations/2` keeps raw evidence/rules separate from
 `policy` decisions. Use `visible_findings` for finding exits; named captured
@@ -361,7 +360,7 @@ distinct while completed summary proofs are reused. Third edges, recursion,
 aliases, unsupported signatures and opaque calls stay incomplete; this is no
 purity, density, runtime-frequency or rewrite-safety claim. Existing owner/call/site
 budgets bound summary/path work. Replay recomputes from immutable original facts,
-without compiler tools or live source. See `docs/clones-mutation-effects.md`.
+without compiler tools or live source.
 
 
 `clones --effect-density [--effect-config PATH]` requests a separate static-event
@@ -379,7 +378,7 @@ arithmetic; `--fail-on-findings` uses visible density findings. Named density
 suppressions preserve raw measurements; explicit config exclusions preserve raw
 unavailability. Both request flags require both axes complete. Config-only replay
 uses captured source policy without live source/tools. This is a static policy
-metric, not runtime frequency or purity. See `docs/clones-mutation-effects.md`.
+metric, not runtime frequency or purity.
 
 
 Saved density choices use review-store schema 7, `density_review`
@@ -392,7 +391,7 @@ presentation/finding exits; raw density evidence and completeness remain.
 Status/prune requires a selected completed numeric negative under the exact
 retained policy. Unknown, exempt, source-suppressed/excluded, unrequested and
 budget-limited owners cannot retire choices. Full/compact replay needs no live
-source or compiler tools. See `docs/clones-mutation-effects.md`.
+source or compiler tools.
 
 
 ## Density CI baseline inventories
@@ -407,8 +406,7 @@ retained suppression, exclusion, missing owners and unavailable identities remai
 explicit rather than resolved. Empty baseline headers still detect policy drift.
 Both live analysis and source/tool-free replay work. Original root/inline and
 checked ordinary external free-function and concrete local method identities,
-and bounded inventory limits apply; see
-`docs/clones-mutation-effects.md` before using this as a project-wide CI gate.
+and bounded inventory limits apply.
 
 ## Source-rule CI baseline inventories
 
@@ -422,8 +420,7 @@ Only a completed same-policy numeric negative resolves a retained finding.
 Suppressed, excluded, missing and unavailable owners are never silently resolved.
 Incomplete analysis exits two and cannot export; empty headers still check drift.
 Live capture and explicit source/tool-free replay share completed observations.
-The 4-MiB/4,096-entry bounds and checked original owner limitations apply; see
-`docs/clones-source-rules.md` before adopting the gate across a project.
+The 4-MiB/4,096-entry bounds and checked original owner limitations apply.
 
 ## Compiler advisory migration
 
@@ -593,7 +590,6 @@ or validate an unobserved score. Numeric validation requires completed core
 evaluation membership before inferring a clean outcome. Complexity and parameter
 plan source labels require an independently reviewed `unsuppressed: true`;
 captured-but-excluded owners remain unavailable. No extra runtime scans are added.
-See [compiler advisory](../../docs/clones-compiler-advisory.md).
 
 When the caller and dependency workspace packages are selected, compiler effects follow
 unique captured direct Cargo edges to known free functions. The report's

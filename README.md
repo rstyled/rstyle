@@ -17,13 +17,9 @@ Rust style checker built on rustc HIR (resolved names and types, not just syntax
 See [`SIDE_EFFECTS.md`](SIDE_EFFECTS.md) for the rule spec.
 
 Opt-in strict source-to-pair analysis is available with `cargo rstyle clones`.
-See [the Rust feature coverage matrix](docs/rust-feature-coverage.md) for current
-support, examples, and the remaining real-world Rust roadmap.
-See [the integration workflow](docs/source-to-pair.md) for build selection,
-verified evidence, reports and exit codes. It does not activate abstraction mining.
-Clones also offers opt-in [source and signature rules](docs/clones-source-rules.md)
+Clones also offers opt-in source and signature rules
 whose evidence remains usable when a body is excluded from strict matching.
-[Compiler advisory](docs/clones-compiler-advisory.md) reuses existing Rust
+Compiler advisory reuses existing Rust
 collectors and core policy. Add `--compiler-advisory --compiler-complexity-top 20`
 to rank clean and flagged functions by completed COG/CC scores per unit;
 missing scores and owners remain explicit, including on saved-facts replay.
@@ -70,11 +66,11 @@ The review file is explicit and independent of the pattern ignore ledger.
 Default `cargo rstyle patterns` also saves metadata and its advisory graphs,
 avoiding full body trees. Pattern and review replay need no source or compiler
 tools; body-dependent analysis requires a full clones capture.
-Optional [native pair explanations](docs/clones-pair-differences.md) show ordered
+Optional native pair explanations show ordered
 scalar differences with separate coverage through `--explain-pairs`.
-Bounded [helper proposals](docs/clones-helper-proposals.md) use that evidence
+Bounded helper proposals use that evidence
 with `--helper-proposals` to suggest useful scalar-expression abstractions.
-[Saved finding reviews](docs/clones-finding-review.md) retain explicit dismissals
+Saved finding reviews retain explicit dismissals
 for helpers, enum dispatch and witnessed capability sets across analysis runs.
 `--review-status` inspects every retained entry with explicit scope and evidence gaps.
 `--review-prune --review-prune-dry-run` previews removal of completed negative reviews.
@@ -213,9 +209,7 @@ cargo style --format json
 
 Both complexity limits default to 12; scores above either limit are findings.
 Clean functions are omitted. Text ranks reported functions by COG, then CC. JSON
-includes source evidence, all findings, and counts for every analyzed function. See
-[the shared scoring policy and Rust mapping](docs/complexity.md) for the counting
-rules, coverage, frontend contract, and configuration.
+includes source evidence, all findings, and counts for every analyzed function.
 
 Run on another project:
 
@@ -258,7 +252,7 @@ Two layers:
 
 Each candidate has a `kind` (`trait_method`, `capability_set`, `enum_dispatch`, `generic_fn`, `parameterize`), a score with its parts (`support`, `lift`, `holes`, `coverage`), an observation, an inference, a possible refactor sketch, every site with `path:line`, the functions that fill the holes, and counter-evidence (effect mismatch, common signature). Patterns whose implementations all already implement one trait method are listed under `suppressed`, not proposed. Output is deterministic.
 
-Compiler patterns captures graph observations under `target/rstyle/clones/`. Use `--replay-run PATH` to reevaluate an explicit saved run without source files or compiler tools. Style and patterns both consume saved compiler unit snapshots. See [compiler advisory coverage](docs/clones-compiler-advisory.md) for scope and replay details.
+Compiler patterns captures graph observations under `target/rstyle/clones/`. Use `--replay-run PATH` to reevaluate an explicit saved run without source files or compiler tools. Style and patterns both consume saved compiler unit snapshots.
 
 `--hide-implements TEXT` forgets trait links whose trait method id contains `TEXT` (`*` hides all). Evaluation oracle: hide a trait that has several impls and check the miner proposes it back.
 

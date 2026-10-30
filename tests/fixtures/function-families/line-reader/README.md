@@ -52,7 +52,7 @@ comparisons and36 resealed origin/None/field-slot/operand/policy attacks pass.
 The native oracle was rerun with0 mismatches; cross-target capture does not imply
 native macOS/x86 execution. Full workspace gates pass (1,483 tests/five existing
 skips, doctests/fmt/Clippy, rstyle0/4,743, patterns0/15 unchanged ignores).
-See the [bounded contract](../../../../docs/extraction-profiles/fresh-reference-product-results-v1.md).
+See the [bounded contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/fresh-reference-product-results-v1.md).
 Evidence: `/tmp/rstyle-389-{reader-evidence,reader-native-oracle}.json` and gate logs.
 `new_wrapped` still needs guarded helper export, product `?` and linear local
 field-update/move evidence; public Decoder support remains unavailable.

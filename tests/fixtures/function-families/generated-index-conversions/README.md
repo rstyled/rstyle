@@ -36,4 +36,4 @@ numeric/error behavior independently of extraction. The diagnostic
 `generated_conversion_probe` checks source/call association and reports retained
 admissions without granting permission itself. Strict replay, matching,
 validation and frontier evidence are recorded in
-[the execution log](../../../../docs/rust-support-execution.md).
+[the execution log](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).

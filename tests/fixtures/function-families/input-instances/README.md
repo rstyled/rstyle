@@ -80,7 +80,7 @@ four-instance selection gains one admission with no losses; str and both From
 instances remain unsupported. The generic definition rosters remain2,582/590.
 Complete original cleanup and outer From association proofs are now available;
 From still needs checked body/call materialization and component summaries.
-[Bounded activation contract](../../../../docs/extraction-profiles/reference-constructor-instances-v1.md).
+[Bounded activation contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/reference-constructor-instances-v1.md).
 After a fresh capture, reproduce strict replay, producer admission, identity
 matching and graph attacks with prebuilt binaries:
 

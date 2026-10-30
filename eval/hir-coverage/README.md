@@ -105,4 +105,4 @@ Assessment version 3 additionally reports independently cfg-inactive definitions
 using exact original-source inventory and compiler build settings. Frozen selections
 and all context denominators remain unchanged. Active/inactive builds are assessed
 separately, and missing proof remains unknown. See the [protocol amendment](AMENDMENTS.md)
-and [cfg contract](../../docs/extraction-profiles/cfg-source-removal-v1.md).
+and [cfg contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/cfg-source-removal-v1.md).

@@ -84,9 +84,9 @@ Evidence: `/tmp/rstyle-403-final-*`, `/tmp/rstyle-403-frozen-comparison.json`.
 
 The Data3.99 boundary connects original generated `PatternID::new`
 through its whole checked constructor chain. The
-[constructor-map contract](../../../../docs/extraction-profiles/constructor-result-maps-v1.md)
+[constructor-map contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/constructor-result-maps-v1.md)
 specifies source/HIR/hygiene joins, separate success/error ownership, exact core
 constructor callbacks and once-only payload transport. `StateID::new` retains an
 unknown-expansion source-lookup blocker; general callbacks, stored owned Results
 and payload binding remain separate work. Integrated acceptance is recorded in
-[the execution frontier](../../../../docs/rust-support-execution.md).
+[the execution frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).

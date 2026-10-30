@@ -52,5 +52,5 @@ loop-heavy sparse validation and unsafe DFA loading remain open. In particular,
 `Special::from_bytes` also needs its captured mutable reader, tuple binding and
 `?`, aggregate construction, `validate` and assertion/helper composition. These
 readers do not certify that caller. See the
-[execution record](../../../../docs/rust-support-execution.md) for completed gates
+[execution record](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md) for completed gates
 and retained evidence.

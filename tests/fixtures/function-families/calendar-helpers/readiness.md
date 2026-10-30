@@ -5,7 +5,7 @@ Three previously excluded `time` callers connect to the five already supported
 `time-core` helpers: **18 contextual gains, zero losses**. Exact package rosters,
 source identities and contexts match the capture-only baseline.
 
-[Delivered contract](../../../../docs/extraction-profiles/cross-unit-scalar-helpers-v1.md).
+[Delivered contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/cross-unit-scalar-helpers-v1.md).
 Strict saved-run replay imports every owning unit, reconstructs the exact Cargo /
 loaded-emitted artifact associations and completes all153 pair evaluations per
 context. The independent native oracle again passes240,216 cases and nine

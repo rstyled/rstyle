@@ -169,7 +169,7 @@ projection and profile-inheritance modules are deleted. Current examples,
 independently constructed native documents and actual frontend outputs cover
 schema roundtrips against `vendor-compat/pdg.schema.json`. Standalone paired
 manifests use only the current `checksum` field and XXH3; the SHA alias and
-fallback reader are removed. See [the native model](docs/pdg-transport.md).
+fallback reader are removed. See [the native model](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/pdg-transport.md).
 Resolved-type extensions require known string facts.
 
 Historical naming-refactor verification: 437 workspace tests passed, including the 23 pinned
@@ -195,7 +195,7 @@ ignore entries were introduced.
 `cargo rstyle clones` now connects captured HIR/source/build facts to exact
 serialized-document verification, `admit_produced`, strict imported admission,
 conservative projection and exhaustive unordered pair decisions. See
-[the Cargo workflow](docs/source-to-pair.md) for selection, identity, evidence,
+[the Cargo workflow](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/source-to-pair.md) for selection, identity, evidence,
 reporting, resource budgets and exit behavior. Legacy defaults remain unchanged.
 
 Runs use fresh Cargo target directories with incremental compilation disabled,
@@ -240,7 +240,7 @@ separate study begins after this integration lands.
 
 The pinned R0 ledger above remains historical R0 evidence. Local expansions use
 `rstyle.rust.hir-coverage`, not compat approval or an R0 scope correction. See
-[the versioned local contracts](docs/extraction-profiles/coverage-v1.md).
+[the versioned local contracts](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/coverage-v1.md).
 
 | Historical evidence token | Local version | Added capability |
 | --- | --- | --- |

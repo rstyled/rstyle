@@ -233,7 +233,7 @@ not admitted subslice functionality; both natural reader functions remain exclud
 
 ## Bounded subslice views implemented (Data-v3 3.31.0)
 
-The [contract](../../../docs/extraction-profiles/shared-subslice-views-v1.md)
+The [contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/shared-subslice-views-v1.md)
 connects exclusive bounded shared-slice views, exact endpoint source/callee
 identity, base-before-endpoints snapshots, bounds requirements, saved/nested
 views and subsequent scalar reads. Existing shared helper results can be bases;
@@ -308,7 +308,7 @@ this preparation. The next delivery milestone remains the complete get_batch cha
 The safe, unmodified `block::compress::get_batch` now admits in the declared whole
 lz4_flex default-feature build context. The subslice, concrete copied Result,
 unwrap failure requirement and native u32 byte interpretation compose as separate
-typed operations. The [support contract](../../../docs/extraction-profiles/copied-byte-windows-v1.md)
+typed operations. The [support contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/copied-byte-windows-v1.md)
 specifies bounds, read locations, evaluation order, source/library authority and
 remaining exclusions. Native-only by-value array decoder helpers also compose;
 the panicking reader itself is not certified as a nonpanicking helper.
@@ -446,7 +446,7 @@ measured natural result remains run-n1ejrbwy (12 admitted / 41 excluded / 7 inac
 
 The selected safe get_batch/get_batch_arch family now composes through whole
 unmodified lz4_flex library Cargo capture, document verification, strict admission
-and matching. The [architecture contract](../../../docs/extraction-profiles/native-borrowed-byte-readers-v1.md)
+and matching. The [architecture contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/native-borrowed-byte-readers-v1.md)
 connects original local-size authority and named lengths, borrowed conversion,
 conditional Result payload origins, unwrap failure, the explicit array content
 read and native usize byte significance. It preserves the copied reader and its
@@ -570,7 +570,7 @@ this target-preparation checkpoint.
 
 ### Tuple-assignment foundation (Data-v3 3.34.0)
 
-The [scalar tuple-assignment contract](../../../docs/extraction-profiles/scalar-tuple-assignment-v1.md)
+The [scalar tuple-assignment contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-tuple-assignment-v1.md)
 resolves the natural target's tuple-pattern temporary/binding/source chain. A
 complete original-library recapture retains `frac::gcd` as excluded, now solely
 for F10. Its source identity and context are unchanged. The original seven-function
@@ -592,7 +592,7 @@ The original runtime oracle and natural source expectations remain unchanged.
 
 ### Complete selected scalar reduction chain (Data-v3 3.35.0)
 
-The [outside-loop merge contract](../../../docs/extraction-profiles/outside-loop-value-merges-v1.md)
+The [outside-loop merge contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/outside-loop-value-merges-v1.md)
 now connects the preceding tuple-assignment foundation to the natural gcd's final
 conditional. The exact original-library `frac::gcd` source remains SHA
 cab1f7e45cca54d452ddb6c50ab82781229cf81bd320a413868fbb4f647c0648 and advances
@@ -777,7 +777,7 @@ Its raw receiver observations validate; the full receiver check still fails on
 unavailable source correspondence. Changing a receiver identity is rejected by
 the observational verifier itself. Existing graph/source mutation regressions
 remain mandatory. The contract is documented in
-[receiver verification](../../../docs/extraction-profiles/receiver-verification-v1.md).
+[receiver verification](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/receiver-verification-v1.md).
 
 No serialized fields, provenance records, caches, thresholds or matching changes
 were introduced. The same method/type/adjustment traversal remains; the raw
@@ -843,7 +843,7 @@ bindings. Renamed imports retain compiler identities; lookalike enums, mutable
 and nested Option payloads remain unsupported. Historical Data-v1/v2 records
 remain unchanged. Owning nominal structs containing Option remain unsupported
 as a whole; no fields are omitted. See the
-[observation contract](../../../docs/extraction-profiles/checked-option-observations-v1.md).
+[observation contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-option-observations-v1.md).
 
 This is a foundation for the selected checked UTF-8 boundary, not semantic
 Option support: semantic type parsing and admission remain closed. The unchanged
@@ -878,7 +878,7 @@ operand spans, exhaustive unguarded variant shapes and scalar-copy binding
 identity. Real Cargo captures and contract checks pass on aarch64 Linux,
 x86_64 Linux and Apple Silicon macOS, including renamed imports, reversed arms
 and saved operands. See the
-[bounded contract](../../../docs/extraction-profiles/checked-option-source-contract-v1.md).
+[bounded contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-option-source-contract-v1.md).
 
 Review of pinned core slice indexing establishes `i < len` as Some of the
 reference at i, otherwise normal None; forming the Option does not load the
@@ -929,7 +929,7 @@ Capture and assessment are complete, and matching evaluates all six admitted
 pairs without diagnostics or incompleteness. This is a separate development
 selection; it does not alter the frozen 60-function denominator.
 
-The [connected contract](../../../docs/extraction-profiles/checked-slice-option-v1.md)
+The [connected contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-slice-option-v1.md)
 adds exact get operands and a no-content-read summary, Some/None selectors,
 guarded scalar payload reads, immutable binding declarations, saved Option
 origins and scalar helper read composition. The independent Unicode/byte/pointer
@@ -1021,7 +1021,7 @@ ordinary external modules beside generic/enum/Drop/macro contents. Data-v3 3.38.
 admits all ten cases, including the complete constructor → owned local → shared
 getter chain. This advances the unchanged selection from nine admissions to ten,
 with no losses and all 45 comparisons complete. See the
-[owned Copy receiver contract](../../../docs/extraction-profiles/owned-copy-receiver-v1.md).
+[owned Copy receiver contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/owned-copy-receiver-v1.md).
 Explicit local-storage borrowing, non-Copy owned receivers and by-value self
 updates remain outside this contract.
 
@@ -1052,7 +1052,7 @@ exclusions. Data-v3 3.39 admits seven versus zero under 3.38 on identical source
 The original ten remain admitted: all 136 pairs among seventeen positives complete.
 The fourth independent runtime oracle checks exact replacement and preservation
 against published regex-syntax 0.8.11. See the
-[value-self contract](../../../docs/extraction-profiles/owned-copy-self-v1.md).
+[value-self contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/owned-copy-self-v1.md).
 Direct owned-formal field getter calls still encounter the shared-only helper-read
 boundary; this result does not certify arbitrary by-value methods.
 
@@ -1071,7 +1071,7 @@ checking, append it to an otherwise unchanged published regex-syntax 0.8.11
 `extern crate alloc`, that `utf8` module, and this development source as module
 `development`. It exercises the actual private natural methods without changing
 the separate Cargo capture sources. The five tests (one oracle and four natural
-module tests) pass. See the [bounded contract](../../../docs/extraction-profiles/borrowed-scalar-owner-v1.md).
+module tests) pass. See the [bounded contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/borrowed-scalar-owner-v1.md).
 
 
 ## Cyclic prefix scan family
@@ -1092,7 +1092,7 @@ Its three tests pass: capped zero-prefix lengths, all 256 translation bytes and
 explicit table changes, empty/out-of-range starts, and 1025 iteration-value/final
 condition cases. The oracle specifies behavior independently of the extraction
 checker and does not establish pipeline support. See the
-[selected natural family and blocker audit](../../../docs/extraction-profiles/cyclic-prefix-scans-v1.md).
+[selected natural family and blocker audit](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/cyclic-prefix-scans-v1.md).
 
 
 ## Scalar Option byte-width family
@@ -1109,7 +1109,7 @@ Append `option-byte-width-oracle.rs` to the unchanged corpus in a temporary rust
 non-validating C0/C1/F5/F6/F7 cases. Pipeline coverage is separate from runtime
 behavior. The source-selected natural classifiers, build contexts and remaining
 decoder blockers are recorded in the
-[scalar Option contract](../../../docs/extraction-profiles/scalar-option-byte-widths-v1.md).
+[scalar Option contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-option-byte-widths-v1.md).
 
 
 ## Checksum-state roundtrip family
@@ -1118,7 +1118,7 @@ decoder blockers are recorded in the
 the state constructor, borrowed checksum getter, constructor-result roundtrip,
 saved input composition and scalar widening. Custom trait implementation/caller
 and floating conversion are retained negatives. See the
-[source-selected adler2 contract](../../../docs/extraction-profiles/checksum-state-roundtrips-v1.md).
+[source-selected adler2 contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checksum-state-roundtrips-v1.md).
 
 Append `checksum-state-oracle.rs` in a temporary Cargo test harness depending on
 `adler2 = "=2.0.1"` with default features. It specifies whole-input identity for
@@ -1148,7 +1148,7 @@ checks the three original function spans/hashes, builds a temporary pinned-rustc
 harness with `native-prefix-readers-oracle.rs`, and runs four independent numeric,
 short-input and saved-base tests. No original Cargo neighbors are omitted from
 pipeline coverage by this runtime-only harness. See the
-[full source-selected contract and blocker audit](../../../docs/extraction-profiles/native-prefix-readers-v1.md).
+[full source-selected contract and blocker audit](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/native-prefix-readers-v1.md).
 
 
 The unchanged std/no_std contexts each now admit **8/11**, gaining seven and
@@ -1179,7 +1179,7 @@ BufferTooSmall payload including its static description pointer. Expected values
 use explicit byte accumulation rather than another native conversion call.
 The tests pass on the current ARM Linux host; they establish runtime expectations,
 not extraction support, native cross-platform execution or detector quality.
-The [dependency audit](../../../docs/extraction-profiles/checked-native-readers-audit.md)
+The [dependency audit](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-native-readers-audit.md)
 records the still-excluded complete original function family and remaining gates.
 
 ## Scoped imports and scalar flag owners (development contract)
@@ -1199,7 +1199,7 @@ Cargo tests on the original Epsilons declaration and methods. Zero is the only
 empty value; all 64 isolated bits, all u16 low words and all shifted high words
 are covered, and original constructor/getter composition must return true.
 This runtime check does not establish extraction, rewrite safety or detector
-quality. The [scope contract](../../../docs/extraction-profiles/scoped-import-flag-owners-v1.md)
+quality. The [scope contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scoped-import-flag-owners-v1.md)
 records the exact natural selection, import restrictions and remaining boundaries.
 
 Data-v3 3.45 activates all five intended positives (0/6 to 5/6, no losses),
@@ -1217,7 +1217,7 @@ and remaining restrictions. Whole-library matching is not claimed.
 ByteSet source identities and tests their original complete-crate implementation
 with default features and locked dependencies. Expectations include all empty-set
 queries, every singleton/query pair, dense patterns and all-bits-set queries.
-The [contract](../../../docs/extraction-profiles/byte-membership-v1.md) records the
+The [contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/byte-membership-v1.md) records the
 source-selected chain and bounded proof. The immutable `byte-membership.rs` corpus
 fixes five complete positives, five partial leaves and five exclusions. Data-v3
 3.46 connects all five intended complete functions through Cargo capture, strict
@@ -1234,7 +1234,7 @@ scoring. Whole-library matching remains budget-incomplete.
 `tagged-units.rs` fixes six intended constructor/projection/composition positives,
 three named negatives and two excluded generated Clone methods. Its Data-v3
 3.46 Cargo baseline is 0 admitted /11 excluded, with complete capture and
-assessment. The [contract](../../../docs/extraction-profiles/tagged-units-v1.md)
+assessment. The [contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/tagged-units-v1.md)
 selects original Unit::u8, as_u8 and as_eoi, enumerates the complete known blocker
 chain and separates unsupported neighbors. `tagged-units-oracle.py
 /path/to/regex-automata-0.4.18` checks original source identities and runs three
@@ -1245,7 +1245,7 @@ expectations do not activate enum extraction or modify the frozen inventory.
 
 ## ASCII word classifier expectations
 
-The [compact contract](../../../docs/extraction-profiles/word-byte-classifiers-v1.md)
+The [compact contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/word-byte-classifiers-v1.md)
 fixes the separate byte-scalar and const-table/named-callback selections. Run
 `tagged-units-oracle.py /path/to/regex-syntax-0.8.11 --family syntax-word-byte`
 and `tagged-units-oracle.py /path/to/regex-automata-0.4.18 --family word-byte-classifiers`

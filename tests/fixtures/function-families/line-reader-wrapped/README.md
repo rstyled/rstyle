@@ -22,5 +22,5 @@ expectations were frozen before admission evaluation. All six original contexts 
 admit (gain1/lose0 each), retaining complete141/150 function rosters. Strict replay,
 selected identity matching and108 resealed semantic attacks pass; equivalent Cargo
 wrappers match and an ownership escape rejects. Full-library matching remains
-incomplete. See the [bounded contract](../../../../docs/extraction-profiles/linear-product-result-flow-v1.md)
+incomplete. See the [bounded contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/linear-product-result-flow-v1.md)
 for gates and remaining limits; native x86/macOS execution is not claimed.

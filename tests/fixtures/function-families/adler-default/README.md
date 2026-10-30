@@ -2,7 +2,7 @@
 
 `adler2 2.0.1` original `Adler32::new` → `<Adler32 as Default>::default` is a
 new two-function development family. The earlier
-[checksum-state contract](../../../../docs/extraction-profiles/checksum-state-roundtrips-v1.md)
+[checksum-state contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checksum-state-roundtrips-v1.md)
 already delivers `from_checksum`/`checksum` and explicitly excludes this chain;
 those methods are controls, not new gains.
 
@@ -35,7 +35,7 @@ summary is inferred from the name Default.
 The independent native oracle passes eight original public API cases, two copied
 private field witnesses and three dispatch controls in each std/no_std context.
 Full-owner captures, strict original/replay matching and final checkpoint evidence
-are recorded in [the execution log](../../../../docs/rust-support-execution.md).
+are recorded in [the execution log](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 Foreign-target capture does not establish native x86/macOS execution. Resealed
 selection/inventory attacks, shadowed/custom traits, inherent lookalikes, generics,
 Drop owners, disabled preludes and historical-policy downgrades remain negative

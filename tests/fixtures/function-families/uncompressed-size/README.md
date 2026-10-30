@@ -33,7 +33,7 @@ construction/return. Each belongs to this same complete parser acceptance target
 Exact source/module proof and compiler identities are verified in all nine selected
 contexts. Downstream decompression callers remain outside this target because
 they allocate, mutate and loop. General payload moves, stored Results and arbitrary
-error conversions remain unsupported; see the [bounded contract](../../../../docs/extraction-profiles/checked-borrowed-result-flow-v1.md).
+error conversions remain unsupported; see the [bounded contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-borrowed-result-flow-v1.md).
 
 The prepared oracle calls the unchanged public library. Its expected length uses
 independent positional arithmetic, and it checks suffix bytes, length and pointer

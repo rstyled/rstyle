@@ -102,4 +102,4 @@ includes88 source-audited gains/zero losses;51 already admitted without defaults
 No-default138/590 and every compact function record remain identical. New Cargo
 composition0.94s; shadowing, globs, hidden Drop, missing/private/changed exports,
 missing native TLS and historical3.119 policies reject. Further validation and
-reader prerequisites remain in the [execution record](../../../../docs/rust-support-execution.md).
+reader prerequisites remain in the [execution record](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).

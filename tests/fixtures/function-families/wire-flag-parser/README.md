@@ -39,4 +39,4 @@ are unsafe DFA deserializers and remain outside this bounded target.
 Measured activation: default203→204/2,582 (only original Flags parser), unchanged
 no-default143/590, zero losses. All historical selected pairs and the frozen60
 persist; tests and quality gates pass. Full validation, timings and the remaining
-caller frontier are recorded in [the execution record](../../../../docs/rust-support-execution.md).
+caller frontier are recorded in [the execution record](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).

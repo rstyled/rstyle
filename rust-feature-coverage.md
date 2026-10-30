@@ -45,11 +45,11 @@ original From callers to their checked constructor and component summaries.
 3.88 connects original Line tail extraction through Copy-error scalar Result
 propagation and checked suffix views, preserving saved values and backing origins.
 Foreign aggregate callers remain pending. See the
-[constructor contract](docs/extraction-profiles/reference-constructor-instances-v1.md).
+[constructor contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/reference-constructor-instances-v1.md).
 3.89–3.98 add component-aware foreign helper results, checked Match instances,
 mutable scalar loop state, exact Default/TryFrom selections and fresh no-drop
 nominal errors through original checked SmallIndex construction. 3.99 connects
-[generated PatternID construction](docs/extraction-profiles/constructor-result-maps-v1.md)
+[generated PatternID construction](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/constructor-result-maps-v1.md)
 through exact constructor-only Result maps. General payload binding, owned Result
 storage and generic generated callables remain outside these contracts.
 Broader character/float APIs, conversions and structured forms remain deferred.
@@ -57,7 +57,7 @@ The default remains `r0`; `hir-expanded-v1` does **not** select the Data feature
 The continuation log below records implementation boundaries and frozen inventory results.
 
 For a hands-on example of taking a Missing row through representation, registration,
-verification and tests, see [adding float support by hand](docs/adding-float-support.md).
+verification and tests, see [adding float support by hand](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/adding-float-support.md).
 
 ## How to read the checklist
 
@@ -93,24 +93,24 @@ The IDs below are documentation tracking keys, not extraction capability tokens.
 | --- | --- | --- | --- | --- |
 | V01 | Integer, bool, and unit interfaces | Covered | `fn f(x: i32, b: bool) -> i32` | Resolved scalar types; includes unused inputs and unit results. |
 | V02 | Fixed-width and native-width integers | Covered | `u128`, `isize`, `usize` | Native-width compatibility requires known equal pointer widths where relevant; exhaustive operator/type/target testing remains outstanding. |
-| V03 | Scalar literals and built-in operators | Covered | `x + 1`, `x < y`, `!flag` | Admitted integer/bool dispatch only; Data-v3 3.55 adds [source-checked byte literals and escapes](docs/extraction-profiles/word-byte-classifiers-v1.md) as concrete u8 values. Overloaded operators remain excluded; arithmetic hazards can retain partial-flow evidence. |
+| V03 | Scalar literals and built-in operators | Covered | `x + 1`, `x < y`, `!flag` | Admitted integer/bool dispatch only; Data-v3 3.55 adds [source-checked byte literals and escapes](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/word-byte-classifiers-v1.md) as concrete u8 values. Overloaded operators remain excluded; arithmetic hazards can retain partial-flow evidence. |
 | V04 | Initialized scalar locals, shadowing, and reads | Covered | `let x = n; let x = x + 1;` | Exact binding identity, saved values, and reaching definitions. |
-| V05 | Local scalar assignment and compound update | Covered | `x = y; x += 1;` | Lexical scalar bindings; Data-v3 3.34.0 adds [flat simultaneous scalar tuple assignment](docs/extraction-profiles/scalar-tuple-assignment-v1.md) to distinct mutable locals. Field/index/dereference memory writes remain excluded. |
+| V05 | Local scalar assignment and compound update | Covered | `x = y; x += 1;` | Lexical scalar bindings; Data-v3 3.34.0 adds [flat simultaneous scalar tuple assignment](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-tuple-assignment-v1.md) to distinct mutable locals. Field/index/dereference memory writes remain excluded. |
 | V06 | Scalar blocks and expression tails | Covered | `{ let y = x; y }` | Normal-flow evaluation and saved operands are retained. |
 | V07 | Integer-to-integer casts | Covered | `x as u64` | Resolved built-in integer casts only. |
 | V08 | Ordinary const-function bodies | Covered | `const fn f(x: u32) -> u32 { x }` | Function qualification is supported; this is not general compile-time evaluation. |
-| V09 | Floats and floating-point operations | Partial | `x: f64`, `x / 2.0` | Standalone f32/f64, exact bits/constants, ordered f64 +/*/−, sign negation and f64→f32 narrowing connect the [original float kernels](docs/extraction-profiles/float-kernels-v1.md) through Data-v3 3.66, including exhaustive float alternatives under checked i32 equality; comparisons, division, f32 binary arithmetic and nested floats remain unsupported. |
-| V10 | Character values and operations | Partial | `c: char`, `'a'` | Data-v3 3.61 supports standalone Unicode scalar interfaces/locals, exact literals, builtin comparisons and literal/OR/wildcard matching through verified helpers; see [character contract](docs/extraction-profiles/character-leaf-v1.md). Data-v3 3.62 adds literal ranges and the pinned ASCII predicate through the [escape classifier](docs/extraction-profiles/character-escapes-v1.md); other casts/APIs and structured character types remain deferred. |
+| V09 | Floats and floating-point operations | Partial | `x: f64`, `x / 2.0` | Standalone f32/f64, exact bits/constants, ordered f64 +/*/−, sign negation and f64→f32 narrowing connect the [original float kernels](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/float-kernels-v1.md) through Data-v3 3.66, including exhaustive float alternatives under checked i32 equality; comparisons, division, f32 binary arithmetic and nested floats remain unsupported. |
+| V10 | Character values and operations | Partial | `c: char`, `'a'` | Data-v3 3.61 supports standalone Unicode scalar interfaces/locals, exact literals, builtin comparisons and literal/OR/wildcard matching through verified helpers; see [character contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/character-leaf-v1.md). Data-v3 3.62 adds literal ranges and the pinned ASCII predicate through the [escape classifier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/character-escapes-v1.md); other casts/APIs and structured character types remain deferred. |
 | V11 | Additional built-in casts/coercions | Partial | `flag as u8`, `x as f32` | Builtin f64→f32 narrowing has a bounded contract; bool/char and other float conversions remain unsupported; pointer casts belong to unsafe work. |
-| V12 | Named constants and associated constants | Partial | `x + LIMIT`, `S::LIMIT` | Data-v3 3.3.0 supports same-unit primitive scalar constants and nongeneric inherent constants, evaluated by rustc; see [constant contract](docs/extraction-profiles/scalar-constants-v1.md). Data-v3 3.33.0 additionally verifies the original top-level local `const usize = core::mem::size_of::<usize>()` for [native byte readers](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Data-v3 3.56 adds [owned local const-built bool arrays](docs/extraction-profiles/word-byte-classifiers-v1.md) with complete evaluated contents and lossless unsigned index bounds. Other aggregates and nonlocal/generic/trait constants remain missing. |
+| V12 | Named constants and associated constants | Partial | `x + LIMIT`, `S::LIMIT` | Data-v3 3.3.0 supports same-unit primitive scalar constants and nongeneric inherent constants, evaluated by rustc; see [constant contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-constants-v1.md). Data-v3 3.33.0 additionally verifies the original top-level local `const usize = core::mem::size_of::<usize>()` for [native byte readers](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Data-v3 3.56 adds [owned local const-built bool arrays](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/word-byte-classifiers-v1.md) with complete evaluated contents and lossless unsigned index bounds. Other aggregates and nonlocal/generic/trait constants remain missing. |
 | V13 | General const expressions and const blocks | Missing | `[u8; N + 1]`, `const { 1 + 2 }` | General array expressions remain missing. Data-v3 3.33.0 permits one verified local native-size constant as a byte-array annotation length; arithmetic lengths and const blocks remain unsupported. Const fn support does not authorize these. |
 | V14 | Uninitialized locals / definite assignment | Missing | `let x; x = 1; x` | Declaration without initializer is currently rejected. |
 | V15 | Destructuring and wildcard bindings | Partial | `let (a, b) = pair;`, `let _ = x;` | Data-v3 3.47.0 supports only `let _ = local;` for an exact scalar or checked-Copy nominal place, with no value read, binding or drop. General wildcard initializers, destructuring and wildcard parameters remain missing. |
-| V16 | Type aliases | Partial | `type Count = u32;` | Data-v3 3.53 proves direct nongeneric same-module scalar aliases against the closed original declaration. Imported, qualified, chained, local-item and aggregate aliases remain excluded; see [packing contract](docs/extraction-profiles/accelerator-packing-v1.md). |
+| V16 | Type aliases | Partial | `type Count = u32;` | Data-v3 3.53 proves direct nongeneric same-module scalar aliases against the closed original declaration. Imported, qualified, chained, local-item and aggregate aliases remain excluded; see [packing contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/accelerator-packing-v1.md). |
 | V17 | General never-type interfaces | Missing | `fn stop() -> !` | Diverging loop control exists, but a general `!` interface/coercion boundary is not established. |
 
 Evidence: [R0 ledger](HIR_EXTRACTION_COVERAGE.md),
-[expanded contracts](docs/extraction-profiles/coverage-v1.md),
+[expanded contracts](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/coverage-v1.md),
 [eligibility](crates/rstyle-pdg/src/eligibility.rs).
 
 ## 2. Branches, patterns, loops, and error propagation
@@ -120,21 +120,21 @@ Evidence: [R0 ledger](HIR_EXTRACTION_COVERAGE.md),
 | F01 | Boolean `if`/`else` and explicit return | Covered | `if b { return x; } y` | Includes returning arms, control dependence, and unreachable supported suffixes. |
 | F02 | Acyclic conditional expression values | Covered | `let n = if b { x } else { y };` | Branch-value availability and merges; see F10 for the loop restriction. |
 | F03 | Short-circuit boolean evaluation | Covered | `a && b`, `a \|\| b` | Saved left values and conditional right evaluation; restricted in loop-containing functions. |
-| F04 | Bounded scalar literal/wildcard match | Partial | `match n { -1 => x, _ => y }` | Integer/bool scrutinee and 1–16 arms; Data-v3 3.9.0 independently proves coverage of supported unguarded patterns without requiring a wildcard. See [exhaustive scalar contract](docs/extraction-profiles/exhaustive-scalar-matches-v1.md); broader pattern domains remain missing. |
+| F04 | Bounded scalar literal/wildcard match | Partial | `match n { -1 => x, _ => y }` | Integer/bool scrutinee and 1–16 arms; Data-v3 3.9.0 independently proves coverage of supported unguarded patterns without requiring a wildcard. See [exhaustive scalar contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/exhaustive-scalar-matches-v1.md); broader pattern domains remain missing. |
 | F05 | Scalar match guards | Partial | `match n { 0 if b => x, _ => y }` | Ordered pure scalar guard subset; arbitrary effectful guards and patterns are not supported. |
-| F06 | OR/range/constant patterns | Partial | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Data-v3 3.10.0 supports integer/bool literal/constant/range/wildcard leaves in nested grouped OR patterns, guards and independently exhaustive matches; see [nested contract](docs/extraction-profiles/nested-scalar-or-patterns-v1.md). Data-v3 3.55 adds byte ranges/OR patterns and decoded u8 exhaustiveness through the [ASCII classifier family](docs/extraction-profiles/word-byte-classifiers-v1.md). Data-v3 3.62 adds literal character ranges; nonlocal/generic/trait constants remain missing. |
-| F07 | Destructuring, reference, slice, and enum patterns | Partial | `Some(x) => x`, `[a, ..] => a` | Data-v3 3.36.0 supports exhaustive checked-access `Some(&scalar)`/`None` patterns with verified guarded loads and bindings. Data-v3 3.42.0 adds immutable owned scalar `Some(value)`/`None` bindings with guarded value projection. Data-v3 3.47.0 adds exhaustive immutable scalar tuple-variant bindings for checked Copy local enums through the [tagged-unit family](docs/extraction-profiles/tagged-units-v1.md). General payload/field/element patterns and ownership/borrow effects remain missing. |
+| F06 | OR/range/constant patterns | Partial | `1 \| 2 => x`, `1..=9 => y`, `LIMIT => z` | Data-v3 3.10.0 supports integer/bool literal/constant/range/wildcard leaves in nested grouped OR patterns, guards and independently exhaustive matches; see [nested contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/nested-scalar-or-patterns-v1.md). Data-v3 3.55 adds byte ranges/OR patterns and decoded u8 exhaustiveness through the [ASCII classifier family](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/word-byte-classifiers-v1.md). Data-v3 3.62 adds literal character ranges; nonlocal/generic/trait constants remain missing. |
+| F07 | Destructuring, reference, slice, and enum patterns | Partial | `Some(x) => x`, `[a, ..] => a` | Data-v3 3.36.0 supports exhaustive checked-access `Some(&scalar)`/`None` patterns with verified guarded loads and bindings. Data-v3 3.42.0 adds immutable owned scalar `Some(value)`/`None` bindings with guarded value projection. Data-v3 3.47.0 adds exhaustive immutable scalar tuple-variant bindings for checked Copy local enums through the [tagged-unit family](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/tagged-units-v1.md). General payload/field/element patterns and ownership/borrow effects remain missing. |
 | F08 | `if let`, `while let`, let chains, `let else` | Partial | `if let Some(x) = v { ... }` | Data-v3 3.70 connects immutable owned `Option<usize>` Some binding with explicit else, saved initialization and early return through [original base64 lengths](eval/coverage-development/base64-encoded-len-selection.json). Other payloads/patterns, while-let, chains and let-else remain deferred. |
 | F09 | Scalar `while`/`loop` and innermost exits | Covered | `while n > 0 { n -= 1; }` | Scalar state, nesting, early return, unlabelled valueless `break`/`continue`; divergence-sensitive flow. |
-| F10 | Value merges in loop-containing functions | Partial | `while b { n = if c { x } else { y }; }` | Data-v3 3.35.0 supports [outside-loop value merges](docs/extraction-profiles/outside-loop-value-merges-v1.md), completing the selected scalar gcd chain. Data-v3 3.41.0 additionally supports [bounded cyclic prefix scans](docs/extraction-profiles/cyclic-prefix-scans-v1.md): reducible loop-body/condition merges with finite iteration-local availability. General iterator/value-carrying exit and broader caller compositions remain open. |
+| F10 | Value merges in loop-containing functions | Partial | `while b { n = if c { x } else { y }; }` | Data-v3 3.35.0 supports [outside-loop value merges](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/outside-loop-value-merges-v1.md), completing the selected scalar gcd chain. Data-v3 3.41.0 additionally supports [bounded cyclic prefix scans](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/cyclic-prefix-scans-v1.md): reducible loop-body/condition merges with finite iteration-local availability. General iterator/value-carrying exit and broader caller compositions remain open. |
 | F11 | Labelled and value-carrying exits | Missing | `'outer: loop { break 'outer; }`, `break x` | Exact target resolution and value/frontier dependencies; also labelled block expressions. |
 | F12 | Iterator `for` loops | Missing | `for x in xs { ... }` | Iterator protocol, yielded values, effects, drop, and source/desugaring correspondence; not covered by scalar `while`. |
-| F13 | `Option`/`Result` branching and `?` | Partial | `let x = parse()?;` | Data-v3 3.36.0 connects slice `get` to exhaustive `Some(&scalar)`/`None` branching. Data-v3 3.42.0 adds [owned bool/integer Option values](docs/extraction-profiles/scalar-option-byte-widths-v1.md), exact Some/None construction, early returns, saved local values and supported helper transport. Data-v3 3.51–3.52 connect [pinned integer Results and immediate checked-sub Option unwrap](docs/extraction-profiles/end-of-input-v1.md). Data-v3 3.78–3.79 adds fresh `Result<(), E>` for independently proved no-drop unit-field errors and [exact same-error `?`](docs/extraction-profiles/same-error-result-propagation-v1.md), including method forwarding and nested/sequential composition. Data-v3 3.80 connects [Option reference `?` into Copy products](docs/extraction-profiles/checked-reference-option-propagation-v1.md). Data-v3 3.81 connects [borrowed Result parser flow](docs/extraction-profiles/checked-borrowed-result-flow-v1.md), reconstructing a fresh same-error exit when the success type changes. Data3.119 connects [checked arithmetic to fresh named errors](eval/coverage-development/wire-arithmetic-errors/README.md), preserving conditional static-field origins and complete no-drop proof. Callable arithmetic Results, general payload binding, saved Results, other residual conversions and cleanup remain missing. |
-| F14 | Assertion macros | Partial | `assert!(b);`, `debug_assert!(b);` | Data-v3 3.6.0 supports unformatted standard assertions, original invocation/condition correspondence, one condition evaluation, debug settings and disclosed omitted panic flow; see [assertion contract](docs/extraction-profiles/scalar-assertions-v1.md). Data-v3 3.52.0 adds [literal scalar diagnostics](docs/extraction-profiles/end-of-input-v1.md); Data-v3 3.53 adds standard two-operand bool/integer assert_eq!/debug_assert_eq! with ordered snapshots. Explicit messages on comparisons, custom comparisons/formatting and general exceptional flow remain missing. |
+| F13 | `Option`/`Result` branching and `?` | Partial | `let x = parse()?;` | Data-v3 3.36.0 connects slice `get` to exhaustive `Some(&scalar)`/`None` branching. Data-v3 3.42.0 adds [owned bool/integer Option values](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-option-byte-widths-v1.md), exact Some/None construction, early returns, saved local values and supported helper transport. Data-v3 3.51–3.52 connect [pinned integer Results and immediate checked-sub Option unwrap](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/end-of-input-v1.md). Data-v3 3.78–3.79 adds fresh `Result<(), E>` for independently proved no-drop unit-field errors and [exact same-error `?`](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/same-error-result-propagation-v1.md), including method forwarding and nested/sequential composition. Data-v3 3.80 connects [Option reference `?` into Copy products](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-reference-option-propagation-v1.md). Data-v3 3.81 connects [borrowed Result parser flow](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-borrowed-result-flow-v1.md), reconstructing a fresh same-error exit when the success type changes. Data3.119 connects [checked arithmetic to fresh named errors](eval/coverage-development/wire-arithmetic-errors/README.md), preserving conditional static-field origins and complete no-drop proof. Callable arithmetic Results, general payload binding, saved Results, other residual conversions and cleanup remain missing. |
+| F14 | Assertion macros | Partial | `assert!(b);`, `debug_assert!(b);` | Data-v3 3.6.0 supports unformatted standard assertions, original invocation/condition correspondence, one condition evaluation, debug settings and disclosed omitted panic flow; see [assertion contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-assertions-v1.md). Data-v3 3.52.0 adds [literal scalar diagnostics](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/end-of-input-v1.md); Data-v3 3.53 adds standard two-operand bool/integer assert_eq!/debug_assert_eq! with ordered snapshots. Explicit messages on comparisons, custom comparisons/formatting and general exceptional flow remain missing. |
 | F15 | General panic/unwind/cleanup flow | Missing | `panic!("bad")`, `catch_unwind(f)` | Current extraction is bounded normal flow; omitted applicable exceptional flow is disclosed, not represented as complete. |
 
-Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
-[planned scalar composition](docs/extraction-profiles/compositional-data-v1.md),
+Evidence: [cycle/match contracts](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/coverage-v1.md),
+[planned scalar composition](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/compositional-data-v1.md),
 [eligibility](crates/rstyle-pdg/src/eligibility.rs).
 
 ## 3. Concrete data, places, references, and memory
@@ -142,24 +142,24 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | ID | Feature | Status | Small example | Current boundary / remaining work |
 | --- | --- | --- | --- | --- |
 | D01 | Tuple and literal-length array interfaces | Covered | `p: (u32, bool)`, `a: [u8; 4]` | Interface support is distinct from construction, indexing, and reference-bearing element origins. |
-| D02 | Concrete local struct interfaces | Partial | `s: S`, `s: &S` | Finite supported field trees with independent source/ownership proof. Data-v3 3.40.0 permits borrowed-only scalar-field owners in mixed units without certifying Copy or drop-free ownership; Data-v3 3.58 additionally permits independently checked Copy struct children through the [ASCII-boundary target](docs/extraction-profiles/ascii-boundaries-v1.md). See S09. |
+| D02 | Concrete local struct interfaces | Partial | `s: S`, `s: &S` | Finite supported field trees with independent source/ownership proof. Data-v3 3.40.0 permits borrowed-only scalar-field owners in mixed units without certifying Copy or drop-free ownership; Data-v3 3.58 additionally permits independently checked Copy struct children through the [ASCII-boundary target](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/ascii-boundaries-v1.md). See S09. |
 | D03 | Shared scalar/tuple/array/slice/str interfaces | Covered | `xs: &[u8]`, `text: &str` | Supported concrete immutable referents; shared syntax alone does not establish effects. |
 | D04 | Shared inherent receivers / getter bodies | Partial | `fn value(&self) -> u32 { self.value }` | Exact source impl ownership, supported concrete fields, and nominal-unit proof; not general receiver forms or callable methods on every impl. |
 | D05 | Formal tuple/struct field reads | Covered | `p.0`, `s.inner.value` | Exact formal roots and ordered projections, including actual stored-reference loads where required. |
 | D06 | Shared borrows of formal field places | Covered | `&s.inner.value` | Address projections do not invent value loads; grouping is supported in the registered receiver forms. |
 | D07 | Borrowed outputs and branching formal origins | Covered | `if b { left } else { right }` | Shared outputs retain every supported formal-origin alternative, including verified field origins. |
 | D08 | Stored shared-reference fields | Covered | `s.bytes`, where the field is `&[u8]` | Distinguishes loading a reference from borrowing its storage and reading its referent. |
-| D09 | By-value reference-bearing struct/tuple inputs | Partial | `s: Borrowed<'_>` | Verified formal component origins; Data-v3 3.22.0 also supports [construction and whole immutable tuple/struct locals](docs/extraction-profiles/reference-bearing-values-v1.md). [Component projections from constructed/local values](docs/extraction-profiles/reference-value-fields-v1.md) compose in Data-v3 3.23.0; mutable rebindings and general by-value memory-reading helper substitution remain missing. |
+| D09 | By-value reference-bearing struct/tuple inputs | Partial | `s: Borrowed<'_>` | Verified formal component origins; Data-v3 3.22.0 also supports [construction and whole immutable tuple/struct locals](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/reference-bearing-values-v1.md). [Component projections from constructed/local values](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/reference-value-fields-v1.md) compose in Data-v3 3.23.0; mutable rebindings and general by-value memory-reading helper substitution remain missing. |
 | D10 | Lifetime-only nominal declarations | Partial | `struct View<'a> { bytes: &'a [u8] }` | Unbounded lifetime-only grammar and exact region/arity proof; no type/const parameters, bounds, or where clauses. Callable inherent impls have a narrower nongeneric boundary. |
-| D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.22.0 additionally supports [reference-bearing tuple/named/tuple-struct values](docs/extraction-profiles/reference-bearing-values-v1.md). Ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, named/tuple/unit structs and same-typed struct updates remain supported; see [literal construction](docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](docs/extraction-profiles/repeat-array-values-v1.md), [named structs](docs/extraction-profiles/named-struct-values-v1.md), [updates](docs/extraction-profiles/struct-update-values-v1.md), [tuple structs](docs/extraction-profiles/tuple-struct-values-v1.md) and [unit structs](docs/extraction-profiles/unit-struct-values-v1.md). Data-v3 3.24.0 also supports [reference-bearing struct updates](docs/extraction-profiles/reference-struct-updates-v1.md) with component-specific origin replacement. Broader const counts and reference-bearing arrays remain unfinished. Data-v3 3.27.0 supports [whole reference-bearing rebindings](docs/extraction-profiles/reference-rebindings-v1.md) with snapshot and component origins. |
-| D12 | General non-scalar local values/reference rebindings | Partial | `let r = s.bytes; r.len()`, `let t = s; t.value` | Data-v3 3.22.0 supports [whole immutable reference-bearing tuple/struct values](docs/extraction-profiles/reference-bearing-values-v1.md), [single-origin shared-local field reads](docs/extraction-profiles/shared-local-fields-v1.md), [immutable shared-reference locals](docs/extraction-profiles/shared-reference-locals-v1.md), [whole reference-free local values](docs/extraction-profiles/local-aggregate-values-v1.md), assignments, shadowing, existing branch/loop flow and [value field projections](docs/extraction-profiles/aggregate-value-fields-v1.md). Data-v3 3.23.0 additionally supports [component projections from reference-bearing aggregate values](docs/extraction-profiles/reference-value-fields-v1.md). Data-v3 3.27.0 adds [whole reference-bearing rebindings](docs/extraction-profiles/reference-rebindings-v1.md), snapshot copies and branch/loop origin flow. Data-v3 3.28.0 adds [indirect shared-reference field reads](docs/extraction-profiles/indirect-field-reads-v1.md) through multiple origins, mutable bindings, snapshots and shared helper results. Aggregate helper-result field bases remain unfinished. |
+| D11 | Aggregate construction and struct update | Partial | `S { value: x }`, `(x, y)`, `[x; 4]`, `S { value: x, ..old }` | Data-v3 3.22.0 additionally supports [reference-bearing tuple/named/tuple-struct values](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/reference-bearing-values-v1.md). Ordered reference-free tuple/explicit array literals, repeat arrays with literal counts, named/tuple/unit structs and same-typed struct updates remain supported; see [literal construction](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/aggregate-literal-values-v1.md), [repeats](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/repeat-array-values-v1.md), [named structs](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/named-struct-values-v1.md), [updates](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/struct-update-values-v1.md), [tuple structs](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/tuple-struct-values-v1.md) and [unit structs](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/unit-struct-values-v1.md). Data-v3 3.24.0 also supports [reference-bearing struct updates](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/reference-struct-updates-v1.md) with component-specific origin replacement. Broader const counts and reference-bearing arrays remain unfinished. Data-v3 3.27.0 supports [whole reference-bearing rebindings](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/reference-rebindings-v1.md) with snapshot and component origins. |
+| D12 | General non-scalar local values/reference rebindings | Partial | `let r = s.bytes; r.len()`, `let t = s; t.value` | Data-v3 3.22.0 supports [whole immutable reference-bearing tuple/struct values](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/reference-bearing-values-v1.md), [single-origin shared-local field reads](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/shared-local-fields-v1.md), [immutable shared-reference locals](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/shared-reference-locals-v1.md), [whole reference-free local values](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/local-aggregate-values-v1.md), assignments, shadowing, existing branch/loop flow and [value field projections](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/aggregate-value-fields-v1.md). Data-v3 3.23.0 additionally supports [component projections from reference-bearing aggregate values](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/reference-value-fields-v1.md). Data-v3 3.27.0 adds [whole reference-bearing rebindings](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/reference-rebindings-v1.md), snapshot copies and branch/loop origin flow. Data-v3 3.28.0 adds [indirect shared-reference field reads](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/indirect-field-reads-v1.md) through multiple origins, mutable bindings, snapshots and shared helper results. Aggregate helper-result field bases remain unfinished. |
 | D13 | Borrows of locals and temporaries | Missing | `let r = &local;`, `&S { value: x }` | Storage identity/lifetime, temporary scope, escape/origin proof, and local value dependence. |
-| D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Data-v3 3.29.0 supports [built-in shared dereference reads](docs/extraction-profiles/shared-dereference-reads-v1.md), including nested pointer loads, physical field places, snapshot/branch/loop flow and existing helper composition. Unsized loads, overloaded dereference and general repeated implicit dereferences remain unfinished. |
-| D15 | Array/slice element reads | Partial | `xs[i]` | Data-v3 3.30.0 supports [scalar index reads](docs/extraction-profiles/scalar-index-reads-v1.md) over owned arrays and shared arrays/slices, evaluated place/value snapshots, access-relative element selectors and explicit normal-completion bounds requirements. Data-v3 3.46.0 connects [nested fixed-array byte membership](docs/extraction-profiles/byte-membership-v1.md): unsigned bounds, Copy array owners and nonpanicking value-index helpers. Data-v3 3.59 connects [shared indexed-read helpers](docs/extraction-profiles/indexed-read-helpers-v1.md), including nested/repeated calls, saved inputs and possible panic. Aggregate/reference elements and general exceptional flow remain unfinished. |
-| D16 | Slice ranges and borrowed subslices | Partial | `&xs[start..end]` | Data-v3 3.31.0 supports [bounded shared subslice views](docs/extraction-profiles/shared-subslice-views-v1.md) with scalar elements, exact base/start/end snapshots and normal-completion bounds. Data-v3 3.44.0 adds leading `..end` views through the complete [native prefix-reader family](docs/extraction-profiles/native-prefix-readers-v1.md). Data-v3 3.50 adds checked shared array-field views and helper-return transport; 3.53 connects implicit array-field byte copies and read-only callers. Data-v3 3.81 adds exact exclusive suffix views with saved base/start, explicit bounds and reference-bearing tuple results through the [block-header parser](docs/extraction-profiles/checked-borrowed-result-flow-v1.md). Inclusive ranges, mutable views and str/UTF-8 rules remain unfinished. |
-| D17 | Checked access and concrete Option | Partial | `xs.get(i)`, `Some(x)`, `None` | Data-v3 3.36.0 connects immutable scalar-slice get, exhaustive Some(&scalar)/None, saved Option flow and scalar helper composition through [strict graph verification](docs/extraction-profiles/checked-slice-option-v1.md). Data-v3 3.42.0 adds [owned bool/integer Option construction and consumption](docs/extraction-profiles/scalar-option-byte-widths-v1.md). Data-v3 3.48.0 adds exact core is_some on owned bool/integer Options with checked shared-autoref evidence, composing through tagged-unit helpers. Data-v3 3.80 connects checked `Option<&u8>` propagation into independently proved Copy-product Options, preserving guarded reference origins and fresh output-typed None exits. Data-v3 3.81 adds checked `get(..end)` with saved receiver/end, guarded shared-prefix origins and eager no-drop error conversion. General payload matching, mutable/array access, other checked ranges and broader Result propagation remain open. |
+| D14 | Explicit and broader implicit dereference | Partial | `*r`, `nested_ref.field` | Data-v3 3.29.0 supports [built-in shared dereference reads](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/shared-dereference-reads-v1.md), including nested pointer loads, physical field places, snapshot/branch/loop flow and existing helper composition. Unsized loads, overloaded dereference and general repeated implicit dereferences remain unfinished. |
+| D15 | Array/slice element reads | Partial | `xs[i]` | Data-v3 3.30.0 supports [scalar index reads](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-index-reads-v1.md) over owned arrays and shared arrays/slices, evaluated place/value snapshots, access-relative element selectors and explicit normal-completion bounds requirements. Data-v3 3.46.0 connects [nested fixed-array byte membership](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/byte-membership-v1.md): unsigned bounds, Copy array owners and nonpanicking value-index helpers. Data-v3 3.59 connects [shared indexed-read helpers](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/indexed-read-helpers-v1.md), including nested/repeated calls, saved inputs and possible panic. Aggregate/reference elements and general exceptional flow remain unfinished. |
+| D16 | Slice ranges and borrowed subslices | Partial | `&xs[start..end]` | Data-v3 3.31.0 supports [bounded shared subslice views](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/shared-subslice-views-v1.md) with scalar elements, exact base/start/end snapshots and normal-completion bounds. Data-v3 3.44.0 adds leading `..end` views through the complete [native prefix-reader family](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/native-prefix-readers-v1.md). Data-v3 3.50 adds checked shared array-field views and helper-return transport; 3.53 connects implicit array-field byte copies and read-only callers. Data-v3 3.81 adds exact exclusive suffix views with saved base/start, explicit bounds and reference-bearing tuple results through the [block-header parser](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-borrowed-result-flow-v1.md). Inclusive ranges, mutable views and str/UTF-8 rules remain unfinished. |
+| D17 | Checked access and concrete Option | Partial | `xs.get(i)`, `Some(x)`, `None` | Data-v3 3.36.0 connects immutable scalar-slice get, exhaustive Some(&scalar)/None, saved Option flow and scalar helper composition through [strict graph verification](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-slice-option-v1.md). Data-v3 3.42.0 adds [owned bool/integer Option construction and consumption](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-option-byte-widths-v1.md). Data-v3 3.48.0 adds exact core is_some on owned bool/integer Options with checked shared-autoref evidence, composing through tagged-unit helpers. Data-v3 3.80 connects checked `Option<&u8>` propagation into independently proved Copy-product Options, preserving guarded reference origins and fresh output-typed None exits. Data-v3 3.81 adds checked `get(..end)` with saved receiver/end, guarded shared-prefix origins and eager no-drop error conversion. General payload matching, mutable/array access, other checked ranges and broader Result propagation remain open. |
 | D18 | Reference-bearing array element origins | Missing | `refs: [&S; 2]` | Type observation alone lacks the per-element origin evidence needed for by-value reference-bearing arrays. |
-| D19 | General enums and variants | Partial | `enum E { A(u32), B }` | Data-v3 3.47.0 connects checked-Copy local enums with 1–16 single bool/integer tuple payloads, exact constructor tags, complete disjoint unguarded matches, conditional payload bindings and helper composition; see [tagged-unit contract](docs/extraction-profiles/tagged-units-v1.md). Data-v3 3.60 adds [fieldless flag enums](docs/extraction-profiles/look-flags-v1.md) with complete source-checked literal/shift discriminants, variants, casts and helper composition. Data-v3 3.81 inventories named scalar error variants and proves complete no-drop ownership for fresh unit-error Result transport. Data-v3 3.82 adds complete lexical and compiler proof for bounded explicit-u8 fieldless enums through the [calendar chain](docs/extraction-profiles/cross-unit-scalar-helpers-v1.md). General mixed constructors/matches, named/reference/generic payload flow, discriminant expressions, moves/drop and general Result remain missing. |
+| D19 | General enums and variants | Partial | `enum E { A(u32), B }` | Data-v3 3.47.0 connects checked-Copy local enums with 1–16 single bool/integer tuple payloads, exact constructor tags, complete disjoint unguarded matches, conditional payload bindings and helper composition; see [tagged-unit contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/tagged-units-v1.md). Data-v3 3.60 adds [fieldless flag enums](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/look-flags-v1.md) with complete source-checked literal/shift discriminants, variants, casts and helper composition. Data-v3 3.81 inventories named scalar error variants and proves complete no-drop ownership for fresh unit-error Result transport. Data-v3 3.82 adds complete lexical and compiler proof for bounded explicit-u8 fieldless enums through the [calendar chain](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/cross-unit-scalar-helpers-v1.md). General mixed constructors/matches, named/reference/generic payload flow, discriminant expressions, moves/drop and general Result remain missing. |
 | D20 | Mutable references and reborrowing | Partial | `x: &mut S`, `&mut *x` | Data3.93: direct `&mut usize` formal roots with conservative aliases and complete bounded loop memory flow. Reborrows, local storage and escaping mutable results remain unsupported. |
 | D21 | Field/index/dereference memory writes | Partial | `s.value = x;`, `xs[i] += 1;`, `*r = x;` | Data3.93: direct mutable-scalar compound writes, cyclic RAW/WAR/WAW and normal/checked-failure post-state. Plain, field and indexed stores, reborrows and general cleanup remain unsupported. |
 | D22 | Heap-backed containers and allocation | Missing | `Vec<u8>`, `String`, `Box<S>`, `HashMap<K, V>` | Types, allocation/reallocation, ownership, library effects and drop; no general container summaries exist. |
@@ -168,40 +168,40 @@ Evidence: [cycle/match contracts](docs/extraction-profiles/coverage-v1.md),
 | D25 | Interior mutability and shared ownership | Missing | `Cell<T>`, `RefCell<T>`, `Rc<T>`, `Arc<T>` | Shared references can mutate; borrowing checks, reference counts, allocation, effects and synchronization need explicit semantics. |
 | D26 | Globals, statics, and thread-local storage | Missing | `static COUNT: ...`, `thread_local! { ... }` | Persistent location identity, initialization, reads/writes, synchronization and cross-call effects. |
 
-Evidence: [Data contract](docs/extraction-profiles/data-v1.md),
-[field context](docs/extraction-profiles/field-value-context-v1.md),
-[nominal proof](docs/extraction-profiles/nominal-data-v1.md),
-[lifetime nominals](docs/extraction-profiles/lifetime-nominals-v1.md),
+Evidence: [Data contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/data-v1.md),
+[field context](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/field-value-context-v1.md),
+[nominal proof](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/nominal-data-v1.md),
+[lifetime nominals](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/lifetime-nominals-v1.md),
 [data-path verification](crates/rstyle-pdg/src/data_frontend.rs).
 
 ## 4. Calls, methods, closures, and library operations
 
 | ID | Feature | Status | Small example | Current boundary / remaining work |
 | --- | --- | --- | --- | --- |
-| C01 | Same-unit direct scalar helpers | Covered | `helper(x)` | Resolved definition and verified summary, source-order arguments, no inlining. Callee must be supported, acyclic and loop-free. Data-v3 3.52.0 adds [checked-Copy read-only normal flow](docs/extraction-profiles/end-of-input-v1.md) with explicit possible-panic propagation; exceptional cleanup remains omitted. Zero arguments and unit results work; unit-valued argument positions remain unsupported across the helper boundary, including later helper rows. |
+| C01 | Same-unit direct scalar helpers | Covered | `helper(x)` | Resolved definition and verified summary, source-order arguments, no inlining. Callee must be supported, acyclic and loop-free. Data-v3 3.52.0 adds [checked-Copy read-only normal flow](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/end-of-input-v1.md) with explicit possible-panic propagation; exceptional cleanup remains omitted. Zero arguments and unit results work; unit-valued argument positions remain unsupported across the helper boundary, including later helper rows. |
 | C02 | Qualified paths and named import aliases | Covered | `module::helper(x)`, `use module::helper as h; h(x)` | Supported same-unit resolution; this is not general type aliases, glob imports, or external linking. |
 | C03 | Memory-free helpers with shared inputs | Covered | `choose(left, right, flag)` | Supported canonical shared types and actual arguments; shared input alone does not authorize memory reads. |
 | C04 | Whole shared-formal helper results | Covered | `identity_ref(xs).len()` | Verified selected-formal return origins and actual substitution; not a field-reading borrowed-result summary. |
 | C05 | Direct memory-reading shared-input helpers | Covered | `read_field(s)` | Data-v2/v3: exact per-occurrence reads and actual-origin substitution, preserving alias uncertainty. Data-v3 3.52–3.53 connect reference-free checked-Copy results and copied-byte reads while retaining possible panic and callee read conditions. |
-| C06 | Concrete inherent method calls and UFCS | Partial | `s.value()`, `S::value(s)` | Data-v3: same-unit nongeneric inherent impl/method, shared receiver or [static associated calls](docs/extraction-profiles/static-inherent-helper-calls-v1.md), exact owner/source proof and supported summary. Shared receivers require adjustment proof. Data-v3 3.38.0 adds [owned Copy receiver snapshots](docs/extraction-profiles/owned-copy-receiver-v1.md) for scalar-returning read-only helpers. Data-v3 3.39.0 adds [checked Copy value-self updates](docs/extraction-profiles/owned-copy-self-v1.md) under the existing body/summary restrictions. Data-v3 3.46.0 extends checked Copy owners to fixed scalar-array fields and connects bounded array-value reads through existing whole-value snapshots. Data-v3 3.47.0 connects checked-Copy enum owners and scalar Option helper results through the tagged-unit constructors/projections. No general trait dispatch. Data-v3 3.60 proves builtin shared dereference into a checked Copy value receiver, retaining the complete implicit load and saved origins; see [flags](docs/extraction-profiles/look-flags-v1.md). |
+| C06 | Concrete inherent method calls and UFCS | Partial | `s.value()`, `S::value(s)` | Data-v3: same-unit nongeneric inherent impl/method, shared receiver or [static associated calls](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/static-inherent-helper-calls-v1.md), exact owner/source proof and supported summary. Shared receivers require adjustment proof. Data-v3 3.38.0 adds [owned Copy receiver snapshots](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/owned-copy-receiver-v1.md) for scalar-returning read-only helpers. Data-v3 3.39.0 adds [checked Copy value-self updates](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/owned-copy-self-v1.md) under the existing body/summary restrictions. Data-v3 3.46.0 extends checked Copy owners to fixed scalar-array fields and connects bounded array-value reads through existing whole-value snapshots. Data-v3 3.47.0 connects checked-Copy enum owners and scalar Option helper results through the tagged-unit constructors/projections. No general trait dispatch. Data-v3 3.60 proves builtin shared dereference into a checked Copy value receiver, retaining the complete implicit load and saved origins; see [flags](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/look-flags-v1.md). |
 | C07 | Receiver adjustments and coercions | Partial | `s.value()` | Data-v3 inherent helper method syntax requires an exact shared type and one builtin shared dereference followed by one shared borrow. Registered integer methods have scalar by-value receivers; metadata methods also accept an empty adjustment chain. Data-v3 3.38.0 also supports exactly one shared borrow of a checked scalar-struct Copy value for a scalar-returning read-only helper. Data-v3 3.39.0 accepts an empty adjustment chain for checked Copy immutable untyped value-self receivers. General autoref, repeated/overloaded deref, unsizing and mutable inherent receivers remain unavailable. |
 | C08 | Registered integer methods | Partial | `x.unsigned_abs()`, `x.wrapping_mul(y)` | Pinned i32/i64 unsigned_abs and u32/u64 wrapping_mul; Data-v3 3.70 adds 64-bit usize checked_add/checked_mul, and 3.72 adds usize saturating_sub. Other primitive operations and widths remain unavailable without their own contracts. |
 | C09 | Slice/str length and emptiness | Covered | `xs.len()`, `text.is_empty()` | Four registered nonmutating operations; exact supported compiler/core/target resolution and receiver evidence. Slice elements must be supported non-reference-bearing types; a shared-slice interface alone does not authorize these calls on reference-bearing elements. No buffer-content read is invented. |
-| C10 | General core/std/third-party APIs | Partial | `u32::from_ne_bytes(bytes)`, `hint::unlikely(b)` | Data-v3 3.32.0 connects [copied four-byte slice conversion, concrete Result/unwrap and native u32 conversion](docs/extraction-profiles/copied-byte-windows-v1.md) under pinned aarch64 core authority. Data-v3 3.33.0 also connects the [borrowed eight-byte Result, array read and native usize chain](docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Data-v3 3.43.0 connects [u16-to-u32 From and checksum-state roundtrips](docs/extraction-profiles/checksum-state-roundtrips-v1.md) with pinned trait/implementation identities. Data-v3 3.44.0 connects [native prefix readers](docs/extraction-profiles/native-prefix-readers-v1.md): shared prefixes, exact scalar size calls, copied 2/4/16-byte Results/unwrap and native u16/u32/u128 conversion. Data-v3 3.46.0 additionally registers exact lossless u8-to-usize From on the three pinned 64-bit CI targets for the [byte-membership family](docs/extraction-profiles/byte-membership-v1.md). Data-v3 3.48.0 connects exact u16-to-usize From and owned scalar Option::is_some through the [tagged-unit classifiers](docs/extraction-profiles/tagged-unit-classifiers-v1.md), including the original byte-class lookup composition. Data-v3 3.51–3.52 add [population counts](docs/extraction-profiles/bitset-cardinality-v1.md), pinned widening/narrowing TryFrom and checked-sub/unwrap composition. Other APIs need resolved summaries/bodies and effect/result proof; familiar names are insufficient. |
+| C10 | General core/std/third-party APIs | Partial | `u32::from_ne_bytes(bytes)`, `hint::unlikely(b)` | Data-v3 3.32.0 connects [copied four-byte slice conversion, concrete Result/unwrap and native u32 conversion](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/copied-byte-windows-v1.md) under pinned aarch64 core authority. Data-v3 3.33.0 also connects the [borrowed eight-byte Result, array read and native usize chain](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/native-borrowed-byte-readers-v1.md). Data-v3 3.43.0 connects [u16-to-u32 From and checksum-state roundtrips](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checksum-state-roundtrips-v1.md) with pinned trait/implementation identities. Data-v3 3.44.0 connects [native prefix readers](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/native-prefix-readers-v1.md): shared prefixes, exact scalar size calls, copied 2/4/16-byte Results/unwrap and native u16/u32/u128 conversion. Data-v3 3.46.0 additionally registers exact lossless u8-to-usize From on the three pinned 64-bit CI targets for the [byte-membership family](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/byte-membership-v1.md). Data-v3 3.48.0 connects exact u16-to-usize From and owned scalar Option::is_some through the [tagged-unit classifiers](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/tagged-unit-classifiers-v1.md), including the original byte-class lookup composition. Data-v3 3.51–3.52 add [population counts](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/bitset-cardinality-v1.md), pinned widening/narrowing TryFrom and checked-sub/unwrap composition. Other APIs need resolved summaries/bodies and effect/result proof; familiar names are insufficient. |
 | C11 | By-value memory-reading helper arguments/results | Missing | `inspect_value(s)`, `make_value(x)` | Pure reference-free construction results compose in the D11 fixture; by-value memory-reading substitution, reference-bearing helper results and ownership remain unavailable. Supported interface types do not establish that call boundary. |
 | C12 | Borrowed results from memory-reading helpers | Missing | `get_field_ref(s)` | Exact callee read effects plus result origin/location substitution, not just whole-formal forwarding. |
-| C13 | Cross-unit/package helper linking | Partial | `library_crate::helper(x)` | Data-v3 3.82 connects [selected dependency-library scalar helpers](docs/extraction-profiles/cross-unit-scalar-helpers-v1.md) through exact Cargo/loaded/emitted artifact and definition associations, separate owning stores and strict closure replay. Generic instances, foreign nominal/reference/memory summaries and binary/test roots remain unsupported. |
+| C13 | Cross-unit/package helper linking | Partial | `library_crate::helper(x)` | Data-v3 3.82 connects [selected dependency-library scalar helpers](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/cross-unit-scalar-helpers-v1.md) through exact Cargo/loaded/emitted artifact and definition associations, separate owning stores and strict closure replay. Generic instances, foreign nominal/reference/memory summaries and binary/test roots remain unsupported. |
 | C14 | Looping, recursive, panicking or nonreturning callees | Missing | `recursive(x)`, `helper_with_loop(x)` | Existing caller scalar loops do not authorize these summaries; need interprocedural fixed points/flow/effect contracts. |
-| C15 | Function items as values, pointers and indirect calls | Partial | `value.map_or(false, classify)` | Data-v3 3.57 connects [immediate local fn(u8) -> bool items](docs/extraction-profiles/word-byte-classifiers-v1.md) to exact verified helpers, eager arguments, guarded payload invocation and result selection. Data3.99 additionally supports exact unary tuple constructors as immediate fresh Result map/map_err callbacks under the [generated constructor contract](docs/extraction-profiles/constructor-result-maps-v1.md). Stored items, function pointers, general callbacks and indirect calls remain missing. |
-| C16 | Closures and captured environments | Partial | `move \|x\| x + offset` | Data-v3 3.49 supports [immediate Option<u8>::map_or equality callbacks](docs/extraction-profiles/tagged-byte-comparisons-v1.md): one by-value u8 payload and one shared u8 capture, eager default, Some-only body and independently checked result merge. Data-v3 3.54 also verifies the [immediate shared-byte position callback](docs/extraction-profiles/iterator-byte-position-v1.md), including `\|&b\|` and stable shared capture storage. General bodies, captures, escape/lifetime and drop remain open. |
-| C17 | Iterator adapters and higher-order functions | Partial | `xs.iter().position(\|&b\| b == byte)` | Data-v3 3.54 connects one [fresh shared byte iterator](docs/extraction-profiles/iterator-byte-position-v1.md), exact equality callback, first-match prefix reads and Option/helper composition. Stored iterators, arbitrary predicates, adapters, other element types and general protocols/cleanup remain excluded. |
+| C15 | Function items as values, pointers and indirect calls | Partial | `value.map_or(false, classify)` | Data-v3 3.57 connects [immediate local fn(u8) -> bool items](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/word-byte-classifiers-v1.md) to exact verified helpers, eager arguments, guarded payload invocation and result selection. Data3.99 additionally supports exact unary tuple constructors as immediate fresh Result map/map_err callbacks under the [generated constructor contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/constructor-result-maps-v1.md). Stored items, function pointers, general callbacks and indirect calls remain missing. |
+| C16 | Closures and captured environments | Partial | `move \|x\| x + offset` | Data-v3 3.49 supports [immediate Option<u8>::map_or equality callbacks](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/tagged-byte-comparisons-v1.md): one by-value u8 payload and one shared u8 capture, eager default, Some-only body and independently checked result merge. Data-v3 3.54 also verifies the [immediate shared-byte position callback](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/iterator-byte-position-v1.md), including `\|&b\|` and stable shared capture storage. General bodies, captures, escape/lifetime and drop remain open. |
+| C17 | Iterator adapters and higher-order functions | Partial | `xs.iter().position(\|&b\| b == byte)` | Data-v3 3.54 connects one [fresh shared byte iterator](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/iterator-byte-position-v1.md), exact equality callback, first-match prefix reads and Option/helper composition. Stored iterators, arbitrary predicates, adapters, other element types and general protocols/cleanup remain excluded. |
 | C18 | Side-effecting calls | Missing | `std::fs::write(path, bytes)`, `println!("x")` | IO/global effects, ordering and failure behavior; distinguish macro provenance from the underlying call effects. |
 
-Evidence: [helper contract](docs/extraction-profiles/helpers-v1.md),
-[shared/helper origin boundary](docs/extraction-profiles/read-only-helper-calls-v1.md),
-[read-only calls](docs/extraction-profiles/data-calls-v1.md),
-[inherent calls](docs/extraction-profiles/inherent-read-only-calls-v1.md),
-[current library authority](docs/extraction-profiles/read-only-library-resolution-v2.md).
+Evidence: [helper contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/helpers-v1.md),
+[shared/helper origin boundary](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/read-only-helper-calls-v1.md),
+[read-only calls](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/data-calls-v1.md),
+[inherent calls](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/inherent-read-only-calls-v1.md),
+[current library authority](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/read-only-library-resolution-v2.md).
 
 ## 5. Traits, generics, and advanced type resolution
 
@@ -221,9 +221,9 @@ A compiler-resolved call is not automatically a verified call summary.
 | T09 | Overloaded operators, indexing and deref | Missing | `a + b` on a struct, custom `Index`, `Deref` | Resolve trait calls and effects; must not reuse built-in scalar or field-location semantics without proof. |
 | T10 | Higher-ranked bounds and callable traits | Missing | `for<'a> Fn(&'a S)`, `FnMut`, `FnOnce` | Binder/substitution, environment ownership, receiver/capture effects and invocation semantics. |
 
-Evidence: [type/source boundary](docs/extraction-profiles/data-source-types-v1.md),
-[lifetime subset](docs/extraction-profiles/lifetime-nominals-v1.md),
-[inherent exclusions](docs/extraction-profiles/inherent-read-only-calls-v1.md).
+Evidence: [type/source boundary](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/data-source-types-v1.md),
+[lifetime subset](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/lifetime-nominals-v1.md),
+[inherent exclusions](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/inherent-read-only-calls-v1.md).
 
 ## 6. Macros, modules, conditional compilation, and source ownership
 
@@ -235,17 +235,17 @@ inside an unsupported source/effect context can still be unavailable.
 | S01 | Exact original source and function identity | Covered | UTF-8 names, CRLF files, same-named functions | Source buffers/ranges, original byte offsets, distinct owners/build contexts and navigation; generated-owner identity is not general expansion support. |
 | S02 | Ordinary modules and named imports | Partial | `mod child;`, `use child::S as Local;` | Closed inline/external module census and supported lexical aliases; Data-v3 3.64 independently proves exact local module-only cfg-if expansion chains. Unresolved/glob/external dependencies and general expansion remain restricted. |
 | S03 | Active conditional-source correspondence | Partial | A cfg-controlled statement present in resolved HIR | Original-source/HIR correspondence in the actual build, with Data-v3 3.7.0 resolution of body-level cfg removal; general conditional signatures/attributes remain unfinished. |
-| S04 | Cfg-removed source and inactive definitions | Partial | `#[cfg(feature = "x")] statement` absent from HIR | Data-v3 3.8.0 resolves standard cfg/cfg_attr guards for removed body operations and definitions in captured original files, including enclosing scopes; see [removal contract](docs/extraction-profiles/cfg-source-removal-v1.md). Unloaded external files and macro-token definitions remain unfinished; missing capture is not proof. |
+| S04 | Cfg-removed source and inactive definitions | Partial | `#[cfg(feature = "x")] statement` absent from HIR | Data-v3 3.8.0 resolves standard cfg/cfg_attr guards for removed body operations and definitions in captured original files, including enclosing scopes; see [removal contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/cfg-source-removal-v1.md). Unloaded external files and macro-token definitions remain unfinished; missing capture is not proof. |
 | S05 | Conditional/path-selected modules | Partial | `#[path = "other.rs"] mod m;` | Cfg-selected ordinary modules and Data-v3 3.64 exact local cfg-if module ownership have source/build proof. Rewritten paths and general generated modules remain unsupported. |
-| S06 | Declarative macros | Partial | `macro_rules! m { ... }`, `m!()` | Data3.99 joins exact local all-ident template substitution, complete selected impl/member/HIR/hygiene and independent source/cleanup proof for the [generated checked constructor](docs/extraction-profiles/constructor-result-maps-v1.md). Standard assertions retain their dedicated contract (F14). Sequential unknown expansions, general matcher forms, generated callables and hidden item/effect ownership remain unsupported outside these bounds. |
+| S06 | Declarative macros | Partial | `macro_rules! m { ... }`, `m!()` | Data3.99 joins exact local all-ident template substitution, complete selected impl/member/HIR/hygiene and independent source/cleanup proof for the [generated checked constructor](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/constructor-result-maps-v1.md). Standard assertions retain their dedicated contract (F14). Sequential unknown expansions, general matcher forms, generated callables and hidden item/effect ownership remain unsupported outside these bounds. |
 | S07 | Derives and procedural/attribute macros | Missing | `#[derive(Clone)]`, `#[some_attribute]` | Generated definitions/impls, expansion provenance, source correspondence and effects; source spelling alone is insufficient. |
 | S08 | Included/build-generated code | Missing | `include!(...)`, generated `OUT_DIR` files | Expansion/input/build ownership and original-source identity beyond the current admitted subset. Build scripts compiling is not graph support for generated source. |
-| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | The legacy unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Data-v3 3.37.0 adds [checked Copy declarations in mixed source](docs/extraction-profiles/copy-nominal-boundary-v1.md), retaining precise cfg/module/import and lexical expansion gates. Data-v3 3.38.0 connects owned Copy local autoref to exact helper-read snapshots. Data-v3 3.40.0 adds [borrowed scalar owners](docs/extraction-profiles/borrowed-scalar-owner-v1.md) without owned Copy permission. Data-v3 3.43.0 accepts exact builtin inline function attributes, admitting the original adler2 constructor/getter in its complete std/no_std mixed units. Data-v3 3.45.0 adds [closed local import scopes](docs/extraction-profiles/scoped-import-flag-owners-v1.md) and checked Copy value helper reads, connecting original Epsilons constructor/getter methods in the complete regex-automata library. Data-v3 3.47.0 reuses those source/Copy proofs for complete finite scalar enum declarations, admitting original Unit constructors/projections beside their unchanged derives and custom Debug impl. Data-v3 3.58 adds borrowed-only owners with independently checked Copy child structs; see [ASCII boundaries](docs/extraction-profiles/ascii-boundaries-v1.md). Data-v3 3.64–3.66 narrows ancestor namespace checks only for exhaustively proved call-free float leaves, including bounded i32 control dependencies; general nominal import restrictions remain unchanged. Data-v3 3.68 permits selected Copy dependencies only inside a distinct shared owner, with complete source/field/Copy proof and no direct dependency operations; original Input getters admit beside unchanged index-type macros. Data-v3 3.80 proves exact local trait-member source ownership and pinned core Debug trait/derive namespace bindings; closed unrelated globs retain type/value shadow checks. This does not enable trait-call dispatch. Data-v3 3.81 recovers exact no-drop error certificates across original module globs and one-hop aliases, with complete export/shadow checks. General non-Copy ownership, unresolved/custom expansions, rewritten module paths and general local storage borrowing remain open. |
+| S09 | Nominal proof in ordinary mixed-content crates | Partial | A getter beside an enum, const, trait impl or body macro | The legacy unit whitelist accepts ordinary functions, structs, modules, uses and restricted inherent impls. Data-v3 3.11.0 additionally accepts constant declarations and inherent associated constants with recursive initializer checks; see [constant-context contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/nominal-constant-context-v1.md). Data-v3 3.25.0 additionally supports [nominal types used only in bodies](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/body-nominal-types-v1.md), including scalar-returning construction/projection without a signature witness. Data-v3 3.37.0 adds [checked Copy declarations in mixed source](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/copy-nominal-boundary-v1.md), retaining precise cfg/module/import and lexical expansion gates. Data-v3 3.38.0 connects owned Copy local autoref to exact helper-read snapshots. Data-v3 3.40.0 adds [borrowed scalar owners](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/borrowed-scalar-owner-v1.md) without owned Copy permission. Data-v3 3.43.0 accepts exact builtin inline function attributes, admitting the original adler2 constructor/getter in its complete std/no_std mixed units. Data-v3 3.45.0 adds [closed local import scopes](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scoped-import-flag-owners-v1.md) and checked Copy value helper reads, connecting original Epsilons constructor/getter methods in the complete regex-automata library. Data-v3 3.47.0 reuses those source/Copy proofs for complete finite scalar enum declarations, admitting original Unit constructors/projections beside their unchanged derives and custom Debug impl. Data-v3 3.58 adds borrowed-only owners with independently checked Copy child structs; see [ASCII boundaries](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/ascii-boundaries-v1.md). Data-v3 3.64–3.66 narrows ancestor namespace checks only for exhaustively proved call-free float leaves, including bounded i32 control dependencies; general nominal import restrictions remain unchanged. Data-v3 3.68 permits selected Copy dependencies only inside a distinct shared owner, with complete source/field/Copy proof and no direct dependency operations; original Input getters admit beside unchanged index-type macros. Data-v3 3.80 proves exact local trait-member source ownership and pinned core Debug trait/derive namespace bindings; closed unrelated globs retain type/value shadow checks. This does not enable trait-call dispatch. Data-v3 3.81 recovers exact no-drop error certificates across original module globs and one-hop aliases, with complete export/shadow checks. General non-Copy ownership, unresolved/custom expansions, rewritten module paths and general local storage borrowing remain open. |
 | S10 | Nested item declarations | Missing | `fn outer() { fn inner() {} ... }` | Owners can be distinguished, but the outer function's nested item is still unsupported; no certified supported remainder is emitted. |
 | S11 | Broader attributes, item forms and import resolution | Partial | `use m::*;`, type aliases, associated items | Basic supported paths and benign item attributes exist; independent namespace/presence/expansion checks do not yet cover general Rust items and imports. |
 
-Evidence: [conditional boundary](docs/extraction-profiles/coverage-v1.md),
-[nominal proof](docs/extraction-profiles/nominal-data-v1.md),
+Evidence: [conditional boundary](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/coverage-v1.md),
+[nominal proof](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/nominal-data-v1.md),
 [current census whitelist](crates/rstyle-pdg/src/nominal_boundary/census.rs).
 
 ## 7. Async, concurrency, unsafe Rust, and external boundaries
@@ -287,10 +287,10 @@ look complete while real functions still cannot be processed reliably.
 | X11 | Held-out detection quality/calibration | Missing | Untouched project/family holdouts after expansion | Historical studies are not post-Data-v3 quality evidence. Keep separate from feature correctness and coverage. |
 | X12 | General equivalence, purity or rewrite safety | Missing | “These functions can safely be replaced by one abstraction” | Not promised by graph extraction or a clone score; requires a separate contract and analysis, not just more syntax coverage. |
 
-Evidence: [source-to-pair workflow](docs/source-to-pair.md),
+Evidence: [source-to-pair workflow](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/source-to-pair.md),
 [coverage ledger](HIR_EXTRACTION_COVERAGE.md),
 [ownership-corrected inventory](eval/hir-coverage/REPORT-v2.md),
-[performance acceptance audit](docs/performance/hash-and-matching-acceptance.md).
+[performance acceptance audit](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/performance/hash-and-matching-acceptance.md).
 
 ## What this means for the existing sample functions
 
@@ -442,7 +442,7 @@ Fresh full inventory `target/hir-coverage/run-wjnhsac7/` measures **9 admitted,
 The Cargo fixture checks integer/bool alternatives, guard evaluation once,
 unsupported alternatives, legacy exclusion, strict selector verification and
 stable fresh/warm pair results. The workspace suite passes 714 tests across
-27 suites (5 existing ignored tests). See the [contract](docs/extraction-profiles/scalar-or-patterns-v1.md).
+27 suites (5 existing ignored tests). See the [contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-or-patterns-v1.md).
 
 Final focused inventory `target/hir-coverage/run-4v0dzgj6/` confirms identical
 outcomes for all 60 selected identities after narrowing unsupported-pattern
@@ -462,7 +462,7 @@ saved scrutinee; guards/bodies and individual range values are never expanded.
 No provenance fields or caches were added. F06 remains Partial because resolved
 constants and other pattern tiers remain unfinished.
 
-The [range contract](docs/extraction-profiles/scalar-range-patterns-v1.md) records
+The [range contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-range-patterns-v1.md) records
 capture, source verification, lowering, handoff and the admitted boundary. The
 workspace suite passes 717 tests in 28 suites (5 existing ignores); final targeted
 Cargo checks also pass after checking source-bound consistency. Clippy passes
@@ -485,7 +485,7 @@ declaration/name/type/value consistency without reimplementing const execution.
 The existing resolution description carries the small record; lowering emits a
 typed computation without runtime memory reads. Edits update dependent function
 evidence and preserve existing helper validation. See the
-[constant contract](docs/extraction-profiles/scalar-constants-v1.md).
+[constant contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-constants-v1.md).
 
 V12 remains Partial for nonlocal, generic, trait and aggregate constants. F06
 still excludes named constant patterns and constant range bounds. Those are the
@@ -511,7 +511,7 @@ and nongeneric inherent constants compose with literal/range OR alternatives and
 guards. Independent admission checks selector/value/type consistency and original
 source correspondence; binding patterns remain excluded after name resolution.
 One saved scrutinee feeds each selector, without runtime constant reads or copied
-guards/bodies. The [contract](docs/extraction-profiles/scalar-constant-patterns-v1.md)
+guards/bodies. The [contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-constant-patterns-v1.md)
 records the boundary and handoff. No provenance fields or caches were introduced.
 
 The workspace suite passes 722 tests (5 existing ignores), and the final mixed
@@ -536,7 +536,7 @@ OR arms. Each named endpoint reuses a scalar constant record; source checks bind
 it to the exact original endpoint span and verify the canonical descriptor.
 Lowering retains one compact selector over the saved scrutinee, without endpoint
 reads, per-integer expansion, copied guards/bodies, provenance fields or caches.
-See the [bound contract](docs/extraction-profiles/scalar-constant-range-bounds-v1.md).
+See the [bound contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-constant-range-bounds-v1.md).
 
 The workspace passes 724 tests (5 existing ignores), including real Cargo ranges
 and independent source-position/type/value checks. Clippy passes with warnings
@@ -561,7 +561,7 @@ Compiler macro resolution and the original condition/callsite are retained in
 existing frontend fields. Independent admission checks source, types and build
 settings. Enabled conditions evaluate once in order; disabled debug conditions
 emit no runtime operations while remaining in original-source evidence.
-The [assertion contract](docs/extraction-profiles/scalar-assertions-v1.md) records
+The [assertion contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-assertions-v1.md) records
 the expansion, verification, lowering and matching boundary.
 
 Successful normal continuation is modeled. Unproved assertion success retains
@@ -594,7 +594,7 @@ string settings, all/any/not and nested cfg_attr are evaluated against the
 captured compiler cfg set. Proven inactive roots reuse an entry in the existing
 source correspondence inventory. Missing HIR alone remains insufficient, and
 contradictory captured HIR is rejected even after regenerating the inventory.
-The [removal contract](docs/extraction-profiles/cfg-source-removal-v1.md) records
+The [removal contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/cfg-source-removal-v1.md) records
 representation, verification and the earlier-profile boundary.
 
 Removed blocks, locals, macro statements, nested items and match arms no longer
@@ -628,7 +628,7 @@ inventory reuses standard cfg evaluation against actual compiler settings for
 function attributes and traversed enclosing scopes. It changes the existing
 presence value rather than adding cfg copies or serialized provenance. Contradictory
 active HIR fails capture; unsupported predicates without an independent false guard
-remain unknown. The [contract](docs/extraction-profiles/cfg-source-removal-v1.md)
+remain unknown. The [contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/cfg-source-removal-v1.md)
 records loaded-file and macro-token limits.
 
 Frozen assessment version 3 consumes exact original-source/context correspondence
@@ -657,7 +657,7 @@ source snapshots, provenance tables or caches are added.
 
 Data-v3 extraction 3.9.0 adds `rust.exhaustive-scalar-match`: supported integer/bool
 matches can omit the wildcard when their unguarded patterns cover the entire
-resolved domain. The [contract](docs/extraction-profiles/exhaustive-scalar-matches-v1.md)
+resolved domain. The [contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/exhaustive-scalar-matches-v1.md)
 records compact interval coverage, actual pointer-width limits, full 128-bit signed
 and unsigned endpoints, source-bound literals and the existing constant/range
 checks. Guarded arms do not prove unconditional coverage. Existing final-wildcard
@@ -692,7 +692,7 @@ or formal performance result. The broader roadmap remains unfinished.
 ### F06 nested and grouped scalar-pattern composition
 
 Data-v3 extraction 3.10.0 adds `rust.nested-scalar-or-patterns`. The
-[contract](docs/extraction-profiles/nested-scalar-or-patterns-v1.md) connects
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/nested-scalar-or-patterns-v1.md) connects
 recursive scalar OR capture, transparent grouping, source correspondence,
 eligibility, exhaustive coverage and ordered selector lowering. Literal,
 same-unit constant, integer-range and wildcard alternatives compose with guards;
@@ -731,7 +731,7 @@ no measured frozen admission; it makes no performance or detector-quality claim.
 
 Data-v3 extraction 3.11.0 adds `rust.nominal-constant-context`; matching remains
 `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/nominal-constant-context-v1.md) admits ordinary
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/nominal-constant-context-v1.md) admits ordinary
 constant items and constants in supported inherent impls to the existing nominal
 unit census. Initializers are still traversed for unavailable nested items and
 macros, and attributes retain the existing presence/expansion boundary. Constant
@@ -767,7 +767,7 @@ still has other blockers; no frozen gain or performance improvement is claimed.
 
 Data-v3 extraction 3.12.0 adds `rust.aggregate-literal-values`; matching remains
 `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/aggregate-literal-values-v1.md) connects ordered
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/aggregate-literal-values-v1.md) connects ordered
 compiler children, existing concrete type tokens, independent source/component
 checks, constructor computations, serialized operand verification and matching.
 Nested reference-free tuple/array literals, empty arrays, conditional component
@@ -807,7 +807,7 @@ gain, detector-quality result or measured performance improvement is claimed.
 
 Data-v3 extraction 3.13.0 adds `rust.repeat-array-values`; matching remains
 `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/repeat-array-values-v1.md) composes the existing
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/repeat-array-values-v1.md) composes the existing
 reference-free constructor path with `[value; count]`. One captured child and one
 value operand represent the single runtime evaluation. The existing resolved array
 type retains the dimension; original literal counts are independently checked,
@@ -849,7 +849,7 @@ quality result.
 
 Data-v3 extraction 3.14.0 adds `rust.named-struct-values`; matching remains
 `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/named-struct-values-v1.md) admits fully enumerated,
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/named-struct-values-v1.md) admits fully enumerated,
 reference-free named constructors through exact source/nominal resolution. Children
 and operands evaluate in source order; the existing construct/literal attributes
 encode the mapping to declaration slots. Unit fields, aliases, `Self`, shorthand,
@@ -882,7 +882,7 @@ detector-quality result.
 
 Data-v3 extraction 3.15.0 adds `rust.struct-update-values`; matching remains
 `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/struct-update-values-v1.md) composes named
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/struct-update-values-v1.md) composes named
 reference-free construction with a same-typed base evaluated once after explicit
 field values. The existing slot vector adds a final null for the base supplying
 unoverridden fields; no frontend records, provenance or retained caches are added.
@@ -912,7 +912,7 @@ admission gain; it is not a general performance benchmark or detector-quality cl
 
 Data-v3 extraction 3.16.0 adds `rust.tuple-struct-values`; matching remains
 `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/tuple-struct-values-v1.md) normalizes resolved
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/tuple-struct-values-v1.md) normalizes resolved
 struct constructor calls to existing aggregate operations. Original path resolution
 and already-retained declaration source independently establish unnamed fields,
 argument arity/types and source order, including empty tuple structs. Existing
@@ -944,7 +944,7 @@ these checks do not establish general performance or detector quality.
 
 Data-v3 extraction 3.17.0 adds `rust.unit-struct-values`; matching remains
 `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/unit-struct-values-v1.md) normalizes resolved
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/unit-struct-values-v1.md) normalizes resolved
 unit constructor paths to existing aggregate operations. Exact source path/type
 resolution and already-retained declaration source prove unit declaration kind and
 zero runtime children. Existing operation attributes carry the empty slot vector;
@@ -976,7 +976,7 @@ these checks do not establish general performance or detector quality.
 
 Data-v3 extraction 3.18.0 adds `rust.local-aggregate-values`; matching remains
 `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/local-aggregate-values-v1.md) connects exact
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/local-aggregate-values-v1.md) connects exact
 binding/type reads and initializer/reassignment type checks to the existing whole
 value operands and kill/gen definition analysis. Tuples, arrays and supported
 reference-free nominal values compose through aliases, shadowing, assignments,
@@ -1019,7 +1019,7 @@ these checks do not establish general performance or detector quality.
 
 Data-v3 extraction 3.19.0 adds `rust.aggregate-value-fields`; matching remains
 `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/aggregate-value-fields-v1.md) selects components
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/aggregate-value-fields-v1.md) selects components
 from reference-free tuple/struct values through locals, reassigned parameters,
 nested fields and directly computed/conditional bases. Exact source member/base
 correspondence, existing component types, nominal owner and compiler field index
@@ -1058,7 +1058,7 @@ general performance or detector quality.
 
 Data-v3 extraction 3.20.0 adds `rust.shared-reference-locals`; matching remains
 `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/shared-reference-locals-v1.md) follows exact
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/shared-reference-locals-v1.md) follows exact
 binding identities to original same-typed initializers. Reads must follow their
 complete initializer, so recursive alias resolution strictly decreases source
 positions. Existing formal/field/borrow/conditional/helper source proofs still
@@ -1097,7 +1097,7 @@ establish general performance or detector quality.
 
 Data-v3 extraction 3.21.0 adds `rust.shared-local-field-reads`; matching remains
 `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/shared-local-fields-v1.md) resolves existing
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/shared-local-fields-v1.md) resolves existing
 immutable aliases, stored reference fields, formal-field borrows, blocks and
 same-referent conditionals to one formal location. Original source members and
 concrete declarations independently establish the field path, result type and
@@ -1141,7 +1141,7 @@ establish general performance or detector quality.
 
 Data-v3 extraction 3.22.0 adds `rust.reference-bearing-values`; matching remains
 `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/reference-bearing-values-v1.md) admits tuple,
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/reference-bearing-values-v1.md) admits tuple,
 named-struct and tuple-struct literals containing supported shared-reference
 values, nested constructions, scalars and units. Whole values can flow through
 initialized immutable locals, aliases, shadowing, conditionals and returns. Exact
@@ -1191,7 +1191,7 @@ these checks do not establish general performance or detector quality.
 
 Data-v3 extraction 3.23.0 adds `rust.reference-value-fields` (35 capabilities);
 matching remains `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/reference-value-fields-v1.md) extends existing
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/reference-value-fields-v1.md) extends existing
 value projections to reference-bearing tuple, named-struct and tuple-struct bases.
 Constructed temporaries, whole immutable locals, aliases, shadowing, saved values,
 nested selectors and conditional aggregates compose. Scalar components also use
@@ -1246,7 +1246,7 @@ do not establish general performance or detector quality.
 
 Data-v3 extraction 3.24.0 adds `rust.reference-struct-updates` (36 capabilities);
 matching remains `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/reference-struct-updates-v1.md) extends existing
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/reference-struct-updates-v1.md) extends existing
 same-typed named struct updates to supported reference-bearing values. Formal,
 constructed, immutable local, nested/chained and conditional bases compose, as do
 projections of inherited and overridden result fields.
@@ -1305,7 +1305,7 @@ quality.
 
 Data-v3 extraction 3.25.0 adds `rust.body-nominal-types` (37 capabilities);
 matching remains `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/body-nominal-types-v1.md) removes the signature
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/body-nominal-types-v1.md) removes the signature
 witness requirement for supported body-only concrete structs. Scalar/shared-only
 interfaces can compose named/tuple/unit construction, imported constructor aliases,
 nested values, immutable locals, reference-bearing updates, conditional aggregates,
@@ -1365,7 +1365,7 @@ gain; these checks do not establish general performance or detector quality.
 
 Data-v3 extraction 3.26.0 adds `rust.static-inherent-helper-calls` (38
 capabilities); matching remains `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/static-inherent-helper-calls-v1.md) admits
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/static-inherent-helper-calls-v1.md) admits
 receiver-free same-unit nongeneric inherent helpers through qualified paths,
 import aliases and transitive `Self` calls. Owner values and field layouts are
 unnecessary when the static function never receives or constructs them.
@@ -1405,7 +1405,7 @@ gain; these checks do not establish general performance or detector quality.
 
 Data-v3 extraction 3.27.0 adds `rust.reference-rebindings` (39 capabilities);
 matching remains `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/reference-rebindings-v1.md) permits whole shared
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/reference-rebindings-v1.md) permits whole shared
 references and reference-bearing tuple/struct values in mutable local/formal
 bindings. Whole assignment kills the prior binding definition. Earlier saved
 values retain their own read snapshots, including component projections and updates.
@@ -1461,7 +1461,7 @@ gain; these checks do not establish general performance or detector quality.
 
 Data-v3 extraction 3.28.0 adds `rust.indirect-field-reads` (40 capabilities);
 matching remains `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/indirect-field-reads-v1.md) supports field reads
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/indirect-field-reads-v1.md) supports field reads
 through mutable and multiple-origin shared-reference bindings, snapshots,
 conditional bases, stored references and verified shared helper results. Nested
 physical projections retain their complete paths. A caller may compose a verified
@@ -1510,7 +1510,7 @@ Indirect field reads add no measured frozen admission gain.
 
 Data-v3 extraction 3.29.0 adds `rust.shared-dereference-reads` (41 capabilities);
 matching remains `rstyle.ccgraph.data-calls/1.0.0`. The
-[contract](docs/extraction-profiles/shared-dereference-reads-v1.md) connects original
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/shared-dereference-reads-v1.md) connects original
 unary syntax, built-in dispatch, sized referent/result type checks, formal physical
 locations and evaluated pointer dependencies. Nested explicit dereferences retain
 each stored-pointer load. A dereference used as a field place preserves the final
@@ -1606,7 +1606,7 @@ separate roadmap item.
 ### Scalar indexing: Data-v3 3.30.0
 
 Adds `rust.scalar-index-reads` (42 capabilities), with unchanged Data matching.
-The [contract](docs/extraction-profiles/scalar-index-reads-v1.md) specifies scalar
+The [contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-index-reads-v1.md) specifies scalar
 owned/shared array and shared slice reads, access-relative indexed locations,
 normal-completion bounds requirements, and the indexed-helper boundary. No capture
 records, source snapshots or retained caches are added.
@@ -1666,7 +1666,7 @@ bounds/source verification and subsequent conversion/Result/byte-read compositio
 ### Connected bounded subslice views: Data-v3 3.31.0
 
 Adds `rust.shared-subslice-views` (43 capabilities). The
-[contract](docs/extraction-profiles/shared-subslice-views-v1.md) connects original
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/shared-subslice-views-v1.md) connects original
 range syntax, pinned core identities, base-before-endpoints lowering, normal-flow
 bounds, saved/nested/shared-helper-result bases, reference origins and later
 scalar reads. It reuses existing capture and graph records. No source snapshots
@@ -1699,7 +1699,7 @@ The complete safe lz4_flex 0.14.0 `block::compress::get_batch` now admits throug
 whole unmodified-library Cargo capture, independent verification, strict admission
 and matching. This connects subslice bounds/origins, endpoint arithmetic, concrete
 slice-to-array conversion, typed Result payload/failure and native byte semantics;
-see the [bounded contract](docs/extraction-profiles/copied-byte-windows-v1.md).
+see the [bounded contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/copied-byte-windows-v1.md).
 The development corpus also exercises local Result/array values, saved views,
 helper-selected shared slices and endpoint rebinding. The independent arithmetic
 runtime oracle is included in workspace tests.
@@ -1763,7 +1763,7 @@ decoding. Each call remains a separate typed operation. The preselected developm
 corpus yields 5 admitted / 3 excluded; saved Results/views, helper-selected roots,
 endpoint rebinding and repeated reads also compose. The reader caller remains
 excluded because the existing helper contract cannot transport its possible panic.
-See [the bounded contract](docs/extraction-profiles/native-borrowed-byte-readers-v1.md).
+See [the bounded contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/native-borrowed-byte-readers-v1.md).
 
 The reported macOS subslice regressions exposed an ARM Linux-only authority check.
 Subslice, byte-call and native-size verification now use separate pinned registries
@@ -1831,7 +1831,7 @@ not rerun the frozen inventory. No thresholds, ignores or scoring changed.
 ### Scalar tuple assignment advances the selected gcd chain (Data-v3 3.34.0)
 
 Data-v3 3.34.0 adds `rust.scalar-tuple-assignment`, under the
-[bounded contract](docs/extraction-profiles/scalar-tuple-assignment-v1.md).
+[bounded contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-tuple-assignment-v1.md).
 Capture checks the compiler's complete flat destructuring assignment, then
 retains original targets and RHS source with existing identities/types. Lowering
 constructs the RHS tuple once and snapshots all operands before ordered writes to
@@ -1868,7 +1868,7 @@ patterns reported 0 candidates. Thresholds, scoring and ignores are unchanged.
 ### Complete selected gcd chain with outside-loop merges (Data-v3 3.35.0)
 
 Data-v3 3.35.0 adds `rust.outside-loop-value-merges`; see the
-[finite value-availability contract](docs/extraction-profiles/outside-loop-value-merges-v1.md).
+[finite value-availability contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/outside-loop-value-merges-v1.md).
 It replaces the function-wide exclusion with a bounded source restriction on
 merges inside loop bodies/conditions. Independent serialized proof uses finite
 relevant-controller states and a monotone must-evaluation worklist, with exact
@@ -1964,7 +1964,7 @@ methods contributed from the argument have unexpanded spans. Handoff and library
 resolution inventory checks now use observational receiver validation. Full
 receiver source correspondence remains mandatory for semantic call resolution
 and paired document verification; no generated-function support is claimed.
-See the [receiver contract](docs/extraction-profiles/receiver-verification-v1.md)
+See the [receiver contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/receiver-verification-v1.md)
 and [development evidence](eval/coverage-development/README.md#receiver-observations-do-not-require-function-source-certification).
 
 The real Cargo regression retains the generated initializer as excluded and
@@ -2012,7 +2012,7 @@ bindings. Renamed imports retain compiler identities; lookalike enums, mutable
 and nested Option payloads remain unsupported. Historical Data-v1/v2 records
 remain unchanged. Owning nominal structs containing Option remain unsupported
 as a whole; no fields are omitted. See the
-[observation contract](docs/extraction-profiles/checked-option-observations-v1.md).
+[observation contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-option-observations-v1.md).
 
 This is a foundation for the selected checked UTF-8 boundary, not semantic
 Option support: semantic type parsing and admission remain closed. The unchanged
@@ -2047,7 +2047,7 @@ operand spans, exhaustive unguarded variant shapes and scalar-copy binding
 identity. Real Cargo captures and contract checks pass on aarch64 Linux,
 x86_64 Linux and Apple Silicon macOS, including renamed imports, reversed arms
 and saved operands. See the
-[bounded contract](docs/extraction-profiles/checked-option-source-contract-v1.md).
+[bounded contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-option-source-contract-v1.md).
 
 Review of pinned core slice indexing establishes `i < len` as Some of the
 reference at i, otherwise normal None; forming the Option does not load the
@@ -2117,7 +2117,7 @@ The selected `regex-automata` 0.4.18 `util::utf8::is_boundary` now completes its
 whole declared chain: slice get, exhaustive None/Some(&scalar), conditional
 payload origins, guarded scalar load, scalar binding and short circuits. Saved
 Option values, receiver/index evaluation order and scalar-result helper calls
-compose through the [connected contract](docs/extraction-profiles/checked-slice-option-v1.md).
+compose through the [connected contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-slice-option-v1.md).
 D17 is Partial; general Option interfaces/construction, reference payload
 bindings, guards, arrays/ranges, mutation, Result and `?` remain open.
 
@@ -2296,7 +2296,7 @@ regex-syntax 956 / zero. No root inventory changed.
 ### S09 useful natural admissions through selected Copy declarations (2026-10-20)
 
 Data-v3 is now 3.37.0 with 49 capabilities. The
-[Copy nominal boundary](docs/extraction-profiles/copy-nominal-boundary-v1.md)
+[Copy nominal boundary](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/copy-nominal-boundary-v1.md)
 connects the existing checked observations to exact source declarations in
 cfg-selected mixed modules. The legacy closed-unit proof remains available for
 ordinary non-Copy structures. The new path requires nongeneric structs containing
@@ -2405,7 +2405,7 @@ CLI-test clippy with warnings denied, formatting and diff checks also pass.
 
 Data-v3 3.38.0 / 50 capabilities connects the existing Position/Span constructors
 to a shared getter invoked on the constructed owned value. The
-[bounded contract](docs/extraction-profiles/owned-copy-receiver-v1.md) was specified
+[bounded contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/owned-copy-receiver-v1.md) was specified
 before enabling the call. Existing receiver capture supplies the exact single
 shared-borrow adjustment; the independent nominal environment supplies the Copy
 and source proof. Callee reads are typed projections of the CALL's existing owned
@@ -2475,7 +2475,7 @@ changing the retained artifacts. No production benchmark cache was introduced.
 Data-v3 3.39.0 completes the selected seven-method Position/Span family with
 `Span::with_start` and `Span::with_end` in the same default-feature natural build
 context and exact source identities recorded above. The bounded
-[value-self contract](docs/extraction-profiles/owned-copy-self-v1.md) requires
+[value-self contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/owned-copy-self-v1.md) requires
 checked Copy ownership, immutable untyped self, exact callee signature and empty
 method adjustment evidence. Existing source snapshots and receiver records are
 reused; no new provenance table, cache or source copy is introduced.
@@ -2529,7 +2529,7 @@ Source inspection selected `utf8::ScalarRange::is_valid` and `is_ascii` from
 regex-syntax 0.8.11 before assessing their admission. The unchanged complete
 natural replay contains both exact source identities: **0 admitted /2 excluded**.
 The leaf fails the mixed-unit Copy requirement; its caller also lacks the leaf
-summary. The [development contract](docs/extraction-profiles/borrowed-scalar-owner-v1.md)
+summary. The [development contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/borrowed-scalar-owner-v1.md)
 records their contexts, full known blocker chain, remaining unknowns and positive
 and negative expectations. No support or admission gain is claimed yet.
 
@@ -2614,7 +2614,7 @@ The next selected family is regex-automata 0.4.18
 `util::wire::skip_initial_padding` and data-encoding 2.11.1 `skip_ignore`, in their
 unmodified default-feature library Cargo contexts. Selection follows source
 inspection before admission assessment. The
-[development contract](docs/extraction-profiles/cyclic-prefix-scans-v1.md) records
+[development contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/cyclic-prefix-scans-v1.md) records
 exact source digests, build contexts, independent expectations, all known gates
 and explicit implementation unknowns. The frozen 60-function identities and
 denominator remain unchanged. This is a target declaration, not new support.
@@ -2658,7 +2658,7 @@ threshold, scoring, suppression or historical artifact changes in this audit.
 ### Connected cyclic prefix scans (Data-v3 3.41.0)
 
 Adds `rust.cyclic-value-merges` (53 capabilities). The
-[bounded contract](docs/extraction-profiles/cyclic-prefix-scans-v1.md) connects
+[bounded contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/cyclic-prefix-scans-v1.md) connects
 repeated short-circuit/conditional values with existing scalar updates,
 length summaries, array/slice reads, bounds and exact scalar constants. The
 selected natural `skip_initial_padding` and `skip_ignore` functions both complete
@@ -2740,7 +2740,7 @@ additional finite proof required for the selected scanner admissions.
 After the two practical F10 scanner gains, source inspection selects
 regex-automata 0.4.18 util::utf8::len and the nested regex-syntax 0.8.11
 debug::utf8_decode::len. The
-[development contract](docs/extraction-profiles/scalar-option-byte-widths-v1.md)
+[development contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-option-byte-widths-v1.md)
 fixes source hashes/spans, ordinary default-feature contexts, independent all-byte
 expectations, the complete known blocker chain and explicit unknowns before
 admission assessment. These classify byte widths as Option<usize>; they do not
@@ -2891,7 +2891,7 @@ resolution or establish a whole-package performance guarantee.
 ### Connected scalar Option byte-width family (Data-v3 3.42.0)
 
 Adds `rust.scalar-option-values` (54 capabilities), completing the selected
-[byte-width contract](docs/extraction-profiles/scalar-option-byte-widths-v1.md).
+[byte-width contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scalar-option-byte-widths-v1.md).
 Owned bool/integer Option interfaces, direct pinned Some/None construction,
 Option locals/parameters/results, exhaustive unguarded immutable payload binding,
 condition/range-match merges, early returns and existing supported helper
@@ -2983,7 +2983,7 @@ speedup claim. No cache or serialized provenance was added to change the result.
 
 ### Connected checksum-state roundtrips (Data-v3 3.43.0)
 
-The [source-selected contract](docs/extraction-profiles/checksum-state-roundtrips-v1.md)
+The [source-selected contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checksum-state-roundtrips-v1.md)
 fixes adler2 2.0.1's original constructor/getter source identities, std/no_std
 contexts and independent expectations before assessment. The complete blocker
 chain was exact builtin inline ownership → instantiated u16-to-u32 core From
@@ -3063,7 +3063,7 @@ verify evidence on Linux; they do not execute native macOS binaries.
 
 Selected from original source before admission assessment: regex-automata
 0.4.18's `util::wire::{read_u16,read_u32,read_u128}` in its complete default-feature
-Cargo library context. The [contract](docs/extraction-profiles/native-prefix-readers-v1.md)
+Cargo library context. The [contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/native-prefix-readers-v1.md)
 fixes all three original spans/hashes and a separate unchanged 11-function
 selection, including independent positives/negatives and std/no_std contexts.
 
@@ -3167,7 +3167,7 @@ The measured copied-control +0.03-second shift is retained explicitly; no broade
 performance guarantee is claimed. All retained unchanged-control matching reports
 are identical. Activated corpus runtime **0.34 /0.67 seconds** includes seven
 additional admissions and 28 additional comparisons. Full results and scope are
-in the [contract](docs/extraction-profiles/native-prefix-readers-v1.md).
+in the [contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/native-prefix-readers-v1.md).
 
 The next target still requires a source-first full blocker audit. Do not call
 `try_read_*` supported: its chain combines partial-flow helpers, generic length
@@ -3178,7 +3178,7 @@ unsafe/FFI and macros remain deferred under the reprioritized goal.
 
 ### Checked native reader dependency audit (2026-10-20)
 
-The [source-first dependency audit](docs/extraction-profiles/checked-native-readers-audit.md)
+The [source-first dependency audit](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-native-readers-audit.md)
 selects original `try_read_u16/u32/u128` as the next candidate family, without
 claiming activation. The full chain includes instantiated generic length checks,
 nested nominal error/enum and drop dependencies, concrete Result tuples, residual
@@ -3223,13 +3223,13 @@ The complete DeserializeError closure includes macro-generated PatternIDError
 and StateIDError declarations. Reassessing after the foundational Try capture,
 select original Epsilons::empty/is_empty as a practical S09 constructor/getter
 family before expanding general error and generic semantics. The
-[source-first scope contract](docs/extraction-profiles/scoped-import-flag-owners-v1.md)
+[source-first scope contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scoped-import-flag-owners-v1.md)
 records identities, baseline exclusions, bounded import proof and independent
 expectations. The checked readers remain deferred within the active roadmap.
 
 ### Data-v3 3.45: connect scalar flag owners across closed imports
 
-The [scope contract](docs/extraction-profiles/scoped-import-flag-owners-v1.md)
+The [scope contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/scoped-import-flag-owners-v1.md)
 activates the original complete-crate Epsilons constructor/getter selection.
 Closed local glob and macro-definition-only imports are inspected using the
 existing selected census; unknown imports, relevant shadowing, active macros,
@@ -3279,7 +3279,7 @@ after normalization of temporary source roots; compiler/settings stay fixed.
 
 After the 45-gain scalar-owner milestone, select original regex-automata
 `ByteSet::empty` and `ByteSet::contains` plus development constructor/getter
-composition. The [byte-membership contract](docs/extraction-profiles/byte-membership-v1.md)
+composition. The [byte-membership contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/byte-membership-v1.md)
 records exact source identities, independent all-byte/singleton/dense expectations,
 fixed-array Copy proof, concrete u8-to-usize From, nested indexed-read composition,
 range/partial-helper and dynamic snapshot blockers. Both selected functions
@@ -3289,7 +3289,7 @@ outside this bounded family.
 
 ### Data-v3 3.46: connect nested-array byte membership
 
-The [source-selected contract](docs/extraction-profiles/byte-membership-v1.md)
+The [source-selected contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/byte-membership-v1.md)
 connects independently checked Copy scalar arrays, exact u8-to-usize core From,
 unsigned division/remainder bounds, index/shift totality and existing owner-value
 helper snapshots. It adds three capabilities (61 total), with unchanged matching
@@ -3332,7 +3332,7 @@ rewrite/detector-quality claim follows.
 
 ### Checked-reader reassessment after 3.46
 
-The [dependency audit](docs/extraction-profiles/checked-native-readers-audit.md#post-346-error-dependency-closure)
+The [dependency audit](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-native-readers-audit.md#post-346-error-dependency-closure)
 now checks the fresh original 3.46 roster: all three checked native readers,
 their generic checker and error constructor preserve their source identities and
 remain excluded. Error ownership closes through a ten-variant enum to two local
@@ -3350,7 +3350,7 @@ capability or admission is claimed; frozen selections remain unchanged.
 
 ### Next connected target: tagged byte-unit construction and projections
 
-The [tagged-unit contract](docs/extraction-profiles/tagged-units-v1.md) selects
+The [tagged-unit contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/tagged-units-v1.md) selects
 original regex-automata Unit::u8/as_u8/as_eoi before activation. Its two-variant
 scalar payload enum has positive builtin-Copy derives, avoiding the checked
 readers' non-Copy/macro error chain. The full dependency chain still includes
@@ -3399,7 +3399,7 @@ for this observational prerequisite.
 
 ### Data-v3 3.47: connect tagged byte-unit construction and projections
 
-The [tagged-unit contract](docs/extraction-profiles/tagged-units-v1.md) connects
+The [tagged-unit contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/tagged-units-v1.md) connects
 complete finite scalar enum declarations, positive Copy proof, exact variant
 construction and exhaustive conditional payload matching through scalar Options
 and by-value helper snapshots. It reuses existing declaration origins, lexical
@@ -3452,7 +3452,7 @@ remain separate from extraction coverage. The full roadmap remains active.
 
 ### Next connected target: tagged byte-unit classifiers
 
-The [classifier contract](docs/extraction-profiles/tagged-unit-classifiers-v1.md)
+The [classifier contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/tagged-unit-classifiers-v1.md)
 selects original Unit::as_usize and Unit::is_eoi from the complete default-feature
 regex-automata library before enabling support. It records both exact identities,
 independent all-byte/all-u16 expectations, simultaneous conversion authority and
@@ -3471,7 +3471,7 @@ must connect the complete classifier family and measure against the unchanged
 
 ### Data-v3 3.48: connect tagged-unit classifiers and byte-class lookup
 
-The [classifier contract](docs/extraction-profiles/tagged-unit-classifiers-v1.md)
+The [classifier contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/tagged-unit-classifiers-v1.md)
 connects the predeclared original Unit::as_usize and Unit::is_eoi through exact
 u16-to-usize selected-implementation authority and the concrete scalar Option tag
 test. Existing library summaries, receiver adjustments, source proof and independent
@@ -3519,7 +3519,7 @@ frozen selection remain unchanged.
 
 ### Next connected target: tagged byte comparisons
 
-The [byte-comparison contract](docs/extraction-profiles/tagged-byte-comparisons-v1.md)
+The [byte-comparison contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/tagged-byte-comparisons-v1.md)
 selects original Unit::is_byte from its complete default-feature Cargo library,
 with exact source identity and independent all-byte/query expectations. Its full
 chain combines Option::map_or authority, separately owned closure body/parameter
@@ -3546,7 +3546,7 @@ candidates. Production Rust and the 3.48 policy remain unchanged.
 
 ### Data-v3 3.49: connect tagged byte comparisons
 
-The [bounded callback contract](docs/extraction-profiles/tagged-byte-comparisons-v1.md#connected-implementation-349)
+The [bounded callback contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/tagged-byte-comparisons-v1.md#connected-implementation-349)
 connects exact core Option<u8>::map_or with original immediate u8 equality
 predicates. Receiver and default evaluate once and eagerly; shared capture
 creation performs no content read, and payload/body reads occur only for Some.
@@ -3594,7 +3594,7 @@ assertion/subslice regressions and the corrected definition-count assertion.
 
 ### Next connected target: borrowed accelerator views
 
-The [source-first contract](docs/extraction-profiles/borrowed-accel-views-v1.md)
+The [source-first contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/borrowed-accel-views-v1.md)
 selects original regex-automata Accel::len, Accel::is_empty and Accel::needles in
 the complete default-feature library. Their chain combines a named literal array
 length, borrowed-only array-field owner proof, range bounds/evaluation order,
@@ -3617,7 +3617,7 @@ machinery; no additional global provenance registry or cache is justified.
 ### Data-v3 3.50: borrowed accelerator views
 
 Implementation follows the
-[bounded contract](docs/extraction-profiles/borrowed-accel-views-v1.md#connected-implementation-350).
+[bounded contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/borrowed-accel-views-v1.md#connected-implementation-350).
 The fixed eighteen-function corpus now meets ten admitted /eight excluded
 expectations, including helper-returned views, saved reads and selected owners.
 Focused strict verification/matching and corruption/constant-boundary checks pass.
@@ -3634,7 +3634,7 @@ Historical results above remain unchanged.
 
 ### Next connected target: bitset cardinality and emptiness
 
-The [source-first contract](docs/extraction-profiles/bitset-cardinality-v1.md)
+The [source-first contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/bitset-cardinality-v1.md)
 selects original util::look::LookSet::len/is_empty in the complete default library.
 Its constructors and set operations already admit; the remaining getter chain
 needs exact u32 count_ones, u32-to-usize TryFrom, concrete integer Result/unwrap,
@@ -3653,7 +3653,7 @@ This audit activates no capability and changes no frozen/historical result.
 
 ### Data-v3 3.51: connected bitset cardinality
 
-The [bounded implementation](docs/extraction-profiles/bitset-cardinality-v1.md#connected-351-implementation)
+The [bounded implementation](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/bitset-cardinality-v1.md#connected-351-implementation)
 connects count_ones → selected lossless TryFrom → immediate Result unwrap →
 helper composition, reusing existing evidence without a new inventory/cache.
 The unchanged natural roster gains precisely LookSet::len/is_empty: **76 → 78
@@ -3671,7 +3671,7 @@ overlap (Copy 0.90/0.89s, cyclic 0.64/0.65s); the development corpus measures
 
 ### Next shared blocker chain: end-of-input helpers
 
-The [bounded target](docs/extraction-profiles/end-of-input-v1.md) connects original
+The [bounded target](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/end-of-input-v1.md) connects original
 Unit::eoi and ByteClasses::eoi through formatted scalar assertions, narrowing
 integer Result and checked-sub/Option unwrap. Existing nominal, array-read and
 helper foundations already admit. Both methods remain excluded at 3.51; no new
@@ -3683,7 +3683,7 @@ chain rather than separate syntax rows; implementation remains pending.
 
 ### Data-v3 3.52: end-of-input and panic-aware helper composition
 
-The [bounded contract](docs/extraction-profiles/end-of-input-v1.md#connected-352-contract)
+The [bounded contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/end-of-input-v1.md#connected-352-contract)
 connects scalar assertion diagnostics, narrowing TryFrom, checked-sub/Option
 unwrap and verified read-only checked-Copy helpers with explicit panic evidence.
 The unchanged natural roster improves **78 → 81 /2582, zero losses**:
@@ -3710,7 +3710,7 @@ constructs for these original bodies or treat a partial chain as coverage.
 
 ### Next connected target: accelerator packing
 
-The [source-first contract](docs/extraction-profiles/accelerator-packing-v1.md)
+The [source-first contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/accelerator-packing-v1.md)
 selects original Accel::as_accel_tys and its callers, retaining the Clone-only
 owner and all stored bytes. Its complete chain needs scalar-alias proof,
 comparison assertions, implicit array-field byte-copy reads and checked helper
@@ -3739,7 +3739,7 @@ complete without diagnostics. Full regex-automata matching is budget-limited.
 
 **905 tests pass /5 skipped**, Clippy/doctests/formatting pass; rstyle reports
 **0 violations /2900 functions**, patterns **0 candidates**. See the compact
-[contract/results](docs/extraction-profiles/accelerator-packing-v1.md) for scope,
+[contract/results](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/accelerator-packing-v1.md) for scope,
 negative expectations and validation. Remaining natural chains are iterator
 position/Option composition for `Accel::contains` and named callback/const-table
 proof for `Unit::is_word_byte`; saved payload control flow and `?` remain open.
@@ -3749,7 +3749,7 @@ packing grows from 2 to 13 admissions and 1 to 78 comparisons (0.56 → 0.75 s).
 ### Next connected family: fresh shared byte-iterator position
 
 Select original regex-automata `Accel::contains` and its unchanged len/needles
-dependencies. The [contract](docs/extraction-profiles/iterator-byte-position-v1.md)
+dependencies. The [contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/iterator-byte-position-v1.md)
 fixes the full chain: fresh iterator authority/state, `|&b|` callback observations,
 short-circuit read occurrences, existing scalar Option/is_some and helper
 transport. The slice implementation overrides the generic position default;
@@ -3778,7 +3778,7 @@ contexts and adversarial imports; original runtime oracles, Clippy, doctests and
 formatting pass. Rstyle **0 violations /2937 functions**, patterns **0 candidates**.
 Unchanged control medians/matching remain stable; position does additional work
 (1 → 55 comparisons, 0.68 → 1.09s). See the compact
-[contract/results](docs/extraction-profiles/iterator-byte-position-v1.md).
+[contract/results](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/iterator-byte-position-v1.md).
 
 Next audit the complete original Unit::is_word_byte chain: its as_u8 dependency
 already admits, but the named callback and utf8 helper's const-built 256-entry
@@ -3791,7 +3791,7 @@ No abstraction activation, rewrite-safety or held-out quality claim is made.
 
 ### Next connected family: ASCII word classifiers
 
-The [compact source-first contract](docs/extraction-profiles/word-byte-classifiers-v1.md)
+The [compact source-first contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/word-byte-classifiers-v1.md)
 fixes original regex-automata Unit/utf8 dependencies and regex-syntax's complete
 classifier, plus independent positive/negative development selections. The audit
 found a shared scalar gap: byte literal/range/OR source rejection and byte-bound
@@ -3815,7 +3815,7 @@ among nine unique function keys complete; both contexts of the verbatim classifi
 copy verify, and development matching completes separately. **918 tests pass /5
 skipped**, six target/std contexts, original/runtime composition oracles,
 Clippy/doctests/fmt; **rstyle 0 /2952 functions**, **patterns 0**. The
-[compact contract/results](docs/extraction-profiles/word-byte-classifiers-v1.md)
+[compact contract/results](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/word-byte-classifiers-v1.md)
 retains identities, negative expectations and validation limits. Clean-baseline
 copy/cyclic control medians and matching remain stable; the byte corpus does
 additional admission/matching work (0.28 → 0.36s).
@@ -3839,7 +3839,7 @@ All **141 admissions** independently strict-verify; **15 selected comparisons**
 complete. **921 tests pass /5 skipped**, including reported regressions and six
 cross-target/std contexts; oracles, Clippy/doctests/fmt pass, **rstyle 0 /2983
 functions**, **patterns 0**. See the compact
-[contract/results](docs/extraction-profiles/word-byte-classifiers-v1.md) for bounded
+[contract/results](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/word-byte-classifiers-v1.md) for bounded
 performance observations and validation limits. Next connect exact named map_or
 callbacks to finish Unit::is_word_byte and its selected callers; five LookMatcher
 callers still need separate owner/arithmetic work. No new census/cache or weaker
@@ -3858,7 +3858,7 @@ selections and the frozen sixty are unchanged: **23 admitted /30 excluded
 All **149 admissions** independently strict-verify; all **91 selected comparisons**
 complete. **924 tests pass /5 skipped**, six target/std contexts, original oracles,
 Clippy/doctests/fmt, **rstyle 0 /3007 functions; patterns 0**. The
-[compact contract/results](docs/extraction-profiles/word-byte-classifiers-v1.md)
+[compact contract/results](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/word-byte-classifiers-v1.md)
 records bounds, negative expectations, stable controls and validation limits.
 Full natural matching remains explicitly budget-limited; no new census/cache or
 weaker admission/scoring.
@@ -3872,7 +3872,7 @@ broader loop/value composition and cross-unit helpers remain open.
 
 ### Data-v3 3.58: connected nested getters and line boundaries
 
-The [compact contract](docs/extraction-profiles/ascii-boundaries-v1.md) establishes
+The [compact contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/ascii-boundaries-v1.md) establishes
 an exact checked-Copy child proof for borrowed-only owners. This completes the
 six original LookMatcher start/end, LF and CRLF methods through their actual
 helper chain, plus the nested getter/caller. Five direct ASCII predicates also
@@ -3897,7 +3897,7 @@ outside this bounded family until a complete source-selected chain needs it.
 
 ### Data-v3 3.59: complete ASCII indexed-helper composition
 
-The [compact contract](docs/extraction-profiles/indexed-read-helpers-v1.md) connects
+The [compact contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/indexed-read-helpers-v1.md) connects
 shared scalar reads through nested/repeated verified helpers, retaining each
 callee selector, execution guard and saved actual origin. Bounds requirements now
 retain possible panic through all caller levels. The unchanged seven original
@@ -3926,7 +3926,7 @@ loop/value composition remain open.
 
 ### Data-v3 3.60: complete fieldless flag helper families
 
-The [compact contract](docs/extraction-profiles/look-flags-v1.md) connects complete
+The [compact contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/look-flags-v1.md) connects complete
 fieldless enum declarations, source-checked discriminants, variant values/casts
 and shared Copy receiver loads through the original Look/LookSet helper chain.
 Historical policies retain their boundary; general enums/ownership stay open.
@@ -3939,7 +3939,7 @@ losses**. The syntax gains mirror thirteen byte-identical functions. Frozen
 **193 admissions** (169 original, 24 development) independently strict-verify;
 **182 original and 276 development comparisons** complete. **936 tests pass
 /5 existing skips**, doctests/fmt/Clippy pass; **rstyle 0 /3042 functions, patterns
-0 unignored**. The compact contract and [execution frontier](docs/rust-support-execution.md)
+0 unignored**. The compact contract and [execution frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md)
 record timings, retained evidence and pending optimization CI. Next integrate the distinct
 character scalar domain for original `is_meta_character`, then its escapable
 character caller (exact ASCII predicate plus literal ranges). Stored-reference
@@ -3948,7 +3948,7 @@ loops, cross-unit linking and the full P01–P22 roadmap remain active.
 
 ### Data-v3 3.61: connected Unicode scalar classifiers
 
-[Character contract](docs/extraction-profiles/character-leaf-v1.md): standalone
+[Character contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/character-leaf-v1.md): standalone
 char values, exact literals, comparisons and literal/OR matching support original
 `regex-syntax::is_meta_character` and incidental `ast::parse::is_hex` end to end.
 Unchanged syntax selection **36→38 /956**, no losses; lz4_flex **8/150**,
@@ -3966,7 +3966,7 @@ P01–P22 roadmap remains active.
 
 ### Data-v3 3.62: complete character escape classifier
 
-[Compact contract](docs/extraction-profiles/character-escapes-v1.md): literal
+[Compact contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/character-escapes-v1.md): literal
 Unicode scalar ranges and exactly pinned `char::is_ascii` connect the unchanged
 original `is_escapeable_character` through its metacharacter helper and early
 returns. Syntax **38→39 /956**, zero losses; lz4_flex **8/150**, time-core
@@ -3989,7 +3989,7 @@ broader P01–P22 roadmap and borrowed-result/Result/ownership blockers remain a
 
 ### Data-v3 3.63: bounded float foundation; original activation pending
 
-[Contract](docs/extraction-profiles/float-kernels-v1.md): standalone f32/f64,
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/float-kernels-v1.md): standalone f32/f64,
 exact literal/same-module constant bits, ordered f64 +/*, sign negation and
 f64→f32 narrowing. Diagnostic composition spans three targets × std/no_std,
 strict verification, historical-policy and resealed semantic attacks. General
@@ -4019,7 +4019,7 @@ Ranges/RSS: `/tmp/rstyle-float-performance.log` and
 
 ### Data-v3 3.64: original float kernels through closed module proof
 
-[Contract](docs/extraction-profiles/float-kernels-v1.md): exact local cfg-if
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/float-kernels-v1.md): exact local cfg-if
 module expansion chains and exhaustive primitive dependency proof connect
 unchanged original libm `k_sinf`/`k_cosf` through strict admission and matching.
 All140 source files remain; general nominal import restrictions remain intact.
@@ -4045,7 +4045,7 @@ results, mixed children, Result/?, broader loops and the P01–P22 roadmap remai
 
 ### Data-v3 3.65: original cosine tail with ordered subtraction
 
-[Contract](docs/extraction-profiles/float-kernels-v1.md): checked binary64
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/float-kernels-v1.md): checked binary64
 subtraction completes unchanged original libm `k_cos`, including six constants
 and shadowed saved operands. Libm **5→6/1131**, one gain, zero losses; source/build
 identities unchanged. All six libm admissions strict-verify; three selected
@@ -4067,7 +4067,7 @@ The broader P01–P22 roadmap remains active; evidence stays in implementation c
 
 ### Data-v3 3.66: original sine tail with checked scalar guards
 
-[Contract](docs/extraction-profiles/float-kernels-v1.md): exact i32 formal/literal
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/float-kernels-v1.md): exact i32 formal/literal
 equality and complete float-valued alternatives connect original `k_sin`'s six
 coefficients and ordered arithmetic. Libm **6→7/1131**, exactly one gain, zero
 losses; all source/build identities match. All7 admissions strict-verify; six
@@ -4091,7 +4091,7 @@ Stored-reference results and caller substitution follow that coherent owner boun
 
 ### Data-v3 3.67: complete borrowed mixed-owner foundation
 
-[Contract](docs/extraction-profiles/borrowed-result-chain-v1.md): complete mixed
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/borrowed-result-chain-v1.md): complete mixed
 unit/tuple enum children, nested Copy transparent wrappers and exact lifetime-only
 impl/callee proof connect a diagnostic Input owner, bool getter and two callers
 through capture, strict verification and matching on three targets × std/no_std.
@@ -4116,7 +4116,7 @@ in3.68. Native3.67 CI passes Linux x86/ARM/macOS
 
 ### Data-v3 3.68: original getters through precise Copy dependency proof
 
-[Contract](docs/extraction-profiles/borrowed-result-chain-v1.md): exact builtin
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/borrowed-result-chain-v1.md): exact builtin
 Copy dependencies may remain inside a distinct shared owner despite neighboring
 macros; complete declarations, derives, fields and owning-scope checks remain.
 Original Input `get_earliest`, `get_span`, `start`, `end` and `is_done` now strictly
@@ -4143,7 +4143,7 @@ Next: stored-reference slot/referent origins and helper-result substitution for
 
 ### Data-v3 3.69: original stored-slice getter and checked consumer
 
-[Contract](docs/extraction-profiles/borrowed-result-chain-v1.md): exact slot reads
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/borrowed-result-chain-v1.md): exact slot reads
 and returned referents compose through original `Input::haystack →
 Input::is_char_boundary → utf8::is_boundary`, including checked conditional reads.
 Complete3.67 Cargo context recertified: **132→134/2582, two gains /zero losses**;
@@ -4434,7 +4434,7 @@ activation and its strict natural/frozen replay are recorded separately.
 
 ### Data-v3 3.75: original Range getter family
 
-[Contract](docs/extraction-profiles/fresh-range-results-v1.md) and
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/fresh-range-results-v1.md) and
 [source selection](eval/coverage-development/range-getters-selection.json).
 Fresh exact non-Copy `Range<usize>` results now compose through original
 `Span::range → <Range<usize> as From<Span>>::from`, `Input::get_range` and
@@ -4461,7 +4461,7 @@ no identity/context/outcome changes; complete package rosters remain8/150,
 
 ### Data-v3 3.76: bounded scalar loop helper composition
 
-[Contract](docs/extraction-profiles/bounded-scalar-loop-helpers-v1.md) and
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/bounded-scalar-loop-helpers-v1.md) and
 [source selection](eval/coverage-development/scalar-loop-callee-selection.json).
 The unchanged ryu1.0.23 `pow5factor_32 → multiple_of_power_of_5_32` chain now
 admits through a complete source/graph rank proof. Positive inputs execute at
@@ -4489,7 +4489,7 @@ proof. Evidence: `/tmp/rstyle-loop-perf/results.json`.
 
 ### Data-v3 3.77: primitive constant authority
 
-[Contract](docs/extraction-profiles/primitive-constants-v1.md) and
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/primitive-constants-v1.md) and
 [selection](eval/coverage-development/primitive-constant-selection.json).
 Original ryu1.0.23 `mul_shift_32` now admits with exact pinned `u32::MAX`
 authority and independent lexical shadow checks; local constants retain their
@@ -4505,7 +4505,7 @@ Gates: **1106 tests /5 existing skips in115.626s**, doctests/fmt/Clippy pass;
 Evidence: `/tmp/rstyle-primitive-{evidence.log,current-*,oracle.json,final-*}`.
 Full-library matching remains incomplete. Next priority is the complete selected
 UnicodeWordBoundaryError Result chain, then payload binding and propagation;
-[replanned lanes](docs/rust-support-execution.md) supersede numeric-leaf ordering.
+[replanned lanes](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md) supersede numeric-leaf ordering.
 Equal-work scaling (warmup + alternating repeats,128/256/512 admissions):
 512-function baseline2.99–3.01s/current2.98–3.04s, peak RSS about174MiB.
 The source namespace scan is computed once per checked unit environment;
@@ -4513,7 +4513,7 @@ no measurable speedup is claimed. Evidence: `/tmp/rstyle-primitive-scaling-final
 
 ### Data-v3 3.78: fresh Results with independently proved no-drop errors
 
-[Contract](docs/extraction-profiles/fresh-concrete-results-v1.md) and
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/fresh-concrete-results-v1.md) and
 [unchanged selection](eval/coverage-development/scalar-result-next-selection.json).
 The original UnicodeWordBoundaryError constructor → cfg-selected check → public
 check chain now admits across three feature contexts and three targets. Exact
@@ -4542,7 +4542,7 @@ Evidence: `/tmp/rstyle-result-{evidence.log,current-*,oracle.json,final-*,frozen
 
 ### Data-v3 3.79: original same-error Result caller
 
-[Contract](docs/extraction-profiles/same-error-result-propagation-v1.md) and
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/same-error-result-propagation-v1.md) and
 [unchanged selection](eval/coverage-development/result-propagation-selection.json).
 Original LookSet::available now connects conditional flag queries to the complete
 UnicodeWordBoundaryError check chain through exact same-error `?`. The operand
@@ -4577,7 +4577,7 @@ Evidence: `/tmp/rstyle-propagation-{current-*,green-*,final-*,frozen-*}`.
 
 ### Data-v3 3.80: complete checked-reference prefilter prefixes
 
-[Contract](docs/extraction-profiles/checked-reference-option-propagation-v1.md) and
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-reference-option-propagation-v1.md) and
 [unchanged selection](eval/coverage-development/prefilter-prefix/selection.json).
 Original Memchr/Memchr2/Memchr3 prefix methods now compose checked byte access,
 exact Option reference `?`, shared owner reads and independently proved Copy Span
@@ -4620,7 +4620,7 @@ fresh identity cache; serialized claims cannot populate the memo.
 
 ### Data-v3 3.81: complete borrowed Result block-header parser
 
-[Contract](docs/extraction-profiles/checked-borrowed-result-flow-v1.md) and
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-borrowed-result-flow-v1.md) and
 [unchanged original selection](eval/coverage-development/uncompressed-size/selection.json).
 `lz4_flex 0.11.6::block::uncompressed_size` now connects checked prefix access,
 eager fresh no-drop error conversion, borrowed Result `?` with a different output
@@ -4720,7 +4720,7 @@ The unchanged eight-function calendar selection now admits in all six contexts:
 default/no-default features on ARM Linux, x86 Linux and ARM macOS. The three
 `time` callers connect to five `time-core` helpers through exact Cargo, loaded/
 emitted artifact and definition associations, plus complete Month repr(u8), Copy,
-variant and lexical import proof. [Bounded contract](docs/extraction-profiles/cross-unit-scalar-helpers-v1.md).
+variant and lexical import proof. [Bounded contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/cross-unit-scalar-helpers-v1.md).
 Complete package rosters preserve identities/contexts: **18 contextual gains,
 zero losses**; strict saved-run replay completes **153 pairs per context**.
 Native unchanged-library oracle: **240,216 cases and nine expected debug panics
@@ -4745,7 +4745,7 @@ trait implementation/body proof, owned constructor component/origin transport,
 foreign reference/aggregate summaries, local borrowing, mutation and cleanup.
 Next source-selected gate: original regex-automata `Input::new<H>` and blanket
 `From<&H>::from` for `[u8]`/`str`; audit recorded in
-[the execution frontier](docs/rust-support-execution.md). No concrete-instance
+[the execution frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md). No concrete-instance
 admission forecast or broad P01–P22 completion claim.
 
 ### Concrete instance observation gate
@@ -4767,7 +4767,7 @@ as the next connected generic/trait target, retaining the Input selection.
 Its native oracle passes272,852 scalar calls per feature/assertion context;
 instance extraction/admission remains pending. Next gates: faithful scalar body
 projection, exact primitive comparison proof, generic source correspondence and
-instance-aware dependency replay. See [the execution frontier](docs/rust-support-execution.md).
+instance-aware dependency replay. See [the execution frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 Validation: **1279 tests/5 existing skips**, doctests/fmt/Clippy pass;
 rstyle **0/4109**, patterns **0 unignored**, with15 existing ignores unchanged.
 
@@ -5035,7 +5035,7 @@ Original base64ct1.7.3 `LineReader::new_unwrapped` now admits with its actual
 Clone-only owner, scalar Option field, checked Copy Error and guarded backing
 origins. Default/std selections on ARM Linux, x86 Linux and ARM macOS each
 move0/1→1/1, gain1/lose0; complete original rosters stay141/150. The bounded
-[contract](docs/extraction-profiles/fresh-reference-product-results-v1.md)
+[contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/fresh-reference-product-results-v1.md)
 keeps product storage, moves, helper export and aggregate `?` unavailable.
 Exact census-proved alloc macro declarations are reused without omitting
 neighboring items or granting arbitrary expansion permission.
@@ -5065,7 +5065,7 @@ Original base64ct1.7.3 `LineReader::new_wrapped → new_unwrapped` now composes
 same-unit guarded summaries, exact same-product/error `?`, one initialized
 nonescaping no-drop local, Copy scalar/Option field replacement and terminal move.
 Six unchanged default/std target selections each gain1/lose0 (0/1→1/1), complete
-rosters141/150 unchanged. [Contract](docs/extraction-profiles/linear-product-result-flow-v1.md).
+rosters141/150 unchanged. [Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/linear-product-result-flow-v1.md).
 Six strict replays/identity comparisons and108 resealed attacks pass; independent
 ARM Linux original-source oracle64,638 cases/context has0 mismatches. Full suite:
 1,497 tests/five existing skips plus doctests; fmt/Clippy, style0/4,843, patterns0
@@ -5092,7 +5092,7 @@ CI passed; macOS Tests failed, with detailed failure output still unavailable.
 Data3.91 connects the separately owned original `Match::new<Span>` through
 production, serialized verification, strict matcher admission and sidecar replay
 on retained ARM Linux, x86 Linux and macOS captures (590 definitions each).
-[Bounded contract](docs/extraction-profiles/product-constructor-instances-v1.md).
+[Bounded contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/product-constructor-instances-v1.md).
 Raw generic/projected facts still reject; ordinary caller gains and the frozen
 inventory have not been reassessed here. Both selected substitutions remain:
 Range still needs its consuming formal, ordered endpoint projections, verified
@@ -5127,7 +5127,7 @@ target execution and ordinary generic caller linking remain outstanding.
 The source-index/nominal-error retention increment preserves matching outcomes
 and reduces controlled equal-work native no-default replay16.27–16.79→12.14–12.65s.
 No admission gain is attributed to performance work; frozen counts remain
-unreassessed. [Evidence and remaining checksum migration](docs/rust-support-execution.md).
+unreassessed. [Evidence and remaining checksum migration](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 
 Routine source consistency now uses existing XXH3 for fresh Data-v3 function
@@ -5135,7 +5135,7 @@ claims and fresh manifest/file/declaration claims, with explicit legacy SHA
 verification and unchanged reviewed pins/r0 conformance. No semantic capability
 changes. Frozen sixty remain23 admitted/30 excluded/7 inactive (gain0/loss0);
 retained SHA and fresh XXH3 native Match owners preserve all six strict selected
-matching outcomes. [Current evidence](docs/rust-support-execution.md).
+matching outcomes. [Current evidence](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 Mutable backtracking now has independently checked formal/access evidence
 (five parameters/eight accesses/ten conservative alias pairs), without mutable
@@ -5143,7 +5143,7 @@ admission or a new profile capability. All1,578 tests pass; style/patterns remai
 zero with15 existing ignores unchanged. Next connect cyclic memory dependencies
 and explicit normal/failure post-state through strict replay; the distinct-cursor
 oracle does not prove captured disjointness. D20/D21 remain missing.
-[Contract](docs/extraction-profiles/mutable-scalar-formals-v1.md).
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/mutable-scalar-formals-v1.md).
 
 Data3.93 admits complete unchanged safe `lz4_flex0.14.0::backtrack_match` with
 alias-conservative loop memory dependencies and explicit checked-failure
@@ -5152,8 +5152,8 @@ identities/denominators; native150-definition owner passes strict original/repla
 matching (one Accepted pair, score1). D20/D21 become Partial within the direct
 `&mut usize` compound-write contract; stateful helper summaries, local storage,
 reborrows, plain/field/indexed writes and general cleanup remain unfinished.
-[Contract and validation](docs/extraction-profiles/mutable-scalar-formals-v1.md);
-[next connected caller frontier](docs/rust-support-execution.md).
+[Contract and validation](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/mutable-scalar-formals-v1.md);
+[next connected caller frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 
 Time error-family readiness now captures exact concrete core From/TryFrom members
@@ -5173,7 +5173,7 @@ denominators. All1,618 tests/five skips, doctests, fmt/Clippy, style0/5,449 and
 patterns0/15 unchanged ignores pass. Generic/drop-sensitive/default-provided
 bodies remain outside the [bounded contract](eval/coverage-development/adler-default/README.md).
 No new SHA or serialized lookup keys. Broader P01–P22 coverage remains active;
-[next connected constructor frontier](docs/rust-support-execution.md).
+[next connected constructor frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 Data3.95 replaces the coarse expansion barrier for exact ordinary nongeneric
 Copy-owner methods with complete source/cleanup receipts. Original native no-
@@ -5184,7 +5184,7 @@ all15 selected original pairs finish; frozen60 identities/denominators/outcomes
 remain24 admitted/29 excluded/7 inactive. All1,624 tests/five skips, doctests,
 fmt/Clippy, style0/5,480 and patterns0/15 unchanged ignores pass. Checked
 construction remains incomplete behind MAX, conversion and error transport;
-[frontier and bounded evidence](docs/rust-support-execution.md).
+[frontier and bounded evidence](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 Data3.96 connects exact local nongeneric `usize → u64` value-trait methods to
 their verified bodies, including the reviewed 64-bit `u64::try_from(self).expect`
@@ -5192,7 +5192,7 @@ chain. The real error is `TryFromIntError`; totality follows from the selected
 implementation, with the literal message retained as an evaluated operand.
 Native unchanged owners gain `Usize::as_u64` (109→110/590, no losses); frozen60
 remains24/29/7. General trait dispatch, arbitrary Result consumption and checked
-SmallIndex construction remain incomplete. [Validation and next blockers](docs/rust-support-execution.md).
+SmallIndex construction remain incomplete. [Validation and next blockers](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 Data3.97 adds a bounded fresh `Result<CopyScalarProduct, NamedScalarError>`
 boundary, with independently proved original no-drop error ownership and captured Result
@@ -5201,15 +5201,15 @@ early error returns and whole helper forwarding compose; owned storage, reuse an
 payload binding remain outside this boundary. The unchanged natural owner stays
 110/590 admitted with zero gains/losses: MAX evidence and exact TryFrom/source
 ownership still block checked SmallIndex construction. This is a prerequisite,
-not completion of that family. [Validation/frontier](docs/rust-support-execution.md).
+not completion of that family. [Validation/frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 Data3.98 connects original `SmallIndex::new → TryFrom<usize>` through MAX,
 its checked scalar-product initializer and complete success/error helper chain.
 The unchanged no-default owner gains exactly those two functions:110→112/590,
 zero losses. Default-context strict replay also passes. Generated `PatternID::new`
 still requires expansion ownership, nested products/errors and consuming constructor
-maps. [Contract](docs/extraction-profiles/checked-index-construction-v1.md);
-[validation and frontier](docs/rust-support-execution.md).
+maps. [Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/checked-index-construction-v1.md);
+[validation and frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 Generated-callable preparation retains Data3.98: opt-in raw expansion/node/constructor
 observations and independently checked original macro substitution grant no admission.
@@ -5223,8 +5223,8 @@ non-Copy no-drop error evidence. Native unchanged rosters gain only that functio
 112→113/590 no-default and158→159/2,582 default, zero losses. Six target/feature
 contexts strictly replay ten selected originals and complete all45 original pairs;
 native oracle8,202 public cases per feature/assertion context has zero mismatches.
-[Contract](docs/extraction-profiles/constructor-result-maps-v1.md) and
-[validation/frontier](docs/rust-support-execution.md). General payload binding,
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/constructor-result-maps-v1.md) and
+[validation/frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md). General payload binding,
 owned Result reuse/forwarding and sequential unknown macro lookup remain open.
 Frozen60 remains24 admitted/29 excluded/7 inactive with identical identities,
 denominators and blockers;118 schema checks pass. All1,773 tests/five existing
@@ -5238,8 +5238,8 @@ matching and strict replay pass in development; all10 original `time` import
 footprints prove. The four selected error conversions still exclude behind
 value/ownership and payload-shape blockers; no natural-family admission gain is
 claimed. Frozen60 remains24/29/7 with identical identities, denominators and
-reasons. [Contract](docs/extraction-profiles/anonymous-dependency-namespaces-v1.md);
-[validation and remaining chain](docs/rust-support-execution.md).
+reasons. [Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/anonymous-dependency-namespaces-v1.md);
+[validation and remaining chain](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 Data3.101 connects supplied static-string Copy product constructors, ordinary
 callers and saved-reference composition through existing aggregate/component
@@ -5249,8 +5249,8 @@ strictly verifies and matches. The unchanged natural time/num-conv roster remain
 6/1,363 admitted, gain0/loss0: the two selected constructors now reach the unresolved
 foreign generated export/source boundary. Complete conversion-family admission
 still requires that source chain and nominal payload/member summaries.
-[Contract](docs/extraction-profiles/static-string-copy-products-v1.md) and
-[validation/frontier](docs/rust-support-execution.md).
+[Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/static-string-copy-products-v1.md) and
+[validation/frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 Data3.102 adds exact constructor-site proof for unchanged
 `ComponentRange::{unconditional,conditional}`. Positive Copy proves target
@@ -5260,13 +5260,13 @@ namespaces. Neighboring functions retain source/effect barriers. The unchanged
 20→22, zero losses; strict replay preserves outcomes/reasons and completes all231
 pairs. This does not complete the error-conversion family: tag-specific payload
 origins, nominal Result flow and selected trait-member summaries remain connected
-prerequisites. [Contract](docs/extraction-profiles/copy-constructor-sites-v1.md).
+prerequisites. [Contract](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/extraction-profiles/copy-constructor-sites-v1.md).
 
 The next error-conversion prerequisite preserves reference-bearing tagged
 observations and proves the two original time From/TryFrom members in both native
 feature contexts. Guarded values and caller summaries remain closed. The unchanged
 selection stays22/1,407 admitted; strict replay completes231 pairs and frozen60
-is unchanged. [Validation and the connected frontier](docs/rust-support-execution.md#tagged-copy-conversion-prerequisite-data3102-no-activation).
+is unchanged. [Validation and the connected frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md#tagged-copy-conversion-prerequisite-data3102-no-activation).
 
 Data3.103 connects the two original time Copy conversion methods through exact
 member/source ownership, saved tagged inputs, guarded payload bindings and
@@ -5461,7 +5461,7 @@ The structural detector also accepts both behaviorally different cross-width
 comparisons at score1: the negative matching expectation failed. Extraction
 coverage establishes neither behavioral equivalence nor rewrite safety.
 [Bounded source contract](eval/coverage-development/time-nonzero-digits/README.md)
-and [validation/frontier](docs/rust-support-execution.md).
+and [validation/frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 Data3.117 connects the complete original regex-automata SmallIndex unsigned
 TryFrom family (u16/u32/u64/usize), including the selected local U16/U64 helpers
@@ -5490,7 +5490,7 @@ wrapper pairs, including different input widths; extraction coverage establishes
 neither behavioral equivalence nor rewrite safety. Higher transitive callers,
 guarded payloads and broader cleanup remain separate.
 [Contract](eval/coverage-development/generated-index-conversions/README.md) and
-[validation/frontier](docs/rust-support-execution.md).
+[validation/frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 
 Wire add/mul error-flow preparation (Data3.118 unchanged): complete diagnostic
@@ -5533,7 +5533,7 @@ Default regex-automata110→198/2,582,88 gains/zero losses; unchanged no-default
 138/590 with all590 function records identical. This connects the selected original
 wire arithmetic/error family under defaults and unlocks other supported families
 behind the shared S09 barrier. Validation and remaining reader frontier:
-[execution record](docs/rust-support-execution.md).
+[execution record](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 
 Fallible-reader proof inputs (Data3.120 unchanged): selected original
@@ -5545,7 +5545,7 @@ generic `slice.len()` deferred source rejection remains intact. Next connect
 independent instance verification, guarded error summaries and changing-success
 same-error `?`; do not stack further observation-only milestones.
 [Contract/oracle](eval/coverage-development/wire-fallible-readers/README.md) and
-[validation/frontier](docs/rust-support-execution.md).
+[validation/frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 
 Data3.121 connects original `check_slice_len::<u8>` → `try_read_u32`:
@@ -5560,7 +5560,7 @@ The reader is a terminal root, not yet callable. Next connect tagged outputs wit
 read/panic summaries, tuple-success propagation/binding, static literal roots and
 ordered mismatch constructors to complete both original validators.
 [Contract](eval/coverage-development/wire-fallible-readers/README.md) and
-[validation/frontier](docs/rust-support-execution.md). Broad goal active.
+[validation/frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md). Broad goal active.
 
 Data3.122 connects original `try_read_u32` → `read_version/read_endianness_check`
 through checked read/panic summaries, tuple-success `?` and saved bindings, static
@@ -5578,7 +5578,7 @@ fields/count and complete read/error/origin composition. Default203→204/2,582;
 no-default143/590 unchanged, zero losses. Strict historical comparisons and the
 frozen60 persist. General aggregate Results and unsafe DFA callers remain open.
 [Contract/oracle](eval/coverage-development/wire-flag-parser/README.md) and
-[validation/next connected frontier](docs/rust-support-execution.md).
+[validation/next connected frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 
 Data3.124 connects original `DeserializeError::{state_id_error,pattern_id_error}`
@@ -5589,7 +5589,7 @@ the frozen ID-reader chain; readers still require nominal tuple Results, generat
 SIZE/import authority, capturing `map_err`, same-error `?` and complete read/panic
 composition. General moves/drop remain open.
 [Contract/oracle](eval/coverage-development/wire-id-readers/README.md) and
-[validation/frontier](docs/rust-support-execution.md).
+[validation/frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 
 Data3.125 connects original `read_pattern_id/read_state_id/try_read_state_id`
@@ -5601,7 +5601,7 @@ Direct readers are callable; the checked wrapper remains terminal until nested
 precheck/Result conditions can be summarized. Stored mutable callbacks, cursor
 state and validation still block `Special::from_bytes`; general moves/drop remain
 open. [Contract/oracle](eval/coverage-development/wire-id-readers/README.md) and
-[validation/frontier](docs/rust-support-execution.md).
+[validation/frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 Next source-frozen error/callable family: original
 `try_read_u32_as_usize`, then its separately proved u16 counterpart. The full
@@ -5628,7 +5628,7 @@ unchanged. Whole-result callers still need tagged error-output containment; the
 u16 chain separately needs checked-reader width and blanket/Infallible proof.
 General callbacks, moves/drop and generic dispatch remain open.
 [Contract](eval/coverage-development/wire-usize-readers/README.md) and
-[validation/frontier](docs/rust-support-execution.md).
+[validation/frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 Data3.128 connects original `try_read_u16` through exact two-byte checked-reader
 proof and separate same-error propagation authority. Default211→212/2,582 and
@@ -5638,7 +5638,7 @@ transfers; wrong width/count/decoder/byte order remain excluded. The original
 u16 widening wrapper still needs blanket TryFrom→Into→From selections and distinct
 never-error/callback proof; general generic dispatch and moves/drop remain open.
 [Contract](eval/coverage-development/wire-usize-readers/README.md) and
-[validation/frontier](docs/rust-support-execution.md).
+[validation/frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 Data3.129 completes original `try_read_u16_as_usize`: independently selected
 blanket TryFrom→Into→From, exact source/substitutions and distinct never-error
@@ -5650,7 +5650,7 @@ moves/drop remain open. Next source-selected family is the complete Accel parser
 chain, beginning with fresh non-Copy/no-drop aggregate ownership rather than
 isolated whole-Result forwarding.
 [Contract](eval/coverage-development/wire-usize-readers/README.md) and
-[validation/frontier](docs/rust-support-execution.md).
+[validation/frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md).
 
 
 Data3.130 adds source-proved fresh non-Copy/no-drop scalar/array-backed struct
@@ -5661,5 +5661,5 @@ checked. Owned parameters/locals, helper transport, updates and discards remain
 excluded. Next connect `Accel::from_bytes` through aggregate Result success and
 a separately proved constructor callable, then the slice/error chain.
 [Contract/oracle](eval/coverage-development/accel-parser/README.md) and
-[validation/frontier](docs/rust-support-execution.md). Work pauses after this
+[validation/frontier](https://github.com/rstyled/rstyle/blob/c35bd14c/docs/rust-support-execution.md). Work pauses after this
 increment and the CI platform/performance fixes at the user's request.

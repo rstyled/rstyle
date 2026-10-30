@@ -139,5 +139,4 @@ minimal and complete read/inherent helper fixtures using already built tools.
 Build the workspace and `rstyle-pdg`'s `unit_import_replay` example in that profile
 first. The script retains reports, timing and diagnostic logs in a new temporary
 directory, checks completeness and pair decisions, and separates ordinary
-samples from `RSTYLE_PERF` observations. Commands and measured limits are in
-[the production profile](../docs/performance/production-profile.md).
+samples from `RSTYLE_PERF` observations.
