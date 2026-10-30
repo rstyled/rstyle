@@ -7449,3 +7449,28 @@ scope, preserve applicable repository review choices, validate the multi-crate
 case and remove the superseded route. Do not add backward-compatibility machinery
 or a production-ledger migration gate for these development paths. Strict clone
 matching contracts remain outside this patterns replacement.
+
+### C111 — retain each proposal member's compilation context (2026-10-30)
+
+Lead owns compiler pattern snapshots, shared positive review status, baseline
+validation and focused acceptance. Each usage and referenced definition retains
+its own existing BuildContext. Reviews compare full member values; a secondary
+member's changed context reports context_changed. Baseline keys include each
+member's compilation target and baseline validation requires every member context
+in the scope header. Pattern identity version2 and compiler-pattern-baseline/2
+replace the development representations directly, with no compatibility adapter,
+hash, new proof policy or duplicated proposer.
+
+Two added unit cases cover cross-package usage/definition contexts, exact
+roundtrips, actual review-status evaluation, secondary-member context drift,
+definition target keys, incomplete baseline headers and malformed contexts.
+All3,728 Rust tests (5 skipped,263.553s) and doctests passed, as did248 capability
+and50 script Python tests. The patterns gate found duplicated context/locator
+projection wrappers; removing the context wrapper lets baseline validation use
+the shared borrowed declaration iterator directly. After that small cleanup,
+all87 pattern CLI workflows, seven review unit tests, formatting and workspace
+Clippy pass. Final style reports zero violations over10,087 functions; the final
+patterns gate reports zero visible candidates and the same13 retained dismissals.
+No suppressions, threshold changes, hashes or extra discovery algorithm.
+Discovery is still per unit: workspace mining and the multi-crate acceptance
+case are next, followed by authored defaults and replacing the superseded route.

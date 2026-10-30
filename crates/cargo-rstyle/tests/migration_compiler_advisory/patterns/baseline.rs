@@ -65,7 +65,7 @@ fn proposal_baseline_covers_five_families_and_preserves_raw_reports() {
         let (directory, original) = exported(source);
         let bytes = std::fs::read(directory.path().join("baseline.json")).unwrap();
         let saved: Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(saved["schema"], "rstyle.compiler-pattern-baseline/1");
+        assert_eq!(saved["schema"], "rstyle.compiler-pattern-baseline/2");
         assert_eq!(saved["entries"].as_array().unwrap().len(), expected);
         for forbidden in ["sha256", "fingerprint", "candidate_index", "candidate_id"] {
             assert!(

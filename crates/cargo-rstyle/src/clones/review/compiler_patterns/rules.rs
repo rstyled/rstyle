@@ -8,8 +8,9 @@ use super::super::compiler_owners::Signature;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Declaration {
+pub(in crate::clones::review) struct Declaration {
     pub locator: Locator,
+    pub context: local::BuildContext,
     pub signature: Signature,
     #[serde(deserialize_with = "serde::Deserialize::deserialize")]
     pub implements: Option<String>,
@@ -36,9 +37,8 @@ pub(super) struct Member {
 #[serde(deny_unknown_fields)]
 pub(crate) struct Snapshot {
     pub(super) versions: Versions,
-    pub(super) context: local::BuildContext,
     pub(in crate::clones::review) policy: Params,
-    /// Older records were captured with no trait-hiding oracle.
+    /// The trait-hiding oracle is part of proposal identity.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(in crate::clones::review) hide_implements: Vec<String>,
     pub(in crate::clones::review) kind: CandidateKind,
@@ -51,32 +51,37 @@ pub(in crate::clones::review) use exact_rules::validate_entries;
 
 pub(in crate::clones::review) type Key<'a> = (
     &'static str,
-    Vec<&'a Locator>,
+    Vec<(&'a Locator, &'a super::super::CompilationTarget)>,
     usize,
-    &'a super::super::CompilationTarget,
 );
 
 impl Snapshot {
     pub(in crate::clones::review) fn baseline_key(&self) -> Key<'_> {
         (
             self.kind.name(),
-            self.locators().collect(),
+            self.declarations()
+                .map(|member| (&member.locator, &member.context.compilation_target))
+                .collect(),
             self.sites.len(),
-            &self.context.compilation_target,
         )
     }
 
-    pub(in crate::clones::review) fn locators(&self) -> impl Iterator<Item = &Locator> {
+    pub(in crate::clones::review) fn declarations(&self) -> impl Iterator<Item = &Declaration> {
         self.sites
             .iter()
-            .map(|member| &member.declaration.locator)
-            .chain(self.definitions.iter().map(|member| &member.locator))
+            .map(|member| member.declaration.as_ref())
+            .chain(self.definitions.iter().map(Rc::as_ref))
+    }
+
+    pub(in crate::clones::review) fn locators(&self) -> impl Iterator<Item = &Locator> {
+        self.declarations().map(|member| &member.locator)
     }
 }
 
 impl exact_rules::ReviewSnapshot for Snapshot {
     fn identity(&self) -> (&Locator, &local::BuildContext) {
-        (&self.sites[0].declaration.locator, &self.context)
+        let first = &self.sites[0].declaration;
+        (&first.locator, &first.context)
     }
     fn versions(&self) -> &Versions {
         &self.versions
@@ -88,24 +93,34 @@ impl exact_rules::ReviewSnapshot for Snapshot {
         }
 
         exact_rules::validate_identity(self, "compiler-patterns")?;
-        let sites: Vec<_> = self
-            .sites
-            .iter()
-            .map(|site| &site.declaration.locator)
-            .collect();
-        let definitions: Vec<_> = self.definitions.iter().map(|item| &item.locator).collect();
-
-        for locators in [&sites, &definitions] {
-            if locators.windows(2).any(|pair| pair[0] >= pair[1]) {
+        for members in [
+            self.sites
+                .iter()
+                .map(|member| member.declaration.as_ref())
+                .collect::<Vec<_>>(),
+            self.definitions.iter().map(Rc::as_ref).collect(),
+        ] {
+            if members.windows(2).any(|pair| {
+                (&pair[0].locator, &pair[0].context) >= (&pair[1].locator, &pair[1].context)
+            }) {
                 return Err(ReviewError::NoncanonicalMembers);
             }
-            for locator in locators.iter() {
-                local::validate_locator(locator)?;
+            for member in members {
+                local::validate_locator(&member.locator)?;
+                local::validate_context(&member.context)?;
             }
         }
         Ok(())
     }
     fn changed(&self, current: &Self) -> Option<exact_rules::StaleReason> {
+        if self.locators().eq(current.locators())
+            && self
+                .declarations()
+                .zip(current.declarations())
+                .any(|(old, new)| old.context != new.context)
+        {
+            return Some(exact_rules::StaleReason::Context);
+        }
         if self.policy != current.policy || self.hide_implements != current.hide_implements {
             return Some(exact_rules::StaleReason::Policy);
         }

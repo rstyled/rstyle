@@ -623,6 +623,13 @@ Record an exact review through this route with
 The selector and reason are required for a write. Status and legacy import are
 separate actions; failed selection leaves the review store unchanged.
 
+Compiler proposal reviews retain the compilation context of every usage and
+referenced definition. Changing a secondary member's context reports
+`context_changed`; baselines must include every member context in their scope.
+Pattern identity version2 and compiler-pattern-baseline/2 use this member-level
+representation. The current discovery invocation remains per unit; member
+contexts prepare reviews for workspace discovery without merging build contexts.
+
 Legacy dismissals are not automatically converted into compiler reviews. A
 nonempty legacy ledger produces a migration message; `--no-ignore` explicitly
 bypasses it and leaves its bytes unchanged. Scoped compiler reviews still apply.

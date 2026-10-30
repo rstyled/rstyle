@@ -123,7 +123,11 @@ pub(super) fn versions(detector: &str) -> Versions {
         } else {
             1
         },
-        identity_version: 1,
+        identity_version: if detector == "compiler-patterns" {
+            2
+        } else {
+            1
+        },
         locator_version: 1,
         context_version: 1,
     }

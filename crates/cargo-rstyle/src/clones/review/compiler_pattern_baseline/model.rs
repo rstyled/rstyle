@@ -29,7 +29,7 @@ pub(in crate::clones) struct Baseline {
 impl baseline_common::CompilerInventory for Baseline {
     fn empty(compiler_policy: Rc<serde_json::Value>, contexts: Vec<local::BuildContext>) -> Self {
         Self {
-            schema: "rstyle.compiler-pattern-baseline/1".into(),
+            schema: "rstyle.compiler-pattern-baseline/2".into(),
             compiler_policy,
             proposal_policy: Params::default(),
             hide_implements: Vec::new(),
@@ -50,7 +50,7 @@ impl Baseline {
     }
 
     fn validate_header(&self) -> Result<(), String> {
-        if self.schema != "rstyle.compiler-pattern-baseline/1"
+        if self.schema != "rstyle.compiler-pattern-baseline/2"
             || self.versions != local_adapter::versions("compiler-patterns")
             || self.graph_schema != rstyle_core::advisory::patterns::KEY
         {
@@ -102,7 +102,15 @@ impl baseline_common::Inventory for Baseline {
                     && finding.hide_implements == self.hide_implements
             },
             Snapshot::baseline_key,
-        )
+        )?;
+        for finding in &self.entries {
+            for member in finding.declarations() {
+                if self.contexts.binary_search(&member.context).is_err() {
+                    return Err("Compiler proposal member has no retained build context".into());
+                }
+            }
+        }
+        Ok(())
     }
     fn same_scope(&self, previous: &Self) -> bool {
         self.compiler_policy == previous.compiler_policy

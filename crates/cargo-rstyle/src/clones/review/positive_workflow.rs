@@ -166,10 +166,13 @@ impl<'a, S: Snapshot> States<'a, S> {
             .flatten()
             .filter(|current| entry.finding.same_scope(current))
         {
-            let observed = if context == current.identity().1 {
-                status::State::Stale
-            } else {
+            let observed = if context != current.identity().1
+                || exact_rules::stale_reason(&entry.finding, current)
+                    == Some(exact_rules::StaleReason::Context)
+            {
                 status::State::ContextChanged
+            } else {
+                status::State::Stale
             };
             state = strongest(state, observed);
         }

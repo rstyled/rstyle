@@ -35,6 +35,7 @@ fn declaration(name: &str) -> Rc<Declaration> {
         spelling: "u128".into(),
     };
     Rc::new(Declaration {
+        context: context(),
         locator: Locator {
             package: Package {
                 identity: "Cargo.toml".into(),
@@ -67,7 +68,6 @@ fn snapshot() -> Snapshot {
     let node = serde_json::json!({"kind":"lit","ty":null,"callee_id":null,"callee_sig":null,"macro_name":null,"lit_kind":"int","detail":"7","line":0});
     Snapshot {
         versions: local_adapter::versions("compiler-patterns"),
-        context: context(),
         policy: Params::default(),
         hide_implements: Vec::new(),
         kind: CandidateKind::Parameterize,
@@ -133,7 +133,9 @@ fn policy_context_signature_kind_membership_and_opaque_changes_cannot_hide() {
     let entries = entries(&original);
     let mut variants = vec![snapshot(); 7];
     variants[0].policy.max_holes += 1;
-    variants[1].context.overflow_checks = false;
+    Rc::make_mut(&mut variants[1].sites[0].declaration)
+        .context
+        .overflow_checks = false;
     variants[2].kind = CandidateKind::GenericFn;
     variants[3].definitions.push(declaration("sample::method"));
     variants[4].sites[0].declaration = declaration("sample::first");
@@ -197,4 +199,113 @@ fn store_byte_limits_prevent_partial_publication() {
     store.compiler_pattern_entries[0].reason = "x".repeat(baseline_io::MAX_BYTES);
     assert!(store.to_json().is_err());
     assert!(ReviewStore::from_json(&" ".repeat(baseline_io::MAX_BYTES + 1)).is_err());
+}
+
+fn cross_unit_snapshot() -> Snapshot {
+    let mut snapshot = snapshot();
+    let mut second = snapshot.sites[0].clone();
+    let second_declaration = Rc::make_mut(&mut second.declaration);
+    second_declaration.locator.qualified_name = "other::second".into();
+    second_declaration.locator.package.identity = "other/Cargo.toml".into();
+    second_declaration.locator.package.name = "other".into();
+    second_declaration.context.compilation_target.name = "other".into();
+    snapshot.sites.push(second);
+    snapshot.sites.sort_by(|a, b| {
+        (&a.declaration.locator, &a.declaration.context)
+            .cmp(&(&b.declaration.locator, &b.declaration.context))
+    });
+    let mut definition = declaration("sample::method");
+    Rc::make_mut(&mut definition)
+        .context
+        .compilation_target
+        .name = "definitions".into();
+    snapshot.definitions.push(definition);
+    snapshot
+}
+
+#[test]
+fn cross_unit_members_and_definitions_retain_context_in_reviews_and_status() {
+    use crate::clones::review::{positive_workflow, status};
+    struct Row(Result<Snapshot, String>);
+    impl positive_workflow::Row for Row {
+        type Snapshot = Snapshot;
+        fn snapshot(&self) -> &Result<Snapshot, String> {
+            &self.0
+        }
+    }
+    let original = cross_unit_snapshot();
+    let entries = entries(&original);
+    let wire = serde_json::to_value(&entries).unwrap();
+    assert!(wire[0]["finding"].get("context").is_none());
+    assert_eq!(original.declarations().count(), 3);
+    let decoded: Vec<Entry> = serde_json::from_value(wire).unwrap();
+    assert_eq!(decoded, entries);
+    let store = exact_rules::ValidatedStore::new(&decoded).unwrap();
+    assert!(matches!(
+        store.lookup(&exact_rules::LiveFinding::checked(&original).unwrap()),
+        exact_rules::Lookup::HiddenExact(_)
+    ));
+    for definition in [false, true] {
+        let mut changed = original.clone();
+        let member = if definition {
+            &mut changed.definitions[0]
+        } else {
+            &mut changed.sites[1].declaration
+        };
+        Rc::make_mut(member).context.overflow_checks = false;
+        let live = exact_rules::LiveFinding::checked(&changed).unwrap();
+        let exact_rules::Lookup::Stale(stale) = store.lookup(&live) else {
+            panic!("Changed secondary member context must keep the finding visible")
+        };
+        assert_eq!(stale[0].reason, exact_rules::StaleReason::Context);
+        let evaluated = positive_workflow::evaluate(
+            &entries,
+            &[Row(Ok(changed))],
+            positive_workflow::Contract {
+                requested: true,
+                retain_records: true,
+                family: status::Family::CompilerPattern,
+                label: "Compiler proposal",
+            },
+        )
+        .unwrap();
+        assert_eq!(evaluated.records[0].state, status::State::ContextChanged);
+    }
+}
+
+#[test]
+fn cross_unit_baselines_require_every_member_context_and_key_each_target() {
+    use crate::clones::review::{
+        baseline_common::CompilerInventory, baseline_io::Artifact, compiler_pattern_baseline,
+    };
+    let original = cross_unit_snapshot();
+    let contexts = original
+        .declarations()
+        .map(|member| member.context.clone())
+        .collect();
+    let mut baseline =
+        compiler_pattern_baseline::Baseline::new(Rc::new(serde_json::json!({})), contexts).unwrap();
+    baseline.entries.push(original.clone());
+    baseline.validate().unwrap();
+    baseline
+        .contexts
+        .retain(|context| context.compilation_target.name != "definitions");
+    assert!(baseline.validate().is_err());
+    let mut changed = original.clone();
+    Rc::make_mut(&mut changed.definitions[0])
+        .context
+        .compilation_target
+        .test = true;
+    assert_ne!(original.baseline_key(), changed.baseline_key());
+    Rc::make_mut(&mut changed.sites[1].declaration)
+        .context
+        .compiler_commit
+        .clear();
+    assert!(changed.validate().is_err());
+    let mut missing = serde_json::to_value(&original).unwrap();
+    missing["sites"][1]["declaration"]
+        .as_object_mut()
+        .unwrap()
+        .remove("context");
+    assert!(serde_json::from_value::<Snapshot>(missing).is_err());
 }

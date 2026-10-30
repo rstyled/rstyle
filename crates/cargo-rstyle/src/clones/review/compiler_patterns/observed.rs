@@ -1,6 +1,6 @@
 //! Move each prepared graph into one shared immutable review owner.
 use super::super::compiler_owners::{names, originals, signature};
-use super::super::{exact_rules, local, local_adapter};
+use super::super::{exact_rules, local_adapter};
 pub(in crate::clones) use super::rules::Snapshot;
 use super::rules::{Body, Declaration, Member};
 use crate::clones::{
@@ -41,7 +41,6 @@ impl super::super::positive_workflow::Row for Row<'_> {
 struct Endpoint {
     declaration: Rc<Declaration>,
     body: Result<Rc<Body>, String>,
-    context: local::BuildContext,
 }
 
 pub(in crate::clones) fn collect(
@@ -124,15 +123,12 @@ impl Resolver<'_, '_> {
         let declaration = Rc::new(Declaration {
             locator: identity.locator(name, kind),
             signature,
+            context: local_adapter::context(&original.build, self.unit)?,
             implements: facts.implements.take(),
         });
         let body = self.body(&mut facts);
 
-        Ok(Endpoint {
-            declaration,
-            body,
-            context: local_adapter::context(&original.build, self.unit)?,
-        })
+        Ok(Endpoint { declaration, body })
     }
     fn body(&self, facts: &mut FnFacts) -> Result<Rc<Body>, String> {
         self.sites
@@ -178,21 +174,11 @@ fn snapshot(
     options: &rstyle_core::patterns_report::Options,
 ) -> Result<Snapshot, String> {
     let get = |id: &str| retained_endpoint(endpoints, id);
-    let first = candidate
-        .sites
-        .first()
-        .ok_or("Compiler proposal has no sites")?;
-    let context = &get(&first.id)?.context;
     let mut sites = candidate
         .sites
         .iter()
         .map(|site| {
             let endpoint = get(&site.id)?;
-            if context != &endpoint.context {
-                return Err(
-                    "Compiler proposal endpoints have different compilation contexts".into(),
-                );
-            }
             Ok(Member {
                 declaration: Rc::clone(&endpoint.declaration),
                 body: Rc::clone(endpoint.body.as_ref().map_err(Clone::clone)?),
@@ -205,12 +191,14 @@ fn snapshot(
         .iter()
         .map(|site| get(&site.id).map(|endpoint| Rc::clone(&endpoint.declaration)))
         .collect::<Result<Vec<_>, _>>()?;
-    sites.sort_by(|a, b| a.declaration.locator.cmp(&b.declaration.locator));
-    definitions.sort_by(|a, b| a.locator.cmp(&b.locator));
+    sites.sort_by(|a, b| {
+        (&a.declaration.locator, &a.declaration.context)
+            .cmp(&(&b.declaration.locator, &b.declaration.context))
+    });
+    definitions.sort_by(|a, b| (&a.locator, &a.context).cmp(&(&b.locator, &b.context)));
 
     let snapshot = Snapshot {
         versions: local_adapter::versions("compiler-patterns"),
-        context: context.clone(),
         policy: options.params,
         hide_implements: options.hide_implements.clone(),
         kind: candidate.kind,
