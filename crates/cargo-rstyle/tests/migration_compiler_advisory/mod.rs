@@ -22,6 +22,8 @@ mod inherited_density_scope;
 mod instance_extraction;
 mod local_edit_scope;
 mod local_only;
+#[cfg(unix)]
+mod metadata_reuse;
 mod mutations;
 pub(super) mod only;
 mod only_effects;

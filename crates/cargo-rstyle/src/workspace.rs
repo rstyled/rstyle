@@ -26,10 +26,11 @@ pub fn load(manifest: Option<&Path>) -> Result<Metadata, String> {
     load_with_toolchain(manifest, None)
 }
 
-pub fn load_with_toolchain(
+/// Acquire one metadata result in the representation needed by the caller.
+pub fn load_with_toolchain<T: serde::de::DeserializeOwned>(
     manifest: Option<&Path>,
     toolchain: Option<&str>,
-) -> Result<Metadata, String> {
+) -> Result<T, String> {
     let mut cmd = Command::new("cargo");
 
     cmd.args(["metadata", "--format-version", "1", "--no-deps"])

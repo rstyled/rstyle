@@ -99,9 +99,9 @@ pub struct Capture {
 }
 
 pub fn prepare(cli: &Cli, args: &Args) -> Result<Capture, String> {
-    let metadata = selected_workspace(cli)?;
+    let (metadata, raw) = selected_workspace(cli)?;
     let mut capture = initial_capture(metadata, args.extraction_profile)?;
-    capture.plan.targets = targets(cli, args.extraction_profile)?;
+    capture.plan.targets = selected_targets(&raw, cli, args.extraction_profile)?;
     capture.plan = capture.plan.with_advisory(args);
 
     publish_plan(capture)
@@ -124,15 +124,17 @@ fn publish_plan(capture: Capture) -> Result<Capture, String> {
     Ok(capture)
 }
 
-fn selected_workspace(cli: &Cli) -> Result<crate::workspace::Metadata, String> {
-    let metadata = crate::workspace::load_with_toolchain(
+fn selected_workspace(cli: &Cli) -> Result<(crate::workspace::Metadata, Value), String> {
+    let raw = crate::workspace::load_with_toolchain(
         cli.manifest_path.as_deref(),
         Some(&run::pinned_toolchain()),
     )?;
+    let metadata = crate::workspace::Metadata::deserialize(&raw)
+        .map_err(|e| format!("cargo metadata: {e}"))?;
     if let Some(package) = metadata.unknown_packages(&cli.packages).first() {
         return Err(format!("unknown package {package}"));
     }
-    Ok(metadata)
+    Ok((metadata, raw))
 }
 
 fn new_capture(directory: PathBuf, plan: Plan) -> Capture {
@@ -207,26 +209,6 @@ fn tool_identity(tool: &str, argument: &str) -> Result<String, String> {
         return Err(format!("cannot determine pinned {tool} identity"));
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
-}
-
-fn targets(
-    cli: &Cli,
-    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
-) -> Result<Vec<Target>, String> {
-    let mut command = Command::new("cargo");
-    command
-        .args(["metadata", "--format-version", "1", "--no-deps"])
-        .env("RUSTUP_TOOLCHAIN", run::pinned_toolchain());
-    if let Some(path) = &cli.manifest_path {
-        command.arg("--manifest-path").arg(path);
-    }
-
-    let output = command.output().map_err(|e| e.to_string())?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).into());
-    }
-    let value: Value = serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())?;
-    selected_targets(&value, cli, profile)
 }
 
 fn selected_targets(

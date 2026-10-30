@@ -31,6 +31,10 @@ The legacy backend remains the default, available explicitly through
 `--style-engine legacy`. The style-engine option applies only without a subcommand;
 `patterns --engine compiler` retains its separate opt-in route.
 
+Capture preparation acquires Cargo metadata once through the shared workspace
+collector. Workspace validation and target selection consume the same result,
+preserving the selected manifest, pinned toolchain and rich package context.
+
 Live advisory-only captures without dependency capture reuse private builds in
 `target/rstyle/clones/advisory-build`, under one lock through planning, compilation
 and reconciliation. Completed raw owner snapshots are reused only when current

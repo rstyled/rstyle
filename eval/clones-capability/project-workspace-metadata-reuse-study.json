@@ -1,0 +1,130 @@
+{
+  "schema": "rstyle.workspace-metadata-reuse-study/1",
+  "checkpoint": "C99",
+  "baseline_revision": "b91e3a5c",
+  "scope": "Default whole-workspace library/binary compiler style check, authored all-rule diagnostics, unchanged workspace config; not all-targets.",
+  "command": [
+    "target/debug/cargo-rstyle",
+    "--style-engine",
+    "compiler",
+    "--format",
+    "json"
+  ],
+  "measurement": "Unix Cargo shim logs pinned toolchain and metadata arguments, then execs the real Cargo. /usr/bin/time -v observes each complete command under a 150s timeout. These are two changed-source observations, not a benchmark or a claim of total speedup.",
+  "environment": {
+    "PATH": "/tmp/clones-c99-tools:/home/dev/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+    "CARGO_TARGET_DIR": "target",
+    "METADATA_TEST_CARGO": "/home/dev/.cargo/bin/cargo",
+    "METADATA_TEST_LOG": "/tmp/clones-c99-workspace-{before,after}-metadata.log"
+  },
+  "source_only_review": {
+    "function": "clones::capture::targets",
+    "classification": "actionable",
+    "witness": "prepare already queries identical pinned metadata through selected_workspace and workspace::load_with_toolchain; reuse the result for existing rich target selection.",
+    "review_input": "/tmp/clones-c99-source-usefulness-a.json",
+    "review_result": "/tmp/clones-c99-usefulness-a.json"
+  },
+  "before": {
+    "root_report": "/tmp/clones-c99-workspace-before.json",
+    "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-RKFirt",
+    "exit_code": 1,
+    "metadata_subprocesses": 2,
+    "wall_seconds": 70.56,
+    "max_rss_kib": 3050468,
+    "summary": {
+      "functions": 10062,
+      "violations": 47,
+      "complexity_measured": 10062,
+      "complexity_unavailable": 0,
+      "mean_density_milli": 97,
+      "max_density_milli": 15000,
+      "effect_counts": {
+        "io": 339,
+        "mutation": 2097,
+        "panic": 56,
+        "time": 66,
+        "unknown": 164
+      }
+    }
+  },
+  "after": {
+    "root_report": "/tmp/clones-c99-workspace-after.json",
+    "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-R6dERv",
+    "exit_code": 1,
+    "metadata_subprocesses": 1,
+    "wall_seconds": 71.48,
+    "max_rss_kib": 3065912,
+    "summary": {
+      "functions": 10061,
+      "violations": 46,
+      "complexity_measured": 10061,
+      "complexity_unavailable": 0,
+      "mean_density_milli": 97,
+      "max_density_milli": 15000,
+      "effect_counts": {
+        "io": 335,
+        "mutation": 2097,
+        "panic": 56,
+        "time": 66,
+        "unknown": 164
+      }
+    }
+  },
+  "comparison": {
+    "capture_and_numeric_scope_complete": true,
+    "exact_target_records_equal": true,
+    "compiler_and_cargo_identity_equal": true,
+    "effective_config_equal": true,
+    "retained_observations": 10061,
+    "unchanged_retained_direct_numeric_observations": 10060,
+    "removed_function": "clones::capture::targets",
+    "added_functions": 0,
+    "changed_direct_observation": {
+      "function": "clones::capture::selected_workspace",
+      "before": {
+        "name": "clones::capture::selected_workspace",
+        "statements": 4,
+        "direct_mutations": 0,
+        "escaping_mutations": 0
+      },
+      "after": {
+        "name": "clones::capture::selected_workspace",
+        "statements": 5,
+        "direct_mutations": 0,
+        "escaping_mutations": 0
+      }
+    },
+    "removed_finding": "Deleted duplicate targets helper density finding.",
+    "retained_finding_change": "selected_workspace density 750 -> 600 under unchanged limit 500, from its additional metadata decode statement. Other finding membership/actual/limit values remain equal; moved source lines are expected."
+  },
+  "independent_acceptance": [
+    "Regression first fails with two metadata calls before implementation, passes with one afterward.",
+    "Real Cargo selected-package and all-target captures retain exact pinned toolchain, metadata flags, manifest argument and rich package context.",
+    "Unknown package and invalid Cargo manifest retain error exit2 with one metadata attempt."
+  ],
+  "implementation": "Small deserialization seam in existing workspace collector; borrow one raw Value for typed workspace validation and unchanged rich target selection. Remove duplicate command. No Value clone, JSON roundtrip, cache, checksum, policy, metric version or strict matching change.",
+  "limitations": [
+    "No total runtime or peak-memory improvement demonstrated.",
+    "Whole-workspace observations include compiler capture/build and report costs; no isolated metadata timing or warm/cold comparison claimed.",
+    "This removes concrete duplicate work; it does not establish default readiness, usefulness of all remaining findings, safe generated edits or external caller closure."
+  ],
+  "validation": {
+    "focused_tests_passed": 2,
+    "regression_before_implementation": "failed as expected: two metadata commands instead of one",
+    "workspace_tests_passed": 3701,
+    "workspace_tests_skipped": 5,
+    "workspace_nextest_seconds": 262.208,
+    "doctests": "passed",
+    "formatting": "passed",
+    "clippy_workspace_all_targets": "passed with -D warnings",
+    "capability_python_tests_passed": 248,
+    "script_python_tests_passed": 50,
+    "script_test_environment": "Standard /home/dev/.cargo/bin PATH required; initial invocation without Cargo on PATH failed setup, corrected invocation passed all50.",
+    "legacy_style_functions": 10061,
+    "legacy_style_violations": 0,
+    "legacy_unfiltered_pattern_ids": "same13 baseline IDs",
+    "diff_whitespace": "passed",
+    "read_only_integration_review": "no correctness findings",
+    "native_ci": "C97 all three native jobs passed; C98 in progress; C99 pending publication"
+  }
+}

@@ -7005,3 +7005,42 @@ IDs. C96 native CI passed on macOS15 and Ubuntu x86/ARM. C97 Ubuntu x86/ARM
 have passed; macOS remains pending. C98 native validation awaits publication.
 Next concrete reuse candidate: capture preparation currently invokes identical
 pinned Cargo metadata twice; reuse one existing collector result.
+
+### C99 — reuse the existing Cargo metadata collector (2026-10-30)
+
+Source-only review identified that capture::prepare queried the same pinned Cargo
+metadata twice: once for typed workspace/package validation and again for rich
+target selection. Generalize only the existing collector's deserialized result.
+Capture retains one raw Value, borrows it to decode the small typed workspace
+view, and passes the same raw metadata to unchanged target/context selection.
+The duplicate command implementation is removed. Legacy workspace loading still
+returns its existing typed view. Flags, manifest selection, inherited environment,
+pinned toolchain, package validation and compilation context behavior remain.
+There is no Value clone, JSON roundtrip, cache, checksum or new policy.
+
+A real-Cargo invocation-count regression first failed with two metadata commands,
+then passed with one. Independent cases check package selection, all-target
+selection, retained package context, unknown-package and Cargo-error outcomes.
+Read-only integration review found no defects. Broader default readiness remains
+separate from removing this duplicate work.
+
+Whole-workspace comparison confirms two metadata subprocesses before and one
+after, with identical rich target records, compiler/Cargo identities and policy.
+The deleted helper accounts for the one-function reduction (10,062 to10,061) and
+one removed density finding (47 to46). Of10,061 retained direct numeric rows,
+10,060 are unchanged; selected_workspace gains one statement for borrowed typed
+decoding, changing its density750 to600 under unchanged limit500. No new finding
+appears. Observed totals70.56s/71.48s and peak RSS3,050,468/3,065,912 KiB establish
+no overall speedup or resource improvement. Commands, exact observations and
+limits are retained in project-workspace-metadata-reuse-study.json. C97 native CI
+has now passed on macOS15 and both Ubuntu architectures.
+
+C99 integrated validation: all3,701 Rust tests pass (5 skipped,262.208s), plus
+doctests,248 capability Python tests and50 script tests. The script suite needs
+the standard Cargo PATH; its initial unconfigured invocation failed setup and the
+corrected invocation passed. Formatting, workspace/all-target Clippy, diff
+whitespace and both legacy gates pass:0 violations across10,061 functions and
+the same13 unfiltered pattern IDs. C98 native CI remains in progress; C99 native
+validation awaits publication. Next concrete source reuse: share optional request
+loading in existing product/reference diagnostic support, preserving each lens's
+validation and publication policy. Default resource/usefulness gates remain open.
