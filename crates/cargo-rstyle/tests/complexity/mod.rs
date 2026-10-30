@@ -1,4 +1,4 @@
-use super::{fixture, rstyle, stdout};
+use super::{fixture, reference_style, stdout};
 use serde_json::Value;
 
 const SOURCE: &str = r#"#![allow(dead_code, unused_variables, unused_parens)]
@@ -39,7 +39,7 @@ fn report() -> (tempfile::TempDir, Value) {
         "[complexity]\nmax_cyclomatic = 0\nmax_cognitive = 0\n",
     )
     .unwrap();
-    let output = rstyle(dir.path(), &["--format", "json"]);
+    let output = reference_style(dir.path(), &["--format", "json"]);
     assert_eq!(
         output.status.code(),
         Some(1),
@@ -117,7 +117,7 @@ fn scores_retain_evidence_and_ranking_is_deterministic() {
         .find(|line| line.starts_with("pub fn propagate"))
         .unwrap();
     assert_eq!(propagation["column"], source.find('?').unwrap() + 1);
-    let output = rstyle(dir.path(), &["--format", "json"]);
+    let output = reference_style(dir.path(), &["--format", "json"]);
     assert_eq!(
         serde_json::from_slice::<Value>(&output.stdout).unwrap(),
         report
@@ -130,7 +130,7 @@ fn scores_retain_evidence_and_ranking_is_deterministic() {
             .next(),
         Some("jumps")
     );
-    let output = rstyle(dir.path(), &[]);
+    let output = reference_style(dir.path(), &[]);
     assert_eq!(output.status.code(), Some(1));
     let text = stdout(&output);
     assert!(text.contains("CC  COG  LOCATION  FUNCTION"));
@@ -148,7 +148,7 @@ fn configured_limits_use_existing_diagnostics_suppressions_and_groups() {
         "[complexity]\nmax_cyclomatic = 2\nmax_cognitive = 1\n",
     )
     .unwrap();
-    let output = rstyle(dir.path(), &["--format", "json"]);
+    let output = reference_style(dir.path(), &["--format", "json"]);
     assert_eq!(output.status.code(), Some(1));
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["diagnostics"].as_array().unwrap().len(), 2);
@@ -161,7 +161,7 @@ fn configured_limits_use_existing_diagnostics_suppressions_and_groups() {
             .iter()
             .all(|finding| finding["line"] == 1)
     );
-    let output = rstyle(dir.path(), &[]);
+    let output = reference_style(dir.path(), &[]);
     assert_eq!(output.status.code(), Some(1));
     let text = stdout(&output);
     assert!(text.contains("cyclomatic_complexity"));
@@ -182,7 +182,7 @@ fn default_twelve_limits_report_only_functions_strictly_over_either_limit() {
         "if x {} ".repeat(3)
     );
     std::fs::write(dir.path().join("src/lib.rs"), source).unwrap();
-    let output = rstyle(dir.path(), &["--format", "json"]);
+    let output = reference_style(dir.path(), &["--format", "json"]);
     assert_eq!(output.status.code(), Some(1));
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["summary"]["functions"], 4);
@@ -195,7 +195,7 @@ fn default_twelve_limits_report_only_functions_strictly_over_either_limit() {
         assert_eq!(finding["actual"], 13);
         assert_eq!(finding["limit"], 12);
     }
-    let output = rstyle(dir.path(), &[]);
+    let output = reference_style(dir.path(), &[]);
     let text = stdout(&output);
     assert!(text.contains("cc_over"));
     assert!(text.contains("cog_over"));

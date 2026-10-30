@@ -16,6 +16,8 @@ class RunnerTests(unittest.TestCase):
             self.assertEqual(command[command.index('--manifest-path') + 1], '/fixture/Cargo.toml')
             self.assertEqual(command[command.index('--package') + 1], 'clones-capability-acceptance')
             self.assertNotIn('--all-targets', command)
+        self.assertEqual(old[old.index('--style-engine') + 1], 'legacy')
+        self.assertNotIn('--style-engine', new)
         self.assertEqual(old[-2:], ['--config', '/fixture/policy.toml'])
         self.assertIn('--locked', new)
         self.assertIn('--source-rules', new)

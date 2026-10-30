@@ -8,6 +8,7 @@ use serde::Serialize;
 pub(in crate::clones) struct Projection<'a> {
     diagnostics: Vec<&'a Diagnostic>,
     diagnostic_units: Vec<UnitId>,
+    diagnostic_indices: Vec<usize>,
     summary: Option<Summary>,
     summary_complete: bool,
     fix_groups: Vec<&'a FixGroup>,
@@ -31,19 +32,20 @@ impl<'a> Projection<'a> {
             return Err("Cannot aggregate completed compiler style summaries".into());
         }
 
+        let rows = evaluated_rows(units, visible_diagnostics, rstyle_core::report::ordering);
+        let diagnostic_indices = rows.iter().map(|(_, index, _)| *index).collect();
         let (diagnostic_units, diagnostics): (Vec<_>, Vec<_>) =
-            evaluated_rows(units, visible_diagnostics, rstyle_core::report::ordering)
-                .into_iter()
-                .unzip();
+            rows.into_iter().map(|(unit, _, row)| (unit, row)).unzip();
         if let Some(summary) = &mut summary {
             summary.violations = diagnostics.len();
         }
         let (function_units, functions) = evaluated_rows(
             units,
-            |_, evaluation| evaluation.functions.iter(),
+            |_, evaluation| evaluation.functions.iter().enumerate(),
             rstyle_core::complexity_report::ordering,
         )
         .into_iter()
+        .map(|(unit, _, row)| (unit, row))
         .unzip();
         let planning = report.and_then(|report| report.planning.as_ref());
 
@@ -53,6 +55,7 @@ impl<'a> Projection<'a> {
                 && summaries.len() == units.len(),
             diagnostics,
             diagnostic_units,
+            diagnostic_indices,
             summary,
             fix_groups: planning
                 .into_iter()
@@ -72,10 +75,12 @@ impl<'a> Projection<'a> {
             .diagnostics
             .iter()
             .zip(&self.diagnostic_units)
-            .map(|(diagnostic, unit)| {
+            .zip(&self.diagnostic_indices)
+            .map(|((diagnostic, unit), index)| {
                 format!(
-                    "{} [compiler unit {}]",
+                    "{} [diagnostic {}] [compiler unit {}]",
                     rstyle_core::report::diagnostic_line(diagnostic),
+                    index,
                     unit.ordinal(),
                 )
             })
@@ -129,7 +134,7 @@ fn completion(value: Option<bool>) -> &'static str {
 fn visible_diagnostics<'a>(
     unit: &'a Unit,
     evaluation: &'a rstyle_core::report::Report,
-) -> impl Iterator<Item = &'a Diagnostic> {
+) -> impl Iterator<Item = (usize, &'a Diagnostic)> {
     let selected = unit
         .selected_diagnostics
         .as_ref()
@@ -141,23 +146,22 @@ fn visible_diagnostics<'a>(
         .filter(move |(index, _)| {
             selected.is_none_or(|indices| indices.binary_search(index).is_ok())
         })
-        .map(|(_, diagnostic)| diagnostic)
 }
 
-fn evaluated_rows<'a, T: 'a, I: Iterator<Item = &'a T>>(
+fn evaluated_rows<'a, T: 'a, I: Iterator<Item = (usize, &'a T)>>(
     units: &'a [Unit],
     select: impl Fn(&'a Unit, &'a rstyle_core::report::Report) -> I,
     compare: impl Fn(&T, &T) -> std::cmp::Ordering,
-) -> Vec<(UnitId, &'a T)> {
+) -> Vec<(UnitId, usize, &'a T)> {
     let mut rows: Vec<_> = units
         .iter()
         .flat_map(|unit| {
             let select = &select;
             unit.evaluation.iter().flat_map(move |evaluation| {
-                select(unit, evaluation).map(move |row| (unit.unit, row))
+                select(unit, evaluation).map(move |(index, row)| (unit.unit, index, row))
             })
         })
         .collect();
-    rows.sort_by(|(a_unit, a), (b_unit, b)| compare(a, b).then_with(|| a_unit.cmp(b_unit)));
+    rows.sort_by(|(a_unit, _, a), (b_unit, _, b)| compare(a, b).then_with(|| a_unit.cmp(b_unit)));
     rows
 }

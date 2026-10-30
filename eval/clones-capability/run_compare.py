@@ -102,7 +102,7 @@ def roster(facts_file, legacy, workspace_root, excluded_owner="excluded::over_bo
 def commands(binary, manifest, policy, package="clones-capability-acceptance", analysis="source", new_policy=None):
     shared = [str(binary), "rstyle", "--manifest-path", str(manifest), "--package",
               package, "--format", "json"]
-    old = shared + ["--config", str(policy)]
+    old = shared + ["--style-engine", "legacy", "--config", str(policy)]
     flags = (["--effect-density", "--effect-config"] if analysis == "density"
              else ["--source-rules", "--analysis-config"])
     new = shared + ["clones", "--extraction-profile", "hir-data-v3", "--locked",

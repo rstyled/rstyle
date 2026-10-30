@@ -5,7 +5,7 @@ description: Run `cargo rstyle` to find Rust functions that are too long, take t
 
 # rstyle
 
-Deterministic Rust style analysis on rustc HIR. Same input gives byte-identical output.
+Deterministic findings from captured Rust compiler facts. Capture paths and run metadata may differ between runs.
 
 ## Run
 
@@ -37,6 +37,22 @@ diagnostic baseline format and comparison workflow.
 Exit codes: `0` clean, `1` violations found, `2` tool/config/compile error or
 incomplete analysis. Tool errors appear on stderr; unavailable measurements stay
 in the report.
+
+Density findings block by default. Existing `// rstyle-allow(side_effect_density):
+reason` comments work. To avoid code comments, use the existing saved diagnostic
+review file, one finding at a time:
+
+```sh
+cargo rstyle --replay-run RUN --review-file rstyle-reviews.json \
+  --dismiss-compiler-diagnostic UNIT DIAGNOSTIC_INDEX --review-reason "Reviewed IO boundary"
+cargo rstyle --review-file rstyle-reviews.json --format json
+```
+
+Take RUN from `run_directory` and UNIT/DIAGNOSTIC_INDEX from that root diagnostic's
+parallel `diagnostic_units`/`diagnostic_indices` arrays or text labels. Lookup never
+writes; `--review-status` inspects retained entries. Changed findings can reappear,
+other findings remain blocking, and raw per-unit evaluations stay intact. Never
+bulk-dismiss findings merely to make a gate pass.
 
 ## Read the output
 
@@ -416,8 +432,8 @@ The 4-MiB/4,096-entry bounds and checked original owner limitations apply; see
 
 ## Compiler advisory migration
 
-The root style command can opt into this path with
-`cargo rstyle --style-engine compiler --format json`. It automatically selects
+The root style command uses this path by default:
+`cargo rstyle --format json` (compiler by default). It automatically selects
 all authored compiler diagnostics and existing plans, loads workspace rstyle.toml
 or global --config, and exits0/1/2 for clean/findings/incomplete-or-error.
 Package, all-targets, manifest and format flags retain their ordinary selection.
@@ -447,7 +463,7 @@ explicit `--config PATH` override. Replay uses existing report publication.
 Style snapshot schema `/2` stores repeated invocation and selected-unit metadata
 once per snapshot and restores shared immutable values. The reader still accepts
 style `/1`; full clones and ordinary frontend JSON keep their existing formats.
-The default backend stays legacy. Advisory-only live captures without dependency
+The default backend is compiler; `--style-engine legacy` selects the reference collector. Advisory-only live captures without dependency
 capture reuse private builds under a lock. Completed raw owner snapshots are
 reused only for exact artifacts that current Cargo reports fresh, with matching
 collector/build context and tool metadata. Missing cache inputs force recapture;

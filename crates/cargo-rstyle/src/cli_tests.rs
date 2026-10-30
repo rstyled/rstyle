@@ -7,9 +7,9 @@ fn root_style_baseline_flags_require_compiler_style_and_explicit_gate_inputs() {
         vec!["--write-baseline", "baseline.json"],
         vec!["--baseline", "baseline.json", "--fail-on-new"],
     ] {
-        assert!(
-            Cli::try_parse_from(["cargo-rstyle"].into_iter().chain(flags.iter().copied())).is_err()
-        );
+        let implicit =
+            Cli::try_parse_from(["cargo-rstyle"].into_iter().chain(flags.iter().copied())).unwrap();
+        assert!(implicit.validate_style_route().is_ok());
         for engine in ["legacy", "compiler"] {
             let cli = Cli::try_parse_from(
                 ["cargo-rstyle", "--style-engine", engine]
@@ -48,14 +48,16 @@ fn root_style_baseline_flags_require_compiler_style_and_explicit_gate_inputs() {
         "--fail-on-new-compiler",
     ])
     .unwrap();
-    assert!(cli.style_baseline.baseline.is_none());
-    assert!(!cli.style_baseline.fail_on_new);
+    assert!(cli.style_inputs.baseline.baseline.is_none());
+    assert!(!cli.style_inputs.baseline.fail_on_new);
     assert!(cli.validate_style_route().is_ok());
 }
 
 #[test]
 fn root_changed_files_requires_compiler_style_and_is_independent_of_subcommands() {
-    assert!(Cli::try_parse_from(["cargo-rstyle", "--changed-files", "changes.json"]).is_err());
+    let implicit =
+        Cli::try_parse_from(["cargo-rstyle", "--changed-files", "changes.json"]).unwrap();
+    assert!(implicit.validate_style_route().is_ok());
     for engine in ["legacy", "compiler"] {
         let cli = Cli::try_parse_from([
             "cargo-rstyle",
@@ -67,7 +69,7 @@ fn root_changed_files_requires_compiler_style_and_is_independent_of_subcommands(
         .unwrap();
         assert_eq!(cli.validate_style_route().is_ok(), engine == "compiler");
         assert_eq!(
-            cli.style_changed_files.as_deref(),
+            cli.style_inputs.changed_files.as_deref(),
             Some(Path::new("changes.json"))
         );
     }
@@ -79,7 +81,7 @@ fn root_changed_files_requires_compiler_style_and_is_independent_of_subcommands(
         "changes.json",
     ])
     .unwrap();
-    assert!(cli.style_changed_files.is_none());
+    assert!(cli.style_inputs.changed_files.is_none());
     assert!(cli.validate_style_route().is_ok());
 }
 
@@ -87,6 +89,7 @@ fn root_changed_files_requires_compiler_style_and_is_independent_of_subcommands(
 fn style_selection_distinguishes_an_absent_flag_from_explicit_backends() {
     let implicit = Cli::try_parse_from(["cargo-rstyle"]).unwrap();
     assert!(implicit.style_engine.is_none());
+    assert!(implicit.style_backend() == Engine::Compiler);
     for (name, expected) in [("legacy", Engine::Legacy), ("compiler", Engine::Compiler)] {
         let explicit = Cli::try_parse_from(["cargo-rstyle", "--style-engine", name]).unwrap();
         assert!(explicit.style_engine == Some(expected));
@@ -116,14 +119,15 @@ fn root_style_replay_is_explicit_and_independent_of_subcommands() {
     ])
     .unwrap();
     assert_eq!(
-        cli.style_replay_run.as_deref(),
+        cli.style_inputs.replay_run.as_deref(),
         Some(Path::new("saved-run"))
     );
-    assert!(Cli::try_parse_from(["cargo-rstyle", "--replay-run", "saved-run"]).is_err());
+    let implicit = Cli::try_parse_from(["cargo-rstyle", "--replay-run", "saved-run"]).unwrap();
+    assert!(implicit.validate_style_route().is_ok());
     for command in ["patterns", "clones"] {
         let cli =
             Cli::try_parse_from(["cargo-rstyle", command, "--replay-run", "saved-run"]).unwrap();
-        assert!(cli.style_replay_run.is_none());
+        assert!(cli.style_inputs.replay_run.is_none());
     }
 }
 
@@ -190,4 +194,45 @@ fn compiler_pattern_dismissal_requires_one_explicit_saved_review_action() {
         ])
         .is_err()
     );
+}
+
+#[test]
+fn default_style_reviews_reuse_explicit_saved_finding_actions() {
+    let args = [
+        "cargo-rstyle",
+        "--review-file",
+        "reviews.json",
+        "--replay-run",
+        "saved-run",
+        "--dismiss-compiler-diagnostic",
+        "0",
+        "1",
+        "--review-reason",
+        "Reviewed IO boundary",
+    ];
+    let cli = Cli::try_parse_from(args).unwrap();
+    assert!(cli.validate_style_route().is_ok());
+    assert_eq!(
+        cli.style_inputs.review.dismiss_compiler_diagnostic,
+        ["0", "1"]
+    );
+    for missing in ["--review-file", "--review-reason", "--replay-run"] {
+        let i = args.iter().position(|arg| *arg == missing).unwrap();
+        let incomplete: Vec<_> = args[..i].iter().chain(&args[i + 2..]).copied().collect();
+        assert!(Cli::try_parse_from(incomplete).is_err(), "{missing}");
+    }
+    assert!(Cli::try_parse_from(args.iter().copied().chain(["--review-status"])).is_err());
+    for tail in [
+        &["--style-engine", "legacy"][..],
+        &["patterns"][..],
+        &["clones"][..],
+    ] {
+        let cli = Cli::try_parse_from(
+            ["cargo-rstyle", "--review-file", "reviews.json"]
+                .into_iter()
+                .chain(tail.iter().copied()),
+        )
+        .unwrap();
+        assert!(cli.validate_style_route().is_err());
+    }
 }

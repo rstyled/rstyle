@@ -1,4 +1,4 @@
-//! Opt-in style routing through the existing authored compiler diagnostic workflow.
+//! Default style routing through the existing authored compiler diagnostic workflow.
 use super::{Args, CapturedRun, compile_capture, prepare_capture, run_captured_with};
 use crate::Cli;
 use clap::{Args as _, FromArgMatches};
@@ -21,14 +21,20 @@ pub(crate) fn run(mut cli: Cli) -> Result<(String, u8), String> {
 }
 
 fn apply_inputs(cli: &mut Cli, args: Args) -> Args {
-    let baseline = std::mem::take(&mut cli.style_baseline);
+    let inputs = std::mem::take(&mut cli.style_inputs);
+    let baseline = inputs.baseline;
+    let review = inputs.review;
     Args {
-        replay_run: cli.style_replay_run.take(),
-        changed_files: cli.style_changed_files.take(),
+        replay_run: inputs.replay_run,
+        changed_files: inputs.changed_files,
         compiler_baseline: baseline.baseline,
         write_compiler_baseline: baseline.write_baseline,
         fail_on_new_compiler: baseline.fail_on_new,
         fail_on_findings: !baseline.fail_on_new,
+        review_file: review.review_file,
+        review_status: review.review_status,
+        dismiss_compiler_diagnostic: review.dismiss_compiler_diagnostic,
+        review_reason: review.review_reason,
         ..args
     }
 }

@@ -1,9 +1,9 @@
 # Compiler advisory reuse
 
-The normal style command offers an opt-in route:
+The normal style command uses compiler observations by default:
 
 ```sh
-cargo rstyle --style-engine compiler -p my-package --format json
+cargo rstyle -p my-package --format json
 ```
 
 It selects all authored compiler diagnostics and the existing cross-unit planner,
@@ -44,7 +44,7 @@ continue to restore the original bodies. Saved plans
 distinguish these payloads when reusing completed owners. This is an extended
 style report, with compiler metric semantics;
 equal field names do not imply equal legacy density denominators or scores.
-The legacy backend remains the default, available explicitly through
+The reference backend remains available explicitly through
 `--style-engine legacy`. The style-engine option applies only without a subcommand;
 `patterns` independently defaults to compiler workspace discovery.
 
@@ -59,8 +59,30 @@ selection without Cargo, rustc, the driver or source files. Current configuratio
 still applies; use `--config PATH` to reevaluate with an explicit policy. New
 package, manifest and all-targets selections are rejected. The command reuses the
 existing advisory saved-run reader, evaluator, planner and report publication;
-matching and pattern mining remain unrequested. `--replay-run` requires the
-explicit compiler style engine and does not enable replay for legacy style.
+matching and pattern mining remain unrequested. `--replay-run` works with the
+default compiler engine and is rejected with `--style-engine legacy`.
+
+Density findings return 1 until individually reviewed or fixed. Existing
+`// rstyle-allow(side_effect_density): reason` comments still apply. A separate
+review file uses the existing compiler diagnostic review workflow:
+
+```sh
+cargo rstyle --format json
+cargo rstyle --replay-run RUN --review-file rstyle-reviews.json \
+  --dismiss-compiler-diagnostic UNIT DIAGNOSTIC_INDEX --review-reason "Reviewed IO boundary"
+cargo rstyle --review-file rstyle-reviews.json --review-status --format json
+```
+
+Select `UNIT` and `DIAGNOSTIC_INDEX` using the parallel `diagnostic_units` and
+`diagnostic_indices` arrays for the desired root `diagnostics` row, or its text
+labels. The index is into that unit's raw evaluation, not the filtered root list.
+`RUN` is the explicit `run_directory` from that report. Dismissal requires the
+saved run, review file and reason. Normal lookup/status does not write. These
+options forward to the existing schema-9 review store; there is no new ignore
+format or matching policy. Unrelated findings remain blocking. Raw per-unit
+findings, metrics and plans are unchanged; stale reviews and unavailable inputs
+retain their existing behavior. The separate pattern ledger does not hide style
+findings. No review file is loaded implicitly.
 
 Root compiler style also accepts `--changed-files changes.json` on fresh captures
 and explicit replay. The existing manifest format is
@@ -98,8 +120,8 @@ These flags reuse `rstyle.compiler-baseline/1` and the existing authored diagnos
 workflow. `compiler_advisory.diagnostic_baseline` and text output describe the
 comparison. Both commands support explicit `--replay-run PATH` without compiler
 tools or original sources. Comparison can use `--changed-files changes.json`;
-export cannot use a changed-file selection. Baseline flags require the explicit
-compiler style engine and do not change the default backend or metric policy.
+export cannot use a changed-file selection. Baseline flags work with the default
+compiler engine and are rejected with `--style-engine legacy`.
 
 For compiler metrics 5–7, changed-file coverage uses the same lexical source-path
 normalizer as diagnostics. Authored modules loaded through `#[path]` with `..`

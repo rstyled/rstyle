@@ -167,7 +167,7 @@ fn corrected_statement_metrics_replay_without_source_or_manifest() {
 #[test]
 fn legacy_counts_stay_frozen_while_advisory_preserves_the_same_events() {
     let (directory, report) = fixture();
-    let output = rstyle(directory.path(), &["--format", "json"]);
+    let output = reference_style(directory.path(), &["--format", "json"]);
     assert_eq!(output.status.code(), Some(0), "{}", stdout(&output));
     let legacy = facts_for(directory.path(), "clone_fixture-lib.json");
     for (name, statements) in [("one", 4), ("multiple", 7), ("matched", 6), ("blocked", 6)] {

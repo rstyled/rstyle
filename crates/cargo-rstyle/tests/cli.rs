@@ -134,8 +134,13 @@ fn stdout(output: &Output) -> String {
     String::from_utf8(output.stdout.clone()).unwrap()
 }
 
-fn json(dir: &Path) -> Value {
-    let output = rstyle(dir, &["--format", "json"]);
+/// Frozen reference-collector contracts use an explicit backend; rstyle() tests the default.
+fn reference_style(dir: &Path, args: &[&str]) -> Output {
+    rstyle(dir, &[&["--style-engine", "legacy"][..], args].concat())
+}
+
+fn reference_json(dir: &Path) -> Value {
+    let output = reference_style(dir, &["--format", "json"]);
     serde_json::from_slice(&output.stdout).unwrap_or_else(|e| {
         panic!(
             "bad json ({e}): {}",
@@ -167,7 +172,7 @@ fn rules_for(report: &Value, function: &str) -> Vec<String> {
 #[test]
 fn clean_crate_exits_zero() {
     let dir = fixture("clean");
-    let output = rstyle(dir.path(), &[]);
+    let output = reference_style(dir.path(), &[]);
     assert_eq!(
         output.status.code(),
         Some(0),
@@ -175,7 +180,7 @@ fn clean_crate_exits_zero() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(stdout(&output).contains("0 violations"));
-    let report = json(dir.path());
+    let report = reference_json(dir.path());
     assert!(report["diagnostics"].as_array().unwrap().is_empty());
     assert!(report["functions"].as_array().unwrap().is_empty());
     assert_eq!(report["summary"]["functions"], 4);
@@ -184,7 +189,7 @@ fn clean_crate_exits_zero() {
 #[test]
 fn violations_exit_one_and_match_golden_output() {
     let dir = fixture("violations");
-    let output = rstyle(dir.path(), &[]);
+    let output = reference_style(dir.path(), &[]);
     assert_eq!(
         output.status.code(),
         Some(1),
@@ -197,7 +202,7 @@ fn violations_exit_one_and_match_golden_output() {
 #[test]
 fn json_output_reports_resolved_mutations_and_effects() {
     let dir = fixture("violations");
-    let report = json(dir.path());
+    let report = reference_json(dir.path());
     // 4 mutations over 4 statements is also a density of 1000, above the default 500.
     assert_eq!(
         rules_for(&report, "Account::churn"),
@@ -217,7 +222,7 @@ fn json_output_reports_resolved_mutations_and_effects() {
 #[test]
 fn effects_are_classified_from_resolved_paths() {
     let dir = fixture("violations");
-    let report = json(dir.path());
+    let report = reference_json(dir.path());
     let labels = |function: &str| -> Vec<String> {
         diagnostics_for(&report, function)
             .iter()
@@ -252,7 +257,7 @@ fn effects_are_classified_from_resolved_paths() {
 
 #[test]
 fn suppressions_apply_only_with_a_reason() {
-    let report = json(fixture("violations").path());
+    let report = reference_json(fixture("violations").path());
     assert!(rules_for(&report, "allowed").is_empty());
     let missing = rules_for(&report, "missing_reason");
     assert!(missing.contains(&"fn_params".to_string()), "{missing:?}");
@@ -264,7 +269,7 @@ fn suppressions_apply_only_with_a_reason() {
 
 #[test]
 fn derived_code_is_not_analyzed() {
-    let report = json(fixture("violations").path());
+    let report = reference_json(fixture("violations").path());
     let summary = report["summary"]["functions"].as_u64().unwrap();
     // 11 hand-written fns; derive(Debug, Clone, PartialEq) would add more if leaked.
     assert_eq!(summary, 11);
@@ -273,8 +278,8 @@ fn derived_code_is_not_analyzed() {
 #[test]
 fn two_runs_are_byte_identical() {
     let dir = fixture("violations");
-    let first = rstyle(dir.path(), &["--format", "json"]);
-    let second = rstyle(dir.path(), &["--format", "json"]);
+    let first = reference_style(dir.path(), &["--format", "json"]);
+    let second = reference_style(dir.path(), &["--format", "json"]);
     assert_eq!(first.stdout, second.stdout);
     assert!(!first.stdout.is_empty());
 }
@@ -282,21 +287,21 @@ fn two_runs_are_byte_identical() {
 #[test]
 fn fn_spacing_is_configurable() {
     let dir = fixture("violations");
-    let off = json(dir.path());
+    let off = reference_json(dir.path());
     assert!(!rules_for(&off, "noisy").contains(&"fn_spacing".to_string()));
     std::fs::write(
         dir.path().join("rstyle.toml"),
         "[fn_spacing]\nmin_statements = 3\n",
     )
     .unwrap();
-    let on = json(dir.path());
+    let on = reference_json(dir.path());
     assert!(rules_for(&on, "noisy").contains(&"fn_spacing".to_string()));
 }
 
 #[test]
 fn config_change_reevaluates_without_recompiling() {
     let dir = fixture("violations");
-    let before = json(dir.path());
+    let before = reference_json(dir.path());
     let facts = dir.path().join("target/rstyle/facts/violations-lib.json");
     let modified = std::fs::metadata(&facts).unwrap().modified().unwrap();
     std::fs::write(
@@ -304,7 +309,7 @@ fn config_change_reevaluates_without_recompiling() {
         "[fn_params]\nmax_params = 10\n",
     )
     .unwrap();
-    let after = json(dir.path());
+    let after = reference_json(dir.path());
     assert!(rules_for(&before, "too_many").contains(&"fn_params".to_string()));
     assert!(!rules_for(&after, "too_many").contains(&"fn_params".to_string()));
     assert_eq!(
@@ -316,7 +321,7 @@ fn config_change_reevaluates_without_recompiling() {
 #[test]
 fn compile_errors_exit_two() {
     let dir = fixture("broken");
-    let output = rstyle(dir.path(), &[]);
+    let output = reference_style(dir.path(), &[]);
     assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("cargo check failed"));
 }
@@ -325,7 +330,7 @@ fn compile_errors_exit_two() {
 fn bad_config_exits_two() {
     let dir = fixture("clean");
     std::fs::write(dir.path().join("rstyle.toml"), "typo = 1\n").unwrap();
-    let output = rstyle(dir.path(), &[]);
+    let output = reference_style(dir.path(), &[]);
     assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("rstyle.toml"));
 }
@@ -361,7 +366,7 @@ fn strings(value: &Value) -> Vec<&str> {
 #[test]
 fn facts_record_call_graph_ids_and_mutated_types() {
     let dir = fixture("graph");
-    assert!(rstyle(dir.path(), &[]).status.success());
+    assert!(reference_style(dir.path(), &[]).status.success());
     let facts = facts_for(dir.path(), "graph-lib.json");
 
     let direct = fact(&facts, "direct");
@@ -392,7 +397,7 @@ fn facts_record_call_graph_ids_and_mutated_types() {
 #[test]
 fn facts_record_params_and_argument_provenance() {
     let dir = fixture("params");
-    assert!(rstyle(dir.path(), &[]).status.code().is_some());
+    assert!(reference_style(dir.path(), &[]).status.code().is_some());
     let facts = facts_for(dir.path(), "params-lib.json");
 
     let leaf = fact(&facts, "leaf");
@@ -438,7 +443,7 @@ fn facts_record_params_and_argument_provenance() {
 #[test]
 fn effects_propagate_through_calls_and_stop_at_boundaries() {
     let dir = fixture("transitive");
-    let report = json(dir.path());
+    let report = reference_json(dir.path());
     let top = diagnostics_for(&report, "top");
     assert_eq!(top.len(), 1, "{report}");
     assert_eq!(top[0]["actual"], 750); // 3 (io, two hops up) * 1000 / 4 statements
@@ -456,7 +461,7 @@ fn effects_propagate_through_calls_and_stop_at_boundaries() {
         "[fn_spacing]\nmin_statements = 0\n[side_effects]\nmin_lines = 0\nmin_statements = 1\ntransitive_depth = 0\n",
     )
     .unwrap();
-    let report = json(dir.path());
+    let report = reference_json(dir.path());
     assert!(
         rules_for(&report, "top").is_empty(),
         "depth 0 disables propagation"
@@ -466,7 +471,7 @@ fn effects_propagate_through_calls_and_stop_at_boundaries() {
 #[test]
 fn fix_groups_stack_signature_changes_and_leave_the_rest_independent() {
     let dir = fixture("groups");
-    let report = json(dir.path());
+    let report = reference_json(dir.path());
     let groups = report["fix_groups"].as_array().unwrap();
     assert_eq!(groups.len(), 2, "{report}");
 
@@ -484,7 +489,7 @@ fn fix_groups_stack_signature_changes_and_leave_the_rest_independent() {
     assert_eq!(names(&groups[1]), ["lonely"]);
     assert_eq!(groups[0]["functions"][0]["rules"][0], "fn_params");
 
-    let text = stdout(&rstyle(dir.path(), &[]));
+    let text = stdout(&reference_style(dir.path(), &[]));
     assert!(
         text.contains("fix groups: 2 (1 stacked, 1 independent)"),
         "{text}"
@@ -495,7 +500,7 @@ fn fix_groups_stack_signature_changes_and_leave_the_rest_independent() {
 #[test]
 fn param_plan_orders_callee_then_callers_with_bundle_and_pass_through() {
     let dir = fixture("params");
-    let report = json(dir.path());
+    let report = reference_json(dir.path());
     let group = &report["fix_groups"][0];
     let plan = &group["plan"];
     let steps: Vec<(&str, bool, u64)> = plan["steps"]
@@ -524,7 +529,7 @@ fn param_plan_orders_callee_then_callers_with_bundle_and_pass_through() {
     );
     assert_eq!(bundle["params"].as_array().unwrap().len(), 3);
 
-    let text = stdout(&rstyle(dir.path(), &[]));
+    let text = stdout(&reference_style(dir.path(), &[]));
     assert!(text.contains("1. signature leaf"), "{text}");
     assert!(text.contains("2. call sites mid"), "{text}");
     assert!(text.contains("bundle (1 sites)"), "{text}");
@@ -537,7 +542,7 @@ fn sig_of<'a>(facts: &'a [Value], name: &str) -> &'a Value {
 #[test]
 fn facts_record_sig() {
     let dir = fixture("animals");
-    assert!(rstyle(dir.path(), &[]).status.code().is_some());
+    assert!(reference_style(dir.path(), &[]).status.code().is_some());
     let facts = facts_for(dir.path(), "animals-lib.json");
 
     let bark = sig_of(&facts, "Dog::bark");
@@ -787,7 +792,7 @@ fn patterns_output_is_byte_identical_across_runs_and_copies() {
 fn pdg_is_only_recorded_for_patterns_and_modes_do_not_clobber() {
     let dir = fixture("animals");
     let style_facts = |dir: &Path| facts_for(dir, "animals-lib.json");
-    assert!(rstyle(dir.path(), &[]).status.code().is_some());
+    assert!(reference_style(dir.path(), &[]).status.code().is_some());
     assert!(style_facts(dir.path()).iter().all(|f| f["pdg"].is_null()));
 
     patterns_json(dir.path(), &[]);
@@ -807,7 +812,7 @@ fn pdg_is_only_recorded_for_patterns_and_modes_do_not_clobber() {
     );
 
     // Style facts stay PDG-free after a patterns run, and a second style run still works.
-    assert!(rstyle(dir.path(), &[]).status.code().is_some());
+    assert!(reference_style(dir.path(), &[]).status.code().is_some());
     assert!(style_facts(dir.path()).iter().all(|f| f["pdg"].is_null()));
     assert!(
         patterns_json(dir.path(), &[])["candidates"]

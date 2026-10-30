@@ -8126,3 +8126,49 @@ not rerun for this documentation-only change. C124 Ubuntu x86/ARM jobs pass with
 macOS still running; C125 native jobs remain running at the latest poll.
 The pending default-density choice is unchanged. No speedup, broader replacement
 completion or new metric/policy/cache/hash implementation is claimed.
+
+
+### C127 — compiler default with existing individual finding reviews (2026-10-30)
+
+The user selected compiler style as the default, retaining blocking density
+findings and individual dismissals through existing rstyle-allow comments or a
+separate review file. Root style now defaults to the completed authored compiler
+route; explicit `--style-engine legacy` retains the reference collector. Replay,
+changed-file selection and baseline options no longer require an explicit compiler
+flag. Subcommand options remain independent and reference-style replay/review/
+baseline combinations remain rejected.
+
+Root `--review-file`, `--review-status`, `--dismiss-compiler-diagnostic UNIT INDEX`
+and `--review-reason` forward into the existing schema-9 diagnostic review workflow.
+There is no new ignore format, matcher, policy, cache, hash or bulk-dismiss action.
+Dismissal requires an explicit saved run and reason. Completed root diagnostics
+retain their original per-unit indices in `diagnostic_indices` and text labels,
+so filtering/sorting cannot renumber a saved finding. Whole-scope raw evaluations,
+metrics, planning inputs and strict matching remain intact.
+
+Independent real-Cargo cases use two IO density findings, an unrelated parameter
+finding and a source-allowed IO function. Default and explicit compiler projections
+agree. Dismissing one density finding leaves the other and the parameter finding
+blocking; dismissing both still leaves the parameter finding blocking. Raw findings
+and source bytes stay exact. Missing-file review lookup does not write. Replay
+without source/manifests/tools retains the dismissal and original indices; changing
+density policy reveals the finding again without editing the review file. Clean
+and source-comment-allowed controls return0.
+
+The current workspace completes all10,159 authored functions and reports48 density
+findings with exit1, implementing the requested behavior. No repository findings
+are dismissed automatically. The pre-existing zero-violation reference style CI
+gate now selects its backend explicitly; both pattern gates remain. Frozen
+reference collector/cache/golden tests and the side-by-side runner also select
+their reference backend explicitly, while new default acceptance uses no engine
+flag. README, advisory docs and embedded skill describe the default and existing
+individual review workflow. All3,796 Rust tests pass (five skipped), along with doctests, formatting,
+all-target Clippy, 248 Python acceptance tests and 50 script tests. Reference style has zero
+violations. Both pattern gates pass with the same12 reviewed IDs and unchanged
+repository ledger. The default compiler gate returns the expected1 for exactly
+the previous C12648 density diagnostics; every new root unit/index selector
+matches its original raw diagnostic. Validation results are recorded in
+`eval/clones-capability/default-compiler-style-reviews-study.json`. C125 native
+Ubuntu x86/ARM and macOS15 CI subsequently passed; containing-commit CI remains
+pending. This milestone does not establish general refactor safety, full caller
+closure, exhaustive Rust semantics or the later selectively scoped graph analyses.

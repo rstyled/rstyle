@@ -23,10 +23,10 @@ whose evidence remains usable when a body is excluded from strict matching.
 collectors and core policy. Add `--compiler-advisory --compiler-complexity-top 20`
 to rank clean and flagged functions by completed COG/CC scores per unit;
 missing scores and owners remain explicit, including on saved-facts replay.
-Try that path for normal style checks with
-`cargo rstyle --style-engine compiler --format json`. It reads workspace
+Normal style checks use that compiler path by default:
+`cargo rstyle --format json`. It reads workspace
 `rstyle.toml` (or `--config`), checks all authored rules and returns 1 for findings.
-The legacy backend remains the default. This route reuses private builds and completed owner observations when Cargo
+Use `--style-engine legacy` for the reference collector. The default reuses private builds and completed owner observations when Cargo
 reports the exact artifacts fresh; reports retain separate compilation contexts.
 Root JSON exposes diagnostics, summary, fix groups and complexity rows, with
 explicit scope and planning completeness. Root style saves its numeric compiler
@@ -45,6 +45,24 @@ inventory to a new file, and `--baseline baseline.json --fail-on-new` to fail CI
 only for new/changed selected findings or policy/build-context drift. Raw findings
 remain visible, and incomplete analysis still exits 2. Export retains the normal
 finding exit status. Both workflows support explicit saved-run replay.
+Density findings remain blocking, just like other violations. Dismiss individual
+reviewed findings with the existing `rstyle-allow(side_effect_density)` source
+comment and a reason, or use the existing separate review file without changing
+source:
+
+```sh
+cargo rstyle --format json
+cargo rstyle --replay-run RUN --review-file rstyle-reviews.json \
+  --dismiss-compiler-diagnostic UNIT DIAGNOSTIC_INDEX --review-reason "Reviewed IO boundary"
+cargo rstyle --review-file rstyle-reviews.json --format json
+```
+
+Use the `run_directory` and parallel `diagnostic_units`/`diagnostic_indices`
+entries from the report (also shown in text). Reviews hide only the exact finding;
+changed values, policy or build context can make it visible again. Raw per-unit
+findings remain available. `--review-status` inspects the file without writing.
+The review file is explicit and independent of the pattern ignore ledger.
+
 Default `cargo rstyle patterns` also saves metadata and its advisory graphs,
 avoiding full body trees. Pattern and review replay need no source or compiler
 tools; body-dependent analysis requires a full clones capture.

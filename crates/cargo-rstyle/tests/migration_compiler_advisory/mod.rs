@@ -9,6 +9,7 @@ mod style_baseline;
 mod style_changed_files;
 mod style_contexts;
 mod style_payload;
+mod style_reviews;
 mod style_routing;
 mod style_selection;
 use super::*;

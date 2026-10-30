@@ -38,17 +38,11 @@ struct Cli {
     config: Option<PathBuf>,
     #[arg(long, global = true)]
     manifest_path: Option<PathBuf>,
-    /// Style backend (default: legacy); compiler selects authored diagnostics and plans.
+    /// Style backend (default: compiler); legacy retains the reference collector.
     #[arg(long, value_enum)]
     style_engine: Option<Engine>,
-    /// Reevaluate an explicit saved compiler-style run without compiling.
-    #[arg(long = "replay-run", requires = "style_engine")]
-    style_replay_run: Option<PathBuf>,
-    /// Select compiler-style findings with a workspace-relative changed-file JSON manifest.
-    #[arg(long = "changed-files", requires = "style_engine")]
-    style_changed_files: Option<PathBuf>,
     #[command(flatten)]
-    style_baseline: StyleBaselineArgs,
+    style_inputs: StyleInputs,
     /// Ignore ledger (default: <workspace root>/rstyle-ignore.toml).
     #[arg(long, global = true)]
     ignore_file: Option<PathBuf>,
@@ -58,26 +52,63 @@ struct Cli {
 }
 
 impl Cli {
+    fn style_backend(&self) -> Engine {
+        self.style_engine.unwrap_or_default()
+    }
+
     fn validate_style_route(&self) -> Result<(), &'static str> {
-        if self.style_engine == Some(Engine::Compiler) && self.command.is_some() {
+        if self.command.is_some() && (self.style_engine.is_some() || self.style_inputs.requested())
+        {
             return Err("--style-engine applies to the default style command only");
         }
-        if self.style_replay_run.is_some() && self.style_engine != Some(Engine::Compiler) {
+        if self.style_inputs.replay_run.is_some() && self.style_backend() != Engine::Compiler {
             return Err(
                 "--replay-run on the default style command requires --style-engine compiler",
             );
         }
-        if self.style_changed_files.is_some() && self.style_engine != Some(Engine::Compiler) {
+
+        if self.style_inputs.changed_files.is_some() && self.style_backend() != Engine::Compiler {
             return Err(
                 "--changed-files on the default style command requires --style-engine compiler",
             );
         }
-        self.style_baseline.validate_engine(self.style_engine)
+        if self.style_inputs.review.review_file.is_some()
+            && self.style_backend() != Engine::Compiler
+        {
+            return Err("Style review options require --style-engine compiler");
+        }
+        self.style_inputs
+            .baseline
+            .validate_engine(self.style_backend())
     }
 }
 
 #[derive(Args, Default)]
-#[group(requires = "style_engine", multiple = true)]
+#[group(multiple = true)]
+struct StyleInputs {
+    /// Reevaluate an explicit saved compiler-style run without compiling.
+    #[arg(id = "style_replay_run", long = "replay-run")]
+    replay_run: Option<PathBuf>,
+    /// Select compiler-style findings with a workspace-relative changed-file JSON manifest.
+    #[arg(id = "style_changed_files", long = "changed-files")]
+    changed_files: Option<PathBuf>,
+    #[command(flatten)]
+    baseline: StyleBaselineArgs,
+    #[command(flatten)]
+    review: StyleReviewArgs,
+}
+
+impl StyleInputs {
+    fn requested(&self) -> bool {
+        self.replay_run.is_some()
+            || self.changed_files.is_some()
+            || self.baseline.requested()
+            || self.review.review_file.is_some()
+    }
+}
+
+#[derive(Args, Default)]
+#[group(multiple = true)]
 struct StyleBaselineArgs {
     /// Compare compiler-style findings with a saved whole-scope inventory.
     #[arg(long, conflicts_with = "write_baseline")]
@@ -91,14 +122,33 @@ struct StyleBaselineArgs {
 }
 
 impl StyleBaselineArgs {
-    fn validate_engine(&self, engine: Option<Engine>) -> Result<(), &'static str> {
-        if (self.baseline.is_some() || self.write_baseline.is_some())
-            && engine != Some(Engine::Compiler)
-        {
+    fn requested(&self) -> bool {
+        self.baseline.is_some() || self.write_baseline.is_some()
+    }
+
+    fn validate_engine(&self, engine: Engine) -> Result<(), &'static str> {
+        if self.requested() && engine != Engine::Compiler {
             return Err("Style baseline options require --style-engine compiler");
         }
         Ok(())
     }
+}
+
+#[derive(Args, Default)]
+#[group(multiple = true)]
+struct StyleReviewArgs {
+    /// Apply individual saved finding reviews; lookup never writes.
+    #[arg(long)]
+    review_file: Option<PathBuf>,
+    /// Inspect retained reviews, including stale and unavailable findings.
+    #[arg(long, requires = "review_file")]
+    review_status: bool,
+    /// Dismiss one diagnostic from an explicit saved run, retaining its reason.
+    #[arg(long, num_args = 2, value_names = ["UNIT", "DIAGNOSTIC_INDEX"], requires_all = ["review_file", "review_reason", "style_replay_run"], conflicts_with = "review_status")]
+    dismiss_compiler_diagnostic: Vec<String>,
+    /// Reason for the selected individual finding dismissal.
+    #[arg(long, requires = "dismiss_compiler_diagnostic")]
+    review_reason: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -534,7 +584,7 @@ fn main() -> ExitCode {
         }
         None => {}
     }
-    if cli.style_engine.unwrap_or(Engine::Legacy) == Engine::Compiler {
+    if cli.style_backend() == Engine::Compiler {
         return exit_with(clones::style_route::run(cli));
     }
     let result = analyze(&cli).and_then(|report| Ok((render(&report, cli.format)?, report)));

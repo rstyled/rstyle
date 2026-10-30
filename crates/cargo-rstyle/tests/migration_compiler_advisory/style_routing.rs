@@ -124,7 +124,7 @@ fn root_style_route_uses_workspace_config_suppressions_and_finding_exit() {
     let scope = &report["compiler_advisory"]["units"][0]["diagnostic_scope"];
     assert_eq!(scope["request"]["source_scope"], "authored");
     assert_eq!(scope["request"]["rules"], serde_json::json!([]));
-    let legacy = rstyle(directory.path(), &["--format", "json"]);
+    let legacy = reference_style(directory.path(), &["--format", "json"]);
     checked(&legacy, 1);
     let legacy: Value = serde_json::from_slice(&legacy.stdout).unwrap();
     assert_eq!(

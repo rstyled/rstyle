@@ -999,3 +999,16 @@ metrics, plans and complete build settings agree on repeat runs. Sequential warm
 repeat observations are 0.85s/91,704KiB reference and 5.99s/852,788KiB compiler;
 these are native Linux ARM64 dev observations, not cold builds or speedup claims.
 Default behavior and production finding severity remain unchanged.
+
+
+### Compiler style default and existing individual reviews (C127)
+
+`default-compiler-style-reviews-study.json` records the user-selected compiler
+default with density findings still blocking. Root flags reuse the existing
+schema-9 finding-review workflow; source rstyle-allow comments still work. No
+new ignore format or matching policy is introduced. Independent acceptance
+covers individual hiding, unrelated blocking findings, unchanged raw evaluations,
+source/tool-free replay, read-only lookup/status, policy staleness and clean
+controls. Current workspace default reports48 density findings over10,159 authored
+functions with exit1; no repository finding is dismissed automatically. Reference
+style and both pattern gates remain explicit comparison evidence.
