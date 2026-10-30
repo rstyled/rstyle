@@ -600,6 +600,14 @@ already resolved effects graph; no new body proofs, hashes or graph copies.
 It can also be requested for the first time during saved-run replay. Raw plans
 retain the full assessed scope when reviews/changed files filter diagnostic
 presentation.
+For clean functions too, add `--compiler-callers function:uN:fN` with an explicit
+`--replay-run`. `--compiler-caller-hops N` defaults to one; zero selects only the
+seed. The optional `planning.caller_query` lists known potential callers including
+the seed, using the existing resolved graph traversal. Resolve keys in that saved
+report's function census and compiler contexts, never as stable review IDs.
+Missing/excluded seeds error; generated members list unavailable authored facts.
+Planning coverage still applies; outside-scope and unknown dynamic callers remain
+unenumerated. The query changes no findings, plans, review identities or strict gates.
 `planning.required_edits_complete` separately reports whether required edits for
 the requested diagnostics are complete. Complete body-local worklists can coexist
 with incomplete full planning inputs: core grouping must require zero caller hops

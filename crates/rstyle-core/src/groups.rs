@@ -87,10 +87,14 @@ fn violators(facts: &[FnFacts], diagnostics: &[Diagnostic]) -> BTreeMap<usize, B
 }
 
 /// `from` plus its callers within `hops` calls.
-fn with_callers(from: usize, hops: usize, callers: &[Vec<usize>]) -> BTreeSet<usize> {
+/// Indices must belong to the same resolved graph and `from` must exist.
+pub fn with_callers(from: usize, hops: usize, callers: &[Vec<usize>]) -> BTreeSet<usize> {
     let mut seen: BTreeSet<usize> = BTreeSet::from([from]);
     let mut frontier = vec![from];
     for _ in 0..hops {
+        if frontier.is_empty() {
+            break;
+        }
         let next: Vec<usize> = frontier
             .iter()
             .flat_map(|&f| callers[f].iter().copied())
@@ -411,6 +415,23 @@ mod tests {
     use super::*;
     use crate::facts::{Edge, sample};
     use crate::graph;
+
+    #[test]
+    fn caller_reach_bounds_cycles_and_stops_at_a_fixed_point() {
+        // 0 <- 1 <- 2 <- 3, with a 1/2 cycle, duplicate edge and isolated 4.
+        let callers = vec![vec![1, 1], vec![2], vec![1, 3], vec![], vec![]];
+        for (hops, expected) in [(0, vec![0]), (1, vec![0, 1]), (2, vec![0, 1, 2])] {
+            assert_eq!(
+                with_callers(0, hops, &callers),
+                expected.into_iter().collect()
+            );
+        }
+        assert_eq!(
+            with_callers(0, usize::MAX, &callers),
+            BTreeSet::from([0, 1, 2, 3])
+        );
+        assert_eq!(with_callers(4, usize::MAX, &callers), BTreeSet::from([4]));
+    }
 
     fn function(name: &str, line: usize, calls: &[&str]) -> FnFacts {
         let mut f = sample(name);

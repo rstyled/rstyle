@@ -41,6 +41,29 @@ impl fmt::Display for FunctionKey {
     }
 }
 
+impl std::str::FromStr for FunctionKey {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let invalid =
+            || "Expected a saved-report function ID: function:u<unit>:f<function>".to_string();
+        let (unit, function) = value
+            .strip_prefix("function:u")
+            .and_then(|value| value.split_once(":f"))
+            .ok_or_else(invalid)?;
+        let ordinal = |part: &str| {
+            if part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()) {
+                return Err(invalid());
+            }
+            part.parse::<u32>().map_err(|_| invalid())
+        };
+        Ok(Self {
+            unit: UnitId(ordinal(unit)?),
+            function: ordinal(function)?,
+        })
+    }
+}
+
 impl Serialize for FunctionKey {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.collect_str(self)

@@ -469,6 +469,26 @@ Source/tool-free replay uses the same captured graph and owner identities.
 
 ## Cross-unit compiler planning
 
+To inspect callers of a function with or without diagnostics, use its report-local
+key from an explicit saved run:
+
+```sh
+cargo rstyle clones --extraction-profile hir-data-v3 --compiler-advisory \
+  --compiler-plans --replay-run target/rstyle/clones/run-EXPLICIT \
+  --compiler-callers function:u0:f12 --compiler-caller-hops 2 --format json
+```
+
+`compiler_advisory.planning.caller_query` lists the seed and known potential
+callers within the requested reverse call reach. The default is one hop; zero
+returns only the seed. This reuses the core planner's traversal of the resolved
+graph. Keys resolve through the same saved run's function census and compilation
+contexts; they are not stable review IDs. An absent or excluded seed is an error.
+Generated members remain in the topology, with missing authored facts listed in
+`unavailable_authored_facts`. Parent planning coverage and unresolved-call reasons
+still apply. Even a complete captured graph does not enumerate callers outside
+the selected Cargo scope, unknown dynamic targets or all possible executions.
+The query does not change diagnostics, plans, review identities or finding exits.
+
 Add `--compiler-plans` to `--compiler-advisory` to run the existing core fix-group
 and parameter-stacking planner over the same resolved graph used for compiler
 effects. This is an analysis switch, so an already captured advisory run can

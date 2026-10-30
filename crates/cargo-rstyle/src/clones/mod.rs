@@ -158,6 +158,14 @@ pub struct Args {
     /// Reuse core fix groups and parameter plans across captured dependency units; advisory only.
     #[arg(long, requires = "compiler_advisory")]
     compiler_plans: bool,
+    /// Inspect a saved-report function and its known potential callers, including clean functions.
+    #[arg(long, requires_all = ["compiler_plans", "replay_run"])]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    compiler_callers: Option<FunctionKey>,
+    /// Reverse call reach for --compiler-callers; defaults to one hop, zero selects only the seed.
+    #[arg(long, requires = "compiler_callers")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    compiler_caller_hops: Option<usize>,
     /// TOML policy for compiler metrics, proposal effects and exclusions; independent of strict clones.
     #[arg(long, requires = "compiler_inputs")]
     compiler_advisory_config: Option<PathBuf>,

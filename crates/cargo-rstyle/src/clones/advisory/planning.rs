@@ -30,6 +30,17 @@ pub(super) struct Report {
     call_graph_complete: bool,
     limitations: &'static [&'static str],
     groups: Vec<Group>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    caller_query: Option<CallerQuery>,
+}
+
+#[derive(Serialize)]
+struct CallerQuery {
+    seed: FunctionKey,
+    hops: usize,
+    /// Includes the seed; keys resolve through this saved run's function census.
+    members: Vec<FunctionKey>,
+    unavailable_authored_facts: Vec<FunctionKey>,
 }
 
 #[derive(Serialize)]
@@ -122,7 +133,39 @@ impl Captured {
                 "Requested completed diagnostics drive these plans; reviews and changed-file presentation do not filter planning seeds.",
             ],
             groups,
+            caller_query: self.caller_query(ctx, &inputs)?,
         })
+    }
+
+    fn caller_query(
+        &self,
+        ctx: &Context<'_>,
+        inputs: &Inputs<'_>,
+    ) -> Result<Option<CallerQuery>, String> {
+        let Some(seed) = ctx.args.compiler_callers else {
+            return Ok(None);
+        };
+        let index = self
+            .owners
+            .iter()
+            .position(|owner| owner.key == seed)
+            .ok_or("Caller query seed is unavailable in the selected saved-run call graph")?;
+        let hops = ctx.args.compiler_caller_hops.unwrap_or(1);
+        let selected = rstyle_core::groups::with_callers(index, hops, &self.graph.callers());
+
+        Ok(Some(CallerQuery {
+            seed,
+            hops,
+            members: selected
+                .iter()
+                .map(|&index| self.owners[index].key)
+                .collect(),
+            unavailable_authored_facts: selected
+                .iter()
+                .filter(|&&index| inputs.facts[index].facts.is_none())
+                .map(|&index| self.owners[index].key)
+                .collect(),
+        }))
     }
 
     fn group(&self, group: IndexedGroup) -> Group {
@@ -276,8 +319,28 @@ impl Report {
             "    {} known call graph functions; call graph complete={}",
             self.known_call_graph_functions, self.call_graph_complete,
         ));
+
         lines.extend(self.groups.iter().map(Group::render));
+        if let Some(query) = &self.caller_query {
+            lines.push(query.render());
+        }
         lines.join("\n")
+    }
+}
+
+impl CallerQuery {
+    fn render(&self) -> String {
+        let summary = format!(
+            "    Known potential caller query: {} within {} hops (includes seed); {} members, {} without authored facts. Captured resolved graph only.",
+            self.seed,
+            self.hops,
+            self.members.len(),
+            self.unavailable_authored_facts.len(),
+        );
+        std::iter::once(summary)
+            .chain(self.members.iter().map(|key| format!("        {key}")))
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }
 

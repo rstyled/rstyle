@@ -7916,3 +7916,53 @@ x86/ARM and macOS15 CI passes; containing-commit native CI remains pending.
 The default-style usefulness/resource disposition and broader selective graph/
 anomaly scope remain open. This increment delivers the shared headless workflow;
 it does not establish overall replacement or change authored metric semantics.
+
+### C122 — inspect saved-run callers of clean functions (2026-10-30)
+
+Lead owns the existing core traversal seam, typed report-key parser, optional
+CLI/report query, independent acceptance, documentation, integration and Git.
+`--compiler-callers function:uN:fN` requires `--compiler-plans` and an explicit
+`--replay-run`. It inspects functions even without diagnostics. Optional
+`--compiler-caller-hops` defaults to one; zero returns only the seed. The query
+borrows the planner's resolved graph and owner registry and invokes its existing
+bounded reverse traversal. The shared traversal now stops at an empty frontier,
+so excessive requested hops do not spin after reaching a fixed point. No new
+resolver, collector, evaluator, hash, cache, proof or metric policy is added.
+
+The optional planning report lists known potential callers including the seed,
+plus generated members missing authored facts. Parent graph/input coverage and
+unresolved-call reasons remain visible. Invalid, excluded and unavailable seeds
+are errors, not known-empty results. Typed keys are parsed once and compared
+directly within the selected saved run; they are not stable review identities.
+Raw diagnostics, plans, metrics, finding exits and strict matching are unchanged.
+Outside-scope and unknown dynamic callers remain unenumerated even when the
+captured graph is complete. This is caller inspection, not dependence slicing,
+an anomaly detector or rewrite safety.
+
+Seven real-Cargo cases independently cover a clean cross-package chain and
+unrelated namesakes, zero/one/two hops, source/manifest deletion, tool-free compact
+JSON and text, generated topology, missing dependency targets, check/test
+ambiguity, malformed/overflowing IDs and missing seeds. A core hand-labeled graph
+checks duplicate edges, cycles, disconnected vertices and maximum requested reach.
+
+The explicit saved C119 numeric run contains 10,142 authored functions in six
+contexts and 19,755 known graph vertices including generated owners. Source
+inspection independently labels four direct callers of
+`clones::review::baseline_common::contexts`; the one-hop query returns precisely
+those plus the seed, which has no style finding. Two hops return the expected
+eight members. Original diagnostics, plans and strict-execution outputs compare
+equal. Cargo, rustc, driver and PATH tools are disabled. Project source remains
+present; independent fixtures separately delete source/manifests. These are
+saved-input checks, not fresh containing-commit captures. Base/one-hop/two-hop
+replay takes 5.19/5.09/5.07s with peak RSS 853,808–853,932KiB; no speedup is claimed.
+
+All 3,786 Rust tests and doctests pass, alongside formatting, all-target Clippy,
+zero style violations and both pattern gates with zero visible candidates and
+the same 13 reviewed IDs. Receipt:
+eval/clones-capability/project-caller-query-study.json. C120 and C121 native
+Ubuntu x86/ARM and macOS15 CI pass; containing-commit native CI remains pending.
+Remote main is still 1689392e and is already an ancestor of this branch.
+
+Default-style usefulness and broader selected graph/anomaly acceptance remain
+open. Review those replacement requirements before introducing another consumer;
+this query does not establish overall replacement.
