@@ -128,17 +128,42 @@ fn command(paths: &Paths<'_>, selection: &Selection<'_>) -> Command {
     cmd
 }
 
-/// Commands select their own extraction mode; inherited producer settings cannot
-/// change it. Resolve RSTYLE_DRIVER before calling this helper.
+/// Commands select their own extraction mode; inherited control settings cannot
+/// change it. Preserve project inputs, including Cargo's build-script rustc-env
+/// metadata. Resolve RSTYLE_DRIVER before calling this helper.
 pub fn clear_rstyle_environment(command: &mut Command) {
     for (key, value) in std::env::vars_os() {
         if diagnostic_environment(&key, &value) {
             continue;
         }
-        if key.to_string_lossy().starts_with("RSTYLE_") {
+        if control_environment(&key) {
             command.env_remove(key);
         }
     }
+}
+
+fn control_environment(key: &OsStr) -> bool {
+    key.to_str().is_some_and(|key| {
+        key.starts_with("RSTYLE_DIAGNOSTIC_")
+            || matches!(
+                key,
+                "RSTYLE_CAPTURE_PLAN"
+                    | "RSTYLE_COMPILER_ADVISORY"
+                    | "RSTYLE_COMPILER_ADVISORY_ONLY"
+                    | "RSTYLE_COMPILER_PATTERNS"
+                    | "RSTYLE_COMPILER_SOURCE_ROOT"
+                    | "RSTYLE_DRIVER"
+                    | "RSTYLE_HIR_DOCUMENT_DIR"
+                    | "RSTYLE_HIR_FACTS_FILE"
+                    | "RSTYLE_HIR_EXTRACTION_PROFILE"
+                    | "RSTYLE_LOCAL_MUTATION_FACTS"
+                    | "RSTYLE_LOCAL_SOURCE_FACTS"
+                    | "RSTYLE_OUT_DIR"
+                    | "RSTYLE_PDG"
+                    | "RSTYLE_PERF"
+                    | "RSTYLE_ROOT"
+            )
+    })
 }
 
 fn diagnostic_environment(key: &OsStr, value: &OsStr) -> bool {
@@ -172,6 +197,27 @@ pub fn cargo_check(paths: &Paths<'_>, selection: &Selection<'_>) -> Result<(), S
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn compilation_inputs_are_distinct_from_extraction_controls() {
+        for name in [
+            "RSTYLE_PRODUCER_REVISION",
+            "RSTYLE_RUSTC_VERSION",
+            "RSTYLE_RUSTC_COMMIT",
+            "RSTYLE_PROJECT_VALUE",
+            "OUT_DIR",
+        ] {
+            assert!(!control_environment(OsStr::new(name)), "{name}");
+        }
+        for name in [
+            "RSTYLE_CAPTURE_PLAN",
+            "RSTYLE_HIR_FACTS_FILE",
+            "RSTYLE_COMPILER_ADVISORY_ONLY",
+            "RSTYLE_DIAGNOSTIC_CAPTURE_ONLY",
+        ] {
+            assert!(control_environment(OsStr::new(name)), "{name}");
+        }
+    }
 
     #[test]
     fn toolchain_is_pinned_nightly() {

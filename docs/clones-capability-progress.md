@@ -6905,3 +6905,42 @@ and native CI still govern retirement.
 Native reconciliation: C95/96b57042 run40973928053 now has successful check jobs
 on macos-15, ubuntu-24.04 and ubuntu-24.04-arm. This verifies that preceding
 checkpoint, not the current C96 diff; C96 native CI remains pending publication.
+
+### C97 — preserve Cargo compilation inputs at the capture boundary (2026-10-30)
+
+The first whole-workspace root compiler check failed to compile rstyle-driver:
+the shared command wrapper removed every RSTYLE_* variable, including three
+rustc-env values emitted by its Cargo build script. Cargo's build-script record
+contained the values; env! in the driver could not see them. Clear only actual
+runtime extraction controls and the diagnostic namespace, retaining the existing
+diagnostic exceptions. Project compilation inputs survive; the selected capture
+plan still supplies its own controls. No collector, hash, proof or metric change.
+
+A real Cargo regression requires arbitrary project and all three driver metadata
+values at compile time. Cold capture, warm owner reuse and changed build/source
+values pass. Fourteen focused routing/environment tests pass. Read-only review
+checked runtime consumers and all three cleanup call sites, finding no missed
+controls or new mode leakage.
+
+The fixed whole-workspace check captures six compilation contexts and evaluates
+all10,051 authored functions with complete numeric/complexity coverage and no
+unresolved authored callees. It exits1 for47 side-effect-density findings, not a
+capture error. Required edit worklists complete; full planning inputs remain
+incomplete, with9,595 generated owners outside authored numeric/edit scope.
+The run takes68.74s and peaks at3,060,896 KiB RSS. This single observation includes
+Cargo/build costs and supports no speedup or default resource comparison.
+Commands, initial failure, per-unit coverage and results are retained in
+eval/clones-capability/project-workspace-style-environment-study.json.
+
+Defaults remain legacy. Complete capture does not establish usefulness of the47
+findings or complete caller/planner coverage; those default/retirement gates
+remain open independently of the earlier finite metric review.
+
+Integrated C97 validation: all3,690 Rust tests pass in266.507s with five existing
+skips, plus doctests;248 capability and50 script Python tests pass. Formatting,
+workspace/all-target Clippy and both legacy gates pass:0 violations over10,051
+functions, with the same13 unfiltered pattern IDs as the main-rebase baseline.
+Native C96 run40976506878 is still in progress on macOS15 and Ubuntu x86/ARM;
+C97 native validation is pending publication. Next ready work: retain generated
+caller topology through a small borrowed seam in the existing core planner,
+without inventing authored edit coordinates or parameter facts.

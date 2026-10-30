@@ -46,6 +46,11 @@ of previous runs and builds. Compiler incremental compilation stays disabled;
 strict and explicit dependency captures retain isolated per-run build directories.
 No source or compiler-artifact content scans or new hashes identify cache entries.
 
+The compiler wrapper clears extraction controls before applying the selected
+capture plan. It preserves Cargo build-script `rustc-env` values and arbitrary
+project compilation inputs, including names beginning with `RSTYLE_`. Those
+inputs must reach rustc unchanged on cold, reused and changed builds.
+
 Measured warm rstyle-core captures took1.08–1.18s with all31 artifacts fresh and
 no rebuilt owners, compared with the preceding5.20–5.35s owner-rebuild observations.
 Reports and numeric summaries agree. These single-package observations are not a

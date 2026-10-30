@@ -1,0 +1,158 @@
+{
+  "schema": "rstyle.workspace-style-environment-study/1",
+  "checkpoint": "C97",
+  "command": [
+    "target/debug/cargo-rstyle",
+    "rstyle",
+    "--style-engine",
+    "compiler",
+    "--format",
+    "json"
+  ],
+  "scope": "Whole default workspace library/binary check; workspace rstyle.toml; authored compiler diagnostics; not --all-targets.",
+  "initial_failure": {
+    "exit_code": 2,
+    "wall_seconds": 61.32,
+    "max_rss_kib": 3061532,
+    "capture_complete": false,
+    "summary": null,
+    "run_directory": "target/rstyle/clones/run-WedFGU",
+    "cause": "Wrapper cleared all RSTYLE_* variables, including Cargo build-script rustc-env compilation inputs.",
+    "compiler_errors": [
+      "RSTYLE_PRODUCER_REVISION not defined at compile time",
+      "RSTYLE_RUSTC_VERSION not defined at compile time",
+      "RSTYLE_RUSTC_COMMIT not defined at compile time"
+    ],
+    "independent_input": "Cargo build-script-executed record supplies all three values from crates/rstyle-driver/build.rs."
+  },
+  "fix": "Clear actual runtime extraction/diagnostic controls; preserve arbitrary project compilation inputs and Cargo build-script metadata. Existing diagnostic exceptions and selected-plan overrides unchanged.",
+  "regression": "Real Cargo fixture requires four build-script env! values at compile time; checks cold capture, fresh warm owner reuse, and changed build/source values. Existing extraction-mode isolation retained.",
+  "fixed_run": {
+    "exit_code": 1,
+    "wall_seconds": 68.74,
+    "max_rss_kib": 3060896,
+    "root_report": "/tmp/clones-c97-workspace-fixed.json",
+    "archive_report": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-Q6QtrP/report.json",
+    "capture_complete": true,
+    "capture_failures": [],
+    "summary": {
+      "functions": 10051,
+      "violations": 47,
+      "complexity_measured": 10051,
+      "complexity_unavailable": 0,
+      "mean_density_milli": 97,
+      "max_density_milli": 15000,
+      "effect_counts": {
+        "io": 339,
+        "mutation": 2097,
+        "panic": 56,
+        "time": 66,
+        "unknown": 164
+      }
+    },
+    "summary_complete": true,
+    "planning_input_complete": false,
+    "planning_required_edits_complete": true,
+    "diagnostics_by_rule": {
+      "side_effect_density": 47
+    },
+    "compilation_contexts": 6,
+    "fix_groups": 47,
+    "units": [
+      {
+        "unit": 0,
+        "package_root": "/home/dev/src/rstyle-main/rstyle/crates/cargo-rstyle",
+        "expected_functions": 3018,
+        "authored_observations": 1420,
+        "generated_effect_owners": 1598,
+        "unavailable_complexity": 0,
+        "unresolved_callees": 0,
+        "unavailable_source_inputs": 1598
+      },
+      {
+        "unit": 1,
+        "package_root": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-ccgraph",
+        "expected_functions": 414,
+        "authored_observations": 238,
+        "generated_effect_owners": 176,
+        "unavailable_complexity": 0,
+        "unresolved_callees": 0,
+        "unavailable_source_inputs": 176
+      },
+      {
+        "unit": 2,
+        "package_root": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-core",
+        "expected_functions": 1260,
+        "authored_observations": 431,
+        "generated_effect_owners": 829,
+        "unavailable_complexity": 0,
+        "unresolved_callees": 0,
+        "unavailable_source_inputs": 829
+      },
+      {
+        "unit": 3,
+        "package_root": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-driver",
+        "expected_functions": 1056,
+        "authored_observations": 863,
+        "generated_effect_owners": 193,
+        "unavailable_complexity": 0,
+        "unresolved_callees": 0,
+        "unavailable_source_inputs": 193
+      },
+      {
+        "unit": 4,
+        "package_root": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-extraction-fixtures",
+        "expected_functions": 339,
+        "authored_observations": 43,
+        "generated_effect_owners": 296,
+        "unavailable_complexity": 0,
+        "unresolved_callees": 0,
+        "unavailable_source_inputs": 296
+      },
+      {
+        "unit": 5,
+        "package_root": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg",
+        "expected_functions": 13559,
+        "authored_observations": 7056,
+        "generated_effect_owners": 6503,
+        "unavailable_complexity": 0,
+        "unresolved_callees": 0,
+        "unavailable_source_inputs": 6503
+      }
+    ]
+  },
+  "limitations": [
+    "One observation including Cargo/build costs; no speedup or warm/default resource comparison.",
+    "Complete authored numeric scope is not complete generated caller/edit coverage.",
+    "Forty-seven findings are configured static-density outcomes, not independently reviewed whole-workspace usefulness. Finite earlier metric reviews do not establish population precision.",
+    "Default/retirement gates, full caller coverage and native platform validation remain separate. No default switch, metric change, SHA, source/artifact scan, new proof or strict matching change."
+  ],
+  "validation": {
+    "rust_tests_passed": 3690,
+    "rust_tests_skipped": 5,
+    "nextest_seconds": 266.507,
+    "doctests": "passed",
+    "python_capability_tests_passed": 248,
+    "python_script_tests_passed": 50,
+    "formatting": "passed",
+    "clippy_workspace_all_targets_warnings_denied": "passed",
+    "legacy_style": {
+      "functions": 10051,
+      "violations": 0,
+      "complexity_measured": 10051,
+      "complexity_unavailable": 0,
+      "mean_density_milli": 80,
+      "max_density_milli": 15000,
+      "effect_counts": {
+        "io": 339,
+        "mutation": 2084,
+        "panic": 56,
+        "time": 66,
+        "unknown": 164
+      }
+    },
+    "legacy_pattern_gate": "passed",
+    "unfiltered_pattern_ids_unchanged": 13,
+    "native_ci": "Pending publication for C97; C96 run40976506878 last observed in_progress on macOS15 and Ubuntu x86/ARM."
+  }
+}

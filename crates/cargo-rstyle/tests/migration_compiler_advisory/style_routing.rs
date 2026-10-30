@@ -169,6 +169,48 @@ fn root_style_route_retains_invalid_suppression_and_compile_failure_exits() {
     assert_eq!(report["compiler_advisory"]["complete"], false);
 }
 
+fn build_environment_fixture(directory: &Path, value: char) {
+    let names = [
+        "RSTYLE_PROJECT_VALUE",
+        "RSTYLE_PRODUCER_REVISION",
+        "RSTYLE_RUSTC_VERSION",
+        "RSTYLE_RUSTC_COMMIT",
+    ];
+    let mut build = String::from("fn main() {\n");
+    let mut source = String::new();
+    for name in names {
+        build.push_str(&format!("println!(\"cargo:rustc-env={name}={value}\");\n"));
+        source.push_str(&format!(
+            "const _: () = assert!(env!(\"{name}\").as_bytes()[0] == b'{value}');\n"
+        ));
+    }
+    build.push_str("}\n");
+    source.push_str("pub fn clean() {}\n");
+    std::fs::write(directory.join("build.rs"), build).unwrap();
+    std::fs::write(directory.join("src/lib.rs"), source).unwrap();
+}
+
+#[test]
+fn root_style_capture_preserves_cargo_build_script_environment_on_cold_and_warm_runs() {
+    let directory = fixture("pub fn clean() {}\n");
+    build_environment_fixture(directory.path(), 'A');
+    let (output, cold) = capture(directory.path(), &[]);
+    checked(&output, 0);
+    assert_eq!(cold["capture_complete"], true);
+    assert_eq!(cold["compiler_advisory"]["complete"], true);
+
+    let (output, warm) = capture(directory.path(), &[]);
+    checked(&output, 0);
+    assert_eq!(warm["capture_complete"], true);
+    fresh_selected_owner(&warm);
+
+    build_environment_fixture(directory.path(), 'B');
+    let (output, changed) = capture(directory.path(), &[]);
+    checked(&output, 0);
+    assert_eq!(changed["capture_complete"], true);
+    assert_eq!(changed["compiler_advisory"]["complete"], true);
+}
+
 #[test]
 fn root_style_route_preserves_test_compilation_contexts() {
     let directory =
