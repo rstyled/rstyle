@@ -24,13 +24,6 @@ pub fn load(path: &Path) -> Result<Ledger, String> {
     }
 }
 
-/// An explicitly requested migration input must exist; absence is not an empty inventory.
-pub fn load_required(path: &Path) -> Result<Ledger, String> {
-    let text =
-        std::fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?;
-    ledger::parse(&text).map_err(|error| format!("{}: {error}", path.display()))
-}
-
 // rstyle-allow(side_effect_density): IO boundary: writes the ledger file
 pub fn save(path: &Path, ledger: &Ledger) -> Result<(), String> {
     std::fs::write(path, ledger::render(ledger)).map_err(|e| format!("{}: {e}", path.display()))

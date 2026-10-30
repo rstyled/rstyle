@@ -7523,3 +7523,40 @@ RSS. These are small-fixture sequential observations, not a speedup or scale cla
 Receipt: eval/clones-capability/workspace-patterns-acceptance-study.json.
 Authored defaults, normal repository dismissal handling and replacement of the
 superseded opt-in route remain next; no production compatibility gate is needed.
+
+### C113 — apply repository dismissals directly to compiler proposals (2026-10-30)
+
+Lead owns CLI/report integration, documentation and gates. Leaf work covers the
+borrowed existing matcher and repository-ledger acceptance. Removed the obsolete
+development preview/import module and flags. Compiler patterns now apply the
+ordinary repository ledger's existing exact/growth matcher, without converting
+entries, creating a review store or rewriting TOML. Root compiler routing selects
+`rstyle-ignore.toml` or `--ignore-file`; `--no-ignore` bypasses that ledger.
+Standalone clones uses explicit `--pattern-ledger`. Missing files are empty;
+malformed files remain errors. Scoped compiler reviews remain separate and retain
+all member compilation contexts.
+
+Borrowed core matching leaves ranked candidates and review/baseline row identity
+intact. Repository-visible raw indices intersect scoped review visibility before
+score/top selection; ignored metadata copies only display fields, never graphs or
+whole candidates. The visibility projection walks the retained ordered references
+once. Text `--show-ignored` shares existing ignored rendering with a blank-line
+separator. No new hashing, cache, proposal algorithm or strict matching change.
+Routed compiler patterns defaults to authored scope; standalone captured scope
+remains explicit and testable. Numeric/effect limitations remain unchanged.
+
+Acceptance covers exact and growth matching, unchanged raw proposals, comments and
+ledger bytes, malformed/missing/alternate ledgers, source/tool-free saved replay,
+text ignored listing, bypass, and repository/scoped-review intersection before
+top-N. All88 focused pattern workflows pass. Final integrated validation passes:
+3,739 Rust tests (5 skipped,262.895s), doctests, workspace/all-target Clippy,
+formatting and diff whitespace. Both originally reported NonZero failures pass
+locally. Style reports zero violations over10,126 functions; the patterns gate
+reports zero visible candidates and exactly the same13 unfiltered IDs as C111's
+final snapshot. The gate initially found an unused manual generic Default
+implementation; removing it avoids a new duplicate empty-collection constructor.
+No dismissals or suppressions were added. Native macOS CI remains unverified:
+GitHub CLI requires authentication in this environment.
+The root default switch and `ignore` dismissal/status/prune still need one shared
+compiler-candidate path before replacing the existing default. This checkpoint
+does not claim that replacement is complete.

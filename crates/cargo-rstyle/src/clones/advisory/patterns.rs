@@ -1,4 +1,5 @@
 //! Adapt owned compiler graphs to existing core proposal policy.
+mod repository;
 pub(super) mod workspace;
 use super::{Missing, source_scope::SourceScope};
 use crate::clones::review::compiler_patterns::observed;
@@ -31,6 +32,10 @@ pub(super) struct Report {
     presentation: Option<Presentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     visible_candidates: Option<Vec<usize>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    repository_visible_candidates: Option<Vec<usize>>,
+    #[serde(skip)]
+    show_ignored: bool,
     /// File selection is independent of review visibility; presentation intersects both masks.
     #[serde(skip_serializing_if = "Option::is_none")]
     selected_candidates: Option<Vec<usize>>,
@@ -170,15 +175,13 @@ pub(super) fn evaluate(
         .count();
 
     let (mut evaluation, prepared) = discover(facts, &options, scoped);
-    let selected_candidates = select_candidates(ctx, &evaluation)?;
     let effects = effects.ok_or("Compiler patterns require completed core effects")?;
     rstyle_core::candidates::annotate_completed_effects(&mut evaluation.candidates, &effects)?;
-    let owners = owners(ctx, units)?;
-    let snapshots = review_snapshots(ctx, units, prepared, &evaluation);
+    let repository_visible_candidates = repository::apply(ctx.pattern_ledger, &mut evaluation);
     Ok(Report {
         schema: "rstyle.compiler-patterns/2",
         member_units: units.iter().map(|unit| unit.id).collect(),
-        owners,
+        owners: owners(ctx, units)?,
         policy_version: rstyle_core::candidates::POLICY_VERSION,
         policy: options.params,
         hide_implements: options.hide_implements,
@@ -191,10 +194,12 @@ pub(super) fn evaluate(
         unavailable_graphs: missing,
         presentation: (!ctx.args.pattern_display.is_default())
             .then(|| Presentation::new(&ctx.args.pattern_display, &evaluation)),
+        selected_candidates: select_candidates(ctx, &evaluation)?,
+        snapshots: review_snapshots(ctx, units, prepared, &evaluation),
         evaluation,
-        snapshots,
         visible_candidates: None,
-        selected_candidates,
+        repository_visible_candidates,
+        show_ignored: ctx.args.show_ignored,
     })
 }
 
@@ -258,7 +263,6 @@ fn review_snapshots(
     evaluation: &patterns_report::PatternsReport,
 ) -> Vec<Result<observed::Snapshot, String>> {
     if ctx.args.review_file.is_some()
-        || ctx.args.legacy_pattern_ledger.is_some()
         || ctx
             .args
             .compiler_baseline_requested(crate::clones::CompilerBaseline::Patterns)
@@ -314,7 +318,7 @@ impl Report {
         reviews: &crate::clones::review::compiler_patterns::Report,
     ) -> Self {
         let visible_candidates: Vec<_> = (0..self.evaluation.candidates.len())
-            .filter(|index| !reviews.hidden_for(unit, *index))
+            .filter(|index| self.repository_visible(*index) && !reviews.hidden_for(unit, *index))
             .collect();
         let presentation = self
             .presentation
@@ -336,6 +340,12 @@ impl Report {
         self.selected_candidates.as_deref()
     }
 
+    fn repository_visible(&self, index: usize) -> bool {
+        self.repository_visible_candidates
+            .as_ref()
+            .is_none_or(|visible| visible.binary_search(&index).is_ok())
+    }
+
     fn visible(&self, index: usize) -> bool {
         self.visible_candidates
             .as_ref()
@@ -343,7 +353,8 @@ impl Report {
     }
 
     fn shown(&self, index: usize) -> bool {
-        self.visible(index)
+        self.repository_visible(index)
+            && self.visible(index)
             && self.presentation.as_ref().is_none_or(|presentation| {
                 presentation.candidate_indices.binary_search(&index).is_ok()
             })
@@ -381,7 +392,7 @@ impl Report {
     }
 
     pub(super) fn render(&self) -> String {
-        let evaluation = patterns_report::text_selected_with_groups(
+        let mut evaluation = patterns_report::text_selected_with_groups(
             &self.evaluation,
             |index| self.shown(index) && self.selected(index),
             |index| {
@@ -393,6 +404,10 @@ impl Report {
                 })
             },
         );
+        if self.show_ignored && self.evaluation.ignored_count > 0 {
+            evaluation.push_str("\n\n");
+            evaluation.push_str(&patterns_report::show_ignored(&self.evaluation));
+        }
         let Some(scope) = &self.source_scope else {
             return evaluation;
         };

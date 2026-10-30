@@ -200,7 +200,6 @@ impl Inputs<'_, '_> {
             || ctx.args.dismiss_mutated_targets.is_some()
             || ctx.args.dismiss_density.is_some()
             || !ctx.args.dismiss_compiler_pattern.is_empty()
-            || !ctx.args.import_legacy_pattern.is_empty()
             || !ctx.args.dismiss_compiler_diagnostic.is_empty()
             || !ctx.args.dismiss_guard.is_empty()
             || reports

@@ -620,8 +620,7 @@ review files remain explicit runtime inputs. `--review-file PATH --review-status
 uses the existing scoped compiler review workflow.
 Record an exact review through this route with
 `--replay-run PATH --review-file reviews.json --dismiss-compiler-pattern UNIT CANDIDATE_ID --review-reason TEXT`.
-The selector and reason are required for a write. Status and legacy import are
-separate actions; failed selection leaves the review store unchanged.
+The selector and reason are required for a write. Status is a separate action; failed selection leaves the review store unchanged.
 
 Compiler proposal reviews retain the compilation context of every usage and
 referenced definition. Changing a secondary member's context reports
@@ -636,39 +635,23 @@ resolve selected dependency owners without artifact reads or hashes. Test
 populations currently retain unresolved dependencies on separate check populations;
 test harnesses never substitute for check libraries. Member contexts remain distinct.
 
-Legacy dismissals are not automatically converted into compiler reviews. A
-nonempty legacy ledger produces a migration message; `--no-ignore` explicitly
-bypasses it and leaves its bytes unchanged. Scoped compiler reviews still apply.
-`--show-ignored` lists legacy records and is rejected for the compiler route; use
-compiler review status instead. Use the explicit preview/import workflow below for migration.
-Compiler-only options reject the legacy engine. No legacy backend is retired.
+Repository dismissals use the existing `rstyle-ignore.toml` ledger directly.
+The compiler patterns route loads it from the workspace root, or `--ignore-file PATH`;
+`--no-ignore` bypasses it. Standalone clones selects it explicitly with
+`--pattern-ledger PATH`. A missing ledger is empty, and malformed input is an error.
+Exact and growth matching retain their existing behavior and reasons. No import
+or conversion step is needed, and analysis never rewrites the ledger.
 
-Preview legacy dismissal migration with
-`cargo rstyle patterns --engine compiler --preview-legacy-reviews --format json`.
-`--ignore-file PATH` selects a different ledger. Direct clones requests use
-`--legacy-pattern-ledger PATH` with compiler-patterns. The explicit ledger must
-exist. The preview reads raw proposals before score/top, changed-file or review
-filters, reuses the existing legacy matcher and retained scoped snapshots, and
-never creates/updates a review file by itself. `pattern_review.legacy_migration`
-reports each legacy ID, growth setting, reason and matching unit/candidate handles,
-including unavailable snapshot reasons. Missing scope stays unavailable; a
-`no_current_match` result refers only to the selected complete compiler scope and
-never authorizes pruning the legacy entry.
+The report retains every raw candidate for review and baseline identity.
+`patterns.repository_visible_candidates` records the indices allowed by the
+repository ledger; `evaluation.ignored` and `ignored_count` describe matches.
+Repository and scoped-review visibility intersect before score/top presentation.
+`--show-ignored` includes repository dismissal details in text output. Scoped
+compiler reviews remain available for exact compilation-context review.
 
-Import a selected preview match from its saved run with
-`--review-file reviews.json --replay-run PATH --import-legacy-pattern LEGACY_ID UNIT CANDIDATE_ID`.
-This records the current checked scoped snapshot through the existing atomic
-review workflow. It uses the ledger reason or explicit `--review-reason TEXT`;
-a nonempty reason is required. Old IDs suggest compatibility matches and do not
-become compiler review identity. The existing exact context/body/config lifecycle
-still applies. Multiple check/test matches stay separate and require a unit
-selector. Growth entries require explicit `--legacy-current-members-only` to
-convert the current members to an exact review; future growth is not carried over.
-Positive available matches can be imported while other scope is incomplete, but
-the run remains incomplete. Failed selectors or snapshots leave the review file
-unchanged. Original TOML bytes/comments are never rewritten. After import, use
-`--no-ignore --review-file reviews.json` to apply scoped reviews while explicitly
-bypassing the retained legacy ledger. No legacy backend or ledger is retired.
+The routed compiler population defaults to authored functions. Use
+`--compiler-pattern-scope captured` to include generated signatures explicitly.
+Standalone clones retains its explicit captured default.
 
 Add `--compiler-patterns` to reuse existing compiler graphs and the core
 trait/capability/generic/helper/dispatch proposer. It can run without

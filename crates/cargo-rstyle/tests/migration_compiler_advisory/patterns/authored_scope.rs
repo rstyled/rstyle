@@ -55,6 +55,8 @@ fn direct(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value)
         "--extraction-profile",
         "hir-data-v3",
         "--compiler-patterns",
+        "--pattern-ledger",
+        "rstyle-ignore.toml",
         "--compiler-advisory-only",
         "--replay-run",
         original["run_directory"].as_str().unwrap(),
@@ -70,14 +72,14 @@ fn outside(report: &Value) -> &Vec<Value> {
 }
 
 #[test]
-fn authored_scope_distinguishes_derived_owners_without_changing_captured_default() {
+fn authored_scope_distinguishes_derived_owners_from_explicit_captured_scope() {
     let directory = fixture(&format!("{DERIVED} pub fn original() {{}}"));
-    let output = raw(directory.path(), &[]);
+    let output = raw(directory.path(), &["--compiler-pattern-scope", "captured"]);
     checked(&output, 2);
     let original = json(&output);
     assert!(proposals(&original).get("source_scope").is_none());
     assert_eq!(proposals(&original)["input_complete"], false);
-    let (output, authored) = saved(directory.path(), &original, AUTHORED);
+    let (output, authored) = saved(directory.path(), &original, &[]);
     checked(&output, 0);
     assert_eq!(proposals(&authored)["source_scope"]["kind"], "authored");
     assert_eq!(proposals(&authored)["input_complete"], true);
@@ -322,7 +324,13 @@ fn source_scope_does_not_change_a_positive_structural_review() {
     let (output, captured) = saved(
         directory.path(),
         &original,
-        &["--review-file", "reviews.json", "--review-status"],
+        &[
+            "--review-file",
+            "reviews.json",
+            "--review-status",
+            "--compiler-pattern-scope",
+            "captured",
+        ],
     );
     checked(&output, 2);
     assert_eq!(

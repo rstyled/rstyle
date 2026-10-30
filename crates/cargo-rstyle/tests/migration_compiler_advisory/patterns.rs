@@ -1,7 +1,7 @@
 mod authored_scope;
-mod legacy_migration;
 mod mining_options;
 mod presentation;
+mod repository_ledger;
 mod routing;
 use super::*;
 

@@ -95,12 +95,7 @@ fn compiler_pattern_dismissal_requires_one_explicit_saved_review_action() {
             .collect();
         assert!(Cli::try_parse_from(incomplete).is_err(), "{missing}");
     }
-    for conflicting in [
-        vec!["--review-status"],
-        vec!["--import-legacy-pattern", "legacy", "0", "candidate"],
-    ] {
-        assert!(Cli::try_parse_from(args.iter().copied().chain(conflicting)).is_err());
-    }
+    assert!(Cli::try_parse_from(args.iter().copied().chain(["--review-status"])).is_err());
     assert!(
         Cli::try_parse_from([
             "cargo-rstyle",

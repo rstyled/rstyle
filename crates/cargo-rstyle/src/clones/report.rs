@@ -24,6 +24,7 @@ pub enum Detail {
 }
 
 pub struct Context<'a> {
+    pub pattern_ledger: Option<&'a rstyle_core::ledger::Ledger>,
     pub compiler_advisory_config: Option<&'a rstyle_core::config::Config>,
     pub cli: &'a Cli,
     pub args: &'a Args,

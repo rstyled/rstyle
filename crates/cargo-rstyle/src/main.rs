@@ -104,7 +104,6 @@ enum Engine {
 
 /// Opt-in routing reuses the standalone compiler-pattern workflow and its reports.
 #[derive(Args, Default)]
-#[command(group(clap::ArgGroup::new("compiler_review_action").args(["import_legacy_pattern", "dismiss_compiler_pattern"])))]
 struct PatternRouteArgs {
     /// Choose the existing legacy miner or captured compiler observations.
     #[arg(long, value_enum, default_value_t = Engine::Legacy)]
@@ -112,20 +111,11 @@ struct PatternRouteArgs {
     /// Compiler proposal population; authored excludes explicitly generated signatures.
     #[arg(long, value_enum)]
     compiler_pattern_scope: Option<clones::CompilerSourceScope>,
-    /// Preview current legacy ledger matches against scoped compiler proposals without writing.
-    #[arg(long)]
-    preview_legacy_reviews: bool,
-    /// Import an explicit legacy match into the scoped review file; leaves the ledger unchanged.
-    #[arg(long, num_args = 3, value_names = ["LEGACY_ID", "UNIT", "CANDIDATE_ID"], requires_all = ["review_file", "replay_run"], conflicts_with = "review_status")]
-    import_legacy_pattern: Vec<String>,
     /// Record an exact review of a saved compiler candidate without changing raw proposals.
     #[arg(long, num_args = 2, value_names = ["UNIT", "CANDIDATE_ID"], requires_all = ["review_file", "review_reason", "replay_run"], conflicts_with = "review_status")]
     dismiss_compiler_pattern: Vec<String>,
-    /// Convert a growth dismissal to an exact review of current members only.
-    #[arg(long, requires = "import_legacy_pattern")]
-    legacy_current_members_only: bool,
-    /// Explain a direct review, or override the imported legacy reason.
-    #[arg(long, requires = "compiler_review_action")]
+    /// Explain a direct compiler proposal review.
+    #[arg(long, requires = "dismiss_compiler_pattern")]
     review_reason: Option<String>,
     /// Reevaluate an exact saved compiler run without compiling (compiler engine only).
     #[arg(long)]
@@ -147,8 +137,6 @@ impl PatternRouteArgs {
             || self.review_file.is_some()
             || self.review_status
             || self.locked
-            || self.preview_legacy_reviews
-            || !self.import_legacy_pattern.is_empty()
             || !self.dismiss_compiler_pattern.is_empty()
             || self.compiler_pattern_scope.is_some()
     }

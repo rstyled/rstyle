@@ -307,7 +307,6 @@ impl Report {
                                 unit: unit.unit,
                                 index,
                                 id: &candidate.id,
-                                candidate,
                                 snapshot,
                             }
                         })

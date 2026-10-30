@@ -93,16 +93,20 @@ pub fn all_candidates(facts: &[FnFacts], options: &Options) -> Vec<Candidate> {
         .candidates
 }
 
-fn ignored_entry(ledger: &Ledger, hidden: Hidden) -> Ignored {
-    let c = hidden.candidate;
+/// Describe a repository dismissal without copying its candidate graph or proposal.
+pub fn ignored_entry<C: std::borrow::Borrow<Candidate>>(
+    ledger: &Ledger,
+    hidden: Hidden<C>,
+) -> Ignored {
+    let c = hidden.candidate.borrow();
 
     Ignored {
         reason: ledger.entries[&hidden.entry_id].reason.clone(),
-        id: c.id,
+        id: c.id.clone(),
         kind: c.kind,
         entry_id: hidden.entry_id,
         matched_by: hidden.matched,
-        sites: c.sites,
+        sites: c.sites.clone(),
     }
 }
 

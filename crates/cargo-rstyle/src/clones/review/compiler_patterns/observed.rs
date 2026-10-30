@@ -20,7 +20,6 @@ pub(in crate::clones) struct Row<'a> {
     pub unit: UnitId,
     pub index: usize,
     pub id: &'a str,
-    pub candidate: &'a Candidate,
     pub snapshot: &'a Result<Snapshot, String>,
 }
 

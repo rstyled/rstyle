@@ -55,7 +55,7 @@ impl CompilerSourceScope {
     group(clap::ArgGroup::new("advisory_inputs").args(["compiler_advisory", "compiler_patterns", "compiler_complexity_top", "source_rules", "guard_clauses", "mutation_rules", "mutation_effects", "effect_density"]).multiple(true)),
     group(clap::ArgGroup::new("changed_analysis").args(["source_rules", "effect_density", "compiler_advisory", "compiler_patterns", "select_guards"]).multiple(true)),
     group(clap::ArgGroup::new("review_analysis").args(["helper_proposals", "enum_dispatch", "capability_proposals", "source_rules", "mutation_rules", "effect_density", "compiler_patterns", "compiler_advisory", "guard_clauses"]).multiple(true)),
-    group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_guard", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density", "dismiss_compiler_pattern", "dismiss_compiler_diagnostic", "import_legacy_pattern"])),
+    group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_guard", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density", "dismiss_compiler_pattern", "dismiss_compiler_diagnostic"])),
     group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules", "effect_density", "compiler_advisory", "compiler_patterns"]).multiple(true)))]
 pub struct Args {
     /// Internal root-style payload selection; full clones capture remains independent.
@@ -134,18 +134,14 @@ pub struct Args {
     #[arg(long, value_enum, default_value_t = CompilerSourceScope::Captured, requires = "compiler_patterns")]
     #[serde(skip_serializing_if = "CompilerSourceScope::is_default")]
     compiler_pattern_scope: CompilerSourceScope,
-    /// Preview legacy ledger matches against raw scoped compiler proposals; never edits the ledger.
+    /// Apply the repository candidate ledger using its existing exact and growth rules.
     #[arg(long, requires = "compiler_patterns")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    legacy_pattern_ledger: Option<PathBuf>,
-    /// Import one explicit legacy match as a current exact compiler review.
-    #[arg(long, num_args = 3, value_names = ["LEGACY_ID", "UNIT", "CANDIDATE_ID"], requires_all = ["legacy_pattern_ledger", "review_file", "replay_run"])]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    import_legacy_pattern: Vec<String>,
-    /// Explicitly convert a growth dismissal to the current exact membership only.
-    #[arg(long, requires = "import_legacy_pattern")]
+    pattern_ledger: Option<PathBuf>,
+    /// Include repository-dismissed compiler proposals in text output.
+    #[arg(long, requires = "compiler_patterns")]
     #[serde(skip_serializing_if = "std::ops::Not::not")]
-    legacy_current_members_only: bool,
+    show_ignored: bool,
     #[command(flatten, next_help_heading = "Compiler pattern mining")]
     #[serde(skip_serializing_if = "crate::MineArgs::is_default")]
     mine: crate::MineArgs,
@@ -352,6 +348,7 @@ pub fn write_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
 }
 
 struct Configuration {
+    pattern_ledger: Option<rstyle_core::ledger::Ledger>,
     compiler_advisory: Option<rstyle_core::config::Config>,
     matching: CcgraphConfig,
     analysis: Option<analysis::Config>,
@@ -377,6 +374,11 @@ fn configuration(cli: &Cli, args: &Args) -> Result<Configuration, String> {
         .transpose()?
         .unwrap_or_else(|| json!({}));
     Ok(Configuration {
+        pattern_ledger: args
+            .pattern_ledger
+            .as_deref()
+            .map(crate::ignore::load)
+            .transpose()?,
         compiler_advisory: advisory::configuration(args)?,
         compiler_pattern_baseline: args
             .compiler_pattern_baseline
@@ -685,6 +687,7 @@ fn run_captured_with(
         compiler_baseline: config.compiler_baseline.as_ref(),
         compiler_pattern_baseline: config.compiler_pattern_baseline.as_ref(),
         matching_config: &config.matching,
+        pattern_ledger: config.pattern_ledger.as_ref(),
     };
     let consumers = report::Consumers::new(&context)?;
     let report = report::make(context, consumers);

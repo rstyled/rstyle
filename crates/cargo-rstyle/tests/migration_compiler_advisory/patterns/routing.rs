@@ -121,7 +121,11 @@ fn direct_entry_agrees(directory: &Path, original: &Value) {
             "--extraction-profile",
             "hir-data-v3",
             "--compiler-patterns",
+            "--pattern-ledger",
+            "rstyle-ignore.toml",
             "--compiler-advisory-only",
+            "--compiler-pattern-scope",
+            "authored",
             "--replay-run",
             original["run_directory"].as_str().unwrap(),
             "--max-holes",
@@ -230,15 +234,22 @@ fn invalid_review_preserves_store(directory: &Path, original: &Value, expected: 
 }
 
 #[test]
-fn compiler_route_retains_missing_generated_source_even_when_display_is_empty() {
+fn compiler_route_defaults_to_authored_scope_and_reports_generated_owners() {
     let directory = fixture(&format!(
         "{FAMILIES}\nmacro_rules! make {{()=>{{pub fn generated(){{}}}}}} make!();"
     ));
     let output = raw(directory.path(), &["--top", "0", "--fail-on-candidates"]);
-    checked(&output, 2);
+    checked(&output, 0);
     let original = report(&output);
     only_patterns(&original);
-    assert_eq!(proposals(&original)["input_complete"], false);
+    assert_eq!(proposals(&original)["input_complete"], true);
+    assert_eq!(proposals(&original)["source_scope"]["kind"], "authored");
+    assert!(
+        !proposals(&original)["source_scope"]["outside_scope_functions"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
     assert_eq!(
         proposals(&original)["presentation"]["candidate_indices"],
         serde_json::json!([])
@@ -249,57 +260,48 @@ fn compiler_route_retains_missing_generated_source_even_when_display_is_empty() 
         &original,
         &["--top", "0", "--fail-on-candidates"],
     );
-    checked(&output, 2);
+    checked(&output, 0);
     assert_eq!(proposals(&replayed), proposals(&original));
 }
 
 #[test]
-fn compiler_route_preserves_legacy_defaults_and_requires_explicit_ledger_bypass() {
+fn engine_selection_retains_existing_default_while_compiler_accepts_repository_reviews() {
     let directory = fixture(FAMILIES);
     let original = patterns_json(directory.path(), &["--no-ignore"]);
     let candidate = &original["candidates"][0];
     let bytes = format!(
-        "# Preserve this reviewed ledger\nversion = 1\n[ignore.{}]\nkind = {:?}\nreason = \"Original legacy review\"\n",
+        "# Preserve this repository review\nversion = 1\n[ignore.{}]\nkind = {:?}\nreason = \"Reviewed proposal\"\n",
         candidate["id"].as_str().unwrap(),
         candidate["kind"].as_str().unwrap()
     );
     let path = directory.path().join("rstyle-ignore.toml");
     std::fs::write(&path, &bytes).unwrap();
-    let legacy = patterns_json(directory.path(), &[]);
-    assert!(legacy.get("compiler_advisory").is_none());
-    assert_eq!(legacy["ignored_count"], 1);
-    assert_eq!(legacy["candidates"].as_array().unwrap().len(), 2);
-    let explicit_legacy = patterns_json(directory.path(), &["--engine", "legacy"]);
-    assert_eq!(legacy, explicit_legacy);
-    let rejected = raw(directory.path(), &[]);
-    checked(&rejected, 2);
-    assert!(String::from_utf8_lossy(&rejected.stderr).contains("--no-ignore"));
-    assert_eq!(std::fs::read_to_string(&path).unwrap(), bytes);
-    let bypassed = raw(directory.path(), &["--no-ignore"]);
-    checked(&bypassed, 0);
-    let bypassed = report(&bypassed);
+    let current = patterns_json(directory.path(), &[]);
+    assert!(current.get("compiler_advisory").is_none());
+    assert_eq!(current["ignored_count"], 1);
     assert_eq!(
-        proposals(&bypassed)["evaluation"]["candidates"]
+        current,
+        patterns_json(directory.path(), &["--engine", "legacy"])
+    );
+    let output = raw(directory.path(), &["--show-ignored"]);
+    checked(&output, 0);
+    let compiler = report(&output);
+    assert_eq!(proposals(&compiler)["evaluation"]["ignored_count"], 1);
+    assert_eq!(
+        proposals(&compiler)["evaluation"]["candidates"]
             .as_array()
             .unwrap()
             .len(),
         3
     );
-    assert_eq!(std::fs::read_to_string(&path).unwrap(), bytes);
-    std::fs::write(&path, "malformed legacy ledger").unwrap();
-    checked(&raw(directory.path(), &[]), 2);
-    checked(&raw(directory.path(), &["--no-ignore"]), 0);
-    assert_eq!(
-        std::fs::read_to_string(path).unwrap(),
-        "malformed legacy ledger"
-    );
+    assert_eq!(std::fs::read_to_string(path).unwrap(), bytes);
 }
 
 #[test]
 fn compiler_route_preserves_check_and_test_contexts_on_saved_replay() {
     let directory = fixture("pub fn original(){} #[cfg(test)] pub fn test_only(){}");
     let output = raw(directory.path(), &["--all-targets"]);
-    checked(&output, 2);
+    checked(&output, 0);
     let original = report(&output);
     only_patterns(&original);
     let units = original["compiler_advisory"]["units"].as_array().unwrap();
@@ -316,7 +318,7 @@ fn compiler_route_preserves_check_and_test_contexts_on_saved_replay() {
     assert!(observed.iter().any(|unit| unit["test"] == false));
     remove_sources(directory.path());
     let (output, replayed) = saved(directory.path(), &original, &[]);
-    checked(&output, 2);
+    checked(&output, 0);
     assert_eq!(replayed["compiler_advisory"], original["compiler_advisory"]);
 }
 
@@ -377,7 +379,7 @@ fn compiler_route_reuses_package_manifest_and_default_or_explicit_config() {
 }
 
 #[test]
-fn compiler_only_route_flags_and_legacy_listing_reject_unsupported_combinations() {
+fn compiler_only_route_flags_reject_unsupported_engine_combinations() {
     let directory = clone_workspace();
     for options in [
         vec!["--replay-run", "missing"],
@@ -391,9 +393,4 @@ fn compiler_only_route_flags_and_legacy_listing_reject_unsupported_combinations(
         checked(&output, 2);
         assert!(String::from_utf8_lossy(&output.stderr).contains("compiler"));
     }
-    let output = raw(directory.path(), &["--show-ignored"]);
-    checked(&output, 2);
-    let message = String::from_utf8_lossy(&output.stderr);
-    assert!(message.contains("--show-ignored"));
-    assert!(message.contains("--review-status"));
 }
