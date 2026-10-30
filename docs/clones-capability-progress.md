@@ -7318,3 +7318,43 @@ poll; these local gates do not establish their outcome. Default diagnostic
 usefulness/resource disposition remains open; this delivers root workflow
 compatibility only. Next: commit/push this slice, then reconcile the remaining
 default source/usefulness differences using the completed project observations.
+
+### C108 — reconcile current default findings and remaining source suggestions (2026-10-30)
+
+Rebuild and analyze committed c06094b1 source with both root engines and unchanged
+rstyle.toml. Both cover10,085 authored functions; compiler completes with48 density
+findings, legacy with zero. The compiler roster is unchanged from C106. Each
+finding joins its exact unit/original owner and captured source excerpt; current
+files match those excerpts. Of45 retained frozen names,37 sources match exactly
+and8 changed excerpts are explicitly reviewed;3 functions are new. C99's targets
+helper is absent and its one-acquisition raw metadata seam is present; both C100
+diagnostic captures use optional_requests. Original labels are not rewritten.
+
+Three original actionable suggestions concerned mutation before fallible checks.
+Follow their actual caller lifecycles before changing strict infrastructure:
+mutable installation errors discard the owned working Pair; closure verification
+errors discard its private visitor; scalar verification errors discard Flow,
+whose normal traversal also retains a root lexical frame. No current caller
+catches these errors and reuses the failed working state. The proposed retry/
+rollback requirement is therefore not established. The study embeds the relevant
+caller sources and explicit limits; it adds no recovery promise or blanket
+error-atomicity claim. Current48 findings are context-only in this bounded review,
+with no additional source-driven refactor established. Do not manufacture helpers,
+suppressions, threshold changes or another policy layer to clear them.
+
+project-current-default-style-review.json preserves current diagnostics, changed/
+new sources, original review references, caller followups, config and resources.
+Compiler fresh31.52s/2,435,252KiB; owner reuse6.06s/851,476KiB with equal projections.
+Legacy first23.91s/1,889,900KiB; repeat0.88s/91,496KiB with identical reports.
+These are serial same-source observations with warm dependencies/different reuse
+paths, not a randomized cold benchmark. Current-source population is marked
+reconciled in the older decision artifact; historic raw-report limits
+and the existing15-positive/3-control arithmetic sample remain explicit.
+
+This checkpoint changes evidence/docs only. Source joins, JSON consistency,
+fresh/repeat report comparisons and the live zero-violation legacy run pass;
+production code is unchanged from C107's3,724-test integrated checkpoint.
+Defaults remain legacy; current density usefulness/resource disposition is open.
+Next code seam: numeric reviews/baselines call facts.full() only to obtain
+package/build/signature identity. Reuse those existing borrowed metadata fields
+so root snapshots can participate without restoring unused HIR bodies.

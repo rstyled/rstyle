@@ -57,23 +57,25 @@
     {
       "id": "default_usefulness_policy",
       "required_for_acceptance": true,
-      "need": "Explicit default-policy disposition of the41 effective context-only roles and6 actionable function cases, including delivered changes. All47 are source-reviewed; numerical agreement alone does not endorse them as useful default output."
+      "need": "Product/default disposition remains open. C108 preserves the original frozen41 context-only/6 actionable labels and adds current-source/caller followups: the delivered common-loader/acquisition changes are present, and private failed working states are discarded rather than reused. The current48 findings are context-only in this bounded review; none establishes an additional source-driven refactor. Do not silently suppress findings or rewrite the frozen labels to clear counts."
     },
     {
       "id": "current_source_population",
-      "required_for_current_claim": true,
+      "required_for_current_claim": false,
       "functions": [
         "clones::capture::selected_workspace",
         "clones::capture::targets",
         "hir_extraction::instances::product_diagnostic::capture",
         "hir_extraction::instances::reference_diagnostic::capture"
       ],
-      "need": "Reconcile C99/C100 source changes with current findings before treating this frozen roster as a current scorecard. C99 saved after report exists; no C100 compiler root-style report supplied."
+      "need": "C108 captures committed c06094b1 source over10,085 authored functions. All four C99/C100 cases are reconciled: targets is absent, the shared metadata acquisition is present, and both diagnostic captures use optional_requests. Current48 findings join45 frozen names;37 source excerpts match exactly,8 changed excerpts and3 new functions are reviewed explicitly.",
+      "status": "reconciled_for_C107_source_in_C108",
+      "evidence": "eval/clones-capability/project-current-default-style-review.json"
     },
     {
       "id": "resource_acceptance",
       "required_for_acceptance": true,
-      "need": "Accept or reject the measured default resource cost for the declared scope. Bounded Linux runs already completed (~69-71s, ~3GiB RSS); section8 does not prescribe a speedup, repeated benchmark or paired legacy-memory proof. Same-scope legacy comparison or an explicit memory envelope can inform that decision but are not invented additional gates."
+      "need": "Current same-source C108 observations are available: compiler fresh31.52s/2,435,252KiB and owner reuse6.06s/851,476KiB; legacy first23.91s/1,889,900KiB and repeat0.88s/91,496KiB. These serial local runs use different reuse paths, not a randomized cold benchmark or an agreed resource envelope. Explicit default resource acceptance remains open; no new runtime/memory gate is invented."
     },
     {
       "id": "optional_stronger_metric_attribution",
@@ -117,10 +119,10 @@
     {
       "id": "durability",
       "required_for_durable_evidence_claim": true,
-      "need": "All47 row sources and source-review rationales are embedded here, but original C97/C99 reports and some source-only helper/caller review artifacts remain session /tmp paths. Durable provenance/reproduction must preserve explicit inputs; no hash is required."
+      "need": "Frozen sources/reviews remain embedded here. C108 additionally embeds changed/new current source excerpts, all48 current diagnostics and three source/caller lifecycle followups in project-current-default-style-review.json. Original full C97/C99 reports remain session paths; do not claim reconstruction of every historical input. The current study records explicit scope/config/revision and commands without hashes."
     }
   ],
-  "next_action": "Make an explicit default-policy decision about the41 source-reviewed context-only roles and measured resource cost, then reconcile the C99/C100 changed-source roster using available saved/current evidence. Accept the15 independently labeled positives+3 controls as the completed bounded metric sample; additional per-finding numeric attribution is optional stronger evidence, not a new gate. Do not add suppressions, raise thresholds or introduce proof requirements merely to clear counts.",
+  "next_action": "Reuse borrowed package/build/signature metadata for numeric compiler reviews and CI baselines instead of requiring unused full HIR bodies. Current source reconciliation is complete for the declared C107 scope; preserve the15 independently labeled positives+3 controls as the completed bounded metric sample. Default usefulness/resource disposition remains separate; do not force refactors, suppressions or metric changes simply to clear context-only counts.",
   "cases": [
     {
       "frozen_index": 0,
@@ -4678,9 +4680,9 @@
   "gate_interpretation": {
     "authority": "CLONES_CAPABILITY_MIGRATION.md section8, gates1/2/3/6",
     "bounded_metric_quality": "Satisfied for the declared finite sample:15 independently labeled positive density findings plus3 controls agree. Section8 does not require an independent exact numeric oracle for every reported finding.",
-    "reviewed_differences": "All47 frozen new-only findings are joined to source-usefulness reviews and observed compiler metrics. Fifteen have documented independently checked denominator changes; later exact-source denominator counterfactuals provide supporting explanations for additional rows. These differences still need an explicit product/default-policy disposition, especially context-only roles.",
+    "reviewed_differences": "Frozen47 findings retain their original source reviews and labels. C108 reconciles current c06094b1 source:48 findings,45 retained names,37 exactly equal source excerpts,8 changed excerpts and3 new functions; explicit source/caller followups establish no further current actionable refactor in this bounded roster. Historical numeric labels remain unchanged.",
     "optional_stronger_evidence": "Per-owner original C97 legacy statements/numerators and independent exact numeric labels for the remaining32 would strengthen cause attribution, but are not additional retirement requirements. Their absence limits equivalence claims, not the sufficiency of the bounded metric-quality sample.",
-    "remaining_acceptance": "Decide whether the default should emit the41 context-only roles, reconcile current changed-source findings and accept actual resource cost for the declared scope."
+    "remaining_acceptance": "Decide intended default behavior for the reviewed context-only density output and accept/reject measured current resource costs. Current C99/C100 source reconciliation is no longer missing; extra per-owner numeric oracles are not added as gates."
   },
   "checkpoint_validation": {
     "checkpoint": "C101",
@@ -4694,5 +4696,17 @@
     "legacy_style": "0 violations / 10062 functions",
     "legacy_patterns": "gate passed; same 13 unfiltered IDs",
     "default_changed": false
+  },
+  "current_source_followup": {
+    "checkpoint": "C108",
+    "source_revision": "c06094b1",
+    "artifact": "eval/clones-capability/project-current-default-style-review.json",
+    "functions": 10085,
+    "findings": 48,
+    "all_rule": "side_effect_density",
+    "current_classification": "48 context-only in the bounded current-source review",
+    "historical_labels_changed": false,
+    "original_actionable_disposition": "C99 metadata acquisition and C100 request loaders are delivered. The three remaining partial-update candidates have explicit current caller-lifecycle followups; callers discard failed private working state, so no current retry/rollback refactor is established.",
+    "default_recommendation": "Keep legacy default until useful density behavior and resource acceptance have an explicit product disposition. No threshold, suppression or policy framework is added."
   }
 }

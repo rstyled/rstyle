@@ -1,0 +1,2524 @@
+{
+  "schema": "rstyle.current-default-style-review/1",
+  "checkpoint": "C108",
+  "source_revision": "c06094b1e4a9a8bba420f079426ef757498593c7",
+  "scope": "Default authored workspace library/binary check; same rstyle.toml, no all-targets. Linux ARM64; not pattern retirement.",
+  "configuration": "# Workspace policy. Omitted keys use the tool's defaults.\n# Unknown keys are errors, so typos never silently disable a rule.\n\nexclude = [\"target/**\"]\n\n[fn_length]\nmax_lines = 50            # code lines: blank, `//` and `/* */` lines are not counted\n\n[fn_params]\nmax_params = 4\ncount_self = false        # `self` is the object, not an argument\n\n[fn_spacing]\nmin_statements = 5\n\n[complexity]\n# Start at current maxima; lower these toward 12 in follow-up refactoring PRs.\nmax_cyclomatic = 40\nmax_cognitive = 32\n\n[mutation_budget]\nmax_mutations_per_target = 3   # writes / `&mut` borrows of one root (local, param, self)\nmax_mutated_targets = 3        # distinct roots mutated in one function\ngranularity = \"root\"           # \"field\" keys targets as `self.a`, `self.b` instead of `self`\n\n[side_effects]\n# density_milli = 1000 * sum(weights of effects) / statements. Flagged above the max.\nmax_density_milli = 500\nmin_statements = 3\nmin_lines = 10            # functions with fewer code lines than this skip the density rule\ntransitive_depth = 3      # call hops an effect travels up (io/network/global/time/random, delegated &mut writes); 0 = direct only\n\n[side_effects.weights]\nmutation = 1   # only writes that escape the function (through `&mut`), not owned locals\nio = 3\nnetwork = 3\nglobal = 2     # `static mut`\nunsafe = 4\ntime = 1\nrandom = 1\npanic = 0\nunknown = 1    # calls through dyn / fn pointers / generic callables\n\n# Callee path prefixes (longest match wins). Setting a list REPLACES its default.\n# [side_effects.paths]\n# io = [\"std::fs::\", \"std::io::\"]\n# network = [\"std::net::\", \"reqwest::\"]\n\n[grouping]\n# Which violations must be fixed together. A fix's footprint is the function itself plus,\n# for these rules, its callers (a signature change edits every call site). Violations with\n# overlapping footprints form one group: land them in one PR or stack them, callees first.\n# Everything else is independent. Wider footprints (e.g. density) create hub groups.\ncaller_rules = [\"fn_params\"]\ncaller_hops = 1\n",
+  "method": "Fresh completed compiler/legacy reports; exact unit/name joins to captured original source slices; explicit current-source inspection for changed/new cases and caller lifecycle followups. Original frozen labels are preserved. No additional independent numeric oracle requirement.",
+  "inputs": {
+    "compiler_report": "/tmp/clones-c108-current.json",
+    "legacy_report": "/tmp/clones-c108-legacy.json",
+    "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr",
+    "frozen_review": "eval/clones-capability/project-default-style-density-decision.json",
+    "resource_comparison": "eval/clones-capability/project-root-style-engine-resource-comparison.json"
+  },
+  "summary": {
+    "functions": 10085,
+    "compiler_findings": 48,
+    "legacy_findings": 0,
+    "all_current_rule_ids": [
+      "side_effect_density"
+    ],
+    "retained_frozen_function_names": 45,
+    "exact_frozen_source_matches": 37,
+    "changed_frozen_source_matches": 8,
+    "new_functions": [
+      "hir_extraction::instances::diagnostic_support::optional_requests",
+      "unit_store::bundle::diagnostic::style::read_style_snapshot_phase",
+      "unit_store::bundle::diagnostic::style::write_sealed_style_snapshot"
+    ],
+    "frozen_names_no_longer_reported": [
+      "clones::capture::targets",
+      "frontend::options::FrontendOptions::get_mut"
+    ],
+    "current_usefulness_classifications": {
+      "context_only": 48
+    },
+    "remaining_actionable_refactors_established_by_this_review": 0
+  },
+  "completion": {
+    "capture": true,
+    "summary": true,
+    "planning_inputs": false,
+    "planning_required_edits": true
+  },
+  "required_C99_C100_source_reconciliation": [
+    {
+      "function": "clones::capture::selected_workspace",
+      "captured_owners": 1,
+      "current_findings": 1,
+      "disposition": "C99/C100 shared acquisition/loader refactor delivered; no further concrete refactor established by current source/callers"
+    },
+    {
+      "function": "clones::capture::targets",
+      "captured_owners": 0,
+      "current_findings": 0,
+      "disposition": "C99/C100 shared acquisition/loader refactor delivered; no further concrete refactor established by current source/callers"
+    },
+    {
+      "function": "hir_extraction::instances::product_diagnostic::capture",
+      "captured_owners": 1,
+      "current_findings": 1,
+      "disposition": "C99/C100 shared acquisition/loader refactor delivered; no further concrete refactor established by current source/callers"
+    },
+    {
+      "function": "hir_extraction::instances::reference_diagnostic::capture",
+      "captured_owners": 1,
+      "current_findings": 1,
+      "disposition": "C99/C100 shared acquisition/loader refactor delivered; no further concrete refactor established by current source/callers"
+    }
+  ],
+  "caller_lifecycle_followups": [
+    {
+      "function": "data_documents::mutable_scalars::install_one",
+      "current_classification": "context_only",
+      "rationale": "The mutable working Pair belongs to install_locations, which takes Pair by value. install_one errors propagate through install_prepared/install/install_memory with ?, then install_locations and public apply return Err without returning that working Pair. Current callers neither recover from the failed installation nor publish its partial nodes/definitions. The original partial-update observation is true locally, but does not demonstrate an observable failed transaction or a current need for atomic reusable state. No refactor is justified solely by this density warning.",
+      "callers": [
+        {
+          "function": "data_documents::apply",
+          "unit": 5,
+          "key": "function:u5:f3122",
+          "file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/data_documents.rs",
+          "source": "pub fn apply(\n    pair: Pair,\n    facts: &dyn crate::unit_store::EvidenceFacts,\n    graph: &crate::producer::Graph,\n) -> Result<Pair, String> {\n    let pair = install_locations(pair, facts, graph)?;\n    let mut pair = install_value_contracts(pair, facts)?;\n    install_evidence(&mut pair.pdg, facts)?;\n    origins::install(&mut pair, facts)?;\n\n    let pair = install_annotations(\n        pair,\n        size_calls::sources(facts),\n        crate::size_calls::KEY,\n        |source| crate::size_calls::semantics(source, facts),\n    )?;\n    let pair = install_annotations(\n        pair,\n        checked_lengths::sources(facts),\n        crate::checked_lengths::KEY,\n        |source| checked_lengths::semantics(source, facts),\n    )?;\n    let pair = install_annotations(\n        pair,\n        bool_usize::sources(facts),\n        crate::bool_usize::KEY,\n        |source| crate::bool_usize::semantics(source, facts),\n    )?;\n    install_annotations(\n        pair,\n        float_scalars::sources(facts),\n        crate::float_scalars::KEY,\n        |source| crate::float_scalars::semantics(source, facts),\n    )\n}"
+        },
+        {
+          "function": "data_documents::install_locations",
+          "unit": 5,
+          "key": "function:u5:f3128",
+          "file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/data_documents.rs",
+          "source": "fn install_locations(\n    mut pair: Pair,\n    facts: &dyn crate::unit_store::EvidenceFacts,\n    graph: &crate::producer::Graph,\n) -> Result<Pair, String> {\n    let fields = observations(facts)?;\n    let mut context = LocationContext::new(facts);\n    let locations = fields\n        .operations\n        .iter()\n        .filter(|field| matches!(field.location, Location::Captured { .. }))\n        .map(|field| install_field(&mut pair.pdg, field, &mut context))\n        .collect::<Result<BTreeMap<_, _>, _>>()?;\n\n    let derived = install_derived_reads(&mut pair, &mut context)?;\n    let memory = install_memory(&mut pair, &mut context, graph)?;\n    finish_locations(\n        pair,\n        crate::helper_reads::merge_locations(\n            crate::helper_reads::merge_locations(locations, derived)?,\n            memory,\n        )?,\n    )\n}"
+        },
+        {
+          "function": "data_documents::install_memory",
+          "unit": 5,
+          "key": "function:u5:f3129",
+          "file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/data_documents.rs",
+          "source": "fn install_memory(\n    pair: &mut Pair,\n    context: &mut LocationContext<'_>,\n    graph: &crate::producer::Graph,\n) -> Result<BTreeMap<String, crate::MemoryLocation>, String> {\n    let accesses = mutable_scalars::install(pair, context)?;\n    let roots = memory_flow::install(pair, context, graph)?;\n\n    crate::helper_reads::merge_locations(accesses, roots)\n}"
+        }
+      ],
+      "limits": "Not a general rollback or panic-safety guarantee; revisit if a recovery/reuse API is introduced."
+    },
+    {
+      "function": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::begin_module",
+      "current_classification": "context_only",
+      "rationale": "verify_mode creates a private Closure for one verification. pass and module propagate begin_module errors with ?. A failed pass ends verify_mode and drops the visitor; no catch-and-reuse path exists in these callers. Computing scope also uses the installed current namespace/definitions, so moving field assignments would require a different context seam without a demonstrated caller benefit. The source does not establish a current retry/reuse requirement.",
+      "callers": [
+        {
+          "function": "nominal_boundary::resolution::selected::no_drop::closure::verify_mode",
+          "unit": 5,
+          "key": "function:u5:f7631",
+          "file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+          "source": "fn verify_mode(\n    environment: &Environment,\n    facts: &HirFnFacts,\n    target: &Namespace,\n    mode: SourceMode,\n) -> Result<(), String> {\n    let reference_product = !matches!(mode, SourceMode::Cleanup);\n    let cfgs = &facts.build.cfgs;\n    let ownership_engine = supports(facts, OWNERSHIP_MACROS_CAPABILITY)?;\n    let external_macros = supports(facts, external_expression_macros::CAPABILITY)?;\n    let enums = enum_globs::Scope::new(\n        &environment.modules,\n        cfgs,\n        reference_product || supports(facts, enum_errors::CAPABILITY)?,\n    )?;\n\n    let mut visitor = Closure {\n        dependency_sources: Some(environment),\n        digit_products: supports(\n            facts,\n            crate::scalar_product_instances::activation::VALUE_CAPABILITY,\n        )?,\n        external_macros,\n        ownership_engine,\n        library_macro_imports: supports(facts, source_macros::LIBRARY_CAPABILITY)?,\n        ownership_macros: ownership_resolver(environment, facts, &enums)?,\n        configuration: crate::conditional_source::Configuration::new(cfgs),\n        edition: facts.build.edition.known_value(),\n        library: crate::data_library::registry_for(facts),\n        native_tls: cfgs.iter().any(|cfg| cfg == \"target_thread_local\"),\n        test_marker: supports(facts, enum_errors::CAPABILITY)?,\n        enums,\n        names: headers::Names::new(target),\n        definitions: BTreeMap::new(),\n        scopes: Vec::new(),\n        error: None,\n        collecting: true,\n        expansions: 0,\n        nested_context: 0,\n        generated_context: 0,\n        reference_product,\n        scalar_bindings: matches!(mode, SourceMode::CopyOwner | SourceMode::ScalarError),\n        checked_external_imports: supports(facts, super::super::fresh_products::CAPABILITY)?,\n        result_prelude_namespace: result_prelude_namespace(facts, target, mode)?,\n    };\n    for collecting in [true, false] {\n        visitor.pass(environment, collecting)?;\n    }\n    Ok(())\n}"
+        },
+        {
+          "function": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::pass",
+          "unit": 5,
+          "key": "function:u5:f7638",
+          "file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+          "source": "fn pass(&mut self, environment: &Environment, collecting: bool) -> Result<(), String> {\n        self.collecting = collecting;\n        for module in &environment.modules {\n            self.module(environment, module)?;\n        }\n\n        self.finish_pass()\n    }"
+        },
+        {
+          "function": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::module",
+          "unit": 5,
+          "key": "function:u5:f7640",
+          "file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+          "source": "fn module(&mut self, environment: &Environment, module: &census::Module) -> Result<(), String> {\n        self.begin_module(environment, module)?;\n\n        for item in &module.items {\n            self.module_item(environment, module, item)?;\n            if let Some(error) = self.error.take() {\n                return Err(format!(\n                    \"{error} [module {}, source {}]\",\n                    module.namespace.join(\"::\"),\n                    module.path.display()\n                ));\n            }\n        }\n        Ok(())\n    }"
+        }
+      ],
+      "limits": "No claim that partial mutation could never matter under a future caller contract."
+    },
+    {
+      "function": "scalar_instances::source::Flow::<'a>::install_binding",
+      "current_classification": "context_only",
+      "rationale": "Flow::new installs a root lexical frame. Block traversal pushes a frame before processing bindings and pops it on completed block exit; any statement/exit failure propagates out of verify and discards the private Flow. No current caller resumes a failed Flow or exposes its scope/bindings. Checking the frame earlier could be defensive cleanup, but the proposed externally meaningful partial-state problem is not established for this API.",
+      "callers": [
+        {
+          "function": "scalar_instances::source::verify",
+          "unit": 5,
+          "key": "function:u5:f10815",
+          "file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/scalar_instances/source.rs",
+          "source": "pub(super) fn verify<'a>(\n    original: &HirFnFacts,\n    projected: &'a HirFnFacts,\n    scalar: &str,\n) -> Result<Checked<'a>> {\n    if original.source.bytes.len() > crate::concrete_types::MAX_SOURCE_BYTES\n        || original.bindings.len() > 256\n        || original.signature.params.len() > 64\n    {\n        return Err(\"Scalar instance source exceeds its bounded proof budget\".into());\n    }\n    if !matches!(scalar, \"i32\" | \"u32\") {\n        return Err(\"Scalar instance source argument is outside i32/u32\".into());\n    }\n\n    preserved(original, projected)?;\n    let syntax: syn::ItemFn = syn::parse_str(&original.source.bytes).map_err(|e| e.to_string())?;\n    let parameter = signature(&syntax)?;\n    signature_metadata(&syntax, projected, &parameter)?;\n\n    let mut flow = Flow::new(projected, scalar, parameter)?;\n    flow.parameters(&syntax.sig)?;\n    let expected = flow.annotation(&syntax.sig.output)?;\n    flow.result = expected;\n\n    let actual = flow.block(&syntax.block, &projected.body)?;\n    if actual != expected && actual != Value::Never\n        || flow.bindings.len() != projected.bindings.len()\n    {\n        return Err(\"Scalar instance result or complete binding inventory disagrees\".into());\n    }\n    Ok(Checked(projected))\n}"
+        },
+        {
+          "function": "scalar_instances::source::Flow::<'a>::new",
+          "unit": 5,
+          "key": "function:u5:f10832",
+          "file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/scalar_instances/source.rs",
+          "source": "fn new(facts: &'a HirFnFacts, scalar: &'a str, parameter: String) -> Result<Self> {\n        let mut inventory = BTreeMap::new();\n        for binding in &facts.bindings {\n            if inventory.insert(binding.symbol.as_str(), binding).is_some() {\n                return Err(\"Scalar instance binding inventory repeats a symbol\".into());\n            }\n        }\n        Ok(Self {\n            facts,\n            offsets: SpanIndex::new(&facts.source.bytes),\n            scalar,\n            parameter,\n            result: Value::Scalar,\n            scope: BTreeMap::new(),\n            frames: vec![Vec::new()],\n            inventory,\n            bindings: BTreeSet::new(),\n            seen: BTreeSet::new(),\n        })\n    }"
+        },
+        {
+          "function": "scalar_instances::source::Flow::<'a>::block",
+          "unit": 5,
+          "key": "function:u5:f10844",
+          "file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/scalar_instances/source.rs",
+          "source": "fn block(&mut self, syntax: &syn::Block, node: &HirNode) -> Result<Value> {\n        self.enter_block(syntax, node)?;\n        let mut value = Value::Unit;\n        for (index, statement) in syntax.stmts.iter().enumerate() {\n            if value == Value::Never {\n                return Err(\"Unreachable scalar instance source suffix is unsupported\".into());\n            }\n            value = self.statement(statement, &node.children[index])?;\n        }\n\n        self.exit_block()?;\n        self.typed(node, value)\n    }"
+        },
+        {
+          "function": "scalar_instances::source::Flow::<'a>::enter_block",
+          "unit": 5,
+          "key": "function:u5:f10845",
+          "file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/scalar_instances/source.rs",
+          "source": "fn enter_block(&mut self, syntax: &syn::Block, node: &HirNode) -> Result<()> {\n        self.node(node, \"expr_block\", syntax.span())?;\n        if syntax.stmts.len() != node.children.len() {\n            return Err(\"Scalar instance block inventory disagrees\".into());\n        }\n\n        self.frames.push(Vec::new());\n        Ok(())\n    }"
+        },
+        {
+          "function": "scalar_instances::source::Flow::<'a>::exit_block",
+          "unit": 5,
+          "key": "function:u5:f10846",
+          "file": "/home/dev/src/rstyle-main/rstyle/crates/rstyle-pdg/src/scalar_instances/source.rs",
+          "source": "fn exit_block(&mut self) -> Result<()> {\n        for name in self.frames.pop().ok_or(\"Missing scalar block frame\")? {\n            self.scope\n                .get_mut(&name)\n                .ok_or(\"Missing scalar local binding\")?\n                .pop();\n        }\n        Ok(())\n    }"
+        }
+      ],
+      "limits": "No assertion that private invariants remove the need for existing error checks, or that a future reusable Flow would have the same contract."
+    }
+  ],
+  "current_cases": [
+    {
+      "index": 0,
+      "unit": 0,
+      "key": "function:u0:f160",
+      "function": "clones::advisory_only::consume",
+      "path": "crates/cargo-rstyle/src/clones/advisory_only.rs",
+      "line": 4,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/advisory_only.rs",
+        "line": 4,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::advisory_only::consume` has a high side-effect density",
+        "actual": 538,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read (via clones::capture::load_inventory)",
+            "count": 1,
+            "lines": [
+              9
+            ]
+          },
+          {
+            "label": "io: std::io::Write::write_fmt +2 more (via diagnostics::Stage::<'a>::observe)",
+            "count": 1,
+            "lines": [
+              8
+            ]
+          },
+          {
+            "label": "time: std::time::Instant::now (via diagnostics::Stage::<'a>::observe)",
+            "count": 1,
+            "lines": [
+              8
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": false,
+      "frozen_index": 0,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 160
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "current original-source review",
+      "rationale": "The current source adds the requested numeric-only payload branch and shares mode validation through check_mode. It remains the boundary that loads a unit and dispatches to the correct typed decoder/owner. The new branch has a concrete consumer and does not establish a further style-driven extraction.",
+      "current_source": "pub(super) fn consume(request: &UnitRequest<'_>, result: &mut Handoff) -> Result<(), String> {\n    let unit = request.unit;\n    check_mode(unit, &request.capture.plan)?;\n\n    let snapshot = Stage::new(\"cli.advisory.load_inventory\", &unit.target.package, None)\n        .observe(|| capture::load_inventory(unit))?;\n    if unit.style_inputs_only {\n        return consume_style(request, &snapshot, result);\n    }\n    let stage = Stage::new(\n        \"cli.advisory.decode\",\n        &unit.target.package,\n        Some(snapshot.bundle.bytes()),\n    );\n    if header_only(request.args) {\n        let facts = stage.observe(|| {\n            rstyle_pdg::unit_store::read_diagnostic_snapshot_headers_phase(\n                snapshot.bundle.bytes(),\n                \"compiler-advisory-only\",\n            )\n        })?;\n        consume_facts(\n            Decoded {\n                facts,\n                owner: FactOwner::Numeric,\n            },\n            request,\n            &snapshot,\n            result,\n        )\n    } else {\n        let facts = stage.observe(|| {\n            rstyle_pdg::unit_store::read_diagnostic_snapshot_phase(\n                snapshot.bundle.bytes(),\n                \"compiler-advisory-only\",\n            )\n        })?;\n        consume_facts(\n            Decoded {\n                facts,\n                owner: FactOwner::Advisory,\n            },\n            request,\n            &snapshot,\n            result,\n        )\n    }\n}"
+    },
+    {
+      "index": 1,
+      "unit": 0,
+      "key": "function:u0:f164",
+      "function": "clones::advisory_only::consume_facts",
+      "path": "crates/cargo-rstyle/src/clones/advisory_only.rs",
+      "line": 109,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/advisory_only.rs",
+        "line": 109,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::advisory_only::consume_facts` has a high side-effect density",
+        "actual": 571,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_fmt +2 more (via diagnostics::Stage::<'a>::enter)",
+            "count": 1,
+            "lines": [
+              117
+            ]
+          },
+          {
+            "label": "mutation: &mut state (via clones::advisory_only::retain)",
+            "count": 1,
+            "lines": [
+              136
+            ]
+          },
+          {
+            "label": "mutation: result.build_contexts",
+            "count": 1,
+            "lines": [
+              129
+            ]
+          },
+          {
+            "label": "mutation: result.source_inventory",
+            "count": 1,
+            "lines": [
+              126
+            ]
+          },
+          {
+            "label": "time: std::time::Instant::now (via diagnostics::Stage::<'a>::enter)",
+            "count": 1,
+            "lines": [
+              117
+            ]
+          },
+          {
+            "label": "unknown: <fn pointer>",
+            "count": 1,
+            "lines": [
+              136
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": false,
+      "frozen_index": 1,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 164
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "current original-source review",
+      "rationale": "Only the binding payload type parameter changed. The same shared context checking, build interning and typed-owner retention remain one handoff operation; the previous context-only rationale still applies.",
+      "current_source": "fn consume_facts<B: identity::BodyOwner, L>(\n    decoded: Decoded<B, L>,\n    request: &UnitRequest<'_>,\n    snapshot: &capture::Snapshot,\n    result: &mut Handoff,\n) -> Result<(), String> {\n    let Decoded { facts, owner } = decoded;\n    let unit = request.unit;\n    let context_stage = Stage::new(\"cli.advisory.context\", &unit.target.package, None).enter();\n    let selected = selected_context::SelectedContext::new(unit)?;\n\n    let mut builds = rstyle_pdg::nominal_binding::BuildContexts::default();\n    for function in &facts {\n        verify_frontend_invocation(function, unit, request.capture, &selected)?;\n        builds.intern(&function.build)?;\n    }\n\n    result\n        .source_inventory\n        .extend(source_inventory(unit, snapshot)?);\n    result.build_contexts.push(UnitBuildContexts {\n        unit_bundle: unit.directory.join(\"unit.evidence.json\"),\n        builds,\n    });\n    context_stage.finish(Ok::<_, String>(()))?;\n    Stage::new(\"cli.advisory.retain\", &unit.target.package, None).observe(|| {\n        let keys = identity::functions(request.id, &facts)?;\n        retain(owner(Arc::new(facts)), keys, request, result)\n    })\n}"
+    },
+    {
+      "index": 2,
+      "unit": 0,
+      "key": "function:u0:f611",
+      "function": "clones::analysis::configuration",
+      "path": "crates/cargo-rstyle/src/clones/analysis/mod.rs",
+      "line": 178,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/analysis/mod.rs",
+        "line": 178,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::analysis::configuration` has a high side-effect density",
+        "actual": 1000,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read_to_string (via clones::analysis::source_policy)",
+            "count": 1,
+            "lines": [
+              183
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 2,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 611
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/2/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/2/frozen_source"
+    },
+    {
+      "index": 3,
+      "unit": 0,
+      "key": "function:u0:f829",
+      "function": "clones::capture::selected_workspace",
+      "path": "crates/cargo-rstyle/src/clones/capture.rs",
+      "line": 132,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture.rs",
+        "line": 132,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::selected_workspace` has a high side-effect density",
+        "actual": 600,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::process::Command::output (via workspace::load_with_toolchain)",
+            "count": 1,
+            "lines": [
+              133
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": false,
+      "frozen_index": 3,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 829
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "current original-source review",
+      "rationale": "The C99 shared raw metadata input seam is present: capture::prepare obtains (metadata, raw) once, and selected_targets consumes that same raw value. This function acquires, projects and validates one metadata result; the formerly actionable duplicate command is gone.",
+      "current_source": "fn selected_workspace(cli: &Cli) -> Result<(crate::workspace::Metadata, Value), String> {\n    let raw = crate::workspace::load_with_toolchain(\n        cli.manifest_path.as_deref(),\n        Some(&run::pinned_toolchain()),\n    )?;\n    let metadata = crate::workspace::Metadata::deserialize(&raw)\n        .map_err(|e| format!(\"cargo metadata: {e}\"))?;\n    if let Some(package) = metadata.unknown_packages(&cli.packages).first() {\n        return Err(format!(\"unknown package {package}\"));\n    }\n    Ok((metadata, raw))\n}"
+    },
+    {
+      "index": 4,
+      "unit": 0,
+      "key": "function:u0:f834",
+      "function": "clones::capture::tool_identity",
+      "path": "crates/cargo-rstyle/src/clones/capture.rs",
+      "line": 207,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture.rs",
+        "line": 207,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::tool_identity` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::process::Command::output",
+            "count": 1,
+            "lines": [
+              208
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 4,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 834
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/4/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/4/frozen_source"
+    },
+    {
+      "index": 5,
+      "unit": 0,
+      "key": "function:u0:f851",
+      "function": "clones::capture::expected_units",
+      "path": "crates/cargo-rstyle/src/clones/capture.rs",
+      "line": 488,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture.rs",
+        "line": 488,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::expected_units` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::write (via clones::write_json)",
+            "count": 1,
+            "lines": [
+              504
+            ]
+          },
+          {
+            "label": "io: std::process::Command::output",
+            "count": 1,
+            "lines": [
+              489
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 6,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 851
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/6/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/6/frozen_source"
+    },
+    {
+      "index": 6,
+      "unit": 0,
+      "key": "function:u0:f867",
+      "function": "clones::capture::capture_unit",
+      "path": "crates/cargo-rstyle/src/clones/capture.rs",
+      "line": 766,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture.rs",
+        "line": 766,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::capture_unit` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read (via clones::read_json)",
+            "count": 1,
+            "lines": [
+              779
+            ]
+          },
+          {
+            "label": "io: std::fs::read +5 more (via clones::capture::publish_unit)",
+            "count": 1,
+            "lines": [
+              801
+            ]
+          },
+          {
+            "label": "io: std::process::Command::status +1 more (via clones::capture::invoke_unit)",
+            "count": 1,
+            "lines": [
+              796
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": false,
+      "frozen_index": 7,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 867
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "current original-source review",
+      "rationale": "The only reviewed body change adds the style_inputs_only field to the existing Unit construction. Ledger, compiler mode, target and publication still form the same context boundary; no new independent responsibility is demonstrated.",
+      "current_source": "fn capture_unit(\n    plan: &Path,\n    target: Target,\n    invocation: Vec<String>,\n    mut command: Command,\n) -> Result<u8, String> {\n    if invocation\n        .iter()\n        .any(|arg| arg.starts_with(\"incremental=\") || arg.starts_with(\"-Cincremental=\"))\n    {\n        return Err(\"strict capture requires incremental compilation disabled; remove explicit -C incremental flags\".into());\n    }\n    let root = plan.parent().ok_or(\"missing run directory\")?;\n    let selected_plan: Plan = read_json(plan)?;\n    let directory = tempfile::Builder::new()\n        .prefix(\"invocation-\")\n        .tempdir_in(root)\n        .map_err(|e| e.to_string())?\n        .keep();\n    let test = invocation.iter().any(|a| a == \"--test\");\n    let unit = Unit {\n        compiler_advisory_only: selected_plan.compiler_advisory_only,\n        style_inputs_only: selected_plan.style_inputs_only,\n        extraction_profile: selected_plan.extraction_profile,\n        target,\n        test,\n        invocation,\n        directory,\n        artifacts: Vec::new(),\n    };\n    let status = invoke_unit(&unit, &mut command)?;\n\n    if !status.success() {\n        return Ok(2);\n    }\n    publish_unit(&selected_plan, root, unit)?;\n    Ok(0)\n}"
+    },
+    {
+      "index": 7,
+      "unit": 0,
+      "key": "function:u0:f874",
+      "function": "clones::capture::read_artifact",
+      "path": "crates/cargo-rstyle/src/clones/capture.rs",
+      "line": 854,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture.rs",
+        "line": 854,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::read_artifact` has a high side-effect density",
+        "actual": 1000,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read",
+            "count": 2,
+            "lines": [
+              856,
+              865
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 8,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 874
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/8/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/8/frozen_source"
+    },
+    {
+      "index": 8,
+      "unit": 0,
+      "key": "function:u0:f671",
+      "function": "clones::capture::associations::associate_call",
+      "path": "crates/cargo-rstyle/src/clones/capture/associations.rs",
+      "line": 486,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture/associations.rs",
+        "line": 486,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::associations::associate_call` has a high side-effect density",
+        "actual": 600,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read (via clones::capture::associations::associate_foreign)",
+            "count": 1,
+            "lines": [
+              499
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 9,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 671
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/9/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/9/frozen_source"
+    },
+    {
+      "index": 9,
+      "unit": 0,
+      "key": "function:u0:f679",
+      "function": "clones::capture::associations::seal",
+      "path": "crates/cargo-rstyle/src/clones/capture/associations.rs",
+      "line": 685,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture/associations.rs",
+        "line": 685,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::associations::seal` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read",
+            "count": 1,
+            "lines": [
+              690
+            ]
+          },
+          {
+            "label": "mutation: seals",
+            "count": 1,
+            "lines": [
+              698
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 10,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 679
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/10/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/10/frozen_source"
+    },
+    {
+      "index": 10,
+      "unit": 0,
+      "key": "function:u0:f696",
+      "function": "clones::capture::dependencies::metadata::select",
+      "path": "crates/cargo-rstyle/src/clones/capture/dependencies/metadata.rs",
+      "line": 6,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture/dependencies/metadata.rs",
+        "line": 6,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::dependencies::metadata::select` has a high side-effect density",
+        "actual": 545,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read_to_string (via clones::capture::dependencies::select)",
+            "count": 1,
+            "lines": [
+              35
+            ]
+          },
+          {
+            "label": "io: std::process::Command::output",
+            "count": 1,
+            "lines": [
+              21
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 11,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 696
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/11/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/11/frozen_source"
+    },
+    {
+      "index": 11,
+      "unit": 0,
+      "key": "function:u0:f764",
+      "function": "clones::capture::owner_reuse::restart",
+      "path": "crates/cargo-rstyle/src/clones/capture/owner_reuse.rs",
+      "line": 218,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/capture/owner_reuse.rs",
+        "line": 218,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::capture::owner_reuse::restart` has a high side-effect density",
+        "actual": 1000,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::write (via clones::write_json)",
+            "count": 1,
+            "lines": [
+              228
+            ]
+          },
+          {
+            "label": "mutation: capture.directory",
+            "count": 1,
+            "lines": [
+              220
+            ]
+          },
+          {
+            "label": "mutation: capture.failures",
+            "count": 1,
+            "lines": [
+              227
+            ]
+          },
+          {
+            "label": "mutation: capture.units",
+            "count": 1,
+            "lines": [
+              226
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 12,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 764
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/12/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/12/frozen_source"
+    },
+    {
+      "index": 12,
+      "unit": 0,
+      "key": "function:u0:f955",
+      "function": "clones::linking::manifest",
+      "path": "crates/cargo-rstyle/src/clones/linking.rs",
+      "line": 71,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/linking.rs",
+        "line": 71,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::linking::manifest` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read (via clones::read_json)",
+            "count": 1,
+            "lines": [
+              72
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 13,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 955
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/13/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/13/frozen_source"
+    },
+    {
+      "index": 13,
+      "unit": 0,
+      "key": "function:u0:f956",
+      "function": "clones::linking::consume",
+      "path": "crates/cargo-rstyle/src/clones/linking.rs",
+      "line": 82,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/linking.rs",
+        "line": 82,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::linking::consume` has a high side-effect density",
+        "actual": 909,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::File::open +2 more (via clones::linking::check_closure)",
+            "count": 1,
+            "lines": [
+              97
+            ]
+          },
+          {
+            "label": "io: std::fs::read (via clones::load_unit)",
+            "count": 1,
+            "lines": [
+              92
+            ]
+          },
+          {
+            "label": "io: std::fs::write (via clones::write_json)",
+            "count": 1,
+            "lines": [
+              108
+            ]
+          },
+          {
+            "label": "mutation: &mut state (via clones::load_unit)",
+            "count": 1,
+            "lines": [
+              92
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 14,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 956
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/14/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/14/frozen_source"
+    },
+    {
+      "index": 14,
+      "unit": 0,
+      "key": "function:u0:f958",
+      "function": "clones::linking::check_closure",
+      "path": "crates/cargo-rstyle/src/clones/linking.rs",
+      "line": 139,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/linking.rs",
+        "line": 139,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::linking::check_closure` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::File::open +1 more (via clones::linking::cargo_artifacts)",
+            "count": 1,
+            "lines": [
+              152
+            ]
+          },
+          {
+            "label": "io: std::fs::read (via clones::linking::manifest)",
+            "count": 1,
+            "lines": [
+              172
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 15,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 958
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/15/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/15/frozen_source"
+    },
+    {
+      "index": 15,
+      "unit": 0,
+      "key": "function:u0:f959",
+      "function": "clones::linking::cargo_artifacts",
+      "path": "crates/cargo-rstyle/src/clones/linking.rs",
+      "line": 180,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/linking.rs",
+        "line": 180,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::linking::cargo_artifacts` has a high side-effect density",
+        "actual": 857,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::File::open",
+            "count": 1,
+            "lines": [
+              181
+            ]
+          },
+          {
+            "label": "io: std::io::BufReader::new",
+            "count": 1,
+            "lines": [
+              182
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 16,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 959
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/16/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/16/frozen_source"
+    },
+    {
+      "index": 16,
+      "unit": 0,
+      "key": "function:u0:f2810",
+      "function": "clones::configuration",
+      "path": "crates/cargo-rstyle/src/clones/mod.rs",
+      "line": 366,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/mod.rs",
+        "line": 366,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::configuration` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::read_to_string (via clones::advisory::configuration)",
+            "count": 1,
+            "lines": [
+              380
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 17,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 2810
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/17/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/17/frozen_source"
+    },
+    {
+      "index": 17,
+      "unit": 0,
+      "key": "function:u0:f1259",
+      "function": "clones::review::baseline_common::publish_optional",
+      "path": "crates/cargo-rstyle/src/clones/review/baseline_common.rs",
+      "line": 315,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/review/baseline_common.rs",
+        "line": 315,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::review::baseline_common::publish_optional` has a high side-effect density",
+        "actual": 1000,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_all +1 more (via clones::review::baseline_common::Report::<T, H>::publish)",
+            "count": 1,
+            "lines": [
+              321
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 18,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 1259
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/18/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/18/frozen_source"
+    },
+    {
+      "index": 18,
+      "unit": 0,
+      "key": "function:u0:f2435",
+      "function": "clones::review::publication::write",
+      "path": "crates/cargo-rstyle/src/clones/review/publication.rs",
+      "line": 9,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/review/publication.rs",
+        "line": 9,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::review::publication::write` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::flush",
+            "count": 1,
+            "lines": [
+              16
+            ]
+          },
+          {
+            "label": "io: std::io::Write::write_all",
+            "count": 1,
+            "lines": [
+              15
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 19,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 2435
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/19/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/19/frozen_source"
+    },
+    {
+      "index": 19,
+      "unit": 0,
+      "key": "function:u0:f2617",
+      "function": "clones::review::source_workflow::dismiss_one",
+      "path": "crates/cargo-rstyle/src/clones/review/source_workflow.rs",
+      "line": 159,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/review/source_workflow.rs",
+        "line": 159,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::review::source_workflow::dismiss_one` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via clones::review::source_workflow::record_choice)",
+            "count": 1,
+            "lines": [
+              165
+            ]
+          },
+          {
+            "label": "mutation: store.schema_version",
+            "count": 1,
+            "lines": [
+              166
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 20,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 2617
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/20/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/20/frozen_source"
+    },
+    {
+      "index": 20,
+      "unit": 0,
+      "key": "function:u0:f2726",
+      "function": "clones::review::workflow::Inputs::<'_, '_>::apply",
+      "path": "crates/cargo-rstyle/src/clones/review/workflow.rs",
+      "line": 185,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/clones/review/workflow.rs",
+        "line": 185,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `clones::review::workflow::Inputs::<'_, '_>::apply` has a high side-effect density",
+        "actual": 600,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_all +1 more (via clones::review::workflow::save)",
+            "count": 1,
+            "lines": [
+              212
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": false,
+      "frozen_index": 21,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 2726
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "current original-source review",
+      "rationale": "The captured function differs only because the frozen text included preceding documentation; the executable source remains the shared load/apply/atomic-publication workflow already reviewed as context-only.",
+      "current_source": "pub(in crate::clones) fn apply(\n        self,\n        ctx: &report::Context<'_>,\n        mut store: Option<ReviewStore>,\n    ) -> Result<Reports, String> {\n        let mut reports = evaluate(&self, ctx, store.as_mut())?;\n        reports.pruning = pruning(store.as_mut(), reports.status.as_ref(), ctx)?;\n\n        if (!ctx.args.dismiss_helper_pair.is_empty()\n            || ctx.args.dismiss_enum_dispatch.is_some()\n            || !ctx.args.dismiss_capability_pair.is_empty()\n            || ctx.args.dismiss_parameter.is_some()\n            || ctx.args.dismiss_length.is_some()\n            || ctx.args.dismiss_spacing.is_some()\n            || ctx.args.dismiss_mutation_per_target.is_some()\n            || ctx.args.dismiss_mutated_targets.is_some()\n            || ctx.args.dismiss_density.is_some()\n            || !ctx.args.dismiss_compiler_pattern.is_empty()\n            || !ctx.args.import_legacy_pattern.is_empty()\n            || !ctx.args.dismiss_compiler_diagnostic.is_empty()\n            || !ctx.args.dismiss_guard.is_empty()\n            || reports\n                .pruning\n                .as_ref()\n                .is_some_and(|report| report.removed_entries > 0))\n            && let (Some(path), Some(store)) = (&ctx.args.review_file, &store)\n        {\n            save(path, store)?;\n        }\n        Ok(reports)\n    }"
+    },
+    {
+      "index": 21,
+      "unit": 0,
+      "key": "function:u0:f2864",
+      "function": "diagnostic_process::streamed_output",
+      "path": "crates/cargo-rstyle/src/diagnostic_process.rs",
+      "line": 12,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/diagnostic_process.rs",
+        "line": 12,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `diagnostic_process::streamed_output` has a high side-effect density",
+        "actual": 583,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Read::read_to_end (via diagnostic_process::collect)",
+            "count": 1,
+            "lines": [
+              27
+            ]
+          },
+          {
+            "label": "io: std::process::Command::spawn",
+            "count": 1,
+            "lines": [
+              17
+            ]
+          },
+          {
+            "label": "mutation: command",
+            "count": 1,
+            "lines": [
+              13
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 22,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 2864
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/22/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/22/frozen_source"
+    },
+    {
+      "index": 22,
+      "unit": 0,
+      "key": "function:u0:f3016",
+      "function": "session",
+      "path": "crates/cargo-rstyle/src/main.rs",
+      "line": 379,
+      "diagnostic": {
+        "path": "crates/cargo-rstyle/src/main.rs",
+        "line": 379,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `session` has a high side-effect density",
+        "actual": 600,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::create_dir_all +1 more (via gather)",
+            "count": 1,
+            "lines": [
+              380
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 23,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-rnbBsN/unit.evidence.json",
+        "function_index": 3016
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/23/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/23/frozen_source"
+    },
+    {
+      "index": 23,
+      "unit": 3,
+      "key": "function:u3:f141",
+      "function": "hir_extraction::concrete_types::Capture::<'a, 'tcx>::install_signature",
+      "path": "crates/rstyle-driver/src/hir_extraction/concrete_types.rs",
+      "line": 173,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/concrete_types.rs",
+        "line": 173,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::concrete_types::Capture::<'a, 'tcx>::install_signature` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via hir_extraction::concrete_types::Capture::<'a, 'tcx>::binding_tokens)",
+            "count": 1,
+            "lines": [
+              182
+            ]
+          },
+          {
+            "label": "mutation: facts.bindings",
+            "count": 1,
+            "lines": [
+              182
+            ]
+          },
+          {
+            "label": "mutation: facts.signature",
+            "count": 1,
+            "lines": [
+              179
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 24,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-MMjMH2/unit.evidence.json",
+        "function_index": 141
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/24/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/24/frozen_source"
+    },
+    {
+      "index": 24,
+      "unit": 3,
+      "key": "function:u3:f180",
+      "function": "hir_extraction::concrete_types::interface_tokens",
+      "path": "crates/rstyle-driver/src/hir_extraction/concrete_types.rs",
+      "line": 1030,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/concrete_types.rs",
+        "line": 1030,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::concrete_types::interface_tokens` has a high side-effect density",
+        "actual": 571,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: parameter.pat.ty",
+            "count": 1,
+            "lines": [
+              1037
+            ]
+          },
+          {
+            "label": "mutation: parameter.ty.normalized",
+            "count": 1,
+            "lines": [
+              1036
+            ]
+          },
+          {
+            "label": "mutation: signature.params",
+            "count": 1,
+            "lines": [
+              1034
+            ]
+          },
+          {
+            "label": "mutation: signature.return_ty.normalized",
+            "count": 1,
+            "lines": [
+              1042
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 25,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-MMjMH2/unit.evidence.json",
+        "function_index": 180
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/25/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/25/frozen_source"
+    },
+    {
+      "index": 25,
+      "unit": 3,
+      "key": "function:u3:f84",
+      "function": "hir_extraction::concrete_types::callbacks::<impl hir_extraction::concrete_types::Capture<'_, 'tcx>>::callback_environments_in",
+      "path": "crates/rstyle-driver/src/hir_extraction/concrete_types/callbacks.rs",
+      "line": 15,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/concrete_types/callbacks.rs",
+        "line": 15,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::concrete_types::callbacks::<impl hir_extraction::concrete_types::Capture<'_, 'tcx>>::callback_environments_in` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via hir_extraction::concrete_types::callbacks::<impl hir_extraction::concrete_types::Capture<'_, 'tcx>>::callback_environment)",
+            "count": 1,
+            "lines": [
+              22
+            ]
+          },
+          {
+            "label": "mutation: node.children",
+            "count": 1,
+            "lines": [
+              25
+            ]
+          },
+          {
+            "label": "mutation: node.res",
+            "count": 1,
+            "lines": [
+              22
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 26,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-MMjMH2/unit.evidence.json",
+        "function_index": 84
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/26/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/26/frozen_source"
+    },
+    {
+      "index": 26,
+      "unit": 3,
+      "key": "function:u3:f212",
+      "function": "hir_extraction::dependency_namespaces::sites::Leaves::<'_, '_>::import",
+      "path": "crates/rstyle-driver/src/hir_extraction/dependency_namespaces/sites.rs",
+      "line": 286,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/dependency_namespaces/sites.rs",
+        "line": 286,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::dependency_namespaces::sites::Leaves::<'_, '_>::import` has a high side-effect density",
+        "actual": 600,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via hir_extraction::dependency_namespaces::sites::Leaves::<'_, '_>::import_inventory)",
+            "count": 1,
+            "lines": [
+              292
+            ]
+          },
+          {
+            "label": "mutation: self.context",
+            "count": 1,
+            "lines": [
+              288
+            ]
+          },
+          {
+            "label": "mutation: self.context.output.imports",
+            "count": 1,
+            "lines": [
+              294
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 27,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-MMjMH2/unit.evidence.json",
+        "function_index": 212
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/27/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/27/frozen_source"
+    },
+    {
+      "index": 27,
+      "unit": 3,
+      "key": "function:u3:f346",
+      "function": "hir_extraction::id_error_maps::environment::signature_types",
+      "path": "crates/rstyle-driver/src/hir_extraction/id_error_maps/environment.rs",
+      "line": 115,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/id_error_maps/environment.rs",
+        "line": 115,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::id_error_maps::environment::signature_types` has a high side-effect density",
+        "actual": 1000,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: observe",
+            "count": 1,
+            "lines": [
+              122
+            ]
+          },
+          {
+            "label": "unknown: <indirect callable>",
+            "count": 2,
+            "lines": [
+              122,
+              125
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 28,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-MMjMH2/unit.evidence.json",
+        "function_index": 346
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/28/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/28/frozen_source"
+    },
+    {
+      "index": 28,
+      "unit": 3,
+      "key": "function:u3:f451",
+      "function": "hir_extraction::instances::diagnostic_support::optional_requests",
+      "path": "crates/rstyle-driver/src/hir_extraction/instances/diagnostic_support.rs",
+      "line": 7,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/instances/diagnostic_support.rs",
+        "line": 7,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::instances::diagnostic_support::optional_requests` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::File::open",
+            "count": 1,
+            "lines": [
+              13
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": false,
+      "frozen_index": null,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-MMjMH2/unit.evidence.json",
+        "function_index": 451
+      },
+      "original_classification": null,
+      "current_classification": "context_only",
+      "review_basis": "current original-source review",
+      "rationale": "A single generic optional request-file loader checks the environment, opens one file and decodes its concrete request type. Product and reference diagnostics now share this exact I/O boundary. Splitting it further would move one coherent operation into wrappers rather than remove duplicated consumer behavior.",
+      "current_source": "pub(super) fn optional_requests<T: serde::de::DeserializeOwned>(\n    variable: &str,\n) -> Result<Option<T>, String> {\n    let Some(path) = std::env::var_os(variable) else {\n        return Ok(None);\n    };\n    let file = std::fs::File::open(path).map_err(|error| error.to_string())?;\n    serde_json::from_reader(file)\n        .map(Some)\n        .map_err(|error| error.to_string())\n}"
+    },
+    {
+      "index": 29,
+      "unit": 3,
+      "key": "function:u3:f520",
+      "function": "hir_extraction::instances::product_diagnostic::capture",
+      "path": "crates/rstyle-driver/src/hir_extraction/instances/product_diagnostic.rs",
+      "line": 145,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/instances/product_diagnostic.rs",
+        "line": 145,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::instances::product_diagnostic::capture` has a high side-effect density",
+        "actual": 600,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::File::open (via hir_extraction::instances::diagnostic_support::optional_requests)",
+            "count": 1,
+            "lines": [
+              151
+            ]
+          },
+          {
+            "label": "io: std::fs::create_dir_all +4 more (via hir_extraction::instances::diagnostic_support::persist)",
+            "count": 1,
+            "lines": [
+              171
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": false,
+      "frozen_index": 29,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-MMjMH2/unit.evidence.json",
+        "function_index": 520
+      },
+      "original_classification": "actionable",
+      "current_classification": "context_only",
+      "review_basis": "current original-source review",
+      "rationale": "C100 replaced the repeated environment/open/decode block with optional_requests. The remaining product-specific validate, associated owner roster, selected observations and publication scope stay distinct from reference diagnostics; the previously proposed common loader is already delivered.",
+      "current_source": "pub(crate) fn capture(\n    tcx: TyCtxt<'_>,\n    scanned: &[source::Function],\n    options: &Options<'_>,\n) -> Result<(), String> {\n    let Some(requests): Option<Requests> =\n        diagnostic_support::optional_requests(\"RSTYLE_DIAGNOSTIC_PRODUCT_INSTANCE_REQUESTS\")?\n    else {\n        return Ok(());\n    };\n    validate(&requests, tcx, options)?;\n    let owners = diagnostic_support::owners(tcx, &[DefKind::AssocFn]);\n    let entries = requests\n        .requests\n        .into_iter()\n        .map(|request| {\n            let outcome = match owners.get(&request.function).copied().flatten() {\n                Some(owner) => observe_owner(tcx, owner, &request, Inputs { scanned, options }),\n                None => Outcome::Unavailable {\n                    reason: \"Original associated owner is unavailable or ambiguous\".into(),\n                },\n            };\n            Entry { request, outcome }\n        })\n        .collect();\n\n    diagnostic_support::persist(\n        &Inventory {\n            identity: \"rstyle.diagnostic.product-instance-bodies/1\",\n            scope: \"original associated Match constructor, Span/Range substitutions and selected Into/From observations only\",\n            admission_authority: false,\n            requests: entries,\n        },\n        \"product-instances\",\n        \"Product diagnostics require an explicit snapshot directory\",\n    )\n}"
+    },
+    {
+      "index": 30,
+      "unit": 3,
+      "key": "function:u3:f593",
+      "function": "hir_extraction::instances::reference_diagnostic::capture",
+      "path": "crates/rstyle-driver/src/hir_extraction/instances/reference_diagnostic.rs",
+      "line": 94,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/instances/reference_diagnostic.rs",
+        "line": 94,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::instances::reference_diagnostic::capture` has a high side-effect density",
+        "actual": 600,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::File::open (via hir_extraction::instances::diagnostic_support::optional_requests)",
+            "count": 1,
+            "lines": [
+              100
+            ]
+          },
+          {
+            "label": "io: std::fs::create_dir_all +4 more (via hir_extraction::instances::diagnostic_support::persist)",
+            "count": 1,
+            "lines": [
+              117
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": false,
+      "frozen_index": 30,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-MMjMH2/unit.evidence.json",
+        "function_index": 593
+      },
+      "original_classification": "actionable",
+      "current_classification": "context_only",
+      "review_basis": "current original-source review",
+      "rationale": "C100 uses the same optional_requests helper as product capture. Reference-specific validation, Fn/AssocFn ownership and unavailable outcomes remain local. The original concrete duplication has been removed without merging diagnostic policies.",
+      "current_source": "pub(crate) fn capture(\n    tcx: TyCtxt<'_>,\n    scanned: &[source::Function],\n    options: &Options<'_>,\n) -> Result<(), String> {\n    let Some(requests): Option<Requests> =\n        diagnostic_support::optional_requests(\"RSTYLE_DIAGNOSTIC_REFERENCE_INSTANCE_REQUESTS\")?\n    else {\n        return Ok(());\n    };\n    validate(&requests, tcx, options)?;\n\n    let owners = diagnostic_support::owners(tcx, &[DefKind::Fn, DefKind::AssocFn]);\n    let entries = requests.requests.into_iter().map(|request| {\n        let outcome = match owners.get(&request.function).copied().flatten() {\n            Some(id) => observe(Owner { tcx, id }, &request, scanned, options),\n            None => Outcome::Unavailable {\n                reason: \"Original owning function is absent or ambiguous\".into(),\n            },\n        };\n        Entry { request, outcome }\n    });\n\n    diagnostic_support::persist(\n        &Inventory {\n            identity: \"rstyle.diagnostic.reference-instance-bodies/1\",\n            scope: \"original owning-body observations only; no lifetime, cleanup, origin, artifact or admission authority\",\n            admission_authority: false,\n            requests: entries.collect(),\n        },\n        \"reference-instances\",\n        \"Reference diagnostics require an explicit snapshot directory\",\n    )\n}"
+    },
+    {
+      "index": 31,
+      "unit": 3,
+      "key": "function:u3:f940",
+      "function": "hir_extraction::crate_facts",
+      "path": "crates/rstyle-driver/src/hir_extraction/mod.rs",
+      "line": 74,
+      "diagnostic": {
+        "path": "crates/rstyle-driver/src/hir_extraction/mod.rs",
+        "line": 74,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::crate_facts` has a high side-effect density",
+        "actual": 800,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::create_dir_all (via hir_extraction::diagnostics::snapshot)",
+            "count": 1,
+            "lines": [
+              80
+            ]
+          },
+          {
+            "label": "time: std::time::Instant::now +1 more (via unit_store::UnitStore::capture)",
+            "count": 1,
+            "lines": [
+              81
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 31,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-MMjMH2/unit.evidence.json",
+        "function_index": 940
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/31/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/31/frozen_source"
+    },
+    {
+      "index": 32,
+      "unit": 5,
+      "key": "function:u5:f2632",
+      "function": "data_documents::mutable_scalars::install_one",
+      "path": "crates/rstyle-pdg/src/data_documents/mutable_scalars.rs",
+      "line": 81,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/data_documents/mutable_scalars.rs",
+        "line": 81,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `data_documents::mutable_scalars::install_one` has a high side-effect density",
+        "actual": 555,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via data_documents::mutable_scalars::install_effect)",
+            "count": 1,
+            "lines": [
+              90
+            ]
+          },
+          {
+            "label": "mutation: installation.definitions.ids",
+            "count": 1,
+            "lines": [
+              91
+            ]
+          },
+          {
+            "label": "mutation: installation.locations",
+            "count": 1,
+            "lines": [
+              96
+            ]
+          },
+          {
+            "label": "mutation: pair.pdg.definitions",
+            "count": 1,
+            "lines": [
+              94
+            ]
+          },
+          {
+            "label": "mutation: pair.pdg.nodes",
+            "count": 1,
+            "lines": [
+              86
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 32,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-sPRdvq/unit.evidence.json",
+        "function_index": 2632
+      },
+      "original_classification": "actionable",
+      "current_classification": "context_only",
+      "review_basis": "current caller-lifecycle followup",
+      "rationale": "The mutable working Pair belongs to install_locations, which takes Pair by value. install_one errors propagate through install_prepared/install/install_memory with ?, then install_locations and public apply return Err without returning that working Pair. Current callers neither recover from the failed installation nor publish its partial nodes/definitions. The original partial-update observation is true locally, but does not demonstrate an observable failed transaction or a current need for atomic reusable state. No refactor is justified solely by this density warning.",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/32/frozen_source"
+    },
+    {
+      "index": 33,
+      "unit": 5,
+      "key": "function:u5:f2839",
+      "function": "data_documents::read_accesses::install_node",
+      "path": "crates/rstyle-pdg/src/data_documents/read_accesses.rs",
+      "line": 155,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/data_documents/read_accesses.rs",
+        "line": 155,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `data_documents::read_accesses::install_node` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via data_documents::serialized_operation_mut)",
+            "count": 1,
+            "lines": [
+              160
+            ]
+          },
+          {
+            "label": "mutation: node.annotations",
+            "count": 1,
+            "lines": [
+              162
+            ]
+          },
+          {
+            "label": "mutation: node.attributes.reads",
+            "count": 1,
+            "lines": [
+              161
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 33,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-sPRdvq/unit.evidence.json",
+        "function_index": 2839
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/33/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/33/frozen_source"
+    },
+    {
+      "index": 34,
+      "unit": 5,
+      "key": "function:u5:f5031",
+      "function": "frontend::options::FrontendOptions::intern_census",
+      "path": "crates/rstyle-pdg/src/frontend/options.rs",
+      "line": 293,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/frontend/options.rs",
+        "line": 293,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `frontend::options::FrontendOptions::intern_census` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: owners",
+            "count": 1,
+            "lines": [
+              301
+            ]
+          },
+          {
+            "label": "mutation: record.value",
+            "count": 1,
+            "lines": [
+              301
+            ]
+          },
+          {
+            "label": "mutation: self.0",
+            "count": 1,
+            "lines": [
+              297
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 35,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-sPRdvq/unit.evidence.json",
+        "function_index": 5031
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/35/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/35/frozen_source"
+    },
+    {
+      "index": 35,
+      "unit": 5,
+      "key": "function:u5:f5617",
+      "function": "helper_calls::digit_products::certify",
+      "path": "crates/rstyle-pdg/src/helper_calls/digit_products.rs",
+      "line": 21,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/helper_calls/digit_products.rs",
+        "line": 21,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `helper_calls::digit_products::certify` has a high side-effect density",
+        "actual": 800,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_fmt +2 more (via diagnostics::Stage::<'a>::observe)",
+            "count": 1,
+            "lines": [
+              29
+            ]
+          },
+          {
+            "label": "time: std::time::Instant::now (via diagnostics::Stage::<'a>::observe)",
+            "count": 1,
+            "lines": [
+              29
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 36,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-sPRdvq/unit.evidence.json",
+        "function_index": 5617
+      },
+      "original_classification": "uncertain",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/36/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/36/frozen_source"
+    },
+    {
+      "index": 36,
+      "unit": 5,
+      "key": "function:u5:f5773",
+      "function": "helper_calls::transport::Reader::unpack",
+      "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+      "line": 202,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+        "line": 202,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `helper_calls::transport::Reader::unpack` has a high side-effect density",
+        "actual": 1000,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_all (via helper_calls::transport::Reader::value)",
+            "count": 1,
+            "lines": [
+              213
+            ]
+          },
+          {
+            "label": "mutation: &mut state (via helper_calls::transport::Reader::charge)",
+            "count": 1,
+            "lines": [
+              211
+            ]
+          },
+          {
+            "label": "mutation: self.used",
+            "count": 1,
+            "lines": [
+              210
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 37,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-sPRdvq/unit.evidence.json",
+        "function_index": 5773
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/37/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/37/frozen_source"
+    },
+    {
+      "index": 37,
+      "unit": 5,
+      "key": "function:u5:f5774",
+      "function": "helper_calls::transport::Reader::value",
+      "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+      "line": 216,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+        "line": 216,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `helper_calls::transport::Reader::value` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_all (via helper_calls::transport::Reader::collection)",
+            "count": 1,
+            "lines": [
+              226
+            ]
+          },
+          {
+            "label": "mutation: &mut state (via helper_calls::transport::Reader::charge)",
+            "count": 1,
+            "lines": [
+              221
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 38,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-sPRdvq/unit.evidence.json",
+        "function_index": 5774
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/38/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/38/frozen_source"
+    },
+    {
+      "index": 38,
+      "unit": 5,
+      "key": "function:u5:f5776",
+      "function": "helper_calls::transport::Reader::collection",
+      "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+      "line": 257,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+        "line": 257,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `helper_calls::transport::Reader::collection` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_all (via helper_calls::transport::Reader::text)",
+            "count": 1,
+            "lines": [
+              273
+            ]
+          },
+          {
+            "label": "mutation: &mut state (via helper_calls::transport::Reader::child)",
+            "count": 1,
+            "lines": [
+              269
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 39,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-sPRdvq/unit.evidence.json",
+        "function_index": 5776
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/39/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/39/frozen_source"
+    },
+    {
+      "index": 39,
+      "unit": 5,
+      "key": "function:u5:f8199",
+      "function": "nominal_boundary::resolution::Resolution::select_copies",
+      "path": "crates/rstyle-pdg/src/nominal_boundary/resolution.rs",
+      "line": 148,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/nominal_boundary/resolution.rs",
+        "line": 148,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `nominal_boundary::resolution::Resolution::select_copies` has a high side-effect density",
+        "actual": 600,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: self.copy_trees",
+            "count": 1,
+            "lines": [
+              155
+            ]
+          },
+          {
+            "label": "mutation: self.no_drop_trees",
+            "count": 1,
+            "lines": [
+              156
+            ]
+          },
+          {
+            "label": "mutation: self.source_requirements",
+            "count": 1,
+            "lines": [
+              157
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 40,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-sPRdvq/unit.evidence.json",
+        "function_index": 8199
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/40/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/40/frozen_source"
+    },
+    {
+      "index": 40,
+      "unit": 5,
+      "key": "function:u5:f7641",
+      "function": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::begin_module",
+      "path": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+      "line": 553,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+        "line": 553,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::begin_module` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: self.definitions",
+            "count": 1,
+            "lines": [
+              559
+            ]
+          },
+          {
+            "label": "mutation: self.enums.namespace",
+            "count": 1,
+            "lines": [
+              558
+            ]
+          },
+          {
+            "label": "mutation: self.scopes",
+            "count": 1,
+            "lines": [
+              560
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 41,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-sPRdvq/unit.evidence.json",
+        "function_index": 7641
+      },
+      "original_classification": "actionable",
+      "current_classification": "context_only",
+      "review_basis": "current caller-lifecycle followup",
+      "rationale": "verify_mode creates a private Closure for one verification. pass and module propagate begin_module errors with ?. A failed pass ends verify_mode and drops the visitor; no catch-and-reuse path exists in these callers. Computing scope also uses the installed current namespace/definitions, so moving field assignments would require a different context seam without a demonstrated caller benefit. The source does not establish a current retry/reuse requirement.",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/41/frozen_source"
+    },
+    {
+      "index": 41,
+      "unit": 5,
+      "key": "function:u5:f10842",
+      "function": "scalar_instances::source::Flow::<'a>::install_binding",
+      "path": "crates/rstyle-pdg/src/scalar_instances/source.rs",
+      "line": 582,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/scalar_instances/source.rs",
+        "line": 582,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `scalar_instances::source::Flow::<'a>::install_binding` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: self.bindings",
+            "count": 1,
+            "lines": [
+              583
+            ]
+          },
+          {
+            "label": "mutation: self.frames",
+            "count": 1,
+            "lines": [
+              591
+            ]
+          },
+          {
+            "label": "mutation: self.scope",
+            "count": 1,
+            "lines": [
+              584
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 42,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-sPRdvq/unit.evidence.json",
+        "function_index": 10842
+      },
+      "original_classification": "actionable",
+      "current_classification": "context_only",
+      "review_basis": "current caller-lifecycle followup",
+      "rationale": "Flow::new installs a root lexical frame. Block traversal pushes a frame before processing bindings and pops it on completed block exit; any statement/exit failure propagates out of verify and discards the private Flow. No current caller resumes a failed Flow or exposes its scope/bindings. Checking the frame earlier could be defensive cleanup, but the proposed externally meaningful partial-state problem is not established for this API.",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/42/frozen_source"
+    },
+    {
+      "index": 42,
+      "unit": 5,
+      "key": "function:u5:f12672",
+      "function": "unit_store::bundle::<impl unit_store::UnitStore>::load_bundle",
+      "path": "crates/rstyle-pdg/src/unit_store/bundle.rs",
+      "line": 169,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/unit_store/bundle.rs",
+        "line": 169,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `unit_store::bundle::<impl unit_store::UnitStore>::load_bundle` has a high side-effect density",
+        "actual": 555,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_fmt +2 more (via diagnostics::Stage::<'a>::observe)",
+            "count": 1,
+            "lines": [
+              174
+            ]
+          },
+          {
+            "label": "time: std::time::Instant::now (via diagnostics::Stage::<'a>::observe)",
+            "count": 1,
+            "lines": [
+              174
+            ]
+          },
+          {
+            "label": "unknown: <indirect callable>",
+            "count": 1,
+            "lines": [
+              177
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 43,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-sPRdvq/unit.evidence.json",
+        "function_index": 12672
+      },
+      "original_classification": "uncertain",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/43/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/43/frozen_source"
+    },
+    {
+      "index": 43,
+      "unit": 5,
+      "key": "function:u5:f12492",
+      "function": "unit_store::bundle::diagnostic::style::write_sealed_style_snapshot",
+      "path": "crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style.rs",
+      "line": 8,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style.rs",
+        "line": 8,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `unit_store::bundle::diagnostic::style::write_sealed_style_snapshot` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::flush (via unit_store::manifest::seal)",
+            "count": 1,
+            "lines": [
+              13
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": false,
+      "frozen_index": null,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-sPRdvq/unit.evidence.json",
+        "function_index": 12492
+      },
+      "original_classification": null,
+      "current_classification": "context_only",
+      "review_basis": "current original-source review",
+      "rationale": "This is the numeric snapshot publication boundary: select the existing numeric body/binding payload, use the existing option/source codec, form the export and serialize through the existing streamed seal. File/output effects are expected here; no second serialization algorithm or additional reusable operation is demonstrated.",
+      "current_source": "pub fn write_sealed_style_snapshot(\n    writer: impl Write,\n    phase: &str,\n    facts: &[StyleFnFacts],\n) -> Result<super::super::super::BundleManifest, String> {\n    super::super::super::manifest::seal(writer, |writer| {\n        let encoded = function_sources::encode_with(\n            facts,\n            |facts| (&facts.body, &facts.bindings),\n            option_bundle::Inventories::with_shared_options(),\n        )?;\n        let export = Export {\n            schema: STYLE_FACTS_SCHEMA,\n            phase,\n            sources: encoded.snapshots,\n            inherent_units: encoded.inventories,\n            facts: encoded.functions,\n        };\n        serde_json::to_writer(writer, &export).map_err(|error| error.to_string())\n    })\n}"
+    },
+    {
+      "index": 44,
+      "unit": 5,
+      "key": "function:u5:f12493",
+      "function": "unit_store::bundle::diagnostic::style::read_style_snapshot_phase",
+      "path": "crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style.rs",
+      "line": 31,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style.rs",
+        "line": 31,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `unit_store::bundle::diagnostic::style::read_style_snapshot_phase` has a high side-effect density",
+        "actual": 571,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::write_fmt +2 more (via diagnostics::Stage::<'a>::enter)",
+            "count": 1,
+            "lines": [
+              36
+            ]
+          },
+          {
+            "label": "time: std::time::Instant::now (via diagnostics::Stage::<'a>::enter)",
+            "count": 1,
+            "lines": [
+              36
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": false,
+      "frozen_index": null,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-sPRdvq/unit.evidence.json",
+        "function_index": 12493
+      },
+      "original_classification": null,
+      "current_classification": "context_only",
+      "review_basis": "current original-source review",
+      "rationale": "The numeric snapshot reader times existing parse/restore operations, checks its schema and phase, then uses the shared restore_snapshot adapter. These ordered format-boundary responsibilities already have helpers. The diagnostic alone does not justify another wrapper or weakening compatibility checks.",
+      "current_source": "pub fn read_style_snapshot_phase(\n    bytes: &[u8],\n    expected: &str,\n) -> Result<Vec<StyleFnFacts>, String> {\n    let parse =\n        crate::diagnostics::Stage::new(\"diagnostic.parse\", \"style-snapshot\", Some(bytes)).enter();\n    let wire: Import<HirRef, Uncaptured> =\n        parse.finish(serde_json::from_slice(bytes).map_err(|error| error.to_string()))?;\n\n    let restore =\n        crate::diagnostics::Stage::new(\"diagnostic.restore\", \"style-snapshot\", None).enter();\n    if ![STYLE_FACTS_SCHEMA, \"rstyle.diagnostic.style-facts/1\"].contains(&wire.schema.as_str())\n        || wire.phase.is_empty()\n        || wire.phase != expected\n    {\n        return Err(\"Unsupported or mismatched root style snapshot schema or phase\".into());\n    }\n    let shared_options = wire.schema == STYLE_FACTS_SCHEMA;\n    restore.finish(restore_snapshot(wire, true, false, shared_options))\n}"
+    },
+    {
+      "index": 45,
+      "unit": 5,
+      "key": "function:u5:f12699",
+      "function": "unit_store::dependency_closure::install_dependency_owners",
+      "path": "crates/rstyle-pdg/src/unit_store/dependency_closure.rs",
+      "line": 369,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/unit_store/dependency_closure.rs",
+        "line": 369,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `unit_store::dependency_closure::install_dependency_owners` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: builder.store.dependencies",
+            "count": 1,
+            "lines": [
+              375
+            ]
+          },
+          {
+            "label": "mutation: builder.store.namespace_associations",
+            "count": 1,
+            "lines": [
+              376
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 44,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-sPRdvq/unit.evidence.json",
+        "function_index": 12699
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/44/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/44/frozen_source"
+    },
+    {
+      "index": 46,
+      "unit": 5,
+      "key": "function:u5:f12854",
+      "function": "unit_store::manifest::seal",
+      "path": "crates/rstyle-pdg/src/unit_store/manifest.rs",
+      "line": 85,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/unit_store/manifest.rs",
+        "line": 85,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `unit_store::manifest::seal` has a high side-effect density",
+        "actual": 1000,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::io::Write::flush",
+            "count": 1,
+            "lines": [
+              95
+            ]
+          },
+          {
+            "label": "unknown: <indirect callable>",
+            "count": 1,
+            "lines": [
+              94
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": false,
+      "frozen_index": 45,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-sPRdvq/unit.evidence.json",
+        "function_index": 12854
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "current original-source review",
+      "rationale": "Only preceding documentation differs from the frozen source excerpt; the streamed publication/final-flush boundary remains the same operation.",
+      "current_source": "pub(super) fn seal<W: Write>(\n    writer: W,\n    publish: impl FnOnce(&mut dyn Write) -> Result<(), String>,\n) -> Result<BundleManifest, String> {\n    let mut recorder = Recorder {\n        writer,\n        hash: Xxh3::new(),\n        bytes: 0,\n    };\n    publish(&mut recorder)?;\n    recorder.flush().map_err(|error| error.to_string())?;\n\n    Ok(BundleManifest {\n        schema: SCHEMA.into(),\n        checksum: encode(recorder.hash.digest()),\n        bytes: recorder.bytes,\n    })\n}"
+    },
+    {
+      "index": 47,
+      "unit": 5,
+      "key": "function:u5:f12780",
+      "function": "<unit_store::product_instances::ConstructorProof<'_> as unit_store::instances::InstanceProof>::install",
+      "path": "crates/rstyle-pdg/src/unit_store/product_instances.rs",
+      "line": 39,
+      "diagnostic": {
+        "path": "crates/rstyle-pdg/src/unit_store/product_instances.rs",
+        "line": 39,
+        "column": 5,
+        "rule_id": "side_effect_density",
+        "message": "function `<unit_store::product_instances::ConstructorProof<'_> as unit_store::instances::InstanceProof>::install` has a high side-effect density",
+        "actual": 666,
+        "limit": 500,
+        "details": [
+          {
+            "label": "mutation: &mut state (via unit_store::product_instances::install_dependency)",
+            "count": 1,
+            "lines": [
+              45
+            ]
+          },
+          {
+            "label": "mutation: store.product_instance",
+            "count": 1,
+            "lines": [
+              46
+            ]
+          }
+        ]
+      },
+      "source_equal_frozen": true,
+      "frozen_index": 46,
+      "captured_input": {
+        "bundle": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-FWiOrr/invocation-sPRdvq/unit.evidence.json",
+        "function_index": 12780
+      },
+      "original_classification": "context_only",
+      "current_classification": "context_only",
+      "review_basis": "exact source match to embedded frozen source and its effective source/caller review",
+      "review_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/46/usefulness_review",
+      "source_reference": "eval/clones-capability/project-default-style-density-decision.json#/cases/46/frozen_source"
+    }
+  ],
+  "resources": [
+    {
+      "label": "current",
+      "report": "/tmp/clones-c108-current.json",
+      "time_log": "/tmp/clones-c108-current.log",
+      "elapsed_seconds": 31.52,
+      "peak_rss_kib": 2435252,
+      "summary": {
+        "functions": 10085,
+        "violations": 48,
+        "complexity_measured": 10085,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 98,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 342,
+          "mutation": 2101,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      }
+    },
+    {
+      "label": "current-repeat",
+      "report": "/tmp/clones-c108-current-repeat.json",
+      "time_log": "/tmp/clones-c108-current-repeat.log",
+      "elapsed_seconds": 6.06,
+      "peak_rss_kib": 851476,
+      "summary": {
+        "functions": 10085,
+        "violations": 48,
+        "complexity_measured": 10085,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 98,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 342,
+          "mutation": 2101,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      }
+    },
+    {
+      "label": "legacy",
+      "report": "/tmp/clones-c108-legacy.json",
+      "time_log": "/tmp/clones-c108-legacy.log",
+      "elapsed_seconds": 23.91,
+      "peak_rss_kib": 1889900,
+      "summary": {
+        "functions": 10085,
+        "violations": 0,
+        "complexity_measured": 10085,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 81,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 342,
+          "mutation": 2088,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      }
+    },
+    {
+      "label": "legacy-repeat",
+      "report": "/tmp/clones-c108-legacy-repeat.json",
+      "time_log": "/tmp/clones-c108-legacy-repeat.log",
+      "elapsed_seconds": 0.88,
+      "peak_rss_kib": 91496,
+      "summary": {
+        "functions": 10085,
+        "violations": 0,
+        "complexity_measured": 10085,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 81,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 342,
+          "mutation": 2088,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      }
+    }
+  ],
+  "compiler_repeat_projection_equal": {
+    "diagnostics": true,
+    "summary": true,
+    "functions": true,
+    "fix_groups": true,
+    "compiler_advisory": true
+  },
+  "legacy_repeat_report_equal": true,
+  "decision": {
+    "recommendation": "Keep legacy default; do not turn context-only density into automatic refactor work or silently suppress it.",
+    "default_changed": false,
+    "metric_quality": "The existing independently labeled15 positives+3 controls remain the completed bounded arithmetic sample. This source-usefulness review does not replace those labels.",
+    "usefulness": "Current density warnings describe reviewed orchestration, publication and local working-state roles. No additional source-driven refactor is established for the declared current roster.",
+    "resources": "Current fresh/repeat observations are available for acceptance; no arbitrary runtime/memory gate or causal speedup claim is introduced.",
+    "next_implementation": "Numeric reviews/baselines currently demand facts.full() for package/build/signature metadata. Reuse existing borrowed metadata instead of requiring root snapshots to contain unused HIR bodies."
+  },
+  "limits": [
+    "Source usefulness is a bounded engineering review, not proof of purity, error atomicity, refactor safety or completeness of all possible designs.",
+    "Historical actionable/uncertain labels remain unchanged in the frozen artifact; current lifecycle findings are explicit later followups.",
+    "37 exact source matches reuse their embedded historical review; changed callers and optional runtime instrumentation can still change static event attribution.",
+    "Runtime observations are serial local runs with warm dependencies and different existing reuse paths, not randomized cold benchmarks.",
+    "Original C97/C99 full raw reports remain session artifacts; this study preserves current source/diagnostics and caller followups without claiming to reconstruct every historical input.",
+    "This does not authorize ignores, suppressions, raised thresholds or a default switch."
+  ],
+  "validation": {
+    "source_and_unit_joins": "passed for all48 current findings",
+    "historical_frozen_cases_and_labels": "unchanged by exact JSON equality",
+    "fresh_and_repeat_report_comparisons": "passed",
+    "legacy_style_current": {
+      "functions": 10085,
+      "violations": 0
+    },
+    "capability_python_tests": 248,
+    "production_code_unchanged_from": "c06094b1",
+    "prior_integrated_source_checkpoint": {
+      "rust_tests": 3724,
+      "doctests": "passed",
+      "clippy": "passed",
+      "formatting": "passed",
+      "legacy_pattern_gate": "passed",
+      "unfiltered_candidates": 13
+    },
+    "native_C106": "run40991029725 completed successfully on Ubuntu x86/ARM and macOS15",
+    "native_C107": "run40992394648 still in progress at explicit poll",
+    "new_Rust_test_run": "not repeated for evidence/docs-only change"
+  }
+}
