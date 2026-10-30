@@ -72,6 +72,28 @@ the captured scope also remain incomplete. Invalid suppressions stay visible
 even outside selected files. Neither this selection nor replay changes the
 default backend or density policy.
 
+Root compiler style can export and compare the existing diagnostic baseline:
+
+```sh
+cargo rstyle --style-engine compiler --write-baseline baseline.json --format json
+cargo rstyle --style-engine compiler --baseline baseline.json --fail-on-new --format json
+```
+
+Export requires complete whole-scope inputs and a new destination file. It keeps
+the ordinary style exit status: existing findings still return 1, even after a
+successful export. Comparison leaves all raw findings, metrics and plans visible.
+Without `--fail-on-new`, the ordinary finding gate still applies. With it, exit 1
+means new or changed selected findings, or policy/metric/build-context drift;
+unchanged existing findings alone return 0. Incomplete inputs or coverage still
+return 2. A complete empty inventory remains distinct from unavailable input.
+
+These flags reuse `rstyle.compiler-baseline/1` and the existing authored diagnostic
+workflow. `compiler_advisory.diagnostic_baseline` and text output describe the
+comparison. Both commands support explicit `--replay-run PATH` without compiler
+tools or original sources. Comparison can use `--changed-files changes.json`;
+export cannot use a changed-file selection. Baseline flags require the explicit
+compiler style engine and do not change the default backend or metric policy.
+
 For compiler metrics 5–7, changed-file coverage uses the same lexical source-path
 normalizer as diagnostics. Authored modules loaded through `#[path]` with `..`
 components therefore retain their normalized workspace locations during offline

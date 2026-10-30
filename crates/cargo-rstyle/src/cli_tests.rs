@@ -1,6 +1,59 @@
 use super::*;
 
 #[test]
+fn root_style_baseline_flags_require_compiler_style_and_explicit_gate_inputs() {
+    for flags in [
+        vec!["--baseline", "baseline.json"],
+        vec!["--write-baseline", "baseline.json"],
+        vec!["--baseline", "baseline.json", "--fail-on-new"],
+    ] {
+        assert!(
+            Cli::try_parse_from(["cargo-rstyle"].into_iter().chain(flags.iter().copied())).is_err()
+        );
+        for engine in ["legacy", "compiler"] {
+            let cli = Cli::try_parse_from(
+                ["cargo-rstyle", "--style-engine", engine]
+                    .into_iter()
+                    .chain(flags.iter().copied()),
+            )
+            .unwrap();
+            assert_eq!(cli.validate_style_route().is_ok(), engine == "compiler");
+        }
+    }
+    for flags in [
+        vec!["--fail-on-new"],
+        vec!["--baseline", "old.json", "--write-baseline", "new.json"],
+        vec![
+            "--write-baseline",
+            "new.json",
+            "--changed-files",
+            "changes.json",
+        ],
+    ] {
+        assert!(
+            Cli::try_parse_from(
+                ["cargo-rstyle", "--style-engine", "compiler"]
+                    .into_iter()
+                    .chain(flags)
+            )
+            .is_err()
+        );
+    }
+    let cli = Cli::try_parse_from([
+        "cargo-rstyle",
+        "clones",
+        "--compiler-advisory",
+        "--compiler-baseline",
+        "baseline.json",
+        "--fail-on-new-compiler",
+    ])
+    .unwrap();
+    assert!(cli.style_baseline.baseline.is_none());
+    assert!(!cli.style_baseline.fail_on_new);
+    assert!(cli.validate_style_route().is_ok());
+}
+
+#[test]
 fn root_changed_files_requires_compiler_style_and_is_independent_of_subcommands() {
     assert!(Cli::try_parse_from(["cargo-rstyle", "--changed-files", "changes.json"]).is_err());
     for engine in ["legacy", "compiler"] {

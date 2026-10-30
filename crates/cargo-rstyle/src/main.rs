@@ -47,6 +47,8 @@ struct Cli {
     /// Select compiler-style findings with a workspace-relative changed-file JSON manifest.
     #[arg(long = "changed-files", requires = "style_engine")]
     style_changed_files: Option<PathBuf>,
+    #[command(flatten)]
+    style_baseline: StyleBaselineArgs,
     /// Ignore ledger (default: <workspace root>/rstyle-ignore.toml).
     #[arg(long, global = true)]
     ignore_file: Option<PathBuf>,
@@ -69,6 +71,31 @@ impl Cli {
             return Err(
                 "--changed-files on the default style command requires --style-engine compiler",
             );
+        }
+        self.style_baseline.validate_engine(self.style_engine)
+    }
+}
+
+#[derive(Args, Default)]
+#[group(requires = "style_engine", multiple = true)]
+struct StyleBaselineArgs {
+    /// Compare compiler-style findings with a saved whole-scope inventory.
+    #[arg(long, conflicts_with = "write_baseline")]
+    baseline: Option<PathBuf>,
+    /// Export a complete compiler-style inventory to a new file; findings still exit 1.
+    #[arg(long, conflicts_with_all = ["baseline", "style_changed_files"])]
+    write_baseline: Option<PathBuf>,
+    /// Exit 1 for new or changed selected findings, or policy/build-context drift.
+    #[arg(long, requires = "baseline")]
+    fail_on_new: bool,
+}
+
+impl StyleBaselineArgs {
+    fn validate_engine(&self, engine: Option<Engine>) -> Result<(), &'static str> {
+        if (self.baseline.is_some() || self.write_baseline.is_some())
+            && engine != Some(Engine::Compiler)
+        {
+            return Err("Style baseline options require --style-engine compiler");
         }
         Ok(())
     }

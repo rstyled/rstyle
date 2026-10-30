@@ -25,6 +25,15 @@ suppressions remain visible. Unobserved selected paths and missing required
 inputs remain incomplete (exit 2), even when no findings are selected. Add
 `--replay-run PATH` to reevaluate an explicit saved run without compiler tools.
 
+Use `--style-engine compiler --write-baseline baseline.json` to export a complete
+whole-scope inventory to a new file; ordinary findings still return 1 after export.
+Use `--baseline baseline.json --fail-on-new` with the compiler engine for CI:
+unchanged existing findings alone return 0; new/changed selected findings and
+policy/metric/build-context drift return 1. Raw findings and plans remain visible.
+Incomplete analysis still returns 2. Comparison supports changed-file selection;
+export does not. Both support explicit `--replay-run PATH`, reusing the existing
+diagnostic baseline format and comparison workflow.
+
 Exit codes: `0` clean, `1` violations found, `2` tool/config/compile error or
 incomplete analysis. Tool errors appear on stderr; unavailable measurements stay
 in the report.

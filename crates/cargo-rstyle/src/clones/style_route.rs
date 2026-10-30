@@ -4,9 +4,7 @@ use crate::Cli;
 use clap::{Args as _, FromArgMatches};
 
 pub(crate) fn run(mut cli: Cli) -> Result<(String, u8), String> {
-    let mut args = compiler_args()?;
-    args.replay_run = cli.style_replay_run.take();
-    args.changed_files = cli.style_changed_files.take();
+    let mut args = apply_inputs(&mut cli, compiler_args()?);
     let replay = args.replay_run.is_some();
 
     super::with_capture_verification(replay, || {
@@ -20,6 +18,19 @@ pub(crate) fn run(mut cli: Cli) -> Result<(String, u8), String> {
             report.publish_style(cli.format)
         })
     })
+}
+
+fn apply_inputs(cli: &mut Cli, args: Args) -> Args {
+    let baseline = std::mem::take(&mut cli.style_baseline);
+    Args {
+        replay_run: cli.style_replay_run.take(),
+        changed_files: cli.style_changed_files.take(),
+        compiler_baseline: baseline.baseline,
+        write_compiler_baseline: baseline.write_baseline,
+        fail_on_new_compiler: baseline.fail_on_new,
+        fail_on_findings: !baseline.fail_on_new,
+        ..args
+    }
 }
 
 struct Prepared {

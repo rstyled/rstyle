@@ -4,6 +4,7 @@ mod build_reuse;
 mod owner_reuse;
 mod scoped_diagnostic_baseline;
 mod selected_diagnostics;
+mod style_baseline;
 mod style_changed_files;
 mod style_payload;
 mod style_routing;

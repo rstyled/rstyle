@@ -37,6 +37,11 @@ relative to the workspace root. Metrics and fix groups retain the full captured
 scope. Invalid suppressions remain visible, and unobserved selected paths or
 missing required inputs still return 2. This selection also works with an explicit
 `--replay-run PATH`.
+Compiler style also supports `--write-baseline baseline.json` to export a complete
+inventory to a new file, and `--baseline baseline.json --fail-on-new` to fail CI
+only for new/changed selected findings or policy/build-context drift. Raw findings
+remain visible, and incomplete analysis still exits 2. Export retains the normal
+finding exit status. Both workflows support explicit saved-run replay.
 Default `cargo rstyle patterns` also saves metadata and its advisory graphs,
 avoiding full body trees. Pattern and review replay need no source or compiler
 tools; body-dependent analysis requires a full clones capture.

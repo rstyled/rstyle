@@ -7868,3 +7868,51 @@ Ubuntu x86/ARM and macOS15 CI passes; containing-commit native CI remains pendin
 Default style backend and density policy are unchanged. Next ready work is to
 reuse the existing diagnostic-baseline workflow at the root entry point; the
 broader capability goal and default usefulness disposition remain active.
+
+### C121 — reuse diagnostic baselines through root style (2026-10-30)
+
+Lead owns root CLI options and dispatch, completed workflow presentation,
+acceptance, documentation, integration and Git. Compiler style now exposes
+`--baseline`, `--write-baseline` and `--fail-on-new`, passing them into the existing
+compiler diagnostic workflow. It reuses the same original snapshots, contexts,
+metric identities, comparison, finding gate and create-new publication. Text
+borrows the existing workflow summaries; JSON retains the existing nested
+baseline report. No second collector, evaluator, planner, baseline algorithm,
+schema, hash, cache, proof, metric policy or strict-matching behavior is added.
+
+Without `--fail-on-new`, ordinary findings still return 1, including after a
+successful export. The explicit new-finding gate permits unchanged existing
+findings and fails new/changed selected findings or policy/metric/build-context
+drift. Incomplete analysis remains exit 2 and cannot export. Raw findings,
+metrics, contexts and plans remain visible. Comparison accepts changed-file
+selection; export requires whole-scope inputs and a new destination. All options
+require the explicit compiler route, leaving the current default unchanged.
+
+Six real-Cargo cases and a parser case independently cover two-package export
+and source/manifest/tool-free JSON/text replay; changed parameter arity; selected
+and unobserved paths; package and policy drift with no new findings; complete
+empty inventories versus missing dependency effects; malformed input and exact
+preservation of existing destination bytes. Focused tests pass before integration.
+
+The saved C119 numeric workspace input contains 10,142 functions in six compiler
+contexts. Root export writes 48 entries; comparison recognizes all 48 as existing,
+with zero new findings and no scope drift. It returns 0 only under the requested
+new-finding gate, retaining all 48 raw diagnostics. File selection recognizes the
+two expected existing findings. Root and direct advisory export produce exactly
+the same baseline bytes and comparison report; raw root diagnostics, summaries,
+function/context rows and global plans equal the original saved report. Compiler
+tools and PATH tools are disabled. Small fixtures separately delete manifests and
+source files. These are saved-input workflow checks, not fresh containing-commit
+captures or a review of density usefulness.
+
+Root export/comparison/selected comparison take 5.84/5.87/6.02s; direct advisory
+export takes 5.29s, with peak RSS 854,280–855,740KiB. No speedup is claimed.
+All 3,778 Rust tests and doctests pass, plus formatting, all-target Clippy, zero
+style violations over 10,147 functions and both pattern gates with zero visible
+candidates and the same 13 reviewed IDs. Receipt:
+eval/clones-capability/project-root-style-baseline-study.json. C119 native Ubuntu
+x86/ARM and macOS15 CI passes; containing-commit native CI remains pending.
+
+The default-style usefulness/resource disposition and broader selective graph/
+anomaly scope remain open. This increment delivers the shared headless workflow;
+it does not establish overall replacement or change authored metric semantics.

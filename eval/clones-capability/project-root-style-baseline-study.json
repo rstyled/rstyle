@@ -1,0 +1,265 @@
+{
+  "snapshot": "C121 in the containing commit, following b1a357fe",
+  "capability": "Root compiler style accepts --baseline, --write-baseline and --fail-on-new for the existing whole-scope diagnostic inventory. Explicit fail-on-new changes the finding exit gate without hiding existing raw findings. Root text borrows the existing workflow summaries; JSON retains compiler_advisory.diagnostic_baseline.",
+  "reuse": "Existing compiler_baseline reader/evaluator, snapshot identities, context inventory, selective baseline comparison, finding_exit_requested and create-new publication. Input paths move into existing Args; completed workflow reports are borrowed for text. No new collector, evaluator, planner, baseline algorithm/schema, hash, cache, proof, metric policy or strict-matching change.",
+  "semantics": {
+    "export": "Complete whole-scope capture/analysis and a new file are required. Findings still return1 after successful publication; clean inventories return0. Existing destinations remain untouched; incomplete inputs cannot publish.",
+    "compare": "Raw diagnostics/metrics/plans remain visible. Without --fail-on-new the ordinary finding gate applies. With it, existing findings alone return0; new/changed selected findings or policy/metric/build-context drift return1; incomplete input or coverage returns2.",
+    "selection": "Comparison may use changed-file selection. Export rejects it. Empty inventories retain exact observed contexts and completeness, not missing-data defaults.",
+    "engine": "Explicit compiler style is required; default style and strict clones are unchanged."
+  },
+  "project": {
+    "input": "Explicit saved numeric C119 run-0hhfO7 over actual C118-era source observations, not a fresh containing-commit capture. The original producer labels earlier revision plus dirty status.",
+    "functions": 10142,
+    "contexts": 6,
+    "baseline_entries": 48,
+    "existing_findings": 48,
+    "new_findings": 0,
+    "selected_existing": 2,
+    "selected_new": 0,
+    "root_and_direct_baseline_bytes_equal": true,
+    "root_and_direct_baseline_reports_equal": true,
+    "raw_root_diagnostics_summary_functions_contexts_and_plans_equal_original": true,
+    "strict_execution": "not_requested",
+    "source_files_present": true,
+    "compiler_tools_disabled": true,
+    "measurements": {
+      "export": {
+        "wall_seconds": 5.84,
+        "max_rss_kib": 854288
+      },
+      "compare": {
+        "wall_seconds": 5.87,
+        "max_rss_kib": 855740
+      },
+      "selected": {
+        "wall_seconds": 6.02,
+        "max_rss_kib": 855740
+      },
+      "direct-export": {
+        "wall_seconds": 5.29,
+        "max_rss_kib": 854280
+      }
+    },
+    "commands": [
+      {
+        "name": "export",
+        "command": [
+          "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+          "--style-engine",
+          "compiler",
+          "--replay-run",
+          "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-0hhfO7",
+          "--format",
+          "json",
+          "--write-baseline",
+          "/tmp/clones-c121-baselines-tyvfxp8h/root.json"
+        ],
+        "exit": 1
+      },
+      {
+        "name": "compare",
+        "command": [
+          "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+          "--style-engine",
+          "compiler",
+          "--replay-run",
+          "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-0hhfO7",
+          "--format",
+          "json",
+          "--baseline",
+          "/tmp/clones-c121-baselines-tyvfxp8h/root.json",
+          "--fail-on-new"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "selected",
+        "command": [
+          "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+          "--style-engine",
+          "compiler",
+          "--replay-run",
+          "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-0hhfO7",
+          "--format",
+          "json",
+          "--baseline",
+          "/tmp/clones-c121-baselines-tyvfxp8h/root.json",
+          "--fail-on-new",
+          "--changed-files",
+          "/tmp/clones-c120-selection.json"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "direct-export",
+        "command": [
+          "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+          "clones",
+          "--extraction-profile",
+          "hir-data-v3",
+          "--compiler-advisory-only",
+          "--compiler-advisory",
+          "--compiler-diagnostic-scope",
+          "authored",
+          "--compiler-plans",
+          "--compiler-advisory-config",
+          "/home/dev/src/rstyle-main/rstyle/rstyle.toml",
+          "--report-detail",
+          "compact",
+          "--replay-run",
+          "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-0hhfO7",
+          "--format",
+          "json",
+          "--write-compiler-baseline",
+          "/tmp/clones-c121-baselines-tyvfxp8h/direct.json"
+        ],
+        "exit": 0
+      }
+    ]
+  },
+  "independent_acceptance": [
+    "Two independently authored parameter findings in different packages export into the existing schema with two original contexts; deleting sources and manifests and disabling tools still recognizes both as existing in JSON and text",
+    "Changing one function arity from2 to3 yields one existing and one changed finding; selecting the other package hides only the changed finding from the gate, while unobserved selection stays incomplete",
+    "Package-scope drift fails with no new findings; policy drift fails even after every diagnostic resolves",
+    "Complete two-owner clean capture exports an empty inventory with two contexts and replays as complete, distinct from missing dependency-effect inputs",
+    "Incomplete dependency-effect input cannot publish; malformed/unsupported inventory inputs reject; existing destination bytes remain unchanged",
+    "Parser requires explicit compiler routing, a baseline for fail-on-new, mutually exclusive compare/export, whole-scope export and independent subcommand flags"
+  ],
+  "raw_candidate_ids": [
+    "114994040aee",
+    "28ac5efc1baa",
+    "440013106447",
+    "4f48d2ce7fc8",
+    "60e8af5f467a",
+    "885b7a4e6179",
+    "8c495a7ebe17",
+    "a59c863eac67",
+    "bd6ed2f06436",
+    "c2d0658d42db",
+    "c5f442ffa59a",
+    "fc9b070d78be",
+    "fdb66ce83259"
+  ],
+  "validation": {
+    "focused_parser_tests": 1,
+    "focused_cli_tests": 6,
+    "rust_tests": 3778,
+    "passed": 3778,
+    "skipped": 5,
+    "nextest_seconds": 263.926,
+    "doctests": "passed",
+    "style_summary": {
+      "functions": 10147,
+      "violations": 0,
+      "complexity_measured": 10147,
+      "complexity_unavailable": 0,
+      "mean_density_milli": 82,
+      "max_density_milli": 15000,
+      "effect_counts": {
+        "io": 338,
+        "mutation": 2131,
+        "panic": 56,
+        "time": 68,
+        "unknown": 166
+      }
+    },
+    "compiler_pattern_findings": 0,
+    "reference_pattern_findings": 0,
+    "commands": [
+      {
+        "name": "fmt",
+        "args": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 1.922
+      },
+      {
+        "name": "clippy",
+        "args": [
+          "cargo",
+          "clippy",
+          "--workspace",
+          "--all-targets",
+          "--locked",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 3.425
+      },
+      {
+        "name": "style",
+        "args": [
+          "./scripts/style.sh",
+          "--format",
+          "json"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 29.477
+      },
+      {
+        "name": "tests",
+        "args": [
+          "./scripts/test.sh",
+          "--nextest"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 280.371
+      },
+      {
+        "name": "reference-patterns",
+        "args": [
+          "./scripts/style.sh",
+          "patterns",
+          "--engine",
+          "legacy",
+          "--fail-on-candidates",
+          "--show-ignored"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 33.163
+      },
+      {
+        "name": "reference-unfiltered",
+        "args": [
+          "./scripts/style.sh",
+          "patterns",
+          "--engine",
+          "legacy",
+          "--no-ignore",
+          "--format",
+          "json"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 6.388
+      },
+      {
+        "name": "default-patterns",
+        "args": [
+          "./scripts/style.sh",
+          "patterns",
+          "--format",
+          "json",
+          "--fail-on-candidates",
+          "--show-ignored"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 49.618
+      }
+    ]
+  },
+  "limitations": [
+    "Same saved-input local warm workflow observations only; no speedup or cold-capture claim. Requested baseline identities retain their existing local-analysis checks and limits.",
+    "Saved compiler inputs, generated baseline files and measurement scripts remain session-local. Small real-Cargo tests separately delete original sources and manifests.",
+    "Containing-commit native CI pending; C119 passed Ubuntu x86/ARM and macOS15.",
+    "Default-style usefulness/disposition and the broader selective graph/anomaly scope remain open; this workflow increment does not establish overall replacement."
+  ],
+  "next_ready": "Default-style enforcement/resource disposition remains separate from delivered baseline behavior; continue the bounded capability frontier without rolling back authored metrics or adding speculative proof/performance layers."
+}
