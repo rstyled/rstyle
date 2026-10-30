@@ -6,7 +6,9 @@ use clap::{Args as _, FromArgMatches};
 pub(crate) fn run(mut cli: Cli) -> Result<(String, u8), String> {
     let mut args = compiler_args()?;
     args.replay_run = cli.style_replay_run.take();
+    args.changed_files = cli.style_changed_files.take();
     let replay = args.replay_run.is_some();
+
     super::with_capture_verification(replay, || {
         let Prepared { config, capture } = prepare(&mut cli, &mut args)?;
         let capture = if replay {

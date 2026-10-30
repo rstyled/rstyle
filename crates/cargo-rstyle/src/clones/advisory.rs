@@ -912,14 +912,7 @@ fn observation(function: &super::Function, root: &std::path::Path) -> Result<Obs
                 "Compiler advisory metrics or source owner disagree with captured function".into(),
             );
         }
-        facts.path = source_path(
-            function,
-            root,
-            matches!(
-                metrics.as_str(),
-                rstyle_core::advisory::V5_METRICS | rstyle_core::advisory::V6_METRICS | METRICS
-            ),
-        )?;
+        facts.path = source_path(function, root, normalized_source_paths(metrics))?;
         if facts.params + usize::from(facts.has_self)
             != function.facts.view().signature.params.len()
             || facts.param_list.len() != facts.params
@@ -964,6 +957,13 @@ fn unresolved(facts: &[FnFacts]) -> Result<BTreeSet<String>, String> {
         .filter(|edge| !ids.contains(edge.callee.as_str()))
         .map(|edge| edge.callee.clone())
         .collect())
+}
+
+fn normalized_source_paths(metrics: &str) -> bool {
+    matches!(
+        metrics,
+        rstyle_core::advisory::V5_METRICS | rstyle_core::advisory::V6_METRICS | METRICS
+    )
 }
 
 fn source_path(

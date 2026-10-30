@@ -55,6 +55,30 @@ existing advisory saved-run reader, evaluator, planner and report publication;
 matching and pattern mining remain unrequested. `--replay-run` requires the
 explicit compiler style engine and does not enable replay for legacy style.
 
+Root compiler style also accepts `--changed-files changes.json` on fresh captures
+and explicit replay. The existing manifest format is
+`{"schema":"rstyle.changed-files/1","paths":["member/src/lib.rs"]}`, with
+normalized paths relative to the workspace root. The completed advisory selector
+supplies root diagnostics, their compilation-context indices, the violation
+count and finding exit status. Full per-unit evaluations, complexity rows and
+global fix groups remain available; selection does not change the underlying
+metrics or claim that a plan can be applied independently.
+
+`compiler_advisory.changed_scope` records matched and unavailable owners and
+per-file coverage. Text output shows that same coverage. An empty selection may
+complete with zero selected findings; an unobserved selected path is incomplete,
+sets `summary_complete=false` and exits 2. Missing required inputs elsewhere in
+the captured scope also remain incomplete. Invalid suppressions stay visible
+even outside selected files. Neither this selection nor replay changes the
+default backend or density policy.
+
+For compiler metrics 5–7, changed-file coverage uses the same lexical source-path
+normalizer as diagnostics. Authored modules loaded through `#[path]` with `..`
+components therefore retain their normalized workspace locations during offline
+replay. Canonical paths remain borrowed; only noncanonical paths need temporary
+normalized strings. Invalid locations stay unknown, and older metric versions
+retain their original path behavior. This performs no filesystem lookup.
+
 Numeric snapshots use `rstyle.diagnostic.style-facts/2`: repeated invocation and
 selected-unit metadata appear inline once, then refer to that snapshot-local
 entry. Decoding shares immutable values; edits detach the changed value. Exact

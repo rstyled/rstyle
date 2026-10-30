@@ -16,6 +16,15 @@ cargo rstyle -p <pkg> --all-targets   # one package, include tests/examples/benc
 
 Other flags: `--config PATH` (default `<workspace root>/rstyle.toml`), `--manifest-path PATH`.
 
+Compiler style supports changed-file finding selection:
+`cargo rstyle --style-engine compiler --changed-files changes.json --format json`.
+The manifest is `{"schema":"rstyle.changed-files/1","paths":["src/lib.rs"]}`;
+paths are relative to the workspace root. This selects diagnostics and their exit
+status while metrics and fix groups retain the full captured scope. Invalid
+suppressions remain visible. Unobserved selected paths and missing required
+inputs remain incomplete (exit 2), even when no findings are selected. Add
+`--replay-run PATH` to reevaluate an explicit saved run without compiler tools.
+
 Exit codes: `0` clean, `1` violations found, `2` tool/config/compile error or
 incomplete analysis. Tool errors appear on stderr; unavailable measurements stay
 in the report.

@@ -31,6 +31,12 @@ reports the exact artifacts fresh; reports retain separate compilation contexts.
 Root JSON exposes diagnostics, summary, fix groups and complexity rows, with
 explicit scope and planning completeness. Root style saves its numeric compiler
 inputs for replay; analyses requiring original HIR bodies use a full clones capture.
+Add `--changed-files changes.json` to compiler style to select findings for CI;
+use `{"schema":"rstyle.changed-files/1","paths":["src/lib.rs"]}` with paths
+relative to the workspace root. Metrics and fix groups retain the full captured
+scope. Invalid suppressions remain visible, and unobserved selected paths or
+missing required inputs still return 2. This selection also works with an explicit
+`--replay-run PATH`.
 Default `cargo rstyle patterns` also saves metadata and its advisory graphs,
 avoiding full body trees. Pattern and review replay need no source or compiler
 tools; body-dependent analysis requires a full clones capture.

@@ -44,6 +44,9 @@ struct Cli {
     /// Reevaluate an explicit saved compiler-style run without compiling.
     #[arg(long = "replay-run", requires = "style_engine")]
     style_replay_run: Option<PathBuf>,
+    /// Select compiler-style findings with a workspace-relative changed-file JSON manifest.
+    #[arg(long = "changed-files", requires = "style_engine")]
+    style_changed_files: Option<PathBuf>,
     /// Ignore ledger (default: <workspace root>/rstyle-ignore.toml).
     #[arg(long, global = true)]
     ignore_file: Option<PathBuf>,
@@ -60,6 +63,11 @@ impl Cli {
         if self.style_replay_run.is_some() && self.style_engine != Some(Engine::Compiler) {
             return Err(
                 "--replay-run on the default style command requires --style-engine compiler",
+            );
+        }
+        if self.style_changed_files.is_some() && self.style_engine != Some(Engine::Compiler) {
+            return Err(
+                "--changed-files on the default style command requires --style-engine compiler",
             );
         }
         Ok(())

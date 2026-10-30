@@ -7817,3 +7817,54 @@ The next capability frontier remains default-style usefulness and workflow
 disposition, preserving authored statement counts and the current default route
 until the choice is justified. The broader goal remains active; this allocation
 change does not resolve that product decision or the later graph/anomaly scope.
+
+### C120 — reuse changed-file selection in root compiler style (2026-10-30)
+
+Lead owns root CLI dispatch, the existing advisory selector/projection, focused
+acceptance, documentation, integration and Git. Root compiler style now accepts
+`--changed-files PATH` on fresh capture or explicit saved replay. It passes the
+existing manifest into the completed advisory workflow; projected diagnostics,
+parallel compilation-context rows, violation counts and finding exits share the
+existing selection. Text includes that same per-file coverage. Full per-unit
+metrics, complexity rows and global fix groups remain intact. Summary completion
+also reflects requested selection coverage. Capture and handoff statuses remain
+separate; no findings over an unobserved selected path still exits 2.
+
+The production check exposed 26 authored functions whose original `#[path]`
+locations contain parent-directory components. Their metric-5+ diagnostic paths
+were already normalized, but selection coverage used the raw spelling and became
+incomplete. The selector now reuses the existing lexical absolute-path normalizer
+only when a path is noncanonical, under the same metric-5/6/7 condition used by
+advisory diagnostics. Canonical paths are borrowed; only exceptional locations
+need temporary owned strings. Missing/malformed locations remain unknown and
+older metrics retain their behavior. This performs no filesystem lookup, new
+hash, source scan, cache, collector, evaluator, planner or strict-matching change.
+
+Five real-Cargo cases cover two-package selection and original contexts; deleted
+sources/manifests and disabled compiler tools; empty versus unobserved scope;
+malformed manifests; invalid suppressions outside selection; missing dependency
+effects; and path-module normalization after source deletion. A path unit test
+checks borrowing, metric boundaries and invalid paths; a parser test preserves
+explicit compiler routing and subcommand independence. Focused changed-scope
+checks pass 34 unit and 78 CLI cases, plus the separate path test.
+
+An explicit saved C119 input contains 10,142 functions in six compiler units.
+Selecting `crates/cargo-rstyle/src/clones/capture/associations.rs` displays exactly
+the two independently selected findings from 48 original findings. All raw
+per-unit evaluations, metrics, complexity/function contexts and global fix groups
+compare equal. The unselected root projections still equal the original saved
+report. Selection coverage changes from 26 unclassified owners to zero; the chosen
+file retains 42 matched owners, including 7 outside the authored scope. Replay
+disables Cargo, rustc, driver and PATH tools. Full versus selected replay takes 5.67s versus 5.93s with
+854,220–854,284KiB peak process RSS; no speedup is claimed. These
+are saved-input workflow measurements, not clean-HEAD fresh captures. The small
+fixtures separately prove source/manifest deletion.
+
+All 3,771 Rust tests and doctests pass, along with formatting, all-target Clippy,
+zero style violations over 10,145 functions and zero visible findings through both
+pattern engines, retaining the same 13 reviewed IDs. Receipt:
+eval/clones-capability/project-root-style-changed-files-study.json. C118 native
+Ubuntu x86/ARM and macOS15 CI passes; containing-commit native CI remains pending.
+Default style backend and density policy are unchanged. Next ready work is to
+reuse the existing diagnostic-baseline workflow at the root entry point; the
+broader capability goal and default usefulness disposition remain active.

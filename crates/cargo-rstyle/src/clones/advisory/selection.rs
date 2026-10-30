@@ -5,6 +5,7 @@ use crate::clones::{
     report::Context,
 };
 use std::collections::BTreeSet;
+use std::{borrow::Cow, path::Path};
 
 impl Report {
     pub(in crate::clones) fn select_changed(mut self, ctx: &Context<'_>) -> Self {
@@ -47,13 +48,14 @@ impl Report {
                 .flat_map(super::diagnostic_scope::Report::outside_scope)
                 .filter(|key| !ctx.args.compiler_patterns || pattern_outside.contains(key)),
         );
+        let paths = source_paths(ctx, self.metrics);
         let owners = ctx
             .handoff
             .assessed
             .iter()
-            .map(|function| changed_scope::Owner {
-                path: analysis::source_file(function)
-                    .and_then(|path| checked_path(path, &ctx.capture.plan.root)),
+            .zip(&paths)
+            .map(|(function, path)| changed_scope::Owner {
+                path: path.as_deref(),
                 complete: known.contains(&function.key),
                 outside_scope: outside.contains(&function.key),
                 visible_findings: 0,
@@ -98,6 +100,28 @@ impl Report {
     }
 }
 
+fn source_paths<'a>(ctx: &'a Context<'_>, metrics: &str) -> Vec<Option<Cow<'a, str>>> {
+    ctx.handoff
+        .assessed
+        .iter()
+        .map(|function| {
+            analysis::source_file(function)
+                .and_then(|path| source_path(path, &ctx.capture.plan.root, metrics))
+        })
+        .collect()
+}
+
+fn source_path<'a>(original: &'a str, root: &Path, metrics: &str) -> Option<Cow<'a, str>> {
+    if let Some(path) = checked_path(original, root) {
+        return Some(Cow::Borrowed(path));
+    }
+    if !super::normalized_source_paths(metrics) {
+        return None;
+    }
+    let normalized = rstyle_pdg::nominal_binding::absolute_path(Path::new(original)).ok()?;
+    checked_path(normalized.to_str()?, root).map(|path| Cow::Owned(path.to_owned()))
+}
+
 impl Unit {
     fn select_changed(&mut self, selection: &changed_scope::Selection) {
         let Some(evaluation) = &self.evaluation else {
@@ -129,5 +153,46 @@ impl Unit {
                     .as_ref()
                     .map(|evaluation| evaluation.diagnostics[*index].path.as_str())
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn selected_paths_borrow_canonical_locations_and_preserve_metric_version_boundaries() {
+        let root = Path::new("/workspace");
+        let canonical = "/workspace/src/shared.rs";
+        assert!(matches!(
+            source_path(canonical, root, super::super::METRICS),
+            Some(Cow::Borrowed("src/shared.rs"))
+        ));
+        for metrics in [
+            rstyle_core::advisory::V5_METRICS,
+            rstyle_core::advisory::V6_METRICS,
+            super::super::METRICS,
+        ] {
+            assert_eq!(
+                source_path("/workspace/src/nested/../shared.rs", root, metrics).as_deref(),
+                Some("src/shared.rs")
+            );
+            for invalid in [
+                "relative.rs",
+                "/../shared.rs",
+                "/workspace/src/bad:name.rs",
+                "/workspace/src/bad\nname.rs",
+            ] {
+                assert!(source_path(invalid, root, metrics).is_none(), "{invalid:?}");
+            }
+        }
+        assert!(
+            source_path(
+                "/workspace/src/nested/../shared.rs",
+                root,
+                rstyle_core::advisory::V4_METRICS
+            )
+            .is_none()
+        );
     }
 }

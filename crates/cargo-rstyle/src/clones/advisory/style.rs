@@ -1,5 +1,6 @@
 //! Borrow completed evaluations for the root style command, retaining unit identity.
 use super::{Report, Unit, UnitId};
+use crate::clones::analysis::{Completion, changed_scope};
 use rstyle_core::report::{Diagnostic, FixGroup, Summary};
 use serde::Serialize;
 
@@ -14,6 +15,8 @@ pub(in crate::clones) struct Projection<'a> {
     function_units: Vec<UnitId>,
     planning_input_complete: Option<bool>,
     planning_required_edits_complete: Option<bool>,
+    #[serde(skip)]
+    changed_scope: Option<&'a changed_scope::Report<'static>>,
 }
 
 impl<'a> Projection<'a> {
@@ -46,7 +49,7 @@ impl<'a> Projection<'a> {
 
         Ok(Self {
             summary_complete: summary.is_some()
-                && report.is_some_and(|report| report.complete)
+                && report.is_some_and(Completion::permits_success)
                 && summaries.len() == units.len(),
             diagnostics,
             diagnostic_units,
@@ -60,6 +63,7 @@ impl<'a> Projection<'a> {
             planning_input_complete: planning.map(super::planning::Report::input_complete),
             planning_required_edits_complete: planning
                 .map(super::planning::Report::required_edits_complete),
+            changed_scope: report.and_then(|report| report.changed_scope.as_ref()),
         })
     }
 
@@ -91,7 +95,10 @@ impl<'a> Projection<'a> {
                 completion(self.planning_required_edits_complete),
             ),
         ]);
-        lines.join("\n")
+        let selection = self.changed_scope.map_or_else(String::new, |scope| {
+            scope.render_for("compiler diagnostics")
+        });
+        format!("{}{selection}", lines.join("\n"))
     }
 }
 

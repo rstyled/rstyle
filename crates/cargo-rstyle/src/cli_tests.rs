@@ -1,6 +1,36 @@
 use super::*;
 
 #[test]
+fn root_changed_files_requires_compiler_style_and_is_independent_of_subcommands() {
+    assert!(Cli::try_parse_from(["cargo-rstyle", "--changed-files", "changes.json"]).is_err());
+    for engine in ["legacy", "compiler"] {
+        let cli = Cli::try_parse_from([
+            "cargo-rstyle",
+            "--style-engine",
+            engine,
+            "--changed-files",
+            "changes.json",
+        ])
+        .unwrap();
+        assert_eq!(cli.validate_style_route().is_ok(), engine == "compiler");
+        assert_eq!(
+            cli.style_changed_files.as_deref(),
+            Some(Path::new("changes.json"))
+        );
+    }
+    let cli = Cli::try_parse_from([
+        "cargo-rstyle",
+        "clones",
+        "--compiler-advisory",
+        "--changed-files",
+        "changes.json",
+    ])
+    .unwrap();
+    assert!(cli.style_changed_files.is_none());
+    assert!(cli.validate_style_route().is_ok());
+}
+
+#[test]
 fn style_selection_distinguishes_an_absent_flag_from_explicit_backends() {
     let implicit = Cli::try_parse_from(["cargo-rstyle"]).unwrap();
     assert!(implicit.style_engine.is_none());
