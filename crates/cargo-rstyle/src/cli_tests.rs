@@ -60,8 +60,10 @@ fn root_inputs_remain_independent_of_subcommands() {
         let cli = Cli::try_parse_from(["cargo-rstyle", command, "--replay-run", "saved"]).unwrap();
         assert!(!cli.style_inputs.requested());
         assert!(cli.validate_style_route().is_ok());
-        let cli = Cli::try_parse_from(["cargo-rstyle", "--replay-run", "saved", command]).unwrap();
-        assert!(cli.validate_style_route().is_err());
+        for option in ["--replay-run", "--changed-files"] {
+            let cli = Cli::try_parse_from(["cargo-rstyle", option, "saved", command]).unwrap();
+            assert!(cli.validate_style_route().is_err());
+        }
     }
     let cli = Cli::try_parse_from([
         "cargo-rstyle",

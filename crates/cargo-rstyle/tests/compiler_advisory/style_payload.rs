@@ -194,11 +194,6 @@ fn root_replay(directory: &Path, original: &Value) {
         checked(&output, 2);
         assert!(String::from_utf8_lossy(&output.stderr).contains("original selection"));
     }
-    let output = replay(directory, original, &["--style-engine", "legacy"], &[]);
-    checked(&output, 2);
-    assert!(
-        String::from_utf8_lossy(&output.stderr).contains("unexpected argument '--style-engine'")
-    );
     let missing = serde_json::json!({"run_directory":directory.join("missing-run")});
     checked(&replay(directory, &missing, ROOT, &[]), 2);
 

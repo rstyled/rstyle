@@ -8247,3 +8247,35 @@ are unchanged. The full suite took 270.318 seconds in nextest. The reduced test
 count reflects removed plumbing tests, not removed behavioral coverage. Receipt:
 `eval/clones-capability/compiler-runtime-retirement.json`. Native Ubuntu/macOS CI
 for the containing commits remains pending push.
+
+### C130 — organize permanent feature regressions and consolidate captures (2026-10-30)
+
+Renamed 26 `migration_*` integration suites around their current features. The
+mechanical move is a separate commit; historical receipts retain their original
+paths and test names. `crates/cargo-rstyle/tests/README.md` maps retained coverage
+and documents focused execution and measurement.
+
+Nine separate tests are consolidated into existing scenarios or parser unit
+coverage. Authored statement counts and complexity scores now share their capture
+with source-free policy replay. Root projection shares setup with repeated-run
+stability; default pattern scope/replay assertions join the existing metadata
+contract. Repository review coverage no longer compares the same backend under
+retired labels. Three collector tests no longer warm an unrelated style capture;
+their actual compiler capture now checks successful completion directly.
+
+The late-owner scenarios share one lifecycle while checking baseline and review
+outcomes independently. Missing measurements, release-context drift, baseline
+bytes, source/tool-free replay and review dry-run/prune assertions remain. The
+4,101-owner fixture and separate 4,096-payload overflow control remain intact.
+Live captures in this group fall from nine to four; serial nextest execution
+falls from 87.468 s to 52.336 s (about 40%). Across the edited scenarios, 16 redundant
+compiler captures are removed. No cross-test cache, hash, production algorithm,
+metric version, suppression, threshold or resource limit changes.
+
+Validation: all 3,776 Rust tests pass (five skipped), plus doctests, formatting
+and all-target Clippy. The full nextest run takes 261.064 s versus 270.318 s in C129;
+these are local single-run observations, not a general CI latency guarantee.
+Compiler-default style completes the same 10,137 authored functions with zero
+violations. Patterns completes with the same 12 reviewed IDs and zero unreviewed
+candidates. Configuration, lockfile, recorded JSON/CSV and repository ignore ledger
+are unchanged. Native Ubuntu/macOS CI for these commits remains pending push.

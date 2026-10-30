@@ -22,8 +22,8 @@ fn captured<'a>(report: &'a Value, name: &str) -> &'a Value {
 }
 
 #[test]
-fn advisory_complexity_reuses_original_constructs_and_core_scores_without_strict_admission() {
-    let (_directory, output, report) = capture(SOURCE, &[]);
+fn advisory_complexity_preserves_construct_scores_and_source_free_policy_replay() {
+    let (directory, output, report) = capture(SOURCE, &[]);
     assert!(output.status.success(), "{}", stdout(&output));
     assert_eq!(
         report["compiler_advisory"]["metrics"],
@@ -63,24 +63,22 @@ fn advisory_complexity_reuses_original_constructs_and_core_scores_without_strict
                 function["facts"]["name"] == "recursion" && function["outcome"] != "admitted"
             })
     );
+    replay_complexity_limits(directory.path(), &report);
 }
 
-#[test]
-fn replayed_complexity_limits_use_completed_measurements_without_original_sources() {
-    let (directory, output, original) = capture(SOURCE, &[]);
-    assert!(output.status.success(), "{}", stdout(&output));
-    std::fs::remove_dir_all(directory.path().join("src")).unwrap();
+fn replay_complexity_limits(directory: &Path, original: &Value) {
+    std::fs::remove_dir_all(directory.join("src")).unwrap();
     for path in ["Cargo.toml", "Cargo.lock"] {
-        std::fs::remove_file(directory.path().join(path)).unwrap();
+        std::fs::remove_file(directory.join(path)).unwrap();
     }
     std::fs::write(
-        directory.path().join("policy.toml"),
+        directory.join("policy.toml"),
         "[complexity]\nmax_cyclomatic=2\nmax_cognitive=2\n",
     )
     .unwrap();
     let (output, replayed) = super::reviews::replay(
-        directory.path(),
-        &original,
+        directory,
+        original,
         &[
             "--compiler-advisory-config",
             "policy.toml",
@@ -113,7 +111,7 @@ fn replayed_complexity_limits_use_completed_measurements_without_original_source
     assert_eq!(original["accepted_pairs"], replayed["accepted_pairs"]);
     for name in ["straight", "nested", "flat", "recursion"] {
         assert_eq!(
-            captured(&original, name)["complexity"],
+            captured(original, name)["complexity"],
             captured(&replayed, name)["complexity"]
         );
     }

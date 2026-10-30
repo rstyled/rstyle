@@ -124,6 +124,7 @@ fn root_style_route_uses_workspace_config_suppressions_and_finding_exit() {
     let scope = &report["compiler_advisory"]["units"][0]["diagnostic_scope"];
     assert_eq!(scope["request"]["source_scope"], "authored");
     assert_eq!(scope["request"]["rules"], serde_json::json!([]));
+    repeated_projection(directory.path(), &report);
 }
 
 #[test]
@@ -296,17 +297,6 @@ fn root_style_route_resolves_manifest_config_and_package_from_other_directory() 
     assert_eq!(report["compiler_advisory"]["complete"], true);
 }
 
-#[test]
-fn root_style_inputs_reject_subcommand_misrouting() {
-    let directory = fixture("pub fn clean() {}\n");
-    let output = rstyle(
-        directory.path(),
-        &["--changed-files", "changes.json", "patterns"],
-    );
-    checked(&output, 2);
-    assert!(String::from_utf8_lossy(&output.stderr).contains("default style command only"));
-}
-
 const GENERATED_IO_CHAIN: &str = r#"
 macro_rules! make {()=>{
     pub fn generated_leaf() {let _ = std::fs::read("/unused");}
@@ -441,14 +431,10 @@ fn root_style_inherits_generated_io_into_authored_findings_and_replays_reused_ow
     assert_eq!(warm["compiler_advisory"], replayed["compiler_advisory"]);
 }
 
-#[test]
-fn repeated_root_style_runs_preserve_findings_metrics_and_plans() {
-    let directory = fixture(SOURCE);
-    let (first_output, first) = capture(directory.path(), &[]);
-    let (second_output, second) = capture(directory.path(), &[]);
-    checked(&first_output, 1);
+fn repeated_projection(directory: &Path, first: &Value) {
+    let (second_output, second) = capture(directory, &[]);
     checked(&second_output, 1);
-    for report in [&first, &second] {
+    for report in [first, &second] {
         assert_eq!(report["compiler_advisory"]["complete"], true);
         assert_eq!(report["diagnostics"].as_array().unwrap().len(), 1);
         assert_eq!(report["fix_groups"].as_array().unwrap().len(), 1);

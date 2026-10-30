@@ -294,7 +294,7 @@ fn mining_options_require_the_compiler_pattern_consumer() {
 }
 
 #[test]
-fn trait_hiding_reuses_the_legacy_oracle_and_default_trait_suppression() {
+fn trait_hiding_recovers_proposals_hidden_by_existing_trait_implementations() {
     let (directory, output, original) = capture(ANIMALS, &["--compiler-patterns"]);
     checked(&output, 0);
     assert!(candidate_at(&proposals(&original)["evaluation"], "emit_cow").is_none());

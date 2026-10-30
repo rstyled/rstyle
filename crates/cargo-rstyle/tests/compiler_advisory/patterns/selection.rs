@@ -109,14 +109,14 @@ fn compiler_pattern_file_selection_is_opt_in_and_preserves_global_evaluations() 
         original["compiler_advisory"]["changed_scope"]["visible_findings"],
         0
     );
-    let (output, legacy) = replay(
+    let (output, unfiltered) = replay(
         directory.path(),
         &original,
         &["--changed-files", "selection.json", "--fail-on-findings"],
     );
     checked(&output, 1);
-    assert!(proposals(&legacy)["selected_candidates"].is_null());
-    unchanged(&original, &legacy);
+    assert!(proposals(&unfiltered)["selected_candidates"].is_null());
+    unchanged(&original, &unfiltered);
     select(directory.path(), &["src/usage.rs"]);
     let (output, selected) = replay(directory.path(), &original, FILTER);
     checked(&output, 1);

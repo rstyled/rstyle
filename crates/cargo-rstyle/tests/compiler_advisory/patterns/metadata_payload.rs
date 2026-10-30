@@ -43,6 +43,9 @@ const FULL: &[&str] = &[
 ];
 
 fn metadata_contract(report: &Value, wire: &Value) {
+    assert_eq!(report["matching_execution"], "not_requested");
+    assert_eq!(report["strict_assessment_execution"], "not_requested");
+    assert_eq!(proposals(report)["source_scope"]["kind"], "authored");
     let plan = Path::new(report["run_directory"].as_str().unwrap()).join("plan.json");
     let plan: Value = serde_json::from_slice(&std::fs::read(plan).unwrap()).unwrap();
     assert_eq!(plan["compiler_patterns"], true);
@@ -123,6 +126,8 @@ fn offline_reviews(directory: &Path, metadata: &Value, full: &Value) {
     checked(&output, 0);
     let restored = json(&output);
     assert_eq!(restored["compiler_advisory"], metadata["compiler_advisory"]);
+    assert_eq!(restored["capture_failures"], metadata["capture_failures"]);
+    assert_eq!(restored["handoff_failures"], metadata["handoff_failures"]);
     let bytes = dismiss(directory, metadata);
     for original in [metadata, full] {
         let output = saved(directory, original, "patterns", &["--format", "json"]);

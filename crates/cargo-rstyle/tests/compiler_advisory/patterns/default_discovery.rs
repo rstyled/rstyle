@@ -64,25 +64,6 @@ pub(super) fn dismiss(directory: &Path, original: &Value) -> Vec<u8> {
 }
 
 #[test]
-fn default_patterns_uses_authored_compiler_discovery_and_matches_explicit_engine() {
-    let (directory, original) = fixture(&[]);
-    assert_eq!(original["matching_execution"], "not_requested");
-    assert_eq!(proposals(&original)["source_scope"]["kind"], "authored");
-    remove_sources(directory.path());
-    let output = saved(
-        directory.path(),
-        &original,
-        "patterns",
-        &["--format", "json"],
-    );
-    checked(&output, 0);
-    let explicit = json(&output);
-    assert_eq!(explicit["compiler_advisory"], original["compiler_advisory"]);
-    assert_eq!(explicit["capture_failures"], original["capture_failures"]);
-    assert_eq!(explicit["handoff_failures"], original["handoff_failures"]);
-}
-
-#[test]
 fn default_ignore_dismisses_saved_default_candidates_without_source_or_tools() {
     let (directory, original) = fixture(&[]);
     remove_sources(directory.path());

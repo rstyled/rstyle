@@ -1,58 +1,58 @@
 //! End-to-end tests: real `cargo check` through the real rustc driver.
 
+mod abstraction_review;
 mod byte_membership;
 mod byte_windows;
+mod capabilities;
 mod checked_options;
 mod checksum_state;
 mod compact_report;
+mod compiler_advisory;
 mod complexity;
 mod component_helper_results;
 mod concrete_default;
 mod copy_owner_source;
+mod density_review;
 mod dependency_capture;
 #[path = "../src/diagnostic_process.rs"]
 mod diagnostic_process;
-mod digit_product_values;
-mod fresh_product_results;
-mod fresh_scalar_owners;
-mod inherent_expansions;
-mod loop_merge_target;
-mod lossless_values;
-mod abstraction_review;
-mod capabilities;
-mod compiler_advisory;
-mod density_review;
 mod differences;
+mod digit_product_values;
 mod dispatch;
 mod effect_composition;
 mod effects;
+mod fresh_product_results;
+mod fresh_scalar_owners;
 mod guard_plans;
 mod guards;
 mod helpers;
+mod inherent_expansions;
 mod length_review;
+mod loop_merge_target;
+mod lossless_values;
+mod mutable_scalar_formals;
 mod mutation_branches;
 mod mutation_loops;
 mod mutation_policy;
 mod mutation_review;
 mod mutations;
+mod native_prefix_readers;
+mod nominal_copy;
+mod option_sources;
 mod output;
 mod parameter_plans;
 mod parameter_review;
 mod planning;
-mod replay;
-mod review;
-mod rules;
-mod spacing_review;
-mod mutable_scalar_formals;
-mod native_prefix_readers;
-mod nominal_copy;
-mod option_sources;
 mod platform_regressions;
 mod product_instance_diagnostics;
 mod reference_instance_diagnostics;
+mod replay;
+mod review;
+mod rules;
 mod scalar_error_results;
 mod scoped_imports;
 mod shared_evidence;
+mod spacing_review;
 mod try_capture;
 mod variant_capture;
 use shared_evidence::{load as data_unit, reject_helper};
@@ -394,7 +394,7 @@ fn unknown_package_exits_two() {
 
 /// Read the shared collector observations through the compiler capture route.
 fn facts_for(dir: &Path) -> Vec<Value> {
-    let (_, report) = clones(
+    let (output, report) = clones(
         dir,
         &[
             "--extraction-profile",
@@ -405,6 +405,8 @@ fn facts_for(dir: &Path) -> Vec<Value> {
             "full",
         ],
     );
+    assert!(output.status.success(), "{}", stdout(&output));
+    assert_eq!(report["capture_complete"], true);
     report["functions"]
         .as_array()
         .unwrap()
@@ -440,7 +442,6 @@ fn strings(value: &Value) -> Vec<&str> {
 #[test]
 fn facts_record_call_graph_ids_and_mutated_types() {
     let dir = fixture("graph");
-    assert!(rstyle(dir.path(), &[]).status.success());
     let facts = facts_for(dir.path());
 
     let direct = fact(&facts, "direct");
@@ -471,7 +472,6 @@ fn facts_record_call_graph_ids_and_mutated_types() {
 #[test]
 fn facts_record_params_and_argument_provenance() {
     let dir = fixture("params");
-    assert!(rstyle(dir.path(), &[]).status.code().is_some());
     let facts = facts_for(dir.path());
 
     let leaf = fact(&facts, "leaf");
@@ -616,7 +616,6 @@ fn sig_of<'a>(facts: &'a [Value], name: &str) -> &'a Value {
 #[test]
 fn facts_record_sig() {
     let dir = fixture("animals");
-    assert!(rstyle(dir.path(), &[]).status.code().is_some());
     let facts = facts_for(dir.path());
 
     let bark = sig_of(&facts, "Dog::bark");

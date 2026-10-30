@@ -265,10 +265,12 @@ fn compiler_route_defaults_to_authored_scope_and_reports_generated_owners() {
 }
 
 #[test]
-fn explicit_reference_engine_and_compiler_both_apply_repository_reviews() {
+fn repository_reviews_preserve_raw_candidates_and_ledger_bytes() {
     let directory = fixture(FAMILIES);
-    let original = patterns_json(directory.path(), &["--no-ignore"]);
-    let candidate = &original["candidates"][0];
+    let output = raw(directory.path(), &["--no-ignore"]);
+    checked(&output, 0);
+    let original = report(&output);
+    let candidate = &proposals(&original)["evaluation"]["candidates"][0];
     let bytes = format!(
         "# Preserve this repository review\nversion = 1\n[ignore.{}]\nkind = {:?}\nreason = \"Reviewed proposal\"\n",
         candidate["id"].as_str().unwrap(),
@@ -276,21 +278,22 @@ fn explicit_reference_engine_and_compiler_both_apply_repository_reviews() {
     );
     let path = directory.path().join("rstyle-ignore.toml");
     std::fs::write(&path, &bytes).unwrap();
-    let current = patterns_json(directory.path(), &[]);
-    assert!(current.get("compiler_advisory").is_none());
-    assert_eq!(current["ignored_count"], 1);
-    assert_eq!(current, patterns_json(directory.path(), &[]));
     let output = raw(directory.path(), &["--show-ignored"]);
     checked(&output, 0);
-    let compiler = report(&output);
-    assert_eq!(proposals(&compiler)["evaluation"]["ignored_count"], 1);
+    let reviewed = report(&output);
+    only_patterns(&reviewed);
+    let evaluated = &proposals(&reviewed)["evaluation"];
+    assert_eq!(evaluated["ignored_count"], 1);
+    assert_eq!(evaluated["ignored"][0]["id"], candidate["id"]);
     assert_eq!(
-        proposals(&compiler)["evaluation"]["candidates"]
-            .as_array()
-            .unwrap()
-            .len(),
-        3
+        evaluated["candidates"],
+        proposals(&original)["evaluation"]["candidates"]
     );
+    assert_eq!(evaluated["candidates"].as_array().unwrap().len(), 3);
+    remove_sources(directory.path());
+    let (output, replayed) = saved(directory.path(), &reviewed, &[]);
+    checked(&output, 0);
+    assert_eq!(replayed["compiler_advisory"], reviewed["compiler_advisory"]);
     assert_eq!(std::fs::read_to_string(path).unwrap(), bytes);
 }
 

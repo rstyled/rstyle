@@ -91,22 +91,22 @@ fn check_sample(report: &Value, name: &str, statements: u64, writes: u64) {
 }
 
 #[test]
-fn question_marks_do_not_add_statements_or_erase_direct_io_calls() {
-    let (_directory, report) = fixture();
-    check_sample(&report, "one", 2, 1);
-    check_sample(&report, "multiple", 3, 2);
-}
-
-#[test]
-fn authored_match_arms_operand_blocks_and_macro_io_remain_counted() {
-    let (_directory, report) = fixture();
-    check_sample(&report, "matched", 4, 1);
-    check_sample(&report, "blocked", 4, 1);
-    check_sample(&report, "expanded", 2, 1);
+fn authored_statement_counts_and_direct_io_survive_source_free_replay() {
+    let (directory, report) = fixture();
+    for (name, statements, writes) in [
+        ("one", 2, 1),
+        ("multiple", 3, 2),
+        ("matched", 4, 1),
+        ("blocked", 4, 1),
+        ("expanded", 2, 1),
+    ] {
+        check_sample(&report, name, statements, writes);
+    }
     assert_eq!(
         report["compiler_advisory"]["units"][0]["evaluation"]["summary"]["effect_counts"]["io"],
         6
     );
+    replay_statement_metrics(directory.path(), &report);
 }
 
 #[test]
@@ -139,14 +139,12 @@ pub fn macro_condition(input: Option<u8>) -> std::io::Result<()> {
     }
 }
 
-#[test]
-fn corrected_statement_metrics_replay_without_source_or_manifest() {
-    let (directory, original) = fixture();
+fn replay_statement_metrics(directory: &Path, original: &Value) {
     for path in ["src/lib.rs", "Cargo.toml", "Cargo.lock"] {
-        std::fs::remove_file(directory.path().join(path)).unwrap();
+        std::fs::remove_file(directory.join(path)).unwrap();
     }
     let (output, replayed) = clones(
-        directory.path(),
+        directory,
         &[
             "--extraction-profile",
             "hir-data-v3",

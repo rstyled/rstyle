@@ -103,37 +103,33 @@ fn exported(directory: &Path) -> Value {
     report
 }
 
-#[test]
-fn late_positive_exports_from_large_inventory_and_replays_without_sources_or_tools() {
-    let directory = fixture();
-    let original = exported(directory.path());
-    let bytes = std::fs::read(directory.path().join("baseline.json")).unwrap();
-    std::fs::remove_dir_all(directory.path().join("src")).unwrap();
-    std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
-    let (output, same) = replay(directory.path(), &original, COMPARE);
+fn replay_positive_without_sources_or_tools(directory: &Path, original: &Value) {
+    let bytes = std::fs::read(directory.join("baseline.json")).unwrap();
+    std::fs::remove_dir_all(directory.join("src")).unwrap();
+    std::fs::remove_file(directory.join("Cargo.toml")).unwrap();
+    let (output, same) = replay(directory, original, COMPARE);
     checked(&output, 0);
     assert_eq!(baseline(&same)["coverage"], "complete");
     assert_eq!(baseline(&same)["existing_findings"], 1);
     assert_eq!(baseline(&same)["new_findings"], 0);
-    assert_eq!(unit(&same)["evaluation"], unit(&original)["evaluation"]);
+    assert_eq!(unit(&same)["evaluation"], unit(original)["evaluation"]);
     assert_eq!(
-        std::fs::read(directory.path().join("baseline.json")).unwrap(),
+        std::fs::read(directory.join("baseline.json")).unwrap(),
         bytes
     );
 }
 
-#[test]
-fn retained_late_owner_resolves_clean_measurement_but_preserves_compilation_context_drift() {
-    let directory = fixture();
-    exported(directory.path());
-    write_source(directory.path(), false, false);
-    let (output, clean) = capture(directory.path(), COMPARE);
+fn clean_baseline(directory: &Path, clean: &Value) {
+    let (output, report) = replay(directory, clean, COMPARE);
     checked(&output, 0);
-    assert_eq!(baseline(&clean)["coverage"], "complete");
-    let retained = baseline(&clean)["retained"].as_array().unwrap();
+    assert_eq!(baseline(&report)["coverage"], "complete");
+    let retained = baseline(&report)["retained"].as_array().unwrap();
     assert_eq!(retained.len(), 1);
     assert_eq!(retained[0]["state"], "resolved");
-    let (output, changed) = capture(directory.path(), &[COMPARE, &["--release"]].concat());
+}
+
+fn changed_compilation_context(directory: &Path) {
+    let (output, changed) = capture(directory, &[COMPARE, &["--release"]].concat());
     checked(&output, 1);
     assert_eq!(baseline(&changed)["coverage"], "complete");
     assert_eq!(baseline(&changed)["scope_changed"], true);
@@ -177,36 +173,26 @@ fn dismiss_late(directory: &Path, original: &Value) {
     checked(&output, 0);
 }
 
-#[test]
-fn retained_review_demands_late_clean_owner_and_prunes_only_completed_negative() {
-    let directory = fixture();
-    let (output, original) = capture(directory.path(), &[]);
+fn prune_completed_review(directory: &Path, clean: &Value) {
+    let (output, status) = replay(directory, clean, STATUS);
     checked(&output, 0);
-    dismiss_late(directory.path(), &original);
-    write_source(directory.path(), false, false);
-    let (output, clean) = capture(directory.path(), STATUS);
-    checked(&output, 0);
-    let records = clean["review_status"]["records"].as_array().unwrap();
+    let records = status["review_status"]["records"].as_array().unwrap();
     assert_eq!(records.len(), 1);
     assert_eq!(records[0]["state"], "no_finding");
-    let bytes = std::fs::read(directory.path().join("reviews.json")).unwrap();
+    let bytes = std::fs::read(directory.join("reviews.json")).unwrap();
     let (output, dry) = replay(
-        directory.path(),
-        &clean,
+        directory,
+        clean,
         &[STATUS, &["--review-prune", "--review-prune-dry-run"]].concat(),
     );
     checked(&output, 0);
     assert_eq!(dry["review_prune"]["eligible_entries"], 1);
     assert_eq!(dry["review_prune"]["removed_entries"], 0);
     assert_eq!(
-        std::fs::read(directory.path().join("reviews.json")).unwrap(),
+        std::fs::read(directory.join("reviews.json")).unwrap(),
         bytes
     );
-    let (output, pruned) = replay(
-        directory.path(),
-        &clean,
-        &[STATUS, &["--review-prune"]].concat(),
-    );
+    let (output, pruned) = replay(directory, clean, &[STATUS, &["--review-prune"]].concat());
     checked(&output, 0);
     assert_eq!(pruned["review_prune"]["removed_entries"], 1);
 }
@@ -229,22 +215,38 @@ fn missing_late_observation(report: &Value) -> Value {
     wire
 }
 
-#[test]
-fn missing_late_measurement_never_becomes_a_clean_retained_negative() {
-    let directory = fixture();
-    exported(directory.path());
-    write_source(directory.path(), false, false);
-    let (output, clean) = capture(directory.path(), &[]);
-    checked(&output, 0);
-    let wire = missing_late_observation(&clean);
-    only::reseal_raw(&clean, &only::ledger_path(&clean), &wire);
-    let (output, missing) = replay(directory.path(), &clean, COMPARE);
+fn missing_measurement_stays_incomplete(directory: &Path, clean: &Value) {
+    let bundle = clean["functions"][0]["unit_evidence"]["bundle"]
+        .as_str()
+        .unwrap();
+    let original_wire: Value = serde_json::from_slice(&std::fs::read(bundle).unwrap()).unwrap();
+    let ledger = only::ledger_path(clean);
+    let changed = missing_late_observation(clean);
+    only::reseal_raw(clean, &ledger, &changed);
+    let (output, missing) = replay(directory, clean, COMPARE);
     checked(&output, 2);
     assert_eq!(baseline(&missing)["coverage"], "incomplete");
     assert_eq!(unit(&missing)["diagnostic_scope"]["input_complete"], false);
     let retained = baseline(&missing)["retained"].as_array().unwrap();
     assert_eq!(retained.len(), 1);
     assert_ne!(retained[0]["state"], "resolved");
+    only::reseal_raw(clean, &ledger, &original_wire);
+}
+
+#[test]
+fn late_owner_baselines_and_reviews_preserve_clean_missing_and_context_outcomes() {
+    let fixture = fixture();
+    let directory = fixture.path();
+    let original = exported(directory);
+    dismiss_late(directory, &original);
+    write_source(directory, false, false);
+    let (output, clean) = capture(directory, &[]);
+    checked(&output, 0);
+    clean_baseline(directory, &clean);
+    missing_measurement_stays_incomplete(directory, &clean);
+    prune_completed_review(directory, &clean);
+    changed_compilation_context(directory);
+    replay_positive_without_sources_or_tools(directory, &original);
 }
 
 #[test]
