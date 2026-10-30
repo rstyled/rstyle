@@ -28,6 +28,7 @@ impl Fixture {
 
         let plan = Plan {
             compiler_advisory_only: false,
+            style_inputs_only: false,
             compiler_advisory: false,
             compiler_patterns: false,
             local_source_facts: false,
@@ -78,6 +79,7 @@ impl Fixture {
         }
         let unit = Unit {
             compiler_advisory_only: false,
+            style_inputs_only: false,
             extraction_profile: self.plan.extraction_profile,
             target: self.plan.targets[0].clone(),
             test,

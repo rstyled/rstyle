@@ -3,7 +3,7 @@ use crate::nominal_boundary::census::{Census, KEY};
 use serde_json::{Value, json};
 use std::sync::Arc;
 
-fn roster() -> Vec<HirFnFacts> {
+pub(super) fn roster() -> Vec<HirFnFacts> {
     let mut first: HirFnFacts = serde_json::from_str(include_str!(
         "../../../nominal_boundary/resolution/selected/function_cleanup_tests/facts.json"
     ))

@@ -46,6 +46,12 @@ fn check_completion(cargo: &[u8]) -> Result<Vec<Value>, String> {
 fn check_plan(plan: &Plan, graph: &Value) -> Result<(), String> {
     if plan.ledger_schema != ledger::SCHEMA
         || (!plan.compiler_advisory_only && !plan.dependency_units.is_empty())
+        || (plan.style_inputs_only
+            && (!plan.compiler_advisory_only
+                || !plan.compiler_advisory
+                || plan.compiler_patterns
+                || plan.local_source_facts
+                || plan.local_mutation_facts))
     {
         return Err("Standalone replay requires a current standalone capture plan".into());
     }
@@ -165,6 +171,7 @@ fn check_units(capture: &Capture) -> Result<(), String> {
         if !ledgers.insert(path)
             || !directories.insert(&unit.directory)
             || unit.compiler_advisory_only != capture.plan.compiler_advisory_only
+            || unit.style_inputs_only != capture.plan.style_inputs_only
             || unit.extraction_profile != capture.plan.extraction_profile
             || unit.test != unit.invocation.iter().any(|argument| argument == "--test")
             || !intended_invocation(&capture.plan, &unit.target, &unit.invocation)

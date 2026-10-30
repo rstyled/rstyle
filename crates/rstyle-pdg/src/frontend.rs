@@ -336,11 +336,21 @@ impl<Options> BuildFacts<Options> {
     }
 }
 
+/// A payload deliberately omitted by the selected consumer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Uncaptured {
+    NotRequested,
+}
+
+/// Numeric compiler inputs retain the actual body identity without a binding inventory.
+pub type StyleFnFacts = HirFnFacts<HirRef, Uncaptured>;
+
 /// One assessed function's frontend evidence; the default retains its complete body.
 /// Numeric readers may retain only the validated original body identity.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct HirFnFacts<Body = HirNode> {
+pub struct HirFnFacts<Body = HirNode, Bindings = Vec<BindingFact>> {
     /// Function path for navigation (never a matching label).
     pub name: String,
     /// Span of the whole function within its file, in file bytes.
@@ -349,8 +359,8 @@ pub struct HirFnFacts<Body = HirNode> {
     pub source: SourceFacts,
     /// Owned signature evidence.
     pub signature: SignatureFacts,
-    /// Lexical bindings in walk order.
-    pub bindings: Vec<BindingFact>,
+    /// Lexical bindings in walk order, or explicit not-requested payload.
+    pub bindings: Bindings,
     /// Original body payload selected by the reader; a tree by default.
     pub body: Body,
     /// Captured build and semantic-setting evidence.

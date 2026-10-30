@@ -23,9 +23,16 @@ produce `summary=null`, rather than a fabricated clean summary.
 `compiler_advisory` retains per-unit evaluations, metric versions, outside-scope
 generated owners and limitations. `planning_input_complete` and
 `planning_required_edits_complete` preserve the planner's independent statuses;
-numeric completion does not imply complete callers or safe rewrites. The full
-clones evidence report remains at `<run_directory>/report.json` for inspection and
-saved replay. This is an extended style report, with compiler metric semantics;
+numeric completion does not imply complete callers or safe rewrites. The compiler
+evidence report remains at `<run_directory>/report.json` for inspection and saved
+replay. Root style captures the existing numeric collector inputs and original
+source/signature/build metadata, retaining the real body identity without building
+a HIR body tree. Bindings are explicitly not requested. Numeric replay needs no
+source files or compiler tools; consumers requiring bodies need a full clones
+capture. Direct `clones --compiler-advisory-only` captures, including compact
+reports, continue to retain full original body and binding snapshots. Saved plans
+distinguish these payloads when reusing completed owners. This is an extended
+style report, with compiler metric semantics;
 equal field names do not imply equal legacy density denominators or scores.
 The legacy backend remains the default, available explicitly through
 `--style-engine legacy`. The style-engine option applies only without a subcommand;

@@ -58,6 +58,9 @@ impl CompilerSourceScope {
     group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_guard", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density", "dismiss_compiler_pattern", "dismiss_compiler_diagnostic", "import_legacy_pattern"])),
     group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules", "effect_density", "compiler_advisory", "compiler_patterns"]).multiple(true)))]
 pub struct Args {
+    /// Internal root-style payload selection; full clones capture remains independent.
+    #[arg(skip)]
+    style_inputs_only: bool,
     /// Extraction selection: r0, hir-expanded-v1, hir-helpers-v1, hir-data-v1, hir-data-v2 or hir-data-v3.
     #[arg(long, default_value = "r0", value_parser = rstyle_pdg::extraction_profile::ExtractionProfile::select)]
     pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
@@ -439,6 +442,7 @@ enum FactOwner {
     Strict(Arc<rstyle_pdg::unit_store::UnitStore>),
     Advisory(Arc<Vec<HirFnFacts>>),
     Numeric(Arc<Vec<HirFnFacts<rstyle_pdg::HirRef>>>),
+    Style(Arc<Vec<rstyle_pdg::StyleFnFacts>>),
 }
 
 /// Borrowed navigation and compiler observations shared by full and numeric inputs.
@@ -451,8 +455,8 @@ struct FactView<'a> {
     source_diagnostics: &'a [rstyle_pdg::HirDiagnostic],
 }
 
-impl<'a, B> From<&'a HirFnFacts<B>> for FactView<'a> {
-    fn from(facts: &'a HirFnFacts<B>) -> Self {
+impl<'a, B, L> From<&'a HirFnFacts<B, L>> for FactView<'a> {
+    fn from(facts: &'a HirFnFacts<B, L>) -> Self {
         Self {
             name: &facts.name,
             fn_span: facts.fn_span,
@@ -469,7 +473,9 @@ impl ReportFacts {
         match &self.owner {
             FactOwner::Strict(store) => Ok(store.functions()),
             FactOwner::Advisory(facts) => Ok(facts),
-            FactOwner::Numeric(_) => Err("Original HIR bodies were not requested".into()),
+            FactOwner::Numeric(_) | FactOwner::Style(_) => {
+                Err("Original HIR bodies were not requested".into())
+            }
         }
     }
 
@@ -482,13 +488,14 @@ impl ReportFacts {
             FactOwner::Strict(store) => (&store.functions()[self.index]).into(),
             FactOwner::Advisory(facts) => (&facts[self.index]).into(),
             FactOwner::Numeric(facts) => (&facts[self.index]).into(),
+            FactOwner::Style(facts) => (&facts[self.index]).into(),
         }
     }
 
     fn namespace(&self) -> Option<rstyle_pdg::unit_store::UnitNamespace> {
         match &self.owner {
             FactOwner::Strict(store) => Some(*store.namespace()),
-            FactOwner::Advisory(_) | FactOwner::Numeric(_) => None,
+            FactOwner::Advisory(_) | FactOwner::Numeric(_) | FactOwner::Style(_) => None,
         }
     }
 }
@@ -1093,8 +1100,8 @@ fn function_record(
     }
 }
 
-fn verify_frontend_invocation<B>(
-    facts: &HirFnFacts<B>,
+fn verify_frontend_invocation<B, L>(
+    facts: &HirFnFacts<B, L>,
     unit: &capture::Unit,
     capture: &capture::Capture,
     selected_context: &selected_context::SelectedContext,
@@ -1129,8 +1136,8 @@ fn verify_frontend_invocation<B>(
     verify_data_compiler_commit(facts, capture)
 }
 
-fn verify_data_compiler_commit<B>(
-    facts: &HirFnFacts<B>,
+fn verify_data_compiler_commit<B, L>(
+    facts: &HirFnFacts<B, L>,
     capture: &capture::Capture,
 ) -> Result<(), String> {
     if !capture.plan.extraction_profile.is_data() {

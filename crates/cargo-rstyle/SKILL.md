@@ -409,6 +409,11 @@ report. Findings are deterministic for identical inputs; capture-directory paths
 and run metadata can differ between runs. Planning completion remains explicit.
 Strict matching and
 pattern mining are unrequested; --ignore-file remains irrelevant to style rules.
+Root style saves numeric compiler inputs, original source/signature/build metadata
+and the actual body identity; body trees and lexical bindings are not requested.
+Numeric replay works without source files or tools. Body-dependent consumers need
+a full clones capture; direct clones advisory captures retain their complete bodies
+and bindings even with compact reports. Owner reuse distinguishes these payloads.
 The default backend stays legacy. Advisory-only live captures without dependency
 capture reuse private builds under a lock. Completed raw owner snapshots are
 reused only for exact artifacts that current Cargo reports fresh, with matching

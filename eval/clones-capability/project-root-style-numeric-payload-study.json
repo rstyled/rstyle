@@ -1,0 +1,254 @@
+{
+  "schema": "rstyle.root-style-numeric-payload-study/1",
+  "checkpoint": "C103",
+  "base_revision": "5932d39d",
+  "scope": "Default authored workspace library/binary compiler style; unchanged config; 150 second bound.",
+  "command": [
+    "target/debug/cargo-rstyle",
+    "--style-engine",
+    "compiler",
+    "--format",
+    "json"
+  ],
+  "observations": [
+    {
+      "report": "/tmp/clones-c102-producer.json",
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-Y8AUOA",
+      "elapsed_seconds": 72.16,
+      "peak_rss_kib": 3047692,
+      "evidence_bytes": 809623834,
+      "summary": {
+        "functions": 10062,
+        "violations": 47,
+        "complexity_measured": 10062,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 97,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 336,
+          "mutation": 2097,
+          "panic": 56,
+          "time": 66,
+          "unknown": 164
+        }
+      },
+      "summary_complete": true,
+      "capture_complete": true,
+      "owner_reuse": false
+    },
+    {
+      "report": "/tmp/clones-c103-root-first.json",
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-l6fgDj",
+      "elapsed_seconds": 36.76,
+      "peak_rss_kib": 2431260,
+      "evidence_bytes": 258970552,
+      "summary": {
+        "functions": 10071,
+        "violations": 51,
+        "complexity_measured": 10071,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 98,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 343,
+          "mutation": 2097,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      },
+      "summary_complete": true,
+      "capture_complete": true,
+      "owner_reuse": false,
+      "source_state": "Initial C103 implementation before legacy cleanup; historical intermediate measurement"
+    },
+    {
+      "report": "/tmp/clones-c103-root-warm.json",
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-4LkuDe",
+      "elapsed_seconds": 6.66,
+      "peak_rss_kib": 1185776,
+      "evidence_bytes": 258970552,
+      "summary": {
+        "functions": 10071,
+        "violations": 51,
+        "complexity_measured": 10071,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 98,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 343,
+          "mutation": 2097,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      },
+      "summary_complete": true,
+      "capture_complete": true,
+      "owner_reuse": true,
+      "source_state": "Initial C103 implementation before legacy cleanup; historical intermediate measurement"
+    },
+    {
+      "report": "/tmp/clones-c103-root-final.json",
+      "source_state": "Final C103 implementation after legacy style/pattern cleanup",
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-RlTwKo",
+      "elapsed_seconds": 34.36,
+      "peak_rss_kib": 2432048,
+      "evidence_bytes": 259025159,
+      "summary": {
+        "functions": 10075,
+        "violations": 49,
+        "complexity_measured": 10075,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 98,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 343,
+          "mutation": 2097,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      },
+      "summary_complete": true,
+      "capture_complete": true,
+      "owner_reuse": false
+    },
+    {
+      "report": "/tmp/clones-c103-root-final-warm.json",
+      "source_state": "Final C103 implementation after legacy style/pattern cleanup",
+      "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-G34pRe",
+      "elapsed_seconds": 6.5,
+      "peak_rss_kib": 1186312,
+      "evidence_bytes": 259025159,
+      "summary": {
+        "functions": 10075,
+        "violations": 49,
+        "complexity_measured": 10075,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 98,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 343,
+          "mutation": 2097,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      },
+      "summary_complete": true,
+      "capture_complete": true,
+      "owner_reuse": true
+    }
+  ],
+  "projection_equality": {
+    "diagnostics": true,
+    "summary": true,
+    "functions": true,
+    "fix_groups": true,
+    "compiler_advisory": true
+  },
+  "finding_reconciliation": {
+    "added": [
+      {
+        "path": "crates/cargo-rstyle/src/clones/advisory_only.rs",
+        "rule": "fn_length",
+        "message": "function `clones::advisory_only::consume` is too long",
+        "actual": 52
+      },
+      {
+        "path": "crates/cargo-rstyle/src/clones/advisory_only.rs",
+        "rule": "side_effect_density",
+        "message": "function `clones::advisory_only::consume_style` has a high side-effect density",
+        "actual": 800
+      },
+      {
+        "path": "crates/rstyle-driver/src/hir_extraction/output.rs",
+        "rule": "side_effect_density",
+        "message": "function `hir_extraction::output::Destination::write_style_capture` has a high side-effect density",
+        "actual": 3000
+      },
+      {
+        "path": "crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style.rs",
+        "rule": "side_effect_density",
+        "message": "function `unit_store::bundle::diagnostic::style::read_style_snapshot_phase` has a high side-effect density",
+        "actual": 1000
+      },
+      {
+        "path": "crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style.rs",
+        "rule": "side_effect_density",
+        "message": "function `unit_store::bundle::diagnostic::style::write_sealed_style_snapshot` has a high side-effect density",
+        "actual": 750
+      }
+    ],
+    "removed": [
+      {
+        "path": "crates/cargo-rstyle/src/clones/advisory_only.rs",
+        "rule": "side_effect_density",
+        "message": "function `clones::advisory_only::consume` has a high side-effect density"
+      }
+    ],
+    "changed_shared_values": []
+  },
+  "limits": [
+    "C102 has temporary binary instrumentation and earlier source. First-run comparison is contextual, not a controlled algorithmic speedup benchmark.",
+    "Warm run reuses six existing immutable owners through the existing capture mechanism. It is not a second fresh capture.",
+    "Full clones body/binding capture is unchanged; root numeric capture explicitly records bindings not_requested and retains actual body identity.",
+    "New density findings are IO/timer boundaries; usefulness disposition remains separate. Defaults remain legacy."
+  ],
+  "final_projection_equality": {
+    "diagnostics": true,
+    "summary": true,
+    "functions": true,
+    "fix_groups": true,
+    "compiler_advisory": true
+  },
+  "final_finding_reconciliation": {
+    "added": [
+      {
+        "path": "crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style.rs",
+        "rule": "side_effect_density",
+        "message": "function `unit_store::bundle::diagnostic::style::read_style_snapshot_phase` has a high side-effect density",
+        "actual": 666
+      },
+      {
+        "path": "crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style.rs",
+        "rule": "side_effect_density",
+        "message": "function `unit_store::bundle::diagnostic::style::write_sealed_style_snapshot` has a high side-effect density",
+        "actual": 750
+      }
+    ],
+    "removed": [],
+    "changed_shared_values": [
+      {
+        "path": "crates/cargo-rstyle/src/clones/advisory_only.rs",
+        "rule": "side_effect_density",
+        "before": 583,
+        "after": 538
+      }
+    ],
+    "source_review": "Both new findings are context-only IO/timing boundaries. The writer must flush through the existing transport seal; the reader optionally measures parse and restore stages. No actionable change is identified solely from the density ratio. The frozen C97 review is unchanged."
+  },
+  "gates": {
+    "legacy_style": {
+      "functions": 10075,
+      "violations": 0
+    },
+    "legacy_patterns": {
+      "unreviewed_candidates": 0,
+      "unfiltered_candidates": 13,
+      "same_reviewed_ids": true
+    },
+    "capability_python_tests": 248,
+    "script_python_tests": 50,
+    "rust_final": {
+      "tests_run": 3715,
+      "passed": 3715,
+      "skipped": 5,
+      "elapsed_seconds": 263.161,
+      "doctests": "passed"
+    },
+    "clippy_workspace_all_targets": "passed",
+    "fmt": "passed"
+  }
+}

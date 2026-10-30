@@ -29,7 +29,8 @@ Try that path for normal style checks with
 The legacy backend remains the default. This route reuses private builds and completed owner observations when Cargo
 reports the exact artifacts fresh; reports retain separate compilation contexts.
 Root JSON exposes diagnostics, summary, fix groups and complexity rows, with
-explicit scope and planning completeness. Full evidence remains available for replay.
+explicit scope and planning completeness. Root style saves its numeric compiler
+inputs for replay; analyses requiring original HIR bodies use a full clones capture.
 Optional [native pair explanations](docs/clones-pair-differences.md) show ordered
 scalar differences with separate coverage through `--explain-pairs`.
 Bounded [helper proposals](docs/clones-helper-proposals.md) use that evidence

@@ -3,14 +3,13 @@ use super::*;
 
 pub(super) fn consume(request: &UnitRequest<'_>, result: &mut Handoff) -> Result<(), String> {
     let unit = request.unit;
-    if !unit.compiler_advisory_only
-        || unit.extraction_profile != request.capture.plan.extraction_profile
-    {
-        return Err("Compiler advisory unit mode or extraction profile disagrees with plan".into());
-    }
+    check_mode(unit, &request.capture.plan)?;
 
     let snapshot = Stage::new("cli.advisory.load_inventory", &unit.target.package, None)
         .observe(|| capture::load_inventory(unit))?;
+    if unit.style_inputs_only {
+        return consume_style(request, &snapshot, result);
+    }
     let stage = Stage::new(
         "cli.advisory.decode",
         &unit.target.package,
@@ -51,6 +50,40 @@ pub(super) fn consume(request: &UnitRequest<'_>, result: &mut Handoff) -> Result
     }
 }
 
+fn check_mode(unit: &capture::Unit, plan: &capture::Plan) -> Result<(), String> {
+    if !unit.compiler_advisory_only
+        || unit.style_inputs_only != plan.style_inputs_only
+        || unit.extraction_profile != plan.extraction_profile
+    {
+        return Err("Compiler advisory unit mode or extraction profile disagrees with plan".into());
+    }
+
+    Ok(())
+}
+
+fn consume_style(
+    request: &UnitRequest<'_>,
+    snapshot: &capture::Snapshot,
+    result: &mut Handoff,
+) -> Result<(), String> {
+    if !header_only(request.args) {
+        return Err("Root style inputs did not request original HIR bodies or bindings; requested consumers require a full body capture".into());
+    }
+    let facts = rstyle_pdg::unit_store::read_style_snapshot_phase(
+        snapshot.bundle.bytes(),
+        "compiler-style-inputs",
+    )?;
+    consume_facts(
+        Decoded {
+            facts,
+            owner: FactOwner::Style,
+        },
+        request,
+        snapshot,
+        result,
+    )
+}
+
 fn header_only(args: &Args) -> bool {
     matches!(args.report_detail, report::Detail::Compact)
         && args.compiler_inputs_requested()
@@ -66,13 +99,15 @@ fn header_only(args: &Args) -> bool {
         && !args.compiler_baseline_requested(CompilerBaseline::Diagnostics)
 }
 
-struct Decoded<B> {
-    facts: Vec<HirFnFacts<B>>,
-    owner: fn(Arc<Vec<HirFnFacts<B>>>) -> FactOwner,
+type FactsOwner<B, L> = fn(Arc<Vec<HirFnFacts<B, L>>>) -> FactOwner;
+
+struct Decoded<B, L> {
+    facts: Vec<HirFnFacts<B, L>>,
+    owner: FactsOwner<B, L>,
 }
 
-fn consume_facts<B: identity::BodyOwner>(
-    decoded: Decoded<B>,
+fn consume_facts<B: identity::BodyOwner, L>(
+    decoded: Decoded<B, L>,
     request: &UnitRequest<'_>,
     snapshot: &capture::Snapshot,
     result: &mut Handoff,

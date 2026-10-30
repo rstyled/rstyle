@@ -1,6 +1,8 @@
 //! Explicit producer artifacts, independent of matching orchestration.
 
-use rstyle_pdg::unit_store::{BundleManifest, UnitStore, write_sealed_diagnostic_snapshot};
+use rstyle_pdg::unit_store::{
+    BundleManifest, UnitStore, write_sealed_diagnostic_snapshot, write_sealed_style_snapshot,
+};
 use serde::Serialize;
 use std::{
     io,
@@ -22,6 +24,21 @@ pub struct CapturedOutput<'a> {
 }
 
 impl Destination {
+    pub fn write_style_capture(
+        &self,
+        facts: &[rstyle_pdg::StyleFnFacts],
+        inventory: Option<&serde_json::Value>,
+    ) -> io::Result<()> {
+        self.write_optional_inventory(inventory)?;
+        self.write_style(facts)
+    }
+
+    fn write_style(&self, facts: &[rstyle_pdg::StyleFnFacts]) -> io::Result<()> {
+        self.write_shared_with(|writer| {
+            write_sealed_style_snapshot(writer, "compiler-style-inputs", facts)
+        })
+    }
+
     /// Publish a successful advisory capture without constructing strict evidence.
     pub fn write_advisory_capture(
         &self,

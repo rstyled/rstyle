@@ -18,6 +18,7 @@ fn locator(name: &str) -> Locator {
 fn keys() -> Vec<FunctionKey> {
     let unit = capture::Unit {
         compiler_advisory_only: false,
+        style_inputs_only: false,
         extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile::R0,
         target: capture::Target {
             package: "sample".into(),

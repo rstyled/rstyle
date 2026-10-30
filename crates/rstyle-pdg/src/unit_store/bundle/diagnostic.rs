@@ -7,22 +7,22 @@ use std::io::Write;
 pub const RAW_FACTS_SCHEMA: &str = "rstyle.diagnostic.raw-facts/4";
 
 #[derive(Serialize)]
-struct Export<'a> {
+struct Export<'a, Function = function_sources::Export<'a>> {
     schema: &'static str,
     phase: &'a str,
     sources: Vec<&'a str>,
     inherent_units: option_bundle::Inventories<'a>,
-    facts: Vec<function_sources::Export<'a>>,
+    facts: Vec<Function>,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Import<B> {
+struct Import<B, Bindings = Vec<crate::BindingFact>> {
     schema: String,
     phase: String,
     sources: Vec<SourceSnapshot>,
     inherent_units: Vec<serde_json::Value>,
-    facts: Vec<function_sources::Import<B>>,
+    facts: Vec<function_sources::Import<B, Bindings>>,
 }
 
 /// Stream raw facts through the existing source-reference codec, without graphs.
@@ -102,12 +102,21 @@ where
         return Err("Raw diagnostic publication phase disagrees with requested mode".into());
     }
 
-    let mut inventories =
-        option_bundle::ImportedInventories::new(Some(wire.inherent_units), false)?;
-    inventories.share_censuses(wire.schema == RAW_FACTS_SCHEMA);
-    let mut sources = source_table::Imported::new(&wire.sources);
+    let shared_censuses = wire.schema == RAW_FACTS_SCHEMA;
     let flat_bodies =
         [RAW_FACTS_SCHEMA, "rstyle.diagnostic.raw-facts/3"].contains(&wire.schema.as_str());
+    restore.finish(restore_snapshot(wire, shared_censuses, flat_bodies))
+}
+
+fn restore_snapshot<B: function_sources::BodyImport, Bindings>(
+    wire: Import<B, Bindings>,
+    shared_censuses: bool,
+    flat_bodies: bool,
+) -> Result<Vec<HirFnFacts<B::Output, Bindings>>, String> {
+    let mut inventories =
+        option_bundle::ImportedInventories::new(Some(wire.inherent_units), false)?;
+    inventories.share_censuses(shared_censuses);
+    let mut sources = source_table::Imported::new(&wire.sources);
     let facts = wire
         .facts
         .into_iter()
@@ -116,8 +125,11 @@ where
 
     sources.finish()?;
     inventories.finish()?;
-    restore.finish(Ok(facts))
+    Ok(facts)
 }
+
+mod style;
+pub use style::{STYLE_FACTS_SCHEMA, read_style_snapshot_phase, write_sealed_style_snapshot};
 
 #[cfg(test)]
 mod tests;

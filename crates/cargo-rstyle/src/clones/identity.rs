@@ -113,9 +113,9 @@ impl BodyOwner for rstyle_pdg::HirRef {
     }
 }
 
-pub(super) fn functions<B: BodyOwner>(
+pub(super) fn functions<B: BodyOwner, L>(
     unit: UnitId,
-    facts: &[HirFnFacts<B>],
+    facts: &[HirFnFacts<B, L>],
 ) -> Result<Vec<FunctionKey>, String> {
     let mut seen = BTreeSet::new();
     facts

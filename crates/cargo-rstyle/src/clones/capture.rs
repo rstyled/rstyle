@@ -34,6 +34,8 @@ pub struct Plan {
     #[serde(default)]
     pub compiler_advisory_only: bool,
     #[serde(default)]
+    pub style_inputs_only: bool,
+    #[serde(default)]
     pub compiler_advisory: bool,
     #[serde(default)]
     pub compiler_patterns: bool,
@@ -58,6 +60,7 @@ impl Plan {
         let mutations = args.mutation_rules || args.mutation_effects || args.effect_density;
         Self {
             compiler_advisory_only: args.compiler_advisory_only,
+            style_inputs_only: args.style_inputs_only,
             compiler_advisory: args.compiler_inputs_requested(),
             compiler_patterns: args.compiler_patterns,
             local_source_facts: args.compiler_advisory_only
@@ -76,6 +79,8 @@ impl Plan {
 pub struct Unit {
     #[serde(default)]
     pub compiler_advisory_only: bool,
+    #[serde(default)]
+    pub style_inputs_only: bool,
     pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     pub target: Target,
     pub test: bool,
@@ -166,6 +171,7 @@ fn plan(
 ) -> Plan {
     Plan {
         compiler_advisory_only: false,
+        style_inputs_only: false,
         compiler_advisory: false,
         compiler_patterns: false,
         local_source_facts: false,
@@ -536,6 +542,7 @@ fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
         let unit: Unit = read_json(&unit_path)?;
         if &unit.target != target
             || unit.compiler_advisory_only != capture.plan.compiler_advisory_only
+            || unit.style_inputs_only != capture.plan.style_inputs_only
             || unit.test != test
             || unit.directory.parent() != Some(capture.directory.as_path())
         {
@@ -658,6 +665,8 @@ fn driver_command(
                 .then_some((rstyle_core::advisory::CAPTURE_ENV, "1")),
             plan.compiler_advisory_only
                 .then_some(("RSTYLE_COMPILER_ADVISORY_ONLY", "1")),
+            plan.style_inputs_only
+                .then_some(("RSTYLE_STYLE_INPUTS_ONLY", "1")),
             plan.compiler_patterns
                 .then_some((rstyle_core::advisory::patterns::CAPTURE_ENV, "1")),
             plan.local_source_facts
@@ -776,6 +785,7 @@ fn capture_unit(
     let test = invocation.iter().any(|a| a == "--test");
     let unit = Unit {
         compiler_advisory_only: selected_plan.compiler_advisory_only,
+        style_inputs_only: selected_plan.style_inputs_only,
         extraction_profile: selected_plan.extraction_profile,
         target,
         test,
@@ -1044,6 +1054,7 @@ mod snapshot_tests {
     fn snapshot_unit(directory: &Path) -> Unit {
         Unit {
             compiler_advisory_only: false,
+            style_inputs_only: false,
             extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile::R0,
             target: Target {
                 package: "snapshot".into(),

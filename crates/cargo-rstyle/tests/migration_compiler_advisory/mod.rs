@@ -4,6 +4,7 @@ mod build_reuse;
 mod owner_reuse;
 mod scoped_diagnostic_baseline;
 mod selected_diagnostics;
+mod style_payload;
 mod style_routing;
 mod style_selection;
 use super::*;

@@ -210,12 +210,25 @@ impl HirExtract {
     }
 
     fn capture_advisory(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
+        if rstyle_pdg::diagnostics::switch("RSTYLE_STYLE_INPUTS_ONLY") {
+            self.capture_style(tcx, options);
+            return;
+        }
         let facts = hir_extraction::advisory_crate_facts(tcx, &self.scanned, options)
             .expect("capture compiler advisory facts");
         let inventory = self.inventory(tcx, options, &facts);
         self.output
             .write_advisory_capture(&facts, inventory.as_ref())
             .expect("write compiler advisory facts");
+    }
+
+    fn capture_style(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
+        let facts = hir_extraction::style_crate_facts(tcx, &self.scanned, options)
+            .expect("capture compiler style inputs");
+        let inventory = self.inventory(tcx, options, &facts);
+        self.output
+            .write_style_capture(&facts, inventory.as_ref())
+            .expect("write compiler style inputs");
     }
 
     fn capture_complete(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
@@ -248,11 +261,11 @@ impl HirExtract {
             .expect("write captured evidence");
     }
 
-    fn inventory(
+    fn inventory<B, S>(
         &self,
         tcx: TyCtxt<'_>,
         options: &hir_extraction::Options<'_>,
-        facts: &[rstyle_pdg::HirFnFacts],
+        facts: &[rstyle_pdg::HirFnFacts<B, S>],
     ) -> Option<serde_json::Value> {
         options
             .selected()

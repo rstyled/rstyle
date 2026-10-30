@@ -104,7 +104,7 @@ impl Capture<'_, '_> {
 }
 
 fn owner_roster(tcx: TyCtxt<'_>) -> BTreeMap<String, LocalDefId> {
-    tcx.hir_body_owners()
+    crate::hir_extraction::function_owners(tcx)
         .filter(|id| candidate(tcx, *id))
         .map(|id| {
             (

@@ -7144,3 +7144,54 @@ Persist payload selection in the existing capture plan to isolate owner reuse.
 This is a measured next implementation target, not default retirement. C101's
 integrated checks cover the unchanged production source; this checkpoint adds
 measurement evidence only, with JSON validation and diff whitespace checks.
+
+### C103 — root style captures requested numeric inputs (2026-10-30)
+
+Root compiler style now requests a numeric-only payload through the existing
+compiler collector, source/build codec, capture plan and replay path. It retains
+the real body HIR identity and explicitly marks bindings `not_requested`; no fake
+empty body or binding inventory is published. Full clones captures keep their
+original HIR bodies, bindings and concrete signature enrichment. Root style skips
+unused body construction and signature enrichment. Existing plan equality isolates
+owner reuse by payload mode, and saved replay rejects body-dependent consumers
+with an explicit unavailable explanation. No new hash, cache, proof framework,
+metric version, threshold or suppression is introduced. Function owner traversal
+is shared with full collection and the existing slice-projection roster; its
+original candidate predicate remains unchanged.
+
+Three PDG tests check shared source/census ownership, explicit omission, schema,
+phase and malformed reference failures. One real-Cargo root/full/root sequence
+checks numeric diagnostics independently, payload and owner-reuse isolation,
+source/tool-free numeric replay and rejection of body-dependent replay. Optional
+concrete signature enrichment is independently checked as unrequested in root
+style; owning parameter spelling and all remaining signature metadata agree.
+
+The final authored-workspace capture completes in34.36s with2,432,048 KiB peak
+RSS and259,025,159 evidence bytes across six units. A repeat reuses all six owners
+in6.50s with1,186,312 KiB RSS and exactly equal diagnostic, numeric, summary and
+fix-group projections. Existing C102 measured72.16s/3,047,692 KiB and809,623,834
+bytes. The payload is68% smaller, but source and temporary instrumentation differ,
+so these wall times are contextual observations, not a controlled algorithmic
+speedup benchmark. Warm reuse is explicitly not another fresh capture.
+project-root-style-numeric-payload-study.json preserves initial and final receipts.
+
+Current source has49 compiler findings over10,075 authored functions. Relative
+to C102, two new findings are the snapshot IO/timing boundaries; one shared
+advisory dispatch density changes583->538, and the other46 values are unchanged.
+These boundaries are context-only by source review: publishing a sealed snapshot
+must flush its writer, and decoding reports optional elapsed-time observations.
+No further source refactor is justified solely by those ratios. The original47
+finding review stays frozen. Default usefulness disposition remains open.
+
+Final validation: all3715 Rust tests pass (263.161s,5 skips), plus
+doctests. Formatting,
+workspace/all-target Clippy, both legacy gates (zero style violations and no
+unreviewed patterns), and unchanged13 unfiltered pattern IDs already pass.
+The initial pre-cleanup snapshot also passed all3,715 Rust tests. Capability/script
+Python suites pass248/50 tests. Prior HEAD5932d39d native CI run40984265162
+now passes Ubuntu x86, Ubuntu ARM and macOS15; this uncommitted C103 snapshot
+has not run native CI yet.
+
+Next: commit this coherent capture reduction and resolve the default
+diagnostic-usefulness disposition. Root and patterns
+defaults remain legacy; strict clone matching is unchanged.

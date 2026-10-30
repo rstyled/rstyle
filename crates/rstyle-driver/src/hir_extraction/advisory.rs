@@ -5,10 +5,10 @@ use rstyle_core::advisory::{CAPTURE_ENV, KEY, METRICS, Observation, patterns};
 use rstyle_pdg::HirFnFacts;
 use rustc_hir::def_id::LocalDefId;
 
-pub(super) fn capture(
+pub(super) fn capture<B, S>(
     ctx: &Context<'_>,
     id: LocalDefId,
-    facts: &mut HirFnFacts,
+    facts: &mut HirFnFacts<B, S>,
     capture: &super::Options<'_>,
 ) -> Result<(), String> {
     if std::env::var_os(CAPTURE_ENV).as_deref() != Some(std::ffi::OsStr::new("1")) {
@@ -57,10 +57,10 @@ pub(super) fn capture(
     Ok(())
 }
 
-fn capture_generated(
+fn capture_generated<B, S>(
     ctx: &Context<'_>,
     id: LocalDefId,
-    facts: &mut HirFnFacts,
+    facts: &mut HirFnFacts<B, S>,
     options: &Options<'_>,
 ) -> Result<(), String> {
     use rstyle_core::advisory::generated_effects::{CONNECTED_KEY, Connections, Observation};
@@ -100,8 +100,8 @@ fn capture_generated(
     Ok(())
 }
 
-fn capture_graph(
-    facts: &mut HirFnFacts,
+fn capture_graph<B, S>(
+    facts: &mut HirFnFacts<B, S>,
     collected: &mut rstyle_core::facts::FnFacts,
 ) -> Result<(), String> {
     if let Some(graph) = collected.pdg.take() {

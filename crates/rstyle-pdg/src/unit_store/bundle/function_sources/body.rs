@@ -3,7 +3,7 @@ use crate::frontend::*;
 use serde::{Deserialize, Serialize, de, ser::SerializeSeq};
 use std::fmt;
 
-pub(super) struct Export<'a>(pub &'a HirNode);
+pub(in crate::unit_store::bundle) struct Export<'a>(pub &'a HirNode);
 
 pub(crate) struct Import<N = HirNode> {
     node: N,

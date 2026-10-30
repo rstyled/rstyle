@@ -47,5 +47,7 @@ fn compiler_args() -> Result<Args, String> {
             "compact",
         ])
         .map_err(|error| error.to_string())?;
-    Args::from_arg_matches(&matches).map_err(|error| error.to_string())
+    let mut args = Args::from_arg_matches(&matches).map_err(|error| error.to_string())?;
+    args.style_inputs_only = true;
+    Ok(args)
 }
