@@ -1,0 +1,250 @@
+{
+  "snapshot": "C117 in the containing commit, following9d00b030",
+  "scope": "Existing core proposer over captured actual advisory graphs:10,142 workspace functions in six compiler units; bounded Callgrind profile on442 rstyle-core functions. Production CLI replay uses the explicit C116 metadata run-epPwUG.",
+  "implementation": "Existing undirected exact diameter uses an indexed FIFO Vec and marks nodes when enqueued, replacing per-level BTreeSet collection and allocation. Each reachable node is queued once; shortest-path distances, graph adjacency occurrences, WL colors, FNV hashing,400-node exact/fallback boundary and strict matching are unchanged. No new hash, cache, proof layer, graph copy or policy.",
+  "method": "Temporary external harness loads recorded FnFacts before timing, invokes existing run_distinct_owned_and_retain with default Options, and emits the original report. Valgrind client requests bound instrumentation to the proposer. Sequential warm debug builds with existing optimized dependency overrides; production CLI replay independently checks contextual report equality. No cold-build or release-build claim.",
+  "native_workspace": {
+    "before": {
+      "proposer_seconds": 8.252788,
+      "wall_seconds": 9.69,
+      "max_rss_kib": 431168
+    },
+    "after": [
+      {
+        "proposer_seconds": 4.582074,
+        "wall_seconds": 6.01,
+        "max_rss_kib": 431092
+      },
+      {
+        "proposer_seconds": 4.59691,
+        "wall_seconds": 6.02,
+        "max_rss_kib": 431056
+      }
+    ]
+  },
+  "production_replay": {
+    "before": {
+      "wall_seconds": 18.77,
+      "max_rss_kib": 2579404
+    },
+    "before_repeat": {
+      "wall_seconds": 18.36,
+      "max_rss_kib": 2579404
+    },
+    "after": [
+      {
+        "wall_seconds": 15.19,
+        "max_rss_kib": 2578752
+      },
+      {
+        "wall_seconds": 15.0,
+        "max_rss_kib": 2578864
+      }
+    ]
+  },
+  "callgrind": {
+    "core_functions": 442,
+    "before_instructions": 1461262443,
+    "after_instructions": 952184212,
+    "terminal_exit_before": 0,
+    "terminal_exit_after": 0,
+    "exclusive_named_family_lower_bounds": {
+      "before": {
+        "wl::combine": 308834767,
+        "wl::eccentricity": 180048479,
+        "align::": 4189951,
+        "cluster::": 2713827
+      },
+      "after": {
+        "wl::combine": 308834767,
+        "wl::eccentricity": 25186104,
+        "align::": 4189951,
+        "cluster::": 2713827
+      }
+    },
+    "interpretation": "Named-family rows are exclusive self-cost lower bounds, not inclusive component totals; standard-library work may be attributed elsewhere. Avoid inflated inclusive recursive/inline attribution. Both runs warn about brk segment overflow; both exit0 and reports equal native output.",
+    "workspace_trial": "Full-workspace trial stopped at300s with exit124; no completed full-profile claim or comparison. The completed core profile supports the optimization; native whole-workspace and production replays establish measured gains."
+  },
+  "parity": {
+    "full_native_proposer_reports_equal": true,
+    "repeated_native_reports_equal": true,
+    "instrumented_core_report_matches_native_baseline": true,
+    "complete_production_replay_reports_equal": true,
+    "reference_and_compiler_ids_equal": true,
+    "existing_13_review_ids_preserved": true,
+    "reconstructed_harness_inputs_equal_original_observations": true
+  },
+  "independent_tests": [
+    "All directed graphs including self edges with0\u20133 nodes against independent undirected Floyd\u2013Warshall",
+    "Hand-calculated empty/singleton/path/star/diamond/cycle/disconnected finite distances",
+    "Parallel/reverse/self edges retain adjacency multiplicity and unchanged distance",
+    "Existing invalid-endpoint filtering, including empty graphs",
+    "Exact400-node versus401-node fallback, chains and isolated nodes"
+  ],
+  "raw_candidate_ids": [
+    "114994040aee",
+    "28ac5efc1baa",
+    "440013106447",
+    "4f48d2ce7fc8",
+    "60e8af5f467a",
+    "885b7a4e6179",
+    "8c495a7ebe17",
+    "a59c863eac67",
+    "bd6ed2f06436",
+    "c2d0658d42db",
+    "c5f442ffa59a",
+    "fc9b070d78be",
+    "fdb66ce83259"
+  ],
+  "validation": {
+    "rust_tests": 3758,
+    "passed": 3758,
+    "skipped": 5,
+    "nextest_seconds": 264.224,
+    "doctests": "passed",
+    "style_summary": {
+      "functions": 10142,
+      "violations": 0,
+      "complexity_measured": 10142,
+      "complexity_unavailable": 0,
+      "mean_density_milli": 81,
+      "max_density_milli": 15000,
+      "effect_counts": {
+        "io": 338,
+        "mutation": 2127,
+        "panic": 56,
+        "time": 68,
+        "unknown": 166
+      }
+    },
+    "compiler_pattern_findings": 0,
+    "reference_pattern_findings": 0,
+    "commands": [
+      {
+        "name": "fmt",
+        "args": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 1.922
+      },
+      {
+        "name": "clippy",
+        "args": [
+          "cargo",
+          "clippy",
+          "--workspace",
+          "--all-targets",
+          "--locked",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 0.666
+      },
+      {
+        "name": "tests",
+        "args": [
+          "./scripts/test.sh",
+          "--nextest"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 289.216
+      },
+      {
+        "name": "style",
+        "args": [
+          "./scripts/style.sh",
+          "--format",
+          "json"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 23.823
+      },
+      {
+        "name": "reference-patterns",
+        "args": [
+          "./scripts/style.sh",
+          "patterns",
+          "--engine",
+          "legacy",
+          "--fail-on-candidates",
+          "--show-ignored"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 34.168
+      },
+      {
+        "name": "reference-unfiltered",
+        "args": [
+          "./scripts/style.sh",
+          "patterns",
+          "--engine",
+          "legacy",
+          "--no-ignore",
+          "--format",
+          "json"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 7.244
+      },
+      {
+        "name": "default-patterns",
+        "args": [
+          "./scripts/style.sh",
+          "patterns",
+          "--format",
+          "json",
+          "--fail-on-candidates",
+          "--show-ignored"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 50.203
+      }
+    ]
+  },
+  "limitations": [
+    "Local Linux measurements; containing commit native CI pending. C116 passed Ubuntu x86/ARM and macOS15.",
+    "Samply/perf unavailable under perf_event_paranoid4. No sampling percentages, release-build gain or complete full-workspace Callgrind run claimed.",
+    "External harness lacks CLI post-proposer completed-effect annotations and compilation-context assembly; full saved CLI equality checks those separately."
+  ],
+  "next_ready": "Measure the existing wl::combine array-chain overhead separately from per-digest neighbor allocation before choosing another change.",
+  "reproduction": {
+    "input": "For each unit.evidence.json in the explicitly recorded C116 run, take facts[].build.frontend_options[rstyle.compiler-advisory/1].facts only when its status is known. Attach pdg from the same owner\u2019s rstyle.compiler-pattern-graph/1.graph. Preserve order and all actual facts. No missing graph, numeric value or owner is synthesized. Select rstyle-core for the bounded profile; use all six units for native workspace timing.",
+    "harness": "Deserialize Vec<FnFacts> before instrumentation/timing; call patterns_report::run_distinct_owned_and_retain(facts, &Options::default()).0; stop instrumentation; emit its original JSON. Existing Valgrind client requests START_INSTRUMENTATION/ZERO_STATS and STOP_INSTRUMENTATION bound the proposer.",
+    "callgrind": [
+      "env",
+      "VALGRIND_LIB=/tmp/rstyle-valgrind-tools/usr/libexec/valgrind",
+      "timeout",
+      "90",
+      "/tmp/rstyle-valgrind-tools/usr/bin/valgrind",
+      "--tool=callgrind",
+      "--instr-atstart=no",
+      "--callgrind-out-file=/tmp/clones-c117-core-after.callgrind",
+      "target/debug/rstyle-proposer-profile",
+      "/tmp/clones-c117-core-facts.json"
+    ],
+    "annotation": [
+      "callgrind_annotate",
+      "--inclusive=no",
+      "--auto=no",
+      "--threshold=100",
+      "/tmp/clones-c117-core-after.callgrind"
+    ],
+    "production_replay": [
+      "target/debug/cargo-rstyle",
+      "patterns",
+      "--replay-run",
+      "target/rstyle/clones/run-epPwUG",
+      "--format",
+      "json",
+      "--no-ignore"
+    ],
+    "artifact_limits": "Harness, original saved run, raw outputs and profiles are session-local artifacts; this receipt preserves scope, measurements, equality checks and commands, not archived compiler inputs."
+  }
+}

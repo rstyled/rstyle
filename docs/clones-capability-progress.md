@@ -7691,3 +7691,47 @@ Both originally reported NonZero tests pass. C114 native CI completes successful
 on Ubuntu x86/ARM and macOS 15. This containing checkpoint still needs its own
 native CI run. Remaining proposer cost needs a reliable bounded profile before
 another algorithm change; the broader capability goal remains active.
+
+### C117 — traverse existing graph distances without ordered sets (2026-10-30)
+
+Lead owns profiling, traversal, integration and Git; the acceptance worker owns
+five leaf regressions. A temporary harness calls the existing core proposer over
+actual captured advisory graphs. Its complete 442-function core Callgrind run
+records 1,461,262,443 instructions; exclusive named rows identify diameter
+traversal as a material cost. The full-workspace profile times out at 300s and
+is not treated as a completed profile. Inclusive inline/recursive attribution
+is excluded; named self-cost rows are lower bounds, not full component totals.
+
+The existing undirected exact diameter now uses an indexed FIFO vector and marks
+nodes when enqueued. This removes per-layer ordered-set insertion, deduplication
+and allocation; each root traversal visits each reachable node once. Shortest
+distances, disconnected finite-distance behavior, adjacency occurrences and the
+400-node exact/fallback boundary remain unchanged. No graph labels, FNV hashing,
+proposal policy, cache, checksum, proof layer or strict-matching change.
+
+Independent tests compare all directed graphs with zero through three nodes
+against undirected Floyd–Warshall. Hand-calculated paths, stars, diamonds,
+cycles, disconnected components, parallel/reverse/self edges, invalid endpoints
+and the 400/401-node cutoff cover the surrounding contract. All 15 focused WL
+tests pass. Existing proposals and shape identities retain their values.
+
+On identical 10,142-function captured inputs, native proposer time falls from
+8.253s to 4.582/4.597s; complete reports compare exactly equal. The bounded core
+Callgrind run falls to 952,184,212 instructions (34.8% fewer), exits successfully
+and matches the original native report. Both core profiles warn about Valgrind's
+brk segment limit; no sampled, inclusive or full-workspace instruction claim is
+made. The production CLI independently replays the explicit C116 metadata run:
+18.36–18.77s becomes 15.00–15.19s with essentially unchanged peak process RSS
+(2,579,404 versus 2,578,752/2,578,864KiB). Complete contextual reports compare
+exactly equal. These are local
+warm debug observations, not release or cold-build claims. The external harness
+does not replace the CLI's context and completed-effect assembly.
+
+All 3,758 Rust tests pass (5 skipped, 264.224s), including both original NonZero
+failures, plus doctests, workspace/all-target Clippy and formatting. Style has
+zero violations over 10,142 functions; both pattern gates pass with zero visible
+findings and the same 13 raw reviewed IDs. Receipt:
+eval/clones-capability/pattern-diameter-traversal-study.json. C116 native CI passes
+Ubuntu x86/ARM and macOS15; containing-commit native CI remains pending. The next
+measured candidate is existing WL combine iterator overhead; per-digest temporary
+allocation is a separate candidate. The broader capability goal remains active.

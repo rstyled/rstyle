@@ -7,7 +7,7 @@
 
 use crate::facts::{EdgeKind, NodeKind, Pdg, PdgNode};
 use crate::shape::{class_of, normalize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -159,27 +159,25 @@ fn histogram(colors: &[u64]) -> Vec<(u64, usize)> {
     counts.into_iter().collect()
 }
 
-/// Longest shortest path from `start`, by breadth-first levels.
+/// Longest undirected shortest path from `start`, visiting each node once.
 fn eccentricity(g: &Graph, start: usize) -> usize {
     let mut seen = vec![false; g.labels.len()];
-
+    let mut pending = Vec::with_capacity(g.labels.len());
     seen[start] = true;
-    let mut frontier = vec![start];
-    let mut depth = 0;
-    loop {
-        let next: BTreeSet<usize> = frontier
-            .iter()
-            .flat_map(|v| g.inc[*v].iter().chain(&g.out[*v]))
-            .map(|nb| nb.node)
-            .filter(|node| !seen[*node])
-            .collect();
-        if next.is_empty() {
-            return depth;
+    pending.push((start, 0));
+
+    let mut cursor = 0;
+    while cursor < pending.len() {
+        let (node, distance) = pending[cursor];
+        for neighbour in g.inc[node].iter().chain(&g.out[node]) {
+            if !seen[neighbour.node] {
+                seen[neighbour.node] = true;
+                pending.push((neighbour.node, distance + 1));
+            }
         }
-        next.iter().for_each(|node| seen[*node] = true);
-        frontier = next.into_iter().collect();
-        depth += 1;
+        cursor += 1;
     }
+    pending.last().expect("start node queued").1
 }
 
 fn diameter(g: &Graph) -> usize {
@@ -447,3 +445,7 @@ mod tests {
         assert!(comparable(&small, &Wl::new(&emit_loop("Cat", "meow"))));
     }
 }
+
+#[cfg(test)]
+#[path = "wl/diameter_tests.rs"]
+mod diameter_tests;
