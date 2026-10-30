@@ -1,5 +1,10 @@
 # Clones capability migration progress
 
+Historical evaluation reports and retired comparison runners referenced below
+have been removed from the active checkout. Earlier checkpoints describe their
+original revisions; use Git history for those files. Current compiler evaluation
+tools and authored inputs are documented in `eval/README.md`.
+
 Execution starts at `dd7f4fb` on 2026-10-27. The supplied execution prompt and
 migration plan define the scope; this ledger records delivered slices rather
 than declaring the wider migration complete. The [matrix](clones-capability-matrix.md)

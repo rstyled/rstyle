@@ -5,9 +5,8 @@ from collections import Counter
 import json
 from pathlib import Path
 
-from compare import legacy_assessment
-from density_compare import KINDS, label_error, policy_error
-from project_coverage import boolean, integer, load, require, relative_path, unique
+from evaluation_checks import KINDS, diagnostic_assessment, label_error, policy_error
+from evaluation_checks import boolean, integer, load, require, relative_path, unique
 
 
 def units(report):
@@ -177,7 +176,7 @@ def check_rule(unit, key, function, sample, rule, actual, limit, expected=None):
         metadata = {'complete': True, 'functions': [{
             'name': sample['function'], 'source_file': function['path'],
             'line': function['line'], 'excluded': False}]}
-        observed, reason = legacy_assessment(unit['evaluation'], metadata, sample['function'], rule)
+        observed, reason = diagnostic_assessment(unit['evaluation'], metadata, sample['function'], rule)
         if observed is not None and rule == 'mutated_targets':
             diagnostic = next(row for row in unit['evaluation']['diagnostics']
                               if row['rule_id'] == rule and row['path'] == function['path']

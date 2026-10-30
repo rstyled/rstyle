@@ -8,13 +8,10 @@ cache is provided. Reports omit `producer_binary_sha256` and
 metadata remain. Source and evidence identity semantics are unchanged by this
 increment.
 
-The only live consumers of these report fields were `ccgraph_study.py` and
-`ccgraph_followup.py`. They retain independent full-byte binary snapshots and
-before/after drift checks, and explicitly launch the frozen CLI and driver paths.
-Historical result JSON is unchanged. Frozen studies reject the changed evaluator
-until a new study is deliberately frozen; historical results are not re-certified.
-The removed guarantee is executable provenance supplied by the analysis report;
-studies must obtain it independently. Checksums detect consistency, not authenticity.
+The historical CCGraph study runners were the only consumers of these removed
+report fields. Those runners and recorded evaluations have since been removed;
+they remain available in Git history. No replacement executable fingerprint
+or identity cache is required by the current analysis or evaluation tools.
 
 ## Measurement
 

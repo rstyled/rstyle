@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from compiler_quality import check_rule, evaluation_reason, planned_owners, sample_owner, units, validate_planning
-from project_coverage import boolean, integer, load, require, unique
+from evaluation_checks import boolean, integer, load, require, unique
 
 
 def completed_plan(group):

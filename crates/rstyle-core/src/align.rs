@@ -454,7 +454,7 @@ pub fn align(ctx: &Ctx<'_>) -> Alignment {
     align_staged(ctx).0
 }
 
-/// Pipeline variants, for the ablation (`examples/align_ablation.rs`). `Baseline` is `align`.
+/// Alignment pipeline variants. `Baseline` is the default used by `align`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Variant {
     Baseline,

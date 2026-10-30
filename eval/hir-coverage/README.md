@@ -80,18 +80,9 @@ uv run --no-project --with tree-sitter==0.25.2 --with tree-sitter-rust==0.24.0 \
 
 Independent extraction/dependence, adversarial verification and real Cargo tests
 remain in the Rust suites. This inventory does not replace them, and no saved
-capture outputs are required by those tests. The two historical quality studies
-remain unchanged.
-
-The intermediate stage table in REPORT.md is historical. To reproduce all eight
-stages, use the lightweight runner at commit `e3261be7dc678351825f91301c1eab2c34e287e7`
-in a separate checkout. For example:
-
-```sh
-git worktree add --detach /tmp/rstyle-coverage-stages e3261be7dc678351825f91301c1eab2c34e287e7
-cd /tmp/rstyle-coverage-stages
-uv run eval/hir-coverage/reproduce.py
-```
+capture outputs are required by those tests. Historical reports and completed
+quality studies have been removed from the active checkout; use Git history
+for their recorded results.
 
 Current reproduction compares R0, the complete 0.7.0 semantics, and Data-v3. Historical
 stage identities remain in verification and independent Rust fixtures, without
@@ -99,8 +90,7 @@ requiring seven production extraction choices.
 # Assessment version 2
 
 Current reproduction uses exact source ownership and compilation contexts, rather
-than interval containment. See [REPORT-v2.md](REPORT-v2.md) for corrected baseline
-measurements; [REPORT.md](REPORT.md) retains historical conclusions. All frozen
+than interval containment. All frozen
 selected definitions remain in the denominator. Missing capture is unknown, never
 proof of cfg inactivity. Multiple contexts retain separate outcomes; missing or
 duplicate identity evidence fails closed.
@@ -108,8 +98,8 @@ duplicate identity evidence fails closed.
 The 2026-10-19 refresh adds Data-v3 and current sealed unit-bundle verification.
 After capture repairs and scalar OR patterns, Data-v3 3.2 completes with
 9 admitted, 44 excluded and
-7 unknown out of the unchanged 60 selected contexts. See the
-[refresh report](REPORT-data-v3.md) and [continuation log](../../rust-feature-coverage.md).
+7 unknown out of the unchanged 60 selected contexts. The historical refresh is recorded in Git history and the
+[continuation log](../../rust-feature-coverage.md).
 
 Assessment version 3 additionally reports independently cfg-inactive definitions
 using exact original-source inventory and compiler build settings. Frozen selections

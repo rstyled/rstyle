@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from compiler_quality import sample_owner, units
-from project_coverage import boolean, integer, load, require, relative_path, unique
+from evaluation_checks import boolean, integer, load, require, relative_path, unique
 
 KINDS = {'trait_method', 'capability_set', 'enum_dispatch', 'generic_fn', 'fn_param', 'parameterize'}
 JUDGMENTS = {'useful', 'needs_revision', 'not_useful'}

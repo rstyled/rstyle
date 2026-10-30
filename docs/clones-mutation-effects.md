@@ -205,13 +205,6 @@ negative for pruning. `--review-status` accounts for all retained families;
 selected negatives under the retained policy. Changed policy, omitted families,
 unselected owners, unavailable evidence and missing owners remain retained.
 
-For a repeatable legacy/new density comparison, use
-`python3 eval/clones-capability/run_density_compare.py --output NEW_DIRECTORY` after
-a pinned workspace build. The independently authored corpus checks static event
-counts, source denominators and policy visibility. It separates reviewed metric
-differences from uncovered cases; its declared unknown-call case prevents a
-complete-coverage claim. See the [acceptance workflow](../eval/clones-capability/README.md).
-
 Density also propagates nonmutation event kinds through retained same-unit helpers
 with original owned-u32 parameters and arguments. The helper body must have a
 known scalar signature, complete original syntax, no caller-visible direct

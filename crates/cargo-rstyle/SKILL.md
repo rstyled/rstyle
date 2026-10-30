@@ -395,15 +395,6 @@ budget-limited owners cannot retire choices. Full/compact replay needs no live
 source or compiler tools. See `docs/clones-mutation-effects.md`.
 
 
-For independent density migration comparison after a pinned workspace build, run
-`python3 eval/clones-capability/run_density_compare.py --output NEW_DIRECTORY`.
-The ten-case source corpus checks exact events, source denominators, effective
-policy and visibility. Intentional metric differences have individual review
-reasons. Expected unknown cases stay outside the measured denominator and force
-`fully_complete: false`; successful acceptance does not establish clean project
-coverage beyond the declared capability.
-
-
 ## Density CI baseline inventories
 
 `clones --effect-density --write-density-baseline NEW_PATH` exports a complete

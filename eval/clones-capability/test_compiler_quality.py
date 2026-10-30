@@ -422,6 +422,23 @@ class CompilerQualityTests(unittest.TestCase):
             self.assertEqual(second.returncode, 2)
             self.assertEqual((root / 'output').read_bytes(), saved)
 
+    def test_duplicate_json_keys_fail_before_cli_publication(self):
+        report, labels = fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            encoded = json.dumps(report).replace('"test": false',
+                                                  '"test": true, "test": false', 1)
+            self.assertNotEqual(encoded, json.dumps(report))
+            (root / 'report').write_text(encoded)
+            (root / 'labels').write_text(json.dumps(labels))
+            command = [sys.executable, str(Path(__file__).with_name('compiler_quality.py')),
+                       '--report', str(root / 'report'), '--labels', str(root / 'labels'),
+                       '--output', str(root / 'output')]
+            completed = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(completed.returncode, 2)
+            self.assertIn('duplicate JSON object key: test', completed.stderr)
+            self.assertFalse((root / 'output').exists())
+
 
 if __name__ == '__main__':
     unittest.main()

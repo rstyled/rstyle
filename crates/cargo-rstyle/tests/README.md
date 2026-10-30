@@ -4,8 +4,8 @@
 features; the former `migration_*` suites are ordinary regression coverage.
 Shared algorithms also have focused unit tests in `rstyle-core` and `rstyle-pdg`.
 Shared source selections, oracles and advisory cases live under
-[`tests/fixtures/`](../../../tests/fixtures/README.md); recorded evaluations stay
-under `eval/`.
+[`tests/fixtures/`](../../../tests/fixtures/README.md); current manual evaluation
+tools live under `eval/`.
 
 | Modules | Coverage |
 | --- | --- |
@@ -53,8 +53,8 @@ Other consolidated coverage lives at:
 - `compiler_advisory::patterns::routing`: repository review filtering and unchanged ledger bytes on live capture and replay.
 - `src/cli_tests.rs`: argument validation, including removed selectors and root/subcommand separation, without compiling a fixture.
 
-Historical receipts under `eval/` retain their original test names and timings;
-the directory renames do not rewrite recorded evidence.
+Historical receipts retain their original test names and timings in Git history;
+completed studies have been removed from the active checkout.
 
 The large-owner group was measured locally with the serial command above:
 

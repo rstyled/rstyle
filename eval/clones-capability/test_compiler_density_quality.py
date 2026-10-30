@@ -3,7 +3,7 @@ from copy import deepcopy
 import unittest
 
 from compiler_quality import compare
-from density_compare import label_error
+from evaluation_checks import label_error
 from test_compiler_quality import fixture as historical_fixture
 
 

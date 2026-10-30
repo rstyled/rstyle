@@ -1,36 +1,26 @@
-# Evaluation tools and recorded studies
+# Current evaluations
 
-`eval/` contains manual evaluation tools, study corpora, labels and recorded
-results. Normal compiler analysis does not run these studies. CI runs Rust
-regression tests; it does not automatically rerun the Python evaluation studies.
+This directory contains tools and authored inputs for evaluating the current
+compiler path. Rust regression tests own their fixtures independently under
+`crates/*/tests/` and [`tests/fixtures/`](../tests/fixtures/README.md).
 
-Active shared regression inputs live in
-[`tests/fixtures/`](../tests/fixtures/README.md). Function-family sources,
-selections and companion oracles moved there from `eval/coverage-development/`;
-advisory case specifications moved from `eval/clones-capability/`. Historical
-receipts keep their original paths, revisions, timings and metric versions.
-
-| Location | Current purpose |
+| Location | Purpose |
 | --- | --- |
-| [`clones-capability/`](clones-capability/README.md) | Compiler report evaluation tools, authored labels, and historical capability/comparison receipts. `compiler_*.py` tools consume saved compiler JSON reports; comparison readers can reevaluate saved reference/compiler inputs. The retired reference engine is not required. |
-| [`hir-coverage/`](hir-coverage/README.md) | Frozen extraction inventory, provenance and historical coverage measurements. |
-| [`ccgraph-v1/`](ccgraph-v1/README.md), [`ccgraph-v2/`](ccgraph-v2/README.md) | Preregistered matching studies with fixed corpora, expectations and recorded results. Their original protocols are historical, not current CI gates. |
-| `loo/`, `loo_norm_*/`, `normalize/`, `align/` | Recorded threshold, normalization and alignment experiments; see [`scripts/`](../scripts/README.md) for tools and input requirements. Historical scores are not measurements of the current compiler default. |
-| `codenet/` (gitignored) | Locally generated CodeNet samples and results. |
+| [`clones-capability/`](clones-capability/README.md) | Evaluate saved compiler reports against independent labels for findings, density, complexity, parameter plans and abstraction proposals. |
+| [`hir-coverage/`](hir-coverage/README.md) | Reproduce the fixed extraction-support inventory, preserving source provenance, compilation contexts and missing-data distinctions. |
+| `codenet/` (gitignored) | Locally generated CodeNet samples and evaluation outputs. See [`scripts/`](../scripts/README.md). |
 
-Study corpora remain with their manifests and provenance. Regression tests own
-independent copies beside their suites: advisory guard sources in
-`crates/cargo-rstyle/tests/guards/fixtures/`, and const regressions in
-`crates/rstyle-driver/tests/fixtures/const-regressions/`. Rust tests do not load
-sources from `eval/`. Changes to either copy do not update the other implicitly.
+Completed CCGraph studies, old threshold/normalization/alignment results,
+old-engine comparisons and recorded migration/performance receipts have been
+removed. They remain available in Git history and the historical branch.
+They are not current checks or extra production analysis stages.
 
-Run the saved-report evaluation tool tests independently:
+Run the compiler report evaluation tests with:
 
 ```sh
 python3 -m unittest discover -s eval/clones-capability -p 'test_*.py'
 ```
 
-See each study README before reproducing an experiment. Old command lines may
-describe removed interfaces or require retained artifacts; a recorded result is
-evidence for its stated revision, not a claim that its original engine remains
-runnable. Do not rewrite recorded JSON/CSV to reflect current behavior.
+`coverage-development/` is only a pointer to the relocated function-family
+fixtures; local untracked experiments are left untouched. CI runs Rust regression
+tests and compiler dog-food checks, not these manual evaluation studies.

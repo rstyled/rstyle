@@ -13,8 +13,9 @@ these inputs does not change their expectations, recorded source identities or
 proof requirements. The backtrack-match oracle uses a local snapshot of the
 frozen HIR selection inventory, independent of the evaluation directory.
 
-Recorded study results and saved-report evaluation tools remain under
-[`eval/`](../../eval/README.md). Guard and HIR const regression sources have
+Current saved-report evaluation tools live under
+[`eval/`](../../eval/README.md). Completed studies are available in Git history.
+Guard and HIR const regression sources have
 independent copies beside their respective suites in `crates/`. Historical
 receipts retain their original paths; current tests do not depend on `eval/`.
 
