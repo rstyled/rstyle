@@ -6,7 +6,7 @@ const THIRD: &str =
     "pub fn third(a:u128)->u128 {std::hint::black_box(a.wrapping_add(9)).wrapping_mul(3)}";
 
 fn raw(directory: &Path, extra: &[&str]) -> Output {
-    let mut args = vec!["patterns", "--engine", "compiler", "--format", "json"];
+    let mut args = vec!["patterns", "--format", "json"];
     args.extend_from_slice(extra);
     rstyle(directory, &args)
 }
@@ -69,8 +69,6 @@ fn saved_format(directory: &Path, original: &Value, format: &str, extra: &[&str]
         .current_dir(directory)
         .args([
             "patterns",
-            "--engine",
-            "compiler",
             "--format",
             format,
             "--replay-run",

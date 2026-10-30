@@ -1,6 +1,6 @@
 //! Reuse the compiler's existing style collectors without strict admission.
 use super::hir::Context;
-use crate::extract::{Metric, Options};
+use crate::extract::Options;
 use rstyle_core::advisory::{CAPTURE_ENV, KEY, METRICS, Observation, patterns};
 use rstyle_pdg::HirFnFacts;
 use rustc_hir::def_id::LocalDefId;
@@ -32,7 +32,6 @@ pub(super) fn capture<B, S>(
             .filter(|workspace| root.starts_with(workspace))
             .unwrap_or(root),
         with_pdg: with_graph,
-        metric: Metric::Advisory,
     };
     let observation = match crate::extract::function_facts(ctx.tcx, id, &options) {
         Some(mut collected) => {

@@ -15,11 +15,7 @@ fn fixture() -> TempDir {
 }
 
 fn capture(directory: &Path, extra: &[&str]) -> (Output, Value) {
-    let flags = [
-        &["--style-engine", "compiler", "--format", "json"][..],
-        extra,
-    ]
-    .concat();
+    let flags = [&["--format", "json"][..], extra].concat();
     let output = rstyle(directory, &flags);
     let report = serde_json::from_slice(&output.stdout)
         .unwrap_or_else(|error| panic!("{error}: {}", String::from_utf8_lossy(&output.stderr)));
@@ -41,7 +37,7 @@ fn replay(directory: &Path, original: &Value, format: &str) -> Output {
     let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
     command
         .current_dir(directory)
-        .args(["--style-engine", "compiler", "--format", format])
+        .args(["--format", format])
         .args(["--replay-run", original["run_directory"].as_str().unwrap()])
         .args(["--changed-files", "changes.json"])
         .env("PATH", directory.join("no-tools"))

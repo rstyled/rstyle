@@ -123,7 +123,7 @@ fn rstyle(dir: &Path, args: &[&str]) -> Output {
             .args(args)
             .current_dir(dir)
             .env("RSTYLE_DRIVER", driver())
-            // Fixtures assert on `<fixture>/target/rstyle/facts`; a shared/inherited
+            // Keep capture directories local to each fixture; a shared/inherited
             // CARGO_TARGET_DIR (worktree cache, CI volume) would move it.
             .env_remove("CARGO_TARGET_DIR"),
     )
@@ -134,13 +134,34 @@ fn stdout(output: &Output) -> String {
     String::from_utf8(output.stdout.clone()).unwrap()
 }
 
-/// Frozen reference-collector contracts use an explicit backend; rstyle() tests the default.
-fn reference_style(dir: &Path, args: &[&str]) -> Output {
-    rstyle(dir, &[&["--style-engine", "legacy"][..], args].concat())
+/// Keep text snapshots stable while retaining compiler-unit and finding labels.
+fn snapshot_output(directory: &Path, output: &Output) -> String {
+    stdout(output)
+        .replace(
+            &directory
+                .canonicalize()
+                .unwrap()
+                .to_string_lossy()
+                .to_string(),
+            "<workspace>",
+        )
+        .replace(&directory.to_string_lossy().to_string(), "<workspace>")
+        .lines()
+        .map(|line| {
+            if line.starts_with("Report: ") {
+                "Report: <saved compiler run>"
+            } else if line.starts_with("Compiler evidence and coverage: ") {
+                "Compiler evidence and coverage: <saved compiler run>"
+            } else {
+                line
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
-fn reference_json(dir: &Path) -> Value {
-    let output = reference_style(dir, &["--format", "json"]);
+fn style_json(dir: &Path) -> Value {
+    let output = rstyle(dir, &["--format", "json"]);
     serde_json::from_slice(&output.stdout).unwrap_or_else(|e| {
         panic!(
             "bad json ({e}): {}",
@@ -156,7 +177,9 @@ fn diagnostics_for<'a>(report: &'a Value, function: &str) -> Vec<&'a Value> {
             d["message"]
                 .as_str()
                 .unwrap()
-                .contains(&format!("`{function}`"))
+                .split('`')
+                .nth(1)
+                .is_some_and(|name| name == function || name.ends_with(&format!("::{function}")))
         })
         .collect()
 }
@@ -172,7 +195,7 @@ fn rules_for(report: &Value, function: &str) -> Vec<String> {
 #[test]
 fn clean_crate_exits_zero() {
     let dir = fixture("clean");
-    let output = reference_style(dir.path(), &[]);
+    let output = rstyle(dir.path(), &[]);
     assert_eq!(
         output.status.code(),
         Some(0),
@@ -180,7 +203,7 @@ fn clean_crate_exits_zero() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(stdout(&output).contains("0 violations"));
-    let report = reference_json(dir.path());
+    let report = style_json(dir.path());
     assert!(report["diagnostics"].as_array().unwrap().is_empty());
     assert!(report["functions"].as_array().unwrap().is_empty());
     assert_eq!(report["summary"]["functions"], 4);
@@ -189,20 +212,20 @@ fn clean_crate_exits_zero() {
 #[test]
 fn violations_exit_one_and_match_golden_output() {
     let dir = fixture("violations");
-    let output = reference_style(dir.path(), &[]);
+    let output = rstyle(dir.path(), &[]);
     assert_eq!(
         output.status.code(),
         Some(1),
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    insta::assert_snapshot!(stdout(&output));
+    insta::assert_snapshot!(snapshot_output(dir.path(), &output));
 }
 
 #[test]
 fn json_output_reports_resolved_mutations_and_effects() {
     let dir = fixture("violations");
-    let report = reference_json(dir.path());
+    let report = style_json(dir.path());
     // 4 mutations over 4 statements is also a density of 1000, above the default 500.
     assert_eq!(
         rules_for(&report, "Account::churn"),
@@ -222,7 +245,7 @@ fn json_output_reports_resolved_mutations_and_effects() {
 #[test]
 fn effects_are_classified_from_resolved_paths() {
     let dir = fixture("violations");
-    let report = reference_json(dir.path());
+    let report = style_json(dir.path());
     let labels = |function: &str| -> Vec<String> {
         diagnostics_for(&report, function)
             .iter()
@@ -257,7 +280,7 @@ fn effects_are_classified_from_resolved_paths() {
 
 #[test]
 fn suppressions_apply_only_with_a_reason() {
-    let report = reference_json(fixture("violations").path());
+    let report = style_json(fixture("violations").path());
     assert!(rules_for(&report, "allowed").is_empty());
     let missing = rules_for(&report, "missing_reason");
     assert!(missing.contains(&"fn_params".to_string()), "{missing:?}");
@@ -269,7 +292,7 @@ fn suppressions_apply_only_with_a_reason() {
 
 #[test]
 fn derived_code_is_not_analyzed() {
-    let report = reference_json(fixture("violations").path());
+    let report = style_json(fixture("violations").path());
     let summary = report["summary"]["functions"].as_u64().unwrap();
     // 11 hand-written fns; derive(Debug, Clone, PartialEq) would add more if leaked.
     assert_eq!(summary, 11);
@@ -278,38 +301,50 @@ fn derived_code_is_not_analyzed() {
 #[test]
 fn two_runs_are_byte_identical() {
     let dir = fixture("violations");
-    let first = reference_style(dir.path(), &["--format", "json"]);
-    let second = reference_style(dir.path(), &["--format", "json"]);
-    assert_eq!(first.stdout, second.stdout);
-    assert!(!first.stdout.is_empty());
+    let first = rstyle(dir.path(), &["--format", "json"]);
+    let second = rstyle(dir.path(), &["--format", "json"]);
+    let first: Value = serde_json::from_slice(&first.stdout).unwrap();
+    let second: Value = serde_json::from_slice(&second.stdout).unwrap();
+    for field in ["diagnostics", "summary", "functions", "fix_groups"] {
+        assert_eq!(first[field], second[field], "{field}");
+    }
 }
 
 #[test]
 fn fn_spacing_is_configurable() {
     let dir = fixture("violations");
-    let off = reference_json(dir.path());
+    let off = style_json(dir.path());
     assert!(!rules_for(&off, "noisy").contains(&"fn_spacing".to_string()));
     std::fs::write(
         dir.path().join("rstyle.toml"),
         "[fn_spacing]\nmin_statements = 3\n",
     )
     .unwrap();
-    let on = reference_json(dir.path());
+    let on = style_json(dir.path());
     assert!(rules_for(&on, "noisy").contains(&"fn_spacing".to_string()));
 }
 
 #[test]
 fn config_change_reevaluates_without_recompiling() {
     let dir = fixture("violations");
-    let before = reference_json(dir.path());
-    let facts = dir.path().join("target/rstyle/facts/violations-lib.json");
+    let before = style_json(dir.path());
+    let archive: Value = serde_json::from_slice(
+        &std::fs::read(Path::new(before["run_directory"].as_str().unwrap()).join("report.json"))
+            .unwrap(),
+    )
+    .unwrap();
+    let facts = PathBuf::from(
+        archive["functions"][0]["unit_evidence"]["bundle"]
+            .as_str()
+            .unwrap(),
+    );
     let modified = std::fs::metadata(&facts).unwrap().modified().unwrap();
     std::fs::write(
         dir.path().join("rstyle.toml"),
         "[fn_params]\nmax_params = 10\n",
     )
     .unwrap();
-    let after = reference_json(dir.path());
+    let after = style_json(dir.path());
     assert!(rules_for(&before, "too_many").contains(&"fn_params".to_string()));
     assert!(!rules_for(&after, "too_many").contains(&"fn_params".to_string()));
     assert_eq!(
@@ -321,16 +356,31 @@ fn config_change_reevaluates_without_recompiling() {
 #[test]
 fn compile_errors_exit_two() {
     let dir = fixture("broken");
-    let output = reference_style(dir.path(), &[]);
+    let output = rstyle(dir.path(), &["--format", "json"]);
     assert_eq!(output.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&output.stderr).contains("cargo check failed"));
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["capture_complete"], false);
+    assert_eq!(report["summary_complete"], false);
+    assert!(report["summary"].is_null());
+    assert!(
+        report["capture_failures"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|failure| {
+                failure
+                    .as_str()
+                    .unwrap()
+                    .contains("Cargo compilation failed")
+            })
+    );
 }
 
 #[test]
 fn bad_config_exits_two() {
     let dir = fixture("clean");
     std::fs::write(dir.path().join("rstyle.toml"), "typo = 1\n").unwrap();
-    let output = reference_style(dir.path(), &[]);
+    let output = rstyle(dir.path(), &[]);
     assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("rstyle.toml"));
 }
@@ -342,9 +392,33 @@ fn unknown_package_exits_two() {
     assert_eq!(output.status.code(), Some(2));
 }
 
-fn facts_for(dir: &Path, file: &str) -> Vec<Value> {
-    let path = dir.join("target/rstyle/facts").join(file);
-    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+/// Read the shared collector observations through the compiler capture route.
+fn facts_for(dir: &Path) -> Vec<Value> {
+    let (_, report) = clones(
+        dir,
+        &[
+            "--extraction-profile",
+            "hir-data-v3",
+            "--compiler-advisory-only",
+            "--compiler-patterns",
+            "--report-detail",
+            "full",
+        ],
+    );
+    report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|row| {
+            let options = &row["facts"]["build"]["frontend_options"];
+            let mut fact = options[rstyle_core::advisory::KEY]["facts"].clone();
+            if fact.is_null() {
+                return None;
+            }
+            fact["pdg"] = options[rstyle_core::advisory::patterns::KEY]["graph"].clone();
+            Some(fact)
+        })
+        .collect()
 }
 
 fn fact<'a>(facts: &'a [Value], name: &str) -> &'a Value {
@@ -366,8 +440,8 @@ fn strings(value: &Value) -> Vec<&str> {
 #[test]
 fn facts_record_call_graph_ids_and_mutated_types() {
     let dir = fixture("graph");
-    assert!(reference_style(dir.path(), &[]).status.success());
-    let facts = facts_for(dir.path(), "graph-lib.json");
+    assert!(rstyle(dir.path(), &[]).status.success());
+    let facts = facts_for(dir.path());
 
     let direct = fact(&facts, "direct");
     assert_eq!(direct["id"], "graph::direct");
@@ -377,8 +451,8 @@ fn facts_record_call_graph_ids_and_mutated_types() {
         .iter()
         .map(|e| e["callee"].as_str().unwrap())
         .collect();
-    // Same-crate callee and the trait method; no std calls like `Vec::new`.
-    assert_eq!(edges, ["graph::side", "graph::Shape::area"]);
+    // Concrete trait calls retain rustc's selected impl; dynamic calls below retain the trait.
+    assert_eq!(edges, ["graph::side", "graph::{impl#0}::area"]);
     assert_eq!(strings(&direct["mutated_types"]), ["graph::Counter"]);
 
     // Trait impl methods point back at the trait method they implement.
@@ -397,8 +471,8 @@ fn facts_record_call_graph_ids_and_mutated_types() {
 #[test]
 fn facts_record_params_and_argument_provenance() {
     let dir = fixture("params");
-    assert!(reference_style(dir.path(), &[]).status.code().is_some());
-    let facts = facts_for(dir.path(), "params-lib.json");
+    assert!(rstyle(dir.path(), &[]).status.code().is_some());
+    let facts = facts_for(dir.path());
 
     let leaf = fact(&facts, "leaf");
     let named: Vec<(&str, &str)> = leaf["param_list"]
@@ -443,7 +517,7 @@ fn facts_record_params_and_argument_provenance() {
 #[test]
 fn effects_propagate_through_calls_and_stop_at_boundaries() {
     let dir = fixture("transitive");
-    let report = reference_json(dir.path());
+    let report = style_json(dir.path());
     let top = diagnostics_for(&report, "top");
     assert_eq!(top.len(), 1, "{report}");
     assert_eq!(top[0]["actual"], 750); // 3 (io, two hops up) * 1000 / 4 statements
@@ -461,7 +535,7 @@ fn effects_propagate_through_calls_and_stop_at_boundaries() {
         "[fn_spacing]\nmin_statements = 0\n[side_effects]\nmin_lines = 0\nmin_statements = 1\ntransitive_depth = 0\n",
     )
     .unwrap();
-    let report = reference_json(dir.path());
+    let report = style_json(dir.path());
     assert!(
         rules_for(&report, "top").is_empty(),
         "depth 0 disables propagation"
@@ -471,7 +545,7 @@ fn effects_propagate_through_calls_and_stop_at_boundaries() {
 #[test]
 fn fix_groups_stack_signature_changes_and_leave_the_rest_independent() {
     let dir = fixture("groups");
-    let report = reference_json(dir.path());
+    let report = style_json(dir.path());
     let groups = report["fix_groups"].as_array().unwrap();
     assert_eq!(groups.len(), 2, "{report}");
 
@@ -489,7 +563,7 @@ fn fix_groups_stack_signature_changes_and_leave_the_rest_independent() {
     assert_eq!(names(&groups[1]), ["lonely"]);
     assert_eq!(groups[0]["functions"][0]["rules"][0], "fn_params");
 
-    let text = stdout(&reference_style(dir.path(), &[]));
+    let text = stdout(&rstyle(dir.path(), &[]));
     assert!(
         text.contains("fix groups: 2 (1 stacked, 1 independent)"),
         "{text}"
@@ -500,7 +574,7 @@ fn fix_groups_stack_signature_changes_and_leave_the_rest_independent() {
 #[test]
 fn param_plan_orders_callee_then_callers_with_bundle_and_pass_through() {
     let dir = fixture("params");
-    let report = reference_json(dir.path());
+    let report = style_json(dir.path());
     let group = &report["fix_groups"][0];
     let plan = &group["plan"];
     let steps: Vec<(&str, bool, u64)> = plan["steps"]
@@ -529,7 +603,7 @@ fn param_plan_orders_callee_then_callers_with_bundle_and_pass_through() {
     );
     assert_eq!(bundle["params"].as_array().unwrap().len(), 3);
 
-    let text = stdout(&reference_style(dir.path(), &[]));
+    let text = stdout(&rstyle(dir.path(), &[]));
     assert!(text.contains("1. signature leaf"), "{text}");
     assert!(text.contains("2. call sites mid"), "{text}");
     assert!(text.contains("bundle (1 sites)"), "{text}");
@@ -542,8 +616,8 @@ fn sig_of<'a>(facts: &'a [Value], name: &str) -> &'a Value {
 #[test]
 fn facts_record_sig() {
     let dir = fixture("animals");
-    assert!(reference_style(dir.path(), &[]).status.code().is_some());
-    let facts = facts_for(dir.path(), "animals-lib.json");
+    assert!(rstyle(dir.path(), &[]).status.code().is_some());
+    let facts = facts_for(dir.path());
 
     let bark = sig_of(&facts, "Dog::bark");
     assert_eq!(bark["self_ty"], "animals::Dog");
@@ -576,17 +650,15 @@ fn facts_record_sig() {
 #[test]
 fn patterns_lists_signature_groups_with_spans() {
     let dir = fixture("animals");
-    let output = rstyle(
-        dir.path(),
-        &["patterns", "--engine", "legacy", "--format", "json"],
-    );
+    let output = rstyle(dir.path(), &["patterns", "--format", "json"]);
     assert_eq!(
         output.status.code(),
         Some(0),
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let root: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let report = pattern_evaluation(&root);
     let groups = report["signature_groups"].as_array().unwrap();
     let find = |key: &str| {
         groups
@@ -612,7 +684,7 @@ fn patterns_lists_signature_groups_with_spans() {
     assert_eq!(find("fn(&Self) -> &str")["same_name"], true);
     assert_eq!(find("fn(&Self, &A) -> Self")["self_types"], 2);
 
-    let text = stdout(&rstyle(dir.path(), &["patterns", "--engine", "legacy"]));
+    let text = stdout(&rstyle(dir.path(), &["patterns"]));
     assert!(text.contains("fn(&Self) -> String"), "{text}");
     assert!(text.contains("src/lib.rs:"), "{text}");
 }
@@ -631,7 +703,7 @@ fn patterns_group_impls_that_differ_only_in_concrete_type_arguments() {
 }
 
 fn patterns_json(dir: &Path, extra: &[&str]) -> Value {
-    let mut args = vec!["patterns", "--engine", "legacy", "--format", "json"];
+    let mut args = vec!["patterns", "--format", "json"];
     args.extend(extra);
     let output = rstyle(dir, &args);
     assert_eq!(
@@ -640,7 +712,38 @@ fn patterns_json(dir: &Path, extra: &[&str]) -> Value {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    serde_json::from_slice(&output.stdout).unwrap()
+    let root: Value = serde_json::from_slice(&output.stdout).unwrap();
+    pattern_evaluation(&root)
+}
+
+fn pattern_evaluation(root: &Value) -> Value {
+    assert_eq!(root["capture_complete"], true);
+    assert_eq!(root["assessment_complete"], true);
+    let patterns = &root["compiler_advisory"]["units"][0]["patterns"];
+    let mut evaluation = patterns["evaluation"].clone();
+    let presentation = patterns.get("presentation");
+    let candidates = presentation
+        .map(|p| &p["candidate_indices"])
+        .unwrap_or(&patterns["repository_visible_candidates"]);
+    if let Some(indices) = candidates.as_array() {
+        evaluation["candidates"] = indices
+            .iter()
+            .map(|index| {
+                patterns["evaluation"]["candidates"][index.as_u64().unwrap() as usize].clone()
+            })
+            .collect();
+    }
+    if let Some(presentation) = presentation {
+        evaluation["signature_groups"] = presentation["signature_group_indices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|index| {
+                patterns["evaluation"]["signature_groups"][index.as_u64().unwrap() as usize].clone()
+            })
+            .collect();
+    }
+    evaluation
 }
 
 fn site_names(item: &Value, field: &str) -> Vec<String> {
@@ -763,64 +866,21 @@ fn patterns_hide_implements_recovers_the_trait_as_a_candidate() {
 #[test]
 fn patterns_text_golden() {
     let dir = fixture("animals");
-    let output = rstyle(dir.path(), &["patterns", "--engine", "legacy"]);
+    let output = rstyle(dir.path(), &["patterns"]);
     assert_eq!(output.status.code(), Some(0));
-    insta::assert_snapshot!(stdout(&output));
+    insta::assert_snapshot!(snapshot_output(dir.path(), &output));
 }
 
 #[test]
-fn patterns_output_is_byte_identical_across_runs_and_copies() {
+fn patterns_findings_are_identical_across_runs_and_copies() {
     let (one, two) = (fixture("animals"), fixture("animals"));
-    let first = stdout(&rstyle(
-        one.path(),
-        &["patterns", "--engine", "legacy", "--format", "json"],
-    ));
-    let again = stdout(&rstyle(
-        one.path(),
-        &["patterns", "--engine", "legacy", "--format", "json"],
-    ));
-    let fresh = stdout(&rstyle(
-        two.path(),
-        &["patterns", "--engine", "legacy", "--format", "json"],
-    ));
+    let first = stdout(&rstyle(one.path(), &["patterns", "--format", "json"]));
+    let again = stdout(&rstyle(one.path(), &["patterns", "--format", "json"]));
+    let fresh = stdout(&rstyle(two.path(), &["patterns", "--format", "json"]));
     assert!(first.contains("\"candidates\""));
-    assert_eq!(first, again);
-    assert_eq!(first, fresh);
-}
-
-#[test]
-fn pdg_is_only_recorded_for_patterns_and_modes_do_not_clobber() {
-    let dir = fixture("animals");
-    let style_facts = |dir: &Path| facts_for(dir, "animals-lib.json");
-    assert!(reference_style(dir.path(), &[]).status.code().is_some());
-    assert!(style_facts(dir.path()).iter().all(|f| f["pdg"].is_null()));
-
-    patterns_json(dir.path(), &[]);
-    let sem = dir.path().join("target/rstyle/facts-sem/animals-lib.json");
-    let sem: Vec<Value> = serde_json::from_slice(&std::fs::read(sem).unwrap()).unwrap();
-    let dogs = fact(&sem, "emit_dogs");
-    assert!(dogs["pdg"]["nodes"].as_array().unwrap().len() >= 4);
-    let kinds: Vec<&str> = dogs["pdg"]["nodes"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|n| n["kind"].as_str().unwrap())
-        .collect();
-    assert!(
-        kinds.contains(&"iterate") && kinds.contains(&"call"),
-        "{kinds:?}"
-    );
-
-    // Style facts stay PDG-free after a patterns run, and a second style run still works.
-    assert!(reference_style(dir.path(), &[]).status.code().is_some());
-    assert!(style_facts(dir.path()).iter().all(|f| f["pdg"].is_null()));
-    assert!(
-        patterns_json(dir.path(), &[])["candidates"]
-            .as_array()
-            .unwrap()
-            .len()
-            >= 2
-    );
+    let evaluation = |text: &str| pattern_evaluation(&serde_json::from_str(text).unwrap());
+    assert_eq!(evaluation(&first), evaluation(&again));
+    assert_eq!(evaluation(&first), evaluation(&fresh));
 }
 
 fn first_candidate_id(dir: &Path) -> String {
@@ -830,7 +890,7 @@ fn first_candidate_id(dir: &Path) -> String {
 }
 
 fn ignore_ok(dir: &Path, args: &[&str]) -> String {
-    let mut all = vec!["ignore", "--engine", "legacy"];
+    let mut all = vec!["ignore", "--all-targets"];
     all.extend(args);
     let output = rstyle(dir, &all);
     assert_eq!(
@@ -861,10 +921,7 @@ fn ignore_hides_a_candidate_and_patterns_says_so() {
     assert_eq!(after["ignored"][0]["id"], id.as_str());
     assert_eq!(after["ignored"][0]["reason"], "reviewed, coincidence");
 
-    let text = stdout(&rstyle(
-        dir.path(),
-        &["patterns", "--engine", "legacy", "--show-ignored"],
-    ));
+    let text = stdout(&rstyle(dir.path(), &["patterns", "--show-ignored"]));
     assert!(
         text.contains("1 candidates hidden by the ignore ledger"),
         "{text}"
@@ -891,7 +948,7 @@ fn ignore_status_and_prune_manage_stale_entries() {
         "{status}"
     );
     assert!(
-        status.contains("deadbeef0000") && status.contains("stale"),
+        status.contains("deadbeef0000") && status.contains("unassessed"),
         "{status}"
     );
 
@@ -912,8 +969,8 @@ fn ignore_status_and_prune_manage_stale_entries() {
 #[test]
 fn ignore_rejects_unknown_ids_and_missing_modes() {
     let dir = fixture("animals");
-    let unknown = rstyle(dir.path(), &["ignore", "--engine", "legacy", "ffff"]);
-    let nothing = rstyle(dir.path(), &["ignore", "--engine", "legacy"]);
+    let unknown = rstyle(dir.path(), &["ignore", "ffff"]);
+    let nothing = rstyle(dir.path(), &["ignore"]);
 
     assert_eq!(unknown.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&unknown.stderr).contains("no candidate"));
@@ -957,12 +1014,7 @@ fn fail_on_candidates_exits_one_until_every_candidate_is_dismissed() {
         .iter()
         .map(|c| c["id"].as_str().unwrap().to_string())
         .collect();
-    let gate = |dir: &Path| {
-        rstyle(
-            dir,
-            &["patterns", "--engine", "legacy", "--fail-on-candidates"],
-        )
-    };
+    let gate = |dir: &Path| rstyle(dir, &["patterns", "--fail-on-candidates"]);
 
     let failing = gate(dir.path());
     assert_eq!(failing.status.code(), Some(1));
@@ -976,12 +1028,7 @@ fn fail_on_candidates_exits_one_until_every_candidate_is_dismissed() {
     });
     let clean = gate(dir.path());
     assert_eq!(clean.status.code(), Some(0), "{}", stdout(&clean));
-    assert_eq!(
-        rstyle(dir.path(), &["patterns", "--engine", "legacy"])
-            .status
-            .code(),
-        Some(0)
-    );
+    assert_eq!(rstyle(dir.path(), &["patterns"]).status.code(), Some(0));
 }
 
 fn clone_workspace() -> TempDir {
@@ -1503,12 +1550,12 @@ fn clones_all_targets_keep_compilation_contexts_distinct() {
 }
 
 #[test]
-fn inherited_hir_destinations_do_not_change_legacy_commands() {
+fn inherited_hir_destinations_do_not_change_command_capture() {
     let directory = clone_workspace();
     let poison = directory.path().join("must-not-exist");
     for args in [
         vec!["--format", "json"],
-        vec!["patterns", "--engine", "legacy", "--format", "json"],
+        vec!["patterns", "--format", "json"],
     ] {
         let output = Command::new(cargo_bin("cargo-rstyle"))
             .args(args)

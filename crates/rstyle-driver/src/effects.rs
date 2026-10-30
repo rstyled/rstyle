@@ -2,7 +2,7 @@
 //! that need no config (`unsafe`, `static mut`, indirect calls).
 
 use crate::args::{self, ParamIndex};
-use crate::extract::{Metric, Options, line_of};
+use crate::extract::{Options, line_of};
 use crate::ids;
 use rstyle_core::facts::{ArgSource, CallEvent, Edge, EffectEvent, EffectKind};
 use rstyle_core::paths::strip_generics;
@@ -55,7 +55,6 @@ pub fn collect<'tcx>(
         tcx,
         typeck: tcx.typeck(def_id),
         root: options.root.to_path_buf(),
-        metric: options.metric,
         owner: def_id,
         params,
         out,
@@ -78,7 +77,6 @@ struct Walker<'tcx> {
     tcx: TyCtxt<'tcx>,
     typeck: &'tcx TypeckResults<'tcx>,
     root: PathBuf,
-    metric: Metric,
     owner: LocalDefId,
     params: ParamIndex,
     out: BodyFacts,
@@ -157,7 +155,7 @@ impl<'tcx> Walker<'tcx> {
         } = target;
         self.recursion(def_id, expr.span);
 
-        if !ids::in_workspace(self.tcx, def_id, &self.root, self.metric) {
+        if !ids::in_workspace(self.tcx, def_id, &self.root) {
             return;
         }
         let line = self.line(expr.span);
@@ -213,12 +211,11 @@ impl<'tcx> Walker<'tcx> {
     }
 
     fn selected(&self, callee: DefId, args: ty::GenericArgsRef<'tcx>) -> DefId {
-        if self.metric != Metric::Advisory
-            || self
-                .tcx
-                .opt_associated_item(callee)
-                .and_then(|item| item.trait_container(self.tcx))
-                .is_none()
+        if self
+            .tcx
+            .opt_associated_item(callee)
+            .and_then(|item| item.trait_container(self.tcx))
+            .is_none()
             || args.has_non_region_param()
             || args.has_infer()
             || args.has_escaping_bound_vars()
@@ -315,8 +312,7 @@ impl<'tcx> Visitor<'tcx> for Walker<'tcx> {
     fn visit_arm(&mut self, arm: &'tcx rustc_hir::Arm<'tcx>) {
         // Block bodies count their own statements/tail; bare-expression arms count as one.
         let bare = !matches!(arm.body.kind, ExprKind::Block(..))
-            && (self.metric == Metric::Legacy
-                || arm.span.desugaring_kind() != Some(DesugaringKind::QuestionMark));
+            && arm.span.desugaring_kind() != Some(DesugaringKind::QuestionMark);
         self.out.statements += usize::from(bare && self.counts(arm.body.span));
         intravisit::walk_arm(self, arm);
     }

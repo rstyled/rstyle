@@ -29,10 +29,7 @@ fn fixture() -> TempDir {
 }
 
 fn root_capture(directory: &Path) -> Value {
-    let output = rstyle(
-        directory,
-        &["--style-engine", "compiler", "--format", "json"],
-    );
+    let output = rstyle(directory, &["--format", "json"]);
     checked(&output, 1);
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["summary_complete"], true);
@@ -167,7 +164,7 @@ fn replay(directory: &Path, report: &Value, options: &[&str], extra: &[&str]) ->
 }
 
 fn root_replay(directory: &Path, original: &Value) {
-    const ROOT: &[&str] = &["--style-engine", "compiler", "--format", "json"];
+    const ROOT: &[&str] = &["--format", "json"];
     let output = replay(directory, original, ROOT, &[]);
     checked(&output, 1);
     let restored: Value = serde_json::from_slice(&output.stdout).unwrap();
@@ -199,7 +196,9 @@ fn root_replay(directory: &Path, original: &Value) {
     }
     let output = replay(directory, original, &["--style-engine", "legacy"], &[]);
     checked(&output, 2);
-    assert!(String::from_utf8_lossy(&output.stderr).contains("requires --style-engine compiler"));
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("unexpected argument '--style-engine'")
+    );
     let missing = serde_json::json!({"run_directory":directory.join("missing-run")});
     checked(&replay(directory, &missing, ROOT, &[]), 2);
 

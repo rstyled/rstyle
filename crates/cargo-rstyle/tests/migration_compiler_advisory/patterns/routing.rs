@@ -8,7 +8,7 @@ fn fixture(source: &str) -> TempDir {
 }
 
 fn raw(directory: &Path, extra: &[&str]) -> Output {
-    let mut args = vec!["patterns", "--engine", "compiler", "--format", "json"];
+    let mut args = vec!["patterns", "--format", "json"];
     args.extend_from_slice(extra);
     rstyle(directory, &args)
 }
@@ -35,8 +35,6 @@ fn saved_output(directory: &Path, original: &Value, extra: &[&str]) -> Output {
         .current_dir(directory)
         .args([
             "patterns",
-            "--engine",
-            "compiler",
             "--format",
             "json",
             "--replay-run",
@@ -375,21 +373,4 @@ fn compiler_route_reuses_package_manifest_and_default_or_explicit_config() {
             .len(),
         3
     );
-}
-
-#[test]
-fn compiler_only_route_flags_reject_unsupported_engine_combinations() {
-    let directory = clone_workspace();
-    for options in [
-        vec!["--replay-run", "missing"],
-        vec!["--review-file", "reviews.json"],
-        vec!["--review-file", "reviews.json", "--review-status"],
-        vec!["--locked"],
-    ] {
-        let mut args = vec!["patterns", "--engine", "legacy"];
-        args.extend(options);
-        let output = rstyle(directory.path(), &args);
-        checked(&output, 2);
-        assert!(String::from_utf8_lossy(&output.stderr).contains("compiler"));
-    }
 }

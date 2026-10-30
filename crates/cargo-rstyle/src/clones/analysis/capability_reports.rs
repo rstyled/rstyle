@@ -72,7 +72,7 @@ pub(in crate::clones) fn evaluate<'a>(
             "Advisory two-member local capabilities witnessed by ordered wrapper calls; no behavioral equivalence or safe rewrite claim.",
             "Plain shared local owners and zero-argument shared-self/u32 methods only; method effects and lifetimes require review.",
             "Exact existing local trait members suppress redundant advice; mixed or unresolved origins remain unavailable.",
-            "Legacy review and suppressions are not applied; no legacy capability is retired.",
+            "Source suppressions and review entries are not applied to this optional analysis.",
         ],
     })
 }

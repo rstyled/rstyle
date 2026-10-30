@@ -1,4 +1,4 @@
-//! Opt-in R0 frontend; the legacy extraction path stays independent.
+//! Compiler observation frontend shared by style, patterns and strict clone analysis.
 
 mod advisory;
 mod assertions;

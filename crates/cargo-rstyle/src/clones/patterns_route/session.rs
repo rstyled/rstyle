@@ -1,6 +1,6 @@
 //! Repository review commands consume the same compiler proposal pipeline as listing.
 use super::*;
-use crate::{IgnoreArgs, PatternDisplayArgs, PatternRouteArgs, Session};
+use crate::{IgnoreArgs, PatternDisplayArgs, PatternRouteArgs};
 
 pub(crate) fn run(cli: Cli, mut args: IgnoreArgs) -> Result<(String, u8), String> {
     let routed = route(&mut args)?;
@@ -106,5 +106,43 @@ pub(super) fn finish(evaluated: Evaluated, args: &IgnoreArgs) -> Result<(String,
     if args.prune && !workspace_all_targets {
         return Err("Pruning requires a complete workspace capture made with --all-targets; package selection cannot establish that unseen entries are stale".into());
     }
-    Ok((crate::apply_ignore(session, args)?, code))
+    Ok((apply_ignore(session, args)?, code))
+}
+
+/// What `ignore` works on: the ledger on disk and the current, unfiltered candidates.
+struct Session {
+    path: std::path::PathBuf,
+    ledger: rstyle_core::ledger::Ledger,
+    candidates: Vec<rstyle_core::candidates::Candidate>,
+    status: String,
+}
+
+fn ignore_prune(s: Session, dry_run: bool) -> Result<String, String> {
+    let (ledger, report) = ignore::prune(s.ledger, &s.candidates, dry_run);
+    if !dry_run {
+        ignore::save(&s.path, &ledger)?;
+    }
+
+    Ok(report)
+}
+
+fn ignore_dismiss(s: Session, id: &str, opts: rstyle_core::ledger::Opts) -> Result<String, String> {
+    let (ledger, message) = ignore::dismiss(s.ledger, &s.candidates, id, opts)?;
+    ignore::save(&s.path, &ledger)?;
+
+    Ok(message)
+}
+
+fn apply_ignore(s: Session, args: &IgnoreArgs) -> Result<String, String> {
+    let opts = rstyle_core::ledger::Opts {
+        allow_growth: args.allow_growth,
+        reason: args.reason.clone(),
+    };
+
+    match (&args.id, args.status, args.prune) {
+        (_, true, _) => Ok(s.status),
+        (_, _, true) => ignore_prune(s, args.dry_run),
+        (Some(id), _, _) => ignore_dismiss(s, id, opts),
+        _ => Err("give a candidate id, --status or --prune".into()),
+    }
 }

@@ -73,7 +73,7 @@ fn default_patterns_uses_authored_compiler_discovery_and_matches_explicit_engine
         directory.path(),
         &original,
         "patterns",
-        &["--engine", "compiler", "--format", "json"],
+        &["--format", "json"],
     );
     checked(&output, 0);
     let explicit = json(&output);

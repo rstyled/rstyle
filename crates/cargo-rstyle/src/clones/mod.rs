@@ -1,4 +1,4 @@
-//! Opt-in, verified source-to-pair analysis; no legacy miner involvement.
+//! Compiler capture, advisory discovery and verified source-to-pair analysis.
 
 mod advisory;
 mod advisory_only;
@@ -74,7 +74,7 @@ pub struct Args {
     /// Strictly reevaluate an exact saved standalone run or dependency closure without compiling.
     #[arg(long, conflicts_with = "capture_dependencies")]
     replay_run: Option<PathBuf>,
-    /// JSON matching overrides, separate from legacy rstyle.toml.
+    /// JSON matching overrides, separate from style rstyle.toml.
     #[arg(long)]
     matching_config: Option<PathBuf>,
     /// Include conformance evidence (projection traces and WL round histograms).
@@ -254,7 +254,7 @@ pub struct Args {
     /// TOML mutation_budget and workspace exclude policy; root granularity only.
     #[arg(long, requires = "mutation_rules")]
     mutation_config: Option<PathBuf>,
-    /// TOML source-rule policy (fn_length/fn_params/fn_spacing); distinct from legacy configuration.
+    /// TOML source-rule policy (fn_length/fn_params/fn_spacing); distinct from style configuration.
     #[arg(long, requires = "source_rules")]
     analysis_config: Option<PathBuf>,
     /// Exit 1 when requested analyses find opportunities; incomplete analysis exits 2.
@@ -376,8 +376,7 @@ struct Configuration {
 fn configuration(cli: &Cli, args: &Args) -> Result<Configuration, String> {
     if cli.config.is_some() || cli.ignore_file.is_some() {
         return Err(
-            "clones does not consume legacy --config or --ignore-file; use --matching-config"
-                .into(),
+            "clones does not consume root --config or --ignore-file; use --matching-config".into(),
         );
     }
     let value = args

@@ -1,6 +1,5 @@
 //! Stable ids and workspace membership for definitions.
 
-use crate::extract::Metric;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::ty::{self, GenericArgsRef, TyCtxt};
 use std::path::Path;
@@ -18,21 +17,15 @@ pub fn def_id_str(tcx: TyCtxt<'_>, def_id: DefId) -> String {
 
 /// True when the definition's source lives under the workspace root
 /// (a member crate, not a registry or std dependency).
-pub fn in_workspace(tcx: TyCtxt<'_>, def_id: DefId, root: &Path, metric: Metric) -> bool {
-    if metric == Metric::Advisory && def_id.is_local() {
+pub fn in_workspace(tcx: TyCtxt<'_>, def_id: DefId, root: &Path) -> bool {
+    if def_id.is_local() {
         return true;
     }
 
     let source_map = tcx.sess.source_map();
     let span = tcx.def_span(def_id);
-    let span = if metric == Metric::Advisory {
-        span.source_callsite()
-    } else {
-        span
-    };
-
-    let file = source_map.lookup_source_file(span.lo());
-    metric.display_path(tcx, &file, root).is_some()
+    let file = source_map.lookup_source_file(span.source_callsite().lo());
+    crate::extract::source_path(tcx, &file, root).is_some()
 }
 
 /// Reuse rustc's instance selection in the captured owner's compilation context.
@@ -46,4 +39,13 @@ pub(crate) fn selected_instance<'tcx>(
     ty::Instance::try_resolve(tcx, environment, callee, args)
         .ok()
         .flatten()
+}
+
+/// Dependence graphs classify external calls by the original definition file.
+pub fn graph_source_in_workspace(tcx: TyCtxt<'_>, def_id: DefId, root: &Path) -> bool {
+    let file = tcx
+        .sess
+        .source_map()
+        .lookup_source_file(tcx.def_span(def_id).lo());
+    crate::extract::display_path(&file, root).is_some()
 }

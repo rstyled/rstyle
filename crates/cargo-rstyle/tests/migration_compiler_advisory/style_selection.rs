@@ -4,7 +4,7 @@ use super::*;
 const WIDE: &str = "pub fn wide(a:u32,b:u32)->u32 {a+b}\n";
 
 fn capture(directory: &Path, extra: &[&str]) -> (Output, Value) {
-    let mut arguments = vec!["--style-engine", "compiler", "--format", "json"];
+    let mut arguments = vec!["--format", "json"];
     arguments.extend_from_slice(extra);
     let output = rstyle(directory, &arguments);
     let report = serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
@@ -71,17 +71,7 @@ fn root_compiler_style_rejects_missing_and_malformed_explicit_configuration() {
     let path = directory.path().join("bad.toml");
     std::fs::write(&path, "[fn_params]\nmax_params='not a number'\n").unwrap();
     for name in ["missing.toml", "bad.toml"] {
-        let output = rstyle(
-            directory.path(),
-            &[
-                "--style-engine",
-                "compiler",
-                "--format",
-                "json",
-                "--config",
-                name,
-            ],
-        );
+        let output = rstyle(directory.path(), &["--format", "json", "--config", name]);
         checked(&output, 2);
         assert!(output.stdout.is_empty());
         assert!(!output.stderr.is_empty());

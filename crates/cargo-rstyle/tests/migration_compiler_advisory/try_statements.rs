@@ -163,34 +163,3 @@ fn corrected_statement_metrics_replay_without_source_or_manifest() {
     assert_eq!(original["compiler_advisory"], replayed["compiler_advisory"]);
     assert_eq!(original["matching"], replayed["matching"]);
 }
-
-#[test]
-fn legacy_counts_stay_frozen_while_advisory_preserves_the_same_events() {
-    let (directory, report) = fixture();
-    let output = reference_style(directory.path(), &["--format", "json"]);
-    assert_eq!(output.status.code(), Some(0), "{}", stdout(&output));
-    let legacy = facts_for(directory.path(), "clone_fixture-lib.json");
-    for (name, statements) in [("one", 4), ("multiple", 7), ("matched", 6), ("blocked", 6)] {
-        let old = fact(&legacy, name);
-        assert_eq!(old["statements"], statements, "{name}");
-        let function = report["functions"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|row| row["facts"]["name"] == name)
-            .unwrap();
-        let new =
-            &function["facts"]["build"]["frontend_options"][rstyle_core::advisory::KEY]["facts"];
-        for field in [
-            "calls",
-            "effects",
-            "edges",
-            "mutations",
-            "mutated_types",
-            "param_list",
-            "sig",
-        ] {
-            assert_eq!(old[field], new[field], "{name}: {field}");
-        }
-    }
-}

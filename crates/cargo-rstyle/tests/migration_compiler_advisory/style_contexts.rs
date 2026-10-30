@@ -8,7 +8,7 @@ fn replay(directory: &Path, original: &Value, format: &str) -> Output {
     let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
     command
         .current_dir(directory)
-        .args(["--style-engine", "compiler", "--format", format])
+        .args(["--format", format])
         .args(["--replay-run", original["run_directory"].as_str().unwrap()])
         .env("PATH", directory.join("no-tools"))
         .env("CARGO", directory.join("no-cargo"))
@@ -70,16 +70,7 @@ fn root_style_text_labels_same_source_diagnostics_and_scores_by_saved_compilatio
         "[fn_params]\nmax_params=1\n",
     )
     .unwrap();
-    let output = rstyle(
-        directory.path(),
-        &[
-            "--style-engine",
-            "compiler",
-            "--all-targets",
-            "--format",
-            "json",
-        ],
-    );
+    let output = rstyle(directory.path(), &["--all-targets", "--format", "json"]);
     checked(&output, 1);
     let original: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(original["diagnostics"].as_array().unwrap().len(), 6);
@@ -115,7 +106,7 @@ fn root_style_text_labels_same_source_diagnostics_and_scores_by_saved_compilatio
 fn clean_root_style_text_keeps_context_without_inventing_diagnostic_or_score_rows() {
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), "pub fn clean() {}\n").unwrap();
-    let output = rstyle(directory.path(), &["--style-engine", "compiler"]);
+    let output = rstyle(directory.path(), &[]);
     checked(&output, 0);
     let text = stdout(&output);
     assert!(text.contains("compiler unit 0: package="));

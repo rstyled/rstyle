@@ -1,8 +1,13 @@
 ---
 source: crates/cargo-rstyle/tests/cli.rs
-assertion_line: 687
-expression: stdout(&output)
+expression: "snapshot_output(dir.path(), &output)"
 ---
+Compiler advisory only: 1 units; capture=true, assessment=true. Strict assessment and matching: not_requested.
+Report: <saved compiler run>
+
+Compiler advisory: 1 units, 2 findings; complete=true. Metrics: rstyle.compiler-style-metrics/7.
+Compiler patterns for population anchored at unit 0, source root <workspace> (input complete=true):
+Authored function scope: 0 generated functions outside scope; 0 applicable inputs unavailable.
 5 signature groups
 
 fn(&Self) -> &str  [2 types, score 2.92, same name]

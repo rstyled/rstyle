@@ -10,20 +10,10 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::{FileName, SourceFile, Span};
 use std::path::Path;
 
-/// Collector semantics selected by the consumer, without another HIR walk.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Metric {
-    /// Preserve the legacy style denominator.
-    Legacy,
-    /// Authored statements and compiler-selected concrete trait implementation calls.
-    Advisory,
-}
-
 pub(crate) struct Options<'a> {
     pub root: &'a Path,
     pub with_pdg: bool,
     pub complexity: Option<&'a crate::driver_complexity::Functions>,
-    pub metric: Metric,
 }
 
 /// How many lines above a function we look for an `rstyle-allow` comment.
@@ -35,28 +25,6 @@ pub fn line_of(tcx: TyCtxt<'_>, span: Span) -> usize {
         .source_map()
         .lookup_char_pos(span.source_callsite().lo())
         .line
-}
-
-pub fn crate_facts(
-    tcx: TyCtxt<'_>,
-    root: &Path,
-    with_pdg: bool,
-    complexity: &crate::driver_complexity::Functions,
-) -> Vec<FnFacts> {
-    let options = Options {
-        root,
-        with_pdg,
-        complexity: Some(complexity),
-        metric: Metric::Legacy,
-    };
-    let mut facts: Vec<FnFacts> = tcx
-        .hir_body_owners()
-        .filter_map(|def_id| function_facts(tcx, def_id, &options))
-        .collect();
-    facts.sort_by(|a, b| {
-        (&a.path, a.line, a.column, &a.name).cmp(&(&b.path, b.line, b.column, &b.name))
-    });
-    facts
 }
 
 pub(crate) fn function_facts(
@@ -76,7 +44,7 @@ pub(crate) fn function_facts(
     let body = tcx.hir_body(body_id);
     let source_map = tcx.sess.source_map();
     let start = source_map.lookup_char_pos(sig.span.lo());
-    let path = options.metric.display_path(tcx, &start.file, root)?;
+    let path = source_path(tcx, &start.file, root)?;
     let source = source_map
         .span_to_snippet(sig.span.to(body.value.span))
         .ok()?;
@@ -186,24 +154,14 @@ pub(crate) fn display_path(file: &SourceFile, root: &Path) -> Option<String> {
     (!relative.is_absolute()).then(|| relative.to_string_lossy().replace('\\', "/"))
 }
 
-impl Metric {
-    pub(crate) fn display_path(
-        self,
-        tcx: TyCtxt<'_>,
-        file: &SourceFile,
-        root: &Path,
-    ) -> Option<String> {
-        if self == Self::Legacy {
-            return display_path(file, root);
-        }
-        let FileName::Real(real) = &file.name else {
-            return None;
-        };
+pub(crate) fn source_path(tcx: TyCtxt<'_>, file: &SourceFile, root: &Path) -> Option<String> {
+    let FileName::Real(real) = &file.name else {
+        return None;
+    };
 
-        let path = real.local_path()?;
-        let absolute = tcx.sess.source_map().working_dir().local_path()?.join(path);
-        let normalized = rstyle_pdg::nominal_binding::absolute_path(&absolute).ok()?;
-        let relative = normalized.strip_prefix(root).ok()?;
-        Some(relative.to_string_lossy().replace('\\', "/"))
-    }
+    let path = real.local_path()?;
+    let absolute = tcx.sess.source_map().working_dir().local_path()?.join(path);
+    let normalized = rstyle_pdg::nominal_binding::absolute_path(&absolute).ok()?;
+    let relative = normalized.strip_prefix(root).ok()?;
+    Some(relative.to_string_lossy().replace('\\', "/"))
 }

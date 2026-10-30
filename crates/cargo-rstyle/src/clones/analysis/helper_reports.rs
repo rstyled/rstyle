@@ -102,7 +102,7 @@ pub(super) fn summarize<'a>(
             "Integer overflow and call-site evaluation behavior require manual review.",
             "Each proposal covers exactly two members; connected pairs do not establish an all-member group.",
             "Ordered correspondence is retained in pair_explanations; endpoint keys join accepted_pairs source locations.",
-            "Legacy suppressions and review entries are not applied; no legacy capability is retired.",
+            "Source suppressions and review entries are not applied to this optional analysis.",
         ],
     }
 }

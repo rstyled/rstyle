@@ -54,7 +54,7 @@ fn prepare(cli: &mut Cli, args: &mut Args) -> Result<Prepared, String> {
     Ok(Prepared { config, capture })
 }
 
-/// Both root routes resolve core policy before clearing their legacy-only CLI inputs.
+/// Both root routes resolve core policy before consuming their root-only CLI inputs.
 pub(super) fn configure(
     cli: &mut Cli,
     args: &mut Args,

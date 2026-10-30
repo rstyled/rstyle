@@ -14,16 +14,6 @@ pub struct Metadata {
 #[derive(Debug, Deserialize)]
 pub struct Package {
     pub name: String,
-    pub targets: Vec<Target>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Target {
-    pub name: String,
-}
-
-pub fn load(manifest: Option<&Path>) -> Result<Metadata, String> {
-    load_with_toolchain(manifest, None)
 }
 
 /// Acquire one metadata result in the representation needed by the caller.
@@ -46,15 +36,6 @@ pub fn load_with_toolchain<T: serde::de::DeserializeOwned>(
 }
 
 impl Metadata {
-    /// Crate names (as rustc sees them) of the selected packages; all when none selected.
-    pub fn crate_names(&self, selected: &[String]) -> Vec<String> {
-        self.packages
-            .iter()
-            .filter(|p| selected.is_empty() || selected.contains(&p.name))
-            .flat_map(|p| p.targets.iter().map(|t| t.name.replace('-', "_")))
-            .collect()
-    }
-
     pub fn unknown_packages(&self, selected: &[String]) -> Vec<String> {
         let known: Vec<&str> = self.packages.iter().map(|p| p.name.as_str()).collect();
         selected
@@ -79,13 +60,7 @@ mod tests {
     }
 
     #[test]
-    fn crate_names_replace_dashes() {
-        assert_eq!(sample().crate_names(&[]), ["my_app", "tool", "lib2"]);
-    }
-
-    #[test]
     fn package_selection_filters() {
-        assert_eq!(sample().crate_names(&["lib2".into()]), ["lib2"]);
         assert_eq!(sample().unknown_packages(&["nope".into()]), ["nope"]);
     }
 }

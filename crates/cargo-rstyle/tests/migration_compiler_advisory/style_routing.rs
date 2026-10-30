@@ -12,7 +12,7 @@ fn fixture(source: &str) -> TempDir {
 }
 
 fn capture(directory: &Path, extra: &[&str]) -> (Output, Value) {
-    let mut args = vec!["--style-engine", "compiler", "--format", "json"];
+    let mut args = vec!["--format", "json"];
     args.extend_from_slice(extra);
     let output = rstyle(directory, &args);
     let report = serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
@@ -124,13 +124,6 @@ fn root_style_route_uses_workspace_config_suppressions_and_finding_exit() {
     let scope = &report["compiler_advisory"]["units"][0]["diagnostic_scope"];
     assert_eq!(scope["request"]["source_scope"], "authored");
     assert_eq!(scope["request"]["rules"], serde_json::json!([]));
-    let legacy = reference_style(directory.path(), &["--format", "json"]);
-    checked(&legacy, 1);
-    let legacy: Value = serde_json::from_slice(&legacy.stdout).unwrap();
-    assert_eq!(
-        legacy["diagnostics"],
-        serde_json::json!(diagnostics(&report))
-    );
 }
 
 #[test]
@@ -304,11 +297,11 @@ fn root_style_route_resolves_manifest_config_and_package_from_other_directory() 
 }
 
 #[test]
-fn style_backend_option_rejects_subcommand_misrouting() {
+fn root_style_inputs_reject_subcommand_misrouting() {
     let directory = fixture("pub fn clean() {}\n");
     let output = rstyle(
         directory.path(),
-        &["--style-engine", "compiler", "patterns"],
+        &["--changed-files", "changes.json", "patterns"],
     );
     checked(&output, 2);
     assert!(String::from_utf8_lossy(&output.stderr).contains("default style command only"));
@@ -425,7 +418,7 @@ fn root_style_inherits_generated_io_into_authored_findings_and_replays_reused_ow
     checked(&output, 1);
     authored_inherited_finding(&warm);
     root_projection(&warm);
-    let text = rstyle(directory.path(), &["--style-engine", "compiler"]);
+    let text = rstyle(directory.path(), &[]);
     checked(&text, 1);
     let rendered = stdout(&text);
     assert!(rendered.contains("side_effect_density:"));

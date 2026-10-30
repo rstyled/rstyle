@@ -22,7 +22,7 @@ fn json(output: &Output) -> Value {
 }
 
 fn raw(directory: &Path, extra: &[&str]) -> Output {
-    let mut args = vec!["patterns", "--engine", "compiler", "--format", "json"];
+    let mut args = vec!["patterns", "--format", "json"];
     args.extend_from_slice(extra);
     rstyle(directory, &args)
 }
@@ -33,8 +33,6 @@ fn saved(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) 
         .current_dir(directory)
         .args([
             "patterns",
-            "--engine",
-            "compiler",
             "--format",
             "json",
             "--replay-run",

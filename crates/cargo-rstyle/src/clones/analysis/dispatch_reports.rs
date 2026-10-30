@@ -166,7 +166,7 @@ fn summarize<'a>(
         limitations: &[
             "Advisory local two-variant dispatch with shared-self u32 method signatures; not a safe rewrite or equivalence proof.",
             "Method body effects, purity, lifetimes and drop behavior require manual review.",
-            "Legacy suppressions and review entries are not applied; no legacy capability is retired.",
+            "Source suppressions and review entries are not applied to this optional analysis.",
         ],
     }
 }

@@ -16,11 +16,7 @@ fn fixture() -> TempDir {
 }
 
 fn capture(directory: &Path, extra: &[&str]) -> Output {
-    let flags = [
-        &["--style-engine", "compiler", "--format", "json"][..],
-        extra,
-    ]
-    .concat();
+    let flags = [&["--format", "json"][..], extra].concat();
     rstyle(directory, &flags)
 }
 
@@ -51,7 +47,7 @@ fn replay(directory: &Path, original: &Value, format: &str, extra: &[&str]) -> O
     let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
     command
         .current_dir(directory)
-        .args(["--style-engine", "compiler", "--format", format])
+        .args(["--format", format])
         .args(["--replay-run", original["run_directory"].as_str().unwrap()])
         .args(extra)
         .env("PATH", directory.join("no-tools"))

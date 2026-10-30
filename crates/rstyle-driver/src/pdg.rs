@@ -450,9 +450,8 @@ impl<'tcx> Builder<'tcx> {
         let name = def_id
             .map(|id| self.tcx.item_name(id).to_string())
             .unwrap_or_default();
-        let outside = def_id.is_some_and(|id| {
-            !ids::in_workspace(self.tcx, id, &self.root, crate::extract::Metric::Legacy)
-        });
+        let outside =
+            def_id.is_some_and(|id| !ids::graph_source_in_workspace(self.tcx, id, &self.root));
 
         if args.is_empty() && outside && TRANSPARENT.contains(&name.as_str()) {
             return self.expr(receiver);

@@ -495,8 +495,9 @@ pub(super) fn configuration(args: &super::Args) -> Result<Option<Config>, String
     let config = match &args.compiler_advisory_config {
         None => Config::default(),
         Some(path) => {
-            Config::parse(&std::fs::read_to_string(path).map_err(|error| error.to_string())?)
-                .map_err(|error| error.to_string())?
+            let text = std::fs::read_to_string(path)
+                .map_err(|error| format!("{}: {error}", path.display()))?;
+            Config::parse(&text).map_err(|error| format!("{}: {error}", path.display()))?
         }
     };
     Ok(Some(config))

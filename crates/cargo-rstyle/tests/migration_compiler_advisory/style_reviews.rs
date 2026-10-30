@@ -74,7 +74,7 @@ fn raw_diagnostics(report: &Value) -> &Value {
     &report["compiler_advisory"]["units"][0]["evaluation"]["diagnostics"]
 }
 
-fn explicit_compiler_matches(directory: &Path, original: &Value) {
+fn repeated_default_matches(directory: &Path, original: &Value) {
     assert_eq!(original["summary"]["violations"], 3);
     assert_eq!(
         original["compiler_advisory"]["metrics"],
@@ -88,7 +88,7 @@ fn explicit_compiler_matches(directory: &Path, original: &Value) {
             .iter()
             .any(|row| row["message"].as_str().unwrap().contains("`allowed`"))
     );
-    let (output, explicit) = current(directory, &["--style-engine", "compiler"]);
+    let (output, repeated) = current(directory, &[]);
     checked(&output, 1);
     for field in [
         "diagnostics",
@@ -98,7 +98,7 @@ fn explicit_compiler_matches(directory: &Path, original: &Value) {
         "fix_groups",
         "compiler_advisory",
     ] {
-        assert_eq!(original[field], explicit[field], "{field}");
+        assert_eq!(original[field], repeated[field], "{field}");
     }
 }
 
@@ -107,7 +107,7 @@ fn default_style_blocks_density_and_reuses_individual_reviews_and_source_allows(
     let directory = fixture();
     let (output, original) = current(directory.path(), &[]);
     checked(&output, 1);
-    explicit_compiler_matches(directory.path(), &original);
+    repeated_default_matches(directory.path(), &original);
 
     let (output, unreviewed) = current(directory.path(), &["--review-file", "reviews.json"]);
     checked(&output, 1);
