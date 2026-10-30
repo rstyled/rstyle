@@ -91,7 +91,7 @@ fn checked_integer_runtime_contract_matches_independent_boundary_laws() {
     let directory = clone_workspace();
     let source = format!(
         "{}\n{}",
-        include_str!("../../../../../eval/coverage-development/end-of-input.rs"),
+        include_str!("../../../../../tests/fixtures/function-families/end-of-input.rs"),
         r#"
         fn narrow(n: usize) -> u16 { u16::try_from(n).unwrap() }
         #[test]

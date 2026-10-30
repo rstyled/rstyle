@@ -6,7 +6,7 @@ fn architecture_readers_compose_through_strict_admission() {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        include_str!("../../../../eval/coverage-development/arch-readers.rs"),
+        include_str!("../../../../tests/fixtures/function-families/arch-readers.rs"),
     )
     .unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
@@ -408,7 +408,7 @@ fn reject_mismatched_authorities(function: &Value) {
 fn target_reader_source() -> String {
     format!(
         "{}\n{}",
-        include_str!("../../../../eval/coverage-development/arch-readers.rs"),
+        include_str!("../../../../tests/fixtures/function-families/arch-readers.rs"),
         r#"
         pub fn window(a: &[u8], lo: usize, hi: usize) -> &[u8] { &a[lo..hi] }
         pub fn snapshot<'a>(a: &'a [u8], b: &'a [u8]) -> &'a [u8] {

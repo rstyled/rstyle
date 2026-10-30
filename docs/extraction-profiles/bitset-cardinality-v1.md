@@ -56,7 +56,7 @@ proofs. No extra source census, provenance registry or cache is justified.
 ## Independent expectations and negative boundaries
 
 Before admission evaluation, the fixed development file
-`eval/coverage-development/bitset-cardinality.rs` declares eight positives:
+`tests/fixtures/function-families/bitset-cardinality.rs` declares eight positives:
 LookSet::empty, full, len, is_empty, and count, empty, saved, selected.
 The six negatives are generated Clone, mutate, Custom::count_ones, custom,
 narrowing and propagate. Non-Copy owned custom receivers, mutable owners,

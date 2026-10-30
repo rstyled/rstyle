@@ -40,7 +40,7 @@ Copy, purity, independence or supported-prefix evidence.
 
 ## Fixed expectations before admission evaluation
 
-`eval/coverage-development/accelerator-packing.rs` fixes nineteen functions.
+`tests/fixtures/function-families/accelerator-packing.rs` fixes nineteen functions.
 Thirteen future positives: Accel::len/as_accel_tys, getter, first, saved, selected,
 scalar_alias, array_alias, compare_order, debug_order, saved_result, raw and
 raw_caller.

@@ -26,7 +26,7 @@ a flat Boolean membership reference. Constructor/getter composition returns fals
 for every byte. Source arithmetic gives bucket 0..1 and bit 0..127, but those
 expectations alone did not supply a pipeline range certificate.
 
-`eval/coverage-development/byte-membership-oracle.py` checks both identities,
+`tests/fixtures/function-families/byte-membership-oracle.py` checks both identities,
 copies the complete original crate, appends only a test module, and runs locked
 default-feature Cargo tests. All three tests pass on ARM Linux: empty queries,
 all 65536 singleton/query combinations, dense patterns and all-bits-set queries.

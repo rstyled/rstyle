@@ -99,7 +99,7 @@ neighboring macros, derives and unsupported decoder bodies remain accounted for.
 
 ## Fixed development selection and validation requirements
 
-The separate corpus eval/coverage-development/option-byte-widths.rs fixes four
+The separate corpus tests/fixtures/function-families/option-byte-widths.rs fixes four
 intended positives before evaluation: match_width, branch_width, width_or and
 saved_width. The first two implement the source-selected natural shapes;
 width_or consumes a saved helper result with an arbitrary fallback, and

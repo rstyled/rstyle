@@ -2,6 +2,10 @@
 
 Repository scripts run from anywhere (shell drivers generally `cd` to the repo root). `install.sh` also works without a checkout and installs from GitHub. Python is stdlib only. Outputs go to [`eval/`](../eval/README.md) or [`site/wl/data`](../site/wl/README.md). Caches live in `/tmp/rx_*`, `/tmp/cn_*`.
 
+Shared Rust regression sources, selections and companion oracles live under
+[`tests/fixtures/`](../tests/fixtures/README.md). Recorded studies remain in
+`eval/`; they are separate from the normal compiler analysis and CI test route.
+
 Current style and pattern commands use compiler captures exclusively. Research
 scorers consume the published workspace `compiler_advisory.units[].patterns`
 evaluation and reject incomplete inputs; there is no reference-engine selector.

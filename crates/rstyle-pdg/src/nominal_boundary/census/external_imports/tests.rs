@@ -114,7 +114,7 @@ fn pinned_export_contract_binds_reviewed_source_and_distinct_target_identities()
     )
     .unwrap();
     let selection: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../../eval/coverage-development/base64ct-std-import-selection.json"
+        "../../../../../../tests/fixtures/function-families/base64ct-std-import-selection.json"
     ))
     .unwrap();
     assert_eq!(

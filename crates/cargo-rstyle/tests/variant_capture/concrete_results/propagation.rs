@@ -1,8 +1,9 @@
 //! Complete selected flag/error caller and exact propagation tampering.
 use super::*;
 
-const NEXT: &str =
-    include_str!("../../../../../eval/coverage-development/result-propagation-selection.json");
+const NEXT: &str = include_str!(
+    "../../../../../tests/fixtures/function-families/result-propagation-selection.json"
+);
 
 fn source() -> String {
     let selection: Value = serde_json::from_str(NEXT).unwrap();

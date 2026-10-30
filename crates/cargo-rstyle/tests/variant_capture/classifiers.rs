@@ -5,8 +5,8 @@ fn classifiers_connect_complete_constructor_projection_and_caller_chains() {
     let directory = clone_workspace();
     let source = format!(
         "{}\n{}",
-        include_str!("../../../../eval/coverage-development/tagged-units.rs"),
-        include_str!("../../../../eval/coverage-development/tagged-unit-classifiers.rs")
+        include_str!("../../../../tests/fixtures/function-families/tagged-units.rs"),
+        include_str!("../../../../tests/fixtures/function-families/tagged-unit-classifiers.rs")
     );
     std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);

@@ -169,7 +169,7 @@ same rule, threshold, versions and build context authorizes removal. Unknown,
 suppressed, excluded and unselected owners do not. Changed-file review selection
 uses the existing source-rule scope rather than a separate mutation selector.
 
-The independent corpus is `eval/clones-capability/effects-cases.json`. Its staged
+The independent corpus is `tests/fixtures/advisory/effects-cases.json`. Its staged
 next/later cases remain requirements, not delivered support. General transitive
 effects, alias/field provenance, helper summaries and density remain migration
 work. Exact Go comparison and macOS validation are unverified.

@@ -3,8 +3,9 @@ use super::float_kernels::function;
 use super::*;
 use rstyle_pdg::unit_store::{BundleManifest, UnitStore, transport_checksum};
 
-const SELECTION: &str =
-    include_str!("../../../../../eval/coverage-development/scalar-loop-callee-selection.json");
+const SELECTION: &str = include_str!(
+    "../../../../../tests/fixtures/function-families/scalar-loop-callee-selection.json"
+);
 
 fn original() -> String {
     let selection: Value = serde_json::from_str(SELECTION).unwrap();

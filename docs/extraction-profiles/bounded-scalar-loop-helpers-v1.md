@@ -2,7 +2,7 @@
 
 Data3.76 (`rust.bounded-scalar-loop-helpers`) connects the unchanged ryu1.0.23
 `pow5factor_32 → multiple_of_power_of_5_32` family. The
-[source selection](../../eval/coverage-development/scalar-loop-callee-selection.json)
+[source selection](../../tests/fixtures/function-families/scalar-loop-callee-selection.json)
 fixes original bytes and three compiler/target contexts independently of gains.
 
 The contract accepts the complete alpha-renamable factor-of-five grammar:

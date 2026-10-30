@@ -93,7 +93,7 @@ satisfiable normal-completion condition. Exceptional transfer/unwind/formatting
 remain omitted and disclosed. Primitive byte arrays, shared references and the
 fixed core error add no user destructor effects.
 
-The [development plan](../../eval/coverage-development/README.md#architecture-reader-target-established-before-support)
+The [development plan](../../tests/fixtures/function-families/README.md#architecture-reader-target-established-before-support)
 specifies intended classifications before support and preserves the original
 0/8 development baseline separately. Arithmetic runtime expectations cover each
 byte, offsets, invalid bounds, overflow, borrowed pointer identity and saved-base

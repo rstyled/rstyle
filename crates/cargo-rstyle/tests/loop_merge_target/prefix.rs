@@ -5,7 +5,7 @@ fn cyclic_prefix_family_completes_capture_verification_admission_and_matching() 
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        include_str!("../../../../eval/coverage-development/cyclic-prefix-scans.rs"),
+        include_str!("../../../../tests/fixtures/function-families/cyclic-prefix-scans.rs"),
     )
     .unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
@@ -47,8 +47,8 @@ fn cyclic_prefix_runtime_oracle_retains_independent_scan_expectations() {
     let directory = tempfile::tempdir().unwrap();
     let source = format!(
         "{}\n{}",
-        include_str!("../../../../eval/coverage-development/cyclic-prefix-scans.rs"),
-        include_str!("../../../../eval/coverage-development/cyclic-prefix-oracle.rs")
+        include_str!("../../../../tests/fixtures/function-families/cyclic-prefix-scans.rs"),
+        include_str!("../../../../tests/fixtures/function-families/cyclic-prefix-oracle.rs")
     );
     let path = directory.path().join("oracle.rs");
     let binary = directory.path().join("oracle");

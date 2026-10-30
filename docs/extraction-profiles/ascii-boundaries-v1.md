@@ -12,7 +12,7 @@ methods in `src/util/look.rs`: `get_line_terminator`, `is_word_ascii`,
 `is_word_ascii_negate`, `is_word_start_ascii`, `is_word_end_ascii`,
 `is_word_start_half_ascii`, `is_word_end_half_ascii`. The checked byte spans and
 SHA256 identities live in the `ascii-boundaries` selection of
-[`tagged-units-oracle.py`](../../eval/coverage-development/tagged-units-oracle.py).
+[`tagged-units-oracle.py`](../../tests/fixtures/function-families/tagged-units-oracle.py).
 Before evaluating the fresh natural capture, the source audit also selects
 `is_start`, `is_end`, `is_start_lf`, `is_end_lf`, `is_start_crlf`, and `is_end_crlf`
 as a connected line-boundary family (six intended positives, previously all
@@ -27,7 +27,7 @@ custom Debug impl, the owner's Clone/Debug derives, imports and neighboring code
 No original source or frozen inventory is replaced by the development source.
 
 Before implementation, the separate
-[`ascii-boundaries.rs`](../../eval/coverage-development/ascii-boundaries.rs)
+[`ascii-boundaries.rs`](../../tests/fixtures/function-families/ascii-boundaries.rs)
 selection contains 19 captured functions (source SHA256
 `08c2e2895984e824e0cb713f66541b55b98ae028aab036bec7e3f8e0fee5aecc`).
 Its ten intended positives are seven Matcher methods, `utf8::is_word_byte`,

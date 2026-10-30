@@ -3,7 +3,7 @@
 Data3.75 (`rust.fresh-range-results`) targets the unchanged regex-automata
 0.4.18 `Span::range` → local `<Range<usize> as From<Span>>::from` chain and its
 `Input::get_range` and `Match::range` callers. The
-[source selection](../../eval/coverage-development/range-getters-selection.json)
+[source selection](../../tests/fixtures/function-families/range-getters-selection.json)
 fixes source identities, six build contexts, anchors and the reverse-conversion
 negative before activation. Frozen60 membership and denominators stay unchanged.
 

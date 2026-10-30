@@ -126,7 +126,7 @@ fn edit(pair: &mut Pair, attack: &str) {
 fn fixture_source() -> String {
     let selection = selected_sources();
     let wrappers: Value = serde_json::from_str(include_str!(
-        "../../../../eval/coverage-development/time-digit-forwarders/selection.json"
+        "../../../../tests/fixtures/function-families/time-digit-forwarders/selection.json"
     ))
     .unwrap();
     let mut source = format!(

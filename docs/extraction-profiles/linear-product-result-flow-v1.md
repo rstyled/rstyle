@@ -4,7 +4,7 @@ Capability: `rust.linear-product-result-flow`. This joins the existing fresh
 reference-product Result boundary to same-unit guarded helper summaries, exact
 core `?` propagation and bounded affine local ownership. Acceptance target:
 base64ct1.7.3 `LineReader::new_wrapped → new_unwrapped`, unchanged in six contexts
-specified by `eval/coverage-development/line-reader-wrapped/selection.json`.
+specified by `tests/fixtures/function-families/line-reader-wrapped/selection.json`.
 
 The helper summary retains its complete verified saved Result value and return
 graph, including scalar/Option fields and the Err alternative. Component origins

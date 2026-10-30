@@ -2,7 +2,7 @@ use super::*;
 
 fn frozen_case(id: &str) -> Value {
     let labels: Value = serde_json::from_str(include_str!(
-        "../../../../eval/clones-capability/proposal-review-cases.json"
+        "../../../../tests/fixtures/advisory/proposal-review-cases.json"
     ))
     .unwrap();
     labels["proposal_cases"]

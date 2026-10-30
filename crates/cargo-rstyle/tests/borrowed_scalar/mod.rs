@@ -6,7 +6,7 @@ fn borrowed_scalar_owners_compose_without_owned_permission() {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        include_str!("../../../../eval/coverage-development/borrowed-scalar-owners.rs"),
+        include_str!("../../../../tests/fixtures/function-families/borrowed-scalar-owners.rs"),
     )
     .unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
@@ -91,7 +91,7 @@ fn borrowed_scalar_owners_preserve_installed_ci_contexts() {
         let directory = clone_workspace();
         std::fs::write(
             directory.path().join("src/lib.rs"),
-            include_str!("../../../../eval/coverage-development/borrowed-scalar-owners.rs"),
+            include_str!("../../../../tests/fixtures/function-families/borrowed-scalar-owners.rs"),
         )
         .unwrap();
         let (output, report) = clones(
@@ -135,7 +135,7 @@ fn borrowed_scalar_owners_do_not_activate_historical_profiles() {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        include_str!("../../../../eval/coverage-development/borrowed-scalar-owners.rs"),
+        include_str!("../../../../tests/fixtures/function-families/borrowed-scalar-owners.rs"),
     )
     .unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v2"]);

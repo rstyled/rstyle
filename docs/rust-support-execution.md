@@ -105,7 +105,7 @@ are labeled separately. Frozen sixty and complete package rosters are unchanged;
 all58 admissions strictly replay. Gates:1067 tests/5 skips, doctests/fmt/Clippy,
 rstyle0/3398, patterns0 unignored; existing15 ignores unchanged.
 Evidence: `/tmp/rstyle-alloc-*`; frozen `run-pk54tszf` versus `run-gn15_b0l`.
-See the [source selection](../eval/coverage-development/base64ct-std-import-selection.json).
+See the [source selection](../tests/fixtures/function-families/base64ct-std-import-selection.json).
 Full-library matching remains incomplete; broader P01–P22 work remains active.
 
 Next bounded assignments (original first-wave workers are already integrated):
@@ -113,9 +113,9 @@ Next bounded assignments (original first-wave workers are already integrated):
 | Frontier | Readiness gate and exclusive leaf work |
 | --- | --- |
 | P05 external macro imports | Delivered3.74: pinned complete alloc import inventory unlocks the three original std length/getter functions. Macro bodies, allocation/drop and other import grammars remain independently closed. Lead owns source-boundary/shared policy edits. |
-| P07 range/view composition | Delivered3.75 [selection](../eval/coverage-development/range-getters-selection.json): complete `Input::get_range` and `Match::range → Span::range → local From<Span>` chain. Three targets × default/no-default:139→143/2582 and85→89/590, four declared gains each, zero losses. All696 original admissions strictly replay/24 selected comparisons complete; native original4704 cases per feature context. Exact pinned non-Copy Range/no-drop authority and local trait-owner selection; only fresh whole results. No general moves/traits/storage permission. Shared-inventory performance fix adb3f5f removes repeated unit inventories; unchanged default capture182→105s, RSS6.1→1.0GiB. Full gates1090tests, style0/3470, patterns0. Broader views/element-origin work remains queued. |
-| P08 concrete Result frontier | Data3.78 delivers the fresh unit-error Result chain:21 selected instances,30 complete-roster gains/zero losses across9 contexts;993 strict admissions/21 selected comparisons. Data3.79 connects original LookSet::available through exact same-error `?`:9 gains/zero losses across9 contexts,1002 strict admissions/57 selected comparisons. Next: connected Option reference/payload and concrete trait-member ownership. [Frozen selection](../eval/coverage-development/scalar-result-next-selection.json): UnicodeWordBoundaryError::check and cfg-selected helper/new; default/no-default/word-boundary contexts have independent Ok/Err expectations. Exact non-Copy nominal-error owner/drop proof plus Result construction/tag/forwarding are now connected; zerovec's broader blockers remain separate. |
-| P09 loop/callee frontier | Delivered3.76 [selection](../eval/coverage-development/scalar-loop-callee-selection.json): original ryu::pow5factor_32 → multiple_of_power_of_5_32. Three targets14→15/40, exactly caller gains, zero losses; all45 contextual admissions strictly replay/6 selected comparisons Accepted. Complete alpha/transitive composition and resealed attacks pass; native private-source oracle42810 cases. Full gates1096tests/5skips, fmt/Clippy/doctests, rstyle0/3496, patterns0. General loops/recursion remain closed. |
+| P07 range/view composition | Delivered3.75 [selection](../tests/fixtures/function-families/range-getters-selection.json): complete `Input::get_range` and `Match::range → Span::range → local From<Span>` chain. Three targets × default/no-default:139→143/2582 and85→89/590, four declared gains each, zero losses. All696 original admissions strictly replay/24 selected comparisons complete; native original4704 cases per feature context. Exact pinned non-Copy Range/no-drop authority and local trait-owner selection; only fresh whole results. No general moves/traits/storage permission. Shared-inventory performance fix adb3f5f removes repeated unit inventories; unchanged default capture182→105s, RSS6.1→1.0GiB. Full gates1090tests, style0/3470, patterns0. Broader views/element-origin work remains queued. |
+| P08 concrete Result frontier | Data3.78 delivers the fresh unit-error Result chain:21 selected instances,30 complete-roster gains/zero losses across9 contexts;993 strict admissions/21 selected comparisons. Data3.79 connects original LookSet::available through exact same-error `?`:9 gains/zero losses across9 contexts,1002 strict admissions/57 selected comparisons. Next: connected Option reference/payload and concrete trait-member ownership. [Frozen selection](../tests/fixtures/function-families/scalar-result-next-selection.json): UnicodeWordBoundaryError::check and cfg-selected helper/new; default/no-default/word-boundary contexts have independent Ok/Err expectations. Exact non-Copy nominal-error owner/drop proof plus Result construction/tag/forwarding are now connected; zerovec's broader blockers remain separate. |
+| P09 loop/callee frontier | Delivered3.76 [selection](../tests/fixtures/function-families/scalar-loop-callee-selection.json): original ryu::pow5factor_32 → multiple_of_power_of_5_32. Three targets14→15/40, exactly caller gains, zero losses; all45 contextual admissions strictly replay/6 selected comparisons Accepted. Complete alpha/transitive composition and resealed attacks pass; native private-source oracle42810 cases. Full gates1096tests/5skips, fmt/Clippy/doctests, rstyle0/3496, patterns0. General loops/recursion remain closed. |
 
 PatternSet separately requires complete opaque Box-field/drop proof. Fold brief
 evidence into semantic commits; the full P01–P22 routing remains active.
@@ -176,7 +176,7 @@ assessment per context. [Contract](extraction-profiles/cross-unit-scalar-helpers
 Frozen source identities/denominators and23/30/7 remain unchanged; all58 contextual
 frozen admissions strictly replay. Final quality gates are recorded in the roadmap.
 
-The [Input instance selection](../eval/coverage-development/input-instances/README.md)
+The [Input instance selection](../tests/fixtures/function-families/input-instances/README.md)
 freezes original regex-automata0.4.18 `Input::new<H>` and blanket `From<&H>::from`
 for `[u8]`/`str`. Data-v3 now observes concrete requested/selected call arguments,
 structural type/definition identities and source anchors, without altering generic
@@ -188,7 +188,7 @@ proof; foreign metadata is not the owner's original HIR/typeck.
 
 Audit found a smaller connected next delivery: original num-traits0.2.19
 `clamp`, `clamp_min`, `clamp_max`, each at i32/u32. Its separate
-[source-first selection](../eval/coverage-development/clamp-instances/README.md)
+[source-first selection](../tests/fixtures/function-families/clamp-instances/README.md)
 passes272,852 scalar native calls in each of four feature/assertion contexts,
 including4921 expected panics in each assertion-enabled context and custom trait
 order controls. This avoids Input's owned-reference/mixed-enum/cleanup blockers;
@@ -395,7 +395,7 @@ foreign/linking restrictions and frozen membership. Native x86/macOS execution,
 full-library matching, general cleanup and broader P01–P22 routes remain active.
 
 Match readiness now has a separate frozen two-instance
-[development corpus](../eval/coverage-development/match-construction/README.md).
+[development corpus](../tests/fixtures/function-families/match-construction/README.md).
 Native default/no-default original-library oracle:11,448 successes,11,024 exact
 assertion panics and3 conversion/drop adversaries per context,0 mismatches;
 Range:Copy independently fails. Native no-default owning diagnostics retain590
@@ -596,7 +596,7 @@ pending; cross-target metadata capture does not claim it.
 
 
 Time error-conversion readiness at `b35a98a`: freeze four unchanged original
-constructors/conversions in a separate [selection and oracle](../eval/coverage-development/time-error-conversions/README.md).
+constructors/conversions in a separate [selection and oracle](../tests/fixtures/function-families/time-error-conversions/README.md).
 Native default+parsing/no-default+parsing captures retain1,288/1,080 complete
 raw definitions. Both selected conversion members now retain exact core trait,
 local impl/member/source, signature and nominal DifferentVariant Error projection
@@ -635,7 +635,7 @@ From `6a7df75`, connects unchanged adler2 2.0.1 `Adler32::new → Default::defau
 using exact reviewed core trait/member selection, independently captured raw call
 inventory and local impl/source/signature proof. Effects and returned fields come
 from the original callee body and existing zero-argument Copy-product summaries.
-[Selection, bounded contract and independent oracle](../eval/coverage-development/adler-default/README.md).
+[Selection, bounded contract and independent oracle](../tests/fixtures/function-families/adler-default/README.md).
 
 Fresh complete std/no_std owners retain17/16 definitions in ARM Linux, x86 Linux
 and ARM macOS. Each context gains exactly `new` and `default` (2→4 admissions),
@@ -671,7 +671,7 @@ natural caller was found. Memory lane retains Line::take as unready: local stora
 alone cannot discharge split_at, static empty origin, mutable descriptor writes,
 tuple flow and stateful helper summaries. Audits:`/tmp/rstyle-401-next-{match,hasher,memory}.md`.
 
-Next [checked-index source selection/oracle](../eval/coverage-development/checked-index-construction/README.md)
+Next [checked-index source selection/oracle](../tests/fixtures/function-families/checked-index-construction/README.md)
 freezes six ordinary functions, three generated templates (not emitted identities)
 and full known blockers before admission evaluation. Actual public SmallIndex and
 PatternID oracle passes8,202 cases in each of four feature/debug contexts; copied
@@ -1061,7 +1061,7 @@ denominators, semantic records and blocker combinations:24 admitted/29 excluded/
 
 ### Tagged Copy conversion prerequisite (Data3.102; no activation)
 
-The frozen [time error selection](../eval/coverage-development/time-error-conversions/selection.json)
+The frozen [time error selection](../tests/fixtures/function-families/time-error-conversions/selection.json)
 now retains complete static-string mixed-enum and nominal-unit-error Result
 observations. Reference containment inspects both Result branches and every enum
 payload independently of admission. Unsupported guarded paths reject; they cannot
@@ -1471,7 +1471,7 @@ They require independently verified trait-impl/associated Error expansion
 ownership followed by complete Result map/map_err value/error transport; existing
 inherent-constructor evidence does not cover them. Other error/payload, generic
 and memory lanes remain separate. Broad coverage goal stays active.
-[Source contract](../eval/coverage-development/unsigned-index-conversions/README.md).
+[Source contract](../tests/fixtures/function-families/unsigned-index-conversions/README.md).
 Evidence: `/tmp/rstyle-442-{comparison.json,oracle.json,all-strict-summary.json,
 selected-strict-summary.json,nextest.log,clippy-recheck.log,style-final.log,
 patterns-final.log,pin-test-final.log}`.
@@ -1495,7 +1495,7 @@ run (one sample, no speedup claim). Shared original/generated signature checking
 removes duplicate proof logic; no new runtime hashing or serialized lookup keys.
 Next connect exact third trait-call evidence and complete lexical/no-drop proof;
 do not relax the existing two-map roster or certify neighboring impls by name.
-[Contract](../eval/coverage-development/generated-index-conversions/README.md).
+[Contract](../tests/fixtures/function-families/generated-index-conversions/README.md).
 Evidence: `/tmp/rstyle-443-{comparison.json,source-tests.log,source-probe.log,
 nextest.log,clippy.log,style.json,patterns.json,strict-comparison.json}`.
 Strictly verify/admit all123 from the complete unit and serialized replay;
@@ -1530,7 +1530,7 @@ consumption before extending summaries. Imported generated payload aliases,
 unresolved neighboring macros, generic instances and broader cleanup remain
 closed; PatternID::must still needs expect/formatting/panic evidence. Do not
 count these eight wrappers as supporting their higher callers. Broad goal active.
-[Contract](../eval/coverage-development/generated-index-conversions/README.md).
+[Contract](../tests/fixtures/function-families/generated-index-conversions/README.md).
 Evidence: `/tmp/rstyle-444-{comparison.json,strict-comparison.json,oracle.json,
 frozen-comparison.json,nextest.log,clippy.log,style.json,patterns.json}`.
 
@@ -1557,7 +1557,7 @@ capture protocol is justified. HalfMatch::must additionally requires actual
 Debug/formatting effects; ISO parse_date also needs stored mutable closures and
 several missing parser families. The memory audit selects LineWrapper::wrap_blocks
 as a later Result/post-state bridge, without claiming Encoder::encode support.
-[Selection/contract](../eval/coverage-development/wire-arithmetic-errors/README.md).
+[Selection/contract](../tests/fixtures/function-families/wire-arithmetic-errors/README.md).
 Evidence: `/tmp/rstyle-445-{natural-shapes.json,comparison.json,oracle.json,nextest.log,
 clippy-final.log,policy-final.log,capture-final.log,style-final.json,patterns-final.json}`.
 Final fmt/Clippy and focused policy/Cargo rechecks pass after consolidating the
@@ -1613,7 +1613,7 @@ arithmetic Results, then required map_err/? composition; shl and higher parser
 callers need their complete additional blockers audited. No new SHA256 or
 serialized lookup keys. Natural capture27.18s/375,744KiB peak; focused composition
 2.25s, not a controlled performance comparison. Broad goal active.
-[Contract](../eval/coverage-development/wire-arithmetic-errors/README.md).
+[Contract](../tests/fixtures/function-families/wire-arithmetic-errors/README.md).
 Evidence: `/tmp/rstyle-448-{comparison.json,strict-comparison.json,
 frozen-comparison.json,nextest.log,focused-final.log,clippy-final.log,
 style-final.json,patterns-final.json,natural-final.json,default-final.json}`.
@@ -1713,7 +1713,7 @@ Resealed substitution/build/callee/guard/origin/ordering/cleanup adversaries and
 strict original admission/matching are required before claiming support. This
 foundational checkpoint follows the88-admission milestone; another observation-
 only increment would require replanning. Broad goal active.
-[Source contract](../eval/coverage-development/wire-fallible-readers/README.md).
+[Source contract](../tests/fixtures/function-families/wire-fallible-readers/README.md).
 
 
 Data3.121/149 capabilities connects original `check_slice_len::<u8>` →
@@ -1759,7 +1759,7 @@ memory-free summary validators unchanged. Tests must reject swapped tuple slots/
 expected-found operands, changed messages/residuals, omitted reads/guards, hidden
 Drop and foreign owner evidence. Short-input BufferTooSmall precedes decoding or
 mismatch; success consumes4. Wider readers alone do not complete these callers.
-Broad goal active. [Contract](../eval/coverage-development/wire-fallible-readers/README.md).
+Broad goal active. [Contract](../tests/fixtures/function-families/wire-fallible-readers/README.md).
 
 Frozen reproduction `target/hir-coverage/run-mhlxtnst` preserves all60 identities,
 outcomes/reasons/blockers/denominators and118 Data documents:24 admitted/29 excluded/
@@ -1860,7 +1860,7 @@ Decoder source-body summaries already exist. Do not stack observation-only commi
 or claim the readers from separate construct fixtures. Source-required callback
 capture and generated-owner interactions still need proof; stored mutable callbacks,
 loop-heavy sparse consumers and unsafe DFA deserialization remain separate.
-[Selection/contract/oracle](../eval/coverage-development/wire-id-readers/README.md).
+[Selection/contract/oracle](../tests/fixtures/function-families/wire-id-readers/README.md).
 Broad goal remains active; extraction grants no detector-quality or rewrite claim.
 
 Data3.125 / ID reader integration (153 capabilities), baseline47712a1.
@@ -2026,7 +2026,7 @@ selection. Native macOS/x86 CI remains pending. Broad goal stays active; general
 moves/drop, detector quality and rewrite safety remain outside this delivery.
 
 Frontier462 freezes the complete original three-function
-[Accel parser contract/oracle](../eval/coverage-development/accel-parser/README.md)
+[Accel parser contract/oracle](../tests/fixtures/function-families/accel-parser/README.md)
 before production changes. Native aarch64 Linux default/dfa-search-only × debug
 assertions on/off passes657,408 cases/zero mismatches. Current Data3.129 default
 capture excludes all three targets; no-default is source-inactive, and separate

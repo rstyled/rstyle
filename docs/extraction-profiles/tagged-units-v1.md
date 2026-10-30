@@ -82,7 +82,7 @@ or representation-based equality is required or authorized.
 
 ## Independent development classification and baseline
 
-`eval/coverage-development/tagged-units.rs` is a separate fixed corpus. Before
+`tests/fixtures/function-families/tagged-units.rs` is a separate fixed corpus. Before
 assessment, six functions are intended in scope: `Unit::new_byte`, `new_end`,
 `byte`, `end`, `roundtrip` and `saved`. Both constructor tags and both getters
 must compose, including a saved result after the receiver local is rebound.

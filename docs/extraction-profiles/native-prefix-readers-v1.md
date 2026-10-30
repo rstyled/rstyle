@@ -23,7 +23,7 @@ affect the value. Every shorter input panics; bounds failure and unwrap failure
 must retain their normal-completion conditions. Do not certify the functions as
 nonpanicking or infer that a range spelling discharges the Result check.
 
-`eval/coverage-development/native-prefix-readers.rs` fixes 11 function identities
+`tests/fixtures/function-families/native-prefix-readers.rs` fixes 11 function identities
 before assessment. Also assess the unchanged file as an ordinary external
 `reader` module in a separate `#![no_std]` crate; those names have the `reader::`
 prefix. Do not use include expansion or rewritten module paths. Eight intended positives are read_u16/read_u32/read_u128,
@@ -126,7 +126,7 @@ bodies are verified byte-for-byte before building the temporary runtime harness.
 Run from a shell with rustc on PATH:
 
 ```sh
-python3 eval/coverage-development/native-prefix-readers-oracle.py \
+python3 tests/fixtures/function-families/native-prefix-readers-oracle.py \
   /path/to/regex-automata-0.4.18/src/util/wire.rs
 ```
 

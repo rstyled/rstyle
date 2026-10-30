@@ -52,7 +52,7 @@ No general formatting, Result matching, `?`, iterator or rewrite-safety claim.
 
 ## Fixed development expectations, before evaluation
 
-`eval/coverage-development/end-of-input.rs` declares nine future positives:
+`tests/fixtures/function-families/end-of-input.rs` declares nine future positives:
 Unit::eoi/as_usize, ByteClasses::empty/alphabet_len/eoi, direct, saved, mapped,
 and checked. Three generated Clone methods and saved_result remain excluded.
 Expected semantics include underflow panic for checked; do not assume arbitrary

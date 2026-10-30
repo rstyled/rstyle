@@ -3,7 +3,7 @@ use super::*;
 use rstyle_pdg::unit_store::{BundleManifest, UnitStore, transport_checksum};
 
 const SELECTION: &str =
-    include_str!("../../../../eval/coverage-development/uncompressed-size/selection.json");
+    include_str!("../../../../tests/fixtures/function-families/uncompressed-size/selection.json");
 
 fn selected() -> (String, String) {
     let selection: Value = serde_json::from_str(SELECTION).unwrap();

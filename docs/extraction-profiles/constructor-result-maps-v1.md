@@ -2,7 +2,7 @@
 
 Data-v3 3.99 (`rust.constructor-result-maps`) connects unchanged
 `regex-automata 0.4.18::util::primitives::PatternID::new` to `SmallIndex::new`.
-The [development selection and independent oracle](../../eval/coverage-development/checked-index-construction/README.md)
+The [development selection and independent oracle](../../tests/fixtures/function-families/checked-index-construction/README.md)
 retain original source/build identities and specify the interval
 0..=2,147,483,646, with the exact attempted u64 preserved on error.
 

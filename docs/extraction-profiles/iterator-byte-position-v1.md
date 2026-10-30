@@ -47,7 +47,7 @@ is justified by this target; extend existing callee/environment/type evidence.
 
 ## Expectations fixed before evaluating admission
 
-`eval/coverage-development/iterator-byte-position.rs` fixes seventeen functions.
+`tests/fixtures/function-families/iterator-byte-position.rs` fixes seventeen functions.
 Eleven positives: Accel::len/needles/contains, slice_contains, caller, saved,
 selected, window, first_position, saved_position and position_caller. Six
 negatives: generated Clone, owned, mutable, effectful, saved_iterator and

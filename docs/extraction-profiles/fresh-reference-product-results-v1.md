@@ -8,7 +8,7 @@ The owner receives no Copy certificate. Reviewed Option source establishes
 scalar-Option cleanup separately from constructor recognition.
 
 The initial original target is base64ct1.7.3
-`decoder::LineReader::new_unwrapped`. Its [source-first selection and oracle](../../eval/coverage-development/line-reader/README.md)
+`decoder::LineReader::new_unwrapped`. Its [source-first selection and oracle](../../tests/fixtures/function-families/line-reader/README.md)
 require InvalidLength exactly on empty input; otherwise the exact input backing
 and `line_width=None`. The complete original owner, derives, imports, neighboring
 implementations and possible hidden Drop implementations remain checked. Exact

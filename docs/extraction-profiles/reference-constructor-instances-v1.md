@@ -5,7 +5,7 @@ Data-v3 3.85 activates the unchanged regex-automata 0.4.18
 string-byte-view evidence. 3.87 connects the two original From instances.
 All four use the native pinned compiler/target,
 default and no-default-features contexts selected in
-[the development corpus](../../eval/coverage-development/input-instances/selection.json).
+[the development corpus](../../tests/fixtures/function-families/input-instances/selection.json).
 Original generic definitions and frozen inventory membership remain unchanged.
 The selected new/From instance family is connected; ordinary foreign callers
 still require production artifact/instance and component-summary authority.

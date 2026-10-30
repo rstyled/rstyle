@@ -2,7 +2,7 @@ use super::*;
 
 fn case(id: &str) -> Value {
     let labels: Value = serde_json::from_str(include_str!(
-        "../../../../eval/clones-capability/enum-dispatch-cases.json"
+        "../../../../tests/fixtures/advisory/enum-dispatch-cases.json"
     ))
     .unwrap();
     labels["cases"]

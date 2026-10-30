@@ -3,7 +3,7 @@ use super::*;
 use rstyle_pdg::unit_store::{BundleManifest, UnitStore, transport_checksum};
 
 const SELECTION: &str =
-    include_str!("../../../../eval/coverage-development/prefilter-prefix/selection.json");
+    include_str!("../../../../tests/fixtures/function-families/prefilter-prefix/selection.json");
 
 fn source() -> String {
     let selected: Value = serde_json::from_str(SELECTION).unwrap();

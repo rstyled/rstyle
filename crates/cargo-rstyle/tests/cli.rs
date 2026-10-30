@@ -11104,7 +11104,7 @@ mod scalar_result_line_tail {
     use super::*;
 
     const SELECTION: &str =
-        include_str!("../../../eval/coverage-development/line-tail/selection.json");
+        include_str!("../../../tests/fixtures/function-families/line-tail/selection.json");
 
     fn source() -> String {
         let selection: Value = serde_json::from_str(SELECTION).unwrap();

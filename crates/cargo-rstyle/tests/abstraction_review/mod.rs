@@ -4,7 +4,7 @@ mod status;
 
 fn case(id: &str) -> Value {
     let labels: Value = serde_json::from_str(include_str!(
-        "../../../../eval/clones-capability/abstraction-review-cases.json"
+        "../../../../tests/fixtures/advisory/abstraction-review-cases.json"
     ))
     .unwrap();
     labels["cases"]

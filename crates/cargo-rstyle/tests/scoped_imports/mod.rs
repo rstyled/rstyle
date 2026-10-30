@@ -4,7 +4,7 @@ fn workspace() -> TempDir {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        include_str!("../../../../eval/coverage-development/scoped-import-flag-owners.rs"),
+        include_str!("../../../../tests/fixtures/function-families/scoped-import-flag-owners.rs"),
     )
     .unwrap();
     std::fs::write(

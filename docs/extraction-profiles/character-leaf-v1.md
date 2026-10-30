@@ -21,7 +21,7 @@ features, aarch64-unknown-linux-gnu, rustc commit
 panic=unwind. New evidence must retain the unchanged original and exact build
 context; cross-target/std/no_std checks are additional contexts.
 
-The source-only [selection](../../eval/coverage-development/character-leaf-selection.json)
+The source-only [selection](../../tests/fixtures/function-families/character-leaf-selection.json)
 freezes the positive and three neighboring negative controls before fresh original
 admission measurement. The frozen sixty remain unchanged.
 
@@ -46,7 +46,7 @@ and token validation. Full-original gains/losses remain to be measured. Preserve
 ## Independent expectations
 
 The numeric-set oracle in
-[`character-leaf-oracle.rs`](../../eval/coverage-development/character-leaf-oracle.rs)
+[`character-leaf-oracle.rs`](../../tests/fixtures/function-families/character-leaf-oracle.rs)
 checks every valid Unicode scalar. True exactly for eighteen code points:
 `23 24 26 28 29 2A 2B 2D 2E 3F 5B 5C 5D 5E 7B 7C 7D 7E` (hex).
 All other valid scalars return false, including NUL, newline, apostrophe, `%`,

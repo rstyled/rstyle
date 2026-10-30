@@ -80,7 +80,7 @@ tests. No additional source snapshots or retained caches are introduced.
 
 ## Validation expectations
 
-`eval/coverage-development/byte-window-oracle.rs`, also run by workspace tests,
+`tests/fixtures/function-families/byte-window-oracle.rs`, also run by workspace tests,
 specifies byte significance arithmetically, without using byte-conversion APIs in
 the expected-value calculation. It checks offsets, every contributing byte,
 outside-window independence, endian/window differences, copied/borrowed

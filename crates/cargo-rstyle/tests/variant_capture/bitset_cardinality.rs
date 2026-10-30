@@ -28,7 +28,7 @@ fn captured(target: Option<&str>) -> (tempfile::TempDir, Value) {
 
 fn captured_context(target: Option<&str>, no_std: bool) -> (tempfile::TempDir, Value) {
     let directory = clone_workspace();
-    let source = include_str!("../../../../eval/coverage-development/bitset-cardinality.rs");
+    let source = include_str!("../../../../tests/fixtures/function-families/bitset-cardinality.rs");
     let source = format!("{}{}", if no_std { "#![no_std]\n" } else { "" }, source);
     std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
     let mut flags = vec!["--extraction-profile", "hir-data-v3"];

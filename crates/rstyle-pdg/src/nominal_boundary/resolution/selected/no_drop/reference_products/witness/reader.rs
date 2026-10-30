@@ -50,7 +50,7 @@ impl Reader {
 fn reader_tree(spelling: &str) -> TypeTree {
     let selection: serde_json::Value = serde_json::from_str(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../eval/coverage-development/line-reader/selection.json"
+        "/../../tests/fixtures/function-families/line-reader/selection.json"
     )))
     .unwrap();
     let original = selection["owners"][0]["source"].as_str().unwrap();

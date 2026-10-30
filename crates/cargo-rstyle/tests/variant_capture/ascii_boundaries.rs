@@ -1,6 +1,7 @@
 use super::*;
 
-const SOURCE: &str = include_str!("../../../../eval/coverage-development/ascii-boundaries.rs");
+const SOURCE: &str =
+    include_str!("../../../../tests/fixtures/function-families/ascii-boundaries.rs");
 
 fn captured(target: &str, no_std: bool) -> (tempfile::TempDir, Value) {
     let directory = clone_workspace();

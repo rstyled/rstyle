@@ -13,7 +13,7 @@ const FAILURE: &str = "/body/children/0/children/1/children/1/children/0/childre
 
 fn selection() -> Value {
     serde_json::from_str(include_str!(
-        "../../../../../eval/coverage-development/wire-usize-readers/selection.json"
+        "../../../../../tests/fixtures/function-families/wire-usize-readers/selection.json"
     ))
     .unwrap()
 }

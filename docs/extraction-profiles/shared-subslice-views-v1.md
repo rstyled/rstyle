@@ -27,7 +27,7 @@ exceptional flow `omitted`. It is a normal-completion requirement, not an assert
 that every input is in bounds. Base snapshots are preserved even when endpoint
 expressions rebind the original reference. This differs from built-in scalar
 indexing and is established by an independent Rust runtime/MIR oracle in
-`eval/coverage-development/subslice-order.rs`.
+`tests/fixtures/function-families/subslice-order.rs`.
 
 Reference origin sets retain the possible formal roots. Exact view offsets and
 lengths remain in graph dependencies and bounds metadata, including through saved

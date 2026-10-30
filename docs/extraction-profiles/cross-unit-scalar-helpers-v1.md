@@ -1,7 +1,7 @@
 # Selected cross-unit scalar helpers
 
 Data-v3 3.82 connects the unchanged calendar family in
-[the separate development selection](../../eval/coverage-development/calendar-helpers/selection.json).
+[the separate development selection](../../tests/fixtures/function-families/calendar-helpers/selection.json).
 `Month::length` and deprecated `days_in_year_month` call the local
 `time::util::days_in_month`, which calls the original `time-core` dependency.
 All five selected core helpers remain part of the complete required chain.

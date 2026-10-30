@@ -25,7 +25,7 @@ fn unrelated() -> usize { 3 }
 fn mutable_scalar_formals_verify_complete_original_memory_and_reject_corruptions() {
     let selection: Value = serde_json::from_str(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../eval/coverage-development/backtrack-match/selection.json"
+        "/../../tests/fixtures/function-families/backtrack-match/selection.json"
     )))
     .unwrap();
     let source = selection["function"]["source"].as_str().unwrap();

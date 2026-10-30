@@ -1,7 +1,8 @@
 use super::float_kernels::function;
 use super::*;
 
-const ORIGINAL: &str = include_str!("../../../../eval/coverage-development/base64ct-length.rs");
+const ORIGINAL: &str =
+    include_str!("../../../../tests/fixtures/function-families/base64ct-length.rs");
 const EXTRA: &str = r#"
 pub fn caller(n: usize, padded: bool) -> Option<usize> { encoded_len_inner(n, padded) }
 pub fn same(n: usize, padded: bool) -> Option<usize> { encoded_len_inner(n, padded) }

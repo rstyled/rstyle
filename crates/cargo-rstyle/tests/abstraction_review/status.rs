@@ -405,7 +405,7 @@ fn exact_existing_trait_suppression_assesses_a_retained_capability_as_no_finding
     .dismiss();
     let bytes = std::fs::read(&file).unwrap();
     let labels: Value = serde_json::from_str(include_str!(
-        "../../../../eval/clones-capability/capability-cases.json"
+        "../../../../tests/fixtures/advisory/capability-cases.json"
     ))
     .unwrap();
     let source = labels["cases"]

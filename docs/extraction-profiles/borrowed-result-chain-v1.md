@@ -110,7 +110,7 @@ bounded helper leaf; the natural capture costs the existing full owning-unit run
 
 ## Data-v3 3.67 owner foundation
 
-The separate [Input selection](../../eval/coverage-development/input-owner-selection.json)
+The separate [Input selection](../../tests/fixtures/function-families/input-owner-selection.json)
 targets original `get_earliest` before borrowed results. Mandatory mixed-enum
 `Unit | SingleTuple` shapes retain all Anchored variants and nested Copy wrappers;
 their exact transparent repr, source, derives and fields are checked. Complete
@@ -131,7 +131,7 @@ admissions, zero losses. Full-library matching remains incomplete.
 
 ## Data-v3 3.68: original scalar/Span getter composition
 
-The [source selection](../../eval/coverage-development/input-owner-selection.json)
+The [source selection](../../tests/fixtures/function-families/input-owner-selection.json)
 now also fixes original `get_span`, `start`, `end` and repeated-call `is_done`:
 return the configured span/endpoints and exactly `start > end`, including empty
 and terminated spans. They share the complete owner and selected Copy dependency
@@ -172,7 +172,7 @@ actual-argument substitution preserves interior referents. No array-view panic
 or partial-flow permission is inherited; owner, lifetime, drop and effect checks
 remain required. Missing reads and historical-policy downgrades reject.
 
-The [source selection](../../eval/coverage-development/borrowed-result-selection.json)
+The [source selection](../../tests/fixtures/function-families/borrowed-result-selection.json)
 fixes the complete original `haystack → is_char_boundary → utf8::is_boundary`
 chain, source/build identities and independent expectations. All three strictly
 admit. The root roadmap records measured gains and validation; broader borrowed

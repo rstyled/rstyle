@@ -98,7 +98,7 @@ views retain their originating object's location; selection between two owners
 retains the selected origin even if the input borrows overlap.
 
 The separate fixed corpus is
-`eval/coverage-development/borrowed-accel-views.rs`. Before admission evaluation,
+`tests/fixtures/function-families/borrowed-accel-views.rs`. Before admission evaluation,
 the expected in-scope functions are Accel::len, Accel::is_empty, Accel::needles,
 getter_len, getter_empty, getter_view, first, saved, selected and slice_window.
 The latter is an existing slice-only control. Negative expectations are the
@@ -129,7 +129,7 @@ and every seed byte preserve contents/address, while all 8..=255 metadata values
 retain getter behavior and panic on view creation. Run it with:
 
 ```sh
-python3 eval/coverage-development/tagged-units-oracle.py /path/to/regex-automata-0.4.18 --family borrowed-accel
+python3 tests/fixtures/function-families/tagged-units-oracle.py /path/to/regex-automata-0.4.18 --family borrowed-accel
 ```
 
 The runner checks all three original source identities, copies the complete

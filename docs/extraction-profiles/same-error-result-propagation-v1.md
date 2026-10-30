@@ -1,7 +1,7 @@
 # Same-error Result propagation
 
 Data-v3 3.79 connects the original
-[LookSet::available chain](../../eval/coverage-development/result-propagation-selection.json)
+[LookSet::available chain](../../tests/fixtures/function-families/result-propagation-selection.json)
 to fresh `Result<(), E>` helpers. The success type is unit; `E` remains an exact
 source-owned nongeneric `struct E(())` with independently verified absence of
 Drop. Fresh Result method results can also be forwarded whole. Both extensions

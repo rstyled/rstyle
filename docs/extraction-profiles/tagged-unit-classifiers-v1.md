@@ -70,7 +70,7 @@ chains remain deferred; enabling one conversion does not support them.
 
 ## Fixed development extension and baseline
 
-Append `eval/coverage-development/tagged-unit-classifiers.rs` to the unchanged
+Append `tests/fixtures/function-families/tagged-unit-classifiers.rs` to the unchanged
 `tagged-units.rs`. Specify six new positives before admission: Unit::code,
 Unit::is_end, byte_code, end_code, byte_is_end and end_is_end. The four closed
 callers require constructor-to-helper-to-conversion/tag-test composition.

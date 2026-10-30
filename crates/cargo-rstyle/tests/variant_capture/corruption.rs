@@ -5,7 +5,7 @@ fn scalar_enum_documents_reject_tag_payload_operand_effect_and_policy_changes() 
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        include_str!("../../../../eval/coverage-development/tagged-units.rs"),
+        include_str!("../../../../tests/fixtures/function-families/tagged-units.rs"),
     )
     .unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);

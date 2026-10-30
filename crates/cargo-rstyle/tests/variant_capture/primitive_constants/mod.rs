@@ -3,8 +3,9 @@ use super::float_kernels::function;
 use super::*;
 use rstyle_pdg::unit_store::{BundleManifest, UnitStore, transport_checksum};
 
-const SELECTION: &str =
-    include_str!("../../../../../eval/coverage-development/primitive-constant-selection.json");
+const SELECTION: &str = include_str!(
+    "../../../../../tests/fixtures/function-families/primitive-constant-selection.json"
+);
 const RESOLUTION: &str = "resolved_primitive_constant";
 
 fn original() -> String {

@@ -29,7 +29,7 @@ not reduced Adler components. The constructor preserves two distinct u16 halves;
 the getter widens them without sign extension or truncation and combines them.
 This contract does not validate an Adler checksum or certify checksum updates.
 
-`eval/coverage-development/checksum-state.rs` fixes a separate development
+`tests/fixtures/function-families/checksum-state.rs` fixes a separate development
 selection. The five intended positives are State::from_checksum, State::checksum,
 roundtrip, saved_input and widen. A saved constructed owner must survive later
 input rebinding. The custom trait implementation/caller and floating conversion

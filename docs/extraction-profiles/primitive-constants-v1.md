@@ -2,7 +2,7 @@
 
 Data3.77 (`rust.pinned-primitive-constants`) connects original ryu1.0.23
 `f2s_intrinsics::mul_shift_32`; the existing `mul_shift_64` remains an admitted
-anchor. [Selection](../../eval/coverage-development/primitive-constant-selection.json)
+anchor. [Selection](../../tests/fixtures/function-families/primitive-constant-selection.json)
 fixes source, build contexts, independent expectations and unsafe negative controls.
 
 Only original unexpanded `u32::MAX` expressions qualify. A separate wire record

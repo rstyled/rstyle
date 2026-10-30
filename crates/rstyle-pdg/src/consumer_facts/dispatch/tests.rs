@@ -92,7 +92,7 @@ fn own(facts: &mut HirFnFacts, source: &str) {
 #[test]
 fn independently_authored_dispatch_labels() {
     let cases: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../eval/clones-capability/enum-dispatch-cases.json"
+        "../../../../../tests/fixtures/advisory/enum-dispatch-cases.json"
     ))
     .unwrap();
     for case in cases["cases"].as_array().unwrap() {

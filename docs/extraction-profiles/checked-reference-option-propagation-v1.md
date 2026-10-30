@@ -2,7 +2,7 @@
 
 Data-v3 3.80 connects the source-selected Memchr, Memchr2 and Memchr3 prefix
 methods in regex-automata 0.4.18. Activation evidence is recorded in the root
-roadmap; the [selection](../../eval/coverage-development/prefilter-prefix/selection.json)
+roadmap; the [selection](../../tests/fixtures/function-families/prefilter-prefix/selection.json)
 fixes original bytes, build contexts and expectations before admission.
 
 The bounded contract accepts `Option<&u8>` propagation into an

@@ -4,7 +4,7 @@ use crate::concrete_types::{Field, MixedVariant};
 
 fn original_error() -> TypeTree {
     let selection: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../eval/coverage-development/uncompressed-size/selection.json"
+        "../../../../tests/fixtures/function-families/uncompressed-size/selection.json"
     ))
     .unwrap();
     let source: crate::SourceText = selection["owners"][0]["source"].as_str().unwrap().into();

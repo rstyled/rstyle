@@ -2,7 +2,7 @@ use super::*;
 
 fn workspace(case: &str) -> TempDir {
     let cases: Value = serde_json::from_str(include_str!(
-        "../../../../eval/clones-capability/planning-cases.json"
+        "../../../../tests/fixtures/advisory/planning-cases.json"
     ))
     .unwrap();
     let source = cases["cases"]

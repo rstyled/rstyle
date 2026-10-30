@@ -26,7 +26,7 @@ fn captured(target: Option<&str>) -> (tempfile::TempDir, Value) {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        include_str!("../../../../eval/coverage-development/borrowed-accel-views.rs"),
+        include_str!("../../../../tests/fixtures/function-families/borrowed-accel-views.rs"),
     )
     .unwrap();
     let mut flags = vec!["--extraction-profile", "hir-data-v3"];

@@ -17,7 +17,8 @@ fn end_of_input_family_composes_with_checked_panic_evidence() {
         }
         for no_std in [false, true] {
             let directory = clone_workspace();
-            let source = include_str!("../../../../eval/coverage-development/end-of-input.rs");
+            let source =
+                include_str!("../../../../tests/fixtures/function-families/end-of-input.rs");
             let source = format!("{}{}", if no_std { "#![no_std]\n" } else { "" }, source);
             std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
             let (output, report) = clones(

@@ -1,6 +1,6 @@
 //! Independently executable semantics and reviewed pinned implementation sources.
 
-#[path = "../../../eval/coverage-development/byte-window-oracle.rs"]
+#[path = "../../../tests/fixtures/function-families/byte-window-oracle.rs"]
 mod runtime;
 
 #[test]

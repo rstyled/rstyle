@@ -1,4 +1,11 @@
-# Bounded clones capability acceptance
+# Capability evaluation tools and recorded acceptance studies
+
+Current `compiler_*.py` tools evaluate saved compiler reports against authored
+labels. Their Python tests remain runnable independently of Rust regression
+tests. Shared advisory regression specifications now live in
+[`tests/fixtures/advisory/`](../../tests/fixtures/advisory/), and function-family
+inputs live in [`tests/fixtures/function-families/`](../../tests/fixtures/function-families/README.md).
+The study receipts below retain their original paths and revisions.
 
 **Historical comparison archive.** The reference implementation is preserved on
 branch `legacy` at `753382ad`. Current code has no reference engine or engine
@@ -14,7 +21,7 @@ This corpus freezes source-authored expectations for the capability migration.
 It is independent of new producer output and is not a broad Rust benchmark or a
 claim of Go compatibility. The isolated Cargo workspace has no dependencies.
 
-`proposal-review-cases.json` separately freezes the next helper-proposal and
+[`proposal-review-cases.json`](../../tests/fixtures/advisory/proposal-review-cases.json) separately freezes the next helper-proposal and
 review-lifecycle requirements: eight source-authored proposal cases and nine
 identity/dismissal transitions. Their embedded source examples and synthetic
 transitions are specifications, not captured facts or passing implementation
@@ -193,7 +200,7 @@ improvement. Exit status is zero only when every row has measured agreement,
 explicit excluded/disabled policy agreement, or a reviewed improvement. This adapter assesses source rules only; pair and abstraction quality
 need their own consumers and are deliberately excluded from its denominators.
 
-`enum-dispatch-cases.json` freezes nine local dispatch requirements. It includes
+[`enum-dispatch-cases.json`](../../tests/fixtures/advisory/enum-dispatch-cases.json) freezes nine local dispatch requirements. It includes
 an opaque callee body whose signature remains usable, exact existing-trait
 suppression, unrelated traits, arity/receiver/free-callee counterexamples and
 unsupported guarded/opaque arms. The real-Cargo `migration_dispatch` tests assess
@@ -201,7 +208,7 @@ these source labels, full/compact/default reports, budget and mixed-coverage
 semantics, and explicit saved-run replay. See the
 [bounded consumer contract](../../docs/clones-enum-dispatch.md).
 
-`effects-cases.json` freezes direct scalar assignment budgets, caller-visible
+[`effects-cases.json`](../../tests/fixtures/advisory/effects-cases.json) freezes direct scalar assignment budgets, caller-visible
 provenance, opaque boundaries and saved-policy reevaluation. Initial cases
 exercise the mutation consumer. The bounded ordinary `if`/`else` extension counts
 both authored arms once, with distinct lexical roots and unknown boundaries;
@@ -219,7 +226,7 @@ are explicit skips, and suppression alone never makes an opaque owner clean.
 A complete direct-write inventory does not establish purity or density, and the
 static-site vocabulary differs intentionally from legacy mutable-borrow events.
 
-`planning-cases.json` defines required-edit coordination from explicit helper
+[`planning-cases.json`](../../tests/fixtures/advisory/planning-cases.json) defines required-edit coordination from explicit helper
 wrapper intents. Initial real-Cargo tests cover shared bodies, disjoint bodies,
 helper-policy rejection, unavailable evidence, shared lib/test source regions and
 source-free replay. Pure cases cover half-open intersections, conflicting snapshots
@@ -227,7 +234,7 @@ and bounded work. Next/later local-guard and caller-parameter intents remain pen
 no whole-plan independence or safe rewrite is inferred. See
 [edit planning](../../docs/clones-edit-planning.md).
 
-`helper-effect-cases.json` defines caller-visible scalar mutation through original
+[`helper-effect-cases.json`](../../tests/fixtures/advisory/helper-effect-cases.json) defines caller-visible scalar mutation through original
 same-unit leaves and one checked wrapper (at most two call edges), distinct call
 occurrences, formal mappings, unknown boundaries,
 bounded summary reuse and source-free replay. It extends the direct-site cases
@@ -236,7 +243,7 @@ previous nested-helper negative to a complete owned-scalar two-edge case and add
 a separate third-edge negative; it does not establish arbitrary transitive closure. See
 [mutation effects](../../docs/clones-mutation-effects.md).
 
-`capability-cases.json` specifies witnessed local two-method capability proposals
+[`capability-cases.json`](../../tests/fixtures/advisory/capability-cases.json) specifies witnessed local two-method capability proposals
 from original ordered wrapper calls. It includes opaque method bodies, exact
 existing-trait suppression, negative namesakes and repeated members, unavailable
 namespaces/coercions, explicit budgets and source-free replay. See

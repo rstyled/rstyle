@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         serde_json::from_slice(&std::fs::read(path)?)?
     } else {
         serde_json::from_str(include_str!(
-            "../../../eval/coverage-development/line-tail/selection.json"
+            "../../../tests/fixtures/function-families/line-tail/selection.json"
         ))?
     };
     run(&report, &selection)?;

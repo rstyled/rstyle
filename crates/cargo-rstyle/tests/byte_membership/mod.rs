@@ -126,7 +126,7 @@ fn byte_membership_family_keeps_partial_and_unsupported_compositions_distinct() 
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        include_str!("../../../../eval/coverage-development/byte-membership.rs"),
+        include_str!("../../../../tests/fixtures/function-families/byte-membership.rs"),
     )
     .unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
@@ -233,7 +233,7 @@ fn byte_membership_composition_uses_each_installed_pinned_ci_target() {
         let directory = clone_workspace();
         std::fs::write(
             directory.path().join("src/lib.rs"),
-            include_str!("../../../../eval/coverage-development/byte-membership.rs"),
+            include_str!("../../../../tests/fixtures/function-families/byte-membership.rs"),
         )
         .unwrap();
         let (output, report) = clones(

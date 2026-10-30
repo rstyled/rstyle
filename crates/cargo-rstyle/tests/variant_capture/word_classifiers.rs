@@ -1,8 +1,9 @@
 use super::*;
 
-const TABLE: &str = include_str!("../../../../eval/coverage-development/word-byte-classifiers.rs");
+const TABLE: &str =
+    include_str!("../../../../tests/fixtures/function-families/word-byte-classifiers.rs");
 const SCALAR: &str =
-    include_str!("../../../../eval/coverage-development/byte-scalar-classifiers.rs");
+    include_str!("../../../../tests/fixtures/function-families/byte-scalar-classifiers.rs");
 
 #[test]
 fn word_classifier_source_first_selections_keep_complete_blocker_chains() {

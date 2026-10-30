@@ -9,7 +9,7 @@ identities. Strict replay and validation evidence appear at each milestone below
 
 Unchanged libm **0.2.16** `math::k_sinf::k_sinf(f64)->f32` and
 `math::k_cosf::k_cosf(f64)->f32`. The versioned
-[selection](../../eval/coverage-development/float-kernels-selection.json) freezes
+[selection](../../tests/fixtures/function-families/float-kernels-selection.json) freezes
 function/file/manifest/build-script/root-module hashes, constant bits, numerical
 expectations and sample identities before admission measurement. No easier public
 delegates replace these private kernels.
@@ -79,7 +79,7 @@ NaN inputs or additional targets. No canonical payload/sign is invented.
 
 ## Independent executable expectations and evidence
 
-The stdlib-only [rational oracle](../../eval/coverage-development/float-kernels-oracle.py)
+The stdlib-only [rational oracle](../../tests/fixtures/function-families/float-kernels-oracle.py)
 uses exact Fraction decimal parsing, IEEE normalization/ties-to-even and rounding
 after each source operation, then binary32 narrowing. Production parsing must be
 independent. Fourteen fixed primitive vectors check ties, subnormal boundaries,
@@ -94,7 +94,7 @@ non-NaNs and exact allowed-set membership for NaNs. This is no approximation tes
 and does not substitute for complete original Cargo capture or extraction proof.
 Log: `/tmp/rstyle-float-kernels-native-oracle.log`.
 
-Run `python3 eval/coverage-development/float-kernels-oracle.py --native PATH`.
+Run `python3 tests/fixtures/function-families/float-kernels-oracle.py --native PATH`.
 The native JSONL protocol is documented in the script. Parent harness
 `/tmp/rstyle-float-kernels-oracle/main.rs` includes the unchanged original whole
 files; no copied polynomial or std sin/cos supplies expected results.
@@ -150,7 +150,7 @@ Retained evidence: `/tmp/rstyle-float-kernels-cfg-if-final-capture.json`,
 `/tmp/rstyle-float-cfg-if-{native-oracle,digits-oracle}.log`.
 ## Original cosine tail (Data-v3 3.65)
 
-[Selection](../../eval/coverage-development/float-cos-tail-selection.json): unchanged
+[Selection](../../tests/fixtures/function-families/float-cos-tail-selection.json): unchanged
 libm0.2.16 `math::k_cos::k_cos(f64,f64)->f64`, bytes2723..2973, SHA-256
 `241cccd334d65622668b01aba6c01735e209c6825500be4263fa81f62fbfd99a`.
 Same complete-original Cargo context as above. Baseline3.64 rejects ordered
@@ -159,9 +159,9 @@ binary64 subtractions, six constants and the two distinct saved `w` bindings now
 compose through the exhaustive dependency proof; no broader source exception.
 The new capability is required by facts and document policy independently.
 
-The [independent oracle](../../eval/coverage-development/float-cos-tail-oracle.py)
+The [independent oracle](../../tests/fixtures/function-families/float-cos-tail-oracle.py)
 rounds exact rational arithmetic after every source operation. All **4352 inputs**
-pass against the [native harness](../../eval/coverage-development/float-cos-tail-native.rs)
+pass against the [native harness](../../tests/fixtures/function-families/float-cos-tail-native.rs)
 including the unchanged complete original file:256 directed pairs +4096 frozen
 random pairs. Finite/signed-zero expectations are exact. Allowed NaN fractions
 are preferred or either original NaN input's unchanged/quieted fraction, either
@@ -194,7 +194,7 @@ Native3.65 CI passes all three runners (run39646408115).
 
 ## Original sine tail (Data-v3 3.66)
 
-[Selection](../../eval/coverage-development/float-sin-tail-selection.json): unchanged
+[Selection](../../tests/fixtures/function-families/float-sin-tail-selection.json): unchanged
 libm0.2.16 `math::k_sin::k_sin(f64,f64,i32)->f64`, bytes2170..2458, SHA-256
 `7f326ba8cb49bfb91a3a261892f34325a8c92550c2e3ab685362b40aa0d4e1df`.
 The 3.65 ancestor-boundary rejection concealed the complete dependency chain:
@@ -216,7 +216,7 @@ selected original comparisons complete (structurally rejected). Identical diagno
 helper callers match; three-target × std/no_std composition passes. Full-library
 matching remains explicitly incomplete under the zero-pair budget.
 
-The [independent rational oracle](../../eval/coverage-development/float-sin-tail-oracle.py)
+The [independent rational oracle](../../tests/fixtures/function-families/float-sin-tail-oracle.py)
 passes **5384 original native inputs**:1288 directed +4096 frozen random triples.
 When iy==0, y is never evaluated and cannot contribute a NaN payload. Otherwise
 raw x/y unchanged or quieted fractions, either sign, or preferred NaN are permitted

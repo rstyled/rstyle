@@ -99,7 +99,7 @@ closures, macros, async, unsafe or FFI.
 
 ## Fixed development extension and baseline
 
-Append `eval/coverage-development/tagged-byte-comparisons.rs` to the unchanged
+Append `tests/fixtures/function-families/tagged-byte-comparisons.rs` to the unchanged
 eleven-function `tagged-units.rs`. Before admission, specify seven new positives:
 Unit::is_byte, byte_matches, end_never_matches, saved_comparison, local_option,
 default_before_capture and none_uses_default. Byte constructors, sentinel

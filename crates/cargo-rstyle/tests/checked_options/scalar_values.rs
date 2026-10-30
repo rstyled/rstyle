@@ -5,7 +5,7 @@ fn scalar_option_family_completes_the_strict_pipeline() {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        include_str!("../../../../eval/coverage-development/option-byte-widths.rs"),
+        include_str!("../../../../tests/fixtures/function-families/option-byte-widths.rs"),
     )
     .unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
@@ -47,8 +47,8 @@ fn scalar_option_runtime_oracle_checks_every_byte_and_saved_results() {
     let directory = tempfile::tempdir().unwrap();
     let source = format!(
         "{}\n{}",
-        include_str!("../../../../eval/coverage-development/option-byte-widths.rs"),
-        include_str!("../../../../eval/coverage-development/option-byte-width-oracle.rs")
+        include_str!("../../../../tests/fixtures/function-families/option-byte-widths.rs"),
+        include_str!("../../../../tests/fixtures/function-families/option-byte-width-oracle.rs")
     );
     let path = directory.path().join("oracle.rs");
     let binary = directory.path().join("oracle");

@@ -73,7 +73,8 @@ fn check_family(report: &Value, target: &str) {
 
 fn captured(target: Option<&str>, no_std: bool) -> (TempDir, Value) {
     let directory = clone_workspace();
-    let source = include_str!("../../../../eval/coverage-development/accelerator-packing.rs");
+    let source =
+        include_str!("../../../../tests/fixtures/function-families/accelerator-packing.rs");
     let source = format!("{}{}", if no_std { "#![no_std]\n" } else { "" }, source);
     std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
     let mut args = vec!["--extraction-profile", "hir-data-v3"];

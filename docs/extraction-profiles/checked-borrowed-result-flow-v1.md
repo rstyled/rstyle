@@ -2,7 +2,7 @@
 
 Data-v3 3.81 connects the source-selected `lz4_flex 0.11.6`
 `block::uncompressed_size` chain. The
-[development selection](../../eval/coverage-development/uncompressed-size/selection.json)
+[development selection](../../tests/fixtures/function-families/uncompressed-size/selection.json)
 fixes its original source, complete error declaration and nine build contexts.
 The frozen sixty-function inventory remains separate.
 

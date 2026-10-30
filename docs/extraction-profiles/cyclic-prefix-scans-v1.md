@@ -100,7 +100,7 @@ The independent runtime oracle passes three tests: bounded zero-prefix lengths,
 all 256 translation-byte values with explicit mismatching entries and maximal
 starting positions, and 1025 alternating/final-condition cases. Those runtime
 checks establish semantic expectations, not strict pipeline support. The fixtures
-and oracles live in eval/coverage-development/cyclic-prefix-scans.rs and
+and oracles live in tests/fixtures/function-families/cyclic-prefix-scans.rs and
 cyclic-prefix-oracle.rs. Original-package evidence remains required for each
 natural function before claiming any admission gain.
 

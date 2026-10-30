@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 fn mutable_scalar_original_alpha_and_reversed_stores_compose_with_default_matching() {
     let selection: Value = serde_json::from_str(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../eval/coverage-development/backtrack-match/selection.json"
+        "/../../tests/fixtures/function-families/backtrack-match/selection.json"
     )))
     .unwrap();
     let original = selection["function"]["source"].as_str().unwrap();

@@ -6,7 +6,7 @@ fn end_of_input_rejects_forged_message_operands_and_panic_summary() {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        include_str!("../../../../../eval/coverage-development/end-of-input.rs"),
+        include_str!("../../../../../tests/fixtures/function-families/end-of-input.rs"),
     )
     .unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);

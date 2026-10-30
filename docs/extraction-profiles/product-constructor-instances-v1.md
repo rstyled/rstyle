@@ -2,7 +2,7 @@
 
 Data-v3 3.91 adds a private owning projection for the original regex-automata
 0.4.18 `Match::new<Span>`. The separate
-[development selection](../../eval/coverage-development/match-construction/selection.json)
+[development selection](../../tests/fixtures/function-families/match-construction/selection.json)
 includes `Match::new<Range<usize>>`; Data-v3 3.92 now connects that second
 private owning instance. Both selected instances now pass fresh default/no-default
 capture and strict replay on ARM Linux, x86 Linux and ARM macOS; the complete

@@ -4,7 +4,7 @@ Data-v3 3.98 joins the source-selected `regex-automata 0.4.18`
 `SmallIndex::new → TryFrom<usize>` chain to MAX, `as_usize`,
 `Usize::as_u64` and `new_unchecked`. Original selections, contexts and independent
 boundary expectations remain in
-[the development corpus](../../eval/coverage-development/checked-index-construction/README.md).
+[the development corpus](../../tests/fixtures/function-families/checked-index-construction/README.md).
 
 `rust.nominal-product-constants` covers original associated constants initialized
 by the checked local scalar tuple constructor from reviewed `core::i32::MAX`,
