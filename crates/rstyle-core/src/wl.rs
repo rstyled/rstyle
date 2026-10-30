@@ -32,10 +32,10 @@ pub fn fnv1a(bytes: &[u8]) -> u64 {
 
 /// Order-sensitive mix of two values (both are hashed, so `combine(a, b) != combine(b, a)`).
 pub fn combine(acc: u64, value: u64) -> u64 {
-    let bytes = acc.to_le_bytes().into_iter().chain(value.to_le_bytes());
-    bytes.fold(FNV_OFFSET, |hash, byte| {
-        (hash ^ u64::from(byte)).wrapping_mul(FNV_PRIME)
-    })
+    let mut bytes = [0; 16];
+    bytes[..8].copy_from_slice(&acc.to_le_bytes());
+    bytes[8..].copy_from_slice(&value.to_le_bytes());
+    fnv1a(&bytes)
 }
 
 /// Small summaries collected together during the existing call-count pass.
@@ -449,3 +449,7 @@ mod tests {
 #[cfg(test)]
 #[path = "wl/diameter_tests.rs"]
 mod diameter_tests;
+
+#[cfg(test)]
+#[path = "wl/combine_tests.rs"]
+mod combine_tests;

@@ -7735,3 +7735,45 @@ eval/clones-capability/pattern-diameter-traversal-study.json. C116 native CI pas
 Ubuntu x86/ARM and macOS15; containing-commit native CI remains pending. The next
 measured candidate is existing WL combine iterator overhead; per-digest temporary
 allocation is a separate candidate. The broader capability goal remains active.
+
+### C118 — reuse byte-slice hashing in the existing WL kernel (2026-10-30)
+
+Lead owns the small helper change, registration, profiling, integration and Git;
+the acceptance worker owns three frozen leaf tests. The completed C117 core
+profile attributes substantial exclusive work to array iterator/chain wrappers
+inside `wl::combine`. It now packs the same two little-endian operands into one
+stack array and calls the existing `fnv1a` byte-slice helper. Both full operands
+remain hashed input, starting from the same frozen offset and using the same
+wrapping prime. This removes debug iterator overhead; it does not reduce the
+number of bytes hashed or introduce a hash algorithm, checksum, cache, graph
+copy, policy or strict-matching change. No release-build speedup is claimed.
+
+An independent literal-constant, shifted-byte oracle checks zero/MAX and
+asymmetric reversed operands, every bit in each operand and all 65,536 byte
+pairs. All 18 focused WL tests pass. On the same 10,142 captured functions, native
+proposer observations improve from 4.582/4.597s to 3.890/3.850s; the complete
+reports remain exactly equal. The bounded 442-function core Callgrind run drops
+from 952,184,212 to 762,055,348 instructions (20.0% fewer), exits successfully and
+retains the original report. Its Valgrind brk warning and exclusive-attribution
+limits remain explicit; moving work into the reused helper is not disappearance
+of hashing work.
+
+Production replay of the explicit C116 saved metadata run improves from
+15.00–15.19s to 14.30–14.34s, with essentially unchanged peak process RSS. Both
+complete contextual reports are exactly equal. Across C117 and C118 on these
+same recorded inputs, proposer time improves from 8.253s to 3.850–3.890s and
+saved CLI replay from 18.36–18.77s to 14.30–14.34s. These are sequential local
+warm debug observations, not cold builds or incremental-capture claims.
+
+All 3,761 Rust tests pass (5 skipped, 263.195s), including both original NonZero
+failures, plus doctests, workspace/all-target Clippy, formatting and diff checks.
+Style is clean over 10,142 functions. Both pattern gates have zero visible
+findings and the same 13 reviewed raw IDs. Receipt:
+eval/clones-capability/pattern-combine-iterator-study.json. C116 native Ubuntu
+x86/ARM and macOS15 CI passes; containing-commit native CI remains pending.
+
+The existing numeric collector/review seam is already shared. Default root
+style remains separate from these performance changes: C108's configured density
+findings and their usefulness must retain an intentional disposition, rather than
+being cleared by metric rollback, suppression or arbitrary refactors. The broader
+capability goal remains active.
