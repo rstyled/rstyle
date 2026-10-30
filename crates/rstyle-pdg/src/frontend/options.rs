@@ -309,6 +309,7 @@ impl FrontendOptions {
         }
     }
 
+    // rstyle-allow(side_effect_density): Interning deliberately updates both the owner table and its census reference without duplicating evidence.
     pub(crate) fn intern_census(
         &mut self,
         owners: &mut Vec<Arc<crate::nominal_boundary::census::Census>>,

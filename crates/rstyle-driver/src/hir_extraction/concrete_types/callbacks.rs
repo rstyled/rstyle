@@ -12,6 +12,7 @@ impl<'tcx> Capture<'_, 'tcx> {
         self.callback_environments_in(node, None)
     }
 
+    // rstyle-allow(side_effect_density): Recursive capture visitor installs callback observations in the original mutable node tree.
     fn callback_environments_in(
         &mut self,
         node: &mut HirNode,

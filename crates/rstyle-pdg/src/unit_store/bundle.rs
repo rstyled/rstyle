@@ -166,6 +166,7 @@ impl UnitStore {
         Self::load_bundle(bundle.bytes(), inspect, true)
     }
 
+    // rstyle-allow(side_effect_density): Bundle loading coordinates decode, inspection and validation; inherited IO is optional stage telemetry.
     fn load_bundle(
         bytes: &[u8],
         inspect: impl FnOnce(&[HirFnFacts]) -> Result<(), String>,

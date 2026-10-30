@@ -312,6 +312,7 @@ impl<T: Inventory, H> Report<T, H> {
     }
 }
 
+// rstyle-allow(side_effect_density): Optional baseline publication is a thin IO boundary with completeness checks in Report::publish.
 pub(in crate::clones) fn publish_optional<T: Inventory, H>(
     report: Option<&Report<T, H>>,
     path: Option<&Path>,

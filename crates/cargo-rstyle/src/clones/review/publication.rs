@@ -6,6 +6,7 @@ pub(super) enum Mode {
     CreateNew,
 }
 
+// rstyle-allow(side_effect_density): Atomic review publication keeps write, flush and persist together so failures cannot publish partial bytes.
 pub(super) fn write(path: &Path, bytes: &[u8], mode: Mode) -> Result<(), String> {
     let directory = path
         .parent()

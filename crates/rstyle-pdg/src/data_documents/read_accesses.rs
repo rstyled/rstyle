@@ -152,6 +152,7 @@ pub(super) fn install(
     Ok(locations.into_iter().flatten().collect())
 }
 
+// rstyle-allow(side_effect_density): Node installation applies prepared reads and annotations to the same serialized source operation.
 fn install_node(
     pair: &mut Pair,
     source: &HirNode,

@@ -215,6 +215,7 @@ fn copy_snapshot(original: &Unit, unit: &Unit) -> Result<(), String> {
     Ok(())
 }
 
+// rstyle-allow(side_effect_density): Capture restart boundary creates a fresh directory and republishes the existing plan.
 fn restart(capture: &mut Capture) -> Result<(), String> {
     let parent = capture.directory.parent().ok_or("Missing capture parent")?;
     capture.directory = tempfile::Builder::new()

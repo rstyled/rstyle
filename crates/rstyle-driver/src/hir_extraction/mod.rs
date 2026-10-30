@@ -71,6 +71,7 @@ impl Options<'_> {
     }
 }
 
+// rstyle-allow(side_effect_density): Crate capture boundary retains optional snapshots around helper certification.
 pub fn crate_facts(
     tcx: TyCtxt<'_>,
     scanned: &[source::Function],

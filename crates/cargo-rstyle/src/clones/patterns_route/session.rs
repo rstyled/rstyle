@@ -29,6 +29,7 @@ pub(super) struct Review<'a> {
     pub ignore_file: Option<std::path::PathBuf>,
 }
 
+// rstyle-allow(side_effect_density): Pattern command boundary evaluates the captured session and publishes the requested review result.
 pub(super) fn publish(
     cli: &Cli,
     review: Option<Review<'_>>,

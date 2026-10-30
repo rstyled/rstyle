@@ -36,6 +36,7 @@ impl InstanceProof for ConstructorProof<'_> {
         checked.argument()
     }
 
+    // rstyle-allow(side_effect_density): Product instance installation retains its dependency and checked constructor record together.
     fn install(
         self,
         store: &mut UnitStore,

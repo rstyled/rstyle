@@ -372,6 +372,7 @@ struct Configuration {
     source_baseline: Option<review::source_baseline::Baseline>,
 }
 
+// rstyle-allow(side_effect_density): Configuration boundary loads explicit matching, review and advisory inputs without changing their policies.
 fn configuration(cli: &Cli, args: &Args) -> Result<Configuration, String> {
     if cli.config.is_some() || cli.ignore_file.is_some() {
         return Err(

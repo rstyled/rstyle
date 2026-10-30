@@ -82,6 +82,7 @@ impl UnitStore {
 }
 
 /// Seal the exact streamed publication bytes only after its final flush succeeds.
+// rstyle-allow(side_effect_density): Streaming publication boundary records exact bytes and requires final flush before returning a seal.
 pub(super) fn seal<W: Write>(
     writer: W,
     publish: impl FnOnce(&mut dyn Write) -> Result<(), String>,

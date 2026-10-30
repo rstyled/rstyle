@@ -483,6 +483,7 @@ struct CallContext<'a, 'b> {
     routes: &'a Routes<'a>,
 }
 
+// rstyle-allow(side_effect_density): Dependency association boundary records a selected foreign call through the shared artifact-seal cache.
 fn associate_call(
     context: &CallContext<'_, '_>,
     caller: usize,
@@ -704,6 +705,7 @@ fn extra_filename(invocation: &[String]) -> Result<&str, String> {
     }
 }
 
+// rstyle-allow(side_effect_density): Artifact IO boundary reads and seals each dependency once, retaining the checked result.
 fn seal(path: &Path, seals: &mut Seals) -> Result<ArtifactSeal, String> {
     if let Some(seal) = seals.get(path) {
         return Ok(seal.clone());

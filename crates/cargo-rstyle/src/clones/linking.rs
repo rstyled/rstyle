@@ -68,6 +68,7 @@ pub(super) fn load_capture(directory: &Path, args: &Args) -> Result<capture::Cap
     Ok(capture)
 }
 
+// rstyle-allow(side_effect_density): Saved closure input boundary reads and validates one manifest.
 fn manifest(directory: &Path) -> Result<Manifest, String> {
     let manifest: Manifest = read_json(&directory.join(FILE))?;
     if manifest.schema != SCHEMA
@@ -79,6 +80,7 @@ fn manifest(directory: &Path) -> Result<Manifest, String> {
     Ok(manifest)
 }
 
+// rstyle-allow(side_effect_density): Dependency handoff boundary loads owners, validates links and publishes the completed closure.
 pub(super) fn consume(
     capture: &capture::Capture,
     args: &Args,
@@ -136,6 +138,7 @@ fn requests<'a>(
         .ok_or_else(|| "Missing dependency report assignment".into())
 }
 
+// rstyle-allow(side_effect_density): Dependency closure boundary checks saved Cargo artifacts against the current unit observations.
 fn check_closure(
     capture: &capture::Capture,
     args: &Args,
@@ -177,6 +180,7 @@ fn check_closure(
     Ok(checked)
 }
 
+// rstyle-allow(side_effect_density): Cargo log input boundary reads records and requires a successful terminal completion.
 fn cargo_artifacts(directory: &Path) -> Result<Vec<Value>, String> {
     let file = std::fs::File::open(directory.join("cargo.jsonl")).map_err(|e| e.to_string())?;
     let reader = std::io::BufReader::new(file);

@@ -67,16 +67,18 @@ jobs:
           path: target/nextest/ci/junit.xml
           if-no-files-found: ignore
 
-      # Preserve the reference style gate during compiler finding review.
-      # Default compiler style keeps density findings blocking; no bulk dismissal.
+      # Default compiler style keeps unreviewed findings blocking.
       # Exit 1 = violations, 2 = tool error.
       # Keep this full-workspace check here; CLI tests use small fixtures to avoid
       # repeating workspace extraction and competing for Cargo's build lock.
-      - name: rstyle reference self-check
+      - name: rstyle self-check
         run: |
-          ./scripts/style.sh --style-engine legacy --format json > rstyle-report.json || status=$?
+          ./scripts/style.sh --format json > rstyle-report.json || status=$?
           cat rstyle-report.json
           exit "${status:-0}"
+
+      - name: rstyle reference self-check
+        run: ./scripts/style.sh --style-engine legacy --format json > rstyle-reference-report.json
 
       # Dog-food: merge candidates. Fix each one or dismiss it after review with
       # `cargo rstyle ignore <id> --reason "..."` (committed in rstyle-ignore.toml).

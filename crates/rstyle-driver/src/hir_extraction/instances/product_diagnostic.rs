@@ -142,6 +142,7 @@ enum NodeType {
     },
 }
 
+// rstyle-allow(side_effect_density): Diagnostic capture boundary loads explicit requests and publishes original product-instance observations.
 pub(crate) fn capture(
     tcx: TyCtxt<'_>,
     scanned: &[source::Function],

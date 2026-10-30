@@ -579,6 +579,7 @@ impl<'a> Flow<'a> {
         self.install_binding(binding, expected.value)
     }
 
+    // rstyle-allow(side_effect_density): Lexical binding installation keeps symbol membership, shadow stacks and the current frame aligned.
     fn install_binding(&mut self, binding: &BindingFact, value: Value) -> Result<()> {
         self.bindings.insert(binding.symbol.clone());
         self.scope

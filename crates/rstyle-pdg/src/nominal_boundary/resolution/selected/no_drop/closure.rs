@@ -550,6 +550,7 @@ impl Closure<'_> {
         }
         Ok(())
     }
+    // rstyle-allow(side_effect_density): Module entry initializes the namespace, inherited definitions and lexical scope as one visitor transition.
     fn begin_module(
         &mut self,
         environment: &Environment,

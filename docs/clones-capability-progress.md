@@ -8172,3 +8172,36 @@ matches its original raw diagnostic. Validation results are recorded in
 Ubuntu x86/ARM and macOS15 CI subsequently passed; containing-commit CI remains
 pending. This milestone does not establish general refactor safety, full caller
 closure, exhaustive Rust semantics or the later selectively scoped graph analyses.
+
+### C128 — review the workspace density findings (2026-10-30)
+
+The user requested fixes or individual ignores after source review. The initial
+compiler-default capture still reports the same 48 findings. Three concern
+recursive helper transport decoding: text fragments were assembled in an owned
+bounded byte buffer through `Write::write_all`, classified as IO. Text assembly now
+uses the buffer's bounded `append` operation directly. The JSON writer adapter
+uses the same operation, preserving the exact 8 MiB limit, error and bytes. A
+boundary test covers exact-limit success and rejected writes leaving bytes intact.
+No effect classifier, metric version, threshold or hash implementation changes.
+
+The other 45 findings are reviewed individually in source. They are deliberate
+Cargo/file/publication orchestration, compiler observation installation, coordinated
+inventory updates, shared observation callbacks or optional performance telemetry.
+Each has its own existing `rstyle-allow(side_effect_density)` comment explaining
+why that operation belongs together. Further splitting would scatter cohesive
+boundaries. These existing annotations absorb propagated effects at their declared
+boundary; they do not remove raw observations or change strict clone matching.
+No new ignore mechanism or separate review store is introduced.
+
+The completed default capture measures all 10,160 authored functions and reports
+zero violations. CI now checks that compiler-default result as well as the existing
+reference style and both pattern routes. Individual review decisions and before/
+after summaries are retained in
+`eval/clones-capability/project-density-cleanup-review.json`.
+
+Validation passes: 3,797 Rust tests (five skipped), doctests, formatting,
+all-target Clippy, 248 Python acceptance tests and 50 script tests. Default and
+reference style both report zero violations. Both pattern gates pass; compiler
+patterns retain the same 12 raw candidate IDs and zero visible candidates.
+Configuration, lockfile and repository pattern ledger remain byte-identical.
+Native CI for these changes is pending push.

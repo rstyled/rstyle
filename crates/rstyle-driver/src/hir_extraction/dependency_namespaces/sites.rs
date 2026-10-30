@@ -283,6 +283,7 @@ impl Leaves<'_, '_> {
         self.import(site, target)
     }
 
+    // rstyle-allow(side_effect_density): Namespace capture boundary records the loaded artifact and its observed export inventory together.
     fn import(&mut self, site: Site, target: DefId) -> Result<(), String> {
         let Some(artifact) = crate_association::namespace_artifact(self.context.tcx, target) else {
             return self

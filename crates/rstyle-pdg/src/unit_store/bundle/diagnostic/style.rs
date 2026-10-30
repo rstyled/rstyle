@@ -5,6 +5,7 @@ use crate::{HirRef, StyleFnFacts, Uncaptured};
 pub const STYLE_FACTS_SCHEMA: &str = "rstyle.diagnostic.style-facts/2";
 
 /// Publish numeric observations with explicit omitted bindings and an actual body identity.
+// rstyle-allow(side_effect_density): Style snapshot publication streams encoded facts through the existing sealed writer boundary.
 pub fn write_sealed_style_snapshot(
     writer: impl Write,
     phase: &str,
@@ -28,6 +29,7 @@ pub fn write_sealed_style_snapshot(
 }
 
 /// Restore only the explicitly requested root-style publication shape and phase.
+// rstyle-allow(side_effect_density): Snapshot decoding has no external IO; its inherited IO and clock events are optional stage telemetry.
 pub fn read_style_snapshot_phase(
     bytes: &[u8],
     expected: &str,

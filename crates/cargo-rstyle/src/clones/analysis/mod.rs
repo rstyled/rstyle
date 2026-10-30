@@ -175,6 +175,7 @@ impl Config {
     }
 }
 
+// rstyle-allow(side_effect_density): Configuration boundary loads source policy and the optional changed-file manifest.
 pub(super) fn configuration(args: &Args) -> Result<Option<Config>, String> {
     if !args.source_rules && !args.guard_clauses && args.changed_files.is_none() {
         return Ok(None);

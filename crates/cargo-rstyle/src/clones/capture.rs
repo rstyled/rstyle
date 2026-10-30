@@ -133,6 +133,7 @@ fn publish_plan(capture: Capture) -> Result<Capture, String> {
     Ok(capture)
 }
 
+// rstyle-allow(side_effect_density): Cargo metadata boundary loads the selected workspace before validating package names.
 fn selected_workspace(cli: &Cli) -> Result<(crate::workspace::Metadata, Value), String> {
     let raw = crate::workspace::load_with_toolchain(
         cli.manifest_path.as_deref(),
@@ -209,6 +210,7 @@ fn capture_environment() -> Result<CaptureEnvironment, String> {
     })
 }
 
+// rstyle-allow(side_effect_density): Subprocess boundary obtains and checks the pinned tool identity.
 fn tool_identity(tool: &str, argument: &str) -> Result<String, String> {
     let output = Command::new(tool)
         .arg(argument)
@@ -490,6 +492,7 @@ fn run_compile(capture: &Capture, cli: &Cli, args: &Args) -> Result<std::process
     Ok(output)
 }
 
+// rstyle-allow(side_effect_density): Cargo planning boundary executes the unit graph query and saves its checked result.
 fn expected_units(capture: &Capture, cli: &Cli, args: &Args) -> Result<Value, String> {
     let output = command(capture, cli, args)?
         .args(["--unit-graph", "-Z", "unstable-options"])
@@ -768,6 +771,7 @@ fn invocation_target(plan: &Plan, invocation: &[String]) -> Result<Option<Target
     }
 }
 
+// rstyle-allow(side_effect_density): Compiler invocation boundary creates a unit directory, runs rustc and publishes successful output.
 fn capture_unit(
     plan: &Path,
     target: Target,
@@ -856,6 +860,7 @@ fn artifact_inventory(
         .collect()
 }
 
+// rstyle-allow(side_effect_density): Artifact read boundary reuses the published bundle checksum or reads the requested small artifact.
 fn read_artifact(directory: &Path, file: String) -> Result<Artifact, String> {
     if file == "unit.evidence.json" {
         let bytes = std::fs::read(directory.join("unit.evidence.manifest.json"))

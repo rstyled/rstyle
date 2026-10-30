@@ -182,6 +182,7 @@ impl CompilerReviews {
 impl Inputs<'_, '_> {
     /// One load and atomic publication across all requested review families.
     /// A failed selector or snapshot leaves every retained entry untouched on disk.
+    // rstyle-allow(side_effect_density): Review transaction boundary evaluates choices and saves the store only for an explicit change.
     pub(in crate::clones) fn apply(
         self,
         ctx: &report::Context<'_>,

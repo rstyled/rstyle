@@ -156,6 +156,7 @@ fn dismiss(
     Ok(())
 }
 
+// rstyle-allow(side_effect_density): Review mutation boundary records one choice and advances its required schema together.
 fn dismiss_one(
     store: &mut ReviewStore,
     row: &observed::Row,

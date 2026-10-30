@@ -170,6 +170,7 @@ impl<'a, 'tcx> Capture<'a, 'tcx> {
         ctx.capture_usize_reader_callbacks(&mut facts.body, &mut |ty| self.observe(ty))
     }
 
+    // rstyle-allow(side_effect_density): Signature installation updates observed parameter and binding tokens together without enriching the body.
     fn install_signature(
         &mut self,
         facts: &mut HirFnFacts,
@@ -1027,6 +1028,7 @@ pub(super) fn static_owner(
     }
 }
 
+// rstyle-allow(side_effect_density): Signature installation keeps normalized parameter, pattern and result types consistent.
 fn interface_tokens(
     signature: &mut rstyle_pdg::SignatureFacts,
     interface: &InterfaceObservations,

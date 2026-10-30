@@ -1,0 +1,500 @@
+{
+  "schema": "rstyle.density-cleanup-review/1",
+  "base_revision": "8dbeadc6",
+  "reviewed_findings": 48,
+  "source_boundary_allowances": 45,
+  "decoder_findings_removed_by_memory_append": 3,
+  "policy": "Individual source comments use existing rstyle-allow semantics, including absorbing propagated effects at reviewed boundaries. Raw facts remain available. No metric, threshold, config, hashing or matching policy changes.",
+  "before_summary": {
+    "functions": 10159,
+    "violations": 48,
+    "complexity_measured": 10159,
+    "complexity_unavailable": 0,
+    "mean_density_milli": 98,
+    "max_density_milli": 15000,
+    "effect_counts": {
+      "io": 338,
+      "mutation": 2144,
+      "panic": 56,
+      "time": 68,
+      "unknown": 167
+    }
+  },
+  "after_summary": {
+    "functions": 10160,
+    "violations": 0,
+    "complexity_measured": 10160,
+    "complexity_unavailable": 0,
+    "mean_density_milli": 94,
+    "max_density_milli": 15000,
+    "effect_counts": {
+      "io": 301,
+      "mutation": 2135,
+      "panic": 56,
+      "time": 62,
+      "unknown": 167
+    }
+  },
+  "capture_complete": true,
+  "assessment_complete": true,
+  "decisions": [
+    {
+      "path": "crates/cargo-rstyle/src/clones/advisory_only.rs",
+      "function": "clones::advisory_only::consume",
+      "previous_density_milli": 538,
+      "decision": "existing source boundary allowance",
+      "reason": "Capture handoff boundary loads one inventory and routes its decoded facts."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/advisory_only.rs",
+      "function": "clones::advisory_only::consume_facts",
+      "previous_density_milli": 571,
+      "decision": "existing source boundary allowance",
+      "reason": "Retain validated unit facts and their build contexts together; optional stage telemetry is intentional."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/analysis/mod.rs",
+      "function": "clones::analysis::configuration",
+      "previous_density_milli": 1000,
+      "decision": "existing source boundary allowance",
+      "reason": "Configuration boundary loads source policy and the optional changed-file manifest."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/capture.rs",
+      "function": "clones::capture::selected_workspace",
+      "previous_density_milli": 600,
+      "decision": "existing source boundary allowance",
+      "reason": "Cargo metadata boundary loads the selected workspace before validating package names."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/capture.rs",
+      "function": "clones::capture::tool_identity",
+      "previous_density_milli": 750,
+      "decision": "existing source boundary allowance",
+      "reason": "Subprocess boundary obtains and checks the pinned tool identity."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/capture.rs",
+      "function": "clones::capture::expected_units",
+      "previous_density_milli": 750,
+      "decision": "existing source boundary allowance",
+      "reason": "Cargo planning boundary executes the unit graph query and saves its checked result."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/capture.rs",
+      "function": "clones::capture::capture_unit",
+      "previous_density_milli": 750,
+      "decision": "existing source boundary allowance",
+      "reason": "Compiler invocation boundary creates a unit directory, runs rustc and publishes successful output."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/capture.rs",
+      "function": "clones::capture::read_artifact",
+      "previous_density_milli": 1000,
+      "decision": "existing source boundary allowance",
+      "reason": "Artifact read boundary reuses the published bundle checksum or reads the requested small artifact."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/capture/associations.rs",
+      "function": "clones::capture::associations::associate_call",
+      "previous_density_milli": 600,
+      "decision": "existing source boundary allowance",
+      "reason": "Dependency association boundary records a selected foreign call through the shared artifact-seal cache."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/capture/associations.rs",
+      "function": "clones::capture::associations::seal",
+      "previous_density_milli": 666,
+      "decision": "existing source boundary allowance",
+      "reason": "Artifact IO boundary reads and seals each dependency once, retaining the checked result."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/capture/dependencies/metadata.rs",
+      "function": "clones::capture::dependencies::metadata::select",
+      "previous_density_milli": 545,
+      "decision": "existing source boundary allowance",
+      "reason": "Cargo metadata boundary resolves requested dependencies before applying pure unit selection."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/capture/owner_reuse.rs",
+      "function": "clones::capture::owner_reuse::restart",
+      "previous_density_milli": 1000,
+      "decision": "existing source boundary allowance",
+      "reason": "Capture restart boundary creates a fresh directory and republishes the existing plan."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/linking.rs",
+      "function": "clones::linking::manifest",
+      "previous_density_milli": 750,
+      "decision": "existing source boundary allowance",
+      "reason": "Saved closure input boundary reads and validates one manifest."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/linking.rs",
+      "function": "clones::linking::consume",
+      "previous_density_milli": 909,
+      "decision": "existing source boundary allowance",
+      "reason": "Dependency handoff boundary loads owners, validates links and publishes the completed closure."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/linking.rs",
+      "function": "clones::linking::check_closure",
+      "previous_density_milli": 750,
+      "decision": "existing source boundary allowance",
+      "reason": "Dependency closure boundary checks saved Cargo artifacts against the current unit observations."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/linking.rs",
+      "function": "clones::linking::cargo_artifacts",
+      "previous_density_milli": 857,
+      "decision": "existing source boundary allowance",
+      "reason": "Cargo log input boundary reads records and requires a successful terminal completion."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/mod.rs",
+      "function": "clones::configuration",
+      "previous_density_milli": 750,
+      "decision": "existing source boundary allowance",
+      "reason": "Configuration boundary loads explicit matching, review and advisory inputs without changing their policies."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/patterns_route/session.rs",
+      "function": "clones::patterns_route::session::publish",
+      "previous_density_milli": 750,
+      "decision": "existing source boundary allowance",
+      "reason": "Pattern command boundary evaluates the captured session and publishes the requested review result."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/review/baseline_common.rs",
+      "function": "clones::review::baseline_common::publish_optional",
+      "previous_density_milli": 1000,
+      "decision": "existing source boundary allowance",
+      "reason": "Optional baseline publication is a thin IO boundary with completeness checks in Report::publish."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/review/publication.rs",
+      "function": "clones::review::publication::write",
+      "previous_density_milli": 666,
+      "decision": "existing source boundary allowance",
+      "reason": "Atomic review publication keeps write, flush and persist together so failures cannot publish partial bytes."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/review/source_workflow.rs",
+      "function": "clones::review::source_workflow::dismiss_one",
+      "previous_density_milli": 666,
+      "decision": "existing source boundary allowance",
+      "reason": "Review mutation boundary records one choice and advances its required schema together."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/clones/review/workflow.rs",
+      "function": "clones::review::workflow::Inputs::<'_, '_>::apply",
+      "previous_density_milli": 600,
+      "decision": "existing source boundary allowance",
+      "reason": "Review transaction boundary evaluates choices and saves the store only for an explicit change."
+    },
+    {
+      "path": "crates/cargo-rstyle/src/diagnostic_process.rs",
+      "function": "diagnostic_process::streamed_output",
+      "previous_density_milli": 583,
+      "decision": "existing source boundary allowance",
+      "reason": "Subprocess IO boundary drains stdout and stderr concurrently before collecting child status."
+    },
+    {
+      "path": "crates/rstyle-driver/src/hir_extraction/concrete_types.rs",
+      "function": "hir_extraction::concrete_types::Capture::<'a, 'tcx>::install_signature",
+      "previous_density_milli": 750,
+      "decision": "existing source boundary allowance",
+      "reason": "Signature installation updates observed parameter and binding tokens together without enriching the body."
+    },
+    {
+      "path": "crates/rstyle-driver/src/hir_extraction/concrete_types.rs",
+      "function": "hir_extraction::concrete_types::interface_tokens",
+      "previous_density_milli": 571,
+      "decision": "existing source boundary allowance",
+      "reason": "Signature installation keeps normalized parameter, pattern and result types consistent."
+    },
+    {
+      "path": "crates/rstyle-driver/src/hir_extraction/concrete_types/callbacks.rs",
+      "function": "hir_extraction::concrete_types::callbacks::<impl hir_extraction::concrete_types::Capture<'_, 'tcx>>::callback_environments_in",
+      "previous_density_milli": 750,
+      "decision": "existing source boundary allowance",
+      "reason": "Recursive capture visitor installs callback observations in the original mutable node tree."
+    },
+    {
+      "path": "crates/rstyle-driver/src/hir_extraction/dependency_namespaces/sites.rs",
+      "function": "hir_extraction::dependency_namespaces::sites::Leaves::<'_, '_>::import",
+      "previous_density_milli": 600,
+      "decision": "existing source boundary allowance",
+      "reason": "Namespace capture boundary records the loaded artifact and its observed export inventory together."
+    },
+    {
+      "path": "crates/rstyle-driver/src/hir_extraction/id_error_maps/environment.rs",
+      "function": "hir_extraction::id_error_maps::environment::signature_types",
+      "previous_density_milli": 1000,
+      "decision": "existing source boundary allowance",
+      "reason": "Type observation deliberately shares one mutable collector across ordered input and output types."
+    },
+    {
+      "path": "crates/rstyle-driver/src/hir_extraction/instances/diagnostic_support.rs",
+      "function": "hir_extraction::instances::diagnostic_support::optional_requests",
+      "previous_density_milli": 750,
+      "decision": "existing source boundary allowance",
+      "reason": "Diagnostic input boundary reads an explicitly requested file selected by the environment."
+    },
+    {
+      "path": "crates/rstyle-driver/src/hir_extraction/instances/product_diagnostic.rs",
+      "function": "hir_extraction::instances::product_diagnostic::capture",
+      "previous_density_milli": 600,
+      "decision": "existing source boundary allowance",
+      "reason": "Diagnostic capture boundary loads explicit requests and publishes original product-instance observations."
+    },
+    {
+      "path": "crates/rstyle-driver/src/hir_extraction/instances/reference_diagnostic.rs",
+      "function": "hir_extraction::instances::reference_diagnostic::capture",
+      "previous_density_milli": 600,
+      "decision": "existing source boundary allowance",
+      "reason": "Diagnostic capture boundary loads explicit requests and publishes original reference-instance observations."
+    },
+    {
+      "path": "crates/rstyle-driver/src/hir_extraction/mod.rs",
+      "function": "hir_extraction::crate_facts",
+      "previous_density_milli": 800,
+      "decision": "existing source boundary allowance",
+      "reason": "Crate capture boundary retains optional snapshots around helper certification."
+    },
+    {
+      "path": "crates/rstyle-pdg/src/data_documents/mutable_scalars.rs",
+      "function": "data_documents::mutable_scalars::install_one",
+      "previous_density_milli": 555,
+      "decision": "existing source boundary allowance",
+      "reason": "Effect installation must update the node, definition inventory and location inventory together."
+    },
+    {
+      "path": "crates/rstyle-pdg/src/data_documents/read_accesses.rs",
+      "function": "data_documents::read_accesses::install_node",
+      "previous_density_milli": 750,
+      "decision": "existing source boundary allowance",
+      "reason": "Node installation applies prepared reads and annotations to the same serialized source operation."
+    },
+    {
+      "path": "crates/rstyle-pdg/src/frontend/options.rs",
+      "function": "frontend::options::FrontendOptions::intern_census",
+      "previous_density_milli": 750,
+      "decision": "existing source boundary allowance",
+      "reason": "Interning deliberately updates both the owner table and its census reference without duplicating evidence."
+    },
+    {
+      "path": "crates/rstyle-pdg/src/helper_calls/digit_products.rs",
+      "function": "helper_calls::digit_products::certify",
+      "previous_density_milli": 800,
+      "decision": "existing source boundary allowance",
+      "reason": "Certification computation has no external IO; its inherited IO and clock events are optional stage telemetry."
+    },
+    {
+      "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+      "function": "helper_calls::transport::Reader::unpack",
+      "previous_density_milli": 1000,
+      "decision": "use bounded in-memory append instead of IO trait call",
+      "reason": "Owned text assembly is memory-only; keep the same byte bound and recursive work budget."
+    },
+    {
+      "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+      "function": "helper_calls::transport::Reader::value",
+      "previous_density_milli": 666,
+      "decision": "use bounded in-memory append instead of IO trait call",
+      "reason": "Owned text assembly is memory-only; keep the same byte bound and recursive work budget."
+    },
+    {
+      "path": "crates/rstyle-pdg/src/helper_calls/transport.rs",
+      "function": "helper_calls::transport::Reader::collection",
+      "previous_density_milli": 666,
+      "decision": "use bounded in-memory append instead of IO trait call",
+      "reason": "Owned text assembly is memory-only; keep the same byte bound and recursive work budget."
+    },
+    {
+      "path": "crates/rstyle-pdg/src/nominal_boundary/resolution.rs",
+      "function": "nominal_boundary::resolution::Resolution::select_copies",
+      "previous_density_milli": 600,
+      "decision": "existing source boundary allowance",
+      "reason": "Resolution installation keeps copy permissions, no-drop permissions and source requirements from one checked selection."
+    },
+    {
+      "path": "crates/rstyle-pdg/src/nominal_boundary/resolution/selected/no_drop/closure.rs",
+      "function": "nominal_boundary::resolution::selected::no_drop::closure::Closure::<'_>::begin_module",
+      "previous_density_milli": 750,
+      "decision": "existing source boundary allowance",
+      "reason": "Module entry initializes the namespace, inherited definitions and lexical scope as one visitor transition."
+    },
+    {
+      "path": "crates/rstyle-pdg/src/scalar_instances/source.rs",
+      "function": "scalar_instances::source::Flow::<'a>::install_binding",
+      "previous_density_milli": 750,
+      "decision": "existing source boundary allowance",
+      "reason": "Lexical binding installation keeps symbol membership, shadow stacks and the current frame aligned."
+    },
+    {
+      "path": "crates/rstyle-pdg/src/unit_store/bundle.rs",
+      "function": "unit_store::bundle::<impl unit_store::UnitStore>::load_bundle",
+      "previous_density_milli": 555,
+      "decision": "existing source boundary allowance",
+      "reason": "Bundle loading coordinates decode, inspection and validation; inherited IO is optional stage telemetry."
+    },
+    {
+      "path": "crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style.rs",
+      "function": "unit_store::bundle::diagnostic::style::write_sealed_style_snapshot",
+      "previous_density_milli": 750,
+      "decision": "existing source boundary allowance",
+      "reason": "Style snapshot publication streams encoded facts through the existing sealed writer boundary."
+    },
+    {
+      "path": "crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style.rs",
+      "function": "unit_store::bundle::diagnostic::style::read_style_snapshot_phase",
+      "previous_density_milli": 571,
+      "decision": "existing source boundary allowance",
+      "reason": "Snapshot decoding has no external IO; its inherited IO and clock events are optional stage telemetry."
+    },
+    {
+      "path": "crates/rstyle-pdg/src/unit_store/dependency_closure.rs",
+      "function": "unit_store::dependency_closure::install_dependency_owners",
+      "previous_density_milli": 666,
+      "decision": "existing source boundary allowance",
+      "reason": "Dependency installation retains linked owners and their namespace associations together."
+    },
+    {
+      "path": "crates/rstyle-pdg/src/unit_store/manifest.rs",
+      "function": "unit_store::manifest::seal",
+      "previous_density_milli": 1000,
+      "decision": "existing source boundary allowance",
+      "reason": "Streaming publication boundary records exact bytes and requires final flush before returning a seal."
+    },
+    {
+      "path": "crates/rstyle-pdg/src/unit_store/product_instances.rs",
+      "function": "<unit_store::product_instances::ConstructorProof<'_> as unit_store::instances::InstanceProof>::install",
+      "previous_density_milli": 666,
+      "decision": "existing source boundary allowance",
+      "reason": "Product instance installation retains its dependency and checked constructor record together."
+    }
+  ],
+  "validation": {
+    "gates": [
+      {
+        "name": "clippy",
+        "args": [
+          "cargo",
+          "clippy",
+          "--workspace",
+          "--all-targets",
+          "--locked",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit": 0,
+        "seconds": 6.846
+      },
+      {
+        "name": "tests",
+        "args": [
+          "./scripts/test.sh",
+          "--nextest"
+        ],
+        "exit": 0,
+        "seconds": 333.794
+      },
+      {
+        "name": "reference-style",
+        "args": [
+          "./scripts/style.sh",
+          "--style-engine",
+          "legacy",
+          "--format",
+          "json"
+        ],
+        "exit": 0,
+        "seconds": 24.559
+      },
+      {
+        "name": "patterns",
+        "args": [
+          "./scripts/style.sh",
+          "patterns",
+          "--format",
+          "json",
+          "--fail-on-candidates",
+          "--show-ignored"
+        ],
+        "exit": 0,
+        "seconds": 49.183
+      },
+      {
+        "name": "reference-patterns",
+        "args": [
+          "./scripts/style.sh",
+          "patterns",
+          "--engine",
+          "legacy",
+          "--format",
+          "json",
+          "--fail-on-candidates",
+          "--show-ignored"
+        ],
+        "exit": 0,
+        "seconds": 32.734
+      },
+      {
+        "name": "acceptance",
+        "args": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "eval/clones-capability",
+          "-p",
+          "test_*.py"
+        ],
+        "exit": 0,
+        "seconds": 0.472
+      },
+      {
+        "name": "scripts",
+        "args": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "scripts",
+          "-p",
+          "test_*.py"
+        ],
+        "exit": 0,
+        "seconds": 3.105
+      }
+    ],
+    "formatting": "passed",
+    "rust_tests": {
+      "passed": 3797,
+      "skipped": 5,
+      "elapsed_seconds": 265.635
+    },
+    "doctests": "passed",
+    "python_acceptance_tests": 248,
+    "script_tests": 50,
+    "config_lock_and_pattern_ledger": "unchanged",
+    "compiler_raw_pattern_ids": [
+      "114994040aee",
+      "28ac5efc1baa",
+      "440013106447",
+      "4f48d2ce7fc8",
+      "885b7a4e6179",
+      "8c495a7ebe17",
+      "a59c863eac67",
+      "bd6ed2f06436",
+      "c2d0658d42db",
+      "c5f442ffa59a",
+      "fc9b070d78be",
+      "fdb66ce83259"
+    ]
+  }
+}

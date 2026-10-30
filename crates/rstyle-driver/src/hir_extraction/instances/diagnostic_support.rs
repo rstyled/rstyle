@@ -4,6 +4,7 @@ use rustc_middle::ty::{GenericArgsRef, TyCtxt};
 use serde::Serialize;
 use std::{collections::BTreeMap, path::PathBuf};
 
+// rstyle-allow(side_effect_density): Diagnostic input boundary reads an explicitly requested file selected by the environment.
 pub(super) fn optional_requests<T: serde::de::DeserializeOwned>(
     variable: &str,
 ) -> Result<Option<T>, String> {

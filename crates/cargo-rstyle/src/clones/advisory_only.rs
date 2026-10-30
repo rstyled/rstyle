@@ -1,6 +1,7 @@
 //! Compiler observations have independent ownership and never grant strict admission.
 use super::*;
 
+// rstyle-allow(side_effect_density): Capture handoff boundary loads one inventory and routes its decoded facts.
 pub(super) fn consume(request: &UnitRequest<'_>, result: &mut Handoff) -> Result<(), String> {
     let unit = request.unit;
     check_mode(unit, &request.capture.plan)?;
@@ -106,6 +107,7 @@ struct Decoded<B, L> {
     owner: FactsOwner<B, L>,
 }
 
+// rstyle-allow(side_effect_density): Retain validated unit facts and their build contexts together; optional stage telemetry is intentional.
 fn consume_facts<B: identity::BodyOwner, L>(
     decoded: Decoded<B, L>,
     request: &UnitRequest<'_>,
