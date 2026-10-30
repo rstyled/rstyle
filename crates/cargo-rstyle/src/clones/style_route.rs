@@ -1,15 +1,19 @@
 //! Opt-in style routing through the existing authored compiler diagnostic workflow.
-use super::{
-    Args, CapturedRun, compile_capture, configuration, prepare_capture, run_captured_with,
-};
+use super::{Args, CapturedRun, compile_capture, prepare_capture, run_captured_with};
 use crate::Cli;
 use clap::{Args as _, FromArgMatches};
 
 pub(crate) fn run(mut cli: Cli) -> Result<(String, u8), String> {
     let mut args = compiler_args()?;
-    super::with_capture_verification(false, || {
+    args.replay_run = cli.style_replay_run.take();
+    let replay = args.replay_run.is_some();
+    super::with_capture_verification(replay, || {
         let Prepared { config, capture } = prepare(&mut cli, &mut args)?;
-        let capture = compile_capture(capture, &cli, &args);
+        let capture = if replay {
+            capture
+        } else {
+            compile_capture(capture, &cli, &args)
+        };
         run_captured_with(&cli, &args, CapturedRun { config, capture }, |report, _| {
             report.publish_style(cli.format)
         })
@@ -22,13 +26,24 @@ struct Prepared {
 }
 
 fn prepare(cli: &mut Cli, args: &mut Args) -> Result<Prepared, String> {
-    let capture = prepare_capture(cli, args)?;
-    args.compiler_advisory_config = crate::config_path(cli.config.take(), &capture.plan.root);
-    // The pattern ledger does not affect the legacy style command either.
-    cli.ignore_file = None;
-
-    let config = configuration(cli, args)?;
+    let capture = if args.replay_run.is_some() {
+        super::capture_input(cli, args)?
+    } else {
+        prepare_capture(cli, args)?
+    };
+    let config = configure(cli, args, &capture.plan.root)?;
     Ok(Prepared { config, capture })
+}
+
+/// Both root routes resolve core policy before clearing their legacy-only CLI inputs.
+pub(super) fn configure(
+    cli: &mut Cli,
+    args: &mut Args,
+    root: &std::path::Path,
+) -> Result<super::Configuration, String> {
+    args.compiler_advisory_config = crate::config_path(cli.config.take(), root);
+    cli.ignore_file = None;
+    super::configuration(cli, args)
 }
 
 fn compiler_args() -> Result<Args, String> {

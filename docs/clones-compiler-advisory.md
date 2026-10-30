@@ -38,6 +38,20 @@ The legacy backend remains the default, available explicitly through
 `--style-engine legacy`. The style-engine option applies only without a subcommand;
 `patterns --engine compiler` retains its separate opt-in route.
 
+The same style presentation is available when reevaluating an explicit saved run:
+
+```sh
+cargo rstyle --style-engine compiler --replay-run /path/to/run --format json
+```
+
+Replay uses the original captured source, compilation contexts and package/target
+selection without Cargo, rustc, the driver or source files. Current configuration
+still applies; use `--config PATH` to reevaluate with an explicit policy. New
+package, manifest and all-targets selections are rejected. The command reuses the
+existing advisory saved-run reader, evaluator, planner and report publication;
+matching and pattern mining remain unrequested. `--replay-run` requires the
+explicit compiler style engine and does not enable replay for legacy style.
+
 Numeric snapshots use `rstyle.diagnostic.style-facts/2`: repeated invocation and
 selected-unit metadata appear inline once, then refer to that snapshot-local
 entry. Decoding shares immutable values; edits detach the changed value. Exact

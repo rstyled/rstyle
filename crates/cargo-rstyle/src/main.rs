@@ -41,12 +41,29 @@ struct Cli {
     /// Style backend (default: legacy); compiler selects authored diagnostics and plans.
     #[arg(long, value_enum)]
     style_engine: Option<Engine>,
+    /// Reevaluate an explicit saved compiler-style run without compiling.
+    #[arg(long = "replay-run", requires = "style_engine")]
+    style_replay_run: Option<PathBuf>,
     /// Ignore ledger (default: <workspace root>/rstyle-ignore.toml).
     #[arg(long, global = true)]
     ignore_file: Option<PathBuf>,
     /// Print an agent skill (SKILL.md) describing how to use rstyle, then exit.
     #[arg(long)]
     skill: bool,
+}
+
+impl Cli {
+    fn validate_style_route(&self) -> Result<(), &'static str> {
+        if self.style_engine == Some(Engine::Compiler) && self.command.is_some() {
+            return Err("--style-engine applies to the default style command only");
+        }
+        if self.style_replay_run.is_some() && self.style_engine != Some(Engine::Compiler) {
+            return Err(
+                "--replay-run on the default style command requires --style-engine compiler",
+            );
+        }
+        Ok(())
+    }
 }
 
 #[derive(Subcommand)]
@@ -455,8 +472,8 @@ fn main() -> ExitCode {
         print!("{SKILL}");
         return ExitCode::SUCCESS;
     }
-    if cli.style_engine == Some(Engine::Compiler) && cli.command.is_some() {
-        eprintln!("--style-engine applies to the default style command only");
+    if let Err(error) = cli.validate_style_route() {
+        eprintln!("{error}");
         return ExitCode::from(2);
     }
     match cli.command.take() {

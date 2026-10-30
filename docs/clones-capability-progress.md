@@ -7283,3 +7283,38 @@ usefulness and resource disposition. The current48 findings retain45 frozen
 function names, omit targets/get_mut, and add optional_requests plus both numeric
 snapshot I/O boundaries; matching names alone do not establish unchanged source
 or usefulness. The study records this reconciliation for the default decision.
+
+### C107 — replay compiler style through the root command (2026-10-30)
+
+Root compiler style could save its numeric inputs, but replay required switching
+to clones and its full evidence presentation. Add explicit root `--replay-run`
+with `--style-engine compiler`, forwarding to the existing saved capture loader
+and root projection. Preserve the fresh route's configuration-before-compilation
+order. Both compiler style and compiler patterns now reuse their identical core
+configuration preparation; backend validation is separate from main's process
+boundary. No second collector/evaluator/planner, hash, cache, proof/policy layer,
+threshold, suppression, strict-matching change or default switch.
+
+The existing real-Cargo payload test now replays through root style after source
+and manifest removal, with PATH/CARGO/RUSTC/driver disabled. Diagnostics, metrics,
+fix groups, compiler advice, contexts and completion statuses agree. Explicit
+configuration reuses those observations and changes a parameter finding into a
+completed negative; new package/manifest/all-targets selection, legacy replay and
+missing saved inputs reject. One parser test keeps root/subcommand replay flags
+independent and requires explicit style backend selection.
+
+project-root-style-replay-study.json records a real saved project run:10,083
+authored functions across six units,5.93s/852,508KiB, complete capture/summary and
+exactly equal diagnostic/metric/plan/context projections. Original C106 source is
+retained, not reinterpreted as current C107 source. This is an offline workflow
+measurement, not fresh-analysis performance. Existing report publication updates
+report.json in the explicit saved directory; snapshots remain the input.
+
+Focused acceptance, Clippy, formatting and both legacy gates pass: zero style
+violations over10,085 current functions, same13 unfiltered reviewed pattern IDs.
+All3,724 Rust tests pass (262.822s,5 skipped), plus doctests. Python suites pass
+248/50 tests. C106 native Ubuntu/macOS jobs remain in progress at the explicit
+poll; these local gates do not establish their outcome. Default diagnostic
+usefulness/resource disposition remains open; this delivers root workflow
+compatibility only. Next: commit/push this slice, then reconcile the remaining
+default source/usefulness differences using the completed project observations.

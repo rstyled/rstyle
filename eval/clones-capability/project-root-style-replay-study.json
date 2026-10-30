@@ -1,0 +1,94 @@
+{
+  "schema": "rstyle.root-style-replay-study/1",
+  "checkpoint": "C107",
+  "base_revision": "aff58811",
+  "implementation": "Root --replay-run forwards to the existing advisory saved-run reader, evaluator, planner and style projection. Compiler style/pattern routes share existing configuration preparation. No new collector, cache, hash, integrity scan or rule policy.",
+  "saved_input": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-RTPV1r",
+  "saved_source_revision": "C106 implementation captured before aff58811 commit;10,083 authored functions. Not current C107 source.",
+  "command": [
+    "target/debug/cargo-rstyle",
+    "--style-engine",
+    "compiler",
+    "--replay-run",
+    "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-RTPV1r",
+    "--format",
+    "json"
+  ],
+  "disabled_tool_environment": {
+    "PATH": "/tmp/clones-c107-no-tools",
+    "CARGO": "/tmp/clones-c107-no-cargo",
+    "RUSTC": "/tmp/clones-c107-no-rustc",
+    "RSTYLE_DRIVER": "/tmp/clones-c107-no-driver"
+  },
+  "report": "/tmp/clones-c107-project-replay.json",
+  "time_log": "/tmp/clones-c107-project-replay.log",
+  "elapsed_seconds": 5.93,
+  "peak_rss_kib": 852508,
+  "exit_code": 1,
+  "summary": {
+    "functions": 10083,
+    "violations": 48,
+    "complexity_measured": 10083,
+    "complexity_unavailable": 0,
+    "mean_density_milli": 98,
+    "max_density_milli": 15000,
+    "effect_counts": {
+      "io": 343,
+      "mutation": 2102,
+      "panic": 56,
+      "time": 68,
+      "unknown": 166
+    }
+  },
+  "units": 6,
+  "scope_origin": "saved_run",
+  "complete": {
+    "capture": true,
+    "summary": true,
+    "planning_inputs": false,
+    "planning_required_edits": true
+  },
+  "equal_to_original": {
+    "diagnostics": true,
+    "summary": true,
+    "functions": true,
+    "fix_groups": true,
+    "compiler_advisory": true,
+    "observed_units": true,
+    "unit_contexts": true,
+    "build_contexts": true
+  },
+  "acceptance": [
+    "Source/manifest deletion and disabled compiler tools preserve root diagnostics, metrics, plans, contexts and requested-execution statuses.",
+    "Explicit config reevaluates the captured two-parameter function from one finding/exit1 to no finding/exit0.",
+    "New package, manifest or all-targets selection rejects with exit2.",
+    "Legacy backend replay, absent explicit backend and missing saved inputs reject.",
+    "Existing subcommand replay parsers remain independent."
+  ],
+  "limits": [
+    "This is a saved-input workflow measurement, not fresh analysis or a speedup benchmark.",
+    "Like the existing clones replay path, root replay republishes report.json in the explicit saved directory; captured snapshots are reused.",
+    "Current configuration is read separately from saved source/compiler observations.",
+    "No source rewrite, default switch, context-only finding acceptance or legacy retirement."
+  ],
+  "validation": {
+    "focused_root_payload_and_replay": "passed",
+    "parser_tests": 5,
+    "clippy": "passed",
+    "format": "passed",
+    "legacy_style": {
+      "functions": 10085,
+      "violations": 0
+    },
+    "legacy_pattern_gate": "passed",
+    "unfiltered_pattern_ids_equal_C106": true,
+    "integrated_tests": 3724,
+    "skipped_tests": 5,
+    "integrated_test_seconds": 262.822,
+    "doctests": "passed",
+    "capability_python_tests": 248,
+    "script_python_tests": 50,
+    "native_C106": "run40991029725 Ubuntu x86/ARM and macOS tests still in progress at the explicit poll",
+    "native_C107": "pending publication/CI"
+  }
+}

@@ -414,6 +414,11 @@ and the actual body identity; body trees and lexical bindings are not requested.
 Numeric replay works without source files or tools. Body-dependent consumers need
 a full clones capture; direct clones advisory captures retain their complete bodies
 and bindings even with compact reports. Owner reuse distinguishes these payloads.
+Use `--style-engine compiler --replay-run PATH --format json` for the same style
+presentation from explicit saved inputs without sources or compiler tools.
+Original compilation contexts and selection are retained; new package, manifest
+or all-targets flags are rejected. Current configuration applies, including an
+explicit `--config PATH` override. Replay uses existing report publication.
 Style snapshot schema `/2` stores repeated invocation and selected-unit metadata
 once per snapshot and restores shared immutable values. The reader still accepts
 style `/1`; full clones and ordinary frontend JSON keep their existing formats.

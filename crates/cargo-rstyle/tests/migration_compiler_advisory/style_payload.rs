@@ -143,14 +143,18 @@ fn signature_identity(style: &Value, full: &Value) {
 }
 
 fn offline(directory: &Path, report: &Value, extra: &[&str]) -> Output {
-    let mut options = OPTIONS.to_vec();
+    let mut options = vec!["clones", "--format", "json"];
+    options.extend_from_slice(OPTIONS);
     if extra.contains(&"--report-detail") {
         options.truncate(options.len() - 2);
     }
+    replay(directory, report, &options, extra)
+}
+
+fn replay(directory: &Path, report: &Value, options: &[&str], extra: &[&str]) -> Output {
     diagnostic_process::output(
         Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap())
             .current_dir(directory)
-            .args(["clones", "--format", "json"])
             .args(options)
             .args(["--replay-run", report["run_directory"].as_str().unwrap()])
             .args(extra)
@@ -160,6 +164,57 @@ fn offline(directory: &Path, report: &Value, extra: &[&str]) -> Output {
             .env("RSTYLE_DRIVER", directory.join("no-driver")),
     )
     .unwrap()
+}
+
+fn root_replay(directory: &Path, original: &Value) {
+    const ROOT: &[&str] = &["--style-engine", "compiler", "--format", "json"];
+    let output = replay(directory, original, ROOT, &[]);
+    checked(&output, 1);
+    let restored: Value = serde_json::from_slice(&output.stdout).unwrap();
+    for field in [
+        "diagnostics",
+        "summary",
+        "functions",
+        "fix_groups",
+        "compiler_advisory",
+        "unit_contexts",
+        "observed_units",
+        "build_contexts",
+        "summary_complete",
+        "planning_input_complete",
+        "planning_required_edits_complete",
+        "matching_execution",
+        "strict_assessment_execution",
+    ] {
+        assert_eq!(original[field], restored[field], "{field}");
+    }
+    for extra in [
+        &["-p", "fixture"][..],
+        &["--all-targets"][..],
+        &["--manifest-path", "Cargo.toml"][..],
+    ] {
+        let output = replay(directory, original, ROOT, extra);
+        checked(&output, 2);
+        assert!(String::from_utf8_lossy(&output.stderr).contains("original selection"));
+    }
+    let output = replay(directory, original, &["--style-engine", "legacy"], &[]);
+    checked(&output, 2);
+    assert!(String::from_utf8_lossy(&output.stderr).contains("requires --style-engine compiler"));
+    let missing = serde_json::json!({"run_directory":directory.join("missing-run")});
+    checked(&replay(directory, &missing, ROOT, &[]), 2);
+
+    std::fs::write(
+        directory.join("relaxed.toml"),
+        "[fn_params]\nmax_params=2\n",
+    )
+    .unwrap();
+    let output = replay(directory, original, ROOT, &["--config", "relaxed.toml"]);
+    checked(&output, 0);
+    let relaxed: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(relaxed["summary"]["functions"], 2);
+    assert_eq!(relaxed["summary"]["violations"], 0);
+    assert_eq!(relaxed["diagnostics"], serde_json::json!([]));
+    assert_eq!(relaxed["summary_complete"], true);
 }
 
 fn projected_numeric(root: &Value, replay: &Value) {
@@ -233,5 +288,6 @@ fn root_numeric_payload_is_distinct_from_full_clones_and_replays_without_sources
     checked(&output, 1);
     let replay: Value = serde_json::from_slice(&output.stdout).unwrap();
     projected_numeric(&repeated, &replay);
+    root_replay(directory.path(), &repeated);
     unavailable_body_consumers(directory.path(), &repeated);
 }

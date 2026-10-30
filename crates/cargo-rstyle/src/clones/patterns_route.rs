@@ -1,5 +1,5 @@
 //! Route the opt-in patterns command through the existing compiler workflow.
-use super::{Args, capture_input, configuration, run_captured};
+use super::{Args, capture_input, run_captured};
 use crate::{Cli, PatternsArgs, ignore};
 use clap::{Args as _, FromArgMatches};
 use std::path::Path;
@@ -21,10 +21,7 @@ fn prepare(cli: &mut Cli, args: &mut Routed) -> Result<Captured, String> {
     let capture = capture_input(cli, &args.options)?;
     resolve_ledger(cli, args, &capture.plan.root)?;
 
-    args.options.compiler_advisory_config =
-        crate::config_path(cli.config.take(), &capture.plan.root);
-    cli.ignore_file = None;
-    let config = configuration(cli, &args.options)?;
+    let config = super::style_route::configure(cli, &mut args.options, &capture.plan.root)?;
     Ok(Captured { config, capture })
 }
 

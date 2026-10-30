@@ -23,6 +23,28 @@ fn subcommands_do_not_inherit_a_style_backend_selection() {
 }
 
 #[test]
+fn root_style_replay_is_explicit_and_independent_of_subcommands() {
+    let cli = Cli::try_parse_from([
+        "cargo-rstyle",
+        "--style-engine",
+        "compiler",
+        "--replay-run",
+        "saved-run",
+    ])
+    .unwrap();
+    assert_eq!(
+        cli.style_replay_run.as_deref(),
+        Some(Path::new("saved-run"))
+    );
+    assert!(Cli::try_parse_from(["cargo-rstyle", "--replay-run", "saved-run"]).is_err());
+    for command in ["patterns", "clones"] {
+        let cli =
+            Cli::try_parse_from(["cargo-rstyle", command, "--replay-run", "saved-run"]).unwrap();
+        assert!(cli.style_replay_run.is_none());
+    }
+}
+
+#[test]
 fn patterns_backend_selection_remains_independent_of_style() {
     for args in [
         vec!["cargo-rstyle", "patterns"],
