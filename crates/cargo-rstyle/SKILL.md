@@ -403,8 +403,11 @@ The root style command can opt into this path with
 all authored compiler diagnostics and existing plans, loads workspace rstyle.toml
 or global --config, and exits0/1/2 for clean/findings/incomplete-or-error.
 Package, all-targets, manifest and format flags retain their ordinary selection.
-The JSON is the compiler report with per-unit evaluations and separate planning
-completion, not the legacy top-level diagnostics schema. Strict matching and
+The JSON projects diagnostics, summary, fix_groups and functions at the top
+level, with compilation contexts and per-unit evaluations retained in the compiler
+report. Findings are deterministic for identical inputs; capture-directory paths
+and run metadata can differ between runs. Planning completion remains explicit.
+Strict matching and
 pattern mining are unrequested; --ignore-file remains irrelevant to style rules.
 The default backend stays legacy. Advisory-only live captures without dependency
 capture reuse private builds under a lock. Completed raw owner snapshots are

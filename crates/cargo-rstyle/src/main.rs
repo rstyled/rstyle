@@ -2,6 +2,8 @@
 //!
 //! Exit codes: 0 clean, 1 violations found, 2 tool/config/compile error.
 
+#[cfg(test)]
+mod cli_tests;
 mod clones;
 mod collect;
 mod diagnostic_process;
@@ -36,9 +38,9 @@ struct Cli {
     config: Option<PathBuf>,
     #[arg(long, global = true)]
     manifest_path: Option<PathBuf>,
-    /// Style backend: legacy, or opt-in authored compiler diagnostics and plans.
-    #[arg(long, value_enum, default_value_t = Engine::Legacy)]
-    style_engine: Engine,
+    /// Style backend (default: legacy); compiler selects authored diagnostics and plans.
+    #[arg(long, value_enum)]
+    style_engine: Option<Engine>,
     /// Ignore ledger (default: <workspace root>/rstyle-ignore.toml).
     #[arg(long, global = true)]
     ignore_file: Option<PathBuf>,
@@ -448,7 +450,7 @@ fn main() -> ExitCode {
         print!("{SKILL}");
         return ExitCode::SUCCESS;
     }
-    if cli.style_engine != Engine::Legacy && cli.command.is_some() {
+    if cli.style_engine == Some(Engine::Compiler) && cli.command.is_some() {
         eprintln!("--style-engine applies to the default style command only");
         return ExitCode::from(2);
     }
@@ -460,7 +462,7 @@ fn main() -> ExitCode {
         }
         None => {}
     }
-    if cli.style_engine == Engine::Compiler {
+    if cli.style_engine.unwrap_or(Engine::Legacy) == Engine::Compiler {
         return exit_with(clones::style_route::run(cli));
     }
     let result = analyze(&cli).and_then(|report| Ok((render(&report, cli.format)?, report)));

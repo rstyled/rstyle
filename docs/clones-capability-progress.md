@@ -7072,3 +7072,44 @@ zero style violations across10,062 functions and the same13 unfiltered pattern
 IDs. Native validation of this checkpoint awaits publication. Next: reconcile
 the frozen default-density findings and close concrete root-routing compatibility
 gaps before deciding whether compiler style should become the default.
+
+### C101 — establish root style compatibility before a default switch (2026-10-30)
+
+Preserve absent versus explicit style-backend selection in Cli. Only an explicit
+compiler-style option participates in the subcommand guard; the style fallback
+is resolved after subcommand dispatch. Current style fallback and patterns default
+remain legacy independently. This prevents a future style-default change from
+rejecting every subcommand or accidentally changing the patterns backend.
+Parser acceptance covers absent/explicit backends and independent patterns,
+clones and ignore routing. Existing explicit misrouting rejection still passes.
+
+Four real-Cargo root tests establish member selection without leaking another
+member's findings; missing/malformed explicit config errors; source exclusions
+across diagnostics, numeric rows and edit groups; and successful capture with
+uncaptured requested dependency effects remaining incomplete with exit2. A fifth
+root test compares projected findings, summary, numeric rows and fix groups
+across repeated runs, without claiming byte-identical capture envelopes.
+The embedded skill now describes the existing top-level projections accurately.
+No collector, metric, threshold, suppression, cache, checksum, proof/policy layer
+or strict matching change is introduced. Default migration remains open pending
+the durable density-disagreement/usefulness decision and resource expectations.
+
+Focused validation: three parser tests, four root selection tests, repeated
+root projection and explicit misrouting rejection pass. All3,711 Rust tests pass
+(5 skipped,263.092s), plus doctests and248 capability Python tests. Formatting,
+workspace/all-target Clippy and legacy style pass (0 violations/10,062 functions).
+Both legacy pattern checks pass with the same13 unfiltered IDs; diff whitespace
+passes. Native checks remain separate: C98 Ubuntu x86/ARM pass with macOS
+pending; C99/C100 jobs remain in progress at the last explicit poll.
+
+Default finding review is now consolidated in
+project-default-style-density-decision.json: all47 frozen C97 new-only density
+findings retain original source, review rationale, observed metrics and explicit
+C99/C100 source drift. Original classifications are6 actionable,39 context-only,
+2 uncertain; subsequent source/caller review resolves both uncertainties to
+context-only (effective6/41). The15 independently labeled positives plus3 controls
+satisfy the bounded metric-quality sample. Extra exact per-owner legacy attribution
+for every remaining finding would strengthen explanation but is not another
+retirement gate. Later legacy cache counterfactuals are supporting observations,
+not contemporaneous C97 facts or proof of equal numerators. Default usefulness
+acceptance of the context-only roles and actual resource cost remains unresolved.

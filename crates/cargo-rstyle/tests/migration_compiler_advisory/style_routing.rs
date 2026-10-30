@@ -447,3 +447,21 @@ fn root_style_inherits_generated_io_into_authored_findings_and_replays_reused_ow
     authored_inherited_finding(&replayed);
     assert_eq!(warm["compiler_advisory"], replayed["compiler_advisory"]);
 }
+
+#[test]
+fn repeated_root_style_runs_preserve_findings_metrics_and_plans() {
+    let directory = fixture(SOURCE);
+    let (first_output, first) = capture(directory.path(), &[]);
+    let (second_output, second) = capture(directory.path(), &[]);
+    checked(&first_output, 1);
+    checked(&second_output, 1);
+    for report in [&first, &second] {
+        assert_eq!(report["compiler_advisory"]["complete"], true);
+        assert_eq!(report["diagnostics"].as_array().unwrap().len(), 1);
+        assert_eq!(report["fix_groups"].as_array().unwrap().len(), 1);
+    }
+    for field in ["diagnostics", "summary", "fix_groups", "functions"] {
+        assert!(first.get(field).is_some(), "missing projection: {field}");
+        assert_eq!(first[field], second[field], "unstable projection: {field}");
+    }
+}
