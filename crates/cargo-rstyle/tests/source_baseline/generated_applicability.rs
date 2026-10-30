@@ -195,14 +195,14 @@ fn damage(wire: &Value, kind: &str) -> Value {
 fn source_applicability_does_not_mask_missing_authored_ownership_unknown_origin_or_invalid_bytes() {
     let (directory, original) = capture(&format!("{DERIVED}pub fn clean() {{}}\n"), &[]);
     let wire = raw_wire(&original);
-    let ledger = super::super::migration_compiler_advisory::only::ledger_path(&original);
+    let ledger = super::super::compiler_advisory::only::ledger_path(&original);
     for kind in [
         "missing_authored_owner",
         "unknown_origin",
         "invalid_generated_bytes",
     ] {
         let changed = damage(&wire, kind);
-        super::super::migration_compiler_advisory::only::reseal_raw(&original, &ledger, &changed);
+        super::super::compiler_advisory::only::reseal_raw(&original, &ledger, &changed);
         let output = replay(
             directory.path(),
             &original,
@@ -221,7 +221,7 @@ fn source_applicability_does_not_mask_missing_authored_ownership_unknown_origin_
             );
         }
     }
-    super::super::migration_compiler_advisory::only::reseal_raw(&original, &ledger, &wire);
+    super::super::compiler_advisory::only::reseal_raw(&original, &ledger, &wire);
     checked(&replay(directory.path(), &original, RAW), 0);
 }
 

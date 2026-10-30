@@ -152,7 +152,7 @@ fn blank_bytes_never_replace_missing_source_context_or_contradictory_source_iden
     let (output, original) = capture(directory.path(), &[]);
     checked(&output, 0);
     let wire = raw_wire(&original);
-    let ledger = super::super::migration_compiler_advisory::only::ledger_path(&original);
+    let ledger = super::super::compiler_advisory::only::ledger_path(&original);
     for damage in ["context", "path", "bytes"] {
         let mut changed = wire.clone();
         match damage {
@@ -168,7 +168,7 @@ fn blank_bytes_never_replace_missing_source_context_or_contradictory_source_iden
                     });
             }
         }
-        super::super::migration_compiler_advisory::only::reseal_raw(&original, &ledger, &changed);
+        super::super::compiler_advisory::only::reseal_raw(&original, &ledger, &changed);
         let output = replay(
             directory.path(),
             &original,
@@ -181,7 +181,7 @@ fn blank_bytes_never_replace_missing_source_context_or_contradictory_source_iden
         checked(&output, 2);
         assert!(!directory.path().join("invalid.json").exists(), "{damage}");
     }
-    super::super::migration_compiler_advisory::only::reseal_raw(&original, &ledger, &wire);
+    super::super::compiler_advisory::only::reseal_raw(&original, &ledger, &wire);
     checked(&replay(directory.path(), &original, RAW), 0);
 }
 

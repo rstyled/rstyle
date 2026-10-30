@@ -383,7 +383,7 @@ fn generic_method_missing_context_and_duplicate_captured_owner_cannot_export_or_
     );
     let original = capture(directory.path(), &[]);
     let wire = raw_wire(&original);
-    let ledger = super::super::migration_compiler_advisory::only::ledger_path(&original);
+    let ledger = super::super::compiler_advisory::only::ledger_path(&original);
     for duplicate in [false, true] {
         let mut changed = wire.clone();
         if duplicate {
@@ -395,7 +395,7 @@ fn generic_method_missing_context_and_duplicate_captured_owner_cannot_export_or_
                 .unwrap()
                 .remove(rstyle_pdg::nominal_boundary::CONTEXT_KEY);
         }
-        super::super::migration_compiler_advisory::only::reseal_raw(&original, &ledger, &changed);
+        super::super::compiler_advisory::only::reseal_raw(&original, &ledger, &changed);
         let output = replay(
             directory.path(),
             &original,
@@ -423,6 +423,6 @@ fn generic_method_missing_context_and_duplicate_captured_owner_cannot_export_or_
         checked(&output, 2);
         assert!(!directory.path().join("reviews.json").exists());
     }
-    super::super::migration_compiler_advisory::only::reseal_raw(&original, &ledger, &wire);
+    super::super::compiler_advisory::only::reseal_raw(&original, &ledger, &wire);
     checked(&replay(directory.path(), &original, RAW), 0);
 }

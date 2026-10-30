@@ -314,11 +314,11 @@ fn colliding_compiler_method_names_never_share_a_source_baseline_or_review() {
     let wire = raw_wire(&original);
     let mut collision = wire.clone();
     collision["facts"][1]["name"] = collision["facts"][0]["name"].clone();
-    let ledger = super::super::migration_compiler_advisory::only::ledger_path(&original);
-    super::super::migration_compiler_advisory::only::reseal_raw(&original, &ledger, &collision);
+    let ledger = super::super::compiler_advisory::only::ledger_path(&original);
+    super::super::compiler_advisory::only::reseal_raw(&original, &ledger, &collision);
     unavailable(directory.path(), &original);
     retained_unavailable(directory.path(), &original, &saved);
-    super::super::migration_compiler_advisory::only::reseal_raw(&original, &ledger, &wire);
+    super::super::compiler_advisory::only::reseal_raw(&original, &ledger, &wire);
     checked(&replay(directory.path(), &original, RAW), 0);
 }
 
@@ -329,7 +329,7 @@ fn missing_unstable_names_and_missing_context_remain_unavailable_without_numeric
     dismiss(directory.path(), &original);
     let saved = std::fs::read(directory.path().join("reviews.json")).unwrap();
     let wire = raw_wire(&original);
-    let ledger = super::super::migration_compiler_advisory::only::ledger_path(&original);
+    let ledger = super::super::compiler_advisory::only::ledger_path(&original);
     for damage in ["empty", "unstable", "context"] {
         let mut changed = wire.clone();
         match damage {
@@ -342,7 +342,7 @@ fn missing_unstable_names_and_missing_context_remain_unavailable_without_numeric
                     .remove(rstyle_pdg::nominal_boundary::CONTEXT_KEY);
             }
         }
-        super::super::migration_compiler_advisory::only::reseal_raw(&original, &ledger, &changed);
+        super::super::compiler_advisory::only::reseal_raw(&original, &ledger, &changed);
         unavailable(directory.path(), &original);
         if damage == "context" {
             retained_context_rejected(directory.path(), &original, &saved);
@@ -354,14 +354,14 @@ fn missing_unstable_names_and_missing_context_remain_unavailable_without_numeric
 }
 
 fn replay_without_numeric(directory: &Path, original: &Value, mut source_only: Value) {
-    let ledger = super::super::migration_compiler_advisory::only::ledger_path(original);
+    let ledger = super::super::compiler_advisory::only::ledger_path(original);
     for function in source_only["facts"].as_array_mut().unwrap() {
         function["build"]["frontend_options"]
             .as_object_mut()
             .unwrap()
             .remove(rstyle_core::advisory::KEY);
     }
-    super::super::migration_compiler_advisory::only::reseal_raw(original, &ledger, &source_only);
+    super::super::compiler_advisory::only::reseal_raw(original, &ledger, &source_only);
     let output = replay(
         directory,
         original,
