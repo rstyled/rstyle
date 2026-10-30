@@ -132,9 +132,9 @@ fn body_local_density_edits_complete_without_claiming_full_generated_planning_in
 }
 
 #[test]
-fn density_caller_footprints_require_missing_generated_inputs_only_at_positive_hops() {
+fn density_caller_footprints_do_not_require_unrelated_generated_callee_edits() {
     let (directory, original) = fixture();
-    for (hops, complete) in [(1, false), (0, true)] {
+    for hops in [1, 0] {
         policy(
             directory.path(),
             1,
@@ -144,7 +144,8 @@ fn density_caller_footprints_require_missing_generated_inputs_only_at_positive_h
         checked(&output, 2);
         let (output, selected) = replay(directory.path(), &original, DENSITY);
         checked(&output, 0);
-        required(&selected, complete);
+        required(&selected, true);
+        assert_eq!(planning(&selected)["call_graph_complete"], true);
         density_group(&selected);
         unchanged(&full, &selected);
     }

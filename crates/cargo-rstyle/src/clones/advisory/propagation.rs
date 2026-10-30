@@ -398,38 +398,10 @@ fn capture_planning(
     rows: &[Row<'_>],
     graph: graph::Graph,
 ) -> planning::Captured {
-    let authored: Vec<_> = rows
-        .iter()
-        .enumerate()
-        .filter_map(|(index, row)| row.authored().map(|facts| (index, (row.unit, facts))))
-        .collect();
-
-    let indices: BTreeMap<_, _> = authored
-        .iter()
-        .enumerate()
-        .map(|(projected, (index, _))| (*index, projected))
-        .collect();
-
-    let callees = authored
-        .iter()
-        .map(|(index, _)| {
-            graph.callees[*index]
-                .iter()
-                .filter_map(|call| {
-                    let targets: Vec<_> = call
-                        .targets
-                        .iter()
-                        .filter_map(|target| indices.get(target).copied())
-                        .collect();
-                    (!targets.is_empty()).then(|| graph::Callee {
-                        line: call.line,
-                        targets,
-                        args: call.args.clone(),
-                    })
-                })
-                .collect()
-        })
-        .collect();
-    let facts: Vec<_> = authored.into_iter().map(|(_, row)| row).collect();
-    planning::Captured::new(ctx, inputs, &facts, graph::Graph { callees })
+    planning::Captured::new(
+        ctx,
+        inputs,
+        rows.iter().map(|row| (row.unit, row.id())),
+        graph,
+    )
 }

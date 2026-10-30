@@ -14,6 +14,7 @@ mod direct_density_scope;
 mod extraction;
 mod function_extraction;
 mod generated_effects;
+mod generated_planning;
 mod generated_propagation;
 mod generated_trait_propagation;
 mod independent_ranking;

@@ -97,7 +97,9 @@ These partial rows do not provide authored source, complexity, density or
 structural graphs. Generated owners remain in `unavailable`; default all-rule coverage
 remains incomplete by default, and the default exit remains 2. Empty observations do not establish
 purity; opaque behavior and unresolved calls remain coverage gaps. Edit plans
-include authored owners only and remain incomplete when generated owners exist.
+retain generated caller topology but print source edits only for authored owners.
+Required generated edits remain unavailable; unrelated generated functions do not
+make an otherwise complete authored edit worklist incomplete.
 
 Fresh authored aggregate metrics use `rstyle.compiler-style-metrics/7` to identify
 the additional propagation. Historical metric-6 replay preserves its original
@@ -398,6 +400,20 @@ group contains the ordinary core `evaluation` plus report-local function keys:
 `bundle_owners` retain the distinct carriers of each bundle. Source paths/names
 remain presentation fields; owners stay unit-qualified even when locations or
 names coincide. The existing core text formatter also displays these plans.
+
+`known_functions` counts authored planning owners; `known_call_graph_functions`
+also counts connected generated owners. `call_graph_complete` describes the
+captured resolved graph under the selected scope, using the existing propagation
+coverage. It does not enumerate unknown dynamic targets or callers outside that
+scope. Full `input_complete` still requires authored diagnostic/source inputs.
+The existing grouping footprints and shared-caller hints use all known vertices,
+so a common generated caller can connect two authored signature fixes. Authored
+parameter steps count known incoming generated callsites. Each group's
+`unavailable_owners` lists required edit owners without source/parameter facts;
+they produce no invented step coordinates, parameter bundles or pass-through
+claims. `required_edits_complete` can be true with incomplete full inputs when
+the requested authored worklist needs no unavailable edits and its required
+caller inputs are complete. Body-local edits still need no caller census.
 
 Completed owner-indexed rule results feed the planner; it does not evaluate
 rules again, clone graphs/bodies, parse source, check hashes or resolve dependency

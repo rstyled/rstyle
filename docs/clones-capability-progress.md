@@ -6944,3 +6944,64 @@ Native C96 run40976506878 is still in progress on macOS15 and Ubuntu x86/ARM;
 C97 native validation is pending publication. Next ready work: retain generated
 caller topology through a small borrowed seam in the existing core planner,
 without inventing authored edit coordinates or parameter facts.
+
+### C98 — retain generated callers in the existing planner (2026-10-30)
+
+The effect collector already retained and resolved generated call edges, but the
+planning adapter projected the graph onto authored functions. That discarded
+incoming generated callers, shared caller footprints and known paths through
+expanded functions. Move the same full graph into planning instead. A small
+borrowed core PlanningOwner/PlanningInput seam supplies names and optional
+original FnFacts to existing grouping and stacking, with no second caller
+algorithm, manufactured metrics/parameters or graph/body clone.
+
+Core footprints, shared-caller hints and incoming callsite counts now retain
+generated vertices. Diagnostic members and printed edit steps remain authored.
+Each group's unavailable_owners retains exact contextual owners whose required
+edits lack source/parameter facts. Such owners produce no bundle or pass-through
+claim. Existing all-authored APIs delegate to the same algorithms and preserve
+reports. The bundle renderer is a cohesive shared helper; the planner renderer
+renders groups independently instead of adding another mutation to its output
+buffer. No new metric version, SHA, policy/proof layer, threshold, budget,
+suppression, default change or strict matching change.
+
+The report distinguishes authored known_functions, known_call_graph_functions
+and call_graph_complete for captured resolved topology under the selected scope.
+Full input_complete retains source/diagnostic requirements. Required edit
+completion uses the requested authored worklist and explicit missing edit owners;
+unrelated generated functions need not block it when required caller inputs are
+complete. The old blanket density-footprint test is updated because its generated
+functions are callees, not required caller edits; a generated caller footprint
+case independently verifies the unavailable outcome.
+
+Four new real-Cargo tests cover shared five-parameter callees, single/disconnected
+controls, shared density hints and configured footprints, source/tool-free replay,
+and identical source/name library/test contexts. Core cases independently cover
+hop limits through generated bridges, zero-hop signature callsites, missing
+parameter provenance and all-authored seam equality. All 59 focused checks pass.
+Read-only integration review found no defects; historical generated connection
+absence remains conservative under existing propagation coverage.
+
+Tool-free replay of the C97 whole-workspace check retains 19,646 graph vertices,
+including 9,595 generated owners previously dropped from planning. Captured graph
+coverage is complete; full source inputs remain incomplete and required local
+edits complete. All per-unit evaluations/observations and every advisory field
+except planning remain identical. The default policy's 47 density groups and 14
+shared-caller hints are unchanged: this scope demonstrates retained topology and
+coverage, not additional useful findings or generated required edits. The replay
+observation takes 11.76s at 1,688,052 KiB peak RSS, with no speedup claim. Exact
+commands, comparison and limitations are retained in
+eval/clones-capability/project-generated-caller-planning-study.json.
+
+Default/retirement gates remain open for broader usefulness, source edit data and
+native platform validation; complete captured topology does not enumerate unknown
+dynamic targets or external callers and does not establish safe rewriting.
+
+C98 integrated validation: all3,699 Rust tests pass (5 skipped,267.563s),
+plus doctests,248 capability Python tests and50 script tests. Formatting,
+workspace/all-target Clippy, diff whitespace and both legacy gates pass:
+zero style violations across10,062 functions and the same13 unfiltered pattern
+IDs. C96 native CI passed on macOS15 and Ubuntu x86/ARM. C97 Ubuntu x86/ARM
+have passed; macOS remains pending. C98 native validation awaits publication.
+Next concrete reuse candidate: capture preparation currently invokes identical
+pinned Cargo metadata twice; reuse one existing collector result.

@@ -21,6 +21,34 @@ const MAX_HINTS: usize = 5;
 const TYPE_RULES: [&str; 2] = ["mutation_per_target", "mutated_targets"];
 const CALLER_HINT_RULE: &str = "side_effect_density";
 
+/// One graph vertex; absent authored facts retain topology without source claims.
+#[derive(Clone, Copy)]
+pub struct PlanningOwner<'a> {
+    pub name: &'a str,
+    pub facts: Option<&'a FnFacts>,
+}
+
+/// Borrow the existing planning fields without manufacturing numeric observations.
+pub trait PlanningInput {
+    fn planning_owner(&self) -> PlanningOwner<'_>;
+}
+
+impl<F: Borrow<FnFacts>> PlanningInput for F {
+    fn planning_owner(&self) -> PlanningOwner<'_> {
+        let facts = self.borrow();
+        PlanningOwner {
+            name: &facts.name,
+            facts: Some(facts),
+        }
+    }
+}
+
+impl PlanningInput for PlanningOwner<'_> {
+    fn planning_owner(&self) -> PlanningOwner<'_> {
+        *self
+    }
+}
+
 struct Dsu(Vec<usize>);
 
 impl Dsu {
@@ -122,7 +150,7 @@ struct Soft {
 }
 
 /// What a group's fixes might also touch, without forcing a stack.
-fn soft_items<F: Borrow<FnFacts>>(
+fn soft_items<F: PlanningInput>(
     members: &[usize],
     rules: &BTreeMap<usize, BTreeSet<String>>,
     facts: &[F],
@@ -135,8 +163,15 @@ fn soft_items<F: Borrow<FnFacts>>(
     for &m in members {
         let mine = &rules[&m];
         if TYPE_RULES.iter().any(|r| mine.contains(*r)) {
-            soft.types
-                .extend(facts[m].borrow().mutated_types.iter().cloned());
+            soft.types.extend(
+                facts[m]
+                    .planning_owner()
+                    .facts
+                    .expect("Diagnostic seed has authored facts")
+                    .mutated_types
+                    .iter()
+                    .cloned(),
+            );
         }
         if mine.contains(CALLER_HINT_RULE) {
             soft.callers
@@ -146,7 +181,7 @@ fn soft_items<F: Borrow<FnFacts>>(
     soft
 }
 
-fn hints_for<F: Borrow<FnFacts>>(
+fn hints_for<F: PlanningInput>(
     group: usize,
     softs: &[Soft],
     owner: &BTreeMap<usize, usize>,
@@ -176,7 +211,7 @@ fn hints_for<F: Borrow<FnFacts>>(
         others.remove(&group);
         (!others.is_empty()).then(|| Hint {
             kind: "shared_caller".into(),
-            item: facts[c].borrow().name.clone(),
+            item: facts[c].planning_owner().name.to_owned(),
             other_groups: others.len(),
         })
     });
@@ -245,16 +280,30 @@ pub fn build(
 /// A fix group retaining exact owners for contextual adapters.
 pub struct IndexedGroup {
     pub report: FixGroup,
-    /// Fact indices aligned with `report.functions`, in callee-first order.
+    /// Graph owner indices aligned with `report.functions`, in callee-first order.
     pub members: Vec<usize>,
     pub step_owners: Vec<usize>,
     pub bundle_owners: Vec<Vec<usize>>,
+    /// Required footprint or signature-callsite owners without authored edit facts.
+    pub unavailable_owners: Vec<usize>,
 }
 
 /// Group already assessed rules using the caller's exact owner indices.
 /// `facts`, graph targets and rule keys must share one index space. This seam does
 /// not resolve diagnostics by source location or infer missing callers.
 pub fn build_indexed<F: Borrow<FnFacts>>(
+    facts: &[F],
+    graph: &Graph,
+    rules: &BTreeMap<usize, BTreeSet<String>>,
+    cfg: &Config,
+) -> Vec<IndexedGroup> {
+    build_planning(facts, graph, rules, cfg)
+}
+
+/// Reuse grouping over the complete graph, including vertices without source facts.
+/// Rule keys must identify authored diagnostic seeds. Graph-only vertices can join
+/// footprints and hints, but never acquire numeric diagnostics or edit coordinates.
+pub fn build_planning<F: PlanningInput>(
     facts: &[F],
     graph: &Graph,
     rules: &BTreeMap<usize, BTreeSet<String>>,
@@ -272,13 +321,15 @@ pub fn build_indexed<F: Borrow<FnFacts>>(
         .flat_map(|(g, members)| members.iter().map(move |&m| (m, g)))
         .collect();
     let ordered: Vec<Vec<usize>> = groups.iter().map(|m| stack_order(m, graph)).collect();
-    let plans = stacking::plans_indexed(&ordered, rules, facts, graph);
+    let plans = stacking::plans_planning(&ordered, rules, facts, graph);
 
     let reports = GroupReports {
         facts,
         rules,
         softs: &softs,
         owner: &owner,
+        callers: &callers,
+        config: cfg,
     };
     ordered
         .into_iter()
@@ -293,31 +344,52 @@ struct GroupReports<'a, F> {
     rules: &'a BTreeMap<usize, BTreeSet<String>>,
     softs: &'a [Soft],
     owner: &'a BTreeMap<usize, usize>,
+    callers: &'a [Vec<usize>],
+    config: &'a Config,
 }
 
-impl<F: Borrow<FnFacts>> GroupReports<'_, F> {
+impl<F: PlanningInput> GroupReports<'_, F> {
+    fn unavailable(&self, members: &[usize], required: Vec<usize>) -> Vec<usize> {
+        members
+            .iter()
+            .flat_map(|index| footprint(*index, &self.rules[index], self.callers, self.config))
+            .filter(|index| self.facts[*index].planning_owner().facts.is_none())
+            .chain(required)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
+
+    fn function(&self, index: usize) -> GroupFunction {
+        let facts = self.facts[index]
+            .planning_owner()
+            .facts
+            .expect("Diagnostic seed has authored facts");
+        GroupFunction {
+            path: facts.path.clone(),
+            line: facts.line,
+            name: facts.name.clone(),
+            rules: self.rules[&index].iter().cloned().collect(),
+        }
+    }
+
     fn group(
         &self,
         g: usize,
         members: Vec<usize>,
         plan: Option<stacking::IndexedPlan>,
     ) -> IndexedGroup {
-        let (plan, step_owners, bundle_owners) = match plan {
-            Some(plan) => (Some(plan.report), plan.step_owners, plan.bundle_owners),
-            None => (None, Vec::new(), Vec::new()),
+        let (plan, step_owners, bundle_owners, unavailable) = match plan {
+            Some(plan) => (
+                Some(plan.report),
+                plan.step_owners,
+                plan.bundle_owners,
+                plan.unavailable_owners,
+            ),
+            None => (None, Vec::new(), Vec::new(), Vec::new()),
         };
-        let functions = members
-            .iter()
-            .map(|&m| {
-                let facts = self.facts[m].borrow();
-                GroupFunction {
-                    path: facts.path.clone(),
-                    line: facts.line,
-                    name: facts.name.clone(),
-                    rules: self.rules[&m].iter().cloned().collect(),
-                }
-            })
-            .collect();
+        let unavailable_owners = self.unavailable(&members, unavailable);
+        let functions = members.iter().map(|&m| self.function(m)).collect();
 
         IndexedGroup {
             report: FixGroup {
@@ -329,6 +401,7 @@ impl<F: Borrow<FnFacts>> GroupReports<'_, F> {
             members,
             step_owners,
             bundle_owners,
+            unavailable_owners,
         }
     }
 }
@@ -374,6 +447,140 @@ mod tests {
 
     fn names(group: &FixGroup) -> Vec<&str> {
         group.functions.iter().map(|f| f.name.as_str()).collect()
+    }
+
+    fn topology(targets: &[&[usize]]) -> Graph {
+        Graph {
+            callees: targets
+                .iter()
+                .map(|targets| {
+                    targets
+                        .iter()
+                        .map(|target| graph::Callee {
+                            line: 1,
+                            targets: vec![*target],
+                            args: vec![],
+                        })
+                        .collect()
+                })
+                .collect(),
+        }
+    }
+
+    fn planning_rules(flags: &[(usize, &str)]) -> BTreeMap<usize, BTreeSet<String>> {
+        flags
+            .iter()
+            .map(|(index, rule)| (*index, BTreeSet::from([(*rule).into()])))
+            .collect()
+    }
+
+    #[test]
+    fn graph_only_shared_caller_groups_authored_signatures_without_fake_edits() {
+        let left = function("left", 1, &[]);
+        let right = function("right", 10, &[]);
+        let owners = [
+            left.planning_owner(),
+            right.planning_owner(),
+            PlanningOwner {
+                name: "generated",
+                facts: None,
+            },
+        ];
+        let rules = planning_rules(&[(0, "fn_params"), (1, "fn_params")]);
+        let groups = build_planning(
+            &owners,
+            &topology(&[&[], &[], &[0, 1]]),
+            &rules,
+            &Config::default(),
+        );
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].members, [0, 1]);
+        assert_eq!(groups[0].step_owners, [0, 1]);
+        assert_eq!(groups[0].unavailable_owners, [2]);
+        let plan = groups[0].report.plan.as_ref().unwrap();
+        assert_eq!(plan.steps.len(), 2);
+        assert!(
+            plan.steps
+                .iter()
+                .all(|step| step.signature && step.incoming_sites == 1)
+        );
+        assert!(plan.bundles.is_empty());
+    }
+
+    #[test]
+    fn graph_only_shared_density_caller_is_a_hint_without_required_source_edits() {
+        let left = function("left", 1, &[]);
+        let right = function("right", 10, &[]);
+        let owners = [
+            left.planning_owner(),
+            right.planning_owner(),
+            PlanningOwner {
+                name: "generated",
+                facts: None,
+            },
+        ];
+        let rules = planning_rules(&[(0, "side_effect_density"), (1, "side_effect_density")]);
+        let graph = topology(&[&[], &[], &[0, 1]]);
+        let groups = build_planning(&owners, &graph, &rules, &Config::default());
+        assert_eq!(groups.len(), 2);
+        for group in &groups {
+            assert!(group.unavailable_owners.is_empty());
+            assert!(group.step_owners.is_empty());
+            assert_eq!(group.report.hints.len(), 1);
+            let hint = &group.report.hints[0];
+            assert_eq!(
+                (hint.kind.as_str(), hint.item.as_str(), hint.other_groups),
+                ("shared_caller", "generated", 1)
+            );
+        }
+    }
+
+    #[test]
+    fn caller_footprints_cross_graph_only_bridges_at_existing_hop_limit() {
+        let leaf = function("leaf", 1, &[]);
+        let top = function("top", 10, &[]);
+        let owners = [
+            leaf.planning_owner(),
+            PlanningOwner {
+                name: "bridge",
+                facts: None,
+            },
+            top.planning_owner(),
+        ];
+        let graph = topology(&[&[], &[0], &[1]]);
+        let rules = planning_rules(&[(0, "fn_params"), (2, "fn_length")]);
+        let mut config = Config::default();
+        let groups = build_planning(&owners, &graph, &rules, &config);
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0].unavailable_owners, [1]);
+        config.grouping.caller_hops = 2;
+        let groups = build_planning(&owners, &graph, &rules, &config);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].members, [0, 2]);
+        assert_eq!(groups[0].unavailable_owners, [1]);
+    }
+
+    #[test]
+    fn signature_callsite_edits_remain_required_at_zero_grouping_hops() {
+        let leaf = function("leaf", 1, &[]);
+        let owners = [
+            leaf.planning_owner(),
+            PlanningOwner {
+                name: "generated",
+                facts: None,
+            },
+            PlanningOwner {
+                name: "disconnected",
+                facts: None,
+            },
+        ];
+        let graph = topology(&[&[], &[0], &[]]);
+        let rules = planning_rules(&[(0, "fn_params")]);
+        let mut config = Config::default();
+        config.grouping.caller_hops = 0;
+        let groups = build_planning(&owners, &graph, &rules, &config);
+        assert_eq!(groups[0].unavailable_owners, [1]);
+        assert_eq!(groups[0].step_owners, [0]);
     }
 
     #[test]
@@ -427,6 +634,16 @@ mod tests {
         let rules = violators(&facts, &diagnostics);
         let borrowed: Vec<_> = facts.iter().collect();
         let groups = build_indexed(&borrowed, &graph::build(&facts), &rules, &cfg);
+        let owners: Vec<_> = facts.iter().map(PlanningInput::planning_owner).collect();
+        let projected = build_planning(&owners, &graph::build(&facts), &rules, &cfg);
+        assert_eq!(
+            serde_json::to_value(&projected[0].report).unwrap(),
+            serde_json::to_value(&groups[0].report).unwrap()
+        );
+        assert_eq!(projected[0].members, groups[0].members);
+        assert_eq!(projected[0].step_owners, groups[0].step_owners);
+        assert_eq!(projected[0].bundle_owners, groups[0].bundle_owners);
+        assert!(projected[0].unavailable_owners.is_empty());
         assert_eq!(groups[0].members, [1, 0]);
         assert_eq!(groups[0].step_owners, [1, 0]);
         let reports: Vec<_> = groups.into_iter().map(|group| group.report).collect();
