@@ -34,7 +34,7 @@ struct Compact<'a> {
     outcome: &'a str,
     reasons: &'a [String],
     name: &'a str,
-    fn_span: &'a rstyle_pdg::ByteSpan,
+    fn_span: rstyle_pdg::ByteSpan,
     source_digest: &'a str,
     nominal_unit_binding: &'a Option<rstyle_pdg::nominal_binding::Binding>,
 }
@@ -47,9 +47,9 @@ impl<'a> Compact<'a> {
             unit_evidence: &function.unit_evidence,
             outcome: &function.outcome,
             reasons: &function.reasons,
-            name: &function.facts.name,
-            fn_span: &function.facts.fn_span,
-            source_digest: &function.facts.source.digest,
+            name: function.facts.view().name,
+            fn_span: function.facts.view().fn_span,
+            source_digest: &function.facts.view().source.digest,
             nominal_unit_binding: &function.nominal_unit_binding,
         }
     }

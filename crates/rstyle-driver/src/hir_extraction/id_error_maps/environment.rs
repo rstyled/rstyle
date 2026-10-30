@@ -112,6 +112,7 @@ fn capture<'tcx>(
     })
 }
 
+// rstyle-allow(side_effect_density): Type observation deliberately shares one mutable collector across ordered input and output types.
 fn signature_types<'tcx>(
     signature: ty::FnSig<'tcx>,
     observe: &mut impl FnMut(Ty<'tcx>) -> Result<Observation, String>,

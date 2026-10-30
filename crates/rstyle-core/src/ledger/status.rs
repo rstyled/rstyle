@@ -15,6 +15,8 @@ pub enum MemberState {
     Unchanged,
     ShapeChanged,
     Gone,
+    /// The member or its recorded body shape was not observed in this population.
+    Unavailable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,20 +40,21 @@ pub struct EntryStatus {
 }
 
 /// Where a function is now.
-struct Current {
+pub struct Current {
     at: String,
     shape: Option<String>,
 }
 
-fn current(facts: &[FnFacts]) -> BTreeMap<String, Current> {
+/// Retain locations and shapes for every observed function in one compilation population.
+pub fn current(facts: &[FnFacts], include_shapes: bool) -> BTreeMap<String, Current> {
     let names = locator::assign(facts);
 
     facts
         .iter()
         .map(|f| {
-            let shape = f
-                .pdg
-                .as_ref()
+            let shape = include_shapes
+                .then_some(f.pdg.as_ref())
+                .flatten()
                 .map(|p| format!("{:016x}", wl::shape_hash(p)));
             let at = format!("{}:{}", f.path, f.line);
 
@@ -79,6 +82,7 @@ fn member(now: &BTreeMap<String, Current>, locator: String, shape: Option<String
     let found = now.get(&locator);
     let state = match (found, shape) {
         (None, _) => MemberState::Gone,
+        (Some(c), Some(_)) if c.shape.is_none() => MemberState::Unavailable,
         (Some(c), Some(old)) if c.shape.as_ref().is_some_and(|new| *new != old) => {
             MemberState::ShapeChanged
         }
@@ -142,12 +146,39 @@ fn entry_status(
 
 /// One status per entry, in id order. `candidates` must be the unfiltered current set.
 pub fn status(ledger: &Ledger, candidates: &[Candidate], facts: &[FnFacts]) -> Vec<EntryStatus> {
-    let now = current(facts);
+    status_with_current(ledger, candidates, &current(facts, true))
+}
 
+/// Reuse a compact function census after releasing its source and graph observations.
+/// Keep censuses from different compilation populations separate.
+pub fn status_with_current(
+    ledger: &Ledger,
+    candidates: &[Candidate],
+    now: &BTreeMap<String, Current>,
+) -> Vec<EntryStatus> {
     ledger
         .entries
         .iter()
-        .map(|entry| entry_status(entry, candidates, &now))
+        .map(|entry| entry_status(entry, candidates, now))
+        .collect()
+}
+
+/// A bounded compiler population cannot establish that an absent member was deleted.
+pub fn status_observed(
+    ledger: &Ledger,
+    candidates: &[Candidate],
+    now: &BTreeMap<String, Current>,
+) -> Vec<EntryStatus> {
+    status_with_current(ledger, candidates, now)
+        .into_iter()
+        .map(|mut entry| {
+            for member in &mut entry.members {
+                if member.state == MemberState::Gone {
+                    member.state = MemberState::Unavailable;
+                }
+            }
+            entry
+        })
         .collect()
 }
 
@@ -157,6 +188,8 @@ fn member_text(m: &Member) -> String {
         MemberState::Unchanged => "unchanged",
         MemberState::ShapeChanged => "shape changed",
         MemberState::Gone => "gone (renamed or deleted)",
+        MemberState::Unavailable if m.at.is_some() => "found; body shape unavailable",
+        MemberState::Unavailable => "unobserved in this compilation population",
     };
 
     format!(
@@ -167,7 +200,10 @@ fn member_text(m: &Member) -> String {
 }
 
 fn stale_hint(s: &EntryStatus) -> Option<String> {
-    let moved = s.members.iter().any(|m| m.state == MemberState::Gone);
+    let moved = s
+        .members
+        .iter()
+        .any(|m| matches!(m.state, MemberState::Gone | MemberState::Unavailable));
 
     match (s.active, moved, s.new_members.is_empty()) {
         (true, _, _) | (_, true, _) | (_, _, false) => None,
@@ -176,7 +212,17 @@ fn stale_hint(s: &EntryStatus) -> Option<String> {
 }
 
 fn entry_text(s: &EntryStatus) -> String {
-    let state = if s.active { "active" } else { "stale" };
+    let state = if s.active {
+        "active"
+    } else if s
+        .members
+        .iter()
+        .any(|m| m.state == MemberState::Unavailable)
+    {
+        "unassessed"
+    } else {
+        "stale"
+    };
     let reason = s.reason.as_ref().map(|r| format!("  \"{r}\""));
     let head = format!(
         "{}  {}  {state}{}",
@@ -309,6 +355,133 @@ mod tests {
         assert!(!st[0].active);
         assert_eq!(state_of("krate::a"), MemberState::ShapeChanged);
         assert_eq!(state_of("krate::b"), MemberState::Gone);
+    }
+
+    #[test]
+    fn compact_census_keeps_noncandidate_locations_and_shapes_after_facts_are_dropped() {
+        let (a, b) = two();
+        let ledger = add(
+            Ledger::default(),
+            &candidate(&[&a, &b]),
+            Opts {
+                allow_growth: true,
+                reason: None,
+            },
+        );
+        let mut graph = emit_loop("Dog", "bark");
+        graph.nodes.push(getter_call("Dog", "bark"));
+        graph.edges.push(crate::pdgtest::data(2, 6, 0));
+        let moved = FnFacts { line: 55, ..b };
+        let facts = vec![fact("a", 10, graph), moved];
+        let expected = status(&ledger, &[], &facts);
+        let census = current(&facts, true);
+        drop(facts);
+
+        let actual = status_with_current(&ledger, &[], &census);
+        assert_eq!(actual, expected);
+        assert!(!actual[0].active);
+        let edited = actual[0]
+            .members
+            .iter()
+            .find(|member| member.locator == a.id)
+            .unwrap();
+        assert_eq!(edited.state, MemberState::ShapeChanged);
+        let unchanged = actual[0]
+            .members
+            .iter()
+            .find(|member| member.locator == "krate::b")
+            .unwrap();
+        assert_eq!(unchanged.state, MemberState::Unchanged);
+        assert_eq!(unchanged.at.as_deref(), Some("src/a.rs:55"));
+    }
+
+    #[test]
+    fn observed_status_retains_unavailable_members_without_assuming_deletion() {
+        let (a, b) = two();
+        let dismissed = candidate(&[&a, &b]);
+        let ledger = add(Ledger::default(), &dismissed, Opts::default());
+        let census = current(&[a], true);
+        let unassessed = status_observed(&ledger, &[], &census);
+        let missing = unassessed[0]
+            .members
+            .iter()
+            .find(|member| member.locator == b.id)
+            .unwrap();
+
+        assert_eq!(missing.state, MemberState::Unavailable);
+        let output = text(&unassessed);
+        assert!(output.contains("unassessed"));
+        assert!(output.contains("unobserved in this compilation population"));
+        assert!(!output.contains("stale"));
+        assert!(!output.contains("a member's body changed"));
+        let active = status_observed(&ledger, &[dismissed], &census);
+        assert!(active[0].active);
+        assert!(text(&active).contains("  active"));
+        assert!(!text(&active).contains("unassessed"));
+    }
+
+    #[test]
+    fn locations_only_census_does_not_claim_growth_member_shapes_are_unchanged() {
+        let (a, b) = two();
+        let dismissed = candidate(&[&a, &b]);
+        let ledger = add(
+            Ledger::default(),
+            &dismissed,
+            Opts {
+                allow_growth: true,
+                reason: None,
+            },
+        );
+        let census = current(&[a, b], false);
+        let observed = status_observed(&ledger, &[], &census);
+
+        assert!(
+            observed[0]
+                .members
+                .iter()
+                .all(|member| { member.state == MemberState::Unavailable && member.at.is_some() })
+        );
+        let output = text(&observed);
+        assert!(output.contains("unassessed"));
+        assert!(output.contains("src/a.rs:10  found; body shape unavailable"));
+        assert!(output.contains("src/a.rs:20  found; body shape unavailable"));
+        assert!(!output.contains("unchanged"));
+        assert!(!output.contains("unobserved in this compilation population"));
+        assert!(!output.contains("a member's body changed"));
+        let strict = add(Ledger::default(), &dismissed, Opts::default());
+        assert!(
+            status_observed(&strict, &[], &census)[0]
+                .members
+                .iter()
+                .all(|member| member.state == MemberState::Found)
+        );
+    }
+
+    #[test]
+    fn observed_status_still_reports_present_changed_members_as_stale() {
+        let (a, b) = two();
+        let ledger = add(
+            Ledger::default(),
+            &candidate(&[&a, &b]),
+            Opts {
+                allow_growth: true,
+                reason: None,
+            },
+        );
+        let mut graph = emit_loop("Dog", "bark");
+        graph.nodes.push(getter_call("Dog", "bark"));
+        graph.edges.push(crate::pdgtest::data(2, 6, 0));
+        let census = current(&[fact("a", 10, graph), b], true);
+        let observed = status_observed(&ledger, &[], &census);
+        let changed = observed[0]
+            .members
+            .iter()
+            .find(|member| member.locator == a.id)
+            .unwrap();
+
+        assert_eq!(changed.state, MemberState::ShapeChanged);
+        assert!(text(&observed).contains("  stale"));
+        assert!(!text(&observed).contains("unassessed"));
     }
 
     #[test]

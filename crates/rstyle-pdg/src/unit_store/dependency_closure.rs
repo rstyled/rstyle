@@ -366,6 +366,7 @@ fn rebuild(
     builder.capture()
 }
 
+// rstyle-allow(side_effect_density): Dependency installation retains linked owners and their namespace associations together.
 fn install_dependency_owners(
     builder: &mut Builder,
     index: usize,

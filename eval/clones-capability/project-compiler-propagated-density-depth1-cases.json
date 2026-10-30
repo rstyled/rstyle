@@ -1,0 +1,206 @@
+{
+  "schema": "rstyle.compiler-quality-cases/1",
+  "run": "run-bS3zMn",
+  "toolchain": "nightly-2026-09-30",
+  "metrics": "rstyle.compiler-style-metrics/3",
+  "policy": "project-compiler-propagated-density-depth1-policy.toml",
+  "limits": {
+    "side_effect_density": 500
+  },
+  "density_policy": {
+    "max_density_milli": 500,
+    "min_statements": 0,
+    "min_lines": 0,
+    "transitive_depth": 1,
+    "weights": {
+      "mutation": 1,
+      "io": 3,
+      "network": 3,
+      "global": 2,
+      "unsafe": 4,
+      "time": 1,
+      "random": 1,
+      "panic": 0,
+      "unknown": 1
+    },
+    "paths": {
+      "io": [
+        "std::fs::write",
+        "std::io::"
+      ],
+      "network": [],
+      "time": [],
+      "random": [],
+      "panic": []
+    },
+    "exclude": [
+      "target/**"
+    ]
+  },
+  "samples": [
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "diagnostic_process::collect",
+      "source_file": "crates/cargo-rstyle/src/diagnostic_process.rs",
+      "source": "fn collect(mut reader: impl Read) -> io::Result<Vec<u8>> {\n    let mut bytes = Vec::new();\n    reader.read_to_end(&mut bytes)?;\n\n    Ok(bytes)\n}",
+      "unsuppressed": true,
+      "included": true,
+      "basis": "Local bytes declaration, read_to_end statement and Ok tail; one IO trait call; owned locals do not escape.",
+      "density": {
+        "events": {
+          "io": 1
+        },
+        "statements": 3,
+        "code_lines": 5,
+        "complete": true,
+        "exempt": false,
+        "actual": 1000,
+        "outcome": "finding",
+        "details": [
+          {
+            "label": "io: std::io::Read::read_to_end",
+            "count": 1
+          }
+        ]
+      },
+      "propagation_reviewed": true,
+      "propagation_inputs": []
+    },
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "diagnostic_process::tee",
+      "source_file": "crates/cargo-rstyle/src/diagnostic_process.rs",
+      "source": "fn tee(reader: impl Read) -> io::Result<Vec<u8>> {\n    collect(StderrTee(reader))\n}",
+      "unsuppressed": true,
+      "included": true,
+      "basis": "One block tail calling collect; positive static depths inherit one collapsed IO effect from that exact callee. No runtime Read callback edge is inferred. This is not a purity label.",
+      "density": {
+        "events": {
+          "io": 1
+        },
+        "statements": 1,
+        "code_lines": 3,
+        "complete": true,
+        "exempt": false,
+        "actual": 3000,
+        "outcome": "finding",
+        "details": [
+          {
+            "label": "io: std::io::Read::read_to_end (via diagnostic_process::collect)",
+            "count": 1
+          }
+        ]
+      },
+      "propagation_reviewed": true,
+      "propagation_inputs": [
+        {
+          "package": "cargo-rstyle",
+          "target_kind": "bin",
+          "function": "diagnostic_process::collect",
+          "source_file": "crates/cargo-rstyle/src/diagnostic_process.rs",
+          "source": "fn collect(mut reader: impl Read) -> io::Result<Vec<u8>> {\n    let mut bytes = Vec::new();\n    reader.read_to_end(&mut bytes)?;\n\n    Ok(bytes)\n}",
+          "unsuppressed": true,
+          "included": true
+        }
+      ]
+    },
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "diagnostic_process::emit",
+      "source_file": "crates/cargo-rstyle/src/diagnostic_process.rs",
+      "source": "fn emit(bytes: &[u8]) {\n    let mut stderr = io::stderr().lock();\n    let _ = stderr.write_all(bytes);\n    let _ = stderr.flush();\n}",
+      "unsuppressed": true,
+      "included": true,
+      "basis": "Three local statements; stderr, lock, write_all and flush each match the explicitly declared std::io prefix.",
+      "density": {
+        "events": {
+          "io": 4
+        },
+        "statements": 3,
+        "code_lines": 5,
+        "complete": true,
+        "exempt": false,
+        "actual": 4000,
+        "outcome": "finding",
+        "details": [
+          {
+            "label": "io: std::io::stderr",
+            "count": 1
+          },
+          {
+            "label": "io: std::io::Stderr::lock",
+            "count": 1
+          },
+          {
+            "label": "io: std::io::Write::write_all",
+            "count": 1
+          },
+          {
+            "label": "io: std::io::Write::flush",
+            "count": 1
+          }
+        ]
+      },
+      "propagation_reviewed": true,
+      "propagation_inputs": []
+    },
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "<diagnostic_process::StderrTee<R> as std::io::Read>::read",
+      "source_file": "crates/cargo-rstyle/src/diagnostic_process.rs",
+      "source": "fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {\n        let count = self.0.read(buffer)?;\n        emit(&buffer[..count]);\n\n        Ok(count)\n    }",
+      "unsuppressed": true,
+      "included": true,
+      "basis": "Read reborrows self.0 and the mutable buffer (two escaping potential mutation targets), directly calls Read::read, then calls emit. Three authored statements; pinned collector semantics count reborrows, not confirmed runtime writes.",
+      "density": {
+        "events": {
+          "io": 2,
+          "mutation": 2
+        },
+        "statements": 3,
+        "code_lines": 5,
+        "complete": true,
+        "exempt": false,
+        "actual": 2666,
+        "outcome": "finding",
+        "details": [
+          {
+            "label": "io: std::io::Read::read",
+            "count": 1
+          },
+          {
+            "label": "mutation: self.0",
+            "count": 1
+          },
+          {
+            "label": "mutation: buffer",
+            "count": 1
+          },
+          {
+            "label": "io: std::io::Stderr::lock +3 more (via diagnostic_process::emit)",
+            "count": 1
+          }
+        ]
+      },
+      "propagation_reviewed": true,
+      "propagation_inputs": [
+        {
+          "package": "cargo-rstyle",
+          "target_kind": "bin",
+          "function": "diagnostic_process::emit",
+          "source_file": "crates/cargo-rstyle/src/diagnostic_process.rs",
+          "source": "fn emit(bytes: &[u8]) {\n    let mut stderr = io::stderr().lock();\n    let _ = stderr.write_all(bytes);\n    let _ = stderr.flush();\n}",
+          "unsuppressed": true,
+          "included": true
+        }
+      ]
+    }
+  ],
+  "basis": "C32 source-only manual numeric/call review before report inspection; collect, tee and emit retain frozen C30 source/denominator labels. read source and escaping reborrow semantics were reviewed against the existing collector and pinned compiler. Exact display labels are predictions from source definitions; spelling corrections must be separately recorded without altering numeric labels. Detail-only correction after initial inspection: def_path_str displays public std::io paths; existing pre-order visit_expr records outer Stderr::lock before stderr(), so exported_by uses Stderr::lock as the collapsed base. Source, event/statement/line counts and densities remain frozen.",
+  "limitations": "Four selected production owners, completed core static-event metric only. Source ownership does not prove semantic purity or runtime mutations. Inherited effects collapse to one per kind/callee; +N more is descriptive, not N additional density events. Global scope and planning completeness stay unchanged; no-finding observations provide no numeric measurements.",
+  "preconditions": "Original included unsuppressed owners; default weights with explicit std::io/fs classification; minima zero. propagation_reviewed is a manual review of the complete static call inventory at this depth, not automatic closure verification. Listed callee sources must independently match the capture; missing inputs remain unavailable. External trait runtime callbacks are outside this static policy."
+}

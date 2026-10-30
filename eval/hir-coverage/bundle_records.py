@@ -24,7 +24,7 @@ def load(path):
             or manifest['checksum'] != 'xxh3-64:' + xxhash.xxh3_64_hexdigest(data)):
         raise ValueError('Serialized unit does not match its exact manifest')
     bundle = json.loads(data)
-    if bundle.get('schema') not in ('rstyle.shared-unit/4', 'rstyle.shared-unit/5'):
+    if bundle.get('schema') not in ('rstyle.shared-unit/4', 'rstyle.shared-unit/5', 'rstyle.shared-unit/6'):
         raise ValueError('Unsupported shared unit schema')
     return bundle
 

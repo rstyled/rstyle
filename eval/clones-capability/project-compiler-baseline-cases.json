@@ -1,0 +1,13 @@
+{
+  "schema": "rstyle.compiler-baseline-study-cases/1",
+  "scope": "rstyle-ccgraph library saved run run-I9FEzJ",
+  "policy": "project-compiler-review-policy.toml",
+  "cases": [
+    {
+      "expectation": "incomplete project cannot publish a baseline",
+      "expected_exit": 2,
+      "expected_export": false,
+      "basis": "The recorded project population contains 176 unavailable generated owners and twenty unresolved callees. Thirty-nine known diagnostics, including the independently checked gcd mutation finding, do not establish complete scope."
+    }
+  ]
+}

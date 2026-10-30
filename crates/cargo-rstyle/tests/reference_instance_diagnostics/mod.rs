@@ -46,7 +46,11 @@ fn inventory() -> Value {
     )
     .unwrap();
     let output = run(directory.path(), snapshots.path(), &requests);
-    let files: Vec<_> = std::fs::read_dir(snapshots.path())
+    read_inventory(&output, snapshots.path())
+}
+
+fn read_inventory(output: &Output, snapshots: &Path) -> Value {
+    let files: Vec<_> = std::fs::read_dir(snapshots)
         .unwrap()
         .map(|entry| entry.unwrap().path())
         .filter(|path| {
@@ -61,6 +65,13 @@ fn inventory() -> Value {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
+    assert!(std::fs::read_dir(snapshots).unwrap().all(|entry| {
+        !entry
+            .unwrap()
+            .path()
+            .to_string_lossy()
+            .ends_with("-product-instances.json")
+    }));
     serde_json::from_slice(&std::fs::read(&files[0]).unwrap()).unwrap()
 }
 
@@ -79,6 +90,7 @@ fn run(directory: &Path, snapshots: &Path, requests: &Path) -> Output {
             .env("RSTYLE_DIAGNOSTIC_CAPTURE_ONLY", "1")
             .env("RSTYLE_DIAGNOSTIC_FACTS_DIR", snapshots)
             .env("RSTYLE_DIAGNOSTIC_REFERENCE_INSTANCE_REQUESTS", requests)
+            .env_remove("RSTYLE_DIAGNOSTIC_PRODUCT_INSTANCE_REQUESTS")
             .env_remove("CARGO_TARGET_DIR"),
     )
     .unwrap();
@@ -95,6 +107,14 @@ fn run(directory: &Path, snapshots: &Path, requests: &Path) -> Output {
 #[test]
 fn original_reference_impl_instances_are_observations_without_admission() {
     let inventory = inventory();
+    assert_eq!(
+        inventory["identity"],
+        "rstyle.diagnostic.reference-instance-bodies/1"
+    );
+    assert_eq!(
+        inventory["scope"],
+        "original owning-body observations only; no lifetime, cleanup, origin, artifact or admission authority"
+    );
     assert_eq!(inventory["admission_authority"], false);
     let entries = inventory["requests"].as_array().unwrap();
     assert_eq!(entries.len(), 7);

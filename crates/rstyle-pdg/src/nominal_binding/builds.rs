@@ -29,7 +29,8 @@ impl Default for BuildContexts {
 }
 
 impl BuildContexts {
-    pub(super) fn intern(&mut self, build: &BuildFacts) -> Result<BuildId, String> {
+    /// Retain the existing exact compiler settings, excluding per-function observations.
+    pub fn intern(&mut self, build: &BuildFacts) -> Result<BuildId, String> {
         if let Some(index) = self.contexts.iter().position(|value| same(value, build)) {
             return Ok(BuildId(index as u32));
         }
@@ -54,24 +55,15 @@ fn same(first: &BuildFacts, second: &BuildFacts) -> bool {
         && first.debug_assertions == second.debug_assertions
         && first.panic_strategy == second.panic_strategy
         && first.opt_level == second.opt_level
-        && OPTIONS
-            .iter()
-            .all(|key| first.frontend_options.get(key) == second.frontend_options.get(key))
+        && first
+            .frontend_options
+            .same_selected(&second.frontend_options, &OPTIONS)
 }
 
 fn settings(build: &BuildFacts) -> BuildFacts {
     BuildFacts {
         producer_revision: build.producer_revision.clone(),
-        frontend_options: OPTIONS
-            .into_iter()
-            .filter_map(|key| {
-                build
-                    .frontend_options
-                    .get(key)
-                    .map(|value| (key.into(), value.clone()))
-            })
-            .collect::<std::collections::BTreeMap<_, _>>()
-            .into(),
+        frontend_options: build.frontend_options.selected(&OPTIONS),
         rustc_version: build.rustc_version.clone(),
         rustc_commit: build.rustc_commit.clone(),
         edition: build.edition.clone(),
@@ -146,6 +138,37 @@ mod tests {
         let serialized = serde_json::to_value(&table).unwrap();
         assert_eq!(serialized["identity"], "rstyle.rust.unit-build-contexts/1");
         assert!(serialized.to_string().find("sha256").is_none());
+    }
+
+    #[test]
+    fn independently_owned_equal_settings_merge_and_mutations_remain_distinct() {
+        let original = build();
+        let wire = serde_json::to_value(&original).unwrap();
+        let mut independent: BuildFacts = serde_json::from_value(wire).unwrap();
+        let mut table = BuildContexts::default();
+        let id = table.intern(&original).unwrap();
+        assert_eq!(table.intern(&independent).unwrap(), id);
+        assert!(std::ptr::eq(
+            original.frontend_options.get("invocation").unwrap(),
+            table.contexts[0]
+                .frontend_options
+                .get("invocation")
+                .unwrap()
+        ));
+
+        independent.frontend_options.get_mut("invocation").unwrap()[1] = json!("--test");
+        assert_ne!(table.intern(&independent).unwrap(), id);
+        assert_eq!(table.contexts.len(), 2);
+        assert_eq!(table.intern(&original).unwrap(), id);
+        let wire = serde_json::to_value(&table).unwrap();
+        assert_eq!(
+            wire["contexts"][0]["frontend_options"]["invocation"],
+            json!(["rustc", "--crate-type=lib"])
+        );
+        assert_eq!(
+            wire["contexts"][1]["frontend_options"]["invocation"],
+            json!(["rustc", "--test"])
+        );
     }
 
     #[test]

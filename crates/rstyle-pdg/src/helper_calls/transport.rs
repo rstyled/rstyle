@@ -316,7 +316,7 @@ impl Reader {
         for id in ids {
             let text = super::transport_lexical::string(self.child(id, index, depth)?)?;
             writer
-                .write_all(text.as_bytes())
+                .append(text.as_bytes())
                 .map_err(|error| error.to_string())?;
         }
         let text = String::from_utf8(writer.0).map_err(|error| error.to_string())?;
@@ -344,14 +344,21 @@ fn check_depth(depth: usize) -> Result<(), String> {
 
 struct BoundedWriter(Vec<u8>);
 
-impl Write for BoundedWriter {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+impl BoundedWriter {
+    fn append(&mut self, bytes: &[u8]) -> std::io::Result<()> {
         if bytes.len() > MAX_BYTES.saturating_sub(self.0.len()) {
             return Err(std::io::Error::other(
                 "Helper transport exceeds explicit 8 MiB byte budget",
             ));
         }
         self.0.extend_from_slice(bytes);
+        Ok(())
+    }
+}
+
+impl Write for BoundedWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.append(bytes)?;
         Ok(bytes.len())
     }
 
@@ -388,6 +395,22 @@ mod tests {
             root,
             nodes: table.nodes,
         }
+    }
+
+    #[test]
+    fn memory_append_and_json_writer_share_the_exact_byte_limit() {
+        let mut writer = BoundedWriter(vec![b'x'; MAX_BYTES - 1]);
+        writer.append(b"a").unwrap();
+        assert_eq!(writer.0.len(), MAX_BYTES);
+        assert!(writer.append(b"b").is_err());
+        assert!(writer.write_all(b"c").is_err());
+        assert_eq!(writer.0.len(), MAX_BYTES);
+        assert_eq!(writer.0.last(), Some(&b'a'));
+
+        let mut writer = BoundedWriter(vec![b'x'; MAX_BYTES - 1]);
+        writer.write_all(b"z").unwrap();
+        assert_eq!(writer.0.len(), MAX_BYTES);
+        assert_eq!(writer.0.last(), Some(&b'z'));
     }
 
     #[test]

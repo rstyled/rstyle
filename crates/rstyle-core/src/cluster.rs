@@ -3,7 +3,7 @@
 
 use crate::align::{Alignment, Ctx, HoleKind, align};
 use crate::facts::{NodeKind, Pdg};
-use crate::normalize::{Rules, canonicalize};
+use crate::normalize::{Rules, canonicalize_or_borrow};
 use crate::wl::{Wl, call_class, comparable, similarity_milli};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -15,11 +15,13 @@ const BLOCK_KEYS: usize = 2;
 /// classes unique to each function when the corpus is tiny, so parallel functions never meet.
 const ALL_PAIRS_LIMIT: usize = 400;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Params {
     pub threshold_milli: u32,
     pub min_coverage_milli: u32,
     /// Experiment: also select pairs whose alignment coverage reaches this (besides WL similarity).
+    #[serde(deserialize_with = "serde::Deserialize::deserialize")]
     pub pair_coverage_milli: Option<u32>,
     /// Canonicalization rules applied to every graph before hashing and aligning (default: none).
     pub normalize: Rules,
@@ -56,6 +58,11 @@ pub struct Cluster {
     pub members: Vec<usize>,
     pub coverage_milli: Vec<u32>,
     pub columns: Vec<Column>,
+    /// Every retained alignment only forwards through distinct, single-use callee holes.
+    /// Missing identities, shared calls, repeated holes or other node kinds keep this false.
+    pub forwarding_only: bool,
+    /// At least one retained member contains an opaque ordinary closure node.
+    pub opaque_closure: bool,
 }
 
 fn classes_of(pdg: &Pdg) -> BTreeSet<String> {
@@ -223,6 +230,20 @@ fn columns_of(joined: &[Joined]) -> Vec<Column> {
         .collect()
 }
 
+/// Reuse completed holes and call counts: with no fn-item/literal nodes, each callee
+/// hole site is a call. Equality to the smaller call count accounts for every such call.
+/// This is proposal policy about shared work, not a body-equivalence or purity proof.
+fn forwards_calls(a: &Wl, b: &Wl, alignment: &Alignment) -> bool {
+    let calls = a.calls.min(b.calls);
+    a.forwarding_shape
+        && b.forwarding_shape
+        && calls > 0
+        && alignment.holes.len() == calls
+        && alignment.holes.iter().all(|hole| {
+            matches!(hole.kind, HoleKind::Method | HoleKind::FreeFn) && hole.sites.len() == 1
+        })
+}
+
 fn build(pdgs: &[&Pdg], wls: &[Wl], group: &[usize], params: &Params) -> Option<Cluster> {
     let template = medoid(wls, group);
     let joined: Vec<Joined> = group
@@ -239,17 +260,22 @@ fn build(pdgs: &[&Pdg], wls: &[Wl], group: &[usize], params: &Params) -> Option<
             .chain(joined.iter().map(|j| j.alignment.coverage_milli))
             .collect(),
         columns: columns_of(&joined),
+        opaque_closure: wls[template].opaque_closure
+            || joined.iter().any(|member| wls[member.index].opaque_closure),
+        forwarding_only: joined
+            .iter()
+            .all(|member| forwards_calls(&wls[template], &wls[member.index], &member.alignment)),
     })
 }
 
 /// Clusters of structurally parallel functions, largest first. Each function lands in at
 /// most one cluster; members must align with the template above the coverage floor.
 pub fn cluster(pdgs: &[&Pdg], params: &Params) -> Vec<Cluster> {
-    let canonical: Vec<Pdg> = pdgs
+    let canonical: Vec<_> = pdgs
         .iter()
-        .map(|p| canonicalize(p, &params.normalize))
+        .map(|p| canonicalize_or_borrow(p, &params.normalize))
         .collect();
-    let pdgs: Vec<&Pdg> = canonical.iter().collect();
+    let pdgs: Vec<&Pdg> = canonical.iter().map(|p| p.as_ref()).collect();
     let pdgs = pdgs.as_slice();
     let wls: Vec<Wl> = pdgs.iter().map(|p| Wl::new(p)).collect();
     let adjacency = similar(pdgs, &wls, &pairs_to_compare(pdgs), params);
@@ -281,7 +307,7 @@ pub fn cluster(pdgs: &[&Pdg], params: &Params) -> Vec<Cluster> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::facts::{PdgNode, TyShape};
+    use crate::facts::{NodeKind, PdgNode, TyShape};
     use crate::pdgtest::*;
 
     fn animals() -> Vec<Pdg> {
@@ -295,6 +321,30 @@ mod tests {
     fn run(pdgs: &[Pdg], params: &Params) -> Vec<Cluster> {
         let refs: Vec<&Pdg> = pdgs.iter().collect();
         cluster(&refs, params)
+    }
+
+    #[test]
+    fn opaque_closure_summary_follows_only_retained_graph_members() {
+        let mut pdgs = animals();
+        assert!(
+            run(&pdgs, &Params::default())
+                .iter()
+                .all(|c| !c.opaque_closure)
+        );
+        for pdg in &mut pdgs {
+            pdg.nodes.push(node(NodeKind::Closure));
+        }
+        let clusters = run(&pdgs, &Params::default());
+        assert_eq!(clusters.len(), 1);
+        assert!(clusters[0].opaque_closure);
+        assert_eq!(clusters[0].coverage_milli, [1000, 1000, 1000]);
+
+        let mut ordinary = animals();
+        ordinary.push(pdgs.pop().unwrap());
+        let refs: Vec<_> = ordinary.iter().collect();
+        let wls: Vec<_> = refs.iter().map(|pdg| Wl::new(pdg)).collect();
+        let selected = build(&refs, &wls, &[0, 1, 2], &Params::default()).unwrap();
+        assert!(!selected.opaque_closure);
     }
 
     #[test]

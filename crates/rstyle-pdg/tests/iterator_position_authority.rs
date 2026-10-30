@@ -23,8 +23,8 @@ fn byte_iterator_authority_binds_pinned_slice_override_and_cursor_sources() {
 }
 
 mod development {
-    include!("../../../eval/coverage-development/iterator-byte-position.rs");
-    include!("../../../eval/coverage-development/iterator-byte-position-oracle.rs");
+    include!("../../../tests/fixtures/function-families/iterator-byte-position.rs");
+    include!("../../../tests/fixtures/function-families/iterator-byte-position-oracle.rs");
 
     #[test]
     fn compositions_preserve_first_indices_subslice_offsets_and_saved_origins() {

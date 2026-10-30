@@ -1,0 +1,177 @@
+{
+  "schema": "rstyle.clones-capability.proposal-review-acceptance/1",
+  "status": "prepared-independent-requirements",
+  "scope": {
+    "c08": "Advisory whole-function scalar expression helpers; builtin u32 operators, ordered formal roles and literal holes only. At least two builtin operations in each supported body. No rewrite or total-equivalence claim.",
+    "c09": "Synthetic lifecycle of independently specified findings; review identity is separate from report-local function handles.",
+    "evidence": "Source-authored labels, not copied from producer output. These embedded sources are specifications, not newly captured compiler evidence."
+  },
+  "proposal_cases": [
+    {
+      "id": "two-operation-literal-hole",
+      "sources": [
+        "pub fn first(value: u32) -> u32 { (value + 1) * 2 }",
+        "pub fn second(input: u32) -> u32 { (input + 3) * 2 }"
+      ],
+      "expected": "advisory-helper-proposal",
+      "builtin_operations_per_member": [2, 2],
+      "required_correspondence": [
+        "first formal maps to first formal independently of binder spelling",
+        "outer multiplication maps to outer multiplication with ordered operands",
+        "inner addition maps to inner addition with ordered operands",
+        "literal 1 versus 3 is a parameter hole at the second operand of inner addition",
+        "literal 2 is common and remains common"
+      ],
+      "required_limitations": ["integer overflow behavior remains relevant", "proposal is not an automatic safe rewrite"]
+    },
+    {
+      "id": "two-operation-alpha-only",
+      "sources": [
+        "pub fn first(value: u32, mask: u32) -> u32 { (value ^ mask) & 15 }",
+        "pub fn second(input: u32, bits: u32) -> u32 { (input ^ bits) & 15 }"
+      ],
+      "expected": "advisory-helper-proposal",
+      "builtin_operations_per_member": [2, 2],
+      "required_correspondence": ["formal positions map exactly", "no literal hole is invented", "ordered xor then and computation is retained"]
+    },
+    {
+      "id": "identity-forwarding",
+      "sources": ["pub fn first(value: u32) -> u32 { value }", "pub fn second(input: u32) -> u32 { input }"],
+      "expected": "no-proposal",
+      "reason": "Identity forwarding contains no useful repeated computation. Structural similarity alone is insufficient."
+    },
+    {
+      "id": "one-operation-below-usefulness-boundary",
+      "sources": ["pub fn first(value: u32) -> u32 { value + 1 }", "pub fn second(input: u32) -> u32 { input + 3 }"],
+      "expected": "no-proposal",
+      "reason": "Literal correspondence is possible, but this deliberately bounded consumer requires at least two builtin operations per member."
+    },
+    {
+      "id": "noncommutative-formal-reordering",
+      "sources": [
+        "pub fn first(left: u32, right: u32) -> u32 { (left - right) * 2 }",
+        "pub fn second(left: u32, right: u32) -> u32 { (right - left) * 2 }"
+      ],
+      "expected": "no-proposal",
+      "reason": "Subtraction operands refer to opposite formal positions. This consumer cannot silently permute formal arguments or align operands by unordered labels.",
+      "counterexample": {"left": 9, "right": 4, "observation": "first subtraction yields 5; second subtraction underflows with checked arithmetic, and differs with wrapping arithmetic"}
+    },
+    {
+      "id": "unknown-call-boundary",
+      "sources": [
+        "pub fn first(value: u32, callback: fn(u32) -> u32) -> u32 { (callback(value) + 1) * 2 }",
+        "pub fn second(input: u32, callback: fn(u32) -> u32) -> u32 { (callback(input) + 3) * 2 }"
+      ],
+      "expected": "unsupported",
+      "reason": "Unknown callable behavior has no bounded summary; two visible builtin operations do not establish a supported complete expression.",
+      "required_invariants": ["opaque call is retained as a reason", "no pure/no-effect assumption", "no proposal over a stripped remainder"]
+    },
+    {
+      "id": "observable-effects-boundary",
+      "sources": [
+        "pub fn first(value: u32, state: &mut u32) -> u32 { *state = value; (value + 1) * 2 }",
+        "pub fn second(input: u32, state: &mut u32) -> u32 { *state = input; (input + 3) * 2 }"
+      ],
+      "expected": "unsupported",
+      "reason": "The bounded scalar-expression consumer does not cover mutation or shared state; body writes cannot disappear from the proposed abstraction."
+    },
+    {
+      "id": "pairwise-evidence-not-transitive",
+      "sources": [
+        "pub fn a(value: u32) -> u32 { (value + 1) * 2 }",
+        "pub fn b(value: u32) -> u32 { (value + 3) * 2 }",
+        "pub fn c(value: u32) -> u32 { (value + 3) * 4 }"
+      ],
+      "declared_test_policy": {"max_literal_holes_per_pair": 1},
+      "independent_pair_labels": [
+        {"members": ["a", "b"], "expected": "advisory-helper-proposal", "literal_holes": 1},
+        {"members": ["b", "c"], "expected": "advisory-helper-proposal", "literal_holes": 1},
+        {"members": ["a", "c"], "expected": "no-proposal", "literal_holes": 2}
+      ],
+      "expected_group": "no-three-member-proposal-under-declared-policy",
+      "required_invariants": ["connected pair edges are not all-pair proof", "every proposed member pair requires independent correspondence", "group policy cannot be silently widened"]
+    }
+  ],
+  "review_identity_contract": {
+    "detector": {"id": "scalar-expression-helper", "version": 1},
+    "fingerprint_version": 1,
+    "locator_fields": ["package", "source_file", "module_qualified_name", "declaration_discriminator"],
+    "context_fields": ["compilation_target", "features", "profile", "extraction_policy", "consumer_policy"],
+    "not_identity": ["source line/column", "report-local function handle", "iteration order", "fingerprint alone"],
+    "fingerprint": "xxh3-64:<16 lowercase hex digits>",
+    "hash_policy": "Prefer scoped IDs/exact equality; if persisted byte fingerprints are needed use existing XXH3-64 convention, never new SHA. Do not serialize JSON solely to hash a run-local ID.",
+    "exact_equality": "Retain and compare full versioned locator/context and relevant finding/member structure; a matching hash is not semantic identity or authority."
+  },
+  "review_cases": [
+    {
+      "id": "line-movement-stays-reviewed",
+      "before": {"locator": "sample::rules::first", "source_line": 10, "body": "(value + 1) * 2", "dismissed": true},
+      "after": {"locator": "sample::rules::first", "source_line": 30, "body": "(value + 1) * 2"},
+      "expected": "dismissal-remains-active",
+      "invariants": ["same full locator/context and relevant structure", "line/column is refreshed for presentation", "report-local handles may change"]
+    },
+    {
+      "id": "relevant-body-edit-stales-review",
+      "before": {"locator": "sample::rules::first", "body": "(value + 1) * 2", "dismissed": true},
+      "after": {"locator": "sample::rules::first", "body": "(value - 1) * 2"},
+      "expected": "stale-review-resurfaced",
+      "invariants": ["same locator alone cannot conceal relevant operation change", "preserve old review reason for inspection"]
+    },
+    {
+      "id": "duplicate-compilation-contexts-distinct",
+      "before": {"locator": "sample::rules::first", "context": {"compilation_target": "lib", "features": []}, "dismissed": true},
+      "after": {"locator": "sample::rules::first", "context": {"compilation_target": "test", "features": ["extra"]}},
+      "expected": "separate-undismissed-finding",
+      "invariants": ["source equality does not merge different compilation contexts", "context-specific policy remains explicit"]
+    },
+    {
+      "id": "same-short-name-distinct-locators",
+      "findings": [
+        {"module_qualified_name": "sample::left::run", "declaration_discriminator": "free-function"},
+        {"module_qualified_name": "sample::right::run", "declaration_discriminator": "free-function"}
+      ],
+      "dismissed_index": 0,
+      "expected": "second-finding-remains-visible",
+      "invariants": ["short names alone do not identify review entries", "duplicate/unresolved declaration discriminators are ambiguous, not merged"]
+    },
+    {
+      "id": "hash-collision-does-not-merge",
+      "fingerprint_test_double": "xxh3-64:0000000000000000",
+      "distinct_exact_keys": ["sample::left::run", "sample::right::run"],
+      "expected": "two-distinct-review-entries",
+      "invariants": ["inject colliding fingerprint in tests without requiring real XXH3 collision", "dismissal lookup compares full exact key"]
+    },
+    {
+      "id": "fixed-membership-growth-stales",
+      "before": {"members": ["a", "b"], "membership_policy": "exact", "dismissed": true},
+      "after": {"members": ["a", "b", "c"]},
+      "expected": "stale-review-resurfaced",
+      "invariants": ["membership growth changes exact finding identity", "new member has complete independently checked pair correspondence"]
+    },
+    {
+      "id": "explicit-growth-review-retained",
+      "before": {"members": ["a", "b"], "membership_policy": "allow-growth", "dismissed": true},
+      "after": {"members": ["a", "b", "c"]},
+      "expected": "dismissal-remains-active",
+      "invariants": ["growth retention requires explicit recorded user choice", "original member structure/context unchanged", "new member independently valid under the unchanged proposal policy"]
+    },
+    {
+      "id": "growth-review-member-loss-stales",
+      "before": {"members": ["a", "b"], "membership_policy": "allow-growth", "dismissed": true},
+      "after": {"members": ["a", "c"]},
+      "expected": "stale-review-resurfaced",
+      "invariants": ["allow-growth does not authorize losing or reshaping reviewed members"]
+    },
+    {
+      "id": "version-policy-changes-need-review",
+      "changes": ["detector.version", "fingerprint_version", "context.consumer_policy", "context.extraction_policy"],
+      "expected": "separate-or-explicitly-migrated-review",
+      "invariants": ["version/policy changes cannot silently inherit dismissal", "compatibility migration requires named tested contract"]
+    }
+  ],
+  "delivery_gate": [
+    "Execute positive/negative cases against the implemented consumer, retaining explicit not-evaluated and unsupported outcomes.",
+    "Verify exact-key collision isolation and each review transition with implementation tests.",
+    "Do not call these capabilities delivered merely because this acceptance file exists."
+  ]
+}

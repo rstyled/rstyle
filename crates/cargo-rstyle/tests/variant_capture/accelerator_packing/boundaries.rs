@@ -58,7 +58,7 @@ fn packing_runtime_oracle_preserves_words_snapshots_debug_activation_and_panics(
     let directory = clone_workspace();
     let source = format!(
         "{}\n{}",
-        include_str!("../../../../../eval/coverage-development/accelerator-packing.rs"),
+        include_str!("../../../../../tests/fixtures/function-families/accelerator-packing.rs"),
         r#"
         #[test]
         fn independent_laws() {

@@ -1,12 +1,12 @@
 //! Source-local offsets, including the legacy suffix behavior for invalid columns.
-pub(super) struct Positions {
+pub(crate) struct Positions {
     lines: Vec<usize>,
     characters: Option<Vec<usize>>,
     len: usize,
 }
 
 impl Positions {
-    pub(super) fn new(source: &str) -> Self {
+    pub(crate) fn new(source: &str) -> Self {
         let characters = (!source.is_ascii()).then(|| {
             source
                 .char_indices()
@@ -42,7 +42,7 @@ impl Positions {
         )
     }
 
-    pub(super) fn offset(&self, position: proc_macro2::LineColumn) -> u32 {
+    pub(crate) fn offset(&self, position: proc_macro2::LineColumn) -> u32 {
         u32::try_from(self.byte_offset(position)).unwrap_or(u32::MAX)
     }
 }

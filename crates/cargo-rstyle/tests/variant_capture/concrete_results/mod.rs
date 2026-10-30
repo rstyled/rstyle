@@ -6,8 +6,9 @@ mod attacks;
 mod negatives;
 mod propagation;
 
-const SELECTION: &str =
-    include_str!("../../../../../eval/coverage-development/scalar-result-next-selection.json");
+const SELECTION: &str = include_str!(
+    "../../../../../tests/fixtures/function-families/scalar-result-next-selection.json"
+);
 const RESOLUTION: &str = "resolved_result_variant";
 
 fn selected_source() -> String {

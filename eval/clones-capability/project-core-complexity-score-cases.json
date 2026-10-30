@@ -1,0 +1,297 @@
+{
+  "schema": "rstyle.compiler-complexity-cases/1",
+  "run": "run-mycjUM",
+  "toolchain": "nightly-2026-09-30",
+  "metrics": "rstyle.compiler-style-metrics/6",
+  "complexity_policy_version": 1,
+  "limits": {
+    "max_cyclomatic": 12,
+    "max_cognitive": 12
+  },
+  "label_basis": "Frozen from original project source and the documented shared policy/main collector source before live capture. No scorer was executed and no observed measurements were consulted. All four functions have no authored function attributes. The configured workspace rollout limits do not replace the explicit default12 evaluation limits here. Post-capture source-metadata correction only, without consulting scores: included original leading doc comments as captured source attributes, removed indentation preceding the first function token, and preserved the lifetime-qualified Namer source name. Independent expected counts and rationale are unchanged. C57 separately corrects the documented direct-recursion omission in Namer::render; the original C42 labels remain unchanged. Exact-score comparison now also checks clean functions.",
+  "scope": "Single rstyle-core library check context with test=false. Labels assert per-function available complexity and threshold decisions, not whole-package completeness or absent unrelated findings.",
+  "policy_sources": [
+    "docs/complexity.md",
+    "crates/rstyle-core/src/complexity.rs",
+    "crates/rstyle-driver/src/driver_complexity.rs"
+  ],
+  "samples": [
+    {
+      "package": "rstyle-core",
+      "target_name": "rstyle_core",
+      "target_kind": "lib",
+      "test": false,
+      "function": "normalize::loop_guards",
+      "source_file": "crates/rstyle-core/src/normalize.rs",
+      "source_line": 742,
+      "source_column": 1,
+      "attributes": [
+        "/// `while n < 3 { body }` where `n` is a counter loop: the guard is the loop bound, so the body",
+        "/// hangs directly under the loop, as in `for n in 1..=3`."
+      ],
+      "source": "/// `while n < 3 { body }` where `n` is a counter loop: the guard is the loop bound, so the body\n/// hangs directly under the loop, as in `for n in 1..=3`.\nfn loop_guards(pdg: Pdg) -> Pdg {\n    let guard = |g: usize| -> Option<(usize, usize, usize)> {\n        let is_case = matches!(pdg.nodes[g].kind, NodeKind::Case | NodeKind::Branch);\n        let owner = pdg\n            .edges\n            .iter()\n            .find(|e| e.to == g && e.kind == EdgeKind::Ctrl)?\n            .from;\n        let cond = data_producers(&pdg, g);\n        let [op] = cond.as_slice() else { return None };\n        let inputs = data_producers(&pdg, *op);\n        let bound = inputs\n            .iter()\n            .copied()\n            .find(|&n| is_int_lit(&pdg.nodes[n]))?;\n        let counts = inputs.contains(&owner) && inputs.len() == 2;\n        let ok = is_case\n            && pdg.nodes[owner].kind == NodeKind::Loop\n            && counts\n            && is_compare(&pdg.nodes[*op])\n            && owned_by(&pdg, bound, *op)\n            && owned_by(&pdg, *op, g)\n            && arms_of(&pdg, g).iter().all(|e| e.arg_pos == 0);\n        ok.then_some((owner, *op, bound))\n    };\n    let found: Vec<(usize, usize, usize, usize)> = (0..pdg.nodes.len())\n        .filter_map(|g| guard(g).map(|(owner, op, bound)| (g, owner, op, bound)))\n        .collect();\n    let body = pdg\n        .edges\n        .iter()\n        .filter_map(|e| {\n            let (_, owner, ..) = found.iter().find(|f| f.0 == e.from)?;\n            (e.kind == EdgeKind::Ctrl).then_some(PdgEdge { from: *owner, ..*e })\n        })\n        .collect();\n    let dead = found.iter().flat_map(|&(g, _, op, b)| [g, op, b]).collect();\n\n    rewire(pdg, body, &dead)\n}",
+      "role": "default_limit_positive",
+      "expected": {
+        "available": true,
+        "policy_version": 1,
+        "cyclomatic": 13,
+        "cognitive": 5,
+        "finding_ids": [
+          "cyclomatic_complexity"
+        ]
+      },
+      "manual_rationale": [
+        {
+          "lines": [
+            750,
+            759,
+            761,
+            762,
+            763,
+            764,
+            765,
+            766
+          ],
+          "construct": "short_circuit_and",
+          "cyclomatic_increment": 8,
+          "cognitive_increment": 3,
+          "reason": "One && in the find closure, one in counts, and six contiguous && operators in ok. Three separate same-operator runs contribute one COG each; closure nesting adds no boolean surcharge."
+        },
+        {
+          "lines": [
+            753
+          ],
+          "construct": "let_else",
+          "cyclomatic_increment": 1,
+          "cognitive_increment": 2,
+          "reason": "The let-else is inside the guard closure at nesting1; ordinary return adds nothing."
+        },
+        {
+          "lines": [
+            750,
+            758,
+            776
+          ],
+          "construct": "error_propagation",
+          "cyclomatic_increment": 3,
+          "cognitive_increment": 0,
+          "reason": "Exactly three authored ? operators; Option-returning closures remain part of this owner."
+        },
+        {
+          "lines": [
+            746
+          ],
+          "construct": "opaque_macro",
+          "cyclomatic_increment": 0,
+          "cognitive_increment": 0,
+          "reason": "matches! expansion contributes no hidden selection; other closures/calls contain no extra authored decisions."
+        },
+        {
+          "construct": "function_entry",
+          "cyclomatic_increment": 1,
+          "cognitive_increment": 0,
+          "reason": "CC base1; total13 is strictly above12, COG5 is below12."
+        }
+      ],
+      "unsuppressed": true
+    },
+    {
+      "package": "rstyle-core",
+      "target_name": "rstyle_core",
+      "target_kind": "lib",
+      "test": false,
+      "function": "shape::Namer::<'a>::render",
+      "source_file": "crates/rstyle-core/src/shape.rs",
+      "source_line": 108,
+      "source_column": 5,
+      "attributes": [],
+      "source": "fn render(&self, ty: &TyShape) -> String {\n        match ty {\n            TyShape::Adt { id, args } => self.adt(id, args),\n            TyShape::Ref { mutable, inner } => {\n                let prefix = if *mutable { \"&mut \" } else { \"&\" };\n                format!(\"{prefix}{}\", self.render(inner))\n            }\n            TyShape::Tuple(items) => format!(\"({})\", self.list(items)),\n            TyShape::Slice(inner) => format!(\"[{}]\", self.render(inner)),\n            TyShape::Array(inner) => format!(\"[{}; _]\", self.render(inner)),\n            TyShape::Prim(name) => name.clone(),\n            TyShape::Param(index) => format!(\"T{index}\"),\n            TyShape::FnPtr => \"fn\".into(),\n            TyShape::Dyn(id) => format!(\"dyn {}\", short(id)),\n            TyShape::Opaque => \"impl _\".into(),\n            TyShape::Other => \"_\".into(),\n        }\n    }",
+      "role": "cyclomatic_equality_boundary",
+      "expected": {
+        "available": true,
+        "policy_version": 1,
+        "cyclomatic": 12,
+        "cognitive": 7,
+        "finding_ids": []
+      },
+      "manual_rationale": [
+        {
+          "lines": [
+            109,
+            110,
+            111,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120,
+            121,
+            122,
+            123
+          ],
+          "construct": "selection",
+          "cyclomatic_increment": 10,
+          "cognitive_increment": 1,
+          "reason": "One top-level match has eleven alternatives; patterns and constructor fields do not add paths."
+        },
+        {
+          "lines": [
+            112
+          ],
+          "construct": "if_else",
+          "cyclomatic_increment": 1,
+          "cognitive_increment": 3,
+          "reason": "The authored if in the Ref alternative is at nesting1: COG2; its else adds COG1. This if is outside format!."
+        },
+        {
+          "lines": [
+            113,
+            115,
+            116,
+            117,
+            119,
+            121
+          ],
+          "construct": "opaque_macro",
+          "cyclomatic_increment": 0,
+          "cognitive_increment": 0,
+          "reason": "format! expansions are opaque, including recursive-looking self.render inside format!; no hidden call or branch increment."
+        },
+        {
+          "construct": "function_entry",
+          "cyclomatic_increment": 1,
+          "cognitive_increment": 0,
+          "reason": "TotalCC12 is allowed by the strict-greater-than default threshold."
+        },
+        {
+          "construct": "resolved_direct_recursion",
+          "source_lines": [
+            113,
+            116,
+            117
+          ],
+          "cyclomatic_increment": 0,
+          "cognitive_increment": 3,
+          "reason": "Three authored self.render calls are direct recursion; the documented existing collector adds one COG each. C42 frozen label omitted them. C56 recorded saved7 versus frozen4; this new label explicitly corrects that reviewed source-label omission, without rewriting the original cases or results."
+        }
+      ],
+      "unsuppressed": true
+    },
+    {
+      "package": "rstyle-core",
+      "target_name": "rstyle_core",
+      "target_kind": "lib",
+      "test": false,
+      "function": "normalize::literal_scrutinees",
+      "source_file": "crates/rstyle-core/src/normalize.rs",
+      "source_line": 427,
+      "source_column": 1,
+      "attributes": [
+        "/// `if x == 3`: the comparison with a literal is the pattern of a match arm, not structure.",
+        "/// The branch is then a decision on `x` alone."
+      ],
+      "source": "/// `if x == 3`: the comparison with a literal is the pattern of a match arm, not structure.\n/// The branch is then a decision on `x` alone.\nfn literal_scrutinees(pdg: Pdg) -> Pdg {\n    let found: Vec<(usize, usize, usize, usize)> = (0..pdg.nodes.len())\n        .filter(|&b| pdg.nodes[b].kind == NodeKind::Branch)\n        .filter_map(|b| {\n            let cond = data_producers(&pdg, b);\n            let [op] = cond.as_slice() else { return None };\n            let inputs = data_producers(&pdg, *op);\n            let is_eq = pdg.nodes[*op].kind == NodeKind::Op && pdg.nodes[*op].detail == \"==\";\n            let (lit, x) = match inputs.as_slice() {\n                [p, q] if is_value_leaf(&pdg.nodes[*p]) => (*p, *q),\n                [p, q] if is_value_leaf(&pdg.nodes[*q]) => (*q, *p),\n                _ => return None,\n            };\n            let owned = data_consumers(&pdg, lit) == BTreeSet::from([*op]);\n            let single_use = data_consumers(&pdg, *op) == BTreeSet::from([b]);\n            (is_eq && owned && single_use && !is_value_leaf(&pdg.nodes[x]))\n                .then_some((b, *op, lit, x))\n        })\n        .collect();\n    let dead: BTreeSet<usize> = found\n        .iter()\n        .flat_map(|&(_, op, lit, _)| [op, lit])\n        .collect();\n    let scrutinee = found.iter().map(|&(b, _, _, x)| PdgEdge {\n        from: x,\n        to: b,\n        kind: EdgeKind::Data,\n        arg_pos: 0,\n    });\n    let edges = dedup(pdg.edges.iter().copied().chain(scrutinee).collect());\n\n    without(Pdg { edges, ..pdg }, &dead)\n}",
+      "role": "cognitive_equality_boundary",
+      "expected": {
+        "available": true,
+        "policy_version": 1,
+        "cyclomatic": 10,
+        "cognitive": 12,
+        "finding_ids": []
+      },
+      "manual_rationale": [
+        {
+          "lines": [
+            434
+          ],
+          "construct": "let_else",
+          "cyclomatic_increment": 1,
+          "cognitive_increment": 2,
+          "reason": "The let-else is in the filter_map closure at nesting1."
+        },
+        {
+          "lines": [
+            437,
+            438,
+            439,
+            440
+          ],
+          "construct": "selection",
+          "cyclomatic_increment": 2,
+          "cognitive_increment": 2,
+          "reason": "Three alternatives produce two CC; selection is at nesting1 inside filter_map, so COG2."
+        },
+        {
+          "lines": [
+            438,
+            439
+          ],
+          "construct": "selection_guard",
+          "cyclomatic_increment": 2,
+          "cognitive_increment": 6,
+          "reason": "Two guards are inside alternatives at nesting2; each contributes CC1 and COG3."
+        },
+        {
+          "lines": [
+            436,
+            444
+          ],
+          "construct": "short_circuit_and",
+          "cyclomatic_increment": 4,
+          "cognitive_increment": 2,
+          "reason": "One && in is_eq and three in the final condition; two same-operator runs produce COG2. Ordinary ! and method calls add nothing."
+        },
+        {
+          "construct": "function_entry",
+          "cyclomatic_increment": 1,
+          "cognitive_increment": 0,
+          "reason": "CC10, COG12; equality at12 is allowed, so neither rule finds a violation."
+        }
+      ],
+      "unsuppressed": true
+    },
+    {
+      "package": "rstyle-core",
+      "target_name": "rstyle_core",
+      "target_kind": "lib",
+      "test": false,
+      "function": "lines::has_blank_line",
+      "source_file": "crates/rstyle-core/src/lines.rs",
+      "source_line": 13,
+      "source_column": 1,
+      "attributes": [
+        "/// True when any line is empty or whitespace-only. For fn source this is the",
+        "/// signature plus body, so a blank line anywhere in it counts as spacing."
+      ],
+      "source": "/// True when any line is empty or whitespace-only. For fn source this is the\n/// signature plus body, so a blank line anywhere in it counts as spacing.\npub fn has_blank_line(source: &str) -> bool {\n    source.lines().any(|line| line.trim().is_empty())\n}",
+      "role": "call_and_closure_clean_control",
+      "expected": {
+        "available": true,
+        "policy_version": 1,
+        "cyclomatic": 1,
+        "cognitive": 0,
+        "finding_ids": []
+      },
+      "manual_rationale": [
+        {
+          "lines": [
+            16
+          ],
+          "construct": "closure",
+          "cyclomatic_increment": 0,
+          "cognitive_increment": 0,
+          "reason": "The any closure contains only calls. Iterator method names are not loops, and the closure adds nesting without adding score."
+        },
+        {
+          "construct": "function_entry",
+          "cyclomatic_increment": 1,
+          "cognitive_increment": 0,
+          "reason": "Only the CC entry base remains. COG0 is an available measured zero, not missing evidence."
+        }
+      ],
+      "unsuppressed": true
+    }
+  ],
+  "suppression_review": "C58 source-only review of the original owner attributes and preceding lines confirms no cyclomatic_complexity or cognitive_complexity suppression; numeric labels are unchanged."
+}

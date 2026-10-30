@@ -1,7 +1,13 @@
 //! Reproducible evidence with independent completeness indicators.
 
+mod consumers;
+pub(super) use consumers::Consumers;
 mod functions;
+mod locations;
 mod matching;
+mod source_reviews;
+mod style;
+pub(in crate::clones) use source_reviews::SourceReviews;
 
 use super::{Args, Handoff, capture};
 use crate::{Cli, Format};
@@ -18,59 +24,140 @@ pub enum Detail {
 }
 
 pub struct Context<'a> {
+    pub pattern_ledger: Option<&'a rstyle_core::ledger::Ledger>,
+    pub compiler_advisory_config: Option<&'a rstyle_core::config::Config>,
     pub cli: &'a Cli,
     pub args: &'a Args,
     pub capture: &'a capture::Capture,
     pub handoff: &'a Handoff,
-    pub matching: &'a RunReport,
+    pub matching: Option<&'a RunReport>,
     pub partitions: rstyle_ccgraph::pipeline::WlPartitions,
     pub complete: bool,
+    pub mutation_config: Option<&'a super::analysis::mutation_reports::Settings>,
+    pub density_baseline: Option<&'a super::review::density_baseline::Baseline>,
+    pub compiler_pattern_baseline: Option<&'a super::review::compiler_pattern_baseline::Baseline>,
+    pub compiler_baseline: Option<&'a super::review::compiler_baseline::Baseline>,
+    pub source_baseline: Option<&'a super::review::source_baseline::Baseline>,
+    pub effect_config: Option<&'a super::analysis::effect_reports::Settings>,
+    pub analysis_config: Option<&'a super::analysis::Config>,
+    pub matching_config: &'a rstyle_ccgraph::CcgraphConfig,
 }
 
 #[derive(Serialize)]
 struct Scope<'a> {
-    packages: &'a [String],
-    all_targets: bool,
-    manifest_path: &'a Option<std::path::PathBuf>,
+    selection_origin: &'static str,
+    packages: Option<&'a [String]>,
+    all_targets: Option<bool>,
+    manifest_path: Option<&'a Path>,
+    build_options_origin: &'static str,
     build_options: &'a Args,
 }
 
 #[derive(Serialize)]
 pub struct Report<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compiler_advisory: Option<super::advisory::Report>,
+    pub review: super::review::workflow::Report,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub review_status: Option<super::review::status::Report>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub review_prune: Option<super::review::prune::Report>,
+    pub abstraction_review: super::review::local_workflow::Report,
+    pub guard_review: super::review::guard_workflow::Report,
+    #[serde(flatten)]
+    pub source_reviews: SourceReviews,
+    pub edit_planning: super::planning::Report,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameter_planning: Option<super::planning::parameters::Report>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guard_planning: Option<super::planning::guards::Report>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub edit_coordination: Option<super::planning::coordination::Report>,
+    #[serde(flatten)]
+    pub numeric_reviews: consumers::NumericReviews,
+    pub mutation_analysis: super::analysis::mutation_reports::Report<'a>,
+    pub mutation_effects: super::analysis::effect_reports::Report<'a>,
+    pub enum_dispatch: super::analysis::dispatch_reports::Report<'a>,
+    pub capability_proposals: super::analysis::capability_reports::Report<'a>,
+    #[serde(flatten)]
+    pub pair_reports: super::analysis::pair_reports::Reports<'a>,
+    pub analysis: super::analysis::Report<'a>,
     report_detail: Detail,
     scope: Scope<'a>,
     run_directory: &'a Path,
     toolchain: String,
     compiler_identity: &'a str,
+    #[serde(flatten)]
+    producer: ProducerMetadata,
     cargo_identity: &'a str,
-    contract_revision: &'static str,
-    unit_bundle_schema: &'static str,
-    function_identity_schema: &'static str,
     unit_contexts: &'a [super::identity::UnitContext],
     verification_policy: &'static str,
     extraction_selection: &'static str,
     extraction_policy: Policy,
     extraction_capabilities: &'static [&'static str],
     call_summaries: &'static [&'static str],
-    schema_versions: SchemaVersions,
-    producer_name: &'static str,
-    producer_version: &'static str,
     expected_targets: &'a [capture::Target],
     expected_compilation_units: &'a Value,
     intended_primary_units: &'a [Value],
     intended_dependency_units: &'a [Value],
     observed_units: &'a [capture::Unit],
-    capture_complete: bool,
-    capture_failures: &'a [String],
-    assessment_complete: bool,
+    #[serde(flatten)]
+    capture_status: CaptureStatus<'a>,
     functions: functions::Functions<'a>,
     build_contexts: &'a [super::UnitBuildContexts],
     owned_source_inventory: &'a [Value],
-    handoff_failures: &'a [String],
-    pair_evaluation_complete: bool,
-    pair_enumeration_complete: bool,
-    matching: matching::Matching<'a>,
+    #[serde(flatten)]
+    strict_execution: StrictExecution,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    matching: Option<matching::Matching<'a>>,
+    accepted_pairs: Vec<locations::AcceptedPair<'a>>,
     claim: &'static str,
+}
+
+#[derive(Serialize)]
+struct CaptureStatus<'a> {
+    capture_complete: bool,
+    capture_failures: &'a [String],
+    assessment_complete: bool,
+    handoff_failures: &'a [String],
+}
+
+impl<'a> CaptureStatus<'a> {
+    fn new(ctx: &Context<'a>) -> Self {
+        Self {
+            capture_complete: ctx.capture.failures.is_empty(),
+            capture_failures: &ctx.capture.failures,
+            assessment_complete: ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty(),
+            handoff_failures: &ctx.handoff.failures,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct ProducerMetadata {
+    contract_revision: &'static str,
+    unit_bundle_schema: &'static str,
+    function_identity_schema: &'static str,
+    schema_versions: SchemaVersions,
+    producer_name: &'static str,
+    producer_version: &'static str,
+}
+
+impl ProducerMetadata {
+    fn current(args: &Args) -> Self {
+        Self {
+            contract_revision: "04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f",
+            unit_bundle_schema: if args.compiler_advisory_only {
+                rstyle_pdg::unit_store::RAW_FACTS_SCHEMA
+            } else {
+                rstyle_pdg::unit_store::BUNDLE_SCHEMA
+            },
+            function_identity_schema: super::identity::SCHEMA,
+            schema_versions: SchemaVersions::current(),
+            producer_name: "rstyle-hir-extraction",
+            producer_version: env!("CARGO_PKG_VERSION"),
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -84,6 +171,15 @@ struct Policy {
 struct SchemaVersions {
     pdg: &'static str,
     cfg: &'static str,
+}
+
+impl SchemaVersions {
+    fn current() -> Self {
+        Self {
+            pdg: "0.1.0",
+            cfg: "0.2.0",
+        }
+    }
 }
 
 // Report the CLI name separately from the frozen frontend evidence token.
@@ -105,83 +201,280 @@ fn ctx_profile_is_data(args: &Args) -> bool {
     args.extraction_profile.is_data()
 }
 
-pub fn make<'a>(ctx: Context<'a>) -> Report<'a> {
-    let scope = selected_scope(&ctx);
-
+pub(super) fn make<'a>(ctx: Context<'a>, consumers: Consumers<'a>) -> Report<'a> {
     Report {
+        compiler_advisory: consumers.compiler_advisory,
+        edit_planning: consumers.edit_planning,
+        parameter_planning: consumers.parameter_planning,
+        guard_planning: consumers.guard_planning,
+        edit_coordination: consumers.edit_coordination,
+        pair_reports: consumers.pairs,
+        review: consumers.review,
+        abstraction_review: consumers.abstraction_review,
+        guard_review: consumers.guard_review,
+        source_reviews: consumers.source_reviews,
+        review_status: consumers.review_status,
+        review_prune: consumers.review_prune,
+        analysis: consumers.analysis,
+        enum_dispatch: consumers.dispatch,
+        capability_proposals: consumers.capabilities,
+        mutation_analysis: consumers.mutation,
+        numeric_reviews: consumers.numeric_reviews,
+        mutation_effects: consumers.effects,
         report_detail: ctx.args.report_detail,
-        verification_policy: if ctx.args.replay_run.is_some() {
-            "strict-replay"
-        } else {
-            "trusted-generated"
-        },
-        scope,
+        verification_policy: ctx.verification_policy(),
+        scope: selected_scope(&ctx),
         run_directory: &ctx.capture.directory,
         toolchain: crate::run::pinned_toolchain(),
         compiler_identity: &ctx.capture.plan.compiler_identity,
         cargo_identity: &ctx.capture.plan.cargo_identity,
-        contract_revision: "04d9aa0db8b1f8e4a3fcad16622e2a4e3bc3e53f",
-        unit_bundle_schema: rstyle_pdg::unit_store::BUNDLE_SCHEMA,
-        function_identity_schema: super::identity::SCHEMA,
+        producer: ProducerMetadata::current(ctx.args),
         unit_contexts: &ctx.handoff.unit_contexts,
         extraction_selection: extraction_selection(ctx.args),
         extraction_policy: extraction_policy(ctx.args),
         extraction_capabilities: ctx.args.extraction_profile.capabilities(),
         call_summaries: ctx.args.extraction_profile.summaries(),
-        schema_versions: SchemaVersions {
-            pdg: "0.1.0",
-            cfg: "0.2.0",
-        },
-        producer_name: "rstyle-hir-extraction",
-        producer_version: env!("CARGO_PKG_VERSION"),
         expected_targets: &ctx.capture.plan.targets,
         expected_compilation_units: &ctx.capture.expected_unit_graph,
         intended_primary_units: &ctx.capture.plan.primary_units,
         intended_dependency_units: &ctx.capture.plan.dependency_units,
         observed_units: &ctx.capture.units,
-        capture_complete: ctx.capture.failures.is_empty(),
-        capture_failures: &ctx.capture.failures,
-        assessment_complete: ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty(),
+        capture_status: CaptureStatus::new(&ctx),
         functions: functions::Functions::new(&ctx.handoff.assessed, ctx.args.report_detail),
         build_contexts: &ctx.handoff.build_contexts,
         owned_source_inventory: &ctx.handoff.source_inventory,
-        handoff_failures: &ctx.handoff.failures,
-        pair_evaluation_complete: ctx.complete,
-        pair_enumeration_complete: enumeration_complete(&ctx),
-        matching: matching::Matching::new(ctx.matching, ctx.args.trace, ctx.partitions),
+        strict_execution: StrictExecution::new(&ctx),
+        matching: ctx
+            .matching
+            .map(|matching| matching::Matching::new(matching, ctx.args.trace, ctx.partitions)),
+        accepted_pairs: consumers.accepted,
         claim: "Accepted pairs are similarity decisions, not equivalence or safe refactoring.",
     }
 }
 
+impl<'a> Context<'a> {
+    fn edit_planning(
+        &self,
+        helpers: &super::analysis::helper_reports::Report<'_>,
+    ) -> Result<super::planning::Report, String> {
+        super::planning::evaluate(helpers, self)
+    }
+
+    fn declaration_indices(&self) -> Result<super::analysis::declaration_indices::Indices, String> {
+        super::analysis::declaration_indices::Indices::new(self.handoff, self.args)
+    }
+
+    fn dispatch_report(
+        &self,
+        indices: &super::analysis::declaration_indices::Indices,
+    ) -> Result<super::analysis::dispatch_reports::Report<'a>, String> {
+        super::analysis::dispatch_reports::evaluate(self.handoff, self.capture, self.args, indices)
+    }
+
+    fn capability_report(
+        &self,
+        indices: &super::analysis::declaration_indices::Indices,
+    ) -> Result<super::analysis::capability_reports::Report<'a>, String> {
+        super::analysis::capability_reports::evaluate(
+            self.handoff,
+            self.capture,
+            self.args,
+            indices,
+        )
+    }
+
+    fn effect_report(&self) -> Result<super::analysis::effect_reports::Report<'a>, String> {
+        super::analysis::effect_reports::evaluate(
+            self.handoff,
+            self.capture,
+            self.args,
+            self.effect_config,
+        )
+    }
+
+    fn verification_policy(&self) -> &'static str {
+        if self.args.compiler_advisory_only && self.args.replay_run.is_some() {
+            "raw-replay"
+        } else if self.args.compiler_advisory_only {
+            "raw-current-run"
+        } else if self.args.replay_run.is_some() {
+            "strict-replay"
+        } else {
+            "trusted-generated"
+        }
+    }
+
+    fn mutation_report(&self) -> Result<super::analysis::mutation_reports::Report<'a>, String> {
+        super::analysis::mutation_reports::evaluate(
+            self.handoff,
+            self.capture,
+            self.args,
+            self.mutation_config,
+        )
+    }
+
+    fn local_analysis(&self) -> super::analysis::Report<'a> {
+        super::analysis::evaluate(self.handoff, self.capture, self.analysis_config, self.args)
+    }
+
+    fn pair_reports(&self) -> Result<super::analysis::pair_reports::Reports<'a>, String> {
+        super::analysis::pair_reports::evaluate(
+            self.handoff,
+            self.matching,
+            super::analysis::pair_reports::Requests {
+                explain: self.args.explain_pairs,
+                helpers: self.args.helper_proposals,
+                matching_complete: self.matching.is_some() && self.complete,
+            },
+        )
+    }
+}
+
 fn selected_scope<'a>(ctx: &Context<'a>) -> Scope<'a> {
+    let replay = ctx.args.replay_run.is_some();
     Scope {
-        packages: &ctx.cli.packages,
-        all_targets: ctx.cli.all_targets,
-        manifest_path: &ctx.cli.manifest_path,
+        selection_origin: if replay { "saved_run" } else { "fresh_capture" },
+        packages: (!replay).then_some(ctx.cli.packages.as_slice()),
+        all_targets: (!replay).then_some(ctx.cli.all_targets),
+        manifest_path: if replay {
+            None
+        } else {
+            ctx.cli.manifest_path.as_deref()
+        },
+        build_options_origin: if replay {
+            "current consumer request; original effective build contexts are recorded in expected_compilation_units and build_contexts"
+        } else {
+            "fresh capture request"
+        },
         build_options: ctx.args,
     }
 }
 
 fn enumeration_complete(ctx: &Context<'_>) -> bool {
+    let Some(matching) = ctx.matching else {
+        return false;
+    };
     let count = ctx.handoff.admitted.len();
     let expected = count.checked_mul(count.saturating_sub(1)).map(|n| n / 2);
 
     ctx.capture.failures.is_empty()
         && ctx.handoff.failures.is_empty()
-        && expected == Some(ctx.matching.pairs.len())
+        && expected == Some(matching.pairs.len())
+}
+
+#[derive(Serialize)]
+struct StrictExecution {
+    pair_evaluation_complete: bool,
+    pair_enumeration_complete: bool,
+    matching_execution: super::analysis::Execution,
+    strict_assessment_execution: super::analysis::Execution,
+}
+
+impl StrictExecution {
+    fn new(ctx: &Context<'_>) -> Self {
+        let execution = if ctx.args.compiler_advisory_only {
+            super::analysis::Execution::NotRequested
+        } else {
+            super::analysis::Execution::Completed
+        };
+        Self {
+            pair_evaluation_complete: ctx.matching.is_some() && ctx.complete,
+            pair_enumeration_complete: enumeration_complete(ctx),
+            matching_execution: execution,
+            strict_assessment_execution: execution,
+        }
+    }
+}
+
+fn render_summary(report: &Report<'_>, accepted: usize, directory: &Path) -> String {
+    if let Some(matching) = &report.matching {
+        format!(
+            "CCGraph strict: {} units; {}; {} pairs, {accepted} accepted; capture={}, assessment={}, enumeration={}, evaluation={}.\nReport: {}\nAccepted pairs indicate similarity, not equivalence or safe refactoring.",
+            report.observed_units.len(),
+            coverage_summary(report),
+            matching.report.pairs.len(),
+            report.capture_status.capture_complete,
+            report.capture_status.assessment_complete,
+            report.strict_execution.pair_enumeration_complete,
+            report.strict_execution.pair_evaluation_complete,
+            directory.join("report.json").display()
+        )
+    } else {
+        format!(
+            "Compiler advisory only: {} units; capture={}, assessment={}. Strict assessment and matching: not_requested.\nReport: {}\n",
+            report.observed_units.len(),
+            report.capture_status.capture_complete,
+            report.capture_status.assessment_complete,
+            directory.join("report.json").display()
+        )
+    }
 }
 
 fn render_text(report: &Report<'_>, accepted: usize, directory: &Path) -> String {
+    let summary = render_summary(report, accepted, directory);
+    let pairs = render_pairs(report);
+
     format!(
-        "CCGraph strict: {} units; {}; {} pairs, {accepted} accepted; capture={}, assessment={}, enumeration={}, evaluation={}.\nReport: {}\nAccepted pairs indicate similarity, not equivalence or safe refactoring.",
-        report.observed_units.len(),
-        coverage_summary(report),
-        report.matching.report.pairs.len(),
-        report.capture_complete,
-        report.assessment_complete,
-        report.pair_enumeration_complete,
-        report.pair_evaluation_complete,
-        directory.join("report.json").display()
+        "{summary}{pairs}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+        report
+            .compiler_advisory
+            .as_ref()
+            .map_or_else(String::new, |report| report.render()),
+        report.analysis.render(),
+        report.pair_reports.render(),
+        report.review.render(),
+        report.abstraction_review.render(),
+        report.guard_review.render(),
+        report.source_reviews.render(),
+        report
+            .review_status
+            .as_ref()
+            .map_or_else(String::new, |status| status.render()),
+        report
+            .review_prune
+            .as_ref()
+            .map_or_else(String::new, |pruning| pruning.render()),
+        report.enum_dispatch.render(),
+        report.capability_proposals.render(),
+        report.mutation_analysis.render(),
+        report.numeric_reviews.mutation_review.render(),
+        report.numeric_reviews.density_review.render(),
+        report.mutation_effects.render(),
+        planning_summary(report)
+    )
+}
+
+fn render_pairs(report: &Report<'_>) -> String {
+    report
+        .accepted_pairs
+        .iter()
+        .map(|pair| {
+            format!(
+                "\nAccepted pair: {} <> {} (score {}).",
+                pair.first,
+                pair.second,
+                pair.displayed_score.unwrap_or("unavailable")
+            )
+        })
+        .collect::<String>()
+}
+
+fn planning_summary(report: &Report<'_>) -> String {
+    format!(
+        "{}{}{}{}",
+        report.edit_planning.render(),
+        report
+            .parameter_planning
+            .as_ref()
+            .map_or_else(String::new, |planning| planning.render()),
+        report
+            .guard_planning
+            .as_ref()
+            .map_or_else(String::new, |planning| planning.render()),
+        report
+            .edit_coordination
+            .as_ref()
+            .map_or_else(String::new, |planning| planning.render())
     )
 }
 
@@ -207,10 +500,20 @@ pub fn write(path: &Path, report: &Report<'_>) -> Result<(), String> {
 
 impl Report<'_> {
     pub fn publish(&self, format: Format, accepted: usize) -> Result<String, String> {
+        self.publish_with(|| self.render_published(format, accepted))
+    }
+
+    fn publish_with(
+        &self,
+        render: impl FnOnce() -> Result<String, String>,
+    ) -> Result<String, String> {
+        self.publish_archive()?;
+        rstyle_pdg::diagnostics::Stage::new("cli.report_render", "run", None).observe(render)
+    }
+
+    fn publish_archive(&self) -> Result<(), String> {
         rstyle_pdg::diagnostics::Stage::new("cli.report_write", "run", None)
-            .observe(|| write(&self.run_directory.join("report.json"), self))?;
-        rstyle_pdg::diagnostics::Stage::new("cli.report_render", "run", None)
-            .observe(|| self.render_published(format, accepted))
+            .observe(|| write(&self.run_directory.join("report.json"), self))
     }
 
     fn render_published(&self, format: Format, accepted: usize) -> Result<String, String> {

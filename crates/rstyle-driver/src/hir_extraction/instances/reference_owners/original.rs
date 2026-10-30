@@ -1,4 +1,5 @@
 //! Symbolic original types retain generic/lifetime relationships before erasure.
+use super::super::diagnostic_support::ArgumentsProjection;
 use super::super::{Definition, comparisons, definition_record, types};
 use super::Projection;
 use rustc_middle::ty::{self, GenericArgsRef, Ty, TyCtxt};

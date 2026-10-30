@@ -77,20 +77,29 @@ impl<W: Write> Write for Recorder<W> {
 impl UnitStore {
     /// Stream and seal the same bytes, including a checked final flush.
     pub fn write_sealed_bundle(&self, writer: impl Write) -> Result<BundleManifest, String> {
-        let mut recorder = Recorder {
-            writer,
-            hash: Xxh3::new(),
-            bytes: 0,
-        };
-        self.write_bundle(&mut recorder)?;
-        recorder.flush().map_err(|error| error.to_string())?;
-
-        Ok(BundleManifest {
-            schema: SCHEMA.into(),
-            checksum: encode(recorder.hash.digest()),
-            bytes: recorder.bytes,
-        })
+        seal(writer, |writer| self.write_bundle(writer))
     }
+}
+
+/// Seal the exact streamed publication bytes only after its final flush succeeds.
+// rstyle-allow(side_effect_density): Streaming publication boundary records exact bytes and requires final flush before returning a seal.
+pub(super) fn seal<W: Write>(
+    writer: W,
+    publish: impl FnOnce(&mut dyn Write) -> Result<(), String>,
+) -> Result<BundleManifest, String> {
+    let mut recorder = Recorder {
+        writer,
+        hash: Xxh3::new(),
+        bytes: 0,
+    };
+    publish(&mut recorder)?;
+    recorder.flush().map_err(|error| error.to_string())?;
+
+    Ok(BundleManifest {
+        schema: SCHEMA.into(),
+        checksum: encode(recorder.hash.digest()),
+        bytes: recorder.bytes,
+    })
 }
 
 #[cfg(test)]

@@ -78,6 +78,7 @@ fn install_prepared(
     Ok(installation.locations)
 }
 
+// rstyle-allow(side_effect_density): Effect installation must update the node, definition inventory and location inventory together.
 fn install_one(
     pair: &mut Pair,
     installation: &mut Installation,

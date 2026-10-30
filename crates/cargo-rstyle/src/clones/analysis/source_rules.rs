@@ -1,0 +1,94 @@
+//! Source and signature budgets do not require graph admission.
+
+use super::{Assessment, Coverage, FactAvailability, Outcome};
+use rstyle_core::{config::Config, lines::code_lines};
+use rstyle_pdg::consumer_facts::{Availability, LocalFacts};
+
+pub(super) fn evaluate(facts: &LocalFacts<'_>, config: &Config, spacing: bool) -> Vec<Assessment> {
+    let mut rules = vec![
+        assess(
+            "fn_length",
+            &facts.source,
+            config.fn_length.max_lines,
+            |source| code_lines(source),
+        ),
+        assess(
+            "fn_params",
+            &facts.signature,
+            config.fn_params.max_params,
+            |signature| {
+                signature.parameters
+                    + usize::from(config.fn_params.count_self && signature.has_self)
+            },
+        ),
+    ];
+    if spacing {
+        rules.push(super::source_spacing::evaluate(facts, &config.fn_spacing));
+    }
+    rules
+}
+
+pub(super) fn not_applicable(config: &Config, spacing: bool, reason: &str) -> Vec<Assessment> {
+    [
+        ("fn_length", config.fn_length.max_lines),
+        ("fn_params", config.fn_params.max_params),
+    ]
+    .into_iter()
+    .chain(spacing.then_some((
+        "fn_spacing",
+        config.fn_spacing.min_statements.saturating_sub(1),
+    )))
+    .map(|(rule_id, limit)| Assessment {
+        rule_id,
+        outcome: Outcome::NotEvaluated,
+        coverage: Coverage::Complete,
+        availability: FactAvailability::NotApplicable,
+        actual: None,
+        limit,
+        reasons: vec![reason.into()],
+    })
+    .collect()
+}
+
+pub(super) fn assess<T>(
+    rule_id: &'static str,
+    fact: &Availability<T>,
+    limit: usize,
+    measure: impl FnOnce(&T) -> usize,
+) -> Assessment {
+    let (availability, reason) = match fact {
+        Availability::Known(value) => return measured(rule_id, measure(value), limit),
+        Availability::Unknown { reason } => (FactAvailability::Unknown, reason),
+        Availability::Unsupported { reason } => (FactAvailability::Unsupported, reason),
+        Availability::NotApplicable { reason } => (FactAvailability::NotApplicable, reason),
+    };
+
+    Assessment {
+        rule_id,
+        outcome: Outcome::NotEvaluated,
+        coverage: Coverage::Incomplete,
+        availability,
+        actual: None,
+        limit,
+        reasons: vec![reason.clone()],
+    }
+}
+
+fn measured(rule_id: &'static str, actual: usize, limit: usize) -> Assessment {
+    Assessment {
+        rule_id,
+        outcome: if actual > limit {
+            Outcome::Finding
+        } else {
+            Outcome::EvaluatedNoFinding
+        },
+        coverage: Coverage::Complete,
+        availability: FactAvailability::Known,
+        actual: Some(actual),
+        limit,
+        reasons: vec![],
+    }
+}
+
+#[cfg(test)]
+mod tests;

@@ -61,7 +61,7 @@ fn scalar_enum_family_completes_capture_and_preserves_historical_patterns() {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        include_str!("../../../../eval/coverage-development/tagged-units.rs"),
+        include_str!("../../../../tests/fixtures/function-families/tagged-units.rs"),
     )
     .unwrap();
     for profile in ["hir-data-v3", "hir-data-v2"] {

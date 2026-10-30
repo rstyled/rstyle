@@ -1,8 +1,30 @@
 //! Shared diagnostic mechanics; callers retain their owner and publication scopes.
 use rustc_hir::{self as hir, def::DefKind, def_id::LocalDefId};
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::ty::{GenericArgsRef, TyCtxt};
 use serde::Serialize;
 use std::{collections::BTreeMap, path::PathBuf};
+
+// rstyle-allow(side_effect_density): Diagnostic input boundary reads an explicitly requested file selected by the environment.
+pub(super) fn optional_requests<T: serde::de::DeserializeOwned>(
+    variable: &str,
+) -> Result<Option<T>, String> {
+    let Some(path) = std::env::var_os(variable) else {
+        return Ok(None);
+    };
+    let file = std::fs::File::open(path).map_err(|error| error.to_string())?;
+    serde_json::from_reader(file)
+        .map(Some)
+        .map_err(|error| error.to_string())
+}
+
+/// Project complete compiler arguments while retaining each diagnostic lens's policy.
+pub(super) trait ArgumentsProjection<'tcx> {
+    fn args(
+        &self,
+        tcx: TyCtxt<'tcx>,
+        original: GenericArgsRef<'tcx>,
+    ) -> Result<GenericArgsRef<'tcx>, String>;
+}
 
 pub(super) fn owners(tcx: TyCtxt<'_>, kinds: &[DefKind]) -> BTreeMap<String, Option<LocalDefId>> {
     let mut owners = BTreeMap::new();

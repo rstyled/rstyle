@@ -1294,8 +1294,8 @@ fn local_const_import_rejects_missing_or_tampered_policy_and_frontend_evidence()
 #[test]
 fn disclosed_historical_const_regressions_cross_serialized_admission() {
     for source in [
-        include_str!("../../../eval/ccgraph-v2/corpus/lz4/sample/src/lib.rs"),
-        include_str!("../../../eval/ccgraph-v2/corpus/time/sample/src/lib.rs"),
+        include_str!("fixtures/const-regressions/lz4.rs"),
+        include_str!("fixtures/const-regressions/time.rs"),
     ] {
         let facts = compile_selected(source, "hir-const-v1");
         for function in facts.iter().filter(|f| f.name.contains("old")) {

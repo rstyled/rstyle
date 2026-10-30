@@ -132,7 +132,7 @@ impl ExtractionProfile {
         }
     }
 
-    pub fn from_facts(facts: &HirFnFacts) -> Result<Self, String> {
+    pub fn from_facts<B, Bindings>(facts: &HirFnFacts<B, Bindings>) -> Result<Self, String> {
         match facts.build.frontend_options.get(SELECTION_KEY) {
             None => Ok(Self::R0),
             Some(value) => value

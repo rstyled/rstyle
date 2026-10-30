@@ -1,5 +1,7 @@
 //! Resolved source-facing HIR records. No graph derivation lives here.
 
+mod for_loops;
+
 use rstyle_pdg::{extraction_profile::ExtractionProfile, frontend::*};
 use rustc_hir::{self as hir, Expr, ExprKind, HirId, PatKind, StmtKind, def::Res};
 use rustc_middle::ty::{self, Ty, TyCtxt, TypeckResults};
@@ -235,6 +237,9 @@ impl<'tcx> Context<'tcx> {
     }
 
     pub fn expression(&self, expr: &Expr<'tcx>) -> HirNode {
+        if let Some(iteration) = self.original_for_loop(expr) {
+            return iteration;
+        }
         if let Some(assignment) = self.tuple_assignment(expr) {
             return assignment;
         }
@@ -902,15 +907,12 @@ impl Context<'_> {
         expression: &Expr<'_>,
         callee: rustc_hir::def_id::DefId,
     ) -> Option<rustc_hir::def_id::DefId> {
-        let environment = ty::TypingEnv::post_analysis(self.tcx, expression.hir_id.owner.def_id);
-        ty::Instance::try_resolve(
+        crate::ids::selected_instance(
             self.tcx,
-            environment,
+            expression.hir_id.owner.def_id,
             callee,
             self.typeck.node_args(expression.hir_id),
         )
-        .ok()
-        .flatten()
         .map(|instance| instance.def_id())
     }
 
@@ -1090,6 +1092,7 @@ impl Context<'_> {
                 path: self.tcx.def_path_str(callee),
                 crate_name: self.tcx.crate_name(callee.krate).to_string(),
                 local: callee.is_local(),
+                safe: callee_safety(self.tcx, callee),
                 definition_identity: format!("{:?}", self.tcx.def_path_hash(callee)),
                 inherent: evidence
                     .owner
@@ -1114,9 +1117,27 @@ struct DirectCallee {
     local: bool,
     definition_identity: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    safe: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     inherent: Option<rstyle_pdg::inherent_calls::CallOwner>,
     #[serde(skip_serializing_if = "Option::is_none")]
     compiled_dependency: Option<super::crate_association::Dependency>,
+}
+
+fn callee_safety(tcx: TyCtxt<'_>, callee: rustc_hir::def_id::DefId) -> Option<bool> {
+    matches!(
+        tcx.def_kind(callee),
+        rustc_hir::def::DefKind::Fn
+            | rustc_hir::def::DefKind::AssocFn
+            | rustc_hir::def::DefKind::Ctor(..)
+    )
+    .then(|| {
+        tcx.fn_sig(callee)
+            .instantiate_identity()
+            .skip_binder()
+            .safety()
+            .is_safe()
+    })
 }
 
 fn kind(kind: &ExprKind<'_>) -> &'static str {
@@ -1153,8 +1174,16 @@ fn kind(kind: &ExprKind<'_>) -> &'static str {
 }
 
 pub fn bindings(node: &HirNode, scope: &str) -> Vec<BindingFact> {
+    let scope_span = if node.kind == "expr_for" && node.children.len() == 3 {
+        node.children[2].span
+    } else {
+        node.span
+    };
     let local_scope = match node.kind.as_str() {
         "expr_block" => Some("block"),
+        "expr_for" if node.children.len() == 3 && node.children[2].kind == "expr_block" => {
+            Some("block")
+        }
         "expr_closure" if !node.children.is_empty() => Some("callback"),
         "match_arm"
             if node
@@ -1166,7 +1195,12 @@ pub fn bindings(node: &HirNode, scope: &str) -> Vec<BindingFact> {
         }
         _ => None,
     }
-    .map(|kind| format!("scope:source:{kind}:{}:{}", node.span.start, node.span.end));
+    .map(|kind| {
+        format!(
+            "scope:source:{kind}:{}:{}",
+            scope_span.start, scope_span.end
+        )
+    });
     let scope = local_scope.as_deref().unwrap_or(scope);
     let binding = binding_fact(node, scope);
 

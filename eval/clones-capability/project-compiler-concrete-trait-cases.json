@@ -1,0 +1,97 @@
+{
+  "schema": "rstyle.compiler-concrete-trait-cases/1",
+  "baseline_run": "run-bS3zMn",
+  "toolchain": "nightly-2026-09-30",
+  "baseline_metrics": "rstyle.compiler-style-metrics/3",
+  "expected_new_metrics": "rstyle.compiler-style-metrics/4",
+  "label_basis": "Original authored Rust source reviewed before new capture. Qualified source signatures identify impl owners; report-local IDs and impl ordinals are not expectations.",
+  "scope": "Selected callee and captured owner coverage only. No inferred IO, density, or parameter-planner improvement; unrelated unavailable owners and generic/dynamic calls remain unavailable.",
+  "contexts": [
+    {
+      "package": "rstyle-core",
+      "target_name": "rstyle_core",
+      "target_kind": "lib",
+      "test": false
+    },
+    {
+      "package": "cargo-rstyle",
+      "target_name": "cargo-rstyle",
+      "target_kind": "bin",
+      "test": false
+    }
+  ],
+  "samples": [
+    {
+      "id": "same-unit-weights-default",
+      "package": "rstyle-core",
+      "source_file": "crates/rstyle-core/src/config.rs",
+      "caller_signature": "impl Default for SideEffectsConfig :: fn default() -> Self",
+      "caller_source": "impl Default for SideEffectsConfig {\n    fn default() -> Self {\n        Self {\n            max_density_milli: 500,\n            min_statements: 3,\n            min_lines: 10,\n            transitive_depth: 3,\n            weights: Weights::default(),\n            paths: EffectPaths::default(),\n        }\n    }\n}",
+      "call_expression": "Weights::default()",
+      "selected_impl": {
+        "package": "rstyle-core",
+        "source_file": "crates/rstyle-core/src/config.rs",
+        "qualified_source_signature": "impl Default for Weights :: fn default() -> Self",
+        "source": "impl Default for Weights {\n    fn default() -> Self {\n        Self {\n            mutation: 1,\n            io: 3,\n            network: 3,\n            global: 2,\n            r#unsafe: 4,\n            time: 1,\n            random: 1,\n            panic: 0,\n            unknown: 1,\n        }\n    }\n}"
+      },
+      "expected": {
+        "selected_callee": "manual_impl_method",
+        "owner_relation": "same_compilation_unit",
+        "must_not_use_trait_declaration": "core::default::Default::default",
+        "leaf_has_calls": false,
+        "leaf_direct_escaping_effects": 0
+      },
+      "basis": "Concrete Weights return type selects its sole manual Default impl. The original impl constructs constant scalar fields; it contains no calls, writes, unsafe work, or external effects. This leaf fact is source reviewed, not synthesized from missing data."
+    },
+    {
+      "id": "direct-dependency-side-effects-default",
+      "package": "cargo-rstyle",
+      "source_file": "crates/cargo-rstyle/src/clones/analysis/effect_reports/density/config.rs",
+      "caller_signature": "impl Default for Policy :: fn default() -> Self",
+      "caller_source": "impl Default for Policy {\n    fn default() -> Self {\n        let default = SideEffectsConfig::default();\n        Self {\n            max_density_milli: default.max_density_milli,\n            min_statements: default.min_statements,\n            min_lines: default.min_lines,\n            weights: default.weights,\n            paths: default.paths,\n        }\n    }\n}",
+      "call_expression": "SideEffectsConfig::default()",
+      "selected_impl": {
+        "package": "rstyle-core",
+        "source_file": "crates/rstyle-core/src/config.rs",
+        "qualified_source_signature": "impl Default for SideEffectsConfig :: fn default() -> Self",
+        "source": "impl Default for SideEffectsConfig {\n    fn default() -> Self {\n        Self {\n            max_density_milli: 500,\n            min_statements: 3,\n            min_lines: 10,\n            transitive_depth: 3,\n            weights: Weights::default(),\n            paths: EffectPaths::default(),\n        }\n    }\n}"
+      },
+      "expected": {
+        "selected_callee": "manual_impl_method",
+        "owner_relation": "unique_captured_direct_dependency",
+        "must_not_use_trait_declaration": "core::default::Default::default",
+        "missing_dependency": "unresolved_not_zero"
+      },
+      "basis": "Imported concrete rstyle_core::config::SideEffectsConfig selects the manual dependency impl. Its nested Weights and EffectPaths calls forbid treating the body as a call-free or universally effect-complete leaf."
+    }
+  ],
+  "negative_controls": [
+    {
+      "id": "generic-decision-state",
+      "package": "cargo-rstyle",
+      "source_file": "crates/cargo-rstyle/src/clones/review/summary.rs",
+      "caller_signature": "summary::summarize<D: Decision>",
+      "caller_source": "pub(super) fn summarize<D: Decision>(\n    decisions: &[D],\n    retained_entries: usize,\n    scope: Scope,\n    contract: Contract,\n) -> Summary {\n    let hidden_findings = decisions\n        .iter()\n        .filter(|decision| matches!(decision.state(), \"hidden_exact\" | \"hidden_growth\"))\n        .count();\n    let complete = scope.complete\n        && decisions\n            .iter()\n            .all(|decision| decision.state() != \"unavailable\");\n    Summary {\n        schema: contract.schema,\n        execution: if scope.requested {\n            Execution::Completed\n        } else {\n            Execution::NotRequested\n        },\n        coverage: if scope.requested && complete {\n            Coverage::Complete\n        } else {\n            Coverage::Incomplete\n        },\n        findings: decisions.len(),\n        hidden_findings,\n        visible_findings: decisions.len() - hidden_findings,\n        retained_entries,\n        reasons: if scope.requested && !scope.complete {\n            vec![contract.incomplete_scope]\n        } else {\n            Vec::new()\n        },\n    }\n}",
+      "call_expression": "decision.state()",
+      "expected": {
+        "dispatch": "generic_trait_bound",
+        "must_not_select_concrete_impl": true
+      },
+      "basis": "D is a caller-selected type parameter. Concrete Decision impls elsewhere do not establish one selected impl for this original generic body."
+    },
+    {
+      "id": "dynamic-alignment-step",
+      "package": "rstyle-core",
+      "source_file": "crates/rstyle-core/src/align.rs",
+      "caller_signature": "align::align_variant(ctx: &Ctx<'_>, v: Variant)",
+      "caller_source": "pub fn align_variant(ctx: &Ctx<'_>, v: Variant) -> (Alignment, Vec<Stage>) {\n    let depth = ctx.wa.rounds.len().min(ctx.levels_used());\n    let levels: Vec<Ctx<'_>> = (0..depth.max(1)).map(|k| ctx.at_level(k)).collect();\n    let empty = Matching::new(ctx.ca.len(), ctx.cb.len());\n    let (_, stages) =\n        steps(ctx, &levels, v)\n            .iter()\n            .fold((empty, Vec::new()), |(m, mut stages), (name, run)| {\n                let next = run(m);\n                stages.push(Stage {\n                    name,\n                    pairs: next.pairs(),\n                });\n                (next, stages)\n            });\n    let pairs = stages.last().map_or_else(Vec::new, |s| s.pairs.clone());\n    let larger = ctx.ca.len().max(ctx.cb.len()).max(1);\n    let alignment = Alignment {\n        coverage_milli: (pairs.len() * 1000 / larger) as u32,\n        holes: holes_of(ctx, &pairs),\n        pairs,\n    };\n\n    (alignment, stages)\n}",
+      "receiver_type_source": "type Step<'a> = (&'static str, Box<dyn Fn(Matching) -> Matching + 'a>);",
+      "call_expression": "run(m)",
+      "expected": {
+        "dispatch": "dynamic_callable",
+        "must_not_select_concrete_impl": true
+      },
+      "basis": "The stage iterator supplies a boxed dyn Fn callable. Its runtime target is not one compiler-selected concrete impl for this source call."
+    }
+  ]
+}

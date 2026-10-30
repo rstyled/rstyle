@@ -29,6 +29,7 @@ pub mod collection;
 mod concrete_calls;
 pub mod concrete_results;
 pub mod concrete_types;
+pub mod consumer_facts;
 mod copy_conversion_members;
 mod copy_tagged_values;
 mod cyclic_values;
@@ -135,7 +136,8 @@ pub use frontend::{
     BindingFact, BuildFacts, ByteSpan, DataEvidence, Dispatch, EligibilityVerdict, ExpansionSite,
     FrontendOptions, GenericFact, HirDiagnostic, HirEligibility, HirFnFacts, HirNode, HirRef,
     ParamFact, PathRes, ReceiverFact, ResolvedTy, SignatureFacts, SourceFacts, SourceSnapshot,
-    SourceText, known_bool, known_count, known_str, unknown_bool, unknown_count, unknown_str,
+    SourceText, StyleFnFacts, Uncaptured, known_bool, known_count, known_str, unknown_bool,
+    unknown_count, unknown_str,
 };
 
 pub use cfg::{

@@ -67,7 +67,8 @@ jobs:
           path: target/nextest/ci/junit.xml
           if-no-files-found: ignore
 
-      # Dog-food: rstyle on its own workspace. Exit 1 = violations, 2 = tool error.
+      # Default compiler style keeps unreviewed findings blocking.
+      # Exit 1 = violations, 2 = tool error.
       # Keep this full-workspace check here; CLI tests use small fixtures to avoid
       # repeating workspace extraction and competing for Cargo's build lock.
       - name: rstyle self-check

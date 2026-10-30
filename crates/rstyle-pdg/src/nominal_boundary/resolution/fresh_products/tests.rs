@@ -9,7 +9,7 @@ fn tree() -> TypeTree {
     let mut tree: TypeTree =
         serde_json::from_value(captures[0]["interface"]["result"]["ty"].clone()).unwrap();
     let selection: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../../eval/coverage-development/line-reader/selection.json"
+        "../../../../../../tests/fixtures/function-families/line-reader/selection.json"
     ))
     .unwrap();
     let source = selection["owners"][0]["source"].as_str().unwrap();

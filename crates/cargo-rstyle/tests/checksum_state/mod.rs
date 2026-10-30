@@ -4,8 +4,8 @@ mod corruption;
 mod targets;
 
 mod oracle {
-    include!("../../../../eval/coverage-development/checksum-state.rs");
-    include!("../../../../eval/coverage-development/checksum-state-oracle.rs");
+    include!("../../../../tests/fixtures/function-families/checksum-state.rs");
+    include!("../../../../tests/fixtures/function-families/checksum-state-oracle.rs");
 }
 
 #[test]
@@ -13,7 +13,7 @@ fn checksum_state_roundtrip_family_completes_the_strict_pipeline() {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        include_str!("../../../../eval/coverage-development/checksum-state.rs"),
+        include_str!("../../../../tests/fixtures/function-families/checksum-state.rs"),
     )
     .unwrap();
     let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);

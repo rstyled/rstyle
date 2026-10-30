@@ -13,7 +13,9 @@ for d in telemetry_workspace backup_sync queue_worker feature_gate; do
         $W/target/debug/cargo-rstyle rstyle --format json patterns --all-targets --threshold "$t" 2>/dev/null |
       python3 -c '
 import json,sys
-r=json.load(sys.stdin)
+sys.path.insert(0,sys.argv[3])
+from compiler_patterns import evaluation
+r=evaluation(json.load(sys.stdin))
 d,t=sys.argv[1:3]
 cs=r.get("candidates",[]); sp=r.get("suppressed",[])
 print(f"{d} thr={t} candidates={len(cs)} suppressed={len(sp)}")
@@ -21,6 +23,6 @@ for c in cs:
     print("   ", c.get("kind"), " | ".join(s["id"].split("::",1)[-1] for s in c["sites"]))
 for c in sp:
     print("    suppressed:", " | ".join(s["id"].split("::",1)[-1] for s in c.get("sites",[])))
-' "$d" "$t")
+' "$d" "$t" "$W/scripts")
   done
 done

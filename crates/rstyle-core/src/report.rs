@@ -29,8 +29,60 @@ pub struct Summary {
     pub complexity_unavailable: usize,
     /// Mean of per-function `density_milli`, rounded down.
     pub mean_density_milli: usize,
+    /// Exact completed total, retained for aggregation before serialization.
+    /// `None` means the total is unavailable or exceeds `usize`.
+    #[serde(skip)]
+    pub density_sum_milli: Option<usize>,
     pub max_density_milli: usize,
     pub effect_counts: BTreeMap<String, usize>,
+}
+
+impl Summary {
+    /// Combine completed summaries without averaging already rounded means.
+    /// Empty inputs, missing totals and arithmetic overflow remain unavailable.
+    pub fn aggregate<'a>(summaries: impl IntoIterator<Item = &'a Self>) -> Option<Self> {
+        let mut summaries = summaries.into_iter().peekable();
+        summaries.peek()?;
+        summaries.try_fold(
+            Self {
+                density_sum_milli: Some(0),
+                ..Self::default()
+            },
+            |total, summary| total.combine(summary),
+        )
+    }
+
+    fn combine(self, other: &Self) -> Option<Self> {
+        let functions = self.functions.checked_add(other.functions)?;
+        let density_sum = self
+            .density_sum_milli?
+            .checked_add(other.density_sum_milli?)?;
+        Some(Self {
+            functions,
+            violations: self.violations.checked_add(other.violations)?,
+            complexity_measured: self
+                .complexity_measured
+                .checked_add(other.complexity_measured)?,
+            complexity_unavailable: self
+                .complexity_unavailable
+                .checked_add(other.complexity_unavailable)?,
+            mean_density_milli: density_sum / functions.max(1),
+            density_sum_milli: Some(density_sum),
+            max_density_milli: self.max_density_milli.max(other.max_density_milli),
+            effect_counts: combine_counts(self.effect_counts, &other.effect_counts)?,
+        })
+    }
+}
+
+fn combine_counts(
+    mut total: BTreeMap<String, usize>,
+    other: &BTreeMap<String, usize>,
+) -> Option<BTreeMap<String, usize>> {
+    for (kind, count) in other {
+        let entry = total.entry(kind.clone()).or_default();
+        *entry = entry.checked_add(*count)?;
+    }
+    Some(total)
 }
 
 /// One violating function inside a fix group.
@@ -130,19 +182,23 @@ impl Report {
 }
 
 pub fn sort(diagnostics: &mut [Diagnostic]) {
-    diagnostics.sort_by(|a, b| {
-        (&a.path, a.line, a.column, &a.rule_id).cmp(&(&b.path, b.line, b.column, &b.rule_id))
-    });
+    diagnostics.sort_by(ordering);
 }
 
-fn diagnostic_line(d: &Diagnostic) -> String {
+pub fn ordering(a: &Diagnostic, b: &Diagnostic) -> std::cmp::Ordering {
+    (&a.path, a.line, a.column, &a.rule_id).cmp(&(&b.path, b.line, b.column, &b.rule_id))
+}
+
+/// Render the same source-located diagnostic in legacy and compiler advisory views.
+pub fn diagnostic_line(d: &Diagnostic) -> String {
     format!(
         "{}:{}:{}: {}: {} (actual {}, limit {})",
         d.path, d.line, d.column, d.rule_id, d.message, d.actual, d.limit
     )
 }
 
-fn group_lines(group: &FixGroup) -> Vec<String> {
+/// Source-located members and parameter suggestions for one completed fix group.
+pub fn group_lines(group: &FixGroup) -> Vec<String> {
     let head = format!(
         "  group {} ({} functions; land together or stack in this order):",
         group.id,
@@ -202,7 +258,14 @@ fn listed(group: &FixGroup) -> bool {
 
 /// Listed groups are printed; the rest are only counted.
 fn groups_text(groups: &[FixGroup]) -> Vec<String> {
-    let stacked: Vec<&FixGroup> = groups.iter().filter(|g| listed(g)).collect();
+    groups_text_refs(groups.iter())
+}
+
+/// Apply the existing group display policy to completed borrowed groups.
+pub fn groups_text_refs<'a>(groups: impl IntoIterator<Item = &'a FixGroup>) -> Vec<String> {
+    let groups: Vec<_> = groups.into_iter().collect();
+    let stacked: Vec<&FixGroup> = groups.iter().copied().filter(|g| listed(g)).collect();
+
     let mut lines = vec![format!(
         "fix groups: {} ({} stacked, {} independent)",
         groups.len(),
@@ -214,18 +277,27 @@ fn groups_text(groups: &[FixGroup]) -> Vec<String> {
 }
 
 pub fn text(report: &Report) -> String {
-    let s = &report.summary;
     let mut lines: Vec<String> = report.diagnostics.iter().map(diagnostic_line).collect();
 
     if !report.fix_groups.is_empty() {
         lines.extend(groups_text(&report.fix_groups));
     }
     lines.extend(crate::complexity_report::text(&report.functions));
-    lines.push(format!(
-        "rstyle: {} functions, {} violations, mean density {}, max density {}, complexity {} measured, {} unavailable",
-        s.functions, s.violations, s.mean_density_milli, s.max_density_milli, s.complexity_measured, s.complexity_unavailable
-    ));
+    lines.push(summary_line(&report.summary));
     lines.join("\n")
+}
+
+/// Render the completed metric summary shared by style report views.
+pub fn summary_line(s: &Summary) -> String {
+    format!(
+        "rstyle: {} functions, {} violations, mean density {}, max density {}, complexity {} measured, {} unavailable",
+        s.functions,
+        s.violations,
+        s.mean_density_milli,
+        s.max_density_milli,
+        s.complexity_measured,
+        s.complexity_unavailable
+    )
 }
 
 pub fn json(report: &Report) -> Result<String, serde_json::Error> {
@@ -234,6 +306,7 @@ pub fn json(report: &Report) -> Result<String, serde_json::Error> {
 
 #[cfg(test)]
 mod tests {
+    mod summary;
     use super::*;
 
     fn diagnostic(path: &str, line: usize) -> Diagnostic {

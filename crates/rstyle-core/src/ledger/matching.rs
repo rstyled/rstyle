@@ -3,7 +3,7 @@
 use super::{Entry, Ledger, site_key};
 use crate::candidates::Candidate;
 use serde::Serialize;
-use std::collections::BTreeSet;
+use std::{borrow::Borrow, collections::BTreeSet};
 
 /// How an entry matched a candidate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -26,16 +26,16 @@ impl Matched {
 
 /// A candidate the ledger hid, and the entry that did it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Hidden {
-    pub candidate: Candidate,
+pub struct Hidden<C = Candidate> {
+    pub candidate: C,
     pub entry_id: String,
     pub matched: Matched,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Applied {
-    pub kept: Vec<Candidate>,
-    pub hidden: Vec<Hidden>,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Applied<C = Candidate> {
+    pub kept: Vec<C>,
+    pub hidden: Vec<Hidden<C>>,
 }
 
 /// What `cargo rstyle ignore` records beyond the candidate itself.
@@ -85,10 +85,14 @@ fn hiding_entry(ledger: &Ledger, c: &Candidate) -> Option<(String, Matched)> {
 }
 
 /// Splits `candidates` into those still worth reviewing and those the ledger hides.
-pub fn apply(ledger: &Ledger, candidates: Vec<Candidate>) -> Applied {
+/// Owned and borrowed inputs use the same matcher and retain their original order.
+pub fn apply<C: Borrow<Candidate>>(
+    ledger: &Ledger,
+    candidates: impl IntoIterator<Item = C>,
+) -> Applied<C> {
     let (hidden, kept): (Vec<_>, Vec<_>) = candidates
         .into_iter()
-        .map(|c| (hiding_entry(ledger, &c), c))
+        .map(|c| (hiding_entry(ledger, c.borrow()), c))
         .partition(|(entry, _)| entry.is_some());
 
     Applied {
@@ -295,6 +299,46 @@ mod tests {
 
         assert_eq!(applied.kept, vec![other]);
         assert_eq!(applied.hidden[0].matched, Matched::Exact);
+    }
+
+    #[test]
+    fn borrowed_apply_preserves_exact_growth_and_negative_matches_without_cloning() {
+        let ledger = dismissed(&pair(), true);
+        let grown = candidate(
+            CandidateKind::TraitMethod,
+            &[("k::a", "1"), ("k::b", "2"), ("k::c", "3")],
+            &["k::A::m"],
+        );
+        let reshaped = candidate(
+            CandidateKind::TraitMethod,
+            &[("k::a", "9"), ("k::b", "2")],
+            &["k::A::m"],
+        );
+        let other_kind = candidate(
+            CandidateKind::GenericFn,
+            &[("k::a", "1"), ("k::b", "2")],
+            &["k::A::m"],
+        );
+        let candidates = vec![pair(), grown, reshaped, other_kind];
+        let borrowed = apply(&ledger, candidates.iter());
+        let owned = apply(&ledger, candidates.clone());
+
+        assert_eq!(borrowed.hidden.len(), 2);
+        assert_eq!(borrowed.kept.len(), 2);
+        assert_eq!(borrowed.hidden[0].matched, Matched::Exact);
+        assert_eq!(borrowed.hidden[1].matched, Matched::Growth { added: 1 });
+        for (index, (borrowed, owned)) in borrowed.hidden.iter().zip(&owned.hidden).enumerate() {
+            assert_eq!(borrowed.candidate, &owned.candidate);
+            assert_eq!(
+                (&borrowed.entry_id, borrowed.matched),
+                (&owned.entry_id, owned.matched)
+            );
+            assert!(std::ptr::eq(borrowed.candidate, &candidates[index]));
+        }
+        for (index, (borrowed, owned)) in borrowed.kept.iter().zip(&owned.kept).enumerate() {
+            assert_eq!(*borrowed, owned);
+            assert!(std::ptr::eq(*borrowed, &candidates[index + 2]));
+        }
     }
 
     #[test]

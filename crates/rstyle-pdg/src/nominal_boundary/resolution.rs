@@ -145,6 +145,7 @@ impl Resolution {
         )
     }
 
+    // rstyle-allow(side_effect_density): Resolution installation keeps copy permissions, no-drop permissions and source requirements from one checked selection.
     fn select_copies(
         &mut self,
         facts: &HirFnFacts,

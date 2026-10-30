@@ -1,0 +1,19 @@
+{
+  "schema": "rstyle.compiler-cross-unit-study-cases/1",
+  "scope": "cargo-rstyle binary and rstyle-core non-test library",
+  "expectations": {
+    "required_resolved_targets": [
+      "rstyle_core::evaluate",
+      "rstyle_core::lines::code_lines",
+      "rstyle_core::cli_args::flag_value",
+      "rstyle_core::graph::build_resolved",
+      "rstyle_core::all_effects",
+      "rstyle_core::evaluate_retained",
+      "rstyle_core::evaluate_with_effects"
+    ],
+    "outside_selection_remains_unresolved": "rstyle_pdg::",
+    "whole_analysis_exit": 2,
+    "strict_pair_budget": 0
+  },
+  "basis": "Before capture, source call sites in cargo-rstyle main::analyze, analysis::source_rules, capture and advisory::{propagation,diagnostics} independently require these seven ordinary rstyle-core free-function targets. Both selected packages fit the unchanged 256-file source census limit. rstyle-pdg is not selected, so its workspace callees must remain unresolved. This study measures dependency call coverage; it does not establish purity, a speedup or complete strict matching."
+}

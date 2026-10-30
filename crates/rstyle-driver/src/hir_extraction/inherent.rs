@@ -1,5 +1,7 @@
 //! Concrete same-unit inherent ownership, captured before helper linking.
 
+mod source_generics;
+
 use super::{Options, hir::Context};
 use rstyle_pdg::{
     HirFnFacts,
@@ -21,7 +23,9 @@ pub fn implementation(
         return None;
     }
     let owner = tcx.inherent_impl_of_assoc(id)?;
-    let nongeneric = tcx.generics_of(id).count() == 0 && tcx.generics_of(owner).count() == 0;
+    let nongeneric = tcx.generics_of(id).count() == 0
+        && tcx.generics_of(owner).count() == 0
+        && !source_generics::has_lifetime_arguments(tcx, owner);
     (nongeneric
         || profile.supports("rust.borrowed-mixed-owners")
             && lifetime_owner(
@@ -45,6 +49,7 @@ fn lifetime_owner(tcx: TyCtxt<'_>, id: DefId, owner: DefId, static_product: bool
             .own_params
             .iter()
             .all(|parameter| matches!(parameter.kind, ty::GenericParamDefKind::Lifetime))
+        && source_generics::implementation(tcx, owner)
         && if tcx.associated_item(id).is_method() {
             matches!(tcx.fn_sig(id).instantiate_identity().skip_binder().inputs().first(),
                 Some(receiver) if matches!(receiver.kind(), ty::Ref(_, _, rustc_hir::Mutability::Not)))

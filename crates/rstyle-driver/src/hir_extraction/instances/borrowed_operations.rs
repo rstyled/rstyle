@@ -1,5 +1,6 @@
 //! Selected concrete AsRef observations, without library, lifetime or origin authority.
 use super::super::hir::{Context, reference};
+use super::diagnostic_support::ArgumentsProjection;
 use super::{
     comparisons,
     reference_owners::Projection,

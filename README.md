@@ -1,5 +1,8 @@
 # rstyle
 
+Style, patterns and review commands now use the compiler pipeline exclusively.
+The pre-removal implementation is preserved on the `legacy` branch.
+
 Rust style checker built on rustc HIR (resolved names and types, not just syntax). It flags functions that are too long, take too many params, mutate too much, or have a high side-effect density.
 
 ## Layout
@@ -13,18 +16,70 @@ Rust style checker built on rustc HIR (resolved names and types, not just syntax
 See [`SIDE_EFFECTS.md`](SIDE_EFFECTS.md) for the rule spec.
 
 Opt-in strict source-to-pair analysis is available with `cargo rstyle clones`.
-See [the Rust feature coverage matrix](docs/rust-feature-coverage.md) for current
-support, examples, and the remaining real-world Rust roadmap.
-See [the integration workflow](docs/source-to-pair.md) for build selection,
-verified evidence, reports and exit codes. It does not activate abstraction mining.
+Clones also offers opt-in source and signature rules
+whose evidence remains usable when a body is excluded from strict matching.
+Compiler advisory reuses existing Rust
+collectors and core policy. Add `--compiler-advisory --compiler-complexity-top 20`
+to rank clean and flagged functions by completed COG/CC scores per unit;
+missing scores and owners remain explicit, including on saved-facts replay.
+Normal style checks use that compiler path by default:
+`cargo rstyle --format json`. It reads workspace
+`rstyle.toml` (or `--config`), checks all authored rules and returns 1 for findings.
+The compiler path reuses private builds and completed owner observations when Cargo
+reports the exact artifacts fresh; reports retain separate compilation contexts.
+Root JSON exposes diagnostics, summary, fix groups and complexity rows, with
+explicit scope and planning completeness. Root style saves its numeric compiler
+inputs for replay; analyses requiring original HIR bodies use a full clones capture.
+Text diagnostics and complexity rows carry compiler unit labels, followed by a
+table of package, target, test mode and source for each unit. Library and test
+builds of the same source remain distinguishable on saved-run replay.
+Add `--changed-files changes.json` to compiler style to select findings for CI;
+use `{"schema":"rstyle.changed-files/1","paths":["src/lib.rs"]}` with paths
+relative to the workspace root. Metrics and fix groups retain the full captured
+scope. Invalid suppressions remain visible, and unobserved selected paths or
+missing required inputs still return 2. This selection also works with an explicit
+`--replay-run PATH`.
+Compiler style also supports `--write-baseline baseline.json` to export a complete
+inventory to a new file, and `--baseline baseline.json --fail-on-new` to fail CI
+only for new/changed selected findings or policy/build-context drift. Raw findings
+remain visible, and incomplete analysis still exits 2. Export retains the normal
+finding exit status. Both workflows support explicit saved-run replay.
+Density findings remain blocking, just like other violations. Dismiss individual
+reviewed findings with the existing `rstyle-allow(side_effect_density)` source
+comment and a reason, or use the existing separate review file without changing
+source:
+
+```sh
+cargo rstyle --format json
+cargo rstyle --replay-run RUN --review-file rstyle-reviews.json \
+  --dismiss-compiler-diagnostic UNIT DIAGNOSTIC_INDEX --review-reason "Reviewed IO boundary"
+cargo rstyle --review-file rstyle-reviews.json --format json
+```
+
+Use the `run_directory` and parallel `diagnostic_units`/`diagnostic_indices`
+entries from the report (also shown in text). Reviews hide only the exact finding;
+changed values, policy or build context can make it visible again. Raw per-unit
+findings remain available. `--review-status` inspects the file without writing.
+The review file is explicit and independent of the pattern ignore ledger.
+
+Default `cargo rstyle patterns` also saves metadata and its advisory graphs,
+avoiding full body trees. Pattern and review replay need no source or compiler
+tools; body-dependent analysis requires a full clones capture.
+Optional native pair explanations show ordered
+scalar differences with separate coverage through `--explain-pairs`.
+Bounded helper proposals use that evidence
+with `--helper-proposals` to suggest useful scalar-expression abstractions.
+Saved finding reviews retain explicit dismissals
+for helpers, enum dispatch and witnessed capability sets across analysis runs.
+`--review-status` inspects every retained entry with explicit scope and evidence gaps.
+`--review-prune --review-prune-dry-run` previews removal of completed negative reviews.
 
 Other top-level folders:
 
 | Folder | What it is |
 | --- | --- |
-| [`eval/`](eval/README.md) | Result CSVs from the miner evaluation (leave-one-project-out, normalizer ablation, alignment, CodeNet). |
-| [`scripts/`](scripts/README.md) | Shell and Python (stdlib only) drivers that produce `eval/` and `site/wl/data`; also `style.sh`. |
-| [`site/wl/`](site/wl/README.md) | Static viewer for Weisfeiler-Lehman traces of function pairs. |
+| [`eval/`](eval/README.md) | Current compiler evaluation tools, authored inputs and the HIR coverage inventory. |
+| [`scripts/`](scripts/README.md) | Build, test, profiling and evaluation scripts; also `style.sh`. |
 | `rust_refactoring_examples/` | Labeled example crates (`labels.csv`) the miner is scored against. |
 | `.plans/` | Local planning notes and LLM logs. Gitignored, not part of the repo. |
 
@@ -152,9 +207,7 @@ cargo style --format json
 
 Both complexity limits default to 12; scores above either limit are findings.
 Clean functions are omitted. Text ranks reported functions by COG, then CC. JSON
-includes source evidence, all findings, and counts for every analyzed function. See
-[the shared scoring policy and Rust mapping](docs/complexity.md) for the counting
-rules, coverage, frontend contract, and configuration.
+includes source evidence, all findings, and counts for every analyzed function.
 
 Run on another project:
 
@@ -188,6 +241,8 @@ cargo rstyle patterns [--format text|json] [--all-targets] [--min-score N] [--to
                       [--hide-implements TEXT]...
 ```
 
+The default uses compiler observations across the selected workspace and reuses the core proposer. Authored functions are selected by default; generated signatures remain visible in coverage. Reports retain compilation contexts, unavailable inputs and the explicit saved run directory; incomplete input exits 2. Strict clone matching is independent of these advisory proposals.
+
 Two layers:
 
 1. **Signature groups.** Methods of different types with the same normalized signature (`fn(&Self) -> String`). Rare signatures score high, common getters score near zero. This is a blocking key, not a finding.
@@ -195,7 +250,7 @@ Two layers:
 
 Each candidate has a `kind` (`trait_method`, `capability_set`, `enum_dispatch`, `generic_fn`, `parameterize`), a score with its parts (`support`, `lift`, `holes`, `coverage`), an observation, an inference, a possible refactor sketch, every site with `path:line`, the functions that fill the holes, and counter-evidence (effect mismatch, common signature). Patterns whose implementations all already implement one trait method are listed under `suppressed`, not proposed. Output is deterministic.
 
-Dependence graphs are about 10x bigger than the style facts, so only `patterns` asks the driver for them (`RSTYLE_PDG=1`, facts in `target/rstyle/facts-sem`; style runs keep `target/rstyle/facts` and a separate cargo fingerprint, so the modes never clobber each other).
+Compiler patterns captures graph observations under `target/rstyle/clones/`. Use `--replay-run PATH` to reevaluate an explicit saved run without source files or compiler tools. Style and patterns both consume saved compiler unit snapshots.
 
 `--hide-implements TEXT` forgets trait links whose trait method id contains `TEXT` (`*` hides all). Evaluation oracle: hide a trait that has several impls and check the miner proposes it back.
 
@@ -209,16 +264,18 @@ cargo rstyle patterns --show-ignored                        # list what the ledg
 cargo rstyle patterns --no-ignore                           # one-off full view
 cargo rstyle patterns --fail-on-candidates                  # CI gate: exit 1 if any candidate is left
 cargo rstyle ignore --status [<id>]                         # where each entry's functions are now
-cargo rstyle ignore --prune [--dry-run]                     # drop entries that match nothing
+cargo rstyle ignore --all-targets --prune [--dry-run]       # drop entries that match nothing
 ```
 
 `rstyle-ignore.toml` (workspace root, or `--ignore-file`) is meant to be committed, like a lockfile. It is a final filter on the reported candidates; mining never reads it, and `--top` / `--min-score` apply after it. Delete the file, or an entry, to re-review. Comments directly above an entry, or inside it, are kept when `ignore` rewrites the file (other comments are dropped), so notes like "discussed in PR 12" survive; `--reason` is the structured version.
+
+Listing and `ignore` share compiler discovery and mining options. Pruning requires complete full-workspace inputs captured with `--all-targets`; saved replay uses that recorded selection. Status reports absent members as unobserved within each compilation population rather than assuming deletion.
 
 A dismissal holds while the candidate is the same: same kind, same functions, same dependence-graph shape of each site. Moving a function (new line numbers) or adding an impl block above it does not matter; editing its structure does. Growth resurfaces it by default: if two more functions join a dismissed candidate, it is a new candidate. `--allow-growth` records the members instead, and the candidate stays hidden as long as they are all still in it. Pruning is manual; stale entries are harmless, they just never match. Pass the same clustering flags to `ignore` as to `patterns`, since they decide which candidates (and ids) exist. Limits: shape comes from the dependence graph, so edits inside closures or that only swap one callee for another of the same signature are not seen.
 
 **Reading the score.** `score = (ln(support) + lift) * coverage`, divided by `holes / 3` when there are more than 3 holes, halved on effect mismatch (natural-log units; a ranking, not a probability). `support` is the number of functions in the cluster, `lift` is how rare the shared signature is (`ln(methods in the workspace / methods sharing it)`; about 0 for getters, with up to +50% when the types share the method name), `coverage` is the mean share of each body that aligns, `holes` is the number of differing columns. `generic_fn` is halved and `parameterize` divided by 3 and both have lift 0, so compare scores within a kind. For the trait kinds a score under about 0.7, or the counter-evidence "signature is common in this codebase", is noise. These cutoffs come from the formula and from reading output, they are not calibrated on labeled data.
 
-**Experiments (off by default).** `--normalize all|ctor,pred,case,exit,counter,cmp,try` canonicalizes graphs before comparing, `--pair-coverage N` clusters pairs by alignment coverage even below the WL threshold, `--max-holes N` raises the `parameterize` hole cap, `--single-call-guard` admits single-call bodies that do more than forward parameters, `--threshold N` and `--min-coverage N` move the clustering thresholds (defaults 600 and 600). On a held-out CodeNet sample none of them is clearly better than the defaults: the rules shrink graphs by about one node per pair and `case` does nearly all of it; `--pair-coverage 650 --max-holes 4` flags more pairs of strangers and more cross-problem pairs (see [`eval/README.md`](eval/README.md)).
+**Experiments (off by default).** `--normalize all|ctor,pred,case,exit,counter,cmp,try` canonicalizes graphs before comparing, `--pair-coverage N` clusters pairs by alignment coverage even below the WL threshold, `--max-holes N` raises the `parameterize` hole cap, `--single-call-guard` admits single-call bodies that do more than forward parameters, `--threshold N` and `--min-coverage N` move the clustering thresholds (defaults 600 and 600).
 
 Inspiration: comparing functions by approximate matching of their program dependence graphs (PDGs), as in [CCGraph: A PDG-based Code Clone Detector with Approximate Graph Matching](https://yinxingxue.github.io/papers/ase2020_CCGraph%20A%20PDG%20based%20Code%20Clone%20Detector%20With%20Approximate%20Graph%20Matching.pdf) (ASE 2020), with a Weisfeiler-Lehman (WL) graph kernel for the similarity. This is not a reimplementation.
 
@@ -262,6 +319,6 @@ scripts/style.sh            # dog-food: must report 0 violations
 python3 scripts/test_codenet.py   # tests of the evaluation scripts (fake CodeNet package, needs cargo)
 ```
 
-Evaluation scaffolding (all deterministic, dependency-free Python, outputs under gitignored `eval/codenet/`): see [`scripts/README.md`](scripts/README.md) for the scripts and the dev / test / holdout protocol, and [`eval/README.md`](eval/README.md) for the result files.
+Evaluation scaffolding (all deterministic, dependency-free Python, outputs under gitignored `eval/codenet/`): see [`scripts/README.md`](scripts/README.md) for the scripts and the dev / test / holdout protocol, and [`eval/README.md`](eval/README.md) for the current evaluation tools and inputs.
 
 Fixtures live in `crates/cargo-rstyle/tests/fixtures/{clean,violations,broken}`. Golden output uses `insta`.

@@ -58,6 +58,13 @@ mod tests {
 
     fn plan(targets: Vec<Target>) -> Plan {
         Plan {
+            workspace_all_targets: None,
+            compiler_advisory_only: false,
+            style_inputs_only: false,
+            compiler_advisory: false,
+            compiler_patterns: false,
+            local_source_facts: false,
+            local_mutation_facts: false,
             ledger_schema: SCHEMA.into(),
             extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile::R0,
             root: "/run".into(),

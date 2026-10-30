@@ -1,8 +1,13 @@
 ---
 source: crates/cargo-rstyle/tests/cli.rs
-assertion_line: 687
-expression: stdout(&output)
+expression: "snapshot_output(dir.path(), &output)"
 ---
+Compiler advisory only: 1 units; capture=true, assessment=true. Strict assessment and matching: not_requested.
+Report: <saved compiler run>
+
+Compiler advisory: 1 units, 2 findings; complete=true. Metrics: rstyle.compiler-style-metrics/7.
+Compiler patterns for population anchored at unit 0, source root <workspace> (input complete=true):
+Authored function scope: 0 generated functions outside scope; 0 applicable inputs unavailable.
 5 signature groups
 
 fn(&Self) -> &str  [2 types, score 2.92, same name]
@@ -31,7 +36,7 @@ fn(&Self) -> String  [4 types, score 0.85]
 2 candidates
 
 #1 trait_method  id 40b2ac243d79  score 1.95  [support 3, lift 0.85, holes 2, coverage 1.00]
-  observation: 3 functions share one dependence structure and differ only at T0 = Dog | Cat; M0 = Dog::bark | Cat::meow
+  observation: 3 functions have aligned dependence-graph regions; recorded substitutions: T0 = Dog | Cat; M0 = Dog::bark | Cat::meow
   inference: Cat, Dog are used interchangeably through methods of identical signature: an implicit interface.
   possible refactor: trait Shared { fn method(&self) -> String; } implemented by Cat, Dog; make the sites generic over it
   sites:
@@ -52,5 +57,5 @@ fn(&Self) -> String  [4 types, score 0.85]
     src/lib.rs:15  Dog::bark
     src/lib.rs:30  Cat::meow
 
-1 suppressed (already abstracted)
+1 suppressed by proposal policy
   all 2 impls are of trait method animals::Speak::speak (src/lib.rs:101  emit_cow, src/lib.rs:107  emit_hen)

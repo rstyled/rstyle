@@ -1,6 +1,10 @@
 //! Layer 2 join: hole columns of function clusters (and enum dispatch inside one function)
 //! are matched against layer-1 signature groups to propose traits, generic fns or parameters.
 
+mod effects;
+pub use effects::annotate_completed_effects;
+use effects::effect_mismatch;
+
 use crate::align::HoleKind;
 use crate::cluster::{Cluster, Column, Params, cluster};
 use crate::dispatch::{Dispatch, find};
@@ -10,6 +14,12 @@ use crate::sigmine::SigGroup;
 use crate::{ledger, locator, wl};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+
+/// Version of the advisory proposal policy, independent of graph/metric versions.
+pub const POLICY_VERSION: u32 = 2;
+/// Inspectable policy rejection, independent of user review/ignore entries.
+pub const FORWARDING_REASON: &str =
+    "call-only forwarding through distinct single-use callee substitutions";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -248,35 +258,6 @@ fn judge<'a>(ix: &Index<'a>, values: &[String]) -> Verdict<'a> {
     }
 }
 
-fn effect_class(f: &FnFacts) -> BTreeSet<String> {
-    let writes = f.mutations.iter().any(|m| m.escapes);
-    let kinds = f.effects.iter().map(|e| e.kind.name().to_string());
-    kinds
-        .chain(writes.then(|| "mutation".to_string()))
-        .collect()
-}
-
-/// Notes when the implementations differ in observable effects (one mutates, one is pure).
-fn effect_mismatch(defs: &[&FnFacts]) -> Option<String> {
-    let classes: Vec<BTreeSet<String>> = defs.iter().map(|f| effect_class(f)).collect();
-    let uniform = classes.windows(2).all(|pair| pair[0] == pair[1]);
-    let show = |c: &BTreeSet<String>| {
-        if c.is_empty() {
-            "pure".to_string()
-        } else {
-            c.iter().cloned().collect::<Vec<_>>().join("+")
-        }
-    };
-    (!uniform).then(|| {
-        let parts: Vec<String> = defs
-            .iter()
-            .zip(&classes)
-            .map(|(f, c)| format!("{} is {}", f.name, show(c)))
-            .collect();
-        format!("effect mismatch: {}", parts.join(", "))
-    })
-}
-
 /// `1000 * ln(support)` plus lift, scaled by coverage, damped by many holes and effect mismatch.
 pub fn score_milli(b: &Breakdown, mismatch: bool) -> u32 {
     let support = (b.support.max(1) as f64).ln() * 1000.0;
@@ -331,7 +312,7 @@ fn short_paths(owner: &str) -> String {
     let mut word = String::new();
 
     for c in owner.chars() {
-        if c.is_alphanumeric() || c == '_' || c == ':' {
+        if c.is_alphanumeric() || matches!(c, '_' | ':' | '@') {
             word.push(c);
         } else {
             out.push_str(word.rsplit("::").next().unwrap_or(&word));
@@ -418,7 +399,11 @@ fn finish(ev: Evidence<'_>) -> Candidate {
 
 /// `T0 = Dog | Cat; M0 = Dog::bark | Cat::meow`
 fn columns_text(ix: &Index<'_>, columns: &[Column]) -> String {
-    columns_text_of(ix, &columns.iter().collect::<Vec<_>>())
+    if columns.is_empty() {
+        "no recorded substitutions".into()
+    } else {
+        columns_text_of(ix, &columns.iter().collect::<Vec<_>>())
+    }
 }
 
 fn columns_text_of(ix: &Index<'_>, columns: &[&Column]) -> String {
@@ -538,7 +523,7 @@ fn call_count(f: &FnFacts) -> usize {
 
 fn summary_of(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> String {
     format!(
-        "{} functions share one dependence structure and differ only at {}",
+        "{} functions have aligned dependence-graph regions; recorded substitutions: {}",
         sites.len(),
         columns_text(ix, &cluster.columns)
     )
@@ -595,15 +580,24 @@ fn generic_fn(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option<C
         score_milli: score_milli(&breakdown, false) / 2,
         breakdown,
         observation: summary_of(ix, sites, cluster),
-        inference: "the same code runs over several workspace types that differ only by type"
-            .into(),
+        inference: "aligned graph regions use several workspace types".into(),
         possible_refactor: format!(
-            "one generic definition over {holes}; keep the existing names as type aliases"
+            "consider a generic definition over {holes}; verify type and call contracts"
         ),
         sites: sites.iter().map(|f| site(f)).collect(),
         definitions: vec![],
-        counter_evidence: vec![],
+        counter_evidence: helper_counter_evidence(sites, cluster),
     })
+}
+
+/// Borrow completed graph summaries; aligned closure nodes do not compare their bodies.
+fn helper_counter_evidence(sites: &[&FnFacts], cluster: &Cluster) -> Vec<String> {
+    effect_mismatch(sites)
+        .into_iter()
+        .chain(cluster.opaque_closure.then(|| {
+            "Ordinary closure bodies are opaque in these graphs; aligned nodes do not establish matching closure behavior or captures.".into()
+        }))
+        .collect()
 }
 
 /// Code whose repetition is not a refactoring target: tests repeat arrange/act on purpose,
@@ -626,22 +620,21 @@ fn parameterizable(sites: &[&FnFacts], cluster: &Cluster, max_holes: usize) -> b
     !forced && !sites.iter().any(|f| is_boilerplate(f)) && cluster.columns.len() <= max_holes
 }
 
-/// A cluster that is neither a trait nor a generic fn over workspace types: the same body
-/// differing only at external callees, literals or foreign types. One helper taking those
-/// as parameters (or a closure) replaces the copies. Ranked below `generic_fn`.
+/// A cluster that is neither a trait nor a generic fn over workspace types: aligned regions
+/// with substitutions at external callees, literals or foreign types. A helper may share
+/// those regions while preserving unmatched work. Ranked below `generic_fn`.
 fn parameterize(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option<Candidate> {
     if same_trait_method(sites).is_some_and(|t| in_crate_of(&t, sites)) {
         return None;
     }
-    if !parameterizable(sites, cluster, ix.max_holes) || sites.iter().any(|f| !has_substance(ix, f))
+    if cluster.forwarding_only
+        || !parameterizable(sites, cluster, ix.max_holes)
+        || sites.iter().any(|f| !has_substance(ix, f))
     {
         return None;
     }
     let breakdown = breakdown_of(sites, cluster, 0);
-    let holes = match cluster.columns.is_empty() {
-        true => "nothing (exact clone)".to_string(),
-        false => columns_text(ix, &cluster.columns),
-    };
+    let holes = columns_text(ix, &cluster.columns);
 
     Some(Candidate {
         id: String::new(),
@@ -649,13 +642,13 @@ fn parameterize(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option
         score_milli: score_milli(&breakdown, false) / 3,
         breakdown,
         observation: summary_of(ix, sites, cluster),
-        inference: "the same computation is written out once per site".into(),
+        inference: "aligned graph regions may support a shared computation".into(),
         possible_refactor: format!(
-            "extract one helper and pass the differing parts as parameters: {holes}"
+            "consider a helper for the aligned regions with these parameters: {holes}"
         ),
         sites: sites.iter().map(|f| site(f)).collect(),
         definitions: vec![],
-        counter_evidence: vec![],
+        counter_evidence: helper_counter_evidence(sites, cluster),
     })
 }
 
@@ -672,6 +665,15 @@ fn without_trait<'a>(
             sites: sites.iter().map(|f| site(f)).collect(),
         }),
         Some(_) => Outcome::Nothing,
+        None if cluster.forwarding_only
+            && parameterizable(sites, cluster, ix.max_holes)
+            && sites.iter().all(|f| has_substance(ix, f)) =>
+        {
+            Outcome::Hidden(Suppressed {
+                reason: FORWARDING_REASON.into(),
+                sites: sites.iter().map(|f| site(f)).collect(),
+            })
+        }
         None => generic_fn(ix, sites, cluster)
             .or_else(|| parameterize(ix, sites, cluster))
             .map_or(Outcome::Nothing, |c| Outcome::Ready(Box::new(c))),
@@ -764,6 +766,20 @@ impl Site {
     }
 }
 
+impl Candidate {
+    /// The completed template/member node coverage says nothing about unmatched work.
+    fn with_alignment_caveat(mut self) -> Self {
+        if self.breakdown.coverage_milli < 1000 {
+            self.counter_evidence.push(
+                "Some graph nodes are unmatched; recorded substitutions describe aligned regions, not complete functions.".into(),
+            );
+            self.possible_refactor
+                .push_str(" Preserve behavior outside the aligned graph regions.");
+        }
+        self
+    }
+}
+
 impl Mined {
     /// Final locators for every site, then every candidate's id (which hashes them).
     fn identified(self, names: &BTreeMap<String, String>) -> Mined {
@@ -793,8 +809,8 @@ impl Mined {
 
     fn with(mut self, outcome: Outcome<'_>) -> Mined {
         match outcome {
-            Outcome::Found(ev) => self.candidates.push(finish(ev)),
-            Outcome::Ready(c) => self.candidates.push(*c),
+            Outcome::Found(ev) => self.candidates.push(finish(ev).with_alignment_caveat()),
+            Outcome::Ready(c) => self.candidates.push((*c).with_alignment_caveat()),
             Outcome::Hidden(s) => self.suppressed.push(s),
             Outcome::Nothing => {}
         }
@@ -872,6 +888,10 @@ pub(crate) mod tests_support {
 
 #[cfg(test)]
 mod tests {
+    mod alignment_evidence;
+    mod completed_effect_evidence;
+    mod effect_evidence;
+    mod forwarded_pipelines;
     use super::tests_support::{caller, corpus, getter};
     use super::*;
     use crate::facts::{MutationEvent, PdgNode, TyShape, sample};
@@ -881,6 +901,15 @@ mod tests {
 
     fn run(facts: &[FnFacts]) -> Mined {
         mine(facts, &mine_groups(facts), &Params::default())
+    }
+
+    #[test]
+    fn scoped_owner_paths_render_without_run_local_namespace_punctuation() {
+        assert_eq!(short_paths("@u0::leaf::Dog"), "Dog");
+        assert_eq!(
+            short_paths("@u0::leaf::Box<@missing1::other::Cat>"),
+            "Box<Cat>"
+        );
     }
 
     #[test]
@@ -1088,6 +1117,8 @@ mod tests {
             .for_each(|f| f.implements = Some("ext::Sink::poll_ready".into()));
         assert!(run(&forced).candidates.is_empty());
         let cluster = Cluster {
+            forwarding_only: false,
+            opaque_closure: false,
             members: vec![0, 1],
             coverage_milli: vec![1000, 1000],
             columns: (0..=Params::default().max_holes)
@@ -1305,6 +1336,7 @@ mod tests {
         let clean = run(&corpus());
         let mut facts = corpus();
         facts[0].mutations.push(MutationEvent {
+            origin: crate::facts::MutationOrigin::Source,
             root: "self".into(),
             field_path: "n".into(),
             line: 1,

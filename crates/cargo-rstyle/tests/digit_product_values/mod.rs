@@ -11,7 +11,7 @@ const ORIGINS: &str = "rstyle.data:digit-product-origins";
 
 fn selected_sources() -> Value {
     serde_json::from_str(include_str!(
-        "../../../../eval/coverage-development/time-digit-prefixes/selection.json"
+        "../../../../tests/fixtures/function-families/time-digit-prefixes/selection.json"
     ))
     .unwrap()
 }

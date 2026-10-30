@@ -1,0 +1,30 @@
+{
+  "schema": "rstyle.compiler-direct-density-review-case/1",
+  "prior_variant": "Temporary tracked project copy with one nested filesystem write; captured as a genuine positive before review. Not a historical production revision.",
+  "prior_source": "fn save_logs(capture: &Capture, output: &std::process::Output) -> Result<(), String> {\n    std::fs::write(capture.directory.join(\"cargo.jsonl\"), std::fs::write(capture.directory.join(\"extra.jsonl\"), &output.stdout)\n            .map(|()| &output.stdout)\n            .map_err(|e| e.to_string())?)\n        .map_err(|e| e.to_string())?;\n    std::fs::write(capture.directory.join(\"cargo.stderr\"), &output.stderr)\n        .map_err(|e| e.to_string())\n}",
+  "current_source": "fn save_logs(capture: &Capture, output: &std::process::Output) -> Result<(), String> {\n    std::fs::write(capture.directory.join(\"cargo.jsonl\"), &output.stdout)\n        .map_err(|e| e.to_string())?;\n    std::fs::write(capture.directory.join(\"cargo.stderr\"), &output.stderr)\n        .map_err(|e| e.to_string())\n}",
+  "current_saved_run": "run-bS3zMn",
+  "policy": "project-compiler-density-boundary-policy.toml",
+  "metrics": "rstyle.compiler-style-metrics/3",
+  "expected": {
+    "prior_events": {
+      "io": 3
+    },
+    "prior_statements": 2,
+    "prior_density_milli": 4500,
+    "current_events": {
+      "io": 2
+    },
+    "current_statements": 2,
+    "current_density_milli": 3000,
+    "limit": 3000,
+    "current_review_state": "no_finding",
+    "scope_complete": false
+  },
+  "limitation": "Simulated repair lifecycle over a real project and a frozen independent source sample; no production-history, complete-project or purity claim.",
+  "prior_captured_run": "run-pjNQal",
+  "package": "cargo-rstyle",
+  "target_kind": "bin",
+  "function": "clones::capture::save_logs",
+  "source_file": "crates/cargo-rstyle/src/clones/capture.rs"
+}

@@ -1,7 +1,8 @@
 use super::*;
 
-const SOURCE: &str = include_str!("../../../../eval/coverage-development/look-flags.rs");
-const ORACLE: &str = include_str!("../../../../eval/coverage-development/look-flags-oracle.rs");
+const SOURCE: &str = include_str!("../../../../tests/fixtures/function-families/look-flags.rs");
+const ORACLE: &str =
+    include_str!("../../../../tests/fixtures/function-families/look-flags-oracle.rs");
 
 #[test]
 fn fieldless_flags_complete_value_construction_membership_and_grouped_helpers() {

@@ -1,0 +1,14 @@
+{
+  "schema": "rstyle.compiler-negative-study-cases/1",
+  "scope": "rstyle-ccgraph library saved run run-I9FEzJ",
+  "policy": "project-compiler-review-policy.toml",
+  "expected": {
+    "exit": 2,
+    "review_file_created": false,
+    "retained_choices": 0,
+    "raw_numeric_findings": 39,
+    "raw_proposals": 1,
+    "accepted_strict_pairs": 4
+  },
+  "basis": "Read-only status with a missing review file requests completed scopes but creates no review choices. Existing generated and unresolved inputs remain incomplete; completed-scope retention must preserve all raw reports and strict results. Six-family negative assessment and explicit pruning are verified separately on independently specified Cargo fixtures; this study makes no project-quality or negative-coverage gain claim."
+}

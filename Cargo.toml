@@ -20,3 +20,6 @@ opt-level = 2
 
 [profile.dev.package.proc-macro2]
 opt-level = 2
+
+[profile.dev.package.xxhash-rust]
+opt-level = 2

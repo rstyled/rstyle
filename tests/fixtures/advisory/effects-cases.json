@@ -1,0 +1,503 @@
+{
+  "schema": "rstyle.clones-capability.mutation-effects-acceptance/1",
+  "status": "prepared-independent-requirements",
+  "policy": {
+    "max_mutations_per_target": 2,
+    "max_mutated_targets": 1,
+    "granularity": "root",
+    "comparison": "strictly greater than limit",
+    "metric": "syntactic source assignment-site occurrences, not dynamic runtime executions"
+  },
+  "first_slice": {
+    "purpose": "Useful direct scalar mutation budgets and caller-visible mutation provenance independent of strict clone admission. General effects/purity and side-effect density are not established.",
+    "initial": [
+      "owned u32 local/formal reassignment",
+      "direct &mut u32 formal pointee assignment",
+      "explicit unknown/unsupported boundaries",
+      "witness/lower-bound breaches",
+      "config-only strict saved replay"
+    ],
+    "next": [
+      "complete loop source-site inventory"
+    ],
+    "bounded_extensions": [
+      "ordinary if/else direct assignment-site inventory when calls/formal-use observations are unrequested",
+      "lexical shadowed-binding roots; existing block-scope capability checked explicitly"
+    ],
+    "later": [
+      "field projection policy",
+      "sound alias/reborrow/reference reassignment",
+      "callee summaries/transitive effects",
+      "drop/unsafe/external effect policy",
+      "density with complete event and statement denominators"
+    ]
+  },
+  "evidence_contract": {
+    "axes": [
+      "fact availability",
+      "whole-function scope coverage",
+      "execution",
+      "per-rule outcome"
+    ],
+    "events": [
+      "original source span",
+      "root declaration identity and lexical scope",
+      "root provenance: local_owned/formal_owned/formal_borrowed",
+      "operation: assignment or compound assignment",
+      "caller-visible pointee mutation flag with supporting provenance"
+    ],
+    "counts": "Exact counts require complete bounded operation and root inventory. Opaque regions produce lower bounds only when actual witnessed source sites justify them. Unknown target denominator remains unknown.",
+    "density": "Not evaluated by initial slice. Later density needs complete chosen statement denominator and effect-event vocabulary/weights; a supported-remainder ratio is neither exact nor automatically a lower bound.",
+    "trust": "Reuse checked immutable captured original source/native evidence and selected context. No current source-tree reread on saved replay; corrupt/wrong-context evidence fails rather than being salvaged. No new SHA or global proof cache."
+  },
+  "cases": [
+    {
+      "id": "read-only-scalars",
+      "stage": "initial",
+      "source": "pub fn read(value:u32)->u32 { value+1 }",
+      "expected": {
+        "coverage": "complete",
+        "write_sites": {
+          "kind": "exact",
+          "value": 0
+        },
+        "mutated_roots": {
+          "kind": "exact",
+          "value": 0
+        },
+        "escaped_write_sites": {
+          "kind": "exact",
+          "value": 0
+        },
+        "mutation_per_target": "evaluated_no_finding",
+        "mutated_targets": "evaluated_no_finding"
+      },
+      "reason": "Primitive reads/arithmetic are not mutation sites. This is no claim of panic freedom or total purity."
+    },
+    {
+      "id": "local-write-at-limit",
+      "stage": "initial",
+      "source": "pub fn local()->u32 { let mut value=0u32; value=1; value=2; value }",
+      "expected": {
+        "coverage": "complete",
+        "write_sites": {
+          "kind": "exact",
+          "value": 2
+        },
+        "mutated_roots": {
+          "kind": "exact",
+          "value": 1
+        },
+        "escaped_write_sites": {
+          "kind": "exact",
+          "value": 0
+        },
+        "mutation_per_target": "evaluated_no_finding",
+        "mutated_targets": "evaluated_no_finding",
+        "root_provenance": [
+          "local_owned"
+        ]
+      },
+      "reason": "Declaration initialization is not reassignment. Exactly two direct write sites are at the test limit."
+    },
+    {
+      "id": "owned-formal-rebinding-over-limit",
+      "stage": "initial",
+      "source": "pub fn owned(mut value:u32)->u32 { value=1; value=2; value=3; value }",
+      "expected": {
+        "coverage": "complete",
+        "write_sites": {
+          "kind": "exact",
+          "value": 3
+        },
+        "mutated_roots": {
+          "kind": "exact",
+          "value": 1
+        },
+        "escaped_write_sites": {
+          "kind": "exact",
+          "value": 0
+        },
+        "mutation_per_target": "finding",
+        "mutated_targets": "evaluated_no_finding",
+        "root_provenance": [
+          "formal_owned"
+        ]
+      },
+      "reason": "Reassigning an owned scalar formal changes local state, not the caller-owned pointee."
+    },
+    {
+      "id": "borrowed-formal-pointee-writes",
+      "stage": "initial",
+      "source": "pub fn borrowed(target:&mut u32) { *target=1; *target=2; *target=3; }",
+      "expected": {
+        "coverage": "complete",
+        "write_sites": {
+          "kind": "exact",
+          "value": 3
+        },
+        "mutated_roots": {
+          "kind": "exact",
+          "value": 1
+        },
+        "escaped_write_sites": {
+          "kind": "exact",
+          "value": 3
+        },
+        "mutation_per_target": "finding",
+        "mutated_targets": "evaluated_no_finding",
+        "root_provenance": [
+          "formal_borrowed"
+        ]
+      },
+      "reason": "Each explicit pointee assignment escapes through the mutable formal; direct mutation effects deduplicate by exact root if that legacy-compatible view is offered."
+    },
+    {
+      "id": "builtin-compound-assignment-once",
+      "stage": "initial",
+      "source": "pub fn compound(target:&mut u32) { *target+=1; }",
+      "expected": {
+        "coverage": "complete",
+        "write_sites": {
+          "kind": "exact",
+          "value": 1
+        },
+        "mutated_roots": {
+          "kind": "exact",
+          "value": 1
+        },
+        "escaped_write_sites": {
+          "kind": "exact",
+          "value": 1
+        },
+        "mutation_per_target": "evaluated_no_finding",
+        "mutated_targets": "evaluated_no_finding"
+      },
+      "reason": "Builtin u32 compound assignment is one syntactic write site, not separate read/write mutation events; overloaded AddAssign requires separate evidence."
+    },
+    {
+      "id": "two-local-targets",
+      "stage": "initial",
+      "source": "pub fn locals()->u32 { let mut a=0u32; let mut b=0u32; a=1; b=2; a+b }",
+      "expected": {
+        "coverage": "complete",
+        "write_sites": {
+          "kind": "exact",
+          "value": 2
+        },
+        "mutated_roots": {
+          "kind": "exact",
+          "value": 2
+        },
+        "escaped_write_sites": {
+          "kind": "exact",
+          "value": 0
+        },
+        "mutation_per_target": "evaluated_no_finding",
+        "mutated_targets": "finding",
+        "root_provenance": [
+          "local_owned",
+          "local_owned"
+        ]
+      },
+      "reason": "Two separately declared roots exceed max_mutated_targets=1 even though no individual root exceeds two writes."
+    },
+    {
+      "id": "unknown-call-is-not-clean",
+      "stage": "initial-boundary",
+      "source": "pub fn opaque(target:&mut u32,callback:fn(&mut u32)) { callback(target); }",
+      "expected": {
+        "coverage": "incomplete",
+        "write_sites": {
+          "kind": "lower_bound",
+          "value": 0
+        },
+        "escaped_write_sites": {
+          "kind": "lower_bound",
+          "value": 0
+        },
+        "mutation_per_target": "not_evaluated",
+        "mutated_targets": "not_evaluated",
+        "opaque_boundaries": [
+          "unknown_call"
+        ],
+        "density": "not_evaluated"
+      },
+      "reason": "No witnessed direct assignment is not proof of no callee mutation/effects."
+    },
+    {
+      "id": "witnessed-breach-before-unknown-call",
+      "stage": "initial-boundary",
+      "source": "pub fn witnessed(target:&mut u32,callback:fn(&mut u32)) { *target=1; *target=2; *target=3; callback(target); }",
+      "expected": {
+        "coverage": "incomplete",
+        "write_sites": {
+          "kind": "lower_bound",
+          "value": 3
+        },
+        "escaped_write_sites": {
+          "kind": "lower_bound",
+          "value": 3
+        },
+        "mutation_per_target": "finding",
+        "mutated_targets": "not_evaluated",
+        "opaque_boundaries": [
+          "unknown_call"
+        ],
+        "density": "not_evaluated"
+      },
+      "reason": "Witnessed direct source sites establish an over-budget root while unknown remainder prevents a whole-function clean result or ratio."
+    },
+    {
+      "id": "opaque-write-rhs",
+      "stage": "initial-boundary",
+      "source": "pub fn rhs(target:&mut u32,callback:fn()->u32) { *target=callback(); }",
+      "expected": {
+        "coverage": "incomplete",
+        "write_sites": {
+          "kind": "lower_bound",
+          "value": 1
+        },
+        "escaped_write_sites": {
+          "kind": "lower_bound",
+          "value": 1
+        },
+        "mutation_per_target": "not_evaluated",
+        "mutated_targets": "not_evaluated",
+        "opaque_boundaries": [
+          "unknown_call_rhs"
+        ],
+        "density": "not_evaluated"
+      },
+      "reason": "Count the explicit syntactic write site, retaining its RHS call boundary. The store is not guaranteed to execute if the callback diverges/panics."
+    },
+    {
+      "id": "shadowed-local-bindings",
+      "stage": "bounded-lexical-scope",
+      "source": "pub fn shadow()->u32 { let mut value=0u32; value=1; { let mut value=2u32; value=3; } value }",
+      "expected": {
+        "coverage": "complete",
+        "write_sites": {
+          "kind": "exact",
+          "value": 2
+        },
+        "mutated_roots": {
+          "kind": "exact",
+          "value": 2
+        },
+        "escaped_write_sites": {
+          "kind": "exact",
+          "value": 0
+        },
+        "mutation_per_target": "evaluated_no_finding",
+        "mutated_targets": "finding",
+        "required_distinct_roots": 2
+      },
+      "reason": "Root identity is declaration+lexical scope, not the display name value. If scope proof is unavailable, outcome must be unavailable rather than merge."
+    },
+    {
+      "id": "branch-source-site-counts",
+      "stage": "bounded-direct-branches",
+      "source": "pub fn branch(target:&mut u32,flag:bool) { if flag { *target=1; } else { *target=2; } }",
+      "expected": {
+        "coverage": "complete",
+        "write_sites": {
+          "kind": "exact",
+          "value": 2
+        },
+        "mutated_roots": {
+          "kind": "exact",
+          "value": 1
+        },
+        "escaped_write_sites": {
+          "kind": "exact",
+          "value": 2
+        },
+        "runtime_writes_on_normal_path": 1,
+        "mutation_per_target": "evaluated_no_finding",
+        "mutated_targets": "evaluated_no_finding"
+      },
+      "reason": "Two static write sites, not two dynamic writes along one execution. This count contract must be explicit; unsupported branch traversal stays incomplete."
+    },
+    {
+      "id": "loop-source-site-not-runtime-frequency",
+      "stage": "bounded-direct-loops",
+      "source": "pub fn repeated(target:&mut u32,count:u32) { for _ in 0..count { *target=1; } }",
+      "expected": {
+        "coverage": "complete",
+        "write_sites": {
+          "kind": "exact",
+          "value": 1
+        },
+        "mutated_roots": {
+          "kind": "exact",
+          "value": 1
+        },
+        "escaped_write_sites": {
+          "kind": "exact",
+          "value": 1
+        },
+        "runtime_write_count": "depends_on_count",
+        "mutation_per_target": "evaluated_no_finding",
+        "mutated_targets": "evaluated_no_finding"
+      },
+      "reason": "The original primitive half-open u32 for-loop body has one static assignment site regardless of iterations, including zero. No unrolling, termination, dynamic write-count or density inference follows from this inventory."
+    },
+    {
+      "id": "reassigned-reference-formal",
+      "stage": "initial-boundary",
+      "source": "pub fn redirected<'a>(mut target:&'a mut u32,other:&'a mut u32) { target=other; *target=1; }",
+      "expected": {
+        "coverage": "incomplete",
+        "opaque_boundaries": [
+          "reference_reassignment"
+        ],
+        "pointee_write_original_target": "not_proven",
+        "mutation_per_target": "not_evaluated",
+        "mutated_targets": "not_evaluated",
+        "density": "not_evaluated"
+      },
+      "reason": "The pointee write cannot be attributed to the stale original target formal. Track reference reassignment or retain unavailable provenance."
+    },
+    {
+      "id": "reborrow-alias",
+      "stage": "initial-boundary",
+      "source": "pub fn aliased(target:&mut u32) { let alias=&mut *target; *alias=1; }",
+      "expected": {
+        "coverage": "incomplete",
+        "opaque_boundaries": [
+          "mutable_reborrow_alias"
+        ],
+        "mutation_per_target": "not_evaluated",
+        "mutated_targets": "not_evaluated",
+        "density": "not_evaluated"
+      },
+      "reason": "Alias handling needs its own provenance proof; spelling alias cannot establish a new independent caller-visible target."
+    },
+    {
+      "id": "uninvoked-closure-body",
+      "stage": "initial-boundary",
+      "source": "pub fn deferred(target:&mut u32) { let _callback=|| { *target=1; }; }",
+      "expected": {
+        "coverage": "incomplete",
+        "immediate_outer_direct_write_sites": 0,
+        "opaque_boundaries": [
+          "closure_body"
+        ],
+        "mutation_per_target": "not_evaluated",
+        "mutated_targets": "not_evaluated",
+        "density": "not_evaluated"
+      },
+      "reason": "Closure-body assignment is deferred and cannot be counted as an immediately executed outer write. An opaque body/capture is not empty/pure."
+    },
+    {
+      "id": "invoked-closure-still-needs-summary",
+      "stage": "initial-boundary",
+      "source": "pub fn invoked(target:&mut u32) { let mut callback=|| { *target=1; }; callback(); }",
+      "expected": {
+        "coverage": "incomplete",
+        "opaque_boundaries": [
+          "closure_body",
+          "unknown_call"
+        ],
+        "mutation_per_target": "not_evaluated",
+        "density": "not_evaluated"
+      },
+      "reason": "Invoking a closure does not grant a checked helper/effect summary or permission to flatten its body into outer events."
+    },
+    {
+      "id": "macro-write-boundary",
+      "stage": "initial-boundary",
+      "source": "macro_rules! assign { ($target:expr)=>{ *$target=1 } } pub fn expanded(target:&mut u32) { assign!(target); }",
+      "expected": {
+        "coverage": "incomplete",
+        "opaque_boundaries": [
+          "macro_expansion"
+        ],
+        "mutation_per_target": "not_evaluated",
+        "mutated_targets": "not_evaluated",
+        "density": "not_evaluated"
+      },
+      "reason": "Do not count an omitted original macro call as zero or grant generated-body effect authority by expansion spelling."
+    },
+    {
+      "id": "field-granularity",
+      "stage": "later-policy-extension",
+      "source": "pub struct Pair { pub left:u32,pub right:u32 } pub fn fields(value:&mut Pair) { value.left=1; value.right=2; }",
+      "expected": {
+        "if_supported": {
+          "root_granularity": {
+            "mutated_targets": 1
+          },
+          "field_granularity": {
+            "mutated_targets": 2
+          }
+        },
+        "initial_slice": {
+          "coverage": "incomplete",
+          "reason": "composite field and alias provenance outside scalar-root scope"
+        }
+      },
+      "reason": "Do not silently apply a field policy to a root-only observation or treat different fields as independent effects without appropriate evidence."
+    },
+    {
+      "id": "drop-and-raw-pointer-boundaries",
+      "stage": "later-effect-extension",
+      "sources": [
+        "pub fn pointer(target:*mut u32) { unsafe { *target=1; } }",
+        "pub fn dropped(value:String) { let _owned=value; }"
+      ],
+      "expected": {
+        "coverage": "incomplete",
+        "opaque_boundaries": [
+          "raw_pointer_or_unsafe",
+          "nontrivial_drop"
+        ],
+        "density": "not_evaluated"
+      },
+      "reason": "Unknown aliases/unsafe/drop behavior cannot become no-write or pure. Independent per-kind status may expose known witnessed operations without a total effect claim."
+    }
+  ],
+  "saved_replay_cases": [
+    {
+      "id": "budget-policy-reevaluation",
+      "capture": "owned-formal-rebinding-over-limit",
+      "change": "max_mutations_per_target from2 to3",
+      "expected": "finding becomes evaluated_no_finding; exact write sites3/root1/provenance and source/build/matching facts unchanged; strict-replay; --fail-on-findings1 becomes0 for complete source scope"
+    },
+    {
+      "id": "missing-original-tree-and-tools",
+      "capture": "borrowed-formal-pointee-writes",
+      "change": "delete original source/manifest; disable PATH/CARGO/RSTYLE_DRIVER",
+      "expected": "strict saved replay evaluates exact retained observations with same finding and roots; no capture/subprocess needed"
+    },
+    {
+      "id": "unknown-not-reclassified-by-threshold",
+      "capture": "unknown-call-is-not-clean",
+      "change": "increase all mutation thresholds",
+      "expected": "still incomplete/not_evaluated for clean conclusion; no threshold increase can repair missing evidence"
+    },
+    {
+      "id": "corrupt-saved-events-or-source",
+      "change": "change recorded source/span/root association while updating transport checksum",
+      "expected": "independent source/context/role checks fail; no usable effect facts from resealed contradictory evidence"
+    }
+  ],
+  "legacy_comparison": {
+    "anchors": [
+      "rstyle_core::rules::mutation_budget",
+      "rstyle_core::rules::effects_of",
+      "rstyle_core::rules::density_milli",
+      "rstyle_core::config::MutationBudgetConfig",
+      "cargo-rstyle::cli::json_output_reports_resolved_mutations_and_effects"
+    ],
+    "intentional_boundary": "Legacy mutation events also include mutable borrows and have broader syntax/effect propagation. This new initial direct-assignment site contract does not claim equal event counts, density or full replacement. Legacy dynamic unknown-call weighting is not proof of all callee effects.",
+    "retirement": "No legacy capability retired by prepared fixtures or narrower useful mutation delivery."
+  },
+  "validation_gate": [
+    "Independently execute declared initial cases against real Cargo captured evidence and strict imported replay.",
+    "Show witnessed findings retained alongside explicit incomplete scope; exit2 takes precedence for incompleteness.",
+    "Test original event spans/lexical root identities/provenance; do not validate only counts copied from producer.",
+    "Mark next/later cases unsupported until evidence contract is implemented; do not call the full file delivered."
+  ]
+}

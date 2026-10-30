@@ -5,7 +5,8 @@ mod corruption;
 
 fn captured(no_std: bool, target: Option<&str>) -> (TempDir, Value) {
     let directory = clone_workspace();
-    let corpus = include_str!("../../../../eval/coverage-development/native-prefix-readers.rs");
+    let corpus =
+        include_str!("../../../../tests/fixtures/function-families/native-prefix-readers.rs");
     if no_std {
         std::fs::write(
             directory.path().join("src/lib.rs"),

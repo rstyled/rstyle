@@ -1,0 +1,90 @@
+{
+  "schema": "rstyle.clones-capability.enum-dispatch-acceptance/1",
+  "status": "prepared-independent-requirements",
+  "scope": "Original local non-generic two-variant enums, shared payload receivers and local method signatures; advisory capabilities independent of strict pair admission. No automatic rewrite/purity claim.",
+  "cases": [
+    {
+      "id": "local-inherent-methods-opaque-body",
+      "source": "pub struct Alpha { pub value:u32 } pub struct Beta { pub value:u32 } impl Alpha { pub fn measure(&self)->u32 { self.value+1 } } impl Beta { pub fn amount(&self)->u32 { let read=||self.value; read()+2 } } pub enum Item { A(Alpha), B(Beta) } pub fn dispatch(item:&Item)->u32 { match item { Item::A(a)=>a.measure(), Item::B(b)=>b.amount() } }",
+      "function": "dispatch",
+      "expected": "finding",
+      "coverage": "complete",
+      "reason": "Original exhaustive arms call distinct local inherent methods on corresponding payloads with shared receiver/u32 signature. Beta closure body cannot block signature-based proposal.",
+      "opaque_callee": "amount"
+    },
+    {
+      "id": "shared-existing-trait",
+      "source": "pub struct Alpha; pub struct Beta; pub trait Metric { fn measure(&self)->u32; } impl Metric for Alpha { fn measure(&self)->u32 { 1 } } impl Metric for Beta { fn measure(&self)->u32 { 2 } } pub enum Item { A(Alpha), B(Beta) } pub fn dispatch(item:&Item)->u32 { match item { Item::A(a)=>a.measure(), Item::B(b)=>b.measure() } }",
+      "function": "dispatch",
+      "expected": "evaluated_no_finding",
+      "coverage": "complete",
+      "reason": "Both selected methods implement the same exact trait member, so the capability already exists.",
+      "suppression": "existing-trait"
+    },
+    {
+      "id": "unrelated-trait-does-not-suppress",
+      "source": "pub struct Alpha { pub value:u32 } pub struct Beta { pub value:u32 } impl Alpha { pub fn measure(&self)->u32 { self.value+1 } } impl Beta { pub fn amount(&self)->u32 { let read=||self.value; read()+2 } } pub enum Item { A(Alpha), B(Beta) } pub trait Metric { fn measure(&self)->u32; } pub fn dispatch(item:&Item)->u32 { match item { Item::A(a)=>a.measure(), Item::B(b)=>b.amount() } }",
+      "function": "dispatch",
+      "expected": "finding",
+      "coverage": "complete",
+      "reason": "An unimplemented unrelated trait declaration with a matching method name is not an existing capability for these owners."
+    },
+    {
+      "id": "different-ordinary-arity",
+      "source": "pub struct Alpha { pub value:u32 } pub struct Beta { pub value:u32 } impl Alpha { pub fn measure(&self)->u32 { self.value+1 } } impl Beta { pub fn amount(&self,extra:u32)->u32 { self.value+extra } } pub enum Item { A(Alpha), B(Beta) } pub fn dispatch(item:&Item)->u32 { match item { Item::A(a)=>a.measure(), Item::B(b)=>b.amount(1) } }",
+      "function": "dispatch",
+      "expected": "evaluated_no_finding",
+      "coverage": "complete",
+      "reason": "Method signatures have different ordinary parameter arity."
+    },
+    {
+      "id": "wrong-arm-receiver",
+      "source": "pub struct Alpha { pub value:u32 } pub struct Beta { pub value:u32 } impl Alpha { pub fn measure(&self)->u32 { self.value+1 } } impl Beta { pub fn amount(&self)->u32 { let read=||self.value; read()+2 } } pub enum Item { A(Alpha), B(Beta) } pub fn dispatch(item:&Item,other:&Alpha)->u32 { match item { Item::A(a)=>other.measure(), Item::B(b)=>b.amount() } }",
+      "function": "dispatch",
+      "expected": "evaluated_no_finding",
+      "coverage": "complete",
+      "reason": "One call reads an unrelated outer formal rather than that arm payload binder."
+    },
+    {
+      "id": "same-free-callee",
+      "source": "pub struct Alpha { pub value:u32 } pub struct Beta { pub value:u32 } impl Alpha { pub fn measure(&self)->u32 { self.value+1 } } impl Beta { pub fn amount(&self)->u32 { let read=||self.value; read()+2 } } pub enum Item { A(Alpha), B(Beta) } pub fn common(value:u32)->u32 { value+1 } pub fn dispatch(item:&Item)->u32 { match item { Item::A(a)=>common(a.value), Item::B(b)=>common(b.value) } }",
+      "function": "dispatch",
+      "expected": "evaluated_no_finding",
+      "coverage": "complete",
+      "reason": "Both arms use the same free callee; no pair of payload method capabilities is witnessed."
+    },
+    {
+      "id": "no-dispatch-usage",
+      "source": "pub struct Alpha { pub value:u32 } pub struct Beta { pub value:u32 } impl Alpha { pub fn measure(&self)->u32 { self.value+1 } } impl Beta { pub fn amount(&self)->u32 { let read=||self.value; read()+2 } } pub enum Item { A(Alpha), B(Beta) } pub fn ordinary(value:u32)->u32 { value+1 }",
+      "function": "ordinary",
+      "expected": "evaluated_no_finding",
+      "coverage": "complete",
+      "reason": "Equal signatures or methods alone do not establish a witnessed enum-dispatch opportunity."
+    },
+    {
+      "id": "guarded-duplicate-variant",
+      "source": "pub struct Alpha { pub value:u32 } pub struct Beta { pub value:u32 } impl Alpha { pub fn measure(&self)->u32 { self.value+1 } } impl Beta { pub fn amount(&self)->u32 { let read=||self.value; read()+2 } } pub enum Item { A(Alpha), B(Beta) } pub fn dispatch(item:&Item)->u32 { match item { Item::A(a) if a.value>0=>a.measure(), Item::A(a)=>a.measure(), Item::B(b)=>b.amount() } }",
+      "function": "dispatch",
+      "expected": "not_evaluated",
+      "coverage": "incomplete",
+      "reason": "Guarded duplicated variant arms exceed the bounded exact two-arm dispatch contract."
+    },
+    {
+      "id": "macro-in-dispatch-arm",
+      "source": "pub struct Alpha { pub value:u32 } pub struct Beta { pub value:u32 } impl Alpha { pub fn measure(&self)->u32 { self.value+1 } } impl Beta { pub fn amount(&self)->u32 { let read=||self.value; read()+2 } } pub enum Item { A(Alpha), B(Beta) } pub fn dispatch(item:&Item)->u32 { match item { Item::A(a)=>{ println!(\"observed\"); a.measure() }, Item::B(b)=>b.amount() } }",
+      "function": "dispatch",
+      "expected": "not_evaluated",
+      "coverage": "incomplete",
+      "reason": "Macro/additional arm work cannot be stripped away to produce a trait suggestion."
+    }
+  ],
+  "invariants": [
+    "Existing trait suppression requires exact resolved owner/member relation, never names alone.",
+    "Opaque callee bodies do not poison available source/signature evidence for this advisory consumer.",
+    "Ordinary functions/methods without candidate top-level match are evaluated-no-finding, not unsupported because of unrelated body constructs.",
+    "Missing R0 original source ownership is unavailable, never an empty complete result.",
+    "Incomplete candidate assessment exits2; findings can coexist with incomplete scope.",
+    "Reports have exact assessed/expected function denominators where capture knows the population.",
+    "No legacy engine is retired by these bounded cases."
+  ]
+}

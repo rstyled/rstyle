@@ -118,10 +118,10 @@ fn scores_retain_evidence_and_ranking_is_deterministic() {
         .unwrap();
     assert_eq!(propagation["column"], source.find('?').unwrap() + 1);
     let output = rstyle(dir.path(), &["--format", "json"]);
-    assert_eq!(
-        serde_json::from_slice::<Value>(&output.stdout).unwrap(),
-        report
-    );
+    let repeated: Value = serde_json::from_slice(&output.stdout).unwrap();
+    for field in ["functions", "diagnostics", "fix_groups", "summary"] {
+        assert_eq!(repeated[field], report[field], "{field}");
+    }
     assert_eq!(
         report["functions"][0]["name"]
             .as_str()

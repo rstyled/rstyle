@@ -12,7 +12,9 @@
 
 use crate::facts::{ArgSource, FnFacts};
 use crate::graph::Graph;
+use crate::groups::PlanningInput;
 use crate::report::{Bundle, ParamRef, PlanStep, StackPlan};
+use std::borrow::Borrow;
 use std::collections::{BTreeMap, BTreeSet};
 
 const RULE: &str = "fn_params";
@@ -43,9 +45,15 @@ fn all_sites(graph: &Graph) -> Vec<Site<'_>> {
 }
 
 /// `(caller param, callee param)` for every argument that is a bare caller parameter.
-fn forwards(site: &Site<'_>, facts: &[FnFacts]) -> Vec<(usize, usize)> {
-    let caller_params = facts[site.caller].param_list.len();
-    let callee_params = facts[site.callee].param_list.len();
+fn forwards<F: PlanningInput>(site: &Site<'_>, facts: &[F]) -> Vec<(usize, usize)> {
+    let (Some(caller), Some(callee)) = (
+        facts[site.caller].planning_owner().facts,
+        facts[site.callee].planning_owner().facts,
+    ) else {
+        return Vec::new();
+    };
+    let caller_params = caller.param_list.len();
+    let callee_params = callee.param_list.len();
     site.args
         .iter()
         .enumerate()
@@ -96,37 +104,29 @@ fn closed_sets(inputs: &[BTreeSet<Key>]) -> Vec<(BTreeSet<Key>, usize)> {
 }
 
 /// Parameter bundles that travel together through `sites`, biggest first.
-fn bundles(sites: &[&Site<'_>], facts: &[FnFacts]) -> Vec<Bundle> {
+fn bundles<F: PlanningInput>(sites: &[&Site<'_>], facts: &[F]) -> Vec<(Bundle, Vec<usize>)> {
     let per_site: Vec<BTreeSet<Key>> = sites
         .iter()
         .map(|s| {
             forwards(s, facts)
                 .into_iter()
-                .map(|(_, to)| key(&facts[s.callee], to))
+                .map(|(_, to)| {
+                    key(
+                        facts[s.callee]
+                            .planning_owner()
+                            .facts
+                            .expect("Forwarded argument has authored parameter facts"),
+                        to,
+                    )
+                })
                 .collect()
         })
         .collect();
-    let mut out: Vec<Bundle> = closed_sets(&per_site)
+    let mut out: Vec<(Bundle, Vec<usize>)> = closed_sets(&per_site)
         .into_iter()
-        .map(|(set, count)| {
-            let carriers: BTreeSet<String> = sites
-                .iter()
-                .zip(&per_site)
-                .filter(|(_, mine)| set.is_subset(mine))
-                .flat_map(|(s, _)| [&facts[s.caller].name, &facts[s.callee].name])
-                .cloned()
-                .collect();
-            Bundle {
-                params: set
-                    .into_iter()
-                    .map(|(name, ty)| ParamRef { name, ty })
-                    .collect(),
-                sites: count,
-                functions: carriers.into_iter().collect(),
-            }
-        })
+        .map(|scored| bundle(scored, sites, &per_site, facts))
         .collect();
-    out.sort_by(|a, b| {
+    out.sort_by(|(a, _), (b, _)| {
         (
             std::cmp::Reverse(a.params.len()),
             std::cmp::Reverse(a.sites),
@@ -141,8 +141,38 @@ fn bundles(sites: &[&Site<'_>], facts: &[FnFacts]) -> Vec<Bundle> {
     out
 }
 
+/// Preserve exact supporting owners when rendering one scored parameter set.
+fn bundle<F: PlanningInput>(
+    (set, count): (BTreeSet<Key>, usize),
+    sites: &[&Site<'_>],
+    per_site: &[BTreeSet<Key>],
+    facts: &[F],
+) -> (Bundle, Vec<usize>) {
+    let owners: BTreeSet<usize> = sites
+        .iter()
+        .zip(per_site)
+        .filter(|(_, mine)| set.is_subset(mine))
+        .flat_map(|(site, _)| [site.caller, site.callee])
+        .collect();
+    let carriers: BTreeSet<_> = owners
+        .iter()
+        .map(|&owner| facts[owner].planning_owner().name.to_owned())
+        .collect();
+    (
+        Bundle {
+            params: set
+                .into_iter()
+                .map(|(name, ty)| ParamRef { name, ty })
+                .collect(),
+            sites: count,
+            functions: carriers.into_iter().collect(),
+        },
+        owners.into_iter().collect(),
+    )
+}
+
 /// Parameters of `facts[f]` whose every mention is a forward into `changed` callees.
-fn pass_through(f: usize, facts: &[FnFacts], sites: &[&Site<'_>]) -> Vec<String> {
+fn pass_through<F: PlanningInput>(f: usize, facts: &[F], sites: &[&Site<'_>]) -> Vec<String> {
     let mut forwarded: BTreeMap<usize, usize> = BTreeMap::new();
     for site in sites.iter().filter(|s| s.caller == f) {
         for (from, _) in forwards(site, facts) {
@@ -150,6 +180,9 @@ fn pass_through(f: usize, facts: &[FnFacts], sites: &[&Site<'_>]) -> Vec<String>
         }
     }
     facts[f]
+        .planning_owner()
+        .facts
+        .expect("Printed edit step has authored facts")
         .param_list
         .iter()
         .enumerate()
@@ -159,14 +192,17 @@ fn pass_through(f: usize, facts: &[FnFacts], sites: &[&Site<'_>]) -> Vec<String>
 }
 
 /// Facts plus every call site, computed once for all groups.
-struct Ctx<'a> {
-    facts: &'a [FnFacts],
+struct Ctx<'a, F> {
+    facts: &'a [F],
     sites: Vec<Site<'a>>,
 }
 
-impl Ctx<'_> {
+impl<F: PlanningInput> Ctx<'_, F> {
     fn step(&self, index: usize, signature: bool, changed: &BTreeSet<usize>) -> PlanStep {
-        let f = &self.facts[index];
+        let f = self.facts[index]
+            .planning_owner()
+            .facts
+            .expect("Printed edit step has authored facts");
         let into_changed: Vec<&Site<'_>> = self
             .sites
             .iter()
@@ -183,13 +219,23 @@ impl Ctx<'_> {
         }
     }
 
+    fn unavailable(&self, sites: &[&Site<'_>]) -> Vec<usize> {
+        sites
+            .iter()
+            .map(|site| site.caller)
+            .filter(|owner| self.facts[*owner].planning_owner().facts.is_none())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
+
     /// The plan for one group. `members` are callee-first; those violating `fn_params`
     /// get their signature changed. `None` when no member does.
     fn plan(
         &self,
         members: &[usize],
         violators: &BTreeMap<usize, BTreeSet<String>>,
-    ) -> Option<StackPlan> {
+    ) -> Option<IndexedPlan> {
         let changed: BTreeSet<usize> = members
             .iter()
             .copied()
@@ -212,14 +258,19 @@ impl Ctx<'_> {
             .filter(|c| !changed.contains(c))
             .collect();
         let signatures = members.iter().copied().filter(|m| changed.contains(m));
-        let steps = signatures
+        let (step_owners, steps) = signatures
             .map(|m| (m, true))
             .chain(touched.into_iter().map(|c| (c, false)))
-            .map(|(m, signature)| self.step(m, signature, &changed))
-            .collect();
-        Some(StackPlan {
-            steps,
-            bundles: bundles(&feeding, self.facts),
+            .filter(|(m, _)| self.facts[*m].planning_owner().facts.is_some())
+            .map(|(m, signature)| (m, self.step(m, signature, &changed)))
+            .unzip();
+        let unavailable_owners = self.unavailable(&feeding);
+        let (bundles, bundle_owners) = bundles(&feeding, self.facts).into_iter().unzip();
+        Some(IndexedPlan {
+            report: StackPlan { steps, bundles },
+            step_owners,
+            bundle_owners,
+            unavailable_owners,
         })
     }
 }
@@ -232,6 +283,42 @@ pub fn plans(
     facts: &[FnFacts],
     graph: &Graph,
 ) -> Vec<Option<StackPlan>> {
+    plans_indexed(groups, violators, facts, graph)
+        .into_iter()
+        .map(|plan| plan.map(|plan| plan.report))
+        .collect()
+}
+
+/// A plan with exact fact indices, independent of display names and source locations.
+pub struct IndexedPlan {
+    pub report: StackPlan,
+    /// One owner for each report step, in the same order.
+    pub step_owners: Vec<usize>,
+    /// Exact sorted carrier indices for each bundle; names may be duplicated.
+    pub bundle_owners: Vec<Vec<usize>>,
+    /// Known required callsite edits lacking authored source or parameter facts.
+    pub unavailable_owners: Vec<usize>,
+}
+
+/// Reuse parameter planning over borrowed owners in the graph's index space.
+/// Group members and rule keys must index `facts`; graph targets use the same roster.
+pub fn plans_indexed<F: Borrow<FnFacts>>(
+    groups: &[Vec<usize>],
+    violators: &BTreeMap<usize, BTreeSet<String>>,
+    facts: &[F],
+    graph: &Graph,
+) -> Vec<Option<IndexedPlan>> {
+    plans_planning(groups, violators, facts, graph)
+}
+
+/// Keep graph-only callers in site counts while emitting only authored edit steps.
+/// Missing caller parameter facts never produce bundles or pass-through claims.
+pub fn plans_planning<F: PlanningInput>(
+    groups: &[Vec<usize>],
+    violators: &BTreeMap<usize, BTreeSet<String>>,
+    facts: &[F],
+    graph: &Graph,
+) -> Vec<Option<IndexedPlan>> {
     let ctx = Ctx {
         facts,
         sites: all_sites(graph),
@@ -303,6 +390,60 @@ mod tests {
             .iter()
             .map(|n| (n.to_string(), "t".to_string()))
             .collect()
+    }
+
+    #[test]
+    fn graph_only_sites_count_without_parameter_or_edit_claims() {
+        let callee = function("callee", 1, abc(1));
+        let caller = function("caller", 10, abc(2));
+        let owners = [
+            callee.planning_owner(),
+            caller.planning_owner(),
+            crate::groups::PlanningOwner {
+                name: "generated",
+                facts: None,
+            },
+        ];
+        let call = |target| graph::Callee {
+            line: 1,
+            targets: vec![target],
+            args: vec![Param(0), Param(1), Param(2)],
+        };
+        let graph = Graph {
+            callees: vec![vec![], vec![call(0)], vec![call(0)]],
+        };
+        let mut plans = plans_planning(&[vec![0]], &rules(&[(0, RULE)]), &owners, &graph);
+        let plan = plans.remove(0).unwrap();
+        assert_eq!(plan.step_owners, [0, 1]);
+        assert_eq!(plan.unavailable_owners, [2]);
+        assert_eq!(plan.report.steps[0].incoming_sites, 2);
+        assert_eq!(plan.report.steps[1].outgoing_sites, 1);
+        assert!(
+            plan.report.steps[1].pass_through.is_empty(),
+            "Other parameter uses remain unproved"
+        );
+        assert_eq!(plan.bundle_owners, [vec![0, 1]]);
+        assert_eq!(
+            plan.report.bundles[0].sites, 1,
+            "Generated parameters are unavailable"
+        );
+        assert_eq!(plan.report.bundles[0].functions, ["callee", "caller"]);
+    }
+
+    #[test]
+    fn indexed_plans_keep_duplicate_display_names_as_distinct_owners() {
+        let callee = function("same", 1, abc(1));
+        let mut caller = function("same", 1, abc(1));
+        call(&mut caller, "same", vec![Param(0), Param(1), Param(2)]);
+        let facts = [&callee, &caller];
+        let graph = graph::build_resolved(&facts, |_, _| [0]);
+        let mut plans = plans_indexed(&[vec![0]], &rules(&[(0, RULE)]), &facts, &graph);
+        let plan = plans.remove(0).unwrap();
+        assert_eq!(plan.step_owners, [0, 1]);
+        assert_eq!(plan.bundle_owners, [vec![0, 1]]);
+        assert_eq!(plan.report.bundles[0].functions, ["same"]);
+        assert_eq!(plan.report.bundles[0].sites, 1);
+        assert_eq!(plan.report.steps[1].pass_through, ["a", "b", "c"]);
     }
 
     #[test]

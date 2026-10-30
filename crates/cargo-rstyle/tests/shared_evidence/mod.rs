@@ -5,7 +5,29 @@ use serde_json::Value;
 
 pub fn wire(function: &Value) -> Value {
     let path = function["unit_evidence"]["bundle"].as_str().unwrap();
-    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+    let mut wire = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    expand_censuses(&mut wire);
+    wire
+}
+
+/// Mutation fixtures edit independent records, so later references cannot mask
+/// the intended semantic rejection with an unrelated missing-definition error.
+pub fn expand_censuses(wire: &mut Value) {
+    let mut definitions = Vec::new();
+    for function in wire["functions"].as_array_mut().unwrap() {
+        let Some(entry) = function["build"]["frontend_options"]
+            .get_mut(rstyle_pdg::nominal_boundary::census::KEY)
+        else {
+            continue;
+        };
+        match entry["kind"].as_str() {
+            Some("census") => definitions.push(entry.clone()),
+            Some("census_reference") => {
+                *entry = definitions[entry["value"].as_u64().unwrap() as usize].clone();
+            }
+            _ => {}
+        }
+    }
 }
 
 pub fn index(function: &Value) -> usize {

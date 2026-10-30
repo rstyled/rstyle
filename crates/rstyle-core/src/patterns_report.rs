@@ -15,7 +15,7 @@ pub struct PatternsReport {
     /// Ranked abstraction candidates (layer 2), best first. Absent facts give none.
     #[serde(default)]
     pub candidates: Vec<Candidate>,
-    /// Patterns that look like candidates but are already abstracted.
+    /// Patterns excluded by proposal policy, including already abstracted work.
     #[serde(default)]
     pub suppressed: Vec<Suppressed>,
     /// Candidates the ignore ledger hid, with the entry responsible.
@@ -49,13 +49,22 @@ pub struct Options {
     pub ledger: Option<Ledger>,
 }
 
+/// Select ranked values by inclusive score, then limit, preserving their order.
+pub fn select_scored<T>(
+    items: impl IntoIterator<Item = T>,
+    score: impl Fn(&T) -> u32,
+    minimum: u32,
+    top: Option<usize>,
+) -> impl Iterator<Item = T> {
+    items
+        .into_iter()
+        .filter(move |item| score(item) >= minimum)
+        .take(top.unwrap_or(usize::MAX))
+}
+
 /// Keeps groups at or above `min_score_milli`, then the first `top` (all when `None`).
 pub fn build(groups: Vec<SigGroup>, min_score_milli: u32, top: Option<usize>) -> PatternsReport {
-    let kept = groups
-        .into_iter()
-        .filter(|g| g.score_milli >= min_score_milli)
-        .take(top.unwrap_or(usize::MAX))
-        .collect();
+    let kept = select_scored(groups, |g| g.score_milli, min_score_milli, top).collect();
     PatternsReport {
         signature_groups: kept,
         candidates: vec![],
@@ -66,58 +75,90 @@ pub fn build(groups: Vec<SigGroup>, min_score_milli: u32, top: Option<usize>) ->
 }
 
 /// Layers 1 and 2 over driver facts, before any display filter or the ignore ledger.
-fn mine_all(facts: &[FnFacts], options: &Options) -> (Vec<SigGroup>, candidates::Mined) {
-    // Lib and test targets compile the same functions: dedupe like the style path does.
-    let facts = crate::facts::merge(facts.to_vec());
-    let prepared = prep::hide_implements(prep::prepare(&facts), &options.hide_implements);
+fn mine_all(
+    facts: Vec<FnFacts>,
+    options: &Options,
+) -> (Vec<SigGroup>, candidates::Mined, Vec<FnFacts>) {
+    let prepared = prep::hide_implements(prep::prepare_owned(facts), &options.hide_implements);
     let groups = sigmine::mine(&prepared);
     let mined = candidates::mine(&prepared, &groups, &options.params);
 
-    (groups, mined)
+    (groups, mined, prepared)
 }
 
 /// Every candidate, unfiltered: what `ignore` resolves ids against and `--prune` compares to.
 pub fn all_candidates(facts: &[FnFacts], options: &Options) -> Vec<Candidate> {
-    mine_all(facts, options).1.candidates
+    mine_all(crate::facts::merge(facts.to_vec()), options)
+        .1
+        .candidates
 }
 
-fn ignored_entry(ledger: &Ledger, hidden: Hidden) -> Ignored {
-    let c = hidden.candidate;
+/// Describe a repository dismissal without copying its candidate graph or proposal.
+pub fn ignored_entry<C: std::borrow::Borrow<Candidate>>(
+    ledger: &Ledger,
+    hidden: Hidden<C>,
+) -> Ignored {
+    let c = hidden.candidate.borrow();
 
     Ignored {
         reason: ledger.entries[&hidden.entry_id].reason.clone(),
-        id: c.id,
+        id: c.id.clone(),
         kind: c.kind,
         entry_id: hidden.entry_id,
         matched_by: hidden.matched,
-        sites: c.sites,
+        sites: c.sites.clone(),
     }
 }
 
 /// Full pipeline over driver facts: layers 1 and 2, the ignore ledger, then filter and rank.
 pub fn run(facts: &[FnFacts], options: &Options) -> PatternsReport {
-    let (groups, mined) = mine_all(facts, options);
+    run_owned(facts.to_vec(), options)
+}
+
+/// Full proposal policy over owned compiler facts, preserving buffers through preparation.
+pub fn run_owned(facts: Vec<FnFacts>, options: &Options) -> PatternsReport {
+    run_owned_and_retain(facts, options).0
+}
+
+/// Return the exact prepared observations used for proposals without mining or copying again.
+pub fn run_owned_and_retain(
+    facts: Vec<FnFacts>,
+    options: &Options,
+) -> (PatternsReport, Vec<FnFacts>) {
+    run_distinct_owned_and_retain(crate::facts::merge(facts), options)
+}
+
+/// Mine an already distinct compilation population, preserving its owner roster.
+/// The caller supplies unique function IDs and resolves references within that
+/// population. Source locations alone cannot deduplicate different compiler owners.
+pub fn run_distinct_owned_and_retain(
+    facts: Vec<FnFacts>,
+    options: &Options,
+) -> (PatternsReport, Vec<FnFacts>) {
+    let (groups, mined, prepared) = mine_all(facts, options);
     let ledger = options.ledger.clone().unwrap_or_default();
     let applied = ledger::apply(&ledger, mined.candidates);
-    let candidates = applied
-        .kept
-        .into_iter()
-        .filter(|c| c.score_milli >= options.min_score_milli)
-        .take(options.top.unwrap_or(usize::MAX))
-        .collect();
+    let candidates = select_scored(
+        applied.kept,
+        |c| c.score_milli,
+        options.min_score_milli,
+        options.top,
+    )
+    .collect();
     let ignored: Vec<Ignored> = applied
         .hidden
         .into_iter()
         .map(|h| ignored_entry(&ledger, h))
         .collect();
 
-    PatternsReport {
+    let report = PatternsReport {
         candidates,
         suppressed: mined.suppressed,
         ignored_count: ignored.len(),
         ignored,
         ..build(groups, options.min_score_milli, options.top)
-    }
+    };
+    (report, prepared)
 }
 
 fn site(m: &Member) -> String {
@@ -200,14 +241,33 @@ fn section(title: String, body: Vec<String>) -> String {
 }
 
 pub fn text(report: &PatternsReport) -> String {
-    let groups = section(
-        format!("{} signature groups", report.signature_groups.len()),
-        report.signature_groups.iter().map(group_text).collect(),
-    );
+    text_selected(report, |_| true)
+}
+
+/// Present review visibility without copying the report or its candidate values.
+pub fn text_selected(report: &PatternsReport, visible: impl Fn(usize) -> bool) -> String {
+    text_selected_with_groups(report, visible, |_| true)
+}
+
+/// Present selected groups and candidates while borrowing the complete evaluation.
+pub fn text_selected_with_groups(
+    report: &PatternsReport,
+    visible: impl Fn(usize) -> bool,
+    group_visible: impl Fn(usize) -> bool,
+) -> String {
+    let groups: Vec<_> = report
+        .signature_groups
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| group_visible(*index))
+        .map(|(_, group)| group_text(group))
+        .collect();
+    let groups = section(format!("{} signature groups", groups.len()), groups);
     let found: Vec<String> = report
         .candidates
         .iter()
         .enumerate()
+        .filter(|(i, _)| visible(*i))
         .map(|(i, c)| candidate_text(i, c))
         .collect();
     let mut parts = vec![
@@ -222,7 +282,7 @@ pub fn text(report: &PatternsReport) -> String {
             .map(suppressed_text)
             .collect::<Vec<_>>();
         parts.push(format!(
-            "{} suppressed (already abstracted)\n{}",
+            "{} suppressed by proposal policy\n{}",
             lines.len(),
             lines.join("\n")
         ));
@@ -275,6 +335,27 @@ mod tests {
     use super::*;
     use crate::candidates::tests_support::corpus;
 
+    #[test]
+    fn distinct_compiler_owners_at_one_source_location_are_retained() {
+        let first = crate::facts::sample("shared");
+        let second = FnFacts {
+            id: "other_crate::shared".into(),
+            ..first.clone()
+        };
+        let expected = vec![first.clone(), second.clone()];
+        let buffers = [first.source.as_ptr(), second.source.as_ptr()];
+        let (_, retained) = run_distinct_owned_and_retain(vec![first, second], &Options::default());
+        assert_eq!(retained, expected);
+        assert_eq!(
+            [retained[0].source.as_ptr(), retained[1].source.as_ptr()],
+            buffers
+        );
+        assert_eq!(
+            run_owned_and_retain(expected, &Options::default()).1.len(),
+            1
+        );
+    }
+
     fn group(key: &str, score: u32) -> SigGroup {
         SigGroup {
             key: key.into(),
@@ -292,6 +373,23 @@ mod tests {
         let groups = vec![group("a", 900), group("b", 500), group("c", 100)];
         assert_eq!(build(groups.clone(), 400, None).signature_groups.len(), 2);
         assert_eq!(build(groups, 0, Some(1)).signature_groups[0].key, "a");
+    }
+
+    #[test]
+    fn scored_selection_is_inclusive_stable_and_accepts_zero_limit() {
+        let values = [900, 500, 500, 100];
+        assert_eq!(
+            select_scored(values, |score| *score, 500, Some(2)).collect::<Vec<_>>(),
+            [900, 500]
+        );
+        assert_eq!(select_scored(values, |score| *score, 500, None).count(), 3);
+        assert_eq!(select_scored(values, |score| *score, 0, Some(0)).count(), 0);
+        let report = build(vec![group("kept", 900), group("hidden", 500)], 0, None);
+        let rendered = text_selected_with_groups(&report, |_| true, |index| index == 0);
+        assert!(rendered.starts_with("1 signature groups"));
+        assert!(rendered.contains("kept"));
+        assert!(!rendered.contains("hidden"));
+        assert_eq!(report.signature_groups.len(), 2);
     }
 
     #[test]
@@ -327,6 +425,47 @@ mod tests {
         let ids: std::collections::BTreeSet<_> =
             c.sites.iter().map(|s| (&s.path, s.line, &s.id)).collect();
         assert_eq!(ids.len(), c.sites.len());
+    }
+
+    #[test]
+    fn owned_pipeline_retains_candidate_identity_and_review_policy() {
+        let baseline = run(&corpus(), &Options::default());
+        assert_eq!(run_owned(corpus(), &Options::default()), baseline);
+        let options = dismissing(&baseline.candidates[0], false);
+        let reviewed = run_owned(corpus(), &options);
+        assert_eq!(reviewed.ignored_count, 1);
+        assert_eq!(reviewed.ignored[0].id, baseline.candidates[0].id);
+        assert!(reviewed.candidates.is_empty());
+    }
+
+    #[test]
+    fn retained_pipeline_returns_original_graph_buffers_and_the_same_proposals() {
+        let facts = corpus();
+        let buffers: std::collections::BTreeMap<_, _> = facts
+            .iter()
+            .map(|facts| {
+                let graph = facts
+                    .pdg
+                    .as_ref()
+                    .map(|graph| (graph.nodes.as_ptr(), graph.edges.as_ptr()));
+                (facts.id.clone(), (facts.source.as_ptr(), graph))
+            })
+            .collect();
+        let (report, prepared) = run_owned_and_retain(facts, &Options::default());
+        assert_eq!(report, run(&corpus(), &Options::default()));
+        assert_eq!(prepared.len(), buffers.len());
+        for facts in &prepared {
+            assert_eq!(
+                buffers[&facts.id],
+                (
+                    facts.source.as_ptr(),
+                    facts
+                        .pdg
+                        .as_ref()
+                        .map(|graph| (graph.nodes.as_ptr(), graph.edges.as_ptr()))
+                )
+            );
+        }
     }
 
     #[test]

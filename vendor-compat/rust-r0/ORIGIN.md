@@ -26,4 +26,4 @@ record it here.
 
 The native PDG transport uses the pinned record policies and profile-specific
 conformance assessment array directly. No wire translation is required. See
-`HIR_EXTRACTION_COVERAGE.md`; normative snapshots remain unchanged.
+[the historical coverage ledger](https://github.com/rstyled/rstyle/blob/806aa52f/HIR_EXTRACTION_COVERAGE.md); normative snapshots remain unchanged.

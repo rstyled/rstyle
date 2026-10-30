@@ -1,5 +1,6 @@
 //! Pure evaluation of style rules over facts extracted by `rstyle-driver`.
 
+pub mod advisory;
 pub mod align;
 pub mod candidates;
 pub mod cli_args;
@@ -9,6 +10,7 @@ pub mod complexity;
 pub mod complexity_report;
 pub mod config;
 pub mod dispatch;
+pub mod exclusions;
 pub mod facts;
 pub mod graph;
 pub mod groups;
@@ -25,6 +27,7 @@ pub mod report;
 pub mod rules;
 pub mod shape;
 pub mod sigmine;
+pub mod spacing;
 pub mod stacking;
 pub mod suppress;
 pub mod wl;
@@ -32,33 +35,24 @@ pub mod wl_trace;
 
 use config::Config;
 use facts::FnFacts;
-use globset::{Glob, GlobSet, GlobSetBuilder};
 use report::{Diagnostic, Report, Summary};
 use std::collections::BTreeMap;
 use suppress::Suppression;
 
-fn exclude_set(patterns: &[String]) -> Result<GlobSet, String> {
-    let mut builder = GlobSetBuilder::new();
-    for pattern in patterns {
-        let glob = Glob::new(pattern).map_err(|e| format!("bad exclude `{pattern}`: {e}"))?;
-        builder.add(glob);
-    }
-    builder.build().map_err(|e| e.to_string())
-}
-
 fn rule_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec<Diagnostic> {
+    let source_lines = lines::code_lines(&f.source);
     [
-        rules::fn_length(f, cfg),
+        rules::fn_length_with_lines(f, cfg, source_lines),
         rules::fn_params(f, cfg),
         rules::fn_spacing(f, cfg),
         rules::complexity(f, cfg),
         rules::mutation_budget(f, &cfg.mutation_budget),
-        rules::side_effect_density(f, effects, cfg),
+        rules::side_effect_density_with_lines(f, effects, cfg, || source_lines),
     ]
     .concat()
 }
 
-fn invalid_suppression(f: &FnFacts, message: String) -> Diagnostic {
+fn invalid_suppression(f: &FnFacts, message: &str) -> Diagnostic {
     Diagnostic {
         path: f.path.clone(),
         line: f.line,
@@ -71,14 +65,19 @@ fn invalid_suppression(f: &FnFacts, message: String) -> Diagnostic {
     }
 }
 
-fn function_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec<Diagnostic> {
+fn function_diagnostics(
+    f: &FnFacts,
+    effects: &[rules::Effect],
+    cfg: &Config,
+) -> (Vec<Diagnostic>, Suppression) {
     let mut out = rule_diagnostics(f, effects, cfg);
-    match suppress::parse(&f.preceding_line) {
+    let suppression = suppress::parse(&f.preceding_line);
+    match &suppression {
         Suppression::None => {}
         Suppression::Allow(rules) => out.retain(|d| !rules.contains(&d.rule_id)),
         Suppression::Invalid(message) => out.push(invalid_suppression(f, message)),
     }
-    out
+    (out, suppression)
 }
 
 fn effect_counts<'a>(effects: impl Iterator<Item = &'a rules::Effect>) -> BTreeMap<String, usize> {
@@ -95,12 +94,13 @@ fn summarize(
     cfg: &Config,
     violations: usize,
 ) -> Summary {
-    let densities: Vec<usize> = facts
+    let (density_sum, max_density_milli) = facts
         .iter()
         .zip(effects)
         .map(|(f, e)| rules::density_milli(f, e, cfg))
-        .collect();
-    let densities = densities.into_iter();
+        .fold((0u128, 0), |(sum, maximum), density| {
+            (sum + density as u128, maximum.max(density))
+        });
     let measured = facts
         .iter()
         .filter(|fact| fact.complexity.is_some())
@@ -110,16 +110,36 @@ fn summarize(
         violations,
         complexity_measured: measured,
         complexity_unavailable: facts.len() - measured,
-        mean_density_milli: densities.clone().sum::<usize>() / facts.len().max(1),
-        max_density_milli: densities.max().unwrap_or(0),
+        mean_density_milli: (density_sum / facts.len().max(1) as u128) as usize,
+        density_sum_milli: usize::try_from(density_sum).ok(),
+        max_density_milli,
         effect_counts: effect_counts(effects.iter().flatten()),
     }
 }
 
+/// Observed effects and existing suppression boundaries for a borrowed graph owner.
+pub trait EffectSource: graph::EffectInput {
+    fn direct_effects(&self, config: &Config) -> Vec<rules::Effect>;
+    fn effect_boundary(&self) -> bool;
+}
+
+impl<F: std::borrow::Borrow<FnFacts>> EffectSource for F {
+    fn direct_effects(&self, config: &Config) -> Vec<rules::Effect> {
+        rules::effects_of(self.borrow(), config)
+    }
+    fn effect_boundary(&self) -> bool {
+        graph::is_boundary(self.borrow())
+    }
+}
+
 /// Direct effects of every function plus what it inherits through the call graph.
-fn all_effects(facts: &[FnFacts], graph: &graph::Graph, cfg: &Config) -> Vec<Vec<rules::Effect>> {
-    let direct: Vec<_> = facts.iter().map(|f| rules::effects_of(f, cfg)).collect();
-    let boundary = graph::boundaries(facts);
+pub fn all_effects<F: EffectSource>(
+    facts: &[F],
+    graph: &graph::Graph,
+    cfg: &Config,
+) -> Vec<Vec<rules::Effect>> {
+    let direct: Vec<_> = facts.iter().map(|f| f.direct_effects(cfg)).collect();
+    let boundary: Vec<_> = facts.iter().map(EffectSource::effect_boundary).collect();
     let inputs = graph::Inputs {
         facts,
         graph,
@@ -131,33 +151,294 @@ fn all_effects(facts: &[FnFacts], graph: &graph::Graph, cfg: &Config) -> Vec<Vec
 
 /// Evaluates all rules. Input order does not matter: facts are merged first.
 pub fn evaluate(facts: Vec<FnFacts>, cfg: &Config) -> Result<Report, String> {
-    let excluded = exclude_set(&cfg.exclude.0)?;
-    let facts: Vec<FnFacts> = facts::merge(facts)
-        .into_iter()
-        .filter(|f| !excluded.is_match(&f.path))
-        .collect();
-    let graph = graph::build(&facts);
-    let effects = all_effects(&facts, &graph, cfg);
-    let mut diagnostics: Vec<Diagnostic> = facts
-        .iter()
-        .zip(&effects)
-        .flat_map(|(f, e)| function_diagnostics(f, e, cfg))
-        .collect();
+    evaluate_and_retain(facts, cfg).map(|(report, _)| report)
+}
 
-    report::sort(&mut diagnostics);
+/// Return the merged, path-selected observations for another consumer without copying bodies.
+pub fn evaluate_and_retain(
+    facts: Vec<FnFacts>,
+    cfg: &Config,
+) -> Result<(Report, Vec<FnFacts>), String> {
+    evaluate_inputs(facts, cfg, Retention::Report, None)
+        .map(|evaluation| (evaluation.report, evaluation.facts))
+}
+
+/// Completed diagnostic ownership follows report sorting without location-based inference.
+pub struct Evaluation {
+    pub report: Report,
+    pub facts: Vec<FnFacts>,
+    /// One index into `facts` for each diagnostic in `report`.
+    pub diagnostic_owners: Vec<usize>,
+    /// Explicit consumers may retain completed suppression scopes and excluded observations.
+    pub scopes: Option<Scopes>,
+    /// Opt-in completed effects, keyed by the original selected owner ID.
+    pub effects: Option<BTreeMap<String, Vec<rules::Effect>>>,
+}
+
+#[derive(Default)]
+pub struct Scopes {
+    /// Aligned with the selected facts, from their completed rule evaluation.
+    pub suppressions: Vec<Suppression>,
+    pub excluded: Vec<FnFacts>,
+}
+
+#[derive(Clone, Copy)]
+pub enum Retention {
+    Report,
+    Owners,
+    Scopes,
+}
+
+pub fn evaluate_with_owners(facts: Vec<FnFacts>, cfg: &Config) -> Result<Evaluation, String> {
+    evaluate_inputs(facts, cfg, Retention::Owners, None)
+}
+
+/// Retain completed numeric scope outcomes without evaluating a rule or parsing a comment again.
+pub fn evaluate_with_scopes(facts: Vec<FnFacts>, cfg: &Config) -> Result<Evaluation, String> {
+    evaluate_inputs(facts, cfg, Retention::Scopes, None)
+}
+
+/// Evaluate with only the requested run-local metadata retained.
+pub fn evaluate_retained(
+    facts: Vec<FnFacts>,
+    cfg: &Config,
+    retention: Retention,
+) -> Result<Evaluation, String> {
+    evaluate_inputs(facts, cfg, retention, None)
+}
+
+/// Consume completed effects from the same policy and scoped owners; missing results are errors.
+/// The consumer resolves cross-unit targets; core still owns propagation and rule policy.
+pub fn evaluate_with_effects(
+    facts: Vec<FnFacts>,
+    cfg: &Config,
+    retention: Retention,
+    effects: BTreeMap<String, Vec<rules::Effect>>,
+) -> Result<Evaluation, String> {
+    evaluate_inputs(facts, cfg, retention, Some(effects))
+}
+
+/// Retain the effects already used for diagnostics, moving their vectors without reevaluation.
+/// Supplied effects must belong to these scoped owners and the same configuration, as in
+/// `evaluate_with_effects`. Retention of effects is independent of diagnostic scope metadata.
+pub fn evaluate_retaining_effects(
+    facts: Vec<FnFacts>,
+    cfg: &Config,
+    retention: Retention,
+    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,
+) -> Result<Evaluation, String> {
+    evaluate_observations(
+        EvaluationInputs {
+            facts,
+            retention,
+            completed,
+            retain_effects: true,
+        },
+        cfg,
+    )
+}
+
+/// Selected compiler observations and completed effects for consumers that do not request rules.
+pub struct EffectObservations {
+    pub facts: Vec<FnFacts>,
+    pub effects: BTreeMap<String, Vec<rules::Effect>>,
+}
+
+/// Reuse observation ordering, merging and path exclusions without evaluating effects or rules.
+pub fn selected_observations(facts: Vec<FnFacts>, cfg: &Config) -> Result<Vec<FnFacts>, String> {
+    select_facts(facts, cfg, &mut None)
+}
+
+/// Reuse the evaluator's merge, exclusion and propagation steps without numeric diagnostics.
+/// Supplied effects have the same owner/configuration contract as `evaluate_with_effects`.
+pub fn effect_observations(
+    facts: Vec<FnFacts>,
+    cfg: &Config,
+    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,
+) -> Result<EffectObservations, String> {
+    let facts = selected_observations(facts, cfg)?;
+    let effects = match completed {
+        Some(completed) => take_completed_effects(&facts, completed)?,
+        None => all_effects(&facts, &graph::build(&facts), cfg),
+    };
+    Ok(EffectObservations {
+        effects: own_effects(&facts, effects),
+        facts,
+    })
+}
+
+fn own_effects(
+    facts: &[FnFacts],
+    effects: Vec<Vec<rules::Effect>>,
+) -> BTreeMap<String, Vec<rules::Effect>> {
+    facts
+        .iter()
+        .zip(effects)
+        .map(|(fact, effects)| (fact.id.clone(), effects))
+        .collect()
+}
+
+struct EvaluationInputs {
+    facts: Vec<FnFacts>,
+    retention: Retention,
+    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,
+    retain_effects: bool,
+}
+
+struct RuleInputs<'a> {
+    facts: &'a [FnFacts],
+    effects: &'a [Vec<rules::Effect>],
+    cfg: &'a Config,
+}
+
+fn evaluated_diagnostics(
+    inputs: RuleInputs<'_>,
+    retention: Retention,
+    scopes: &mut Option<Scopes>,
+) -> (Vec<usize>, Vec<Diagnostic>) {
+    if matches!(retention, Retention::Report) {
+        let mut diagnostics = collect_diagnostics(inputs, |_, diagnostic| diagnostic, None);
+        report::sort(&mut diagnostics);
+        return (Vec::new(), diagnostics);
+    }
+    let mut owned = collect_diagnostics(
+        inputs,
+        |owner, diagnostic| (owner, diagnostic),
+        scopes.as_mut().map(|scopes| &mut scopes.suppressions),
+    );
+    owned.sort_by(|(_, a), (_, b)| report::ordering(a, b));
+    owned.into_iter().unzip()
+}
+
+fn collect_diagnostics<T>(
+    inputs: RuleInputs<'_>,
+    emit: impl Fn(usize, Diagnostic) -> T,
+    mut scopes: Option<&mut Vec<Suppression>>,
+) -> Vec<T> {
+    inputs
+        .facts
+        .iter()
+        .zip(inputs.effects)
+        .enumerate()
+        .flat_map(|(owner, (f, e))| {
+            let emit = &emit;
+            let (diagnostics, suppression) = function_diagnostics(f, e, inputs.cfg);
+            if let Some(scopes) = scopes.as_mut() {
+                scopes.push(suppression);
+            }
+            diagnostics
+                .into_iter()
+                .map(move |diagnostic| emit(owner, diagnostic))
+        })
+        .collect()
+}
+
+fn evaluate_inputs(
+    facts: Vec<FnFacts>,
+    cfg: &Config,
+    retention: Retention,
+    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,
+) -> Result<Evaluation, String> {
+    evaluate_observations(
+        EvaluationInputs {
+            facts,
+            retention,
+            completed,
+            retain_effects: false,
+        },
+        cfg,
+    )
+}
+
+fn evaluate_observations(inputs: EvaluationInputs, cfg: &Config) -> Result<Evaluation, String> {
+    let EvaluationInputs {
+        facts,
+        retention,
+        completed,
+        retain_effects,
+    } = inputs;
+    let mut scopes = matches!(retention, Retention::Scopes).then(Scopes::default);
+    let facts = select_facts(facts, cfg, &mut scopes)?;
+    let graph = graph::build(&facts);
+    let effects = completed_effects(&facts, &graph, cfg, completed)?;
+
+    let (diagnostic_owners, diagnostics) = evaluated_diagnostics(
+        RuleInputs {
+            facts: &facts,
+            effects: &effects,
+            cfg,
+        },
+        retention,
+        &mut scopes,
+    );
     let summary = summarize(&facts, &effects, cfg, diagnostics.len());
     let fix_groups = groups::build(&facts, &graph, &diagnostics, cfg);
     let functions = complexity_report::findings(&facts, &diagnostics);
-    Ok(Report {
-        diagnostics,
-        summary,
-        fix_groups,
-        functions,
+    let effects = retain_effects.then(|| own_effects(&facts, effects));
+    Ok(Evaluation {
+        report: Report {
+            diagnostics,
+            summary,
+            fix_groups,
+            functions,
+        },
+        facts,
+        diagnostic_owners,
+        scopes,
+        effects,
     })
+}
+
+fn select_facts(
+    facts: Vec<FnFacts>,
+    cfg: &Config,
+    scopes: &mut Option<Scopes>,
+) -> Result<Vec<FnFacts>, String> {
+    let excluded = exclusions::Matcher::compile(&cfg.exclude.0)?;
+    Ok(facts::merge(facts)
+        .into_iter()
+        .filter_map(|fact| {
+            if excluded.is_excluded(std::path::Path::new(&fact.path)) {
+                if let Some(scopes) = scopes.as_mut() {
+                    scopes.excluded.push(fact);
+                }
+                None
+            } else {
+                Some(fact)
+            }
+        })
+        .collect())
+}
+
+fn completed_effects(
+    facts: &[FnFacts],
+    graph: &graph::Graph,
+    cfg: &Config,
+    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,
+) -> Result<Vec<Vec<rules::Effect>>, String> {
+    match completed {
+        None => Ok(all_effects(facts, graph, cfg)),
+        Some(completed) => take_completed_effects(facts, completed),
+    }
+}
+
+fn take_completed_effects(
+    facts: &[FnFacts],
+    mut completed: BTreeMap<String, Vec<rules::Effect>>,
+) -> Result<Vec<Vec<rules::Effect>>, String> {
+    facts
+        .iter()
+        .map(|fact| {
+            completed
+                .remove(&fact.id)
+                .ok_or_else(|| "Missing completed compiler effects".to_string())
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
+    mod completed_effects;
     use super::*;
     use facts::{MutationEvent, sample};
 
@@ -169,11 +450,153 @@ mod tests {
     }
 
     #[test]
+    fn source_rules_preserve_independent_line_limits_across_nested_comments() {
+        let mut facts = sample("source");
+        facts.source = "fn source() {\n/* outer\n/* nested */\n*/\nvalue();\n}\n".into();
+        facts.statements = 3;
+        let effects = [rules::Effect {
+            kind: facts::EffectKind::Io,
+            label: "write".into(),
+            line: 5,
+            via: None,
+        }];
+        let mut config = Config::default();
+        config.fn_length.max_lines = 2;
+        config.side_effects.min_lines = 3;
+
+        let (diagnostics, _) = function_diagnostics(&facts, &effects, &config);
+        assert_eq!(diagnostics.len(), 2);
+        assert_eq!(diagnostics[0].rule_id, "fn_length");
+        assert_eq!(diagnostics[0].actual, 3);
+        assert_eq!(diagnostics[1].rule_id, "side_effect_density");
+        assert_eq!(diagnostics[1].actual, 1000);
+        config.side_effects.min_lines = 4;
+        let (diagnostics, _) = function_diagnostics(&facts, &effects, &config);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].rule_id, "fn_length");
+    }
+
+    #[test]
+    fn default_evaluation_keeps_no_owner_roster_and_preserves_the_report() {
+        let plain = evaluate_inputs(
+            vec![four_params("original")],
+            &Config::default(),
+            Retention::Report,
+            None,
+        )
+        .unwrap();
+        let owned =
+            evaluate_with_owners(vec![four_params("original")], &Config::default()).unwrap();
+        assert!(plain.scopes.is_none());
+        assert_eq!(
+            plain.report.summary.density_sum_milli,
+            Some(plain.report.summary.mean_density_milli)
+        );
+        assert!(owned.scopes.is_none());
+        assert_eq!(plain.diagnostic_owners.capacity(), 0);
+        assert_eq!(plain.report, owned.report);
+        assert_eq!(owned.diagnostic_owners, vec![0]);
+    }
+
+    #[test]
+    fn borrowed_completed_effects_preserve_reports_and_require_every_selected_owner() {
+        let facts = four_params("owner");
+        let buffer = facts.source.as_ptr();
+        let config = Config::default();
+        let borrowed = vec![&facts];
+        let graph = graph::build_resolved(&borrowed, |_, _| Vec::new());
+        let effects = all_effects(&borrowed, &graph, &config);
+        let completed = BTreeMap::from([(facts.id.clone(), effects.into_iter().next().unwrap())]);
+        let expected = evaluate(vec![facts.clone()], &config).unwrap();
+        let evaluated =
+            evaluate_with_effects(vec![facts], &config, Retention::Scopes, completed).unwrap();
+        assert_eq!(evaluated.report, expected);
+        assert_eq!(evaluated.facts[0].source.as_ptr(), buffer);
+        assert!(
+            evaluate_with_effects(
+                vec![four_params("missing")],
+                &config,
+                Retention::Report,
+                BTreeMap::new()
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn completed_scopes_retain_suppressions_and_move_excluded_source_buffers() {
+        let mut excluded = four_params("excluded");
+        excluded.path = "generated/file.rs".into();
+        let buffer = excluded.source.as_ptr();
+        let mut allowed = four_params("allowed");
+        allowed.preceding_line = "// rstyle-allow(fn_params): fixture".into();
+        let config: Config = toml::from_str("exclude=['generated/**']").unwrap();
+        let original = vec![excluded, allowed, four_params("reported")];
+        let expected = evaluate(original.clone(), &config).unwrap();
+        let evaluated = evaluate_with_scopes(original, &config).unwrap();
+        assert_eq!(evaluated.report, expected);
+        let scopes = evaluated.scopes.unwrap();
+        assert_eq!(scopes.excluded.len(), 1);
+        assert_eq!(scopes.excluded[0].source.as_ptr(), buffer);
+        assert_eq!(scopes.suppressions.len(), evaluated.facts.len());
+        for (fact, suppression) in evaluated.facts.iter().zip(&scopes.suppressions) {
+            match fact.name.as_str() {
+                "allowed" => assert_eq!(suppression, &Suppression::Allow(vec!["fn_params".into()])),
+                "reported" => assert_eq!(suppression, &Suppression::None),
+                other => panic!("unexpected selected owner: {other}"),
+            }
+        }
+        assert_eq!(evaluated.report.diagnostics.len(), 1);
+        assert_eq!(
+            evaluated.facts[evaluated.diagnostic_owners[0]].name,
+            "reported"
+        );
+    }
+
+    #[test]
+    fn completed_diagnostic_owners_survive_sorting_and_shared_source_positions() {
+        let mut first = four_params("zeta");
+        first.path = "same.rs".into();
+        first.line = 3;
+        first.column = 8;
+        let mut second = four_params("alpha");
+        second.path = "same.rs".into();
+        second.line = 3;
+        second.column = 2;
+        let buffers = [first.source.as_ptr(), second.source.as_ptr()];
+        let evaluated = evaluate_with_owners(vec![first, second], &Config::default()).unwrap();
+        let associations: Vec<_> = evaluated
+            .report
+            .diagnostics
+            .iter()
+            .zip(&evaluated.diagnostic_owners)
+            .map(|(diagnostic, owner)| {
+                (
+                    diagnostic.column,
+                    diagnostic.rule_id.as_str(),
+                    evaluated.facts[*owner].name.as_str(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            associations,
+            vec![(2, "fn_params", "alpha"), (8, "fn_params", "zeta")]
+        );
+        assert!(
+            evaluated
+                .facts
+                .iter()
+                .all(|fact| buffers.contains(&fact.source.as_ptr()))
+        );
+    }
+
+    #[test]
     fn suppression_removes_only_named_rule() {
         let mut f = four_params("f");
         f.preceding_line = "// rstyle-allow(fn_params): ffi shim".into();
         f.mutations = (1..=4)
             .map(|line| MutationEvent {
+                origin: crate::facts::MutationOrigin::Source,
                 root: "v".into(),
                 field_path: String::new(),
                 line,
@@ -219,6 +642,28 @@ mod tests {
         let report = evaluate(vec![f], &Config::default()).unwrap();
         assert_eq!(report.summary.functions, 0);
         assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn retained_inputs_follow_policy_exclusions_without_copying_body_buffers() {
+        let mut kept = four_params("kept");
+        kept.pdg = Some(crate::pdgtest::emit_loop("Cow", "value"));
+        let source = kept.source.as_ptr();
+        let nodes = kept.pdg.as_ref().unwrap().nodes.as_ptr();
+        let mut excluded = sample("excluded");
+        excluded.path = "target/generated.rs".into();
+        let (report, retained) =
+            evaluate_and_retain(vec![excluded, kept], &Config::default()).unwrap();
+        assert_eq!(report.summary.functions, 1);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|row| row.rule_id == "fn_params")
+        );
+        assert_eq!(retained.len(), 1);
+        assert_eq!(retained[0].source.as_ptr(), source);
+        assert_eq!(retained[0].pdg.as_ref().unwrap().nodes.as_ptr(), nodes);
     }
 
     #[test]

@@ -7,7 +7,7 @@
 
 use crate::facts::{EdgeKind, NodeKind, Pdg, PdgNode};
 use crate::shape::{class_of, normalize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -32,10 +32,32 @@ pub fn fnv1a(bytes: &[u8]) -> u64 {
 
 /// Order-sensitive mix of two values (both are hashed, so `combine(a, b) != combine(b, a)`).
 pub fn combine(acc: u64, value: u64) -> u64 {
-    let bytes = acc.to_le_bytes().into_iter().chain(value.to_le_bytes());
-    bytes.fold(FNV_OFFSET, |hash, byte| {
-        (hash ^ u64::from(byte)).wrapping_mul(FNV_PRIME)
-    })
+    let mut bytes = [0; 16];
+    bytes[..8].copy_from_slice(&acc.to_le_bytes());
+    bytes[8..].copy_from_slice(&value.to_le_bytes());
+    fnv1a(&bytes)
+}
+
+/// Small summaries collected together during the existing call-count pass.
+struct CallSummary {
+    calls: usize,
+    forwarding_shape: bool,
+    opaque_closure: bool,
+}
+
+impl CallSummary {
+    fn observe(self, node: &PdgNode) -> Self {
+        let forwarding = match node.kind {
+            NodeKind::Param | NodeKind::Return => true,
+            NodeKind::Call => node.callee_id.as_ref().is_some_and(|id| !id.is_empty()),
+            _ => false,
+        };
+        Self {
+            calls: self.calls + usize::from(node.kind == NodeKind::Call),
+            forwarding_shape: self.forwarding_shape && forwarding,
+            opaque_closure: self.opaque_closure || node.kind == NodeKind::Closure,
+        }
+    }
 }
 
 /// Signature class of a call: normalized callee signature, or the callee id without one.
@@ -111,20 +133,36 @@ pub fn graph(pdg: &Pdg) -> Graph {
     }
 }
 
-fn digest(own: u64, salt: u64, neighbours: &[Nb], prev: &[u64]) -> u64 {
-    let mut parts: Vec<u64> = neighbours
-        .iter()
-        .map(|nb| combine(nb.tag, prev[nb.node]))
-        .collect();
-    parts.sort_unstable();
-    parts.into_iter().fold(combine(own, salt), combine)
+/// One pass borrows the previous colors and reuses a neighbor buffer.
+struct Refinement<'a> {
+    previous: &'a [u64],
+    parts: Vec<u64>,
+}
+
+impl Refinement<'_> {
+    fn digest(&mut self, own: u64, salt: u64, neighbours: &[Nb]) -> u64 {
+        self.parts.clear();
+        self.parts.extend(
+            neighbours
+                .iter()
+                .map(|nb| combine(nb.tag, self.previous[nb.node])),
+        );
+        self.parts.sort_unstable();
+        self.parts
+            .iter()
+            .fold(combine(own, salt), |acc, part| combine(acc, *part))
+    }
 }
 
 fn refine(g: &Graph, prev: &[u64]) -> Vec<u64> {
+    let mut refinement = Refinement {
+        previous: prev,
+        parts: Vec::new(),
+    };
     (0..prev.len())
         .map(|v| {
-            let inward = digest(prev[v], IN_SALT, &g.inc[v], prev);
-            digest(inward, OUT_SALT, &g.out[v], prev)
+            let inward = refinement.digest(prev[v], IN_SALT, &g.inc[v]);
+            refinement.digest(inward, OUT_SALT, &g.out[v])
         })
         .collect()
 }
@@ -137,27 +175,25 @@ fn histogram(colors: &[u64]) -> Vec<(u64, usize)> {
     counts.into_iter().collect()
 }
 
-/// Longest shortest path from `start`, by breadth-first levels.
+/// Longest undirected shortest path from `start`, visiting each node once.
 fn eccentricity(g: &Graph, start: usize) -> usize {
     let mut seen = vec![false; g.labels.len()];
-
+    let mut pending = Vec::with_capacity(g.labels.len());
     seen[start] = true;
-    let mut frontier = vec![start];
-    let mut depth = 0;
-    loop {
-        let next: BTreeSet<usize> = frontier
-            .iter()
-            .flat_map(|v| g.inc[*v].iter().chain(&g.out[*v]))
-            .map(|nb| nb.node)
-            .filter(|node| !seen[*node])
-            .collect();
-        if next.is_empty() {
-            return depth;
+    pending.push((start, 0));
+
+    let mut cursor = 0;
+    while cursor < pending.len() {
+        let (node, distance) = pending[cursor];
+        for neighbour in g.inc[node].iter().chain(&g.out[node]) {
+            if !seen[neighbour.node] {
+                seen[neighbour.node] = true;
+                pending.push((neighbour.node, distance + 1));
+            }
         }
-        next.iter().for_each(|node| seen[*node] = true);
-        frontier = next.into_iter().collect();
-        depth += 1;
+        cursor += 1;
     }
+    pending.last().expect("start node queued").1
 }
 
 fn diameter(g: &Graph) -> usize {
@@ -178,11 +214,24 @@ pub struct Wl {
     pub rounds: Vec<Vec<u64>>,
     hists: Vec<Vec<(u64, usize)>>,
     pub calls: usize,
+    /// Only parameter/return glue and calls with recorded identities; not semantic purity.
+    pub(crate) forwarding_shape: bool,
+    /// Ordinary closure bodies are absent even when every recorded node aligns.
+    pub(crate) opaque_closure: bool,
     pub diameter: usize,
 }
 
 impl Wl {
     pub fn new(pdg: &Pdg) -> Wl {
+        let calls = pdg.nodes.iter().fold(
+            CallSummary {
+                calls: 0,
+                forwarding_shape: true,
+                opaque_closure: false,
+            },
+            CallSummary::observe,
+        );
+
         let g = graph(pdg);
         let mut rounds = vec![g.labels.clone()];
         for _ in 1..MAX_LEVELS {
@@ -190,11 +239,9 @@ impl Wl {
         }
         Wl {
             hists: rounds.iter().map(|colors| histogram(colors)).collect(),
-            calls: pdg
-                .nodes
-                .iter()
-                .filter(|n| n.kind == NodeKind::Call)
-                .count(),
+            calls: calls.calls,
+            forwarding_shape: calls.forwarding_shape,
+            opaque_closure: calls.opaque_closure,
             diameter: diameter(&g),
             rounds,
             graph: g,
@@ -414,3 +461,15 @@ mod tests {
         assert!(comparable(&small, &Wl::new(&emit_loop("Cat", "meow"))));
     }
 }
+
+#[cfg(test)]
+#[path = "wl/diameter_tests.rs"]
+mod diameter_tests;
+
+#[cfg(test)]
+#[path = "wl/combine_tests.rs"]
+mod combine_tests;
+
+#[cfg(test)]
+#[path = "wl/refinement_tests.rs"]
+mod refinement_tests;

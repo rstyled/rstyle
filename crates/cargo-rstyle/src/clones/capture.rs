@@ -1,7 +1,11 @@
 //! Isolated Cargo compilation and an explicit compiler-unit ledger.
 pub(super) mod associations;
+mod build_lane;
 mod dependencies;
 pub(super) mod ledger;
+mod owner_reuse;
+mod saved;
+pub(in crate::clones) use saved::load_saved;
 
 use super::{Args, read_json, write_json};
 use crate::{Cli, run};
@@ -25,8 +29,23 @@ pub struct Target {
     pub test: bool,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Plan {
+    /// Original Cargo selection covers every workspace package and all targets.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_all_targets: Option<bool>,
+    #[serde(default)]
+    pub compiler_advisory_only: bool,
+    #[serde(default)]
+    pub style_inputs_only: bool,
+    #[serde(default)]
+    pub compiler_advisory: bool,
+    #[serde(default)]
+    pub compiler_patterns: bool,
+    #[serde(default)]
+    pub local_source_facts: bool,
+    #[serde(default)]
+    pub local_mutation_facts: bool,
     pub ledger_schema: String,
     pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     pub root: PathBuf,
@@ -40,13 +59,31 @@ pub struct Plan {
 }
 
 impl Plan {
+    fn with_advisory(self, args: &Args) -> Self {
+        let mutations = args.mutation_rules || args.mutation_effects || args.effect_density;
+        Self {
+            compiler_advisory_only: args.compiler_advisory_only,
+            style_inputs_only: args.style_inputs_only,
+            compiler_advisory: args.compiler_inputs_requested(),
+            compiler_patterns: args.compiler_patterns,
+            local_source_facts: args.compiler_advisory_only
+                && (args.source_rules || args.guard_clauses || mutations),
+            local_mutation_facts: args.compiler_advisory_only && mutations,
+            ..self
+        }
+    }
+
     fn planned_units(&self) -> impl Iterator<Item = &Value> {
         self.primary_units.iter().chain(&self.dependency_units)
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Unit {
+    #[serde(default)]
+    pub compiler_advisory_only: bool,
+    #[serde(default)]
+    pub style_inputs_only: bool,
     pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     pub target: Target,
     pub test: bool,
@@ -55,7 +92,7 @@ pub struct Unit {
     pub artifacts: Vec<Artifact>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Artifact {
     pub file: String,
     pub checksum: String,
@@ -70,9 +107,11 @@ pub struct Capture {
 }
 
 pub fn prepare(cli: &Cli, args: &Args) -> Result<Capture, String> {
-    let metadata = selected_workspace(cli)?;
+    let (metadata, raw) = selected_workspace(cli)?;
     let mut capture = initial_capture(metadata, args.extraction_profile)?;
-    capture.plan.targets = targets(cli, args.extraction_profile)?;
+    capture.plan.workspace_all_targets = Some(cli.packages.is_empty() && cli.all_targets);
+    capture.plan.targets = selected_targets(&raw, cli, args.extraction_profile)?;
+    capture.plan = capture.plan.with_advisory(args);
 
     publish_plan(capture)
 }
@@ -94,15 +133,18 @@ fn publish_plan(capture: Capture) -> Result<Capture, String> {
     Ok(capture)
 }
 
-fn selected_workspace(cli: &Cli) -> Result<crate::workspace::Metadata, String> {
-    let metadata = crate::workspace::load_with_toolchain(
+// rstyle-allow(side_effect_density): Cargo metadata boundary loads the selected workspace before validating package names.
+fn selected_workspace(cli: &Cli) -> Result<(crate::workspace::Metadata, Value), String> {
+    let raw = crate::workspace::load_with_toolchain(
         cli.manifest_path.as_deref(),
         Some(&run::pinned_toolchain()),
     )?;
+    let metadata = crate::workspace::Metadata::deserialize(&raw)
+        .map_err(|e| format!("cargo metadata: {e}"))?;
     if let Some(package) = metadata.unknown_packages(&cli.packages).first() {
         return Err(format!("unknown package {package}"));
     }
-    Ok(metadata)
+    Ok((metadata, raw))
 }
 
 fn new_capture(directory: PathBuf, plan: Plan) -> Capture {
@@ -133,6 +175,13 @@ fn plan(
     environment: CaptureEnvironment,
 ) -> Plan {
     Plan {
+        workspace_all_targets: None,
+        compiler_advisory_only: false,
+        style_inputs_only: false,
+        compiler_advisory: false,
+        compiler_patterns: false,
+        local_source_facts: false,
+        local_mutation_facts: false,
         ledger_schema: ledger::SCHEMA.into(),
         extraction_profile,
         root,
@@ -161,6 +210,7 @@ fn capture_environment() -> Result<CaptureEnvironment, String> {
     })
 }
 
+// rstyle-allow(side_effect_density): Subprocess boundary obtains and checks the pinned tool identity.
 fn tool_identity(tool: &str, argument: &str) -> Result<String, String> {
     let output = Command::new(tool)
         .arg(argument)
@@ -172,26 +222,6 @@ fn tool_identity(tool: &str, argument: &str) -> Result<String, String> {
         return Err(format!("cannot determine pinned {tool} identity"));
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
-}
-
-fn targets(
-    cli: &Cli,
-    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
-) -> Result<Vec<Target>, String> {
-    let mut command = Command::new("cargo");
-    command
-        .args(["metadata", "--format-version", "1", "--no-deps"])
-        .env("RUSTUP_TOOLCHAIN", run::pinned_toolchain());
-    if let Some(path) = &cli.manifest_path {
-        command.arg("--manifest-path").arg(path);
-    }
-
-    let output = command.output().map_err(|e| e.to_string())?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).into());
-    }
-    let value: Value = serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())?;
-    selected_targets(&value, cli, profile)
 }
 
 fn selected_targets(
@@ -297,17 +327,22 @@ fn target_record(
     })
 }
 
-fn command(capture: &Capture, cli: &Cli, args: &Args) -> Result<Command, String> {
+fn cargo_command() -> Command {
     let mut command = Command::new("cargo");
     run::clear_rstyle_environment(&mut command);
-
     command
-        .args(["check", "--message-format=json"])
         .env("RUSTUP_TOOLCHAIN", run::pinned_toolchain())
         .env("RUSTC_WORKSPACE_WRAPPER", "")
         .env("RUSTC_WRAPPER", "")
-        .env_remove("RUSTC")
-        .env("CARGO_TARGET_DIR", capture.directory.join("build"))
+        .env_remove("RUSTC");
+    command
+}
+
+fn command(capture: &Capture, cli: &Cli, args: &Args) -> Result<Command, String> {
+    let mut command = cargo_command();
+    command
+        .args(["check", "--message-format=json"])
+        .env("CARGO_TARGET_DIR", build_lane::directory(capture, args))
         .env("CARGO_INCREMENTAL", "0")
         .env("RSTYLE_CAPTURE_PLAN", capture.directory.join("plan.json"));
     let wrapper = if args.capture_dependencies.is_empty() {
@@ -373,13 +408,28 @@ fn build_args(args: &Args) -> Vec<std::ffi::OsString> {
 }
 
 pub fn compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
+    let _lane = build_lane::acquire(capture, args)?;
+    let previous = owner_reuse::take(capture, args)?;
+    compile_in_lane(capture, cli, args, previous)
+}
+
+fn compile_in_lane(
+    capture: &mut Capture,
+    cli: &Cli,
+    args: &Args,
+    previous: Option<owner_reuse::Index>,
+) -> Result<(), String> {
+    configure_capture(capture, cli, args)?;
+    owner_reuse::compile(capture, cli, args, previous)
+}
+
+fn configure_capture(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
     let graph = expected_units(capture, cli, args)?;
     let selected = dependencies::from_cargo(&graph, cli, args)?;
     capture.plan = configured_plan(&capture.plan, &graph, selected)?;
     capture.expected_unit_graph = graph;
-    write_json(&capture.directory.join("plan.json"), &capture.plan)?;
 
-    perform_compile(capture, cli, args)
+    write_json(&capture.directory.join("plan.json"), &capture.plan)
 }
 
 fn configured_plan(
@@ -420,16 +470,29 @@ fn primary_units(graph: &Value) -> Result<Vec<Value>, String> {
 }
 
 fn perform_compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
+    let output = compile_output(capture, cli, args)?;
+    compilation_result(capture, &output);
+    Ok(())
+}
+
+fn compile_output(
+    capture: &Capture,
+    cli: &Cli,
+    args: &Args,
+) -> Result<std::process::Output, String> {
     let observation =
         rstyle_pdg::diagnostics::Stage::new("capture.compile", "cargo check", None).enter();
+    observation.finish(run_compile(capture, cli, args))
+}
+
+fn run_compile(capture: &Capture, cli: &Cli, args: &Args) -> Result<std::process::Output, String> {
     let output = crate::diagnostic_process::output(&mut command(capture, cli, args)?)
         .map_err(|e| e.to_string())?;
     save_logs(capture, &output)?;
-
-    compilation_result(capture, &output);
-    observation.finish(Ok(()))
+    Ok(output)
 }
 
+// rstyle-allow(side_effect_density): Cargo planning boundary executes the unit graph query and saves its checked result.
 fn expected_units(capture: &Capture, cli: &Cli, args: &Args) -> Result<Value, String> {
     let output = command(capture, cli, args)?
         .args(["--unit-graph", "-Z", "unstable-options"])
@@ -474,28 +537,11 @@ fn save_logs(capture: &Capture, output: &std::process::Output) -> Result<(), Str
 }
 
 fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
-    let artifacts: Vec<Value> = cargo
-        .split(|b| *b == b'\n')
-        .filter(|line| !line.is_empty())
-        .map(serde_json::from_slice)
-        .collect::<Result<_, _>>()
-        .map_err(|e| e.to_string())?;
-
-    for artifact in artifacts
-        .iter()
-        .filter(|a| a["reason"] == "compiler-artifact")
-    {
-        let Some(target) = capture
-            .plan
-            .targets
-            .iter()
-            .find(|t| matches_artifact(artifact, t))
-        else {
+    let artifacts = cargo_artifacts(cargo)?;
+    for artifact in &artifacts {
+        let Some(target) = selected_artifact(capture, artifact) else {
             continue;
         };
-        if !intended_artifact(capture, artifact, target) {
-            continue;
-        }
         verify_planned_context(capture, artifact, target)?;
         let test = artifact["profile"]["test"]
             .as_bool()
@@ -503,6 +549,8 @@ fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
         let unit_path = ledger::path(&capture.plan, &capture.directory, target, test)?;
         let unit: Unit = read_json(&unit_path)?;
         if &unit.target != target
+            || unit.compiler_advisory_only != capture.plan.compiler_advisory_only
+            || unit.style_inputs_only != capture.plan.style_inputs_only
             || unit.test != test
             || unit.directory.parent() != Some(capture.directory.as_path())
         {
@@ -512,6 +560,29 @@ fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
     }
     check_expected(capture);
     Ok(())
+}
+
+fn cargo_artifacts(cargo: &[u8]) -> Result<Vec<Value>, String> {
+    let records: Vec<Value> = cargo
+        .split(|b| *b == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(serde_json::from_slice)
+        .collect::<Result<_, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(records
+        .into_iter()
+        .filter(|a| a["reason"] == "compiler-artifact")
+        .collect())
+}
+
+fn selected_artifact<'a>(capture: &'a Capture, artifact: &Value) -> Option<&'a Target> {
+    capture
+        .plan
+        .targets
+        .iter()
+        .find(|t| matches_artifact(artifact, t))
+        .filter(|target| intended_artifact(capture, artifact, target))
 }
 
 fn verify_planned_context(
@@ -596,6 +667,25 @@ fn driver_command(
     let mut command = Command::new(&plan.driver);
     run::clear_rstyle_environment(&mut command);
 
+    if (plan.compiler_advisory || plan.compiler_advisory_only) && target.is_some() {
+        let flags = [
+            plan.compiler_advisory
+                .then_some((rstyle_core::advisory::CAPTURE_ENV, "1")),
+            plan.compiler_advisory_only
+                .then_some(("RSTYLE_COMPILER_ADVISORY_ONLY", "1")),
+            plan.style_inputs_only
+                .then_some(("RSTYLE_STYLE_INPUTS_ONLY", "1")),
+            plan.compiler_patterns
+                .then_some((rstyle_core::advisory::patterns::CAPTURE_ENV, "1")),
+            plan.local_source_facts
+                .then_some(("RSTYLE_LOCAL_SOURCE_FACTS", "1")),
+            plan.local_mutation_facts
+                .then_some(("RSTYLE_LOCAL_MUTATION_FACTS", "1")),
+        ];
+        command
+            .envs(flags.into_iter().flatten())
+            .env(rstyle_core::advisory::SOURCE_ROOT_ENV, &plan.root);
+    }
     command.args(arguments);
     Ok(command)
 }
@@ -681,6 +771,7 @@ fn invocation_target(plan: &Plan, invocation: &[String]) -> Result<Option<Target
     }
 }
 
+// rstyle-allow(side_effect_density): Compiler invocation boundary creates a unit directory, runs rustc and publishes successful output.
 fn capture_unit(
     plan: &Path,
     target: Target,
@@ -702,6 +793,8 @@ fn capture_unit(
         .keep();
     let test = invocation.iter().any(|a| a == "--test");
     let unit = Unit {
+        compiler_advisory_only: selected_plan.compiler_advisory_only,
+        style_inputs_only: selected_plan.style_inputs_only,
         extraction_profile: selected_plan.extraction_profile,
         target,
         test,
@@ -727,10 +820,14 @@ fn invoke_unit(unit: &Unit, command: &mut Command) -> Result<std::process::ExitS
 
 fn publish_unit(plan: &Plan, root: &Path, mut unit: Unit) -> Result<(), String> {
     unit.artifacts = artifact_inventory(&unit.directory, unit.extraction_profile)?;
+    publish_ledger(plan, root, &unit)
+}
+
+fn publish_ledger(plan: &Plan, root: &Path, unit: &Unit) -> Result<(), String> {
     let path = ledger::path(plan, root, &unit.target, unit.test)?;
 
     let file = reserve_ledger(&path)?;
-    serde_json::to_writer(file, &unit).map_err(|e| e.to_string())?;
+    serde_json::to_writer(file, unit).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -763,6 +860,7 @@ fn artifact_inventory(
         .collect()
 }
 
+// rstyle-allow(side_effect_density): Artifact read boundary reuses the published bundle checksum or reads the requested small artifact.
 fn read_artifact(directory: &Path, file: String) -> Result<Artifact, String> {
     if file == "unit.evidence.json" {
         let bytes = std::fs::read(directory.join("unit.evidence.manifest.json"))
@@ -885,7 +983,7 @@ fn intended_mode(plan: &Plan, target: &Target, linked: bool, features: &[Value])
     })
 }
 
-fn invocation_features(invocation: &[String]) -> Vec<Value> {
+pub(in crate::clones) fn invocation_features(invocation: &[String]) -> Vec<Value> {
     let mut features: Vec<_> = invocation
         .iter()
         .enumerate()
@@ -963,6 +1061,31 @@ mod snapshot_tests {
         assert_eq!(bundle.checksum, manifest.checksum);
     }
 
+    fn snapshot_unit(directory: &Path) -> Unit {
+        Unit {
+            compiler_advisory_only: false,
+            style_inputs_only: false,
+            extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile::R0,
+            target: Target {
+                package: "snapshot".into(),
+                manifest_dir: directory.into(),
+                package_context: None,
+                source: directory.join("lib.rs"),
+                name: "snapshot".into(),
+                kind: vec!["lib".into()],
+                test: false,
+            },
+            test: false,
+            invocation: Vec::new(),
+            directory: directory.into(),
+            artifacts: artifact_inventory(
+                directory,
+                rstyle_pdg::extraction_profile::ExtractionProfile::R0,
+            )
+            .unwrap(),
+        }
+    }
+
     #[test]
     fn verified_snapshot_survives_file_edits_without_rereading() {
         let directory = tempfile::tempdir().unwrap();
@@ -975,26 +1098,7 @@ mod snapshot_tests {
             &manifest,
         )
         .unwrap();
-        let mut unit = Unit {
-            extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile::R0,
-            target: Target {
-                package: "snapshot".into(),
-                manifest_dir: directory.path().into(),
-                package_context: None,
-                source: directory.path().join("lib.rs"),
-                name: "snapshot".into(),
-                kind: vec!["lib".into()],
-                test: false,
-            },
-            test: false,
-            invocation: Vec::new(),
-            directory: directory.path().into(),
-            artifacts: artifact_inventory(
-                directory.path(),
-                rstyle_pdg::extraction_profile::ExtractionProfile::R0,
-            )
-            .unwrap(),
-        };
+        let mut unit = snapshot_unit(directory.path());
         let snapshot = load_inventory(&unit).unwrap();
         let original = unit.artifacts[0].checksum.clone();
         unit.artifacts[0].checksum = rstyle_pdg::unit_store::transport_checksum(b"different seal");

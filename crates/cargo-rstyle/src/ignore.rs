@@ -42,7 +42,7 @@ pub fn resolve<'a>(prefix: &str, candidates: &'a [Candidate]) -> Result<&'a Cand
         .collect();
 
     match found.as_slice() {
-        [one] => Ok(one),
+        [one, ..] if found.iter().all(|candidate| same_review(one, candidate)) => Ok(one),
         [] => Err(format!(
             "no candidate with id `{prefix}`; run `cargo rstyle patterns` to list ids \
              (use the same clustering flags)"
@@ -52,6 +52,14 @@ pub fn resolve<'a>(prefix: &str, candidates: &'a [Candidate]) -> Result<&'a Cand
             Err(format!("`{prefix}` is ambiguous: {}", ids.join(", ")))
         }
     }
+}
+
+/// Check/test occurrences can share a review ID only when their complete member rosters agree.
+fn same_review(first: &Candidate, second: &Candidate) -> bool {
+    first.id == second.id
+        && first.kind == second.kind
+        && first.sites == second.sites
+        && first.definitions == second.definitions
 }
 
 /// `ledger` with the candidate `prefix` dismissed, and a one-line confirmation.
@@ -161,6 +169,23 @@ mod tests {
         );
         assert!(resolve("a1b2", &pool()).unwrap_err().contains("ambiguous"));
         assert!(resolve("a1", &pool()).unwrap_err().contains("too short"));
+    }
+
+    #[test]
+    fn repeated_compilation_occurrences_resolve_but_distinct_member_keys_do_not() {
+        let first = candidate("0123456789ab", "k::a");
+        let mut repeated = first.clone();
+        repeated.score_milli += 1;
+        assert_eq!(
+            resolve("0123", &[first.clone(), repeated]).unwrap().id,
+            first.id
+        );
+        let collision = candidate(&first.id, "k::different");
+        assert!(
+            resolve("0123", &[first, collision])
+                .unwrap_err()
+                .contains("ambiguous")
+        );
     }
 
     #[test]

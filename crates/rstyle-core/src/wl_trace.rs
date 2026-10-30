@@ -1,5 +1,4 @@
-//! Serializable trace of one `wl::similarity_milli` computation, for the walkthrough site
-//! (`site/wl`). The site only views this data; hashing and label normalization stay here.
+//! Serializable trace of one `wl::similarity_milli` computation.
 //! Colors are interned to small ints across both graphs, so equal int means equal hash.
 
 use crate::align::{self, Ctx, Hole, Stage};

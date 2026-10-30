@@ -3,6 +3,7 @@ use crate::{Cli, clones::Args, run};
 use serde_json::Value;
 use std::{ffi::OsString, process::Command};
 
+// rstyle-allow(side_effect_density): Cargo metadata boundary resolves requested dependencies before applying pure unit selection.
 pub(in crate::clones::capture) fn select(
     graph: &Value,
     cli: &Cli,

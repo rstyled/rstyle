@@ -1,0 +1,427 @@
+#!/usr/bin/env python3
+"""Review a labeled compiler sample using completed core plans, without reanalysis."""
+import argparse
+from collections import Counter
+import json
+from pathlib import Path
+
+from evaluation_checks import KINDS, diagnostic_assessment, label_error, policy_error
+from evaluation_checks import boolean, integer, load, require, relative_path, unique
+
+
+def units(report):
+    contexts = unique(report['unit_contexts'], 'id', 'unit contexts')
+    result = []
+    for unit in report['compiler_advisory']['units']:
+        context = contexts[unit['unit']]
+        observed = report['observed_units'][context['observed_unit']]
+        result.append((unit, observed))
+    return result
+
+
+def planned_owners(planning):
+    result = {}
+    for group in planning['groups']:
+        members, functions = group['members'], group['evaluation']['functions']
+        require(len(members) == len(functions), 'incomplete planned owner roster')
+        for key, function in zip(members, functions):
+            require(key not in result, 'duplicate planned owner')
+            result[key] = function
+    return result
+
+
+def planned_diagnostics(unit, reviewed_rules):
+    diagnostics = unit['evaluation']['diagnostics']
+    scope = unit.get('diagnostic_scope')
+    if scope is None:
+        return diagnostics
+    requested = scope['request']['rules']
+    require(isinstance(requested, list) and all(isinstance(rule, str) for rule in requested)
+            and len(set(requested)) == len(requested), 'invalid requested rules')
+    require(not requested or set(reviewed_rules) <= set(requested), 'reviewed rule outside requested scope')
+    indices = scope['diagnostic_indices']
+    require(isinstance(indices, list) and all(type(index) is int and 0 <= index < len(diagnostics)
+            for index in indices), 'invalid requested diagnostic indices')
+    expected = [index for index, diagnostic in enumerate(diagnostics)
+                if not requested or diagnostic['rule_id'] in requested
+                or diagnostic['rule_id'] == 'invalid_suppression']
+    require(indices == expected, 'incomplete requested diagnostic projection')
+    return [diagnostics[index] for index in indices]
+
+
+def validate_planning(report, owners, rules=('fn_params', 'mutated_targets', 'side_effect_density'), *, reviewed_rules=None):
+    known = {row['key']: (unit['unit'], row['name'])
+             for unit in report['compiler_advisory']['units'] for row in unit['observations']}
+    for key, function in owners.items():
+        require(key in known and known[key][1] == function['name'], 'planned owner differs from observation')
+    for unit in report['compiler_advisory']['units']:
+        diagnostics = unit['evaluation']['diagnostics']
+        require(unit['evaluation']['summary']['violations'] == len(diagnostics), 'incomplete diagnostics')
+        diagnostics = planned_diagnostics(unit, rules if reviewed_rules is None else reviewed_rules)
+        for rule in rules:
+            planned = sum(rule in function['rules'] for key, function in owners.items()
+                          if known[key][0] == unit['unit'])
+            require(planned == sum(row['rule_id'] == rule for row in diagnostics),
+                    'incomplete completed rule-owner roster')
+
+
+def evaluation_reason(unit, key, owners):
+    """Use completed core membership, without reimplementing path exclusions."""
+    count = unit['evaluation']['summary'].get('functions')
+    if count is not None:
+        selected = integer(count, 'evaluated functions')
+        require(selected <= len(unit['observations']), 'evaluated count exceeds captured owners')
+        if selected == len(unit['observations']):
+            return None
+    if key in owners:
+        return None
+    ranking = unit.get('complexity_ranking')
+    if ranking is not None:
+        require(ranking.get('schema') == 'rstyle.compiler-complexity-ranking/1', 'wrong complexity ranking schema')
+        keys, rows = ranking.get('owners'), ranking.get('functions')
+        require(isinstance(keys, list) and isinstance(rows, list) and len(keys) == len(rows)
+                and len(set(keys)) == len(keys), 'incomplete ranking owner roster')
+        if key in keys:
+            row = rows[keys.index(key)]
+            known = next(item for item in unit['observations'] if item['key'] == key)
+            require(row.get('name') == known['name'], 'ranked owner name mismatch')
+            return None
+    return 'Core policy evaluation membership unavailable; captured owners can be excluded'
+
+
+def target_name(sample):
+    name = sample.get('target_name')
+    require('target_name' not in sample or isinstance(name, str) and bool(name),
+            'invalid sample target name')
+    return name
+
+
+def sample_owner(report, sample, selected):
+    test = boolean(sample.get('test', False), 'sample test context')
+    target = target_name(sample)
+    candidates = [(unit, observed) for unit, observed in selected
+                  if observed['target']['package_context']['name'] == sample['package']
+                  and observed['target']['kind'] == [sample['target_kind']]
+                  and observed['test'] is test
+                  and (target is None or observed['target'].get('name') == target)]
+    if len(candidates) != 1:
+        return None, None, 'missing or ambiguous selected unit'
+    unit, observed = candidates[0]
+    owners = [row for row in report['functions']
+              if row['unit_evidence']['report_unit'] == unit['unit']
+              and row['name'] == sample['function']]
+    if len(owners) != 1:
+        return unit, None, 'missing or ambiguous function owner'
+    owner = owners[0]
+    known = unique(unit['observations'], 'key', 'known observations')
+    missing = unique(unit['unavailable'], 'key', 'unavailable observations')
+    require(not (set(known) & set(missing)), 'conflicting availability')
+    if owner['key'] not in known:
+        return unit, None, missing.get(owner['key'], {}).get('reason', 'observation unavailable')
+    require(known[owner['key']]['name'] == sample['function'], 'observation owner mismatch')
+    sources = [source for inventory in report['owned_source_inventory']
+               if inventory['compilation_unit'] == observed['target']
+               and inventory['test'] is test
+               for source in inventory['source_functions']
+               if source['function_span'] == owner['fn_span']
+               and sample['function'] in source['active_functions']
+               and relative_path(source['source_file'], unit['source_root']) == sample['source_file']]
+    if len(sources) != 1:
+        return unit, None, 'original source association unavailable or ambiguous'
+    if 'source' in sample and sources[0].get('source') != sample['source']:
+        return unit, None, 'independent source label differs from captured source'
+    return unit, owner['key'], None
+
+
+def spacing_owners(unit):
+    known = Counter(row['name'] for row in unit['observations'])
+    result = {}
+    for group in unit['evaluation']['fix_groups']:
+        for function in group['functions']:
+            if 'fn_spacing' not in function['rules']:
+                continue
+            name = function['name']
+            require(known[name] == 1 and name not in result, 'missing or ambiguous spacing owner')
+            result[name] = function
+    diagnostics = Counter((row['path'], row['line']) for row in unit['evaluation']['diagnostics']
+                          if row['rule_id'] == 'fn_spacing')
+    locations = Counter((function['path'], function['line']) for function in result.values())
+    require(locations == diagnostics, 'incomplete completed spacing-owner roster')
+    require(all(count == 1 for count in locations.values()),
+            'missing or ambiguous completed spacing diagnostic')
+    return result
+
+
+def spacing_label(sample, limit):
+    require(isinstance(sample.get('source'), str) and sample['source'],
+            'independent spacing source missing')
+    wanted = sample.get('spacing')
+    require(isinstance(wanted, dict), 'missing independent spacing label')
+    require(wanted.get('outcome') in ('finding', 'evaluated_no_finding'), 'invalid spacing outcome')
+    integer(wanted.get('actual'), 'spacing actual')
+    require(integer(wanted.get('limit'), 'spacing limit') == limit, 'different spacing label limit')
+    return {field: wanted[field] for field in ('outcome', 'actual', 'limit')}
+
+
+def check_rule(unit, key, function, sample, rule, actual, limit, expected=None):
+    wanted = expected or {'outcome': 'finding' if actual > limit else 'evaluated_no_finding',
+              'actual': actual, 'limit': limit}
+    observed = {'outcome': 'evaluated_no_finding'}
+    reason = evaluation_reason(unit, key, (key,) if function else ())
+    if reason:
+        return {'key': key, 'rule': rule, 'expected': wanted, 'observed': None,
+                'result': 'unavailable', 'reason': reason}
+    if function and rule in function['rules']:
+        require(function['path'] == sample['source_file'], 'planned source path differs')
+        metadata = {'complete': True, 'functions': [{
+            'name': sample['function'], 'source_file': function['path'],
+            'line': function['line'], 'excluded': False}]}
+        observed, reason = diagnostic_assessment(unit['evaluation'], metadata, sample['function'], rule)
+        if observed is not None and rule == 'mutated_targets':
+            diagnostic = next(row for row in unit['evaluation']['diagnostics']
+                              if row['rule_id'] == rule and row['path'] == function['path']
+                              and row['line'] == function['line'])
+            if diagnostic.get('details') is None:
+                observed, reason = None, 'mutation target details unavailable'
+            else:
+                wanted['roots'] = sorted(sample['mutated_roots'])
+                observed['roots'] = sorted(row['label'] for row in diagnostic['details'])
+    if observed is not None and observed['outcome'] == 'finding':
+        integer(observed.get('actual'), 'observed actual')
+        integer(observed.get('limit'), 'observed limit')
+    agrees = observed is not None and observed['outcome'] == wanted['outcome']
+    if agrees and wanted['outcome'] == 'finding':
+        agrees = all(observed.get(field) == wanted[field] for field in wanted)
+    return {'key': key, 'rule': rule, 'expected': wanted, 'observed': observed,
+            'result': 'unavailable' if reason else 'agreement' if agrees else 'disagreement',
+            'reason': reason}
+
+
+def density_details(unit, function):
+    diagnostic = next(row for row in unit['evaluation']['diagnostics']
+                      if row['rule_id'] == 'side_effect_density' and row['path'] == function['path']
+                      and row['line'] == function['line'])
+    return diagnostic.get('details')
+
+
+def density_events(details, *, direct_only):
+    if not isinstance(details, list):
+        return None
+    counts = Counter()
+    for detail in details:
+        if not isinstance(detail, dict):
+            return None
+        label = detail.get('label')
+        if not isinstance(label, str) or ': ' not in label:
+            return None
+        if direct_only and ' (via ' in label:
+            return None
+        kind = label.split(': ', 1)[0]
+        if kind not in KINDS:
+            return None
+        count = integer(detail.get('count'), 'effect detail count')
+        require(count > 0, 'effect detail count must be positive')
+        counts[kind] += count
+    return dict(counts)
+
+
+def detail_roster(details):
+    return sorted(({'label': detail['label'], 'count': detail['count']} for detail in details),
+                  key=lambda detail: (detail['label'], detail['count']))
+
+
+def reviewed_details(expected, policy):
+    if policy['transitive_depth'] == 0:
+        return None
+    details = expected.get('details')
+    events = density_events(details, direct_only=False)
+    weighted = {kind: count for kind, count in expected['events'].items() if policy['weights'][kind] > 0}
+    require(events is not None and events == weighted, 'reviewed weighted detail roster differs from events')
+    require(len({detail['label'] for detail in details}) == len(details), 'duplicate reviewed detail label')
+    return detail_roster(details)
+
+
+def propagation_reason(report, sample, selected, depth):
+    if depth == 0:
+        return None
+    require(sample.get('propagation_reviewed') is True, 'propagation source inventory not reviewed')
+    inputs = sample.get('propagation_inputs')
+    require(isinstance(inputs, list), 'propagation input roster missing')
+    identities, completed = set(), set()
+    for entry in inputs:
+        require(isinstance(entry, dict) and entry.get('included') is True
+                and entry.get('unsuppressed') is True and isinstance(entry.get('source'), str)
+                and entry['source'], 'propagation input source policy not reviewed')
+        identity = tuple(entry[field] for field in ('package', 'target_kind', 'function', 'source_file')) + (
+            boolean(entry.get('test', False), 'propagation test context'), target_name(entry))
+        require(identity not in identities, 'duplicate propagation input')
+        identities.add(identity)
+        _, key, reason = sample_owner(report, entry, selected)
+        if reason:
+            return 'sampled propagation input unavailable: ' + reason
+        require(key not in completed, 'duplicate completed propagation input')
+        completed.add(key)
+    return None
+
+
+def check_density(unit, key, function, sample, policy, reason):
+    expected = sample.get('density')
+    # Compiler metrics count captured indirect calls at their configured weight.
+    # Their runtime behavior is unknown; their static event count can be complete.
+    error = label_error({'expected': expected}, policy, known_unknown_events=True)
+    require(error is None, error)
+    require(expected['complete'] is True, 'density sample requires reviewed complete static events')
+    wanted_details = reviewed_details(expected, policy)
+    require(sample.get('included') is True and isinstance(sample.get('source'), str)
+            and sample['source'], 'density source and inclusion preconditions missing')
+    wanted = {field: expected[field] for field in ('outcome', 'actual')}
+    wanted['limit'] = policy['max_density_milli']
+    if reason:
+        return {'key': key, 'rule': 'side_effect_density', 'expected': wanted,
+                'observed': None, 'result': 'unavailable', 'reason': reason}
+    row = check_rule(unit, key, function, sample, 'side_effect_density',
+                     expected['actual'], policy['max_density_milli'], wanted)
+    observation = next(entry for entry in unit['observations'] if entry['key'] == key)
+    statements = integer(observation.get('statements'), 'observed statements')
+    row['statements'] = {'expected': expected['statements'], 'observed': statements}
+    if row['result'] != 'unavailable' and statements != expected['statements']:
+        row['result'] = 'disagreement'
+    if row['observed'] and row['observed']['outcome'] == 'finding':
+        details = density_details(unit, function)
+        events = density_events(details, direct_only=policy['transitive_depth'] == 0)
+        if not events:
+            row.update(result='unavailable', reason='weighted event details unavailable')
+        else:
+            weighted = {kind: count for kind, count in expected['events'].items() if policy['weights'][kind] > 0}
+            row['events'] = {'expected': weighted, 'observed': events}
+            if events != weighted:
+                row['result'] = 'disagreement'
+            if wanted_details is not None:
+                row['details'] = {'expected': wanted_details, 'observed': detail_roster(details)}
+                if row['details']['expected'] != row['details']['observed']:
+                    row['result'] = 'disagreement'
+    return row
+
+
+def compare(report, labels):
+    require(labels['schema'] == 'rstyle.compiler-quality-cases/1', 'wrong labels schema')
+    require(Path(report['run_directory']).name == labels['run'], 'different saved run')
+    require(report['toolchain'] == labels['toolchain'], 'different toolchain')
+    advisory = report['compiler_advisory']
+    boolean(advisory.get('complete'), 'advisory completion')
+    require(advisory['schema'] == 'rstyle.compiler-advisory/1', 'wrong advisory schema')
+    require(advisory['metrics'] == labels['metrics'], 'different compiler metric')
+    rules = set(labels['limits'])
+    require(rules and rules <= {'fn_params', 'mutated_targets', 'side_effect_density', 'fn_spacing'},
+            'unknown rule limits')
+    for rule, limit in labels['limits'].items():
+        integer(limit, rule + ' limit')
+    require(isinstance(labels['samples'], list) and labels['samples'], 'empty sample')
+    config = advisory['effective_config']
+    require(config['exclude'] == ['target/**'], 'different sample exclusions')
+    if 'fn_params' in rules:
+        require(config['fn_params']['max_params'] == labels['limits']['fn_params']
+                and config['fn_params']['count_self'] is False, 'different parameter policy')
+    if 'mutated_targets' in rules:
+        require(config['mutation_budget']['max_mutated_targets'] == labels['limits']['mutated_targets']
+                and config['mutation_budget']['granularity'] == 'root', 'different mutation policy')
+    if 'fn_spacing' in rules:
+        minimum = integer(config['fn_spacing'].get('min_statements'), 'spacing policy minimum')
+        require(minimum > 0 and minimum - 1 == labels['limits']['fn_spacing'],
+                'different spacing policy')
+    if 'side_effect_density' in rules:
+        density_policy = labels.get('density_policy')
+        error = policy_error(density_policy, depths=(0, 1, 2, 3))
+        require(error is None, error)
+        observed_policy = {**config['side_effects'], 'exclude': config['exclude']}
+        error = policy_error(observed_policy, depths=(0, 1, 2, 3))
+        require(error is None, error)
+        require(density_policy['max_density_milli'] == labels['limits']['side_effect_density']
+                and density_policy == observed_policy,
+                'different complete density policy')
+    planning = advisory['planning']
+    boolean(planning.get('input_complete'), 'planning input completion')
+    require(planning['schema'] == 'rstyle.compiler-planning/1', 'wrong planning schema')
+    owners = planned_owners(planning)
+    validate_planning(report, owners, reviewed_rules=rules)
+    selected = units(report)
+    spacing = {unit['unit']: spacing_owners(unit) for unit, _ in selected} if 'fn_spacing' in rules else {}
+    rows = []
+    seen, completed = set(), set()
+    for sample in labels['samples']:
+        test = boolean(sample.get('test', False), 'sample test context')
+        identity = (sample['package'], sample['target_kind'], sample['function'],
+                    sample['source_file'], test, target_name(sample))
+        require(identity not in seen, 'duplicate label identity')
+        seen.add(identity)
+        location = {field: sample[field] for field in ('package', 'function', 'source_file')}
+        location['test'] = test
+        if 'target_name' in sample:
+            location['target_name'] = sample['target_name']
+        require(sample.get('unsuppressed') is True, 'sample suppression precondition not reviewed')
+        measurements = {}
+        if 'fn_params' in rules:
+            measurements['fn_params'] = sample['parameters']
+        if 'mutated_targets' in rules:
+            roots = sample['mutated_roots']
+            require(isinstance(roots, list) and all(isinstance(root, str) and root for root in roots)
+                    and len(set(roots)) == len(roots), 'invalid independent root labels')
+            measurements['mutated_targets'] = len(roots)
+        unit, key, reason = sample_owner(report, sample, selected)
+        if reason is None:
+            require(key not in completed, 'duplicate completed source owner')
+            completed.add(key)
+        if 'fn_spacing' in rules:
+            wanted = spacing_label(sample, labels['limits']['fn_spacing'])
+            if reason:
+                row = {'key': key, 'rule': 'fn_spacing', 'expected': wanted, 'observed': None,
+                       'result': 'unavailable', 'reason': reason}
+            else:
+                function = spacing[unit['unit']].get(sample['function'])
+                row = check_rule(unit, key, function, sample, 'fn_spacing',
+                                 wanted['actual'], wanted['limit'], wanted)
+            rows.append({**location, **row})
+        if 'side_effect_density' in rules:
+            propagation = propagation_reason(report, sample, selected, density_policy['transitive_depth'])
+            reason = reason or propagation
+            row = check_density(unit, key, owners.get(key), sample, density_policy, reason)
+            rows.append({**location, **row})
+        for rule, actual in measurements.items():
+            require(type(actual) is int and actual >= 0, 'invalid source label')
+            if reason:
+                row = {'key': key, 'rule': rule, 'result': 'unavailable', 'reason': reason,
+                       'expected': {'actual': actual, 'limit': labels['limits'][rule]}, 'observed': None}
+            else:
+                row = check_rule(unit, key, owners.get(key), sample, rule, actual, labels['limits'][rule])
+            rows.append({**location, **row})
+    return {'schema': 'rstyle.compiler-quality-observation/1',
+            'sample_complete': all(row['result'] != 'unavailable' for row in rows), 'run': labels['run'],
+            'metrics': advisory['metrics'], 'effective_config': config,
+            'scope_complete': advisory['complete'], 'planning_input_complete': planning['input_complete'],
+            'counts': dict(sorted(Counter(row['result'] for row in rows).items())), 'comparisons': rows,
+            'measurement_limit': 'No-finding rows compare outcomes only; clean numeric values are absent and are never synthesized.',
+            'limitation': labels['limitations'],
+            'preconditions': labels['preconditions']}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--report', required=True)
+    parser.add_argument('--labels', required=True)
+    parser.add_argument('--output', required=True)
+    args = parser.parse_args()
+    try:
+        result = compare(load(args.report), load(args.labels))
+        with Path(args.output).open('x') as stream:
+            json.dump(result, stream, indent=2)
+            stream.write('\n')
+        if result['counts'].get('unavailable', 0):
+            parser.exit(2)
+        if result['counts'].get('disagreement', 0):
+            parser.exit(1)
+    except (ValueError, KeyError, TypeError, OSError) as error:
+        parser.exit(2, 'compiler quality: ' + str(error) + '\n')
+
+
+if __name__ == '__main__':
+    main()

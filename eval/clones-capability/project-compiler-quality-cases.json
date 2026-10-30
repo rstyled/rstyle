@@ -1,0 +1,145 @@
+{
+  "schema": "rstyle.compiler-quality-cases/1",
+  "run": "run-ynuMSl",
+  "toolchain": "nightly-2026-09-30",
+  "metrics": "rstyle.compiler-style-metrics/1",
+  "policy": "project-compiler-planning-policy.toml",
+  "limits": {
+    "fn_params": 2,
+    "mutated_targets": 1
+  },
+  "basis": "Manual inspection of unchanged Rust source before looking up these functions' report diagnostics. Counts are independent labels; absent diagnostics never supply numeric zero facts.",
+  "samples": [
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "clones::capture::ledger::target_id",
+      "source_file": "crates/cargo-rstyle/src/clones/capture/ledger.rs",
+      "parameters": 2,
+      "mutated_roots": [
+        "matches"
+      ],
+      "basis": "Two shared inputs; next mutably borrows the one local iterator at two call sites.",
+      "unsuppressed": true
+    },
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "clones::capture::ledger::path",
+      "source_file": "crates/cargo-rstyle/src/clones/capture/ledger.rs",
+      "parameters": 4,
+      "mutated_roots": [],
+      "basis": "Four shared/value arguments and immutable local results; path joining does not mutate an input root.",
+      "unsuppressed": true
+    },
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "clones::identity::assign",
+      "source_file": "crates/cargo-rstyle/src/clones/identity.rs",
+      "parameters": 1,
+      "mutated_roots": [
+        "ordered"
+      ],
+      "basis": "One shared slice argument; sort_by mutably borrows the owned ordered vector.",
+      "unsuppressed": true
+    },
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "clones::identity::functions",
+      "source_file": "crates/cargo-rstyle/src/clones/identity.rs",
+      "parameters": 2,
+      "mutated_roots": [
+        "seen"
+      ],
+      "basis": "Two inputs; insert mutates the captured seen set inside the iterator callback.",
+      "unsuppressed": true
+    },
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "clones::capture::selection_args",
+      "source_file": "crates/cargo-rstyle/src/clones/capture.rs",
+      "parameters": 1,
+      "mutated_roots": [],
+      "basis": "One shared CLI input; local vectors and iterator adapters move values without mutably borrowing a named root.",
+      "unsuppressed": true
+    },
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "clones::capture::save_logs",
+      "source_file": "crates/cargo-rstyle/src/clones/capture.rs",
+      "parameters": 2,
+      "mutated_roots": [],
+      "basis": "Two shared inputs; filesystem writes are effects, not source-root mutation. No purity claim is made.",
+      "unsuppressed": true
+    },
+    {
+      "package": "rstyle-core",
+      "target_kind": "lib",
+      "function": "lines::line_has_code",
+      "source_file": "crates/rstyle-core/src/lines.rs",
+      "parameters": 2,
+      "mutated_roots": [
+        "depth",
+        "index",
+        "has_code"
+      ],
+      "basis": "Two parameters; +=/-= write through depth, index advances, and |= updates the owned boolean. These are three distinct roots regardless of loop iterations.",
+      "unsuppressed": true
+    },
+    {
+      "package": "rstyle-core",
+      "target_kind": "lib",
+      "function": "lines::preceding_comment_line",
+      "source_file": "crates/rstyle-core/src/lines.rs",
+      "parameters": 2,
+      "mutated_roots": [],
+      "basis": "Two inputs; a read-only iterator chain constructs the output string without mutable source-root access.",
+      "unsuppressed": true
+    },
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "clones::capture::dependencies::select",
+      "source_file": "crates/cargo-rstyle/src/clones/capture/dependencies.rs",
+      "parameters": 3,
+      "mutated_roots": [
+        "requested",
+        "selected"
+      ],
+      "unsuppressed": true,
+      "basis": "Three inputs; requested.insert and selected.push mutably borrow two distinct owned containers. Neither is an escaping write."
+    },
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "clones::capture::dependencies::resolve",
+      "source_file": "crates/cargo-rstyle/src/clones/capture/dependencies.rs",
+      "parameters": 2,
+      "mutated_roots": [
+        "exact",
+        "named"
+      ],
+      "unsuppressed": true,
+      "basis": "Two inputs; the loop pushes into the distinct owned exact and named vectors. Moving a selected vector into matches adds no mutable root."
+    },
+    {
+      "package": "cargo-rstyle",
+      "target_kind": "bin",
+      "function": "clones::capture::dependencies::reachable",
+      "source_file": "crates/cargo-rstyle/src/clones/capture/dependencies.rs",
+      "parameters": 2,
+      "mutated_roots": [
+        "pending",
+        "seen"
+      ],
+      "unsuppressed": true,
+      "basis": "Two inputs; pop/extend mutate pending, and insert mutates seen. Repeated visits add events but do not add distinct targets."
+    }
+  ],
+  "preconditions": "These selected original functions are unsuppressed and outside the explicit target/** exclusion. Only selected check units are comparable; missing/ambiguous/unknown functions must remain unavailable.",
+  "limitations": "Eleven source-inspected functions, twenty-two rule checks; no project-wide precision/recall, density-quality, effect-absence or refactoring-safety claim. Mutably borrowing an owned local still counts under this compiler metric."
+}

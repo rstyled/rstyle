@@ -23,7 +23,6 @@ perf.data*
 SIDE_EFFECTS.md
 # Example projects are standalone; do not commit their lockfiles
 rust_refactoring_examples/*/Cargo.lock
-eval/align/pairs.jsonl
 __pycache__/
 
 # CodeNet samples (generated crates and results)
@@ -40,7 +39,3 @@ CODENET_PLAN.md
 HANDOFF.md
 Project_CodeNet/
 Project_CodeNet.tar.gz
-
-# Raw CCGraph study reports/evidence retained locally with committed identities.
-eval/ccgraph-v1/artifacts/
-eval/ccgraph-v2/artifacts/

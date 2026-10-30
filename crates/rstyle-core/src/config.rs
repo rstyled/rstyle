@@ -1,7 +1,7 @@
 use crate::facts::EffectKind;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     pub exclude: Excludes,
@@ -15,7 +15,7 @@ pub struct Config {
 }
 
 /// Findings start strictly above either configured complexity limit.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ComplexityConfig {
     pub max_cyclomatic: usize,
@@ -31,7 +31,7 @@ impl Default for ComplexityConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(transparent)]
 pub struct Excludes(pub Vec<String>);
 
@@ -41,7 +41,7 @@ impl Default for Excludes {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct FnLengthConfig {
     pub max_lines: usize,
@@ -54,7 +54,7 @@ impl Default for FnLengthConfig {
 }
 
 /// Bodies with at least `min_statements` top-level statements need a blank line between phases.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct FnSpacingConfig {
     /// Top-level statements (tail expression included) at which the rule starts to
@@ -69,7 +69,7 @@ impl Default for FnSpacingConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct FnParamsConfig {
     pub max_params: usize,
@@ -85,7 +85,7 @@ impl Default for FnParamsConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Granularity {
     #[default]
@@ -93,7 +93,7 @@ pub enum Granularity {
     Field,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct MutationBudgetConfig {
     pub max_mutations_per_target: usize,
@@ -111,7 +111,7 @@ impl Default for MutationBudgetConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, serde::Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SideEffectsConfig {
     pub max_density_milli: usize,
@@ -137,7 +137,7 @@ impl Default for SideEffectsConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, serde::Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Weights {
     pub mutation: usize,
@@ -184,7 +184,7 @@ impl Weights {
 }
 
 /// Callee path prefixes per effect kind. The longest matching prefix wins.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, serde::Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct EffectPaths {
     pub io: Vec<String>,
@@ -256,7 +256,7 @@ impl EffectPaths {
 }
 
 /// Rule ids, validated on load so a typo never silently changes grouping.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(try_from = "Vec<String>")]
 pub struct RuleList(pub Vec<String>);
 
@@ -276,7 +276,7 @@ impl TryFrom<Vec<String>> for RuleList {
 
 /// Which violations must be fixed together (see `groups`). A fix's footprint is the
 /// function itself plus, for `caller_rules`, the functions that call it.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct GroupingConfig {
     /// Rules whose fix edits the callers too (a signature change). Other rules only

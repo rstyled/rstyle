@@ -40,6 +40,12 @@ pub(super) fn check(directory: &Path, captured: &Value) {
     let path = Path::new(run).join("dependency-closure.json");
     let original = std::fs::read(&path).unwrap();
     let manifest: Value = serde_json::from_slice(&original).unwrap();
+    std::fs::remove_file(&path).unwrap();
+    assert!(
+        !replay(directory, run).0.status.success(),
+        "dependency replay must require its closure inventory"
+    );
+    std::fs::write(&path, &original).unwrap();
     for field in [
         "extern_alias",
         "local_compiled_crate",

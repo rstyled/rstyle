@@ -2,19 +2,18 @@
 //!
 //! Exit codes: 0 clean, 1 violations found, 2 tool/config/compile error.
 
+#[cfg(test)]
+mod cli_tests;
 mod clones;
-mod collect;
 mod diagnostic_process;
 mod ignore;
 mod run;
 mod workspace;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use rstyle_core::config::Config;
-use rstyle_core::facts::FnFacts;
-use rstyle_core::ledger::{self, Opts};
+use rstyle_core::ledger;
 use rstyle_core::normalize::Rules;
-use rstyle_core::{cluster, patterns_report, report};
+use rstyle_core::{cluster, patterns_report};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -36,6 +35,8 @@ struct Cli {
     config: Option<PathBuf>,
     #[arg(long, global = true)]
     manifest_path: Option<PathBuf>,
+    #[command(flatten)]
+    style_inputs: StyleInputs,
     /// Ignore ledger (default: <workspace root>/rstyle-ignore.toml).
     #[arg(long, global = true)]
     ignore_file: Option<PathBuf>,
@@ -44,10 +45,80 @@ struct Cli {
     skill: bool,
 }
 
+impl Cli {
+    fn validate_style_route(&self) -> Result<(), &'static str> {
+        if self.command.is_some() && self.style_inputs.requested() {
+            return Err("Root style inputs apply to the default style command only");
+        }
+        Ok(())
+    }
+}
+
+#[derive(Args, Default)]
+#[group(multiple = true)]
+struct StyleInputs {
+    /// Reevaluate an explicit saved compiler-style run without compiling.
+    #[arg(id = "style_replay_run", long = "replay-run")]
+    replay_run: Option<PathBuf>,
+    /// Select compiler-style findings with a workspace-relative changed-file JSON manifest.
+    #[arg(id = "style_changed_files", long = "changed-files")]
+    changed_files: Option<PathBuf>,
+    #[command(flatten)]
+    baseline: StyleBaselineArgs,
+    #[command(flatten)]
+    review: StyleReviewArgs,
+}
+
+impl StyleInputs {
+    fn requested(&self) -> bool {
+        self.replay_run.is_some()
+            || self.changed_files.is_some()
+            || self.baseline.requested()
+            || self.review.review_file.is_some()
+    }
+}
+
+#[derive(Args, Default)]
+#[group(multiple = true)]
+struct StyleBaselineArgs {
+    /// Compare compiler-style findings with a saved whole-scope inventory.
+    #[arg(long, conflicts_with = "write_baseline")]
+    baseline: Option<PathBuf>,
+    /// Export a complete compiler-style inventory to a new file; findings still exit 1.
+    #[arg(long, conflicts_with_all = ["baseline", "style_changed_files"])]
+    write_baseline: Option<PathBuf>,
+    /// Exit 1 for new or changed selected findings, or policy/build-context drift.
+    #[arg(long, requires = "baseline")]
+    fail_on_new: bool,
+}
+
+impl StyleBaselineArgs {
+    fn requested(&self) -> bool {
+        self.baseline.is_some() || self.write_baseline.is_some()
+    }
+}
+
+#[derive(Args, Default)]
+#[group(multiple = true)]
+struct StyleReviewArgs {
+    /// Apply individual saved finding reviews; lookup never writes.
+    #[arg(long)]
+    review_file: Option<PathBuf>,
+    /// Inspect retained reviews, including stale and unavailable findings.
+    #[arg(long, requires = "review_file")]
+    review_status: bool,
+    /// Dismiss one diagnostic from an explicit saved run, retaining its reason.
+    #[arg(long, num_args = 2, value_names = ["UNIT", "DIAGNOSTIC_INDEX"], requires_all = ["review_file", "review_reason", "style_replay_run"], conflicts_with = "review_status")]
+    dismiss_compiler_diagnostic: Vec<String>,
+    /// Reason for the selected individual finding dismissal.
+    #[arg(long, requires = "dismiss_compiler_diagnostic")]
+    review_reason: Option<String>,
+}
+
 #[derive(Subcommand)]
 enum Command {
     /// Capture HIR R0 evidence and evaluate exhaustive strict similarity pairs.
-    Clones(clones::Args),
+    Clones(Box<clones::Args>),
     /// Mine the workspace for latent shared abstractions (signature groups).
     Patterns(PatternsArgs),
     /// Dismiss a merge candidate you reviewed, list the ledger, or prune dead entries.
@@ -56,12 +127,10 @@ enum Command {
 
 #[derive(Args)]
 struct PatternsArgs {
-    /// Hide groups scoring below this (natural-log units, e.g. 0.5).
-    #[arg(long, default_value_t = 0.0)]
-    min_score: f64,
-    /// Show only the best N groups and candidates.
-    #[arg(long)]
-    top: Option<usize>,
+    #[command(flatten)]
+    route: PatternRouteArgs,
+    #[command(flatten)]
+    display: PatternDisplayArgs,
     /// Report every candidate, ignoring the ignore ledger for this run.
     #[arg(long)]
     no_ignore: bool,
@@ -75,8 +144,63 @@ struct PatternsArgs {
     mine: MineArgs,
 }
 
+/// Shared discovery selection for pattern listing and repository review commands.
+#[derive(Args, Default)]
+struct PatternInputArgs {
+    /// Compiler population; authored excludes explicitly generated signatures.
+    #[arg(long, value_enum)]
+    compiler_pattern_scope: Option<clones::CompilerSourceScope>,
+    /// Reevaluate an explicit saved compiler run without compiling.
+    #[arg(long)]
+    replay_run: Option<PathBuf>,
+    /// Require the existing lockfile during compiler capture.
+    #[arg(long)]
+    locked: bool,
+}
+
+#[derive(Args, Default)]
+struct PatternRouteArgs {
+    #[command(flatten)]
+    input: PatternInputArgs,
+    /// Record an exact review of a saved compiler candidate without changing raw proposals.
+    #[arg(long, num_args = 2, value_names = ["UNIT", "CANDIDATE_ID"], requires_all = ["review_file", "review_reason", "replay_run"], conflicts_with = "review_status")]
+    dismiss_compiler_pattern: Vec<String>,
+    /// Explain a direct compiler proposal review.
+    #[arg(long, requires = "dismiss_compiler_pattern")]
+    review_reason: Option<String>,
+    /// Scoped compiler review store.
+    #[arg(long)]
+    review_file: Option<PathBuf>,
+    /// Include scoped compiler review status.
+    #[arg(long, requires = "review_file")]
+    review_status: bool,
+}
+
+/// Presentation over ranked proposals; does not change mining or review identity.
+#[derive(Args, Default, PartialEq, serde::Serialize)]
+struct PatternDisplayArgs {
+    /// Hide groups scoring below this (natural-log units, e.g. 0.5).
+    #[arg(long)]
+    min_score: Option<f64>,
+    /// Show only the best N groups and candidates.
+    #[arg(long)]
+    top: Option<usize>,
+}
+
+impl PatternDisplayArgs {
+    fn min_score_milli(&self) -> u32 {
+        (self.min_score.unwrap_or_default().max(0.0) * 1000.0).round() as u32
+    }
+
+    fn is_default(&self) -> bool {
+        self.min_score_milli() == 0 && self.top.is_none()
+    }
+}
+
 #[derive(Args)]
 struct IgnoreArgs {
+    #[command(flatten)]
+    route: PatternInputArgs,
     /// Candidate id (or a unique prefix of at least 4 digits) from `cargo rstyle patterns`.
     id: Option<String>,
     /// Keep hiding the candidate when more functions join it.
@@ -99,7 +223,7 @@ struct IgnoreArgs {
 }
 
 /// Flags that change what `patterns` mines; `ignore` takes them too so ids line up.
-#[derive(Args)]
+#[derive(Args, Default, PartialEq, serde::Serialize)]
 struct MineArgs {
     /// Evaluation oracle: ignore trait-impl links whose trait method id contains this text
     /// (repeatable; `*` hides all), so existing traits look like undiscovered abstractions.
@@ -128,10 +252,11 @@ struct MineArgs {
     max_holes: Option<usize>,
 }
 
-/// Facts directory names under `target/rstyle`. Dependence graphs are large, so only
-/// `patterns` asks the driver for them and they live apart from the style facts.
-const STYLE_FACTS: &str = "facts";
-const SEMANTIC_FACTS: &str = "facts-sem";
+impl MineArgs {
+    fn is_default(&self) -> bool {
+        self == &Self::default()
+    }
+}
 
 /// Agent-facing usage doc, embedded so it always matches the binary.
 const SKILL: &str = include_str!("../SKILL.md");
@@ -142,55 +267,11 @@ enum Format {
     Json,
 }
 
-// rstyle-allow(side_effect_density): IO boundary: reads rstyle.toml
-fn load_config(explicit: Option<&Path>, root: &Path) -> Result<Config, String> {
-    let default = root.join("rstyle.toml");
-    let path = match explicit {
-        Some(path) => path,
-        None if default.exists() => &default,
-        None => return Ok(Config::default()),
-    };
-    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    Config::parse(&text).map_err(|e| format!("{}: {e}", path.display()))
-}
-
-/// Runs the driver over the selected crates and reads back their facts.
-fn gather(cli: &Cli, facts_dir: &str, pdg: bool) -> Result<(Vec<FnFacts>, PathBuf), String> {
-    let meta = workspace::load(cli.manifest_path.as_deref())?;
-
-    if let Some(name) = meta.unknown_packages(&cli.packages).first() {
-        return Err(format!("package `{name}` is not in this workspace"));
-    }
-    let out_dir = meta.target_directory.join("rstyle").join(facts_dir);
-    std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
-    let target_dir = meta.target_directory.join("rstyle").join("build");
-    let driver = run::driver_path()?;
-    let paths = run::Paths {
-        driver: &driver,
-        root: &meta.workspace_root,
-        target_dir: &target_dir,
-        out_dir: &out_dir,
-        pdg,
-    };
-    let selection = run::Selection {
-        packages: &cli.packages,
-        all_targets: cli.all_targets,
-        manifest: cli.manifest_path.as_deref(),
-    };
-    run::cargo_check(&paths, &selection)?;
-    let crates = meta.crate_names(&cli.packages);
-    let wanted = collect::Wanted {
-        crates: &crates,
-        all_targets: cli.all_targets,
-    };
-    let facts = collect::read_facts(&out_dir, &wanted)?;
-    Ok((facts, meta.workspace_root.clone()))
-}
-
-fn analyze(cli: &Cli) -> Result<report::Report, String> {
-    let (facts, root) = gather(cli, STYLE_FACTS, false)?;
-    let config = load_config(cli.config.as_deref(), &root)?;
-    rstyle_core::evaluate(facts, &config)
+fn config_path(explicit: Option<PathBuf>, root: &Path) -> Option<PathBuf> {
+    explicit.or_else(|| {
+        let default = root.join("rstyle.toml");
+        default.exists().then_some(default)
+    })
 }
 
 fn cluster_params(args: &MineArgs) -> cluster::Params {
@@ -213,110 +294,9 @@ fn mine_options(mine: &MineArgs) -> patterns_report::Options {
     }
 }
 
-/// Exit code 1: the run found something to act on (violations, or candidates under
-/// `--fail-on-candidates`).
-const FOUND: u8 = 1;
-
-fn patterns(cli: &Cli, args: &PatternsArgs) -> Result<(String, u8), String> {
-    let (facts, root) = gather(cli, SEMANTIC_FACTS, true)?;
-    let ledger = match args.no_ignore {
-        true => None,
-        false => Some(ignore::load(&ignore::ledger_path(
-            cli.ignore_file.as_deref(),
-            &root,
-        ))?),
-    };
-    let options = patterns_report::Options {
-        min_score_milli: (args.min_score.max(0.0) * 1000.0).round() as u32,
-        top: args.top,
-        ledger,
-        ..mine_options(&args.mine)
-    };
-    let report = patterns_report::run(&facts, &options);
-    let code = u8::from(args.fail_on_candidates && !report.candidates.is_empty()) * FOUND;
-    let output = match cli.format {
-        Format::Text => patterns_text(&report, args.show_ignored),
-        Format::Json => patterns_report::json(&report).map_err(|e| e.to_string())?,
-    };
-
-    Ok((output, code))
-}
-
-fn patterns_text(report: &patterns_report::PatternsReport, show_ignored: bool) -> String {
-    let listing =
-        (show_ignored && report.ignored_count > 0).then(|| patterns_report::show_ignored(report));
-
-    std::iter::once(patterns_report::text(report))
-        .chain(listing)
-        .collect::<Vec<_>>()
-        .join("\n\n")
-}
-
-/// What `ignore` works on: the ledger on disk and the current, unfiltered candidates.
-struct Session {
-    path: PathBuf,
-    ledger: ledger::Ledger,
-    candidates: Vec<rstyle_core::candidates::Candidate>,
-    facts: Vec<FnFacts>,
-}
-
-fn session(cli: &Cli, args: &IgnoreArgs) -> Result<Session, String> {
-    let (facts, root) = gather(cli, SEMANTIC_FACTS, true)?;
-    let path = ignore::ledger_path(cli.ignore_file.as_deref(), &root);
-    let ledger = ignore::load(&path)?;
-    let candidates = patterns_report::all_candidates(&facts, &mine_options(&args.mine));
-
-    Ok(Session {
-        path,
-        ledger,
-        candidates,
-        facts,
-    })
-}
-
-fn ignore_status(s: &Session, filter: Option<&str>) -> String {
-    let mut statuses = ledger::status::status(&s.ledger, &s.candidates, &s.facts);
+fn status_text(mut statuses: Vec<ledger::status::EntryStatus>, filter: Option<&str>) -> String {
     statuses.retain(|st| filter.is_none_or(|id| st.id.starts_with(id)));
-
     ledger::status::text(&statuses)
-}
-
-fn ignore_prune(s: Session, dry_run: bool) -> Result<String, String> {
-    let (ledger, report) = ignore::prune(s.ledger, &s.candidates, dry_run);
-    if !dry_run {
-        ignore::save(&s.path, &ledger)?;
-    }
-
-    Ok(report)
-}
-
-fn ignore_dismiss(s: Session, id: &str, opts: Opts) -> Result<String, String> {
-    let (ledger, message) = ignore::dismiss(s.ledger, &s.candidates, id, opts)?;
-    ignore::save(&s.path, &ledger)?;
-
-    Ok(message)
-}
-
-fn ignore_cmd(cli: &Cli, args: &IgnoreArgs) -> Result<String, String> {
-    let s = session(cli, args)?;
-    let opts = Opts {
-        allow_growth: args.allow_growth,
-        reason: args.reason.clone(),
-    };
-
-    match (&args.id, args.status, args.prune) {
-        (id, true, _) => Ok(ignore_status(&s, id.as_deref())),
-        (_, _, true) => ignore_prune(s, args.dry_run),
-        (Some(id), _, _) => ignore_dismiss(s, id, opts),
-        _ => Err("give a candidate id, --status or --prune".into()),
-    }
-}
-
-fn render(report: &report::Report, format: Format) -> Result<String, String> {
-    match format {
-        Format::Text => Ok(report::text(report)),
-        Format::Json => report::json(report).map_err(|e| e.to_string()),
-    }
 }
 
 // rstyle-allow(side_effect_density): process boundary: prints the output and sets the exit code
@@ -347,33 +327,28 @@ fn main() -> ExitCode {
             };
         }
     }
+
     // `cargo rstyle ...` invokes `cargo-rstyle rstyle ...`; drop that echo.
     let args = std::env::args()
         .enumerate()
         .filter(|(i, a)| !(*i == 1 && a == "rstyle"));
-    let cli = Cli::parse_from(args.map(|(_, a)| a));
+    let mut cli = Cli::parse_from(args.map(|(_, a)| a));
     if cli.skill {
         print!("{SKILL}");
         return ExitCode::SUCCESS;
     }
-    match &cli.command {
-        Some(Command::Clones(args)) => return exit_with(clones::run(&cli, args)),
-        Some(Command::Patterns(args)) => return exit_with(patterns(&cli, args)),
+    if let Err(error) = cli.validate_style_route() {
+        eprintln!("{error}");
+        return ExitCode::from(2);
+    }
+
+    match cli.command.take() {
+        Some(Command::Clones(args)) => return exit_with(clones::run(&cli, &args)),
+        Some(Command::Patterns(args)) => return exit_with(clones::patterns_route::run(cli, args)),
         Some(Command::Ignore(args)) => {
-            return exit_with(ignore_cmd(&cli, args).map(|output| (output, 0)));
+            return exit_with(clones::patterns_route::ignore(cli, args));
         }
         None => {}
     }
-    let result = analyze(&cli).and_then(|report| Ok((render(&report, cli.format)?, report)));
-
-    match result {
-        Ok((output, report)) => {
-            println!("{output}");
-            ExitCode::from(report.exit_code())
-        }
-        Err(message) => {
-            eprintln!("{message}");
-            ExitCode::from(2)
-        }
-    }
+    exit_with(clones::style_route::run(cli))
 }

@@ -1,7 +1,7 @@
 #![feature(rustc_private)]
 
 //! `RUSTC_WORKSPACE_WRAPPER` driver: runs rustc normally, and after analysis
-//! dumps per-function facts as JSON into `$RSTYLE_OUT_DIR`.
+//! publishes compiler observations into the explicitly selected unit destination.
 
 extern crate rustc_abi;
 extern crate rustc_ast;
@@ -32,30 +32,6 @@ use rustc_middle::ty::TyCtxt;
 use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 
-/// What the wrapped rustc invocation is compiling.
-struct Target {
-    crate_name: String,
-    kind: &'static str,
-}
-
-/// `None` for anything that is not a real crate compilation (probes, build scripts).
-fn target_of(args: &[String]) -> Option<Target> {
-    let is_probe = args.iter().any(|arg| arg.starts_with("--print"));
-    let crate_name = flag_value(args, "--crate-name")?.to_owned();
-
-    if is_probe || crate_name == "build_script_build" {
-        return None;
-    }
-    let kind = if args.iter().any(|arg| arg == "--test") {
-        "test"
-    } else if flag_value(args, "--crate-type") == Some("bin") {
-        "bin"
-    } else {
-        "lib"
-    };
-    Some(Target { crate_name, kind })
-}
-
 fn with_sysroot(mut args: Vec<String>) -> Vec<String> {
     if flag_value(&args, "--sysroot").is_none() {
         let output = Command::new(&args[0]).args(["--print", "sysroot"]).output();
@@ -65,29 +41,6 @@ fn with_sysroot(mut args: Vec<String>) -> Vec<String> {
         }
     }
     args
-}
-
-struct Extract {
-    out_file: PathBuf,
-    root: PathBuf,
-    /// Also record dependence graphs (`RSTYLE_PDG` set by `cargo rstyle patterns`).
-    pdg: bool,
-    complexity: driver_complexity::Functions,
-}
-
-impl Callbacks for Extract {
-    fn after_expansion<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
-        self.complexity = driver_complexity::collect(tcx);
-        Compilation::Continue
-    }
-
-    // rstyle-allow(side_effect_density): IO boundary: writes the facts file
-    fn after_analysis<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
-        let facts = extract::crate_facts(tcx, &self.root, self.pdg, &self.complexity);
-        let json = serde_json::to_string_pretty(&facts).expect("facts serialize");
-        std::fs::write(&self.out_file, json).expect("write facts file");
-        Compilation::Continue
-    }
 }
 
 fn main() -> ExitCode {
@@ -103,18 +56,7 @@ fn main() -> ExitCode {
 fn run(invocation: driver_options::Invocation) -> ExitCode {
     // The private driver selection has been consumed; rustc receives its path
     // followed by only its own compiler arguments.
-    let args = invocation.arguments;
-    let out_dir = std::env::var_os("RSTYLE_OUT_DIR").map(PathBuf::from);
-    let args = with_sysroot(args);
-    let extract = out_dir.zip(target_of(&args)).map(|(dir, target)| Extract {
-        out_file: dir.join(format!("{}-{}.json", target.crate_name, target.kind)),
-        root: std::env::var_os("RSTYLE_ROOT")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| std::env::current_dir().expect("cwd")),
-        pdg: std::env::var_os("RSTYLE_PDG").is_some(),
-        complexity: Default::default(),
-    });
-
+    let args = with_sysroot(invocation.arguments);
     let document_dir = std::env::var_os("RSTYLE_HIR_DOCUMENT_DIR").map(PathBuf::from);
     let facts_path = std::env::var_os("RSTYLE_HIR_FACTS_FILE")
         .map(PathBuf::from)
@@ -128,12 +70,13 @@ fn run(invocation: driver_options::Invocation) -> ExitCode {
         invocation: args.clone(),
         profile: invocation.profile,
         unit_context: invocation.unit_context,
+        source_root: std::env::var_os(rstyle_core::advisory::SOURCE_ROOT_ENV).map(PathBuf::from),
+        complexity: Default::default(),
     });
 
-    rustc_driver::catch_with_exit_code(|| match (r0, extract) {
-        (Some(mut callbacks), _) => rustc_driver::run_compiler(&args, &mut callbacks),
-        (None, Some(mut callbacks)) => rustc_driver::run_compiler(&args, &mut callbacks),
-        (None, None) => rustc_driver::run_compiler(&args, &mut NoOp),
+    rustc_driver::catch_with_exit_code(|| match r0 {
+        Some(mut callbacks) => rustc_driver::run_compiler(&args, &mut callbacks),
+        None => rustc_driver::run_compiler(&args, &mut NoOp),
     })
 }
 
@@ -146,9 +89,18 @@ struct HirExtract {
     invocation: Vec<String>,
     profile: Option<rstyle_pdg::extraction_profile::ExtractionProfile>,
     unit_context: Option<rstyle_pdg::nominal_boundary::UnitContext>,
+    source_root: Option<PathBuf>,
+    complexity: driver_complexity::Functions,
 }
 
 impl Callbacks for HirExtract {
+    fn after_expansion<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
+        if rstyle_pdg::diagnostics::switch(rstyle_core::advisory::CAPTURE_ENV) {
+            self.complexity = driver_complexity::collect(tcx);
+        }
+        Compilation::Continue
+    }
+
     fn after_crate_root_parsing(
         &mut self,
         _: &Compiler,
@@ -160,6 +112,8 @@ impl Callbacks for HirExtract {
 
     fn after_analysis<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
         let options = hir_extraction::Options {
+            source_root: self.source_root.as_deref(),
+            complexity: &self.complexity,
             sources: Default::default(),
             profile: self.profile,
             invocation: &self.invocation,
@@ -196,8 +150,34 @@ impl HirExtract {
         );
     }
 
+    fn capture_advisory(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
+        if rstyle_pdg::diagnostics::switch("RSTYLE_STYLE_INPUTS_ONLY") {
+            self.capture_style(tcx, options);
+            return;
+        }
+        let facts = hir_extraction::advisory_crate_facts(tcx, &self.scanned, options)
+            .expect("capture compiler advisory facts");
+        let inventory = self.inventory(tcx, options, &facts);
+        self.output
+            .write_advisory_capture(&facts, inventory.as_ref())
+            .expect("write compiler advisory facts");
+    }
+
+    fn capture_style(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
+        let facts = hir_extraction::style_crate_facts(tcx, &self.scanned, options)
+            .expect("capture compiler style inputs");
+        let inventory = self.inventory(tcx, options, &facts);
+        self.output
+            .write_style_capture(&facts, inventory.as_ref())
+            .expect("write compiler style inputs");
+    }
+
     fn capture_complete(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
-        rstyle_pdg::verification_policy::generated(|| self.capture_generated(tcx, options));
+        if rstyle_pdg::diagnostics::switch("RSTYLE_COMPILER_ADVISORY_ONLY") {
+            self.capture_advisory(tcx, options);
+        } else {
+            rstyle_pdg::verification_policy::generated(|| self.capture_generated(tcx, options));
+        }
     }
 
     fn capture_generated(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
@@ -222,11 +202,11 @@ impl HirExtract {
             .expect("write captured evidence");
     }
 
-    fn inventory(
+    fn inventory<B, S>(
         &self,
         tcx: TyCtxt<'_>,
         options: &hir_extraction::Options<'_>,
-        facts: &[rstyle_pdg::HirFnFacts],
+        facts: &[rstyle_pdg::HirFnFacts<B, S>],
     ) -> Option<serde_json::Value> {
         options
             .selected()

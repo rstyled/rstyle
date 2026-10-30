@@ -1,6 +1,7 @@
 //! Owning reference-instance observations, never an admission or lifetime proof.
 mod association;
 use super::super::{Options, function_source, hir::Context, source};
+use super::diagnostic_support::ArgumentsProjection;
 use super::{
     borrowed_operations, definition_record, diagnostic_support, reference_owners,
     types::{self, endpoint},
@@ -90,18 +91,17 @@ struct Call {
     selected_arguments: types::Arguments,
 }
 
+// rstyle-allow(side_effect_density): Diagnostic capture boundary loads explicit requests and publishes original reference-instance observations.
 pub(crate) fn capture(
     tcx: TyCtxt<'_>,
     scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<(), String> {
-    let Some(path) = std::env::var_os("RSTYLE_DIAGNOSTIC_REFERENCE_INSTANCE_REQUESTS") else {
+    let Some(requests): Option<Requests> =
+        diagnostic_support::optional_requests("RSTYLE_DIAGNOSTIC_REFERENCE_INSTANCE_REQUESTS")?
+    else {
         return Ok(());
     };
-
-    let requests: Requests =
-        serde_json::from_reader(std::fs::File::open(path).map_err(|error| error.to_string())?)
-            .map_err(|error| error.to_string())?;
     validate(&requests, tcx, options)?;
 
     let owners = diagnostic_support::owners(tcx, &[DefKind::Fn, DefKind::AssocFn]);

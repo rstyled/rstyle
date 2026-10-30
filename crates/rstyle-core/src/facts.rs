@@ -32,9 +32,20 @@ impl EffectKind {
     }
 }
 
+/// Source budgets exclude lowered iterator bindings, while effects retain them.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MutationOrigin {
+    #[default]
+    Source,
+    ForDesugaring,
+}
+
 /// A write to, or `&mut` borrow of, a place rooted at a local, param or `self`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MutationEvent {
+    #[serde(default)]
+    pub origin: MutationOrigin,
     pub root: String,
     /// Dotted field projections below `root` (empty when the root itself is mutated).
     pub field_path: String,

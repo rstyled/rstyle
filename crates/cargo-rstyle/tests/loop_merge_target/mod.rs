@@ -18,7 +18,7 @@ fn loop_merge_target_preserves_connected_classifications() {
     let directory = clone_workspace();
     let source = format!(
         "{}\n{}",
-        include_str!("../../../../eval/coverage-development/loop-merges.rs"),
+        include_str!("../../../../tests/fixtures/function-families/loop-merges.rs"),
         natural_gcd()
     );
     std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
@@ -63,9 +63,9 @@ fn loop_merge_target_has_independent_runtime_expectations() {
     let directory = tempfile::tempdir().unwrap();
     let source = format!(
         "{}\n{}\n{}",
-        include_str!("../../../../eval/coverage-development/loop-merges.rs"),
+        include_str!("../../../../tests/fixtures/function-families/loop-merges.rs"),
         natural_gcd(),
-        include_str!("../../../../eval/coverage-development/loop-merge-oracle.rs")
+        include_str!("../../../../tests/fixtures/function-families/loop-merge-oracle.rs")
             .lines()
             .filter(|line| !line.starts_with("//!"))
             .collect::<Vec<_>>()

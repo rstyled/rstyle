@@ -1,0 +1,108 @@
+{
+  "schema": "rstyle.compiler-guard-closure-cases/1",
+  "source_commit": "351c3a278993ce5c3acca3b03a8080c95b7d6128",
+  "toolchain": "nightly-2026-09-30",
+  "label_basis": "Frozen from authored production Rust source before any new detector or report observation. Byte spans are independently located exact source strings, relative to each full function source, with end exclusive. No metrics, detector, parser, or report were executed to label these cases.",
+  "scope": "Three original rstyle-pdg library check owners, test=false. Local closure opportunities are advisory witnesses only; enclosing roots remain unsupported/incomplete. No whole-package clean claim.",
+  "samples": [
+    {
+      "package": "rstyle-pdg",
+      "target_name": "rstyle_pdg",
+      "target_kind": "lib",
+      "test": false,
+      "function": "verification_session::within",
+      "source_file": "crates/rstyle-pdg/src/verification_session.rs",
+      "source_line": 30,
+      "source_column": 1,
+      "attributes": [],
+      "unsuppressed": true,
+      "source": "pub(crate) fn within<T>(operation: impl FnOnce() -> T) -> T {\n    let root = ACTIVE.with_borrow_mut(|active| {\n        if active.is_some() {\n            false\n        } else {\n            *active = Some(Session::default());\n            true\n        }\n    });\n    let _root = Root(root);\n\n    operation()\n}",
+      "role": "closure_local_positive",
+      "expected": {
+        "local_guard_findings": 1,
+        "fallback_branch": "then",
+        "continuing_statements": 2,
+        "root_complete": false,
+        "root_available": false
+      },
+      "witness": {
+        "closure_source": "|active| {\n        if active.is_some() {\n            false\n        } else {\n            *active = Some(Session::default());\n            true\n        }\n    }",
+        "closure_span": {
+          "start": 100,
+          "end": 256
+        },
+        "guard_source": "if active.is_some() {\n            false\n        } else {\n            *active = Some(Session::default());\n            true\n        }",
+        "guard_span": {
+          "start": 119,
+          "end": 250
+        },
+        "then_source": "{\n            false\n        }",
+        "then_span": {
+          "start": 139,
+          "end": 168
+        },
+        "else_source": "{\n            *active = Some(Session::default());\n            true\n        }",
+        "else_span": {
+          "start": 174,
+          "end": 250
+        }
+      },
+      "manual_rationale": [
+        "The sole synchronous closure has one final if/else. Its then branch is exactly literal false. Its else branch initializes ACTIVE through the borrowed active slot and yields true; it contains two statements.",
+        "An existing session means this invocation does not own session cleanup; creating a session means it does. A closure-local early false return could lift the initialization out of else.",
+        "The enclosing function contains a closure and remains outside the complete root guard contract. One local witnessed opportunity does not establish a complete inventory."
+      ],
+      "caveats": [
+        "An early return must return from this closure, never from verification_session::within.",
+        "Preserve creation of Root(root) after the borrow ends; it restores the session on normal completion or unwind.",
+        "Review the RefCell borrow lifetime, drop order, and condition inversion before editing. No rewrite is authorized."
+      ]
+    },
+    {
+      "package": "rstyle-pdg",
+      "target_name": "rstyle_pdg",
+      "target_kind": "lib",
+      "test": false,
+      "function": "verification_session::contains",
+      "source_file": "crates/rstyle-pdg/src/verification_session.rs",
+      "source_line": 44,
+      "source_column": 1,
+      "attributes": [],
+      "unsuppressed": true,
+      "source": "pub(crate) fn contains(resolution: &str) -> bool {\n    ACTIVE.with_borrow(|active| {\n        active.as_ref().is_some_and(|session| {\n            session\n                .proofs\n                .get(&crate::verification_policy::is_generated())\n                .is_some_and(|proofs| proofs.contains(resolution))\n        })\n    })\n}",
+      "role": "closure_negative_no_tail_if",
+      "expected": {
+        "local_guard_findings": 0,
+        "root_complete": false,
+        "root_available": false
+      },
+      "manual_rationale": [
+        "The outer active closure and nested session closure are block-bodied but end with method-call chains, not if/else. The innermost proofs closure is expression-bodied. None supplies the guard shape.",
+        "Closures still prevent complete root guard assessment; zero witnessed local findings must not establish complete absence."
+      ]
+    },
+    {
+      "package": "rstyle-pdg",
+      "target_name": "rstyle_pdg",
+      "target_kind": "lib",
+      "test": false,
+      "function": "verification_session::remember",
+      "source_file": "crates/rstyle-pdg/src/verification_session.rs",
+      "source_line": 55,
+      "source_column": 1,
+      "attributes": [],
+      "unsuppressed": true,
+      "source": "pub(crate) fn remember(resolution: &str) {\n    ACTIVE.with_borrow_mut(|active| {\n        let Some(session) = active else { return };\n        if resolution.len() > MAX_RETAINED_BYTES - session.retained_bytes {\n            return;\n        }\n        let proofs = session\n            .proofs\n            .entry(crate::verification_policy::is_generated())\n            .or_default();\n        if proofs.insert(resolution.to_owned()) {\n            session.retained_bytes += resolution.len();\n        }\n    });\n}",
+      "role": "closure_negative_already_guarded",
+      "expected": {
+        "local_guard_findings": 0,
+        "root_complete": false,
+        "root_available": false
+      },
+      "manual_rationale": [
+        "The active closure already has a let-else early return and a separate budget-check early return. Its final if has no else and no expression tail. It is already flat for the intended opportunity.",
+        "The let-else and returns remain outside the local candidate contract. No eligible tail if/else exists, and root assessment remains incomplete."
+      ]
+    }
+  ]
+}

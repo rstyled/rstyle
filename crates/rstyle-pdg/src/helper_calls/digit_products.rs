@@ -18,6 +18,7 @@ pub(crate) fn candidate(facts: &dyn EvidenceFacts) -> bool {
         && matches!(facts.body.children.as_slice(), [matched] if matched.kind == "expr_match")
 }
 
+// rstyle-allow(side_effect_density): Certification computation has no external IO; its inherited IO and clock events are optional stage telemetry.
 pub(super) fn certify(
     facts: &dyn EvidenceFacts,
 ) -> Result<Option<(Summary, producer::Pair)>, String> {

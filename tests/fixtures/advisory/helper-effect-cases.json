@@ -1,0 +1,400 @@
+{
+  "schema": "rstyle.clones-capability.helper-effect-acceptance/1",
+  "status": "frozen-independent-requirements",
+  "purpose": "Independent caller-visible scalar mutation effects and bounded original local scalar summaries; no purity, total effects, extraction or rewrite-safety permission.",
+  "initial_scope": {
+    "callee": "Original same-selected-unit nongeneric free function leaf or one wrapper whose calls all resolve to complete call-free leaves; complete original signature and body; owned u32 inputs, optionally direct &mut u32 formals, u32/unit result; scalar local mutation, primitive expressions, bounded checked calls and the declared bounded control-site extension only. No deeper calls, closures, aliases, drop-bearing values, unsafe or expansion.",
+    "caller": "Exact direct call to checked leaf or one wrapper (at most two call edges), exact source/native argument roster; initial arguments limited to checked direct owned-u32 binding/literal reads or direct mutable formal forwarding. Opaque arguments remain unavailable.",
+    "effect_axis": [
+      "none_proven",
+      "writes_formal",
+      "witnessed_writes_formal_with_unknown_remainder",
+      "unknown"
+    ],
+    "no_claims": [
+      "purity",
+      "panic freedom",
+      "termination",
+      "runtime write count",
+      "complete external effects",
+      "density",
+      "safe extraction",
+      "safe rewrite",
+      "arbitrary transitive closure"
+    ],
+    "metrics": "Direct assignment sites remain original caller sites. Summarized call observations count distinct original call occurrences. Callee assignment witnesses remain owned by the callee, and mapped caller-root effect sets deduplicate only exact caller bindings."
+  },
+  "evidence_contract": {
+    "ownership": "Validate existing immutable source checksums, exact original function/file ranges, complete signature, native node/child roster, binding targets and selected-unit context before using a summary. Corrupt consumed evidence fails; missing evidence stays unknown.",
+    "callee_join": "Native resolved_direct_callee.local=true plus exact definition_identity within the original owning UnitStore/selected-unit context. Paths are navigation only; standalone missing-member lookup is unknown.",
+    "source_and_types": "No source-spelling or observed-type authority. Source/native correspondence and normalized types/builtin dispatch establish the bounded vocabulary.",
+    "borrowing": "Borrow original functions/native nodes and retain scoped summary indices; reuse each completed immutable leaf summary within the analysis. No graph/source snapshot clone, serialized authority, new SHA or global cache.",
+    "call_arguments": "A good leaf summary never erases omitted argument evaluation. Every argument must have exact source/native position/type/root correspondence or explicit unknown availability.",
+    "budgets": "Bound owner population, syntax/native inventory, call events and summary retention. Exhausted/omitted owners or events remain unknown; no partial whole-function clean conclusion."
+  },
+  "cases": [
+    {
+      "id": "owned-scalar-leaf-local-writes",
+      "source": "fn adjust(mut value:u32)->u32 { value=1; value=2; value } pub fn caller(value:u32)->u32 { adjust(value) }",
+      "expected": {
+        "leaf": {
+          "direct_assignment_sites": 2,
+          "caller_visible_mutation": "none_proven"
+        },
+        "caller": {
+          "direct_assignment_sites": 0,
+          "summarized_call_events": 1,
+          "caller_visible_mutation": "none_proven",
+          "effect_coverage": "complete"
+        }
+      },
+      "reason": "Owned scalar formal rebinding remains local to the leaf; no mutable-reference input, escaping ownership, calls or nontrivial Drop exists in the complete leaf signature/body."
+    },
+    {
+      "id": "direct-borrowed-leaf-effect",
+      "source": "fn set(target:&mut u32) { *target=1; } pub fn caller(target:&mut u32) { set(target); }",
+      "expected": {
+        "leaf": {
+          "direct_assignment_sites": 1,
+          "caller_visible_mutation": "writes_formal",
+          "formal": 0
+        },
+        "caller": {
+          "direct_assignment_sites": 0,
+          "summarized_call_events": 1,
+          "caller_visible_mutation": "writes_formal",
+          "formal": 0,
+          "effect_coverage": "complete"
+        },
+        "witness": [
+          "original caller call span",
+          "original native resolved callee definition and selected-unit context",
+          "exact ordered argument/formal mapping",
+          "caller native root declaration and lexical scope",
+          "original callee assignment site and formal root"
+        ]
+      },
+      "reason": "Forwarding a direct mutable formal through one resolved local leaf call exposes a real caller-visible mutation without adding the leaf assignment to the caller direct-site metric."
+    },
+    {
+      "id": "same-helper-twice",
+      "source": "fn set(target:&mut u32) { *target=1; } pub fn caller(target:&mut u32) { set(target); set(target); }",
+      "expected": {
+        "caller": {
+          "direct_assignment_sites": 0,
+          "summarized_call_events": 2,
+          "caller_visible_mutation": "writes_formal",
+          "formal": 0,
+          "mutated_caller_roots": 1
+        },
+        "distinct_original_call_spans": 2,
+        "retained_leaf_summary_instances": 1
+      },
+      "reason": "One immutable leaf summary may be reused, but each original call occurrence remains a distinct effect observation; root-level mutation deduplicates only the same exact caller binding."
+    },
+    {
+      "id": "leaf-multiple-writes-one-call",
+      "source": "fn set(target:&mut u32) { *target=1; *target=2; *target=3; } pub fn caller(target:&mut u32) { set(target); }",
+      "expected": {
+        "caller": {
+          "direct_assignment_sites": 0,
+          "summarized_call_events": 1,
+          "mutated_caller_roots": 1
+        },
+        "leaf": {
+          "direct_assignment_sites": 3
+        },
+        "dynamic_write_frequency": "not_claimed"
+      },
+      "reason": "Do not replace direct source-site counts with inlined callee site counts or runtime execution estimates."
+    },
+    {
+      "id": "ordered-formal-mapping",
+      "source": "fn set(value:u32,target:&mut u32) { *target=value; } pub fn caller(target:&mut u32,value:u32) { set(value,target); }",
+      "expected": {
+        "leaf_written_formal": 1,
+        "caller_written_formal": 0,
+        "effect_coverage": "complete"
+      },
+      "reason": "Actual argument position, native root and formal ordinal establish mapping; the same display name in caller/callee grants no mapping authority."
+    },
+    {
+      "id": "distinct-caller-roots",
+      "source": "fn set(target:&mut u32) { *target=1; } pub fn caller(left:&mut u32,right:&mut u32) { set(left); set(right); }",
+      "expected": {
+        "caller": {
+          "direct_assignment_sites": 0,
+          "summarized_call_events": 2,
+          "mutated_caller_roots": 2,
+          "written_formals": [
+            0,
+            1
+          ]
+        }
+      },
+      "reason": "Root identity remains owner-scoped native declaration plus lexical scope; two formals never collapse because both helper calls use formal zero."
+    },
+    {
+      "id": "same-name-different-definitions",
+      "source": "mod a { pub fn work(mut value:u32)->u32 { value=1; value } } mod b { pub fn work(target:&mut u32) { *target=1; } } pub fn caller(target:&mut u32) { b::work(target); }",
+      "expected": {
+        "selected_leaf": "b::work",
+        "caller_visible_mutation": "writes_formal",
+        "formal": 0
+      },
+      "reason": "Lookup uses compiler definition identity in exact selected unit, never the final name segment or source spelling."
+    },
+    {
+      "id": "external-call-unknown",
+      "source": "pub fn caller(value:u32) { std::hint::black_box(value); }",
+      "expected": {
+        "effect_coverage": "incomplete",
+        "caller_visible_mutation": "unknown",
+        "boundary": "external_call"
+      },
+      "reason": "The initial summary registry contains original same-unit leaves only; no effect conclusion from library-looking names or scalar signatures."
+    },
+    {
+      "id": "function-pointer-unknown",
+      "source": "pub fn caller(target:&mut u32,callback:fn(&mut u32)) { callback(target); }",
+      "expected": {
+        "effect_coverage": "incomplete",
+        "caller_visible_mutation": "unknown",
+        "boundary": "indirect_call"
+      },
+      "reason": "A function pointer has no unique original same-unit definition summary."
+    },
+    {
+      "id": "drop-signature-unknown-even-unused",
+      "source": "fn consume(value:String) {} pub fn caller(value:String) { consume(value); }",
+      "expected": {
+        "effect_coverage": "incomplete",
+        "caller_visible_mutation": "unknown",
+        "boundary": "nontrivial_drop"
+      },
+      "reason": "Unused owned inputs can run Drop. A zero explicit assignment inventory does not establish no caller-visible mutation or general effects."
+    },
+    {
+      "id": "mutable-reborrow-alias-unknown",
+      "source": "fn set(target:&mut u32) { *target=1; } pub fn caller(target:&mut u32) { let alias=&mut *target; set(alias); }",
+      "expected": {
+        "effect_coverage": "incomplete",
+        "caller_visible_mutation": "unknown",
+        "boundary": "alias_or_reborrow"
+      },
+      "reason": "Do not map aliases using spelling, inferred equality or old root provenance."
+    },
+    {
+      "id": "reference-redirection-unknown",
+      "source": "fn set(target:&mut u32) { *target=1; } pub fn caller<'a>(mut target:&'a mut u32,other:&'a mut u32) { target=other; set(target); }",
+      "expected": {
+        "effect_coverage": "incomplete",
+        "caller_visible_mutation": "unknown",
+        "boundary": "reference_reassignment",
+        "original_target_effect": "not_proven"
+      },
+      "reason": "A reassigned mutable reference cannot retain stale original-formal provenance."
+    },
+    {
+      "id": "argument-evaluation-not-hidden",
+      "source": "fn read(value:u32)->u32 { value } pub fn caller(target:&mut u32,callback:fn()->u32)->u32 { read({ *target=1; callback() }) }",
+      "expected": {
+        "effect_coverage": "incomplete",
+        "caller_visible_mutation": "unknown",
+        "boundary": "unsupported_or_unknown_argument",
+        "known_leaf_does_not_clear_argument_boundary": true
+      },
+      "reason": "The source/native call argument roster must be checked and arguments evaluated independently. Initial simple-argument support may reject the whole argument but cannot report the call clean."
+    },
+    {
+      "id": "unused-callback-formal-outside-signature-vocabulary",
+      "source": "fn read(value:u32,callback:fn()->u32)->u32 { value } pub fn caller(value:u32,callback:fn()->u32)->u32 { read(value,callback) }",
+      "expected": {
+        "effect_coverage": "incomplete",
+        "caller_visible_mutation": "unknown",
+        "boundary": "unsupported_complete_signature"
+      },
+      "reason": "Initial complete leaf signatures allow owned u32, direct mutable u32 formal and scalar/unit results only; do not ignore unsupported unused formals."
+    },
+    {
+      "id": "closure-and-unsafe-not-leaves",
+      "source": "pub fn deferred(target:&mut u32) { let _callback=|| { *target=1; }; } pub fn raw(target:*mut u32) { unsafe { *target=1; } }",
+      "expected": {
+        "effect_coverage": "incomplete",
+        "caller_visible_mutation": "unknown",
+        "boundaries": [
+          "closure_capture_or_body",
+          "raw_pointer_or_unsafe"
+        ]
+      },
+      "reason": "Deferred bodies, captures and raw-pointer effects require separate contracts; source resemblance does not qualify a scalar leaf."
+    },
+    {
+      "id": "recursive-cycle-not-leaf",
+      "source": "fn recurse(value:u32)->u32 { recurse(value) } pub fn caller(value:u32)->u32 { recurse(value) }",
+      "expected": {
+        "effect_coverage": "incomplete",
+        "caller_visible_mutation": "unknown",
+        "boundary": "nonleaf_or_recursive_call"
+      },
+      "reason": "Initial leaf summaries exclude every callee call, including recursion; no assumed empty fixed point or panic/termination claim."
+    },
+    {
+      "id": "nested-helper-not-yet-leaf",
+      "source": "fn leaf(value:u32)->u32 { value+1 } fn middle(value:u32)->u32 { leaf(value) } pub fn caller(value:u32)->u32 { middle(value) }",
+      "expected": {
+        "middle": "complete_bounded_wrapper",
+        "caller_effect_coverage": "complete",
+        "caller_visible_mutation": "none_proven",
+        "summarized_call_events": 1
+      },
+      "reason": "C11d explicitly extends the prior depth-one negative to a complete two-edge owned-scalar chain. Empty complete leaf and wrapper summaries prove only absence of bounded caller-visible writes; arbitrary transitive closure remains excluded."
+    },
+    {
+      "id": "third-helper-edge-outside-summary-depth",
+      "source": "fn leaf(value:u32)->u32 { value+1 } fn middle(value:u32)->u32 { leaf(value) } fn outer(value:u32)->u32 { middle(value) } pub fn caller(value:u32)->u32 { outer(value) }",
+      "expected": {
+        "caller_effect_coverage": "incomplete",
+        "caller_visible_mutation": "unknown",
+        "boundary": "summary_depth_exceeded"
+      },
+      "reason": "A third original helper edge exceeds the declared two-edge contract, even when the body is pure-looking owned-scalar arithmetic. No empty summary or arbitrary closure is assumed."
+    },
+    {
+      "id": "witness-survives-unknown-remainder",
+      "source": "fn set(target:&mut u32) { *target=1; } pub fn caller(target:&mut u32,callback:fn()) { set(target); callback(); }",
+      "expected": {
+        "caller_visible_mutation": "witnessed_writes_formal_with_unknown_remainder",
+        "formal": 0,
+        "effect_coverage": "incomplete",
+        "summarized_call_events": 1,
+        "unknown_call_events": 1,
+        "whole_function_clean_conclusion": false
+      },
+      "reason": "A concrete known mutation witness survives unknown remainder, but does not establish a complete set of effects or roots."
+    },
+    {
+      "id": "missing-callee-owner",
+      "source": "fn leaf(value:u32)->u32 { value+1 } pub fn caller(value:u32)->u32 { leaf(value) }",
+      "expected": {
+        "after_omitting_leaf_original_owner": {
+          "effect_coverage": "incomplete",
+          "caller_visible_mutation": "unknown",
+          "boundary": "missing_original_callee"
+        }
+      },
+      "reason": "A resolved definition ID with no retained original same-unit callee source cannot supply a summary."
+    },
+    {
+      "id": "missing-signature-or-native-call",
+      "source": "fn leaf(value:u32)->u32 { value+1 } pub fn caller(value:u32)->u32 { leaf(value) }",
+      "expected": {
+        "missing_evidence_variants": [
+          "normalized formal/result type",
+          "native call dispatch",
+          "resolved direct callee record",
+          "ordered native argument child",
+          "binding-resolution target"
+        ],
+        "effect_coverage": "incomplete",
+        "caller_visible_mutation": "unknown"
+      },
+      "reason": "Missing evidence is unavailable; a contradictory consumed roster/span/target is corruption and fails instead."
+    },
+    {
+      "id": "nominal-u32-deref-coercion-not-primitive-formal",
+      "source": "#[allow(non_camel_case_types)] pub struct u32(core::primitive::u32); impl core::ops::Deref for u32 { type Target=core::primitive::u32; fn deref(&self)->&Self::Target { &self.0 } } impl core::ops::DerefMut for u32 { fn deref_mut(&mut self)->&mut Self::Target { &mut self.0 } } fn set(target:&mut core::primitive::u32) { *target=1; } pub fn caller(target:&mut u32) { set(target); }",
+      "expected": {
+        "caller_visible_mutation": "unknown",
+        "effect_coverage": "incomplete",
+        "caller_mutable_u32_type_observation": false,
+        "set_mutable_u32_type_observation": true
+      },
+      "reason": "A nominal namesake and DerefMut coercion do not establish a direct primitive mutable formal. Structural compiler observations distinguish the caller from the builtin callee."
+    },
+    {
+      "id": "shared-u32-not-mutable-formal",
+      "source": "fn read(target:&u32) {} pub fn caller(target:&u32) { read(target); }",
+      "expected": {
+        "caller_visible_mutation": "unknown",
+        "effect_coverage": "incomplete",
+        "caller_mutable_u32_type_observation": false
+      },
+      "reason": "A shared primitive reference has no mutable formal authority and remains outside the initial complete leaf signature vocabulary."
+    }
+  ],
+  "replay_and_adversarial_cases": [
+    {
+      "id": "replay-without-tools-and-tree",
+      "change": "Capture supported owned and borrowed leaf calls, delete original source/manifest and disable PATH/CARGO/RSTYLE_DRIVER.",
+      "expected": "Strict retained replay yields identical event spans, mapped roots, leaf summaries and effect availability; no subprocess or current tree reread."
+    },
+    {
+      "id": "wrong-selected-context",
+      "change": "Point a caller definition identity at an otherwise matching callee from another package/unit/profile/lib-test context.",
+      "expected": "No cross-context summary reuse; contradictory consumed association fails. Missing exact selected-unit owner remains unknown."
+    },
+    {
+      "id": "resealed-native-argument-target",
+      "change": "Change/reorder a native argument child, binding target, call span or formal ordinal and refresh only transport checksums.",
+      "expected": "Exact independent source/native/root/roster checks reject inconsistent evidence; no usable mapped mutation fact."
+    },
+    {
+      "id": "resealed-leaf-source",
+      "change": "Change leaf assignment or signature source while updating transport checksum and source checksum but leaving original census association.",
+      "expected": "Original owner/file-range checks fail before summary evaluation; no serialized no-mutation claim accepted."
+    },
+    {
+      "id": "budget-omitted-callee-or-call",
+      "change": "Exhaust function/native/source/call-event budget before all required leaf or caller evidence is checked.",
+      "expected": "Explicit budget execution and incomplete coverage; previously witnessed effects may remain, but absent summaries never imply clean effects."
+    },
+    {
+      "id": "analysis-local-summary-reuse",
+      "change": "Repeat one exact leaf call at two source occurrences; repeat analysis under a separately selected context.",
+      "expected": "One completed leaf summary per owning analysis/context, two caller observations preserved; separate contexts receive separate evidence and outcomes."
+    }
+  ],
+  "validation_gate": [
+    "Real Cargo captured positive owned and borrowed leaf cases independent of strict admission.",
+    "Source/native argument and root adversarial checks, not count-only snapshots.",
+    "Call occurrences remain distinct with immutable leaf summary reuse.",
+    "Unknown external/indirect/drop/alias/unsupported-control/cycle boundaries cannot produce a whole-function clean effect conclusion.",
+    "Strict retained replay without tools/tree.",
+    "No legacy effects/density retirement or full C11 completion claim."
+  ],
+  "bounded_controls": {
+    "scope": "Ordinary unexpanded if/else, unlabelled loop, primitive bool while, primitive half-open u32 for with immutable/wildcard binders. Existing source/native condition/head/binder/body/transfer joins and bounded scalar signatures remain required.",
+    "sites": "Each authored call/write site counted once, including mutually exclusive arms, zero/false loops and source after plain transfers. No runtime frequency or termination conclusion.",
+    "independent_expectations": [
+      {
+        "id": "branch-and-loop-leaf",
+        "source": "fn leaf(target:&mut u32,value:u32){if value==0 {*target=1;} else {*target=2;} while value<0 {*target=3;} loop {*target=4;break;} for index in 0u32..0u32 {*target=index;}}",
+        "direct_sites": 5,
+        "formal_roots": 1
+      },
+      {
+        "id": "conditional-wrapper",
+        "source": "fn wrapper(target:&mut u32,value:u32){if value==0 {leaf(target,value);} else {leaf(target,value);}}",
+        "call_occurrences": 2,
+        "shared_leaf_summaries": 1,
+        "mapped_site_occurrences": 10
+      },
+      {
+        "id": "shadowed-owned-local",
+        "source": "pub fn caller(target:&mut u32){{let mut target=0u32;target=2;} *target=3;}",
+        "direct_sites": 2,
+        "caller_visible_roots": 1,
+        "reason": "A shadow-local assignment does not redirect the unrelated mutable formal."
+      }
+    ],
+    "boundaries": "Conditional operand calls, pattern conditions, labels, value breaks, inclusive ranges, custom iterators, mutable range binders, aliases, reference redirection and opaque work remain incomplete. Formal-use and ordinary call-roster behavior do not gain effect permission.",
+    "gates": [
+      "two-edge composition and third-edge rejection",
+      "missing/resealed native control correspondence",
+      "lexical root and shadow scopes",
+      "source/tool-free strict full/compact replay",
+      "work budgets retain unknown outcomes"
+    ]
+  }
+}

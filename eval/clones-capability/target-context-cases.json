@@ -1,0 +1,57 @@
+{
+  "schema": "rstyle.compiler-quality-cases/1",
+  "run": "run-2ntpNc",
+  "toolchain": "nightly-2026-09-30",
+  "metrics": "rstyle.compiler-style-metrics/6",
+  "limits": {
+    "fn_params": 4
+  },
+  "samples": [
+    {
+      "package": "target-context-corpus",
+      "target_kind": "bin",
+      "target_name": "first",
+      "test": false,
+      "function": "shared::five",
+      "source_file": "src/shared.rs",
+      "source": "pub fn five(a: u128, b: u128, c: u128, d: u128, e: u128) -> u128 {\n    a + b + c + d + e\n}",
+      "parameters": 5,
+      "unsuppressed": true
+    },
+    {
+      "package": "target-context-corpus",
+      "target_kind": "bin",
+      "target_name": "first",
+      "test": false,
+      "function": "main",
+      "source_file": "src/first.rs",
+      "source": "fn main() {\n    let _ = shared::five(1, 2, 3, 4, 5);\n}",
+      "parameters": 0,
+      "unsuppressed": true
+    },
+    {
+      "package": "target-context-corpus",
+      "target_kind": "bin",
+      "target_name": "second",
+      "test": false,
+      "function": "shared::five",
+      "source_file": "src/shared.rs",
+      "source": "pub fn five(a: u128, b: u128, c: u128, d: u128, e: u128) -> u128 {\n    a + b + c + d + e\n}",
+      "parameters": 5,
+      "unsuppressed": true
+    },
+    {
+      "package": "target-context-corpus",
+      "target_kind": "bin",
+      "target_name": "second",
+      "test": false,
+      "function": "main",
+      "source_file": "src/second.rs",
+      "source": "fn main() {\n    let _ = shared::five(1, 2, 3, 4, 5);\n}",
+      "parameters": 0,
+      "unsuppressed": true
+    }
+  ],
+  "limitations": "Four original source outcomes in two binary check contexts only; no global quality or rewrite-safety claim.",
+  "preconditions": "Authored source before target evaluation. Same shared function is compiled independently into first and second; neither target can supply the other target source association."
+}

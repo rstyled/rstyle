@@ -47,7 +47,7 @@ fn workspace() -> TempDir {
     .unwrap();
     std::fs::write(
         directory.path().join("src/data.rs"),
-        include_str!("../../../../eval/coverage-development/position-span.rs"),
+        include_str!("../../../../tests/fixtures/function-families/position-span.rs"),
     )
     .unwrap();
     std::fs::write(
@@ -78,7 +78,8 @@ fn selected_copy_boundary_keeps_missing_proofs_and_lexical_unknowns_closed() {
         "glob",
     ] {
         let directory = workspace();
-        let original = include_str!("../../../../eval/coverage-development/position-span.rs");
+        let original =
+            include_str!("../../../../tests/fixtures/function-families/position-span.rs");
         let source = match change {
             "copy" => original
                 .replace("Clone, Copy, Eq, PartialEq", "Clone, Eq, PartialEq")
@@ -254,7 +255,7 @@ fn owned_copy_receivers_preserve_snapshot_reads_and_mixed_shared_arguments() {
     let directory = workspace();
     let source = format!(
         "{}\n{}",
-        include_str!("../../../../eval/coverage-development/position-span.rs"),
+        include_str!("../../../../tests/fixtures/function-families/position-span.rs"),
         r#"
         impl Span {
             pub fn compare(&self, other: &Span) -> bool { self.start.offset == other.end.offset }
@@ -526,8 +527,8 @@ fn update_workspace() -> TempDir {
         directory.path().join("src/data.rs"),
         format!(
             "{}\n{}",
-            include_str!("../../../../eval/coverage-development/position-span.rs"),
-            include_str!("../../../../eval/coverage-development/span-updates.rs")
+            include_str!("../../../../tests/fixtures/function-families/position-span.rs"),
+            include_str!("../../../../tests/fixtures/function-families/span-updates.rs")
         ),
     )
     .unwrap();

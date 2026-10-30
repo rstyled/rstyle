@@ -7,7 +7,7 @@ pub(crate) mod type_scopes;
 pub(crate) use candidates::Candidates;
 pub(crate) mod call_inventory;
 pub(crate) mod checked_activation;
-mod positions;
+pub(crate) mod positions;
 pub(crate) use attributes::{has_body_attributes, literal_metadata, single_identifier_attribute};
 mod exact_pairs;
 pub(crate) use exact_pairs::exact_pairs;
@@ -36,7 +36,7 @@ use syn::{
 pub const KEY: &str = "source_correspondence";
 
 /// Borrow an exact UTF-8 byte range; out-of-bounds and split characters fail.
-pub(crate) fn byte_range(bytes: &str, span: ByteSpan) -> Result<&str, String> {
+pub fn byte_range(bytes: &str, span: ByteSpan) -> Result<&str, String> {
     bytes
         .get(span.start as usize..span.end as usize)
         .ok_or_else(|| "Source range is out of bounds or splits UTF-8".into())
@@ -155,7 +155,7 @@ pub(crate) fn syntax_span(bytes: &str, syntax: &impl syn::spanned::Spanned) -> B
 }
 
 /// Convert a parser span to original UTF-8 offsets, retaining a leading BOM.
-pub(crate) fn original_span(bytes: &str, span: proc_macro2::Span) -> ByteSpan {
+pub fn original_span(bytes: &str, span: proc_macro2::Span) -> ByteSpan {
     let prefix = if bytes.starts_with('\u{feff}') { 3 } else { 0 };
     let range = span.byte_range();
     ByteSpan {

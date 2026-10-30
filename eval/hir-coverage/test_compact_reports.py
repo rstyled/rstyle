@@ -138,6 +138,13 @@ class CompactReportTests(unittest.TestCase):
         with self.assertRaises(jsonschema.ValidationError):
             self.resolve()
 
+    def test_flat_body_bundle_version_preserves_narrow_navigation(self):
+        self.bundle['schema'] = 'rstyle.shared-unit/6'
+        # This reader needs source/graph navigation, not a second HIR decoder.
+        self.bundle['functions'][0]['body'] = [{'node': {}, 'children': 0}]
+        self.seal()
+        self.resolve()
+
     def test_source_ranges_fail_closed_and_wrong_source_fails_correspondence(self):
         reference = self.bundle['functions'][0]['source']
         original = copy.deepcopy(reference)

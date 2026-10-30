@@ -26,8 +26,8 @@ fn captured_family(target: &str) -> (tempfile::TempDir, Value) {
     let directory = clone_workspace();
     let source = format!(
         "{}\n{}",
-        include_str!("../../../../eval/coverage-development/tagged-units.rs"),
-        include_str!("../../../../eval/coverage-development/tagged-byte-comparisons.rs")
+        include_str!("../../../../tests/fixtures/function-families/tagged-units.rs"),
+        include_str!("../../../../tests/fixtures/function-families/tagged-byte-comparisons.rs")
     );
     std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
     let (output, report) = clones(
@@ -43,9 +43,11 @@ fn callback_runtime_oracle_keeps_independent_eager_and_sentinel_expectations() {
     let directory = clone_workspace();
     let source = format!(
         "{}\n{}\n{}",
-        include_str!("../../../../eval/coverage-development/tagged-units.rs"),
-        include_str!("../../../../eval/coverage-development/tagged-byte-comparisons.rs"),
-        include_str!("../../../../eval/coverage-development/tagged-byte-comparisons-oracle.rs")
+        include_str!("../../../../tests/fixtures/function-families/tagged-units.rs"),
+        include_str!("../../../../tests/fixtures/function-families/tagged-byte-comparisons.rs"),
+        include_str!(
+            "../../../../tests/fixtures/function-families/tagged-byte-comparisons-oracle.rs"
+        )
     );
     let path = directory.path().join("src/lib.rs");
     std::fs::write(&path, source).unwrap();

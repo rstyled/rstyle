@@ -27,17 +27,26 @@ pub(super) fn load_capture(directory: &Path, args: &Args) -> Result<capture::Cap
     {
         return Err("Saved-run replay uses its original build options".into());
     }
-    let manifest = manifest(directory)?;
+    let directory = &directory
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
     let plan: capture::Plan = read_json(&directory.join("plan.json"))?;
-    if plan.extraction_profile != args.extraction_profile || plan.dependency_units.is_empty() {
-        return Err("Saved-run replay requires its selected dependency extraction profile".into());
+    if plan.extraction_profile != args.extraction_profile {
+        return Err("Saved-run replay requires its original extraction profile".into());
     }
+    if plan.compiler_advisory_only != args.compiler_advisory_only {
+        return Err("Saved-run replay requires its original capture mode".into());
+    }
+    if plan.dependency_units.is_empty() || plan.compiler_advisory_only {
+        return capture::load_saved(directory, plan);
+    }
+    let manifest = manifest(directory)?;
     let mut units = Vec::new();
 
     for path in &manifest.ledgers {
         let unit: capture::Unit = read_json(path)?;
         if capture::ledger::path(&plan, directory, &unit.target, unit.test)? != *path
-            || unit.directory.parent() != Some(directory)
+            || unit.directory.parent() != Some(directory.as_path())
         {
             return Err("Saved dependency ledger belongs to another run or target".into());
         }
@@ -45,7 +54,7 @@ pub(super) fn load_capture(directory: &Path, args: &Args) -> Result<capture::Cap
     }
 
     let mut capture = capture::Capture {
-        directory: directory.into(),
+        directory: directory.clone(),
         plan,
         units,
         failures: Vec::new(),
@@ -59,6 +68,7 @@ pub(super) fn load_capture(directory: &Path, args: &Args) -> Result<capture::Cap
     Ok(capture)
 }
 
+// rstyle-allow(side_effect_density): Saved closure input boundary reads and validates one manifest.
 fn manifest(directory: &Path) -> Result<Manifest, String> {
     let manifest: Manifest = read_json(&directory.join(FILE))?;
     if manifest.schema != SCHEMA
@@ -70,6 +80,7 @@ fn manifest(directory: &Path) -> Result<Manifest, String> {
     Ok(manifest)
 }
 
+// rstyle-allow(side_effect_density): Dependency handoff boundary loads owners, validates links and publishes the completed closure.
 pub(super) fn consume(
     capture: &capture::Capture,
     args: &Args,
@@ -127,6 +138,7 @@ fn requests<'a>(
         .ok_or_else(|| "Missing dependency report assignment".into())
 }
 
+// rstyle-allow(side_effect_density): Dependency closure boundary checks saved Cargo artifacts against the current unit observations.
 fn check_closure(
     capture: &capture::Capture,
     args: &Args,
@@ -168,6 +180,7 @@ fn check_closure(
     Ok(checked)
 }
 
+// rstyle-allow(side_effect_density): Cargo log input boundary reads records and requires a successful terminal completion.
 fn cargo_artifacts(directory: &Path) -> Result<Vec<Value>, String> {
     let file = std::fs::File::open(directory.join("cargo.jsonl")).map_err(|e| e.to_string())?;
     let reader = std::io::BufReader::new(file);

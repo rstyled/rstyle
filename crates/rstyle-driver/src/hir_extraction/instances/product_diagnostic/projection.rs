@@ -53,7 +53,19 @@ impl<'tcx> Projection<'tcx> {
         Ok(value)
     }
 
-    pub(super) fn args(
+    pub(super) fn node_ty(
+        &self,
+        context: &Context<'tcx>,
+        id: hir::HirId,
+    ) -> Result<Ty<'tcx>, String> {
+        super::super::projection::project_node(self.owner, context.typeck, id, |original| {
+            self.ty(context.tcx, original)
+        })
+    }
+}
+
+impl<'tcx> ArgumentsProjection<'tcx> for Projection<'tcx> {
+    fn args(
         &self,
         tcx: TyCtxt<'tcx>,
         original: GenericArgsRef<'tcx>,
@@ -63,16 +75,6 @@ impl<'tcx> Projection<'tcx> {
             super::super::projection::normalize(tcx, self.arguments, original),
         )?
         .arguments)
-    }
-
-    pub(super) fn node_ty(
-        &self,
-        context: &Context<'tcx>,
-        id: hir::HirId,
-    ) -> Result<Ty<'tcx>, String> {
-        super::super::projection::project_node(self.owner, context.typeck, id, |original| {
-            self.ty(context.tcx, original)
-        })
     }
 }
 

@@ -1,0 +1,129 @@
+{
+  "schema": "rstyle.compiler-shared-source-cases/1",
+  "label_basis": "Original tracked authored Rust reviewed before baseline and changed capture. Expectations use source module paths and signatures, never report-local owner ordinals.",
+  "scope": "Bounded routing-only study of original repository sources already compiled by rstyle-pdg/tests/byte_call_authority.rs. Coverage of owner inventory and call edges only; no IO, purity, planner or speedup claim. This is not the full rstyle-pdg package or workspace capture.",
+  "original_routing": {
+    "test": "crates/rstyle-pdg/tests/byte_call_authority.rs",
+    "test_module": "runtime",
+    "path": "../../../eval/coverage-development/byte-window-oracle.rs",
+    "nested_module": "architecture",
+    "nested_path": "arch-readers.rs"
+  },
+  "study_routing": {
+    "package": "rstyle-shared-source-study",
+    "manifest": "crates/rstyle-shared-source-study/Cargo.toml",
+    "manifest_text": "[package]\nname = \"rstyle-shared-source-study\"\nversion.workspace = true\nedition.workspace = true\n",
+    "workspace_change": "Append study package to copied workspace members. Create only the package manifest and routing-only src/lib.rs module declaration. Materialize ABSOLUTE_COPY_ROOT once before freezing the absolute-module-route copy. No original Rust source edits, wrapper functions, new dependencies or executable study behavior. Copy tracked files only, excluding untracked workspace files. Freeze each route independently for its before/after captures.",
+    "expected_source_relation": "Package-local crate root imports original oracle by absolute #[path]; original oracle and nested architecture module are outside package root and inside workspace root.",
+    "owner_counts_from_source": {
+      "non_test_authored_functions": 11,
+      "test_authored_functions": 7,
+      "all_original_authored_functions": 18
+    },
+    "counts_limit": "Source-declared functions only; compiler-generated test harness, closures and nested generated owners are separate and must not be counted as authored coverage gains.",
+    "route_variants": [
+      {
+        "id": "absolute-module-source",
+        "primary": true,
+        "lib_path": "src/lib.rs",
+        "wrapper_source": "#[path = \"<ABSOLUTE_COPY_ROOT>/eval/coverage-development/byte-window-oracle.rs\"]\nmod runtime;\n",
+        "purpose": "Model original #[path] module integration with an absolute shared source path. Measure source-selected owner and call-edge coverage outside package root but inside explicit workspace root. Observe baseline outcomes before changed capture."
+      },
+      {
+        "id": "absolute-target-source",
+        "primary": false,
+        "lib_path": "<ABSOLUTE_COPY_ROOT>/eval/coverage-development/byte-window-oracle.rs",
+        "purpose": "Measured nonregression control. Cargo passes target source relative to compiler cwd, so an absolute manifest target does not establish absolute #[path] module behavior. This route has no wrapper; omit runtime:: prefix for its owner labels.",
+        "baseline_observation": {
+          "metrics": "rstyle.compiler-style-metrics/4",
+          "output": "/tmp/clones-shared-source-project-before-1.json",
+          "known_original_authored_owner_contexts": 29,
+          "lib_non_test": 11,
+          "lib_test": 18,
+          "facts_paths": "eval/coverage-development/...",
+          "raw_build_source_file": "absolute canonical workspace/eval path",
+          "interpretation": "Original authored owners are already known in baseline. No original-owner gain claim for this target-source route."
+        }
+      },
+      {
+        "id": "relative-module-source",
+        "primary": false,
+        "lib_path": "src/lib.rs",
+        "wrapper_source": "#[path = \"../../../eval/coverage-development/byte-window-oracle.rs\"]\nmod runtime;\n",
+        "purpose": "Control for equivalent original shared source through dot-segment #[path] routing. Existing capture may already collect owners; measure lexical workspace-relative path and exclusion behavior, without calling retained known owners a gain."
+      }
+    ],
+    "wrapper_source_file": "crates/rstyle-shared-source-study/src/lib.rs",
+    "wrapper_source": "#[path = \"<ABSOLUTE_COPY_ROOT>/eval/coverage-development/byte-window-oracle.rs\"]\nmod runtime;\n"
+  },
+  "contexts": [
+    {
+      "package": "rstyle-shared-source-study",
+      "target_name": "rstyle_shared_source_study",
+      "target_kind": "lib",
+      "test": false
+    },
+    {
+      "package": "rstyle-shared-source-study",
+      "target_name": "rstyle_shared_source_study",
+      "target_kind": "lib",
+      "test": true
+    }
+  ],
+  "samples": [
+    {
+      "id": "shared-architecture-caller",
+      "source_file": "eval/coverage-development/arch-readers.rs",
+      "caller": "runtime::architecture::caller_arch",
+      "caller_signature": "pub fn caller_arch(input: &[u8], n: usize) -> usize",
+      "caller_source": "pub fn caller_arch(input: &[u8], n: usize) -> usize {\n    batch_arch(input, n)\n}",
+      "expected_callees": [
+        "runtime::architecture::batch_arch"
+      ],
+      "target_source": "pub fn batch_arch(input: &[u8], n: usize) -> usize {\n    const USIZE_SIZE: usize = core::mem::size_of::<usize>();\n    let arr: &[u8; USIZE_SIZE] = input[n..n + USIZE_SIZE].try_into().unwrap();\n    usize::from_ne_bytes(*arr)\n}",
+      "expected": "Capture both original owners from the same compilation unit and retain the existing direct call edge. Missing original owners must remain unavailable, never zero-effect facts."
+    },
+    {
+      "id": "shared-test-composition",
+      "source_file": "eval/coverage-development/byte-window-oracle.rs",
+      "caller": "runtime::architecture_compositions_preserve_values_and_saved_base",
+      "caller_source": "fn architecture_compositions_preserve_values_and_saved_base() {\n    let input = [19u8, 23, 1, 2, 3, 4, 5, 6, 7, 8, 29, 31];\n    let other = [255u8; 12];\n    let width = core::mem::size_of::<usize>();\n    for start in 0..=input.len() - width {\n        let value = expected(&input[start..start + width]) as usize;\n        assert_eq!(architecture::batch_arch(&input, start), value);\n        assert_eq!(architecture::saved_arch(&input, start), value);\n        assert_eq!(architecture::result_local_arch(&input, start), value);\n        assert_eq!(architecture::caller_arch(&input, start), value);\n    }\n    let (snapshot, selected) = architecture::snapshot_arch(&input, &other);\n    assert_eq!(snapshot, expected(&input[..width]) as usize);\n    assert_ne!(snapshot, expected(&other[..width]) as usize);\n    assert_eq!(selected.as_ptr(), other.as_ptr());\n}",
+      "expected_callees": [
+        "runtime::expected",
+        "runtime::architecture::batch_arch",
+        "runtime::architecture::saved_arch",
+        "runtime::architecture::result_local_arch",
+        "runtime::architecture::caller_arch",
+        "runtime::architecture::snapshot_arch"
+      ],
+      "expected": "Capture original test function and original shared callees only in test=true context; preserve direct edges without granting strict clone admission. The ordinary library compilation must not acquire cfg(test) owners."
+    }
+  ],
+  "controls": [
+    {
+      "id": "separate-contexts",
+      "expected": "Do not merge the ordinary lib and test=true compilations, even though source files and function spellings coincide."
+    },
+    {
+      "id": "generated-test-harness",
+      "expected": "Compiler-generated wrappers remain distinct from authored functions and retain their existing unavailable/excluded treatment."
+    },
+    {
+      "id": "outside-workspace",
+      "expected": "This study authorizes no source outside the workspace root; separate fixture acceptance must cover that boundary."
+    },
+    {
+      "id": "strict-matching",
+      "expected": "No source parsing permission or strict clone matching behavior changes are claimed."
+    },
+    {
+      "id": "shared-source-exclusion",
+      "source_glob": "eval/coverage-development/**",
+      "expected": "For absolute and relative #[path] module routes, apply the same normalized workspace-relative exclusion before advisory handoff. Excluded original owners cannot become known zero-effect or complete facts. Observe baseline behavior; relative dot segments may previously bypass the glob."
+    }
+  ],
+  "capture_command_template": "timeout 180 /usr/bin/time -v <binary> rstyle --manifest-path <copy>/Cargo.toml -p rstyle-shared-source-study --all-targets --format json clones --extraction-profile hir-data-v3 --compiler-advisory --compiler-plans --max-pairs 0 --locked --report-detail compact",
+  "comparison": "Use the primary absolute #[path] module route for the measured owner/edge coverage comparison. For every route independently, use baseline and changed binaries/drivers on identical frozen routing, original source bytes, lockfile, selection, policy and host/toolchain. Observe baseline behavior before changed capture. Record metrics independently; do not relabel historical metric4 data. Compare source-selected owners, paths and edges in each compilation context. Module-route source labels have runtime:: prefix; target-route control omits that prefix. All changed routes should yield workspace-relative original paths and respect declared exclusions. The already measured metric4 absolute target-route has 29 known authored owner-contexts (11 lib plus 18 test), so it is a nonregression control, not a coverage gain. New routing package may require one lockfile package entry before freezing; include no dependency changes. This is coverage and policy-boundary evidence, not IO/planner or speedup evidence.",
+  "baseline_metrics": "rstyle.compiler-style-metrics/4",
+  "expected_new_metrics": "rstyle.compiler-style-metrics/5"
+}

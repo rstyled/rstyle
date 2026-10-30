@@ -1,0 +1,19 @@
+{
+  "schema": "rstyle.compiler-selection-study-cases/1",
+  "scope": "rstyle-ccgraph library saved run run-I9FEzJ",
+  "policy": "project-compiler-review-policy.toml",
+  "selection": {
+    "schema": "rstyle.changed-files/1",
+    "paths": [
+      "crates/rstyle-ccgraph/src/frac.rs"
+    ]
+  },
+  "expected": {
+    "exit": 2,
+    "selected_numeric_findings": 2,
+    "raw_numeric_findings": 39,
+    "global_proposals": 1,
+    "accepted_strict_pairs": 4
+  },
+  "basis": "The retained raw project report contains two mutated-target findings in frac.rs. Exact file selection must retain both, keep the global proposal, and preserve raw evaluations and strict results. Generated unavailable owners and unresolved callees must still prevent a clean exit."
+}

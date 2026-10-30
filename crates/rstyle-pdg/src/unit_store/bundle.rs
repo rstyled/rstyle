@@ -7,7 +7,12 @@ mod instances;
 mod product_instances;
 mod reference_forwarders;
 mod reference_instances;
-pub use diagnostic::{read_diagnostic_snapshot, write_diagnostic_snapshot};
+pub use diagnostic::{
+    RAW_FACTS_SCHEMA, STYLE_FACTS_SCHEMA, read_diagnostic_snapshot,
+    read_diagnostic_snapshot_headers_phase, read_diagnostic_snapshot_phase,
+    read_style_snapshot_phase, write_diagnostic_snapshot, write_sealed_diagnostic_snapshot,
+    write_sealed_style_snapshot,
+};
 pub use instances::ScalarInstanceReplay;
 pub use product_instances::ProductConstructorReplay;
 pub use reference_forwarders::ReferenceForwarderReplay;
@@ -15,7 +20,7 @@ pub use reference_instances::ReferenceConstructorReplay;
 mod function_sources;
 mod graph_sources;
 
-pub const BUNDLE_SCHEMA: &str = "rstyle.shared-unit/5";
+pub const BUNDLE_SCHEMA: &str = "rstyle.shared-unit/7";
 const LEGACY_SCHEMA: &str = "rstyle.shared-unit/4";
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
@@ -69,7 +74,14 @@ struct Decoded {
 impl Import {
     fn decode(bytes: &[u8]) -> Result<Decoded, String> {
         let mut wire: Self = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
-        if ![BUNDLE_SCHEMA, LEGACY_SCHEMA].contains(&wire.schema.as_str()) {
+        if ![
+            BUNDLE_SCHEMA,
+            "rstyle.shared-unit/6",
+            "rstyle.shared-unit/5",
+            LEGACY_SCHEMA,
+        ]
+        .contains(&wire.schema.as_str())
+        {
             return Err("Unsupported shared unit schema".into());
         }
 
@@ -77,10 +89,12 @@ impl Import {
             wire.inherent_units.take(),
             wire.schema == LEGACY_SCHEMA,
         )?;
+        inventories.share_censuses(wire.schema == BUNDLE_SCHEMA);
         let mut sources = crate::source_table::Imported::new(&wire.sources);
+        let flat_bodies = [BUNDLE_SCHEMA, "rstyle.shared-unit/6"].contains(&wire.schema.as_str());
         let functions = std::mem::take(&mut wire.functions)
             .into_iter()
-            .map(|function| function.into_facts(&mut sources, &mut inventories))
+            .map(|function| function.into_facts(&mut sources, &mut inventories, flat_bodies))
             .collect::<Result<_, _>>()?;
         sources.finish()?;
         inventories.finish()?;
@@ -152,6 +166,7 @@ impl UnitStore {
         Self::load_bundle(bundle.bytes(), inspect, true)
     }
 
+    // rstyle-allow(side_effect_density): Bundle loading coordinates decode, inspection and validation; inherited IO is optional stage telemetry.
     fn load_bundle(
         bytes: &[u8],
         inspect: impl FnOnce(&[HirFnFacts]) -> Result<(), String>,

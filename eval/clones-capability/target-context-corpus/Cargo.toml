@@ -1,0 +1,14 @@
+[package]
+name = "target-context-corpus"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+
+[[bin]]
+name = "first"
+path = "src/first.rs"
+
+[[bin]]
+name = "second"
+path = "src/second.rs"

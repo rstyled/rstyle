@@ -110,7 +110,7 @@ fn documentation_symlink_redirects_outside_package_remain_excluded() {
 
 #[test]
 fn documentation_and_pinned_imports_compose_with_original_length_helper() {
-    let original = include_str!("../../../../eval/coverage-development/base64ct-length.rs");
+    let original = include_str!("../../../../tests/fixtures/function-families/base64ct-length.rs");
     let source = format!("{SOURCE}\n#[macro_use] extern crate alloc;\n{original}");
     let (_directory, report) = capture(&source, "# Documentation\n");
     let selected = function(&report, "encoded_len_inner");

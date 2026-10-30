@@ -4,7 +4,7 @@ use super::*;
 fn original() -> String {
     let selection: serde_json::Value = serde_json::from_str(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../eval/coverage-development/line-reader-wrapped/selection.json"
+        "/../../tests/fixtures/function-families/line-reader-wrapped/selection.json"
     )))
     .unwrap();
     selection["functions"][0]["source"]

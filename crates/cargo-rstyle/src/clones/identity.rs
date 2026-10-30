@@ -10,6 +10,12 @@ pub(super) const SCHEMA: &str = "rstyle.report-function/2";
 #[serde(transparent)]
 pub(super) struct UnitId(u32);
 
+impl UnitId {
+    pub(super) fn ordinal(self) -> u32 {
+        self.0
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct FunctionKey {
     unit: UnitId,
@@ -32,6 +38,29 @@ impl FunctionKey {
 impl fmt::Display for FunctionKey {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "function:u{}:f{}", self.unit.0, self.function)
+    }
+}
+
+impl std::str::FromStr for FunctionKey {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let invalid =
+            || "Expected a saved-report function ID: function:u<unit>:f<function>".to_string();
+        let (unit, function) = value
+            .strip_prefix("function:u")
+            .and_then(|value| value.split_once(":f"))
+            .ok_or_else(invalid)?;
+        let ordinal = |part: &str| {
+            if part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()) {
+                return Err(invalid());
+            }
+            part.parse::<u32>().map_err(|_| invalid())
+        };
+        Ok(Self {
+            unit: UnitId(ordinal(unit)?),
+            function: ordinal(function)?,
+        })
     }
 }
 
@@ -91,7 +120,26 @@ fn order(unit: &capture::Unit) -> (&str, &Path, &str, &[String], bool, &[String]
 
 /// HIR owners distinguish definitions within this unit, including expansions.
 /// Display paths and callsite spans are navigation only, not definition identity.
-pub(super) fn functions(unit: UnitId, facts: &[HirFnFacts]) -> Result<Vec<FunctionKey>, String> {
+pub(super) trait BodyOwner {
+    fn owner(&self) -> &rstyle_pdg::HirRef;
+}
+
+impl BodyOwner for rstyle_pdg::HirNode {
+    fn owner(&self) -> &rstyle_pdg::HirRef {
+        &self.hir
+    }
+}
+
+impl BodyOwner for rstyle_pdg::HirRef {
+    fn owner(&self) -> &rstyle_pdg::HirRef {
+        self
+    }
+}
+
+pub(super) fn functions<B: BodyOwner, L>(
+    unit: UnitId,
+    facts: &[HirFnFacts<B, L>],
+) -> Result<Vec<FunctionKey>, String> {
     let mut seen = BTreeSet::new();
     facts
         .iter()
@@ -103,7 +151,7 @@ pub(super) fn functions(unit: UnitId, facts: &[HirFnFacts]) -> Result<Vec<Functi
                 .get("source_file")
                 .and_then(serde_json::Value::as_str)
                 .ok_or("missing captured source-file navigation")?;
-            let owner = &function.body.hir;
+            let owner = function.body.owner();
             if !seen.insert((owner.krate, owner.owner)) {
                 return Err("Duplicate compiler function owner in one compilation unit".into());
             }

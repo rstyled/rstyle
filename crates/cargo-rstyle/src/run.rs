@@ -1,8 +1,8 @@
-//! Runs `cargo check` with `rstyle-driver` wrapped around rustc for workspace crates.
+//! Compiler tool selection and isolation of inherited extraction controls.
 
 use serde::Deserialize;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 
 const TOOLCHAIN_FILE: &str = include_str!("../../../rust-toolchain.toml");
@@ -41,104 +41,43 @@ pub fn driver_path() -> Result<PathBuf, String> {
     })
 }
 
-/// Cargo does not hash the wrapper's contents, so a rebuilt driver would keep
-/// serving stale facts. Feeding a driver fingerprint into RUSTFLAGS changes
-/// cargo's own fingerprint exactly when the driver changes. The semantic (PDG) mode
-/// adds a suffix, so style and `patterns` runs keep separate cargo fingerprints and
-/// never serve each other's cached (PDG-less or PDG-bearing) facts.
-// rstyle-allow(side_effect_density): IO boundary: stats the driver binary
-fn driver_fingerprint(driver: &Path, pdg: bool) -> String {
-    let meta = std::fs::metadata(driver).ok();
-    let modified = meta
-        .as_ref()
-        .and_then(|m| m.modified().ok())
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        .map_or(0, |d| d.as_secs());
-    let len = meta.map_or(0, |m| m.len());
-    format!("rstyle{modified}x{len}{}", if pdg { "p" } else { "" })
-}
-
-pub struct Paths<'a> {
-    pub driver: &'a Path,
-    pub root: &'a Path,
-    pub target_dir: &'a Path,
-    pub out_dir: &'a Path,
-    /// Ask the driver for dependence graphs (`patterns`); style runs leave this off.
-    pub pdg: bool,
-}
-
-pub struct Selection<'a> {
-    pub packages: &'a [String],
-    pub all_targets: bool,
-    pub manifest: Option<&'a Path>,
-}
-
-fn cargo_args(selection: &Selection<'_>) -> Vec<String> {
-    let scope: Vec<String> = if selection.packages.is_empty() {
-        vec!["--workspace".to_string()]
-    } else {
-        selection
-            .packages
-            .iter()
-            .flat_map(|package| ["-p".to_string(), package.clone()])
-            .collect()
-    };
-    let targets = selection.all_targets.then(|| "--all-targets".to_string());
-    ["check", "--quiet"]
-        .map(String::from)
-        .into_iter()
-        .chain(scope)
-        .chain(targets)
-        .collect()
-}
-
-fn command(paths: &Paths<'_>, selection: &Selection<'_>) -> Command {
-    let existing = std::env::var("RUSTFLAGS").unwrap_or_default();
-    let flags = format!(
-        "{existing} -Cmetadata={}",
-        driver_fingerprint(paths.driver, paths.pdg)
-    );
-    let manifest = selection
-        .manifest
-        .into_iter()
-        .flat_map(|path| [OsStr::new("--manifest-path"), path.as_os_str()]);
-    let toolchain = pinned_toolchain();
-    let envs: [(&str, &OsStr); 6] = [
-        ("RUSTUP_TOOLCHAIN", OsStr::new(&toolchain)),
-        ("RUSTC_WORKSPACE_WRAPPER", paths.driver.as_os_str()),
-        ("RUSTC_WRAPPER", OsStr::new("")),
-        ("RUSTFLAGS", OsStr::new(flags.trim())),
-        ("CARGO_TARGET_DIR", paths.target_dir.as_os_str()),
-        ("RSTYLE_OUT_DIR", paths.out_dir.as_os_str()),
-    ];
-
-    // Only `patterns` asks for dependence graphs; a stale value must never leak into style runs.
-    let pdg = paths.pdg.then_some(("RSTYLE_PDG", OsStr::new("1")));
-    let mut cmd = Command::new("cargo");
-    clear_rstyle_environment(&mut cmd);
-    cmd.args(cargo_args(selection))
-        .args(manifest)
-        .envs(envs)
-        .env("RSTYLE_ROOT", paths.root)
-        .env_remove("RUSTC")
-        .env_remove("RSTYLE_HIR_DOCUMENT_DIR")
-        .env_remove("RSTYLE_HIR_FACTS_FILE")
-        .env_remove("RSTYLE_PDG")
-        .envs(pdg);
-    cmd
-}
-
-/// Commands select their own extraction mode; inherited producer settings cannot
-/// change it. Resolve RSTYLE_DRIVER before calling this helper.
+/// Commands select their own extraction mode; inherited control settings cannot
+/// change it. Preserve project inputs, including Cargo's build-script rustc-env
+/// metadata. Resolve RSTYLE_DRIVER before calling this helper.
 pub fn clear_rstyle_environment(command: &mut Command) {
     for (key, value) in std::env::vars_os() {
         if diagnostic_environment(&key, &value) {
             continue;
         }
-        if key.to_string_lossy().starts_with("RSTYLE_") {
+        if control_environment(&key) {
             command.env_remove(key);
         }
     }
+}
+
+fn control_environment(key: &OsStr) -> bool {
+    key.to_str().is_some_and(|key| {
+        key.starts_with("RSTYLE_DIAGNOSTIC_")
+            || matches!(
+                key,
+                "RSTYLE_CAPTURE_PLAN"
+                    | "RSTYLE_COMPILER_ADVISORY"
+                    | "RSTYLE_COMPILER_ADVISORY_ONLY"
+                    | "RSTYLE_STYLE_INPUTS_ONLY"
+                    | "RSTYLE_COMPILER_PATTERNS"
+                    | "RSTYLE_COMPILER_SOURCE_ROOT"
+                    | "RSTYLE_DRIVER"
+                    | "RSTYLE_HIR_DOCUMENT_DIR"
+                    | "RSTYLE_HIR_FACTS_FILE"
+                    | "RSTYLE_HIR_EXTRACTION_PROFILE"
+                    | "RSTYLE_LOCAL_MUTATION_FACTS"
+                    | "RSTYLE_LOCAL_SOURCE_FACTS"
+                    | "RSTYLE_OUT_DIR"
+                    | "RSTYLE_PDG"
+                    | "RSTYLE_PERF"
+                    | "RSTYLE_ROOT"
+            )
+    })
 }
 
 fn diagnostic_environment(key: &OsStr, value: &OsStr) -> bool {
@@ -154,75 +93,34 @@ fn diagnostic_environment(key: &OsStr, value: &OsStr) -> bool {
                 == Some(OsStr::new("1"))
 }
 
-/// Compiles the selected crates so the driver writes its facts files.
-// rstyle-allow(side_effect_density): IO boundary: spawns cargo
-pub fn cargo_check(paths: &Paths<'_>, selection: &Selection<'_>) -> Result<(), String> {
-    let output = command(paths, selection)
-        .output()
-        .map_err(|e| format!("failed to run cargo: {e}"))?;
-    if output.status.success() {
-        return Ok(());
-    }
-    Err(format!(
-        "cargo check failed:\n{}",
-        String::from_utf8_lossy(&output.stderr)
-    ))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn toolchain_is_pinned_nightly() {
-        assert!(pinned_toolchain().starts_with("nightly-"));
-    }
-
-    #[test]
-    fn legacy_command_explicitly_removes_hir_destinations() {
-        let paths = Paths {
-            driver: Path::new("driver"),
-            root: Path::new("root"),
-            target_dir: Path::new("build"),
-            out_dir: Path::new("facts"),
-            pdg: false,
-        };
-        let selection = Selection {
-            packages: &[],
-            all_targets: false,
-            manifest: None,
-        };
-        let command = command(&paths, &selection);
-        for key in ["RSTYLE_HIR_DOCUMENT_DIR", "RSTYLE_HIR_FACTS_FILE"] {
-            assert!(
-                command
-                    .get_envs()
-                    .any(|(name, value)| name == key && value.is_none())
-            );
+    fn compilation_inputs_are_distinct_from_extraction_controls() {
+        for name in [
+            "RSTYLE_PRODUCER_REVISION",
+            "RSTYLE_RUSTC_VERSION",
+            "RSTYLE_RUSTC_COMMIT",
+            "RSTYLE_PROJECT_VALUE",
+            "OUT_DIR",
+        ] {
+            assert!(!control_environment(OsStr::new(name)), "{name}");
+        }
+        for name in [
+            "RSTYLE_CAPTURE_PLAN",
+            "RSTYLE_HIR_FACTS_FILE",
+            "RSTYLE_COMPILER_ADVISORY_ONLY",
+            "RSTYLE_STYLE_INPUTS_ONLY",
+            "RSTYLE_DIAGNOSTIC_CAPTURE_ONLY",
+        ] {
+            assert!(control_environment(OsStr::new(name)), "{name}");
         }
     }
 
     #[test]
-    fn default_selection_is_whole_workspace() {
-        let selection = Selection {
-            packages: &[],
-            all_targets: false,
-            manifest: None,
-        };
-        assert_eq!(cargo_args(&selection), ["check", "--quiet", "--workspace"]);
-    }
-
-    #[test]
-    fn package_selection_and_all_targets() {
-        let packages = vec!["a".to_string(), "b".to_string()];
-        let selection = Selection {
-            packages: &packages,
-            all_targets: true,
-            manifest: None,
-        };
-        assert_eq!(
-            cargo_args(&selection),
-            ["check", "--quiet", "-p", "a", "-p", "b", "--all-targets"]
-        );
+    fn toolchain_is_pinned_nightly() {
+        assert!(pinned_toolchain().starts_with("nightly-"));
     }
 }

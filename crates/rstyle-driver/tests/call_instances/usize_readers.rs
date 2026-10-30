@@ -9,7 +9,7 @@ const ENVIRONMENT: &str = "compiler_usize_reader_callback_environment";
 
 fn source() -> String {
     let selected: Value = serde_json::from_str(include_str!(
-        "../../../../eval/coverage-development/wire-usize-readers/selection.json"
+        "../../../../tests/fixtures/function-families/wire-usize-readers/selection.json"
     ))
     .unwrap();
     let original = selected["functions"]

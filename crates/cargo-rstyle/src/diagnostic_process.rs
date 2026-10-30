@@ -9,6 +9,7 @@ pub fn output(command: &mut Command) -> io::Result<Output> {
     streamed_output(command)
 }
 
+// rstyle-allow(side_effect_density): Subprocess IO boundary drains stdout and stderr concurrently before collecting child status.
 fn streamed_output(command: &mut Command) -> io::Result<Output> {
     command
         .stdin(Stdio::null())
