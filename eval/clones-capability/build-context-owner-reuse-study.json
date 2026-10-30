@@ -1,0 +1,239 @@
+{
+  "snapshot": "C124 in the containing commit, following b695c77e",
+  "implementation": "BuildContexts retains the existing selected FrontendOptions entries rather than cloning their JSON values. Exact equality reuses the existing Arc pointer-or-full-value comparison. No new cache, hash, scan, graph copy, policy, metric, threshold or strict-matching change.",
+  "scope": {
+    "original_function_builds": 19755,
+    "units": 6,
+    "retained_contexts_per_unit": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ]
+  },
+  "method": {
+    "input": "Explicit saved run-0hhfO7, C119 saved input over C118-era source observations. Not a fresh containing-commit capture. Both generated and authored original function build records participate.",
+    "harness": "Temporary external harness decodes the six existing style snapshots before starting Instant, then interns every original function build into one existing BuildContexts table per unit. It emits all ordered BuildIds and complete serialized context tables. Identical external manifest/lock and harness source before/after; debug workspace code. Whole-process time includes snapshot decoding and output.",
+    "production": "Root --style-engine compiler --replay-run target/rstyle/clones/run-0hhfO7 --format json, original config, disabled compiler tools, sources still present. Existing cli.advisory.context timing includes other invocation validation and is broader than harness interning.",
+    "comparison": "Three sequential warm observations per side. Compare full original ordered IDs/tables and root compiler report bytes across all six native runs of each scope. No randomized cold/release or instruction-count claim."
+  },
+  "measurements": {
+    "intern": {
+      "before": [
+        {
+          "wall_seconds": 2.3,
+          "max_rss_kib": 650652,
+          "intern_seconds": 0.089506481
+        },
+        {
+          "wall_seconds": 2.23,
+          "max_rss_kib": 650636,
+          "intern_seconds": 0.088703375
+        },
+        {
+          "wall_seconds": 2.31,
+          "max_rss_kib": 650636,
+          "intern_seconds": 0.08945576
+        }
+      ],
+      "after": [
+        {
+          "wall_seconds": 2.21,
+          "max_rss_kib": 650636,
+          "intern_seconds": 0.045725014
+        },
+        {
+          "wall_seconds": 2.24,
+          "max_rss_kib": 650636,
+          "intern_seconds": 0.046817384
+        },
+        {
+          "wall_seconds": 2.23,
+          "max_rss_kib": 650636,
+          "intern_seconds": 0.04687476
+        }
+      ]
+    },
+    "cli": {
+      "before": [
+        {
+          "wall_seconds": 5.57,
+          "max_rss_kib": 852252,
+          "context_seconds": 0.366961563
+        },
+        {
+          "wall_seconds": 5.45,
+          "max_rss_kib": 852132,
+          "context_seconds": 0.356801226
+        },
+        {
+          "wall_seconds": 5.43,
+          "max_rss_kib": 852148,
+          "context_seconds": 0.355002468
+        }
+      ],
+      "after": [
+        {
+          "wall_seconds": 5.39,
+          "max_rss_kib": 854144,
+          "context_seconds": 0.313855893
+        },
+        {
+          "wall_seconds": 5.55,
+          "max_rss_kib": 854196,
+          "context_seconds": 0.329989206
+        },
+        {
+          "wall_seconds": 5.5,
+          "max_rss_kib": 854148,
+          "context_seconds": 0.323097436
+        }
+      ]
+    }
+  },
+  "comparison": {
+    "intern_mean_before_seconds": 0.089221872,
+    "intern_mean_after_seconds": 0.046472386,
+    "intern_reduction_percent": 47.913684214112884,
+    "complete_outputs_byte_identical": true,
+    "root_claim": "Overall replay remains within5.39\u20135.57s and peak memory around854000KiB. No meaningful whole-command latency or memory improvement claimed."
+  },
+  "independent_acceptance": "Shared selected invocation/context entries retain their immutable owners; mutation detaches only the changed entry. Independently owned equal complete JSON merges. Missing versus explicit null, unknown nested values, all existing build fields and changed invocation retain exact distinctions. Unselected metadata does not affect context identity. Three new tests plus existing build/options coverage.",
+  "raw_candidate_ids": [
+    "114994040aee",
+    "28ac5efc1baa",
+    "440013106447",
+    "4f48d2ce7fc8",
+    "60e8af5f467a",
+    "885b7a4e6179",
+    "8c495a7ebe17",
+    "a59c863eac67",
+    "bd6ed2f06436",
+    "c2d0658d42db",
+    "c5f442ffa59a",
+    "fc9b070d78be",
+    "fdb66ce83259"
+  ],
+  "validation": {
+    "focused_selected_tests": 61,
+    "focused_build_tests": 3,
+    "rust_tests": 3790,
+    "passed": 3790,
+    "skipped": 5,
+    "nextest_seconds": 264.517,
+    "doctests": "passed",
+    "style_summary": {
+      "functions": 10154,
+      "violations": 0,
+      "complexity_measured": 10154,
+      "complexity_unavailable": 0,
+      "mean_density_milli": 81,
+      "max_density_milli": 15000,
+      "effect_counts": {
+        "io": 338,
+        "mutation": 2131,
+        "panic": 56,
+        "time": 68,
+        "unknown": 167
+      }
+    },
+    "compiler_pattern_findings": 0,
+    "reference_pattern_findings": 0,
+    "commands": [
+      {
+        "name": "fmt",
+        "args": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 1.872
+      },
+      {
+        "name": "clippy",
+        "args": [
+          "cargo",
+          "clippy",
+          "--workspace",
+          "--all-targets",
+          "--locked",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 6.432
+      },
+      {
+        "name": "style",
+        "args": [
+          "./scripts/style.sh",
+          "--format",
+          "json"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 34.355
+      },
+      {
+        "name": "tests",
+        "args": [
+          "./scripts/test.sh",
+          "--nextest"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 334.428
+      },
+      {
+        "name": "reference-patterns",
+        "args": [
+          "./scripts/style.sh",
+          "patterns",
+          "--engine",
+          "legacy",
+          "--fail-on-candidates",
+          "--show-ignored"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 32.958
+      },
+      {
+        "name": "reference-unfiltered",
+        "args": [
+          "./scripts/style.sh",
+          "patterns",
+          "--engine",
+          "legacy",
+          "--no-ignore",
+          "--format",
+          "json"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 6.4
+      },
+      {
+        "name": "default-patterns",
+        "args": [
+          "./scripts/style.sh",
+          "patterns",
+          "--format",
+          "json",
+          "--fail-on-candidates",
+          "--show-ignored"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 49.008
+      }
+    ]
+  },
+  "limitations": [
+    "Session-local harness, snapshots and timing logs; this receipt records method and measurements, not bundled compiler inputs.",
+    "Interning is a small contributor; snapshot parsing/publication and report memory remain larger unresolved costs. No full-root Callgrind rerun justified by this bounded change.",
+    "Containing-commit native CI pending. Preceding C123 CI41025480069 passed Ubuntu x86, Ubuntu ARM and macOS15. Overall capability replacement remains incomplete."
+  ],
+  "next_ready": "Prioritize the remaining capability replacement acceptance and default-style usefulness decision. If further performance work is justified, measured snapshot parsing and publication dominate this saved replay; identify existing owners/input seams before changing them."
+}

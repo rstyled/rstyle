@@ -219,6 +219,25 @@ impl Serialize for Entry {
 }
 
 impl FrontendOptions {
+    /// Retain selected entries without materializing or copying shared metadata.
+    pub(crate) fn selected(&self, keys: &[&str]) -> Self {
+        Self(
+            keys.iter()
+                .filter_map(|key| self.0.get(*key).map(|entry| ((*key).into(), entry.clone())))
+                .collect(),
+        )
+    }
+
+    /// Compare the same selected keys, preserving absent versus present values.
+    pub(crate) fn same_selected(&self, other: &Self, keys: &[&str]) -> bool {
+        keys.iter()
+            .all(|key| match (self.0.get(*key), other.0.get(*key)) {
+                (Some(left), Some(right)) => left.equivalent(right),
+                (None, None) => true,
+                _ => false,
+            })
+    }
+
     pub fn get(&self, key: &str) -> Option<&Value> {
         self.0.get(key).map(Entry::json)
     }

@@ -3,6 +3,50 @@ use serde_json::json;
 
 const KEYS: [&str; 2] = ["invocation", crate::nominal_boundary::CONTEXT_KEY];
 
+#[test]
+fn selected_metadata_retains_owners_and_keeps_original_options_intact() {
+    let mut original = FrontendOptions::default();
+    original.insert(KEYS[0].into(), json!(["rustc", "--test"]));
+    original.insert(KEYS[1].into(), json!({"package": "one", "test": true}));
+    original.insert("other".into(), json!({"unknown": null}));
+    let mut selected = original.selected(&KEYS);
+    assert!(!selected.contains_key("other"));
+    assert!(original.contains_key("other"));
+    for key in KEYS {
+        assert!(Arc::ptr_eq(owner(&original, key), owner(&selected, key)));
+    }
+
+    selected.get_mut(KEYS[0]).unwrap()[1] = json!("--crate-type=lib");
+    assert_eq!(original[KEYS[0]], json!(["rustc", "--test"]));
+    assert_eq!(selected[KEYS[0]], json!(["rustc", "--crate-type=lib"]));
+    assert!(!original.same_selected(&selected, &KEYS));
+    assert!(Arc::ptr_eq(
+        owner(&original, KEYS[1]),
+        owner(&selected, KEYS[1])
+    ));
+}
+
+#[test]
+fn selected_equality_uses_complete_values_and_preserves_missing_and_null() {
+    for key in KEYS {
+        let absent = FrontendOptions::default();
+        for value in [Value::Null, json!([]), json!({"unknown": [null, true]})] {
+            let mut first = FrontendOptions::default();
+            first.insert(key.into(), value);
+            let wire = serde_json::to_value(&first).unwrap();
+            let mut second: FrontendOptions = serde_json::from_value(wire).unwrap();
+            assert!(!Arc::ptr_eq(owner(&first, key), owner(&second, key)));
+            assert!(first.same_selected(&second, &KEYS));
+            assert!(!first.same_selected(&absent, &KEYS));
+            second.insert("unselected".into(), json!({"changed": true}));
+            assert!(first.same_selected(&second, &KEYS));
+            second.insert(key.into(), json!({"unknown": [null, false]}));
+            assert!(!first.same_selected(&second, &KEYS));
+            assert_eq!(first.selected(&KEYS), first);
+        }
+    }
+}
+
 fn owner<'a>(options: &'a FrontendOptions, key: &str) -> &'a Arc<Value> {
     let Entry::SharedJson(value) = options.0.get(key).unwrap() else {
         panic!("Expected shared immutable JSON for {key}");

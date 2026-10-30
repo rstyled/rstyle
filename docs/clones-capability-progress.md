@@ -8015,3 +8015,40 @@ Next inspect reuse of shared immutable invocation/context owners in existing
 build-context interning: settings clones JSON and comparisons traverse identical
 values. Preserve exact equality for different owners/contexts and measure the
 cost before changing that seam; do not add another cache or proof layer.
+
+### C124 — retain shared metadata in existing build contexts (2026-10-30)
+
+Build-context interning previously copied selected JSON metadata into its retained
+settings, then compared complete invocation/context values for each function.
+It now retains the existing selected option entries and uses their existing
+pointer-or-full-value equality. This preserves the immutable owners already
+shared by snapshot decoding. Independently owned equal values still merge;
+changed values, absent options and explicit null remain distinct. No new cache,
+hash, scan, policy, metric, graph copy or strict-matching change is introduced.
+
+A temporary harness decodes the six explicit saved run-0hhfO7 snapshots before
+its timer, then interns all 19,755 original function builds into one existing
+table per unit. Each unit retains one context. Three sequential observations
+reduce interning from 0.0887–0.0895s to 0.0457–0.0469s, about 48% less time in
+this small stage. The complete ordered BuildIds and serialized context tables
+remain byte-identical across all six runs. These are saved C119 inputs over
+C118-era source observations, not a fresh containing-commit capture.
+
+Production compiler-style replay also preserves complete report bytes across
+six runs. Its broader context stage, which includes invocation validation,
+moves from 0.355–0.367s to 0.314–0.330s. Overall replay remains 5.39–5.57s with
+roughly 854,000KiB peak RSS. No meaningful whole-command latency or memory gain
+is claimed. Snapshot parsing, publication and report memory remain larger costs.
+
+All 3,790 Rust tests and doctests pass, as do formatting, all-target Clippy,
+zero style violations and both pattern gates with the same 13 reviewed IDs.
+
+Three independent tests cover retained owners, isolated copy-on-write edits,
+independently owned equal metadata, absent/null/unknown values, and context splits
+on invocation changes. Full checkpoint results and exact reviewed candidate IDs
+are recorded in eval/clones-capability/build-context-owner-reuse-study.json.
+Containing-commit native CI remains pending; C123 has passed native CI on
+Ubuntu x86, Ubuntu ARM and macOS15. Remote main remains1689392e and is already
+an ancestor of this branch. The broader capability replacement and default-style
+usefulness decision remain incomplete; this bounded reuse change does not
+establish either one.
