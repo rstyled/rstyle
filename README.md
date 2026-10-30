@@ -210,6 +210,8 @@ cargo rstyle patterns [--format text|json] [--all-targets] [--min-score N] [--to
                       [--hide-implements TEXT]...
 ```
 
+The default uses compiler observations across the selected workspace and reuses the core proposer. Authored functions are selected by default; generated signatures remain visible in coverage. `--engine legacy` selects the reference collector for comparisons. Reports retain compilation contexts, unavailable inputs and the explicit saved run directory; incomplete input exits 2. Strict clone matching is independent of these advisory proposals.
+
 Two layers:
 
 1. **Signature groups.** Methods of different types with the same normalized signature (`fn(&Self) -> String`). Rare signatures score high, common getters score near zero. This is a blocking key, not a finding.
@@ -217,7 +219,7 @@ Two layers:
 
 Each candidate has a `kind` (`trait_method`, `capability_set`, `enum_dispatch`, `generic_fn`, `parameterize`), a score with its parts (`support`, `lift`, `holes`, `coverage`), an observation, an inference, a possible refactor sketch, every site with `path:line`, the functions that fill the holes, and counter-evidence (effect mismatch, common signature). Patterns whose implementations all already implement one trait method are listed under `suppressed`, not proposed. Output is deterministic.
 
-Dependence graphs are about 10x bigger than the style facts, so only `patterns` asks the driver for them (`RSTYLE_PDG=1`, facts in `target/rstyle/facts-sem`; style runs keep `target/rstyle/facts` and a separate cargo fingerprint, so the modes never clobber each other).
+Compiler patterns captures graph observations under `target/rstyle/clones/`. Use `--replay-run PATH` to reevaluate an explicit saved run without source files or compiler tools. The reference collector uses `target/rstyle/facts-sem`; root style uses separate facts. See [compiler advisory coverage](docs/clones-compiler-advisory.md) for scope and replay details.
 
 `--hide-implements TEXT` forgets trait links whose trait method id contains `TEXT` (`*` hides all). Evaluation oracle: hide a trait that has several impls and check the miner proposes it back.
 
@@ -231,10 +233,12 @@ cargo rstyle patterns --show-ignored                        # list what the ledg
 cargo rstyle patterns --no-ignore                           # one-off full view
 cargo rstyle patterns --fail-on-candidates                  # CI gate: exit 1 if any candidate is left
 cargo rstyle ignore --status [<id>]                         # where each entry's functions are now
-cargo rstyle ignore --prune [--dry-run]                     # drop entries that match nothing
+cargo rstyle ignore --all-targets --prune [--dry-run]       # drop entries that match nothing
 ```
 
 `rstyle-ignore.toml` (workspace root, or `--ignore-file`) is meant to be committed, like a lockfile. It is a final filter on the reported candidates; mining never reads it, and `--top` / `--min-score` apply after it. Delete the file, or an entry, to re-review. Comments directly above an entry, or inside it, are kept when `ignore` rewrites the file (other comments are dropped), so notes like "discussed in PR 12" survive; `--reason` is the structured version.
+
+Listing and `ignore` share compiler discovery and mining options. Pruning requires complete full-workspace inputs captured with `--all-targets`; saved replay uses that recorded selection. Status reports absent members as unobserved within each compilation population rather than assuming deletion.
 
 A dismissal holds while the candidate is the same: same kind, same functions, same dependence-graph shape of each site. Moving a function (new line numbers) or adding an impl block above it does not matter; editing its structure does. Growth resurfaces it by default: if two more functions join a dismissed candidate, it is a new candidate. `--allow-growth` records the members instead, and the candidate stays hidden as long as they are all still in it. Pruning is manual; stale entries are harmless, they just never match. Pass the same clustering flags to `ignore` as to `patterns`, since they decide which candidates (and ids) exist. Limits: shape comes from the dependence graph, so edits inside closures or that only swap one callee for another of the same signature are not seen.
 

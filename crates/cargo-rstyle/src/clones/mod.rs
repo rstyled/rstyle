@@ -58,6 +58,10 @@ impl CompilerSourceScope {
     group(clap::ArgGroup::new("dismissal").args(["dismiss_helper_pair", "dismiss_enum_dispatch", "dismiss_guard", "dismiss_capability_pair", "dismiss_parameter", "dismiss_length", "dismiss_spacing", "dismiss_mutation_per_target", "dismiss_mutated_targets", "dismiss_density", "dismiss_compiler_pattern", "dismiss_compiler_diagnostic"])),
     group(clap::ArgGroup::new("finding_analysis").args(["source_rules", "guard_clauses", "helper_proposals", "enum_dispatch", "capability_proposals", "mutation_rules", "effect_density", "compiler_advisory", "compiler_patterns"]).multiple(true)))]
 pub struct Args {
+    /// Retain only the compact member census for the root repository-review session.
+    #[arg(skip)]
+    #[serde(skip)]
+    pattern_session: bool,
     /// Internal root-style payload selection; full clones capture remains independent.
     #[arg(skip)]
     style_inputs_only: bool,
@@ -651,12 +655,12 @@ struct CapturedRun {
     capture: capture::Capture,
 }
 
-fn run_captured_with(
+fn run_captured_with<T>(
     cli: &Cli,
     args: &Args,
     captured: CapturedRun,
-    publish: impl FnOnce(&report::Report<'_>, usize) -> Result<String, String>,
-) -> Result<(String, u8), String> {
+    publish: impl FnOnce(report::Report<'_>, usize) -> Result<T, String>,
+) -> Result<(T, u8), String> {
     let CapturedRun { config, capture } = captured;
     let handoff = Handoff::capture(&capture, args)?;
     let mut evaluation = (!args.compiler_advisory_only)
@@ -693,14 +697,13 @@ fn run_captured_with(
     let report = report::make(context, consumers);
     publish_baselines(&report, args, complete && analyses_complete(&report))?;
     publish_compiler_pattern_baseline(&report, args, complete && analyses_complete(&report))?;
-    let output = publish(&report, accepted)?;
     let code = if complete && analyses_complete(&report) {
         u8::from(finding_exit_requested(&report, args, accepted))
     } else {
         2
     };
 
-    Ok((output, code))
+    Ok((publish(report, accepted)?, code))
 }
 
 fn accepted_count(matching: Option<&rstyle_ccgraph::RunReport>) -> usize {

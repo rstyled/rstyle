@@ -1,4 +1,5 @@
 mod authored_scope;
+mod default_discovery;
 mod mining_options;
 mod presentation;
 mod repository_ledger;

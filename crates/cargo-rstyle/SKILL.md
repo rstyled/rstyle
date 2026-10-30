@@ -604,12 +604,12 @@ cannot turn missing inputs into a complete result. Review identity, baseline
 inventories and baseline-new exits remain independent of these display options.
 Defaults omit the presentation object and preserve existing reports.
 
-The legacy command can opt into the compiler workflow with
-`cargo rstyle patterns --engine compiler --format json`. The default engine stays
-`legacy`. The compiler route performs one advisory-only HIR-data-v3 capture and
-returns the existing scoped compiler report, including run directory, unit
-contexts, coverage and counter-evidence; strict matching and numeric rules are
-not requested. Shared mining and score/top flags keep their existing meaning.
+`cargo rstyle patterns --format json` uses compiler workspace discovery by default.
+It performs one advisory-only HIR-data-v3 capture and reuses the existing core
+proposer, preserving compilation populations, coverage and counter-evidence.
+Strict matching and numeric rules are not requested. `--engine compiler` selects
+the same path explicitly; `--engine legacy` retains the reference collector for
+side-by-side evaluation. Mining and score/top flags keep their existing meaning.
 `--fail-on-candidates` uses displayed compiler proposals; incomplete scope exits2.
 
 This route consumes `--config` or the workspace `rstyle.toml` for core selection
@@ -652,6 +652,21 @@ compiler reviews remain available for exact compilation-context review.
 The routed compiler population defaults to authored functions. Use
 `--compiler-pattern-scope captured` to include generated signatures explicitly.
 Standalone clones retains its explicit captured default.
+
+`cargo rstyle ignore` uses the same compiler discovery and mining options.
+It moves raw candidates into the existing repository dismissal/prune operations.
+Pass `--replay-run PATH` to list, dismiss or inspect an explicit saved capture
+without source files or compiler tools. `--status` retains a compact location and
+shape census, including functions no longer proposed; compilation populations
+remain separate. An absent member is unobserved in that population, not assumed
+deleted. A located member without a body shape remains unavailable.
+
+Pruning requires complete inputs from a full-workspace `--all-targets` capture,
+including for `--dry-run`. Saved replay uses the selection recorded by that
+capture and takes no new selection flags. Package-only and incomplete captures
+cannot establish that unseen reviews are stale. Ordinary listing and dismissal
+can use narrower complete selections. The reference `--engine legacy` review
+path remains explicit for comparison with the reference collector.
 
 Add `--compiler-patterns` to reuse existing compiler graphs and the core
 trait/capability/generic/helper/dispatch proposer. It can run without
@@ -817,8 +832,9 @@ empty and non-UTF8 locators remain unavailable. This uses captured paths without
 filesystem canonicalization, new hashes or metric/context changes.
 
 
-Compiler pattern population: keep default captured-function completeness, or
-explicitly pass `--compiler-pattern-scope authored` to compiler patterns/clones.
+Compiler pattern population: root patterns defaults to authored functions;
+standalone clones defaults to captured functions. Either accepts an explicit
+`--compiler-pattern-scope authored|captured`.
 This uses the existing compiler expansion marker to report generated signatures
 outside the authored proposal population. Missing authored/unknown-origin inputs
 stay unavailable; raw inventories and numeric/effect/strict semantics remain

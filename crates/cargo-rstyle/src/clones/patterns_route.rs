@@ -1,10 +1,12 @@
-//! Route the opt-in patterns command through the existing compiler workflow.
-use super::{Args, capture_input, run_captured};
+//! Pattern listing and repository review share the compiler workflow.
+mod session;
+use super::{Args, capture_input};
 use crate::{Cli, PatternsArgs, ignore};
 use clap::{Args as _, FromArgMatches};
+pub(crate) use session::run as ignore;
 
 pub(crate) fn run(cli: Cli, patterns: PatternsArgs) -> Result<(String, u8), String> {
-    compiler_args(patterns)?.run(cli)
+    compiler_args(patterns)?.run(cli, None)
 }
 
 struct Captured {
@@ -33,11 +35,30 @@ struct Routed {
 }
 
 impl Routed {
-    fn run(self, mut cli: Cli) -> Result<(String, u8), String> {
-        let replay = self.options.replay_run.is_some();
+    fn run(self, cli: Cli, review: Option<&crate::IgnoreArgs>) -> Result<(String, u8), String> {
+        let ignore_file = review.and(cli.ignore_file.as_ref()).cloned();
+        let review = review.map(|args| session::Review { args, ignore_file });
+        Execution {
+            cli,
+            routed: self,
+            review,
+        }
+        .run()
+    }
+}
+
+struct Execution<'a> {
+    cli: Cli,
+    routed: Routed,
+    review: Option<session::Review<'a>>,
+}
+
+impl Execution<'_> {
+    fn run(mut self) -> Result<(String, u8), String> {
+        let replay = self.routed.options.replay_run.is_some();
         super::with_capture_verification(replay, || {
-            let (Captured { config, capture }, options) = prepare(&mut cli, self)?;
-            run_captured(&cli, &options, config, capture)
+            let (captured, options) = prepare(&mut self.cli, self.routed)?;
+            session::publish(&self.cli, self.review, captured, options)
         })
     }
 }
@@ -63,12 +84,13 @@ fn compiler_args(patterns: PatternsArgs) -> Result<Routed, String> {
         fail_on_findings: patterns.fail_on_candidates,
         compiler_pattern_scope: patterns
             .route
+            .input
             .compiler_pattern_scope
             .unwrap_or(super::CompilerSourceScope::Authored),
-        replay_run: patterns.route.replay_run,
+        replay_run: patterns.route.input.replay_run,
         review_file: patterns.route.review_file,
         review_status: patterns.route.review_status,
-        locked: patterns.route.locked,
+        locked: patterns.route.input.locked,
         dismiss_compiler_pattern: patterns.route.dismiss_compiler_pattern,
         review_reason: patterns.route.review_reason,
         ..Args::from_arg_matches(&matches).map_err(|error| error.to_string())?

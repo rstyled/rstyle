@@ -82,6 +82,9 @@ jobs:
       - name: rstyle patterns
         run: ./scripts/style.sh patterns --fail-on-candidates --show-ignored
 
+      - name: rstyle reference patterns
+        run: ./scripts/style.sh patterns --engine legacy --fail-on-candidates --show-ignored
+
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4

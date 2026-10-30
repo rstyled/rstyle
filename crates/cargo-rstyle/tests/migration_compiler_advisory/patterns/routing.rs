@@ -265,7 +265,7 @@ fn compiler_route_defaults_to_authored_scope_and_reports_generated_owners() {
 }
 
 #[test]
-fn engine_selection_retains_existing_default_while_compiler_accepts_repository_reviews() {
+fn explicit_reference_engine_and_compiler_both_apply_repository_reviews() {
     let directory = fixture(FAMILIES);
     let original = patterns_json(directory.path(), &["--no-ignore"]);
     let candidate = &original["candidates"][0];
@@ -279,10 +279,7 @@ fn engine_selection_retains_existing_default_while_compiler_accepts_repository_r
     let current = patterns_json(directory.path(), &[]);
     assert!(current.get("compiler_advisory").is_none());
     assert_eq!(current["ignored_count"], 1);
-    assert_eq!(
-        current,
-        patterns_json(directory.path(), &["--engine", "legacy"])
-    );
+    assert_eq!(current, patterns_json(directory.path(), &[]));
     let output = raw(directory.path(), &["--show-ignored"]);
     checked(&output, 0);
     let compiler = report(&output);
@@ -387,7 +384,7 @@ fn compiler_only_route_flags_reject_unsupported_engine_combinations() {
         vec!["--review-file", "reviews.json", "--review-status"],
         vec!["--locked"],
     ] {
-        let mut args = vec!["patterns"];
+        let mut args = vec!["patterns", "--engine", "legacy"];
         args.extend(options);
         let output = rstyle(directory.path(), &args);
         checked(&output, 2);

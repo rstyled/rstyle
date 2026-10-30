@@ -571,7 +571,10 @@ fn facts_record_sig() {
 #[test]
 fn patterns_lists_signature_groups_with_spans() {
     let dir = fixture("animals");
-    let output = rstyle(dir.path(), &["patterns", "--format", "json"]);
+    let output = rstyle(
+        dir.path(),
+        &["patterns", "--engine", "legacy", "--format", "json"],
+    );
     assert_eq!(
         output.status.code(),
         Some(0),
@@ -604,7 +607,7 @@ fn patterns_lists_signature_groups_with_spans() {
     assert_eq!(find("fn(&Self) -> &str")["same_name"], true);
     assert_eq!(find("fn(&Self, &A) -> Self")["self_types"], 2);
 
-    let text = stdout(&rstyle(dir.path(), &["patterns"]));
+    let text = stdout(&rstyle(dir.path(), &["patterns", "--engine", "legacy"]));
     assert!(text.contains("fn(&Self) -> String"), "{text}");
     assert!(text.contains("src/lib.rs:"), "{text}");
 }
@@ -623,7 +626,7 @@ fn patterns_group_impls_that_differ_only_in_concrete_type_arguments() {
 }
 
 fn patterns_json(dir: &Path, extra: &[&str]) -> Value {
-    let mut args = vec!["patterns", "--format", "json"];
+    let mut args = vec!["patterns", "--engine", "legacy", "--format", "json"];
     args.extend(extra);
     let output = rstyle(dir, &args);
     assert_eq!(
@@ -755,7 +758,7 @@ fn patterns_hide_implements_recovers_the_trait_as_a_candidate() {
 #[test]
 fn patterns_text_golden() {
     let dir = fixture("animals");
-    let output = rstyle(dir.path(), &["patterns"]);
+    let output = rstyle(dir.path(), &["patterns", "--engine", "legacy"]);
     assert_eq!(output.status.code(), Some(0));
     insta::assert_snapshot!(stdout(&output));
 }
@@ -763,9 +766,18 @@ fn patterns_text_golden() {
 #[test]
 fn patterns_output_is_byte_identical_across_runs_and_copies() {
     let (one, two) = (fixture("animals"), fixture("animals"));
-    let first = stdout(&rstyle(one.path(), &["patterns", "--format", "json"]));
-    let again = stdout(&rstyle(one.path(), &["patterns", "--format", "json"]));
-    let fresh = stdout(&rstyle(two.path(), &["patterns", "--format", "json"]));
+    let first = stdout(&rstyle(
+        one.path(),
+        &["patterns", "--engine", "legacy", "--format", "json"],
+    ));
+    let again = stdout(&rstyle(
+        one.path(),
+        &["patterns", "--engine", "legacy", "--format", "json"],
+    ));
+    let fresh = stdout(&rstyle(
+        two.path(),
+        &["patterns", "--engine", "legacy", "--format", "json"],
+    ));
     assert!(first.contains("\"candidates\""));
     assert_eq!(first, again);
     assert_eq!(first, fresh);
@@ -813,7 +825,7 @@ fn first_candidate_id(dir: &Path) -> String {
 }
 
 fn ignore_ok(dir: &Path, args: &[&str]) -> String {
-    let mut all = vec!["ignore"];
+    let mut all = vec!["ignore", "--engine", "legacy"];
     all.extend(args);
     let output = rstyle(dir, &all);
     assert_eq!(
@@ -844,7 +856,10 @@ fn ignore_hides_a_candidate_and_patterns_says_so() {
     assert_eq!(after["ignored"][0]["id"], id.as_str());
     assert_eq!(after["ignored"][0]["reason"], "reviewed, coincidence");
 
-    let text = stdout(&rstyle(dir.path(), &["patterns", "--show-ignored"]));
+    let text = stdout(&rstyle(
+        dir.path(),
+        &["patterns", "--engine", "legacy", "--show-ignored"],
+    ));
     assert!(
         text.contains("1 candidates hidden by the ignore ledger"),
         "{text}"
@@ -892,8 +907,8 @@ fn ignore_status_and_prune_manage_stale_entries() {
 #[test]
 fn ignore_rejects_unknown_ids_and_missing_modes() {
     let dir = fixture("animals");
-    let unknown = rstyle(dir.path(), &["ignore", "ffff"]);
-    let nothing = rstyle(dir.path(), &["ignore"]);
+    let unknown = rstyle(dir.path(), &["ignore", "--engine", "legacy", "ffff"]);
+    let nothing = rstyle(dir.path(), &["ignore", "--engine", "legacy"]);
 
     assert_eq!(unknown.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&unknown.stderr).contains("no candidate"));
@@ -937,7 +952,12 @@ fn fail_on_candidates_exits_one_until_every_candidate_is_dismissed() {
         .iter()
         .map(|c| c["id"].as_str().unwrap().to_string())
         .collect();
-    let gate = |dir: &Path| rstyle(dir, &["patterns", "--fail-on-candidates"]);
+    let gate = |dir: &Path| {
+        rstyle(
+            dir,
+            &["patterns", "--engine", "legacy", "--fail-on-candidates"],
+        )
+    };
 
     let failing = gate(dir.path());
     assert_eq!(failing.status.code(), Some(1));
@@ -951,7 +971,12 @@ fn fail_on_candidates_exits_one_until_every_candidate_is_dismissed() {
     });
     let clean = gate(dir.path());
     assert_eq!(clean.status.code(), Some(0), "{}", stdout(&clean));
-    assert_eq!(rstyle(dir.path(), &["patterns"]).status.code(), Some(0));
+    assert_eq!(
+        rstyle(dir.path(), &["patterns", "--engine", "legacy"])
+            .status
+            .code(),
+        Some(0)
+    );
 }
 
 fn clone_workspace() -> TempDir {
@@ -1478,7 +1503,7 @@ fn inherited_hir_destinations_do_not_change_legacy_commands() {
     let poison = directory.path().join("must-not-exist");
     for args in [
         vec!["--format", "json"],
-        vec!["patterns", "--format", "json"],
+        vec!["patterns", "--engine", "legacy", "--format", "json"],
     ] {
         let output = Command::new(cargo_bin("cargo-rstyle"))
             .args(args)

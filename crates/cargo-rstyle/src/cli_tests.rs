@@ -54,14 +54,14 @@ fn patterns_backend_selection_remains_independent_of_style() {
         let Some(Command::Patterns(patterns)) = cli.command else {
             panic!("expected patterns command");
         };
-        assert!(patterns.route.engine == Engine::Legacy);
+        assert!(patterns.route.input.engine == Engine::Compiler);
     }
     let cli = Cli::try_parse_from(["cargo-rstyle", "patterns", "--engine", "compiler"]).unwrap();
     assert!(cli.style_engine.is_none());
     let Some(Command::Patterns(patterns)) = cli.command else {
         panic!("expected patterns command");
     };
-    assert!(patterns.route.engine == Engine::Compiler);
+    assert!(patterns.route.input.engine == Engine::Compiler);
 }
 
 #[test]

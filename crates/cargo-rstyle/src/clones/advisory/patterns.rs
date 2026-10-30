@@ -1,5 +1,6 @@
 //! Adapt owned compiler graphs to existing core proposal policy.
 mod repository;
+mod session;
 pub(super) mod workspace;
 use super::{Missing, source_scope::SourceScope};
 use crate::clones::review::compiler_patterns::observed;
@@ -20,6 +21,8 @@ pub(super) struct Report {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     hide_implements: Vec<String>,
     pub input_complete: bool,
+    #[serde(skip)]
+    current: Option<std::collections::BTreeMap<String, rstyle_core::ledger::status::Current>>,
     effect_evidence: EffectEvidence,
     policy_selected_functions: usize,
     observed_graphs: usize,
@@ -141,6 +144,7 @@ pub(super) fn attach(
 }
 
 pub(super) struct Inputs {
+    pub current: Option<std::collections::BTreeMap<String, rstyle_core::ledger::status::Current>>,
     pub facts: Vec<FnFacts>,
     pub missing: Vec<Missing>,
     pub unavailable_functions: usize,
@@ -155,52 +159,49 @@ pub(super) fn evaluate(
     input: Inputs,
     scoped: bool,
 ) -> Result<Report, String> {
-    let Inputs {
-        facts,
-        missing,
-        unavailable_functions,
-        generated_functions,
-        effects,
-        effects_complete,
-    } = input;
-
-    let source_scope = SourceScope::select(ctx.args.compiler_pattern_scope, generated_functions);
-    let unavailable_functions = in_scope_unavailable(unavailable_functions, source_scope.as_ref());
+    let source_scope =
+        SourceScope::select(ctx.args.compiler_pattern_scope, input.generated_functions);
+    let unavailable_functions =
+        in_scope_unavailable(input.unavailable_functions, source_scope.as_ref());
 
     let options = crate::mine_options(&ctx.args.mine);
-    let policy_selected_functions = facts.len();
-    let observed_graphs = facts
+    let policy_selected_functions = input.facts.len();
+    let observed_graphs = input
+        .facts
         .iter()
         .filter(|function| function.pdg.is_some())
         .count();
 
-    let (mut evaluation, prepared) = discover(facts, &options, scoped);
-    let effects = effects.ok_or("Compiler patterns require completed core effects")?;
+    let (mut evaluation, prepared) = discover(input.facts, &options, scoped);
+    let effects = input
+        .effects
+        .ok_or("Compiler patterns require completed core effects")?;
     rstyle_core::candidates::annotate_completed_effects(&mut evaluation.candidates, &effects)?;
     let repository_visible_candidates = repository::apply(ctx.pattern_ledger, &mut evaluation);
-    Ok(Report {
+    Report {
         schema: "rstyle.compiler-patterns/2",
+        current: session::current(input.current, &prepared),
         member_units: units.iter().map(|unit| unit.id).collect(),
         owners: owners(ctx, units)?,
         policy_version: rstyle_core::candidates::POLICY_VERSION,
         policy: options.params,
         hide_implements: options.hide_implements,
-        effect_evidence: EffectEvidence::new(effects_complete),
-        input_complete: missing.is_empty() && unavailable_functions == 0,
+        effect_evidence: EffectEvidence::new(input.effects_complete),
+        input_complete: input.missing.is_empty() && unavailable_functions == 0,
         policy_selected_functions,
         observed_graphs,
         unavailable_functions,
         source_scope,
-        unavailable_graphs: missing,
-        presentation: (!ctx.args.pattern_display.is_default())
-            .then(|| Presentation::new(&ctx.args.pattern_display, &evaluation)),
-        selected_candidates: select_candidates(ctx, &evaluation)?,
+        unavailable_graphs: input.missing,
+        presentation: None,
+        selected_candidates: None,
         snapshots: review_snapshots(ctx, units, prepared, &evaluation),
         evaluation,
         visible_candidates: None,
         repository_visible_candidates,
         show_ignored: ctx.args.show_ignored,
-    })
+    }
+    .with_presentation(ctx)
 }
 
 fn discover(
@@ -226,6 +227,7 @@ impl Inputs {
         effects.extend(input.effects.ok_or("Missing completed compiler effects")?);
 
         Ok(Self {
+            current: session::join(self.current, input.current),
             facts: joined(self.facts, input.facts),
             missing: joined(self.missing, input.missing),
             generated_functions: joined(self.generated_functions, input.generated_functions),
@@ -302,6 +304,21 @@ fn select_candidates(
 }
 
 impl Report {
+    fn with_presentation(
+        mut self,
+        ctx: &crate::clones::report::Context<'_>,
+    ) -> Result<Self, String> {
+        self.selected_candidates = select_candidates(ctx, &self.evaluation)?;
+        self.presentation = (!ctx.args.pattern_display.is_default()).then(|| {
+            let presentation = Presentation::new(&ctx.args.pattern_display, &self.evaluation);
+            match &self.repository_visible_candidates {
+                Some(visible) => presentation.with_reviews(&self.evaluation, visible),
+                None => presentation,
+            }
+        });
+        Ok(self)
+    }
+
     pub(super) fn missing_graphs(&self) -> impl Iterator<Item = crate::clones::FunctionKey> + '_ {
         self.unavailable_graphs.iter().map(|missing| missing.key)
     }

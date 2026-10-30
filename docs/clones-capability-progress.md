@@ -7560,3 +7560,50 @@ GitHub CLI requires authentication in this environment.
 The root default switch and `ignore` dismissal/status/prune still need one shared
 compiler-candidate path before replacing the existing default. This checkpoint
 does not claim that replacement is complete.
+
+### C114 — default patterns and repository review to workspace compiler discovery (2026-10-30)
+
+Lead owns routing, integration, CI, documentation and commits. Leaf work supplied
+compact core status observations and independent CLI acceptance; a read-only
+ownership audit identified unnecessary status work in dismissal/prune. Root
+`patterns` and `ignore` now select the compiler workspace proposer together, with
+authored scope by default. The reference collector remains explicitly selectable
+for comparison; root style and strict clone matching keep their current behavior.
+No production ledger transition or conversion is required: the same repository
+ledger matcher and dismissal/prune operations consume owned raw candidates.
+
+Listing and review share capture preparation and execution. Report publication
+can consume the owned advisory report, moving candidate vectors into review
+sessions without copying graphs. A compact location/optional-shape census includes
+functions that no longer form proposals; status preserves separate compilation
+populations and reports absent members or missing shapes as unavailable. Dismiss
+and prune do not build that census, hash every graph or format discarded status.
+Repeated check/test review occurrences resolve only when complete member keys
+agree; different member rosters remain ambiguous. Saved plans record the original
+full-workspace/all-target selection, so replay cannot broaden pruning authority
+with new flags. Incomplete input rejects review writes. Configuration setup
+preserves the requested alternate repository ledger in the review command.
+
+Repository visibility now applies before top-N even without scoped reviews; the
+new regression hides the leading candidate and requires the next one to appear.
+The first project gate found two duplicated helpers introduced during this work;
+removing the count helper and sharing actual capture execution resolves both
+without dismissals. Pure command setup and the thin I/O execution phase are
+separate. CI runs both the new default and explicit reference patterns gates.
+README and the embedded skill describe the actual defaults, replay and pruning.
+
+Final style passes over 10,142 functions. Both pattern gates pass with zero visible
+findings; default, unfiltered reference and C111 retain exactly the same 13 raw
+candidate IDs. Default capture/assessment/advisory inputs are complete. Saved
+unfiltered replay has identical raw candidates. The measured full workspace run
+is 90.66s/4,643,072KiB maximum process RSS; saved replay 25.51s/4,640,968KiB. Reference
+recollection is 37.65s and subsequent unfiltered evaluation 10.94s/432,824KiB.
+Receipt: eval/clones-capability/default-workspace-patterns-study.json. These are
+single sequential observations, not cold builds, incremental-cache evidence or a
+speedup claim. Compiler default resource cost remains materially higher.
+
+Final integration passes 3,752 Rust tests (5 skipped, 264.084s), doctests,
+workspace/all-target Clippy, formatting and diff whitespace. Both originally
+reported NonZero failures pass in this final run. Native macOS CI remains
+unverified locally. The next measured frontier is the 25.5s/4.4GiB saved compiler-pattern replay;
+profile its actual loading/proposer cost before choosing another optimization.

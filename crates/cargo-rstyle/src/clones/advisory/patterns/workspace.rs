@@ -100,11 +100,13 @@ fn evaluate(ctx: &Context<'_>, population: Population) -> Result<Report, String>
         .collect();
 
     let mut inputs = population.inputs.into_iter();
-    let (first, mut combined) = inputs.next().expect("Nonempty compiler population");
+    let (first, combined) = inputs.next().expect("Nonempty compiler population");
+    let mut combined = session_input(ctx, combined);
     if scoped {
         qualify(&mut combined.facts, members[0].id, &scopes[&first], &roots);
     }
-    for (index, mut input) in inputs {
+    for (index, input) in inputs {
+        let mut input = session_input(ctx, input);
         if scoped {
             qualify(
                 &mut input.facts,
@@ -145,4 +147,14 @@ fn scopes(ctx: &Context<'_>, population: &Population) -> BTreeMap<usize, BTreeMa
             (*index, scopes)
         })
         .collect()
+}
+
+fn session_input(ctx: &Context<'_>, input: Inputs) -> Inputs {
+    Inputs {
+        current: ctx
+            .args
+            .pattern_session
+            .then(|| rstyle_core::ledger::status::current(&input.facts, false)),
+        ..input
+    }
 }

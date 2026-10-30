@@ -7,6 +7,7 @@ mod patterns;
 mod planning;
 pub(super) mod propagation;
 mod ranking;
+mod repository_session;
 mod selection;
 mod source_scope;
 pub(super) mod style;
@@ -575,6 +576,7 @@ impl Ready {
             .map(|ranking| ranking.evaluate(&self.facts))
             .transpose()?;
         let input = patterns::Inputs {
+            current: None,
             facts: self.facts,
             missing: self.missing_graphs,
             unavailable_functions: self.unit.unavailable.len(),

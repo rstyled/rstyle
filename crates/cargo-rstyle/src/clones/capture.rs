@@ -31,6 +31,9 @@ pub struct Target {
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Plan {
+    /// Original Cargo selection covers every workspace package and all targets.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_all_targets: Option<bool>,
     #[serde(default)]
     pub compiler_advisory_only: bool,
     #[serde(default)]
@@ -106,6 +109,7 @@ pub struct Capture {
 pub fn prepare(cli: &Cli, args: &Args) -> Result<Capture, String> {
     let (metadata, raw) = selected_workspace(cli)?;
     let mut capture = initial_capture(metadata, args.extraction_profile)?;
+    capture.plan.workspace_all_targets = Some(cli.packages.is_empty() && cli.all_targets);
     capture.plan.targets = selected_targets(&raw, cli, args.extraction_profile)?;
     capture.plan = capture.plan.with_advisory(args);
 
@@ -170,6 +174,7 @@ fn plan(
     environment: CaptureEnvironment,
 ) -> Plan {
     Plan {
+        workspace_all_targets: None,
         compiler_advisory_only: false,
         style_inputs_only: false,
         compiler_advisory: false,

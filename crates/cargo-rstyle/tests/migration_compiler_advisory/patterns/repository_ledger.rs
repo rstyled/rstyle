@@ -293,3 +293,29 @@ fn repository_and_scoped_reviews_intersect_before_top_without_changing_raw_findi
         "hidden_exact"
     );
 }
+
+#[test]
+fn repository_review_filters_before_top_without_scoped_reviews() {
+    let (directory, original) = fixture(FAMILIES);
+    let candidates = proposals(&original)["evaluation"]["candidates"]
+        .as_array()
+        .unwrap();
+    assert!(candidates.len() >= 2);
+    ledger(directory.path(), &candidates[0], false);
+    remove_sources(directory.path());
+    let output = saved(
+        directory.path(),
+        &original,
+        &["--top", "1", "--fail-on-candidates"],
+    );
+    checked(&output, 1);
+    let reviewed = json(&output);
+    assert_eq!(
+        proposals(&reviewed)["presentation"]["candidate_indices"],
+        serde_json::json!([1])
+    );
+    assert_eq!(
+        proposals(&reviewed)["evaluation"]["candidates"],
+        proposals(&original)["evaluation"]["candidates"]
+    );
+}

@@ -97,48 +97,54 @@ struct PatternsArgs {
 
 #[derive(Clone, Copy, Default, PartialEq, ValueEnum)]
 enum Engine {
-    #[default]
     Legacy,
+    #[default]
     Compiler,
 }
 
-/// Opt-in routing reuses the standalone compiler-pattern workflow and its reports.
+/// Shared discovery selection for pattern listing and repository review commands.
 #[derive(Args, Default)]
-struct PatternRouteArgs {
-    /// Choose the existing legacy miner or captured compiler observations.
-    #[arg(long, value_enum, default_value_t = Engine::Legacy)]
+struct PatternInputArgs {
+    /// Discovery backend; compiler reuses workspace compiler observations and the core proposer.
+    #[arg(long, value_enum, default_value_t = Engine::Compiler)]
     engine: Engine,
-    /// Compiler proposal population; authored excludes explicitly generated signatures.
+    /// Compiler population; authored excludes explicitly generated signatures.
     #[arg(long, value_enum)]
     compiler_pattern_scope: Option<clones::CompilerSourceScope>,
+    /// Reevaluate an explicit saved compiler run without compiling.
+    #[arg(long)]
+    replay_run: Option<PathBuf>,
+    /// Require the existing lockfile during compiler capture.
+    #[arg(long)]
+    locked: bool,
+}
+
+#[derive(Args, Default)]
+struct PatternRouteArgs {
+    #[command(flatten)]
+    input: PatternInputArgs,
     /// Record an exact review of a saved compiler candidate without changing raw proposals.
     #[arg(long, num_args = 2, value_names = ["UNIT", "CANDIDATE_ID"], requires_all = ["review_file", "review_reason", "replay_run"], conflicts_with = "review_status")]
     dismiss_compiler_pattern: Vec<String>,
     /// Explain a direct compiler proposal review.
     #[arg(long, requires = "dismiss_compiler_pattern")]
     review_reason: Option<String>,
-    /// Reevaluate an exact saved compiler run without compiling (compiler engine only).
-    #[arg(long)]
-    replay_run: Option<PathBuf>,
     /// Scoped compiler review store (compiler engine only).
     #[arg(long)]
     review_file: Option<PathBuf>,
     /// Include scoped compiler review status (compiler engine only).
     #[arg(long, requires = "review_file")]
     review_status: bool,
-    /// Require the existing lockfile during compiler capture.
-    #[arg(long)]
-    locked: bool,
 }
 
 impl PatternRouteArgs {
     fn compiler_options_requested(&self) -> bool {
-        self.replay_run.is_some()
+        self.input.replay_run.is_some()
             || self.review_file.is_some()
             || self.review_status
-            || self.locked
+            || self.input.locked
             || !self.dismiss_compiler_pattern.is_empty()
-            || self.compiler_pattern_scope.is_some()
+            || self.input.compiler_pattern_scope.is_some()
     }
 }
 
@@ -165,6 +171,8 @@ impl PatternDisplayArgs {
 
 #[derive(Args)]
 struct IgnoreArgs {
+    #[command(flatten)]
+    route: PatternInputArgs,
     /// Candidate id (or a unique prefix of at least 4 digits) from `cargo rstyle patterns`.
     id: Option<String>,
     /// Keep hiding the candidate when more functions join it.
@@ -316,7 +324,7 @@ fn mine_options(mine: &MineArgs) -> patterns_report::Options {
 const FOUND: u8 = 1;
 
 fn patterns(cli: Cli, args: PatternsArgs) -> Result<(String, u8), String> {
-    if args.route.engine == Engine::Compiler {
+    if args.route.input.engine == Engine::Compiler {
         return clones::patterns_route::run(cli, args);
     }
     if args.route.compiler_options_requested() {
@@ -361,7 +369,7 @@ struct Session {
     path: PathBuf,
     ledger: ledger::Ledger,
     candidates: Vec<rstyle_core::candidates::Candidate>,
-    facts: Vec<FnFacts>,
+    status: String,
 }
 
 fn session(cli: &Cli, args: &IgnoreArgs) -> Result<Session, String> {
@@ -369,19 +377,25 @@ fn session(cli: &Cli, args: &IgnoreArgs) -> Result<Session, String> {
     let path = ignore::ledger_path(cli.ignore_file.as_deref(), &root);
     let ledger = ignore::load(&path)?;
     let candidates = patterns_report::all_candidates(&facts, &mine_options(&args.mine));
+    let status = if args.status {
+        status_text(
+            ledger::status::status(&ledger, &candidates, &facts),
+            args.id.as_deref(),
+        )
+    } else {
+        String::new()
+    };
 
     Ok(Session {
         path,
         ledger,
         candidates,
-        facts,
+        status,
     })
 }
 
-fn ignore_status(s: &Session, filter: Option<&str>) -> String {
-    let mut statuses = ledger::status::status(&s.ledger, &s.candidates, &s.facts);
+fn status_text(mut statuses: Vec<ledger::status::EntryStatus>, filter: Option<&str>) -> String {
     statuses.retain(|st| filter.is_none_or(|id| st.id.starts_with(id)));
-
     ledger::status::text(&statuses)
 }
 
@@ -401,15 +415,28 @@ fn ignore_dismiss(s: Session, id: &str, opts: Opts) -> Result<String, String> {
     Ok(message)
 }
 
-fn ignore_cmd(cli: &Cli, args: &IgnoreArgs) -> Result<String, String> {
-    let s = session(cli, args)?;
+fn ignore_cmd(cli: Cli, args: IgnoreArgs) -> Result<(String, u8), String> {
+    if args.route.engine == Engine::Compiler {
+        return clones::patterns_route::ignore(cli, args);
+    }
+    if args.route.replay_run.is_some()
+        || args.route.compiler_pattern_scope.is_some()
+        || args.route.locked
+    {
+        return Err("Compiler discovery options require --engine compiler".into());
+    }
+    let s = session(&cli, &args)?;
+    Ok((apply_ignore(s, &args)?, 0))
+}
+
+fn apply_ignore(s: Session, args: &IgnoreArgs) -> Result<String, String> {
     let opts = Opts {
         allow_growth: args.allow_growth,
         reason: args.reason.clone(),
     };
 
     match (&args.id, args.status, args.prune) {
-        (id, true, _) => Ok(ignore_status(&s, id.as_deref())),
+        (_, true, _) => Ok(s.status),
         (_, _, true) => ignore_prune(s, args.dry_run),
         (Some(id), _, _) => ignore_dismiss(s, id, opts),
         _ => Err("give a candidate id, --status or --prune".into()),
@@ -468,7 +495,7 @@ fn main() -> ExitCode {
         Some(Command::Clones(args)) => return exit_with(clones::run(&cli, &args)),
         Some(Command::Patterns(args)) => return exit_with(patterns(cli, args)),
         Some(Command::Ignore(args)) => {
-            return exit_with(ignore_cmd(&cli, &args).map(|output| (output, 0)));
+            return exit_with(ignore_cmd(cli, args));
         }
         None => {}
     }

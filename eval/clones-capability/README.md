@@ -955,3 +955,20 @@ version, policy, hash, source scan or admission change is introduced. This finit
 metric review does not establish whole-project quality or authorize the default
 switch: usefulness, report/exit/config/review compatibility and retirement remain
 separate requirements.
+
+### Default workspace patterns and repository review (C114)
+
+`default-workspace-patterns-study.json` records the final full-workspace default
+and explicit reference gates, unfiltered baseline IDs, and saved-run
+semantics. Source/tool-free replay is covered by the CLI acceptance fixtures. The compiler default selects 10,142 authored functions, preserves all 13
+existing repository dismissals, and reports complete inputs with zero visible
+findings. The new default and `ignore` share the existing workspace proposer;
+status retains per-population locations/shapes only when requested. CLI acceptance
+also covers alternate ledgers, cross-package members, changed noncandidate
+locations, unavailable bodies/populations and full-selection prune safeguards.
+
+The observed compiler live run takes 90.66s and saved replay 25.51s, each around
+4.4 GiB maximum process RSS. Reference recollection takes 37.65s and subsequent
+unfiltered evaluation 10.94s. These are sequential observations on a previously
+used target directory, not cold-build timings, cache claims or a speedup. The
+compiler default's resource cost remains a limitation; native macOS CI is pending.
