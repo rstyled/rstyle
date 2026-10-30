@@ -7195,3 +7195,21 @@ has not run native CI yet.
 Next: commit this coherent capture reduction and resolve the default
 diagnostic-usefulness disposition. Root and patterns
 defaults remain legacy; strict clone matching is unchanged.
+
+### C104 — compare current root engine resource paths (2026-10-30)
+
+Record serial Linux observations against C103 source76d9877f, with unchanged
+workspace config and10,075 authored functions. The first timed legacy invocation
+finishes22.33s/1,885,960 KiB; its repeat finishes0.91s/91,764 KiB with exactly equal
+reports. The recorded C103 compiler fresh capture is34.36s/2,432,048 KiB, repeated
+owner reuse6.50s/1,186,312 KiB with equal report projections. These use different
+existing reuse paths and are not randomized cold-build benchmarks. The compiler
+capture improvement does not establish parity with legacy cached-facts cost.
+No additional budget or performance gate is invented; this evidence informs the
+existing default resource/usefulness decision, which remains unaccepted.
+
+project-root-style-engine-resource-comparison.json retains commands' logs,
+metrics and comparison limits. JSON parsing and whitespace validation pass.
+No production behavior changes belong to this measurement checkpoint. The next
+bounded implementation closes direct review recording through compiler patterns
+by forwarding to its already-existing exact-review workflow; no new review policy.

@@ -1,0 +1,115 @@
+{
+  "schema": "rstyle.root-style-engine-resource-comparison/1",
+  "checkpoint": "C104",
+  "source_revision": "76d9877f",
+  "scope": "Default authored workspace libraries/binaries; same rstyle.toml; no all-targets; dev binaries and warm dependency state; no temporary instrumentation.",
+  "observations": [
+    {
+      "engine": "legacy",
+      "report": "/tmp/clones-c104-legacy-first.json",
+      "time_log": "/tmp/clones-c104-legacy-first.time",
+      "elapsed_seconds": 22.33,
+      "peak_rss_kib": 1885960,
+      "exit_code": 0,
+      "summary": {
+        "functions": 10075,
+        "violations": 0,
+        "complexity_measured": 10075,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 80,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 343,
+          "mutation": 2084,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      }
+    },
+    {
+      "engine": "legacy",
+      "report": "/tmp/clones-c104-legacy-warm.json",
+      "time_log": "/tmp/clones-c104-legacy-warm.time",
+      "elapsed_seconds": 0.91,
+      "peak_rss_kib": 91764,
+      "exit_code": 0,
+      "summary": {
+        "functions": 10075,
+        "violations": 0,
+        "complexity_measured": 10075,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 80,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 343,
+          "mutation": 2084,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      }
+    },
+    {
+      "engine": "compiler",
+      "report": "/tmp/clones-c103-root-final.json",
+      "time_log": "/tmp/clones-c103-root-final.time",
+      "elapsed_seconds": 34.36,
+      "peak_rss_kib": 2432048,
+      "exit_code": 1,
+      "summary": {
+        "functions": 10075,
+        "violations": 49,
+        "complexity_measured": 10075,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 98,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 343,
+          "mutation": 2097,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      }
+    },
+    {
+      "engine": "compiler",
+      "report": "/tmp/clones-c103-root-final-warm.json",
+      "time_log": "/tmp/clones-c103-root-final-warm.time",
+      "elapsed_seconds": 6.5,
+      "peak_rss_kib": 1186312,
+      "exit_code": 1,
+      "summary": {
+        "functions": 10075,
+        "violations": 49,
+        "complexity_measured": 10075,
+        "complexity_unavailable": 0,
+        "mean_density_milli": 98,
+        "max_density_milli": 15000,
+        "effect_counts": {
+          "io": 343,
+          "mutation": 2097,
+          "panic": 56,
+          "time": 68,
+          "unknown": 166
+        }
+      }
+    }
+  ],
+  "legacy_repeat_report_equal": true,
+  "compiler_repeat_projection_equal": {
+    "diagnostics": true,
+    "summary": true,
+    "functions": true,
+    "fix_groups": true,
+    "compiler_advisory": true
+  },
+  "interpretation": [
+    "Both engines enumerate 10,075 authored functions with complete complexity measurements. Legacy reports zero diagnostics; compiler reports49, as separately reviewed.",
+    "The first timed legacy invocation is22.33s; its repeated cached-facts invocation is0.91s/91,764KiB. Compiler fresh capture is34.36s/2,432,048KiB, repeated owner reuse6.50s/1,186,312KiB.",
+    "These are serial local observations at the same source revision, not a randomized benchmark or an agreed resource envelope. Warm paths reuse different existing artifacts; neither repeat is a fresh compilation.",
+    "C103 improves compiler capture cost but does not establish cost parity with the legacy warm path. Do not infer default acceptance from the prior relative speed improvement.",
+    "No production behavior, threshold, suppression, hashes or caches change in this measurement checkpoint. Default usefulness and resource acceptance remain separate product decisions."
+  ]
+}
