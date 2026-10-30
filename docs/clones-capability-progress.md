@@ -7044,3 +7044,31 @@ the same13 unfiltered pattern IDs. C98 native CI remains in progress; C99 native
 validation awaits publication. Next concrete source reuse: share optional request
 loading in existing product/reference diagnostic support, preserving each lens's
 validation and publication policy. Default resource/usefulness gates remain open.
+
+### C100 — share optional diagnostic request loading (2026-10-30)
+
+Two independently source-reviewed orchestration findings identified the same
+optional request-loader responsibility in product/reference diagnostics. Add
+only the environment/open/streaming-decode seam to existing diagnostic_support.
+Each caller retains its closed schema, validation order, owner kinds, outcomes,
+identity/scope and publication arguments. Scalar diagnostics keep their different
+profile-before-open ordering. There is no new collector, policy/proof layer,
+cache, checksum, metric version, threshold, suppression or strict matching change.
+
+All five focused real-Cargo tests pass: existing original binders/conversions and
+observed/unsupported/unavailable outcomes; absent lens isolation and publication
+scope; missing-file-before-context and malformed-JSON-before-publication order;
+closed schemas; and both wrong-crate outcomes. Read-only review found no defects.
+Clippy caught two enlarged acceptance functions; cohesive inventory readers keep
+the assertions while restoring the existing50-line limit, without an allowance.
+Original source review and acceptance scope are retained in
+project-diagnostic-request-reuse-study.json. This is input reuse, not measured
+speed or additional analysis coverage. Default usefulness/resources remain open.
+
+C100 integrated validation: all3,703 Rust tests pass (5 skipped,263.015s), plus
+doctests,248 capability Python tests and50 script tests. Formatting,
+workspace/all-target Clippy, diff whitespace and both legacy gates pass:
+zero style violations across10,062 functions and the same13 unfiltered pattern
+IDs. Native validation of this checkpoint awaits publication. Next: reconcile
+the frozen default-density findings and close concrete root-routing compatibility
+gaps before deciding whether compiler style should become the default.

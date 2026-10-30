@@ -4,6 +4,18 @@ use rustc_middle::ty::{GenericArgsRef, TyCtxt};
 use serde::Serialize;
 use std::{collections::BTreeMap, path::PathBuf};
 
+pub(super) fn optional_requests<T: serde::de::DeserializeOwned>(
+    variable: &str,
+) -> Result<Option<T>, String> {
+    let Some(path) = std::env::var_os(variable) else {
+        return Ok(None);
+    };
+    let file = std::fs::File::open(path).map_err(|error| error.to_string())?;
+    serde_json::from_reader(file)
+        .map(Some)
+        .map_err(|error| error.to_string())
+}
+
 /// Project complete compiler arguments while retaining each diagnostic lens's policy.
 pub(super) trait ArgumentsProjection<'tcx> {
     fn args(

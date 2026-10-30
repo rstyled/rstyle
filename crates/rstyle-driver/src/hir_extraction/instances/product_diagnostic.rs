@@ -147,12 +147,11 @@ pub(crate) fn capture(
     scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<(), String> {
-    let Some(path) = std::env::var_os("RSTYLE_DIAGNOSTIC_PRODUCT_INSTANCE_REQUESTS") else {
+    let Some(requests): Option<Requests> =
+        diagnostic_support::optional_requests("RSTYLE_DIAGNOSTIC_PRODUCT_INSTANCE_REQUESTS")?
+    else {
         return Ok(());
     };
-    let requests: Requests =
-        serde_json::from_reader(std::fs::File::open(path).map_err(|error| error.to_string())?)
-            .map_err(|error| error.to_string())?;
     validate(&requests, tcx, options)?;
     let owners = diagnostic_support::owners(tcx, &[DefKind::AssocFn]);
     let entries = requests

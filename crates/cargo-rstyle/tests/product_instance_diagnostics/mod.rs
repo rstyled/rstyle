@@ -1,6 +1,7 @@
 //! Concrete product observations retain original owners without granting admission.
 use super::*;
 use serde_json::json;
+mod request_loading;
 
 const SOURCE: &str = r#"
 use std::ops::Range;
@@ -45,6 +46,7 @@ fn run(directory: &Path, snapshots: &Path, request: &Value) -> Output {
             .env("RSTYLE_DIAGNOSTIC_CAPTURE_ONLY", "1")
             .env("RSTYLE_DIAGNOSTIC_FACTS_DIR", snapshots)
             .env("RSTYLE_DIAGNOSTIC_PRODUCT_INSTANCE_REQUESTS", requests)
+            .env_remove("RSTYLE_DIAGNOSTIC_REFERENCE_INSTANCE_REQUESTS")
             .env_remove("CARGO_TARGET_DIR"),
     )
     .unwrap()
@@ -77,23 +79,16 @@ fn product_instances_preserve_original_binders_and_selected_conversions() {
             ]
         }),
     );
-    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert!(!output.status.success());
-    assert_eq!(report["capture_complete"], false);
-    assert!(report["functions"].as_array().unwrap().is_empty());
-    let files = files(snapshots.path());
-    assert_eq!(
-        files.len(),
-        1,
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let inventory: Value = serde_json::from_slice(&std::fs::read(&files[0]).unwrap()).unwrap();
+    let inventory = inventory(&output, snapshots.path());
     assert_eq!(
         inventory["identity"],
         "rstyle.diagnostic.product-instance-bodies/1"
     );
     assert_eq!(inventory["admission_authority"], false);
+    assert_eq!(
+        inventory["scope"],
+        "original associated Match constructor, Span/Range substitutions and selected Into/From observations only"
+    );
     let entries = inventory["requests"].as_array().unwrap();
     assert_eq!(entries.len(), 4);
     assert_eq!(entries[0]["status"], "observed", "{}", entries[0]);
@@ -108,6 +103,29 @@ fn product_instances_preserve_original_binders_and_selected_conversions() {
         original_owner(instance);
         conversion(instance, index == 1);
     }
+}
+
+fn inventory(output: &Output, snapshots: &Path) -> Value {
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(!output.status.success());
+    assert_eq!(report["capture_complete"], false);
+    assert!(report["functions"].as_array().unwrap().is_empty());
+    let files = files(snapshots);
+    assert_eq!(
+        files.len(),
+        1,
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let inventory: Value = serde_json::from_slice(&std::fs::read(&files[0]).unwrap()).unwrap();
+    assert!(std::fs::read_dir(snapshots).unwrap().all(|entry| {
+        !entry
+            .unwrap()
+            .path()
+            .to_string_lossy()
+            .ends_with("-reference-instances.json")
+    }));
+    inventory
 }
 
 fn original_owner(instance: &Value) {
