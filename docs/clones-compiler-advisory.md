@@ -20,6 +20,13 @@ completed density totals before rounding. It describes known evaluated functions
 `summary_complete=false` identifies partial scope, and no completed evaluations
 produce `summary=null`, rather than a fabricated clean summary.
 
+Text diagnostics and complexity rows end with `[compiler unit N]`. The unit table
+lists the captured package, target name/kind, test mode and source path. The labels
+refer to the same report-local `unit_contexts` entries as JSON, so repeated source
+locations in library and test builds remain distinguishable. Full invocation and
+build settings remain in the evidence report; no source or tool lookup is needed
+to render these labels during replay.
+
 `compiler_advisory` retains per-unit evaluations, metric versions, outside-scope
 generated owners and limitations. `planning_input_complete` and
 `planning_required_edits_complete` preserve the planner's independent statuses;

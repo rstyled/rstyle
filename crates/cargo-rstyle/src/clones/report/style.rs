@@ -43,10 +43,30 @@ impl Report<'_> {
             })
             .map_err(|error| error.to_string()),
             Format::Text => Ok(format!(
-                "{}\nCompiler evidence and coverage: {}",
+                "{}\n{}\nCompiler evidence and coverage: {}",
                 evaluation.text(),
+                self.style_contexts(),
                 self.run_directory.join("report.json").display()
             )),
         }
+    }
+
+    fn style_contexts(&self) -> String {
+        self.unit_contexts
+            .iter()
+            .map(|context| {
+                let unit = &self.observed_units[context.observed_unit];
+                format!(
+                    "compiler unit {}: package={} target={} kind={} test={} source={}",
+                    context.id.ordinal(),
+                    unit.target.package,
+                    unit.target.name,
+                    unit.target.kind.join(","),
+                    unit.test,
+                    unit.target.source.display(),
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }

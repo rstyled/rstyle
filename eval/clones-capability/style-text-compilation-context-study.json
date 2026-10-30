@@ -1,0 +1,172 @@
+{
+  "snapshot": "C125 in the containing commit, following0e575843",
+  "problem": "Root compiler-style text omitted the completed JSON diagnostic/function unit mappings, making same-source library and test results indistinguishable.",
+  "implementation": "Append existing report-local compiler unit IDs to core-rendered diagnostic and complexity rows, and render the captured unit descriptor table. Reuse completed evaluations and saved package/target/test/source values. No new analysis, source scan, collector, hash, cache, metric/policy/default, review/baseline identity or strict-matching change.",
+  "independent_acceptance": {
+    "source": "crates/cargo-rstyle/tests/migration_compiler_advisory/style_contexts.rs",
+    "scope": "Two original library packages, each with one common two-parameter function and one cfg(test)-only two-parameter function; parameter limit1. Four library/test populations yield six findings and six score rows.",
+    "checks": [
+      "Common same-source findings and score rows map to both check and test units. Test-only findings and scores map only to test units. Unit descriptors name the original package, target, test mode and source.",
+      "Deleting all package source/manifests and disabling tool lookup preserves exact text; replay JSON retains the original diagnostics, diagnostic_units, functions, function_units and compiler_advisory evaluations.",
+      "Clean single-unit text retains its descriptor without fabricating diagnostic/complexity rows; exit remains0."
+    ]
+  },
+  "project": {
+    "input": "Explicit target/rstyle/clones/run-0hhfO7, C119 saved input over C118-era source observations, not a fresh containing-commit capture.",
+    "commands": [
+      "target/debug/cargo-rstyle --style-engine compiler --replay-run target/rstyle/clones/run-0hhfO7 --format json",
+      "target/debug/cargo-rstyle --style-engine compiler --replay-run target/rstyle/clones/run-0hhfO7 --format text"
+    ],
+    "conditions": "Disabled Cargo/rustc/driver/tool lookup; unchanged root configuration. Project sources still present; independent fixture separately removes sources. Each command bounded at120 seconds.",
+    "diagnostic_rows": 48,
+    "complexity_rows": 48,
+    "unit_descriptors": 6,
+    "complete_json_byte_identical_to_C124": true,
+    "unit_suffixes_match_original_json": true
+  },
+  "raw_candidate_ids": [
+    "114994040aee",
+    "28ac5efc1baa",
+    "440013106447",
+    "4f48d2ce7fc8",
+    "885b7a4e6179",
+    "8c495a7ebe17",
+    "a59c863eac67",
+    "bd6ed2f06436",
+    "c2d0658d42db",
+    "c5f442ffa59a",
+    "fc9b070d78be",
+    "fdb66ce83259"
+  ],
+  "candidate_inventory_change": {
+    "removed": [
+      "60e8af5f467a"
+    ],
+    "added": [],
+    "original_pair_graphs_unchanged": true,
+    "review_ledger_byte_identical": true,
+    "all_previous_review_ids_retained": true,
+    "triage": "Temporary harness reuses public core call_class and cluster over the10154 before/10156 after original authored graphs. The old columns_text_of/Namer::list pair has exactly equal full graphs and unchanged selected blocking keys. New style_contexts becomes the template of a four-member cluster including both old functions and possible_destructor. Five columns exceed the existing max_holes3 helper policy; the original two-member cluster had two columns. Both compiler and reference emit the same12 candidates. No miner, threshold, review or source changes were made to force the former count.",
+    "before_clusters": "cluster: [\"rstyle_core::candidates::columns_text_of\", \"rstyle_core::shape::{impl#0}::list\"]; holes=[(\"T0\", [\"rstyle_core::candidates::Index\", \"rstyle_core::shape::Namer\"]), (\"L0\", [\"\\\"; \\\"\", \"\\\", \\\"\"])]; coverage=[1000, 875]\nrstyle_core::candidates::columns_text_of: [[\"fn<1>(&Self, T1) -> _\",87],[\"const fn<2>(Self, T2) -> Map<T0, T2>\",909],[\"fn<1>(Self) -> T1\",1241]]\nrstyle_core::shape::{impl#0}::list: [[\"fn<1>(&Self, T1) -> _\",87],[\"const fn<2>(Self, T2) -> Map<T0, T2>\",909],[\"fn<1>(Self) -> T1\",1241]]\n",
+    "after_clusters": "cluster: [\"cargo_rstyle::clones::report::style::{impl#0}::style_contexts\", \"rstyle_core::candidates::columns_text_of\", \"rstyle_core::shape::{impl#0}::list\", \"rstyle_pdg::nominal_boundary::resolution::selected::no_drop::headers::possible_destructor\"]; holes=[(\"T0\", [\"cargo_rstyle::clones::report::Report\", \"rstyle_core::candidates::Index\", \"rstyle_core::shape::Namer\", \"syn::path::Path\"]), (\"T1\", [\"cargo_rstyle::clones::identity::UnitContext\", \"cargo_rstyle::clones::identity::UnitContext\", \"rstyle_core::facts::TyShape\", \"cargo_rstyle::clones::identity::UnitContext\"]), (\"T2\", [\"core::slice::iter::Iter\", \"core::slice::iter::Iter\", \"core::slice::iter::Iter\", \"syn::punctuated::Iter\"]), (\"D0\", [\"unit_contexts\", \"unit_contexts\", \"unit_contexts\", \"segments\"]), (\"L0\", [\"\\\"\\\\n\\\"\", \"\\\"; \\\"\", \"\\\", \\\"\", \"\\\"::\\\"\"])]; coverage=[1000, 875, 875, 700]\nrstyle_core::candidates::columns_text_of: [[\"fn<1>(&Self, T1) -> _\",88],[\"const fn<2>(Self, T2) -> Map<T0, T2>\",910],[\"fn<1>(Self) -> T1\",1242]]\nrstyle_core::shape::{impl#0}::list: [[\"fn<1>(&Self, T1) -> _\",88],[\"const fn<2>(Self, T2) -> Map<T0, T2>\",910],[\"fn<1>(Self) -> T1\",1242]]\n"
+  },
+  "validation": {
+    "focused_cli_tests": 2,
+    "rust_tests": 3792,
+    "passed": 3792,
+    "skipped": 5,
+    "nextest_seconds": 263.686,
+    "doctests": "passed",
+    "style_summary": {
+      "functions": 10156,
+      "violations": 0,
+      "complexity_measured": 10156,
+      "complexity_unavailable": 0,
+      "mean_density_milli": 81,
+      "max_density_milli": 15000,
+      "effect_counts": {
+        "io": 338,
+        "mutation": 2133,
+        "panic": 56,
+        "time": 68,
+        "unknown": 167
+      }
+    },
+    "compiler_pattern_findings": 0,
+    "reference_pattern_findings": 0,
+    "commands": [
+      {
+        "name": "fmt",
+        "args": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 1.922
+      },
+      {
+        "name": "clippy",
+        "args": [
+          "cargo",
+          "clippy",
+          "--workspace",
+          "--all-targets",
+          "--locked",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 1.821
+      },
+      {
+        "name": "style",
+        "args": [
+          "./scripts/style.sh",
+          "--format",
+          "json"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 29.975
+      },
+      {
+        "name": "tests",
+        "args": [
+          "./scripts/test.sh",
+          "--nextest"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 277.065
+      },
+      {
+        "name": "reference-patterns",
+        "args": [
+          "./scripts/style.sh",
+          "patterns",
+          "--engine",
+          "legacy",
+          "--fail-on-candidates",
+          "--show-ignored"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 35.221
+      },
+      {
+        "name": "reference-unfiltered",
+        "args": [
+          "./scripts/style.sh",
+          "patterns",
+          "--engine",
+          "legacy",
+          "--no-ignore",
+          "--format",
+          "json"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 6.445
+      },
+      {
+        "name": "default-patterns",
+        "args": [
+          "./scripts/style.sh",
+          "patterns",
+          "--format",
+          "json",
+          "--fail-on-candidates",
+          "--show-ignored"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 49.224
+      }
+    ]
+  },
+  "limitations": [
+    "Text labels are report-local navigation, not stable review identity or semantic equivalence. Full compiler invocation/build data remains in the evidence archive.",
+    "No new performance measurement or speedup claim; rendering reuses saved data and does not restore body trees.",
+    "Containing-commit native CI pending. Default-style usefulness/density disposition remains pending; broader replacement is not declared complete."
+  ],
+  "next_ready": "Resolve the explicit default-style density behavior choice using reviewed findings and current resource evidence; preserve missing-data distinctions and avoid arbitrary refactors or suppressions to force zero findings."
+}

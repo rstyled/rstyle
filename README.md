@@ -31,6 +31,9 @@ reports the exact artifacts fresh; reports retain separate compilation contexts.
 Root JSON exposes diagnostics, summary, fix groups and complexity rows, with
 explicit scope and planning completeness. Root style saves its numeric compiler
 inputs for replay; analyses requiring original HIR bodies use a full clones capture.
+Text diagnostics and complexity rows carry compiler unit labels, followed by a
+table of package, target, test mode and source for each unit. Library and test
+builds of the same source remain distinguishable on saved-run replay.
 Add `--changed-files changes.json` to compiler style to select findings for CI;
 use `{"schema":"rstyle.changed-files/1","paths":["src/lib.rs"]}` with paths
 relative to the workspace root. Metrics and fix groups retain the full captured

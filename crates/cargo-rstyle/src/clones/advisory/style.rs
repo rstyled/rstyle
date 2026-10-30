@@ -71,7 +71,14 @@ impl<'a> Projection<'a> {
         let mut lines: Vec<_> = self
             .diagnostics
             .iter()
-            .map(|diagnostic| rstyle_core::report::diagnostic_line(diagnostic))
+            .zip(&self.diagnostic_units)
+            .map(|(diagnostic, unit)| {
+                format!(
+                    "{} [compiler unit {}]",
+                    rstyle_core::report::diagnostic_line(diagnostic),
+                    unit.ordinal(),
+                )
+            })
             .collect();
 
         if !self.fix_groups.is_empty() {
@@ -79,9 +86,7 @@ impl<'a> Projection<'a> {
                 self.fix_groups.iter().copied(),
             ));
         }
-        lines.extend(rstyle_core::complexity_report::text_refs(
-            self.functions.iter().copied(),
-        ));
+        lines.extend(self.function_text());
 
         lines.extend([
             self.summary.as_ref().map_or_else(
@@ -99,6 +104,17 @@ impl<'a> Projection<'a> {
             .workflow
             .map_or_else(String::new, Report::render_summaries);
         format!("{}{workflow}", lines.join("\n"))
+    }
+
+    fn function_text(&self) -> Vec<String> {
+        let mut lines = rstyle_core::complexity_report::text_refs(self.functions.iter().copied());
+        if let Some(header) = lines.first_mut() {
+            header.push_str("  UNIT");
+        }
+        for (line, unit) in lines.iter_mut().skip(1).zip(&self.function_units) {
+            *line = format!("{line} [compiler unit {}]", unit.ordinal());
+        }
+        lines
     }
 }
 

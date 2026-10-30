@@ -425,6 +425,9 @@ The JSON projects diagnostics, summary, fix_groups and functions at the top
 level, with compilation contexts and per-unit evaluations retained in the compiler
 report. Findings are deterministic for identical inputs; capture-directory paths
 and run metadata can differ between runs. Planning completion remains explicit.
+Text diagnostics and complexity rows carry `[compiler unit N]`, with a table
+of captured package, target, test mode and source. Keep these labels when comparing
+same-source findings across builds; their IDs are local to the saved report.
 Strict matching and
 pattern mining are unrequested; --ignore-file remains irrelevant to style rules.
 Root style saves numeric compiler inputs, original source/signature/build metadata

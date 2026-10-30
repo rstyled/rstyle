@@ -8052,3 +8052,44 @@ Ubuntu x86, Ubuntu ARM and macOS15. Remote main remains1689392e and is already
 an ancestor of this branch. The broader capability replacement and default-style
 usefulness decision remain incomplete; this bounded reuse change does not
 establish either one.
+
+### C125 — preserve compiler contexts in root style text (2026-10-30)
+
+Root compiler-style JSON already paired diagnostic/complexity rows with their
+compilation units. Text rendered the borrowed core rows without those labels,
+so library/test findings at the same coordinates were indistinguishable. Root
+text now appends the existing report-local compiler unit ID to both row types
+and lists captured package, target name/kind, test mode and source for each unit.
+It reuses the completed projection, core text formatting and captured unit table;
+there is no new collector, analysis, source lookup, hash, cache or finding policy.
+The default backend, metrics, summaries, planning, review/baseline identity and
+strict matching remain unchanged.
+
+Independent real-Cargo acceptance uses two packages, each with a common two-
+parameter function plus a test-only two-parameter function, under limit1. The four
+library/test populations produce six findings and six score rows. Text explicitly
+associates test-only findings with test units and common findings with both builds.
+Deleting source/manifests and disabling Cargo/rustc/driver lookup preserves exact
+text and original JSON diagnostic/unit/function/evaluation data. A clean single-
+unit control lists its context without fabricating finding or score rows.
+
+The saved run-0hhfO7 project replay retains byte-identical complete root JSON
+compared with C124. All48 diagnostics and48 complexity rows carry their exact
+original unit IDs, and six unit descriptors render from saved metadata. This is
+the explicit C119 saved input over C118-era observations, not a fresh current-
+source capture or a new performance study. Source files remain present for this
+project replay; the independent fixture separately removes them.
+
+All3,792 Rust tests and doctests pass, with formatting, all-target Clippy,
+zero style violations and both pattern gates with zero visible findings. Both
+engines now emit the same12 raw candidates, with no new IDs. The old reviewed
+60e8af5f467a pair has unchanged complete graphs and blocking keys. A temporary
+harness reusing the core clusterer confirms the new style_contexts formatter
+becomes a template for that pair and possible_destructor; five columns exceed
+the existing max_holes3 helper policy. The old two-member cluster had two columns.
+All previous review IDs and the entire ledger remain byte-identical; no miner,
+policy or source adjustment forces the former raw count.
+Full checkpoint results are recorded in
+eval/clones-capability/style-text-compilation-context-study.json.
+The default-style density disposition remains an explicit pending product choice;
+this reporting correction does not reclassify or suppress the reviewed findings.
