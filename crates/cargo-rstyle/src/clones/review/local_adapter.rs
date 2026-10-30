@@ -28,7 +28,7 @@ pub(in crate::clones) fn dispatch(
         index,
     } = input;
     let source = index.review_dispatch(facts, candidate)?;
-    let identity = Identity::new(facts, unit, plan)?;
+    let identity = Identity::new(&facts.build, unit, plan)?;
     let member = identity.member(source.caller)?;
     let enumeration = identity.declaration(source.enumeration);
     let arms = source
@@ -49,7 +49,7 @@ pub(in crate::clones) fn dispatch(
 
 /// Observe only the checked original locator and build context for status lookup.
 pub(super) fn member_key(input: Input<'_>) -> Result<(Locator, local::BuildContext), String> {
-    let identity = Identity::new(input.facts, input.unit, input.plan)?;
+    let identity = Identity::new(&input.facts.build, input.unit, input.plan)?;
     let (qualified_name, declaration_kind) = input.index.review_location(input.facts)?;
     Ok((
         Locator {
@@ -59,7 +59,7 @@ pub(super) fn member_key(input: Input<'_>) -> Result<(Locator, local::BuildConte
             declaration_kind: declaration_kind.into(),
             discriminator: "unique-declaration".into(),
         },
-        context(input.facts, input.unit)?,
+        context(&input.facts.build, input.unit)?,
     ))
 }
 
@@ -75,7 +75,7 @@ pub(in crate::clones) fn capability_member(
         index,
     } = input;
     let source = index.review_capability(facts, wrapper)?;
-    let identity = Identity::new(facts, unit, plan)?;
+    let identity = Identity::new(&facts.build, unit, plan)?;
     let member = identity.member(source.caller)?;
     let selections = source
         .selections
@@ -130,7 +130,7 @@ pub(super) fn versions(detector: &str) -> Versions {
 }
 
 pub(super) struct Identity<'a> {
-    facts: &'a HirFnFacts,
+    build: &'a rstyle_pdg::BuildFacts,
     unit: &'a capture::Unit,
     package: Package,
     source: String,
@@ -138,7 +138,7 @@ pub(super) struct Identity<'a> {
 
 impl<'a> Identity<'a> {
     pub(super) fn new(
-        facts: &'a HirFnFacts,
+        build: &'a rstyle_pdg::BuildFacts,
         unit: &'a capture::Unit,
         plan: &capture::Plan,
     ) -> Result<Self, String> {
@@ -153,14 +153,13 @@ impl<'a> Identity<'a> {
         {
             return Err("Review package or extraction context is contradictory".into());
         }
-        let path = facts
-            .build
+        let path = build
             .frontend_options
             .get("source_file")
             .and_then(serde_json::Value::as_str)
             .ok_or("Review source file is unavailable")?;
         Ok(Self {
-            facts,
+            build,
             unit,
             package: Package {
                 identity: relative(&package.manifest_path, &plan.root)?,
@@ -175,7 +174,7 @@ impl<'a> Identity<'a> {
         let declaration = self.declaration(declaration);
         Ok(local::Member {
             locator: declaration.locator,
-            context: context(self.facts, self.unit)?,
+            context: context(self.build, self.unit)?,
             source: declaration.source,
         })
     }
@@ -214,10 +213,9 @@ impl<'a> Identity<'a> {
 }
 
 pub(super) fn context(
-    facts: &HirFnFacts,
+    build: &rstyle_pdg::BuildFacts,
     unit: &capture::Unit,
 ) -> Result<local::BuildContext, String> {
-    let build = &facts.build;
     let width = (build.pointer_width.status == rstyle_pdg::FactStatus::Known)
         .then_some(build.pointer_width.value)
         .flatten()

@@ -112,14 +112,15 @@ impl Resolver<'_, '_> {
             .as_ref()
             .map_err(Clone::clone)?
             .clone();
-        let identity = local_adapter::Identity::new(original, self.unit, &self.ctx.capture.plan)?;
+        let identity =
+            local_adapter::Identity::new(&original.build, self.unit, &self.ctx.capture.plan)?;
         let kind = if facts.sig.is_some() {
             "compiler-method"
         } else {
             "compiler-function"
         };
 
-        let signature = signature(original, facts.sig.take());
+        let signature = signature(&original.signature, facts.sig.take());
         let declaration = Rc::new(Declaration {
             locator: identity.locator(name, kind),
             signature,
@@ -130,7 +131,7 @@ impl Resolver<'_, '_> {
         Ok(Endpoint {
             declaration,
             body,
-            context: local_adapter::context(original, self.unit)?,
+            context: local_adapter::context(&original.build, self.unit)?,
         })
     }
     fn body(&self, facts: &mut FnFacts) -> Result<Rc<Body>, String> {

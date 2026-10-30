@@ -16,7 +16,7 @@ pub(super) fn contexts(ctx: &report::Context<'_>) -> Result<Vec<local::BuildCont
     for function in &ctx.handoff.assessed {
         observed.insert(function.key.unit());
         contexts.insert(local_adapter::context(
-            function.facts.full()?,
+            function.facts.view().build,
             workflow::unit(ctx.handoff, ctx.capture, function)?,
         )?);
         if contexts.len() > 4096 {

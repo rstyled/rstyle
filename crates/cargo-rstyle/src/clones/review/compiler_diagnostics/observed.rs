@@ -75,7 +75,7 @@ pub(in crate::clones) fn collect(
         originals
             .get(facts.id.as_str())
             .ok_or_else(|| "Missing compiler diagnostic owner".to_string())
-            .and_then(|original| resolver.resolve(facts, original.facts.full()?))
+            .and_then(|original| resolver.resolve(facts, original.facts.view()))
     };
 
     let (owners, owner_scope_truncated) =
@@ -261,7 +261,7 @@ impl Resolver<'_, '_> {
     fn resolve(
         &self,
         facts: &FnFacts,
-        original: &rstyle_pdg::HirFnFacts,
+        original: crate::clones::FactView<'_>,
     ) -> Result<Rc<Owner>, String> {
         let name = self
             .names
@@ -270,7 +270,7 @@ impl Resolver<'_, '_> {
             .as_ref()
             .map_err(Clone::clone)?;
         let identity =
-            local_adapter::Identity::new(original, self.captured, &self.ctx.capture.plan)?;
+            local_adapter::Identity::new(original.build, self.captured, &self.ctx.capture.plan)?;
         let kind = if facts.sig.is_some() {
             "compiler-method"
         } else {
@@ -278,8 +278,8 @@ impl Resolver<'_, '_> {
         };
         Ok(Rc::new(Owner {
             locator: identity.locator(name.clone(), kind),
-            context: local_adapter::context(original, self.captured)?,
-            signature: compiler_owners::signature(original, facts.sig.clone()),
+            context: local_adapter::context(original.build, self.captured)?,
+            signature: compiler_owners::signature(original.signature, facts.sig.clone()),
         }))
     }
 }

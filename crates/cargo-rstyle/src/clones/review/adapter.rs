@@ -217,7 +217,7 @@ fn context(
     matching_policy: &MatchingPolicy,
     consumer_policy: &ConsumerPolicy,
 ) -> Result<Context, String> {
-    let build = super::local_adapter::context(facts, unit)?;
+    let build = super::local_adapter::context(&facts.build, unit)?;
     Ok(Context {
         compiler_commit: build.compiler_commit,
         edition: build.edition,

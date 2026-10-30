@@ -81,10 +81,9 @@ pub(super) fn collect_names<'a>(facts: impl IntoIterator<Item = &'a FnFacts>) ->
 }
 
 pub(super) fn signature(
-    original: &rstyle_pdg::HirFnFacts,
+    sig: &rstyle_pdg::SignatureFacts,
     method: Option<rstyle_core::facts::SigFacts>,
 ) -> Signature {
-    let sig = &original.signature;
     Signature {
         parameters: sig.params.iter().map(|param| param.ty.clone()).collect(),
         result: sig.return_ty.clone(),

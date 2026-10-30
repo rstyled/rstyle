@@ -95,8 +95,6 @@ fn header_only(args: &Args) -> bool {
         && !args.effect_density
         && !args.enum_dispatch
         && !args.capability_proposals
-        && args.review_file.is_none()
-        && !args.compiler_baseline_requested(CompilerBaseline::Diagnostics)
 }
 
 type FactsOwner<B, L> = fn(Arc<Vec<HirFnFacts<B, L>>>) -> FactOwner;

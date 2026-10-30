@@ -7358,3 +7358,47 @@ Defaults remain legacy; current density usefulness/resource disposition is open.
 Next code seam: numeric reviews/baselines call facts.full() only to obtain
 package/build/signature identity. Reuse those existing borrowed metadata fields
 so root snapshots can participate without restoring unused HIR bodies.
+
+
+### C109 — numeric reviews and baselines borrow captured metadata (2026-10-30)
+
+Lead-owned review adapters, numeric handoff, embedded skill and style payload
+acceptance. Diagnostic owner resolution uses the existing FactView; identity and
+build-context adapters borrow BuildFacts, and signature projection borrows
+SignatureFacts. Neither requires a HIR body. Remove the redundant review-file and
+diagnostic-baseline exclusions from compact numeric consumption. Body-dependent
+local/pattern consumers retain their original prerequisites and rejection.
+No new hash, cache, schema, proof/policy layer or default change.
+
+Extend the existing real-Cargo root/full acceptance: after deleting source and
+manifest and disabling Cargo/rustc/driver/PATH tools, both captures export exactly
+equal diagnostic baselines. Numeric replay recognizes the full baseline's one
+parameter finding as existing with no new findings or scope drift. Dismiss that
+independently expected parameter finding from numeric inputs, then require
+hidden_exact in numeric and full replay/status. Raw diagnostic/summary projections
+remain unchanged; visible findings become zero and strict matching/assessment
+remain unrequested. Existing full-body consumer rejection still passes.
+
+All3,724 Rust tests plus doctests, formatting, all-target Clippy and both legacy
+gates pass: zero style violations over10,085 functions and the same13 unfiltered
+pattern IDs as C107. Python capability248 and script50 tests pass. Initial script
+discovery omitted Cargo from PATH and failed its sampler setup; rerunning with the
+existing Cargo PATH passes all50, with no script changes.
+
+Real retained C108 snapshot (committed C107 source, not a fresh C109 capture)
+exports48 baseline entries over10,085 functions/six contexts. A second replay
+recognizes all48 as existing with zero new findings, no scope drift and complete
+coverage. Both runs disable Cargo/rustc/driver/PATH tools and retain exactly the
+original per-unit diagnostic/summary/function projections. Empty review status is
+complete; no actual project choices are dismissed. Export5.59s/852,080KiB;
+compare5.55s/854,024KiB. These are serial local workflow observations, not a
+before/after speedup. The small fixture verifies source/manifest deletion;
+real-project sources remain present. Durable receipt:
+project-numeric-review-baseline-study.json.
+
+C107 native CI40992394648 is now observed completed successfully; C108 was still
+in progress at the latest poll, and C109 native CI awaits push. Default finding
+usefulness and resource disposition remain open after this compatibility fix.
+Next ready work: decide the default density presentation/enforcement and resource
+disposition from the reconciled C108 evidence; no suppression or threshold change
+is authorized by this checkpoint.

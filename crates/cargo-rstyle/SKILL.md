@@ -411,7 +411,11 @@ Strict matching and
 pattern mining are unrequested; --ignore-file remains irrelevant to style rules.
 Root style saves numeric compiler inputs, original source/signature/build metadata
 and the actual body identity; body trees and lexical bindings are not requested.
-Numeric replay works without source files or tools. Body-dependent consumers need
+Numeric replay, compiler diagnostic reviews/status and diagnostic baseline export/
+comparison work without source files or tools. Review identities borrow captured
+build/signature metadata; full and numeric captures share the same identity.
+Use the existing clones replay flags with compact reports, authored diagnostic
+scope and the original advisory configuration. Body-dependent consumers need
 a full clones capture; direct clones advisory captures retain their complete bodies
 and bindings even with compact reports. Owner reuse distinguishes these payloads.
 Use `--style-engine compiler --replay-run PATH --format json` for the same style

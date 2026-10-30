@@ -265,6 +265,79 @@ fn unavailable_body_consumers(directory: &Path, original: &Value) {
     }
 }
 
+fn numeric_baselines(directory: &Path, numeric: &Value, full: &Value) {
+    for (original, file) in [(numeric, "numeric.json"), (full, "full.json")] {
+        let output = offline(directory, original, &["--write-compiler-baseline", file]);
+        checked(&output, 1);
+        let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(
+            report["compiler_advisory"]["diagnostic_baseline"]["coverage"],
+            "complete"
+        );
+    }
+    let read = |file| -> Value {
+        serde_json::from_slice(&std::fs::read(directory.join(file)).unwrap()).unwrap()
+    };
+    assert_eq!(read("numeric.json"), read("full.json"));
+    let output = offline(
+        directory,
+        numeric,
+        &["--compiler-baseline", "full.json", "--fail-on-new-compiler"],
+    );
+    checked(&output, 1); // The unchanged --fail-on-findings still sees the raw finding.
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let baseline = &report["compiler_advisory"]["diagnostic_baseline"];
+    assert_eq!(baseline["coverage"], "complete");
+    assert_eq!(baseline["existing_findings"], 1);
+    assert_eq!(baseline["new_findings"], 0);
+    assert_eq!(baseline["scope_changed"], false);
+}
+
+fn numeric_reviews(directory: &Path, numeric: &Value, full: &Value) {
+    let output = offline(
+        directory,
+        numeric,
+        &[
+            "--review-file",
+            "reviews.json",
+            "--dismiss-compiler-diagnostic",
+            "0",
+            "0",
+            "--review-reason",
+            "Independently reviewed parameter fixture",
+        ],
+    );
+    checked(&output, 0);
+    for original in [numeric, full] {
+        let output = offline(
+            directory,
+            original,
+            &["--review-file", "reviews.json", "--review-status"],
+        );
+        checked(&output, 0);
+        let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+        let advisory = &report["compiler_advisory"];
+        assert_eq!(
+            advisory["diagnostic_review"]["decisions"][0]["state"],
+            "hidden_exact"
+        );
+        assert_eq!(
+            report["review_status"]["records"][0]["state"],
+            "hidden_exact"
+        );
+        assert_eq!(
+            advisory["units"][0]["visible_diagnostics"],
+            serde_json::json!([])
+        );
+        assert_eq!(advisory["findings"], 0);
+        let evaluation = &advisory["units"][0]["evaluation"];
+        assert_eq!(evaluation["diagnostics"], numeric["diagnostics"]);
+        assert_eq!(evaluation["summary"], numeric["summary"]);
+        assert_eq!(report["matching_execution"], "not_requested");
+        assert_eq!(report["strict_assessment_execution"], "not_requested");
+    }
+}
+
 #[test]
 fn root_numeric_payload_is_distinct_from_full_clones_and_replays_without_sources_or_tools() {
     let directory = fixture();
@@ -289,5 +362,7 @@ fn root_numeric_payload_is_distinct_from_full_clones_and_replays_without_sources
     let replay: Value = serde_json::from_slice(&output.stdout).unwrap();
     projected_numeric(&repeated, &replay);
     root_replay(directory.path(), &repeated);
+    numeric_baselines(directory.path(), &repeated, &full);
+    numeric_reviews(directory.path(), &repeated, &full);
     unavailable_body_consumers(directory.path(), &repeated);
 }
