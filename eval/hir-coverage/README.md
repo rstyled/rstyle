@@ -99,7 +99,7 @@ The 2026-10-19 refresh adds Data-v3 and current sealed unit-bundle verification.
 After capture repairs and scalar OR patterns, Data-v3 3.2 completes with
 9 admitted, 44 excluded and
 7 unknown out of the unchanged 60 selected contexts. The historical refresh is recorded in Git history and the
-[continuation log](../../rust-feature-coverage.md).
+[historical continuation log](https://github.com/rstyled/rstyle/blob/806aa52f/rust-feature-coverage.md).
 
 Assessment version 3 additionally reports independently cfg-inactive definitions
 using exact original-source inventory and compiler build settings. Frozen selections

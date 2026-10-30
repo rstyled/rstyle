@@ -27,7 +27,8 @@ parameter planning and the abstraction proposer remain in use. This removal does
 not change strict clone admission, metric versions or thresholds and adds no hashes.
 CI dog-food gates check compiler-default style and patterns.
 
-Recorded reference/compiler comparisons stay under `eval/` with their original
-scope, source revision and metric versions. Comparison readers operate on saved
-JSON; a runnable reference engine is not a prerequisite. Graph research tools that
-read retained flat facts are historical artifact readers, not production captures.
+Completed reference/compiler comparisons, their readers and historical
+coverage/roadmap documents have been removed from the active checkout. Their
+original scope, source revisions and metric versions remain available in Git
+history. Current compiler evaluation tools and the HIR inventory remain in
+`eval/`; Rust regression fixtures are independent of those manual evaluations.
