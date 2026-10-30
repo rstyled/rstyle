@@ -1,0 +1,426 @@
+{
+  "schema": "rstyle.root-style-producer-timing-study/1",
+  "checkpoint": "C102",
+  "source_revision": "9f389f80",
+  "scope": "Default authored whole-workspace library/binary compiler style route; unchanged workspace configuration. Not all-targets or pattern retirement.",
+  "command": [
+    "env",
+    "RSTYLE_PERF=1",
+    "timeout",
+    "150",
+    "/usr/bin/time",
+    "-v",
+    "target/debug/cargo-rstyle",
+    "--style-engine",
+    "compiler",
+    "--format",
+    "json"
+  ],
+  "instrumentation": {
+    "mechanism": "Temporary existing diagnostics::Stage timers compiled into rstyle-driver; all three source files restored before analysis. The capture therefore analyzes the committed source, not inserted timer statements. Original driver rebuilt afterward. No timer or collector changes retained.",
+    "build_script": "/tmp/clones-c102-probe.py",
+    "source_files": [
+      "crates/rstyle-driver/src/hir_extraction/mod.rs",
+      "crates/rstyle-driver/src/hir_extraction/advisory.rs",
+      "crates/rstyle-driver/src/hir_extraction/output.rs"
+    ],
+    "scopes": {
+      "producer.function_source": "Complete function_source call, including raw body child, parameter/signature metadata, source scan and build metadata.",
+      "producer.raw_body": "ctx.expression(body.value) plus body/parameter binding inventory, inside function_source.",
+      "producer.metrics": "Existing extract::function_facts call; generated-owner early None checks included. Excludes generated-effect followup, signature enrichment and conversion to JSON Value.",
+      "producer.snapshot": "Complete write_advisory shared snapshot and manifest publication."
+    }
+  },
+  "observation": {
+    "exit_code": 1,
+    "reason": "47 style findings; capture and summary complete",
+    "timeout_seconds": 150,
+    "elapsed_seconds": 72.16,
+    "user_seconds": 77.45,
+    "system_seconds": 7.47,
+    "peak_rss_kib": 3047692,
+    "run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-Y8AUOA",
+    "root_report": "/tmp/clones-c102-producer.json",
+    "performance_log": "/tmp/clones-c102-producer.log",
+    "time_log": "/tmp/clones-c102-producer.time",
+    "summary": {
+      "functions": 10062,
+      "violations": 47,
+      "complexity_measured": 10062,
+      "complexity_unavailable": 0,
+      "mean_density_milli": 97,
+      "max_density_milli": 15000,
+      "effect_counts": {
+        "io": 336,
+        "mutation": 2097,
+        "panic": 56,
+        "time": 66,
+        "unknown": 164
+      }
+    }
+  },
+  "stages": [
+    {
+      "stage": "capture.compile",
+      "completed_visits": 1,
+      "summed_seconds": 59.994330269,
+      "max_seconds": 59.994330269
+    },
+    {
+      "stage": "producer.snapshot",
+      "completed_visits": 6,
+      "summed_seconds": 31.870277915,
+      "max_seconds": 22.010717998
+    },
+    {
+      "stage": "producer.function_source",
+      "completed_visits": 19658,
+      "summed_seconds": 9.313652495000012,
+      "max_seconds": 0.026156679
+    },
+    {
+      "stage": "cli.handoff",
+      "completed_visits": 1,
+      "summed_seconds": 8.460549631,
+      "max_seconds": 8.460549631
+    },
+    {
+      "stage": "producer.raw_body",
+      "completed_visits": 19658,
+      "summed_seconds": 7.663535801999995,
+      "max_seconds": 0.026049382
+    },
+    {
+      "stage": "cli.advisory.decode",
+      "completed_visits": 6,
+      "summed_seconds": 7.4069644960000005,
+      "max_seconds": 5.137137147
+    },
+    {
+      "stage": "diagnostic.parse",
+      "completed_visits": 6,
+      "summed_seconds": 6.974518939999999,
+      "max_seconds": 4.84738867
+    },
+    {
+      "stage": "producer.metrics",
+      "completed_visits": 19658,
+      "summed_seconds": 1.2678307850001054,
+      "max_seconds": 0.009944511
+    },
+    {
+      "stage": "cli.report_write",
+      "completed_visits": 1,
+      "summed_seconds": 1.061157958,
+      "max_seconds": 1.061157958
+    },
+    {
+      "stage": "cli.advisory.context",
+      "completed_visits": 6,
+      "summed_seconds": 0.543428605,
+      "max_seconds": 0.360451911
+    },
+    {
+      "stage": "cli.report_render",
+      "completed_visits": 1,
+      "summed_seconds": 0.474278699,
+      "max_seconds": 0.474278699
+    },
+    {
+      "stage": "diagnostic.restore",
+      "completed_visits": 6,
+      "summed_seconds": 0.43163945600000003,
+      "max_seconds": 0.289576604
+    },
+    {
+      "stage": "cli.advisory.load_inventory",
+      "completed_visits": 6,
+      "summed_seconds": 0.344841179,
+      "max_seconds": 0.225181362
+    },
+    {
+      "stage": "cli.advisory.retain",
+      "completed_visits": 6,
+      "summed_seconds": 0.056487314999999996,
+      "max_seconds": 0.04058704
+    },
+    {
+      "stage": "cli.prepare",
+      "completed_visits": 1,
+      "summed_seconds": 0.042429073,
+      "max_seconds": 0.042429073
+    },
+    {
+      "stage": "capture.source_restore",
+      "completed_visits": 1140,
+      "summed_seconds": 0.004356518,
+      "max_seconds": 6.4993e-05
+    }
+  ],
+  "by_process": [
+    {
+      "pid": 4058048,
+      "stage": "cli.prepare",
+      "summed_seconds": 0.042429073
+    },
+    {
+      "pid": 4058183,
+      "stage": "capture.source_restore",
+      "summed_seconds": 7.067400000000001e-05
+    },
+    {
+      "pid": 4058183,
+      "stage": "producer.raw_body",
+      "summed_seconds": 0.11179578699999998
+    },
+    {
+      "pid": 4058183,
+      "stage": "producer.function_source",
+      "summed_seconds": 0.137085476
+    },
+    {
+      "pid": 4058183,
+      "stage": "producer.metrics",
+      "summed_seconds": 0.003643626999999998
+    },
+    {
+      "pid": 4058183,
+      "stage": "producer.snapshot",
+      "summed_seconds": 0.457914506
+    },
+    {
+      "pid": 4058180,
+      "stage": "capture.source_restore",
+      "summed_seconds": 0.00018857699999999994
+    },
+    {
+      "pid": 4058180,
+      "stage": "producer.raw_body",
+      "summed_seconds": 0.37354403699999994
+    },
+    {
+      "pid": 4058180,
+      "stage": "producer.function_source",
+      "summed_seconds": 0.48147609800000074
+    },
+    {
+      "pid": 4058180,
+      "stage": "producer.metrics",
+      "summed_seconds": 0.07367570099999984
+    },
+    {
+      "pid": 4058180,
+      "stage": "producer.snapshot",
+      "summed_seconds": 1.632413592
+    },
+    {
+      "pid": 4058178,
+      "stage": "capture.source_restore",
+      "summed_seconds": 0.0030600999999999966
+    },
+    {
+      "pid": 4058178,
+      "stage": "producer.raw_body",
+      "summed_seconds": 5.455064761000008
+    },
+    {
+      "pid": 4058178,
+      "stage": "producer.function_source",
+      "summed_seconds": 6.545856954999972
+    },
+    {
+      "pid": 4058178,
+      "stage": "producer.metrics",
+      "summed_seconds": 0.8877433640000224
+    },
+    {
+      "pid": 4058178,
+      "stage": "producer.snapshot",
+      "summed_seconds": 22.010717998
+    },
+    {
+      "pid": 4058294,
+      "stage": "capture.source_restore",
+      "summed_seconds": 8.284899999999999e-05
+    },
+    {
+      "pid": 4058294,
+      "stage": "producer.raw_body",
+      "summed_seconds": 0.0979813449999999
+    },
+    {
+      "pid": 4058294,
+      "stage": "producer.function_source",
+      "summed_seconds": 0.13542675199999993
+    },
+    {
+      "pid": 4058294,
+      "stage": "producer.metrics",
+      "summed_seconds": 0.022358667999999988
+    },
+    {
+      "pid": 4058295,
+      "stage": "capture.source_restore",
+      "summed_seconds": 0.0003897160000000001
+    },
+    {
+      "pid": 4058295,
+      "stage": "producer.raw_body",
+      "summed_seconds": 0.5017078740000004
+    },
+    {
+      "pid": 4058295,
+      "stage": "producer.function_source",
+      "summed_seconds": 0.6167786710000006
+    },
+    {
+      "pid": 4058295,
+      "stage": "producer.metrics",
+      "summed_seconds": 0.10767726700000008
+    },
+    {
+      "pid": 4058294,
+      "stage": "producer.snapshot",
+      "summed_seconds": 0.467976023
+    },
+    {
+      "pid": 4058306,
+      "stage": "capture.source_restore",
+      "summed_seconds": 0.000564602
+    },
+    {
+      "pid": 4058306,
+      "stage": "producer.raw_body",
+      "summed_seconds": 1.1234419979999994
+    },
+    {
+      "pid": 4058306,
+      "stage": "producer.function_source",
+      "summed_seconds": 1.3970285429999998
+    },
+    {
+      "pid": 4058306,
+      "stage": "producer.metrics",
+      "summed_seconds": 0.1727321579999993
+    },
+    {
+      "pid": 4058295,
+      "stage": "producer.snapshot",
+      "summed_seconds": 2.106641139
+    },
+    {
+      "pid": 4058306,
+      "stage": "producer.snapshot",
+      "summed_seconds": 5.194614657
+    },
+    {
+      "pid": 4058048,
+      "stage": "capture.compile",
+      "summed_seconds": 59.994330269
+    },
+    {
+      "pid": 4058048,
+      "stage": "cli.advisory.load_inventory",
+      "summed_seconds": 0.344841179
+    },
+    {
+      "pid": 4058048,
+      "stage": "diagnostic.parse",
+      "summed_seconds": 6.974518939999999
+    },
+    {
+      "pid": 4058048,
+      "stage": "diagnostic.restore",
+      "summed_seconds": 0.43163945600000003
+    },
+    {
+      "pid": 4058048,
+      "stage": "cli.advisory.decode",
+      "summed_seconds": 7.4069644960000005
+    },
+    {
+      "pid": 4058048,
+      "stage": "cli.advisory.context",
+      "summed_seconds": 0.543428605
+    },
+    {
+      "pid": 4058048,
+      "stage": "cli.advisory.retain",
+      "summed_seconds": 0.056487314999999996
+    },
+    {
+      "pid": 4058048,
+      "stage": "cli.handoff",
+      "summed_seconds": 8.460549631
+    },
+    {
+      "pid": 4058048,
+      "stage": "cli.report_write",
+      "summed_seconds": 1.061157958
+    },
+    {
+      "pid": 4058048,
+      "stage": "cli.report_render",
+      "summed_seconds": 0.474278699
+    }
+  ],
+  "current_finding_reconciliation": {
+    "baseline": "Frozen C97 roster in project-default-style-density-decision.json",
+    "current_findings": 47,
+    "removed": [
+      "clones::capture::targets"
+    ],
+    "added": [
+      {
+        "path": "crates/rstyle-driver/src/hir_extraction/instances/diagnostic_support.rs",
+        "line": 7,
+        "column": 1,
+        "rule_id": "side_effect_density",
+        "message": "function `hir_extraction::instances::diagnostic_support::optional_requests` has a high side-effect density",
+        "actual": 750,
+        "limit": 500,
+        "details": [
+          {
+            "label": "io: std::fs::File::open",
+            "count": 1,
+            "lines": [
+              13
+            ]
+          }
+        ]
+      }
+    ],
+    "changed_shared_actuals": [
+      {
+        "function": "clones::capture::selected_workspace",
+        "c97_actual": 750,
+        "current_actual": 600
+      },
+      {
+        "function": "hir_extraction::instances::product_diagnostic::capture",
+        "c97_actual": 545,
+        "current_actual": 600
+      },
+      {
+        "function": "hir_extraction::instances::reference_diagnostic::capture",
+        "c97_actual": 545,
+        "current_actual": 600
+      }
+    ],
+    "unchanged_shared_actuals": 43,
+    "interpretation": "C99 removes duplicate targets helper. C100 adds shared optional_requests, a coherent IO boundary whose numeric density remains visible; this does not establish a refactoring need in that helper. Source-reviewed product/reference roles now use the shared boundary; they retain density findings. Frozen usefulness labels are not silently transferred to rewritten bodies."
+  },
+  "interpretation": [
+    "Snapshot publication dominates the measured producer phases:31.8703 summed seconds across6 units, versus9.3137 for source/signature construction and1.2678 for existing function_facts collection.",
+    "Raw body/binding work is7.6635 seconds and is INCLUDED in9.3137 source construction. These timers do not justify adding all stage totals together; nested stages and processes overlap.",
+    "Consumer handoff is8.4605 seconds including7.4070 decode, itself including6.9745 parse. Header consumption still scans full body-bearing snapshots.",
+    "Next implementation candidate: explicit root-style numeric input payload through existing typed facts and publication/replay seams. Preserve full-body clones capture and represent omitted body/bindings as not requested. Persist payload choice in existing capture plan so owner reuse cannot cross payload kinds."
+  ],
+  "limits": [
+    "One instrumented observation, not a benchmark, speedup or default resource acceptance. No before/after optimization claim.",
+    "Stage logging and producer binary differ from the normal build; timers add overhead.",
+    "Generated-effect followup and JSON Value construction are not isolated; compile also includes Cargo/rustc work and other collector phases.",
+    "Original full raw snapshot contract remains unchanged. Existing source/tool-free numeric replay remains required for any future payload change.",
+    "No production cache, checksum, hash, metric version, threshold, suppression, collector algorithm or strict matching change."
+  ]
+}

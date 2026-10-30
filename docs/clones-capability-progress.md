@@ -7113,3 +7113,34 @@ for every remaining finding would strengthen explanation but is not another
 retirement gate. Later legacy cache counterfactuals are supporting observations,
 not contemporaneous C97 facts or proof of equal numerators. Default usefulness
 acceptance of the context-only roles and actual resource cost remains unresolved.
+
+### C102 — isolate root style producer cost (2026-10-30)
+
+Temporarily compile existing Stage observations around original source/signature
+construction, raw body/binding construction, existing function_facts collection
+and advisory snapshot publication. Restore every modified source before running
+the root capture, then rebuild the original driver afterward. No instrumentation
+or production behavior changes remain. The complete150s-bounded observation
+finishes in72.16s with3,047,692 KiB peak RSS and exit1 for47 findings.
+
+Snapshot publication takes31.8703 summed seconds across six units. Complete
+source/signature construction takes9.3137s, including7.6635s raw body/binding
+construction; existing function_facts collection takes1.2678s. Consumer handoff
+is8.4605s, including7.4070s decode/6.9745s parse. These nested/process totals must
+not be added as disjoint wall-time shares. Generated-effect followup and JSON
+Value construction are not separately isolated. No speedup is claimed.
+
+The current47-finding roster reconciles the earlier source changes: duplicate
+targets removed, coherent optional_requests IO boundary added. Of46 shared rows,
+43 actual values are unchanged; selected_workspace changes750->600 and both
+product/reference capture callers change545->600. The frozen source review is
+preserved rather than relabeled as a current scorecard. Exact observations and
+limits live in project-root-style-producer-timing-study.json.
+
+Next concrete performance change is a root-style numeric input payload through
+existing typed facts, snapshot and replay seams. Body and bindings must explicitly
+remain not-requested when omitted; clones full-body snapshots stay complete.
+Persist payload selection in the existing capture plan to isolate owner reuse.
+This is a measured next implementation target, not default retirement. C101's
+integrated checks cover the unchanged production source; this checkpoint adds
+measurement evidence only, with JSON validation and diff whitespace checks.
