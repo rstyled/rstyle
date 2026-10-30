@@ -40,13 +40,14 @@ use std::collections::BTreeMap;
 use suppress::Suppression;
 
 fn rule_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec<Diagnostic> {
+    let source_lines = lines::code_lines(&f.source);
     [
-        rules::fn_length(f, cfg),
+        rules::fn_length_with_lines(f, cfg, source_lines),
         rules::fn_params(f, cfg),
         rules::fn_spacing(f, cfg),
         rules::complexity(f, cfg),
         rules::mutation_budget(f, &cfg.mutation_budget),
-        rules::side_effect_density(f, effects, cfg),
+        rules::side_effect_density_with_lines(f, effects, cfg, || source_lines),
     ]
     .concat()
 }
@@ -446,6 +447,33 @@ mod tests {
             params: 5,
             ..sample(name)
         }
+    }
+
+    #[test]
+    fn source_rules_preserve_independent_line_limits_across_nested_comments() {
+        let mut facts = sample("source");
+        facts.source = "fn source() {\n/* outer\n/* nested */\n*/\nvalue();\n}\n".into();
+        facts.statements = 3;
+        let effects = [rules::Effect {
+            kind: facts::EffectKind::Io,
+            label: "write".into(),
+            line: 5,
+            via: None,
+        }];
+        let mut config = Config::default();
+        config.fn_length.max_lines = 2;
+        config.side_effects.min_lines = 3;
+
+        let (diagnostics, _) = function_diagnostics(&facts, &effects, &config);
+        assert_eq!(diagnostics.len(), 2);
+        assert_eq!(diagnostics[0].rule_id, "fn_length");
+        assert_eq!(diagnostics[0].actual, 3);
+        assert_eq!(diagnostics[1].rule_id, "side_effect_density");
+        assert_eq!(diagnostics[1].actual, 1000);
+        config.side_effects.min_lines = 4;
+        let (diagnostics, _) = function_diagnostics(&facts, &effects, &config);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].rule_id, "fn_length");
     }
 
     #[test]

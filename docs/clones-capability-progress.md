@@ -7966,3 +7966,52 @@ Remote main is still 1689392e and is already an ancestor of this branch.
 Default-style usefulness and broader selected graph/anomaly acceptance remain
 open. Review those replacement requirements before introducing another consumer;
 this query does not establish overall replacement.
+
+### C123 — reuse the source-line measurement across existing rules (2026-10-30)
+
+Lead owns the existing core rule input seam, independent acceptance, profiling,
+documentation, integration and Git. The evaluator previously scanned each
+function's source for length, then scanned it again for the density minimum.
+It now computes one local code-line count and passes it to both existing rules.
+Public standalone APIs retain their behavior, including density's lazy line
+prerequisite. No stored fact, cache, hash, graph copy, metric version, threshold,
+suppression policy or strict-matching change is added. Both compiler advisory
+and reference style reuse this evaluator.
+
+Existing performance events over the explicit saved C119 numeric input locate
+2.40s in handoff, including 1.73s in snapshot parsing, plus 1.09s in full archive
+publication and 0.48s in root output. A 240-second full CLI Callgrind run times out
+during output rendering; its mid-run exclusive profile identifies the repeated
+line scanner, but is not treated as a completed workflow or full-profile latency
+comparison. The complete function census archive remains intact.
+
+A temporary external harness runs the existing evaluator over 10,142 actual
+authored observations with 6,207,523 source bytes. Input parsing is outside its
+native evaluator timer. This is the ordinary core evaluator with default policy,
+not a reconstruction of cross-unit compiler propagation with generated owners.
+Three observations improve from 0.381–0.389s to 0.316–0.324s. Completed before/after
+Callgrind profiles reduce source scans 17,068→10,142 and whole core-process
+instructions 8,410,171,773→7,218,706,868 (14.2% fewer, including parsing/output).
+All six native core reports and both profiled reports compare byte-for-byte.
+
+Root compiler replay independently preserves all report bytes across six native
+observations. Before 5.52–5.65s versus after 5.45–5.48s remains close; peak RSS remains
+854,000–854,920KiB. No meaningful whole-command latency
+or peak-memory improvement is claimed. These are saved-input warm debug
+observations, not fresh containing-commit captures or cold/release benchmarks.
+
+The independent test hand-counts three code lines around nested block comments:
+length limit 2 reports 3; density's three-line minimum permits the 1,000 measurement,
+while its separate four-line minimum exempts density alone. All 3,787 Rust tests
+and doctests pass, plus formatting, all-target Clippy, zero style violations and
+both pattern gates with zero visible candidates and the same 13 reviewed IDs.
+Receipt: eval/clones-capability/source-line-measurement-reuse-study.json.
+Containing-commit native CI remains pending; C122 passed both Ubuntu runners,
+with macOS still running at the last poll. Remote main remains 1689392e and is
+already an ancestor of this branch.
+
+The default-style usefulness and snapshot parsing/publication costs remain open.
+Next inspect reuse of shared immutable invocation/context owners in existing
+build-context interning: settings clones JSON and comparisons traverse identical
+values. Preserve exact equality for different owners/contexts and measure the
+cost before changing that seam; do not add another cache or proof layer.

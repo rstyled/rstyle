@@ -27,7 +27,10 @@ fn diagnostic(f: &FnFacts, rule_id: &str, message: String, measure: Measure) -> 
 }
 
 pub fn fn_length(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
-    let actual = code_lines(&f.source);
+    fn_length_with_lines(f, cfg, code_lines(&f.source))
+}
+
+pub(crate) fn fn_length_with_lines(f: &FnFacts, cfg: &Config, actual: usize) -> Vec<Diagnostic> {
     let limit = cfg.fn_length.max_lines;
     let message = format!("function `{}` is too long", f.name);
     (actual > limit)
@@ -272,10 +275,19 @@ fn effect_details(effects: &[Effect], cfg: &Config) -> Vec<Detail> {
 
 /// `effects` is the function's full effect list (direct plus inherited, see `graph`).
 pub fn side_effect_density(f: &FnFacts, effects: &[Effect], cfg: &Config) -> Vec<Diagnostic> {
+    side_effect_density_with_lines(f, effects, cfg, || code_lines(&f.source))
+}
+
+pub(crate) fn side_effect_density_with_lines(
+    f: &FnFacts,
+    effects: &[Effect],
+    cfg: &Config,
+    source_lines: impl FnOnce() -> usize,
+) -> Vec<Diagnostic> {
     let actual = density_milli(f, effects, cfg);
     let limit = cfg.side_effects.max_density_milli;
     let small = f.statements < cfg.side_effects.min_statements
-        || code_lines(&f.source) < cfg.side_effects.min_lines;
+        || source_lines() < cfg.side_effects.min_lines;
 
     if small || actual <= limit {
         return Vec::new();
