@@ -133,20 +133,36 @@ pub fn graph(pdg: &Pdg) -> Graph {
     }
 }
 
-fn digest(own: u64, salt: u64, neighbours: &[Nb], prev: &[u64]) -> u64 {
-    let mut parts: Vec<u64> = neighbours
-        .iter()
-        .map(|nb| combine(nb.tag, prev[nb.node]))
-        .collect();
-    parts.sort_unstable();
-    parts.into_iter().fold(combine(own, salt), combine)
+/// One pass borrows the previous colors and reuses a neighbor buffer.
+struct Refinement<'a> {
+    previous: &'a [u64],
+    parts: Vec<u64>,
+}
+
+impl Refinement<'_> {
+    fn digest(&mut self, own: u64, salt: u64, neighbours: &[Nb]) -> u64 {
+        self.parts.clear();
+        self.parts.extend(
+            neighbours
+                .iter()
+                .map(|nb| combine(nb.tag, self.previous[nb.node])),
+        );
+        self.parts.sort_unstable();
+        self.parts
+            .iter()
+            .fold(combine(own, salt), |acc, part| combine(acc, *part))
+    }
 }
 
 fn refine(g: &Graph, prev: &[u64]) -> Vec<u64> {
+    let mut refinement = Refinement {
+        previous: prev,
+        parts: Vec::new(),
+    };
     (0..prev.len())
         .map(|v| {
-            let inward = digest(prev[v], IN_SALT, &g.inc[v], prev);
-            digest(inward, OUT_SALT, &g.out[v], prev)
+            let inward = refinement.digest(prev[v], IN_SALT, &g.inc[v]);
+            refinement.digest(inward, OUT_SALT, &g.out[v])
         })
         .collect()
 }
@@ -453,3 +469,7 @@ mod diameter_tests;
 #[cfg(test)]
 #[path = "wl/combine_tests.rs"]
 mod combine_tests;
+
+#[cfg(test)]
+#[path = "wl/refinement_tests.rs"]
+mod refinement_tests;

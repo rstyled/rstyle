@@ -7777,3 +7777,43 @@ style remains separate from these performance changes: C108's configured density
 findings and their usefulness must retain an intentional disposition, rather than
 being cleared by metric rollback, suppression or arbitrary refactors. The broader
 capability goal remains active.
+
+### C119 — reuse neighbor storage in existing refinement (2026-10-30)
+
+Lead owns the implementation, registration, measurements, integration and Git;
+the acceptance worker owns three frozen leaf tests. Existing WL refinement now
+borrows the previous colors and reuses one local neighbor buffer for both
+directions and all nodes in each pass. Clearing, filling, sorting and folding
+preserve the complete multiset, including parallel and self edges. No cache,
+new hash, graph copy, policy or strict-matching change is introduced.
+
+Independent five-node multiset formulas cover four rounds, heterogeneous and
+empty adjacency lists, unchanged original graphs, order independence, parallel
+multiplicity and node permutation. All 21 focused WL tests pass. On the same
+10,142 captured functions, a temporary external System allocator wrapper counts
+6,178,516 combined allocation/reallocation calls before and 4,908,397 after
+(20.6% fewer). Allocation calls alone fall 23.4%; reallocation calls rise 1.8%.
+Requested allocation traffic falls 3.0%, from 447,273,458 to 433,739,834 bytes.
+These counters cover only the existing proposer, excluding parsing and report
+serialization; cumulative requested bytes are not peak memory. Counter timings
+are excluded from ordinary latency comparisons. No profiling code ships.
+
+Ordinary native proposer observations are 3.829/3.784s versus C118's
+3.890/3.850s. These close measurements do not establish a meaningful latency
+improvement; peak memory is essentially unchanged. The completed bounded
+442-function core Callgrind run falls from 762,055,348 to 748,615,418 instructions
+(1.76% fewer); both profiles warn about Valgrind's brk segment limit and retain
+identical reports. Full native, instrumented and contextual production replay
+reports compare exactly equal. Local warm debug measurements do not establish
+release-build or cold-capture performance.
+
+All 3,764 Rust tests pass (5 skipped), plus doctests, Clippy, formatting and
+repository gates: zero style violations and zero visible findings through both
+pattern engines, with the same 13 raw reviewed IDs. Receipt:
+eval/clones-capability/pattern-refinement-buffer-study.json. C117 native Ubuntu
+x86/ARM and macOS15 CI passes; containing-commit CI remains pending.
+
+The next capability frontier remains default-style usefulness and workflow
+disposition, preserving authored statement counts and the current default route
+until the choice is justified. The broader goal remains active; this allocation
+change does not resolve that product decision or the later graph/anomaly scope.
