@@ -7213,3 +7213,31 @@ metrics and comparison limits. JSON parsing and whitespace validation pass.
 No production behavior changes belong to this measurement checkpoint. The next
 bounded implementation closes direct review recording through compiler patterns
 by forwarding to its already-existing exact-review workflow; no new review policy.
+
+### C105 — record scoped compiler reviews through patterns (2026-10-30)
+
+The compiler patterns command could inspect reviews but required a separate clones
+command to dismiss a new candidate. Expose `--dismiss-compiler-pattern UNIT
+CANDIDATE_ID` on `patterns --engine compiler` and forward it into the existing
+Args/review workflow. A saved run, review file and reason are required; status
+and legacy import remain distinct actions. Existing import reason overrides still
+work. Selection, exact full-observation identity, context/config/body staleness,
+publication and incomplete-input behavior are reused without a new policy,
+hash, cache, proof, suppression or changes to raw proposals/strict matching.
+
+The existing real-Cargo review acceptance now deletes sources and disables all
+compiler tools before recording the review through patterns itself. It asserts
+exact hiding, unchanged raw candidate evaluation and not-requested strict/matching
+execution. Failed selectors before and after successful publication leave an
+absent store absent and an existing store byte-identical. Status remains read-only.
+One parser test checks required inputs, exclusive actions and orphaned reasons;
+all seven existing routing tests and four parser tests pass. Docs and embedded
+skill show the direct workflow.
+
+Formatting, workspace/all-target Clippy and both legacy gates pass: zero style
+violations over10,075 functions and the same13 unfiltered reviewed candidate IDs.
+The final integrated Rust suite passes all3716 tests (263.101s,5 skipped),
+plus doctests. Capability/script Python suites pass248/50 tests.
+Default engines remain legacy. C103 native CI is still in progress at the last
+explicit poll. Next: commit/push the direct-review workflow, then continue the ready capability
+frontier and default disposition.

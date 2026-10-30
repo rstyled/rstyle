@@ -70,6 +70,7 @@ fn compiler_args(patterns: PatternsArgs) -> Result<Routed, String> {
         review_status: patterns.route.review_status,
         locked: patterns.route.locked,
         import_legacy_pattern: patterns.route.import_legacy_pattern,
+        dismiss_compiler_pattern: patterns.route.dismiss_compiler_pattern,
         legacy_current_members_only: patterns.route.legacy_current_members_only,
         review_reason: patterns.route.review_reason,
         ..Args::from_arg_matches(&matches).map_err(|error| error.to_string())?

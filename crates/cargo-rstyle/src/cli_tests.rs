@@ -41,3 +41,53 @@ fn patterns_backend_selection_remains_independent_of_style() {
     };
     assert!(patterns.route.engine == Engine::Compiler);
 }
+
+#[test]
+fn compiler_pattern_dismissal_requires_one_explicit_saved_review_action() {
+    let args = [
+        "cargo-rstyle",
+        "patterns",
+        "--engine",
+        "compiler",
+        "--dismiss-compiler-pattern",
+        "0",
+        "candidate",
+        "--review-file",
+        "reviews.json",
+        "--review-reason",
+        "Reviewed sites",
+        "--replay-run",
+        "saved-run",
+    ];
+    let cli = Cli::try_parse_from(args).unwrap();
+    let Some(Command::Patterns(patterns)) = cli.command else {
+        panic!("expected patterns command");
+    };
+    assert_eq!(patterns.route.dismiss_compiler_pattern, ["0", "candidate"]);
+    for missing in ["--review-file", "--review-reason", "--replay-run"] {
+        let index = args.iter().position(|arg| *arg == missing).unwrap();
+        let incomplete: Vec<_> = args[..index]
+            .iter()
+            .chain(&args[index + 2..])
+            .copied()
+            .collect();
+        assert!(Cli::try_parse_from(incomplete).is_err(), "{missing}");
+    }
+    for conflicting in [
+        vec!["--review-status"],
+        vec!["--import-legacy-pattern", "legacy", "0", "candidate"],
+    ] {
+        assert!(Cli::try_parse_from(args.iter().copied().chain(conflicting)).is_err());
+    }
+    assert!(
+        Cli::try_parse_from([
+            "cargo-rstyle",
+            "patterns",
+            "--engine",
+            "compiler",
+            "--review-reason",
+            "No action"
+        ])
+        .is_err()
+    );
+}

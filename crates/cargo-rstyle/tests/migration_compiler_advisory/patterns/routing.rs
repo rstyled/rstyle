@@ -24,6 +24,12 @@ fn report(output: &Output) -> Value {
 }
 
 fn saved(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) {
+    let output = saved_output(directory, original, extra);
+    let value = report(&output);
+    (output, value)
+}
+
+fn saved_output(directory: &Path, original: &Value, extra: &[&str]) -> Output {
     let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
     command
         .current_dir(directory)
@@ -41,9 +47,7 @@ fn saved(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) 
         .env("CARGO", directory.join("no-cargo"))
         .env("RUSTC", directory.join("no-rustc"))
         .env("RSTYLE_DRIVER", directory.join("no-driver"));
-    let output = diagnostic_process::output(&mut command).unwrap();
-    let value = report(&output);
-    (output, value)
+    diagnostic_process::output(&mut command).unwrap()
 }
 
 fn only_patterns(value: &Value) {
@@ -139,15 +143,12 @@ fn compiler_route_reuses_scoped_reviews_without_requiring_strict_matching() {
     checked(&output, 0);
     let original = report(&output);
     let candidate = &proposals(&original)["evaluation"]["candidates"][0];
-    let (output, _) = clones(
+    remove_sources(directory.path());
+    invalid_review_preserves_store(directory.path(), &original, None);
+    let (output, dismissed) = saved(
         directory.path(),
+        &original,
         &[
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-patterns",
-            "--compiler-advisory-only",
-            "--replay-run",
-            original["run_directory"].as_str().unwrap(),
             "--review-file",
             "reviews.json",
             "--dismiss-compiler-pattern",
@@ -158,12 +159,25 @@ fn compiler_route_reuses_scoped_reviews_without_requiring_strict_matching() {
         ],
     );
     checked(&output, 0);
+    only_patterns(&dismissed);
+    assert_eq!(
+        dismissed["compiler_advisory"]["pattern_review"]["decisions"][0]["state"],
+        "hidden_exact"
+    );
+    assert_eq!(
+        proposals(&dismissed)["evaluation"],
+        proposals(&original)["evaluation"]
+    );
     let path = directory.path().join("reviews.json");
     let bytes = std::fs::read(&path).unwrap();
-    remove_sources(directory.path());
+    invalid_review_preserves_store(directory.path(), &original, Some(&bytes));
+    review_status_is_stable(directory.path(), &original, &bytes);
+}
+
+fn review_status_is_stable(directory: &Path, original: &Value, bytes: &[u8]) {
     let (output, reviewed) = saved(
-        directory.path(),
-        &original,
+        directory,
+        original,
         &[
             "--review-file",
             "reviews.json",
@@ -180,9 +194,39 @@ fn compiler_route_reuses_scoped_reviews_without_requiring_strict_matching() {
     );
     assert_eq!(
         proposals(&reviewed)["evaluation"],
-        proposals(&original)["evaluation"]
+        proposals(original)["evaluation"]
     );
-    assert_eq!(std::fs::read(path).unwrap(), bytes);
+    assert_eq!(
+        std::fs::read(directory.join("reviews.json")).unwrap(),
+        bytes
+    );
+}
+
+fn invalid_review_preserves_store(directory: &Path, original: &Value, expected: Option<&[u8]>) {
+    let output = saved_output(
+        directory,
+        original,
+        &[
+            "--review-file",
+            "reviews.json",
+            "--dismiss-compiler-pattern",
+            "0",
+            "unknown-candidate",
+            "--review-reason",
+            "Invalid selector must not publish",
+        ],
+    );
+    checked(&output, 2);
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("Selected saved-run compiler proposal is not a current finding")
+    );
+    let actual = std::fs::read(directory.join("reviews.json"));
+    if let Some(expected) = expected {
+        assert_eq!(actual.unwrap(), expected);
+    } else {
+        assert_eq!(actual.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+    }
 }
 
 #[test]

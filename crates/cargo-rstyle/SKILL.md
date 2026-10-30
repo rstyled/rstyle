@@ -606,6 +606,10 @@ explicit. `--locked` applies to fresh capture. Use `--replay-run PATH` to reeval
 an exact saved run, including without source/compiler tools; configuration and
 review files remain explicit runtime inputs. `--review-file PATH --review-status`
 uses the existing scoped compiler review workflow.
+Record an exact review through this route with
+`--replay-run PATH --review-file reviews.json --dismiss-compiler-pattern UNIT CANDIDATE_ID --review-reason TEXT`.
+The selector and reason are required for a write. Status and legacy import are
+separate actions; failed selection leaves the review store unchanged.
 
 Legacy dismissals are not automatically converted into compiler reviews. A
 nonempty legacy ledger produces a migration message; `--no-ignore` explicitly
