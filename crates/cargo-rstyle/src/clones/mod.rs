@@ -1116,15 +1116,9 @@ fn verify_frontend_invocation<B, L>(
         .frontend_options
         .get("invocation")
         .ok_or("missing captured invocation")?;
-    let actual: Vec<String> = Deserialize::deserialize(value).map_err(|e| e.to_string())?;
-    let suffix = actual
-        .strip_prefix(unit.invocation.as_slice())
-        .ok_or("frontend evidence belongs to another compiler invocation")?;
-    let sysroot_only = suffix.len() == 2 && suffix[0] == "--sysroot" && !suffix[1].is_empty();
 
-    if (!suffix.is_empty() && !sysroot_only)
-        || facts.build.rustc_version.known_value() != capture.plan.compiler_identity.lines().next()
-    {
+    selected_context::invocation(value, &unit.invocation)?;
+    if facts.build.rustc_version.known_value() != capture.plan.compiler_identity.lines().next() {
         return Err("frontend invocation or pinned compiler identity disagrees with run".into());
     }
     selected_context.check(

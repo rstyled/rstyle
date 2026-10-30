@@ -7402,3 +7402,50 @@ usefulness and resource disposition remain open after this compatibility fix.
 Next ready work: decide the default density presentation/enforcement and resource
 disposition from the reconciled C108 evidence; no suppression or threshold change
 is authorized by this checkpoint.
+
+
+### C110 — borrow invocation/context comparisons (2026-10-30)
+
+Lead owns selected_context, invocation handoff, acceptance and evidence/docs.
+Existing stage profiling of the C108 saved project snapshot finds1.707s parsing,
+0.482s context,1.065s archive publication and0.473s root presentation; stages are
+nested, not exclusive totals. Preserve both the replay archive and root projection.
+Invocation validation instead compares JSON strings in place. Prepare expected
+selected-unit JSON once in the existing per-unit SelectedContext; exact matches
+avoid reconstructing owned strings/manifest bytes. Nonidentical representations
+retain the original typed comparison and PathBuf equality. No hash, memoization
+table, new cache, schema, policy, integrity scan or default change.
+
+Two added unit cases cover argument types/order/short prefixes/only the existing
+sysroot suffix and exact JSON versus equivalent path spellings, missing/null/
+unknown context fields. Six serial ABBAAB before/after replays over the same
+retained six-unit/10,085-authored-function input produce byte-identical stdout.
+Median context0.490→0.367s; whole replay5.76→5.61s (2.6% local decrease), RSS
+about832MiB unchanged. No broad/statistical speedup claim. Parsing dominates;
+build fields comprise93.5MB and signatures31.2MB of142.3MB snapshots over19,695
+raw owners. Receipt: project-context-borrowing-study.json.
+
+All3,726 Rust tests plus doctests, Clippy,248 capability/50 script Python tests
+and formatting pass. Style initially required one phase-separating blank line;
+that is the sole production edit after the full tests. Final style passes with
+zero violations over10,086 functions; final patterns gate passes with the same13
+unfiltered IDs as C109. C108 native CI40993792864 completed successfully;
+C109 native checks remain in progress. Default density
+usefulness/resources remain unresolved. User steering freezes the next patterns
+replacement scope to workspace-level mining through the existing proposer;
+member-level context and review/baseline support for cross-unit groups; authored
+scope plus an explicit legacy-ledger transition; one multi-crate side-by-side
+case with a known cross-crate opportunity, negative controls, review persistence
+and measured cost. Current proposer invocation remains per-unit and current
+snapshots reject differing member contexts; those are the primary implementation
+gaps. Existing authored scope and explicit preview/import supply the transition
+building blocks. Further micro-optimization is deferred behind that scope.
+
+
+User clarification: these are development implementations, not deployed legacy
+products. Treat the four-item patterns scope as a replacement, not a production
+migration. Build one workspace proposer path with member contexts and authored
+scope, preserve applicable repository review choices, validate the multi-crate
+case and remove the superseded route. Do not add backward-compatibility machinery
+or a production-ledger migration gate for these development paths. Strict clone
+matching contracts remain outside this patterns replacement.
