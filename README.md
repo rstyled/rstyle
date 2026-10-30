@@ -1,8 +1,7 @@
 # rstyle
 
 Style, patterns and review commands now use the compiler pipeline exclusively.
-See [breaking changes](BREAKING_CHANGES.md) for removed selectors and capture
-interfaces. The pre-removal implementation is preserved on the `legacy` branch.
+The pre-removal implementation is preserved on the `legacy` branch.
 
 Rust style checker built on rustc HIR (resolved names and types, not just syntax). It flags functions that are too long, take too many params, mutate too much, or have a high side-effect density.
 
@@ -80,8 +79,7 @@ Other top-level folders:
 | Folder | What it is |
 | --- | --- |
 | [`eval/`](eval/README.md) | Current compiler evaluation tools, authored inputs and the HIR coverage inventory. |
-| [`scripts/`](scripts/README.md) | Shell and Python (stdlib only) drivers that produce `eval/` and `site/wl/data`; also `style.sh`. |
-| [`site/wl/`](site/wl/README.md) | Static viewer for Weisfeiler-Lehman traces of function pairs. |
+| [`scripts/`](scripts/README.md) | Build, test, profiling and evaluation scripts; also `style.sh`. |
 | `rust_refactoring_examples/` | Labeled example crates (`labels.csv`) the miner is scored against. |
 | `.plans/` | Local planning notes and LLM logs. Gitignored, not part of the repo. |
 
