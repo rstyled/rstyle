@@ -612,11 +612,15 @@ the same path explicitly; `--engine legacy` retains the reference collector for
 side-by-side evaluation. Mining and score/top flags keep their existing meaning.
 `--fail-on-candidates` uses displayed compiler proposals; incomplete scope exits2.
 
-Compact pattern decoding reuses the metadata reader: original HIR structure is
-validated and discarded, while advisory graphs remain the proposer input. Review
-and baseline declarations borrow the existing source/signature/build view rather
-than requiring a second body tree. Full reports and body-dependent analyses keep
-their original payloads.
+Root pattern captures reuse the existing metadata producer: source, signature,
+build context, actual HIR root and advisory graphs are retained; full HIR trees
+and lexical bindings are not requested. Review and baseline declarations borrow
+that metadata, and advisory graphs remain the proposer input. Saved full captures
+also support compact pattern replay through the validated header reader.
+Standalone clones keeps its full capture payload. Replaying root pattern inputs
+through clones requires --compiler-advisory-only --compiler-patterns and
+--report-detail compact; full reports and body-dependent analyses require a full
+clones capture.
 
 This route consumes `--config` or the workspace `rstyle.toml` for core selection
 and effect classification. Package, manifest and all-target selection remain

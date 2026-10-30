@@ -124,6 +124,8 @@ fn direct_entry_agrees(directory: &Path, original: &Value) {
             "--pattern-ledger",
             "rstyle-ignore.toml",
             "--compiler-advisory-only",
+            "--report-detail",
+            "compact",
             "--compiler-pattern-scope",
             "authored",
             "--replay-run",

@@ -45,7 +45,7 @@ fn root_capture(directory: &Path) -> Value {
     report
 }
 
-fn snapshot(report: &Value) -> Value {
+pub(super) fn snapshot(report: &Value) -> Value {
     let archive = Path::new(report["run_directory"].as_str().unwrap()).join("report.json");
     let archive: Value = serde_json::from_slice(&std::fs::read(archive).unwrap()).unwrap();
     let bundle = archive["functions"][0]["unit_evidence"]["bundle"]

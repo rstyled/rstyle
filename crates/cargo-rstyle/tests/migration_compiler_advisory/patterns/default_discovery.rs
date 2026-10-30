@@ -3,13 +3,13 @@ use super::*;
 
 const HELPERS: &str = "pub fn first(a:u128)->u128 {std::hint::black_box(a.wrapping_add(7)).wrapping_mul(3)}\npub fn second(a:u128)->u128 {std::hint::black_box(a.wrapping_add(8)).wrapping_mul(3)}";
 
-fn raw(directory: &Path, extra: &[&str]) -> Output {
+pub(super) fn raw(directory: &Path, extra: &[&str]) -> Output {
     let mut args = vec!["patterns", "--format", "json"];
     args.extend_from_slice(extra);
     rstyle(directory, &args)
 }
 
-fn json(output: &Output) -> Value {
+pub(super) fn json(output: &Output) -> Value {
     serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
         panic!(
             "{error}: {}\n{}",
@@ -27,7 +27,7 @@ fn fixture(extra: &[&str]) -> (TempDir, Value) {
     (directory, json(&output))
 }
 
-fn saved(directory: &Path, original: &Value, command: &str, extra: &[&str]) -> Output {
+pub(super) fn saved(directory: &Path, original: &Value, command: &str, extra: &[&str]) -> Output {
     let mut process = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
     process
         .current_dir(directory)
@@ -48,7 +48,7 @@ fn candidate(report: &Value) -> &Value {
     &proposals(report)["evaluation"]["candidates"][0]
 }
 
-fn dismiss(directory: &Path, original: &Value) -> Vec<u8> {
+pub(super) fn dismiss(directory: &Path, original: &Value) -> Vec<u8> {
     let id = candidate(original)["id"].as_str().unwrap();
     let output = saved(
         directory,

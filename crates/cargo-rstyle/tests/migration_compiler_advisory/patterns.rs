@@ -1,5 +1,6 @@
 mod authored_scope;
 mod default_discovery;
+mod metadata_payload;
 mod mining_options;
 mod presentation;
 mod repository_ledger;

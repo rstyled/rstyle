@@ -7649,3 +7649,45 @@ HIR capture, rather than just discarding trees during decoding.
 C114 CI is externally observable through the public API: Ubuntu x86/ARM jobs
 complete successfully. macOS 15 passes its test step and is running self-checks;
 its remaining gates and C115 native CI are not claimed complete.
+
+
+### C116 — avoid producing unused pattern HIR bodies (2026-10-30)
+
+Lead owns routing, persisted capture/replay checks, shared test registration,
+measurement and integration; the acceptance worker owns the metadata/full
+comparison test only. Root patterns and repository review now request the
+existing metadata producer together with the existing advisory graph capture.
+Both requests were already persisted in the saved plan. The driver and snapshot
+schema need no new adapter: source/signature/build metadata, actual HIR root,
+original advisory graphs and explicit unrequested bindings use the existing
+style snapshot codec. Standalone clones still requests its full body payload.
+
+Saved metadata patterns require compact consumers. Root style snapshots without
+pattern graph demand remain explicitly unavailable for patterns; strict matching,
+full reports and body-dependent consumers cannot borrow absent body inputs.
+Three existing direct graph-only replay tests now select compact detail
+explicitly. The new acceptance compares all ten fixture graphs, three positive
+proposal families, complete member and compilation contexts, source/tool-free
+replay, cross-format repository review identity and rejected body consumers.
+Only the run-specific bundle location is excluded from build-context comparison.
+No new cache, hash, schema, collector algorithm or matching rule is introduced.
+
+Current-source captures use the same 10,142 authored functions and six compiler
+units. Complete compiler-advisory reports compare exactly equal. Metadata capture
+observes 51.96s/3,579,824KiB versus full 92.25s/4,269,212KiB, about 44% less wall time
+and 16% less peak process memory in these sequential runs. Stored unit observations
+fall from 898,963,378 to 229,631,690 bytes (74.5%). Two explicit unfiltered metadata
+replays observe 18.77/18.36s and 2,579,404KiB; repeated reports are exactly equal,
+and raw evaluations agree with live output. Full saved replay of the same source
+observes 24.51s/3,361,988KiB, with an identical compiler-advisory report; metadata
+replay uses about 24–25% less time and 23% less peak process memory. No cold-build or broad cache speedup
+is claimed. Receipt: eval/clones-capability/pattern-metadata-producer-study.json.
+
+All 3,753 Rust tests pass (5 skipped, 263.410s) plus doctests, workspace/all-target
+Clippy and formatting. Root style has zero violations over 10,142 functions. Both
+pattern gates pass with zero visible findings and exactly the same 13 raw IDs as
+C115 and the explicit reference collector; no repository review changes.
+Both originally reported NonZero tests pass. C114 native CI completes successfully
+on Ubuntu x86/ARM and macOS 15. This containing checkpoint still needs its own
+native CI run. Remaining proposer cost needs a reliable bounded profile before
+another algorithm change; the broader capability goal remains active.

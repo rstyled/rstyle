@@ -49,7 +49,6 @@ fn check_plan(plan: &Plan, graph: &Value) -> Result<(), String> {
         || (plan.style_inputs_only
             && (!plan.compiler_advisory_only
                 || !plan.compiler_advisory
-                || plan.compiler_patterns
                 || plan.local_source_facts
                 || plan.local_mutation_facts))
     {

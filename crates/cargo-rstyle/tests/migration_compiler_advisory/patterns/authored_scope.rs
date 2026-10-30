@@ -58,6 +58,8 @@ fn direct(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value)
         "--pattern-ledger",
         "rstyle-ignore.toml",
         "--compiler-advisory-only",
+        "--report-detail",
+        "compact",
         "--replay-run",
         original["run_directory"].as_str().unwrap(),
     ];

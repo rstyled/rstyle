@@ -212,6 +212,8 @@ fn explicit_repository_ledger_matches_root_route_and_top_does_not_change_review_
             "hir-data-v3",
             "--compiler-patterns",
             "--compiler-advisory-only",
+            "--report-detail",
+            "compact",
             "--compiler-pattern-scope",
             "authored",
             "--replay-run",

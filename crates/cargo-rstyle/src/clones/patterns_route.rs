@@ -78,6 +78,7 @@ fn compiler_args(patterns: PatternsArgs) -> Result<Routed, String> {
         .map_err(|error| error.to_string())?;
 
     let options = Args {
+        style_inputs_only: true,
         mine: patterns.mine,
         show_ignored: patterns.show_ignored,
         pattern_display: patterns.display,

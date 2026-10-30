@@ -66,11 +66,11 @@ fn consume_style(
     snapshot: &capture::Snapshot,
     result: &mut Handoff,
 ) -> Result<(), String> {
-    if request.args.compiler_patterns {
+    if request.args.compiler_patterns && !request.capture.plan.compiler_patterns {
         return Err("Root style inputs did not request compiler pattern graphs; use a compiler-pattern capture".into());
     }
     if !header_only(request.args) {
-        return Err("Root style inputs did not request original HIR bodies or bindings; requested consumers require a full body capture".into());
+        return Err("Metadata-only inputs did not request original HIR bodies or bindings; requested consumers require a full body capture".into());
     }
     let facts = rstyle_pdg::unit_store::read_style_snapshot_phase(
         snapshot.bundle.bytes(),

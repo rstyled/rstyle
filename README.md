@@ -31,6 +31,9 @@ reports the exact artifacts fresh; reports retain separate compilation contexts.
 Root JSON exposes diagnostics, summary, fix groups and complexity rows, with
 explicit scope and planning completeness. Root style saves its numeric compiler
 inputs for replay; analyses requiring original HIR bodies use a full clones capture.
+Default `cargo rstyle patterns` also saves metadata and its advisory graphs,
+avoiding full body trees. Pattern and review replay need no source or compiler
+tools; body-dependent analysis requires a full clones capture.
 Optional [native pair explanations](docs/clones-pair-differences.md) show ordered
 scalar differences with separate coverage through `--explain-pairs`.
 Bounded [helper proposals](docs/clones-helper-proposals.md) use that evidence
