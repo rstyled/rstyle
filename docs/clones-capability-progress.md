@@ -5,6 +5,10 @@ migration plan define the scope; this ledger records delivered slices rather
 than declaring the wider migration complete. The [matrix](clones-capability-matrix.md)
 and [acceptance corpus](../eval/clones-capability/README.md) freeze the first scope.
 
+The reference engine was retired in C129. Earlier checkpoints retain their
+original engine selections and results as historical evidence; see
+[breaking changes](../BREAKING_CHANGES.md) for current commands.
+
 ## Baseline and ownership
 
 The starting revision passed 2,332 workspace tests (five skipped), formatting,
@@ -8205,3 +8209,41 @@ reference style both report zero violations. Both pattern gates pass; compiler
 patterns retain the same 12 raw candidate IDs and zero visible candidates.
 Configuration, lockfile and repository pattern ledger remain byte-identical.
 Native CI for these changes is pending push.
+
+### C129 — retire the reference runtime (2026-10-30)
+
+The pre-removal code is preserved on the pushed `legacy` branch at `753382ad`.
+Current commands use only the compiler pipeline. Both engine selectors, root
+flat-facts gathering, the separate Cargo wrapper/fingerprint, flat-cache reader
+and driver `Extract` callback are removed. The shared HIR collectors, graph
+builder, effect propagation, numeric evaluator, fix groups, parameter planner,
+abstraction proposer and repository review algorithms remain. Compiler metric
+semantics and graph membership semantics are retained independently; strict clone
+admission and matching are unchanged. No new hashing, cache or policy layer.
+
+Root CLI and complexity regressions now consume compiler observations and reports.
+They retain coverage for mutations, effects, call graphs, signatures, argument
+provenance, propagation boundaries, fix groups, parameter stacking, configuration,
+suppressions, deterministic findings, compilation failures and individual reviews.
+Snapshots include compiler unit context and normalize only fresh run/workspace
+paths. Removed tests cover retired engine combinations, flat-cache mode isolation
+and the retired denominator comparison; authored-statement and historical metric
+coverage remain on the compiler path.
+
+CI keeps compiler-default style and patterns gates. Research scorers read the
+published compiler workspace evaluation and reject incomplete input. Comparison
+wrappers read saved results; graph-only research tools require retained historical
+facts rather than starting a retired collector. Original comparison JSON/CSV is
+untouched. README, current advisory documentation, scripts and embedded skill link
+the compiler-only behavior; `BREAKING_CHANGES.md` records removed interfaces and
+existing review workflows without a ledger conversion.
+
+Validation passes: all 3,785 Rust tests (five skipped), doctests, 34 final targeted
+regressions, formatting, all-target Clippy, 245 comparison acceptance tests and 52
+script tests. Compiler-default style completes 10,137 authored functions with zero
+violations. Patterns completes with the same 12 raw reviewed IDs and zero visible
+candidates. No new source allowances; configuration, lockfile and pattern ledger
+are unchanged. The full suite took 270.318 seconds in nextest. The reduced test
+count reflects removed plumbing tests, not removed behavioral coverage. Receipt:
+`eval/clones-capability/compiler-runtime-retirement.json`. Native Ubuntu/macOS CI
+for the containing commits remains pending push.

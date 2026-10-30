@@ -1,5 +1,6 @@
 //! `wl_trace <fn-substring-a> <fn-substring-b> <facts.json>...` prints a WL trace as JSON.
-//! Facts files come from a `patterns` run (`<target-dir>/rstyle/facts-sem/*.json`).
+//! Reads retained historical flat facts (`<target-dir>/rstyle/facts-sem/*.json`).
+//! Current compiler captures do not produce this research input format.
 //! A substring must match exactly one fn id (the same fn in several targets counts once).
 
 use rstyle_core::facts::FnFacts;

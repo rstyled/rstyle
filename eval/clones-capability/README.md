@@ -1,5 +1,15 @@
 # Bounded clones capability acceptance
 
+**Historical comparison archive.** The reference implementation is preserved on
+branch `legacy` at `753382ad`. Current code has no reference engine or engine
+selectors. Recorded comparisons, labels, policies and receipts remain evidence
+for their exact revisions and metric versions. Commands below that capture both
+engines describe the original study protocol, not supported current commands.
+`compare.py`, `density_compare.py`, `run_compare.py` and `run_density_compare.py`
+can reevaluate retained `--legacy`, `--new`, `--scope` and `--expectations` JSON;
+the runner wrappers no longer build or invoke a reference implementation.
+See [breaking changes](../../BREAKING_CHANGES.md).
+
 This corpus freezes source-authored expectations for the capability migration.
 It is independent of new producer output and is not a broad Rust benchmark or a
 claim of Go compatibility. The isolated Cargo workspace has no dependencies.
@@ -232,7 +242,6 @@ existing-trait suppression, negative namesakes and repeated members, unavailable
 namespaces/coercions, explicit budgets and source-free replay. See
 [capability proposals](../../docs/clones-capability-proposals.md).
 
-
 `density-cases.json` independently specifies the bounded static policy numerator
 and complete statement denominator: repeated direct roots, delegated call
 occurrences, local path-kind propagation, classified safe external calls and
@@ -285,7 +294,6 @@ The [bounded project study](project-study.md) separately measures actual
 `rstyle-ccgraph` coverage with explicit policies and independent source samples.
 Its incomplete source/density results do not establish legacy retirement.
 
-
 The compiler-quality study also reviews completed compiler advisory diagnostics
 without reanalysis. `project-compiler-propagated-density-depth{0,1,2}-cases.json`
 freeze four production source/count expectations; the positive-depth cases list
@@ -297,7 +305,6 @@ label corrections, replay commands, numeric results and resource limits. Run
 `python3 -m unittest discover -s eval/clones-capability -p 'test*.py'` for the
 independent reducer controls. This does not establish runtime purity or retire
 legacy density policy.
-
 
 `compiler_proposal_quality.py` reviews completed core proposal reports using
 independent original-source labels. It reuses `compiler_quality.sample_owner`
@@ -312,13 +319,11 @@ input cannot establish a negative. The reducer exits 1 for observed not-useful o
 needs-revision judgments and 2 for unavailable samples. See the project study for
 capture scope, resource measurements and a reproduction command.
 
-
 The later `project-compiler-proposal-alignment-results.json` uses the same frozen
 source labels on an explicit saved-run replay. It adds unmatched-node warnings
 to five proposals from existing completed coverage, retaining all numeric fields,
 roles and three negative usefulness judgments. See C35 in the project study;
 this is clearer evidence presentation, not improved proposal precision.
-
 
 `project-compiler-proposal-effect-results.json` records the C36 completed-effect
 handoff replay against that same captured core library and C33 source labels.
@@ -331,7 +336,6 @@ units and source-free replay. Recorded kinds are not purity, weighted density or
 refactoring safety. Structural reviews do not approve recomputed effect notes.
 The measured single replay is comparable to C35; no speedup is claimed.
 
-
 `project-compiler-proposal-forwarding-{cases,results}.json` records C37 policy 2.
 It preserves C33 source judgments and requires the pipeline sample's exact
 built-in rejection reason and source sites. One negative proposal is rejected;
@@ -339,7 +343,6 @@ two remain emitted and the reducer still exits 1. Missing proposals over
 incomplete input stay unavailable. Historical implicit-version-1 observations
 remain unchanged. Policy version drift is an error, and explicit rejection is
 not a user review or proof that extraction is safe.
-
 
 `project-compiler-direct-density-review-{cases,results}.json` records C38's
 real-project review lifecycle experiment. A declared temporary source variant
@@ -349,7 +352,6 @@ support retained review resolution despite unrelated missing input. Deeper
 propagation and whole-analysis completion keep their existing gates. The
 variant is not a historical-production claim, and no persistent repository
 review or ignore is added.
-
 
 `project-shared-source-quality-{cases,results}.json` reviews C40's explicit saved
 metric5 `run-mb8gH8` using the same `compiler_quality.py` reducer. Independent
@@ -735,7 +737,6 @@ threshold comparisons agree. The original core/PDG score results and PDG
 parameter-plan results reproduce exactly. These are validation corrections,
 not new runtime capability coverage, performance or retirement claims.
 
-
 C67's `project-independent-pattern-study.json` replays the exact C66 ccgraph
 capture with and without numeric advisory. Completed proposal reports and captured
 owner rosters agree; standalone patterns omit numeric evaluation rather than
@@ -899,7 +900,6 @@ collector changes. The root generated IO-chain fixture independently checks a
 positive finding, preserved numeric gaps, warm reuse and replay without tools,
 source/build inputs, prior run or reuse index.
 
-
 ### Advisory handoff profile (C92)
 
 `project-advisory-handoff-profile.json` records three serial replays of the same
@@ -910,7 +910,6 @@ inventory load takes1.553s. Peak RSS is about2.16GiB. These measurements identif
 body materialization as the next seam to investigate; they do not demonstrate a
 speedup or validate a compact projection. Exact commands, raw events, memory
 receipts and comparison results are retained in the artifact.
-
 
 ### Numeric body retention (C93)
 
@@ -924,7 +923,6 @@ wall/resource receipts and equality checks. The existing raw schema and typed
 body validation remain; only unrequested tree payload retention changes. Full,
 local, pattern, review, baseline and strict requests retain full bodies.
 
-
 ### Existing checksum dependency code generation (C94)
 
 `project-advisory-dependency-codegen-study.json` records the same saved numeric
@@ -933,7 +931,6 @@ All three reports equal C93. Warm inventory loading drops from1.58s to0.20–0.2
 warm wall time drops from9.35–9.45s to8.11s (13.7% at the two-run medians).
 This small local comparison preserves all checksum reads and checks; it is not
 a live-capture, release, native-platform or statistical performance claim.
-
 
 ### Expanded default-density metric review (C95)
 
@@ -987,7 +984,6 @@ Wall observations remain about 25s; this is a memory result, not a broad speedup
 The process-timer gprofng trial is recorded as unreliable because the collector
 warned about a changed timer period; its percentages are not optimization evidence.
 
-
 ### Current default-style comparison (C126)
 
 `project-default-style-readiness-refresh.json` refreshes C108 at source revision
@@ -999,7 +995,6 @@ metrics, plans and complete build settings agree on repeat runs. Sequential warm
 repeat observations are 0.85s/91,704KiB reference and 5.99s/852,788KiB compiler;
 these are native Linux ARM64 dev observations, not cold builds or speedup claims.
 Default behavior and production finding severity remain unchanged.
-
 
 ### Compiler style default and existing individual reviews (C127)
 

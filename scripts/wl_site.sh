@@ -9,12 +9,11 @@ env -u CARGO_TARGET_DIR cargo build -q --workspace
 OUT=site/wl/data
 mkdir -p "$OUT"
 
-facts() { # project -> facts dir (runs the miner when the cache is missing)
+facts() { # project -> retained historical graph inputs
   d=/tmp/rx_t_$1/rstyle/facts-sem
   if [ ! -d "$d" ]; then
-    (cd "rust_refactoring_examples/$1" && CARGO_TARGET_DIR=/tmp/rx_t_$1 \
-      RSTYLE_DRIVER=$W/target/debug/rstyle-driver \
-      $W/target/debug/cargo-rstyle rstyle --format json patterns --all-targets >/dev/null 2>&1 || true)
+    echo "Missing retained study inputs: $d; current captures do not publish facts-sem" >&2
+    return 1
   fi
   echo "$d"
 }

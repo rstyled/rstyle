@@ -1,5 +1,9 @@
 # rstyle
 
+Style, patterns and review commands now use the compiler pipeline exclusively.
+See [breaking changes](BREAKING_CHANGES.md) for removed selectors and capture
+interfaces. The pre-removal implementation is preserved on the `legacy` branch.
+
 Rust style checker built on rustc HIR (resolved names and types, not just syntax). It flags functions that are too long, take too many params, mutate too much, or have a high side-effect density.
 
 ## Layout
@@ -26,7 +30,7 @@ missing scores and owners remain explicit, including on saved-facts replay.
 Normal style checks use that compiler path by default:
 `cargo rstyle --format json`. It reads workspace
 `rstyle.toml` (or `--config`), checks all authored rules and returns 1 for findings.
-Use `--style-engine legacy` for the reference collector. The default reuses private builds and completed owner observations when Cargo
+The compiler path reuses private builds and completed owner observations when Cargo
 reports the exact artifacts fresh; reports retain separate compilation contexts.
 Root JSON exposes diagnostics, summary, fix groups and complexity rows, with
 explicit scope and planning completeness. Root style saves its numeric compiler
@@ -245,7 +249,7 @@ cargo rstyle patterns [--format text|json] [--all-targets] [--min-score N] [--to
                       [--hide-implements TEXT]...
 ```
 
-The default uses compiler observations across the selected workspace and reuses the core proposer. Authored functions are selected by default; generated signatures remain visible in coverage. `--engine legacy` selects the reference collector for comparisons. Reports retain compilation contexts, unavailable inputs and the explicit saved run directory; incomplete input exits 2. Strict clone matching is independent of these advisory proposals.
+The default uses compiler observations across the selected workspace and reuses the core proposer. Authored functions are selected by default; generated signatures remain visible in coverage. Reports retain compilation contexts, unavailable inputs and the explicit saved run directory; incomplete input exits 2. Strict clone matching is independent of these advisory proposals.
 
 Two layers:
 
@@ -254,7 +258,7 @@ Two layers:
 
 Each candidate has a `kind` (`trait_method`, `capability_set`, `enum_dispatch`, `generic_fn`, `parameterize`), a score with its parts (`support`, `lift`, `holes`, `coverage`), an observation, an inference, a possible refactor sketch, every site with `path:line`, the functions that fill the holes, and counter-evidence (effect mismatch, common signature). Patterns whose implementations all already implement one trait method are listed under `suppressed`, not proposed. Output is deterministic.
 
-Compiler patterns captures graph observations under `target/rstyle/clones/`. Use `--replay-run PATH` to reevaluate an explicit saved run without source files or compiler tools. The reference collector uses `target/rstyle/facts-sem`; root style uses separate facts. See [compiler advisory coverage](docs/clones-compiler-advisory.md) for scope and replay details.
+Compiler patterns captures graph observations under `target/rstyle/clones/`. Use `--replay-run PATH` to reevaluate an explicit saved run without source files or compiler tools. Style and patterns both consume saved compiler unit snapshots. See [compiler advisory coverage](docs/clones-compiler-advisory.md) for scope and replay details.
 
 `--hide-implements TEXT` forgets trait links whose trait method id contains `TEXT` (`*` hides all). Evaluation oracle: hide a trait that has several impls and check the miner proposes it back.
 

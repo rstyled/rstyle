@@ -1,5 +1,10 @@
 # Compiler advisory reuse
 
+The compiler pipeline is now the only runtime route for style, patterns and
+repository reviews. See [breaking changes](../BREAKING_CHANGES.md). Earlier
+measurement and capability checkpoints below describe their recorded source
+revision; they do not require the retired engine to remain executable.
+
 The normal style command uses compiler observations by default:
 
 ```sh
@@ -44,14 +49,13 @@ continue to restore the original bodies. Saved plans
 distinguish these payloads when reusing completed owners. This is an extended
 style report, with compiler metric semantics;
 equal field names do not imply equal legacy density denominators or scores.
-The reference backend remains available explicitly through
-`--style-engine legacy`. The style-engine option applies only without a subcommand;
-`patterns` independently defaults to compiler workspace discovery.
+Style and patterns use the compiler pipeline exclusively. The engine selectors
+have been removed; saved comparisons remain historical evidence.
 
 The same style presentation is available when reevaluating an explicit saved run:
 
 ```sh
-cargo rstyle --style-engine compiler --replay-run /path/to/run --format json
+cargo rstyle --replay-run /path/to/run --format json
 ```
 
 Replay uses the original captured source, compilation contexts and package/target
@@ -59,8 +63,7 @@ selection without Cargo, rustc, the driver or source files. Current configuratio
 still applies; use `--config PATH` to reevaluate with an explicit policy. New
 package, manifest and all-targets selections are rejected. The command reuses the
 existing advisory saved-run reader, evaluator, planner and report publication;
-matching and pattern mining remain unrequested. `--replay-run` works with the
-default compiler engine and is rejected with `--style-engine legacy`.
+matching and pattern mining remain unrequested.
 
 Density findings return 1 until individually reviewed or fixed. Existing
 `// rstyle-allow(side_effect_density): reason` comments still apply. A separate
@@ -104,8 +107,8 @@ default backend or density policy.
 Root compiler style can export and compare the existing diagnostic baseline:
 
 ```sh
-cargo rstyle --style-engine compiler --write-baseline baseline.json --format json
-cargo rstyle --style-engine compiler --baseline baseline.json --fail-on-new --format json
+cargo rstyle --write-baseline baseline.json --format json
+cargo rstyle --baseline baseline.json --fail-on-new --format json
 ```
 
 Export requires complete whole-scope inputs and a new destination file. It keeps
@@ -120,8 +123,7 @@ These flags reuse `rstyle.compiler-baseline/1` and the existing authored diagnos
 workflow. `compiler_advisory.diagnostic_baseline` and text output describe the
 comparison. Both commands support explicit `--replay-run PATH` without compiler
 tools or original sources. Comparison can use `--changed-files changes.json`;
-export cannot use a changed-file selection. Baseline flags work with the default
-compiler engine and are rejected with `--style-engine legacy`.
+export cannot use a changed-file selection.
 
 For compiler metrics 5–7, changed-file coverage uses the same lexical source-path
 normalizer as diagnostics. Authored modules loaded through `#[path]` with `..`
@@ -322,7 +324,7 @@ An explicit `--changed-files PATH` selects numeric diagnostic presentation and
 finding exits as described below. The compiler diagnostic baseline workflow is
 also described below. Compiler
 proposals have a separate review identity described below.
-The normal legacy style command remains available.
+The former reference style route has been removed.
 
 Both the record and metric identities are versioned:
 `rstyle.compiler-advisory/1` and `rstyle.compiler-style-metrics/7`. These are
@@ -424,17 +426,17 @@ events; source budgets filter the typed `for_desugaring` origin before grouping.
 Metrics 2 through 6 require explicit origins, while historical missing origins mean source
 under metric 1. A metric-1 record cannot claim a desugared origin. Statement
 counts were unchanged in metric 2; budget exclusion does not establish iterator purity.
-Legacy style reuses the mutation-origin correction.
+At this historical checkpoint, reference style also reused the mutation-origin correction.
 
 Metric version 3 excludes the two synthetic bare match arms created by each `?`
 from statement counts. The collector reads the existing arm-span
 `QuestionMark` desugaring marker; it does not parse source, recheck types or walk
 the body again. Authored match arms, operand-block statements and all calls and
-effects remain collected. Legacy style explicitly retains its original statement
-metric. The two extraction entry points select their metric in the same collector;
-only synthetic question-mark arm counting differs. The 44 density findings seen
-when applying the corrected denominator to the legacy workspace gate remain
-quality debt to assess before retirement, not resolved findings.
+effects remain collected. The reference collector retained its original statement
+metric until retirement; the compiler collector keeps the authored denominator.
+The density findings observed during migration were subsequently reviewed and
+fixed or individually annotated in C128; the completed compiler gate reports zero
+violations. Recorded comparisons retain their original denominators.
 
 Version-1 and version-2 saved compiler observations remain readable and replay
 with their original counts and metric identifiers. No replay relabels or
@@ -583,9 +585,8 @@ an owned rewrite, preserving the original observations.
 `cargo rstyle patterns --format json` uses compiler workspace discovery by default.
 It performs one advisory-only HIR-data-v3 capture and reuses the existing core
 proposer, preserving compilation populations, coverage and counter-evidence.
-Strict matching and numeric rules are not requested. `--engine compiler` selects
-the same path explicitly; `--engine legacy` retains the reference collector for
-side-by-side evaluation. Mining and score/top flags keep their existing meaning.
+Strict matching and numeric rules are not requested. Mining and score/top flags
+keep their existing meaning; there is no engine selector.
 `--fail-on-candidates` uses displayed compiler proposals; incomplete scope exits2.
 
 Compact pattern decoding reuses the metadata reader: original HIR structure is
@@ -634,8 +635,7 @@ Pruning requires complete inputs from a full-workspace `--all-targets` capture,
 including for `--dry-run`. Saved replay uses the selection recorded by that
 capture and takes no new selection flags. Package-only and incomplete captures
 cannot establish that unseen reviews are stale. Ordinary listing and dismissal
-can use narrower complete selections. The reference `--engine legacy` review
-path remains explicit for comparison with the reference collector.
+can use narrower complete selections.
 
 Standalone clones keeps the captured-function population by default. The root
 compiler patterns route defaults to authored scope; either entry can select
@@ -657,7 +657,7 @@ drift even for empty inventories. Historical baselines without the field retain
 the captured population. Saved runs can select authored scope using retained
 compiler markers without source files, compiler tools or new hashes/proofs.
 
-Compiler proposals accept the existing legacy mining controls directly:
+Compiler proposals accept the shared mining controls directly:
 `--threshold`, `--min-coverage`, `--pair-coverage`, `--normalize`,
 `--single-call-guard`, `--max-holes` and repeatable `--hide-implements`.
 They require `--compiler-patterns` and reuse the same CLI conversion and core
@@ -675,7 +675,7 @@ oracle. Empty lists are omitted on publication, preserving default record bytes.
 No hash or source scan is needed for these configuration comparisons.
 
 Compiler patterns also accept `--min-score N` (natural-log units) and `--top N`.
-These reuse the legacy inclusive score filter and ranking order per compilation
+These reuse the existing inclusive score filter and ranking order per compilation
 unit, independently for candidates and signature groups. Reviews hide candidates
 before the top limit; changed-file selection intersects the resulting list
 without refilling it. Nondefault display settings publish `patterns.presentation`
@@ -770,7 +770,7 @@ does not create or modify the file. To record a reviewed finding, replay its exa
 saved run and select the numeric unit and candidate ID from that report:
 
 ```sh
-cargo rstyle patterns --engine compiler --replay-run PATH_TO_RUN \
+cargo rstyle patterns --replay-run PATH_TO_RUN \
   --review-file reviews.json --dismiss-compiler-pattern 0 CANDIDATE_ID \
   --review-reason 'Why these sites should remain separate'
 ```
@@ -826,9 +826,8 @@ proposal entries are never automatically pruned. Other review families retain
 their existing independently completed negative pruning rules.
 
 Cross-package propagation and broader project proposal quality remain follow-up
-work. No legacy
-capability is retired by this increment.
-
+work beyond this historical checkpoint. The reference runtime was later retired
+in C129.
 
 ## Saved compiler diagnostic reviews
 
@@ -888,7 +887,6 @@ saved run and removes only completed negative choices; add
 Compiler proposals remain positive-only. Hiding every known finding cannot make
 generated/missing/unresolved input complete, and strict matching stays independent.
 
-
 ## Compiler diagnostic CI baselines
 
 Export an inventory after a complete compiler advisory run, then compare explicitly:
@@ -941,8 +939,7 @@ comparison, but that comparison cannot establish a clean CI result.
 Baseline comparison applies changed-file selection to new visible numeric
 findings; policy/build-context drift still covers the whole scope. Exporting a
 compiler baseline with a changed-file manifest is rejected. Broader project
-coverage and legacy retirement remain open.
-
+coverage beyond these measured cases remains open.
 
 ## Changed-file compiler diagnostics and proposals
 
@@ -982,7 +979,6 @@ IDs. Selection retains only diagnostic indices, scoped owner IDs and owned repor
 path strings. It creates no diagnostic review snapshots absent an explicit
 review/baseline request, and adds no source parsing, graph/body copying, hashing
 or repeated proofs.
-
 
 ## Compiler proposal CI baselines
 
@@ -1033,4 +1029,4 @@ the separate effect-input limitation. The existing
 4 MiB artifact and 4,096 owner/entry/context bounds apply. Imports validate closed
 schemas, graph observations, versions, membership keys and build contexts; export
 creates a new file without overwriting an existing one. Broader project quality,
-coverage and legacy retirement remain open.
+coverage beyond these measured cases remains open.

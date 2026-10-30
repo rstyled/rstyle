@@ -6,6 +6,10 @@ This is the bounded initial replacement matrix for
 source-authored requirements, not observed pass claims. The source/signature
 policy is five code lines/four parameters; production defaults are unchanged.
 
+Current runtime status: commands use the compiler pipeline exclusively. The
+reference engine was retired in C129; older rows below record their checkpoint
+states rather than current engine availability. See [breaking changes](../BREAKING_CHANGES.md).
+
 | Capability | Existing anchor / consumer | Required evidence | Independent acceptance | Replacement state / retirement gate |
 | --- | --- | --- | --- | --- |
 | Default compiler style and individual reviews | Existing authored compiler route, core evaluator and schema-9 diagnostic review workflow | Blocking density findings; existing rstyle-allow comments or explicit review file; original unit/index selectors | Default/explicit engine equality; two density findings plus unrelated violation; one-at-a-time dismissal, unchanged raw rows, read-only lookup/status, source/tool-free replay, policy staleness and clean/comment controls | C127 implements the user-selected compiler default with blocking density findings. No new ignore format, matcher, hash or suppression policy; no bulk dismissals. Existing reference style CI gate remains explicit. Current workspace measures10,159 functions with48 density findings and exit1 as requested; all3,796 Rust tests/doctests, Clippy, formatting,248 Python tests and both pattern gates pass (same12 IDs, ledger unchanged). Receipt:default-compiler-style-reviews-study.json |

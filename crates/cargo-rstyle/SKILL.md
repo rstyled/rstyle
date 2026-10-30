@@ -3,6 +3,10 @@ name: rstyle
 description: Run `cargo rstyle` to find Rust functions that are too long, take too many params, mutate too much, or have high side-effect density, then fix them in independent groups; also `cargo rstyle patterns` finds parallel code that should be one trait, generic fn or helper. Use when asked to check/enforce Rust style, reduce function complexity, clean up rstyle violations, or find abstractions to extract.
 ---
 
+Compiler-only release: engine selectors and flat facts caches have been removed.
+Use the commands below without `--style-engine` or `--engine`. Historical comparison
+artifacts retain their original metric versions; they are not current CLI contracts.
+
 # rstyle
 
 Deterministic findings from captured Rust compiler facts. Capture paths and run metadata may differ between runs.
@@ -17,7 +21,7 @@ cargo rstyle -p <pkg> --all-targets   # one package, include tests/examples/benc
 Other flags: `--config PATH` (default `<workspace root>/rstyle.toml`), `--manifest-path PATH`.
 
 Compiler style supports changed-file finding selection:
-`cargo rstyle --style-engine compiler --changed-files changes.json --format json`.
+`cargo rstyle --changed-files changes.json --format json`.
 The manifest is `{"schema":"rstyle.changed-files/1","paths":["src/lib.rs"]}`;
 paths are relative to the workspace root. This selects diagnostics and their exit
 status while metrics and fix groups retain the full captured scope. Invalid
@@ -25,7 +29,7 @@ suppressions remain visible. Unobserved selected paths and missing required
 inputs remain incomplete (exit 2), even when no findings are selected. Add
 `--replay-run PATH` to reevaluate an explicit saved run without compiler tools.
 
-Use `--style-engine compiler --write-baseline baseline.json` to export a complete
+Use `--write-baseline baseline.json` to export a complete
 whole-scope inventory to a new file; ordinary findings still return 1 after export.
 Use `--baseline baseline.json --fail-on-new` with the compiler engine for CI:
 unchanged existing findings alone return 0; new/changed selected findings and
@@ -123,7 +127,7 @@ A missing reason or an unknown rule id yields `invalid_suppression`. Never suppr
 cargo rstyle patterns --format json [--all-targets] [--min-score 1.0] [--top 20]
 ```
 
-JSON: `signature_groups[]` (methods of different types with one normalized signature; a blocking key, noisy), `candidates[]` (ranked), `suppressed[]` (already behind one trait).
+JSON: each `compiler_advisory.units[].patterns.evaluation` contains `signature_groups[]` (methods of different types with one normalized signature; a blocking key, noisy), `candidates[]` (ranked), `suppressed[]` (already behind one trait). Presentation indices select the visible findings from these raw proposals.
 
 Candidate fields: `kind`, `score_milli` and `breakdown` (`support`, `lift_milli`, `holes`, `coverage_milli`), `observation` (what differs: `T0 = Dog | Cat; M0 = Dog::bark | Cat::meow`; `F` function, `L` literal holes too), `inference`, `possible_refactor` (sketch, names are placeholders), `sites[]` (callers, `path`/`line`), `definitions[]` (functions filling the method holes), `counter_evidence[]` (read it before acting).
 
@@ -150,7 +154,7 @@ Helper and generic candidates also warn when a retained graph contains an opaque
 ordinary closure. Even full graph coverage does not compare closure bodies or
 captures; inspect their contracts before extracting shared code.
 
-Workflow: take the top candidates, open each `sites` entry, confirm the parallel bodies really mean the same thing, then extract the trait or generic fn. A candidate is a hint, not a verdict: low `lift_milli` (common signature) or effect-mismatch counter-evidence means be skeptical, and support 2 is thin evidence. Opt out with `// rstyle-allow(abstraction): reason` above the function. Oracle for evaluation: `--hide-implements Trait` pretends the trait is not implemented. Output is deterministic; facts are cached in `target/rstyle/facts-sem` (separate from style facts).
+Workflow: take the top candidates, open each `sites` entry, confirm the parallel bodies really mean the same thing, then extract the trait or generic fn. A candidate is a hint, not a verdict: low `lift_milli` (common signature) or effect-mismatch counter-evidence means be skeptical, and support 2 is thin evidence. Opt out with `// rstyle-allow(abstraction): reason` above the function. Oracle for evaluation: `--hide-implements Trait` pretends the trait is not implemented. Findings are deterministic; compiler captures are saved under `target/rstyle/clones/` and can be reevaluated with `--replay-run PATH`.
 
 Reviewed and rejected candidates: every candidate has an `id`. Only when the user agrees a candidate is not worth merging, run `cargo rstyle ignore <id> --reason "why"` (add `--allow-growth` to keep it hidden when more functions join). That writes `rstyle-ignore.toml`, which `patterns` then applies as a filter (`ignored_count` and `ignored[]` in JSON, `--show-ignored` in text, `--no-ignore` to see everything; `--fail-on-candidates` exits 1 while any candidate is left, the CI gate). Never dismiss to quiet the output unprompted. `cargo rstyle ignore --status` shows where each entry's functions are now and why an entry went stale; `--prune [--dry-run]` removes entries that match nothing. Delete the file to re-review everything. Pass the same clustering flags to `ignore` as to `patterns`.
 
@@ -209,7 +213,7 @@ counts in `mutation_effects.changed_scope` after numeric reviews. Other consumer
 and planning populations retain their existing behavior. Selection
 can be changed during source/tool-free replay; no Git or live source lookup runs.
 See `docs/clones-source-rules.md` for scope and association limitations. Keep both
-legacy style and patterns gates until their capability retirement gates pass.
+compiler-default style and patterns gates.
 
 
 ## Opt-in numeric source-rule reviews
@@ -370,7 +374,7 @@ parameters/arguments can propagate these classified events, with complete body
 boundary checks and no escaped direct writes. The external edge counts toward
 the two-edge bound; mutation-summary completeness remains independent.
 Unknown work prevents ratios and size exemptions even
-at weight zero. Complete counts use legacy weights/minima and checked milli
+at weight zero. Complete counts use existing weights/minima and checked milli
 arithmetic; `--fail-on-findings` uses visible density findings. Named density
 suppressions preserve raw measurements; explicit config exclusions preserve raw
 unavailability. Both request flags require both axes complete. Config-only replay
@@ -397,7 +401,7 @@ The ten-case source corpus checks exact events, source denominators, effective
 policy and visibility. Intentional metric differences have individual review
 reasons. Expected unknown cases stay outside the measured denominator and force
 `fully_complete: false`; successful acceptance does not establish clean project
-coverage or retire legacy style/patterns.
+coverage beyond the declared capability.
 
 
 ## Density CI baseline inventories
@@ -455,7 +459,7 @@ Use the existing clones replay flags with compact reports, authored diagnostic
 scope and the original advisory configuration. Body-dependent consumers need
 a full clones capture; direct clones advisory captures retain their complete bodies
 and bindings even with compact reports. Owner reuse distinguishes these payloads.
-Use `--style-engine compiler --replay-run PATH --format json` for the same style
+Use `--replay-run PATH --format json` for the same style
 presentation from explicit saved inputs without sources or compiler tools.
 Original compilation contexts and selection are retained; new package, manifest
 or all-targets flags are rejected. Current configuration applies, including an
@@ -463,7 +467,7 @@ explicit `--config PATH` override. Replay uses existing report publication.
 Style snapshot schema `/2` stores repeated invocation and selected-unit metadata
 once per snapshot and restores shared immutable values. The reader still accepts
 style `/1`; full clones and ordinary frontend JSON keep their existing formats.
-The default backend is compiler; `--style-engine legacy` selects the reference collector. Advisory-only live captures without dependency
+The compiler pipeline is the only style route. Advisory-only live captures without dependency
 capture reuse private builds under a lock. Completed raw owner snapshots are
 reused only for exact artifacts that current Cargo reports fresh, with matching
 collector/build context and tool metadata. Missing cache inputs force recapture;
@@ -548,7 +552,7 @@ Older version-4/5 bundles retain their original grammar and strict checks.
 `--changed-files PATH` selects numeric compiler diagnostic presentation and finding
 exits after reviews. Raw evaluations/fix plans remain intact; proposals stay
 global by default and invalid suppressions always stay global.
-With `--compiler-patterns`, the legacy mining controls `--threshold`,
+With `--compiler-patterns`, the shared mining controls `--threshold`,
 `--min-coverage`, `--pair-coverage`, `--normalize`, `--single-call-guard`,
 `--max-holes` and `--hide-implements` reuse the same core options. Defaults stay
 unchanged; experimental controls remain experiments. Saved replay can reevaluate
@@ -639,7 +643,7 @@ physical edit overlaps are not certified, and bundle type names remain heuristic
 Default per-unit evaluation and strict clone matching stay unchanged.
 
 Compiler patterns also accept `--min-score N` (natural-log units) and `--top N`.
-These reuse the legacy inclusive score filter and ranking order per compilation
+These reuse the existing inclusive score filter and ranking order per compilation
 unit, independently for candidates and signature groups. Reviews hide candidates
 before the top limit; changed-file selection intersects the resulting list
 without refilling it. Nondefault display settings publish `patterns.presentation`
@@ -652,9 +656,8 @@ Defaults omit the presentation object and preserve existing reports.
 `cargo rstyle patterns --format json` uses compiler workspace discovery by default.
 It performs one advisory-only HIR-data-v3 capture and reuses the existing core
 proposer, preserving compilation populations, coverage and counter-evidence.
-Strict matching and numeric rules are not requested. `--engine compiler` selects
-the same path explicitly; `--engine legacy` retains the reference collector for
-side-by-side evaluation. Mining and score/top flags keep their existing meaning.
+Strict matching and numeric rules are not requested. Mining and score/top flags
+keep their existing meaning; there is no engine selector.
 `--fail-on-candidates` uses displayed compiler proposals; incomplete scope exits2.
 
 Root pattern captures reuse the existing metadata producer: source, signature,
@@ -720,8 +723,7 @@ Pruning requires complete inputs from a full-workspace `--all-targets` capture,
 including for `--dry-run`. Saved replay uses the selection recorded by that
 capture and takes no new selection flags. Package-only and incomplete captures
 cannot establish that unseen reviews are stale. Ordinary listing and dismissal
-can use narrower complete selections. The reference `--engine legacy` review
-path remains explicit for comparison with the reference collector.
+can use narrower complete selections.
 
 Add `--compiler-patterns` to reuse existing compiler graphs and the core
 trait/capability/generic/helper/dispatch proposer. It can run without
@@ -734,7 +736,7 @@ report includes actual default clustering policy, input coverage and existing
 core proposals/counter-evidence. Explicit core path exclusions apply before
 mining. `--fail-on-findings` includes candidates; incomplete inputs still exit 2.
 Graphs and proposals remain advisory, independent of strict matching. No ignore
-ledger is implicitly loaded. Keep legacy patterns until its retirement gates pass.
+ledger is implicitly loaded.
 Default core clustering borrows captured graphs without copying their contents;
 enabled normalization retains owned rewrites. No extra hashing or source proof
 is required for that reuse.
@@ -812,7 +814,7 @@ captured owners, including owners without findings. Exports create a new file
 without overwriting.
 Changed-file selection filters new visible numeric findings in comparisons;
 whole-scope policy/context drift remains global. Export conflicts with selection.
-No proposal-baseline or legacy-retirement claim follows from this workflow.
+This workflow retains the existing proposal review and baseline behavior.
 
 
 Compiler proposals support `--write-compiler-pattern-baseline PATH`, then
@@ -826,8 +828,7 @@ stays global under changed-file selection; export conflicts with selection.
 Missing proposals stay unavailable because bounded discovery cannot prove
 resolution. Incomplete inputs exit 2 and cannot export. Shared 4 MiB and 4,096
 owner/entry/context bounds and create-new publication apply. Source/tool-free
-replay supports full/compact reports. Keep legacy patterns until its independent
-quality and retirement gates pass.
+replay supports full/compact reports.
 
 
 Compiler proposal policy version 2 rejects fallback helpers whose completed

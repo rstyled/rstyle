@@ -4,24 +4,11 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from run_compare import commands, roster
+from run_compare import roster
 from run_density_compare import density_fixture, fixture_policy
 
 
 class DensityRunnerTests(unittest.TestCase):
-    def test_density_commands_use_same_package_and_config_with_explicit_locked_capture(self):
-        fixture = density_fixture()
-        old, new = commands(Path('/tool'), fixture.manifest, fixture.policy,
-                            fixture.package, fixture.analysis, fixture.new_policy)
-        for command in (old, new):
-            self.assertEqual(command[command.index('--package') + 1], 'density-capability-acceptance')
-            self.assertEqual(command[command.index('--manifest-path') + 1], str(fixture.manifest))
-        self.assertEqual(old[-2:], ['--config', str(fixture.policy)])
-        self.assertEqual(new[-2:], ['--effect-config', str(fixture.new_policy)])
-        self.assertIn('--effect-density', new)
-        self.assertIn('--locked', new)
-        self.assertNotIn('--source-rules', new)
-
     def test_full_policy_matches_independent_labels_and_rejects_drift_or_unknown_depth(self):
         fixture = density_fixture()
         self.assertEqual(fixture.policy_reader(fixture.policy),

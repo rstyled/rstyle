@@ -6,6 +6,7 @@ candidate counts on tarpc/mundane/argh. thr=1001 means WL never selects (coverag
 Writes eval/align/pair_cov.csv. Results are cached in /tmp/rx_pc.
 """
 import csv, json, os, subprocess, sys
+from compiler_patterns import evaluation
 from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -19,7 +20,7 @@ MIN_COV = 600
 def run(project, thr, pc, refresh):
     cache = f"{CACHE}/{project}_{thr}_{pc}.json"
     if not refresh and os.path.exists(cache):
-        return json.load(open(cache))
+        return evaluation(json.load(open(cache)))
     extra = L.NOISE.get(project)
     cwd = f"{L.NOISE_DIR}/{project}" if extra is not None else f"{L.EX}/{project}"
     env = dict(os.environ, **(extra or {}), CARGO_TARGET_DIR=f"/tmp/rx_t_{project}",
@@ -33,7 +34,7 @@ def run(project, thr, pc, refresh):
         sys.exit(f"miner failed {project} {thr}/{pc}: {p.stderr[-400:]}")
     os.makedirs(CACHE, exist_ok=True)
     open(cache, "w").write(p.stdout)
-    return json.loads(p.stdout)
+    return evaluation(json.loads(p.stdout))
 
 
 def main():

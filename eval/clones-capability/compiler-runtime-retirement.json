@@ -1,0 +1,87 @@
+{
+  "schema": "rstyle.compiler-runtime-retirement/1",
+  "base_revision": "753382ad4e8c63547b41234fb8a707bf5c786368",
+  "backup_branch": "https://github.com/rstyled/rstyle/tree/legacy",
+  "active_branch": "feature/rust-feature-coverage",
+  "removed": [
+    "engine selectors",
+    "flat-facts gather and reader",
+    "separate Cargo capture command and fingerprint",
+    "flat-facts driver callback",
+    "reference metric collector branch",
+    "live dual-engine comparison runners"
+  ],
+  "retained": [
+    "shared HIR collectors",
+    "graph builder and membership semantics",
+    "effect propagation",
+    "core evaluator",
+    "fix groups",
+    "parameter planner",
+    "abstraction proposer",
+    "existing repository and compiler review workflows",
+    "strict clone admission and matching"
+  ],
+  "behavioral_tests": "Root CLI, effects, mutations, call graph, signatures, argument provenance, parameter plans, configuration, suppressions, complexity, deterministic findings and reviews now exercise compiler capture. Only retired plumbing and reference-only denominator comparisons were deleted.",
+  "style": {
+    "capture_complete": true,
+    "assessment_complete": true,
+    "summary_complete": true,
+    "summary": {
+      "functions": 10137,
+      "violations": 0,
+      "complexity_measured": 10137,
+      "complexity_unavailable": 0,
+      "mean_density_milli": 93,
+      "max_density_milli": 15000,
+      "effect_counts": {
+        "io": 281,
+        "mutation": 2134,
+        "panic": 56,
+        "time": 62,
+        "unknown": 167
+      }
+    },
+    "exit": 0
+  },
+  "patterns": {
+    "capture_complete": true,
+    "assessment_complete": true,
+    "input_complete": true,
+    "raw_candidate_ids": [
+      "114994040aee",
+      "28ac5efc1baa",
+      "440013106447",
+      "4f48d2ce7fc8",
+      "885b7a4e6179",
+      "8c495a7ebe17",
+      "a59c863eac67",
+      "bd6ed2f06436",
+      "c2d0658d42db",
+      "c5f442ffa59a",
+      "fc9b070d78be",
+      "fdb66ce83259"
+    ],
+    "same_ids_as_C128": true,
+    "visible_candidates": 0,
+    "ignored_count": 12,
+    "exit": 0
+  },
+  "validation": {
+    "rust_tests": {
+      "passed": 3785,
+      "skipped": 5,
+      "nextest_seconds": 270.318
+    },
+    "doctests": "passed",
+    "final_targeted_regressions": 34,
+    "all_target_clippy": "passed",
+    "formatting": "passed",
+    "python_acceptance_tests": 245,
+    "script_tests": 52,
+    "recorded_json_csv": "unchanged",
+    "config_lock_and_pattern_ledger": "unchanged",
+    "native_ubuntu_macos_ci": "pending push"
+  },
+  "constraints": "No new hashes, caches, thresholds, suppressions or metric versions. Missing-data and compilation-context distinctions remain explicit."
+}

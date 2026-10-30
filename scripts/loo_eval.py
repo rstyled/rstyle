@@ -10,6 +10,7 @@ Usage: scripts/loo_eval.py [--refresh] [--normalize RULES]   (miner results are 
 With --normalize the grid/noise/loo CSVs go to eval/loo_norm_<rules>/ so the baseline stays pinned.
 """
 import csv, json, os, subprocess, sys
+from compiler_patterns import evaluation
 from concurrent.futures import ThreadPoolExecutor
 
 W = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -32,7 +33,7 @@ def run_miner(project, thr, cov, refresh):
     stamp = int(os.path.getmtime(f"{W}/target/debug/cargo-rstyle"))  # a rebuilt miner never reads stale results
     cache = f"{CACHE}/{project}_{thr}_{cov}{'_' + NORM if NORM else ''}{'_' + '_'.join(EXTRA) if EXTRA else ''}_{stamp}.json"
     if not refresh and os.path.exists(cache):
-        return json.load(open(cache))
+        return evaluation(json.load(open(cache)))
     env = dict(os.environ, **(extra or {}), CARGO_TARGET_DIR=f"/tmp/rx_t_{project}",
                RSTYLE_DRIVER=f"{W}/target/debug/rstyle-driver")
     cmd = [f"{W}/target/debug/cargo-rstyle", "rstyle", "--format", "json", "patterns",
@@ -44,7 +45,7 @@ def run_miner(project, thr, cov, refresh):
         sys.exit(f"miner failed on {project} {thr}/{cov}: {p.stderr[-500:]}")
     os.makedirs(CACHE, exist_ok=True)
     open(cache, "w").write(p.stdout)
-    return json.loads(p.stdout)
+    return evaluation(json.loads(p.stdout))
 
 
 def site_key(s):

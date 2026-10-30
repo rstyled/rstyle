@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Retain serial same-scope density captures, including declared coverage gaps."""
+"""Reevaluate saved density comparisons without a live reference engine."""
 import json
 import tomllib
 
