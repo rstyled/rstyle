@@ -7,7 +7,7 @@
     "source_root": "/tmp/rstyle-coverage-inventory-v1/lz4_flex-0.14.0"
   },
   "frozen_reference": {
-    "path": "../../../../eval/hir-coverage/selection.json",
+    "path": "historical-selection.json",
     "index": 11,
     "sha256": "4a831034700a0e4d29965cb4de0d953d501eeffb75c3e9300527762a596a3067",
     "meaning": "Historical identity copied verbatim; no digest computed; fixed sixty unchanged"

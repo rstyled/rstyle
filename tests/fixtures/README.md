@@ -10,13 +10,13 @@ They are not extra Cargo workspace members or a production analysis stage.
 
 Function-family documentation includes the original development history. Moving
 these inputs does not change their expectations, recorded source identities or
-proof requirements. One relative reference to the frozen HIR inventory changes
-to reach its existing location under `eval/`.
+proof requirements. The backtrack-match oracle uses a local snapshot of the
+frozen HIR selection inventory, independent of the evaluation directory.
 
 Recorded study results and saved-report evaluation tools remain under
-[`eval/`](../../eval/README.md). Its README also identifies two study corpora
-intentionally shared with regression tests. Historical receipts retain their
-original paths; use the locations above for current test inputs.
+[`eval/`](../../eval/README.md). Guard and HIR const regression sources have
+independent copies beside their respective suites in `crates/`. Historical
+receipts retain their original paths; current tests do not depend on `eval/`.
 
 Run regression tests with the normal workspace command:
 

@@ -4,18 +4,18 @@ fn guard_workspace() -> TempDir {
     let directory = clone_workspace();
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        include_str!("../../../../eval/clones-capability/corpus/src/lib.rs"),
+        include_str!("fixtures/lib.rs"),
     )
     .unwrap();
     std::fs::write(
         directory.path().join("src/excluded.rs"),
-        include_str!("../../../../eval/clones-capability/corpus/src/excluded.rs"),
+        include_str!("fixtures/excluded.rs"),
     )
     .unwrap();
 
     std::fs::write(
         directory.path().join("src/spacing.rs"),
-        include_str!("../../../../eval/clones-capability/corpus/src/spacing.rs"),
+        include_str!("fixtures/spacing.rs"),
     )
     .unwrap();
 

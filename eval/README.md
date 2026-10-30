@@ -18,10 +18,11 @@ receipts keep their original paths, revisions, timings and metric versions.
 | `loo/`, `loo_norm_*/`, `normalize/`, `align/` | Recorded threshold, normalization and alignment experiments; see [`scripts/`](../scripts/README.md) for tools and input requirements. Historical scores are not measurements of the current compiler default. |
 | `codenet/` (gitignored) | Locally generated CodeNet samples and results. |
 
-Two study corpora also supply regression source snippets:
-`clones-capability/corpus/src/` for advisory guard tests, and
-`ccgraph-v2/corpus/{lz4,time}/sample/src/lib.rs` for HIR extraction tests. They
-remain with their study manifests and provenance so there is one source copy.
+Study corpora remain with their manifests and provenance. Regression tests own
+independent copies beside their suites: advisory guard sources in
+`crates/cargo-rstyle/tests/guards/fixtures/`, and const regressions in
+`crates/rstyle-driver/tests/fixtures/const-regressions/`. Rust tests do not load
+sources from `eval/`. Changes to either copy do not update the other implicitly.
 
 Run the saved-report evaluation tool tests independently:
 
