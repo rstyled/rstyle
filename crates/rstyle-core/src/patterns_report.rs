@@ -79,8 +79,6 @@ fn mine_all(
     facts: Vec<FnFacts>,
     options: &Options,
 ) -> (Vec<SigGroup>, candidates::Mined, Vec<FnFacts>) {
-    // Lib and test targets compile the same functions: dedupe like the style path does.
-    let facts = crate::facts::merge(facts);
     let prepared = prep::hide_implements(prep::prepare_owned(facts), &options.hide_implements);
     let groups = sigmine::mine(&prepared);
     let mined = candidates::mine(&prepared, &groups, &options.params);
@@ -90,7 +88,9 @@ fn mine_all(
 
 /// Every candidate, unfiltered: what `ignore` resolves ids against and `--prune` compares to.
 pub fn all_candidates(facts: &[FnFacts], options: &Options) -> Vec<Candidate> {
-    mine_all(facts.to_vec(), options).1.candidates
+    mine_all(crate::facts::merge(facts.to_vec()), options)
+        .1
+        .candidates
 }
 
 fn ignored_entry(ledger: &Ledger, hidden: Hidden) -> Ignored {
@@ -118,6 +118,16 @@ pub fn run_owned(facts: Vec<FnFacts>, options: &Options) -> PatternsReport {
 
 /// Return the exact prepared observations used for proposals without mining or copying again.
 pub fn run_owned_and_retain(
+    facts: Vec<FnFacts>,
+    options: &Options,
+) -> (PatternsReport, Vec<FnFacts>) {
+    run_distinct_owned_and_retain(crate::facts::merge(facts), options)
+}
+
+/// Mine an already distinct compilation population, preserving its owner roster.
+/// The caller supplies unique function IDs and resolves references within that
+/// population. Source locations alone cannot deduplicate different compiler owners.
+pub fn run_distinct_owned_and_retain(
     facts: Vec<FnFacts>,
     options: &Options,
 ) -> (PatternsReport, Vec<FnFacts>) {
@@ -320,6 +330,27 @@ pub fn json(report: &PatternsReport) -> Result<String, serde_json::Error> {
 mod tests {
     use super::*;
     use crate::candidates::tests_support::corpus;
+
+    #[test]
+    fn distinct_compiler_owners_at_one_source_location_are_retained() {
+        let first = crate::facts::sample("shared");
+        let second = FnFacts {
+            id: "other_crate::shared".into(),
+            ..first.clone()
+        };
+        let expected = vec![first.clone(), second.clone()];
+        let buffers = [first.source.as_ptr(), second.source.as_ptr()];
+        let (_, retained) = run_distinct_owned_and_retain(vec![first, second], &Options::default());
+        assert_eq!(retained, expected);
+        assert_eq!(
+            [retained[0].source.as_ptr(), retained[1].source.as_ptr()],
+            buffers
+        );
+        assert_eq!(
+            run_owned_and_retain(expected, &Options::default()).1.len(),
+            1
+        );
+    }
 
     fn group(key: &str, score: u32) -> SigGroup {
         SigGroup {

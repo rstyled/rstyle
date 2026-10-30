@@ -283,24 +283,32 @@ fn zero_text(directory: &Path, original: &Value) {
 }
 
 #[test]
-fn top_is_applied_independently_to_each_selected_compilation_unit() {
+fn top_is_applied_once_per_workspace_compilation_population() {
     let directory = propagation::workspace(FAMILIES);
     std::fs::write(directory.path().join("caller/src/lib.rs"), FAMILIES).unwrap();
-    let (output, report) =
-        propagation::capture(directory.path(), &["--compiler-patterns", "--top", "1"]);
-    checked(&output, 0);
+    let (output, report) = propagation::capture(
+        directory.path(),
+        &["--compiler-patterns", "--all-targets", "--top", "1"],
+    );
+    checked(&output, 2);
     let units = report["compiler_advisory"]["units"].as_array().unwrap();
-    assert_eq!(units.len(), 2);
-    for unit in units {
+    assert_eq!(units.len(), 4);
+    let populations: Vec<_> = units
+        .iter()
+        .filter_map(|unit| unit.get("patterns"))
+        .collect();
+    assert_eq!(populations.len(), 2);
+    for patterns in populations {
+        assert_eq!(patterns["member_units"].as_array().unwrap().len(), 2);
         assert_eq!(
-            unit["patterns"]["evaluation"]["candidates"]
+            patterns["evaluation"]["candidates"]
                 .as_array()
                 .unwrap()
                 .len(),
             3
         );
         assert_eq!(
-            unit["patterns"]["presentation"]["candidate_indices"],
+            patterns["presentation"]["candidate_indices"],
             serde_json::json!([0])
         );
     }

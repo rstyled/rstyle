@@ -7474,3 +7474,52 @@ patterns gate reports zero visible candidates and the same13 retained dismissals
 No suppressions, threshold changes, hashes or extra discovery algorithm.
 Discovery is still per unit: workspace mining and the multi-crate acceptance
 case are next, followed by authored defaults and replacing the superseded route.
+
+### C112 — mine workspace compiler populations through the existing proposer (2026-10-30)
+
+Lead owns workspace assembly, compiler owner associations, report/review integration
+and gates. Leaf review independently checked namespace restoration and dependency
+ownership. Discovery moves selected owned graphs into nonoverlapping workspace
+populations and calls the existing core proposer once per population. Numeric
+rules and planning retain their per-unit inputs/results. The core's distinct-owner
+input seam avoids location-only merging; historical merged entry points retain
+that behavior. Population reports list member units and actual per-function keys.
+Score/top presentation applies once per population. Each usage and definition
+retains its C111 compilation context in review and baseline snapshots.
+
+Temporary function and nominal-type namespaces prevent unrelated selected units
+from supplying definitions. Direct foreign references use exact captured
+output/extern paths, reusing the existing association parsers without reading
+compiler artifacts or introducing hashes/caches. Review call locators use those
+same routes; unrelated external IDs remain external. Temporary namespaces are
+restored before persisted identity/display; source buffers move through mining.
+Empty/excluded inputs still retain the original owner namespace census. Duplicate
+original owner keys fail explicitly instead of overwriting another context.
+
+The two-package fixture splits capability-set and parameterized-helper opportunities
+across packages: combined selection finds them, either isolated package does not.
+Identity/forwarder controls remain negative. Exact reviews and baseline entries
+retain both package contexts and replay with deleted sources/manifests and no
+compiler tools. Check/test occurrences are separate populations. Test populations
+currently cannot borrow their dependency's check-library definitions; these
+references remain unresolved instead of substituting test harness bodies.
+This bounded limitation and the unchanged heuristic discovery contract are explicit.
+
+Final workspace Clippy, formatting and all3,740 Rust tests (5 skipped,264.249s)
+plus doctests pass. The first broad run exposed one planning test assuming a
+patterns object on every unit; its updated assertion checks the shared population
+and unchanged raw plans/evaluations. The style gate initially found20 issues in mutable callback traversal and report
+assembly. Concrete name mapping and owned report transformations retain existing
+source/graph/Vec/Box allocations while simplifying those functions. Final style
+passes over10,132 functions; the patterns gate found one duplicated root helper,
+now shared. Final patterns gate passes with zero visible candidates and the same13
+unfiltered IDs as C111's final snapshot. The finished cleanup snapshot passes all3,740 tests plus doctests, Clippy,
+formatting and both repository gates before committing.
+
+The independent two-crate side-by-side study finds the same two intended proposals
+with both engines. With previously used target directories, observed existing
+runs were0.114s; compiler live runs0.215s and saved replay0.032s, roughly45MiB live
+RSS. These are small-fixture sequential observations, not a speedup or scale claim.
+Receipt: eval/clones-capability/workspace-patterns-acceptance-study.json.
+Authored defaults, normal repository dismissal handling and replacement of the
+superseded opt-in route remain next; no production compatibility gate is needed.

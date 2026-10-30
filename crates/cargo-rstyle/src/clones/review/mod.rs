@@ -6,7 +6,7 @@ mod baseline_io;
 mod comparison;
 pub(super) mod compiler_baseline;
 pub(super) mod compiler_diagnostics;
-mod compiler_owners;
+pub(super) mod compiler_owners;
 pub(super) mod compiler_pattern_baseline;
 pub(super) mod compiler_patterns;
 pub(super) mod density_baseline;

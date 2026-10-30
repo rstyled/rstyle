@@ -325,6 +325,13 @@ fn patterns_reviews_and_file_selection_preserve_raw_shared_plans() {
             unit(&selected, package)["evaluation"],
             unit(&original, package)["evaluation"]
         );
-        assert!(unit(&selected, package)["patterns"].is_object());
     }
+    let populations: Vec<_> = selected["compiler_advisory"]["units"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|unit| unit.get("patterns").filter(|patterns| patterns.is_object()))
+        .collect();
+    assert_eq!(populations.len(), 1);
+    assert_eq!(populations[0]["member_units"].as_array().unwrap().len(), 2);
 }

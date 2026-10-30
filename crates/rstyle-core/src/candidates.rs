@@ -312,7 +312,7 @@ fn short_paths(owner: &str) -> String {
     let mut word = String::new();
 
     for c in owner.chars() {
-        if c.is_alphanumeric() || c == '_' || c == ':' {
+        if c.is_alphanumeric() || matches!(c, '_' | ':' | '@') {
             word.push(c);
         } else {
             out.push_str(word.rsplit("::").next().unwrap_or(&word));
@@ -901,6 +901,15 @@ mod tests {
 
     fn run(facts: &[FnFacts]) -> Mined {
         mine(facts, &mine_groups(facts), &Params::default())
+    }
+
+    #[test]
+    fn scoped_owner_paths_render_without_run_local_namespace_punctuation() {
+        assert_eq!(short_paths("@u0::leaf::Dog"), "Dog");
+        assert_eq!(
+            short_paths("@u0::leaf::Box<@missing1::other::Cat>"),
+            "Box<Cat>"
+        );
     }
 
     #[test]

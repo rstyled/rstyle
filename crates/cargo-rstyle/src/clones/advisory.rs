@@ -5,7 +5,7 @@ mod generated_effects;
 mod owner_names;
 mod patterns;
 mod planning;
-mod propagation;
+pub(super) mod propagation;
 mod ranking;
 mod selection;
 mod source_scope;
@@ -347,13 +347,16 @@ impl Report {
 
     pub(super) fn pattern_inputs_complete(&self) -> bool {
         !self.units.is_empty()
-            && self.units.iter().all(|unit| {
-                unit.expected_functions.is_some()
-                    && unit
-                        .patterns
-                        .as_ref()
-                        .is_some_and(|report| report.input_complete)
-            })
+            && self
+                .units
+                .iter()
+                .all(|unit| unit.expected_functions.is_some())
+            && self.units.iter().any(|unit| unit.patterns.is_some())
+            && self
+                .units
+                .iter()
+                .filter_map(|unit| unit.patterns.as_ref())
+                .all(|report| report.input_complete)
     }
 
     pub(super) fn with_reviews(
@@ -466,24 +469,18 @@ fn evaluate_units(
             evaluate_unit(ctx, unit, demand, Prepared { inputs, effects })
         });
 
-    let Some(captured) = propagated.planning else {
-        let units = evaluated
-            .zip(&ctx.handoff.unit_contexts)
-            .map(|(ready, unit)| ready.and_then(|ready| ready.finish(ctx, unit)))
-            .collect::<Result<Vec<_>, _>>()?;
-        return Ok((units, None));
-    };
     let ready = evaluated.collect::<Result<Vec<_>, _>>()?;
-    let config = ctx
-        .compiler_advisory_config
-        .ok_or("Compiler planning policy was not requested")?;
-    let planning = captured.evaluate(ctx, &ready, config)?;
-    let units = ready
-        .into_iter()
-        .zip(&ctx.handoff.unit_contexts)
-        .map(|(ready, unit)| ready.finish(ctx, unit))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok((units, Some(planning)))
+    let planning = propagated
+        .planning
+        .map(|captured| {
+            let config = ctx
+                .compiler_advisory_config
+                .ok_or("Compiler planning policy was not requested")?;
+            captured.evaluate(ctx, &ready, config)
+        })
+        .transpose()?;
+    let units = patterns::workspace::finish(ctx, ready)?;
+    Ok((units, planning))
 }
 
 pub(super) fn configuration(args: &super::Args) -> Result<Option<Config>, String> {
@@ -573,43 +570,24 @@ struct Ready {
 }
 
 impl Ready {
-    fn finish(
-        mut self,
-        ctx: &Context<'_>,
-        unit: &super::identity::UnitContext,
-    ) -> Result<Unit, String> {
+    fn finish(mut self) -> Result<(Unit, patterns::Inputs), String> {
         self.unit.complexity_ranking = self
             .ranking
             .map(|ranking| ranking.evaluate(&self.facts))
             .transpose()?;
-        self.unit.patterns = evaluate_patterns(
-            ctx,
-            unit,
-            patterns::Inputs {
-                facts: self.facts,
-                missing: self.missing_graphs,
-                unavailable_functions: self.unit.unavailable.len(),
-                generated_functions: self.generated_functions,
-                effects: self.effects,
-                effects_complete: self.unit.expected_functions.is_some()
-                    && self.unit.unavailable.is_empty()
-                    && self.unit.unresolved_callees.is_empty()
-                    && self.unit.propagation_complete,
-            },
-        )?;
-        Ok(self.unit)
+        let input = patterns::Inputs {
+            facts: self.facts,
+            missing: self.missing_graphs,
+            unavailable_functions: self.unit.unavailable.len(),
+            generated_functions: self.generated_functions,
+            effects: self.effects,
+            effects_complete: self.unit.expected_functions.is_some()
+                && self.unit.unavailable.is_empty()
+                && self.unit.unresolved_callees.is_empty()
+                && self.unit.propagation_complete,
+        };
+        Ok((self.unit, input))
     }
-}
-
-fn evaluate_patterns(
-    ctx: &Context<'_>,
-    unit: &super::identity::UnitContext,
-    inputs: patterns::Inputs,
-) -> Result<Option<patterns::Report>, String> {
-    ctx.args
-        .compiler_patterns
-        .then(|| patterns::evaluate(ctx, unit, inputs))
-        .transpose()
 }
 
 #[derive(Default)]
@@ -854,7 +832,7 @@ impl Unit {
     fn render_patterns(&self) -> Option<String> {
         let report = self.patterns.as_ref()?;
         Some(format!(
-            "\nCompiler patterns for unit {}, source root {} (input complete={}):\n{}",
+            "\nCompiler patterns for population anchored at unit {}, source root {} (input complete={}):\n{}",
             self.unit.ordinal(),
             self.source_root.display(),
             report.input_complete,

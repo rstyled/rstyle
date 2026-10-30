@@ -36,7 +36,7 @@ fn metadata(patterns: &Value, complete: bool) {
             "basis": "completed_core_policy_effect_kinds",
             "policy": "compiler_advisory.effective_config",
             "metrics": "compiler_advisory.metrics",
-            "context": "containing compiler_advisory unit",
+            "context": "compiler_advisory units listed by member_units; per-function owners retained",
             "input_complete": complete,
             "review_identity": "structural; effect annotations recomputed under current policy"
         })

@@ -13,6 +13,7 @@ mod independent;
 mod opaque_closures;
 mod reviews;
 mod selection;
+mod workspace;
 
 const ANIMALS: &str = include_str!("../fixtures/animals/src/lib.rs");
 

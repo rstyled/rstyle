@@ -610,17 +610,32 @@ fn check_foreign(foreign: &Value, crate_name: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn extern_path(invocation: &[String], alias: &str) -> Result<PathBuf, String> {
+/// Borrow captured extern spellings without reading compiler artifacts.
+pub(in crate::clones) fn extern_arguments(
+    invocation: &[String],
+) -> impl Iterator<Item = (&str, &str)> {
+    invocation
+        .iter()
+        .enumerate()
+        .filter_map(|(index, argument)| {
+            argument
+                .strip_prefix("--extern=")
+                .or_else(|| {
+                    (argument == "--extern")
+                        .then(|| invocation.get(index + 1).map(String::as_str))
+                        .flatten()
+                })?
+                .split_once('=')
+        })
+}
+
+pub(in crate::clones) fn extern_path(
+    invocation: &[String],
+    alias: &str,
+) -> Result<PathBuf, String> {
     let mut matches = Vec::new();
-    for (index, argument) in invocation.iter().enumerate() {
-        let value = argument.strip_prefix("--extern=").or_else(|| {
-            (argument == "--extern")
-                .then(|| invocation.get(index + 1).map(String::as_str))
-                .flatten()
-        });
-        if let Some((name, path)) = value.and_then(|value| value.split_once('='))
-            && name == alias
-        {
+    for (name, path) in extern_arguments(invocation) {
+        if name == alias {
             if path.is_empty() {
                 return Err("Empty selected --extern path".into());
             }
@@ -651,17 +666,24 @@ fn verify_emission(unit: &Unit, artifact: &Value, loaded: &Path) -> Result<(), S
         return Err("Loaded rmeta is not the selected emitted Cargo artifact".into());
     }
 
+    if emission_path(unit)? != loaded {
+        return Err("Emitted rmeta disagrees with exact callee ledger output".into());
+    }
+    Ok(())
+}
+
+/// Expected metadata output from the captured compiler invocation; performs no I/O.
+pub(in crate::clones) fn emission_path(unit: &Unit) -> Result<PathBuf, String> {
     let output = flag_value(&unit.invocation, "--out-dir")
         .ok_or("Missing callee compiler output directory")?;
     let name =
         flag_value(&unit.invocation, "--crate-name").ok_or("Missing callee compiler crate name")?;
     let suffix = extra_filename(&unit.invocation)?;
-    if name != unit.target.name
-        || Path::new(output).join(format!("lib{name}{suffix}.rmeta")) != loaded
-    {
+
+    if name != unit.target.name {
         return Err("Emitted rmeta disagrees with exact callee ledger output".into());
     }
-    Ok(())
+    Ok(Path::new(output).join(format!("lib{name}{suffix}.rmeta")))
 }
 
 fn extra_filename(invocation: &[String]) -> Result<&str, String> {

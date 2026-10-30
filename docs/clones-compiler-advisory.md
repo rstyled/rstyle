@@ -601,11 +601,26 @@ requesting numeric advisory on that same saved capture still exits 2. Missing
 owners/graphs and failed capture remain incomplete. Strict matching runs normally
 unless `--compiler-advisory-only` explicitly skips it.
 
-Each unit gains a `patterns` result with schema `rstyle.compiler-patterns/1`,
-the actual clustering parameters and the existing core report, including
-signature groups, candidates, definitions and counter-evidence. Paths are
-relative to that unit's `source_root` (absolute for outside sources). Text output also displays the core
-proposals. `--fail-on-findings` counts proposal candidates in addition to style
+Compiler discovery combines selected units with disjoint crate namespaces and
+source files into workspace populations, keeping check and test builds separate.
+The existing core proposer runs once per population. Its first unit carries the
+`patterns` result with schema `rstyle.compiler-patterns/2`; `member_units` lists
+all contributing units and `owners` maps original function IDs to their actual
+compiler function keys. Other units retain their numeric and coverage reports.
+The result includes actual clustering parameters, signature groups, candidates,
+definitions and counter-evidence. Paths retain each member's source-root
+convention (workspace-relative for authored workspace sources). Text displays the
+population's proposals. Score/top presentation applies once per population.
+
+Function and nominal type references join a foreign selected owner only through
+exact captured compiler output/extern paths. This association reads invocation
+metadata, without reading or hashing compiler artifacts. Missing or ambiguous
+routes remain unresolved; a dependency's test harness never substitutes for its
+check library. A test population currently does not borrow definitions from the
+separate check population. Such cross-population helper/type resolution remains
+unavailable; local graphs can still support advisory proposals. Temporary discovery
+namespaces are restored before reporting and review. Every proposal usage and
+definition retains its own compilation context in reviews and baselines. `--fail-on-findings` counts proposal candidates in addition to style
 diagnostics; signature groups alone do not fail the gate. No ignore ledger is
 loaded implicitly. An explicit review file can hide exact reviewed proposals;
 explicit compiler proposal baselines are described below. Core candidate IDs retain their existing fingerprint convention and

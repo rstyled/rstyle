@@ -27,3 +27,67 @@ fn ambiguous_bases_never_gain_source_order_review_identities() {
     let unresolved = FnFacts { sig: None, ..first };
     assert!(names(std::slice::from_ref(&unresolved))[&unresolved.id].is_err());
 }
+
+fn compilation_units() -> Vec<UnitId> {
+    let units: Vec<crate::clones::capture::Unit> = ["caller", "dependency", "unrelated"]
+        .into_iter()
+        .map(|name| {
+            serde_json::from_value(serde_json::json!({
+                "extraction_profile": "r0",
+                "target": {
+                    "package": name, "manifest_dir": format!("/{name}"),
+                    "source": format!("/{name}/src/lib.rs"), "name": name,
+                    "kind": ["lib"], "test": false
+                },
+                "test": false, "invocation": [], "directory": format!("/run/{name}"),
+                "artifacts": []
+            }))
+            .unwrap()
+        })
+        .collect();
+    crate::clones::identity::assign(&units)
+        .unwrap()
+        .into_iter()
+        .map(|assignment| assignment.context.id)
+        .collect()
+}
+
+#[test]
+fn review_call_locators_require_the_callers_actual_dependency_owner() {
+    let units = compilation_units();
+    let ids = [
+        "caller::local",
+        "dependency::read",
+        "unrelated::read",
+        "external::read",
+    ];
+    let names = BTreeMap::from([
+        (ids[0].into(), Ok("stable-local".into())),
+        (ids[1].into(), Ok("stable-dependency".into())),
+        (
+            ids[2].into(),
+            Err("Unrelated ambiguous locator must not be consulted".into()),
+        ),
+    ]);
+    let calls = CallNames {
+        names: &names,
+        owners: BTreeMap::from([(ids[0], units[0]), (ids[1], units[1]), (ids[2], units[2])]),
+        routes: BTreeMap::from([(units[0], BTreeSet::from([units[1]]))]),
+    };
+    let mut graph: rstyle_core::facts::Pdg = serde_json::from_value(serde_json::json!({
+        "nodes": ids.map(|id| serde_json::json!({"kind": "call", "callee_id": id, "line": 9})),
+        "edges": []
+    }))
+    .unwrap();
+    calls.normalize(&mut graph, units[0]).unwrap();
+    let actual: Vec<_> = graph
+        .nodes
+        .iter()
+        .map(|node| node.callee_id.as_deref().unwrap())
+        .collect();
+    assert_eq!(
+        actual,
+        ["stable-local", "stable-dependency", ids[2], ids[3]]
+    );
+    assert!(graph.nodes.iter().all(|node| node.line == 0));
+}

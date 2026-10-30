@@ -1,4 +1,6 @@
 //! Borrow captured owners and reuse core propagation across unique direct Cargo edges.
+#[cfg(test)]
+mod invocation_tests;
 mod owners;
 use super::{Collected, UnitId, planning};
 use crate::clones::{capture, report::Context};
@@ -318,7 +320,46 @@ impl Targets<'_> {
     }
 }
 
-fn routes(ctx: &Context<'_>) -> Routes {
+/// Advisory associations use exact captured output/extern paths, including test callers.
+/// Ambiguous outputs and extern aliases remain unresolved. No artifact bytes are read.
+pub(in crate::clones) fn invocation_routes(ctx: &Context<'_>) -> Routes {
+    let units: Vec<_> = ctx
+        .handoff
+        .unit_contexts
+        .iter()
+        .map(|unit| (unit.id, &ctx.capture.units[unit.observed_unit]))
+        .collect();
+    invocation_links(&units)
+}
+
+fn invocation_links(units: &[(UnitId, &capture::Unit)]) -> Routes {
+    use capture::associations::{emission_path, extern_arguments, extern_path};
+    let mut outputs = BTreeMap::<_, Vec<_>>::new();
+    for (id, unit) in units {
+        if !unit.test
+            && let Ok(path) = emission_path(unit)
+        {
+            outputs.entry(path).or_default().push(*id);
+        }
+    }
+    units
+        .iter()
+        .map(|(id, unit)| {
+            let targets = extern_arguments(&unit.invocation)
+                .filter_map(|(alias, _)| {
+                    let path = extern_path(&unit.invocation, alias).ok()?;
+                    let [target] = outputs.get(&path)?.as_slice() else {
+                        return None;
+                    };
+                    (*target != *id).then_some(*target)
+                })
+                .collect();
+            (*id, targets)
+        })
+        .collect()
+}
+
+pub(super) fn routes(ctx: &Context<'_>) -> Routes {
     if ctx.capture.expected_unit_graph["version"] != 1 {
         return Routes::new();
     }

@@ -1,4 +1,5 @@
 //! Adapt owned compiler graphs to existing core proposal policy.
+pub(super) mod workspace;
 use super::{Missing, source_scope::SourceScope};
 use crate::clones::review::compiler_patterns::observed;
 use rstyle_core::{
@@ -11,6 +12,8 @@ use serde::Serialize;
 #[derive(Serialize)]
 pub(super) struct Report {
     schema: &'static str,
+    member_units: Vec<crate::clones::identity::UnitId>,
+    owners: std::collections::BTreeMap<String, crate::clones::FunctionKey>,
     policy_version: u32,
     policy: rstyle_core::cluster::Params,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -104,7 +107,7 @@ impl EffectEvidence {
             basis: "completed_core_policy_effect_kinds",
             policy: "compiler_advisory.effective_config",
             metrics: "compiler_advisory.metrics",
-            context: "containing compiler_advisory unit",
+            context: "compiler_advisory units listed by member_units; per-function owners retained",
             input_complete,
             review_identity: "structural; effect annotations recomputed under current policy",
         }
@@ -143,8 +146,9 @@ pub(super) struct Inputs {
 
 pub(super) fn evaluate(
     ctx: &crate::clones::report::Context<'_>,
-    unit: &crate::clones::identity::UnitContext,
+    units: &[&crate::clones::identity::UnitContext],
     input: Inputs,
+    scoped: bool,
 ) -> Result<Report, String> {
     let Inputs {
         facts,
@@ -156,10 +160,7 @@ pub(super) fn evaluate(
     } = input;
 
     let source_scope = SourceScope::select(ctx.args.compiler_pattern_scope, generated_functions);
-    let unavailable_functions = unavailable_functions
-        - source_scope
-            .as_ref()
-            .map_or(0, |scope| scope.outside_scope_functions.len());
+    let unavailable_functions = in_scope_unavailable(unavailable_functions, source_scope.as_ref());
 
     let options = crate::mine_options(&ctx.args.mine);
     let policy_selected_functions = facts.len();
@@ -168,13 +169,16 @@ pub(super) fn evaluate(
         .filter(|function| function.pdg.is_some())
         .count();
 
-    let (mut evaluation, prepared) = patterns_report::run_owned_and_retain(facts, &options);
+    let (mut evaluation, prepared) = discover(facts, &options, scoped);
     let selected_candidates = select_candidates(ctx, &evaluation)?;
     let effects = effects.ok_or("Compiler patterns require completed core effects")?;
     rstyle_core::candidates::annotate_completed_effects(&mut evaluation.candidates, &effects)?;
-    let snapshots = review_snapshots(ctx, unit, prepared, &evaluation);
+    let owners = owners(ctx, units)?;
+    let snapshots = review_snapshots(ctx, units, prepared, &evaluation);
     Ok(Report {
-        schema: "rstyle.compiler-patterns/1",
+        schema: "rstyle.compiler-patterns/2",
+        member_units: units.iter().map(|unit| unit.id).collect(),
+        owners,
         policy_version: rstyle_core::candidates::POLICY_VERSION,
         policy: options.params,
         hide_implements: options.hide_implements,
@@ -194,9 +198,62 @@ pub(super) fn evaluate(
     })
 }
 
+fn discover(
+    facts: Vec<FnFacts>,
+    options: &patterns_report::Options,
+    scoped: bool,
+) -> (patterns_report::PatternsReport, Vec<FnFacts>) {
+    let (evaluation, prepared) = patterns_report::run_distinct_owned_and_retain(facts, options);
+    if scoped {
+        workspace::restore_evaluation(evaluation, prepared)
+    } else {
+        (evaluation, prepared)
+    }
+}
+
+fn in_scope_unavailable(count: usize, scope: Option<&SourceScope>) -> usize {
+    count - scope.map_or(0, |scope| scope.outside_scope_functions.len())
+}
+
+impl Inputs {
+    fn append(self, input: Self) -> Result<Self, String> {
+        let mut effects = self.effects.ok_or("Missing completed compiler effects")?;
+        effects.extend(input.effects.ok_or("Missing completed compiler effects")?);
+
+        Ok(Self {
+            facts: joined(self.facts, input.facts),
+            missing: joined(self.missing, input.missing),
+            generated_functions: joined(self.generated_functions, input.generated_functions),
+            unavailable_functions: self.unavailable_functions + input.unavailable_functions,
+            effects_complete: self.effects_complete && input.effects_complete,
+            effects: Some(effects),
+        })
+    }
+}
+
+fn joined<T>(mut values: Vec<T>, additional: Vec<T>) -> Vec<T> {
+    values.extend(additional);
+    values
+}
+
+fn owners(
+    ctx: &crate::clones::report::Context<'_>,
+    units: &[&crate::clones::identity::UnitContext],
+) -> Result<std::collections::BTreeMap<String, crate::clones::FunctionKey>, String> {
+    let mut owners = std::collections::BTreeMap::new();
+    for unit in units {
+        for (id, record) in crate::clones::review::compiler_owners::originals(ctx, unit.id) {
+            if owners.insert(id.to_owned(), record.key).is_some() {
+                return Err("Compiler pattern population has duplicate original owners".into());
+            }
+        }
+    }
+    Ok(owners)
+}
+
 fn review_snapshots(
     ctx: &crate::clones::report::Context<'_>,
-    unit: &crate::clones::identity::UnitContext,
+    units: &[&crate::clones::identity::UnitContext],
     prepared: Vec<FnFacts>,
     evaluation: &patterns_report::PatternsReport,
 ) -> Vec<Result<observed::Snapshot, String>> {
@@ -206,7 +263,7 @@ fn review_snapshots(
             .args
             .compiler_baseline_requested(crate::clones::CompilerBaseline::Patterns)
     {
-        observed::collect(ctx, unit, prepared, &evaluation.candidates)
+        observed::collect(ctx, units, prepared, &evaluation.candidates)
     } else {
         Vec::new()
     }

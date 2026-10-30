@@ -627,8 +627,14 @@ Compiler proposal reviews retain the compilation context of every usage and
 referenced definition. Changing a secondary member's context reports
 `context_changed`; baselines must include every member context in their scope.
 Pattern identity version2 and compiler-pattern-baseline/2 use this member-level
-representation. The current discovery invocation remains per unit; member
-contexts prepare reviews for workspace discovery without merging build contexts.
+representation. Discovery reuses the core proposer across selected units with
+disjoint crate namespaces and source files, keeping check and test populations
+separate. The first unit holds the population's `patterns` report;
+`member_units` and `owners` identify the contributors and actual function owners.
+Score/top presentation applies once per population. Captured output/extern paths
+resolve selected dependency owners without artifact reads or hashes. Test
+populations currently retain unresolved dependencies on separate check populations;
+test harnesses never substitute for check libraries. Member contexts remain distinct.
 
 Legacy dismissals are not automatically converted into compiler reviews. A
 nonempty legacy ledger produces a migration message; `--no-ignore` explicitly

@@ -45,7 +45,7 @@ struct Endpoint {
 
 pub(in crate::clones) fn collect(
     ctx: &report::Context<'_>,
-    unit: &UnitContext,
+    units: &[&UnitContext],
     facts: Vec<FnFacts>,
     candidates: &[Candidate],
 ) -> Vec<Result<Snapshot, String>> {
@@ -53,18 +53,9 @@ pub(in crate::clones) fn collect(
         return Vec::new();
     }
     let names = names(&facts);
-    let originals = originals(ctx, unit.id);
+    let originals = population_originals(ctx, units);
 
-    let resolver = Resolver {
-        ctx,
-        unit: &ctx.capture.units[unit.observed_unit],
-        names: &names,
-        sites: candidates
-            .iter()
-            .flat_map(|candidate| &candidate.sites)
-            .map(|site| site.id.as_str())
-            .collect(),
-    };
+    let resolver = Resolver::new(ctx, &names, &originals, candidates);
     let needed: BTreeSet<_> = candidates
         .iter()
         .flat_map(|candidate| candidate.sites.iter().chain(&candidate.definitions))
@@ -79,7 +70,7 @@ pub(in crate::clones) fn collect(
             let endpoint = originals
                 .get(id.as_str())
                 .ok_or_else(|| "Missing compiler review original owner".into())
-                .and_then(|record| resolver.endpoint(record.facts.full()?, facts));
+                .and_then(|(unit, record)| resolver.endpoint(record.facts.full()?, facts, unit));
             (id, endpoint)
         })
         .collect();
@@ -91,28 +82,96 @@ pub(in crate::clones) fn collect(
         .collect()
 }
 
+fn population_originals<'a>(
+    ctx: &'a report::Context<'_>,
+    units: &[&'a UnitContext],
+) -> BTreeMap<&'a str, (&'a UnitContext, &'a crate::clones::Function)> {
+    units
+        .iter()
+        .flat_map(|unit| {
+            originals(ctx, unit.id)
+                .into_iter()
+                .map(|(id, record)| (id, (*unit, record)))
+        })
+        .collect()
+}
+
 struct Resolver<'a, 'b> {
     ctx: &'a report::Context<'b>,
-    unit: &'a crate::clones::capture::Unit,
-    names: &'a BTreeMap<String, Result<String, String>>,
+    calls: CallNames<'a>,
     sites: BTreeSet<&'a str>,
 }
 
+/// Resolve review call locators only within the caller's captured compilation edges.
+struct CallNames<'a> {
+    names: &'a BTreeMap<String, Result<String, String>>,
+    owners: BTreeMap<&'a str, UnitId>,
+    routes: BTreeMap<UnitId, BTreeSet<UnitId>>,
+}
+
+impl CallNames<'_> {
+    fn normalize(&self, graph: &mut rstyle_core::facts::Pdg, caller: UnitId) -> Result<(), String> {
+        for node in &mut graph.nodes {
+            node.line = 0;
+            let Some(id) = &node.callee_id else { continue };
+            let Some(owner) = self.owners.get(id.as_str()) else {
+                continue;
+            };
+            let linked = *owner == caller
+                || self
+                    .routes
+                    .get(&caller)
+                    .is_some_and(|targets| targets.contains(owner));
+            if linked && let Some(name) = self.names.get(id) {
+                node.callee_id = Some(name.as_ref().map_err(Clone::clone)?.clone());
+            }
+        }
+        Ok(())
+    }
+}
+
 impl Resolver<'_, '_> {
+    fn new<'a, 'b>(
+        ctx: &'a report::Context<'b>,
+        names: &'a BTreeMap<String, Result<String, String>>,
+        originals: &BTreeMap<&'a str, (&UnitContext, &crate::clones::Function)>,
+        candidates: &'a [Candidate],
+    ) -> Resolver<'a, 'b> {
+        Resolver {
+            ctx,
+            calls: CallNames {
+                names,
+                owners: originals
+                    .iter()
+                    .map(|(id, (unit, _))| (*id, unit.id))
+                    .collect(),
+                routes: crate::clones::advisory::propagation::invocation_routes(ctx),
+            },
+            sites: candidates
+                .iter()
+                .flat_map(|candidate| &candidate.sites)
+                .map(|site| site.id.as_str())
+                .collect(),
+        }
+    }
+
     fn endpoint(
         &self,
         original: &rstyle_pdg::HirFnFacts,
         mut facts: FnFacts,
+        unit: &UnitContext,
     ) -> Result<Endpoint, String> {
         let name = self
+            .calls
             .names
             .get(&facts.id)
             .ok_or("Missing compiler locator")?
             .as_ref()
             .map_err(Clone::clone)?
             .clone();
+        let captured = &self.ctx.capture.units[unit.observed_unit];
         let identity =
-            local_adapter::Identity::new(&original.build, self.unit, &self.ctx.capture.plan)?;
+            local_adapter::Identity::new(&original.build, captured, &self.ctx.capture.plan)?;
         let kind = if facts.sig.is_some() {
             "compiler-method"
         } else {
@@ -123,28 +182,21 @@ impl Resolver<'_, '_> {
         let declaration = Rc::new(Declaration {
             locator: identity.locator(name, kind),
             signature,
-            context: local_adapter::context(&original.build, self.unit)?,
+            context: local_adapter::context(&original.build, captured)?,
             implements: facts.implements.take(),
         });
-        let body = self.body(&mut facts);
+        let body = self.body(&mut facts, unit.id);
 
         Ok(Endpoint { declaration, body })
     }
-    fn body(&self, facts: &mut FnFacts) -> Result<Rc<Body>, String> {
+    fn body(&self, facts: &mut FnFacts, unit: UnitId) -> Result<Rc<Body>, String> {
         self.sites
             .contains(facts.id.as_str())
             .then(|| facts.pdg.take())
             .flatten()
             .ok_or_else(|| "Compiler review graph was not captured or not a proposal site".into())
             .and_then(|mut graph| {
-                for node in &mut graph.nodes {
-                    node.line = 0;
-                    if let Some(id) = &node.callee_id
-                        && let Some(name) = self.names.get(id)
-                    {
-                        node.callee_id = Some(name.as_ref().map_err(Clone::clone)?.clone());
-                    }
-                }
+                self.calls.normalize(&mut graph, unit)?;
                 let opaque = graph
                     .nodes
                     .iter()

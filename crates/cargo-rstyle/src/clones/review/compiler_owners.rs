@@ -23,7 +23,7 @@ pub(in crate::clones::review) struct Signature {
     pub is_const: bool,
 }
 
-pub(super) fn originals<'a>(
+pub(in crate::clones) fn originals<'a>(
     ctx: &'a compiler_report::Context<'_>,
     unit: UnitId,
 ) -> BTreeMap<&'a str, &'a crate::clones::Function> {
