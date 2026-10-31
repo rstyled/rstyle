@@ -3,7 +3,7 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [main, perf/ci-capture-and-source-indexes]
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: never
