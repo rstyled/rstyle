@@ -2,7 +2,7 @@
 use super::float_kernels::function;
 use super::*;
 
-const SOURCE: &str = r#"
+const COMMON_SOURCE: &str = r#"
 #[derive(Clone, Copy)] pub struct Span { pub start: usize, pub end: usize }
 #[derive(Clone, Copy)] pub struct Match { span: Span }
 #[derive(Clone, Copy)] pub struct Input { span: Span }
@@ -26,6 +26,9 @@ pub fn fresh(start: usize, end: usize) -> core::ops::Range<usize> {
 pub fn same(start: usize, end: usize) -> core::ops::Range<usize> {
     core::ops::Range { start, end }
 }
+"#;
+
+const FULL_SOURCE: &str = r#"
 pub fn reordered(start: usize, end: usize) -> core::ops::Range<usize> {
     core::ops::Range { end, start }
 }
@@ -81,14 +84,34 @@ pub fn other(span: Span) -> core::ops::Range<usize> {
 }
 "#;
 
-fn capture(target: &str, no_std: bool) -> (TempDir, Value) {
+// Other compiler contexts retain construction, selected From, getter chains,
+// unsupported Range inputs/storage, and an exact matching pair.
+const CONTEXT_SOURCE: &str = r#"
+pub fn explicit(span: Span) -> core::ops::Range<usize> {
+    <core::ops::Range<usize> as core::convert::From<Span>>::from(span)
+}
+pub fn input(range: core::ops::Range<usize>) -> core::ops::Range<usize> { range }
+pub fn stored(start: usize, end: usize) -> core::ops::Range<usize> {
+    let range = core::ops::Range { start, end }; range
+}
+"#;
+
+fn capture(target: &str, no_std: bool, comprehensive: bool) -> (TempDir, Value) {
     let directory = clone_workspace();
     let prefix = if no_std { "#![no_std]\n" } else { "" };
     std::fs::write(
         directory.path().join("src/lib.rs"),
-        format!("{prefix}{SOURCE}"),
+        format!(
+            "{prefix}{COMMON_SOURCE}{}",
+            if comprehensive {
+                FULL_SOURCE
+            } else {
+                CONTEXT_SOURCE
+            }
+        ),
     )
     .unwrap();
+
     let (output, report) = clones(
         directory.path(),
         &["--extraction-profile", "hir-data-v3", "--target", target],
@@ -107,7 +130,7 @@ fn capture(target: &str, no_std: bool) -> (TempDir, Value) {
 
 #[test]
 fn fresh_range_getters_compose_selected_from_and_owned_helper_results() {
-    let mut checked_corruptions = false;
+    let mut checked_comprehensive = false;
     for target in [
         "aarch64-unknown-linux-gnu",
         "x86_64-unknown-linux-gnu",
@@ -122,18 +145,28 @@ fn fresh_range_getters_compose_selected_from_and_owned_helper_results() {
             continue;
         }
         for no_std in [false, true] {
-            let (_directory, report) = capture(target, no_std);
-            verify_context(&report, target);
-            if !checked_corruptions {
+            let comprehensive = !checked_comprehensive;
+            let (_directory, report) = capture(target, no_std, comprehensive);
+            verify_context(&report, target, comprehensive);
+            if comprehensive {
+                verify_strict_pairs(&report);
                 reject_capture_corruptions(&report);
-                checked_corruptions = true;
+                checked_comprehensive = true;
             }
         }
     }
+    assert!(
+        checked_comprehensive,
+        "at least one installed capture target"
+    );
 }
 
 fn reject_capture_corruptions(report: &Value) {
     let entry = function(report, "explicit");
+    let baseline = shared_evidence::wire(entry);
+    rstyle_pdg::unit_store::UnitStore::from_bundle(&serde_json::to_vec(&baseline).unwrap())
+        .unwrap();
+
     for mutation in [
         "trait_identity",
         "trait_path",
@@ -141,7 +174,7 @@ fn reject_capture_corruptions(report: &Value) {
         "implementation_owner",
         "missing_implementation",
     ] {
-        shared_evidence::reject_edit(entry, |bundle, index| {
+        reject_bundle_edit(&baseline, entry, |bundle, index| {
             assert!(corrupt_from(
                 &mut bundle["functions"][index]["body"],
                 mutation
@@ -150,11 +183,11 @@ fn reject_capture_corruptions(report: &Value) {
     }
     let fresh = function(report, "fresh");
     for field in ["rustc_commit", "target_triple"] {
-        shared_evidence::reject_edit(fresh, |bundle, index| {
+        reject_bundle_edit(&baseline, fresh, |bundle, index| {
             bundle["functions"][index]["build"][field]["value"] = "untrusted".into();
         });
     }
-    shared_evidence::reject_edit(fresh, |bundle, index| {
+    reject_bundle_edit(&baseline, fresh, |bundle, index| {
         bundle["functions"][index]["source"]["digest"] =
             format!("sha256:{}", "0".repeat(64)).into();
     });
@@ -169,7 +202,7 @@ fn reject_capture_corruptions(report: &Value) {
         "arguments",
         "lang_item",
     ] {
-        shared_evidence::reject_edit(fresh, |bundle, index| {
+        reject_bundle_edit(&baseline, fresh, |bundle, index| {
             assert!(corrupt_range_type(
                 &mut bundle["functions"][index]["build"]["frontend_options"],
                 mutation
@@ -177,6 +210,20 @@ fn reject_capture_corruptions(report: &Value) {
         });
     }
     reject_constructor_graph(fresh);
+}
+
+fn reject_bundle_edit(baseline: &Value, entry: &Value, edit: impl FnOnce(&mut Value, usize)) {
+    let mut bundle = baseline.clone();
+    edit(&mut bundle, shared_evidence::index(entry));
+    let bytes = serde_json::to_vec(&bundle).unwrap();
+
+    assert!(rstyle_pdg::unit_store::UnitStore::from_bundle(&bytes).is_err());
+    assert!(
+        rstyle_pdg::verification_policy::generated(|| {
+            rstyle_pdg::unit_store::UnitStore::from_bundle(&bytes)
+        })
+        .is_err()
+    );
 }
 
 fn corrupt_range_type(value: &mut Value, mutation: &str) -> bool {
@@ -210,6 +257,10 @@ fn reject_constructor_graph(entry: &Value) {
     let analysis = unit.analysis();
     let facts = analysis.function(index).unwrap();
     let original = unit.pair(index).unwrap();
+    let prepared = rstyle_pdg::producer::PreparedVerification::new(&facts).unwrap();
+    let validated = prepared.verify(original.as_view()).unwrap();
+    rstyle_ccgraph::admit_validated(&validated).unwrap();
+
     for mutation in [
         "slots",
         "ordered_edges",
@@ -225,14 +276,10 @@ fn reject_constructor_graph(entry: &Value) {
             rstyle_pdg::data_documents::verify(&pair, &facts).is_err(),
             "{mutation}"
         );
-        assert!(
-            rstyle_pdg::producer::verify(&pair, &facts).is_err(),
-            "{mutation}"
-        );
-        assert!(
-            rstyle_ccgraph::admit_produced(&pair, &facts).is_err(),
-            "{mutation}"
-        );
+        assert!(prepared.verify(pair.as_view()).is_err(), "{mutation}");
+        if mutation == "historical_policy" {
+            assert!(rstyle_ccgraph::admit_produced(&pair, &facts).is_err());
+        }
     }
 }
 
@@ -303,21 +350,44 @@ fn corrupt_from(node: &mut Value, mutation: &str) -> bool {
     })
 }
 
-fn verify_context(report: &Value, target: &str) {
-    for name in [
-        "Span::range",
-        "Match::span",
-        "Match::range",
-        "Input::span",
-        "Input::get_range",
-        "fresh",
-        "same",
-        "reordered",
-        "forward",
-        "returned",
-        "blocked",
-        "explicit",
-    ] {
+// The first eight admissions and first two exclusions occur in the compact context fixture.
+const ADMITTED: &[&str] = &[
+    "Span::range",
+    "Match::span",
+    "Match::range",
+    "Input::span",
+    "Input::get_range",
+    "fresh",
+    "same",
+    "explicit",
+    "reordered",
+    "forward",
+    "returned",
+    "blocked",
+];
+const EXCLUDED: &[&str] = &[
+    "input",
+    "stored",
+    "unused",
+    "discarded",
+    "nested_item",
+    "nested_shadow",
+    "nested_macro",
+    "consumed",
+    "narrow",
+    "generic",
+    "drop_range",
+    "iterator",
+    "other",
+];
+
+fn verify_context(report: &Value, target: &str, comprehensive: bool) {
+    let names = if comprehensive {
+        ADMITTED
+    } else {
+        &ADMITTED[..8]
+    };
+    for name in names {
         let entry = function(report, name);
         assert_eq!(
             entry["outcome"], "admitted",
@@ -325,28 +395,19 @@ fn verify_context(report: &Value, target: &str) {
             entry["reasons"]
         );
     }
-    verify_exclusions(report);
+
+    verify_exclusions(report, comprehensive);
     verify_selected_implementation(report);
-    verify_strict_pairs(report);
     verify_complete_mirror(report);
 }
 
-fn verify_exclusions(report: &Value) {
-    for name in [
-        "input",
-        "unused",
-        "discarded",
-        "nested_item",
-        "nested_shadow",
-        "nested_macro",
-        "stored",
-        "consumed",
-        "narrow",
-        "generic",
-        "drop_range",
-        "iterator",
-        "other",
-    ] {
+fn verify_exclusions(report: &Value, comprehensive: bool) {
+    let names = if comprehensive {
+        EXCLUDED
+    } else {
+        &EXCLUDED[..2]
+    };
+    for name in names {
         let entry = function(report, name);
         assert_eq!(entry["outcome"], "excluded", "{name}: {}", entry["reasons"]);
     }
@@ -367,7 +428,7 @@ fn verify_selected_implementation(report: &Value) {
 }
 
 fn verify_strict_pairs(report: &Value) {
-    let unit = super::word_classifiers::verify_admissions(report);
+    let (unit, _) = data_unit(function(report, "fresh"));
     let analysis = unit.analysis();
     for entry in report["functions"]
         .as_array()
@@ -377,7 +438,11 @@ fn verify_strict_pairs(report: &Value) {
     {
         let index = shared_evidence::index(entry);
         let facts = analysis.function(index).unwrap();
-        rstyle_pdg::producer::verify(unit.pair(index).unwrap(), &facts).unwrap();
+        let validated = rstyle_pdg::verification_policy::strict(|| {
+            rstyle_pdg::producer::verify(shared_evidence::pair(&unit, entry), &facts)
+        })
+        .unwrap();
+        rstyle_ccgraph::admit_validated(&validated).unwrap();
     }
 }
 
@@ -450,7 +515,7 @@ fn fresh_range_endpoints_follow_independent_identity_expectation() {
 "#;
     let source = directory.path().join("oracle.rs");
     let binary = directory.path().join("oracle");
-    std::fs::write(&source, format!("{SOURCE}\n{oracle}")).unwrap();
+    std::fs::write(&source, format!("{COMMON_SOURCE}{FULL_SOURCE}\n{oracle}")).unwrap();
     let compiled = Command::new("rustc")
         .args(["--test", "--edition=2021", "-C", "overflow-checks=on"])
         .arg(source)

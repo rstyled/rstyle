@@ -401,3 +401,104 @@ Low's executed checks, and independent Max reviews. The final style reports are
 under `style/final-frozen-results`; earlier attempts and provisional measurements
 are retained separately. These ignored artifacts supplement the method and
 results recorded here.
+
+## 5. Reduce repeated range-getter integration work
+
+The baseline for this round is `bccf4045`. The range-getter integration test
+previously captured the complete fixture for each installed target among
+ARM64 Linux, x86-64 Linux and ARM64 Darwin, each in `std` and `no_std` mode.
+Every context also repeated strict verification and admission of each admitted
+function. The separate endpoint execution test provided an independent oracle.
+
+### Implementation
+
+The first available target in `std` mode retains the complete fixture and its
+12 named admission checks, 13 exclusion checks and selected local `From`
+implementation check. Remaining contexts use a smaller fixture containing eight
+named supported functions, the selected implementation and two representative
+unsupported input/storage cases. Shared source fragments retain the original
+full fixture's function bodies; its only textual difference is one blank line.
+
+Every context still exercises actual compiler capture, graph construction,
+admission and matching, checks all four completeness flags, verifies the selected
+`From` implementation identity, and requires an accepted exact `fresh`/`same`
+pair. The test asserts that a comprehensive run occurred, preventing success
+when no target is available. The separate 8-by-8 endpoint oracle and its expected
+outputs and counterexamples remain unchanged.
+
+The comprehensive run performs strict producer verification once per admitted
+function and passes the returned `ValidatedPair` to admission. Report-entry
+namespace checks remain. The 17 captured-fact mutations reuse one expanded bundle
+and one successful baseline load, while every independent changed candidate is
+still rejected under both ordinary and ambient-generated policy. The mutation
+batch therefore makes 35 bundle load attempts instead of 51.
+
+The four constructor graph mutations retain direct data-document rejection and
+reuse one strict `PreparedVerification` against the same immutable facts. The
+original graph first passes prepared verification and checked admission. The
+historical-profile mutation additionally retains direct `admit_produced`
+rejection. The other graph mutations no longer repeat that forwarding API's
+producer verification. Production code, verification rules and CI triggers are
+unchanged.
+
+### Matched timing
+
+Three baseline trials preceded three candidate trials on the same Linux ARM64
+machine with the pinned nightly, two build jobs, disabled incremental builds and
+the CI nextest profile with four test threads. The filter selects both range-getter
+tests, including the unchanged endpoint oracle. All trials passed. JUnit runner
+and case durations exclude Cargo startup and compilation; diagnostic traces were
+collected separately. No other build or test job ran during the timing trials.
+
+| Metric | Baseline median | Candidate median | Reduction |
+| --- | ---: | ---: | ---: |
+| Both range-getter tests, runner wall time | 8.586 s | 5.087 s | 40.8% |
+| Main capture/admission/matching case | 8.583 s | 5.085 s | 40.8% |
+| Both tests, summed case time | 8.732 s | 5.228 s | 40.1% |
+
+Runner ranges are 8.564–8.889 seconds and 5.071–5.117 seconds. The endpoint
+oracle's medians are 0.149 and 0.143 seconds, with overlapping ranges. These
+measurements establish the scoped test improvement, without measuring overall
+CI performance or memory consumption.
+
+The separate trace still records six completed compiler captures and six
+matching stages. Unit decode/verification invocations decrease from 64 to 43,
+producer verification from 1,058 to 479, and producer profile application
+(`producer.profile`) from 796 to 273. The candidate makes one strict preparation
+call. These counts reflect both smaller secondary fixtures and shared validation
+work; they do not imply fewer compiler startups. Stage times are inclusive and
+must not be added together.
+
+### Validation
+
+The final `scripts/coverage.sh` run passes all 3,731 tests and doctest checks.
+JUnit preserves the exact multiset of baseline test identities with no failures,
+errors or recorded skipped cases; nextest excludes the same five configured
+tests before execution. The LCOV comparison is exact: both runs contain 1,152
+production source files, 166,387 instrumented line coordinates and 154,144
+covered line coordinates (92.641853%). No source, instrumented line or covered
+line is lost or gained. Source/build/test input hashes match the previously
+validated `bccf4045` baseline except for the intended range-getter test file;
+all 1,964 fingerprinted inputs remain unchanged during the final run.
+
+Formatting, whitespace checks and workspace/all-target Clippy with warnings
+denied pass. Low ran the actual shared-capture CI numeric and pattern gates;
+both return zero. The numeric report covers 10,191 functions with no violations
+or unavailable complexity measurements. The pattern report has no visible
+candidates; the 12 existing reviewed ignores are unchanged. Max independently
+checked the source, final report hashes and gate results.
+
+A separate all-target audit of the cargo-rstyle test corpus is not a clean gate:
+it reports 3,332 findings across 6,462 measured functions. Its 11 range-getter
+findings have causes already present in the baseline: unchanged corruption
+helpers and completeness/oracle checks, plus IO in capture/test orchestration.
+Max reviewed those causes directly. The new bundle-mutation helper has no
+finding, and the file has no length, parameter-count or complexity finding.
+No thresholds, suppressions or ignore entries were added.
+
+Evidence remains under `target/range-getter-20261031`: the baseline/candidate
+timing JUnit files and command records, `timing-comparison.json`,
+`trace-comparison.json`, `junit-comparison.json`, `coverage-comparison.json`,
+input fingerprints, final coverage and focused-test logs, CI style summaries,
+and independent Max reviews. The tested source SHA256 is
+`24f044f3d260cbad7303492397a4e041a9089b895e5329294f295afb373a97e8`.
