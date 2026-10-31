@@ -502,3 +502,108 @@ timing JUnit files and command records, `timing-comparison.json`,
 input fingerprints, final coverage and focused-test logs, CI style summaries,
 and independent Max reviews. The tested source SHA256 is
 `24f044f3d260cbad7303492397a4e041a9089b895e5329294f295afb373a97e8`.
+
+## 6. Reuse digit-product verification prerequisites
+
+Fresh CPU profiles at the `25210cb2` source state identified repeated strict
+producer verification in the digit-product integration fixture. The ordinary
+producer verifier appears in 308 of 447 samples (68.9% inclusive), including
+193 samples in expected-graph reconstruction (43.2%). A separate control run
+records 69 producer-verification invocations. These are overlapping CPU regions
+in one exact test; sampled weights are not invocation counts or whole-suite
+shares. Low collected the profiles and Max independently checked the raw counts,
+exact function frames and binary hashes.
+
+### Implementation
+
+The parser and forwarder fixtures each load their clean captured unit once,
+while retaining namespace and pair-existence checks for every selected report
+entry. All three parser bodies and both wrapper bodies still exercise explicit
+producer construction. Unaffected positive cases retain public
+`admit_produced` acceptance, without a separate preceding producer-verification
+call. Renamed parser graphs retain direct data-document and public-admission
+acceptance.
+
+The three-digit parser and hour-wrapper graph-mutation batches each create one
+strict `PreparedVerification` tied to their unchanged facts. Each original graph
+first passes prepared verification and `admit_validated`. All 11 parser and
+eight wrapper graph mutations retain independent direct data-document rejection
+and prepared-verification rejection. Historical profiles and a representative
+semantic mutation in each batch also retain direct public-admission rejection.
+
+The two coherent ownership mutations and two fresh helper-selection mutations
+retain independent verification of changed facts. The summary fixture, its
+seven mutations under ordinary/generated policy, missing-certification check
+and historical-policy assertion are unchanged. Component, conditional-read,
+renaming, matching and completeness assertions remain. Production source and
+verification rules are unchanged; this pass removes repeated test setup and
+expected-graph reconstruction using the existing APIs.
+
+### Matched timing
+
+Three baseline trials preceded three candidate trials on the same Linux ARM64
+host, using the pinned nightly, two build jobs, disabled incremental compilation
+and the CI nextest profile with four test threads. The selection includes all
+three digit-product tests. No competing builds or test jobs ran during these
+measurements. All trials pass the same three case identities. JUnit runner/case
+times exclude Cargo startup and compilation; separate serial diagnostic runs
+provide stage counts.
+
+| Metric | Baseline median | Candidate median | Reduction |
+| --- | ---: | ---: | ---: |
+| Three-test runner wall time | 4.525 s | 3.118 s | 31.1% |
+| Main parser/composition/mutation case | 4.523 s | 3.116 s | 31.1% |
+| Forwarder case | 1.413 s | 1.157 s | 18.1% |
+| Three tests, summed case time | 7.524 s | 5.924 s | 21.3% |
+
+Runner ranges are 4.498–4.608 seconds and 3.105–3.155 seconds. The unchanged
+summary fixture has medians of 1.615 and 1.651 seconds, with overlapping ranges;
+no summary-test speedup is claimed. These scoped results do not establish
+whole-suite/CI speedups or reduced peak memory.
+
+The separate serial traces of all three cases record 30 versus 27 unit decode
+and verification invocations, 136 versus 105 producer-verification invocations,
+and 130 versus 80 producer profile applications. The candidate makes two strict
+preparations. Compiler captures remain three and producer construction stages
+remain 19. The producer-verification count includes the new prepared-candidate
+checks; it does not alone count expected-graph reconstructions. Profile
+application means transport/data annotations, rather than graph analysis.
+Stage durations include nested work and must not be added together.
+
+### Validation
+
+Low's final focused tests, formatting, whitespace checks and workspace/all-target
+Clippy with warnings denied pass. Low also ran the actual shared-capture CI
+numeric and pattern gates; both return zero. The numeric report covers 10,191
+functions with zero violations or unavailable complexity measurements, and the
+pattern report has no visible candidates. Existing reviewed ignores are
+unchanged.
+
+The separate cargo-rstyle all-target test audit reports 3,327 findings overall,
+down from 3,332, and is not a clean gate. Local digit-product findings decrease
+from 21 to 16: the main function's length and spacing findings, the forwarder's
+spacing/density findings and renamed-node spacing finding are removed. Both new
+helpers are clean. Remaining findings concern unchanged mutation/source/oracle
+helpers and summary tests, plus the main test's existing IO density. Its density
+ratio rises from 521 to 571 after moving the pure source-selection lookup; its
+four IO sites remain the same. No threshold, suppression or ignore change is
+used to obtain these results.
+
+The final `scripts/coverage.sh` run passes all 3,731 tests and doctest checks.
+JUnit contains the exact baseline case identities, with no failures, errors or
+recorded skipped cases; the five configured exclusions remain unchanged.
+LCOV source sets, instrumented and covered line coordinates, and instrumented
+and covered function-symbol sets are all exactly equal. Both runs cover 154,144
+of 166,387 lines across 1,152 production source files (92.641853%) and 26,394 of
+40,761 instrumented function symbols. No covered line or function is lost.
+The baseline's 1,964 source/build/test fingerprints differ only in the three
+intended digit-product test files, and every candidate input remains unchanged
+during the full run.
+
+Reproducible measurement and comparison scripts, timing JUnit files, raw
+diagnostic traces, frozen source hashes, final logs, baseline/candidate LCOV and
+JUnit reports, style summaries and independent Max reviews remain under
+`target/digit-verification-20261031`. The frozen Rust source hashes are recorded
+in `candidate-measurement-command.json`, `candidate-ci-gates-summary.json` and
+`coverage-input-sha256.json`. `coverage-comparison.json` and
+`junit-comparison.json` record the exact comparisons.

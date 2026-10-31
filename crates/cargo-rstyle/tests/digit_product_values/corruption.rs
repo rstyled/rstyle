@@ -30,7 +30,11 @@ pub(super) fn reject_source_ownership(function: &Value) {
     }
 }
 
-pub(super) fn reject_all(original: &Pair, facts: &dyn EvidenceFacts) {
+pub(super) fn reject_all(
+    original: &Pair,
+    facts: &dyn EvidenceFacts,
+    prepared: &rstyle_pdg::producer::PreparedVerification<'_>,
+) {
     for attack in [
         "selector-location",
         "selector-omission",
@@ -54,13 +58,15 @@ pub(super) fn reject_all(original: &Pair, facts: &dyn EvidenceFacts) {
             "independent document verifier accepted {attack}"
         );
         assert!(
-            rstyle_pdg::producer::verify(&pair, facts).is_err(),
+            prepared.verify(pair.as_view()).is_err(),
             "producer replay accepted {attack}"
         );
-        assert!(
-            rstyle_ccgraph::admit_produced(&pair, facts).is_err(),
-            "strict admission accepted {attack}"
-        );
+        if matches!(attack, "old-policy" | "guard-bypass") {
+            assert!(
+                rstyle_ccgraph::admit_produced(&pair, facts).is_err(),
+                "strict admission accepted {attack}"
+            );
+        }
     }
 }
 
