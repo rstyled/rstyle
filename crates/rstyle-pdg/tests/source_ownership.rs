@@ -98,3 +98,17 @@ fn file_cfg_and_disabled_inventory_keep_exact_source_ownership() {
     assert_eq!(definitions[0].function_source, "fn f() {}");
     assert_eq!(definitions[0].function_span.start, 13);
 }
+
+#[test]
+fn unicode_before_nested_crlf_definitions_keeps_exact_byte_ownership() {
+    let source = "// π🦀\r\npub fn café() {\r\n    fn 値() {}\r\n}\r\n";
+    let definitions = functions(source).unwrap();
+    assert_eq!(definitions.len(), 2);
+    assert_eq!(definitions[0].function_span.start, 11);
+    assert_eq!(
+        definitions[0].function_source,
+        "pub fn café() {\r\n    fn 値() {}\r\n}"
+    );
+    assert_eq!(definitions[1].function_span.start, 33);
+    assert_eq!(definitions[1].function_source, "fn 値() {}");
+}

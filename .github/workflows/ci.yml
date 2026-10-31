@@ -3,7 +3,7 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, perf/ci-capture-and-source-indexes]
 
 env:
   CARGO_TERM_COLOR: never
@@ -40,6 +40,12 @@ jobs:
       - name: Fetch locked dependencies
         run: cargo fetch --locked
 
+      - name: Python CI helpers
+        run: |
+          python3 -m unittest discover -s scripts -p test_watchdog.py
+          python3 -m unittest discover -s scripts -p test_measure_ci.py
+          python3 -m unittest discover -s scripts -p test_ci_style.py
+
       - name: Format
         run: cargo fmt --all -- --check
 
@@ -51,7 +57,7 @@ jobs:
         with:
           tool: cargo-nextest@0.9.148
 
-      # Prebuild the driver before process-based tests; includes doctests separately.
+      # Prebuild the workspace test graph; includes doctests separately.
       - name: Tests
         run: CARGO_TARGET_DIR=target ./scripts/test.sh --nextest
 
@@ -67,26 +73,30 @@ jobs:
           path: target/nextest/ci/junit.xml
           if-no-files-found: ignore
 
-      # Default compiler style keeps unreviewed findings blocking.
-      # Exit 1 = violations, 2 = tool error.
-      # Keep this full-workspace check here; CLI tests use small fixtures to avoid
-      # repeating workspace extraction and competing for Cargo's build lock.
+      # Capture graph-rich evidence once, preserve both presentations, then
+      # apply numeric and pattern exit statuses as independent gates in order.
       - name: rstyle self-check
         run: |
-          ./scripts/style.sh --format json > rstyle-report.json || status=$?
-          cat rstyle-report.json
+          test -x target/debug/cargo-rstyle || exit 2
+          test -x target/debug/rstyle-driver || exit 2
+          output="$(mktemp -d target/rstyle-ci.XXXXXX)"
+          echo "RSTYLE_CI_OUTPUT=$output" >> "$GITHUB_ENV"
+          python3 scripts/ci-style.py --binary target/debug/cargo-rstyle --output "$output/results" || status=$?
+          cp "$output/results/rstyle-report.json" rstyle-report.json || exit 2
+          cat rstyle-report.json || exit 2
           exit "${status:-0}"
 
-      # Dog-food: merge candidates. Fix each one or dismiss it after review with
-      # `cargo rstyle ignore <id> --reason "..."` (committed in rstyle-ignore.toml).
-      # Exit 1 = candidates nobody has reviewed.
       - name: rstyle patterns
-        run: ./scripts/style.sh patterns --fail-on-candidates --show-ignored
+        run: python3 scripts/ci-style.py --output "$RSTYLE_CI_OUTPUT/results" --patterns-status
 
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: rstyle-report-${{ runner.os }}-${{ runner.arch }}
-          path: rstyle-report.json
+          path: |
+            rstyle-report.json
+            ${{ env.RSTYLE_CI_OUTPUT }}/results/rstyle-patterns.json
+            ${{ env.RSTYLE_CI_OUTPUT }}/results/patterns-capture-report.json
+            ${{ env.RSTYLE_CI_OUTPUT }}/results/status.json
           if-no-files-found: warn

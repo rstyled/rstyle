@@ -2,6 +2,8 @@ use super::propagation::checked;
 use super::*;
 
 const BASE: &[&str] = &[
+    "--report-detail",
+    "compact",
     "--extraction-profile",
     "hir-data-v3",
     "--compiler-advisory-only",

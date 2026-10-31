@@ -78,6 +78,48 @@ toolchain, build profile, cache state, filter and concurrency with observations.
 The supervisor cannot expose stderr that an inner CLI test buffers with
 `Command::output`; live child-stage instrumentation remains a separate task.
 
+### One-command CI phase measurements
+
+`measure_ci.py` wraps the same watchdog, adding `measurement.json` with literal
+argv, cwd, Git commit, repository toolchain file and explicit override, platform,
+CPU count, host available memory on Linux, and selected build controls. It never
+installs or downloads tools. The toolchain file records intent, not proof of the
+compiler actually selected by Cargo. Metadata probes are bounded and excluded
+from command timing. `run.json` retains monotonic wall time, outcome and child
+exit status; stdout/stderr logs retain raw bytes. Launch errors exit 127 and
+have a separate `launch_error` outcome. Output directories must be new.
+
+CPU seconds use the delta of POSIX `RUSAGE_CHILDREN` around the watchdog call:
+waited children, with descendant accounting only as propagated by the OS. This
+is not process-tree sampling. Peak RSS is explicitly null because the cumulative
+child high-water mark cannot be differenced after metadata probes. Available
+memory is host `MemAvailable`, not a container quota; it is null on macOS.
+There is no CPU/heap profile, aggregate tree memory, cgroup/quota measurement or
+full environment capture. Record cache condition, profile, filters, runner image
+and concurrency alongside each run; the harness does not infer these.
+
+For example, from the repository root, on an already provisioned machine:
+
+```sh
+# Use an absolute workspace target, separate from each test's fixture targets.
+export CARGO_TARGET_DIR="$PWD/target/ci-measure-warm"
+export RSTYLE_TEST_DRIVER="$CARGO_TARGET_DIR/debug/rstyle-driver"
+python3 scripts/measure_ci.py --phase driver-build --timeout 600 --output /tmp/ci-driver-1 -- cargo build --locked -p rstyle-driver --timings
+python3 scripts/measure_ci.py --phase test-prebuild --timeout 900 --output /tmp/ci-prebuild-1 -- cargo test --workspace --locked --no-run --timings
+python3 scripts/measure_ci.py --phase nextest --timeout 1800 --output /tmp/ci-nextest-1 -- cargo nextest run --workspace --locked --profile ci
+python3 scripts/measure_ci.py --phase doctests --timeout 300 --output /tmp/ci-doc-1 -- cargo test --workspace --locked --doc
+python3 -m unittest discover -s scripts -p test_measure_ci.py
+```
+
+These are separate observations, not a command that runs every phase at once.
+Nextest still includes its own build check/discovery; do not label its entire
+wall time test execution. Its existing `ci` profile retains four test processes.
+The prebuilt absolute driver path matches `scripts/test.sh`; fixture helpers
+must continue clearing `CARGO_TARGET_DIR` for their isolated source targets.
+Use a distinct target directory for a cold condition, and a new output directory
+for every repetition. Cargo timings and nextest JUnit remain in the target tree;
+retain them separately from the harness logs. These examples do not change CI.
+
 Set `RSTYLE_PERF=1` for opt-in `rstyle-perf` JSON lines on stderr. Initial
 instrumentation covers `capture.binary_hash`, `producer.produce`,
 `producer.verify` and `helper.verify`. Starts are emitted before work; finishes
@@ -138,3 +180,29 @@ Build the workspace and `rstyle-pdg`'s `unit_import_replay` example in that prof
 first. The script retains reports, timing and diagnostic logs in a new temporary
 directory, checks completeness and pair decisions, and separates ordinary
 samples from `RSTYLE_PERF` observations.
+
+## Shared CI style capture
+
+CI reuses the normal CLI and driver binaries produced by the workspace test
+prebuild, then runs `python3 scripts/ci-style.py --binary
+/path/to/cargo-rstyle --output NEW_DIRECTORY`. It captures graph-rich patterns
+once and numerically replays that exact run with normal strict replay validation.
+`rstyle-report.json` keeps the numeric presentation; `rstyle-patterns.json` keeps
+the pattern presentation; `patterns-capture-report.json` preserves the original
+archive before replay replaces its presentation. `status.json` records both
+independent gate statuses. Pattern candidates still permit numeric evaluation;
+a capture tool error cannot certify numeric success. The collection exits with
+the numeric gate status. The following CI step runs `--patterns-status --output
+DIRECTORY` to print the saved pattern presentation and apply its status. As before,
+a failed numeric gate skips the subsequent pattern gate. CI now retains pattern
+JSON, including ignored entries, instead of the previous text console listing.
+`python3 -m unittest discover -s scripts -p test_ci_style.py` checks failure paths.
+
+The nextest path in `test.sh` prebuilds with `cargo test --workspace --locked
+--no-run`, matching the default workspace test dependency graph and producing the normal
+driver through its integration-test binary dependency. It verifies that driver
+before exporting its absolute `RSTYLE_TEST_DRIVER`; doctests remain separate.
+
+Arguments after `--nextest` still go only to nextest. Custom features, targets or
+profiles may require additional nextest compilation; the prebuild does not claim
+to match arbitrary forwarded build options.

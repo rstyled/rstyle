@@ -559,10 +559,6 @@ impl Correspondence {
     }
 }
 
-fn offset(source: &str, position: proc_macro2::LineColumn) -> u32 {
-    u32::try_from(byte_offset(source, position)).unwrap_or(u32::MAX)
-}
-
 pub(crate) fn byte_offset(source: &str, position: proc_macro2::LineColumn) -> usize {
     let prefix: usize = source
         .split_inclusive('\n')
@@ -718,6 +714,7 @@ pub struct SourceDefinition {
 
 struct Definitions<'a> {
     source: &'a str,
+    positions: positions::Positions,
     entries: Vec<SourceDefinition>,
     configuration: Option<crate::conditional_source::Configuration<'a>>,
     inactive: bool,
@@ -734,6 +731,7 @@ pub fn configured_functions<'a>(
     let file = syn::parse_file(source).map_err(|error| error.to_string())?;
     let mut definitions = Definitions {
         source,
+        positions: positions::Positions::new(source),
         entries: Vec::new(),
         configuration: cfgs.map(crate::conditional_source::Configuration::new),
         inactive: false,
@@ -756,8 +754,12 @@ impl Definitions<'_> {
     }
 
     fn add(&mut self, name: &syn::Ident, span: proc_macro2::Span, owned: proc_macro2::Span) {
-        let start = offset(self.source, span.start());
-        let end = offset(self.source, span.end());
+        let start = self.positions.offset(span.start());
+        let end = self.positions.offset(span.end());
+        let function_span = ByteSpan {
+            start: self.positions.offset(owned.start()),
+            end: self.positions.offset(owned.end()),
+        };
         self.entries.push(SourceDefinition {
             name: name.to_string(),
             inactive_by_cfg: self.inactive,
@@ -767,16 +769,10 @@ impl Definitions<'_> {
                 .get(start as usize..end as usize)
                 .unwrap_or_default()
                 .into(),
-            function_span: ByteSpan {
-                start: offset(self.source, owned.start()),
-                end: offset(self.source, owned.end()),
-            },
+            function_span,
             function_source: self
                 .source
-                .get(
-                    offset(self.source, owned.start()) as usize
-                        ..offset(self.source, owned.end()) as usize,
-                )
+                .get(function_span.start as usize..function_span.end as usize)
                 .unwrap_or_default()
                 .into(),
         });
