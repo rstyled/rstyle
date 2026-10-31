@@ -45,9 +45,7 @@ fn scalar_sizes_keep_bounded_source_and_instantiation_requirements() {
     }
 }
 
-#[test]
-fn native_u16_alone_requires_its_document_policy() {
-    let (_directory, report) = captured(false, None);
+pub(super) fn native_u16_alone_requires_its_document_policy(report: &Value) {
     let function = report["functions"]
         .as_array()
         .unwrap()

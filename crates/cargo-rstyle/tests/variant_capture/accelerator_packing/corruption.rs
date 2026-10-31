@@ -3,7 +3,7 @@ use rstyle_pdg::unit_store::EvidenceFacts;
 
 #[test]
 fn scalar_alias_requires_its_actual_closed_source_declaration() {
-    let (_directory, report) = captured(None, false);
+    let (directory, report) = captured(None, false);
     let function = report["functions"]
         .as_array()
         .unwrap()
@@ -32,6 +32,7 @@ fn scalar_alias_requires_its_actual_closed_source_declaration() {
     }
     packing_helper_summaries_cannot_invent_purity_or_erase_conditional_read_occurrences(&report);
     packing_requires_exact_comparison_snapshots_conditional_reads_and_policy(&report);
+    packing_release_capture_omits_debug_comparison_operand_effects(directory.path());
 }
 
 fn packing_helper_summaries_cannot_invent_purity_or_erase_conditional_read_occurrences(

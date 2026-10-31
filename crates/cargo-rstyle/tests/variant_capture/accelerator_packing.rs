@@ -133,11 +133,9 @@ fn check_read_contract(functions: &[Value]) {
     }
 }
 
-#[test]
-fn packing_release_capture_omits_debug_comparison_operand_effects() {
-    let (directory, _) = captured(None, false);
+fn packing_release_capture_omits_debug_comparison_operand_effects(directory: &Path) {
     let (output, report) = clones(
-        directory.path(),
+        directory,
         &["--release", "--extraction-profile", "hir-data-v3"],
     );
     assert!(

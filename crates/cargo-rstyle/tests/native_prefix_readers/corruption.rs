@@ -44,6 +44,7 @@ fn prefix_size_and_native_documents_reject_altered_semantics_and_policy() {
         );
     }
     scalar_size_rejects_missing_wrong_or_unpinned_instantiation_evidence(&report);
+    super::boundaries::native_u16_alone_requires_its_document_policy(&report);
 }
 
 fn edit(pair: &mut rstyle_pdg::producer::Pair, mutation: &str) {

@@ -1,5 +1,7 @@
 # Test capture consolidation, 2026-10-31
 
+## First pass
+
 Low audited and implemented the changes; Max independently reviewed the fixture
 setups, assertion bodies, mutation isolation and measurements. The baseline is
 `66a22342625b9b1f6d5ddda82a844cd070c606a1`.
@@ -39,7 +41,7 @@ default, strict-score, policy and failure-gate invocations remain distinct.
 Source/tool-free replay runs after the live-source checks; mutation policy is
 loosened only after the strict replay. Determinism and text golden tests remain.
 
-## Matched timing
+### Matched timing
 
 Three baseline runs preceded three candidate runs on the same Linux ARM64
 machine, using the pinned nightly, two build jobs, disabled incremental builds,
@@ -57,7 +59,7 @@ of each group.
 Runner ranges are 9.665–9.898 seconds and 7.247–7.301 seconds. These measurements
 describe the affected selection; they do not establish a full CI speedup.
 
-## Coverage and checks
+### Coverage and checks
 
 The complete instrumented workspace suite passed **3,762 tests**, with the same
 five existing skips, followed by passing workspace doctests. Comparing JUnit
@@ -84,10 +86,110 @@ covered 10,181 functions with zero numeric violations and zero visible pattern
 candidates; the 12 existing reviewed ignores are unchanged. Max independently
 accepted the source changes, matched timings and complete covered-line sets.
 
-## Retained local evidence
+### Retained local evidence
 
 [target/test-reduction-20261031](../target/test-reduction-20261031/) contains the
 baseline LCOV and JUnit, matched selection and measurement script, three timing
 reports per version, frozen source hashes, complete coverage comparison and
 validation logs. `target/` is ignored by Git; this document preserves the method
 and results independently of those local artifacts.
+
+## Max-led second pass
+
+Max selected the next consolidation groups from the test costs and independently
+reviewed their source and state transitions before Low implemented them. The
+baseline for this round is `e0e8e1fdc31a66e1c8471769f5a25cd34fc80d7d`, whose hosted
+CI run passed on all three architectures. Max then reviewed the complete
+eleven-file implementation diff and the individual scenario bodies.
+
+This round removes **33 additional repeated compiler captures**. The same 42
+original scenarios now run inside nine standalone tests; their distinct
+assertions and compiler variants remain. Together, both passes remove 62
+repeated captures and 60 standalone cases.
+
+| Shared setup | Cases before | Cases after | Captures removed |
+| --- | ---: | ---: | ---: |
+| Source baseline export | 9 | 1 | 8 |
+| Compiler diagnostic reviews | 5 | 1 | 4 |
+| Compiler diagnostic baselines | 6 | 1 | 5 |
+| Compiler diagnostic negative reviews | 6 | 1 | 5 |
+| Compiler pattern reviews | 5 | 1 | 4 |
+| Compiler pattern baselines | 5 | 1 | 4 |
+| Accelerator debug setup before release | 2 | 1 | 1 |
+| Native `u16` policy corruption | 2 | 1 | 1 |
+| Scalar conversion corruption | 2 | 1 | 1 |
+
+Each group owns one temporary workspace. Named local helpers restore the known
+source, policy and saved files before every stateful scenario. Diagnostic groups
+share the initial raw capture while retaining each scenario's configuration
+replay, baseline export or six review dismissals. Source-baseline scenarios
+restore the exact original baseline bytes. Pattern-baseline scenarios each
+export anew with the destination absent. Review lookup checks start with no
+review file, and source/tool-free replay and destructive prune checks run last.
+Every corruption still starts from fresh facts, a fresh pair or a fresh document.
+There is no global fixture cache or new fixture framework.
+
+The slowest demanded-owner test still needs its original, clean-source and clean
+release captures. Target, `no_std` and check/test contexts also remain distinct.
+Max deferred broader fixture unification where the lifecycle complexity would
+outweigh the small number of captures saved.
+
+### Matched timing
+
+Three baseline runs preceded three candidate runs on the same Linux ARM64
+machine, with the pinned nightly, two build jobs, disabled incremental builds,
+the CI nextest profile and four test threads. Each run selects the same 42
+original fully qualified names; the candidate runs the nine retained tests and
+their scenario helpers. All runs pass, and 1,118 unrelated CLI cases are excluded
+in both versions. JUnit runner times exclude compilation; separate workspace
+build and complete command times are retained in the local evidence.
+The first candidate nextest command rebuilt the CLI for 12.82 seconds before
+starting its measured test runner; the other two candidate commands did not
+rebuild it.
+
+| Metric | Baseline median | Candidate median | Reduction |
+| --- | ---: | ---: | ---: |
+| Affected tests, runner wall time | 8.507 s | 6.363 s | 25.2% |
+| Affected tests, summed case time | 28.328 s | 19.349 s | 31.7% |
+
+Runner ranges are 8.455–8.531 seconds and 6.269–6.473 seconds. These are
+measurements of the affected selection, not a full CI speedup estimate.
+
+### Coverage and checks
+
+The unchanged coverage script passed **3,729 tests**, with the same five existing
+skips, followed by passing workspace doctests. The full JUnit identity comparison
+found exactly the 33 approved standalone removals, no additions, and every other
+test retained. The complete coverage command took 342.377 seconds, including
+compilation and reporting. The test runner took 226.470 seconds versus 230.906
+seconds for the baseline; one full run per version does not establish a general
+CI speedup.
+
+The complete LCOV comparison requires equality of the explicit source-file sets,
+all instrumented `(path, line)` coordinates and all positive-hit coordinates.
+Duplicate line records are aggregated, and source records with no line entries
+are included. Both versions have:
+
+- 1,152 source files and 166,336 instrumented entries.
+- 154,098 covered entries, **92.6426%**.
+- Zero gained or lost source files, covered entries or instrumented entries.
+
+Production source files, the coverage script, exclusions, thresholds and CI
+triggers are unchanged. No suppressions or pattern-ignore entries were added.
+Max's supplementary multiline-aware source review covered all 59 modified or new
+functions, with at most 48 nonempty body lines and three parameters.
+
+Low ran formatting, workspace/all-target Clippy with warnings denied, an ordinary
+CLI/driver build, and the actual shared-capture CI numeric and saved-pattern gates
+sequentially. All exited **0**. The configured analysis covered 10,181 functions
+with zero numeric violations, zero unavailable graphs and zero visible pattern
+candidates. The 12 existing reviewed ignores are unchanged.
+
+### Retained local evidence
+
+[target/test-reduction-max-led-20261031](../target/test-reduction-max-led-20261031/)
+contains the immutable baseline artifacts, exact test selection, six matched
+timing JUnits and logs, frozen Rust source hashes, complete candidate LCOV and
+JUnit, coverage and identity comparisons, Max's source and timing reviews, and
+the actual validation command logs. These ignored local artifacts supplement
+the method and results recorded here.
