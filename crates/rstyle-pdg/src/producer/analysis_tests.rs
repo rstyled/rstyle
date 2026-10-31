@@ -238,7 +238,7 @@ fn benchmark_cyclic_graph(kind: &str, successors: &Sets) -> Vec<String> {
         let (old, old_ns) = timed(|| baseline_cyclic(&vertices, successors));
         let (new, new_ns) = timed(|| divergence_postdominators(&vertices, successors));
         assert_eq!(old, new);
-        let (indexed, index_ns) = timed(|| PostGraph::new(&vertices, successors));
+        let (indexed, index_ns) = timed(|| Topology::new(&vertices, successors));
         let (relation, propagation_ns) = timed(|| indexed.divergence_relation());
         let (materialized, representation_ns) = timed(|| indexed.materialize(&relation));
         assert_eq!(new, materialized);
@@ -372,7 +372,7 @@ fn oracle_dag(successors: &Sets) -> Sets {
         .collect()
 }
 
-fn reconstruct(tree: &PostTree<'_>) -> Sets {
+fn reconstruct(tree: &PostTree) -> Sets {
     tree.ids
         .iter()
         .map(|id| {
@@ -501,7 +501,7 @@ fn benchmark_dag_graph(kind: &str, successors: &Sets) -> Vec<String> {
         let (old, old_ns) = timed(|| dominators(&vertices, successors, "X"));
         let (new, new_ns) = timed(|| acyclic_postdominators(&vertices, successors));
         assert_eq!(old, reconstruct(&new));
-        let (indexed, index_ns) = timed(|| PostGraph::new(&vertices, successors));
+        let (indexed, index_ns) = timed(|| Topology::new(&vertices, successors));
         let (order, schedule_ns) = timed(|| indexed.exit_order());
         let (mut tree, allocation_ns) = timed(|| PostTree::empty(&indexed, order[0]));
         let (_, evaluation_ns) = timed(|| tree.attach_order(&indexed, &order));
@@ -709,6 +709,73 @@ fn unreachable_cycles_remain_ignored() {
     assert_eq!(
         analyze(&graph).unwrap(),
         baseline_analysis(&graph, false).unwrap()
+    );
+}
+
+fn lexical_operation(id: &str, definition: Option<&str>, category: NodeCategory) -> Operation {
+    Operation {
+        id: id.into(),
+        symbol: Some("s".into()),
+        definition: definition.map(str::to_string),
+        category,
+        ..lowered_cases().remove(0).graph.nodes.remove(0)
+    }
+}
+
+#[test]
+fn initial_entry_seed_reaches_cycles_before_entry_definition_replaces_it() {
+    for edges in [
+        vec![("E", "a"), ("a", "a"), ("a", "X")],
+        vec![("E", "a"), ("a", "b"), ("b", "b"), ("b", "X")],
+    ] {
+        let mut graph = graph_from(&fixture(&edges));
+        graph.nodes = vec![
+            lexical_operation("unreachable", Some("A"), NodeCategory::FormalInput),
+            lexical_operation("E", Some("B"), NodeCategory::Assignment),
+        ];
+        let actual = analyze_cyclic(&graph).unwrap();
+        assert_eq!(actual, baseline_analysis(&graph, true).unwrap());
+        assert_eq!(actual.definition_in["E"]["s"], BTreeSet::from(["A".into()]));
+        assert_eq!(
+            actual.definition_out["E"]["s"],
+            BTreeSet::from(["B".into()])
+        );
+        assert_eq!(
+            actual.definition_in["X"]["s"],
+            BTreeSet::from(["A".into(), "B".into()])
+        );
+    }
+}
+
+#[test]
+fn duplicate_operations_and_definitions_keep_first_source_and_node_order() {
+    let mut graph = graph_from(&fixture(&[("E", "w"), ("w", "r"), ("r", "X")]));
+    graph.nodes = vec![
+        lexical_operation("dead", Some("A"), NodeCategory::FormalInput),
+        lexical_operation("dead2", Some("B"), NodeCategory::FormalInput),
+        lexical_operation("source", Some("C"), NodeCategory::Assignment),
+        lexical_operation("w", Some("C"), NodeCategory::Assignment),
+        lexical_operation("w", Some("D"), NodeCategory::Assignment),
+        lexical_operation("r", None, NodeCategory::Read),
+        lexical_operation("r", None, NodeCategory::Read),
+    ];
+    let actual = analyze(&graph).unwrap();
+    assert_eq!(actual, baseline_analysis(&graph, false).unwrap());
+    assert_eq!(actual.definition_in["E"]["s"], BTreeSet::from(["B".into()]));
+    assert_eq!(
+        actual.definition_out["w"]["s"],
+        BTreeSet::from(["C".into()])
+    );
+    let reads: Vec<_> = actual
+        .edges
+        .iter()
+        .filter(|edge| edge.subkind == "reaching_definition")
+        .collect();
+    assert_eq!(reads.len(), 2);
+    assert!(
+        reads
+            .iter()
+            .all(|edge| edge.source == "source" && edge.target == "r")
     );
 }
 
