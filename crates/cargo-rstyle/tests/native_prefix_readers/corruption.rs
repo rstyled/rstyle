@@ -43,6 +43,7 @@ fn prefix_size_and_native_documents_reject_altered_semantics_and_policy() {
             "{mutation}"
         );
     }
+    scalar_size_rejects_missing_wrong_or_unpinned_instantiation_evidence(&report);
 }
 
 fn edit(pair: &mut rstyle_pdg::producer::Pair, mutation: &str) {
@@ -105,10 +106,8 @@ fn edit_node(node: &mut rstyle_pdg::PdgNode, mutation: &str) {
     }
 }
 
-#[test]
-fn scalar_size_rejects_missing_wrong_or_unpinned_instantiation_evidence() {
-    let (_directory, report) = captured(false, None);
-    let function = selected(&report);
+fn scalar_size_rejects_missing_wrong_or_unpinned_instantiation_evidence(report: &Value) {
+    let function = selected(report);
     for mutation in ["missing", "argument", "core", "definition", "range"] {
         shared_evidence::reject_edit(function, |bundle, index| {
             let body = &mut bundle["functions"][index]["body"];

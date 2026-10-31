@@ -30,11 +30,13 @@ fn scalar_alias_requires_its_actual_closed_source_declaration() {
         assert!(rstyle_pdg::producer::produce(&changed).is_err(), "{target}");
         shared_evidence::reject_facts(function, &changed);
     }
+    packing_helper_summaries_cannot_invent_purity_or_erase_conditional_read_occurrences(&report);
+    packing_requires_exact_comparison_snapshots_conditional_reads_and_policy(&report);
 }
 
-#[test]
-fn packing_helper_summaries_cannot_invent_purity_or_erase_conditional_read_occurrences() {
-    let (_directory, report) = captured(None, false);
+fn packing_helper_summaries_cannot_invent_purity_or_erase_conditional_read_occurrences(
+    report: &Value,
+) {
     let function = report["functions"]
         .as_array()
         .unwrap()
@@ -68,9 +70,7 @@ fn packing_helper_summaries_cannot_invent_purity_or_erase_conditional_read_occur
     }
 }
 
-#[test]
-fn packing_requires_exact_comparison_snapshots_conditional_reads_and_policy() {
-    let (_directory, report) = captured(None, false);
+fn packing_requires_exact_comparison_snapshots_conditional_reads_and_policy(report: &Value) {
     for name in [
         "Accel::as_accel_tys",
         "compare_order",

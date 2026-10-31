@@ -137,6 +137,7 @@ fn external_import_resealed_source_library_and_complete_namespace_mutations_reje
     pair.cfg.profile.version = "3.73.0".into();
     assert!(rstyle_pdg::data_documents::verify(&pair, &facts).is_err());
     assert!(rstyle_ccgraph::admit_produced(&pair, &facts).is_err());
+    pinned_import_invocation_overrides_cannot_reuse_an_exact_inventory(&report);
 }
 
 fn mutate(imports: &mut Value, mutation: &str) {
@@ -258,10 +259,8 @@ fn external_crate_named_alloc_cannot_substitute_for_pinned_system_library() {
     }));
 }
 
-#[test]
-fn pinned_import_invocation_overrides_cannot_reuse_an_exact_inventory() {
-    let (_directory, report) = capture(None, "", "");
-    let entry = function(&report, "encoded_len_inner");
+fn pinned_import_invocation_overrides_cannot_reuse_an_exact_inventory(report: &Value) {
+    let entry = function(report, "encoded_len_inner");
     assert_eq!(entry["outcome"], "admitted");
     for arguments in [
         vec!["--extern=alloc=/forged/alloc.rlib"],

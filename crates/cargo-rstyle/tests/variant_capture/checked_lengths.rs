@@ -266,13 +266,12 @@ fn checked_length_if_let_rejects_resealed_initializer_guard_binding_and_return_c
     reject_historical(function(&report, "encoded_len"));
     reject_historical(function(&report, "bind"));
     reject_historical(function(&report, "checked_add"));
+    checked_length_arithmetic_semantics_require_exact_overflow_and_evaluation_order(&report);
 }
 
-#[test]
-fn checked_length_arithmetic_semantics_require_exact_overflow_and_evaluation_order() {
-    let (_directory, report) = captured(None, false);
+fn checked_length_arithmetic_semantics_require_exact_overflow_and_evaluation_order(report: &Value) {
     for mutation in ["overflow", "arithmetic", "evaluation_order"] {
-        let entry = function(&report, "checked_add");
+        let entry = function(report, "checked_add");
         let mut bundle = shared_evidence::wire(entry);
         let root = bundle["roots"][shared_evidence::index(entry)]
             .as_u64()
