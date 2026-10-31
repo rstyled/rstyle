@@ -193,10 +193,13 @@ archive before replay replaces its presentation. `status.json` records both
 independent gate statuses. Pattern candidates still permit numeric evaluation;
 a capture tool error cannot certify numeric success. The collection exits with
 the numeric gate status. The following CI step runs `--patterns-status --output
-DIRECTORY` to print the saved pattern presentation and apply its status. As before,
+DIRECTORY` to print a concise summary and apply the saved pattern status. As before,
 a failed numeric gate skips the subsequent pattern gate. CI now retains pattern
 JSON, including ignored entries, instead of the previous text console listing.
 `python3 -m unittest discover -s scripts -p test_ci_style.py` checks failure paths.
+CI prints concise gate summaries and report locations; full JSON reports remain
+in artifacts. The nextest CI profile prints failing tests and their final failure
+output, while JUnit retains every test result and failed-test bodies.
 
 The nextest path in `test.sh` prebuilds with `cargo test --workspace --locked
 --no-run`, matching the default workspace test dependency graph and producing the normal

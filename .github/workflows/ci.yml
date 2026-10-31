@@ -113,7 +113,6 @@ jobs:
           echo "RSTYLE_CI_OUTPUT=$output" >> "$GITHUB_ENV"
           python3 scripts/ci-style.py --binary target/debug/cargo-rstyle --output "$output/results" || status=$?
           cp "$output/results/rstyle-report.json" rstyle-report.json || exit 2
-          cat rstyle-report.json || exit 2
           exit "${status:-0}"
 
       - name: rstyle patterns

@@ -1,7 +1,6 @@
 """Check independent gates and preservation of graph-rich report before replay."""
 import importlib.util
 import io
-from types import SimpleNamespace
 import json
 from pathlib import Path
 import tempfile
@@ -34,8 +33,12 @@ class SharedCaptureTests(unittest.TestCase):
                 return numeric
 
             output = root / 'results'
-            with mock.patch.object(MODULE, 'invoke', invoke):
+            with mock.patch.object(MODULE, 'invoke', invoke), mock.patch.object(MODULE.sys, 'stdout', io.StringIO()) as console:
                 self.assertEqual(MODULE.collect(Path('/cli'), output), numeric if expected is None else expected)
+            self.assertIn('ci-style: numeric:', console.getvalue())
+            self.assertIn(str(output), console.getvalue())
+            self.assertLess(len(console.getvalue()), 512)
+            self.assertNotIn('run_directory', console.getvalue())
             self.assertEqual(len(calls), 2)
             self.assertEqual((output / 'patterns-capture-report.json').read_text(),
                              'original graph-rich archive')
@@ -95,18 +98,23 @@ class SharedCaptureTests(unittest.TestCase):
                     (output / 'status.json').write_text(content)
                     self.assertEqual(MODULE.saved_patterns(output), 2)
 
-    def test_saved_pattern_bytes_and_each_required_presentation(self):
+    def test_saved_pattern_summary_and_each_required_presentation(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             files = ('rstyle-report.json', 'rstyle-patterns.json', 'patterns-capture-report.json')
             for code in (0, 1, 2):
-                (output / 'status.json').write_text(json.dumps({'numeric': 0, 'patterns': code}))
+                (output / 'status.json').write_text(json.dumps({'numeric': 0, 'patterns': code, 'error': 'specific protocol failure' if code == 2 else None}))
                 for name in files:
                     (output / name).write_bytes(b'pattern\x00\xff')
-                buffer = io.BytesIO()
-                with mock.patch.object(MODULE.sys, 'stdout', SimpleNamespace(buffer=buffer)):
+                buffer = io.StringIO()
+                with mock.patch.object(MODULE.sys, 'stdout', buffer), mock.patch.object(MODULE.sys, 'stderr', io.StringIO()) as errors:
                     self.assertEqual(MODULE.saved_patterns(output), code)
-                self.assertEqual(buffer.getvalue(), b'pattern\x00\xff')
+                if code == 2:
+                    self.assertIn('specific protocol failure', errors.getvalue())
+                self.assertIn(('passed', 'findings', 'tool error')[code], buffer.getvalue())
+                self.assertIn(str(output), buffer.getvalue())
+                self.assertLess(len(buffer.getvalue()), 512)
+                self.assertNotIn('pattern\x00', buffer.getvalue())
             (output / 'status.json').write_text('{"numeric":0,"patterns":0}')
             for missing in files:
                 for name in files:
@@ -114,6 +122,10 @@ class SharedCaptureTests(unittest.TestCase):
                 (output / missing).unlink()
                 with self.subTest(missing=missing):
                     self.assertEqual(MODULE.saved_patterns(output), 2)
+                (output / missing).mkdir()
+                with self.subTest(non_regular=missing):
+                    self.assertEqual(MODULE.saved_patterns(output), 2)
+                (output / missing).rmdir()
 
     def test_successful_capture_malformed_or_missing_run_fails_closed(self):
         for content in ('not json', '{}', 'null', '{"run_directory":null}'):
@@ -125,7 +137,9 @@ class SharedCaptureTests(unittest.TestCase):
                     report.write_text(content)
                     return 0
                 with mock.patch.object(MODULE, 'invoke', invoke):
-                    self.assertEqual(MODULE.collect(Path('/cli'), output), 2)
+                    with mock.patch.object(MODULE.sys, 'stderr', io.StringIO()) as errors:
+                        self.assertEqual(MODULE.collect(Path('/cli'), output), 2)
+                    self.assertTrue(errors.getvalue().startswith('ci-style: '))
                 self.assertEqual(len(calls), 1)
                 self.assertEqual(json.loads((output / 'status.json').read_text())['numeric'], 2)
 

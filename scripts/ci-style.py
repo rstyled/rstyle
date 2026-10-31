@@ -17,6 +17,20 @@ def invoke(command, output):
             return 2
 
 
+def summarize(gate, code, output, error=None):
+    result = ('passed', 'findings', 'tool error')[code]
+    print(f'ci-style: {gate}: {result}; reports: {output}')
+    if error:
+        print(f'ci-style: {error}', file=sys.stderr)
+
+
+def require_readable(path):
+    if not path.is_file():
+        raise ValueError(f'missing or non-regular report: {path}')
+    with path.open('rb') as stream:
+        stream.read(0)
+
+
 def collect(binary, output):
     patterns = numeric = 2
     error = None
@@ -50,6 +64,7 @@ def collect(binary, output):
     except OSError as failure:
         print(f'ci-style: cannot retain gate status: {failure}', file=sys.stderr)
         return 2
+    summarize("numeric", numeric, output, error)
     return numeric
 
 
@@ -61,12 +76,14 @@ def saved_patterns(output):
         for key in ('numeric', 'patterns'):
             if type(status[key]) is not int or status[key] not in (0, 1, 2):
                 raise ValueError(f'invalid {key} exit status')
-        if not (output / 'rstyle-report.json').is_file():
-            raise ValueError('missing numeric presentation')
-        presentation = (output / 'rstyle-patterns.json').read_bytes()
-        if status['patterns'] in (0, 1) and not (output / 'patterns-capture-report.json').is_file():
-            raise ValueError('missing preserved capture presentation')
-        sys.stdout.buffer.write(presentation)
+        require_readable(output / 'rstyle-report.json')
+        require_readable(output / 'rstyle-patterns.json')
+        if status['patterns'] in (0, 1):
+            require_readable(output / 'patterns-capture-report.json')
+        error = status.get('error')
+        if error is not None and not isinstance(error, str):
+            raise ValueError('invalid saved error cause')
+        summarize('patterns', status['patterns'], output, error)
         return status['patterns']
     except (OSError, ValueError, KeyError, TypeError) as error:
         print(f'ci-style: cannot read saved pattern gate: {error}', file=sys.stderr)
