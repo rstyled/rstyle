@@ -2,12 +2,10 @@ use super::*;
 
 const CLEAN: &str = "pub fn mixed()->u128 {0}";
 
-fn reviewed() -> (TempDir, Value) {
-    let (directory, original) = configured();
-    for index in 0..diagnostics(&original).len() {
-        dismiss(directory.path(), &original, index);
+fn reviewed_from_configured(directory: &TempDir, original: &Value) {
+    for index in 0..diagnostics(original).len() {
+        dismiss(directory.path(), original, index);
     }
-    (directory, original)
 }
 fn current(directory: &Path, extra: &[&str]) -> (Output, Value) {
     let mut args = vec![
@@ -57,7 +55,32 @@ fn states(report: &Value, expected: &str) {
 
 #[test]
 fn completed_six_rule_negatives_support_readonly_status_dry_run_and_explicit_pruning() {
-    let (directory, _) = reviewed();
+    let (directory, _, raw) = capture(SOURCE, &[]);
+    for scenario in [
+        suppressed_invalid_and_excluded_owners_cannot_retire_numeric_choices_scenario
+            as fn(&TempDir, &Value),
+        changed_policy_context_and_unselected_files_keep_retained_choices_scenario
+            as fn(&TempDir, &Value),
+        missing_and_generated_owners_do_not_become_numeric_negatives_scenario
+            as fn(&TempDir, &Value),
+        direct_negatives_survive_unrelated_generated_inputs_but_density_remains_unavailable_scenario
+            as fn(&TempDir, &Value),
+        completed_numeric_negatives_do_not_require_strict_pair_completion_scenario
+            as fn(&TempDir, &Value),
+        completed_six_rule_negatives_support_readonly_status_dry_run_and_explicit_pruning_scenario
+            as fn(&TempDir, &Value),
+    ] {
+        reset_review_fixture(&directory);
+        let original = configured_from_capture(&directory, &raw);
+        reviewed_from_configured(&directory, &original);
+        scenario(&directory, &original);
+    }
+}
+
+fn completed_six_rule_negatives_support_readonly_status_dry_run_and_explicit_pruning_scenario(
+    directory: &TempDir,
+    _original: &Value,
+) {
     let path = directory.path().join("reviews.json");
     let bytes = std::fs::read(&path).unwrap();
     std::fs::write(directory.path().join("src/lib.rs"), CLEAN).unwrap();
@@ -90,9 +113,10 @@ fn completed_six_rule_negatives_support_readonly_status_dry_run_and_explicit_pru
     assert!(saved.get("compiler_diagnostic_entries").is_none());
 }
 
-#[test]
-fn suppressed_invalid_and_excluded_owners_cannot_retire_numeric_choices() {
-    let (directory, _) = reviewed();
+fn suppressed_invalid_and_excluded_owners_cannot_retire_numeric_choices_scenario(
+    directory: &TempDir,
+    _original: &Value,
+) {
     let path = directory.path().join("reviews.json");
     let bytes = std::fs::read(&path).unwrap();
     for comment in [
@@ -128,9 +152,10 @@ fn suppressed_invalid_and_excluded_owners_cannot_retire_numeric_choices() {
     assert_eq!(std::fs::read(path).unwrap(), bytes);
 }
 
-#[test]
-fn changed_policy_context_and_unselected_files_keep_retained_choices() {
-    let (directory, _) = reviewed();
+fn changed_policy_context_and_unselected_files_keep_retained_choices_scenario(
+    directory: &TempDir,
+    _original: &Value,
+) {
     let path = directory.path().join("reviews.json");
     let bytes = std::fs::read(&path).unwrap();
     std::fs::write(directory.path().join("src/lib.rs"), CLEAN).unwrap();
@@ -160,9 +185,10 @@ fn changed_policy_context_and_unselected_files_keep_retained_choices() {
     assert_eq!(std::fs::read(path).unwrap(), bytes);
 }
 
-#[test]
-fn missing_and_generated_owners_do_not_become_numeric_negatives() {
-    let (directory, _) = reviewed();
+fn missing_and_generated_owners_do_not_become_numeric_negatives_scenario(
+    directory: &TempDir,
+    _original: &Value,
+) {
     std::fs::write(
         directory.path().join("src/lib.rs"),
         "pub fn different()->u128 {0}",
@@ -182,9 +208,10 @@ fn missing_and_generated_owners_do_not_become_numeric_negatives() {
     assert_eq!(generated["review_prune"]["removed_entries"], 0);
 }
 
-#[test]
-fn direct_negatives_survive_unrelated_generated_inputs_but_density_remains_unavailable() {
-    let (directory, _) = reviewed();
+fn direct_negatives_survive_unrelated_generated_inputs_but_density_remains_unavailable_scenario(
+    directory: &TempDir,
+    _original: &Value,
+) {
     std::fs::write(
         directory.path().join("src/lib.rs"),
         format!("{CLEAN}\nmacro_rules! make {{()=>{{pub fn generated(){{}}}}}} make!();"),
@@ -244,9 +271,10 @@ fn baseline_resolution_reuses_the_same_completed_scope_gates() {
     assert_ne!(original["matching"], Value::Null);
 }
 
-#[test]
-fn completed_numeric_negatives_do_not_require_strict_pair_completion() {
-    let (directory, _) = reviewed();
+fn completed_numeric_negatives_do_not_require_strict_pair_completion_scenario(
+    directory: &TempDir,
+    _original: &Value,
+) {
     std::fs::write(
         directory.path().join("src/lib.rs"),
         format!("{CLEAN} pub fn first(x:u8)->u8 {{x+1}} pub fn second(x:u8)->u8 {{x+2}}"),

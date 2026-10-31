@@ -91,14 +91,49 @@ fn proposal_baseline_covers_five_families_and_preserves_raw_reports() {
 
 #[test]
 fn proposal_baseline_replays_full_and_compact_without_sources_or_tools() {
-    let (directory, original) = exported(HELPERS);
+    let (directory, output, seed) = capture(HELPERS, &["--compiler-patterns"]);
+    checked(&output, 0);
+    check_test_proposals_remain_distinct_and_generated_harness_stays_incomplete(
+        directory.path(),
+        &seed,
+    );
+    proposal_inventory_keeps_site_and_definition_roles_distinct_on_one_owner(
+        directory.path(),
+        &seed,
+    );
+    proposal_baselines_reject_invalid_snapshots_and_never_overwrite(directory.path(), &seed);
+    movement_is_existing_changed_graphs_fail_and_absent_proposals_stay_unavailable(
+        directory.path(),
+        &seed,
+    );
+    check_source_free_proposal_baseline(directory.path(), &seed);
+}
+
+fn export_helper_baseline(directory: &Path, seed: &Value) -> Value {
+    std::fs::write(directory.join("src/lib.rs"), HELPERS).unwrap();
+    let path = directory.join("baseline.json");
+    if path.exists() {
+        std::fs::remove_file(path).unwrap();
+    }
+    let (output, report) = replay(
+        directory,
+        seed,
+        &["--write-compiler-pattern-baseline", "baseline.json"],
+    );
+    checked(&output, 0);
+    assert_eq!(proposals(&report), proposals(seed));
+    report
+}
+
+fn check_source_free_proposal_baseline(directory: &Path, seed: &Value) {
+    let original = export_helper_baseline(directory, seed);
     for path in ["src/lib.rs", "Cargo.toml"] {
-        std::fs::remove_file(directory.path().join(path)).unwrap();
+        std::fs::remove_file(directory.join(path)).unwrap();
     }
     for detail in ["full", "compact"] {
         let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
         command
-            .current_dir(directory.path())
+            .current_dir(directory)
             .args([
                 "clones",
                 "--format",
@@ -113,7 +148,7 @@ fn proposal_baseline_replays_full_and_compact_without_sources_or_tools() {
                 detail,
             ])
             .args(COMPARE)
-            .env("PATH", directory.path().join("no-tools"));
+            .env("PATH", directory.join("no-tools"));
         let output = diagnostic_process::output(&mut command).unwrap();
         checked(&output, 0);
         let report: Value = serde_json::from_slice(&output.stdout).unwrap();
@@ -122,11 +157,13 @@ fn proposal_baseline_replays_full_and_compact_without_sources_or_tools() {
     }
 }
 
-#[test]
-fn movement_is_existing_changed_graphs_fail_and_absent_proposals_stay_unavailable() {
-    let (directory, _) = exported(HELPERS);
+fn movement_is_existing_changed_graphs_fail_and_absent_proposals_stay_unavailable(
+    directory: &Path,
+    seed: &Value,
+) {
+    let _original = export_helper_baseline(directory, seed);
     std::fs::write(
-        directory.path().join("src/lib.rs"),
+        directory.join("src/lib.rs"),
         format!(
             "\n// moved\n{}",
             HELPERS
@@ -135,23 +172,23 @@ fn movement_is_existing_changed_graphs_fail_and_absent_proposals_stay_unavailabl
         ),
     )
     .unwrap();
-    let (output, moved) = current(directory.path(), COMPARE);
+    let (output, moved) = current(directory, COMPARE);
     checked(&output, 0);
     assert_eq!(baseline(&moved)["existing_findings"], 1);
     std::fs::write(
-        directory.path().join("src/lib.rs"),
+        directory.join("src/lib.rs"),
         HELPERS.replace("wrapping_add(8)", "wrapping_add(9)"),
     )
     .unwrap();
-    let (output, changed) = current(directory.path(), COMPARE);
+    let (output, changed) = current(directory, COMPARE);
     checked(&output, 1);
     assert_eq!(baseline(&changed)["current"][0]["state"], "changed");
     std::fs::write(
-        directory.path().join("src/lib.rs"),
+        directory.join("src/lib.rs"),
         "pub fn first(a:u128)->u128 {a}",
     )
     .unwrap();
-    let (output, absent) = current(directory.path(), COMPARE);
+    let (output, absent) = current(directory, COMPARE);
     checked(&output, 0);
     assert_eq!(baseline(&absent)["retained"][0]["state"], "unavailable");
     assert_eq!(baseline(&absent)["new_findings"], 0);
@@ -245,12 +282,14 @@ fn incomplete_generated_or_uncaptured_graph_inputs_cannot_export() {
     assert!(!directory.path().join("baseline.json").exists());
 }
 
-#[test]
-fn check_test_proposals_remain_distinct_and_generated_harness_stays_incomplete() {
-    let (directory, _) = exported(HELPERS);
+fn check_test_proposals_remain_distinct_and_generated_harness_stays_incomplete(
+    directory: &Path,
+    seed: &Value,
+) {
+    let _original = export_helper_baseline(directory, seed);
     let mut args = COMPARE.to_vec();
     args.push("--all-targets");
-    let (output, report) = current(directory.path(), &args);
+    let (output, report) = current(directory, &args);
     checked(&output, 2);
     let rows = baseline(&report)["current"].as_array().unwrap();
     assert_eq!(rows.len(), 2);
@@ -258,13 +297,12 @@ fn check_test_proposals_remain_distinct_and_generated_harness_stays_incomplete()
     assert_eq!(baseline(&report)["coverage"], "incomplete");
 }
 
-#[test]
-fn proposal_baselines_reject_invalid_snapshots_and_never_overwrite() {
-    let (directory, original) = exported(HELPERS);
-    let path = directory.path().join("baseline.json");
+fn proposal_baselines_reject_invalid_snapshots_and_never_overwrite(directory: &Path, seed: &Value) {
+    let original = export_helper_baseline(directory, seed);
+    let path = directory.join("baseline.json");
     let bytes = std::fs::read(&path).unwrap();
     let output = raw(
-        directory.path(),
+        directory,
         Some(&original),
         &["--write-compiler-pattern-baseline", "baseline.json"],
     );
@@ -284,16 +322,18 @@ fn proposal_baselines_reject_invalid_snapshots_and_never_overwrite() {
             _ => bad["proposal_policy"]["max_holes"] = 999.into(),
         }
         std::fs::write(&path, serde_json::to_vec(&bad).unwrap()).unwrap();
-        checked(&raw(directory.path(), None, COMPARE), 2);
+        checked(&raw(directory, None, COMPARE), 2);
     }
     std::fs::write(&path, vec![b' '; 4 * 1024 * 1024 + 1]).unwrap();
-    checked(&raw(directory.path(), None, COMPARE), 2);
+    checked(&raw(directory, None, COMPARE), 2);
 }
 
-#[test]
-fn proposal_inventory_keeps_site_and_definition_roles_distinct_on_one_owner() {
-    let (directory, original) = exported(HELPERS);
-    let path = directory.path().join("baseline.json");
+fn proposal_inventory_keeps_site_and_definition_roles_distinct_on_one_owner(
+    directory: &Path,
+    seed: &Value,
+) {
+    let original = export_helper_baseline(directory, seed);
+    let path = directory.join("baseline.json");
     let mut saved: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
     let mut alternate = saved["entries"][0].clone();
     let last = alternate["sites"].as_array_mut().unwrap().pop().unwrap();
@@ -303,7 +343,7 @@ fn proposal_inventory_keeps_site_and_definition_roles_distinct_on_one_owner() {
         .push(last["declaration"].clone());
     saved["entries"].as_array_mut().unwrap().push(alternate);
     std::fs::write(&path, serde_json::to_vec(&saved).unwrap()).unwrap();
-    let (output, report) = replay(directory.path(), &original, COMPARE);
+    let (output, report) = replay(directory, &original, COMPARE);
     checked(&output, 0);
     assert_eq!(baseline(&report)["existing_findings"], 1);
     assert_eq!(baseline(&report)["retained"][0]["state"], "existing");

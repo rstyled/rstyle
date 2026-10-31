@@ -45,6 +45,7 @@ mod scalar_product_constructors;
 mod size_calls;
 mod slice_patterns;
 pub mod source;
+mod source_scans;
 mod sources;
 mod trait_members;
 mod tuple_assignment;
@@ -128,12 +129,7 @@ pub fn style_crate_facts(
     scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<Vec<StyleFnFacts>, String> {
-    let sources = FunctionSources {
-        tcx,
-        scanned,
-        options,
-    };
-    collect_functions(tcx, |id| {
+    collect_source_functions(tcx, scanned, options, |sources, id| {
         let (mut facts, ctx) = sources
             .function_source_with(id, |_, body, _| {
                 (hir::reference(body.value.hir_id), Uncaptured::NotRequested)
@@ -154,8 +150,7 @@ enum FunctionEvidence {
     All,
 }
 
-struct FunctionCollector<'tcx> {
-    tcx: TyCtxt<'tcx>,
+struct FunctionCollector {
     evidence: FunctionEvidence,
 }
 
@@ -165,12 +160,22 @@ fn collect_crate_facts(
     options: &Options<'_>,
     evidence: FunctionEvidence,
 ) -> Result<Vec<HirFnFacts>, String> {
-    let collector = FunctionCollector { tcx, evidence };
-    collect_functions(tcx, |id| {
-        collector.function(id, scanned, options).map_err(|error| format!("{}: {error}", tcx.def_path_str(id.to_def_id()))).and_then(|facts| facts.ok_or_else(|| format!(
+    let collector = FunctionCollector { evidence };
+    collect_source_functions(tcx, scanned, options, |sources, id| {
+        collector.function(id, sources).map_err(|error| format!("{}: {error}", tcx.def_path_str(id.to_def_id()))).and_then(|facts| facts.ok_or_else(|| format!(
             "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
         )))
     })
+}
+
+fn collect_source_functions<T>(
+    tcx: TyCtxt<'_>,
+    scanned: &[source::Function],
+    options: &Options<'_>,
+    mut collect: impl FnMut(&FunctionSources<'_, '_, '_>, LocalDefId) -> Result<T, String>,
+) -> Result<Vec<T>, String> {
+    let sources = FunctionSources::new(tcx, scanned, options);
+    collect_functions(tcx, |id| collect(&sources, id))
 }
 
 fn collect_functions<T>(
@@ -205,16 +210,17 @@ fn capture_source_evidence(
     generated_sources::capture(tcx, options, facts)
 }
 
-impl FunctionCollector<'_> {
+impl FunctionCollector {
     fn function(
         &self,
         id: LocalDefId,
-        scanned: &[source::Function],
-        options: &Options<'_>,
+        sources: &FunctionSources<'_, '_, '_>,
     ) -> Result<Option<HirFnFacts>, String> {
-        let Some((facts, ctx)) = function_source(self.tcx, id, scanned, options) else {
+        let options = sources.options;
+        let Some((facts, ctx)) = sources.function(id) else {
             return Ok(None);
         };
+
         let mut facts = match self.evidence {
             FunctionEvidence::Advisory { .. } => {
                 capture_advisory_function(&ctx, id, facts, options)
@@ -291,25 +297,45 @@ fn function_source<'tcx>(
 ) -> Option<(HirFnFacts, hir::Context<'tcx>)> {
     FunctionSources {
         tcx,
-        scanned,
+        scanned: source_scans::SourceScans::linear(scanned),
         options,
     }
-    .function_source_with(id, |ctx, original, params| {
-        let body = ctx.expression(original.value);
-        let scope = format!("scope:source:fn:0:{}", ctx.source_bytes.len());
-        let bindings = params
-            .iter()
-            .flat_map(|p| hir::bindings(&p.pat, &scope))
-            .chain(hir::bindings(&body, &scope))
-            .collect();
-        (body, bindings)
-    })
+    .function(id)
+}
+
+impl<'tcx> FunctionSources<'_, 'tcx, '_> {
+    fn function(&self, id: LocalDefId) -> Option<(HirFnFacts, hir::Context<'tcx>)> {
+        self.function_source_with(id, |ctx, original, params| {
+            let body = ctx.expression(original.value);
+            let scope = format!("scope:source:fn:0:{}", ctx.source_bytes.len());
+            let bindings = params
+                .iter()
+                .flat_map(|p| hir::bindings(&p.pat, &scope))
+                .chain(hir::bindings(&body, &scope))
+                .collect();
+            (body, bindings)
+        })
+    }
 }
 
 struct FunctionSources<'a, 'tcx, 'options> {
     tcx: TyCtxt<'tcx>,
-    scanned: &'a [source::Function],
+    scanned: source_scans::SourceScans<'a>,
     options: &'a Options<'options>,
+}
+
+impl<'a, 'tcx, 'options> FunctionSources<'a, 'tcx, 'options> {
+    fn new(
+        tcx: TyCtxt<'tcx>,
+        scanned: &'a [source::Function],
+        options: &'a Options<'options>,
+    ) -> Self {
+        Self {
+            tcx,
+            scanned: source_scans::SourceScans::new(scanned),
+            options,
+        }
+    }
 }
 
 impl<'tcx> FunctionSources<'_, 'tcx, '_> {
@@ -318,11 +344,8 @@ impl<'tcx> FunctionSources<'_, 'tcx, '_> {
         id: LocalDefId,
         contents: impl FnOnce(&hir::Context<'tcx>, &rhir::Body<'tcx>, &[ParamFact]) -> (B, S),
     ) -> Option<(HirFnFacts<B, S>, hir::Context<'tcx>)> {
-        let Self {
-            tcx,
-            scanned,
-            options,
-        } = *self;
+        let tcx = self.tcx;
+        let options = self.options;
         let node = tcx.hir_node_by_def_id(id);
         let sig = node.fn_sig()?;
         let body = tcx.hir_body(node.body_id()?);
@@ -341,7 +364,12 @@ impl<'tcx> FunctionSources<'_, 'tcx, '_> {
         };
         let params = parameters(&ctx, sig, body);
         let (body, bindings) = contents(&ctx, body, &params);
-        let scan = find_source_scan(&ctx, scanned, body_source_span(tcx, id));
+        let scan = self.scanned.find(
+            ctx.function_span,
+            body_source_span(tcx, id),
+            ctx.profile
+                .supports("rust.conditional-source-correspondence"),
+        );
         let source_diagnostics = source_findings(&ctx, scan, sig.span);
 
         let facts = HirFnFacts {
@@ -368,20 +396,6 @@ fn body_source_span(tcx: TyCtxt<'_>, id: LocalDefId) -> rustc_span::Span {
         .value
         .span
         .source_callsite()
-}
-
-fn find_source_scan<'a>(
-    ctx: &hir::Context<'_>,
-    scanned: &'a [source::Function],
-    body_span: rustc_span::Span,
-) -> Option<&'a source::Function> {
-    scanned.iter().find(|scan| {
-        scan.span.source_callsite() == ctx.function_span
-            || (ctx
-                .profile
-                .supports("rust.conditional-source-correspondence")
-                && scan.body_span.source_callsite() == body_span)
-    })
 }
 
 fn capture_correspondence(
@@ -608,7 +622,7 @@ pub fn source_inventory<B, S>(
         .supports("rust.cfg-inactive-definitions")
         .then(|| evidence::cfgs(tcx));
     let context = InventoryContext {
-        facts,
+        facts: inventory_index(facts),
         cfgs: cfgs.as_deref(),
     };
     let records = files
@@ -664,8 +678,21 @@ fn inventory_files(
     Ok(files)
 }
 
+fn inventory_index<B, S>(
+    facts: &[HirFnFacts<B, S>],
+) -> std::collections::BTreeMap<(u32, u32), Vec<&HirFnFacts<B, S>>> {
+    let mut index = std::collections::BTreeMap::<_, Vec<_>>::new();
+    for fact in facts {
+        index
+            .entry((fact.fn_span.start, fact.fn_span.end))
+            .or_default()
+            .push(fact);
+    }
+    index
+}
+
 struct InventoryContext<'a, B, S> {
-    facts: &'a [HirFnFacts<B, S>],
+    facts: std::collections::BTreeMap<(u32, u32), Vec<&'a HirFnFacts<B, S>>>,
     cfgs: Option<&'a [String]>,
 }
 
@@ -714,7 +741,7 @@ fn inventory_file<B, S>(
                 .end
                 .checked_add(original_span.start)
                 .ok_or("Source inventory span overflow")?;
-            inventory_definition(path, definition, context.facts)
+            inventory_definition(path, definition, &context.facts)
         })
         .collect::<Result<Vec<_>, String>>()
 }
@@ -722,10 +749,12 @@ fn inventory_file<B, S>(
 fn inventory_definition<B, S>(
     path: &std::path::Path,
     definition: rstyle_pdg::source_evidence::SourceDefinition,
-    facts: &[HirFnFacts<B, S>],
+    facts: &std::collections::BTreeMap<(u32, u32), Vec<&HirFnFacts<B, S>>>,
 ) -> Result<serde_json::Value, String> {
     let active: Vec<_> = facts
-        .iter()
+        .get(&(definition.function_span.start, definition.function_span.end))
+        .into_iter()
+        .flatten()
         .filter(|fact| {
             fact.fn_span == definition.function_span
                 && fact.source.bytes == definition.function_source

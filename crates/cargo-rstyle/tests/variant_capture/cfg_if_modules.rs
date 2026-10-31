@@ -91,14 +91,6 @@ pub(super) fn workspace(root: &str, definition: &str) -> TempDir {
     directory
 }
 
-#[test]
-fn cfg_if_original_definition_preserves_selected_module_imports_and_float_kernels() {
-    let directory = workspace(ROOT, CFG_IF);
-    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
-    assert!(output.status.success(), "{}", report["capture_failures"]);
-    check_family(&report);
-}
-
 fn check_family(report: &Value) {
     let functions = report["functions"].as_array().unwrap();
     let expected = [

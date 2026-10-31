@@ -240,14 +240,14 @@ fn json_output_reports_resolved_mutations_and_effects() {
     assert!(rules_for(&report, "very_long").contains(&"fn_length".to_string()));
     assert!(rules_for(&report, "Account::peek").is_empty());
     assert!(rules_for(&report, "pure").is_empty());
+    effects_are_classified_from_resolved_paths(&report);
+    suppressions_apply_only_with_a_reason(&report);
+    derived_code_is_not_analyzed(&report);
 }
 
-#[test]
-fn effects_are_classified_from_resolved_paths() {
-    let dir = fixture("violations");
-    let report = style_json(dir.path());
+fn effects_are_classified_from_resolved_paths(report: &Value) {
     let labels = |function: &str| -> Vec<String> {
-        diagnostics_for(&report, function)
+        diagnostics_for(report, function)
             .iter()
             .filter(|d| d["rule_id"] == "side_effect_density")
             .flat_map(|d| d["details"].as_array().unwrap().clone())
@@ -278,11 +278,9 @@ fn effects_are_classified_from_resolved_paths() {
     );
 }
 
-#[test]
-fn suppressions_apply_only_with_a_reason() {
-    let report = style_json(fixture("violations").path());
-    assert!(rules_for(&report, "allowed").is_empty());
-    let missing = rules_for(&report, "missing_reason");
+fn suppressions_apply_only_with_a_reason(report: &Value) {
+    assert!(rules_for(report, "allowed").is_empty());
+    let missing = rules_for(report, "missing_reason");
     assert!(missing.contains(&"fn_params".to_string()), "{missing:?}");
     assert!(
         missing.contains(&"invalid_suppression".to_string()),
@@ -290,9 +288,7 @@ fn suppressions_apply_only_with_a_reason() {
     );
 }
 
-#[test]
-fn derived_code_is_not_analyzed() {
-    let report = style_json(fixture("violations").path());
+fn derived_code_is_not_analyzed(report: &Value) {
     let summary = report["summary"]["functions"].as_u64().unwrap();
     // 11 hand-written fns; derive(Debug, Clone, PartialEq) would add more if leaked.
     assert_eq!(summary, 11);
@@ -781,6 +777,19 @@ fn patterns_for_loops_and_for_each_form_one_trait_candidate() {
             .contains("M0 = Dog::bark | Cat::meow")
     );
     assert!(c["sites"][0]["line"].as_u64().unwrap() > 0);
+    patterns_enum_dispatch_is_a_candidate(&report);
+    patterns_getters_never_become_candidates_and_fall_below_min_score(&report);
+    patterns_already_behind_a_trait_is_suppressed_not_proposed(&report);
+    // The shared `(&Self) -> String` signature is common, so its group scores low.
+    let strict = patterns_json(dir.path(), &["--min-score", "1.0"]);
+    let keys: Vec<&str> = strict["signature_groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|g| g["key"].as_str().unwrap())
+        .collect();
+    assert!(!keys.contains(&"fn(&Self) -> String"), "{keys:?}");
+    assert!(candidate_at(&strict, "emit_dogs").is_some());
 }
 
 fn observation_of(report: &Value, caller: &str) -> String {
@@ -794,54 +803,33 @@ fn patterns_literal_holes_show_whole_values() {
     let report = patterns_json(dir.path(), &[]);
     let seen = observation_of(&report, "tag_dog");
     assert!(seen.contains(r#"L0 = "alpha" | "beta""#), "{seen}");
+    patterns_macro_literals_never_show_partial_tokens(&report);
 }
 
-#[test]
-fn patterns_macro_literals_never_show_partial_tokens() {
-    let dir = fixture("literals");
-    let report = patterns_json(dir.path(), &[]);
-    let seen = observation_of(&report, "fmt_dog");
+fn patterns_macro_literals_never_show_partial_tokens(report: &Value) {
+    let seen = observation_of(report, "fmt_dog");
     // Inside macros the span covers the call: such holes must be absent, not garbled.
     assert!(!seen.contains("format!"), "{seen}");
     assert!(!seen.contains("L0 = "), "{seen}");
 }
 
-#[test]
-fn patterns_enum_dispatch_is_a_candidate() {
-    let dir = fixture("animals");
-    let report = patterns_json(dir.path(), &[]);
-    let c = candidate_at(&report, "pet_sound").expect("dispatch candidate");
+fn patterns_enum_dispatch_is_a_candidate(report: &Value) {
+    let c = candidate_at(report, "pet_sound").expect("dispatch candidate");
     assert_eq!(c["kind"], "enum_dispatch");
     assert_eq!(site_names(c, "definitions"), ["Dog::bark", "Cat::meow"]);
 }
 
-#[test]
-fn patterns_getters_never_become_candidates_and_fall_below_min_score() {
-    let dir = fixture("animals");
-    let report = patterns_json(dir.path(), &[]);
+fn patterns_getters_never_become_candidates_and_fall_below_min_score(report: &Value) {
     for c in report["candidates"].as_array().unwrap() {
         let touched = [site_names(c, "sites"), site_names(c, "definitions")].concat();
         for getter in ["Rock::label", "Pebble::tag", "Dog::name", "Cat::name"] {
             assert!(!touched.iter().any(|n| n == getter), "{getter} in {c}");
         }
     }
-    // The shared `(&Self) -> String` signature is common, so its group scores low.
-    let strict = patterns_json(dir.path(), &["--min-score", "1.0"]);
-    let keys: Vec<&str> = strict["signature_groups"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|g| g["key"].as_str().unwrap())
-        .collect();
-    assert!(!keys.contains(&"fn(&Self) -> String"), "{keys:?}");
-    assert!(candidate_at(&strict, "emit_dogs").is_some());
 }
 
-#[test]
-fn patterns_already_behind_a_trait_is_suppressed_not_proposed() {
-    let dir = fixture("animals");
-    let report = patterns_json(dir.path(), &[]);
-    assert!(candidate_at(&report, "emit_cow").is_none());
+fn patterns_already_behind_a_trait_is_suppressed_not_proposed(report: &Value) {
+    assert!(candidate_at(report, "emit_cow").is_none());
     let hidden = report["suppressed"].as_array().unwrap();
     assert_eq!(hidden.len(), 1);
     assert_eq!(site_names(&hidden[0], "sites"), ["emit_cow", "emit_hen"]);

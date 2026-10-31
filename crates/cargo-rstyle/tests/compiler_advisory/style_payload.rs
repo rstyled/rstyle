@@ -66,11 +66,19 @@ fn style_snapshot(wire: &Value) {
 }
 
 fn complete_snapshot(style: &Value, full: &Value) {
-    shared_unit_options(style, full);
-    assert_eq!(full["schema"], "rstyle.diagnostic.raw-facts/4");
+    let bytes = serde_json::to_vec(full).unwrap();
+    let restored = rstyle_pdg::unit_store::read_diagnostic_snapshot_headers_phase(
+        &bytes,
+        "compiler-advisory-only",
+    )
+    .unwrap();
+    shared_unit_options(style, full, &restored);
+    assert_eq!(full["schema"], "rstyle.diagnostic.raw-facts/5");
     assert_eq!(full["phase"], "compiler-advisory-only");
     assert_eq!(style["sources"], full["sources"]);
+    assert_eq!(full["build_settings"].as_array().unwrap().len(), 1);
     for function in full["facts"].as_array().unwrap() {
+        assert_eq!(function["build"]["settings"], 0);
         let header = style["facts"]
             .as_array()
             .unwrap()
@@ -84,15 +92,24 @@ fn complete_snapshot(style: &Value, full: &Value) {
             assert_eq!(header[field], function[field], "{field}");
         }
         signature_identity(&header["signature"], &function["signature"]);
+        let canonical = restored
+            .iter()
+            .find(|fact| fact.name == function["name"].as_str().unwrap())
+            .unwrap();
+        let build = serde_json::to_value(&canonical.build).unwrap();
         for (field, value) in header["build"].as_object().unwrap() {
             if field != "frontend_options" {
-                assert_eq!(value, &function["build"][field], "{field}");
+                assert_eq!(value, &build[field], "{field}");
             }
         }
     }
 }
 
-fn shared_unit_options(style: &Value, full: &Value) {
+fn shared_unit_options(
+    style: &Value,
+    full: &Value,
+    complete: &[rstyle_pdg::HirFnFacts<rstyle_pdg::HirRef>],
+) {
     let bytes = serde_json::to_vec(style).unwrap();
     let restored =
         rstyle_pdg::unit_store::read_style_snapshot_phase(&bytes, "compiler-style-inputs").unwrap();
@@ -103,24 +120,29 @@ fn shared_unit_options(style: &Value, full: &Value) {
                 first,
                 fact.build.frontend_options.get(key).unwrap()
             ));
-            let original = full["facts"]
-                .as_array()
-                .unwrap()
+            let original = complete
                 .iter()
-                .find(|original| original["name"] == fact.name)
+                .find(|original| original.name == fact.name)
                 .unwrap();
-            assert_eq!(first, &original["build"]["frontend_options"][key]);
+            let original_option = original.build.frontend_options.get(key).unwrap();
+            assert_eq!(first, original_option);
+            assert!(std::ptr::eq(
+                complete[0].build.frontend_options.get(key).unwrap(),
+                original_option
+            ));
         }
     }
-    assert!(full["facts"][0]["build"]["frontend_options"]["invocation"].is_array());
-    assert_eq!(
-        style["facts"][0]["build"]["frontend_options"]["invocation"]["kind"],
-        "inline"
-    );
-    assert_eq!(
-        style["facts"][1]["build"]["frontend_options"]["invocation"]["kind"],
-        "shared_reference"
-    );
+    for wire in [style, full] {
+        assert!(wire["facts"][0]["build"]["frontend_options"]["invocation"]["value"].is_array());
+        assert_eq!(
+            wire["facts"][0]["build"]["frontend_options"]["invocation"]["kind"],
+            "inline"
+        );
+        assert_eq!(
+            wire["facts"][1]["build"]["frontend_options"]["invocation"]["kind"],
+            "shared_reference"
+        );
+    }
 }
 
 fn signature_identity(style: &Value, full: &Value) {

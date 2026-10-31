@@ -78,6 +78,48 @@ toolchain, build profile, cache state, filter and concurrency with observations.
 The supervisor cannot expose stderr that an inner CLI test buffers with
 `Command::output`; live child-stage instrumentation remains a separate task.
 
+### One-command CI phase measurements
+
+`measure_ci.py` wraps the same watchdog, adding `measurement.json` with literal
+argv, cwd, Git commit, repository toolchain file and explicit override, platform,
+CPU count, host available memory on Linux, and selected build controls. It never
+installs or downloads tools. The toolchain file records intent, not proof of the
+compiler actually selected by Cargo. Metadata probes are bounded and excluded
+from command timing. `run.json` retains monotonic wall time, outcome and child
+exit status; stdout/stderr logs retain raw bytes. Launch errors exit 127 and
+have a separate `launch_error` outcome. Output directories must be new.
+
+CPU seconds use the delta of POSIX `RUSAGE_CHILDREN` around the watchdog call:
+waited children, with descendant accounting only as propagated by the OS. This
+is not process-tree sampling. Peak RSS is explicitly null because the cumulative
+child high-water mark cannot be differenced after metadata probes. Available
+memory is host `MemAvailable`, not a container quota; it is null on macOS.
+There is no CPU/heap profile, aggregate tree memory, cgroup/quota measurement or
+full environment capture. Record cache condition, profile, filters, runner image
+and concurrency alongside each run; the harness does not infer these.
+
+For example, from the repository root, on an already provisioned machine:
+
+```sh
+# Use an absolute workspace target, separate from each test's fixture targets.
+export CARGO_TARGET_DIR="$PWD/target/ci-measure-warm"
+export RSTYLE_TEST_DRIVER="$CARGO_TARGET_DIR/debug/rstyle-driver"
+python3 scripts/measure_ci.py --phase driver-build --timeout 600 --output /tmp/ci-driver-1 -- cargo build --locked -p rstyle-driver --timings
+python3 scripts/measure_ci.py --phase test-prebuild --timeout 900 --output /tmp/ci-prebuild-1 -- cargo test --workspace --locked --no-run --timings
+python3 scripts/measure_ci.py --phase nextest --timeout 1800 --output /tmp/ci-nextest-1 -- cargo nextest run --workspace --locked --profile ci
+python3 scripts/measure_ci.py --phase doctests --timeout 300 --output /tmp/ci-doc-1 -- cargo test --workspace --locked --doc
+python3 -m unittest discover -s scripts -p test_measure_ci.py
+```
+
+These are separate observations, not a command that runs every phase at once.
+Nextest still includes its own build check/discovery; do not label its entire
+wall time test execution. Its existing `ci` profile retains four test processes.
+The prebuilt absolute driver path matches `scripts/test.sh`; fixture helpers
+must continue clearing `CARGO_TARGET_DIR` for their isolated source targets.
+Use a distinct target directory for a cold condition, and a new output directory
+for every repetition. Cargo timings and nextest JUnit remain in the target tree;
+retain them separately from the harness logs. These examples do not change CI.
+
 Set `RSTYLE_PERF=1` for opt-in `rstyle-perf` JSON lines on stderr. Initial
 instrumentation covers `capture.binary_hash`, `producer.produce`,
 `producer.verify` and `helper.verify`. Starts are emitted before work; finishes
@@ -138,3 +180,77 @@ Build the workspace and `rstyle-pdg`'s `unit_import_replay` example in that prof
 first. The script retains reports, timing and diagnostic logs in a new temporary
 directory, checks completeness and pair decisions, and separates ordinary
 samples from `RSTYLE_PERF` observations.
+
+## Shared CI style capture
+
+CI reuses the normal CLI and driver binaries produced by the workspace test
+prebuild, then runs `python3 scripts/ci-style.py --binary
+/path/to/cargo-rstyle --output NEW_DIRECTORY`. It captures graph-rich patterns
+once and numerically replays that exact run with normal strict replay validation.
+`rstyle-report.json` keeps the numeric presentation; `rstyle-patterns.json` keeps
+the pattern presentation; `patterns-capture-report.json` preserves the original
+archive before replay replaces its presentation. `status.json` records both
+independent gate statuses. Pattern candidates still permit numeric evaluation;
+a capture tool error cannot certify numeric success. The collection exits with
+the numeric gate status. The following CI step runs `--patterns-status --output
+DIRECTORY` to print a concise summary and apply the saved pattern status. As before,
+a failed numeric gate skips the subsequent pattern gate. CI now retains pattern
+JSON, including ignored entries, instead of the previous text console listing.
+`python3 -m unittest discover -s scripts -p test_ci_style.py` checks failure paths.
+CI prints concise gate summaries and report locations; full JSON reports remain
+in artifacts. The nextest CI profile prints failing tests and their final failure
+output, while JUnit retains every test result and failed-test bodies.
+
+The nextest path in `test.sh` prebuilds with `cargo test --workspace --locked
+--no-run`, matching the default workspace test dependency graph and producing the normal
+driver through its integration-test binary dependency. It verifies that driver
+before exporting its absolute `RSTYLE_TEST_DRIVER`; doctests remain separate.
+
+Arguments after `--nextest` still go only to nextest. Custom features, targets or
+profiles may require additional nextest compilation; the prebuild does not claim
+to match arbitrary forwarded build options.
+
+## Rust coverage and Codecov
+
+Install `cargo-llvm-cov` version `0.9.1` and `cargo-nextest` version `0.9.148`,
+then run `./scripts/coverage.sh`. The pinned nightly already includes
+`llvm-tools-preview`. The script runs the existing workspace nextest suite and
+doctests once, then writes `target/coverage/lcov.info`. It uses
+`cargo llvm-cov show-env --doctests` before the test prebuild so the ordinary CLI,
+compiler driver, and test executables are instrumented together. An absolute
+profile path collects subprocess coverage even when tests change directories.
+LLVM locks and merges a four-file pool per module signature, bounding disk use
+across repeated CLI/compiler processes. Doctest instrumentation
+uses nightly support in cargo-llvm-cov.
+
+Coverage builds use `line-tables-only` debug information in the dev and test
+profiles to retain filename/line backtraces without full DWARF's disk cost.
+This affects only the script's subprocesses; optimization and debug assertions
+keep their normal settings.
+
+The default instrumented build directory is `target/coverage`; set
+`CARGO_TARGET_DIR` to choose another isolated directory. Nextest's JUnit report
+remains at workspace-relative `target/nextest/ci/junit.xml`. Coverage environment settings
+stay inside the script. Normal builds and style capture should use their normal
+target directory afterward.
+
+CI collects coverage only on Ubuntu x64, replacing that lane's existing test
+invocation. Its instrumented build and profiles live under `RUNNER_TEMP`, outside
+the normal Cargo cache. CI then builds ordinary CLI/driver binaries for the style
+checks. The other two platforms retain ordinary tests. The LCOV artifact is
+retained independently of upload; a separate job downloads it and uploads only
+that file to Codecov. Repository branches use OIDC; fork pull requests use
+Codecov's public-repository tokenless upload path. Only the upload job receives
+`id-token: write`; no stored Codecov token is required. Existing pull-request and
+main-branch triggers are unchanged.
+
+The repository must be enabled in Codecov, with GitHub integration configured
+for its coverage reports and pull-request checks. A successful CI upload verifies
+service integration; a report from `main` establishes the default-branch
+comparison baseline. Local report generation does not activate the remote
+repository. Fork uploads depend on Codecov's public-repository tokenless upload
+settings. No coverage threshold or source exclusion is imposed here.
+
+References: [cargo-llvm-cov external tests](https://github.com/taiki-e/cargo-llvm-cov/tree/v0.9.1#get-coverage-of-external-tests),
+[Rust profile merging](https://doc.rust-lang.org/rustc/instrument-coverage.html#running-the-instrumented-binary-to-generate-raw-coverage-profiling-data),
+and [Codecov OIDC](https://github.com/codecov/codecov-action/tree/v5.5.5#using-oidc).

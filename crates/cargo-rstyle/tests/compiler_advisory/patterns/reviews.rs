@@ -78,17 +78,46 @@ fn exact_compiler_reviews_cover_all_five_core_proposal_families() {
 #[test]
 fn compiler_reviews_survive_movement_binders_and_source_free_replay() {
     let (directory, _output, original) = capture(HELPERS, &["--compiler-patterns"]);
-    let candidate = &proposals(&original)["evaluation"]["candidates"][0];
-    dismiss_candidate(directory.path(), &original, candidate, 0);
+    reset_helper_review(directory.path());
+    compiler_review_status_retains_omitted_families_and_lookup_never_creates_files(
+        directory.path(),
+        &original,
+    );
+    reset_helper_review(directory.path());
+    missing_proposal_does_not_prune_a_retained_compiler_review(directory.path(), &original);
+    reset_helper_review(directory.path());
+    compiler_reviews_keep_check_test_contexts_separate(directory.path(), &original);
+    reset_helper_review(directory.path());
+    changed_compiler_graphs_stale_reviews_and_failed_selection_is_atomic(
+        directory.path(),
+        &original,
+    );
+    reset_helper_review(directory.path());
+    check_source_free_compiler_review(directory.path(), &original);
+}
+
+fn reset_helper_review(directory: &Path) {
+    std::fs::write(directory.join("src/lib.rs"), HELPERS).unwrap();
+    for name in ["reviews.json", "exclude.toml"] {
+        let path = directory.join(name);
+        if path.exists() {
+            std::fs::remove_file(path).unwrap();
+        }
+    }
+}
+
+fn check_source_free_compiler_review(directory: &Path, original: &Value) {
+    let candidate = &proposals(original)["evaluation"]["candidates"][0];
+    dismiss_candidate(directory, original, candidate, 0);
     let moved = format!(
         "\n\n// unrelated movement\n{}",
         HELPERS
             .replace("a:u128", "renamed:u128")
             .replace("a.wrapping_add", "renamed.wrapping_add")
     );
-    std::fs::write(directory.path().join("src/lib.rs"), moved).unwrap();
+    std::fs::write(directory.join("src/lib.rs"), moved).unwrap();
     let (output, current) = clones(
-        directory.path(),
+        directory,
         &[
             "--extraction-profile",
             "hir-data-v3",
@@ -105,10 +134,10 @@ fn compiler_reviews_survive_movement_binders_and_source_free_replay() {
         proposals(&current)["visible_candidates"],
         serde_json::json!([])
     );
-    std::fs::remove_file(directory.path().join("src/lib.rs")).unwrap();
-    std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
+    std::fs::remove_file(directory.join("src/lib.rs")).unwrap();
+    std::fs::remove_file(directory.join("Cargo.toml")).unwrap();
     let (output, saved) = replay(
-        directory.path(),
+        directory,
         &current,
         &[
             "--review-file",
@@ -126,24 +155,25 @@ fn compiler_reviews_survive_movement_binders_and_source_free_replay() {
     assert_eq!(saved["matching"], current["matching"]);
 }
 
-#[test]
-fn changed_compiler_graphs_stale_reviews_and_failed_selection_is_atomic() {
-    let (directory, _output, original) = capture(HELPERS, &["--compiler-patterns"]);
+fn changed_compiler_graphs_stale_reviews_and_failed_selection_is_atomic(
+    directory: &Path,
+    original: &Value,
+) {
     dismiss_candidate(
-        directory.path(),
-        &original,
-        &proposals(&original)["evaluation"]["candidates"][0],
+        directory,
+        original,
+        &proposals(original)["evaluation"]["candidates"][0],
         0,
     );
-    let path = directory.path().join("reviews.json");
+    let path = directory.join("reviews.json");
     let bytes = std::fs::read(&path).unwrap();
     std::fs::write(
-        directory.path().join("src/lib.rs"),
+        directory.join("src/lib.rs"),
         HELPERS.replace("wrapping_add(8)", "wrapping_add(9)"),
     )
     .unwrap();
     let (_output, current) = clones(
-        directory.path(),
+        directory,
         &[
             "--extraction-profile",
             "hir-data-v3",
@@ -156,8 +186,12 @@ fn changed_compiler_graphs_stale_reviews_and_failed_selection_is_atomic() {
     );
     assert_eq!(decisions(&current)[0]["state"], "stale");
     assert_eq!(current["review_status"]["records"][0]["state"], "stale");
+    check_failed_compiler_review_selection(directory, &current, &bytes);
+}
+
+fn check_failed_compiler_review_selection(directory: &Path, current: &Value, bytes: &[u8]) {
     let output = rstyle(
-        directory.path(),
+        directory,
         &[
             "clones",
             "--extraction-profile",
@@ -176,20 +210,21 @@ fn changed_compiler_graphs_stale_reviews_and_failed_selection_is_atomic() {
         ],
     );
     assert_eq!(output.status.code(), Some(2));
-    assert_eq!(std::fs::read(path).unwrap(), bytes);
+    assert_eq!(
+        std::fs::read(directory.join("reviews.json")).unwrap(),
+        bytes
+    );
 }
 
-#[test]
-fn compiler_reviews_keep_check_test_contexts_separate() {
-    let (directory, _output, original) = capture(HELPERS, &["--compiler-patterns"]);
+fn compiler_reviews_keep_check_test_contexts_separate(directory: &Path, original: &Value) {
     dismiss_candidate(
-        directory.path(),
-        &original,
-        &proposals(&original)["evaluation"]["candidates"][0],
+        directory,
+        original,
+        &proposals(original)["evaluation"]["candidates"][0],
         0,
     );
     let (_output, report) = clones(
-        directory.path(),
+        directory,
         &[
             "--extraction-profile",
             "hir-data-v3",
@@ -217,25 +252,19 @@ fn compiler_reviews_keep_check_test_contexts_separate() {
     );
 }
 
-#[test]
-fn missing_proposal_does_not_prune_a_retained_compiler_review() {
-    let (directory, _output, original) = capture(HELPERS, &["--compiler-patterns"]);
+fn missing_proposal_does_not_prune_a_retained_compiler_review(directory: &Path, original: &Value) {
     dismiss_candidate(
-        directory.path(),
-        &original,
-        &proposals(&original)["evaluation"]["candidates"][0],
+        directory,
+        original,
+        &proposals(original)["evaluation"]["candidates"][0],
         0,
     );
-    let path = directory.path().join("reviews.json");
+    let path = directory.join("reviews.json");
     let bytes = std::fs::read(&path).unwrap();
-    std::fs::write(
-        directory.path().join("exclude.toml"),
-        "exclude=['src/**']\n",
-    )
-    .unwrap();
+    std::fs::write(directory.join("exclude.toml"), "exclude=['src/**']\n").unwrap();
     let (output, report) = replay(
-        directory.path(),
-        &original,
+        directory,
+        original,
         &[
             "--review-file",
             "reviews.json",
@@ -289,26 +318,23 @@ fn compiler_trait_reviews_survive_impl_renumbering_and_definition_body_edits() {
     );
 }
 
-#[test]
-fn compiler_review_status_retains_omitted_families_and_lookup_never_creates_files() {
-    let (directory, _output, original) = capture(HELPERS, &["--compiler-patterns"]);
-    let path = directory.path().join("reviews.json");
-    let (_output, report) = replay(
-        directory.path(),
-        &original,
-        &["--review-file", "reviews.json"],
-    );
+fn compiler_review_status_retains_omitted_families_and_lookup_never_creates_files(
+    directory: &Path,
+    original: &Value,
+) {
+    let path = directory.join("reviews.json");
+    let (_output, report) = replay(directory, original, &["--review-file", "reviews.json"]);
     assert_eq!(decisions(&report)[0]["state"], "visible_new");
     assert!(!path.exists());
     dismiss_candidate(
-        directory.path(),
-        &original,
-        &proposals(&original)["evaluation"]["candidates"][0],
+        directory,
+        original,
+        &proposals(original)["evaluation"]["candidates"][0],
         0,
     );
     let bytes = std::fs::read(&path).unwrap();
     let (output, status) = clones(
-        directory.path(),
+        directory,
         &[
             "--extraction-profile",
             "hir-data-v3",

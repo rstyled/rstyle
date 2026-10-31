@@ -14,9 +14,14 @@ fn baseline(report: &Value) -> &Value {
 
 pub(super) fn exported() -> (TempDir, Value) {
     let (directory, original) = configured();
+    let report = exported_from_configured(&directory, &original);
+    (directory, report)
+}
+
+fn exported_from_configured(directory: &TempDir, original: &Value) -> Value {
     let (output, report) = replay(
         directory.path(),
-        &original,
+        original,
         &[
             "--compiler-advisory-config",
             "policy.toml",
@@ -25,7 +30,7 @@ pub(super) fn exported() -> (TempDir, Value) {
         ],
     );
     checked(&output, 0);
-    (directory, report)
+    report
 }
 
 fn checked(output: &Output, code: i32) {
@@ -59,7 +64,32 @@ fn raw_replay(directory: &Path, original: &Value, extra: &[&str]) -> Output {
 
 #[test]
 fn six_family_baseline_replays_without_sources_and_preserves_raw_findings() {
-    let (directory, original) = exported();
+    let (directory, _, raw) = capture(SOURCE, &[]);
+    for scenario in [
+        historical_baseline_metrics_remain_readable_and_mark_scope_drift_scenario
+            as fn(&TempDir, &Value),
+        compiler_baseline_movement_preserves_equality_and_new_measurements_fail_scenario
+            as fn(&TempDir, &Value),
+        completed_same_policy_negatives_resolve_prior_compiler_findings_scenario
+            as fn(&TempDir, &Value),
+        incomplete_inputs_cannot_publish_or_become_clean_via_baseline_scenario
+            as fn(&TempDir, &Value),
+        invalid_baseline_headers_rosters_and_existing_destinations_are_rejected_scenario
+            as fn(&TempDir, &Value),
+        six_family_baseline_replays_without_sources_and_preserves_raw_findings_scenario
+            as fn(&TempDir, &Value),
+    ] {
+        reset_review_fixture(&directory);
+        let configured = configured_from_capture(&directory, &raw);
+        let original = exported_from_configured(&directory, &configured);
+        scenario(&directory, &original);
+    }
+}
+
+fn six_family_baseline_replays_without_sources_and_preserves_raw_findings_scenario(
+    directory: &TempDir,
+    original: &Value,
+) {
     for path in ["src/lib.rs", "Cargo.toml"] {
         std::fs::remove_file(directory.path().join(path)).unwrap();
     }
@@ -75,7 +105,7 @@ fn six_family_baseline_replays_without_sources_and_preserves_raw_findings() {
     for detail in ["full", "compact"] {
         let mut args = COMPARE.to_vec();
         args.extend(["--report-detail", detail]);
-        let output = raw_replay(directory.path(), &original, &args);
+        let output = raw_replay(directory.path(), original, &args);
         checked(&output, 0);
         let report: Value = serde_json::from_slice(&output.stdout).unwrap();
         assert_eq!(baseline(&report)["existing_findings"], 6);
@@ -87,13 +117,14 @@ fn six_family_baseline_replays_without_sources_and_preserves_raw_findings() {
             original["compiler_advisory"]["units"]
         );
         args.push("--fail-on-findings");
-        checked(&raw_replay(directory.path(), &original, &args), 1);
+        checked(&raw_replay(directory.path(), original, &args), 1);
     }
 }
 
-#[test]
-fn historical_baseline_metrics_remain_readable_and_mark_scope_drift() {
-    let (directory, original) = exported();
+fn historical_baseline_metrics_remain_readable_and_mark_scope_drift_scenario(
+    directory: &TempDir,
+    original: &Value,
+) {
     let path = directory.path().join("baseline.json");
     let mut saved: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
     for version in [
@@ -107,7 +138,7 @@ fn historical_baseline_metrics_remain_readable_and_mark_scope_drift() {
             entry["metrics"] = version.into();
         }
         std::fs::write(&path, serde_json::to_vec(&saved).unwrap()).unwrap();
-        let (output, report) = replay(directory.path(), &original, COMPARE);
+        let (output, report) = replay(directory.path(), original, COMPARE);
         checked(&output, 1);
         assert_eq!(baseline(&report)["scope_changed"], true);
         assert_eq!(baseline(&report)["existing_findings"], 0);
@@ -123,9 +154,10 @@ fn historical_baseline_metrics_remain_readable_and_mark_scope_drift() {
     }
 }
 
-#[test]
-fn compiler_baseline_movement_preserves_equality_and_new_measurements_fail() {
-    let (directory, _) = exported();
+fn compiler_baseline_movement_preserves_equality_and_new_measurements_fail_scenario(
+    directory: &TempDir,
+    _original: &Value,
+) {
     std::fs::write(
         directory.path().join("src/lib.rs"),
         format!("\n// Move owner\n{SOURCE}"),
@@ -263,9 +295,10 @@ fn invalid_suppression_diagnostics_cannot_be_exported_as_a_clean_baseline() {
     assert!(!directory.path().join("baseline.json").exists());
 }
 
-#[test]
-fn completed_same_policy_negatives_resolve_prior_compiler_findings() {
-    let (directory, _) = exported();
+fn completed_same_policy_negatives_resolve_prior_compiler_findings_scenario(
+    directory: &TempDir,
+    _original: &Value,
+) {
     std::fs::write(
         directory.path().join("src/lib.rs"),
         "pub fn mixed()->u128 {0}",
@@ -322,10 +355,11 @@ fn reviewed_new_findings_do_not_fail_baseline_gate_or_disappear_from_export() {
     assert_reviewed_export(directory.path(), &original);
 }
 
-#[test]
-fn incomplete_inputs_cannot_publish_or_become_clean_via_baseline() {
+fn incomplete_inputs_cannot_publish_or_become_clean_via_baseline_scenario(
+    directory: &TempDir,
+    _original: &Value,
+) {
     let source = format!("{SOURCE}\nmacro_rules! make {{()=>{{pub fn generated(){{}}}}}} make!();");
-    let (directory, _) = exported();
     std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
     let (output, original) = capture_in(directory.path(), COMPARE);
     checked(&output, 2);
@@ -346,9 +380,10 @@ fn incomplete_inputs_cannot_publish_or_become_clean_via_baseline() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("Incomplete analysis"));
 }
 
-#[test]
-fn invalid_baseline_headers_rosters_and_existing_destinations_are_rejected() {
-    let (directory, original) = exported();
+fn invalid_baseline_headers_rosters_and_existing_destinations_are_rejected_scenario(
+    directory: &TempDir,
+    original: &Value,
+) {
     let path = directory.path().join("baseline.json");
     let bytes = std::fs::read(&path).unwrap();
     let saved: Value = serde_json::from_slice(&bytes).unwrap();
@@ -363,13 +398,13 @@ fn invalid_baseline_headers_rosters_and_existing_destinations_are_rejected() {
     variants[4]["unexpected"] = true.into();
     for variant in variants {
         std::fs::write(&path, serde_json::to_vec(&variant).unwrap()).unwrap();
-        checked(&raw_replay(directory.path(), &original, COMPARE), 2);
+        checked(&raw_replay(directory.path(), original, COMPARE), 2);
     }
     std::fs::write(&path, &bytes).unwrap();
     checked(
         &raw_replay(
             directory.path(),
-            &original,
+            original,
             &[
                 "--compiler-advisory-config",
                 "policy.toml",

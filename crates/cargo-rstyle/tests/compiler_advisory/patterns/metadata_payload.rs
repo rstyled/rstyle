@@ -184,7 +184,7 @@ fn default_pattern_metadata_preserves_original_graphs_proposals_and_offline_revi
     let (output, full) = clones(directory.path(), FULL);
     checked(&output, 0);
     let full_wire = snapshot(&full);
-    assert_eq!(full_wire["schema"], "rstyle.diagnostic.raw-facts/4");
+    assert_eq!(full_wire["schema"], "rstyle.diagnostic.raw-facts/5");
     proposal_parity(&metadata, &full);
     original_graphs(&wire, &full_wire);
     remove_sources(directory.path());

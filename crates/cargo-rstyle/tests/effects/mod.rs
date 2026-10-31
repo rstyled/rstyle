@@ -173,6 +173,41 @@ fn original_leaf_calls_keep_direct_counts_and_caller_visible_effects_separate() 
             },
         );
         assert_calls(&report, labels(id)["source"].as_str().unwrap());
+        assert_case_details_and_source_free_replay(id, &directory, &report);
+    }
+}
+
+fn assert_case_details_and_source_free_replay(id: &str, directory: &TempDir, report: &Value) {
+    match id {
+        "same-helper-twice" => {
+            repeated_call_occurrences_share_one_summary_and_keep_exact_root_mapping(report);
+        }
+        "ordered-formal-mapping" => {
+            argument_positions_map_written_callee_formals_to_original_caller_roots(
+                id,
+                report,
+                vec![0],
+            );
+        }
+        "distinct-caller-roots" => {
+            argument_positions_map_written_callee_formals_to_original_caller_roots(
+                id,
+                report,
+                vec![0, 1],
+            );
+        }
+        "direct-borrowed-leaf-effect" => {
+            effects_are_independently_requested_and_full_compact_reports_agree(directory, report);
+        }
+        _ => {}
+    }
+    if matches!(
+        id,
+        "owned-scalar-leaf-local-writes" | "direct-borrowed-leaf-effect"
+    ) {
+        strict_effect_replay_preserves_witnesses_without_original_tree_or_tools(
+            directory, id, report,
+        );
     }
 }
 
@@ -201,12 +236,8 @@ fn assert_positive(report: &Value, expected: Positive<'_>) {
     assert_eq!(leaf["caller_visible_mutation"], expected.effect);
 }
 
-#[test]
-fn repeated_call_occurrences_share_one_summary_and_keep_exact_root_mapping() {
-    let directory = workspace("same-helper-twice");
-    let (output, report) = requested(directory.path(), &[]);
-    assert!(output.status.success());
-    let caller = function(&report, "caller");
+fn repeated_call_occurrences_share_one_summary_and_keep_exact_root_mapping(report: &Value) {
+    let caller = function(report, "caller");
     let calls = caller["evidence"]["calls"].as_array().unwrap();
     let statistics = &report["mutation_effects"]["units"][0]["statistics"];
     assert_eq!(statistics["observations"], 2);
@@ -228,7 +259,7 @@ fn repeated_call_occurrences_share_one_summary_and_keep_exact_root_mapping() {
         1
     );
     assert_eq!(
-        summary(&report, caller, &calls[0])["sites"]
+        summary(report, caller, &calls[0])["sites"]
             .as_array()
             .unwrap()
             .len(),
@@ -236,32 +267,27 @@ fn repeated_call_occurrences_share_one_summary_and_keep_exact_root_mapping() {
     );
 }
 
-#[test]
-fn argument_positions_map_written_callee_formals_to_original_caller_roots() {
-    for (id, expected) in [
-        ("ordered-formal-mapping", vec![0]),
-        ("distinct-caller-roots", vec![0, 1]),
-    ] {
-        let directory = workspace(id);
-        let (output, report) = requested(directory.path(), &[]);
-        assert!(output.status.success());
-        let caller = function(&report, "caller");
-        let mut formals: Vec<_> = caller["evidence"]["roots"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|root| root["formal"].as_u64().unwrap())
-            .collect();
-        formals.sort();
-        assert_eq!(formals, expected);
-        if id == "ordered-formal-mapping" {
-            let call = &caller["evidence"]["calls"][0];
-            let selected = summary(&report, caller, call);
-            let mapping = &call["mappings"][0];
-            let index = mapping["summary_site_index"].as_u64().unwrap() as usize;
-            assert_eq!(selected["sites"][index]["root"]["formal"], 1);
-            assert_eq!(mapping["caller_root"]["formal"], 0);
-        }
+fn argument_positions_map_written_callee_formals_to_original_caller_roots(
+    id: &str,
+    report: &Value,
+    expected: Vec<u64>,
+) {
+    let caller = function(report, "caller");
+    let mut formals: Vec<_> = caller["evidence"]["roots"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|root| root["formal"].as_u64().unwrap())
+        .collect();
+    formals.sort();
+    assert_eq!(formals, expected);
+    if id == "ordered-formal-mapping" {
+        let call = &caller["evidence"]["calls"][0];
+        let selected = summary(report, caller, call);
+        let mapping = &call["mappings"][0];
+        let index = mapping["summary_site_index"].as_u64().unwrap() as usize;
+        assert_eq!(selected["sites"][index]["root"]["formal"], 1);
+        assert_eq!(mapping["caller_root"]["formal"], 0);
     }
 }
 
@@ -374,11 +400,10 @@ fn a_verified_call_witness_survives_an_unknown_callback_remainder() {
     assert_calls(&report, labels(id)["source"].as_str().unwrap());
 }
 
-#[test]
-fn effects_are_independently_requested_and_full_compact_reports_agree() {
-    let directory = workspace("direct-borrowed-leaf-effect");
-    let (output, full) = requested(directory.path(), &[]);
-    assert!(output.status.success());
+fn effects_are_independently_requested_and_full_compact_reports_agree(
+    directory: &TempDir,
+    full: &Value,
+) {
     let (output, compact) = requested(directory.path(), &["--report-detail", "compact"]);
     assert!(output.status.success());
     assert_eq!(full["mutation_effects"], compact["mutation_effects"]);
@@ -413,29 +438,24 @@ fn omitted_function_owners_are_budget_exhausted_not_clean() {
     }
 }
 
-#[test]
-fn strict_effect_replay_preserves_witnesses_without_original_tree_or_tools() {
-    for id in [
-        "owned-scalar-leaf-local-writes",
-        "direct-borrowed-leaf-effect",
-    ] {
-        let directory = workspace(id);
-        let (output, original) = requested(directory.path(), &[]);
-        assert!(output.status.success());
-        std::fs::remove_file(directory.path().join("src/lib.rs")).unwrap();
-        std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
-        for detail in ["full", "compact"] {
-            let output = replay(directory.path(), &original, detail);
-            assert!(output.status.success(), "{id}: {}", stdout(&output));
-            let replay: Value = serde_json::from_slice(&output.stdout).unwrap();
-            assert_eq!(replay["verification_policy"], "strict-replay");
-            assert_eq!(replay["mutation_effects"], original["mutation_effects"]);
-            assert_eq!(
-                replay["owned_source_inventory"],
-                original["owned_source_inventory"]
-            );
-            assert_eq!(replay["matching"], original["matching"]);
-        }
+fn strict_effect_replay_preserves_witnesses_without_original_tree_or_tools(
+    directory: &TempDir,
+    id: &str,
+    original: &Value,
+) {
+    std::fs::remove_file(directory.path().join("src/lib.rs")).unwrap();
+    std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
+    for detail in ["full", "compact"] {
+        let output = replay(directory.path(), original, detail);
+        assert!(output.status.success(), "{id}: {}", stdout(&output));
+        let replay: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(replay["verification_policy"], "strict-replay");
+        assert_eq!(replay["mutation_effects"], original["mutation_effects"]);
+        assert_eq!(
+            replay["owned_source_inventory"],
+            original["owned_source_inventory"]
+        );
+        assert_eq!(replay["matching"], original["matching"]);
     }
 }
 

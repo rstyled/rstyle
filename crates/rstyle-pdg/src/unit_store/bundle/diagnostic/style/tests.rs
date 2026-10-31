@@ -91,7 +91,12 @@ fn style_binding_omission_is_distinct_from_missing_empty_or_fabricated_payloads(
 #[test]
 fn style_snapshot_rejects_wrong_schema_phase_and_dangling_shared_references() {
     let (_, wire) = encoded();
-    for schema in [RAW_FACTS_SCHEMA, "rstyle.diagnostic.style-facts/3", ""] {
+    for schema in [
+        RAW_FACTS_SCHEMA,
+        "rstyle.diagnostic.style-facts/1",
+        "rstyle.diagnostic.style-facts/3",
+        "",
+    ] {
         let mut changed = wire.clone();
         changed["schema"] = schema.into();
         assert!(read(&changed).is_err());
@@ -114,31 +119,8 @@ fn style_snapshot_rejects_wrong_schema_phase_and_dangling_shared_references() {
 }
 
 #[test]
-fn previous_style_schema_keeps_ordinary_metadata_and_rejects_new_reference_kinds() {
-    let mut facts = roster();
-    for fact in &mut facts {
-        fact.build.frontend_options.insert(
-            "invocation".into(),
-            json!({"kind":"shared_reference", "value":999}),
-        );
-    }
-    let encoded = function_sources::encode_with(
-        &facts,
-        |facts| (&facts.body, &facts.bindings),
-        option_bundle::Inventories::default(),
-    )
-    .unwrap();
-    let wire = Export {
-        schema: "rstyle.diagnostic.style-facts/1",
-        phase: "root-style",
-        sources: encoded.snapshots,
-        inherent_units: encoded.inventories,
-        facts: encoded.functions,
-    };
-    let mut wire = serde_json::to_value(wire).unwrap();
-    let restored = read(&wire).unwrap();
-    assert_eq!(json!(restored), json!(facts));
-    wire["facts"][0]["build"]["frontend_options"][KEY] =
-        json!({"kind":"shared_reference", "value":0});
+fn style_versions_reject_raw_build_tables_even_when_empty() {
+    let (_, mut wire) = encoded();
+    wire["build_settings"] = json!([]);
     assert!(read(&wire).is_err());
 }

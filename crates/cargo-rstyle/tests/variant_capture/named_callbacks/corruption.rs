@@ -44,11 +44,10 @@ fn named_callback_documents_reject_identity_payload_order_effect_and_result_forg
             "{mutation}"
         );
     }
+    named_callbacks_require_resolved_function_items_and_verified_summaries(&report);
 }
 
-#[test]
-fn named_callbacks_require_resolved_function_items_and_verified_summaries() {
-    let (_directory, report) = captured();
+fn named_callbacks_require_resolved_function_items_and_verified_summaries(report: &Value) {
     let function = report["functions"]
         .as_array()
         .unwrap()
