@@ -12,16 +12,18 @@ import sys
 import time
 
 
-def terminate(group, grace, drain):
+def terminate(process, grace, drain):
+    process.poll()
     try:
-        os.killpg(group, signal.SIGTERM)
+        os.killpg(process.pid, signal.SIGTERM)
     except ProcessLookupError:
         return
     try:
         drain(time.monotonic() + grace)
     finally:
+        process.poll()
         try:
-            os.killpg(group, signal.SIGKILL)
+            os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
 
@@ -31,13 +33,16 @@ def stream(process, logs, deadline, cancelled=lambda: False, shutdown=False):
         for name, pipe in (("stdout", process.stdout), ("stderr", process.stderr)):
             selector.register(pipe, selectors.EVENT_READ, name)
         while True:
+            # Reap an exited leader even while descendants hold its pipes open.
+            # Darwin cannot signal a process group containing only zombies.
+            returncode = process.poll()
             if cancelled():
                 return "interrupted"
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return "timeout"
             if not selector.get_map():
-                if not shutdown and process.poll() is not None:
+                if not shutdown and returncode is not None:
                     return "completed"
                 time.sleep(min(remaining, 0.05))
                 continue
@@ -91,7 +96,7 @@ def run(args):
                 # cannot interrupt TERM/grace before KILL and wait have run.
                 try:
                     try:
-                        terminate(process.pid, args.grace,
+                        terminate(process, args.grace,
                                   lambda deadline: stream(process, logs, deadline, shutdown=True))
                     finally:
                         process.wait()

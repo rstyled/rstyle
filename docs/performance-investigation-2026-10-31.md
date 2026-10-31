@@ -246,4 +246,27 @@ The added Rust helpers have one to six observed statements and no escaping mutat
 
 Finally, both normal `debug/cargo-rstyle` and `debug/rstyle-driver` executables were moved to unique retained backup paths while dependencies remained warm. Default workspace `cargo test --no-run -vv` recreated both executable paths successfully, with all targets Fresh and no rustc command launched. The [probe record](../target/perf-implementation-20261031/prebuild-recreation.json) and verbose log establish that the new prebuild supplies CI's required binaries. They do not measure a clean installation or quantify cold-build savings.
 
-All new performance measurements are Linux ARM64 observations. Fresh x64/macOS validation remains for the next CI run. Full-report evidence deduplication and exhaustive pair-output scaling remain separate follow-up work.
+These local performance measurements were collected on Linux ARM64. Full-report evidence deduplication and exhaustive pair-output scaling remain separate follow-up work.
+
+## Hosted CI follow-up and macOS watchdog failure
+
+[PR #22 run 41161416839](https://github.com/rstyled/rstyle/actions/runs/41161416839), at `ceadb36cc6a2ad12bdac747f9152299678e6a1cb`, passed on Linux x64 and ARM64. Both platforms passed all **3,778 tests** and saved numeric/pattern statuses **0/0**. Each JUnit has exactly 3,776 test identities matching the original run, two added regression tests and no removed tests. The Low agent downloaded the public artifacts and compared matching tests; raw responses, artifacts and reproducible comparisons are retained in [target/perf-ci-followup-20261031](../target/perf-ci-followup-20261031/).
+
+| Boundary | Linux x64 before → after | Linux ARM64 before → after |
+| --- | ---: | ---: |
+| Tests workflow step, including prebuild and doctests | 701 → 595 s | 593 → 464 s |
+| Nextest execution from JUnit | 482.602 → 449.801 s | 357.453 → 310.818 s |
+| Combined numeric style and patterns workflow steps | 225 → 135 s | 258 → 144 s |
+| Late-owner lifecycle test | 91.711 → 39.536 s | 74.853 → 29.630 s |
+| Retained-owner scope test | 39.201 → 14.952 s | 30.941 → 10.964 s |
+| Existing 4,096 positive-payload budget test | 30.547 → 14.411 s | 23.574 → 10.854 s |
+
+These are single hosted observations per platform with potentially different runner/cache conditions. They support the direction of the local results but do not isolate each optimization or establish cold-build savings. Combining the style steps is necessary because capture moved between those boundaries. The hosted artifacts contain no new CPU or memory samples; the resource improvements above remain local measurements.
+
+macOS failed in **Python CI helpers**, before format, Clippy, Rust tests or either style gate. The failing assertion expected watchdog timeout exit 124 for an exited root whose descendant retained its pipes, but received exit 1. The uploaded macOS JUnit is restored cache data dated **2026-10-27**, containing 2,332 tests; it is not evidence that this run executed Rust tests. Public check annotations identify the failed step but omit the child traceback, and unauthenticated console-log downloads remain unavailable.
+
+The watchdog polled/reaped its root only after both output pipes reached EOF, and skipped polling during shutdown. An exited root with inherited pipes could therefore remain a zombie through TERM/grace/KILL cleanup. [Darwin's process-group signal implementation](https://github.com/apple-oss-distributions/xnu/blob/xnu-11215.81.4/bsd/kern/kern_sig.c) excludes zombie members and can return `EPERM` for a group with no eligible members. The uncaught `PermissionError` provides a source-supported explanation for exit 1 on macOS while the same test passes on Linux; the original assertion did not include captured stderr to expose that exception.
+
+The follow-up reaps the root while continuing to supervise inherited pipes, and checks it again before signaling and escalation, including exceptional drain paths. It preserves descendant TERM/grace/KILL cleanup and propagates genuine permission errors. A deterministic regression models Darwin's zombie-only process-group behavior, and subprocess exit assertions include stderr for future diagnosis. Low implemented and checked the change; Max independently reviewed and accepted it with no remaining code blockers.
+
+All **24 CI helper tests passed** (ten watchdog, four measurement, ten coordinator), and the new inherited-pipe regression fails against the original implementation in both ordinary and shutdown streaming. Broader discovery passed **49 Python tests** after restoring Cargo to the local shell's PATH; an initial attempt had stopped in the existing CodeNet sampler setup because `cargo` was unavailable. `git diff --check` passed. This follow-up changes Python helpers and documentation only; the Rust suite and style/pattern gates already passed on both Linux CI platforms. Native macOS validation remains pending the follow-up PR run.

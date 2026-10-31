@@ -32,7 +32,7 @@ class WatchdogTests(unittest.TestCase):
         result, metadata, stdout, stderr = self.invoke(
             'import sys; print("x" * 100000); '
             'print("y" * 100000, file=sys.stderr); sys.exit(7)')
-        self.assertEqual(result.returncode, 7)
+        self.assertEqual(result.returncode, 7, result.stderr)
         self.assertEqual(metadata["status"], "completed")
         self.assertEqual(stdout, b"x" * 100000 + b"\n")
         self.assertEqual(stderr, b"y" * 100000 + b"\n")
@@ -87,6 +87,68 @@ assert children[0].stdout.closed and children[0].stderr.closed
                     process.kill()
                 process.communicate(timeout=5)
 
+    def test_exited_leader_is_reaped_while_inherited_pipe_stays_open(self):
+        # Model Darwin's zombie-only killpg EPERM with real inherited pipe
+        # holders. Reaping must occur during both normal and shutdown drains.
+        for shutdown in (False, True):
+            with self.subTest(shutdown=shutdown), tempfile.TemporaryFile() as log:
+                readers, writers = [], []
+                process = SimpleNamespace(pid=12345, reaped=False)
+
+                def poll():
+                    process.reaped = True
+                    return 0
+
+                def killpg(group, signum):
+                    if not process.reaped:
+                        raise PermissionError("Darwin zombie-only process group")
+                    raise ProcessLookupError()
+
+                process.poll = poll
+                try:
+                    for name in ("stdout", "stderr"):
+                        read, write = os.pipe()
+                        readers.append(os.fdopen(read, "rb"))
+                        writers.append(write)
+                        setattr(process, name, readers[-1])
+                    status = watchdog.stream(process, {"stdout": log, "stderr": log},
+                                             watchdog.time.monotonic() + 0.02,
+                                             shutdown=shutdown)
+                    self.assertEqual(status, "timeout")
+                    self.assertTrue(process.reaped)
+                    with mock.patch.object(watchdog.os, "killpg", killpg):
+                        watchdog.terminate(process, 0, lambda deadline: None)
+                finally:
+                    for reader in readers:
+                        reader.close()
+                    for writer in writers:
+                        os.close(writer)
+
+    def test_cleanup_reaps_before_signals_even_when_drain_fails(self):
+        process = SimpleNamespace(pid=12345, reaped=False)
+        signals = []
+
+        def poll():
+            process.reaped = True
+            return 0
+
+        def killpg(group, signum):
+            if not process.reaped:
+                raise PermissionError("Darwin zombie-only process group")
+            signals.append(signum)
+
+        def drain(deadline):
+            # The leader may exit during the grace period, including when
+            # reading its output fails before stream can reap it.
+            process.reaped = False
+            raise OSError("injected drain failure")
+
+        process.poll = poll
+        with mock.patch.object(watchdog.os, "killpg", killpg):
+            with self.assertRaisesRegex(OSError, "injected drain failure"):
+                watchdog.terminate(process, 0, drain)
+        self.assertEqual(signals, [signal.SIGTERM, signal.SIGKILL])
+
     def test_final_drain_finishes_at_eof_without_sleep(self):
         process = SimpleNamespace(stdout=None, stderr=None, poll=lambda: 0)
         with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
@@ -134,7 +196,7 @@ assert children[0].stdout.closed and children[0].stderr.closed
             'signal.signal(signal.SIGTERM, lambda *_: '
             '(os.write(1,b"out\\x00\\xff"), os.write(2,b"err\\x00\\xff"))); '
             'print("ready",flush=True); time.sleep(30)', timeout=0.4)
-        self.assertEqual(result.returncode, 124)
+        self.assertEqual(result.returncode, 124, result.stderr)
         self.assertEqual(metadata["status"], "timeout")
         self.assertEqual(stdout, b"ready\n" + b"out\x00\xff")
         self.assertEqual(stderr, b"err\x00\xff")
@@ -149,7 +211,7 @@ assert children[0].stdout.closed and children[0].stderr.closed
                         if script.name == "measure_ci.py":
                             command[2:2] = ["--phase", "validation"]
                         result = subprocess.run(command, capture_output=True, timeout=5)
-                        self.assertEqual(result.returncode, 2)
+                        self.assertEqual(result.returncode, 2, result.stderr)
 
     def test_timeout_kills_term_ignoring_descendant(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -161,7 +223,7 @@ assert children[0].stdout.closed and children[0].stderr.closed
                       f'subprocess.Popen([sys.executable,"-c",{child!r}]); '
                       'print("started", flush=True); time.sleep(30)')
             result, metadata, stdout, _ = self.invoke(source, timeout=0.4)
-            self.assertEqual(result.returncode, 124)
+            self.assertEqual(result.returncode, 124, result.stderr)
             self.assertEqual(metadata["status"], "timeout")
             self.assertIn(b"started", stdout)
             # If cleanup failed, this child would create the marker after timeout.
@@ -173,7 +235,7 @@ assert children[0].stdout.closed and children[0].stderr.closed
         result, metadata, _, _ = self.invoke(
             'import subprocess,sys; subprocess.Popen('
             '[sys.executable,"-c","import time; time.sleep(30)"])', timeout=0.4)
-        self.assertEqual(result.returncode, 124)
+        self.assertEqual(result.returncode, 124, result.stderr)
         self.assertEqual(metadata["status"], "timeout")
 
 
