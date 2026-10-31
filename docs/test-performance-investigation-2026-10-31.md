@@ -193,3 +193,96 @@ timing JUnits and logs, frozen Rust source hashes, complete candidate LCOV and
 JUnit, coverage and identity comparisons, Max's source and timing reviews, and
 the actual validation command logs. These ignored local artifacts supplement
 the method and results recorded here.
+
+## Direct owner-boundary tests
+
+Low implemented this change and Max independently reviewed the source and the
+mapping of existing assertions to their replacements. The baseline is
+`c35aa2bd76f5fa3e04e78ea75739f3d576f646de`.
+
+The diagnostic lifecycle fixture now compiles three functions. Three focused
+unit tests exercise the actual 4,096-owner payload budget using synthetic
+function records, real core evaluation, `Demand::new`, and `resolve_owners`:
+
+- A positive finding after 4,100 unrelated functions is retained. Late clean
+  baseline and review owners pass through the actual assessed/retained logic as
+  completed negatives; an excluded owner remains unavailable.
+- Exactly 4,096 requested owners resolve successfully. A following unit
+  collection sharing the same demand cannot resolve another owner.
+- Repeated diagnostics consume one payload per owner, unrequested rules do not
+  consume payloads, and the 4,097th requested owner retains the budget error.
+  That error survives snapshot construction and prevents baseline publication.
+
+The compiled lifecycle still covers baseline export and comparison, review
+dismissal, resolved findings, missing measurements, review status, dry-run and
+actual pruning, release-context changes, and replay without sources or compiler
+tools. Its missing-measurement branch also checks that an incomplete CLI export
+fails without creating a baseline. The former all-positive large-fixture test is
+replaced by the direct budget/publication checks. Production executable code,
+budget values, command-line options and environment settings are unchanged;
+the production file only gains an appended `cfg(test)` module declaration.
+
+### Matched timing
+
+Three baseline runs preceded three candidate runs on the same Linux ARM64
+machine with the pinned nightly, two build jobs, disabled incremental builds,
+the CI nextest profile and four test threads. Compilation is measured separately
+and excluded from the runner timings. The selection includes both the original
+integration-test module and the new unit-test module: two baseline cases become
+four candidate cases covering the same lifecycle and boundary behavior.
+
+| Metric | Baseline median | Candidate median | Reduction |
+| --- | ---: | ---: | ---: |
+| Affected tests, runner wall time | 11.441 s | 0.929 s | 91.9% |
+| Affected tests, summed case time | 16.168 s | 1.222 s | 92.4% |
+
+Runner ranges are 11.368–11.591 seconds and 0.874–0.947 seconds. The retained
+lifecycle case alone changes from a median 11.439 seconds to 0.927 seconds.
+These figures describe the affected selection; they do not establish a full CI
+speedup.
+
+### Coverage and checks
+
+The complete instrumented workspace suite passed **3,731 tests**, with the same
+five existing nextest skips, followed by passing workspace doctests. Comparing
+all JUnit identities confirms exactly one removed large-fixture test, three
+added boundary tests, and every other identity retained. The full runner took
+225.151 seconds versus 226.470 seconds in the prior full run; these single runs
+do not establish an overall performance improvement.
+
+The baseline LCOV and full JUnit are reused from the validated `b1773d9c` run.
+A Git comparison verifies that all Rust source, Cargo manifests and lockfile,
+toolchain, coverage script and test driver script are identical between that
+commit and this round's baseline `c35aa2bd`. The intervening commit changes
+logging, Python helpers and documentation; test concurrency and execution are
+unchanged. The candidate coverage run is fresh and uses the unchanged coverage
+script.
+
+The explicit source-file sets, instrumented line coordinates, and covered line
+coordinates are exactly unchanged:
+
+- 1,152 source files and 166,336 instrumented entries.
+- 154,098 covered entries, **92.6426%**, with zero gains or losses.
+- All 19,947 previously covered normalized function identities remain covered;
+  nine additional test-closure instantiations of production helpers are covered.
+
+Max independently reviewed the assertion mapping, frozen source hashes, six
+timing reports, complete JUnit identities, line coordinates and normalized
+function coverage. The 20 new or modified functions reviewed by Low have at most
+43 nonempty body lines and three parameters. No suppressions, pattern-ignore
+entries or threshold changes are introduced.
+
+Low ran formatting, workspace/all-target Clippy with warnings denied, an ordinary
+CLI/driver build, and the actual shared-capture CI numeric and saved-pattern
+gates. All exited **0**. The numeric analysis covered 10,181 functions with zero
+violations and zero unavailable complexity measurements; the pattern gate
+reported no visible candidates.
+
+### Retained local evidence
+
+[target/owner-boundary-20261031](../target/owner-boundary-20261031/) contains the
+baseline-reuse proof, frozen source hashes, all six timing JUnits, fresh complete
+coverage and JUnit, exact source/line and test-identity comparisons, independent
+Max source/timing/coverage reviews, Low's function-complexity review, and actual
+gate logs. These ignored local artifacts supplement the method and results
+recorded here.
