@@ -11,6 +11,8 @@ env:
 
 jobs:
   check:
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -57,9 +59,29 @@ jobs:
         with:
           tool: cargo-nextest@0.9.148
 
+      - name: Install coverage tool
+        if: matrix.runner == 'ubuntu-24.04'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov@0.9.1
+
       # Prebuild the workspace test graph; includes doctests separately.
       - name: Tests
-        run: CARGO_TARGET_DIR=target ./scripts/test.sh --nextest
+        id: tests
+        env:
+          CARGO_TARGET_DIR: ${{ matrix.runner == 'ubuntu-24.04' && format('{0}/rstyle-coverage', runner.temp) || 'target' }}
+        run: |
+          if [ "${{ matrix.runner }}" = ubuntu-24.04 ]; then
+            ./scripts/coverage.sh
+          else
+            ./scripts/test.sh --nextest
+          fi
+
+      # Coverage builds live outside the normal Cargo cache. Style capture uses
+      # ordinary binaries, with no coverage flags or profile environment.
+      - name: Build style binaries
+        if: matrix.runner == 'ubuntu-24.04'
+        run: cargo build --locked -p cargo-rstyle -p rstyle-driver
 
       - name: Annotate test failures
         if: failure()
@@ -72,6 +94,14 @@ jobs:
           name: tests-${{ runner.os }}-${{ runner.arch }}
           path: target/nextest/ci/junit.xml
           if-no-files-found: ignore
+
+      - name: Retain coverage report
+        if: always() && matrix.runner == 'ubuntu-24.04' && steps.tests.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-linux-x64
+          path: target/coverage/lcov.info
+          if-no-files-found: warn
 
       # Capture graph-rich evidence once, preserve both presentations, then
       # apply numeric and pattern exit statuses as independent gates in order.
@@ -100,3 +130,23 @@ jobs:
             ${{ env.RSTYLE_CI_OUTPUT }}/results/patterns-capture-report.json
             ${{ env.RSTYLE_CI_OUTPUT }}/results/status.json
           if-no-files-found: warn
+
+  coverage:
+    needs: check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage-linux-x64
+          path: coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+        with:
+          use_oidc: true
+          files: coverage/lcov.info
+          disable_search: true
+          fail_ci_if_error: true

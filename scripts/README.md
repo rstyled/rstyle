@@ -206,3 +206,48 @@ before exporting its absolute `RSTYLE_TEST_DRIVER`; doctests remain separate.
 Arguments after `--nextest` still go only to nextest. Custom features, targets or
 profiles may require additional nextest compilation; the prebuild does not claim
 to match arbitrary forwarded build options.
+
+## Rust coverage and Codecov
+
+Install `cargo-llvm-cov` version `0.9.1` and `cargo-nextest` version `0.9.148`,
+then run `./scripts/coverage.sh`. The pinned nightly already includes
+`llvm-tools-preview`. The script runs the existing workspace nextest suite and
+doctests once, then writes `target/coverage/lcov.info`. It uses
+`cargo llvm-cov show-env --doctests` before the test prebuild so the ordinary CLI,
+compiler driver, and test executables are instrumented together. An absolute
+profile path collects subprocess coverage even when tests change directories.
+LLVM locks and merges a four-file pool per module signature, bounding disk use
+across repeated CLI/compiler processes. Doctest instrumentation
+uses nightly support in cargo-llvm-cov.
+
+Coverage builds use `line-tables-only` debug information in the dev and test
+profiles to retain filename/line backtraces without full DWARF's disk cost.
+This affects only the script's subprocesses; optimization and debug assertions
+keep their normal settings.
+
+The default instrumented build directory is `target/coverage`; set
+`CARGO_TARGET_DIR` to choose another isolated directory. Nextest's JUnit report
+remains at workspace-relative `target/nextest/ci/junit.xml`. Coverage environment settings
+stay inside the script. Normal builds and style capture should use their normal
+target directory afterward.
+
+CI collects coverage only on Ubuntu x64, replacing that lane's existing test
+invocation. Its instrumented build and profiles live under `RUNNER_TEMP`, outside
+the normal Cargo cache. CI then builds ordinary CLI/driver binaries for the style
+checks. The other two platforms retain ordinary tests. The LCOV artifact is
+retained independently of upload; a separate job downloads it and uploads only
+that file to Codecov. Repository branches use OIDC; fork pull requests use
+Codecov's public-repository tokenless upload path. Only the upload job receives
+`id-token: write`; no stored Codecov token is required. Existing pull-request and
+main-branch triggers are unchanged.
+
+The repository must be enabled in Codecov, with GitHub integration configured
+for its coverage reports and pull-request checks. A successful CI upload verifies
+service integration; a report from `main` establishes the default-branch
+comparison baseline. Local report generation does not activate the remote
+repository. Fork uploads depend on Codecov's public-repository tokenless upload
+settings. No coverage threshold or source exclusion is imposed here.
+
+References: [cargo-llvm-cov external tests](https://github.com/taiki-e/cargo-llvm-cov/tree/v0.9.1#get-coverage-of-external-tests),
+[Rust profile merging](https://doc.rust-lang.org/rustc/instrument-coverage.html#running-the-instrumented-binary-to-generate-raw-coverage-profiling-data),
+and [Codecov OIDC](https://github.com/codecov/codecov-action/tree/v5.5.5#using-oidc).
