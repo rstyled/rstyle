@@ -286,3 +286,118 @@ coverage and JUnit, exact source/line and test-identity comparisons, independent
 Max source/timing/coverage reviews, Low's function-complexity review, and actual
 gate logs. These ignored local artifacts supplement the method and results
 recorded here.
+
+## 4. Reuse verification results during admission and replay
+
+The baseline for this round is `a5e05cc6`. In the checked ID-reader replay,
+each of four valid functions first serialized and fully verified its documents,
+discarded the decoded result, then fully verified the original documents again
+through admission. Six changed-document cases independently repeated lowering,
+analysis and emission of the same expected graph. Admission also repeated CFG,
+operation-map, correspondence and value-site checks already completed by the
+producer verifier.
+
+### Implementation
+
+`producer::verify` now accepts the existing conversions into `PairView` and
+returns an immutable `ValidatedPair`. The result borrows the exact documents
+and captured facts and retains the checked operation map and value sites.
+`admit_validated` imports those documents using the retained results.
+`admit_produced` performs verification and delegates to that same admission
+path. The separate `verify_view` forwarding API is removed.
+
+Local imported documents also reuse the checked indexes. They retain the
+independent validation of caller-supplied source bytes and validation context;
+those inputs can differ from the captured frontend. Admission-specific profile,
+interface, type, reference and native-width checks remain in the import stage.
+
+`PreparedVerification` borrows one function's immutable facts and builds its
+expected documents once. Candidate checks retain document comparison,
+helper/data verification and structural validation. Preparation and candidate checks
+enforce strict verification even when called inside a generated-policy scope.
+Only prepared comparisons clone their retained expected documents; ordinary
+verification moves its freshly reconstructed documents into comparison.
+
+The ID-reader, owned-composition, reader-composition and validator-composition
+replay call sites use a shared snapshot roundtrip check that verifies manifest
+identities and exact typed document equality. Those call sites run semantic
+verification separately, and admission consumes its checked result. The ID-reader,
+owned-composition and validator-composition mutation loops reuse one prepared
+expected graph. All six original ID-reader mutations and independent
+CFG bypass cases remain. Added assertions check prepared strictness inside a
+generated scope and agreement between checked, produced and local-imported
+admission without introducing another compiler fixture.
+
+This is reuse within a verification/admission handoff and the selected replay
+families. Other tests still explicitly exercise full serialized verification
+and admission. Unit loading, derived-instance construction and later admission
+also retain separate checks: derived stores can change facts and dependency
+context, so this change does not reuse results across those owners.
+
+### Matched timing
+
+Three fresh baseline trials from a clean detached `a5e05cc6` checkout preceded
+three candidate trials on the same Linux ARM64 machine, using the pinned
+nightly, two build jobs, disabled incremental builds and the CI nextest profile
+with four test threads. The selection contains the ID-reader, reader-composition
+and validator-composition tests. The candidate trials ran after the full coverage
+job finished, with no competing build. Timings below come from JUnit and exclude
+compilation, including the first candidate run's 58.08-second test rebuild.
+
+| Metric | Baseline median | Candidate median | Reduction |
+| --- | ---: | ---: | ---: |
+| Selected tests, runner wall time | 5.841 s | 4.971 s | 14.9% |
+| Checked ID-reader case | 5.839 s | 4.969 s | 14.9% |
+| Validator-composition case | 3.666 s | 3.311 s | 9.7% |
+| Reader-composition case | 2.230 s | 2.164 s | 3.0% |
+
+Runner ranges are 5.730–5.939 seconds and 4.936–5.069 seconds. The
+reader-composition ranges overlap, so its small median change does not establish
+a speedup. These measurements describe the selected tests, not overall CI or
+memory consumption.
+
+A separate diagnostic trace records `producer.profile` invocations decreasing
+from 158 to 129, with strict invocations decreasing from 122 to 93.
+`producer.verify` invocations decrease from 264 to 258, or 113 to 106 under
+strict policy, and the candidate makes seven preparation calls. Raw verification
+counts include the added policy-regression assertions. Stage durations are
+inclusive and must not be added together.
+
+### Coverage and checks
+
+The complete instrumented workspace suite passed **3,731 tests**, with the same
+five existing nextest skips, followed by passing workspace doctest checks. Full
+JUnit comparison finds exactly the same test identities and no failures. The
+instrumented runner took 219.775 seconds versus the baseline's 225.151 seconds;
+these single runs do not establish an overall speedup. Source and build inputs
+were fingerprinted before and after coverage and remained unchanged.
+
+Baseline coverage and JUnit come from the validated owner-boundary candidate
+committed as `a5e05cc6`, using the same 3,731-test corpus. Candidate coverage is
+a fresh run of the unchanged coverage script. Both reports contain 1,152 source
+files. Covered/instrumented line entries change from **154,098/166,336
+(92.6426%)** to **154,144/166,387 (92.6419%)**. The five additional uncovered
+entries belong to the new non-exhaustive `Debug` formatter.
+
+Mapping unchanged source text across edits finds zero previously covered,
+still-instrumented lines becoming uncovered. Two unchanged closing braces are
+no longer instrumented, and 78 previously covered entries belong to deleted or
+replaced code. This comparison follows surviving source text; the retained
+semantic and mutation assertions provide the behavioral checks.
+
+Formatting, workspace/all-target Clippy with warnings denied, and the ordinary
+CLI/driver build all passed. The actual shared-capture production-target style
+gates measured **10,191 functions**, with zero numeric violations and zero
+unavailable complexity measurements. Pattern capture and assessment completed
+with no visible findings. No suppressions, ignore entries, thresholds or CI
+triggers changed.
+
+### Retained local evidence
+
+[target/verification-reuse-20261031](../target/verification-reuse-20261031/)
+contains the baseline provenance, frozen source hashes, full coverage and JUnit,
+coverage/test-identity comparisons, all six timing JUnits, separate traces,
+Low's executed checks, and independent Max reviews. The final style reports are
+under `style/final-frozen-results`; earlier attempts and provisional measurements
+are retained separately. These ignored artifacts supplement the method and
+results recorded here.

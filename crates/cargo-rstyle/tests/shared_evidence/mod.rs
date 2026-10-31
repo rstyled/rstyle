@@ -280,3 +280,15 @@ pub fn with_profile_version(
     changed.cfg.profile.version = version.into();
     changed
 }
+
+/// Check wire identities and exact typed roundtrip independently of semantics.
+pub fn roundtrip(pair: &rstyle_pdg::producer::Pair) -> rstyle_pdg::producer::Pair {
+    let serialized = pair.serialize().unwrap();
+    let pdg = serde_json::from_slice(&serialized.pdg_bytes).unwrap();
+    let cfg = serde_json::from_slice(&serialized.cfg_bytes).unwrap();
+    let decoded = rstyle_pdg::producer::Pair { pdg, cfg };
+    serialized.verify_identities(&decoded).unwrap();
+    assert_eq!(decoded.pdg, pair.pdg);
+    assert_eq!(decoded.cfg, pair.cfg);
+    decoded
+}

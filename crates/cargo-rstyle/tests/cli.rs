@@ -7435,11 +7435,11 @@ fn clones_borrowed_typed_pairs_preserve_verification_and_strict_admission() {
         serde_json::to_vec(&borrowed).unwrap()
     );
     assert_eq!(
-        rstyle_pdg::producer::verify_view(borrowed, &facts),
-        rstyle_pdg::producer::verify(pair, &facts)
+        rstyle_pdg::producer::verify(borrowed, &facts).map(|_| ()),
+        rstyle_pdg::producer::verify(pair, &facts).map(|_| ())
     );
     let generated = rstyle_pdg::verification_policy::generated(|| {
-        rstyle_pdg::producer::verify_view(borrowed, &facts)
+        rstyle_pdg::producer::verify(borrowed, &facts)
     });
     assert!(generated.is_ok());
     let leaf = unit.functions().iter().find(|f| f.name == "leaf").unwrap();
@@ -7474,6 +7474,12 @@ fn check_borrowed_pair_admission(
         standalone,
         rstyle_ccgraph::admit_produced(pair, facts).unwrap()
     );
+    let checked = rstyle_pdg::producer::verify(pair, facts).unwrap();
+    assert!(std::ptr::eq(checked.pair().pdg, &pair.pdg));
+    assert_eq!(
+        standalone,
+        rstyle_ccgraph::admit_validated(&checked).unwrap()
+    );
     for bytes in sources.values_mut() {
         bytes[0] ^= 1;
     }
@@ -7502,12 +7508,10 @@ fn check_borrowed_pair_tampering(
         pdg: &pair.pdg,
         cfg: &cfg,
     };
-    assert!(rstyle_pdg::producer::verify_view(changed, facts).is_err());
+    assert!(rstyle_pdg::producer::verify(changed, facts).is_err());
     assert!(
-        rstyle_pdg::verification_policy::generated(|| rstyle_pdg::producer::verify_view(
-            changed, facts
-        ))
-        .is_err()
+        rstyle_pdg::verification_policy::generated(|| rstyle_pdg::producer::verify(changed, facts))
+            .is_err()
     );
 }
 
@@ -10106,7 +10110,7 @@ fn check_body_nominal_corruption(report: &Value) {
             "{corruption}"
         );
         assert!(
-            rstyle_pdg::producer::verify_view(pair.as_view(), &facts).is_err(),
+            rstyle_pdg::producer::verify(pair.as_view(), &facts).is_err(),
             "{corruption}"
         );
     }

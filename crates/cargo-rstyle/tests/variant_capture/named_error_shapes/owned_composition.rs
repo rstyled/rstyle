@@ -78,13 +78,15 @@ fn strict_composition(report: &Value) {
             let index = shared_evidence::index(function(report, name));
             let facts = analysis.function(index).unwrap();
             let pair = store.pair(index).unwrap();
-            rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts).unwrap();
-            reject_mutations(pair, &facts);
+            let decoded = shared_evidence::roundtrip(pair);
+            let prepared = rstyle_pdg::producer::PreparedVerification::new(&facts).unwrap();
+            let checked = prepared.verify(decoded.as_view()).unwrap();
+            reject_mutations(pair, &prepared);
             let mut old = pair.clone();
             old.pdg.profile.version = "3.123.0".into();
             old.cfg.profile.version = "3.123.0".into();
             assert!(rstyle_ccgraph::admit_produced(&old, &facts).is_err());
-            imports.push(rstyle_ccgraph::admit_produced(pair, &facts).unwrap());
+            imports.push(rstyle_ccgraph::admit_validated(&checked).unwrap());
         }
         let result =
             rstyle_ccgraph::evaluate_all(&imports, &rstyle_ccgraph::CcgraphConfig::default());
@@ -95,7 +97,7 @@ fn strict_composition(report: &Value) {
 
 fn reject_mutations(
     pair: &rstyle_pdg::producer::Pair,
-    facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+    prepared: &rstyle_pdg::producer::PreparedVerification<'_>,
 ) {
     for change in 0..8 {
         let mut changed = pair.clone();
@@ -107,7 +109,7 @@ fn reject_mutations(
         // Verify the typed graph directly; the unmodified wire roundtrip above
         // exercises integrity without repeatedly serializing/resealing mutations.
         assert!(
-            rstyle_pdg::producer::verify(&changed, facts).is_err(),
+            prepared.verify(changed.as_view()).is_err(),
             "owned transfer mutation {change}"
         );
     }

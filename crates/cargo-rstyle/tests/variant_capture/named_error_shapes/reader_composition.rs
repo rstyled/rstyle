@@ -187,8 +187,9 @@ fn check_documents(
     facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
 ) {
     rstyle_pdg::verification_policy::strict(|| {
-        rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), facts).unwrap();
-        rstyle_ccgraph::admit_produced(pair, facts).unwrap();
+        let decoded = shared_evidence::roundtrip(pair);
+        let checked = rstyle_pdg::producer::verify(&decoded, facts).unwrap();
+        rstyle_ccgraph::admit_validated(&checked).unwrap();
     });
     let error = role(&pair.pdg.nodes, "propagated_error");
     assert_eq!(error.annotations[KEY]["origins"][0]["root"]["parameter"], 1);

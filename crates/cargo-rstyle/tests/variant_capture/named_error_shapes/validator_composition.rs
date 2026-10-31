@@ -112,9 +112,11 @@ fn check_strict(report: &Value) {
             let index = shared_evidence::index(function(report, name));
             let view = analysis.function(index).unwrap();
             let pair = store.pair(index).unwrap();
-            rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &view).unwrap();
-            reject_mutations(pair, &view);
-            imports.push(rstyle_ccgraph::admit_produced(pair, &view).unwrap());
+            let decoded = shared_evidence::roundtrip(pair);
+            let prepared = rstyle_pdg::producer::PreparedVerification::new(&view).unwrap();
+            let checked = prepared.verify(decoded.as_view()).unwrap();
+            reject_mutations(pair, &prepared);
+            imports.push(rstyle_ccgraph::admit_validated(&checked).unwrap());
         }
         let result =
             rstyle_ccgraph::evaluate_all(&imports, &rstyle_ccgraph::CcgraphConfig::default());
@@ -125,7 +127,7 @@ fn check_strict(report: &Value) {
 
 fn reject_mutations(
     pair: &rstyle_pdg::producer::Pair,
-    facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+    prepared: &rstyle_pdg::producer::PreparedVerification<'_>,
 ) {
     for change in 0..5 {
         let mut changed = rstyle_pdg::producer::Pair {
@@ -135,7 +137,7 @@ fn reject_mutations(
         mutate(&mut changed.pdg.nodes, change);
         // Exercise semantic verification directly; originals cover wire integrity.
         assert!(
-            rstyle_pdg::producer::verify(&changed, facts).is_err(),
+            prepared.verify(changed.as_view()).is_err(),
             "validator evidence mutation {change} was accepted"
         );
     }

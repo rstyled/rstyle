@@ -15,7 +15,7 @@ mod summaries;
 mod unsigned_ranges;
 pub(crate) use unsigned_ranges::{bounded_value_index, verify_range_policy};
 mod verify;
-pub use verify::{verify, verify_view};
+pub use verify::{PreparedVerification, ValidatedPair, verify};
 
 /// Build and validate one bounded normal-flow pair from captured frontend facts.
 pub fn produce(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Pair, Vec<String>> {

@@ -56,7 +56,7 @@ fn check(store: &UnitStore, selection: &Value) -> Result<(), String> {
         .function(*ordinal)
         .ok_or("Missing owning function view")?;
     rstyle_pdg::verification_policy::strict(|| {
-        rstyle_pdg::producer::verify_view(pair.as_view(), &view).map_err(|errors| errors.join("; "))
+        rstyle_pdg::producer::verify(pair.as_view(), &view).map_err(|errors| errors.join("; "))
     })?;
     rstyle_pdg::data_documents::verify(pair, &view)?;
     println!(

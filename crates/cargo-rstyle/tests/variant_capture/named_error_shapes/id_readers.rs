@@ -151,10 +151,16 @@ fn strict_replay(report: &Value) {
             let index = shared_evidence::index(function(report, name));
             let facts = analysis.function(index).unwrap();
             let pair = store.pair(index).unwrap();
-            rstyle_pdg::producer::verify_serialized(&pair.serialize().unwrap(), &facts).unwrap();
-            let imported = rstyle_ccgraph::admit_produced(pair, &facts).unwrap();
+            let decoded = shared_evidence::roundtrip(pair);
+            // Prepared regression checks stay strict inside the live-capture policy.
+            let prepared = rstyle_pdg::verification_policy::generated(|| {
+                rstyle_pdg::producer::PreparedVerification::new(&facts).unwrap()
+            });
+            let checked = prepared.verify(decoded.as_view()).unwrap();
+            let imported = rstyle_ccgraph::admit_validated(&checked).unwrap();
             if name == "read_first" {
-                reject_mutations(pair, &facts);
+                reject_mutations(pair, &prepared);
+                prepared_stays_strict(pair, &facts, &prepared);
             }
             if matches!(name, "read_first" | "try_read_second") {
                 reject_cfg_bypasses(pair, &facts, name == "read_first");
@@ -232,16 +238,37 @@ fn bypass(pair: &mut rstyle_pdg::producer::Pair, construct: &str, kind: rstyle_p
 
 fn reject_mutations(
     pair: &rstyle_pdg::producer::Pair,
-    facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+    prepared: &rstyle_pdg::producer::PreparedVerification<'_>,
 ) {
     for change in ["count", "message", "transfer", "read", "origins", "policy"] {
         let mut changed = pair.clone();
         mutate(&mut changed, change);
         assert!(
-            rstyle_pdg::producer::verify(&changed, facts).is_err(),
+            rstyle_pdg::verification_policy::generated(|| { prepared.verify(changed.as_view()) })
+                .is_err(),
             "ID reader mutation {change}"
         );
     }
+}
+
+fn prepared_stays_strict(
+    pair: &rstyle_pdg::producer::Pair,
+    facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+    prepared: &rstyle_pdg::producer::PreparedVerification<'_>,
+) {
+    let mut changed = pair.clone();
+    changed
+        .cfg
+        .nodes
+        .iter_mut()
+        .flat_map(|node| &mut node.operations)
+        .next()
+        .unwrap()
+        .text = "changed operation text".into();
+    rstyle_pdg::verification_policy::generated(|| {
+        rstyle_pdg::producer::verify(&changed, facts).unwrap();
+        assert!(prepared.verify(changed.as_view()).is_err());
+    });
 }
 
 fn mutate(pair: &mut rstyle_pdg::producer::Pair, change: &str) {

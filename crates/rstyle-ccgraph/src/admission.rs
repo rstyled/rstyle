@@ -37,16 +37,22 @@ pub struct StrictBundle<'a> {
 }
 
 /// Narrow producer handoff: verify the captured HIR/source/build evidence,
-/// then use the unchanged strict imported-document admission boundary.
+/// then reuse the checked documents and indexes for matching admission.
 pub fn admit_produced(
     pair: &rstyle_pdg::producer::Pair,
     facts: &dyn EvidenceFacts,
 ) -> Result<ImportedFunction, Vec<String>> {
-    rstyle_pdg::producer::verify(pair, facts)?;
-    let source_bytes = rstyle_pdg::validate::CapturedSources::new(
-        &pair.pdg.sources,
-        facts.source.bytes.as_bytes(),
-    );
+    admit_validated(&rstyle_pdg::producer::verify(pair, facts)?)
+}
+
+/// Import checked producer documents while reusing their structural indexes.
+pub fn admit_validated(
+    validated: &rstyle_pdg::producer::ValidatedPair<'_>,
+) -> Result<ImportedFunction, Vec<String>> {
+    let pair = validated.pair();
+    let facts = validated.facts();
+    check_local_profile(pair.pdg, pair.cfg)?;
+
     let width = facts
         .build
         .pointer_width
@@ -56,15 +62,17 @@ pub fn admit_produced(
     let ctx = ValidationContext::CompilerEvidence {
         pointer_width_bits: width,
     };
-
-    admit_checked(
-        &AdmissionInput {
-            pdg: &pair.pdg,
-            cfg: &pair.cfg,
-            source_bytes: &source_bytes,
-            ctx: &ctx,
+    assemble_function(
+        &AdmittedPair {
+            pdg: pair.pdg,
+            cfg: pair.cfg,
         },
-        Some(facts),
+        validated.operation_map(),
+        validated.value_sites(),
+        &AdmissionContext {
+            validation: &ctx,
+            frontend: Some(facts),
+        },
     )
 }
 
@@ -77,22 +85,7 @@ pub fn admit_produced(
 /// CFG entry; administrative status comes from boundary cleanliness. Failures
 /// are returned as reason strings and never coerce missing evidence.
 pub fn admit_strict(bundle: &StrictBundle) -> Result<ImportedFunction, Vec<String>> {
-    admit_checked(
-        &AdmissionInput {
-            pdg: bundle.pdg,
-            cfg: bundle.cfg,
-            source_bytes: bundle.source_bytes,
-            ctx: bundle.ctx,
-        },
-        None,
-    )
-}
-
-struct AdmissionInput<'a> {
-    pdg: &'a PdgDocument,
-    cfg: &'a CfgDocument,
-    source_bytes: &'a dyn rstyle_pdg::validate::SourceBytes,
-    ctx: &'a ValidationContext,
+    admit_checked(bundle)
 }
 
 struct AdmissionContext<'a> {
@@ -100,41 +93,44 @@ struct AdmissionContext<'a> {
     frontend: Option<&'a dyn EvidenceFacts>,
 }
 
-fn admit_checked(
-    bundle: &AdmissionInput,
-    frontend: Option<&dyn EvidenceFacts>,
-) -> Result<ImportedFunction, Vec<String>> {
-    let AdmissionInput {
+fn admit_checked(bundle: &StrictBundle) -> Result<ImportedFunction, Vec<String>> {
+    let StrictBundle {
         pdg,
         cfg,
         source_bytes,
         ctx,
     } = bundle;
-
     require_compiler_evidence(ctx)?;
-    let imported = if frontend.is_some() {
-        check_local_profile(pdg, cfg)?;
-        None
-    } else {
-        check_local_producer(pdg, cfg)?
-    };
-    // Only the produced handoff owns these exact immutable source bytes.
-    // Imported documents must still check the caller-supplied byte map.
-    check_pdg_eligibility(pdg, ctx, *source_bytes, frontend)?;
-    let frontend = frontend.or_else(|| imported.as_ref().map(|facts| facts as &dyn EvidenceFacts));
 
-    let admitted = AdmittedPair { pdg, cfg };
-    admitted.check_cfg()?;
-    let map = admitted.check_agreement()?;
-    admitted.check_correspondence(&map)?;
+    let imported = local_frontend(pdg, cfg)?;
+    let pair = AdmittedPair { pdg, cfg };
+    if let Some(facts) = imported.as_ref() {
+        let checked =
+            rstyle_pdg::producer::verify(rstyle_pdg::producer::PairView { pdg, cfg }, facts)?;
+        check_pdg_eligibility(pdg, ctx, *source_bytes)?;
+        return assemble_function(
+            &pair,
+            checked.operation_map(),
+            checked.value_sites(),
+            &AdmissionContext {
+                validation: ctx,
+                frontend: Some(facts),
+            },
+        );
+    }
 
+    check_pdg_eligibility(pdg, ctx, *source_bytes)?;
+    pair.check_cfg()?;
+    let map = pair.check_agreement()?;
+    pair.check_correspondence(&map)?;
+    let value_sites = rstyle_pdg::validate_value_sites(pdg, cfg)?;
     assemble_function(
-        pdg,
-        cfg,
+        &pair,
         &map,
+        &value_sites,
         &AdmissionContext {
             validation: ctx,
-            frontend,
+            frontend: None,
         },
     )
 }
@@ -153,7 +149,7 @@ fn check_local_profile(pdg: &PdgDocument, cfg: &CfgDocument) -> Result<bool, Vec
     Ok(true)
 }
 
-fn check_local_producer(
+fn local_frontend(
     pdg: &PdgDocument,
     cfg: &CfgDocument,
 ) -> Result<Option<rstyle_pdg::HirFnFacts>, Vec<String>> {
@@ -170,9 +166,7 @@ fn check_local_producer(
     }
     let facts: rstyle_pdg::HirFnFacts = serde::Deserialize::deserialize(&evidence["frontend"])
         .map_err(|e| vec![format!("Invalid local frontend evidence: {e}")])?;
-    let pair = rstyle_pdg::producer::PairView { pdg, cfg };
 
-    rstyle_pdg::producer::verify_view(pair, &facts)?;
     Ok(Some(facts))
 }
 
@@ -194,12 +188,8 @@ fn check_pdg_eligibility(
     pdg: &PdgDocument,
     ctx: &ValidationContext,
     source_bytes: &dyn rstyle_pdg::validate::SourceBytes,
-    produced: Option<&dyn EvidenceFacts>,
 ) -> Result<(), Vec<String>> {
-    let report = match produced {
-        Some(facts) => rstyle_pdg::validate::validate_source_text(pdg, ctx, &facts.source.bytes),
-        None => rstyle_pdg::validate::validate_sources(pdg, ctx, source_bytes),
-    };
+    let report = rstyle_pdg::validate::validate_sources(pdg, ctx, source_bytes);
 
     if report.matching == rstyle_pdg::Eligibility::Eligible {
         return Ok(());
@@ -245,14 +235,14 @@ impl AdmittedPair<'_> {
 }
 
 fn assemble_function(
-    pdg: &PdgDocument,
-    cfg: &CfgDocument,
+    pair: &AdmittedPair,
     map: &[rstyle_pdg::OperationMapEntry],
+    value_sites: &BTreeSet<String>,
     ctx: &AdmissionContext,
 ) -> Result<ImportedFunction, Vec<String>> {
+    let AdmittedPair { pdg, cfg } = *pair;
     let reachability = node_reachability(cfg, map);
-    let value_sites = rstyle_pdg::validate_value_sites(pdg, cfg)?;
-    let nodes = import_nodes(pdg, &reachability, &value_sites);
+    let nodes = import_nodes(pdg, &reachability, value_sites);
     let data = pdg.profile.id == rstyle_pdg::extraction_profile::DATA_ID;
     let inputs = import_interface(&pdg.function.inputs, data);
     let outputs = import_interface(&pdg.function.outputs, data);
