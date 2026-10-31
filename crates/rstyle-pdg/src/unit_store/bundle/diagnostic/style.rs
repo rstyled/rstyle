@@ -23,6 +23,7 @@ pub fn write_sealed_style_snapshot(
             sources: encoded.snapshots,
             inherent_units: encoded.inventories,
             facts: encoded.functions,
+            build_settings: None,
         };
         serde_json::to_writer(writer, &export).map_err(|error| error.to_string())
     })
@@ -41,14 +42,10 @@ pub fn read_style_snapshot_phase(
 
     let restore =
         crate::diagnostics::Stage::new("diagnostic.restore", "style-snapshot", None).enter();
-    if ![STYLE_FACTS_SCHEMA, "rstyle.diagnostic.style-facts/1"].contains(&wire.schema.as_str())
-        || wire.phase.is_empty()
-        || wire.phase != expected
-    {
+    if wire.schema != STYLE_FACTS_SCHEMA || wire.phase.is_empty() || wire.phase != expected {
         return Err("Unsupported or mismatched root style snapshot schema or phase".into());
     }
-    let shared_options = wire.schema == STYLE_FACTS_SCHEMA;
-    restore.finish(restore_snapshot(wire, true, false, shared_options))
+    restore.finish(restore_snapshot(wire, false))
 }
 
 #[cfg(test)]

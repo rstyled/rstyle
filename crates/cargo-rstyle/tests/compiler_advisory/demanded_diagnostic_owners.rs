@@ -199,11 +199,8 @@ fn prune_completed_review(directory: &Path, clean: &Value) {
     assert_eq!(pruned["review_prune"]["removed_entries"], 1);
 }
 
-fn missing_late_observation(report: &Value) -> Value {
-    let path = report["functions"][0]["unit_evidence"]["bundle"]
-        .as_str()
-        .unwrap();
-    let mut wire: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+fn missing_late_observation(bytes: &[u8]) -> Value {
+    let mut wire: Value = serde_json::from_slice(bytes).unwrap();
     let fact = wire["facts"]
         .as_array_mut()
         .unwrap()
@@ -221,9 +218,9 @@ fn missing_measurement_stays_incomplete(directory: &Path, clean: &Value) {
     let bundle = clean["functions"][0]["unit_evidence"]["bundle"]
         .as_str()
         .unwrap();
-    let original_wire: Value = serde_json::from_slice(&std::fs::read(bundle).unwrap()).unwrap();
+    let original_bytes = std::fs::read(bundle).unwrap();
     let ledger = only::ledger_path(clean);
-    let changed = missing_late_observation(clean);
+    let changed = missing_late_observation(&original_bytes);
     only::reseal_raw(clean, &ledger, &changed);
     let (output, missing) = replay(directory, clean, COMPARE);
     checked(&output, 2);
@@ -232,7 +229,8 @@ fn missing_measurement_stays_incomplete(directory: &Path, clean: &Value) {
     let retained = baseline(&missing)["retained"].as_array().unwrap();
     assert_eq!(retained.len(), 1);
     assert_ne!(retained[0]["state"], "resolved");
-    only::reseal_raw(clean, &ledger, &original_wire);
+    only::reseal_raw_bytes(clean, &ledger, &original_bytes);
+    assert_eq!(std::fs::read(bundle).unwrap(), original_bytes);
 }
 
 #[test]
