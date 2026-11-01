@@ -929,3 +929,103 @@ production saved-pattern gate.
 Source reviews, work inventories, case mappings, timing JUnits, resource logs,
 coverage and style evidence are retained under
 `target/compiler-test-consolidation-20261101`.
+
+## 10. Optimized test-build experiments
+
+This experiment starts from `ba04f19c` and compares the existing test profile with
+two optimization candidates. Both candidates preserve debug assertions, overflow
+checks, debug symbols and unwind behavior. Actual unit graphs and verbose compiler
+invocations record the effective CLI/driver profiles. Optimization settings live
+in Cargo.toml, so tiny captured fixture projects retain independent Cargo profiles.
+
+| Profile | Workspace configuration | Third-party configuration |
+| --- | --- | --- |
+| Baseline | Existing test opt0 | Existing four hot dependency overrides opt2 |
+| Global opt1 | Test opt1 throughout | Global test opt1, existing hot overrides opt2 |
+| Targeted opt1 | Core, PDG, ccgraph and driver opt1; CLI/harness and extraction fixtures opt0 | Exactly baseline profiles |
+
+The existing hot overrides are serde_json, pinned syn 2.0.119, proc-macro2 and
+xxhash-rust; unrelated syn 1 remains opt0 for baseline and targeted. Max verifies
+the same 271 units for baseline and targeted: 48 selected workspace units differ
+only in opt_level and all 215 third-party effective profiles remain equal.
+Selected package tests, examples, doctests and driver build units also receive
+opt1; CLI production, unit and integration targets remain opt0.
+
+Each phase uses a separate initially empty target directory, nightly 2026-09-30,
+two build jobs, disabled incremental compilation and the four-worker CI nextest
+profile. Builds, warm preparation and three normal trials run sequentially with
+no competing heavy jobs. The same download cache is available; sequential cache
+and filesystem effects remain a limitation. Normal trials reuse prebuilt metadata
+and an explicit prebuilt driver. Inputs and used binaries stay frozen per phase.
+
+### Measurements and decision
+
+| Metric | Baseline | Global opt1 | Targeted opt1 |
+| --- | ---: | ---: | ---: |
+| Empty-target no-run build | 175.585 s | 495.462 s | 389.758 s |
+| Warm unchanged no-run preparation | 0.353 s | 0.339 s | 0.401 s |
+| Median normal nextest run | 213.799 s | 138.135 s | 157.166 s |
+| First build + median run (sum) | 389.384 s | 633.597 s | 546.924 s |
+| Median normal user + system CPU | 859.38 s | 561.84 s | 638.29 s |
+| Median largest-process RSS | 228,844 reported kbytes | 216,632 reported kbytes | 216,504 reported kbytes |
+
+Baseline trials pass at 214.006, 213.451 and 213.799 seconds.
+Global trials all pass at 138.432, 138.135 and 137.820 seconds. Their median is
+35.390% faster, but the first build costs 319.877 seconds more. Build plus one
+median run is 244.213 seconds slower. The scoped estimate breaks even after five
+normal runs reusing that initial build; it does not predict future code-edit
+recompilation or whole-CI performance.
+
+The targeted build reduces the global candidate's compile penalty, but still
+costs 214.173 seconds more than baseline. That extra build time exceeds the entire
+213.799-second baseline run, so it cannot win a fresh build followed by one run.
+Targeted trials pass at 157.423, 156.729 and 157.166 seconds: a 56.633-second,
+26.4889% median saving. Build plus one median run is 546.924 seconds, or 157.540
+seconds (40.46%) slower than baseline. The scoped estimate breaks even after four
+normal runs reusing the initial build. Warm unchanged preparation takes 0.353,
+0.339 and 0.401 seconds for baseline, global and targeted respectively.
+
+CPU is the median of user plus system seconds summed within each normal trial.
+Largest-process RSS is not simultaneous total memory. The build-plus-run row sums
+one initial build observation and the three-trial runner median; it is not a
+measured whole-CI duration. First-build, warm unchanged preparation and normal
+runner times are separate measurements. The speedups apply
+to this local Linux ARM64 workload and do not establish arbitrary edit/build or
+other-host performance.
+
+Both candidates are rejected for the fresh-build-plus-one-run use case. Warm
+execution gains come with a larger compile cost; neither configuration is adopted.
+The Ubuntu x64 coverage lane uses a runner-temporary build directory outside the
+normal Cargo cache, making fresh-build cost relevant. Optimized instrumented
+coverage and edited-source recompilation timings remain unmeasured.
+
+### Validation and restoration
+
+All nine normal trials pass the exact same 3,728 case identities across 22 test
+binaries, with five pre-existing nextest skips outside that executed population.
+Each phase preserves all tracked/unignored input and used-binary hashes.
+`comparison.json` and `comparison-targeted.json` pass the identity, profile,
+resource and exact cross-mode source-change checks.
+
+During the experiment, the test helper fallback selects profile test to build a
+compatible driver. The measured runs explicitly set RSTYLE_TEST_DRIVER and return
+before that fallback. A temporary CI cache-key edit includes root Cargo.toml for
+profile cache coherence; triggers and other workflow bytes remain unchanged.
+The comparer restricts cross-mode source differences to that workflow expression,
+the exact fallback argument change and the reviewed Cargo.toml profile settings.
+
+All three implementation files are restored byte-for-byte to `ba04f19c`:
+`Cargo.toml`, `crates/cargo-rstyle/tests/cli.rs` and `.github/workflows/ci.yml`.
+Before adding these findings, `restoration.json` verifies all 2,315 tracked and
+unignored input hashes equal the measured baseline and the tracked diff is empty.
+Only this findings report is retained; neither optimization candidate is adopted.
+
+Neither discarded profile receives a coverage run or new CI/style certification.
+The byte-identical restored implementation retains the coverage and CI/style
+evidence in section 9. That evidence does not certify the abandoned profiles.
+Final formatting and whitespace checks pass. No optimized-profile coverage or
+broad style-clean claim is made.
+
+Independent Max reviews and raw unit graphs, invocation logs, empty-target build
+resources, warm preparation logs, three-trial JUnits, fingerprints and comparison
+reports are retained under `target/optimized-tests-20261101`.
