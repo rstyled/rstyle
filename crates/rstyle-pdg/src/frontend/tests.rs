@@ -4,7 +4,7 @@
 //! the driver walk must emit and the classifier must accept, without running
 //! rustc or any producer analysis.
 
-use rstyle_pdg::frontend::{
+use super::{
     BindingFact, BuildFacts, ByteSpan, HirFnFacts, HirNode, HirRef, ParamFact, ResolvedTy,
     SignatureFacts, SourceFacts, known_bool, known_count, known_str,
 };
@@ -46,7 +46,7 @@ fn leaf(kind: &str, start: u32, end: u32, snippet: &str) -> HirNode {
 
 fn read_node() -> HirNode {
     HirNode {
-        res: Some(rstyle_pdg::frontend::PathRes {
+        res: Some(super::PathRes {
             kind: "local".to_string(),
             target: Some(HirRef {
                 krate: 0,
@@ -70,7 +70,7 @@ fn lit_node() -> HirNode {
 
 fn add_node() -> HirNode {
     HirNode {
-        dispatch: Some(rstyle_pdg::frontend::Dispatch {
+        dispatch: Some(super::Dispatch {
             kind: "builtin".to_string(),
             op: "+".to_string(),
             operand_tys: vec!["i32".to_string(), "i32".to_string()],
@@ -193,7 +193,7 @@ fn unknown_fields_are_rejected() {
 fn unknown_evidence_keeps_a_reason() {
     let facts = HirFnFacts {
         build: BuildFacts {
-            rustc_commit: rstyle_pdg::frontend::unknown_str("rustc -vV unavailable"),
+            rustc_commit: super::unknown_str("rustc -vV unavailable"),
             ..straightline_facts().build
         },
         ..straightline_facts()

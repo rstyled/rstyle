@@ -99,27 +99,6 @@ fn unsupported_native_pairs_are_explicitly_incomplete() {
     assert_eq!(report["pair_evaluation_complete"], true);
 }
 
-#[test]
-fn matching_budget_does_not_become_an_empty_complete_explanation() {
-    let directory = clone_workspace();
-    let (output, report) = clones(
-        directory.path(),
-        &[
-            "--extraction-profile",
-            "hir-data-v3",
-            "--explain-pairs",
-            "--max-pairs",
-            "0",
-        ],
-    );
-    assert_eq!(output.status.code(), Some(2));
-    let explanation = &report["pair_explanations"];
-    assert_eq!(explanation["coverage"], "incomplete");
-    assert!(explanation["expected_pairs"].is_null());
-    assert_eq!(explanation["assessed_pairs"], 0);
-    assert!(!explanation["reasons"].as_array().unwrap().is_empty());
-}
-
 fn assert_native_holes(full: &Value) {
     let literal = pair(full, "add_one", "add_two");
     assert_eq!(literal["correspondence"].as_array().unwrap().len(), 4);

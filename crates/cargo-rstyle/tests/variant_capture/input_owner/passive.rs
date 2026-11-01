@@ -38,48 +38,30 @@ pub fn invoked(value: &ids::PatternID) -> u32 {{ value.effect() }}
     )
 }
 
-#[test]
-fn passive_copy_children_do_not_import_neighboring_macro_effects() {
-    for target in [
-        "aarch64-unknown-linux-gnu",
-        "x86_64-unknown-linux-gnu",
-        "aarch64-apple-darwin",
-    ] {
-        let library = Command::new("rustc")
-            .args(["--print", "target-libdir", "--target", target])
-            .output()
-            .unwrap();
-        assert!(library.status.success());
-        if Path::new(String::from_utf8_lossy(&library.stdout).trim()).is_dir() {
-            check_passive_context(target);
-        }
-    }
-}
+const ADMITTED: [&str; 8] = [
+    "Input::get_earliest",
+    "Input::get_haystack",
+    "Input::get_span",
+    "Input::start",
+    "Input::end",
+    "Input::is_done",
+    "caller",
+    "same",
+];
 
-fn check_passive_context(target: &str) {
-    for no_std in [false, true] {
-        let (_directory, report) = capture_context(&source(), no_std, Some(target));
-        let unit = super::super::word_classifiers::verify_admissions(&report);
-        for name in [
-            "Input::get_earliest",
-            "Input::get_haystack",
-            "Input::get_span",
-            "Input::start",
-            "Input::end",
-            "Input::is_done",
-            "caller",
-            "same",
-        ] {
-            let entry = function(&report, name);
-            assert_eq!(entry["outcome"], "admitted", "{name}: {}", entry["reasons"]);
-            reject_previous(entry, &unit);
-        }
-        for name in ["exposed", "invoked", "owned", "construct"] {
-            let entry = function(&report, name);
-            assert_eq!(entry["outcome"], "excluded", "{name}: {}", entry["reasons"]);
-        }
-        check_getter_matching(&report);
+// The borrowed fixture includes this complete source in every target/std context.
+pub(super) fn check_passive_context(report: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
+    for name in ADMITTED {
+        let entry = function(report, name);
+        assert_eq!(entry["outcome"], "admitted", "{name}: {}", entry["reasons"]);
+        reject_previous(entry, unit);
     }
+
+    for name in ["exposed", "invoked", "owned", "construct"] {
+        let entry = function(report, name);
+        assert_eq!(entry["outcome"], "excluded", "{name}: {}", entry["reasons"]);
+    }
+    check_getter_matching(report);
 }
 
 fn check_getter_matching(report: &Value) {
@@ -91,8 +73,8 @@ fn check_getter_matching(report: &Value) {
     ] {
         assert_eq!(report[flag], true, "{flag}");
     }
-    let pairs = report["matching"]["pairs"].as_array().unwrap();
-    assert_eq!(pairs.len(), 28);
+
+    let pairs = getter_pairs(report);
     let left = &function(report, "caller")["key"];
     let right = &function(report, "same")["key"];
     assert!(
@@ -102,6 +84,52 @@ fn check_getter_matching(report: &Value) {
                 || (&pair["first"] == right && &pair["second"] == left))
                 && pair["decision"] == "Accepted")
     );
+}
+
+fn getter_pairs(report: &Value) -> Vec<&Value> {
+    use std::collections::BTreeSet;
+    let keys: BTreeSet<_> = ADMITTED
+        .iter()
+        .map(|name| function(report, name)["key"].as_str().unwrap())
+        .collect();
+    assert_eq!(keys.len(), 8);
+    let cutoff = function(report, "Input::boundary")["facts"]["fn_span"]["start"]
+        .as_u64()
+        .unwrap();
+    let actual: BTreeSet<_> = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|entry| {
+            entry["outcome"] == "admitted"
+                && entry["facts"]["fn_span"]["start"].as_u64().unwrap() < cutoff
+        })
+        .map(|entry| entry["key"].as_str().unwrap())
+        .collect();
+    assert_eq!(actual, keys);
+
+    let pairs: Vec<_> = report["matching"]["pairs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|pair| {
+            keys.contains(pair["first"].as_str().unwrap())
+                && keys.contains(pair["second"].as_str().unwrap())
+        })
+        .collect();
+
+    let identities: BTreeSet<_> = pairs
+        .iter()
+        .map(|pair| {
+            let first = pair["first"].as_str().unwrap();
+            let second = pair["second"].as_str().unwrap();
+            assert_ne!(first, second);
+            (first.min(second), first.max(second))
+        })
+        .collect();
+    assert_eq!(pairs.len(), 28);
+    assert_eq!(identities.len(), 28);
+    pairs
 }
 
 fn reject_previous(entry: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
@@ -149,10 +177,8 @@ fn passive_children_keep_owning_scopes_and_complete_copy_proofs_closed() {
     }
 }
 
-#[test]
-fn passive_dependency_origin_and_copy_authority_cannot_be_resealed_away() {
-    let (_directory, report) = capture(&source(), false);
-    let entry = function(&report, "Input::get_earliest");
+pub(super) fn reject_dependency_edits(report: &Value) {
+    let entry = function(report, "Input::get_earliest");
     assert_eq!(entry["outcome"], "admitted", "{}", entry["reasons"]);
     for mutation in [
         "copy_missing",

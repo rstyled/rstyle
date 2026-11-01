@@ -1,18 +1,17 @@
 use super::*;
 use rstyle_pdg::unit_store::EvidenceFacts;
 
-#[test]
-fn scalar_alias_requires_its_actual_closed_source_declaration() {
-    let (directory, report) = captured(None, false);
+pub(super) fn check_captured(report: &Value, unit: &UnitStore) {
     let function = report["functions"]
         .as_array()
         .unwrap()
         .iter()
         .find(|f| f["facts"]["name"] == "scalar_alias")
         .unwrap();
-    let (unit, index) = data_unit(function);
+    let index = shared_evidence::index(function);
     let analysis = unit.analysis();
     let facts = analysis.function(index).unwrap();
+
     for target in ["u64", "i32"] {
         let mut changed = facts.facts().clone();
         let census = changed
@@ -30,9 +29,8 @@ fn scalar_alias_requires_its_actual_closed_source_declaration() {
         assert!(rstyle_pdg::producer::produce(&changed).is_err(), "{target}");
         shared_evidence::reject_facts(function, &changed);
     }
-    packing_helper_summaries_cannot_invent_purity_or_erase_conditional_read_occurrences(&report);
-    packing_requires_exact_comparison_snapshots_conditional_reads_and_policy(&report);
-    packing_release_capture_omits_debug_comparison_operand_effects(directory.path());
+    packing_helper_summaries_cannot_invent_purity_or_erase_conditional_read_occurrences(report);
+    packing_requires_exact_comparison_snapshots_conditional_reads_and_policy(report, unit);
 }
 
 fn packing_helper_summaries_cannot_invent_purity_or_erase_conditional_read_occurrences(
@@ -71,7 +69,10 @@ fn packing_helper_summaries_cannot_invent_purity_or_erase_conditional_read_occur
     }
 }
 
-fn packing_requires_exact_comparison_snapshots_conditional_reads_and_policy(report: &Value) {
+fn packing_requires_exact_comparison_snapshots_conditional_reads_and_policy(
+    report: &Value,
+    unit: &UnitStore,
+) {
     for name in [
         "Accel::as_accel_tys",
         "compare_order",
@@ -86,9 +87,10 @@ fn packing_requires_exact_comparison_snapshots_conditional_reads_and_policy(repo
             .find(|f| f["facts"]["name"] == name)
             .unwrap();
         assert_eq!(function["outcome"], "admitted", "{name}");
-        let (unit, index) = data_unit(function);
+        let index = shared_evidence::index(function);
         let analysis = unit.analysis();
         let facts = analysis.function(index).unwrap();
+
         let mutations: &[&str] = match name {
             "Accel::as_accel_tys" => &["copy", "read", "bounds", "policy"],
             "compare_order" => &["operator", "operand", "order", "policy"],

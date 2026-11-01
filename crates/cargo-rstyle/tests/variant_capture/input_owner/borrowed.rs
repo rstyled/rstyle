@@ -1,5 +1,6 @@
 //! Slot reads and returned slice referents compose through complete owning scopes.
 use super::*;
+use rstyle_pdg::unit_store::EvidenceFacts;
 
 const CHAIN: &str = r#"
 impl<'h> Input<'h> {
@@ -35,42 +36,8 @@ fn source() -> String {
 }
 
 #[test]
-fn origin_reuse_preserves_saved_sources_and_rejects_edited_node_queries() {
-    use rstyle_pdg::unit_store::EvidenceFacts;
-    let source = r#"
-        pub fn saved<'a>(a: &'a [u8], b: &'a [u8]) -> &'a [u8] {
-            let mut selected = a; let saved = selected; selected = b; saved
-        }
-    "#;
-    let (_directory, report) = capture(source, false);
-    let entry = function(&report, "saved");
-    assert_eq!(entry["outcome"], "admitted", "{}", entry["reasons"]);
-    let (unit, index) = data_unit(entry);
-    let analysis = unit.analysis();
-    let facts = analysis.function(index).unwrap();
-    let saved = facts.body.children.last().unwrap();
-    let expected = vec![rstyle_pdg::data_origins::Origin {
-        parameter: 0,
-        path: vec![rstyle_pdg::field_locations::Projection::SharedReferent],
-    }];
-
-    for _ in 0..2 {
-        assert_eq!(facts.reference_origins(saved, &[]).unwrap(), expected);
-    }
-    let mut changed = saved.clone();
-    changed.kind = "expr_lit".into();
-    assert!(facts.reference_origins(&changed, &[]).is_err());
-    assert!(facts.reference_origins(saved, &[0]).is_err());
-    assert_eq!(facts.reference_origins(saved, &[]).unwrap(), expected);
-    rstyle_pdg::verification_policy::generated(|| {
-        assert_eq!(facts.reference_origins(saved, &[]).unwrap(), expected);
-        assert!(facts.reference_origins(&changed, &[]).is_err());
-    });
-    rstyle_ccgraph::admit_produced(unit.pair(index).unwrap(), &facts).unwrap();
-}
-
-#[test]
 fn stored_slices_compose_with_checked_consumers_saved_receivers_and_finite_alternatives() {
+    let mut checked_mutations = false;
     for target in [
         "aarch64-unknown-linux-gnu",
         "x86_64-unknown-linux-gnu",
@@ -82,12 +49,16 @@ fn stored_slices_compose_with_checked_consumers_saved_receivers_and_finite_alter
             .unwrap();
         assert!(library.status.success());
         if Path::new(String::from_utf8_lossy(&library.stdout).trim()).is_dir() {
-            check_context(target);
+            check_context(target, &mut checked_mutations);
         }
     }
+    assert!(
+        checked_mutations,
+        "No installed target exercised the retained std mutations"
+    );
 }
 
-fn check_context(target: &str) {
+fn check_context(target: &str, checked_mutations: &mut bool) {
     for no_std in [false, true] {
         let (_directory, report) = capture_context(&source(), no_std, Some(target));
         for name in [
@@ -109,10 +80,18 @@ fn check_context(target: &str) {
                 entry["reasons"]
             );
         }
+
         let negative = function(&report, "nested_reference_caller");
         assert_eq!(negative["outcome"], "excluded", "{}", negative["reasons"]);
         let unit = super::super::word_classifiers::verify_admissions(&report);
+        passive::check_passive_context(&report, &unit);
         check_locations(&report, &unit);
+        if !no_std && !*checked_mutations {
+            passive::reject_dependency_edits(&report);
+            reject_stored_slice_edits(&report, &unit);
+            *checked_mutations = true;
+        }
+
         for flag in [
             "capture_complete",
             "assessment_complete",
@@ -167,28 +146,30 @@ fn check_locations(report: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
             assert_eq!(record["parameter"], 0, "{name}: {record}");
         }
     }
-    let wire = shared_evidence::wire(function(report, "wrapper"));
-    let helper = stored_helper(&wire);
-    let output = &helper["summary"]["reference_outputs"][0];
+    let analysis = unit.analysis();
+    let wrapper = analysis
+        .function(shared_evidence::index(function(report, "wrapper")))
+        .unwrap();
+    assert_eq!(wrapper.body.kind, "expr_block");
+    assert_eq!(wrapper.body.children.len(), 1);
+    let call = &wrapper.body.children[0];
+    assert_eq!(call.kind, "expr_method_call");
+    let helper = wrapper.helper(call).unwrap().unwrap();
+    assert_eq!(
+        helper.summary().identity,
+        "rstyle.helper.stored-slice-result/1"
+    );
+
+    let summary = serde_json::to_value(helper.summary()).unwrap();
+    let output = &summary["reference_outputs"][0];
     assert_eq!(output["parameter"], 0);
     assert_eq!(output["path"].as_array().unwrap().len(), 3);
     assert_eq!(output["path"][2]["kind"], "SharedReferent");
-    assert_eq!(helper["summary"]["memory_reads"][0]["path"], slot["path"]);
+    assert_eq!(summary["memory_reads"][0]["path"], slot["path"]);
 }
 
-fn stored_helper(bundle: &Value) -> &Value {
-    bundle["helpers"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|helper| helper["summary"]["identity"] == "rstyle.helper.stored-slice-result/1")
-        .unwrap()
-}
-
-#[test]
-fn stored_slice_summaries_reject_resealed_slot_referent_read_and_receiver_corruption() {
-    let (_directory, report) = capture(&source(), false);
-    let entry = function(&report, "later");
+fn reject_stored_slice_edits(report: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
+    let entry = function(report, "later");
     assert_eq!(entry["outcome"], "admitted", "{}", entry["reasons"]);
     for mutation in [
         "slot_missing",
@@ -210,8 +191,9 @@ fn stored_slice_summaries_reject_resealed_slot_referent_read_and_receiver_corrup
         corrupt_summary(&mut helper["summary"], mutation);
         super::super::float_kernels::reject_resealed(bundle, mutation);
     }
+
     reject_conditional_read(entry);
-    reject_document_edits(function(&report, "Input::get_haystack"));
+    reject_document_edits(function(report, "Input::get_haystack"), unit);
 }
 
 fn reject_conditional_read(entry: &Value) {
@@ -272,12 +254,13 @@ fn corrupt_summary(summary: &mut Value, mutation: &str) {
     }
 }
 
-fn reject_document_edits(entry: &Value) {
-    let (unit, index) = data_unit(entry);
+fn reject_document_edits(entry: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
+    let index = shared_evidence::index(entry);
     let analysis = unit.analysis();
     let facts = analysis.function(index).unwrap();
+
     for mutation in ["locations", "reads", "policy"] {
-        let captured = unit.pair(index).unwrap();
+        let captured = shared_evidence::pair(unit, entry);
         let mut pair = rstyle_pdg::producer::Pair {
             pdg: captured.pdg.clone(),
             cfg: captured.cfg.clone(),
@@ -289,10 +272,7 @@ fn reject_document_edits(entry: &Value) {
                     node.attributes.reads.clear();
                 }
             }
-            "policy" => {
-                pair.pdg.profile.version = "3.68.0".into();
-                pair.cfg.profile.version = "3.68.0".into();
-            }
+            "policy" => pair = shared_evidence::with_profile_version(&pair, "3.68.0"),
             _ => unreachable!(),
         }
         assert!(

@@ -425,3 +425,6 @@ mod tests {
         assert!(queries.0[0].borrow().values.is_empty());
     }
 }
+
+#[cfg(test)]
+mod flow_tests;

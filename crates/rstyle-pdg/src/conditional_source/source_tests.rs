@@ -1,4 +1,4 @@
-use rstyle_pdg::conditional_source::Configuration;
+use super::Configuration;
 use syn::parse::Parser;
 
 #[test]

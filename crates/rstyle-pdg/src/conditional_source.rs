@@ -266,3 +266,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod source_tests;

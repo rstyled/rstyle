@@ -720,3 +720,717 @@ Reproducible scripts, frozen input/binary hashes, all six normal timing JUnits,
 production reports and balanced raw traces, GNU time observations, coverage
 reports, style outputs and independent Max reviews remain under
 `target/structural-validation-20261031`.
+
+## 8. Put direct checks beside their owning Rust modules
+
+This pass starts from merged main `3a1e0069`, whose Git tree is identical to
+`a44e2ace`. Direct checks of hand-built inputs belong in owning `#[cfg(test)]`
+modules. Compiler capture, cross-component admission, transport and compiler
+authority contracts remain integration tests. Invalid-input checks protect
+ordinary extraction, serialization and cache regressions; they do not require
+an adversarial environment.
+
+Low implemented the moves and Max independently reviewed their source,
+assertions, placement and evidence. The following 41 tests retain every helper
+and assertion, with only imports and qualified paths adjusted:
+
+| Former file under `crates/rstyle-pdg/tests/` | New module under `crates/rstyle-pdg/src/` | Cases |
+| --- | --- | ---: |
+| `eligibility_tests.rs` | `eligibility/tests.rs` | 18 |
+| `assertions.rs` | `assertions/tests.rs` | 3 |
+| `bool_constants.rs` | `bool_constants/tests.rs` | 1 |
+| `byte_literals.rs` | `byte_literals/tests.rs` | 1 |
+| `conditional_source.rs` | `conditional_source/source_tests.rs` | 2 |
+| `scalar_constants.rs` | `scalar_constants/tests.rs` | 4 |
+| `scalar_patterns.rs` | `scalar_patterns/tests.rs` | 2 |
+| `source_ownership.rs` | `source_evidence/ownership_tests.rs` | 7 |
+| `frontend_facts.rs` | `frontend/tests.rs` | 3 |
+
+One additional origin-cache regression moves out of the compiler-backed CLI
+suite into `unit_store/derived/reference_origins/flow_tests.rs`. A small typed
+source-flow fixture exercises the real `UnitStore`, `UnitAnalysis` and
+`FunctionView::reference_origins` route. It checks that saving `a` retains its
+origin after another local is assigned `b`, with repeated queries, edited-node
+and selector failures, recovery and both verification policies. It creates no
+Cargo project and launches no compiler. Existing reference rebinding and stored
+slice integration cases retain the real compiler, graph verification and
+admission assertions. No public API was added for tests.
+
+### Local ARM64 execution timing
+
+Three baseline runs preceded three candidate runs on the same Linux ARM64
+host, using the pinned nightly, two build jobs, disabled incremental compilation
+and the CI nextest profile's four workers. No other build or test workload ran
+during the timing trials. Compilation is excluded. All six runs pass the same
+3,735 cases after exactly 42 reviewed identity mappings; the same five configured
+exclusions remain. Source/build/test input fingerprints stay frozen within each
+measurement group.
+
+| Metric | Baseline | Measured candidate |
+| --- | ---: | ---: |
+| Full normal nextest median | 220.541 s | 218.264 s |
+| Origin-cache case median | 0.275 s | 0.007 s |
+| Test binaries reported by nextest | 31 | 22 |
+
+Baseline trials are 221.016, 220.232 and 220.541 seconds; candidate trials are
+218.380, 218.264 and 218.064 seconds. The observed suite reduction is 2.277
+seconds, or 1.03%. This does not isolate the contribution of one removed capture,
+establish a cold-build or whole-CI improvement, or measure other architectures.
+The 41 relocated cases already used hand-built inputs; their placement changes
+remove nine standalone test binaries. Only the additional origin conversion
+removes compiler capture.
+
+After timing, the supplementary test-target style audit requested three blank
+phase separators in the new fixture. Exactly three empty lines were inserted;
+all nonempty lines and all other measured inputs remain identical. Independent
+hash and diff proofs preserve that distinction. The final source was not
+re-timed; final coverage and style validation use the corrected source.
+
+### Coverage and final checks
+
+The final unchanged `scripts/coverage.sh` passes all 3,735 tests and workspace
+doctest checks. Its input fingerprints remain frozen throughout execution. The
+coverage run has exactly the same cases as the normal runs after the reviewed
+remap. The retained baseline coverage comes from the identical pre-merge tree;
+all 2,314 historical input hashes were checked, including 145 JSON inputs. The
+only historical difference is the investigation appendix added after that run.
+
+The unique LCOV `DA` source-line records are exactly preserved: 154,251 of
+166,494 lines have hits, **92.64658%**, across the same 1,153 source files.
+No previously covered `DA` source line loses its hit. LCOV's separate `LF`/`LH`
+summary totals differ: `LF` remains 169,594, while `LH` falls from 156,381 to
+156,365, or 92.20904% to 92.19961%. Those summary counts differ from the `DA`
+cardinality in both reports. The six files with lower `LH` retain exactly the
+same `DA` hit sets; generated function copies receive different execution
+counts, but the precise exporter-summary mechanism is not established. Global
+`FNF`/`FNH` totals remain 18,428/17,152. This proves source-line hit preservation,
+without claiming that every LCOV summary counter is unchanged. The unchanged
+cargo-llvm-cov default filename filter omits the old integration test files,
+their relocated test files and `flow_tests.rs`. Their execution is verified by
+JUnit, rather than a claim of test-helper line coverage. This report has no
+branch-coverage records. The final instrumented command takes 329.189 seconds;
+that is separate from the normal runner benchmark.
+
+Formatting, whitespace checks, workspace/all-target Clippy with warnings denied,
+and the actual production CI numeric and saved-pattern gates pass. All six new
+flow helper/test functions are observed in the supplementary all-target numeric
+audit with zero findings. The broader audit remains incomplete: exit two,
+17,003 observed functions and 1,424 findings elsewhere. It is not a clean gate,
+and counts alone do not establish those findings' baseline provenance.
+
+No production behavior, CI trigger, threshold, suppression or ignore entry is
+changed. Raw timing JUnits, explicit case mappings, preserved-source proofs,
+coverage reports, scope evidence, final style outputs and independent Max
+reviews are retained under `target/unit-test-boundaries-20261101`.
+
+## 9. Reuse compiler captures and immutable evidence
+
+This pass starts from `36f3e1e3`. It removes repeated setup while retaining compiler
+capture, serialization, verification, admission and matching. Checks reuse one
+immutable `UnitStore`; mutations receive independent clones or edited wire.
+Production, fixture files, CI, thresholds, suppressions and ignores stay unchanged.
+
+Low implemented the changes and Max reviewed source, assertions and work counts.
+With all three configured targets installed, the source/call-graph inventory is:
+
+| Family | Compiler captures before → after | Direct test-side bundle loads before → after |
+| --- | ---: | ---: |
+| Input owners and stored slices | 37 → 29 | 26 → 19 |
+| Accelerator packing | 9 → 8 | 50 → 8 |
+| Word classifiers | 15 → 7 | 15 → 7 |
+| Architecture readers | 5 → 4 | 14 → 6 |
+| Total | 66 → 48 | 105 → 40 |
+
+That removes **18 capture setups and 65 direct successful test-side bundle loads**.
+Counts exclude all native oracle compilations, target-library queries, CLI-internal
+imports and intentional rejection/control imports. These are static work counts.
+
+The six stored-slice target/std captures include the complete passive-owner source
+and replay its checks. An exact guard checks admitted keys before the first
+appended borrowed method against the original eight keys, including generated
+source callsites. Matching requires all 28 unique nonself pairs and the accepted
+`caller`/`same` pair. Architecture counts every function in its original source
+prefix against eight and retains all eight named outcome checks. These guards
+preserve the original passive admission inventory and architecture function
+inventory. Word retains its complete 20/11 partition of 31 functions;
+accelerator packing retains all 19 functions.
+
+Target and std/no_std matrices, completion flags, old-policy rejections, saved
+receiver/read contracts, mutation scenarios and rejection entrypoints remain.
+Same-source details run once in a retained std context. Distinct mutated sources,
+accelerator release capture, native debug-policy oracles and the independent
+256-byte ASCII oracle remain. Word fixtures share one namespaced capture per
+context, adding 780 candidate matching pairs within the six-context matrix.
+Measurements include that matrix overhead and the removal of separate host
+mutation captures.
+
+### Final normal execution and resources
+
+Seven reviewed many-to-one case consolidations change 3,735 passing cases to
+3,728 across the same 22 test binaries. Explicit mappings and source review account
+for each consolidated case and its assertions. The five pre-existing nextest skips
+remain outside that executed JUnit population. Baseline groups freeze their
+original inputs; final candidate groups freeze the reviewed sources, including
+both exact prefix guards. Earlier timings and coverage attempts without those
+guards are archived and discarded from final result claims.
+
+| Metric | Baseline | Final candidate |
+| --- | ---: | ---: |
+| Focused normal nextest median | 20.294 s | 15.592 s |
+| Full normal nextest median | 218.009 s | 215.097 s |
+| Focused per-trial user + system CPU median | 64.27 s | 50.31 s |
+| Focused median largest-process RSS | 144,496 reported kbytes | 144,496 reported kbytes |
+
+Focused trials are 20.405, 20.102 and 20.294 seconds before, and 15.680, 15.566
+and 15.592 seconds after: a 4.702-second, 23.1694% median reduction. Full-suite
+trials are 217.988, 218.204 and 218.009 seconds before, and 215.343, 214.498 and
+215.097 seconds after: a 2.912-second, 1.3357% median reduction. The focused CPU
+metric sums user and system time within each trial before taking the median.
+Largest-process RSS is not total concurrent memory; full normal runs do not
+include resource sampling with `time -v`.
+
+These local Linux ARM64 measurements exclude compilation and use nightly
+`2026-09-30`, four CI-profile workers, two build jobs and disabled incremental
+compilation, with no competing heavy jobs. The four families account for about
+7.4% of summed baseline test duration; other cases remain. Their localized saving
+therefore produces a modest full-suite gain. These results do not establish a
+cold-build, whole-CI or other-host improvement.
+
+### Final coverage and checks
+
+The unchanged coverage command passes all 3,728 cases and four doctest targets
+with zero doctests each. Inputs remain frozen. Normal and coverage JUnit identities
+agree after the seven reviewed consolidations. The collector takes 322.413 seconds,
+separately from the normal benchmark.
+
+The same 1,153 source files retain exactly the same unique `SF` + `DA` line keys
+and hit sets without remapping: 154,251 of 166,494 lines, or 92.64658%, have hits.
+The separate raw LCOV summary totals are also unchanged: `LF` 169,594, `LH`
+156,365, `FNF` 18,428 and `FNH` 17,152. Raw `LF`/`LH` coverage is 92.19961%.
+Unique source-line records and exported summary totals remain distinct metrics.
+
+The unchanged cargo-llvm-cov default filter omits test directories and
+`tests.rs`/`*_tests.rs` files equally before and after. JUnit establishes execution;
+LCOV does not establish instrumentation or line coverage for omitted helpers.
+No branch coverage is claimed.
+
+Actual production CI numeric and saved-pattern gates pass with exit zero in v3.
+Only test guards change afterward; v5's `ci-gate-provenance.json` records that
+retained evidence. Final formatting, whitespace checks and workspace/all-target
+Clippy with warnings denied pass. All 34 changed functions are observed in the
+final supplementary numeric audit with zero non-density findings. Its broad
+scope remains incomplete: exit two, 6,469 functions and 3,303 findings. All seven
+changed-scope IO-density findings exist in the measured baseline; five values
+are lower and two are higher due only to statement-denominator changes, with the
+same classified IO effects. The broad audit is not clean. Max's manual source
+pattern review approves the changed helpers separately from the automated
+production saved-pattern gate.
+
+Source reviews, work inventories, case mappings, timing JUnits, resource logs,
+coverage and style evidence are retained under
+`target/compiler-test-consolidation-20261101`.
+
+## 10. Optimized test-build experiments
+
+This experiment starts from `ba04f19c` and compares the existing test profile with
+two optimization candidates. Both candidates preserve debug assertions, overflow
+checks, debug symbols and unwind behavior. Actual unit graphs and verbose compiler
+invocations record the effective CLI/driver profiles. Optimization settings live
+in Cargo.toml, so tiny captured fixture projects retain independent Cargo profiles.
+
+| Profile | Workspace configuration | Third-party configuration |
+| --- | --- | --- |
+| Baseline | Existing test opt0 | Existing four hot dependency overrides opt2 |
+| Global opt1 | Test opt1 throughout | Global test opt1, existing hot overrides opt2 |
+| Targeted opt1 | Core, PDG, ccgraph and driver opt1; CLI/harness and extraction fixtures opt0 | Exactly baseline profiles |
+
+The existing hot overrides are serde_json, pinned syn 2.0.119, proc-macro2 and
+xxhash-rust; unrelated syn 1 remains opt0 for baseline and targeted. Max verifies
+the same 271 units for baseline and targeted: 48 selected workspace units differ
+only in opt_level and all 215 third-party effective profiles remain equal.
+Selected package tests, examples, doctests and driver build units also receive
+opt1; CLI production, unit and integration targets remain opt0.
+
+Each phase uses a separate initially empty target directory, nightly 2026-09-30,
+two build jobs, disabled incremental compilation and the four-worker CI nextest
+profile. Builds, warm preparation and three normal trials run sequentially with
+no competing heavy jobs. The same download cache is available; sequential cache
+and filesystem effects remain a limitation. Normal trials reuse prebuilt metadata
+and an explicit prebuilt driver. Inputs and used binaries stay frozen per phase.
+
+### Measurements and decision
+
+| Metric | Baseline | Global opt1 | Targeted opt1 |
+| --- | ---: | ---: | ---: |
+| Empty-target no-run build | 175.585 s | 495.462 s | 389.758 s |
+| Warm unchanged no-run preparation | 0.353 s | 0.339 s | 0.401 s |
+| Median normal nextest run | 213.799 s | 138.135 s | 157.166 s |
+| First build + median run (sum) | 389.384 s | 633.597 s | 546.924 s |
+| Median normal user + system CPU | 859.38 s | 561.84 s | 638.29 s |
+| Median largest-process RSS | 228,844 reported kbytes | 216,632 reported kbytes | 216,504 reported kbytes |
+
+Baseline trials pass at 214.006, 213.451 and 213.799 seconds.
+Global trials all pass at 138.432, 138.135 and 137.820 seconds. Their median is
+35.390% faster, but the first build costs 319.877 seconds more. Build plus one
+median run is 244.213 seconds slower. The scoped estimate breaks even after five
+normal runs reusing that initial build; it does not predict future code-edit
+recompilation or whole-CI performance.
+
+The targeted build reduces the global candidate's compile penalty, but still
+costs 214.173 seconds more than baseline. That extra build time exceeds the entire
+213.799-second baseline run, so it cannot win a fresh build followed by one run.
+Targeted trials pass at 157.423, 156.729 and 157.166 seconds: a 56.633-second,
+26.4889% median saving. Build plus one median run is 546.924 seconds, or 157.540
+seconds (40.46%) slower than baseline. The scoped estimate breaks even after four
+normal runs reusing the initial build. Warm unchanged preparation takes 0.353,
+0.339 and 0.401 seconds for baseline, global and targeted respectively.
+
+CPU is the median of user plus system seconds summed within each normal trial.
+Largest-process RSS is not simultaneous total memory. The build-plus-run row sums
+one initial build observation and the three-trial runner median; it is not a
+measured whole-CI duration. First-build, warm unchanged preparation and normal
+runner times are separate measurements. The speedups apply
+to this local Linux ARM64 workload and do not establish arbitrary edit/build or
+other-host performance.
+
+Both candidates are rejected for the fresh-build-plus-one-run use case. Warm
+execution gains come with a larger compile cost; neither configuration is adopted.
+The Ubuntu x64 coverage lane uses a runner-temporary build directory outside the
+normal Cargo cache, making fresh-build cost relevant. Optimized instrumented
+coverage and edited-source recompilation timings remain unmeasured.
+
+### Validation and restoration
+
+All nine normal trials pass the exact same 3,728 case identities across 22 test
+binaries, with five pre-existing nextest skips outside that executed population.
+Each phase preserves all tracked/unignored input and used-binary hashes.
+`comparison.json` and `comparison-targeted.json` pass the identity, profile,
+resource and exact cross-mode source-change checks.
+
+During the experiment, the test helper fallback selects profile test to build a
+compatible driver. The measured runs explicitly set RSTYLE_TEST_DRIVER and return
+before that fallback. A temporary CI cache-key edit includes root Cargo.toml for
+profile cache coherence; triggers and other workflow bytes remain unchanged.
+The comparer restricts cross-mode source differences to that workflow expression,
+the exact fallback argument change and the reviewed Cargo.toml profile settings.
+
+All three implementation files are restored byte-for-byte to `ba04f19c`:
+`Cargo.toml`, `crates/cargo-rstyle/tests/cli.rs` and `.github/workflows/ci.yml`.
+Before adding these findings, `restoration.json` verifies all 2,315 tracked and
+unignored input hashes equal the measured baseline and the tracked diff is empty.
+Only this findings report is retained; neither optimization candidate is adopted.
+
+Neither discarded profile receives a coverage run or new CI/style certification.
+The byte-identical restored implementation retains the coverage and CI/style
+evidence in section 9. That evidence does not certify the abandoned profiles.
+Final formatting and whitespace checks pass. No optimized-profile coverage or
+broad style-clean claim is made.
+
+Independent Max reviews and raw unit graphs, invocation logs, empty-target build
+resources, warm preparation logs, three-trial JUnits, fingerprints and comparison
+reports are retained under `target/optimized-tests-20261101`.
+
+## 11. Direct semantic unit tests
+
+The next experiment removes compiler launches from checks whose assertions concern
+native comparison, helper policy and report summaries. Low implements the move;
+Max independently reviews fixture fidelity, assertion mappings, test ownership,
+complexity and measurement evidence. Production functions and APIs, Cargo profiles,
+CI configuration, style thresholds and saved ignores remain unchanged.
+
+Five standalone CLI identities are retired. Their semantic checks move into private
+unit modules; the native budget-report assertions also transfer verbatim into the
+existing live helper-budget test. The alpha-only iteration of the positive helper
+test moves to a unit case while its literal-hole compiler capture remains.
+
+| Checks | Unit destination / retained integration |
+| --- | --- |
+| Forwarding, one-operation usefulness boundary and noncommutative formal reordering | Three `pair_differences::tests::helper_policy` cases |
+| Two-operation alpha-only helper policy | `helper_policy`; real literal/HIR/span/advisory positive stays integrated |
+| Pairwise evidence that is not transitive | `helper_policy`, retaining `(x+1)*2`, `(x+3)*2`, `(x+3)*4` |
+| Complete native u64 comparison outside u32 helper policy | `helper_policy`, including real report completion predicate |
+| Operator and subtree-shape differences | Strengthened existing `pair_differences` unit, with unconditional comparison/helper assertions |
+| Incomplete matching denominator versus known-empty/unrequested summaries | Owning `pair_reports/tests.rs` and `helper_reports/tests.rs`; one live CLI capture checks both budget reports |
+
+The new tests use the actual native comparison, helper evaluator, summarizers,
+serializers and `permits_success` predicates. They reuse private typed builders.
+One-formal inputs retain exactly one formal; the two-formal alpha case retains XOR
+then AND with 15 and the original parameter order. These synthetic HIR expressions
+are algorithm inputs, with no claim of compiler extraction or strict admission.
+No public test-support API or new captured snapshot is introduced.
+
+Compiler extraction still has the independent eager scalar operator/type/operand
+matrix. Live tests retain literal source evidence, unknown calls and mutation,
+supported-plus-unavailable owners, native formal/literal differences, full/compact
+and text reports, opt-in flags and CLI statuses. The operator/shape unit now always
+reaches the helper rejection branch; its old CLI check could accept an empty
+accepted-pair population.
+
+| Static compiler-capture inventory | Before | After |
+| --- | ---: | ---: |
+| Helper CLI tests | 18 | 10 |
+| Native-difference CLI tests | 6 | 5 |
+| Total for these two groups | 24 | 15 |
+
+The initial coverage comparison found one lost source-line hit: constant
+multiplication in the producer hazard assessor, previously reached incidentally
+by `x+(1*2)`. A unit test under `producer/hazards/tests.rs` now runs real graph
+analysis and hazard assessment. It checks that a folded product becomes the
+denominator of a safe division, while zero, target-width overflow and an unknown
+factor retain the appropriate limitations. This preserves useful producer
+behavior coverage without another compiler capture.
+
+That removes nine compiler captures. Five retired CLI identities and nine new
+unit identities change 3,728 executed cases to 3,732, across the same 22 binaries.
+The five existing nextest skips remain outside that executed JUnit population.
+Explicit case/assertion mappings account for the moves, partial alpha iteration,
+strengthened operator/shape case and shared live budget capture.
+
+### Normal timing and resources
+
+The current full baseline control takes 214.185 seconds, consistent with section
+10's same-implementation median of 213.799 seconds. The initial candidate passes
+one full normal run at 215.044 seconds, before the producer unit is added. Those
+single full-suite observations establish no global speedup and are not a timing
+claim for the final source. The retired CLI identities account for only 1.989
+seconds of summed baseline case duration, before the partial alpha move.
+
+| Focused metric | Baseline | Candidate |
+| --- | ---: | ---: |
+| Normal nextest median | 1.692 s | 1.040 s |
+| Per-trial user + system CPU median | 6.41 s | 4.30 s |
+| Largest-process RSS median, reported kbytes | 98,852 | 99,096 |
+| Executed cases | 32 | 36 |
+
+Baseline trials take 1.706, 1.679 and 1.692 seconds; final trials take 1.040,
+1.047 and 1.004 seconds. The median saving is 0.652 seconds, or 38.534%. The
+final focused selection adds the new producer unit; its filter matches no baseline
+hazard units, leaving the baseline selection unchanged. CPU is summed within each
+trial before taking the median. The RSS observation is effectively unchanged and
+measures the largest process, not total concurrent memory.
+
+Measurements run sequentially on local Linux ARM64 with nightly `2026-09-30`,
+disabled incremental compilation, two build jobs, four CI-profile workers,
+prebuilt nextest metadata and an explicit prebuilt driver. The effective Cargo unit
+graphs match across all 271 units; workspace runtime/test profiles remain opt0,
+with assertions, overflow checks and unwind behavior unchanged. Tracked/unignored
+source inputs and executable manifests remain frozen within each phase. Each
+manifest contains 46 paths, including all 22 test binaries and the prebuilt CLI/driver.
+Build preparation uses existing caches and is excluded from normal runner times.
+These results describe warm execution on this host.
+
+### Coverage and style validation
+
+The unchanged coverage command passes all 3,732 final cases and four doctest
+targets with zero doctests each. Its 319.663-second collector duration is separate
+from normal timing. Final compiled selections, focused execution and full coverage
+JUnit identities agree after the explicit five-retired/nine-added mapping. Inputs
+remain frozen throughout collection. The historical coverage baseline differs
+from the current control only in this investigation document across its 2,315
+input hashes; all implementation bytes match that control.
+
+Both reports contain exactly the same 1,153 source files and 166,494 unique
+`SF` + `DA` line keys, with exactly the same 154,251 covered source lines
+(92.64658%). No previously covered source line loses a hit. The first candidate's
+single lost constant-multiplication hit is restored by the producer unit.
+
+The raw LCOV summary is a separate metric: `LF` remains 169,594, `FNF` 18,428 and
+`FNH` 17,152, while `LH` changes from 156,365 to 156,364. This entire difference is
+in `producer/hazards.rs`: exported `LH` is 343 versus 342, while all 350 exported
+`DA` keys and all 340 covered `DA` lines in that file are identical. Raw summary
+coverage is 92.19961% versus 92.19902%; it is not claimed unchanged. Execution
+counts and generated function-symbol inventories also differ. No branch-coverage
+claim is made.
+
+The unchanged collector excludes test directories and `tests.rs` files equally
+before and after. JUnit establishes that the moved units execute; LCOV does not
+establish instrumentation or line coverage for those omitted test helpers.
+
+Final formatting, whitespace checks and workspace/all-target Clippy with warnings
+denied pass. The supplementary CLI and PDG audits observe all 28 changed/new
+functions with zero findings, including the new producer case. These broad audits
+remain incomplete and nonclean overall: exit two, with 6,483 functions and 3,295
+findings for CLI, and 17,008 functions and 1,424 findings for PDG. No claim is made
+that every unrelated broad finding has a proven baseline comparison.
+
+The actual production CI numeric and saved-pattern gates pass with exit zero in
+`final-style-gates-v1`. Later edits affect exactly three private unit/integration
+test files. `ci-gate-provenance.json` verifies that bridge, including unchanged
+production inputs, scripts, configuration and private `cfg(test)` module wiring.
+The retained gates are distinct from the current formatting, Clippy and scoped
+all-target checks in `post-style-gates-v2`. Max's manual review of changed-test
+patterns and complexity is also separate from the automated production gate.
+No threshold, suppression or saved-ignore change is used.
+
+Raw JUnits, source/binary fingerprints, resource logs, case mappings, coverage and
+review evidence are retained under `target/compiler-unit-boundaries-20261101`.
+
+## 12. Stored-slices CPU profile
+
+The stored-slices integration test still spends substantial time rebuilding and
+serializing evidence for its assertions. Low collects the controls, diagnostics
+and CPU stacks; Max independently reviews the controls, process participation,
+sample accounting and interpretation. This experiment profiles the implementation
+at `b6dd64d2a4c060c974af15afbdef90a7f0303a85`; it introduces no optimization.
+
+The exact case is
+`variant_capture::input_owner::borrowed::stored_slices_compose_with_checked_consumers_saved_receivers_and_finite_alternatives`,
+in `crates/cargo-rstyle/tests/variant_capture/input_owner/borrowed.rs`.
+All six contexts execute: aarch64 Linux, x86_64 Linux and aarch64 Darwin, each with
+std and no_std. Every capture reports 52 functions, 17 admitted functions and 136
+candidate pairs, with all four completion flags true. The six full JSON reports
+total approximately 20 MB.
+
+### Controls and resources
+
+The prebuilt test executable runs this case alone, with `--exact
+--test-threads=1 --nocapture`, the real prebuilt CLI/driver and the pinned nightly
+`2026-09-30`. The existing opt0 profiles, assertions and overflow checks remain
+unchanged. Preparation/build time is excluded. All successful runs pass, with
+identical source inputs and hashes for the test executable, CLI and driver.
+
+| Execution condition | Libtest seconds | Command wall median |
+| --- | --- | ---: |
+| Ordinary PATH, three controls | 11.78, 11.67, 11.72 | 11.725 s |
+| Pinned toolchain bin on PATH, three controls | 11.51, 11.62, 11.43 | 11.516 s |
+| CPU profiler, matching pinned PATH | 12.58 | 12.598 s, one run |
+
+Ordinary controls use 10.21–10.28 seconds of user CPU and 1.45–1.51 seconds of
+system CPU. Maximum single-process RSS is approximately 140 MiB. The external
+100 ms process-tree sampler observes peak PSS of 272–274 MiB; this is a sampled
+concurrent-memory estimate. It misses short-lived processes and can perturb
+scheduling. Allocation counts, allocation sizes and retained-object ownership
+are unmeasured.
+
+Kernel perf is unavailable on this host. The successful profile uses gperftools
+at 100 Hz with libgcc unwinding, inherited by child processes, with PERF telemetry
+off and the real CLI invoked directly. Prepending the exact pinned-toolchain bin
+directory avoids Rustup launcher execs; the resolved Cargo/rustc hashes and
+versions match the ordinary controls. Profiler wall overhead is 9.39% against
+the matching pinned-PATH median. Initial profiler attempts through Rustup fail
+because inherited SIGPROF interrupts rustc during exec startup; those failed
+attempts and an accidentally instrumented control set are retained and excluded.
+
+There are 1,019 workload samples across 202 profiled workload process images.
+Three additional auxiliary images are retained and excluded, including two
+samples from the outer Python wrapper. All workload stacks resolve
+syntactically, and 1,015 contain multiple frames. Exported native-library aliases
+remain unreliable, so conclusions use resolved Rust ancestors. These are CPU-time
+samples with user-space stacks: ITIMER_PROF includes system CPU charges, with no
+kernel-stack attribution. Sample ticks account for about 81% of GNU time CPU and
+must not be converted directly into exact seconds or predicted savings.
+
+### Where the samples are
+
+| Process role | Samples | Share of workload |
+| --- | ---: | ---: |
+| Test harness | 563 | 55.25% |
+| CLI | 225 | 22.08% |
+| Compiler driver | 225 | 22.08% |
+| Cargo | 6 | 0.59% |
+
+The compiler executes inside the driver. Of its 225 samples, 211 have the rstyle
+capture callback as an ancestor. Separate rustc probes have zero samples at this
+frequency; their startup cost remains unquantified. Harness samples include real
+production verification code called by the assertions.
+
+The following test-operation branches partition the harness samples. Percentages
+use all 1,019 workload samples, so these rows sum to the harness share.
+
+| Harness operation | Samples | Share of workload |
+| --- | ---: | ---: |
+| `word_classifiers::verify_admissions` | 186 | 18.25% |
+| Stored-slice mutations, including conditional-read and document edits | 185 | 18.16% |
+| Dependency mutations | 97 | 9.52% |
+| Passive-context assertions, including old-policy rejection | 31 | 3.04% |
+| Location assertions and their wire-bundle inspection | 26 | 2.55% |
+| Capture helper, including parsing CLI output in the harness | 26 | 2.55% |
+| Remaining harness work | 12 | 1.18% |
+
+Within the mutation branches, `float_kernels::reject_resealed` contains 227
+samples, or 22.28% of the workload. Its direct-child partition is 131 samples
+serializing `serde_json::Value` to bytes, 85 importing/verifying those bytes, ten
+dropping the JSON value and one checksumming. The surrounding mutation preparation
+also calls `shared_evidence::wire`, which reads and parses the entire bundle and
+expands its repeated censuses anew for each mutation. This helper has 77 inclusive
+samples across mutation and location checks.
+
+Actual serde_json implementation frames occur in 555 samples, or 54.47% of the
+workload: 348 harness, 105 CLI and 102 driver. This union excludes generic type
+parameters that merely mention serde_json. JSON string-escaping leaf frames
+account for 78 samples, or 7.65%. Report writing contains 64 inclusive CLI samples;
+bundle writing contains 68 inclusive driver samples. These function scopes and
+the test-operation scopes overlap and must not be added.
+
+Shared production functions also remain visible: `eligibility::classify` has 213
+inclusive samples across the harness, CLI and driver; ordinary data-frontend
+checking has 143; strict `producer::verify::expected_pair` has 89, all in the
+harness. The last function lowers, analyzes and emits the expected graph again.
+These counts describe sampled ancestry, not invocation frequency or self time.
+
+### Confirmed repetition and next experiment
+
+A separate diagnostic run takes 12.10 seconds and uses an artifact-preserving
+CLI relay. Its 13,018 canonical events form 6,509 complete observation pairs,
+keyed by PID and observation ID. Events are parsed once from command stderr;
+copies in archived capture logs are excluded.
+
+The trace confirms six compiler captures, 26 bundle imports and 520 producer
+verification entries. Six imports belong to generated CLI handoff. The harness
+performs six clean strict imports plus fourteen edited-bundle strict imports.
+`verify_admissions` already loads once per context and shares its store/analysis
+across the admitted functions; it then explicitly verifies documents and admits
+each of those functions again. The repetition is the six-context replay and
+the edited-bundle imports, rather than a clean bundle load per function.
+Of the producer checks, 240 use generated policy and 280 use strict harness
+policy. Fifty-six producer failures are expected rejection outcomes. Data-frontend
+stages include expected eligibility probes and rejections as well.
+
+Selected inclusive stage totals are 3.070 seconds for CLI compiler capture,
+1.444 seconds for CLI handoff, 0.239 seconds for matching and 0.636 seconds for
+report writing. Harness bundle decode totals 0.905 seconds, bundle verification
+1.039 seconds and producer verification 1.240 seconds. These durations overlap.
+The events omit thread IDs and absolute timestamps, preventing general exclusive
+wall-time reconstruction. Relay/copying overhead belongs to the diagnostic run.
+
+The next experiment should reduce the test's repeated evidence work:
+
+1. Prepare the mutation baseline once. Move independently expressible semantic
+   cases, such as the eight stored-summary edits, into private tests beside their
+   actual strict verifier, using small typed inputs. Retain a correctly resealed
+   live bundle rejection proving that import calls that verifier. Keep the five
+   dependency provenance/Copy/owner mutations and the checked-element
+   conditional-read rejection integrated unless their distinct proof boundaries
+   are independently preserved in owning unit tests. Explicitly map every case.
+2. Keep compiler capture, admission outcomes, matching, strict bundle import and
+   a representative independent strict admission in every target/std context.
+   Consider replaying the exhaustive per-function strict admission matrix in one
+   suitable context only after mapping equivalent authority for its assertions.
+   Reuse the loaded store and analysis while unchanged.
+3. Retain focused real serialization/import checks. Avoid serializing and importing
+   the entire 52-function unit for each isolated helper-summary assertion when
+   its actual verifier can be exercised directly.
+
+This recommendation targets measured test orchestration. Shared production JSON
+encoding, decoding and frontend classification are subsequent optimization
+candidates. The profile does not establish the savings from either change or
+justify attributing all harness time to removable work. A candidate needs normal
+before/after controls and coverage comparison before any speedup claim.
+
+All evidence is local under `target/stored-slices-profile-20261101`: the complete
+interactive `stored-slices-cpu.svg`, role-specific SVGs in `focused/`, raw per-PID
+profiles, folded stacks, `root-hotspots.json`, `root-stage-summary.json`, controls,
+fingerprints, execution/syscall traces and independent review artifacts. These
+large ignored artifacts are retained locally. Only this findings document changes
+after the frozen profiling runs; whitespace validation applies to that document.
+
+## 13. Inspect the loaded stored-slice helper
+
+The retained change replaces six full-bundle reads in the stored-slices location
+assertions with inspection of the helper already owned by the strict-imported
+unit. Low implements and validates the change; Max independently reviews source,
+assertion preservation, paired timing, resources, style and coverage evidence.
+
+`check_locations` resolves the captured `wrapper` function, asserts its single
+method-call shape, and follows the actual helper link. It checks the stored-slice
+summary identity, output parameter zero, three-step return path ending in
+`SharedReferent`, and exact reference-slot read path. Only that small typed summary
+is converted to JSON for the existing assertions. The previous lookup parsed the
+entire bundle and selected the first helper with the matching identity.
+
+Whole-bundle wire reads/expansions fall from 20 to 14. All six target/std captures,
+strict imports, exhaustive per-function document/admission replay, matching,
+eight summary mutations, five dependency mutations, conditional-read rejection,
+historical-policy checks and three document mutations remain. All 3,732 executed
+case identities remain unchanged. Production behavior and APIs, profiles, CI,
+thresholds, suppressions and saved ignores remain unchanged.
+
+The eight summary mutations remain integrated. Existing small unit fixtures do
+not carry the captured nominal/source/graph evidence needed for their actual
+strict verifier. Extracting its final equality check would substitute trivial
+comparison tests; lower origin/read prerequisite checks exercise different inputs.
+
+An earlier candidate also reused an expanded JSON baseline across the 14
+mutations, added one positive strict import and cloned the baseline independently
+for each mutation. Its historical GNU-time wall medians were 11.77 versus 11.48
+seconds, with approximately 33.4 MiB higher sampled tree PSS. Its comparison involved
+different driver binary hashes, so it cannot isolate that candidate's timing or
+memory effect. It is not adopted. The retained smaller change adds no extra
+strict bundle imports, baseline retention or mutation clones; the original mutation
+code is byte-identical.
+
+### Paired normal timing
+
+The primary comparison alternates the preserved baseline test executable and
+the candidate executable in the predeclared order B,C / C,B / B,C. Both use the
+same current real CLI and driver binaries, environment, ordinary PATH and exact
+case invocation, with no PERF, profiler, preload or coverage. Historical baseline
+executable/source provenance is separate from the current frozen source. All six
+runs pass, with all used executable hashes and source inputs unchanged throughout
+the phase.
+
+| Metric, median of each arm's three runs | Baseline | Candidate |
+| --- | ---: | ---: |
+| Command wall | 11.733235 s | 11.465364 s |
+| User + system CPU | 11.71 s | 11.44 s |
+| Largest-process maximum RSS | 145,172 KiB | 145,312 KiB |
+| Sampled process-tree peak PSS | 282.04 MiB | 281.27 MiB |
+
+The difference of arm medians is 0.267870 seconds, or 2.283%. Individual paired
+savings are 0.195117, 0.412159 and 0.232723 seconds; their median is 0.232723
+seconds, a distinct statistic. All three pairs favor the candidate. Memory is
+essentially unchanged: PSS -0.273%, single-process RSS +0.096%. The 100 ms sampler
+can miss peaks and perturb scheduling; these observations do not establish an
+allocation-level cause or a memory improvement.
+
+These measure normal executions of prepared workspace binaries on local Linux
+ARM64 with nightly 2026-09-30 and normal workspace opt0 settings. Fresh per-test
+fixture captures remain included. The existing serde_json dependency override
+remains opt2. Workspace build preparation is excluded. One preparation rebuilds
+the driver after an index timestamp change; it is not a no-rebuild cache benchmark.
+Three pairs support the focused observation without establishing a general or
+whole-suite speedup.
+
+### Validation and serializer follow-up
+
+The final normal run passes all 3,732 cases with the same 22-binary inventory,
+in 210.155 seconds of JUnit time (210.212 seconds command wall). The five existing
+ignored cases remain outside the executed population. This is standalone regression
+validation. The historical 214.930-second full control uses different driver bytes,
+so these two full runs do not establish a causal overall speedup.
+
+The unchanged full coverage collector passes the same exact 3,732 identities and
+four zero-test doctest targets in 321.118 seconds. Coverage duration is validation
+cost, separate from normal timing. All 1,153 source paths and 166,494 unique source
+path/DA-line keys match, with 154,251 covered lines on both sides (92.64658%). No
+previously covered line or function loses its hit. Raw LF/LH/FNF/FNH also match:
+169,594 / 156,364 / 18,428 / 17,152 (raw line coverage 92.19902%). There are 131
+line-counter and 31 function-counter differences, with zero raw-summary changes.
+No branch-coverage claim is made. The modified integration helper is omitted from
+both default LCOV exports; JUnit establishes execution, not its line instrumentation.
+Source/build key unions and hashes match across normal, coverage and live inputs;
+source inputs remain frozen within each phase. The paired and full normal runs
+also preserve their used-executable hashes.
+
+Formatting, whitespace checks, workspace/all-target Clippy with warnings denied,
+and the current real CI numeric and saved-pattern gates pass. The CLI all-target
+audit observes the changed `check_locations` function with zero findings. Its
+broader audit exits two, has 3,294 findings and incomplete compiler coverage; it
+is not a clean whole-workspace audit. No threshold, suppression or ignore changes
+are used.
+
+A faster Serde-compatible JSON engine could affect byte parsing, string escaping,
+number formatting and byte writing. Serde supplies the traits/derives; serde_json
+is the current JSON engine and already builds at opt2. A byte-engine replacement
+would retain serde_json::Value construction/cloning, `to_value`/`from_value`, custom
+typed visitors, source/table reconstruction and semantic verification. The earlier
+54.47% JSON-ancestry union is not a replaceable-engine fraction or a savings bound.
+The next separate experiment should benchmark representative frozen bundles and
+reports, separating byte-to-DOM, byte-to-typed, in-memory conversion and encoding
+costs, then verify the full case and wire/budget/checksum behavior. No replacement
+is adopted or benchmarked here.
+
+Paired raw logs, samples, hashes, assertion mappings and reviews are retained under
+`target/stored-slices-consolidation-v2-20261101`; the rejected candidate and original
+controls remain under `target/stored-slices-consolidation-20261101`. Only this
+findings document changes after the frozen final validation runs.

@@ -212,3 +212,6 @@ impl Report<'_> {
         output
     }
 }
+
+#[cfg(test)]
+mod tests;

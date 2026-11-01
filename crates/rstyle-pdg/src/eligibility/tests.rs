@@ -5,9 +5,9 @@
 //! evidence gaps) that the driver walk must satisfy. Real-HIR coverage
 //! arrives with the driver integration tests.
 
-use rstyle_pdg::EligibilityVerdict;
-use rstyle_pdg::eligibility::{classify, span};
-use rstyle_pdg::frontend::{
+use super::{classify, span};
+use crate::EligibilityVerdict;
+use crate::frontend::{
     BindingFact, BuildFacts, ByteSpan, Dispatch, HirFnFacts, HirNode, HirRef, ParamFact, PathRes,
     ResolvedTy, SignatureFacts, SourceFacts, known_bool, known_count, known_str,
 };
@@ -180,7 +180,7 @@ fn make_facts(
     }
 }
 
-fn capabilities(found: &rstyle_pdg::frontend::HirEligibility) -> Vec<&str> {
+fn capabilities(found: &crate::frontend::HirEligibility) -> Vec<&str> {
     found
         .diagnostics
         .iter()
@@ -265,7 +265,7 @@ fn overloaded_operator_is_rejected() {
 #[test]
 fn macro_expansion_reports_once_at_the_callsite() {
     let expanded_call = HirNode {
-        expansion: Some(rstyle_pdg::frontend::ExpansionSite {
+        expansion: Some(crate::frontend::ExpansionSite {
             callsite: span(11, 19),
             snippet: "panic!()".to_string(),
         }),
@@ -462,7 +462,7 @@ fn abi_sig() -> SignatureFacts {
 
 fn generics_sig() -> SignatureFacts {
     SignatureFacts {
-        generics: vec![rstyle_pdg::frontend::GenericFact {
+        generics: vec![crate::frontend::GenericFact {
             name: "T".to_string(),
             span: span(0, 0),
         }],
@@ -472,7 +472,7 @@ fn generics_sig() -> SignatureFacts {
 
 fn receiver_sig() -> SignatureFacts {
     SignatureFacts {
-        receiver: Some(rstyle_pdg::frontend::ReceiverFact {
+        receiver: Some(crate::frontend::ReceiverFact {
             span: span(1, 2),
             snippet: "self".to_string(),
         }),

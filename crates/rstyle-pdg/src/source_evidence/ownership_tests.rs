@@ -1,6 +1,6 @@
 //! Source-only ownership expectations, independent of producer graphs.
 
-use rstyle_pdg::source_evidence::functions;
+use super::functions;
 
 #[test]
 fn nested_functions_have_distinct_exact_owners() {
@@ -44,7 +44,7 @@ fn bom_and_crlf_offsets_are_original_file_bytes() {
 
 fn inactivity(source: &str, cfgs: &[&str]) -> Vec<bool> {
     let cfgs: Vec<_> = cfgs.iter().map(|cfg| (*cfg).to_owned()).collect();
-    rstyle_pdg::source_evidence::configured_functions(source, Some(&cfgs))
+    super::configured_functions(source, Some(&cfgs))
         .unwrap()
         .iter()
         .map(|definition| definition.inactive_by_cfg)

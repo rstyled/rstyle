@@ -1,4 +1,4 @@
-use rstyle_pdg::byte_literals::value;
+use super::value;
 
 #[test]
 fn byte_escape_values_cover_the_entire_domain_without_accepting_other_literals() {

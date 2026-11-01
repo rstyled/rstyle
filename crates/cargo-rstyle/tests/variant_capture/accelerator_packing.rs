@@ -1,9 +1,12 @@
 use super::*;
+use rstyle_pdg::unit_store::UnitStore;
 mod boundaries;
 mod corruption;
 
 #[test]
 fn accelerator_packing_composes_through_strict_capture_and_matching() {
+    let mut checked_comprehensive = false;
+
     for target in [
         "aarch64-unknown-linux-gnu",
         "x86_64-unknown-linux-gnu",
@@ -18,17 +21,27 @@ fn accelerator_packing_composes_through_strict_capture_and_matching() {
             continue;
         }
         for no_std in [false, true] {
-            check_context(target, no_std);
+            let comprehensive = !checked_comprehensive && !no_std;
+            check_context(target, no_std, comprehensive);
+            checked_comprehensive |= comprehensive;
         }
+    }
+    assert!(
+        checked_comprehensive,
+        "at least one installed standard capture target"
+    );
+}
+
+fn check_context(target: &str, no_std: bool, comprehensive: bool) {
+    let (directory, report) = captured(Some(target), no_std);
+    let unit = check_family(&report, target);
+    if comprehensive {
+        corruption::check_captured(&report, &unit);
+        packing_release_capture_omits_debug_comparison_operand_effects(directory.path());
     }
 }
 
-fn check_context(target: &str, no_std: bool) {
-    let (_directory, report) = captured(Some(target), no_std);
-    check_family(&report, target);
-}
-
-fn check_family(report: &Value, target: &str) {
+fn check_family(report: &Value, target: &str) -> UnitStore {
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 19);
     for function in functions {
@@ -59,7 +72,9 @@ fn check_family(report: &Value, target: &str) {
             function["reasons"]
         );
     }
-    check_read_contract(functions);
+
+    let unit = check_aggregate_documents(report);
+    check_read_contract(functions, &unit);
     for flag in [
         "capture_complete",
         "assessment_complete",
@@ -68,7 +83,7 @@ fn check_family(report: &Value, target: &str) {
     ] {
         assert_eq!(report[flag], true, "{target} {flag}");
     }
-    check_aggregate_documents(report);
+    unit
 }
 
 fn captured(target: Option<&str>, no_std: bool) -> (TempDir, Value) {
@@ -91,7 +106,7 @@ fn captured(target: Option<&str>, no_std: bool) -> (TempDir, Value) {
     (directory, report)
 }
 
-fn check_read_contract(functions: &[Value]) {
+fn check_read_contract(functions: &[Value], unit: &UnitStore) {
     for function in functions {
         let name = function["facts"]["name"].as_str().unwrap();
         let count = match name {
@@ -99,8 +114,8 @@ fn check_read_contract(functions: &[Value]) {
             "selected" => 4,
             _ => continue,
         };
-        let (unit, index) = data_unit(function);
-        let pair = unit.pair(index).unwrap();
+
+        let pair = shared_evidence::pair(unit, function);
         let reads: Vec<_> = pair
             .pdg
             .nodes
@@ -143,15 +158,15 @@ fn packing_release_capture_omits_debug_comparison_operand_effects(directory: &Pa
         "{}",
         report["matching"]["diagnostics"]
     );
-    check_family(&report, "release");
+
+    let unit = check_family(&report, "release");
     let function = report["functions"]
         .as_array()
         .unwrap()
         .iter()
         .find(|f| f["facts"]["name"] == "debug_order")
         .unwrap();
-    let (unit, index) = data_unit(function);
-    let pair = unit.pair(index).unwrap();
+    let pair = shared_evidence::pair(&unit, function);
     assert!(
         pair.pdg
             .nodes

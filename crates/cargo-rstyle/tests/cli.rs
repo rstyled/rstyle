@@ -8056,7 +8056,7 @@ fn check_aggregate_corruption(report: &Value) {
     assert!(rstyle_pdg::data_frontend::verify(&changed).is_err());
 }
 
-fn check_aggregate_documents(report: &Value) {
+fn check_aggregate_documents(report: &Value) -> rstyle_pdg::unit_store::UnitStore {
     let (unit, _) = data_unit(&report["functions"][0]);
     let analysis = unit.analysis();
     for function in report["functions"]
@@ -8070,6 +8070,9 @@ fn check_aggregate_documents(report: &Value) {
         rstyle_pdg::data_documents::verify(pair, &facts).unwrap();
         rstyle_pdg::producer::verify(pair, &facts).unwrap();
     }
+
+    drop(analysis);
+    unit
 }
 
 fn aggregate_literal_workspace() -> TempDir {

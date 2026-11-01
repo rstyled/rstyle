@@ -1,4 +1,4 @@
-use rstyle_pdg::assertions::Assertion;
+use super::Assertion;
 
 #[test]
 fn assertion_syntax_preserves_original_condition_positions() {

@@ -118,3 +118,6 @@ pub(crate) fn decode_record<T: serde::de::DeserializeOwned>(
     }
     serde_json::from_str(&resolution.description).map_err(|error| error.to_string())
 }
+
+#[cfg(test)]
+mod tests;

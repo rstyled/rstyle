@@ -1,18 +1,9 @@
 //! Expectations were selected from source before enabling the connected chain.
 use super::*;
+use rstyle_pdg::unit_store::UnitStore;
 
-#[test]
-fn architecture_readers_compose_through_strict_admission() {
-    let directory = clone_workspace();
-    std::fs::write(
-        directory.path().join("src/lib.rs"),
-        include_str!("../../../../tests/fixtures/function-families/arch-readers.rs"),
-    )
-    .unwrap();
-    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
-    assert!(output.status.success(), "{report}");
+fn check_primary_readers(report: &Value, unit: &UnitStore) {
     let functions = report["functions"].as_array().unwrap();
-    assert_eq!(functions.len(), 8, "{report}");
     let positive = [
         "batch_arch",
         "saved_arch",
@@ -21,6 +12,18 @@ fn architecture_readers_compose_through_strict_admission() {
         "wrong_length_arch",
     ];
     let negative = ["endian_arch", "other_size_authority_arch", "caller_arch"];
+    assert_eq!(
+        functions
+            .iter()
+            .filter(|entry| {
+                entry["facts"]["fn_span"]["start"].as_u64().unwrap()
+                    < include_str!("../../../../tests/fixtures/function-families/arch-readers.rs")
+                        .len() as u64
+            })
+            .count(),
+        8
+    );
+
     for name in positive.into_iter().chain(negative) {
         let function = functions
             .iter()
@@ -36,26 +39,26 @@ fn architecture_readers_compose_through_strict_admission() {
             "{function}"
         );
     }
-    check_aggregate_documents(&report);
     let batch = functions
         .iter()
         .find(|function| function["facts"]["name"] == "batch_arch")
         .unwrap();
-    semantics(batch);
-    document_corruptions(batch);
-    constant_corruptions(batch);
+    semantics(batch, unit);
+    document_corruptions(batch, unit);
+    constant_corruptions(batch, unit);
     let snapshot = functions
         .iter()
         .find(|function| function["facts"]["name"] == "snapshot_arch")
         .unwrap();
-    saved_base(snapshot);
+    saved_base(snapshot, unit);
 }
 
-fn semantics(function: &Value) {
-    let (unit, index) = data_unit(function);
+fn semantics(function: &Value, unit: &UnitStore) {
+    let index = shared_evidence::index(function);
     let analysis = unit.analysis();
     let facts = analysis.function(index).unwrap();
-    let pair = shared_evidence::pair(&unit, function);
+
+    let pair = shared_evidence::pair(unit, function);
     let call = |construct| {
         pair.pdg
             .nodes
@@ -89,10 +92,11 @@ fn semantics(function: &Value) {
     rstyle_ccgraph::admit_produced(pair, &facts).unwrap();
 }
 
-fn document_corruptions(function: &Value) {
-    let (unit, index) = data_unit(function);
+fn document_corruptions(function: &Value, unit: &UnitStore) {
+    let index = shared_evidence::index(function);
     let analysis = unit.analysis();
     let facts = analysis.function(index).unwrap();
+
     for change in [
         "missing-read",
         "invented-read",
@@ -155,32 +159,13 @@ fn corrupt_document(pair: &mut rstyle_pdg::producer::Pair, change: &str) {
     }
 }
 
-fn constant_corruptions(function: &Value) {
-    let (unit, index) = data_unit(function);
+fn constant_corruptions(function: &Value, unit: &UnitStore) {
+    let index = shared_evidence::index(function);
     let analysis = unit.analysis();
     let facts = analysis.function(index).unwrap();
+
     for change in ["definition", "argument", "value", "initializer", "source"] {
-        let mut changed = facts.clone();
-        let node = &mut changed.body.children[0];
-        let resolution = node.res.as_mut().unwrap();
-        let mut record: Value = serde_json::from_str(&resolution.description).unwrap();
-        match change {
-            "definition" => record["initializer"]["definition_hash"] = "forged".into(),
-            "argument" => record["argument"] = "u64".into(),
-            "value" => record["constant"]["value"] = "7".into(),
-            "initializer" => record["initializer"]["path"] = "custom::size_of".into(),
-            "source" => {
-                changed.source.bytes = changed
-                    .source
-                    .bytes
-                    .replace("size_of::<usize>()", "size_of::< u64 >()")
-                    .into();
-                changed.source.digest =
-                    rstyle_pdg::concrete_types::digest(changed.source.bytes.as_bytes());
-            }
-            _ => unreachable!(),
-        }
-        resolution.description = serde_json::to_string(&record).unwrap();
+        let changed = changed_size_constant(&facts, change);
         assert!(rstyle_pdg::producer::produce(&changed).is_err(), "{change}");
         shared_evidence::reject_facts(function, &changed);
     }
@@ -190,6 +175,46 @@ fn constant_corruptions(function: &Value) {
     shared_evidence::reject_facts(function, &changed);
 
     let mut changed = facts.clone();
+    change_size_annotation(&mut changed);
+    assert!(rstyle_pdg::producer::produce(&changed).is_err());
+    shared_evidence::reject_facts(function, &changed);
+}
+
+fn changed_size_constant(facts: &rstyle_pdg::HirFnFacts, change: &str) -> rstyle_pdg::HirFnFacts {
+    let mut changed = facts.clone();
+    if change == "source" {
+        changed.source.bytes = changed
+            .source
+            .bytes
+            .replace("size_of::<usize>()", "size_of::< u64 >()")
+            .into();
+        changed.source.digest = rstyle_pdg::concrete_types::digest(changed.source.bytes.as_bytes());
+    } else {
+        let resolution = changed.body.children[0].res.as_mut().unwrap();
+        change_size_resolution(resolution, change);
+    }
+    changed
+}
+
+fn change_size_resolution(resolution: &mut rstyle_pdg::PathRes, change: &str) {
+    let mut record: Value = serde_json::from_str(&resolution.description).unwrap();
+    match change {
+        "argument" => record["argument"] = "u64".into(),
+        "value" => record["constant"]["value"] = "7".into(),
+        _ => change_size_initializer(&mut record["initializer"], change),
+    }
+    resolution.description = serde_json::to_string(&record).unwrap();
+}
+
+fn change_size_initializer(initializer: &mut Value, change: &str) {
+    match change {
+        "definition" => initializer["definition_hash"] = "forged".into(),
+        "initializer" => initializer["path"] = "custom::size_of".into(),
+        _ => unreachable!(),
+    }
+}
+
+fn change_size_annotation(changed: &mut rstyle_pdg::HirFnFacts) {
     let annotation = changed.body.children[1]
         .children
         .iter_mut()
@@ -199,8 +224,6 @@ fn constant_corruptions(function: &Value) {
         serde_json::from_str(annotation.ty.as_ref().unwrap().normalized.as_ref().unwrap()).unwrap();
     ty["value"]["value"]["length"] = 7.into();
     annotation.ty.as_mut().unwrap().normalized = Some(serde_json::to_string(&ty).unwrap());
-    assert!(rstyle_pdg::producer::produce(&changed).is_err());
-    shared_evidence::reject_facts(function, &changed);
 }
 
 fn alter_size_use(node: &mut rstyle_pdg::HirNode) -> bool {
@@ -217,9 +240,9 @@ fn alter_size_use(node: &mut rstyle_pdg::HirNode) -> bool {
     node.children.iter_mut().any(alter_size_use)
 }
 
-fn saved_base(function: &Value) {
-    let (unit, _) = data_unit(function);
-    let pair = shared_evidence::pair(&unit, function);
+fn saved_base(function: &Value, unit: &UnitStore) {
+    let pair = shared_evidence::pair(unit, function);
+
     assert_eq!(pair.pdg.memory_locations.len(), 1);
     assert_eq!(
         pair.pdg.memory_locations[0].extensions[rstyle_pdg::data_documents::LOCATION_KEY]["parameter"],
@@ -330,6 +353,8 @@ pub fn length_expression(input: &[u8]) -> usize {
 
 #[test]
 fn installed_ci_targets_preserve_reader_admission() {
+    let mut checked_comprehensive = false;
+
     for target in [
         "aarch64-unknown-linux-gnu",
         "x86_64-unknown-linux-gnu",
@@ -345,11 +370,16 @@ fn installed_ci_targets_preserve_reader_admission() {
             eprintln!("target std not installed: {target}");
             continue;
         }
-        check_target_readers(target);
+        check_target_readers(target, !checked_comprehensive);
+        checked_comprehensive = true;
     }
+    assert!(
+        checked_comprehensive,
+        "at least one installed capture target"
+    );
 }
 
-fn check_target_readers(target: &str) {
+fn check_target_readers(target: &str, comprehensive: bool) {
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), target_reader_source()).unwrap();
     let (output, report) = clones(
@@ -357,6 +387,7 @@ fn check_target_readers(target: &str) {
         &["--target", target, "--extraction-profile", "hir-data-v3"],
     );
     assert!(output.status.success(), "{target}: {report}");
+
     let functions = report["functions"].as_array().unwrap();
     assert_eq!(functions.len(), 20, "{target}: {report}");
     for function in functions {
@@ -374,18 +405,22 @@ fn check_target_readers(target: &str) {
             "{target}: {function}"
         );
     }
-    check_aggregate_documents(&report);
     let batch = functions
         .iter()
         .find(|function| function["facts"]["name"] == "batch_arch")
         .unwrap();
-    reject_mismatched_authorities(batch);
+    let unit = check_aggregate_documents(&report);
+    reject_mismatched_authorities(batch, &unit);
+    if comprehensive {
+        check_primary_readers(&report, &unit);
+    }
 }
 
-fn reject_mismatched_authorities(function: &Value) {
-    let (unit, index) = data_unit(function);
+fn reject_mismatched_authorities(function: &Value, unit: &UnitStore) {
+    let index = shared_evidence::index(function);
     let analysis = unit.analysis();
     let facts = analysis.function(index).unwrap();
+
     for target in rstyle_pdg::data_library::registries()
         .iter()
         .map(|registry| registry.target.as_str())
