@@ -432,24 +432,47 @@ fn operator_facts(inner_operator: &str) -> HirFnFacts {
     let inner = binary(inner_operator, read(10, 1), literal(11, "1"));
     let mut outer = binary("*", inner, literal(12, "2"));
     outer.hir.local = 200;
-    facts(outer)
+
+    let mut result = facts(outer);
+    result.signature.params.truncate(1);
+    result
 }
 
 #[test]
 fn helper_policy_rejects_completed_operator_and_shape_holes() {
     let left_facts = operator_facts("+");
     let operator = operator_facts("-");
-    let mut shape = operator_facts("+");
-    shape.body.children.swap(0, 1);
+    let inner = binary("*", literal(11, "1"), literal(12, "2"));
+    let mut outer = binary("+", read(10, 1), inner);
+    outer.hir.local = 200;
+    let mut shape = facts(outer);
+    shape.signature.params.truncate(1);
+
     let graph = admitted(Some("context"));
     let left = Endpoint::from_native(&graph, &left_facts);
-    for changed in [&operator, &shape] {
+    for (changed, kind) in [(&operator, HoleKind::Operation), (&shape, HoleKind::Shape)] {
         let right = Endpoint::from_native(&graph, changed);
         let comparison = compare(&left, &right);
         assert_eq!(comparison.assessment().coverage, Coverage::Complete);
+        assert!(
+            comparison
+                .assessment()
+                .holes
+                .iter()
+                .any(|hole| hole.kind == kind)
+        );
+        assert_eq!(
+            comparison.helper_inputs().unwrap().builtin_operations,
+            [2, 2]
+        );
+
         let helper = super::super::helpers::evaluate(&comparison);
         assert_eq!(helper.outcome, super::super::Outcome::EvaluatedNoFinding);
+        assert_eq!(helper.coverage, super::super::Coverage::Complete);
+        assert_eq!(helper.availability, super::super::FactAvailability::Known);
         assert!(helper.proposal.is_none());
         assert!(helper.reasons[0].contains("formal roles, operators or subtree shapes"));
     }
 }
+
+mod helper_policy;

@@ -460,3 +460,6 @@ fn literal_negation_safe(
         .and_then(i128::checked_neg)
         .is_some_and(|value| fits(facts, &node.ty, value))
 }
+
+#[cfg(test)]
+mod tests;

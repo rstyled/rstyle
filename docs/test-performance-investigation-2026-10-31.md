@@ -1029,3 +1029,138 @@ broad style-clean claim is made.
 Independent Max reviews and raw unit graphs, invocation logs, empty-target build
 resources, warm preparation logs, three-trial JUnits, fingerprints and comparison
 reports are retained under `target/optimized-tests-20261101`.
+
+## 11. Direct semantic unit tests
+
+The next experiment removes compiler launches from checks whose assertions concern
+native comparison, helper policy and report summaries. Low implements the move;
+Max independently reviews fixture fidelity, assertion mappings, test ownership,
+complexity and measurement evidence. Production functions and APIs, Cargo profiles,
+CI configuration, style thresholds and saved ignores remain unchanged.
+
+Five standalone CLI identities are retired. Their semantic checks move into private
+unit modules; the native budget-report assertions also transfer verbatim into the
+existing live helper-budget test. The alpha-only iteration of the positive helper
+test moves to a unit case while its literal-hole compiler capture remains.
+
+| Checks | Unit destination / retained integration |
+| --- | --- |
+| Forwarding, one-operation usefulness boundary and noncommutative formal reordering | Three `pair_differences::tests::helper_policy` cases |
+| Two-operation alpha-only helper policy | `helper_policy`; real literal/HIR/span/advisory positive stays integrated |
+| Pairwise evidence that is not transitive | `helper_policy`, retaining `(x+1)*2`, `(x+3)*2`, `(x+3)*4` |
+| Complete native u64 comparison outside u32 helper policy | `helper_policy`, including real report completion predicate |
+| Operator and subtree-shape differences | Strengthened existing `pair_differences` unit, with unconditional comparison/helper assertions |
+| Incomplete matching denominator versus known-empty/unrequested summaries | Owning `pair_reports/tests.rs` and `helper_reports/tests.rs`; one live CLI capture checks both budget reports |
+
+The new tests use the actual native comparison, helper evaluator, summarizers,
+serializers and `permits_success` predicates. They reuse private typed builders.
+One-formal inputs retain exactly one formal; the two-formal alpha case retains XOR
+then AND with 15 and the original parameter order. These synthetic HIR expressions
+are algorithm inputs, with no claim of compiler extraction or strict admission.
+No public test-support API or new captured snapshot is introduced.
+
+Compiler extraction still has the independent eager scalar operator/type/operand
+matrix. Live tests retain literal source evidence, unknown calls and mutation,
+supported-plus-unavailable owners, native formal/literal differences, full/compact
+and text reports, opt-in flags and CLI statuses. The operator/shape unit now always
+reaches the helper rejection branch; its old CLI check could accept an empty
+accepted-pair population.
+
+| Static compiler-capture inventory | Before | After |
+| --- | ---: | ---: |
+| Helper CLI tests | 18 | 10 |
+| Native-difference CLI tests | 6 | 5 |
+| Total for these two groups | 24 | 15 |
+
+The initial coverage comparison found one lost source-line hit: constant
+multiplication in the producer hazard assessor, previously reached incidentally
+by `x+(1*2)`. A unit test under `producer/hazards/tests.rs` now runs real graph
+analysis and hazard assessment. It checks that a folded product becomes the
+denominator of a safe division, while zero, target-width overflow and an unknown
+factor retain the appropriate limitations. This preserves useful producer
+behavior coverage without another compiler capture.
+
+That removes nine compiler captures. Five retired CLI identities and nine new
+unit identities change 3,728 executed cases to 3,732, across the same 22 binaries.
+The five existing nextest skips remain outside that executed JUnit population.
+Explicit case/assertion mappings account for the moves, partial alpha iteration,
+strengthened operator/shape case and shared live budget capture.
+
+### Normal timing and resources
+
+The current full baseline control takes 214.185 seconds, consistent with section
+10's same-implementation median of 213.799 seconds. The initial candidate passes
+one full normal run at 215.044 seconds, before the producer unit is added. Those
+single full-suite observations establish no global speedup and are not a timing
+claim for the final source. The retired CLI identities account for only 1.989
+seconds of summed baseline case duration, before the partial alpha move.
+
+| Focused metric | Baseline | Candidate |
+| --- | ---: | ---: |
+| Normal nextest median | 1.692 s | 1.040 s |
+| Per-trial user + system CPU median | 6.41 s | 4.30 s |
+| Largest-process RSS median, reported kbytes | 98,852 | 99,096 |
+| Executed cases | 32 | 36 |
+
+Baseline trials take 1.706, 1.679 and 1.692 seconds; final trials take 1.040,
+1.047 and 1.004 seconds. The median saving is 0.652 seconds, or 38.534%. The
+final focused selection adds the new producer unit; its filter matches no baseline
+hazard units, leaving the baseline selection unchanged. CPU is summed within each
+trial before taking the median. The RSS observation is effectively unchanged and
+measures the largest process, not total concurrent memory.
+
+Measurements run sequentially on local Linux ARM64 with nightly `2026-09-30`,
+disabled incremental compilation, two build jobs, four CI-profile workers,
+prebuilt nextest metadata and an explicit prebuilt driver. The effective Cargo unit
+graphs match across all 271 units; workspace runtime/test profiles remain opt0,
+with assertions, overflow checks and unwind behavior unchanged. Tracked/unignored
+source inputs and executable manifests remain frozen within each phase. Each
+manifest contains 46 paths, including all 22 test binaries and the prebuilt CLI/driver.
+Build preparation uses existing caches and is excluded from normal runner times.
+These results describe warm execution on this host.
+
+### Coverage and style validation
+
+The unchanged coverage command passes all 3,732 final cases and four doctest
+targets with zero doctests each. Its 319.663-second collector duration is separate
+from normal timing. Final compiled selections, focused execution and full coverage
+JUnit identities agree after the explicit five-retired/nine-added mapping. Inputs
+remain frozen throughout collection. The historical coverage baseline differs
+from the current control only in this investigation document across its 2,315
+input hashes; all implementation bytes match that control.
+
+Both reports contain exactly the same 1,153 source files and 166,494 unique
+`SF` + `DA` line keys, with exactly the same 154,251 covered source lines
+(92.64658%). No previously covered source line loses a hit. The first candidate's
+single lost constant-multiplication hit is restored by the producer unit.
+
+The raw LCOV summary is a separate metric: `LF` remains 169,594, `FNF` 18,428 and
+`FNH` 17,152, while `LH` changes from 156,365 to 156,364. This entire difference is
+in `producer/hazards.rs`: exported `LH` is 343 versus 342, while all 350 exported
+`DA` keys and all 340 covered `DA` lines in that file are identical. Raw summary
+coverage is 92.19961% versus 92.19902%; it is not claimed unchanged. Execution
+counts and generated function-symbol inventories also differ. No branch-coverage
+claim is made.
+
+The unchanged collector excludes test directories and `tests.rs` files equally
+before and after. JUnit establishes that the moved units execute; LCOV does not
+establish instrumentation or line coverage for those omitted test helpers.
+
+Final formatting, whitespace checks and workspace/all-target Clippy with warnings
+denied pass. The supplementary CLI and PDG audits observe all 28 changed/new
+functions with zero findings, including the new producer case. These broad audits
+remain incomplete and nonclean overall: exit two, with 6,483 functions and 3,295
+findings for CLI, and 17,008 functions and 1,424 findings for PDG. No claim is made
+that every unrelated broad finding has a proven baseline comparison.
+
+The actual production CI numeric and saved-pattern gates pass with exit zero in
+`final-style-gates-v1`. Later edits affect exactly three private unit/integration
+test files. `ci-gate-provenance.json` verifies that bridge, including unchanged
+production inputs, scripts, configuration and private `cfg(test)` module wiring.
+The retained gates are distinct from the current formatting, Clippy and scoped
+all-target checks in `post-style-gates-v2`. Max's manual review of changed-test
+patterns and complexity is also separate from the automated production gate.
+No threshold, suppression or saved-ignore change is used.
+
+Raw JUnits, source/binary fingerprints, resource logs, case mappings, coverage and
+review evidence are retained under `target/compiler-unit-boundaries-20261101`.
