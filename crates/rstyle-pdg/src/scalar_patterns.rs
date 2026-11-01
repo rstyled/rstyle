@@ -193,3 +193,6 @@ fn spelling(source: &str, value: &syn::Expr) -> String {
     let span = value.span();
     source[byte_offset(source, span.start())..byte_offset(source, span.end())].into()
 }
+
+#[cfg(test)]
+mod tests;

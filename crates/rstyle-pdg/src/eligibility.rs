@@ -2378,3 +2378,6 @@ fn widening_reader(facts: &dyn crate::unit_store::EvidenceFacts) -> Option<HirEl
         },
     })
 }
+
+#[cfg(test)]
+mod tests;

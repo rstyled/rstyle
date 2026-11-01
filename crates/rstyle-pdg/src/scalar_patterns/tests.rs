@@ -1,4 +1,4 @@
-use rstyle_pdg::scalar_patterns::IntegerRange;
+use super::IntegerRange;
 
 #[test]
 fn integer_range_bounds_preserve_signed_values_and_upper_inclusivity() {

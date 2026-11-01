@@ -720,3 +720,105 @@ Reproducible scripts, frozen input/binary hashes, all six normal timing JUnits,
 production reports and balanced raw traces, GNU time observations, coverage
 reports, style outputs and independent Max reviews remain under
 `target/structural-validation-20261031`.
+
+## 8. Put direct checks beside their owning Rust modules
+
+This pass starts from merged main `3a1e0069`, whose Git tree is identical to
+`a44e2ace`. Direct checks of hand-built inputs belong in owning `#[cfg(test)]`
+modules. Compiler capture, cross-component admission, transport and compiler
+authority contracts remain integration tests. Invalid-input checks protect
+ordinary extraction, serialization and cache regressions; they do not require
+an adversarial environment.
+
+Low implemented the moves and Max independently reviewed their source,
+assertions, placement and evidence. The following 41 tests retain every helper
+and assertion, with only imports and qualified paths adjusted:
+
+| Former file under `crates/rstyle-pdg/tests/` | New module under `crates/rstyle-pdg/src/` | Cases |
+| --- | --- | ---: |
+| `eligibility_tests.rs` | `eligibility/tests.rs` | 18 |
+| `assertions.rs` | `assertions/tests.rs` | 3 |
+| `bool_constants.rs` | `bool_constants/tests.rs` | 1 |
+| `byte_literals.rs` | `byte_literals/tests.rs` | 1 |
+| `conditional_source.rs` | `conditional_source/source_tests.rs` | 2 |
+| `scalar_constants.rs` | `scalar_constants/tests.rs` | 4 |
+| `scalar_patterns.rs` | `scalar_patterns/tests.rs` | 2 |
+| `source_ownership.rs` | `source_evidence/ownership_tests.rs` | 7 |
+| `frontend_facts.rs` | `frontend/tests.rs` | 3 |
+
+One additional origin-cache regression moves out of the compiler-backed CLI
+suite into `unit_store/derived/reference_origins/flow_tests.rs`. A small typed
+source-flow fixture exercises the real `UnitStore`, `UnitAnalysis` and
+`FunctionView::reference_origins` route. It checks that saving `a` retains its
+origin after another local is assigned `b`, with repeated queries, edited-node
+and selector failures, recovery and both verification policies. It creates no
+Cargo project and launches no compiler. Existing reference rebinding and stored
+slice integration cases retain the real compiler, graph verification and
+admission assertions. No public API was added for tests.
+
+### Local ARM64 execution timing
+
+Three baseline runs preceded three candidate runs on the same Linux ARM64
+host, using the pinned nightly, two build jobs, disabled incremental compilation
+and the CI nextest profile's four workers. No other build or test workload ran
+during the timing trials. Compilation is excluded. All six runs pass the same
+3,735 cases after exactly 42 reviewed identity mappings; the same five configured
+exclusions remain. Source/build/test input fingerprints stay frozen within each
+measurement group.
+
+| Metric | Baseline | Measured candidate |
+| --- | ---: | ---: |
+| Full normal nextest median | 220.541 s | 218.264 s |
+| Origin-cache case median | 0.275 s | 0.007 s |
+| Test binaries reported by nextest | 31 | 22 |
+
+Baseline trials are 221.016, 220.232 and 220.541 seconds; candidate trials are
+218.380, 218.264 and 218.064 seconds. The observed suite reduction is 2.277
+seconds, or 1.03%. This does not isolate the contribution of one removed capture,
+establish a cold-build or whole-CI improvement, or measure other architectures.
+The 41 relocated cases already used hand-built inputs; their placement changes
+remove nine standalone test binaries. Only the additional origin conversion
+removes compiler capture.
+
+After timing, the supplementary test-target style audit requested three blank
+phase separators in the new fixture. Exactly three empty lines were inserted;
+all nonempty lines and all other measured inputs remain identical. Independent
+hash and diff proofs preserve that distinction. The final source was not
+re-timed; final coverage and style validation use the corrected source.
+
+### Coverage and final checks
+
+The final unchanged `scripts/coverage.sh` passes all 3,735 tests and workspace
+doctest checks. Its input fingerprints remain frozen throughout execution. The
+coverage run has exactly the same cases as the normal runs after the reviewed
+remap. The retained baseline coverage comes from the identical pre-merge tree;
+all 2,314 historical input hashes were checked, including 145 JSON inputs. The
+only historical difference is the investigation appendix added after that run.
+
+The unique LCOV `DA` source-line records are exactly preserved: 154,251 of
+166,494 lines have hits, **92.64658%**, across the same 1,153 source files.
+No previously covered `DA` source line loses its hit. LCOV's separate `LF`/`LH`
+summary totals differ: `LF` remains 169,594, while `LH` falls from 156,381 to
+156,365, or 92.20904% to 92.19961%. Those summary counts differ from the `DA`
+cardinality in both reports. The six files with lower `LH` retain exactly the
+same `DA` hit sets; generated function copies receive different execution
+counts, but the precise exporter-summary mechanism is not established. Global
+`FNF`/`FNH` totals remain 18,428/17,152. This proves source-line hit preservation,
+without claiming that every LCOV summary counter is unchanged. The unchanged
+cargo-llvm-cov default filename filter omits the old integration test files,
+their relocated test files and `flow_tests.rs`. Their execution is verified by
+JUnit, rather than a claim of test-helper line coverage. This report has no
+branch-coverage records. The final instrumented command takes 329.189 seconds;
+that is separate from the normal runner benchmark.
+
+Formatting, whitespace checks, workspace/all-target Clippy with warnings denied,
+and the actual production CI numeric and saved-pattern gates pass. All six new
+flow helper/test functions are observed in the supplementary all-target numeric
+audit with zero findings. The broader audit remains incomplete: exit two,
+17,003 observed functions and 1,424 findings elsewhere. It is not a clean gate,
+and counts alone do not establish those findings' baseline provenance.
+
+No production behavior, CI trigger, threshold, suppression or ignore entry is
+changed. Raw timing JUnits, explicit case mappings, preserved-source proofs,
+coverage reports, scope evidence, final style outputs and independent Max
+reviews are retained under `target/unit-test-boundaries-20261101`.

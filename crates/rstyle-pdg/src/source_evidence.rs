@@ -1069,3 +1069,6 @@ pub(crate) fn implicit_input_lifetime(facts: &dyn crate::unit_store::EvidenceFac
             lifetime.span.start == parameter.ty_span.start
             && lifetime.span.end.checked_sub(lifetime.span.start) == Some(1)))
 }
+
+#[cfg(test)]
+mod ownership_tests;

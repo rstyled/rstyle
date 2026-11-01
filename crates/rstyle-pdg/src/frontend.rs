@@ -472,3 +472,6 @@ pub fn collect_kind<'a>(node: &'a HirNode, kind: &str, result: &mut Vec<&'a HirN
 pub(crate) fn normalized(node: &HirNode) -> Option<&str> {
     node.ty.as_ref()?.normalized.as_deref()
 }
+
+#[cfg(test)]
+mod tests;

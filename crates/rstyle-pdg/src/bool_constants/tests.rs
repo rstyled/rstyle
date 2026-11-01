@@ -1,5 +1,5 @@
 //! Declaration expectations fixed independently of compiler capture.
-use rstyle_pdg::bool_constants::{array_declaration, function_declaration};
+use super::{array_declaration, function_declaration};
 
 #[test]
 fn compile_time_table_declarations_keep_bounded_safe_source_contract() {

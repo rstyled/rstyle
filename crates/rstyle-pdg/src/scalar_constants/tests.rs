@@ -1,4 +1,4 @@
-use rstyle_pdg::{HirNode, HirRef, PathRes, ResolvedTy, scalar_constants::ScalarConstant};
+use crate::{HirNode, HirRef, PathRes, ResolvedTy, scalar_constants::ScalarConstant};
 
 fn constant(ty: &str, value: &str) -> ScalarConstant {
     ScalarConstant {
@@ -56,7 +56,7 @@ fn node(constant: &ScalarConstant) -> HirNode {
             local: 1,
         },
         kind: "expr_path".into(),
-        span: rstyle_pdg::span(0, 5),
+        span: crate::span(0, 5),
         snippet: "VALUE".into(),
         ty: Some(ResolvedTy {
             normalized: Some(constant.ty.clone()),
@@ -64,7 +64,7 @@ fn node(constant: &ScalarConstant) -> HirNode {
             spelling: String::new(),
         }),
         res: Some(PathRes {
-            kind: rstyle_pdg::scalar_constants::RESOLUTION.into(),
+            kind: super::RESOLUTION.into(),
             target: None,
             description: serde_json::to_string(constant).unwrap(),
         }),
@@ -112,15 +112,15 @@ fn constant_pattern_selectors_must_match_the_resolved_value() {
 
 #[test]
 fn constant_range_bounds_require_exact_source_positions_types_and_values() {
-    use rstyle_pdg::scalar_patterns::IntegerRange;
+    use crate::scalar_patterns::IntegerRange;
     let constant = constant("i32", "15");
     let mut bound = node(&constant);
     bound.kind = "pat_constant".into();
     bound.lit = Some("15".into());
-    bound.span = rstyle_pdg::span(13, 26);
+    bound.span = crate::span(13, 26);
     let mut range = node(&constant);
     range.kind = "pat_range".into();
-    range.span = rstyle_pdg::span(10, 26);
+    range.span = crate::span(10, 26);
     range.children = vec![bound];
     let source = "0..Limits::VALUE";
     let resolved = IntegerRange::from_pattern(source, &range, None, true).unwrap();

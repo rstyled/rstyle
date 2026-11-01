@@ -121,3 +121,6 @@ pub fn verify(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

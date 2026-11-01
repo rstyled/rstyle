@@ -192,3 +192,6 @@ fn source<'a>(node: &HirNode, facts: &'a dyn EvidenceFacts) -> Result<&'a str, S
         .get(node.span.start as usize..node.span.end as usize)
         .ok_or_else(|| "Missing complete compile-time declaration source".into())
 }
+
+#[cfg(test)]
+mod tests;

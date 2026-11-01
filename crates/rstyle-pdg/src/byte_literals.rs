@@ -59,3 +59,6 @@ pub(crate) fn verify_node(node: &HirNode, facts: &dyn EvidenceFacts) -> Result<(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;
