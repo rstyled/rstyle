@@ -607,3 +607,116 @@ JUnit reports, style summaries and independent Max reviews remain under
 in `candidate-measurement-command.json`, `candidate-ci-gates-summary.json` and
 `coverage-input-sha256.json`. `coverage-comparison.json` and
 `junit-comparison.json` record the exact comparisons.
+
+## 7. Retain validation across the production handoff
+
+This round uses `e65d31ed` as its baseline. It changes production code, without
+consolidating or removing any existing tests. Current-run bundle loading already
+skips expected-graph reconstruction, but it still checked graph structure and
+built operation/value-site indexes. Those results were discarded. Later helper
+verification and matching admission repeated the same producer checks.
+
+### Implementation
+
+`FunctionView::verified_pair()` selects the function's own root from its exact
+immutable `UnitStore`. Successful producer validation and its existing indexes
+are retained privately by graph ID and verification policy. `ValidatedPair`
+shares the indexes through `Arc`; it continues to borrow the exact documents
+and facts. Loading, helper verification and CLI admission use this same path.
+
+The standalone `producer::verify` remains uncached for independently supplied
+pairs and facts. Generated cache entries cannot satisfy strict cache lookups. Failed
+producer checks are not retained. Mutable builders do not use the store cache, and
+newly decoded, copied or derived owners start with empty caches. Nothing about
+the cache is serialized. Helper boundary and summary checks still run, and
+complete helper-proof caches remain local to an analysis context.
+
+Four focused regressions cover reuse across separate analyses, policy isolation
+and failed verification, current-run loading, and fresh validation after copying
+retained tables. Modified detached graphs and strict imports still reject invalid
+evidence. The shared fixture adapts one existing captured-facts seed into a coherent
+empty function and creates no compiler projects.
+
+### Matched local ARM64 timing
+
+Three baseline runs preceded three candidate runs on the same Linux ARM64 host,
+with the pinned nightly, two build jobs, incremental compilation disabled and
+the CI nextest profile's four test workers. No competing build or test job ran
+during measurement. Workspace compilation was performed before each group's
+runner measurements; doctests are checked separately by the coverage command.
+Rust/build/test input fingerprints stayed frozen throughout each group.
+
+| Metric | Baseline median | Candidate median | Reduction |
+| --- | ---: | ---: | ---: |
+| Full workspace nextest runner | 220.370 s | 218.992 s | 0.63% |
+
+The three baseline times are 220.285, 220.371 and 220.370 seconds. Candidate
+times are 218.992, 218.978 and 219.640 seconds. Every run passes; the candidate
+retains all 3,731 original case identities and adds four regressions, for 3,735
+cases. The same five configured exclusions remain. This is an observed small
+local test-run improvement, rather than a whole-CI or cross-platform result.
+
+### Ordinary production commands
+
+Separate measurements run the normal CLI directly on the stored-slices and
+ID-reader fixtures, without a test harness or a strict replay loop. Each group
+uses one warmup and five measured current-run captures, followed by a separate
+`RSTYLE_PERF=1` diagnostic run. Fixture bytes and CLI/driver binaries remain
+frozen within each group. Expected admission/exclusion cases and matching
+assertions run for every trial; complete normalized function outcomes, reasons,
+matching decisions and scores are identical between baseline and candidate.
+
+| Workload | Baseline CLI verification calls | Candidate calls | Baseline wall median | Candidate wall median |
+| --- | ---: | ---: | ---: | ---: |
+| Stored slices, 17 admitted functions | 40 | 17 | 0.986 s | 0.991 s |
+| ID readers, 13 admitted functions | 34 | 13 | 2.763 s | 2.766 s |
+
+The stored-slice wall ranges are 0.969–1.008 and 0.975–1.003 seconds; ID-reader
+ranges are 2.700–2.806 and 2.725–2.796 seconds. These overlap, and no end-to-end
+CLI speedup is established. Compiler captures remain one per command. Including
+the compiler-driver process, producer verification calls fall from 63 to 40 and
+55 to 34; the driver's mutable-builder work is unchanged. These are instrumented
+invocation counts, rather than CPU samples.
+
+Retaining indexes increases their lifetime to that of the owning unit. GNU
+time's median maximum RSS observations are 141,436 to 143,444 KiB for stored
+slices and 148,484 to 150,620 KiB for ID readers. The candidate medians are about 2 MiB (1.4%) higher, and the observed RSS
+ranges do not overlap. This is propagated maximum process RSS, which can be dominated by the compiler; it does not measure
+simultaneous process-tree memory or allocations. No memory improvement is
+claimed. Structural validation is a small part of these representative runs;
+source/helper analysis remains outside the removed duplicate checks.
+
+### Validation
+
+Formatting, whitespace checks and workspace/all-target Clippy with warnings
+denied pass. The actual final production CI numeric and saved-pattern gates
+both exit zero, with no violations or visible pattern candidates. No CI trigger,
+threshold, suppression, ignore entry, fixture or existing assertion is changed.
+
+The supplementary rstyle-pdg all-target numeric audit is not a clean gate: it
+observes 16,997 functions, reports 1,424 findings, and exits two because compiler
+advisory coverage is incomplete. All seven new test/helper functions have actual
+numeric observations and zero findings. There is no baseline comparison of the
+remaining broad-audit findings.
+
+The final unchanged `scripts/coverage.sh` passes all 3,735 tests and workspace
+doctest checks, with the same five configured exclusions. Coverage and normal
+runs have exactly the same case identities. All 3,731 baseline cases remain;
+only the four intended regressions are added. All 2,314 tracked or unignored
+input files stay frozen during the full coverage command.
+
+LCOV line coverage rises from 154,144 of 166,387 lines (92.64185%) to 154,251 of
+166,494 (92.64658%). There are 1,153 source files, including the new validation
+module. Mapping unchanged source lines across the edits retains coverage for
+all 154,127 mapped baseline-covered lines. No unchanged covered line loses its
+hit. Added or changed instrumented lines in the existing files are all covered.
+The new module covers 26 of 27 instrumented lines; its missing-root error branch
+is the uncovered line. The existing function/symbol counts change with the new
+implementation; raw symbol counts do not establish one-to-one function coverage
+preservation. These reports contain line and function coverage, without branch
+coverage records.
+
+Reproducible scripts, frozen input/binary hashes, all six normal timing JUnits,
+production reports and balanced raw traces, GNU time observations, coverage
+reports, style outputs and independent Max reviews remain under
+`target/structural-validation-20261031`.

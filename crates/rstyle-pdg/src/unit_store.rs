@@ -20,6 +20,7 @@ mod product_instances;
 mod reference_forwarders;
 mod reference_instances;
 mod slice_instances;
+mod validation;
 pub use dependency_closure::DependencyClosure;
 mod manifest;
 mod namespace;
@@ -374,6 +375,7 @@ type Proofs = RefCell<BTreeSet<(HelperId, bool)>>;
 /// Immutable evidence tables. Each frontend and certified pair is owned once.
 /// Private local IDs are resolved only through this owning unit's views.
 pub struct UnitStore {
+    validations: validation::Cache,
     namespace: UnitNamespace,
     functions: Vec<HirFnFacts>,
     helpers: Vec<HelperRecord>,
@@ -426,6 +428,7 @@ struct ExternalTarget {
 
 trait Resolver {
     fn dependencies(&self) -> &[Rc<UnitAnalysis<'static>>];
+    fn validation_cache(&self) -> Option<&validation::Cache>;
     fn tables(&self) -> Tables<'_>;
     fn derived(&self) -> &[derived::Derived];
     fn sources(&self) -> &derived::Sources;
@@ -435,6 +438,7 @@ trait Resolver {
 }
 
 struct Tables<'a> {
+    roots: &'a [Option<GraphId>],
     functions: &'a [HirFnFacts],
     namespace_associations: &'a [dependency_namespaces::Association],
     helpers: &'a [HelperRecord],
@@ -877,6 +881,10 @@ impl UnitAnalysis<'_> {
 }
 
 impl Resolver for UnitAnalysis<'_> {
+    fn validation_cache(&self) -> Option<&validation::Cache> {
+        Some(&self.store.validations)
+    }
+
     fn dependencies(&self) -> &[Rc<UnitAnalysis<'static>>] {
         &self.dependencies
     }
@@ -903,6 +911,7 @@ impl Resolver for UnitAnalysis<'_> {
 impl UnitStore {
     fn tables(&self) -> Tables<'_> {
         Tables {
+            roots: &self.roots,
             functions: &self.functions,
             namespace_associations: &self.namespace_associations,
             helpers: &self.helpers,
@@ -930,6 +939,10 @@ struct Builder {
 }
 
 impl Resolver for Builder {
+    fn validation_cache(&self) -> Option<&validation::Cache> {
+        None
+    }
+
     fn dependencies(&self) -> &[Rc<UnitAnalysis<'static>>] {
         &self.dependencies
     }
@@ -971,6 +984,7 @@ impl Builder {
 
         Ok(Self {
             store: UnitStore {
+                validations: validation::Cache::default(),
                 namespace,
                 functions,
                 helpers: Vec::new(),
@@ -1186,6 +1200,54 @@ fn function_links(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    pub(super) fn empty_function_store() -> UnitStore {
+        let facts: HirFnFacts = serde_json::from_str(include_str!(
+            "nominal_boundary/resolution/selected/function_cleanup_tests/facts.json"
+        ))
+        .unwrap();
+
+        let unit = crate::frontend::ResolvedTy {
+            normalized: Some("unit".into()),
+            observed: "()".into(),
+            spelling: String::new(),
+        };
+        let build = crate::frontend::BuildFacts {
+            frontend_options: empty_function_options(&facts.build),
+            ..facts.build
+        };
+        let signature = crate::frontend::SignatureFacts {
+            return_ty: unit.clone(),
+            ..facts.signature
+        };
+        let body = HirNode {
+            ty: Some(unit),
+            ..facts.body
+        };
+
+        UnitStore::capture(vec![HirFnFacts {
+            source_scan_complete: true,
+            build,
+            signature,
+            body,
+            ..facts
+        }])
+        .unwrap()
+    }
+
+    fn empty_function_options(
+        build: &crate::frontend::BuildFacts,
+    ) -> crate::frontend::FrontendOptions {
+        let mut options = build.frontend_options.clone();
+        options.remove("extraction_profile");
+        options.insert("edition".into(), serde_json::json!(build.edition.value));
+        options.insert(
+            "target".into(),
+            serde_json::json!(build.target_triple.value),
+        );
+
+        options
+    }
 
     #[test]
     fn successful_proofs_are_analysis_and_policy_local() {

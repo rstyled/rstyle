@@ -23,6 +23,10 @@ use std::collections::BTreeMap;
 pub struct ValidatedPair<'a> {
     pair: PairView<'a>,
     facts: &'a dyn crate::unit_store::EvidenceFacts,
+    indexes: std::sync::Arc<ValidatedIndexes>,
+}
+
+pub(crate) struct ValidatedIndexes {
     map: Vec<OperationMapEntry>,
     value_sites: std::collections::BTreeSet<String>,
 }
@@ -36,6 +40,22 @@ impl std::fmt::Debug for ValidatedPair<'_> {
 }
 
 impl<'a> ValidatedPair<'a> {
+    pub(crate) fn with_indexes(
+        pair: PairView<'a>,
+        facts: &'a dyn crate::unit_store::EvidenceFacts,
+        indexes: std::sync::Arc<ValidatedIndexes>,
+    ) -> Self {
+        Self {
+            pair,
+            facts,
+            indexes,
+        }
+    }
+
+    pub(crate) fn into_indexes(self) -> std::sync::Arc<ValidatedIndexes> {
+        self.indexes
+    }
+
     pub fn pair(&self) -> PairView<'a> {
         self.pair
     }
@@ -43,10 +63,10 @@ impl<'a> ValidatedPair<'a> {
         self.facts
     }
     pub fn operation_map(&self) -> &[OperationMapEntry] {
-        &self.map
+        &self.indexes.map
     }
     pub fn value_sites(&self) -> &std::collections::BTreeSet<String> {
-        &self.value_sites
+        &self.indexes.value_sites
     }
 }
 
@@ -192,8 +212,10 @@ fn validate_boundary<'a>(
         Ok(ValidatedPair {
             pair,
             facts,
-            map,
-            value_sites: value_sites.unwrap_or_default(),
+            indexes: std::sync::Arc::new(ValidatedIndexes {
+                map,
+                value_sites: value_sites.unwrap_or_default(),
+            }),
         })
     } else {
         Err(errors)

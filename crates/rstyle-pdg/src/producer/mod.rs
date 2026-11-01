@@ -15,6 +15,7 @@ mod summaries;
 mod unsigned_ranges;
 pub(crate) use unsigned_ranges::{bounded_value_index, verify_range_policy};
 mod verify;
+pub(crate) use verify::ValidatedIndexes;
 pub use verify::{PreparedVerification, ValidatedPair, verify};
 
 /// Build and validate one bounded normal-flow pair from captured frontend facts.

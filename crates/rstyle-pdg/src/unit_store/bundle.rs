@@ -202,7 +202,7 @@ impl UnitStore {
                 resolver: &analysis,
                 id: local_id(index, HelperId)?,
             };
-            crate::helper_calls::verify_shared_callee(&helper, &helper.frontend())
+            crate::helper_calls::verify_shared_callee(&helper)
                 .map_err(|error| format!("Imported helper {}: {error}", helper.frontend().name))?;
             helper.remember();
         }
@@ -256,10 +256,8 @@ impl UnitStore {
             if root.is_some() != eligible {
                 return Err("Incomplete or contradictory root graph inventory".into());
             }
-            if self.certified[index].is_none()
-                && let Some(pair) = self.pair(index)
-            {
-                crate::producer::verify(pair, &view).map_err(|errors| errors.join("; "))?;
+            if self.certified[index].is_none() && root.is_some() {
+                view.verified_pair().map_err(|errors| errors.join("; "))?;
             }
         }
         Ok(())
@@ -293,6 +291,7 @@ impl Decoded {
         u32::try_from(self.wire.graphs.len()).map_err(|_| "Oversized graph table")?;
         let function_count = store.functions.len();
         let mut store = UnitStore {
+            validations: validation::Cache::default(),
             namespace: store.namespace,
             functions: store.functions,
             links: store.links,

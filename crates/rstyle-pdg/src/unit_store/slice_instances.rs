@@ -231,6 +231,7 @@ fn recapture_builder(owner: &UnitStore, retain: bool) -> Result<Builder, String>
 // Proof caches and derived analyses are rebuilt, while dense table IDs stay valid.
 fn retained_tables(owner: &UnitStore) -> UnitStore {
     UnitStore {
+        validations: validation::Cache::default(),
         namespace: owner.namespace,
         functions: owner.functions.clone(),
         helpers: owner.helpers.clone(),
@@ -391,7 +392,7 @@ fn certification_reasons(
 
 #[cfg(test)]
 mod closure_tests {
-    use super::{FunctionId, caller_closure, reverse_callers};
+    use super::{Arc, FunctionId, caller_closure, retained_tables, reverse_callers};
     use std::collections::BTreeMap;
 
     #[test]
@@ -411,5 +412,19 @@ mod closure_tests {
             BTreeMap::new(),
         ];
         assert_eq!(caller_closure(&reverse_callers(&links), [0]), vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn copied_tables_reverify_in_their_new_owner() {
+        let owner = crate::unit_store::tests::empty_function_store();
+        let analysis = owner.analysis();
+        let function = analysis.function(0).unwrap();
+        let original = function.verified_pair().unwrap().into_indexes();
+
+        let copied = retained_tables(&owner);
+        let analysis = copied.analysis();
+        let function = analysis.function(0).unwrap();
+        let receipt = function.verified_pair().unwrap().into_indexes();
+        assert!(!Arc::ptr_eq(&original, &receipt));
     }
 }
