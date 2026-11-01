@@ -1164,3 +1164,162 @@ No threshold, suppression or saved-ignore change is used.
 
 Raw JUnits, source/binary fingerprints, resource logs, case mappings, coverage and
 review evidence are retained under `target/compiler-unit-boundaries-20261101`.
+
+## 12. Stored-slices CPU profile
+
+The stored-slices integration test still spends substantial time rebuilding and
+serializing evidence for its assertions. Low collects the controls, diagnostics
+and CPU stacks; Max independently reviews the controls, process participation,
+sample accounting and interpretation. This experiment profiles the implementation
+at `b6dd64d2a4c060c974af15afbdef90a7f0303a85`; it introduces no optimization.
+
+The exact case is
+`variant_capture::input_owner::borrowed::stored_slices_compose_with_checked_consumers_saved_receivers_and_finite_alternatives`,
+in `crates/cargo-rstyle/tests/variant_capture/input_owner/borrowed.rs`.
+All six contexts execute: aarch64 Linux, x86_64 Linux and aarch64 Darwin, each with
+std and no_std. Every capture reports 52 functions, 17 admitted functions and 136
+candidate pairs, with all four completion flags true. The six full JSON reports
+total approximately 20 MB.
+
+### Controls and resources
+
+The prebuilt test executable runs this case alone, with `--exact
+--test-threads=1 --nocapture`, the real prebuilt CLI/driver and the pinned nightly
+`2026-09-30`. The existing opt0 profiles, assertions and overflow checks remain
+unchanged. Preparation/build time is excluded. All successful runs pass, with
+identical source inputs and hashes for the test executable, CLI and driver.
+
+| Execution condition | Libtest seconds | Command wall median |
+| --- | --- | ---: |
+| Ordinary PATH, three controls | 11.78, 11.67, 11.72 | 11.725 s |
+| Pinned toolchain bin on PATH, three controls | 11.51, 11.62, 11.43 | 11.516 s |
+| CPU profiler, matching pinned PATH | 12.58 | 12.598 s, one run |
+
+Ordinary controls use 10.21–10.28 seconds of user CPU and 1.45–1.51 seconds of
+system CPU. Maximum single-process RSS is approximately 140 MiB. The external
+100 ms process-tree sampler observes peak PSS of 272–274 MiB; this is a sampled
+concurrent-memory estimate. It misses short-lived processes and can perturb
+scheduling. Allocation counts, allocation sizes and retained-object ownership
+are unmeasured.
+
+Kernel perf is unavailable on this host. The successful profile uses gperftools
+at 100 Hz with libgcc unwinding, inherited by child processes, with PERF telemetry
+off and the real CLI invoked directly. Prepending the exact pinned-toolchain bin
+directory avoids Rustup launcher execs; the resolved Cargo/rustc hashes and
+versions match the ordinary controls. Profiler wall overhead is 9.39% against
+the matching pinned-PATH median. Initial profiler attempts through Rustup fail
+because inherited SIGPROF interrupts rustc during exec startup; those failed
+attempts and an accidentally instrumented control set are retained and excluded.
+
+There are 1,019 workload samples across 202 profiled workload process images.
+Three additional auxiliary images are retained and excluded, including two
+samples from the outer Python wrapper. All workload stacks resolve
+syntactically, and 1,015 contain multiple frames. Exported native-library aliases
+remain unreliable, so conclusions use resolved Rust ancestors. These are CPU-time
+samples with user-space stacks: ITIMER_PROF includes system CPU charges, with no
+kernel-stack attribution. Sample ticks account for about 81% of GNU time CPU and
+must not be converted directly into exact seconds or predicted savings.
+
+### Where the samples are
+
+| Process role | Samples | Share of workload |
+| --- | ---: | ---: |
+| Test harness | 563 | 55.25% |
+| CLI | 225 | 22.08% |
+| Compiler driver | 225 | 22.08% |
+| Cargo | 6 | 0.59% |
+
+The compiler executes inside the driver. Of its 225 samples, 211 have the rstyle
+capture callback as an ancestor. Separate rustc probes have zero samples at this
+frequency; their startup cost remains unquantified. Harness samples include real
+production verification code called by the assertions.
+
+The following test-operation branches partition the harness samples. Percentages
+use all 1,019 workload samples, so these rows sum to the harness share.
+
+| Harness operation | Samples | Share of workload |
+| --- | ---: | ---: |
+| `word_classifiers::verify_admissions` | 186 | 18.25% |
+| Stored-slice mutations, including conditional-read and document edits | 185 | 18.16% |
+| Dependency mutations | 97 | 9.52% |
+| Passive-context assertions, including old-policy rejection | 31 | 3.04% |
+| Location assertions and their wire-bundle inspection | 26 | 2.55% |
+| Capture helper, including parsing CLI output in the harness | 26 | 2.55% |
+| Remaining harness work | 12 | 1.18% |
+
+Within the mutation branches, `float_kernels::reject_resealed` contains 227
+samples, or 22.28% of the workload. Its direct-child partition is 131 samples
+serializing `serde_json::Value` to bytes, 85 importing/verifying those bytes, ten
+dropping the JSON value and one checksumming. The surrounding mutation preparation
+also calls `shared_evidence::wire`, which reads and parses the entire bundle and
+expands its repeated censuses anew for each mutation. This helper has 77 inclusive
+samples across mutation and location checks.
+
+Actual serde_json implementation frames occur in 555 samples, or 54.47% of the
+workload: 348 harness, 105 CLI and 102 driver. This union excludes generic type
+parameters that merely mention serde_json. JSON string-escaping leaf frames
+account for 78 samples, or 7.65%. Report writing contains 64 inclusive CLI samples;
+bundle writing contains 68 inclusive driver samples. These function scopes and
+the test-operation scopes overlap and must not be added.
+
+Shared production functions also remain visible: `eligibility::classify` has 213
+inclusive samples across the harness, CLI and driver; ordinary data-frontend
+checking has 143; strict `producer::verify::expected_pair` has 89, all in the
+harness. The last function lowers, analyzes and emits the expected graph again.
+These counts describe sampled ancestry, not invocation frequency or self time.
+
+### Confirmed repetition and next experiment
+
+A separate diagnostic run takes 12.10 seconds and uses an artifact-preserving
+CLI relay. Its 13,018 canonical events form 6,509 complete observation pairs,
+keyed by PID and observation ID. Events are parsed once from command stderr;
+copies in archived capture logs are excluded.
+
+The trace confirms six compiler captures, 26 bundle imports and 520 producer
+verification entries. Six imports belong to generated CLI handoff. The harness
+performs six clean strict imports plus fourteen edited-bundle strict imports.
+`verify_admissions` already loads once per context and shares its store/analysis
+across the admitted functions; it then explicitly verifies documents and admits
+each of those functions again. The repetition is the six-context replay and
+the edited-bundle imports, rather than a clean bundle load per function.
+Of the producer checks, 240 use generated policy and 280 use strict harness
+policy. Fifty-six producer failures are expected rejection outcomes. Data-frontend
+stages include expected eligibility probes and rejections as well.
+
+Selected inclusive stage totals are 3.070 seconds for CLI compiler capture,
+1.444 seconds for CLI handoff, 0.239 seconds for matching and 0.636 seconds for
+report writing. Harness bundle decode totals 0.905 seconds, bundle verification
+1.039 seconds and producer verification 1.240 seconds. These durations overlap.
+The events omit thread IDs and absolute timestamps, preventing general exclusive
+wall-time reconstruction. Relay/copying overhead belongs to the diagnostic run.
+
+The next experiment should reduce the test's repeated evidence work:
+
+1. Prepare the mutation baseline once. Move independently expressible semantic
+   cases, such as the eight stored-summary edits, into private tests beside their
+   actual strict verifier, using small typed inputs. Retain a correctly resealed
+   live bundle rejection proving that import calls that verifier. Keep the five
+   dependency provenance/Copy/owner mutations and the checked-element
+   conditional-read rejection integrated unless their distinct proof boundaries
+   are independently preserved in owning unit tests. Explicitly map every case.
+2. Keep compiler capture, admission outcomes, matching, strict bundle import and
+   a representative independent strict admission in every target/std context.
+   Consider replaying the exhaustive per-function strict admission matrix in one
+   suitable context only after mapping equivalent authority for its assertions.
+   Reuse the loaded store and analysis while unchanged.
+3. Retain focused real serialization/import checks. Avoid serializing and importing
+   the entire 52-function unit for each isolated helper-summary assertion when
+   its actual verifier can be exercised directly.
+
+This recommendation targets measured test orchestration. Shared production JSON
+encoding, decoding and frontend classification are subsequent optimization
+candidates. The profile does not establish the savings from either change or
+justify attributing all harness time to removable work. A candidate needs normal
+before/after controls and coverage comparison before any speedup claim.
+
+All evidence is local under `target/stored-slices-profile-20261101`: the complete
+interactive `stored-slices-cpu.svg`, role-specific SVGs in `focused/`, raw per-PID
+profiles, folded stacks, `root-hotspots.json`, `root-stage-summary.json`, controls,
+fingerprints, execution/syscall traces and independent review artifacts. These
+large ignored artifacts are retained locally. Only this findings document changes
+after the frozen profiling runs; whitespace validation applies to that document.
