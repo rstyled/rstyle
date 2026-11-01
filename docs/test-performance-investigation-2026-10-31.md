@@ -1323,3 +1323,114 @@ profiles, folded stacks, `root-hotspots.json`, `root-stage-summary.json`, contro
 fingerprints, execution/syscall traces and independent review artifacts. These
 large ignored artifacts are retained locally. Only this findings document changes
 after the frozen profiling runs; whitespace validation applies to that document.
+
+## 13. Inspect the loaded stored-slice helper
+
+The retained change replaces six full-bundle reads in the stored-slices location
+assertions with inspection of the helper already owned by the strict-imported
+unit. Low implements and validates the change; Max independently reviews source,
+assertion preservation, paired timing, resources, style and coverage evidence.
+
+`check_locations` resolves the captured `wrapper` function, asserts its single
+method-call shape, and follows the actual helper link. It checks the stored-slice
+summary identity, output parameter zero, three-step return path ending in
+`SharedReferent`, and exact reference-slot read path. Only that small typed summary
+is converted to JSON for the existing assertions. The previous lookup parsed the
+entire bundle and selected the first helper with the matching identity.
+
+Whole-bundle wire reads/expansions fall from 20 to 14. All six target/std captures,
+strict imports, exhaustive per-function document/admission replay, matching,
+eight summary mutations, five dependency mutations, conditional-read rejection,
+historical-policy checks and three document mutations remain. All 3,732 executed
+case identities remain unchanged. Production behavior and APIs, profiles, CI,
+thresholds, suppressions and saved ignores remain unchanged.
+
+The eight summary mutations remain integrated. Existing small unit fixtures do
+not carry the captured nominal/source/graph evidence needed for their actual
+strict verifier. Extracting its final equality check would substitute trivial
+comparison tests; lower origin/read prerequisite checks exercise different inputs.
+
+An earlier candidate also reused an expanded JSON baseline across the 14
+mutations, added one positive strict import and cloned the baseline independently
+for each mutation. Its historical GNU-time wall medians were 11.77 versus 11.48
+seconds, with approximately 33.4 MiB higher sampled tree PSS. Its comparison involved
+different driver binary hashes, so it cannot isolate that candidate's timing or
+memory effect. It is not adopted. The retained smaller change adds no extra
+strict bundle imports, baseline retention or mutation clones; the original mutation
+code is byte-identical.
+
+### Paired normal timing
+
+The primary comparison alternates the preserved baseline test executable and
+the candidate executable in the predeclared order B,C / C,B / B,C. Both use the
+same current real CLI and driver binaries, environment, ordinary PATH and exact
+case invocation, with no PERF, profiler, preload or coverage. Historical baseline
+executable/source provenance is separate from the current frozen source. All six
+runs pass, with all used executable hashes and source inputs unchanged throughout
+the phase.
+
+| Metric, median of each arm's three runs | Baseline | Candidate |
+| --- | ---: | ---: |
+| Command wall | 11.733235 s | 11.465364 s |
+| User + system CPU | 11.71 s | 11.44 s |
+| Largest-process maximum RSS | 145,172 KiB | 145,312 KiB |
+| Sampled process-tree peak PSS | 282.04 MiB | 281.27 MiB |
+
+The difference of arm medians is 0.267870 seconds, or 2.283%. Individual paired
+savings are 0.195117, 0.412159 and 0.232723 seconds; their median is 0.232723
+seconds, a distinct statistic. All three pairs favor the candidate. Memory is
+essentially unchanged: PSS -0.273%, single-process RSS +0.096%. The 100 ms sampler
+can miss peaks and perturb scheduling; these observations do not establish an
+allocation-level cause or a memory improvement.
+
+These measure normal executions of prepared workspace binaries on local Linux
+ARM64 with nightly 2026-09-30 and normal workspace opt0 settings. Fresh per-test
+fixture captures remain included. The existing serde_json dependency override
+remains opt2. Workspace build preparation is excluded. One preparation rebuilds
+the driver after an index timestamp change; it is not a no-rebuild cache benchmark.
+Three pairs support the focused observation without establishing a general or
+whole-suite speedup.
+
+### Validation and serializer follow-up
+
+The final normal run passes all 3,732 cases with the same 22-binary inventory,
+in 210.155 seconds of JUnit time (210.212 seconds command wall). The five existing
+ignored cases remain outside the executed population. This is standalone regression
+validation. The historical 214.930-second full control uses different driver bytes,
+so these two full runs do not establish a causal overall speedup.
+
+The unchanged full coverage collector passes the same exact 3,732 identities and
+four zero-test doctest targets in 321.118 seconds. Coverage duration is validation
+cost, separate from normal timing. All 1,153 source paths and 166,494 unique source
+path/DA-line keys match, with 154,251 covered lines on both sides (92.64658%). No
+previously covered line or function loses its hit. Raw LF/LH/FNF/FNH also match:
+169,594 / 156,364 / 18,428 / 17,152 (raw line coverage 92.19902%). There are 131
+line-counter and 31 function-counter differences, with zero raw-summary changes.
+No branch-coverage claim is made. The modified integration helper is omitted from
+both default LCOV exports; JUnit establishes execution, not its line instrumentation.
+Source/build key unions and hashes match across normal, coverage and live inputs;
+source inputs remain frozen within each phase. The paired and full normal runs
+also preserve their used-executable hashes.
+
+Formatting, whitespace checks, workspace/all-target Clippy with warnings denied,
+and the current real CI numeric and saved-pattern gates pass. The CLI all-target
+audit observes the changed `check_locations` function with zero findings. Its
+broader audit exits two, has 3,294 findings and incomplete compiler coverage; it
+is not a clean whole-workspace audit. No threshold, suppression or ignore changes
+are used.
+
+A faster Serde-compatible JSON engine could affect byte parsing, string escaping,
+number formatting and byte writing. Serde supplies the traits/derives; serde_json
+is the current JSON engine and already builds at opt2. A byte-engine replacement
+would retain serde_json::Value construction/cloning, `to_value`/`from_value`, custom
+typed visitors, source/table reconstruction and semantic verification. The earlier
+54.47% JSON-ancestry union is not a replaceable-engine fraction or a savings bound.
+The next separate experiment should benchmark representative frozen bundles and
+reports, separating byte-to-DOM, byte-to-typed, in-memory conversion and encoding
+costs, then verify the full case and wire/budget/checksum behavior. No replacement
+is adopted or benchmarked here.
+
+Paired raw logs, samples, hashes, assertion mappings and reviews are retained under
+`target/stored-slices-consolidation-v2-20261101`; the rejected candidate and original
+controls remain under `target/stored-slices-consolidation-20261101`. Only this
+findings document changes after the frozen final validation runs.

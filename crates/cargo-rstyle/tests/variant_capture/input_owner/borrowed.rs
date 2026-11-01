@@ -1,5 +1,6 @@
 //! Slot reads and returned slice referents compose through complete owning scopes.
 use super::*;
+use rstyle_pdg::unit_store::EvidenceFacts;
 
 const CHAIN: &str = r#"
 impl<'h> Input<'h> {
@@ -145,22 +146,26 @@ fn check_locations(report: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
             assert_eq!(record["parameter"], 0, "{name}: {record}");
         }
     }
-    let wire = shared_evidence::wire(function(report, "wrapper"));
-    let helper = stored_helper(&wire);
-    let output = &helper["summary"]["reference_outputs"][0];
+    let analysis = unit.analysis();
+    let wrapper = analysis
+        .function(shared_evidence::index(function(report, "wrapper")))
+        .unwrap();
+    assert_eq!(wrapper.body.kind, "expr_block");
+    assert_eq!(wrapper.body.children.len(), 1);
+    let call = &wrapper.body.children[0];
+    assert_eq!(call.kind, "expr_method_call");
+    let helper = wrapper.helper(call).unwrap().unwrap();
+    assert_eq!(
+        helper.summary().identity,
+        "rstyle.helper.stored-slice-result/1"
+    );
+
+    let summary = serde_json::to_value(helper.summary()).unwrap();
+    let output = &summary["reference_outputs"][0];
     assert_eq!(output["parameter"], 0);
     assert_eq!(output["path"].as_array().unwrap().len(), 3);
     assert_eq!(output["path"][2]["kind"], "SharedReferent");
-    assert_eq!(helper["summary"]["memory_reads"][0]["path"], slot["path"]);
-}
-
-fn stored_helper(bundle: &Value) -> &Value {
-    bundle["helpers"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|helper| helper["summary"]["identity"] == "rstyle.helper.stored-slice-result/1")
-        .unwrap()
+    assert_eq!(summary["memory_reads"][0]["path"], slot["path"]);
 }
 
 fn reject_stored_slice_edits(report: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
