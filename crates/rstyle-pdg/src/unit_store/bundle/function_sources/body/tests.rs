@@ -132,16 +132,9 @@ fn deep_excluded_body_survives_strict_bundle_and_diagnostic_replay_without_admis
         .unwrap();
     let imported = crate::unit_store::read_diagnostic_snapshot(&bytes).unwrap();
     assert_eq!(imported, store.functions());
-    let mut wire: Value = serde_json::from_slice(&bytes).unwrap();
-    wire["schema"] = "rstyle.diagnostic.raw-facts/3".into();
-    assert_eq!(
-        crate::unit_store::read_diagnostic_snapshot(&serde_json::to_vec(&wire).unwrap()).unwrap(),
-        store.functions()
-    );
-    wire["schema"] = "rstyle.diagnostic.raw-facts/2".into();
-    assert!(
-        crate::unit_store::read_diagnostic_snapshot(&serde_json::to_vec(&wire).unwrap()).is_err()
-    );
+    let headers =
+        crate::unit_store::read_diagnostic_snapshot_headers_phase(&bytes, "original").unwrap();
+    assert_eq!(headers[0].body, store.functions()[0].body.hir);
 }
 
 #[test]

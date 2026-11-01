@@ -52,12 +52,11 @@ fn scalar_from_rejects_missing_wrong_or_nested_selected_implementations() {
         resolution.description = serde_json::to_string(&callee).unwrap();
         shared_evidence::reject_facts(&function, &facts);
     }
+    scalar_from_documents_reject_changed_summary_type_operands_and_policy(&function);
 }
 
-#[test]
-fn scalar_from_documents_reject_changed_summary_type_operands_and_policy() {
-    let (_directory, function) = captured_conversion();
-    let (unit, index) = data_unit(&function);
+fn scalar_from_documents_reject_changed_summary_type_operands_and_policy(function: &Value) {
+    let (unit, index) = data_unit(function);
     let analysis = unit.analysis();
     let facts = analysis.function(index).unwrap();
     for mutation in ["summary", "type", "operand", "policy"] {

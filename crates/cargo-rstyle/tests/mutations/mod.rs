@@ -92,6 +92,14 @@ fn direct_scalar_assignment_counts_follow_independent_sources_and_provenance() {
         let (output, report) = requested(directory.path(), &[]);
         assert!(output.status.success(), "{id}: {}", stdout(&output));
         assert_exact_case(&report, &labels(id));
+        if id == "borrowed-formal-pointee-writes" {
+            mutation_reports_keep_full_compact_default_and_opt_in_failure_distinct(
+                &directory, &report,
+            );
+            strict_replay_reevaluates_mutation_policy_without_original_source_or_tools(
+                &directory, &report,
+            );
+        }
     }
 }
 
@@ -231,11 +239,10 @@ fn closure_and_reference_boundaries_do_not_invent_immediate_writes_or_stale_root
     }
 }
 
-#[test]
-fn mutation_reports_keep_full_compact_default_and_opt_in_failure_distinct() {
-    let directory = workspace("borrowed-formal-pointee-writes");
-    let (output, full) = requested(directory.path(), &[]);
-    assert!(output.status.success());
+fn mutation_reports_keep_full_compact_default_and_opt_in_failure_distinct(
+    directory: &TempDir,
+    full: &Value,
+) {
     let (output, compact) = requested(directory.path(), &["--report-detail", "compact"]);
     assert!(output.status.success());
     assert_eq!(full["mutation_analysis"], compact["mutation_analysis"]);
@@ -270,18 +277,17 @@ fn mutation_budget_exhaustion_is_not_a_clean_zero_population() {
     assert_eq!(analysis["findings"], 0);
 }
 
-#[test]
-fn strict_replay_reevaluates_mutation_policy_without_original_source_or_tools() {
-    let directory = workspace("borrowed-formal-pointee-writes");
-    let (output, original) = requested(directory.path(), &[]);
-    assert!(output.status.success());
+fn strict_replay_reevaluates_mutation_policy_without_original_source_or_tools(
+    directory: &TempDir,
+    original: &Value,
+) {
     std::fs::remove_file(directory.path().join("src/lib.rs")).unwrap();
     std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
-    let strict = replay(directory.path(), &original);
+    let strict = replay(directory.path(), original);
     assert_eq!(strict.status.code(), Some(1), "{}", stdout(&strict));
     let strict: Value = serde_json::from_slice(&strict.stdout).unwrap();
     policy(directory.path(), 3);
-    let loose = replay(directory.path(), &original);
+    let loose = replay(directory.path(), original);
     assert!(loose.status.success(), "{}", stdout(&loose));
     let loose: Value = serde_json::from_slice(&loose.stdout).unwrap();
     assert_eq!(loose["verification_policy"], "strict-replay");

@@ -28,6 +28,7 @@ fn bitset_cardinality_rejects_changed_integer_graphs() {
             "{mutation}"
         );
     }
+    bitset_cardinality_rejects_changed_core_identity_width_and_result(&report);
 }
 
 fn corrupt_graph(pair: &mut rstyle_pdg::producer::Pair, mutation: &str) {
@@ -62,9 +63,7 @@ fn corrupt_graph(pair: &mut rstyle_pdg::producer::Pair, mutation: &str) {
     }
 }
 
-#[test]
-fn bitset_cardinality_rejects_changed_core_identity_width_and_result() {
-    let (_directory, report) = captured(None);
+fn bitset_cardinality_rejects_changed_core_identity_width_and_result(report: &Value) {
     let raw: rstyle_pdg::HirFnFacts = serde_json::from_value(
         report["functions"]
             .as_array()

@@ -2,6 +2,8 @@ use super::propagation::checked;
 use super::*;
 
 const BASE: &[&str] = &[
+    "--report-detail",
+    "compact",
     "--extraction-profile",
     "hir-data-v3",
     "--compiler-advisory-only",
@@ -20,11 +22,10 @@ const COMPARE: &[&str] = &[
 const STATUS: &[&str] = &["--review-file", "reviews.json", "--review-status"];
 const PARAMS: &str = "_a:u32,_b:u32,_c:u32,_d:u32,_e:u32";
 
-fn source(all_bad: bool, late_bad: bool) -> String {
+fn source(late_bad: bool) -> String {
     let mut source = String::new();
-    for index in 0..4100 {
-        let params = if all_bad { PARAMS } else { "" };
-        source.push_str(&format!("pub fn f{index}({params}){{}}\n"));
+    for index in 0..2 {
+        source.push_str(&format!("pub fn f{index}(){{}}\n"));
     }
     let params = if late_bad { PARAMS } else { "" };
     source.push_str(&format!("pub fn late_bad({params}){{}}\n"));
@@ -38,12 +39,12 @@ fn fixture() -> TempDir {
         "[fn_params]\nmax_params=4\n",
     )
     .unwrap();
-    write_source(directory.path(), false, true);
+    write_source(directory.path(), true);
     directory
 }
 
-fn write_source(directory: &Path, all_bad: bool, late_bad: bool) {
-    std::fs::write(directory.join("src/lib.rs"), source(all_bad, late_bad)).unwrap();
+fn write_source(directory: &Path, late_bad: bool) {
+    std::fs::write(directory.join("src/lib.rs"), source(late_bad)).unwrap();
 }
 
 fn capture(directory: &Path, extra: &[&str]) -> (Output, Value) {
@@ -88,10 +89,7 @@ fn baseline(report: &Value) -> &Value {
 fn exported(directory: &Path) -> Value {
     let (output, report) = capture(directory, EXPORT);
     checked(&output, 0);
-    assert_eq!(
-        unit(&report)["observations"].as_array().unwrap().len(),
-        4101
-    );
+    assert_eq!(unit(&report)["observations"].as_array().unwrap().len(), 3);
     assert_eq!(baseline(&report)["coverage"], "complete");
     let stored: Value =
         serde_json::from_slice(&std::fs::read(directory.join("baseline.json")).unwrap()).unwrap();
@@ -197,11 +195,8 @@ fn prune_completed_review(directory: &Path, clean: &Value) {
     assert_eq!(pruned["review_prune"]["removed_entries"], 1);
 }
 
-fn missing_late_observation(report: &Value) -> Value {
-    let path = report["functions"][0]["unit_evidence"]["bundle"]
-        .as_str()
-        .unwrap();
-    let mut wire: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+fn missing_late_observation(bytes: &[u8]) -> Value {
+    let mut wire: Value = serde_json::from_slice(bytes).unwrap();
     let fact = wire["facts"]
         .as_array_mut()
         .unwrap()
@@ -219,9 +214,9 @@ fn missing_measurement_stays_incomplete(directory: &Path, clean: &Value) {
     let bundle = clean["functions"][0]["unit_evidence"]["bundle"]
         .as_str()
         .unwrap();
-    let original_wire: Value = serde_json::from_slice(&std::fs::read(bundle).unwrap()).unwrap();
+    let original_bytes = std::fs::read(bundle).unwrap();
     let ledger = only::ledger_path(clean);
-    let changed = missing_late_observation(clean);
+    let changed = missing_late_observation(&original_bytes);
     only::reseal_raw(clean, &ledger, &changed);
     let (output, missing) = replay(directory, clean, COMPARE);
     checked(&output, 2);
@@ -230,7 +225,16 @@ fn missing_measurement_stays_incomplete(directory: &Path, clean: &Value) {
     let retained = baseline(&missing)["retained"].as_array().unwrap();
     assert_eq!(retained.len(), 1);
     assert_ne!(retained[0]["state"], "resolved");
-    only::reseal_raw(clean, &ledger, &original_wire);
+    let output = replay_output(
+        directory,
+        clean,
+        &["--write-compiler-baseline", "incomplete-baseline.json"],
+    );
+    checked(&output, 2);
+    assert!(!directory.join("incomplete-baseline.json").exists());
+    assert!(!output.stderr.is_empty());
+    only::reseal_raw_bytes(clean, &ledger, &original_bytes);
+    assert_eq!(std::fs::read(bundle).unwrap(), original_bytes);
 }
 
 #[test]
@@ -239,7 +243,7 @@ fn late_owner_baselines_and_reviews_preserve_clean_missing_and_context_outcomes(
     let directory = fixture.path();
     let original = exported(directory);
     dismiss_late(directory, &original);
-    write_source(directory, false, false);
+    write_source(directory, false);
     let (output, clean) = capture(directory, &[]);
     checked(&output, 0);
     clean_baseline(directory, &clean);
@@ -247,23 +251,4 @@ fn late_owner_baselines_and_reviews_preserve_clean_missing_and_context_outcomes(
     prune_completed_review(directory, &clean);
     changed_compilation_context(directory);
     replay_positive_without_sources_or_tools(directory, &original);
-}
-
-#[test]
-fn demanded_positive_payloads_keep_existing_4096_budget() {
-    let directory = fixture();
-    write_source(directory.path(), true, true);
-    let (output, original) = capture(directory.path(), &[]);
-    checked(&output, 0);
-    assert_eq!(
-        unit(&original)["diagnostic_scope"]["diagnostic_indices"]
-            .as_array()
-            .unwrap()
-            .len(),
-        4101
-    );
-    let output = replay_output(directory.path(), &original, EXPORT);
-    checked(&output, 2);
-    assert!(!directory.path().join("baseline.json").exists());
-    assert!(!output.stderr.is_empty());
 }

@@ -283,3 +283,6 @@ impl Resolver<'_, '_> {
         }))
     }
 }
+
+#[cfg(test)]
+mod tests;

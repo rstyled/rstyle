@@ -131,6 +131,7 @@ fn transition_callbacks_reject_resealed_core_capture_and_payload_changes() {
         assert!(corrupt(&mut bundle["functions"][index]["body"], mutation));
         reject_resealed(bundle, mutation);
     }
+    transition_callback_guards_reads_and_historical_policy_are_independently_required(&report);
 }
 
 fn corrupt(node: &mut Value, mutation: &str) -> bool {
@@ -194,10 +195,10 @@ fn corrupt_environment(node: &mut Value, mutation: &str) {
     node["res"]["description"] = serde_json::to_string(&environment).unwrap().into();
 }
 
-#[test]
-fn transition_callback_guards_reads_and_historical_policy_are_independently_required() {
-    let (_directory, report) = capture(None, false);
-    let entry = function(&report, "Transition::matches");
+fn transition_callback_guards_reads_and_historical_policy_are_independently_required(
+    report: &Value,
+) {
+    let entry = function(report, "Transition::matches");
     let (unit, index) = data_unit(entry);
     let analysis = unit.analysis();
     let facts = analysis.function(index).unwrap();

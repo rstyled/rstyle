@@ -2,6 +2,8 @@ use super::*;
 
 const OWNERS: usize = 4098;
 const OPTIONS: &[&str] = &[
+    "--report-detail",
+    "compact",
     "--compiler-advisory-only",
     "--compiler-plans",
     "--review-file",

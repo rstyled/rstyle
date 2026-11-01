@@ -94,23 +94,6 @@ fn encode_roster(facts: &[HirFnFacts]) -> Value {
 }
 
 #[test]
-fn historical_inline_census_snapshots_preserve_complete_original_facts() {
-    let (original, wire) = encoded();
-    for schema in [
-        "rstyle.diagnostic.raw-facts/3",
-        "rstyle.diagnostic.raw-facts/2",
-    ] {
-        let mut legacy = expanded_censuses(&wire);
-        legacy["schema"] = schema.into();
-        let restored = read_diagnostic_snapshot(&serde_json::to_vec(&legacy).unwrap()).unwrap();
-        assert_eq!(
-            serde_json::to_value(&original).unwrap(),
-            serde_json::to_value(restored).unwrap()
-        );
-    }
-}
-
-#[test]
 fn repeated_owners_share_census_metadata_and_decoded_immutable_ownership() {
     let first = roster().remove(0);
     let facts: Vec<_> = (0..32)
@@ -121,7 +104,7 @@ fn repeated_owners_share_census_metadata_and_decoded_immutable_ownership() {
         })
         .collect();
     let wire = encode_roster(&facts);
-    assert_eq!(wire["schema"], "rstyle.diagnostic.raw-facts/4");
+    assert_eq!(wire["schema"], RAW_FACTS_SCHEMA);
     let functions = wire["facts"].as_array().unwrap();
     assert_eq!(census_entry(&functions[0])["kind"], "census");
     for function in &functions[1..] {
@@ -451,3 +434,5 @@ fn header_reader_preserves_snapshot_reference_and_phase_validation() {
             .is_err()
     );
 }
+
+mod settings;

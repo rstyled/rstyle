@@ -39,7 +39,7 @@ fn complete(report: &Value, name: &str, sites: u64, calls: usize) {
 
 #[test]
 fn primitive_control_sites_compose_through_two_edges_without_runtime_multiplication() {
-    let (_directory, output, report) = capture(CONTROL_CHAIN);
+    let (directory, output, report) = capture(CONTROL_CHAIN);
     assert!(output.status.success(), "{}", stdout(&output));
     complete(&report, "leaf", 5, 0);
     complete(&report, "wrapper", 0, 2);
@@ -63,6 +63,7 @@ fn primitive_control_sites_compose_through_two_edges_without_runtime_multiplicat
             assert_eq!(mapping["caller_root"]["formal"], 0);
         }
     }
+    control_summaries_replay_strictly_without_source_or_tools_in_both_details(&directory, &report);
 }
 
 #[test]
@@ -181,14 +182,14 @@ fn conditional_third_edge_and_omitted_owners_remain_bounded() {
     }
 }
 
-#[test]
-fn control_summaries_replay_strictly_without_source_or_tools_in_both_details() {
-    let (directory, output, original) = capture(CONTROL_CHAIN);
-    assert!(output.status.success(), "{}", stdout(&output));
+fn control_summaries_replay_strictly_without_source_or_tools_in_both_details(
+    directory: &TempDir,
+    original: &Value,
+) {
     std::fs::remove_file(directory.path().join("src/lib.rs")).unwrap();
     std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
     for detail in ["full", "compact"] {
-        let output = replay(directory.path(), &original, detail);
+        let output = replay(directory.path(), original, detail);
         assert!(output.status.success(), "{}", stdout(&output));
         let replay: Value = serde_json::from_slice(&output.stdout).unwrap();
         assert_eq!(replay["verification_policy"], "strict-replay");

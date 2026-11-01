@@ -1193,8 +1193,9 @@ fn consume_function(
         .analysis
         .pair(input.index)
         .ok_or("Missing eligible unit graph root")?;
+    let validated = facts.verified_pair().map_err(|errors| errors.join("; "))?;
     let mut function =
-        rstyle_ccgraph::admit_produced(pair, &facts).map_err(|errors| errors.join("; "))?;
+        rstyle_ccgraph::admit_validated(&validated).map_err(|errors| errors.join("; "))?;
     function.key = record.key.to_string();
     record.projection_trace = input.trace.then(|| projection_trace(&function));
     record_admission(record, pair)?;

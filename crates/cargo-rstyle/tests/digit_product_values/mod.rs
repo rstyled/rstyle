@@ -51,6 +51,7 @@ fn original_digit_product_values_compose_and_reject_forged_documents() {
         report["capture_failures"],
         report["handoff_failures"]
     );
+
     let functions: Vec<_> = report["functions"]
         .as_array()
         .unwrap()
@@ -62,33 +63,54 @@ fn original_digit_product_values_compose_and_reject_forged_documents() {
         })
         .collect();
     assert_eq!(functions.len(), 3);
+
+    let (store, _) = data_unit(functions[0]);
+    let analysis = store.analysis();
+
     for function in &functions {
         assert_eq!(
             function["outcome"], "admitted",
             "{}: {}",
             function["facts"]["name"], function["reasons"]
         );
-        let (store, index) = data_unit(function);
-        let analysis = store.analysis();
+        shared_evidence::pair(&store, function);
+        let index = shared_evidence::index(function);
         let facts = analysis.function(index).unwrap();
-        let selected = selection["functions"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .position(|selected| selected["source"].as_str() == Some(facts.source.bytes.as_ref()))
-            .unwrap();
+        let selected = selected_source(&selection, &facts);
+
         let pair = rstyle_pdg::producer::produce(&facts).unwrap();
-        rstyle_pdg::producer::verify(&pair, &facts).unwrap();
-        rstyle_pdg::data_documents::verify(&pair, &facts).unwrap();
-        rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
         expected_components(&pair, selected + 1);
         if selected == 2 {
-            corruption::reject_source_ownership(function);
-            renamed_nodes(&pair, &facts);
-            corruption::reject_all(&pair, &facts);
+            verify_mutations(function, &pair, &facts);
+        } else {
+            rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
         }
     }
+
     check_complete_data_pairs(&report, 3);
+}
+
+fn selected_source(selection: &Value, facts: &dyn rstyle_pdg::unit_store::EvidenceFacts) -> usize {
+    selection["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|selected| selected["source"].as_str() == Some(facts.source.bytes.as_ref()))
+        .unwrap()
+}
+
+fn verify_mutations(
+    function: &Value,
+    pair: &Pair,
+    facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+) {
+    let prepared = rstyle_pdg::producer::PreparedVerification::new(facts).unwrap();
+    let validated = prepared.verify(pair.as_view()).unwrap();
+    rstyle_ccgraph::admit_validated(&validated).unwrap();
+
+    corruption::reject_source_ownership(function);
+    renamed_nodes(pair, facts);
+    corruption::reject_all(pair, facts, &prepared);
 }
 
 fn node<'a>(pair: &'a Pair, construct: &str) -> &'a PdgNode {
@@ -155,7 +177,7 @@ fn renamed_nodes(pair: &Pair, facts: &dyn rstyle_pdg::unit_store::EvidenceFacts)
     let mut document = serde_json::to_value(pair).unwrap();
     rename_location_references(&mut document, &names);
     let renamed: Pair = serde_json::from_value(document).unwrap();
+
     rstyle_pdg::data_documents::verify(&renamed, facts).unwrap();
-    rstyle_pdg::producer::verify(&renamed, facts).unwrap();
     rstyle_ccgraph::admit_produced(&renamed, facts).unwrap();
 }

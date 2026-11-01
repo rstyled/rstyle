@@ -50,7 +50,7 @@ pub(super) fn verify(
 fn preflight(facts: &dyn EvidenceFacts, pair: PairView<'_>) -> Result<(), String> {
     // Source grammar contains no helper invocations. Verifying it cannot recurse
     // through the helper boundary currently being established.
-    crate::producer::verify_view(pair, facts).map_err(|errors| errors.join("; "))?;
+    crate::producer::verify(pair, facts).map_err(|errors| errors.join("; "))?;
     crate::cyclic_values::validate(pair.pdg, pair.cfg).map_err(|errors| errors.join("; "))?;
     if pair.cfg.extraction_evidence.status != crate::ExtractionStatus::Partial
         || !pair.pdg.memory_locations.is_empty()

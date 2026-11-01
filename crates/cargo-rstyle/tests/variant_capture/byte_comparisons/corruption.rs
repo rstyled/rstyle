@@ -41,6 +41,7 @@ fn callback_documents_reject_omission_early_reads_guard_and_result_corruption() 
             "{mutation}"
         );
     }
+    callback_capture_evidence_requires_complete_immutable_scalar_storage(&report);
 }
 
 fn construct(pair: &rstyle_pdg::producer::Pair, name: &str) -> String {
@@ -156,9 +157,7 @@ fn corrupt_result(pair: &mut rstyle_pdg::producer::Pair) {
     }
 }
 
-#[test]
-fn callback_capture_evidence_requires_complete_immutable_scalar_storage() {
-    let (_directory, report) = captured();
+fn callback_capture_evidence_requires_complete_immutable_scalar_storage(report: &Value) {
     for mutation in [
         "missing",
         "parameter",

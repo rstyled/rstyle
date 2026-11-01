@@ -73,7 +73,7 @@ fn same_numeric(full: &Value, compact: &Value) {
 }
 
 fn complete_original_bodies(full: &Value, wire: &Value) {
-    assert_eq!(wire["schema"], "rstyle.diagnostic.raw-facts/4");
+    assert_eq!(wire["schema"], "rstyle.diagnostic.raw-facts/5");
     assert_eq!(wire["phase"], "compiler-advisory-only");
     let originals = wire["facts"].as_array().unwrap();
     assert!(

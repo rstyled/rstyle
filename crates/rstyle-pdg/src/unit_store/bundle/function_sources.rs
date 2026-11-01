@@ -5,7 +5,7 @@ use crate::{
     source_table::{self, SourceId},
 };
 use serde::{Deserialize, Serialize};
-mod body;
+pub(super) mod body;
 mod build;
 
 #[derive(Serialize)]
@@ -24,35 +24,49 @@ struct ImportedReference {
 }
 
 #[derive(Serialize)]
-pub(super) struct Export<'a, Body = body::Export<'a>, Bindings = &'a [BindingFact]> {
+pub(super) struct Export<
+    'a,
+    Body = body::Export<'a>,
+    Bindings = &'a [BindingFact],
+    Build = build::Export<'a>,
+> {
     name: &'a str,
     fn_span: ByteSpan,
     source: Reference<'a>,
     signature: &'a SignatureFacts,
     bindings: Bindings,
     body: Body,
-    build: build::Export<'a>,
+    build: Build,
     source_diagnostics: &'a [HirDiagnostic],
     source_scan_complete: bool,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Import<B = body::Import, Bindings = Vec<BindingFact>> {
+pub(super) struct Import<
+    B = body::Import,
+    Bindings = Vec<BindingFact>,
+    Build = BuildFacts<option_bundle::Import>,
+> {
     name: String,
     fn_span: ByteSpan,
     source: ImportedReference,
     signature: SignatureFacts,
     bindings: Bindings,
     body: B,
-    build: BuildFacts<option_bundle::Import>,
+    build: Build,
     source_diagnostics: Vec<HirDiagnostic>,
     source_scan_complete: bool,
 }
 
-pub(super) struct Encoded<'a, Body = body::Export<'a>, Bindings = &'a [BindingFact]> {
+pub(super) struct Encoded<
+    'a,
+    Body = body::Export<'a>,
+    Bindings = &'a [BindingFact],
+    Build = build::Export<'a>,
+> {
     pub snapshots: Vec<&'a str>,
-    pub functions: Vec<Export<'a, Body, Bindings>>,
+    pub functions: Vec<Export<'a, Body, Bindings, Build>>,
     pub inventories: option_bundle::Inventories<'a>,
 }
 
@@ -84,8 +98,21 @@ pub(super) fn encode(facts: &[HirFnFacts]) -> Result<Encoded<'_>, String> {
 pub(super) fn encode_with<'a, B, Bindings, WireBody, WireBindings>(
     facts: &'a [HirFnFacts<B, Bindings>],
     payload: impl Fn(&'a HirFnFacts<B, Bindings>) -> (WireBody, WireBindings),
-    mut inventories: option_bundle::Inventories<'a>,
+    inventories: option_bundle::Inventories<'a>,
 ) -> Result<Encoded<'a, WireBody, WireBindings>, String> {
+    encode_with_build(facts, payload, inventories, build::Export::new)
+}
+
+pub(super) fn encode_with_build<'a, B, Bindings, WireBody, WireBindings, Build>(
+    facts: &'a [HirFnFacts<B, Bindings>],
+    payload: impl Fn(&'a HirFnFacts<B, Bindings>) -> (WireBody, WireBindings),
+    mut inventories: option_bundle::Inventories<'a>,
+    mut build: impl FnMut(
+        &'a BuildFacts,
+        &mut source_table::Owners<'a>,
+        &mut option_bundle::Inventories<'a>,
+    ) -> Result<Build, String>,
+) -> Result<Encoded<'a, WireBody, WireBindings, Build>, String> {
     let mut owners = Owners::default();
     let functions = facts
         .iter()
@@ -99,7 +126,7 @@ pub(super) fn encode_with<'a, B, Bindings, WireBody, WireBindings>(
                 signature: &facts.signature,
                 bindings,
                 body,
-                build: build::Export::new(&facts.build, &mut owners.table, &mut inventories)?,
+                build: build(&facts.build, &mut owners.table, &mut inventories)?,
                 source_diagnostics: &facts.source_diagnostics,
                 source_scan_complete: facts.source_scan_complete,
             })
@@ -151,7 +178,32 @@ impl<B: BodyImport, Bindings> Import<B, Bindings> {
         inventories: &mut option_bundle::ImportedInventories,
         flat_bodies: bool,
     ) -> Result<HirFnFacts<B::Output, Bindings>, String> {
-        let bytes = sources.range(self.source.snapshot, self.source.range)?;
+        self.into_facts_with(
+            Decode {
+                sources,
+                inventories,
+                flat_bodies,
+            },
+            Ok,
+        )
+    }
+}
+
+pub(super) struct Decode<'borrow, 'source> {
+    pub sources: &'borrow mut source_table::Imported<'source>,
+    pub inventories: &'borrow mut option_bundle::ImportedInventories,
+    pub flat_bodies: bool,
+}
+
+impl<B: BodyImport, Bindings, Build> Import<B, Bindings, Build> {
+    pub(super) fn into_facts_with(
+        self,
+        decode: Decode<'_, '_>,
+        restore: impl FnOnce(Build) -> Result<BuildFacts<option_bundle::Import>, String>,
+    ) -> Result<HirFnFacts<B::Output, Bindings>, String> {
+        let bytes = decode
+            .sources
+            .range(self.source.snapshot, self.source.range)?;
         Ok(HirFnFacts {
             name: self.name,
             fn_span: self.fn_span,
@@ -161,10 +213,9 @@ impl<B: BodyImport, Bindings> Import<B, Bindings> {
             },
             signature: self.signature,
             bindings: self.bindings,
-            body: self.body.into_body(flat_bodies)?,
-            build: self
-                .build
-                .try_map_options(|options| options.decode(sources, inventories))?,
+            body: self.body.into_body(decode.flat_bodies)?,
+            build: restore(self.build)?
+                .try_map_options(|options| options.decode(decode.sources, decode.inventories))?,
             source_diagnostics: self.source_diagnostics,
             source_scan_complete: self.source_scan_complete,
         })

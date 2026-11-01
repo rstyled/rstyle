@@ -17,32 +17,122 @@ use crate::*;
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-pub fn verify(
-    pair: &Pair,
-    facts: &dyn crate::unit_store::EvidenceFacts,
-) -> Result<(), Vec<String>> {
-    verify_view(pair.as_view(), facts)
+/// Immutable verification evidence tied to the exact documents and captured facts.
+/// Ordinary verification follows the ambient strict/generated policy; this
+/// result preserves those checks and does not add a producer conformance claim.
+pub struct ValidatedPair<'a> {
+    pair: PairView<'a>,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+    indexes: std::sync::Arc<ValidatedIndexes>,
 }
 
-/// Apply the exact same verification to borrowed typed documents.
-pub fn verify_view(
-    pair: PairView<'_>,
-    facts: &dyn crate::unit_store::EvidenceFacts,
-) -> Result<(), Vec<String>> {
-    crate::verification_session::within(|| verify_pair(pair, facts))
+pub(crate) struct ValidatedIndexes {
+    map: Vec<OperationMapEntry>,
+    value_sites: std::collections::BTreeSet<String>,
 }
 
-fn verify_pair(
-    pair: PairView<'_>,
-    facts: &dyn crate::unit_store::EvidenceFacts,
-) -> Result<(), Vec<String>> {
-    let observation = crate::diagnostics::Stage::new("producer.verify", &facts.name, None).enter();
-    if crate::verification_policy::is_generated() {
-        return observation.finish(validate_boundary(pair, facts));
+impl std::fmt::Debug for ValidatedPair<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ValidatedPair")
+            .finish_non_exhaustive()
     }
+}
+
+impl<'a> ValidatedPair<'a> {
+    pub(crate) fn with_indexes(
+        pair: PairView<'a>,
+        facts: &'a dyn crate::unit_store::EvidenceFacts,
+        indexes: std::sync::Arc<ValidatedIndexes>,
+    ) -> Self {
+        Self {
+            pair,
+            facts,
+            indexes,
+        }
+    }
+
+    pub(crate) fn into_indexes(self) -> std::sync::Arc<ValidatedIndexes> {
+        self.indexes
+    }
+
+    pub fn pair(&self) -> PairView<'a> {
+        self.pair
+    }
+    pub fn facts(&self) -> &'a dyn crate::unit_store::EvidenceFacts {
+        self.facts
+    }
+    pub fn operation_map(&self) -> &[OperationMapEntry] {
+        &self.indexes.map
+    }
+    pub fn value_sites(&self) -> &std::collections::BTreeSet<String> {
+        &self.indexes.value_sites
+    }
+}
+
+/// Expected semantic documents prepared once for checks against the same facts.
+pub struct PreparedVerification<'a> {
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+    expected: Pair,
+}
+
+impl<'a> PreparedVerification<'a> {
+    pub fn new(facts: &'a dyn crate::unit_store::EvidenceFacts) -> Result<Self, Vec<String>> {
+        crate::verification_policy::strict(|| {
+            crate::verification_session::within(|| {
+                crate::diagnostics::Stage::new("producer.prepare_verification", &facts.name, None)
+                    .observe(|| expected_pair(facts).map(|expected| Self { facts, expected }))
+            })
+        })
+    }
+
+    pub fn verify<'b>(&'b self, pair: PairView<'b>) -> Result<ValidatedPair<'b>, Vec<String>> {
+        crate::verification_policy::strict(|| {
+            crate::verification_session::within(|| {
+                crate::diagnostics::Stage::new("producer.verify", &self.facts.name, None)
+                    .observe(|| self.verify_candidate(pair))
+            })
+        })
+    }
+
+    fn verify_candidate<'b>(
+        &'b self,
+        pair: PairView<'b>,
+    ) -> Result<ValidatedPair<'b>, Vec<String>> {
+        verify_expected(pair, self.facts, self.expected.clone())?;
+        validate_boundary(pair, self.facts)
+    }
+}
+
+/// Verify either owned-pair borrows or borrowed typed documents.
+pub fn verify<'a>(
+    pair: impl Into<PairView<'a>>,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+) -> Result<ValidatedPair<'a>, Vec<String>> {
+    crate::verification_session::within(|| {
+        crate::diagnostics::Stage::new("producer.verify", &facts.name, None)
+            .observe(|| verify_pair(pair.into(), facts))
+    })
+}
+
+fn verify_pair<'a>(
+    pair: PairView<'a>,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+) -> Result<ValidatedPair<'a>, Vec<String>> {
+    if crate::verification_policy::is_generated() {
+        return validate_boundary(pair, facts);
+    }
+
+    let expected = expected_pair(facts)?;
+    verify_expected(pair, facts, expected)?;
+    validate_boundary(pair, facts)
+}
+
+fn expected_pair(facts: &dyn crate::unit_store::EvidenceFacts) -> Result<Pair, Vec<String>> {
     if !facts.source.bytes.matches_identity(&facts.source.digest) {
         return Err(vec!["Captured source identity is inconsistent".to_string()]);
     }
+
     let graph = lower(facts).map_err(|e| {
         e.diagnostics
             .iter()
@@ -55,7 +145,14 @@ fn verify_pair(
         .producer_revision
         .known_value()
         .ok_or_else(|| vec!["Missing captured producer revision".to_string()])?;
-    let mut expected = emit(facts, &graph, &analysis, revision).map_err(|e| vec![e])?;
+    emit(facts, &graph, &analysis, revision).map_err(|e| vec![e])
+}
+
+fn verify_expected(
+    pair: PairView<'_>,
+    facts: &dyn crate::unit_store::EvidenceFacts,
+    mut expected: Pair,
+) -> Result<(), Vec<String>> {
     let renaming = correspondence(pair, expected.as_view())?;
     compare_documents(pair, &mut expected, &renaming)?;
 
@@ -70,13 +167,13 @@ fn verify_pair(
     {
         crate::data_documents::verify(pair, facts).map_err(|error| vec![error])?;
     }
-    observation.finish(validate_boundary(pair, facts))
+    Ok(())
 }
 
-fn validate_boundary(
-    pair: PairView<'_>,
-    facts: &dyn crate::unit_store::EvidenceFacts,
-) -> Result<(), Vec<String>> {
+fn validate_boundary<'a>(
+    pair: PairView<'a>,
+    facts: &'a dyn crate::unit_store::EvidenceFacts,
+) -> Result<ValidatedPair<'a>, Vec<String>> {
     validate_frontend_reference(pair, facts)?;
     let width = facts
         .build
@@ -100,9 +197,8 @@ fn validate_boundary(
     let correspondence = validate_correspondence(&map, pair.cfg, &node_ids)
         .into_iter()
         .map(|i| i.message);
-    let values = validate_value_sites(pair.pdg, pair.cfg)
-        .err()
-        .unwrap_or_default();
+    let value_sites = validate_value_sites(pair.pdg, pair.cfg);
+    let values = value_sites.as_ref().err().cloned().unwrap_or_default();
     let errors: Vec<_> = report
         .issues
         .into_iter()
@@ -113,7 +209,14 @@ fn validate_boundary(
         .collect();
 
     if errors.is_empty() {
-        Ok(())
+        Ok(ValidatedPair {
+            pair,
+            facts,
+            indexes: std::sync::Arc::new(ValidatedIndexes {
+                map,
+                value_sites: value_sites.unwrap_or_default(),
+            }),
+        })
     } else {
         Err(errors)
     }

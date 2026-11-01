@@ -5,13 +5,18 @@ const CONFIG: &str = "[fn_length]\nmax_lines=2\n[fn_params]\nmax_params=1\n[fn_s
 
 fn configured() -> (TempDir, Value) {
     let (directory, _output, original) = capture(SOURCE, &[]);
+    let configured = configured_from_capture(&directory, &original);
+    (directory, configured)
+}
+
+fn configured_from_capture(directory: &TempDir, original: &Value) -> Value {
     std::fs::write(directory.path().join("policy.toml"), CONFIG).unwrap();
     let (_output, configured) = replay(
         directory.path(),
-        &original,
+        original,
         &["--compiler-advisory-config", "policy.toml"],
     );
-    (directory, configured)
+    configured
 }
 
 pub(super) fn replay(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) {
@@ -63,8 +68,41 @@ fn dismiss(directory: &Path, report: &Value, index: usize) -> Value {
 
 #[test]
 fn all_six_compiler_style_families_use_exact_reviews_without_changing_raw_reports() {
-    let (directory, original) = configured();
-    let rules: std::collections::BTreeSet<_> = diagnostics(&original)
+    let (directory, _, raw) = capture(SOURCE, &[]);
+    for scenario in [
+        movement_and_parameter_renaming_preserve_completed_compiler_reviews_scenario
+            as fn(&TempDir, &Value),
+        changed_distribution_and_policy_make_compiler_reviews_visible_again_scenario
+            as fn(&TempDir, &Value),
+        compiler_diagnostic_reviews_keep_check_and_test_contexts_separate_scenario
+            as fn(&TempDir, &Value),
+        compiler_diagnostic_reviews_preserve_contexts_missing_findings_and_atomic_writes_scenario
+            as fn(&TempDir, &Value),
+        all_six_compiler_style_families_use_exact_reviews_without_changing_raw_reports_scenario
+            as fn(&TempDir, &Value),
+    ] {
+        reset_review_fixture(&directory);
+        let original = configured_from_capture(&directory, &raw);
+        scenario(&directory, &original);
+    }
+}
+
+fn reset_review_fixture(directory: &TempDir) {
+    std::fs::write(directory.path().join("src/lib.rs"), SOURCE).unwrap();
+    std::fs::write(directory.path().join("policy.toml"), CONFIG).unwrap();
+    for name in ["reviews.json", "baseline.json", "selection.json"] {
+        let path = directory.path().join(name);
+        if path.exists() {
+            std::fs::remove_file(path).unwrap();
+        }
+    }
+}
+
+fn all_six_compiler_style_families_use_exact_reviews_without_changing_raw_reports_scenario(
+    directory: &TempDir,
+    original: &Value,
+) {
+    let rules: std::collections::BTreeSet<_> = diagnostics(original)
         .iter()
         .map(|d| d["rule_id"].as_str().unwrap())
         .collect();
@@ -82,8 +120,8 @@ fn all_six_compiler_style_families_use_exact_reviews_without_changing_raw_report
         .collect()
     );
     let mut reviewed = original.clone();
-    for index in 0..diagnostics(&original).len() {
-        reviewed = dismiss(directory.path(), &original, index);
+    for index in 0..diagnostics(original).len() {
+        reviewed = dismiss(directory.path(), original, index);
         assert_eq!(decisions(&reviewed)[index]["state"], "hidden_exact");
         assert_eq!(reviewed["matching"], original["matching"]);
         assert_eq!(
@@ -96,7 +134,7 @@ fn all_six_compiler_style_families_use_exact_reviews_without_changing_raw_report
         reviewed["compiler_advisory"]["units"][0]["visible_diagnostics"],
         serde_json::json!([])
     );
-    assert_source_free_reviews(directory.path(), &original);
+    assert_source_free_reviews(directory.path(), original);
 }
 
 fn assert_source_free_reviews(directory: &Path, original: &Value) {
@@ -140,14 +178,15 @@ fn assert_source_free_reviews(directory: &Path, original: &Value) {
     assert!(!String::from_utf8(bytes).unwrap().contains("sha256"));
 }
 
-#[test]
-fn movement_and_parameter_renaming_preserve_completed_compiler_reviews() {
-    let (directory, original) = configured();
-    let index = diagnostics(&original)
+fn movement_and_parameter_renaming_preserve_completed_compiler_reviews_scenario(
+    directory: &TempDir,
+    original: &Value,
+) {
+    let index = diagnostics(original)
         .iter()
         .position(|d| d["rule_id"] == "fn_params")
         .unwrap();
-    dismiss(directory.path(), &original, index);
+    dismiss(directory.path(), original, index);
     std::fs::write(
         directory.path().join("src/lib.rs"),
         format!(
@@ -177,14 +216,15 @@ fn movement_and_parameter_renaming_preserve_completed_compiler_reviews() {
     assert_eq!(decisions(&current)[index]["state"], "hidden_exact");
 }
 
-#[test]
-fn changed_distribution_and_policy_make_compiler_reviews_visible_again() {
-    let (directory, original) = configured();
-    let index = diagnostics(&original)
+fn changed_distribution_and_policy_make_compiler_reviews_visible_again_scenario(
+    directory: &TempDir,
+    original: &Value,
+) {
+    let index = diagnostics(original)
         .iter()
         .position(|d| d["rule_id"] == "mutation_per_target")
         .unwrap();
-    dismiss(directory.path(), &original, index);
+    dismiss(directory.path(), original, index);
     std::fs::write(
         directory.path().join("src/lib.rs"),
         SOURCE.replace("x+=2", "y+=2"),
@@ -209,10 +249,14 @@ fn changed_distribution_and_policy_make_compiler_reviews_visible_again() {
         .unwrap();
     assert_eq!(
         diagnostics(&current)[changed]["actual"],
-        diagnostics(&original)[index]["actual"]
+        diagnostics(original)[index]["actual"]
     );
     assert_eq!(decisions(&current)[changed]["state"], "stale");
     assert_eq!(current["review_status"]["records"][0]["state"], "stale");
+    assert_changed_policy_review_is_stale(directory, original, index);
+}
+
+fn assert_changed_policy_review_is_stale(directory: &TempDir, original: &Value, index: usize) {
     std::fs::write(
         directory.path().join("policy.toml"),
         CONFIG.replace("max_params=1", "max_params=0"),
@@ -220,7 +264,7 @@ fn changed_distribution_and_policy_make_compiler_reviews_visible_again() {
     .unwrap();
     let (_output, changed_policy) = replay(
         directory.path(),
-        &original,
+        original,
         &[
             "--compiler-advisory-config",
             "policy.toml",
@@ -231,14 +275,15 @@ fn changed_distribution_and_policy_make_compiler_reviews_visible_again() {
     assert_eq!(decisions(&changed_policy)[index]["state"], "stale");
 }
 
-#[test]
-fn compiler_diagnostic_reviews_keep_check_and_test_contexts_separate() {
-    let (directory, original) = configured();
-    let index = diagnostics(&original)
+fn compiler_diagnostic_reviews_keep_check_and_test_contexts_separate_scenario(
+    directory: &TempDir,
+    original: &Value,
+) {
+    let index = diagnostics(original)
         .iter()
         .position(|d| d["rule_id"] == "fn_params")
         .unwrap();
-    dismiss(directory.path(), &original, index);
+    dismiss(directory.path(), original, index);
     let (_output, both) = clones(
         directory.path(),
         &[
@@ -261,14 +306,15 @@ fn compiler_diagnostic_reviews_keep_check_and_test_contexts_separate() {
     );
 }
 
-#[test]
-fn compiler_diagnostic_reviews_preserve_contexts_missing_findings_and_atomic_writes() {
-    let (directory, original) = configured();
-    let index = diagnostics(&original)
+fn compiler_diagnostic_reviews_preserve_contexts_missing_findings_and_atomic_writes_scenario(
+    directory: &TempDir,
+    original: &Value,
+) {
+    let index = diagnostics(original)
         .iter()
         .position(|d| d["rule_id"] == "fn_params")
         .unwrap();
-    dismiss(directory.path(), &original, index);
+    dismiss(directory.path(), original, index);
     let path = directory.path().join("reviews.json");
     let bytes = std::fs::read(&path).unwrap();
     let output = rstyle(
@@ -293,7 +339,7 @@ fn compiler_diagnostic_reviews_preserve_contexts_missing_findings_and_atomic_wri
     assert_eq!(std::fs::read(&path).unwrap(), bytes);
     let (output, changed_policy) = replay(
         directory.path(),
-        &original,
+        original,
         &["--review-file", "reviews.json", "--review-prune"],
     );
     assert_eq!(output.status.code(), Some(0));

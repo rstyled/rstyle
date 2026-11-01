@@ -4,7 +4,7 @@ use crate::{HirFnFacts, SourceSnapshot, frontend::option_bundle, source_table};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 
-pub const RAW_FACTS_SCHEMA: &str = "rstyle.diagnostic.raw-facts/4";
+pub const RAW_FACTS_SCHEMA: &str = "rstyle.diagnostic.raw-facts/5";
 
 #[derive(Serialize)]
 struct Export<'a, Function = function_sources::Export<'a>> {
@@ -13,16 +13,24 @@ struct Export<'a, Function = function_sources::Export<'a>> {
     sources: Vec<&'a str>,
     inherent_units: option_bundle::Inventories<'a>,
     facts: Vec<Function>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    build_settings: Option<Vec<crate::BuildFacts<()>>>,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Import<B, Bindings = Vec<crate::BindingFact>> {
+struct Import<
+    B,
+    Bindings = Vec<crate::BindingFact>,
+    Build = crate::BuildFacts<option_bundle::Import>,
+> {
     schema: String,
     phase: String,
     sources: Vec<SourceSnapshot>,
     inherent_units: Vec<serde_json::Value>,
-    facts: Vec<function_sources::Import<B, Bindings>>,
+    facts: Vec<function_sources::Import<B, Bindings, Build>>,
+    #[serde(default)]
+    build_settings: build_settings::Table,
 }
 
 /// Stream raw facts through the existing source-reference codec, without graphs.
@@ -32,13 +40,25 @@ pub fn write_diagnostic_snapshot(
     phase: &str,
     facts: &[HirFnFacts],
 ) -> Result<(), String> {
-    let encoded = function_sources::encode(facts)?;
+    let mut settings = build_settings::Exporter::default();
+    let encoded = function_sources::encode_with_build(
+        facts,
+        |facts| {
+            (
+                function_sources::body::Export(&facts.body),
+                facts.bindings.as_slice(),
+            )
+        },
+        option_bundle::Inventories::with_shared_options(),
+        |build, sources, inventories| settings.reference(build, sources, inventories),
+    )?;
     let export = Export {
         schema: RAW_FACTS_SCHEMA,
         phase,
         sources: encoded.snapshots,
         inherent_units: encoded.inventories,
         facts: encoded.functions,
+        build_settings: Some(settings.settings),
     };
     serde_json::to_writer(writer, &export).map_err(|error| error.to_string())
 }
@@ -84,51 +104,76 @@ fn read_snapshot<B>(
 where
     B: function_sources::BodyImport + serde::de::DeserializeOwned,
 {
-    let wire: Import<B> =
+    let wire: Import<B, Vec<crate::BindingFact>, build_settings::ImportedReference> =
         crate::diagnostics::Stage::new("diagnostic.parse", "snapshot", Some(bytes))
             .observe(|| serde_json::from_slice(bytes).map_err(|error| error.to_string()))?;
-    let restore = crate::diagnostics::Stage::new("diagnostic.restore", "snapshot", None).enter();
-    if ![
-        RAW_FACTS_SCHEMA,
-        "rstyle.diagnostic.raw-facts/3",
-        "rstyle.diagnostic.raw-facts/2",
-    ]
-    .contains(&wire.schema.as_str())
-        || wire.phase.is_empty()
-    {
+    crate::diagnostics::Stage::new("diagnostic.restore", "snapshot", None)
+        .observe(|| restore_raw(wire, expected))
+}
+
+fn validate_raw_phase(schema: &str, phase: &str, expected: Option<&str>) -> Result<(), String> {
+    if schema != RAW_FACTS_SCHEMA || phase.is_empty() {
         return Err("Unsupported or unlabelled raw diagnostic snapshot".into());
     }
-    if expected.is_some_and(|expected| wire.phase != expected) {
+    if expected.is_some_and(|expected| phase != expected) {
         return Err("Raw diagnostic publication phase disagrees with requested mode".into());
     }
-
-    let shared_censuses = wire.schema == RAW_FACTS_SCHEMA;
-    let flat_bodies =
-        [RAW_FACTS_SCHEMA, "rstyle.diagnostic.raw-facts/3"].contains(&wire.schema.as_str());
-    restore.finish(restore_snapshot(wire, shared_censuses, flat_bodies, false))
+    Ok(())
 }
 
 fn restore_snapshot<B: function_sources::BodyImport, Bindings>(
     wire: Import<B, Bindings>,
-    shared_censuses: bool,
     flat_bodies: bool,
-    shared_options: bool,
+) -> Result<Vec<HirFnFacts<B::Output, Bindings>>, String> {
+    if wire.build_settings.present() {
+        return Err("Build settings references require raw diagnostic transport".into());
+    }
+    restore_with(wire, flat_bodies, Ok)
+}
+
+fn restore_with<B: function_sources::BodyImport, Bindings, Build>(
+    wire: Import<B, Bindings, Build>,
+    flat_bodies: bool,
+    mut build: impl FnMut(Build) -> Result<crate::BuildFacts<option_bundle::Import>, String>,
 ) -> Result<Vec<HirFnFacts<B::Output, Bindings>>, String> {
     let mut inventories =
         option_bundle::ImportedInventories::new(Some(wire.inherent_units), false)?;
-    inventories.share_censuses(shared_censuses);
-    inventories.share_options(shared_options);
+    inventories.share_censuses(true);
+    inventories.share_options(true);
     let mut sources = source_table::Imported::new(&wire.sources);
     let facts = wire
         .facts
         .into_iter()
-        .map(|function| function.into_facts(&mut sources, &mut inventories, flat_bodies))
+        .map(|function| {
+            function.into_facts_with(
+                function_sources::Decode {
+                    sources: &mut sources,
+                    inventories: &mut inventories,
+                    flat_bodies,
+                },
+                &mut build,
+            )
+        })
         .collect::<Result<_, _>>()?;
 
     sources.finish()?;
     inventories.finish()?;
     Ok(facts)
 }
+
+fn restore_raw<B: function_sources::BodyImport>(
+    mut wire: Import<B, Vec<crate::BindingFact>, build_settings::ImportedReference>,
+    expected: Option<&str>,
+) -> Result<Vec<HirFnFacts<B::Output>>, String> {
+    validate_raw_phase(&wire.schema, &wire.phase, expected)?;
+
+    let mut settings = std::mem::take(&mut wire.build_settings).import()?;
+    let facts = restore_with(wire, true, |build| settings.restore(build))?;
+    settings.finish()?;
+    Ok(facts)
+}
+
+mod build_settings;
 
 mod style;
 pub use style::{STYLE_FACTS_SCHEMA, read_style_snapshot_phase, write_sealed_style_snapshot};

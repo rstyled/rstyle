@@ -1,0 +1,722 @@
+# Test capture consolidation, 2026-10-31
+
+## First pass
+
+Low audited and implemented the changes; Max independently reviewed the fixture
+setups, assertion bodies, mutation isolation and measurements. The baseline is
+`66a22342625b9b1f6d5ddda82a844cd070c606a1`.
+
+The baseline workspace coverage run passed 3,789 tests. Its 1,187 CLI integration
+tests accounted for 881.232 summed test-seconds. The other 2,602 cases accounted
+for 43.998 seconds. Compiler captures are therefore a more useful target than
+deleting inexpensive unit and boundary tests.
+
+The changes remove **29 repeated compiler captures** across 16 integration-test
+files. Most former tests become named assertion helpers that borrow the original
+report. One `cfg_if` test is deleted because its complete setup and assertions
+are already the prefix of the retained corruption test. There are 27 fewer
+standalone test cases; loops account for the difference between cases and captures.
+
+| Shared setup | Captures removed |
+| --- | ---: |
+| Default violations report | 3 |
+| Default animals pattern report | 3 |
+| Default literals pattern report | 1 |
+| Fully subsumed `cfg_if` test | 1 |
+| Accelerator packing corruption checks | 2 |
+| Nine other immutable corruption-report groups | 9 |
+| Positive mutation-effect cases | 6 |
+| Control-effect composition and replay | 1 |
+| Mutation provenance, presentation and policy replay | 2 |
+| Guard selection and source-free replay | 1 |
+
+The nine other corruption groups cover bitset cardinality, byte comparisons,
+borrowed accelerator views, transition callbacks, sine tails, checked lengths,
+external imports, native prefix readers and named callbacks.
+
+Every distinct assertion, corruption variant and verifier entry point remains.
+Each corruption uses a fresh pair, facts value or bundle. Fixtures stay independent
+between tests, and their temporary directories outlive every assertion. Full, compact,
+default, strict-score, policy and failure-gate invocations remain distinct.
+Source/tool-free replay runs after the live-source checks; mutation policy is
+loosened only after the strict replay. Determinism and text golden tests remain.
+
+### Matched timing
+
+Three baseline runs preceded three candidate runs on the same Linux ARM64
+machine, using the pinned nightly, two build jobs, disabled incremental builds,
+the CI nextest profile and four test threads. Each run selects the same 45
+original test names. The candidate runs the 18 retained cases, including their
+consolidated assertion helpers. All runs pass; the same 1,142 unrelated CLI
+cases are excluded. JUnit runner times exclude compilation in the first command
+of each group.
+
+| Metric | Baseline median | Candidate median | Reduction |
+| --- | ---: | ---: | ---: |
+| Affected tests, runner wall time | 9.754 s | 7.289 s | 25.3% |
+| Affected tests, summed case time | 36.732 s | 25.310 s | 31.1% |
+
+Runner ranges are 9.665–9.898 seconds and 7.247–7.301 seconds. These measurements
+describe the affected selection; they do not establish a full CI speedup.
+
+### Coverage and checks
+
+The complete instrumented workspace suite passed **3,762 tests**, with the same
+five existing skips, followed by passing workspace doctests. Comparing JUnit
+identities confirms exactly the 27 intended removals and every other test retained.
+The complete coverage run took 230.906 runner seconds versus 232.357 seconds in
+the single baseline run: this is a modest overall change.
+
+Coverage is **exactly unchanged**, including the identities of covered lines:
+
+- 1,152 source files in both LCOV reports.
+- 166,336 instrumented `(path, line)` entries in both reports.
+- 154,098 covered entries in both reports, **92.6426%**.
+- Zero lost or gained covered entries, and zero changed instrumented entries.
+
+The coverage script, production source files, exclusions and thresholds are unchanged.
+No new tests, suppressions or pattern-ignore entries were introduced. Source
+review kept changed functions within the existing 50-code-line and four-parameter
+limits.
+
+Low ran `cargo fmt --all -- --check`, workspace/all-target Clippy with warnings
+denied, and the actual shared-capture CI numeric and pattern gates, including
+the saved-pattern status reader. All exited **0**. The configured analysis
+covered 10,181 functions with zero numeric violations and zero visible pattern
+candidates; the 12 existing reviewed ignores are unchanged. Max independently
+accepted the source changes, matched timings and complete covered-line sets.
+
+### Retained local evidence
+
+[target/test-reduction-20261031](../target/test-reduction-20261031/) contains the
+baseline LCOV and JUnit, matched selection and measurement script, three timing
+reports per version, frozen source hashes, complete coverage comparison and
+validation logs. `target/` is ignored by Git; this document preserves the method
+and results independently of those local artifacts.
+
+## Max-led second pass
+
+Max selected the next consolidation groups from the test costs and independently
+reviewed their source and state transitions before Low implemented them. The
+baseline for this round is `e0e8e1fdc31a66e1c8471769f5a25cd34fc80d7d`, whose hosted
+CI run passed on all three architectures. Max then reviewed the complete
+eleven-file implementation diff and the individual scenario bodies.
+
+This round removes **33 additional repeated compiler captures**. The same 42
+original scenarios now run inside nine standalone tests; their distinct
+assertions and compiler variants remain. Together, both passes remove 62
+repeated captures and 60 standalone cases.
+
+| Shared setup | Cases before | Cases after | Captures removed |
+| --- | ---: | ---: | ---: |
+| Source baseline export | 9 | 1 | 8 |
+| Compiler diagnostic reviews | 5 | 1 | 4 |
+| Compiler diagnostic baselines | 6 | 1 | 5 |
+| Compiler diagnostic negative reviews | 6 | 1 | 5 |
+| Compiler pattern reviews | 5 | 1 | 4 |
+| Compiler pattern baselines | 5 | 1 | 4 |
+| Accelerator debug setup before release | 2 | 1 | 1 |
+| Native `u16` policy corruption | 2 | 1 | 1 |
+| Scalar conversion corruption | 2 | 1 | 1 |
+
+Each group owns one temporary workspace. Named local helpers restore the known
+source, policy and saved files before every stateful scenario. Diagnostic groups
+share the initial raw capture while retaining each scenario's configuration
+replay, baseline export or six review dismissals. Source-baseline scenarios
+restore the exact original baseline bytes. Pattern-baseline scenarios each
+export anew with the destination absent. Review lookup checks start with no
+review file, and source/tool-free replay and destructive prune checks run last.
+Every corruption still starts from fresh facts, a fresh pair or a fresh document.
+There is no global fixture cache or new fixture framework.
+
+The slowest demanded-owner test still needs its original, clean-source and clean
+release captures. Target, `no_std` and check/test contexts also remain distinct.
+Max deferred broader fixture unification where the lifecycle complexity would
+outweigh the small number of captures saved.
+
+### Matched timing
+
+Three baseline runs preceded three candidate runs on the same Linux ARM64
+machine, with the pinned nightly, two build jobs, disabled incremental builds,
+the CI nextest profile and four test threads. Each run selects the same 42
+original fully qualified names; the candidate runs the nine retained tests and
+their scenario helpers. All runs pass, and 1,118 unrelated CLI cases are excluded
+in both versions. JUnit runner times exclude compilation; separate workspace
+build and complete command times are retained in the local evidence.
+The first candidate nextest command rebuilt the CLI for 12.82 seconds before
+starting its measured test runner; the other two candidate commands did not
+rebuild it.
+
+| Metric | Baseline median | Candidate median | Reduction |
+| --- | ---: | ---: | ---: |
+| Affected tests, runner wall time | 8.507 s | 6.363 s | 25.2% |
+| Affected tests, summed case time | 28.328 s | 19.349 s | 31.7% |
+
+Runner ranges are 8.455–8.531 seconds and 6.269–6.473 seconds. These are
+measurements of the affected selection, not a full CI speedup estimate.
+
+### Coverage and checks
+
+The unchanged coverage script passed **3,729 tests**, with the same five existing
+skips, followed by passing workspace doctests. The full JUnit identity comparison
+found exactly the 33 approved standalone removals, no additions, and every other
+test retained. The complete coverage command took 342.377 seconds, including
+compilation and reporting. The test runner took 226.470 seconds versus 230.906
+seconds for the baseline; one full run per version does not establish a general
+CI speedup.
+
+The complete LCOV comparison requires equality of the explicit source-file sets,
+all instrumented `(path, line)` coordinates and all positive-hit coordinates.
+Duplicate line records are aggregated, and source records with no line entries
+are included. Both versions have:
+
+- 1,152 source files and 166,336 instrumented entries.
+- 154,098 covered entries, **92.6426%**.
+- Zero gained or lost source files, covered entries or instrumented entries.
+
+Production source files, the coverage script, exclusions, thresholds and CI
+triggers are unchanged. No suppressions or pattern-ignore entries were added.
+Max's supplementary multiline-aware source review covered all 59 modified or new
+functions, with at most 48 nonempty body lines and three parameters.
+
+Low ran formatting, workspace/all-target Clippy with warnings denied, an ordinary
+CLI/driver build, and the actual shared-capture CI numeric and saved-pattern gates
+sequentially. All exited **0**. The configured analysis covered 10,181 functions
+with zero numeric violations, zero unavailable graphs and zero visible pattern
+candidates. The 12 existing reviewed ignores are unchanged.
+
+### Retained local evidence
+
+[target/test-reduction-max-led-20261031](../target/test-reduction-max-led-20261031/)
+contains the immutable baseline artifacts, exact test selection, six matched
+timing JUnits and logs, frozen Rust source hashes, complete candidate LCOV and
+JUnit, coverage and identity comparisons, Max's source and timing reviews, and
+the actual validation command logs. These ignored local artifacts supplement
+the method and results recorded here.
+
+## Direct owner-boundary tests
+
+Low implemented this change and Max independently reviewed the source and the
+mapping of existing assertions to their replacements. The baseline is
+`c35aa2bd76f5fa3e04e78ea75739f3d576f646de`.
+
+The diagnostic lifecycle fixture now compiles three functions. Three focused
+unit tests exercise the actual 4,096-owner payload budget using synthetic
+function records, real core evaluation, `Demand::new`, and `resolve_owners`:
+
+- A positive finding after 4,100 unrelated functions is retained. Late clean
+  baseline and review owners pass through the actual assessed/retained logic as
+  completed negatives; an excluded owner remains unavailable.
+- Exactly 4,096 requested owners resolve successfully. A following unit
+  collection sharing the same demand cannot resolve another owner.
+- Repeated diagnostics consume one payload per owner, unrequested rules do not
+  consume payloads, and the 4,097th requested owner retains the budget error.
+  That error survives snapshot construction and prevents baseline publication.
+
+The compiled lifecycle still covers baseline export and comparison, review
+dismissal, resolved findings, missing measurements, review status, dry-run and
+actual pruning, release-context changes, and replay without sources or compiler
+tools. Its missing-measurement branch also checks that an incomplete CLI export
+fails without creating a baseline. The former all-positive large-fixture test is
+replaced by the direct budget/publication checks. Production executable code,
+budget values, command-line options and environment settings are unchanged;
+the production file only gains an appended `cfg(test)` module declaration.
+
+### Matched timing
+
+Three baseline runs preceded three candidate runs on the same Linux ARM64
+machine with the pinned nightly, two build jobs, disabled incremental builds,
+the CI nextest profile and four test threads. Compilation is measured separately
+and excluded from the runner timings. The selection includes both the original
+integration-test module and the new unit-test module: two baseline cases become
+four candidate cases covering the same lifecycle and boundary behavior.
+
+| Metric | Baseline median | Candidate median | Reduction |
+| --- | ---: | ---: | ---: |
+| Affected tests, runner wall time | 11.441 s | 0.929 s | 91.9% |
+| Affected tests, summed case time | 16.168 s | 1.222 s | 92.4% |
+
+Runner ranges are 11.368–11.591 seconds and 0.874–0.947 seconds. The retained
+lifecycle case alone changes from a median 11.439 seconds to 0.927 seconds.
+These figures describe the affected selection; they do not establish a full CI
+speedup.
+
+### Coverage and checks
+
+The complete instrumented workspace suite passed **3,731 tests**, with the same
+five existing nextest skips, followed by passing workspace doctests. Comparing
+all JUnit identities confirms exactly one removed large-fixture test, three
+added boundary tests, and every other identity retained. The full runner took
+225.151 seconds versus 226.470 seconds in the prior full run; these single runs
+do not establish an overall performance improvement.
+
+The baseline LCOV and full JUnit are reused from the validated `b1773d9c` run.
+A Git comparison verifies that all Rust source, Cargo manifests and lockfile,
+toolchain, coverage script and test driver script are identical between that
+commit and this round's baseline `c35aa2bd`. The intervening commit changes
+logging, Python helpers and documentation; test concurrency and execution are
+unchanged. The candidate coverage run is fresh and uses the unchanged coverage
+script.
+
+The explicit source-file sets, instrumented line coordinates, and covered line
+coordinates are exactly unchanged:
+
+- 1,152 source files and 166,336 instrumented entries.
+- 154,098 covered entries, **92.6426%**, with zero gains or losses.
+- All 19,947 previously covered normalized function identities remain covered;
+  nine additional test-closure instantiations of production helpers are covered.
+
+Max independently reviewed the assertion mapping, frozen source hashes, six
+timing reports, complete JUnit identities, line coordinates and normalized
+function coverage. The 20 new or modified functions reviewed by Low have at most
+43 nonempty body lines and three parameters. No suppressions, pattern-ignore
+entries or threshold changes are introduced.
+
+Low ran formatting, workspace/all-target Clippy with warnings denied, an ordinary
+CLI/driver build, and the actual shared-capture CI numeric and saved-pattern
+gates. All exited **0**. The numeric analysis covered 10,181 functions with zero
+violations and zero unavailable complexity measurements; the pattern gate
+reported no visible candidates.
+
+### Retained local evidence
+
+[target/owner-boundary-20261031](../target/owner-boundary-20261031/) contains the
+baseline-reuse proof, frozen source hashes, all six timing JUnits, fresh complete
+coverage and JUnit, exact source/line and test-identity comparisons, independent
+Max source/timing/coverage reviews, Low's function-complexity review, and actual
+gate logs. These ignored local artifacts supplement the method and results
+recorded here.
+
+## 4. Reuse verification results during admission and replay
+
+The baseline for this round is `a5e05cc6`. In the checked ID-reader replay,
+each of four valid functions first serialized and fully verified its documents,
+discarded the decoded result, then fully verified the original documents again
+through admission. Six changed-document cases independently repeated lowering,
+analysis and emission of the same expected graph. Admission also repeated CFG,
+operation-map, correspondence and value-site checks already completed by the
+producer verifier.
+
+### Implementation
+
+`producer::verify` now accepts the existing conversions into `PairView` and
+returns an immutable `ValidatedPair`. The result borrows the exact documents
+and captured facts and retains the checked operation map and value sites.
+`admit_validated` imports those documents using the retained results.
+`admit_produced` performs verification and delegates to that same admission
+path. The separate `verify_view` forwarding API is removed.
+
+Local imported documents also reuse the checked indexes. They retain the
+independent validation of caller-supplied source bytes and validation context;
+those inputs can differ from the captured frontend. Admission-specific profile,
+interface, type, reference and native-width checks remain in the import stage.
+
+`PreparedVerification` borrows one function's immutable facts and builds its
+expected documents once. Candidate checks retain document comparison,
+helper/data verification and structural validation. Preparation and candidate checks
+enforce strict verification even when called inside a generated-policy scope.
+Only prepared comparisons clone their retained expected documents; ordinary
+verification moves its freshly reconstructed documents into comparison.
+
+The ID-reader, owned-composition, reader-composition and validator-composition
+replay call sites use a shared snapshot roundtrip check that verifies manifest
+identities and exact typed document equality. Those call sites run semantic
+verification separately, and admission consumes its checked result. The ID-reader,
+owned-composition and validator-composition mutation loops reuse one prepared
+expected graph. All six original ID-reader mutations and independent
+CFG bypass cases remain. Added assertions check prepared strictness inside a
+generated scope and agreement between checked, produced and local-imported
+admission without introducing another compiler fixture.
+
+This is reuse within a verification/admission handoff and the selected replay
+families. Other tests still explicitly exercise full serialized verification
+and admission. Unit loading, derived-instance construction and later admission
+also retain separate checks: derived stores can change facts and dependency
+context, so this change does not reuse results across those owners.
+
+### Matched timing
+
+Three fresh baseline trials from a clean detached `a5e05cc6` checkout preceded
+three candidate trials on the same Linux ARM64 machine, using the pinned
+nightly, two build jobs, disabled incremental builds and the CI nextest profile
+with four test threads. The selection contains the ID-reader, reader-composition
+and validator-composition tests. The candidate trials ran after the full coverage
+job finished, with no competing build. Timings below come from JUnit and exclude
+compilation, including the first candidate run's 58.08-second test rebuild.
+
+| Metric | Baseline median | Candidate median | Reduction |
+| --- | ---: | ---: | ---: |
+| Selected tests, runner wall time | 5.841 s | 4.971 s | 14.9% |
+| Checked ID-reader case | 5.839 s | 4.969 s | 14.9% |
+| Validator-composition case | 3.666 s | 3.311 s | 9.7% |
+| Reader-composition case | 2.230 s | 2.164 s | 3.0% |
+
+Runner ranges are 5.730–5.939 seconds and 4.936–5.069 seconds. The
+reader-composition ranges overlap, so its small median change does not establish
+a speedup. These measurements describe the selected tests, not overall CI or
+memory consumption.
+
+A separate diagnostic trace records `producer.profile` invocations decreasing
+from 158 to 129, with strict invocations decreasing from 122 to 93.
+`producer.verify` invocations decrease from 264 to 258, or 113 to 106 under
+strict policy, and the candidate makes seven preparation calls. Raw verification
+counts include the added policy-regression assertions. Stage durations are
+inclusive and must not be added together.
+
+### Coverage and checks
+
+The complete instrumented workspace suite passed **3,731 tests**, with the same
+five existing nextest skips, followed by passing workspace doctest checks. Full
+JUnit comparison finds exactly the same test identities and no failures. The
+instrumented runner took 219.775 seconds versus the baseline's 225.151 seconds;
+these single runs do not establish an overall speedup. Source and build inputs
+were fingerprinted before and after coverage and remained unchanged.
+
+Baseline coverage and JUnit come from the validated owner-boundary candidate
+committed as `a5e05cc6`, using the same 3,731-test corpus. Candidate coverage is
+a fresh run of the unchanged coverage script. Both reports contain 1,152 source
+files. Covered/instrumented line entries change from **154,098/166,336
+(92.6426%)** to **154,144/166,387 (92.6419%)**. The five additional uncovered
+entries belong to the new non-exhaustive `Debug` formatter.
+
+Mapping unchanged source text across edits finds zero previously covered,
+still-instrumented lines becoming uncovered. Two unchanged closing braces are
+no longer instrumented, and 78 previously covered entries belong to deleted or
+replaced code. This comparison follows surviving source text; the retained
+semantic and mutation assertions provide the behavioral checks.
+
+Formatting, workspace/all-target Clippy with warnings denied, and the ordinary
+CLI/driver build all passed. The actual shared-capture production-target style
+gates measured **10,191 functions**, with zero numeric violations and zero
+unavailable complexity measurements. Pattern capture and assessment completed
+with no visible findings. No suppressions, ignore entries, thresholds or CI
+triggers changed.
+
+### Retained local evidence
+
+[target/verification-reuse-20261031](../target/verification-reuse-20261031/)
+contains the baseline provenance, frozen source hashes, full coverage and JUnit,
+coverage/test-identity comparisons, all six timing JUnits, separate traces,
+Low's executed checks, and independent Max reviews. The final style reports are
+under `style/final-frozen-results`; earlier attempts and provisional measurements
+are retained separately. These ignored artifacts supplement the method and
+results recorded here.
+
+## 5. Reduce repeated range-getter integration work
+
+The baseline for this round is `bccf4045`. The range-getter integration test
+previously captured the complete fixture for each installed target among
+ARM64 Linux, x86-64 Linux and ARM64 Darwin, each in `std` and `no_std` mode.
+Every context also repeated strict verification and admission of each admitted
+function. The separate endpoint execution test provided an independent oracle.
+
+### Implementation
+
+The first available target in `std` mode retains the complete fixture and its
+12 named admission checks, 13 exclusion checks and selected local `From`
+implementation check. Remaining contexts use a smaller fixture containing eight
+named supported functions, the selected implementation and two representative
+unsupported input/storage cases. Shared source fragments retain the original
+full fixture's function bodies; its only textual difference is one blank line.
+
+Every context still exercises actual compiler capture, graph construction,
+admission and matching, checks all four completeness flags, verifies the selected
+`From` implementation identity, and requires an accepted exact `fresh`/`same`
+pair. The test asserts that a comprehensive run occurred, preventing success
+when no target is available. The separate 8-by-8 endpoint oracle and its expected
+outputs and counterexamples remain unchanged.
+
+The comprehensive run performs strict producer verification once per admitted
+function and passes the returned `ValidatedPair` to admission. Report-entry
+namespace checks remain. The 17 captured-fact mutations reuse one expanded bundle
+and one successful baseline load, while every independent changed candidate is
+still rejected under both ordinary and ambient-generated policy. The mutation
+batch therefore makes 35 bundle load attempts instead of 51.
+
+The four constructor graph mutations retain direct data-document rejection and
+reuse one strict `PreparedVerification` against the same immutable facts. The
+original graph first passes prepared verification and checked admission. The
+historical-profile mutation additionally retains direct `admit_produced`
+rejection. The other graph mutations no longer repeat that forwarding API's
+producer verification. Production code, verification rules and CI triggers are
+unchanged.
+
+### Matched timing
+
+Three baseline trials preceded three candidate trials on the same Linux ARM64
+machine with the pinned nightly, two build jobs, disabled incremental builds and
+the CI nextest profile with four test threads. The filter selects both range-getter
+tests, including the unchanged endpoint oracle. All trials passed. JUnit runner
+and case durations exclude Cargo startup and compilation; diagnostic traces were
+collected separately. No other build or test job ran during the timing trials.
+
+| Metric | Baseline median | Candidate median | Reduction |
+| --- | ---: | ---: | ---: |
+| Both range-getter tests, runner wall time | 8.586 s | 5.087 s | 40.8% |
+| Main capture/admission/matching case | 8.583 s | 5.085 s | 40.8% |
+| Both tests, summed case time | 8.732 s | 5.228 s | 40.1% |
+
+Runner ranges are 8.564–8.889 seconds and 5.071–5.117 seconds. The endpoint
+oracle's medians are 0.149 and 0.143 seconds, with overlapping ranges. These
+measurements establish the scoped test improvement, without measuring overall
+CI performance or memory consumption.
+
+The separate trace still records six completed compiler captures and six
+matching stages. Unit decode/verification invocations decrease from 64 to 43,
+producer verification from 1,058 to 479, and producer profile application
+(`producer.profile`) from 796 to 273. The candidate makes one strict preparation
+call. These counts reflect both smaller secondary fixtures and shared validation
+work; they do not imply fewer compiler startups. Stage times are inclusive and
+must not be added together.
+
+### Validation
+
+The final `scripts/coverage.sh` run passes all 3,731 tests and doctest checks.
+JUnit preserves the exact multiset of baseline test identities with no failures,
+errors or recorded skipped cases; nextest excludes the same five configured
+tests before execution. The LCOV comparison is exact: both runs contain 1,152
+production source files, 166,387 instrumented line coordinates and 154,144
+covered line coordinates (92.641853%). No source, instrumented line or covered
+line is lost or gained. Source/build/test input hashes match the previously
+validated `bccf4045` baseline except for the intended range-getter test file;
+all 1,964 fingerprinted inputs remain unchanged during the final run.
+
+Formatting, whitespace checks and workspace/all-target Clippy with warnings
+denied pass. Low ran the actual shared-capture CI numeric and pattern gates;
+both return zero. The numeric report covers 10,191 functions with no violations
+or unavailable complexity measurements. The pattern report has no visible
+candidates; the 12 existing reviewed ignores are unchanged. Max independently
+checked the source, final report hashes and gate results.
+
+A separate all-target audit of the cargo-rstyle test corpus is not a clean gate:
+it reports 3,332 findings across 6,462 measured functions. Its 11 range-getter
+findings have causes already present in the baseline: unchanged corruption
+helpers and completeness/oracle checks, plus IO in capture/test orchestration.
+Max reviewed those causes directly. The new bundle-mutation helper has no
+finding, and the file has no length, parameter-count or complexity finding.
+No thresholds, suppressions or ignore entries were added.
+
+Evidence remains under `target/range-getter-20261031`: the baseline/candidate
+timing JUnit files and command records, `timing-comparison.json`,
+`trace-comparison.json`, `junit-comparison.json`, `coverage-comparison.json`,
+input fingerprints, final coverage and focused-test logs, CI style summaries,
+and independent Max reviews. The tested source SHA256 is
+`24f044f3d260cbad7303492397a4e041a9089b895e5329294f295afb373a97e8`.
+
+## 6. Reuse digit-product verification prerequisites
+
+Fresh CPU profiles at the `25210cb2` source state identified repeated strict
+producer verification in the digit-product integration fixture. The ordinary
+producer verifier appears in 308 of 447 samples (68.9% inclusive), including
+193 samples in expected-graph reconstruction (43.2%). A separate control run
+records 69 producer-verification invocations. These are overlapping CPU regions
+in one exact test; sampled weights are not invocation counts or whole-suite
+shares. Low collected the profiles and Max independently checked the raw counts,
+exact function frames and binary hashes.
+
+### Implementation
+
+The parser and forwarder fixtures each load their clean captured unit once,
+while retaining namespace and pair-existence checks for every selected report
+entry. All three parser bodies and both wrapper bodies still exercise explicit
+producer construction. Unaffected positive cases retain public
+`admit_produced` acceptance, without a separate preceding producer-verification
+call. Renamed parser graphs retain direct data-document and public-admission
+acceptance.
+
+The three-digit parser and hour-wrapper graph-mutation batches each create one
+strict `PreparedVerification` tied to their unchanged facts. Each original graph
+first passes prepared verification and `admit_validated`. All 11 parser and
+eight wrapper graph mutations retain independent direct data-document rejection
+and prepared-verification rejection. Historical profiles and a representative
+semantic mutation in each batch also retain direct public-admission rejection.
+
+The two coherent ownership mutations and two fresh helper-selection mutations
+retain independent verification of changed facts. The summary fixture, its
+seven mutations under ordinary/generated policy, missing-certification check
+and historical-policy assertion are unchanged. Component, conditional-read,
+renaming, matching and completeness assertions remain. Production source and
+verification rules are unchanged; this pass removes repeated test setup and
+expected-graph reconstruction using the existing APIs.
+
+### Matched timing
+
+Three baseline trials preceded three candidate trials on the same Linux ARM64
+host, using the pinned nightly, two build jobs, disabled incremental compilation
+and the CI nextest profile with four test threads. The selection includes all
+three digit-product tests. No competing builds or test jobs ran during these
+measurements. All trials pass the same three case identities. JUnit runner/case
+times exclude Cargo startup and compilation; separate serial diagnostic runs
+provide stage counts.
+
+| Metric | Baseline median | Candidate median | Reduction |
+| --- | ---: | ---: | ---: |
+| Three-test runner wall time | 4.525 s | 3.118 s | 31.1% |
+| Main parser/composition/mutation case | 4.523 s | 3.116 s | 31.1% |
+| Forwarder case | 1.413 s | 1.157 s | 18.1% |
+| Three tests, summed case time | 7.524 s | 5.924 s | 21.3% |
+
+Runner ranges are 4.498–4.608 seconds and 3.105–3.155 seconds. The unchanged
+summary fixture has medians of 1.615 and 1.651 seconds, with overlapping ranges;
+no summary-test speedup is claimed. These scoped results do not establish
+whole-suite/CI speedups or reduced peak memory.
+
+The separate serial traces of all three cases record 30 versus 27 unit decode
+and verification invocations, 136 versus 105 producer-verification invocations,
+and 130 versus 80 producer profile applications. The candidate makes two strict
+preparations. Compiler captures remain three and producer construction stages
+remain 19. The producer-verification count includes the new prepared-candidate
+checks; it does not alone count expected-graph reconstructions. Profile
+application means transport/data annotations, rather than graph analysis.
+Stage durations include nested work and must not be added together.
+
+### Validation
+
+Low's final focused tests, formatting, whitespace checks and workspace/all-target
+Clippy with warnings denied pass. Low also ran the actual shared-capture CI
+numeric and pattern gates; both return zero. The numeric report covers 10,191
+functions with zero violations or unavailable complexity measurements, and the
+pattern report has no visible candidates. Existing reviewed ignores are
+unchanged.
+
+The separate cargo-rstyle all-target test audit reports 3,327 findings overall,
+down from 3,332, and is not a clean gate. Local digit-product findings decrease
+from 21 to 16: the main function's length and spacing findings, the forwarder's
+spacing/density findings and renamed-node spacing finding are removed. Both new
+helpers are clean. Remaining findings concern unchanged mutation/source/oracle
+helpers and summary tests, plus the main test's existing IO density. Its density
+ratio rises from 521 to 571 after moving the pure source-selection lookup; its
+four IO sites remain the same. No threshold, suppression or ignore change is
+used to obtain these results.
+
+The final `scripts/coverage.sh` run passes all 3,731 tests and doctest checks.
+JUnit contains the exact baseline case identities, with no failures, errors or
+recorded skipped cases; the five configured exclusions remain unchanged.
+LCOV source sets, instrumented and covered line coordinates, and instrumented
+and covered function-symbol sets are all exactly equal. Both runs cover 154,144
+of 166,387 lines across 1,152 production source files (92.641853%) and 26,394 of
+40,761 instrumented function symbols. No covered line or function is lost.
+The baseline's 1,964 source/build/test fingerprints differ only in the three
+intended digit-product test files, and every candidate input remains unchanged
+during the full run.
+
+Reproducible measurement and comparison scripts, timing JUnit files, raw
+diagnostic traces, frozen source hashes, final logs, baseline/candidate LCOV and
+JUnit reports, style summaries and independent Max reviews remain under
+`target/digit-verification-20261031`. The frozen Rust source hashes are recorded
+in `candidate-measurement-command.json`, `candidate-ci-gates-summary.json` and
+`coverage-input-sha256.json`. `coverage-comparison.json` and
+`junit-comparison.json` record the exact comparisons.
+
+## 7. Retain validation across the production handoff
+
+This round uses `e65d31ed` as its baseline. It changes production code, without
+consolidating or removing any existing tests. Current-run bundle loading already
+skips expected-graph reconstruction, but it still checked graph structure and
+built operation/value-site indexes. Those results were discarded. Later helper
+verification and matching admission repeated the same producer checks.
+
+### Implementation
+
+`FunctionView::verified_pair()` selects the function's own root from its exact
+immutable `UnitStore`. Successful producer validation and its existing indexes
+are retained privately by graph ID and verification policy. `ValidatedPair`
+shares the indexes through `Arc`; it continues to borrow the exact documents
+and facts. Loading, helper verification and CLI admission use this same path.
+
+The standalone `producer::verify` remains uncached for independently supplied
+pairs and facts. Generated cache entries cannot satisfy strict cache lookups. Failed
+producer checks are not retained. Mutable builders do not use the store cache, and
+newly decoded, copied or derived owners start with empty caches. Nothing about
+the cache is serialized. Helper boundary and summary checks still run, and
+complete helper-proof caches remain local to an analysis context.
+
+Four focused regressions cover reuse across separate analyses, policy isolation
+and failed verification, current-run loading, and fresh validation after copying
+retained tables. Modified detached graphs and strict imports still reject invalid
+evidence. The shared fixture adapts one existing captured-facts seed into a coherent
+empty function and creates no compiler projects.
+
+### Matched local ARM64 timing
+
+Three baseline runs preceded three candidate runs on the same Linux ARM64 host,
+with the pinned nightly, two build jobs, incremental compilation disabled and
+the CI nextest profile's four test workers. No competing build or test job ran
+during measurement. Workspace compilation was performed before each group's
+runner measurements; doctests are checked separately by the coverage command.
+Rust/build/test input fingerprints stayed frozen throughout each group.
+
+| Metric | Baseline median | Candidate median | Reduction |
+| --- | ---: | ---: | ---: |
+| Full workspace nextest runner | 220.370 s | 218.992 s | 0.63% |
+
+The three baseline times are 220.285, 220.371 and 220.370 seconds. Candidate
+times are 218.992, 218.978 and 219.640 seconds. Every run passes; the candidate
+retains all 3,731 original case identities and adds four regressions, for 3,735
+cases. The same five configured exclusions remain. This is an observed small
+local test-run improvement, rather than a whole-CI or cross-platform result.
+
+### Ordinary production commands
+
+Separate measurements run the normal CLI directly on the stored-slices and
+ID-reader fixtures, without a test harness or a strict replay loop. Each group
+uses one warmup and five measured current-run captures, followed by a separate
+`RSTYLE_PERF=1` diagnostic run. Fixture bytes and CLI/driver binaries remain
+frozen within each group. Expected admission/exclusion cases and matching
+assertions run for every trial; complete normalized function outcomes, reasons,
+matching decisions and scores are identical between baseline and candidate.
+
+| Workload | Baseline CLI verification calls | Candidate calls | Baseline wall median | Candidate wall median |
+| --- | ---: | ---: | ---: | ---: |
+| Stored slices, 17 admitted functions | 40 | 17 | 0.986 s | 0.991 s |
+| ID readers, 13 admitted functions | 34 | 13 | 2.763 s | 2.766 s |
+
+The stored-slice wall ranges are 0.969–1.008 and 0.975–1.003 seconds; ID-reader
+ranges are 2.700–2.806 and 2.725–2.796 seconds. These overlap, and no end-to-end
+CLI speedup is established. Compiler captures remain one per command. Including
+the compiler-driver process, producer verification calls fall from 63 to 40 and
+55 to 34; the driver's mutable-builder work is unchanged. These are instrumented
+invocation counts, rather than CPU samples.
+
+Retaining indexes increases their lifetime to that of the owning unit. GNU
+time's median maximum RSS observations are 141,436 to 143,444 KiB for stored
+slices and 148,484 to 150,620 KiB for ID readers. The candidate medians are about 2 MiB (1.4%) higher, and the observed RSS
+ranges do not overlap. This is propagated maximum process RSS, which can be dominated by the compiler; it does not measure
+simultaneous process-tree memory or allocations. No memory improvement is
+claimed. Structural validation is a small part of these representative runs;
+source/helper analysis remains outside the removed duplicate checks.
+
+### Validation
+
+Formatting, whitespace checks and workspace/all-target Clippy with warnings
+denied pass. The actual final production CI numeric and saved-pattern gates
+both exit zero, with no violations or visible pattern candidates. No CI trigger,
+threshold, suppression, ignore entry, fixture or existing assertion is changed.
+
+The supplementary rstyle-pdg all-target numeric audit is not a clean gate: it
+observes 16,997 functions, reports 1,424 findings, and exits two because compiler
+advisory coverage is incomplete. All seven new test/helper functions have actual
+numeric observations and zero findings. There is no baseline comparison of the
+remaining broad-audit findings.
+
+The final unchanged `scripts/coverage.sh` passes all 3,735 tests and workspace
+doctest checks, with the same five configured exclusions. Coverage and normal
+runs have exactly the same case identities. All 3,731 baseline cases remain;
+only the four intended regressions are added. All 2,314 tracked or unignored
+input files stay frozen during the full coverage command.
+
+LCOV line coverage rises from 154,144 of 166,387 lines (92.64185%) to 154,251 of
+166,494 (92.64658%). There are 1,153 source files, including the new validation
+module. Mapping unchanged source lines across the edits retains coverage for
+all 154,127 mapped baseline-covered lines. No unchanged covered line loses its
+hit. Added or changed instrumented lines in the existing files are all covered.
+The new module covers 26 of 27 instrumented lines; its missing-root error branch
+is the uncovered line. The existing function/symbol counts change with the new
+implementation; raw symbol counts do not establish one-to-one function coverage
+preservation. These reports contain line and function coverage, without branch
+coverage records.
+
+Reproducible scripts, frozen input/binary hashes, all six normal timing JUnits,
+production reports and balanced raw traces, GNU time observations, coverage
+reports, style outputs and independent Max reviews remain under
+`target/structural-validation-20261031`.

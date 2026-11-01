@@ -129,6 +129,8 @@ fn guard_file_selection_is_opt_in_and_raw_capture_reuses_the_same_assessments_an
     assert_eq!(selected_raw["matching_execution"], "not_requested");
     assert!(selected_raw.get("matching").is_none());
     guard_only_selection(directory.path(), &raw);
+    source_free_selections(directory.path(), &raw);
+    guard_text_selection(directory.path(), &raw);
 }
 
 fn guard_only_selection(directory: &Path, original: &Value) {
@@ -206,15 +208,6 @@ fn guard_text_selection(directory: &Path, original: &Value) {
         checked(&output, if select { 0 } else { 1 });
         assert_eq!(stdout(&output).matches("\nguard_clause ").count(), count);
     }
-}
-
-#[test]
-fn source_and_tool_free_replay_selects_guard_clean_and_unobserved_files_without_changing_plans() {
-    let directory = fixture();
-    let (output, original) = capture(directory.path(), true);
-    checked(&output, 1);
-    source_free_selections(directory.path(), &original);
-    guard_text_selection(directory.path(), &original);
 }
 
 #[test]

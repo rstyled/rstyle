@@ -247,15 +247,18 @@ pub(in super::super) fn ledger_path(report: &Value) -> PathBuf {
 }
 
 pub(in super::super) fn reseal_raw(report: &Value, ledger: &Path, wire: &Value) {
+    reseal_raw_bytes(report, ledger, &serde_json::to_vec(wire).unwrap());
+}
+
+pub(in super::super) fn reseal_raw_bytes(report: &Value, ledger: &Path, bytes: &[u8]) {
     let bundle = Path::new(
         report["functions"][0]["unit_evidence"]["bundle"]
             .as_str()
             .unwrap(),
     );
-    let bytes = serde_json::to_vec(wire).unwrap();
     let manifest = rstyle_pdg::unit_store::BundleManifest {
         schema: "rstyle.shared-unit.manifest/2".into(),
-        checksum: rstyle_pdg::unit_store::transport_checksum(&bytes),
+        checksum: rstyle_pdg::unit_store::transport_checksum(bytes),
         bytes: bytes.len() as u64,
     };
     let seal = serde_json::to_vec(&manifest).unwrap();
@@ -311,7 +314,7 @@ fn advisory_only_replay_rejects_resealed_wrong_phase_and_compiler_context() {
     reseal_raw(&original, &ledger, &changed);
     rejected_raw(directory.path(), &original, "publication phase");
     let mut changed = wire.clone();
-    changed["facts"][0]["build"]["frontend_options"]["invocation"]
+    changed["facts"][0]["build"]["frontend_options"]["invocation"]["value"]
         .as_array_mut()
         .unwrap()
         .push("--cfg=independent_changed_context".into());

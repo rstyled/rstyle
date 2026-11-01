@@ -211,11 +211,10 @@ fn sin_tail_dependency_boundary_checks_both_branches_and_historical_policy() {
         "excluded"
     );
     reject_historical(function(&report, "k_sin::k_sin"));
+    sin_tail_resealed_guards_alternatives_and_saved_values_are_not_authority(&report);
 }
 
-#[test]
-fn sin_tail_resealed_guards_alternatives_and_saved_values_are_not_authority() {
-    let (_directory, report) = capture(true);
+fn sin_tail_resealed_guards_alternatives_and_saved_values_are_not_authority(report: &Value) {
     for mutation in [
         "condition_op",
         "condition_literal",
@@ -227,7 +226,7 @@ fn sin_tail_resealed_guards_alternatives_and_saved_values_are_not_authority() {
         "source_body",
         "saved_local",
     ] {
-        reject_changed_facts(&report, mutation);
+        reject_changed_facts(report, mutation);
     }
     for mutation in [
         "swap_alternatives",
@@ -236,7 +235,7 @@ fn sin_tail_resealed_guards_alternatives_and_saved_values_are_not_authority() {
         "merge",
         "return",
     ] {
-        let entry = function(&report, "k_sin::k_sin");
+        let entry = function(report, "k_sin::k_sin");
         let mut bundle = shared_evidence::wire(entry);
         let root = bundle["roots"][shared_evidence::index(entry)]
             .as_u64()

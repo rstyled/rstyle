@@ -112,6 +112,46 @@ fn select(directory: &Path, paths: &[&str]) {
 #[test]
 fn source_baseline_preserves_three_families_on_one_owner_and_ordinary_findings_gate() {
     let (directory, original) = exported(ORIGINAL);
+    let baseline = std::fs::read(directory.path().join("baseline.json")).unwrap();
+    for scenario in [
+        source_baseline_preserves_three_families_on_one_owner_and_ordinary_findings_gate_scenario
+            as fn(&TempDir, &Value),
+        moved_source_baseline_owner_remains_existing_but_changed_and_new_measurements_fail_scenario
+            as fn(&TempDir, &Value),
+        changed_source_baseline_policy_is_not_an_existing_finding_scenario as fn(&TempDir, &Value),
+        source_baseline_counts_and_retained_states_follow_changed_selection_scenario
+            as fn(&TempDir, &Value),
+        source_baseline_counts_follow_saved_review_visibility_scenario as fn(&TempDir, &Value),
+        retained_source_baseline_requires_numeric_negative_to_resolve_scenario
+            as fn(&TempDir, &Value),
+        source_baseline_exports_refuse_overwrite_and_budget_failures_leave_no_artifact_scenario
+            as fn(&TempDir, &Value),
+        empty_selection_cannot_hide_incomplete_source_baseline_comparison_scenario
+            as fn(&TempDir, &Value),
+        source_baseline_recomputes_from_source_and_tool_free_full_and_compact_replay_scenario
+            as fn(&TempDir, &Value),
+    ] {
+        reset_exported_fixture(&directory, &baseline);
+        scenario(&directory, &original);
+    }
+}
+
+fn reset_exported_fixture(directory: &TempDir, baseline: &[u8]) {
+    std::fs::write(directory.path().join("src/lib.rs"), ORIGINAL).unwrap();
+    std::fs::write(directory.path().join("analysis.toml"), POLICY).unwrap();
+    std::fs::write(directory.path().join("baseline.json"), baseline).unwrap();
+    for name in ["reviews.json", "selection.json"] {
+        let path = directory.path().join(name);
+        if path.exists() {
+            std::fs::remove_file(path).unwrap();
+        }
+    }
+}
+
+fn source_baseline_preserves_three_families_on_one_owner_and_ordinary_findings_gate_scenario(
+    directory: &TempDir,
+    original: &Value,
+) {
     let saved = stored(directory.path());
     assert_eq!(saved["schema"], "rstyle.source-baseline/1");
     let mut families: Vec<_> = saved["entries"]
@@ -122,7 +162,7 @@ fn source_baseline_preserves_three_families_on_one_owner_and_ordinary_findings_g
         .collect();
     families.sort_unstable();
     assert_eq!(families, ["length", "parameter", "spacing"]);
-    let output = replay(directory.path(), &original, BASELINE);
+    let output = replay(directory.path(), original, BASELINE);
     checked(&output, 0);
     let report = parsed(&output);
     counts(&report, 3, 0);
@@ -130,7 +170,7 @@ fn source_baseline_preserves_three_families_on_one_owner_and_ordinary_findings_g
     assert_eq!(report["analysis"]["visible_findings"], 3);
     let output = replay(
         directory.path(),
-        &original,
+        original,
         &[
             "--source-baseline",
             "baseline.json",
@@ -142,16 +182,17 @@ fn source_baseline_preserves_three_families_on_one_owner_and_ordinary_findings_g
     counts(&parsed(&output), 3, 0);
 }
 
-#[test]
-fn source_baseline_recomputes_from_source_and_tool_free_full_and_compact_replay() {
-    let (directory, original) = exported(ORIGINAL);
+fn source_baseline_recomputes_from_source_and_tool_free_full_and_compact_replay_scenario(
+    directory: &TempDir,
+    original: &Value,
+) {
     for path in ["src/lib.rs", "Cargo.toml"] {
         std::fs::remove_file(directory.path().join(path)).unwrap();
     }
     for detail in ["full", "compact"] {
         let output = replay(
             directory.path(),
-            &original,
+            original,
             &[
                 "--source-baseline",
                 "baseline.json",
@@ -165,7 +206,7 @@ fn source_baseline_recomputes_from_source_and_tool_free_full_and_compact_replay(
         counts(&report, 3, 0);
         assert_eq!(report["verification_policy"], "strict-replay");
         assert_eq!(report["analysis"], original["analysis"]);
-        assert_replay_export(directory.path(), &original, detail);
+        assert_replay_export(directory.path(), original, detail);
     }
 }
 
@@ -186,9 +227,10 @@ fn assert_replay_export(directory: &Path, original: &Value, detail: &str) {
     counts(&parsed(&output), 3, 0);
 }
 
-#[test]
-fn moved_source_baseline_owner_remains_existing_but_changed_and_new_measurements_fail() {
-    let (directory, _) = exported(ORIGINAL);
+fn moved_source_baseline_owner_remains_existing_but_changed_and_new_measurements_fail_scenario(
+    directory: &TempDir,
+    _original: &Value,
+) {
     std::fs::write(
         directory.path().join("src/lib.rs"),
         format!("\n\n// Move the owner.\n{ORIGINAL}"),
@@ -212,15 +254,16 @@ fn moved_source_baseline_owner_remains_existing_but_changed_and_new_measurements
     counts(&report, 3, 3);
 }
 
-#[test]
-fn changed_source_baseline_policy_is_not_an_existing_finding() {
-    let (directory, original) = exported(ORIGINAL);
+fn changed_source_baseline_policy_is_not_an_existing_finding_scenario(
+    directory: &TempDir,
+    original: &Value,
+) {
     std::fs::write(
         directory.path().join("analysis.toml"),
         POLICY.replace("max_params=1", "max_params=0"),
     )
     .unwrap();
-    let output = replay(directory.path(), &original, BASELINE);
+    let output = replay(directory.path(), original, BASELINE);
     checked(&output, 1);
     let report = parsed(&output);
     counts(&report, 2, 1);
@@ -272,13 +315,14 @@ fn empty_source_baseline_checks_retained_build_context() {
     assert_eq!(report["source_baseline"]["scope_changed"], true);
 }
 
-#[test]
-fn source_baseline_counts_and_retained_states_follow_changed_selection() {
-    let (directory, original) = exported(ORIGINAL);
+fn source_baseline_counts_and_retained_states_follow_changed_selection_scenario(
+    directory: &TempDir,
+    original: &Value,
+) {
     select(directory.path(), &[]);
     let output = replay(
         directory.path(),
-        &original,
+        original,
         &[
             "--source-baseline",
             "baseline.json",
@@ -299,15 +343,16 @@ fn source_baseline_counts_and_retained_states_follow_changed_selection() {
     );
 }
 
-#[test]
-fn source_baseline_counts_follow_saved_review_visibility() {
-    let (directory, original) = exported(ORIGINAL);
+fn source_baseline_counts_follow_saved_review_visibility_scenario(
+    directory: &TempDir,
+    original: &Value,
+) {
     let key = original["analysis"]["functions"][0]["key"]
         .as_str()
         .unwrap();
     let output = replay(
         directory.path(),
-        &original,
+        original,
         &[
             "--source-baseline",
             "baseline.json",
@@ -334,9 +379,10 @@ fn source_baseline_counts_follow_saved_review_visibility() {
     );
 }
 
-#[test]
-fn retained_source_baseline_requires_numeric_negative_to_resolve() {
-    let (directory, _) = exported(ORIGINAL);
+fn retained_source_baseline_requires_numeric_negative_to_resolve_scenario(
+    directory: &TempDir,
+    _original: &Value,
+) {
     for (source, state, findings) in [
         ("pub fn many(a:u32)->u32{a}\n".to_owned(), "resolved", 0),
         (
@@ -370,21 +416,22 @@ fn retained_source_baseline_requires_numeric_negative_to_resolve() {
     }
 }
 
-#[test]
-fn source_baseline_exports_refuse_overwrite_and_budget_failures_leave_no_artifact() {
-    let (directory, original) = exported(ORIGINAL);
+fn source_baseline_exports_refuse_overwrite_and_budget_failures_leave_no_artifact_scenario(
+    directory: &TempDir,
+    original: &Value,
+) {
     let path = directory.path().join("baseline.json");
     let before = std::fs::read(&path).unwrap();
     let output = replay(
         directory.path(),
-        &original,
+        original,
         &["--write-source-baseline", "baseline.json"],
     );
     checked(&output, 2);
     assert_eq!(std::fs::read(path).unwrap(), before);
     let output = replay(
         directory.path(),
-        &original,
+        original,
         &[
             "--write-source-baseline",
             "budget.json",
@@ -396,13 +443,14 @@ fn source_baseline_exports_refuse_overwrite_and_budget_failures_leave_no_artifac
     assert!(!directory.path().join("budget.json").exists());
 }
 
-#[test]
-fn empty_selection_cannot_hide_incomplete_source_baseline_comparison() {
-    let (directory, original) = exported(ORIGINAL);
+fn empty_selection_cannot_hide_incomplete_source_baseline_comparison_scenario(
+    directory: &TempDir,
+    original: &Value,
+) {
     select(directory.path(), &[]);
     let output = replay(
         directory.path(),
-        &original,
+        original,
         &[
             "--source-baseline",
             "baseline.json",

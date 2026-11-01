@@ -3,7 +3,7 @@ use super::*;
 use crate::model::{BoolFact, CountFact, StringFact};
 
 #[derive(Serialize)]
-pub(super) struct Export<'a> {
+pub(in crate::unit_store::bundle) struct Export<'a> {
     frontend_options: option_bundle::Export<'a>,
     producer_revision: &'a StringFact,
     rustc_version: &'a StringFact,

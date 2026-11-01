@@ -554,7 +554,7 @@ fn verify_shared(
         crate::inherent_calls::verify(node, caller, &callee, &resolution)?;
     }
     if !helper.verified() {
-        verify_shared_callee(helper, &callee)?;
+        verify_shared_callee(helper)?;
         helper.remember();
     }
     crate::helper_reads::verify_arguments(helper.summary(), node, caller)
@@ -562,19 +562,19 @@ fn verify_shared(
 
 pub(crate) fn verify_shared_callee(
     helper: &crate::unit_store::HelperView<'_>,
-    callee: &dyn EvidenceFacts,
 ) -> Result<(), String> {
-    producer::verify(helper.pair(), callee).map_err(|errors| errors.join("; "))?;
-    if digit_products::candidate(callee) {
-        return digit_products::verify(callee, helper.pair(), helper.summary());
+    let callee = helper.frontend();
+    callee.verified_pair().map_err(|errors| errors.join("; "))?;
+    if digit_products::candidate(&callee) {
+        return digit_products::verify(&callee, helper.pair(), helper.summary());
     }
 
-    let outputs = check_boundary(helper.pair(), callee).map_err(|errors| errors.join("; "))?;
+    let outputs = check_boundary(helper.pair(), &callee).map_err(|errors| errors.join("; "))?;
     if (!crate::verification_policy::is_generated()
         || crate::scalar_loop_helpers::has_loop(helper.pair().as_view())
-        || tagged_conversions::candidate(callee)
+        || tagged_conversions::candidate(&callee)
         || helper.summary().tagged_output.is_some())
-        && helper.summary() != &summary(callee, helper.pair(), outputs)?
+        && helper.summary() != &summary(&callee, helper.pair(), outputs)?
     {
         return Err("Helper summary disagrees with verified callee evidence".into());
     }

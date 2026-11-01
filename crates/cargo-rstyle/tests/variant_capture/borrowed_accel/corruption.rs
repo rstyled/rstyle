@@ -28,6 +28,7 @@ fn borrowed_array_views_reject_changed_bounds_reads_origins_and_policy() {
             "{mutation}"
         );
     }
+    view_callers_cannot_erase_callee_panic_or_field_origin(&report);
 }
 
 fn corrupt(pair: &mut rstyle_pdg::producer::Pair, mutation: &str) {
@@ -79,9 +80,7 @@ fn corrupt(pair: &mut rstyle_pdg::producer::Pair, mutation: &str) {
     }
 }
 
-#[test]
-fn view_callers_cannot_erase_callee_panic_or_field_origin() {
-    let (_directory, report) = captured(None);
+fn view_callers_cannot_erase_callee_panic_or_field_origin(report: &Value) {
     let (unit, _) = data_unit(&report["functions"][0]);
     let analysis = unit.analysis();
     for name in ["getter_view", "first", "saved", "selected"] {

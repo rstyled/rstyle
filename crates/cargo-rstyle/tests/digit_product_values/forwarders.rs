@@ -11,6 +11,10 @@ fn original_digit_forwarders_preserve_whole_guarded_results_and_read_occurrences
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
+
+    let (store, _) = data_unit(&report["functions"][0]);
+    let analysis = store.analysis();
+
     for name in ["callers::hour", "callers::min"] {
         let function = report["functions"]
             .as_array()
@@ -19,18 +23,23 @@ fn original_digit_forwarders_preserve_whole_guarded_results_and_read_occurrences
             .find(|function| function["facts"]["name"] == name)
             .unwrap();
         assert_eq!(function["outcome"], "admitted", "{}", function["reasons"]);
-        let (store, index) = data_unit(function);
-        let analysis = store.analysis();
+        shared_evidence::pair(&store, function);
+        let index = shared_evidence::index(function);
         let facts = analysis.function(index).unwrap();
         let pair = rstyle_pdg::producer::produce(&facts).unwrap();
-        rstyle_pdg::producer::verify(&pair, &facts).unwrap();
-        rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
         if name == "callers::hour" {
-            reject_document_changes(&pair, &facts);
+            let prepared = rstyle_pdg::producer::PreparedVerification::new(&facts).unwrap();
+            let validated = prepared.verify(pair.as_view()).unwrap();
+            rstyle_ccgraph::admit_validated(&validated).unwrap();
+
+            reject_document_changes(&pair, &facts, &prepared);
             reject_call_selection(&store, index);
+        } else {
+            rstyle_ccgraph::admit_produced(&pair, &facts).unwrap();
         }
         expected_call(&pair);
     }
+
     for name in ["callers::changed", "callers::extra"] {
         let function = report["functions"]
             .as_array()
@@ -40,11 +49,16 @@ fn original_digit_forwarders_preserve_whole_guarded_results_and_read_occurrences
             .unwrap();
         assert_eq!(function["outcome"], "excluded", "{name}");
     }
+
     check_complete_data_pairs(&report, 3);
     expected_wrapper_match(&report);
 }
 
-fn reject_document_changes(original: &Pair, facts: &dyn rstyle_pdg::unit_store::EvidenceFacts) {
+fn reject_document_changes(
+    original: &Pair,
+    facts: &dyn rstyle_pdg::unit_store::EvidenceFacts,
+    prepared: &rstyle_pdg::producer::PreparedVerification<'_>,
+) {
     for attack in [
         "scope",
         "callee",
@@ -65,13 +79,15 @@ fn reject_document_changes(original: &Pair, facts: &dyn rstyle_pdg::unit_store::
             "document accepted {attack}"
         );
         assert!(
-            rstyle_pdg::producer::verify(&pair, facts).is_err(),
+            prepared.verify(pair.as_view()).is_err(),
             "producer accepted {attack}"
         );
-        assert!(
-            rstyle_ccgraph::admit_produced(&pair, facts).is_err(),
-            "admission accepted {attack}"
-        );
+        if matches!(attack, "old-policy" | "whole-result") {
+            assert!(
+                rstyle_ccgraph::admit_produced(&pair, facts).is_err(),
+                "admission accepted {attack}"
+            );
+        }
     }
 }
 
