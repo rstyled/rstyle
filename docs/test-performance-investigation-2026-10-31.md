@@ -822,3 +822,110 @@ No production behavior, CI trigger, threshold, suppression or ignore entry is
 changed. Raw timing JUnits, explicit case mappings, preserved-source proofs,
 coverage reports, scope evidence, final style outputs and independent Max
 reviews are retained under `target/unit-test-boundaries-20261101`.
+
+## 9. Reuse compiler captures and immutable evidence
+
+This pass starts from `36f3e1e3`. It removes repeated setup while retaining compiler
+capture, serialization, verification, admission and matching. Checks reuse one
+immutable `UnitStore`; mutations receive independent clones or edited wire.
+Production, fixture files, CI, thresholds, suppressions and ignores stay unchanged.
+
+Low implemented the changes and Max reviewed source, assertions and work counts.
+With all three configured targets installed, the source/call-graph inventory is:
+
+| Family | Compiler captures before → after | Direct test-side bundle loads before → after |
+| --- | ---: | ---: |
+| Input owners and stored slices | 37 → 29 | 26 → 19 |
+| Accelerator packing | 9 → 8 | 50 → 8 |
+| Word classifiers | 15 → 7 | 15 → 7 |
+| Architecture readers | 5 → 4 | 14 → 6 |
+| Total | 66 → 48 | 105 → 40 |
+
+That removes **18 capture setups and 65 direct successful test-side bundle loads**.
+Counts exclude all native oracle compilations, target-library queries, CLI-internal
+imports and intentional rejection/control imports. These are static work counts.
+
+The six stored-slice target/std captures include the complete passive-owner source
+and replay its checks. An exact guard checks admitted keys before the first
+appended borrowed method against the original eight keys, including generated
+source callsites. Matching requires all 28 unique nonself pairs and the accepted
+`caller`/`same` pair. Architecture counts every function in its original source
+prefix against eight and retains all eight named outcome checks. These guards
+preserve the original passive admission inventory and architecture function
+inventory. Word retains its complete 20/11 partition of 31 functions;
+accelerator packing retains all 19 functions.
+
+Target and std/no_std matrices, completion flags, old-policy rejections, saved
+receiver/read contracts, mutation scenarios and rejection entrypoints remain.
+Same-source details run once in a retained std context. Distinct mutated sources,
+accelerator release capture, native debug-policy oracles and the independent
+256-byte ASCII oracle remain. Word fixtures share one namespaced capture per
+context, adding 780 candidate matching pairs within the six-context matrix.
+Measurements include that matrix overhead and the removal of separate host
+mutation captures.
+
+### Final normal execution and resources
+
+Seven reviewed many-to-one case consolidations change 3,735 passing cases to
+3,728 across the same 22 test binaries. Explicit mappings and source review account
+for each consolidated case and its assertions. The five pre-existing nextest skips
+remain outside that executed JUnit population. Baseline groups freeze their
+original inputs; final candidate groups freeze the reviewed sources, including
+both exact prefix guards. Earlier timings and coverage attempts without those
+guards are archived and discarded from final result claims.
+
+| Metric | Baseline | Final candidate |
+| --- | ---: | ---: |
+| Focused normal nextest median | 20.294 s | 15.592 s |
+| Full normal nextest median | 218.009 s | 215.097 s |
+| Focused per-trial user + system CPU median | 64.27 s | 50.31 s |
+| Focused median largest-process RSS | 144,496 reported kbytes | 144,496 reported kbytes |
+
+Focused trials are 20.405, 20.102 and 20.294 seconds before, and 15.680, 15.566
+and 15.592 seconds after: a 4.702-second, 23.1694% median reduction. Full-suite
+trials are 217.988, 218.204 and 218.009 seconds before, and 215.343, 214.498 and
+215.097 seconds after: a 2.912-second, 1.3357% median reduction. The focused CPU
+metric sums user and system time within each trial before taking the median.
+Largest-process RSS is not total concurrent memory; full normal runs do not
+include resource sampling with `time -v`.
+
+These local Linux ARM64 measurements exclude compilation and use nightly
+`2026-09-30`, four CI-profile workers, two build jobs and disabled incremental
+compilation, with no competing heavy jobs. The four families account for about
+7.4% of summed baseline test duration; other cases remain. Their localized saving
+therefore produces a modest full-suite gain. These results do not establish a
+cold-build, whole-CI or other-host improvement.
+
+### Final coverage and checks
+
+The unchanged coverage command passes all 3,728 cases and four doctest targets
+with zero doctests each. Inputs remain frozen. Normal and coverage JUnit identities
+agree after the seven reviewed consolidations. The collector takes 322.413 seconds,
+separately from the normal benchmark.
+
+The same 1,153 source files retain exactly the same unique `SF` + `DA` line keys
+and hit sets without remapping: 154,251 of 166,494 lines, or 92.64658%, have hits.
+The separate raw LCOV summary totals are also unchanged: `LF` 169,594, `LH`
+156,365, `FNF` 18,428 and `FNH` 17,152. Raw `LF`/`LH` coverage is 92.19961%.
+Unique source-line records and exported summary totals remain distinct metrics.
+
+The unchanged cargo-llvm-cov default filter omits test directories and
+`tests.rs`/`*_tests.rs` files equally before and after. JUnit establishes execution;
+LCOV does not establish instrumentation or line coverage for omitted helpers.
+No branch coverage is claimed.
+
+Actual production CI numeric and saved-pattern gates pass with exit zero in v3.
+Only test guards change afterward; v5's `ci-gate-provenance.json` records that
+retained evidence. Final formatting, whitespace checks and workspace/all-target
+Clippy with warnings denied pass. All 34 changed functions are observed in the
+final supplementary numeric audit with zero non-density findings. Its broad
+scope remains incomplete: exit two, 6,469 functions and 3,303 findings. All seven
+changed-scope IO-density findings exist in the measured baseline; five values
+are lower and two are higher due only to statement-denominator changes, with the
+same classified IO effects. The broad audit is not clean. Max's manual source
+pattern review approves the changed helpers separately from the automated
+production saved-pattern gate.
+
+Source reviews, work inventories, case mappings, timing JUnits, resource logs,
+coverage and style evidence are retained under
+`target/compiler-test-consolidation-20261101`.

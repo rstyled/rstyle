@@ -7,6 +7,7 @@ const SCALAR: &str =
 
 #[test]
 fn word_classifier_source_first_selections_keep_complete_blocker_chains() {
+    let mut checked_documents = false;
     for target in [
         "aarch64-unknown-linux-gnu",
         "x86_64-unknown-linux-gnu",
@@ -21,28 +22,64 @@ fn word_classifier_source_first_selections_keep_complete_blocker_chains() {
             continue;
         }
         for no_std in [false, true] {
-            check_context(target, no_std, TABLE);
-            check_context(target, no_std, SCALAR);
+            let comprehensive = !no_std && !checked_documents;
+            check_context(target, no_std, comprehensive);
+            checked_documents |= comprehensive;
         }
     }
+    assert!(
+        checked_documents,
+        "No installed target exercised the retained std document checks"
+    );
 }
 
-fn check_context(target: &str, no_std: bool, source: &str) {
+fn check_context(target: &str, no_std: bool, comprehensive: bool) {
     let directory = clone_workspace();
-    let bytes = format!("{}{}", if no_std { "#![no_std]\n" } else { "" }, source);
+    let bytes = format!(
+        "{}pub mod word_table {{\n{TABLE}\n}}\npub mod byte_scalar {{\n{SCALAR}\n}}\n",
+        if no_std { "#![no_std]\n" } else { "" },
+    );
     std::fs::write(directory.path().join("src/lib.rs"), bytes).unwrap();
     let (output, report) = clones(
         directory.path(),
         &["--extraction-profile", "hir-data-v3", "--target", target],
     );
     assert!(output.status.success(), "{}", report["capture_failures"]);
-    let functions = report["functions"].as_array().unwrap();
+    assert_eq!(report["functions"].as_array().unwrap().len(), 31);
+    let context = format!("{target}, no_std={no_std}");
+    check_fixture(&report, "word_table::", TABLE, &context);
+    check_fixture(&report, "byte_scalar::", SCALAR, &context);
+
+    for flag in [
+        "capture_complete",
+        "assessment_complete",
+        "pair_enumeration_complete",
+        "pair_evaluation_complete",
+    ] {
+        assert_eq!(report[flag], true, "{flag}");
+    }
+    let unit = verify_admissions(&report);
+    if comprehensive {
+        check_byte_documents(&report, &unit);
+        check_const_table(&report, &unit);
+    }
+}
+
+fn check_fixture(report: &Value, prefix: &str, source: &str, context: &str) {
+    let functions: Vec<_> = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|function| {
+            let name = function["facts"]["name"].as_str().unwrap();
+            fixture_name(name, prefix).map(|name| (function, name))
+        })
+        .collect();
     assert_eq!(functions.len(), if source == TABLE { 20 } else { 11 });
-    for function in functions {
-        let name = function["facts"]["name"].as_str().unwrap();
+    for (function, name) in functions {
         let admitted = if source == TABLE {
             matches!(
-                name,
+                name.as_str(),
                 "Unit::new_byte"
                     | "Unit::new_end"
                     | "Unit::byte"
@@ -63,19 +100,19 @@ fn check_context(target: &str, no_std: bool, source: &str) {
         assert_eq!(
             function["outcome"],
             if admitted { "admitted" } else { "excluded" },
-            "{target}, no_std={no_std}, {name}: {}",
+            "{context}, {prefix}{name}: {}",
             function["reasons"]
         );
     }
-    for flag in [
-        "capture_complete",
-        "assessment_complete",
-        "pair_enumeration_complete",
-        "pair_evaluation_complete",
-    ] {
-        assert_eq!(report[flag], true, "{flag}");
+}
+
+fn fixture_name(name: &str, prefix: &str) -> Option<String> {
+    if let Some(name) = name.strip_prefix(prefix) {
+        return Some(name.into());
     }
-    verify_admissions(&report);
+    // Derived impl names place their qualified owner after the opening `<`.
+    name.strip_prefix(&format!("<{prefix}"))
+        .map(|name| format!("<{name}"))
 }
 
 pub(super) fn verify_admissions(report: &Value) -> rstyle_pdg::unit_store::UnitStore {
@@ -96,20 +133,20 @@ pub(super) fn verify_admissions(report: &Value) -> rstyle_pdg::unit_store::UnitS
     unit
 }
 
-#[test]
-fn byte_scalar_documents_reject_changed_values_ranges_types_effects_and_policy() {
-    let directory = clone_workspace();
-    std::fs::write(directory.path().join("src/lib.rs"), SCALAR).unwrap();
-    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
-    assert!(output.status.success());
-    let (unit, _) = data_unit(&report["functions"][0]);
+fn check_byte_documents(report: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
     let analysis = unit.analysis();
     for name in ["escaped", "is_word_byte", "exhaustive"] {
         let function = report["functions"]
             .as_array()
             .unwrap()
             .iter()
-            .find(|f| f["facts"]["name"] == name)
+            .find(|f| {
+                f["facts"]["name"]
+                    .as_str()
+                    .unwrap()
+                    .strip_prefix("byte_scalar::")
+                    == Some(name)
+            })
             .unwrap();
         let facts = analysis.function(shared_evidence::index(function)).unwrap();
         for mutation in ["literal", "type", "operator", "category", "policy"] {
@@ -164,23 +201,19 @@ fn corrupt_byte(pair: &mut rstyle_pdg::producer::Pair, mutation: &str) {
     }
 }
 
-#[test]
-fn const_table_values_and_documents_agree_with_independent_ascii_membership() {
-    let directory = clone_workspace();
-    std::fs::write(directory.path().join("src/lib.rs"), TABLE).unwrap();
-    let (output, report) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
-    assert!(output.status.success());
+fn check_const_table(report: &Value, unit: &rstyle_pdg::unit_store::UnitStore) {
     let function = report["functions"]
         .as_array()
         .unwrap()
         .iter()
-        .find(|function| function["facts"]["name"] == "table::is_word_byte")
+        .find(|function| function["facts"]["name"] == "word_table::table::is_word_byte")
         .unwrap();
     assert_eq!(function["outcome"], "admitted", "{}", function["reasons"]);
-    let (unit, index) = data_unit(function);
+    let index = shared_evidence::index(function);
     let captured = unit.pair(index).unwrap();
+
     check_ascii_table_value(captured);
-    check_table_documents(&unit, index);
+    check_table_documents(unit, index);
 }
 
 fn check_ascii_table_value(captured: &rstyle_pdg::producer::Pair) {
