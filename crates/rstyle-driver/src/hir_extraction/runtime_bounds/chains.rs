@@ -213,8 +213,8 @@ impl<'tcx> Collector<'_, 'tcx> {
 
     // Slice and `Vec` traversals yield at most their stable length.
     fn source(&self, root: &'tcx Expr<'tcx>) -> Option<(Value, u8)> {
-        if let ExprKind::Struct(_, fields, hir::StructTailExpr::None) = root.kind {
-            return self.range_source(root, fields);
+        if matches!(root.kind, ExprKind::Struct(..)) {
+            return self.range_source(root);
         }
         let ExprKind::MethodCall(_, receiver, [], _) = root.kind else {
             return None;
@@ -230,25 +230,10 @@ impl<'tcx> Collector<'_, 'tcx> {
     }
 
     // A primitive `start..end` yields at most `end` items, whatever its start.
-    fn range_source(
-        &self,
-        root: &Expr<'tcx>,
-        fields: &[hir::ExprField<'tcx>],
-    ) -> Option<(Value, u8)> {
-        let [start, end] = fields else {
-            return None;
-        };
-        let ty::Adt(definition, arguments) = self.ctx.typeck.expr_ty(root).kind() else {
-            return None;
-        };
-        let bits = self.bits(arguments.type_at(0))?;
-
-        let limit = self.value(end.expr);
-        (Some(definition.did()) == self.ctx.tcx.lang_items().range_struct()
-            && start.ident.name.as_str() == "start"
-            && end.ident.name.as_str() == "end"
-            && !matches!(limit, Value::Unknown))
-        .then_some((limit, bits))
+    fn range_source(&self, root: &Expr<'tcx>) -> Option<(Value, u8)> {
+        let (_, end, bits) = self.range_parts(root)?;
+        let limit = self.value(end);
+        (!matches!(limit, Value::Unknown)).then_some((limit, bits))
     }
 
     pub(super) fn callback(&self, argument: &Expr<'tcx>) -> Option<Callback<'tcx>> {

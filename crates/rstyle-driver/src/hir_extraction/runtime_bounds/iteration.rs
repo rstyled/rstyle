@@ -154,6 +154,21 @@ impl<'tcx> Collector<'_, 'tcx> {
     }
 
     fn range_values(&self, head: &Expr<'tcx>) -> Option<(Value, Value, u8)> {
+        let (start, end, bits) = self.range_parts(head)?;
+        let start = self.value(start);
+        let limit = self.value(end);
+
+        if matches!(start, Value::Unknown) || matches!(limit, Value::Unknown) {
+            return None;
+        }
+        Some((start, limit, bits))
+    }
+
+    /// Operands of a primitive unsigned `core::ops::Range` literal.
+    pub(super) fn range_parts(
+        &self,
+        head: &Expr<'tcx>,
+    ) -> Option<(&'tcx Expr<'tcx>, &'tcx Expr<'tcx>, u8)> {
         let ExprKind::Struct(_, fields, hir::StructTailExpr::None) = head.kind else {
             return None;
         };
@@ -178,13 +193,7 @@ impl<'tcx> Collector<'_, 'tcx> {
         {
             return None;
         }
-
-        let start = self.value(start.expr);
-        let limit = self.value(end.expr);
-        if matches!(start, Value::Unknown) || matches!(limit, Value::Unknown) {
-            return None;
-        }
-        Some((start, limit, bits))
+        Some((start.expr, end.expr, bits))
     }
 
     fn slice_values(&mut self, head: &'tcx Expr<'tcx>) -> Option<(Value, Value, u8)> {
