@@ -387,4 +387,141 @@ mod tests {
         assert_eq!(expression(&bound), "n * (m + 1)");
         assert_eq!(bound_degree(&bound), 2);
     }
+
+    // `while ? {}` at src/lib.rs:3:5: an unprovable loop in an otherwise empty owner.
+    fn polling() -> runtime_bounds::Program {
+        use runtime_bounds::*;
+        let source = Source {
+            file: "src/lib.rs".into(),
+            line: 3,
+            column: 5,
+            evidence: "test".into(),
+        };
+        let node = |flow, source| Node {
+            action: Action::Nop,
+            flow,
+            source,
+        };
+        Program {
+            inputs: Vec::new(),
+            variables: Vec::new(),
+            nodes: vec![
+                node(
+                    Flow::Branch {
+                        condition: Condition::Unknown,
+                        then_node: 1,
+                        else_node: 2,
+                    },
+                    Some(source),
+                ),
+                node(Flow::Goto(0), None),
+                node(Flow::Return, None),
+            ],
+            entry: 0,
+            loop_headers: vec![0],
+            arithmetic: Arithmetic::Checked,
+            formals: Vec::new(),
+            extents: Vec::new(),
+        }
+    }
+
+    fn observation(input: Input) -> Observation {
+        Observation {
+            schema: KEY.into(),
+            owner: "w::poll".into(),
+            krate: "k".into(),
+            input,
+        }
+    }
+
+    fn row(evidence: Evidence) -> Row {
+        Row {
+            key: "function:u0:f1".parse().unwrap(),
+            name: "poll".into(),
+            path: "src/lib.rs".into(),
+            evidence,
+        }
+    }
+
+    #[test]
+    fn unavailable_budget_and_missing_inputs_keep_their_status() {
+        let missing = evidence(Err("not captured".into()));
+        assert_eq!(missing.capture_status, "missing");
+        assert_eq!(render_result(&row(missing)), "missing: not captured");
+
+        let reason = "recorded".to_string();
+        let unavailable = evidence(Ok(observation(Input::Unavailable {
+            reason: reason.clone(),
+        })));
+        assert_eq!(render_result(&row(unavailable)), "unknown: recorded");
+        let budget = evidence(Ok(observation(Input::BudgetExhausted { reason })));
+        assert_eq!(render_result(&row(budget)), "budget exhausted: recorded");
+    }
+
+    #[test]
+    fn partial_rows_render_opaque_loops_and_compositions() {
+        let program = polling();
+        let mut composer = Composer::new(
+            |_: &str| {
+                Some(Analyzed {
+                    outcome: runtime_bounds::analyze(&program),
+                    program: program.clone(),
+                })
+            },
+            Limits::default(),
+        );
+        let captured = evidence(Ok(observation(Input::Captured { program: polling() })));
+        assert!(matches!(captured.result, Some(Outcome::Partial(_))));
+        let mut partial = row(Evidence {
+            composed: Some(composer.composed("w::poll")),
+            ..captured
+        });
+        assert_eq!(degree(&partial), 1);
+
+        let text = render_result(&partial);
+        assert!(
+            text.starts_with("partial: loop body entries <= ?loop(src/lib.rs:3:5)"),
+            "{text}"
+        );
+        assert!(
+            text.contains("(opaque: Loop requires an unsigned less-than guard)"),
+            "{text}"
+        );
+        assert!(
+            text.contains("composed (partial) workspace loop body entries"),
+            "{text}"
+        );
+        assert!(
+            text.contains("opaque src/lib.rs:3:5: Loop requires"),
+            "{text}"
+        );
+
+        partial.evidence.composed = Some(Composed::Unknown { reason: "x".into() });
+        assert!(render_result(&partial).ends_with("composed: unknown: x"));
+        partial.evidence.composed = Some(Composed::BudgetExceeded { reason: "y".into() });
+        assert!(render_result(&partial).ends_with("composed: budget exhausted: y"));
+
+        let report = Report {
+            schema: "test",
+            input_complete: true,
+            limitations: &[],
+            rows: vec![partial],
+            selected: vec![0],
+        };
+        let key: FunctionKey = "function:u0:f1".parse().unwrap();
+        let text = report.render(key.unit());
+        assert!(text.contains("src/lib.rs: poll: partial:"), "{text}");
+    }
+
+    #[test]
+    fn opaque_factors_render_by_kind_without_raising_degree() {
+        use runtime_bounds::{Bound, OpaqueKind};
+        let bound = Bound::Mul(vec![
+            Bound::opaque(OpaqueKind::Call, "w::f"),
+            Bound::opaque(OpaqueKind::Input, "w::f::n"),
+            Bound::Input("m".into()),
+        ]);
+        assert_eq!(expression(&bound), "?call(w::f) * ?input(w::f::n) * m");
+        assert_eq!(bound_degree(&bound), 1);
+    }
 }
