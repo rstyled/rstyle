@@ -1,5 +1,6 @@
 //! Bounded, typed HIR lowering for advisory runtime bounds. Never uses clone admission.
 mod branches;
+mod calls;
 mod chains;
 mod control;
 mod extent;
@@ -65,6 +66,7 @@ struct Collector<'a, 'tcx> {
     extents: HashMap<String, String>,
     closures: HashMap<HirId, &'tcx hir::Closure<'tcx>>,
     returns: Vec<u32>,
+    formals: HashMap<HirId, u32>,
 }
 
 impl<'a, 'tcx> Collector<'a, 'tcx> {
@@ -97,7 +99,7 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
     }
 
     fn prepare(&mut self, body: &'tcx hir::Body<'tcx>, frame: frame::Frame) {
-        self.install_extents(frame.extents);
+        self.install_extents(body.params, frame.extents);
         self.parameters(body.params);
         self.framed_body(body.value, frame.reason);
     }
@@ -115,26 +117,24 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
         self.program.entry = entry;
     }
 
-    fn install_extents(&mut self, places: Vec<extent::Place>) {
+    // Formal positions first: extent provenance records formal-rooted places.
+    fn install_extents(&mut self, parameters: &[hir::Param<'tcx>], places: Vec<extent::Place>) {
+        self.formal_positions(parameters);
         for place in places {
-            let bits = self.ctx.tcx.data_layout.pointer_size().bits() as u8;
-            self.variable(place.label.clone(), Value::Input(place.label.clone()), bits);
-            self.program.inputs.push(place.label.clone());
-            self.extents.insert(place.key(), place.label);
+            self.install_extent(place);
         }
     }
 
-    fn parameters(&mut self, parameters: &[hir::Param<'tcx>]) {
-        for parameter in parameters {
-            if let PatKind::Binding(_, id, name, None) = parameter.pat.kind
-                && let Some(bits) = self.bits(self.ctx.typeck.pat_ty(parameter.pat))
-            {
-                let label = name.name.to_string();
-                let variable = self.variable(label.clone(), Value::Input(label.clone()), bits);
-                self.program.inputs.push(label);
-                self.locals.insert(id, variable);
-            }
-        }
+    fn install_extent(&mut self, place: extent::Place) {
+        let bits = self.ctx.tcx.data_layout.pointer_size().bits() as u8;
+        self.variable(place.label.clone(), Value::Input(place.label.clone()), bits);
+        self.program.inputs.push(place.label.clone());
+        self.record_extent(place);
+    }
+
+    fn record_extent(&mut self, place: extent::Place) {
+        self.program.extents.push(self.provenance(&place));
+        self.extents.insert(place.key(), place.label);
     }
 
     fn capture_body(&mut self, value: &'tcx Expr<'tcx>) {
@@ -152,6 +152,8 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
                 nodes: Vec::new(),
                 entry: 0,
                 loop_headers: Vec::new(),
+                formals: Vec::new(),
+                extents: Vec::new(),
                 arithmetic: if ctx.tcx.sess.overflow_checks() {
                     Arithmetic::Checked
                 } else {
@@ -166,6 +168,7 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
             extents: HashMap::new(),
             closures: HashMap::new(),
             returns: Vec::new(),
+            formals: HashMap::new(),
         }
     }
 

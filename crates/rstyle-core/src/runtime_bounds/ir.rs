@@ -9,6 +9,61 @@ pub struct Program {
     pub entry: u32,
     pub loop_headers: Vec<u32>,
     pub arithmetic: Arithmetic,
+    /// Owner parameters in declaration order, for mapping summaries at call sites.
+    pub formals: Vec<Formal>,
+    /// Provenance of each length input.
+    pub extents: Vec<Extent>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Formal {
+    pub name: String,
+    pub measure: Measure,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Measure {
+    /// An unsigned parameter whose entry value is the named input.
+    Scalar {
+        input: String,
+    },
+    /// An immutable shared reference; places under it are stable while the owner runs.
+    Shared,
+    Opaque,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Extent {
+    pub input: String,
+    pub root: Root,
+    pub fields: Vec<Field>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Root {
+    Formal(u32),
+    Local(u32),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Field {
+    pub index: u32,
+    pub name: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Callee {
+    /// Compiler-resolved definition identity, in captured owner-identity form.
+    Resolved(String),
+    Constructor,
+    Unresolved,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Argument {
+    Scalar(Value),
+    Place { root: Root, fields: Vec<Field> },
+    Opaque,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,10 +106,22 @@ pub struct Node {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Action {
     Nop,
-    Assign { variable: u32, value: Value },
-    Increment { variable: u32 },
-    Call { callee: String, may_modify: bool },
-    Unsupported { reason: String },
+    Assign {
+        variable: u32,
+        value: Value,
+    },
+    Increment {
+        variable: u32,
+    },
+    Call {
+        callee: String,
+        target: Callee,
+        arguments: Vec<Argument>,
+        may_modify: bool,
+    },
+    Unsupported {
+        reason: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -120,6 +187,16 @@ pub struct LoopBound {
 pub struct CallBound {
     pub node: u32,
     pub callee: String,
+    pub target: Callee,
     pub source: Option<Source>,
     pub count: Bound,
+    /// Per-invocation upper bounds or places for each argument at this site.
+    pub arguments: Vec<ArgumentBound>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ArgumentBound {
+    Scalar(Bound),
+    Place { root: Root, fields: Vec<Field> },
+    Unknown,
 }

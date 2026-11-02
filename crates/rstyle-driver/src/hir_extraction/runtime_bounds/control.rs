@@ -137,15 +137,14 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
             Res::Def(_, id) => self.ctx.tcx.def_path_str(id),
             _ => "indirect call".into(),
         };
+        let action = Action::Call {
+            callee: name,
+            target: self.call_target(callee, resolved),
+            arguments: arguments.iter().map(|a| self.argument(a)).collect(),
+            may_modify: false,
+        };
 
-        let call = self.node(
-            Action::Call {
-                callee: name,
-                may_modify: false,
-            },
-            Flow::Goto(next),
-            expression.span,
-        );
+        let call = self.node(action, Flow::Goto(next), expression.span);
         let arguments = self.arguments(arguments, call);
         self.expr(callee, arguments)
     }
@@ -196,15 +195,15 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
             .type_dependent_def_id(expression.hir_id)
             .map(|id| self.ctx.tcx.def_path_str(id))
             .unwrap_or_else(|| "unresolved method".into());
-        let call = self.node(
-            Action::Call {
-                callee,
-                may_modify: false,
-            },
-            Flow::Goto(next),
-            expression.span,
-        );
+        let inputs = std::iter::once(receiver).chain(arguments);
+        let action = Action::Call {
+            callee,
+            target: self.method_target(expression),
+            arguments: inputs.map(|a| self.argument(a)).collect(),
+            may_modify: false,
+        };
 
+        let call = self.node(action, Flow::Goto(next), expression.span);
         let arguments = self.arguments(arguments, call);
         self.expr(receiver, arguments)
     }

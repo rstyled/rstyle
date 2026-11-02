@@ -407,14 +407,17 @@ impl<'tcx> Collector<'_, 'tcx> {
     ) -> u32 {
         match callback {
             Callback::Closure(closure) => self.inline(closure, next),
-            Callback::Function(id) => self.node(
-                Action::Call {
+            Callback::Function(id) => {
+                // Item values are opaque; generic trait items stay unresolved.
+                let identity = ty::GenericArgs::identity_for_item(self.ctx.tcx, id);
+                let action = Action::Call {
                     callee: self.ctx.tcx.def_path_str(id),
+                    target: self.target(id, identity),
+                    arguments: Vec::new(),
                     may_modify: false,
-                },
-                Flow::Goto(next),
-                span,
-            ),
+                };
+                self.node(action, Flow::Goto(next), span)
+            }
         }
     }
 

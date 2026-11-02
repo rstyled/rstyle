@@ -46,7 +46,12 @@ fn assess(program: &Program, limits: Limits) -> Checked<Assessment> {
 
     let bounds = loops::bounds(program, &graph, &loops, limits)?;
 
-    let calls = call_bounds(program, &graph, &loops, &bounds);
+    let site = Site {
+        program,
+        graph: &graph,
+        loops: &loops,
+    };
+    let calls = call_bounds(site, &bounds);
     let loop_body_entries = Bound::add(bounds.clone());
     let expression_size = loop_body_entries.size()
         + bounds.iter().map(Bound::size).sum::<usize>()
@@ -195,25 +200,27 @@ fn reach(successors: &[Vec<usize>], entry: usize) -> Vec<bool> {
     reached
 }
 
-fn call_bounds(
-    program: &Program,
-    graph: &Graph,
-    loops: &[Loop],
-    bounds: &[Bound],
-) -> Vec<CallBound> {
-    program
+fn call_bounds(site: Site<'_>, bounds: &[Bound]) -> Vec<CallBound> {
+    site.program
         .nodes
         .iter()
         .enumerate()
-        .filter(|(index, _)| graph.reachable[*index])
-        .filter_map(|(index, node)| call_bound(index, node, loops, bounds))
+        .filter(|(index, _)| site.graph.reachable[*index])
+        .filter_map(|(index, node)| call_bound(site, index, node, bounds))
         .collect()
 }
 
-fn call_bound(index: usize, node: &Node, loops: &[Loop], bounds: &[Bound]) -> Option<CallBound> {
-    let Action::Call { callee, .. } = &node.action else {
+fn call_bound(site: Site<'_>, index: usize, node: &Node, bounds: &[Bound]) -> Option<CallBound> {
+    let Action::Call {
+        callee,
+        target,
+        arguments,
+        ..
+    } = &node.action
+    else {
         return None;
     };
+    let loops = site.loops;
     let enclosing = loops
         .iter()
         .enumerate()
@@ -223,7 +230,50 @@ fn call_bound(index: usize, node: &Node, loops: &[Loop], bounds: &[Bound]) -> Op
     Some(CallBound {
         node: index as u32,
         callee: callee.clone(),
+        target: target.clone(),
         source: node.source.clone(),
         count: enclosing.map_or(Bound::Const(1), |(i, _)| bounds[i].clone()),
+        arguments: arguments
+            .iter()
+            .map(|argument| site.argument(index, argument))
+            .collect(),
     })
+}
+
+#[derive(Clone, Copy)]
+struct Site<'a> {
+    program: &'a Program,
+    graph: &'a Graph,
+    loops: &'a [Loop],
+}
+
+impl Site<'_> {
+    fn argument(&self, index: usize, argument: &Argument) -> ArgumentBound {
+        match argument {
+            Argument::Scalar(value) => self
+                .scalar(index, value)
+                .map_or(ArgumentBound::Unknown, ArgumentBound::Scalar),
+            Argument::Place { root, fields } => ArgumentBound::Place {
+                root: *root,
+                fields: fields.clone(),
+            },
+            Argument::Opaque => ArgumentBound::Unknown,
+        }
+    }
+
+    // Inside its cycle a guarded unit-step counter never exceeds the loop limit.
+    fn scalar(&self, index: usize, value: &Value) -> Option<Bound> {
+        if let Value::Variable(id) = value
+            && let Some(item) = self.loops.iter().find(|item| {
+                item.counter == *id && item.header != index && item.members.contains(&index)
+            })
+        {
+            let bits = self.program.variables.get(*id as usize)?.bits;
+            let at_header = values::Values::new(self.program, self.graph, item.header, bits);
+            return at_header.bound(&item.limit).ok();
+        }
+        values::Values::new(self.program, self.graph, index, 64)
+            .bound(value)
+            .ok()
+    }
 }

@@ -7,6 +7,8 @@ use rustc_span::sym;
 pub(super) struct Place {
     pub root: HirId,
     pub fields: Vec<usize>,
+    /// Named field path, for composing formal-rooted lengths across calls.
+    pub path: Vec<Field>,
     pub label: String,
 }
 impl Place {
@@ -93,14 +95,23 @@ fn place_at(ctx: &Context<'_>, expression: &Expr<'_>, remaining: usize) -> Optio
             Some(Place {
                 root,
                 fields: Vec::new(),
+                path: Vec::new(),
                 label: format!(
                     "len({})#{}",
-                    ctx.snippet(expression.span),
+                    compact(&ctx.snippet(expression.span)),
                     root.local_id.as_u32()
                 ),
             })
         }
-        ExprKind::Field(base, _) => field_place(ctx, expression, base, remaining - 1),
+        ExprKind::Field(base, name) => {
+            let mut place = field_place(ctx, expression, base, remaining - 1)?;
+            let index = ctx.typeck.field_index(expression.hir_id).as_u32();
+            place.path.push(Field {
+                index,
+                name: name.name.to_string(),
+            });
+            Some(place)
+        }
         ExprKind::Unary(hir::UnOp::Deref, base)
             if matches!(
                 ctx.typeck.expr_ty(base).kind(),
@@ -133,10 +144,15 @@ fn field_place(
         .push(ctx.typeck.field_index(expression.hir_id).as_usize());
     place.label = format!(
         "len({})#{}",
-        ctx.snippet(expression.span),
+        compact(&ctx.snippet(expression.span)),
         place.root.local_id.as_u32()
     );
     Some(place)
+}
+
+// Labels are identities; source line breaks and indentation are not part of them.
+fn compact(snippet: &str) -> String {
+    snippet.split_whitespace().collect()
 }
 
 pub(super) fn standard_adjustments(ctx: &Context<'_>, expression: &Expr<'_>) -> bool {
@@ -172,6 +188,6 @@ pub(super) fn iteration_receiver<'tcx>(
     extent_type(ctx, ctx.typeck.expr_ty(head)).then_some(head)
 }
 
-fn extent_type(ctx: &Context<'_>, ty: Ty<'_>) -> bool {
+pub(super) fn extent_type(ctx: &Context<'_>, ty: Ty<'_>) -> bool {
     shared_type(ty).is_some_and(|ty| matches!(ty.kind(), ty::Slice(_)) || is_vec(ctx, ty))
 }

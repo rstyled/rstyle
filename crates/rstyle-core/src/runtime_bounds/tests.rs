@@ -32,6 +32,15 @@ fn assign(variable: u32, next: u32) -> Node {
     )
 }
 
+fn opaque_call(callee: impl Into<String>, may_modify: bool) -> Action {
+    Action::Call {
+        callee: callee.into(),
+        target: Callee::Unresolved,
+        arguments: Vec::new(),
+        may_modify,
+    }
+}
+
 fn increment(variable: u32, next: u32) -> Node {
     node(Action::Increment { variable }, Flow::Goto(next))
 }
@@ -64,19 +73,15 @@ fn scan() -> Program {
         nodes: vec![
             assign(2, 1),
             guard(2, 0, 2, 4),
-            node(
-                Action::Call {
-                    callee: "visit".into(),
-                    may_modify: false,
-                },
-                Flow::Goto(3),
-            ),
+            node(opaque_call("visit", false), Flow::Goto(3)),
             increment(2, 1),
             node(Action::Nop, Flow::Return),
         ],
         entry: 0,
         loop_headers: vec![1],
         arithmetic: Arithmetic::Checked,
+        formals: Vec::new(),
+        extents: Vec::new(),
     }
 }
 
@@ -217,10 +222,7 @@ fn unsupported_predicates_aliasing_and_missing_widths_do_not_certify() {
         *condition = Condition::Unknown;
     }
     let mut alias = scan();
-    alias.nodes[2].action = Action::Call {
-        callee: "unknown".into(),
-        may_modify: true,
-    };
+    alias.nodes[2].action = opaque_call("unknown", true);
     let mut width = scan();
     width.variables[2].bits = 8;
     for program in [predicate, alias, width] {
@@ -445,15 +447,7 @@ fn unrelated_accumulator_increments_do_not_change_private_scan_bounds() {
 // consumer may stop the whole chain from inside the inner scan.
 fn callback_scan(early_exit: bool) -> Program {
     let mut program = scan();
-    let call = |callee: &str, next| {
-        node(
-            Action::Call {
-                callee: callee.into(),
-                may_modify: false,
-            },
-            Flow::Goto(next),
-        )
-    };
+    let call = |callee: &str, next| node(opaque_call(callee, false), Flow::Goto(next));
     program.nodes = vec![
         assign(2, 1),
         guard(2, 0, 2, 9),
@@ -524,9 +518,6 @@ fn callbacks_that_write_a_scan_limit_or_skip_the_reset_stay_unknown() {
     assert!(matches!(analyze(&persistent), Outcome::Unknown { .. }));
 
     let mut modifying = callback_scan(false);
-    modifying.nodes[5].action = Action::Call {
-        callee: "score".into(),
-        may_modify: true,
-    };
+    modifying.nodes[5].action = opaque_call("score", true);
     assert!(matches!(analyze(&modifying), Outcome::Unknown { .. }));
 }

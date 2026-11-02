@@ -141,15 +141,22 @@ impl<'a, 'tcx> Inspect<'a, 'tcx> {
 
     fn record_candidate(&mut self, expression: &'tcx Expr<'tcx>) {
         if let Some(receiver) = candidate(self.ctx, expression) {
-            if self.closures > 0 {
-                self.optional.push(receiver);
-            } else {
-                self.candidates.push(receiver);
-            }
-        } else if let ExprKind::MethodCall(_, receiver, [], _) = expression.kind
-            && extent::standard_method(self.ctx, expression, "iter")
-        {
+            self.record_required(receiver);
+            return;
+        }
+        let chain_root = chain_root(self.ctx, expression);
+        let optional = chain_root
+            .into_iter()
+            .chain(sized_arguments(self.ctx, expression));
+        self.optional.extend(optional);
+    }
+
+    // Candidates in a callback body are re-evaluated per invocation, so they stay optional.
+    fn record_required(&mut self, receiver: &'tcx Expr<'tcx>) {
+        if self.closures > 0 {
             self.optional.push(receiver);
+        } else {
+            self.candidates.push(receiver);
         }
     }
 
@@ -425,6 +432,31 @@ fn candidate<'tcx>(ctx: &Context<'tcx>, expression: &Expr<'tcx>) -> Option<&'tcx
     extent::iteration_receiver(ctx, parts.head)
 }
 
+fn chain_root<'tcx>(ctx: &Context<'tcx>, expression: &'tcx Expr<'tcx>) -> Option<&'tcx Expr<'tcx>> {
+    match expression.kind {
+        ExprKind::MethodCall(_, receiver, [], _)
+            if extent::standard_method(ctx, expression, "iter") =>
+        {
+            Some(receiver)
+        }
+        _ => None,
+    }
+}
+
+// Slice and `Vec` arguments may measure a callee's size during composition.
+fn sized_arguments<'tcx>(
+    ctx: &Context<'tcx>,
+    expression: &'tcx Expr<'tcx>,
+) -> impl Iterator<Item = &'tcx Expr<'tcx>> {
+    let arguments = match expression.kind {
+        ExprKind::Call(_, arguments) | ExprKind::MethodCall(_, _, arguments, _) => arguments,
+        _ => &[],
+    };
+    arguments
+        .iter()
+        .filter(move |argument| extent::extent_type(ctx, ctx.typeck.expr_ty_adjusted(argument)))
+}
+
 fn borrow_place(ctx: &Context<'_>, expression: &Expr<'_>) -> Option<Place> {
     borrow_place_at(ctx, expression, 256)
 }
@@ -438,6 +470,7 @@ fn borrow_place_at(ctx: &Context<'_>, expression: &Expr<'_>, remaining: usize) -
             Res::Local(root) => Some(Place {
                 root,
                 fields: Vec::new(),
+                path: Vec::new(),
                 label: String::new(),
             }),
             _ => None,

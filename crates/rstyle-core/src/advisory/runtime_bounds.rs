@@ -2,7 +2,7 @@
 use crate::runtime_bounds::Program;
 use serde::{Deserialize, Serialize};
 
-pub const KEY: &str = "rstyle.compiler-runtime-bounds/1";
+pub const KEY: &str = "rstyle.compiler-runtime-bounds/2";
 pub const CAPTURE_ENV: &str = "RSTYLE_COMPILER_RUNTIME_BOUNDS";
 pub const MAX_NODES: usize = 8192;
 pub const MAX_VARIABLES: usize = 1024;
