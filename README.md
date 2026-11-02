@@ -290,8 +290,11 @@ inputs replaced by per-invocation upper bounds of the caller's arguments.
 Lengths follow shared places and field paths, so passing `&g.edges` into a
 slice scan contributes `len(g.edges)`. Recursion, dynamic or generic dispatch,
 missing bodies, and sizes rooted in a callee local stay unknown. Standard-library
-bodies are outside this cost unit, and implicit drops and overloaded auto-deref
-are not counted; the report lists its assumptions. Results retain
+bodies are outside this cost unit only when they cannot call back into workspace
+code through a callable argument or a trait bound on a workspace type; such calls,
+workspace `Drop` glue and overloaded auto-deref into workspace impls stay unknown.
+Identities include the compilation, so lib, bin and test builds never share a
+summary. The report lists its assumptions. Results retain
 each compilation context, and `--top` selects rows independently of abstraction
 scores. Polynomial degree is a search heuristic, not a comparison of runtimes
 across independent input sizes. JSON retains the full result roster and the
