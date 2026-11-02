@@ -218,24 +218,10 @@ fn opaque(composition: &compose::Composition, kind: OpaqueKind) -> (String, Stri
 }
 
 fn eval(bound: &Bound, values: &[(&str, u64)]) -> u64 {
-    match bound {
-        Bound::Const(value) => *value,
-        Bound::Input(name) => {
-            values
-                .iter()
-                .find(|(n, _)| n == name)
-                .unwrap_or_else(|| panic!("unbound input {name}"))
-                .1
-        }
-        Bound::Add(items) => items.iter().map(|item| eval(item, values)).sum(),
-        Bound::Mul(items) => items.iter().map(|item| eval(item, values)).product(),
-        Bound::Max(items) => items
-            .iter()
-            .map(|item| eval(item, values))
-            .max()
-            .unwrap_or(0),
-        Bound::Opaque(opaque) => panic!("opaque factor {opaque:?} has no value"),
-    }
+    let lookup = |name: &str| values.iter().find(|(n, _)| *n == name).map(|(_, v)| *v);
+    bound
+        .evaluate(&lookup)
+        .unwrap_or_else(|| panic!("{bound} has an unbound input or opaque factor"))
 }
 
 fn linear() -> Program {

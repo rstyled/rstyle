@@ -115,20 +115,11 @@ fn proven(program: &Program) -> Assessment {
 }
 
 fn bound_value(bound: &Bound, n: u64, m: u64) -> u64 {
-    match bound {
-        Bound::Const(c) => *c,
-        Bound::Input(name) => {
-            if name == "n" {
-                n
-            } else {
-                m
-            }
-        }
-        Bound::Add(v) => v.iter().map(|b| bound_value(b, n, m)).sum(),
-        Bound::Mul(v) => v.iter().map(|b| bound_value(b, n, m)).product(),
-        Bound::Max(v) => v.iter().map(|b| bound_value(b, n, m)).max().unwrap_or(0),
-        Bound::Opaque(opaque) => panic!("opaque factor {opaque:?} has no value"),
-    }
+    // Every input other than `n` is `m`, as in the traced programs.
+    let value = |name: &str| Some(if name == "n" { n } else { m });
+    bound
+        .evaluate(&value)
+        .unwrap_or_else(|| panic!("opaque factor in {bound}"))
 }
 
 fn trace(program: &Program, n: u64, m: u64) -> u64 {

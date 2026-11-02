@@ -210,26 +210,13 @@ impl Report {
     }
 }
 
-// Degree is a search heuristic, not an ordering over multivariate runtimes.
-fn degree(row: &Row) -> usize {
+// Order is a search heuristic, not an ordering over multivariate runtimes.
+fn degree(row: &Row) -> (bool, runtime_bounds::Order) {
     let Some(Outcome::Proven(assessment) | Outcome::Partial(assessment)) = &row.evidence.result
     else {
-        return 0;
+        return (false, runtime_bounds::Order::default());
     };
-    bound_degree(&assessment.loop_body_entries).saturating_add(1)
-}
-
-fn bound_degree(bound: &runtime_bounds::Bound) -> usize {
-    use runtime_bounds::Bound;
-    match bound {
-        // An opaque factor's size is unknown, so it never raises the search degree.
-        Bound::Const(_) | Bound::Opaque(_) => 0,
-        Bound::Input(_) => 1,
-        Bound::Add(values) | Bound::Max(values) => {
-            values.iter().map(bound_degree).max().unwrap_or(0)
-        }
-        Bound::Mul(values) => values.iter().map(bound_degree).sum(),
-    }
+    (true, assessment.loop_body_entries.order())
 }
 
 // collect_inputs validated compiler observations before this report is evaluated.
@@ -336,41 +323,7 @@ fn render_composition(composition: &runtime_bounds::compose::Composition, label:
 }
 
 fn expression(bound: &runtime_bounds::Bound) -> String {
-    use runtime_bounds::Bound;
-    match bound {
-        Bound::Const(value) => value.to_string(),
-        Bound::Input(name) => name.clone(),
-        Bound::Opaque(opaque) => {
-            let kind = match opaque.kind {
-                runtime_bounds::OpaqueKind::Loop => "loop",
-                runtime_bounds::OpaqueKind::Call => "call",
-                runtime_bounds::OpaqueKind::Invocations => "invocations",
-                runtime_bounds::OpaqueKind::Input => "input",
-            };
-            format!("?{kind}({})", opaque.site)
-        }
-        Bound::Add(values) => values
-            .iter()
-            .map(expression)
-            .collect::<Vec<_>>()
-            .join(" + "),
-        Bound::Mul(values) => values
-            .iter()
-            .map(|value| {
-                let text = expression(value);
-                if matches!(value, Bound::Add(_)) {
-                    format!("({text})")
-                } else {
-                    text
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(" * "),
-        Bound::Max(values) => format!(
-            "max({})",
-            values.iter().map(expression).collect::<Vec<_>>().join(", ")
-        ),
-    }
+    bound.to_string()
 }
 
 #[cfg(test)]
@@ -385,7 +338,7 @@ mod tests {
             Add(vec![Input("m".into()), Const(1)]),
         ]);
         assert_eq!(expression(&bound), "n * (m + 1)");
-        assert_eq!(bound_degree(&bound), 2);
+        assert_eq!(bound.order().polynomial, 2);
     }
 
     // `while ? {}` at src/lib.rs:3:5: an unprovable loop in an otherwise empty owner.
@@ -476,7 +429,7 @@ mod tests {
             composed: Some(composer.composed("w::poll")),
             ..captured
         });
-        assert_eq!(degree(&partial), 1);
+        assert_eq!(degree(&partial), (true, runtime_bounds::Order::default()));
 
         let text = render_result(&partial);
         assert!(
@@ -522,6 +475,6 @@ mod tests {
             Bound::Input("m".into()),
         ]);
         assert_eq!(expression(&bound), "?call(w::f) * ?input(w::f::n) * m");
-        assert_eq!(bound_degree(&bound), 1);
+        assert_eq!(bound.order().polynomial, 1);
     }
 }

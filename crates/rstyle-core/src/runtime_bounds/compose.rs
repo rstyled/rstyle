@@ -332,6 +332,7 @@ impl Mapping<'_> {
                 .into_iter()
                 .fold(Bound::Const(1), Bound::mul),
             Bound::Max(items) => Bound::Max(self.all(items)?),
+            Bound::Log(value) => Bound::log(self.substitute(value)?),
         })
     }
 
@@ -458,6 +459,7 @@ fn simplified(bound: Bound) -> Bound {
                 .unwrap_or(Bound::Const(1))
         }
         Bound::Max(items) => Bound::Max(items.into_iter().map(simplified).collect()),
+        Bound::Log(value) => Bound::log(simplified(*value)),
         leaf => leaf,
     }
 }

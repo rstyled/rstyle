@@ -455,19 +455,9 @@ fn old_capture_cannot_silently_supply_runtime_bounds() {
 }
 
 fn value(bound: &rstyle_core::runtime_bounds::Bound) -> u64 {
-    use rstyle_core::runtime_bounds::Bound;
-    match bound {
-        Bound::Const(value) => *value,
-        Bound::Input(name) => {
-            if name.ends_with('m') {
-                5
-            } else {
-                3
-            }
-        }
-        Bound::Add(values) => values.iter().map(value).sum(),
-        Bound::Mul(values) => values.iter().map(value).product(),
-        Bound::Max(values) => values.iter().map(value).max().unwrap_or(0),
-        Bound::Opaque(opaque) => panic!("opaque factor {opaque:?} has no value"),
-    }
+    // Inputs named `...m` are 5 and all others 3.
+    let input = |name: &str| Some(if name.ends_with('m') { 5 } else { 3 });
+    bound
+        .evaluate(&input)
+        .unwrap_or_else(|| panic!("opaque factor in {bound}"))
 }
