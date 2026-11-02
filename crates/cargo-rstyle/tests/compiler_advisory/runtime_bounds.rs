@@ -54,6 +54,25 @@ fn opaque() {}
 pub fn unknown_call(n: usize) { let mut i = 0; while i < n { opaque(); i += 1; } }
 pub fn limitwrites(mut n: usize) { let mut i = 0; while i < n { n += 1; i += 1; } }
 pub fn overflow(n: u8) { let mut i = 0u8; while i <= n { i += 1; } }
+fn score(a: usize, b: usize) -> u32 { (a ^ b) as u32 }
+fn double(x: usize) -> usize { x * 2 }
+pub fn medoid_chain(wls: &[usize], group: &[usize]) -> usize { let total = |v: usize| -> u32 { group.iter().filter(|w| **w != v).map(|w| score(wls[v], wls[*w])).sum() }; group.iter().copied().min_by_key(|v| (u32::MAX - total(*v), *v)).expect("non-empty") }
+pub fn pair_chain(xs: &[usize]) -> u32 { xs.iter().enumerate().flat_map(|(i, a)| xs.iter().skip(i + 1).map(move |b| score(*a, *b))).sum() }
+pub fn item_callback(xs: &[usize]) -> usize { xs.iter().copied().map(double).sum() }
+pub fn range_chain(n: usize) -> u32 { (0..n).map(|i| score(i, i)).sum() }
+pub fn short_search(xs: &[usize]) -> bool { xs.iter().any(|x| score(*x, 1) > 3) }
+pub fn closure_return(xs: &[usize]) -> u32 { xs.iter().map(|x| { if *x == 0 { return 0; } score(*x, 0) }).sum() }
+pub fn mutable_callback_capture(xs: &[usize], n: usize) { let mut i = 0; xs.iter().for_each(|_| i += 1); while i < n { i += 1; } }
+pub fn escaped_closure(xs: &[usize]) -> usize { let f = |x: &usize| *x; let g = f; xs.iter().map(g).sum() }
+pub fn generic_callback<F: Fn(&usize) -> u32>(xs: &[usize], f: F) -> u32 { xs.iter().map(f).sum() }
+pub fn lazy_callback(xs: &[usize]) -> impl Iterator<Item = u32> + '_ { xs.iter().map(|x| score(*x, 0)) }
+pub fn mutable_source(xs: &mut Vec<usize>) -> usize { xs.iter().map(|x| *x).sum() }
+pub fn varying_inner(rows: &[Vec<u8>]) -> usize { rows.iter().flat_map(|row| row.iter()).count() }
+pub fn unsafe_callback(xs: &[usize]) -> usize { xs.iter().map(|x| unsafe { std::ptr::read_volatile(x) }).sum() }
+pub fn moved_mutable(xs: &[usize]) -> usize { let mut k = 0usize; k += 1; xs.iter().map(move |x| *x + k).sum() }
+pub struct Counter(usize);
+impl Iterator for Counter { type Item = usize; fn next(&mut self) -> Option<usize> { self.0 += 1; Some(self.0) } }
+pub fn user_iterator(c: Counter) -> u32 { c.take(3).map(|x| score(x, 0)).sum() }
 "#;
 
 fn runtime(report: &Value) -> &Value {
@@ -78,6 +97,7 @@ fn runtime_bounds_are_independent_replayable_owner_results() {
     assert!(output.status.success(), "{}", stdout(&output));
     assert_known(&original);
     assert_call(runtime(&original)["rows"].as_array().unwrap());
+    assert_callbacks(runtime(&original)["rows"].as_array().unwrap());
     assert_unknown(runtime(&original)["rows"].as_array().unwrap());
     assert_replay(directory.path(), &original);
 }
@@ -117,6 +137,13 @@ fn assert_known_bounds(rows: &[Value]) {
         ("shared_field_slice", 3),
         ("stable_slice_binding", 3),
         ("stable_len_guard", 3),
+        ("captured_closure", 3),
+        ("medoid_chain", 12),
+        ("pair_chain", 12),
+        ("item_callback", 3),
+        ("range_chain", 3),
+        ("short_search", 3),
+        ("closure_return", 3),
     ] {
         let row = named_row(rows, name);
         let bound: rstyle_core::runtime_bounds::Bound =
@@ -147,6 +174,34 @@ fn assert_call(rows: &[Value]) {
     );
 }
 
+// Callback invocation counts compose across inlined closures and nested resets.
+fn assert_callbacks(rows: &[Value]) {
+    for (name, callee, expected) in [
+        ("medoid_chain", "score", 9),
+        ("pair_chain", "score", 9),
+        ("item_callback", "double", 3),
+        ("range_chain", "score", 3),
+        ("short_search", "score", 3),
+    ] {
+        let assessment = &named_row(rows, name)["result"]["Proven"];
+        let calls = assessment["calls"].as_array().unwrap();
+        let call = calls
+            .iter()
+            .find(|call| call["callee"].as_str().unwrap().ends_with(callee))
+            .unwrap_or_else(|| panic!("{name}: {assessment}"));
+        let count: rstyle_core::runtime_bounds::Bound =
+            serde_json::from_value(call["count"].clone()).unwrap();
+        assert_eq!(value(&count), expected, "{name}: {count:?}");
+        assert!(
+            assessment["loops"][0]["source"]["evidence"]
+                .as_str()
+                .unwrap()
+                .contains("iterator chain"),
+            "{name}: {assessment}"
+        );
+    }
+}
+
 fn assert_unknown(rows: &[Value]) {
     for name in [
         "unknown_continue",
@@ -162,7 +217,6 @@ fn assert_unknown(rows: &[Value]) {
         "ergonomic_refmut",
         "metadata_rebind",
         "unsafe_body",
-        "captured_closure",
         "callee_continue",
         "callee_reset",
         "short_circuit_and",
@@ -172,6 +226,15 @@ fn assert_unknown(rows: &[Value]) {
         "guard_call",
         "loop_local_extent",
         "containing_rebind",
+        "mutable_callback_capture",
+        "escaped_closure",
+        "generic_callback",
+        "lazy_callback",
+        "mutable_source",
+        "varying_inner",
+        "unsafe_callback",
+        "moved_mutable",
+        "user_iterator",
     ] {
         let row = named_row(rows, name);
         assert!(row["result"].get("Unknown").is_some(), "{name}: {row}");

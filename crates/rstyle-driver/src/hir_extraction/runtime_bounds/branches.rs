@@ -54,7 +54,7 @@ impl<'tcx> Collector<'_, 'tcx> {
         }
     }
 
-    fn choice(&mut self, branches: (u32, u32), span: rustc_span::Span) -> u32 {
+    pub(super) fn choice(&mut self, branches: (u32, u32), span: rustc_span::Span) -> u32 {
         self.node(
             Action::Nop,
             Flow::Branch {

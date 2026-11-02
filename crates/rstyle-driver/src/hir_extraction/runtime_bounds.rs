@@ -1,5 +1,6 @@
 //! Bounded, typed HIR lowering for advisory runtime bounds. Never uses clone admission.
 mod branches;
+mod chains;
 mod control;
 mod extent;
 mod frame;
@@ -62,6 +63,8 @@ struct Collector<'a, 'tcx> {
     depth: usize,
     work: usize,
     extents: HashMap<String, String>,
+    closures: HashMap<HirId, &'tcx hir::Closure<'tcx>>,
+    returns: Vec<u32>,
 }
 
 impl<'a, 'tcx> Collector<'a, 'tcx> {
@@ -161,6 +164,8 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
             depth: 0,
             work: 0,
             extents: HashMap::new(),
+            closures: HashMap::new(),
+            returns: Vec::new(),
         }
     }
 
@@ -229,14 +234,22 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
     // Register before reverse lowering, retaining lexical assignment order in the CFG.
     fn register_locals(&mut self, statements: &[hir::Stmt<'tcx>]) {
         for statement in statements {
-            if let StmtKind::Let(local) = statement.kind
-                && let PatKind::Binding(hir::BindingMode(hir::ByRef::No, _), id, name, None) =
-                    local.pat.kind
-                && let Some(bits) = self.bits(self.ctx.typeck.pat_ty(local.pat))
-            {
-                let variable = self.variable(name.name.to_string(), Value::Unknown, bits);
-                self.locals.insert(id, variable);
+            if let StmtKind::Let(local) = statement.kind {
+                match local_closure(local) {
+                    Some((id, closure)) => _ = self.closures.insert(id, closure),
+                    None => self.register_local(local),
+                }
             }
+        }
+    }
+
+    fn register_local(&mut self, local: &hir::LetStmt<'tcx>) {
+        if let PatKind::Binding(hir::BindingMode(hir::ByRef::No, _), id, name, None) =
+            local.pat.kind
+            && let Some(bits) = self.bits(self.ctx.typeck.pat_ty(local.pat))
+        {
+            let variable = self.variable(name.name.to_string(), Value::Unknown, bits);
+            self.locals.insert(id, variable);
         }
     }
 
@@ -257,6 +270,12 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
     }
 
     fn local(&mut self, local: &'tcx hir::LetStmt<'tcx>, next: u32) -> u32 {
+        // Immutable local closures run only where they are directly invoked.
+        if let PatKind::Binding(_, id, _, None) = local.pat.kind
+            && self.closures.contains_key(&id)
+        {
+            return next;
+        }
         match self.local_action(local) {
             Ok(Some(action)) => self.local_assignment(local, action, next),
             Ok(None) => local.init.map_or(next, |value| self.expr(value, next)),
@@ -319,5 +338,21 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
             return false;
         }
         true
+    }
+}
+
+fn local_closure<'tcx>(local: &hir::LetStmt<'tcx>) -> Option<(HirId, &'tcx hir::Closure<'tcx>)> {
+    let PatKind::Binding(hir::BindingMode(hir::ByRef::No, hir::Mutability::Not), id, _, None) =
+        local.pat.kind
+    else {
+        return None;
+    };
+    match local.init?.kind {
+        ExprKind::Closure(closure)
+            if local.els.is_none() && matches!(closure.kind, hir::ClosureKind::Closure) =>
+        {
+            Some((id, closure))
+        }
+        _ => None,
     }
 }

@@ -13,6 +13,10 @@ struct Inspect<'a, 'tcx> {
     ctx: &'a Context<'tcx>,
     stable: HashMap<HirId, bool>,
     candidates: Vec<&'tcx Expr<'tcx>>,
+    // Optional extents are selected only when stable; unmodeled uses stay unknown.
+    optional: Vec<&'tcx Expr<'tcx>>,
+    callbacks: std::collections::HashSet<HirId>,
+    closures: usize,
     selected: Vec<Place>,
     reason: Option<String>,
     work: usize,
@@ -40,6 +44,9 @@ impl<'a, 'tcx> Inspect<'a, 'tcx> {
             ctx,
             stable: HashMap::new(),
             candidates: Vec::new(),
+            optional: Vec::new(),
+            callbacks: std::collections::HashSet::new(),
+            closures: 0,
             selected: Vec::new(),
             reason: forbidden_signature(ctx, owner)
                 .then(|| "Unsafe or foreign owner signature is unmodeled".into()),
@@ -77,9 +84,15 @@ impl<'a, 'tcx> Inspect<'a, 'tcx> {
 
     fn select_extents(&mut self) {
         let mut keys = std::collections::HashSet::new();
-        for expression in &self.candidates {
+        let required = self.candidates.iter().map(|e| (*e, true));
+        let optional = self.optional.iter().map(|e| (*e, false));
+        for (expression, required) in required.chain(optional).collect::<Vec<_>>() {
             if let Some(place) = extent::place(self.ctx, expression) {
-                if self.stable.get(&place.root) != Some(&true) {
+                let stable = self.stable.get(&place.root) == Some(&true);
+                if !required && !stable {
+                    continue;
+                }
+                if !stable {
                     self.reason = Some(
                         "Extent source is not a stable formal or immutable local outside loops"
                             .into(),
@@ -111,11 +124,13 @@ impl<'a, 'tcx> Inspect<'a, 'tcx> {
     }
 
     fn expression(&mut self, expression: &'tcx Expr<'tcx>) {
-        let reason = forbidden(self.ctx, expression)
+        self.admit_callbacks(expression);
+        let reason = (forbidden(self.ctx, expression) || self.unadmitted_closure(expression))
             .then_some("Unsafe, foreign, closure, assembly or coroutine semantics are unmodeled");
         if let Some(reason) = reason {
             self.reason = Some(reason.into());
         }
+
         let observe: fn(&mut Self, &'tcx Expr<'tcx>) = if self.validating {
             Self::check_borrow
         } else {
@@ -126,7 +141,83 @@ impl<'a, 'tcx> Inspect<'a, 'tcx> {
 
     fn record_candidate(&mut self, expression: &'tcx Expr<'tcx>) {
         if let Some(receiver) = candidate(self.ctx, expression) {
-            self.candidates.push(receiver);
+            if self.closures > 0 {
+                self.optional.push(receiver);
+            } else {
+                self.candidates.push(receiver);
+            }
+        } else if let ExprKind::MethodCall(_, receiver, [], _) = expression.kind
+            && extent::standard_method(self.ctx, expression, "iter")
+        {
+            self.optional.push(receiver);
+        }
+    }
+
+    // Callbacks are admitted only where lowering can resolve every invocation.
+    fn admit_callbacks(&mut self, expression: &'tcx Expr<'tcx>) {
+        if let ExprKind::MethodCall(_, _, arguments, _) = expression.kind
+            && super::chains::iterator_method(self.ctx, expression).is_some()
+        {
+            for argument in arguments {
+                if matches!(argument.kind, ExprKind::Closure(_)) {
+                    self.callbacks.insert(argument.hir_id);
+                }
+            }
+        }
+    }
+
+    fn unadmitted_closure(&self, expression: &Expr<'tcx>) -> bool {
+        match expression.kind {
+            ExprKind::Closure(closure) => {
+                !self.callbacks.contains(&expression.hir_id)
+                    || !matches!(closure.kind, hir::ClosureKind::Closure)
+            }
+            _ => false,
+        }
+    }
+
+    fn closure_body(&mut self, expression: &'tcx Expr<'tcx>) {
+        let ExprKind::Closure(closure) = expression.kind else {
+            return;
+        };
+        if self.unadmitted_closure(expression) {
+            return;
+        }
+        if self.validating {
+            self.check_captures(closure);
+        }
+
+        self.repeated_body(self.ctx.tcx.hir_body(closure.body));
+    }
+
+    // Each invocation re-evaluates the body, so its bindings are not stable extents.
+    fn repeated_body(&mut self, body: &'tcx hir::Body<'tcx>) {
+        self.callback_scope(1);
+        intravisit::walk_body(self, body);
+        self.callback_scope(-1);
+    }
+
+    fn callback_scope(&mut self, delta: isize) {
+        self.loops = self.loops.wrapping_add_signed(delta);
+        self.closures = self.closures.wrapping_add_signed(delta);
+    }
+
+    fn check_captures(&mut self, closure: &hir::Closure<'tcx>) {
+        for place in self.ctx.tcx.closure_captures(closure.def_id) {
+            let root = place.get_root_variable();
+            let problem = match place.info.capture_kind {
+                ty::UpvarCapture::ByRef(ty::BorrowKind::Immutable) => None,
+                ty::UpvarCapture::ByRef(_) => (uint_reference(place.place.ty())
+                    || self.selected.iter().any(|selected| selected.root == root))
+                .then_some("Mutable closure capture can expose a numeric norm or extent"),
+                ty::UpvarCapture::ByValue | ty::UpvarCapture::ByUse => {
+                    mutable_binding(self.ctx, root)
+                        .then_some("By-value closure capture of a mutable binding is unmodeled")
+                }
+            };
+            if let Some(reason) = problem {
+                self.reason = Some(reason.into());
+            }
         }
     }
 
@@ -144,10 +235,16 @@ impl<'a, 'tcx> Inspect<'a, 'tcx> {
     fn walk_expression(&mut self, expression: &'tcx Expr<'tcx>) {
         let looping = usize::from(matches!(expression.kind, ExprKind::Loop(..)));
         self.loops += looping;
-        if !matches!(expression.kind, ExprKind::Closure(_)) {
+        self.descend(expression);
+        self.leave_expression(looping);
+    }
+
+    fn descend(&mut self, expression: &'tcx Expr<'tcx>) {
+        if matches!(expression.kind, ExprKind::Closure(_)) {
+            self.closure_body(expression);
+        } else {
             intravisit::walk_expr(self, expression);
         }
-        self.leave_expression(looping);
     }
 
     fn leave_expression(&mut self, looping: usize) {
@@ -163,6 +260,12 @@ impl<'a, 'tcx> Inspect<'a, 'tcx> {
             None,
         ) = local.pat.kind
         {
+            if let Some(init) = local.init
+                && local.els.is_none()
+                && matches!(init.kind, ExprKind::Closure(_))
+            {
+                self.callbacks.insert(init.hir_id);
+            }
             self.stable
                 .insert(id, self.loops == 0 && local.init.is_some());
         }
@@ -300,11 +403,18 @@ impl<'tcx> Visitor<'tcx> for Inspect<'_, 'tcx> {
     }
 }
 
-fn uint_reference(mut ty: Ty<'_>) -> bool {
-    while let ty::Ref(_, inner, _) = ty.kind() {
-        ty = *inner;
-    }
-    matches!(ty.kind(), ty::Uint(_))
+fn mutable_binding(ctx: &Context<'_>, id: HirId) -> bool {
+    !matches!(
+        ctx.tcx.hir_node(id),
+        hir::Node::Pat(hir::Pat {
+            kind: PatKind::Binding(hir::BindingMode(_, hir::Mutability::Not), ..),
+            ..
+        })
+    )
+}
+
+fn uint_reference(ty: Ty<'_>) -> bool {
+    matches!(ty.peel_refs().kind(), ty::Uint(_))
 }
 
 fn candidate<'tcx>(ctx: &Context<'tcx>, expression: &Expr<'tcx>) -> Option<&'tcx Expr<'tcx>> {
@@ -348,10 +458,7 @@ fn borrow_place_at(ctx: &Context<'_>, expression: &Expr<'_>, remaining: usize) -
 
 fn forbidden(ctx: &Context<'_>, expression: &Expr<'_>) -> bool {
     match expression.kind {
-        ExprKind::Closure(_)
-        | ExprKind::InlineAsm(_)
-        | ExprKind::Yield(..)
-        | ExprKind::UnsafeBinderCast(..) => true,
+        ExprKind::InlineAsm(_) | ExprKind::Yield(..) | ExprKind::UnsafeBinderCast(..) => true,
         ExprKind::Block(block, _) => matches!(block.rules, hir::BlockCheckMode::UnsafeBlock(_)),
         ExprKind::Call(callee, _) => foreign_call(ctx, callee),
         ExprKind::MethodCall(..) => ctx

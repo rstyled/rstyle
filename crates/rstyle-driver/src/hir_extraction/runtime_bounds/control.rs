@@ -40,7 +40,11 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
         let ExprKind::Ret(value) = expression.kind else {
             unreachable!()
         };
-        let end = self.node(Action::Nop, Flow::Return, expression.span);
+        // Inlined callback returns resume at the invocation point, not the owner's exit.
+        let end = match self.returns.last() {
+            Some(&resume) => resume,
+            None => self.node(Action::Nop, Flow::Return, expression.span),
+        };
         value.map_or(end, |value| self.expr(value, end))
     }
 
@@ -105,7 +109,30 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
             ExprKind::Path(ref path) => self.ctx.typeck.qpath_res(path, callee.hir_id),
             _ => Res::Err,
         };
+        match resolved {
+            Res::Local(id) if self.closures.contains_key(&id) => {
+                let closure = self.closures[&id];
+                self.closure_call(closure, arguments, next)
+            }
+            _ => self.resolved_call(expression, resolved, next),
+        }
+    }
 
+    // Arguments are evaluated before the inlined body runs.
+    fn closure_call(
+        &mut self,
+        closure: &'tcx hir::Closure<'tcx>,
+        arguments: &'tcx [Expr<'tcx>],
+        next: u32,
+    ) -> u32 {
+        let body = self.inline(closure, next);
+        self.arguments(arguments, body)
+    }
+
+    fn resolved_call(&mut self, expression: &'tcx Expr<'tcx>, resolved: Res, next: u32) -> u32 {
+        let ExprKind::Call(callee, arguments) = expression.kind else {
+            unreachable!()
+        };
         let name = match resolved {
             Res::Def(_, id) => self.ctx.tcx.def_path_str(id),
             _ => "indirect call".into(),
@@ -124,16 +151,42 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
     }
 
     pub(super) fn arguments(&mut self, arguments: &'tcx [Expr<'tcx>], next: u32) -> u32 {
-        arguments
+        self.sequence(arguments, next, Self::expr)
+    }
+
+    /// Lowers `items` in evaluation order, built backward from `next`.
+    pub(super) fn sequence<T>(
+        &mut self,
+        items: &'tcx [T],
+        next: u32,
+        lower: fn(&mut Self, &'tcx T, u32) -> u32,
+    ) -> u32 {
+        items
             .iter()
             .rev()
-            .fold(next, |entry, arg| self.expr(arg, entry))
+            .fold(next, |entry, item| lower(self, item, entry))
     }
 
     fn method_call(&mut self, expression: &'tcx Expr<'tcx>, next: u32) -> u32 {
         if self.extent_value(expression).is_some() {
             return next;
         }
+        match self.modeled_method(expression, next) {
+            Some(entry) => entry,
+            None => self.method_invocation(expression, next),
+        }
+    }
+
+    fn modeled_method(&mut self, expression: &'tcx Expr<'tcx>, next: u32) -> Option<u32> {
+        if let Some(entry) = self.iterator_chain(expression, next) {
+            return Some(entry);
+        }
+        let reason = "Iterator callback or chain has no resolved standard model";
+        self.unresolved_callback(expression)
+            .then(|| self.unsupported(expression.span, next, reason))
+    }
+
+    fn method_invocation(&mut self, expression: &'tcx Expr<'tcx>, next: u32) -> u32 {
         let ExprKind::MethodCall(_, receiver, arguments, _) = expression.kind else {
             unreachable!()
         };

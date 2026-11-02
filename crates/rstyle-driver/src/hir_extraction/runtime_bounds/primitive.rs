@@ -29,7 +29,8 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
             ExprKind::Tup(_) | ExprKind::Array(_) => Self::aggregate,
             ExprKind::Struct(..) => Self::structure,
             ExprKind::Let(_) => Self::let_expression,
-            ExprKind::Lit(_) | ExprKind::Path(_) | ExprKind::OffsetOf(..) => Self::skip,
+            ExprKind::Path(_) => Self::path,
+            ExprKind::Lit(_) | ExprKind::OffsetOf(..) => Self::skip,
             _ => Self::unmodeled,
         }
     }
@@ -56,6 +57,21 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
             _ => unreachable!(),
         };
         self.expr(inner, next)
+    }
+
+    // A local closure value used other than by direct call could run unboundedly elsewhere.
+    fn path(&mut self, expression: &'tcx Expr<'tcx>, next: u32) -> u32 {
+        let ExprKind::Path(ref path) = expression.kind else {
+            unreachable!()
+        };
+        match self.ctx.typeck.qpath_res(path, expression.hir_id) {
+            Res::Local(id) if self.closures.contains_key(&id) => self.unsupported(
+                expression.span,
+                next,
+                "Local closure escapes direct invocation",
+            ),
+            _ => next,
+        }
     }
 
     fn skip(&mut self, _expression: &'tcx Expr<'tcx>, next: u32) -> u32 {

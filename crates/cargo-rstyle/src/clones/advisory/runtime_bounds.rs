@@ -63,6 +63,7 @@ pub(super) fn evaluate(ctx: &Context<'_>, unit: UnitId) -> Option<Report> {
         limitations: &[
             "Bounds count loop-body entries and modeled call-site invocations; whole runtime remains unknown.",
             "Compiler-resolved collection length and traversal adapters are abstracted, excluded from modeled call counts.",
+            "Resolved standard iterator chains over stable extents or primitive ranges are synthetic scans; callbacks are inlined and counted at most once per pulled item.",
             "An upper bound does not establish tightness; high polynomial degree alone is not repeated-scan evidence.",
         ],
         selected: (0..rows
@@ -143,7 +144,7 @@ impl Report {
             })
             .collect();
         format!(
-            "\nRuntime upper bounds for unit {} (loop-body entries and modeled call-site invocations; input complete={}):{rows}\nCollection length and traversal adapters are abstracted, excluded from call counts.\nUpper bounds do not establish tightness or repeated scans.\n",
+            "\nRuntime upper bounds for unit {} (loop-body entries and modeled call-site invocations; input complete={}):{rows}\nCollection length and traversal adapters are abstracted, excluded from call counts; iterator callbacks are inlined.\nUpper bounds do not establish tightness or repeated scans.\n",
             unit.ordinal(),
             self.input_complete
         )
