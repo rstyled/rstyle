@@ -74,7 +74,8 @@ pub(super) fn evaluate(ctx: &Context<'_>, unit: UnitId) -> Option<Report> {
             "Bounds count loop-body entries and modeled call-site invocations; whole runtime remains unknown.",
             "Compiler-resolved collection length and traversal adapters are abstracted, excluded from modeled call counts.",
             "Resolved standard iterator chains over stable extents or primitive ranges are synthetic scans; callbacks are inlined and counted at most once per pulled item.",
-            "Composed results add resolved workspace callee summaries; standard-library bodies are outside that cost unit, and recursive, unresolved or unmappable callees stay unknown.",
+            "Partial results are sound bounds in which unproven loops contribute opaque ?loop(site) factors per entry of their enclosing loop; whole-owner failures stay unknown.",
+            "Composed results add resolved workspace callee summaries; standard-library bodies are outside that cost unit, and recursive, unresolved or unmappable callees contribute opaque ?call or ?input factors.",
             "An upper bound does not establish tightness; high polynomial degree alone is not repeated-scan evidence.",
         ],
         selected: (0..rows
@@ -211,7 +212,8 @@ impl Report {
 
 // Degree is a search heuristic, not an ordering over multivariate runtimes.
 fn degree(row: &Row) -> usize {
-    let Some(Outcome::Proven(assessment)) = &row.evidence.result else {
+    let Some(Outcome::Proven(assessment) | Outcome::Partial(assessment)) = &row.evidence.result
+    else {
         return 0;
     };
     bound_degree(&assessment.loop_body_entries).saturating_add(1)
@@ -220,7 +222,8 @@ fn degree(row: &Row) -> usize {
 fn bound_degree(bound: &runtime_bounds::Bound) -> usize {
     use runtime_bounds::Bound;
     match bound {
-        Bound::Const(_) => 0,
+        // An opaque factor's size is unknown, so it never raises the search degree.
+        Bound::Const(_) | Bound::Opaque(_) => 0,
         Bound::Input(_) => 1,
         Bound::Add(values) | Bound::Max(values) => {
             values.iter().map(bound_degree).max().unwrap_or(0)
@@ -267,49 +270,51 @@ fn render_result(row: &Row) -> String {
         (_, Some(reason)) => format!("missing: {reason}"),
         (Some(Outcome::Unknown { reason }), _) => format!("unknown: {reason}"),
         (Some(Outcome::BudgetExceeded { reason }), _) => format!("budget exhausted: {reason}"),
-        (Some(Outcome::Proven(assessment)), _) => {
-            let loops: String = assessment
-                .loops
-                .iter()
-                .map(|item| {
-                    let source = item.source.as_ref().map_or_else(String::new, |source| {
-                        format!("{}:{}:{}: ", source.file, source.line, source.column)
-                    });
-                    format!(
-                        "\n  {source}loop body entries <= {}",
-                        expression(&item.body_entries)
-                    )
-                })
-                .collect();
-            let calls: String = assessment
-                .calls
-                .iter()
-                .map(|item| {
-                    format!(
-                        "\n  {} invocations <= {}",
-                        item.callee,
-                        expression(&item.count)
-                    )
-                })
-                .collect();
-            format!(
-                "loop body entries <= {}; whole runtime {}{loops}{calls}{}",
-                expression(&assessment.loop_body_entries),
-                assessment.whole_runtime,
-                render_composed(row.evidence.composed.as_ref())
-            )
-        }
+        (Some(Outcome::Proven(assessment)), _) => render_assessment(row, assessment, ""),
+        (Some(Outcome::Partial(assessment)), _) => render_assessment(row, assessment, "partial: "),
         _ => "missing result".into(),
     }
 }
 
+fn render_assessment(row: &Row, assessment: &runtime_bounds::Assessment, label: &str) -> String {
+    let loops: String = assessment.loops.iter().map(render_loop).collect();
+    let calls: String = assessment
+        .calls
+        .iter()
+        .map(|item| {
+            format!(
+                "\n  {} invocations <= {}",
+                item.callee,
+                expression(&item.count)
+            )
+        })
+        .collect();
+    format!(
+        "{label}loop body entries <= {}; whole runtime {}{loops}{calls}{}",
+        expression(&assessment.loop_body_entries),
+        assessment.whole_runtime,
+        render_composed(row.evidence.composed.as_ref())
+    )
+}
+
+fn render_loop(item: &runtime_bounds::LoopBound) -> String {
+    let source = item.source.as_ref().map_or_else(String::new, |source| {
+        format!("{}:{}:{}: ", source.file, source.line, source.column)
+    });
+    let opaque = item
+        .opaque
+        .as_ref()
+        .map_or_else(String::new, |reason| format!(" (opaque: {reason})"));
+    format!(
+        "\n  {source}loop body entries <= {}{opaque}",
+        expression(&item.body_entries)
+    )
+}
+
 fn render_composed(composed: Option<&Composed>) -> String {
     match composed {
-        Some(Composed::Proven(composition)) => format!(
-            "\n  composed workspace loop body entries <= {}; workspace invocations <= {}",
-            expression(&composition.loop_body_entries),
-            expression(&composition.workspace_invocations)
-        ),
+        Some(Composed::Proven(composition)) => render_composition(composition, ""),
+        Some(Composed::Partial(composition)) => render_composition(composition, " (partial)"),
         Some(Composed::Unknown { reason }) => format!("\n  composed: unknown: {reason}"),
         Some(Composed::BudgetExceeded { reason }) => {
             format!("\n  composed: budget exhausted: {reason}")
@@ -318,11 +323,32 @@ fn render_composed(composed: Option<&Composed>) -> String {
     }
 }
 
+fn render_composition(composition: &runtime_bounds::compose::Composition, label: &str) -> String {
+    let opaque: String = composition
+        .opaque_factors
+        .iter()
+        .map(|factor| format!("\n    opaque {}: {}", factor.site, factor.reason))
+        .collect();
+    format!(
+        "\n  composed{label} workspace loop body entries <= {}; workspace invocations <= {}{opaque}",
+        expression(&composition.loop_body_entries),
+        expression(&composition.workspace_invocations)
+    )
+}
+
 fn expression(bound: &runtime_bounds::Bound) -> String {
     use runtime_bounds::Bound;
     match bound {
         Bound::Const(value) => value.to_string(),
         Bound::Input(name) => name.clone(),
+        Bound::Opaque(opaque) => {
+            let kind = match opaque.kind {
+                runtime_bounds::OpaqueKind::Loop => "loop",
+                runtime_bounds::OpaqueKind::Call => "call",
+                runtime_bounds::OpaqueKind::Input => "input",
+            };
+            format!("?{kind}({})", opaque.site)
+        }
         Bound::Add(values) => values
             .iter()
             .map(expression)

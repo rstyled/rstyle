@@ -164,9 +164,16 @@ impl Default for Limits {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Outcome {
+    /// Every loop and call count is bounded by inputs and constants.
     Proven(Assessment),
-    Unknown { reason: String },
-    BudgetExceeded { reason: String },
+    /// Sound bounds in which some unproven loops contribute opaque factors.
+    Partial(Assessment),
+    Unknown {
+        reason: String,
+    },
+    BudgetExceeded {
+        reason: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -183,6 +190,9 @@ pub struct LoopBound {
     pub header: u32,
     pub source: Option<Source>,
     pub body_entries: Bound,
+    /// Why this loop's body entries are bounded only by an opaque factor.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub opaque: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

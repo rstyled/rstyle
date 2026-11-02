@@ -187,11 +187,21 @@ fn proven(composed: Composed) -> compose::Composition {
     }
 }
 
-fn unknown(composed: Composed) -> String {
+fn partial(composed: Composed) -> compose::Composition {
     match composed {
-        Composed::Unknown { reason } => reason,
+        Composed::Partial(composition) => composition,
         other => panic!("{other:?}"),
     }
+}
+
+/// The single opaque factor's site and reason, checked against the bound.
+fn opaque(composition: &compose::Composition, kind: OpaqueKind) -> (String, String) {
+    let [factor] = composition.opaque_factors.as_slice() else {
+        panic!("{composition:?}");
+    };
+    assert_eq!(factor.kind, kind);
+    assert!(!composition.loop_body_entries.is_complete());
+    (factor.site.clone(), factor.reason.clone())
 }
 
 fn eval(bound: &Bound, values: &[(&str, u64)]) -> u64 {
@@ -211,6 +221,7 @@ fn eval(bound: &Bound, values: &[(&str, u64)]) -> u64 {
             .map(|item| eval(item, values))
             .max()
             .unwrap_or(0),
+        Bound::Opaque(opaque) => panic!("opaque factor {opaque:?} has no value"),
     }
 }
 
@@ -365,7 +376,7 @@ fn synthesized_lengths_compose_through_intermediate_callers() {
 }
 
 #[test]
-fn recursion_unresolved_dispatch_and_missing_bodies_stay_unknown() {
+fn recursion_unresolved_dispatch_and_missing_bodies_are_opaque_calls() {
     let a = Shape::new(&[])
         .calls(vec![call("w::b", Vec::new())])
         .program();
@@ -373,32 +384,58 @@ fn recursion_unresolved_dispatch_and_missing_bodies_stay_unknown() {
         .calls(vec![call("w::a", Vec::new())])
         .program();
     let owners = || vec![("w::a", a.clone()), ("w::b", b.clone())];
-    assert!(unknown(compose(owners(), "w::a")).contains("Recursive"));
-    assert!(unknown(compose(owners(), "w::b")).contains("Recursive"));
+    let (site, reason) = opaque(&partial(compose(owners(), "w::a")), OpaqueKind::Call);
+    assert_eq!(site, "w::a");
+    assert!(reason.contains("Recursive"), "{reason}");
+    let (_, reason) = opaque(&partial(compose(owners(), "w::b")), OpaqueKind::Call);
+    assert!(reason.contains("Recursive"), "{reason}");
 
     let dispatch = Shape::new(&[]).calls(vec![call("?", Vec::new())]).program();
-    assert!(unknown(compose(vec![("w::d", dispatch)], "w::d")).contains("Unresolved"));
+    let dispatched = partial(compose(vec![("w::d", dispatch)], "w::d"));
+    let (_, reason) = opaque(&dispatched, OpaqueKind::Call);
+    assert!(reason.contains("Unresolved"), "{reason}");
 
     let missing = Shape::new(&[])
         .calls(vec![call("dep::f", Vec::new())])
         .program();
-    assert!(unknown(compose(vec![("w::m", missing)], "w::m")).contains("No captured summary"));
+    let (_, reason) = opaque(
+        &partial(compose(vec![("w::m", missing)], "w::m")),
+        OpaqueKind::Call,
+    );
+    assert!(reason.contains("No captured summary"), "{reason}");
 
-    let unknown_local = Shape::new(&["n"]).scalars().scan("n").program();
-    let mut unknown_local = unknown_local;
+    let mut unknown_local = Shape::new(&["n"]).scalars().scan("n").program();
     unknown_local.nodes[2].action = Action::Unsupported { reason: "x".into() };
-    let caller = Shape::new(&[])
+    let caller = Shape::new(&["m"])
+        .scalars()
+        .scan("m")
         .calls(vec![call("w::u", Vec::new())])
         .program();
-    let reason = unknown(compose(
-        vec![("w::u", unknown_local), ("w::c", caller)],
-        "w::c",
-    ));
+    let owners = vec![("w::u", unknown_local.clone()), ("w::c", caller)];
+    let result = partial(compose(owners, "w::c"));
+    let (_, reason) = opaque(&result, OpaqueKind::Call);
     assert!(reason.contains("Local bounds of w::u"), "{reason}");
+    // The proven caller loop still multiplies the opaque callee: m + m * ?call(w::u).
+    assert_eq!(
+        result.loop_body_entries,
+        Bound::Add(vec![
+            Bound::Input("m".into()),
+            Bound::Mul(vec![
+                Bound::Input("m".into()),
+                Bound::opaque(OpaqueKind::Call, "w::u")
+            ]),
+        ])
+    );
+
+    // An owner whose own local bounds are unknown has no composed bound.
+    assert!(matches!(
+        compose(vec![("w::u", unknown_local)], "w::u"),
+        Composed::Unknown { .. }
+    ));
 }
 
 #[test]
-fn unmappable_callee_inputs_stay_unknown_but_unused_ones_do_not() {
+fn unmappable_callee_inputs_are_opaque_but_unused_ones_are_not() {
     let local = Shape::new(&["len(v)#9"])
         .extent("len(v)#9", Root::Local(9), Vec::new())
         .scan("len(v)#9")
@@ -406,19 +443,21 @@ fn unmappable_callee_inputs_stay_unknown_but_unused_ones_do_not() {
     let caller = Shape::new(&[])
         .calls(vec![call("w::local", Vec::new())])
         .program();
-    let reason = unknown(compose(vec![("w::local", local), ("w::c", caller)], "w::c"));
+    let result = partial(compose(vec![("w::local", local), ("w::c", caller)], "w::c"));
+    let (site, reason) = opaque(&result, OpaqueKind::Input);
+    assert_eq!(site, "w::local::len(v)#9");
     assert!(reason.contains("callee local"), "{reason}");
 
-    let opaque = Shape::new(&[])
+    let unbounded = Shape::new(&[])
         .calls(vec![call(
             "w::linear",
             vec![Argument::Scalar(Value::Unknown)],
         )])
         .program();
-    let reason = unknown(compose(
-        vec![("w::linear", linear()), ("w::c", opaque)],
-        "w::c",
-    ));
+    let owners = vec![("w::linear", linear()), ("w::c", unbounded)];
+    let result = partial(compose(owners, "w::c"));
+    let (site, reason) = opaque(&result, OpaqueKind::Input);
+    assert_eq!(site, "w::linear::n");
     assert!(reason.contains("no upper bound"), "{reason}");
 
     let constant = Shape::new(&["n"]).scalars().program();
@@ -427,7 +466,10 @@ fn unmappable_callee_inputs_stay_unknown_but_unused_ones_do_not() {
         .program();
     let result = proven(compose(vec![("w::k", constant), ("w::c", caller)], "w::c"));
     assert_eq!(result.loop_body_entries, Bound::Const(0));
+}
 
+#[test]
+fn lengths_under_unshared_formals_are_opaque() {
     let not_shared = Shape::new(&[])
         .formals(vec![Formal {
             name: "x".into(),
@@ -445,10 +487,11 @@ fn unmappable_callee_inputs_stay_unknown_but_unused_ones_do_not() {
         .extent("len(xs)#2", Root::Formal(0), Vec::new())
         .scan("len(xs)#2")
         .program();
-    let reason = unknown(compose(
+    let result = partial(compose(
         vec![("w::walk", walk), ("w::c", not_shared)],
         "w::c",
     ));
+    let (_, reason) = opaque(&result, OpaqueKind::Input);
     assert!(reason.contains("not a shared reference"), "{reason}");
 }
 

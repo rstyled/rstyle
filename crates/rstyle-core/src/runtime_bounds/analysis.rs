@@ -16,6 +16,10 @@ pub(super) struct Loop {
     counter: u32,
     limit: Value,
     increment: usize,
+    // Why this loop is bounded only by an opaque factor.
+    opaque: Option<String>,
+    // A declared loop without a backedge: one body entry per enclosing entry.
+    once: bool,
 }
 
 pub(super) enum Failure {
@@ -31,7 +35,10 @@ pub(super) fn unknown(reason: &str) -> Failure {
 
 pub(super) fn analyze(program: &Program, limits: Limits) -> Outcome {
     match assess(program, limits) {
-        Ok(assessment) => Outcome::Proven(assessment),
+        Ok(assessment) if assessment.loops.iter().all(|item| item.opaque.is_none()) => {
+            Outcome::Proven(assessment)
+        }
+        Ok(assessment) => Outcome::Partial(assessment),
         Err(Failure::Unknown(reason)) => Outcome::Unknown { reason },
         Err(Failure::Budget(reason)) => Outcome::BudgetExceeded { reason },
     }
@@ -41,10 +48,10 @@ fn assess(program: &Program, limits: Limits) -> Checked<Assessment> {
     validate(program, limits)?;
     let graph = Graph::new(program)?;
     let graph = graph.dominance(program.entry as usize, limits.iterations)?;
-    let loops = loops::discover(program, &graph)?;
-    loops::validate(program, &graph, &loops)?;
+    let mut loops = loops::discover(program, &graph)?;
+    loops::validate(program, &graph, &mut loops)?;
 
-    let bounds = loops::bounds(program, &graph, &loops, limits)?;
+    let bounds = loops::bounds(program, &graph, &mut loops, limits)?;
 
     let site = Site {
         program,
@@ -70,6 +77,7 @@ fn assess(program: &Program, limits: Limits) -> Checked<Assessment> {
                 header: item.header as u32,
                 source: program.nodes[item.header].source.clone(),
                 body_entries,
+                opaque: item.opaque.clone(),
             })
             .collect(),
         calls,
@@ -265,7 +273,10 @@ impl Site<'_> {
     fn scalar(&self, index: usize, value: &Value) -> Option<Bound> {
         if let Value::Variable(id) = value
             && let Some(item) = self.loops.iter().find(|item| {
-                item.counter == *id && item.header != index && item.members.contains(&index)
+                item.opaque.is_none()
+                    && item.counter == *id
+                    && item.header != index
+                    && item.members.contains(&index)
             })
         {
             let bits = self.program.variables.get(*id as usize)?.bits;
