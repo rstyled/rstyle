@@ -74,8 +74,8 @@ struct Summary {
     opaque: Opaques,
 }
 
-// Opaque factors by site, with their kind and reason.
-type Opaques = BTreeMap<String, (OpaqueKind, String)>;
+// Reasons for opaque factors, by kind and site.
+type Opaques = BTreeMap<(OpaqueKind, String), String>;
 
 enum State {
     Active,
@@ -92,7 +92,7 @@ fn composition(summary: Summary) -> Composition {
     let opaque_factors = summary
         .opaque
         .into_iter()
-        .map(|(site, (kind, reason))| OpaqueFactor { kind, site, reason })
+        .map(|((kind, site), reason)| OpaqueFactor { kind, site, reason })
         .collect();
     Composition {
         cost_scope: COST_SCOPE.into(),
@@ -237,7 +237,7 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
         let loops = mapping.substitute(&callee.loops)?;
         let invocations = mapping.substitute(&callee.invocations)?;
         Ok(Contribution {
-            target: target.into(),
+            target: Some(target.into()),
             count: call.count.clone(),
             loops,
             invocations,
@@ -249,7 +249,8 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
 }
 
 struct Contribution {
-    target: String,
+    // The resolved callee; none for a callee charged only opaque factors.
+    target: Option<String>,
     count: Bound,
     loops: Bound,
     opaque: Opaques,
@@ -289,9 +290,9 @@ impl Summary {
         Ok(())
     }
 
-    fn merge(&mut self, target: String, callee: Summary, extras: (Introduced, Opaques)) {
+    fn merge(&mut self, target: Option<String>, callee: Summary, extras: (Introduced, Opaques)) {
         self.callees
-            .extend(std::iter::once(target).chain(callee.callees));
+            .extend(target.into_iter().chain(callee.callees));
         self.library.extend(callee.library);
         let opaque = callee.opaque.into_iter().chain(extras.1).collect();
         self.extend((extras.0, opaque));
@@ -415,7 +416,7 @@ impl Mapping<'_> {
         let site = format!("{}::{name}", self.call.callee);
         self.opaque
             .borrow_mut()
-            .insert(site.clone(), (OpaqueKind::Input, reason));
+            .insert((OpaqueKind::Input, site.clone()), reason);
         Ok(Bound::opaque(OpaqueKind::Input, site))
     }
 
@@ -489,37 +490,30 @@ fn opaque_call(call: &CallBound, failure: Failure) -> Contribution {
         Failure::Unknown(reason) | Failure::Budget(reason) => reason,
     };
     let site = call.callee.clone();
+    let factor = |kind| ((kind, site.clone()), reason.clone());
     Contribution {
-        target: site.clone(),
+        target: None,
         count: call.count.clone(),
         loops: Bound::opaque(OpaqueKind::Call, site.clone()),
-        opaque: BTreeMap::from([(site, (OpaqueKind::Call, reason))]),
-        invocations: Bound::Const(0),
+        // Its own invocations are unknown too, beyond the one counted for this call.
+        invocations: Bound::opaque(OpaqueKind::Invocations, site.clone()),
+        opaque: BTreeMap::from([factor(OpaqueKind::Call), factor(OpaqueKind::Invocations)]),
         introduced: BTreeMap::new(),
         callee: Summary::empty(),
     }
 }
 
-// An owner's own unproven loops, by the site its engine assessment recorded.
+// An owner's own unproven loops, recorded even when a zero parent bound erased them.
 fn local_opaque(assessment: &Assessment) -> Opaques {
     assessment
         .loops
         .iter()
-        .filter_map(|item| {
-            let reason = item.opaque.clone()?;
-            Some((own_site(&item.body_entries)?, (OpaqueKind::Loop, reason)))
+        .filter_map(|item| item.opaque.as_ref())
+        .map(|opaque| {
+            (
+                (OpaqueKind::Loop, opaque.site.clone()),
+                opaque.reason.clone(),
+            )
         })
         .collect()
-}
-
-// An opaque loop's entries are its own factor, alone or times its parent's bound.
-fn own_site(entries: &Bound) -> Option<String> {
-    let factor = match entries {
-        Bound::Mul(items) => items.last()?,
-        other => other,
-    };
-    match factor {
-        Bound::Opaque(opaque) if opaque.kind == OpaqueKind::Loop => Some(opaque.site.clone()),
-        _ => None,
-    }
 }

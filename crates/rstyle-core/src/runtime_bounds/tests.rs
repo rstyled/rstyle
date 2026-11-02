@@ -605,12 +605,8 @@ fn changed_limits_stray_increments_and_nested_unprovable_loops_are_opaque() {
     stray.nodes[4] = increment(2, 5);
     stray.nodes.push(node(Action::Nop, Flow::Return));
     let result = partial(&stray);
-    assert!(
-        result.loops[0]
-            .opaque
-            .as_deref()
-            .is_some_and(|reason| reason.contains("no-overflow"))
-    );
+    let opaque = result.loops[0].opaque.as_ref().unwrap();
+    assert!(opaque.reason.contains("no-overflow"), "{opaque:?}");
 
     let mut inner = nested(true);
     inner.nodes[4].flow = Flow::Branch {
@@ -706,4 +702,44 @@ fn reset_scans_reentered_by_a_middle_loop_charge_early_exits() {
     let partial = partial(&reset_under_middle(true));
     let scan = partial.loops.iter().find(|item| item.header == 6).unwrap();
     assert!(scan.opaque.is_some(), "{scan:?}");
+}
+
+#[test]
+fn opaque_loops_under_a_zero_trip_parent_still_make_the_owner_partial() {
+    let mut program = opaque_outer();
+    program.variables[0].initial = Value::Const(0);
+    program.inputs.retain(|name| name != "n");
+    program.nodes[2].flow = Flow::Branch {
+        condition: Condition::Less {
+            variable: 2,
+            limit: Value::Variable(0),
+        },
+        then_node: 3,
+        else_node: 8,
+    };
+    program.nodes[4].flow = Flow::Branch {
+        condition: Condition::Unknown,
+        then_node: 5,
+        else_node: 7,
+    };
+    let result = partial(&program);
+    assert_eq!(result.loop_body_entries, Bound::Const(0));
+
+    let analyzed = compose::Analyzed {
+        outcome: analyze(&program),
+        program,
+    };
+    let mut composer = compose::Composer::new(
+        |_: &str| {
+            Some(compose::Analyzed {
+                program: analyzed.program.clone(),
+                outcome: analyzed.outcome.clone(),
+            })
+        },
+        Limits::default(),
+    );
+    let compose::Composed::Partial(composed) = composer.composed("w::zero") else {
+        panic!("a zero bound must not hide the opaque loop");
+    };
+    assert_eq!(composed.opaque_factors[0].kind, OpaqueKind::Loop);
 }

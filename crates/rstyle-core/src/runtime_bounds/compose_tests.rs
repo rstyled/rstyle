@@ -194,13 +194,26 @@ fn partial(composed: Composed) -> compose::Composition {
     }
 }
 
-/// The single opaque factor's site and reason, checked against the bound.
+/// The single opaque factor of `kind`, checked against the bounds it occurs in.
+/// An opaque callee also has an `Invocations` factor at the same site.
 fn opaque(composition: &compose::Composition, kind: OpaqueKind) -> (String, String) {
-    let [factor] = composition.opaque_factors.as_slice() else {
+    let found: Vec<_> = composition
+        .opaque_factors
+        .iter()
+        .filter(|factor| factor.kind == kind)
+        .collect();
+    let [factor] = found.as_slice() else {
         panic!("{composition:?}");
     };
-    assert_eq!(factor.kind, kind);
     assert!(!composition.loop_body_entries.is_complete());
+    if kind == OpaqueKind::Call {
+        assert!(!composition.workspace_invocations.is_complete());
+        assert!(
+            composition.opaque_factors.iter().any(|other| {
+                other.kind == OpaqueKind::Invocations && other.site == factor.site
+            })
+        );
+    }
     (factor.site.clone(), factor.reason.clone())
 }
 
@@ -384,8 +397,11 @@ fn recursion_unresolved_dispatch_and_missing_bodies_are_opaque_calls() {
         .calls(vec![call("w::a", Vec::new())])
         .program();
     let owners = || vec![("w::a", a.clone()), ("w::b", b.clone())];
-    let (site, reason) = opaque(&partial(compose(owners(), "w::a")), OpaqueKind::Call);
+    let cycle = partial(compose(owners(), "w::a"));
+    let (site, reason) = opaque(&cycle, OpaqueKind::Call);
     assert_eq!(site, "w::a");
+    // Only summarized callees are resolved; the recursive one is charged opaquely.
+    assert_eq!(cycle.resolved_callees, vec!["w::b".to_string()]);
     assert!(reason.contains("Recursive"), "{reason}");
     let (_, reason) = opaque(&partial(compose(owners(), "w::b")), OpaqueKind::Call);
     assert!(reason.contains("Recursive"), "{reason}");
@@ -403,7 +419,10 @@ fn recursion_unresolved_dispatch_and_missing_bodies_are_opaque_calls() {
         OpaqueKind::Call,
     );
     assert!(reason.contains("No captured summary"), "{reason}");
+}
 
+#[test]
+fn unknown_callees_multiply_their_opaque_work_by_the_call_count() {
     let mut unknown_local = Shape::new(&["n"]).scalars().scan("n").program();
     unknown_local.nodes[2].action = Action::Unsupported { reason: "x".into() };
     let caller = Shape::new(&["m"])

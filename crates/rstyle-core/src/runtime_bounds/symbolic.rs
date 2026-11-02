@@ -15,16 +15,23 @@ pub enum Bound {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Opaque {
     pub kind: OpaqueKind,
-    /// Stable identity of the unknown: a loop location, callee or callee input.
+    /// Identity of the unknown: a loop location and header node, callee or callee
+    /// input. A site that names several copies (for example an inlined closure)
+    /// stands for the maximum over them.
     pub site: String,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum OpaqueKind {
-    /// Body entries of an unproven loop, per entry of its innermost enclosing loop.
+    /// Executions of an unproven loop's header (iterations of its cycle) per entry
+    /// of its innermost enclosing loop; everything inside that cycle runs at most
+    /// once per iteration, so its body entries and nested work are bounded by it.
     Loop,
     /// Loop-body entries of a callee that could not be summarized, per invocation.
     Call,
+    /// Workspace invocations made by a callee that could not be summarized, per
+    /// invocation.
+    Invocations,
     /// A callee size with no caller-side upper bound.
     Input,
 }

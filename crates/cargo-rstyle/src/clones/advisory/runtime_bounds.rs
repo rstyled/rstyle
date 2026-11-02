@@ -74,7 +74,7 @@ pub(super) fn evaluate(ctx: &Context<'_>, unit: UnitId) -> Option<Report> {
             "Bounds count loop-body entries and modeled call-site invocations; whole runtime remains unknown.",
             "Compiler-resolved collection length and traversal adapters are abstracted, excluded from modeled call counts.",
             "Resolved standard iterator chains over stable extents or primitive ranges are synthetic scans; callbacks are inlined and counted at most once per pulled item.",
-            "Partial results are sound bounds in which unproven loops contribute opaque ?loop(site) factors per entry of their enclosing loop; whole-owner failures stay unknown.",
+            "Partial results are sound bounds relative to opaque factors: ?loop(site) is the number of header executions of an unproven loop per entry of its enclosing loop, ?call and ?invocations the work and calls of an unsummarized callee; whole-owner failures stay unknown.",
             "Composed results add resolved workspace callee summaries; standard-library bodies are outside that cost unit, and recursive, unresolved or unmappable callees contribute opaque ?call or ?input factors.",
             "An upper bound does not establish tightness; high polynomial degree alone is not repeated-scan evidence.",
         ],
@@ -301,10 +301,9 @@ fn render_loop(item: &runtime_bounds::LoopBound) -> String {
     let source = item.source.as_ref().map_or_else(String::new, |source| {
         format!("{}:{}:{}: ", source.file, source.line, source.column)
     });
-    let opaque = item
-        .opaque
-        .as_ref()
-        .map_or_else(String::new, |reason| format!(" (opaque: {reason})"));
+    let opaque = item.opaque.as_ref().map_or_else(String::new, |opaque| {
+        format!(" (opaque: {})", opaque.reason)
+    });
     format!(
         "\n  {source}loop body entries <= {}{opaque}",
         expression(&item.body_entries)
@@ -345,6 +344,7 @@ fn expression(bound: &runtime_bounds::Bound) -> String {
             let kind = match opaque.kind {
                 runtime_bounds::OpaqueKind::Loop => "loop",
                 runtime_bounds::OpaqueKind::Call => "call",
+                runtime_bounds::OpaqueKind::Invocations => "invocations",
                 runtime_bounds::OpaqueKind::Input => "input",
             };
             format!("?{kind}({})", opaque.site)
@@ -480,7 +480,7 @@ mod tests {
 
         let text = render_result(&partial);
         assert!(
-            text.starts_with("partial: loop body entries <= ?loop(src/lib.rs:3:5)"),
+            text.starts_with("partial: loop body entries <= ?loop(src/lib.rs:3:5#0)"),
             "{text}"
         );
         assert!(
@@ -492,7 +492,7 @@ mod tests {
             "{text}"
         );
         assert!(
-            text.contains("opaque src/lib.rs:3:5: Loop requires"),
+            text.contains("opaque src/lib.rs:3:5#0: Loop requires"),
             "{text}"
         );
 

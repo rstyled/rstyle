@@ -190,9 +190,15 @@ pub struct LoopBound {
     pub header: u32,
     pub source: Option<Source>,
     pub body_entries: Bound,
-    /// Why this loop's body entries are bounded only by an opaque factor.
+    /// The opaque factor bounding this loop, and why it could not be proven.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub opaque: Option<String>,
+    pub opaque: Option<OpaqueLoop>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OpaqueLoop {
+    pub site: String,
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

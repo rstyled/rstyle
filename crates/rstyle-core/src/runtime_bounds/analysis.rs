@@ -77,7 +77,10 @@ fn assess(program: &Program, limits: Limits) -> Checked<Assessment> {
                 header: item.header as u32,
                 source: program.nodes[item.header].source.clone(),
                 body_entries,
-                opaque: item.opaque.clone(),
+                opaque: item.opaque.clone().map(|reason| OpaqueLoop {
+                    site: loops::site(program, item.header),
+                    reason,
+                }),
             })
             .collect(),
         calls,

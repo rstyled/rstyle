@@ -362,14 +362,17 @@ fn opaque_bound(
     result: &[Option<Bound>],
     index: usize,
 ) -> Bound {
-    let item = &loops[index];
-    let site = program.nodes[item.header].source.as_ref().map_or_else(
-        || format!("node {}", item.header),
-        |source| format!("{}:{}:{}", source.file, source.line, source.column),
-    );
     Bound::mul(
         enclosing(loops, result, index),
-        Bound::opaque(OpaqueKind::Loop, site),
+        Bound::opaque(OpaqueKind::Loop, site(program, loops[index].header)),
+    )
+}
+
+/// An opaque loop's site: its source location and header node, unique per owner.
+pub(super) fn site(program: &Program, header: usize) -> String {
+    program.nodes[header].source.as_ref().map_or_else(
+        || format!("node {header}"),
+        |source| format!("{}:{}:{}#{header}", source.file, source.line, source.column),
     )
 }
 
