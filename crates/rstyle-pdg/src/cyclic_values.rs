@@ -132,7 +132,10 @@ fn definitions(
     predecessors: &Sets,
 ) -> Flow {
     let reached: BTreeSet<_> = predecessors.keys().cloned().collect();
-    let inputs = formal_definitions(pdg);
+    let by_node = definitions_by_node(pdg);
+    let inputs = formal_definitions(pdg, &by_node);
+    let generated = generated_definitions(mapping, &reached, &by_node);
+
     let mut outputs: Flow = reached
         .iter()
         .map(|id| (id.clone(), Definitions::new()))
@@ -140,27 +143,60 @@ fn definitions(
     loop {
         let incoming = incoming_definitions(cfg, &inputs, predecessors, &outputs);
         let mut next = incoming.clone();
-        for entry in mapping
-            .iter()
-            .filter(|entry| reached.contains(&entry.cfg_node_id))
-        {
-            for definition in pdg
-                .definitions
-                .iter()
-                .filter(|definition| definition.node_id == entry.pdg_node_id)
-            {
-                if let Some(symbol) = &definition.symbol_id {
-                    next.get_mut(&entry.cfg_node_id)
-                        .expect("reachable mapped operation")
-                        .insert(symbol.clone(), BTreeSet::from([definition.id.clone()]));
-                }
-            }
+        for (cfg_node, symbol, id) in &generated {
+            next.get_mut(*cfg_node)
+                .expect("reachable mapped operation")
+                .insert((*symbol).clone(), BTreeSet::from([(*id).clone()]));
         }
         if next == outputs {
             return incoming;
         }
         outputs = next;
     }
+}
+
+type DefinitionsByNode<'a> = BTreeMap<&'a str, Vec<&'a Definition>>;
+
+/// Definitions grouped once by the PDG node that performs them, in document order, so
+/// each node reads its own group instead of rescanning every definition.
+fn definitions_by_node(pdg: &PdgDocument) -> DefinitionsByNode<'_> {
+    let mut by_node = DefinitionsByNode::new();
+    for definition in &pdg.definitions {
+        by_node
+            .entry(definition.node_id.as_str())
+            .or_default()
+            .push(definition);
+    }
+    by_node
+}
+
+fn node_definitions<'a>(
+    by_node: &DefinitionsByNode<'a>,
+    node_id: &str,
+) -> impl Iterator<Item = &'a Definition> {
+    by_node.get(node_id).into_iter().flatten().copied()
+}
+
+/// `(cfg node, symbol, definition)` for each binding a reachable mapped operation
+/// generates, in mapping then document order. The same in every fixed-point round.
+fn generated_definitions<'a>(
+    mapping: &'a [OperationMapEntry],
+    reached: &BTreeSet<String>,
+    by_node: &DefinitionsByNode<'a>,
+) -> Vec<(&'a String, &'a String, &'a String)> {
+    mapping
+        .iter()
+        .filter(|entry| reached.contains(&entry.cfg_node_id))
+        .flat_map(|entry| {
+            node_definitions(by_node, &entry.pdg_node_id).filter_map(move |definition| {
+                Some((
+                    &entry.cfg_node_id,
+                    definition.symbol_id.as_ref()?,
+                    &definition.id,
+                ))
+            })
+        })
+        .collect()
 }
 
 fn incoming_definitions(
@@ -190,15 +226,11 @@ fn incoming_definitions(
         .collect()
 }
 
-fn formal_definitions(pdg: &PdgDocument) -> Definitions {
+fn formal_definitions(pdg: &PdgDocument, by_node: &DefinitionsByNode<'_>) -> Definitions {
     pdg.nodes
         .iter()
         .filter(|node| node.category == NodeCategory::FormalInput)
-        .flat_map(|node| {
-            pdg.definitions
-                .iter()
-                .filter(move |definition| definition.node_id == node.id)
-        })
+        .flat_map(|node| node_definitions(by_node, &node.id))
         .filter_map(|definition| {
             Some((
                 definition.symbol_id.clone()?,
