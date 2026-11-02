@@ -127,6 +127,7 @@ fn bound_value(bound: &Bound, n: u64, m: u64) -> u64 {
         Bound::Add(v) => v.iter().map(|b| bound_value(b, n, m)).sum(),
         Bound::Mul(v) => v.iter().map(|b| bound_value(b, n, m)).product(),
         Bound::Max(v) => v.iter().map(|b| bound_value(b, n, m)).max().unwrap_or(0),
+        Bound::Opaque(opaque) => panic!("opaque factor {opaque:?} has no value"),
     }
 }
 
@@ -206,13 +207,13 @@ fn continue_before_increment_and_changed_limits_are_unknown() {
         then_node: 1,
         else_node: 3,
     };
-    assert!(matches!(analyze(&skipped), Outcome::Unknown { .. }));
+    assert!(unproven(&skipped));
     let mut limit = scan();
     limit.nodes[2].action = Action::Assign {
         variable: 0,
         value: Value::Const(0),
     };
-    assert!(matches!(analyze(&limit), Outcome::Unknown { .. }));
+    assert!(unproven(&limit));
 }
 
 #[test]
@@ -226,7 +227,7 @@ fn unsupported_predicates_aliasing_and_missing_widths_do_not_certify() {
     let mut width = scan();
     width.variables[2].bits = 8;
     for program in [predicate, alias, width] {
-        assert!(matches!(analyze(&program), Outcome::Unknown { .. }));
+        assert!(unproven(&program));
     }
 }
 
@@ -260,7 +261,7 @@ fn wrapping_increments_are_certified_only_under_current_state_guard() {
         Bound::Const(u32::MAX as u64)
     );
     program.nodes[2].action = Action::Increment { variable: 2 };
-    assert!(matches!(analyze(&program), Outcome::Unknown { .. }));
+    assert!(unproven(&program));
 }
 
 #[test]
@@ -316,7 +317,7 @@ fn persistent_cursor_with_unproductive_early_exits_is_not_amortized() {
         },
     );
     program.nodes[6] = increment(3, 4);
-    assert!(matches!(analyze(&program), Outcome::Unknown { .. }));
+    assert!(unproven(&program));
 }
 
 #[test]
@@ -325,7 +326,7 @@ fn repeated_outer_increment_inside_inner_cycle_is_not_a_guarded_scan() {
     program.nodes[5] = increment(2, 9);
     program.nodes[7] = node(Action::Nop, Flow::Goto(2));
     program.nodes.push(increment(3, 4));
-    assert!(matches!(analyze(&program), Outcome::Unknown { .. }));
+    assert!(unproven(&program));
 }
 
 #[test]
@@ -358,7 +359,7 @@ fn saved_limit_never_reads_a_later_assignment_as_its_entry_snapshot() {
         node(Action::Nop, Flow::Return),
     ];
     program.loop_headers = vec![3];
-    assert!(matches!(analyze(&program), Outcome::Unknown { .. }));
+    assert!(unproven(&program));
 }
 
 #[test]
@@ -380,7 +381,13 @@ fn nonzero_unsigned_range_start_retains_conservative_end_bound() {
 fn captures_with_no_backedge_do_not_invent_zero_entry_counts() {
     let mut program = scan();
     program.nodes[2].flow = Flow::Return;
-    assert!(matches!(analyze(&program), Outcome::Unknown { .. }));
+    // The body is entered once before returning; a missing cycle is not zero entries.
+    assert_eq!(proven(&program).loop_body_entries, Bound::Const(1));
+
+    let mut nested = nested(true);
+    nested.nodes[5].flow = Flow::Goto(7);
+    let result = proven(&nested);
+    assert_eq!(result.loops[1].body_entries, Bound::Input("n".into()));
 }
 
 #[test]
@@ -425,7 +432,7 @@ fn saved_end_after_completed_counter_loop_is_not_its_zero_initializer() {
         node(Action::Nop, Flow::Return),
     ]);
     program.loop_headers.push(6);
-    assert!(matches!(analyze(&program), Outcome::Unknown { .. }));
+    assert!(unproven(&program));
 }
 
 #[test]
@@ -509,15 +516,230 @@ fn callbacks_that_write_a_scan_limit_or_skip_the_reset_stay_unknown() {
         variable: 1,
         value: Value::Unknown,
     };
-    assert!(matches!(analyze(&writes_limit), Outcome::Unknown { .. }));
+    assert!(unproven(&writes_limit));
 
     let mut persistent = callback_scan(true);
     persistent.nodes[2].action = Action::Nop;
     persistent.nodes[0] = assign(2, 10);
     persistent.nodes.push(assign(3, 1));
-    assert!(matches!(analyze(&persistent), Outcome::Unknown { .. }));
+    assert!(unproven(&persistent));
 
     let mut modifying = callback_scan(false);
     modifying.nodes[5].action = opaque_call("score", true);
-    assert!(matches!(analyze(&modifying), Outcome::Unknown { .. }));
+    assert!(unproven(&modifying));
+}
+
+// Not certified: either unknown, or partial with an unproven loop made opaque.
+fn unproven(program: &Program) -> bool {
+    match analyze(program) {
+        Outcome::Proven(_) => false,
+        Outcome::Partial(result) => result.loops.iter().any(|item| item.opaque.is_some()),
+        Outcome::Unknown { .. } | Outcome::BudgetExceeded { .. } => true,
+    }
+}
+
+fn partial(program: &Program) -> Assessment {
+    match analyze(program) {
+        Outcome::Partial(result) => result,
+        other => panic!("{other:?}"),
+    }
+}
+
+fn opaque_loop(header: usize) -> Bound {
+    Bound::opaque(OpaqueKind::Loop, format!("node {header}"))
+}
+
+// `while (?) { j = 0; while (j < m) { j += 1 } i += 1 }` with an unprovable outer guard.
+fn opaque_outer() -> Program {
+    let mut program = nested(true);
+    program.nodes[2].flow = Flow::Branch {
+        condition: Condition::Unknown,
+        then_node: 3,
+        else_node: 8,
+    };
+    program
+}
+
+#[test]
+fn unprovable_loops_are_opaque_factors_in_partial_bounds() {
+    let result = partial(&opaque_outer());
+    assert_eq!(result.loops[0].body_entries, opaque_loop(2));
+    assert!(result.loops[0].opaque.is_some());
+    // The inner scan still resets per outer entry, so it multiplies the opaque factor.
+    assert_eq!(
+        result.loops[1].body_entries,
+        Bound::Mul(vec![opaque_loop(2), Bound::Input("m".into())])
+    );
+    assert_eq!(result.loops[1].opaque, None);
+    assert!(!result.loop_body_entries.is_complete());
+}
+
+#[test]
+fn partial_bounds_keep_proven_siblings_but_not_whole_owner_failures() {
+    let mut twice = scan();
+    twice.nodes[2].action = Action::Increment { variable: 2 };
+    let result = partial(&twice);
+    assert!(result.loops[0].opaque.is_some());
+    assert_eq!(result.loops[0].body_entries, opaque_loop(1));
+
+    assert!(matches!(analyze(&nested(false)), Outcome::Proven(_)));
+
+    let mut unsupported = opaque_outer();
+    unsupported.nodes[5].action = Action::Unsupported {
+        reason: "unmodeled".into(),
+    };
+    assert!(matches!(analyze(&unsupported), Outcome::Unknown { .. }));
+}
+
+#[test]
+fn changed_limits_stray_increments_and_nested_unprovable_loops_are_opaque() {
+    let mut changed = scan();
+    changed.nodes[2].action = Action::Assign {
+        variable: 0,
+        value: Value::Const(5),
+    };
+    assert!(partial(&changed).loops[0].opaque.is_some());
+
+    // The counter is incremented again after the loop exits, outside its guard.
+    let mut stray = scan();
+    stray.nodes[4] = increment(2, 5);
+    stray.nodes.push(node(Action::Nop, Flow::Return));
+    let result = partial(&stray);
+    let opaque = result.loops[0].opaque.as_ref().unwrap();
+    assert!(opaque.reason.contains("no-overflow"), "{opaque:?}");
+
+    let mut inner = nested(true);
+    inner.nodes[4].flow = Flow::Branch {
+        condition: Condition::Unknown,
+        then_node: 5,
+        else_node: 7,
+    };
+    let result = partial(&inner);
+    assert_eq!(result.loops[0].body_entries, Bound::Input("n".into()));
+    assert_eq!(
+        result.loops[1].body_entries,
+        Bound::Mul(vec![Bound::Input("n".into()), opaque_loop(4)])
+    );
+}
+
+#[test]
+fn declared_loops_that_never_cycle_are_ignored() {
+    let mut exits = scan();
+    // The body returns instead of reaching its increment, so the guard never repeats.
+    exits.nodes[2].flow = Flow::Goto(4);
+    let Outcome::Proven(result) = analyze(&exits) else {
+        panic!("{:?}", analyze(&exits));
+    };
+    assert_eq!(result.loops[0].body_entries, Bound::Const(1));
+    assert_eq!(result.calls[0].count, Bound::Const(1));
+}
+
+#[test]
+fn a_counter_shared_between_loop_guards_still_fails_the_whole_owner() {
+    let mut program = scan();
+    program.nodes = vec![
+        assign(2, 1),
+        guard(2, 0, 2, 3),
+        increment(2, 1),
+        assign(2, 4),
+        guard(2, 1, 5, 6),
+        increment(2, 4),
+        node(Action::Nop, Flow::Return),
+    ];
+    program.loop_headers = vec![1, 4];
+    assert!(matches!(analyze(&program), Outcome::Unknown { .. }));
+}
+
+// `while i < n { j = 0; b = 0; while b < n { b += 1; while j < m { [break]; j += 1 } } i += 1 }`
+// The reset is per outer iteration, but the middle loop re-enters the scan.
+fn reset_under_middle(early_exit: bool) -> Program {
+    let mut program = scan();
+    program.variables.push(Variable {
+        name: "b".into(),
+        initial: Value::Unknown,
+        bits: 32,
+    });
+    let skip = node(
+        Action::Nop,
+        Flow::Branch {
+            condition: Condition::Unknown,
+            then_node: 4,
+            else_node: 8,
+        },
+    );
+    program.nodes = vec![
+        assign(2, 1),
+        guard(2, 0, 2, 10),
+        assign(3, 3),
+        assign(4, 4),
+        guard(4, 0, 5, 9),
+        increment(4, 6),
+        guard(3, 1, 7, 4),
+        if early_exit {
+            skip
+        } else {
+            node(Action::Nop, Flow::Goto(8))
+        },
+        increment(3, 6),
+        increment(2, 1),
+        node(Action::Nop, Flow::Return),
+    ];
+    program.loop_headers = vec![1, 4, 6];
+    program
+}
+
+#[test]
+fn reset_scans_reentered_by_a_middle_loop_charge_early_exits() {
+    let exact = proven(&reset_under_middle(false));
+    let scan = exact.loops.iter().find(|item| item.header == 6).unwrap();
+    assert_eq!(
+        scan.body_entries,
+        Bound::Mul(vec![Bound::Input("n".into()), Bound::Input("m".into())])
+    );
+
+    // Each `break` is a body entry that leaves the counter unchanged, once per
+    // middle iteration: n * n entries can exceed n * m.
+    let partial = partial(&reset_under_middle(true));
+    let scan = partial.loops.iter().find(|item| item.header == 6).unwrap();
+    assert!(scan.opaque.is_some(), "{scan:?}");
+}
+
+#[test]
+fn opaque_loops_under_a_zero_trip_parent_still_make_the_owner_partial() {
+    let mut program = opaque_outer();
+    program.variables[0].initial = Value::Const(0);
+    program.inputs.retain(|name| name != "n");
+    program.nodes[2].flow = Flow::Branch {
+        condition: Condition::Less {
+            variable: 2,
+            limit: Value::Variable(0),
+        },
+        then_node: 3,
+        else_node: 8,
+    };
+    program.nodes[4].flow = Flow::Branch {
+        condition: Condition::Unknown,
+        then_node: 5,
+        else_node: 7,
+    };
+    let result = partial(&program);
+    assert_eq!(result.loop_body_entries, Bound::Const(0));
+
+    let analyzed = compose::Analyzed {
+        outcome: analyze(&program),
+        program,
+    };
+    let mut composer = compose::Composer::new(
+        |_: &str| {
+            Some(compose::Analyzed {
+                program: analyzed.program.clone(),
+                outcome: analyzed.outcome.clone(),
+            })
+        },
+        Limits::default(),
+    );
+    let compose::Composed::Partial(composed) = composer.composed("w::zero") else {
+        panic!("a zero bound must not hide the opaque loop");
+    };
+    assert_eq!(composed.opaque_factors[0].kind, OpaqueKind::Loop);
 }

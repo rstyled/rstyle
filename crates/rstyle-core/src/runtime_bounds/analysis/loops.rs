@@ -1,6 +1,9 @@
 use super::*;
 use std::collections::BTreeMap;
 
+/// Never a captured variable; opaque loops have no modeled counter.
+const NO_COUNTER: u32 = u32::MAX;
+
 pub(super) fn discover(program: &Program, graph: &Graph) -> Checked<Vec<Loop>> {
     let mut regions: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
     for (source, targets) in graph.successors.iter().enumerate() {
@@ -20,16 +23,63 @@ pub(super) fn discover(program: &Program, graph: &Graph) -> Checked<Vec<Loop>> {
     acyclic_without_backedges(graph)?;
     let declared: BTreeSet<_> = program.loop_headers.iter().map(|&h| h as usize).collect();
     let observed: BTreeSet<_> = regions.keys().copied().collect();
-    if declared.len() != program.loop_headers.len() || declared != observed {
+    // A declared loop that never cycles (its body always exits) is not a loop; a
+    // cycle without a declared header is unmodeled control flow.
+    if declared.len() != program.loop_headers.len() || !observed.is_subset(&declared) {
         return Err(unknown(
             "Captured loops include an acyclic, missing or unsupported loop guard",
         ));
     }
 
+    // A reachable declared header with no backedge runs its body at most once per
+    // entry of its innermost enclosing cycle.
+    let acyclic: Vec<_> = declared
+        .iter()
+        .filter(|header| graph.reachable[**header] && !observed.contains(header))
+        .map(|&header| once(header))
+        .collect();
+
     regions
         .into_iter()
-        .map(|(header, members)| describe(program, graph, header, members))
+        .map(
+            |(header, members)| match describe(program, graph, header, members.clone()) {
+                Err(Failure::Unknown(reason)) => Ok(Loop {
+                    header,
+                    members,
+                    counter: NO_COUNTER,
+                    limit: Value::Unknown,
+                    increment: header,
+                    opaque: Some(reason),
+                    once: false,
+                }),
+                other => other,
+            },
+        )
+        .chain(acyclic.into_iter().map(Ok))
         .collect()
+}
+
+fn once(header: usize) -> Loop {
+    Loop {
+        header,
+        members: BTreeSet::from([header]),
+        counter: NO_COUNTER,
+        limit: Value::Unknown,
+        increment: header,
+        opaque: None,
+        once: true,
+    }
+}
+
+// A failure confined to one loop makes only that loop opaque.
+fn per_loop(result: Checked<()>, item: &mut Loop) -> Checked<()> {
+    match result {
+        Err(Failure::Unknown(reason)) => {
+            item.opaque.get_or_insert(reason);
+            Ok(())
+        }
+        other => other,
+    }
 }
 
 fn region(graph: &Graph, source: usize, header: usize) -> BTreeSet<usize> {
@@ -126,6 +176,8 @@ fn describe(
         counter: *variable,
         limit: limit.clone(),
         increment,
+        opaque: None,
+        once: false,
     })
 }
 
@@ -142,7 +194,8 @@ fn unique_increment(program: &Program, members: &BTreeSet<usize>, variable: u32)
     Ok(*increment)
 }
 
-pub(super) fn validate(program: &Program, graph: &Graph, loops: &[Loop]) -> Checked<()> {
+pub(super) fn validate(program: &Program, graph: &Graph, loops: &mut [Loop]) -> Checked<()> {
+    structure(loops)?;
     for (index, node) in program
         .nodes
         .iter()
@@ -160,7 +213,10 @@ pub(super) fn validate(program: &Program, graph: &Graph, loops: &[Loop]) -> Chec
                         .iter()
                         .any(|item| item.counter == *variable && item.increment == index) =>
             {
-                return Err(unknown("Increment lacks a current-state no-overflow guard"));
+                let reason = "Increment lacks a current-state no-overflow guard";
+                for item in loops.iter_mut().filter(|item| item.counter == *variable) {
+                    item.opaque.get_or_insert(reason.into());
+                }
             }
             Action::Assign { variable, .. } | Action::Increment { variable }
                 if *variable as usize >= program.variables.len() =>
@@ -171,14 +227,39 @@ pub(super) fn validate(program: &Program, graph: &Graph, loops: &[Loop]) -> Chec
         }
     }
 
-    for item in loops {
-        validate_loop(program, graph, item, loops)?;
+    for item in loops.iter_mut() {
+        if item.opaque.is_some() || item.once {
+            continue;
+        }
+        let result = validate_loop(program, graph, item);
+        per_loop(result, item)?;
     }
 
     Ok(())
 }
 
-fn validate_loop(program: &Program, graph: &Graph, item: &Loop, loops: &[Loop]) -> Checked<()> {
+// Composition multiplies along a nesting tree of loops with distinct counters.
+fn structure(loops: &[Loop]) -> Checked<()> {
+    for item in loops {
+        if item.counter != NO_COUNTER
+            && loops
+                .iter()
+                .any(|other| other.header != item.header && other.counter == item.counter)
+        {
+            return Err(unknown("A counter is shared between distinct loop guards"));
+        }
+        if loops.iter().any(|other| {
+            !item.members.is_disjoint(&other.members)
+                && !item.members.is_subset(&other.members)
+                && !other.members.is_subset(&item.members)
+        }) {
+            return Err(unknown("Overlapping loop regions cannot be composed"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_loop(program: &Program, graph: &Graph, item: &Loop) -> Checked<()> {
     let variable = program
         .variables
         .get(item.counter as usize)
@@ -205,19 +286,6 @@ fn validate_loop(program: &Program, graph: &Graph, item: &Loop, loops: &[Loop]) 
                 validate_reset(program, graph, item, index)?;
             }
         }
-    }
-    if loops
-        .iter()
-        .any(|other| other.header != item.header && other.counter == item.counter)
-    {
-        return Err(unknown("A counter is shared between distinct loop guards"));
-    }
-    if loops.iter().any(|other| {
-        !item.members.is_disjoint(&other.members)
-            && !item.members.is_subset(&other.members)
-            && !other.members.is_subset(&item.members)
-    }) {
-        return Err(unknown("Overlapping loop regions cannot be composed"));
     }
 
     Ok(())
@@ -251,7 +319,7 @@ fn validate_reset(program: &Program, graph: &Graph, item: &Loop, index: usize) -
 pub(super) fn bounds(
     program: &Program,
     graph: &Graph,
-    loops: &[Loop],
+    loops: &mut [Loop],
     limits: Limits,
 ) -> Checked<Vec<Bound>> {
     let mut result = vec![None; loops.len()];
@@ -259,17 +327,25 @@ pub(super) fn bounds(
     order.sort_by_key(|&i| std::cmp::Reverse(loops[i].members.len()));
 
     for index in order {
-        let item = &loops[index];
-        let bits = program.variables[item.counter as usize].bits;
-        let local = values::Values::new(program, graph, item.header, bits).bound(&item.limit)?;
-        let multiplier = ResetBounds {
+        let context = ResetBounds {
             program,
             graph,
             loops,
             bounds: &result,
-        }
-        .count(item)?;
-        let bound = Bound::mul(multiplier, local);
+        };
+        let modeled = match &loops[index].opaque {
+            None if loops[index].once => Ok(enclosing(loops, &result, index)),
+            None => context.modeled(&loops[index]),
+            Some(_) => Err(unknown("opaque")),
+        };
+        let bound = match modeled {
+            Ok(bound) => bound,
+            Err(Failure::Unknown(reason)) => {
+                loops[index].opaque.get_or_insert(reason);
+                opaque_bound(program, loops, &result, index)
+            }
+            Err(failure) => return Err(failure),
+        };
         if bound.size() > limits.expression_nodes {
             return Err(Failure::Budget("Symbolic bound budget exceeded".into()));
         }
@@ -277,6 +353,39 @@ pub(super) fn bounds(
     }
 
     Ok(result.into_iter().map(Option::unwrap).collect())
+}
+
+// An opaque loop runs an unknown number of times per entry of its innermost parent.
+fn opaque_bound(
+    program: &Program,
+    loops: &[Loop],
+    result: &[Option<Bound>],
+    index: usize,
+) -> Bound {
+    Bound::mul(
+        enclosing(loops, result, index),
+        Bound::opaque(OpaqueKind::Loop, site(program, loops[index].header)),
+    )
+}
+
+/// An opaque loop's site: its source location and header node, unique per owner.
+pub(super) fn site(program: &Program, header: usize) -> String {
+    program.nodes[header].source.as_ref().map_or_else(
+        || format!("node {header}"),
+        |source| format!("{}:{}:{}#{header}", source.file, source.line, source.column),
+    )
+}
+
+// Body entries of the innermost loop strictly enclosing `index`, or one invocation.
+fn enclosing(loops: &[Loop], result: &[Option<Bound>], index: usize) -> Bound {
+    let item = &loops[index];
+    loops
+        .iter()
+        .enumerate()
+        .filter(|(_, other)| other.header != item.header && item.members.is_subset(&other.members))
+        .min_by_key(|(_, other)| other.members.len())
+        .and_then(|(parent, _)| result[parent].clone())
+        .unwrap_or(Bound::Const(1))
 }
 
 struct ResetBounds<'a> {
@@ -287,6 +396,14 @@ struct ResetBounds<'a> {
 }
 
 impl ResetBounds<'_> {
+    fn modeled(&self, item: &Loop) -> Checked<Bound> {
+        let bits = self.program.variables[item.counter as usize].bits;
+        let at_header = values::Values::new(self.program, self.graph, item.header, bits);
+        let local = at_header.bound(&item.limit)?;
+
+        Ok(Bound::mul(self.count(item)?, local))
+    }
+
     fn count(&self, item: &Loop) -> Checked<Bound> {
         let mut resets = Vec::new();
         for (index, node) in self
@@ -339,6 +456,19 @@ impl ResetBounds<'_> {
         {
             return Err(unknown("Reset is repeated by another nested cycle"));
         }
+        // Between resets the scan is a persistent cursor over the intermediate loops'
+        // re-entries, so an early exit can enter the body without advancing it.
+        let intermediate = self.loops.iter().any(|middle| {
+            middle.header != item.header
+                && middle.header != parent.header
+                && item.members.is_subset(&middle.members)
+                && middle.members.is_subset(&parent.members)
+        });
+        if intermediate && self.early_exit(item) {
+            return Err(unknown(
+                "Reset scan re-entered by an intermediate loop has uncharged early exits",
+            ));
+        }
 
         Ok(Some(
             self.bounds[parent_index]
@@ -352,18 +482,22 @@ impl ResetBounds<'_> {
             .loops
             .iter()
             .any(|parent| parent.header != item.header && item.members.is_subset(&parent.members));
-        let early_exit = item.members.iter().any(|&source| {
-            source != item.header
-                && self.graph.successors[source]
-                    .iter()
-                    .any(|target| !item.members.contains(target))
-        });
-        if nested && early_exit {
+        if nested && self.early_exit(item) {
             return Err(unknown(
                 "Persistent cursor has uncharged early-exit entries",
             ));
         }
 
         Ok(Bound::Const(1))
+    }
+
+    // Leaving the cycle anywhere but its guard enters the body without a full step.
+    fn early_exit(&self, item: &Loop) -> bool {
+        item.members.iter().any(|&source| {
+            source != item.header
+                && self.graph.successors[source]
+                    .iter()
+                    .any(|target| !item.members.contains(target))
+        })
     }
 }

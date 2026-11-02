@@ -125,6 +125,7 @@ fn runtime_bounds_are_independent_replayable_owner_results() {
     assert_call(runtime(&original)["rows"].as_array().unwrap());
     assert_callbacks(runtime(&original)["rows"].as_array().unwrap());
     assert_composed(runtime(&original)["rows"].as_array().unwrap());
+    assert_partial(runtime(&original)["rows"].as_array().unwrap());
     assert_unknown(runtime(&original)["rows"].as_array().unwrap());
     assert_replay(directory.path(), &original);
 }
@@ -261,41 +262,75 @@ fn assert_composed(rows: &[Value]) {
             .contains("len(g.edges)"),
         "{edge}"
     );
-    for (name, reason) in [
-        ("recursive_count", "Recursive"),
-        ("dyn_area", "Unresolved"),
-        ("unknown_continue", "Local bounds"),
-        ("default_ne", "Unresolved"),
-        ("item_to_std", "Unresolved"),
-        ("drops", "Local bounds"),
+    // Unsummarizable callees and unproven loops are explicit opaque factors.
+    for (name, kind, reason) in [
+        ("recursive_count", "Call", "Recursive"),
+        ("dyn_area", "Call", "Unresolved"),
+        ("unknown_continue", "Loop", "backedge can skip"),
+        ("default_ne", "Call", "Unresolved"),
+        ("item_to_std", "Call", "Unresolved"),
     ] {
-        let composed = &named_row(rows, name)["composed"]["Unknown"]["reason"];
+        let composed = &named_row(rows, name)["composed"]["Partial"];
+        let factors = composed["opaque_factors"].as_array().unwrap();
         assert!(
-            composed.as_str().unwrap().contains(reason),
+            factors.iter().any(|factor| factor["kind"] == kind
+                && factor["reason"].as_str().unwrap().contains(reason)),
             "{name}: {composed}"
         );
     }
+    // An owner with unknown local bounds has no composed bound at all.
+    let drops = &named_row(rows, "drops")["composed"]["Unknown"]["reason"];
+    assert!(drops.as_str().unwrap().contains("Local bounds"), "{drops}");
+}
+
+// A loop that cannot be proven becomes an opaque factor; sibling loops keep bounds.
+fn assert_partial(rows: &[Value]) {
+    for (name, all_opaque) in [
+        ("unknown_continue", true),
+        ("limitwrites", true),
+        ("overflow", true),
+        ("stale", false),
+        ("skipped", true),
+        ("unknown_predicate", true),
+        ("callee_continue", true),
+        ("callee_reset", true),
+        ("short_circuit_and", true),
+        ("short_circuit_or", true),
+    ] {
+        let assessment = &named_row(rows, name)["result"]["Partial"];
+        let loops = assessment["loops"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{name}"));
+        let opaque = loops.iter().filter(|item| item.get("opaque").is_some());
+        assert!(opaque.count() >= 1, "{name}: {assessment}");
+        if all_opaque {
+            assert!(
+                loops.iter().all(|item| item.get("opaque").is_some()),
+                "{name}"
+            );
+        }
+        let bound = assessment["loop_body_entries"].to_string();
+        assert!(bound.contains("Opaque"), "{name}: {bound}");
+    }
+    // The saved `end = j` copies an incremented counter; the first scan keeps `n`.
+    let stale = named_row(rows, "stale")["result"]["Partial"]["loops"]
+        .as_array()
+        .unwrap();
+    let (opaque, proven): (Vec<_>, Vec<_>) =
+        stale.iter().partition(|item| item.get("opaque").is_some());
+    assert_eq!((opaque.len(), proven.len()), (1, 1), "{stale:?}");
+    assert_eq!(proven[0]["body_entries"]["Input"], "n");
 }
 
 fn assert_unknown(rows: &[Value]) {
     for name in [
-        "unknown_continue",
-        "limitwrites",
-        "overflow",
-        "stale",
         "alias",
-        "skipped",
-        "unknown_predicate",
         "autoref",
         "autoref_reset",
         "refmut",
         "ergonomic_refmut",
         "metadata_rebind",
         "unsafe_body",
-        "callee_continue",
-        "callee_reset",
-        "short_circuit_and",
-        "short_circuit_or",
         "guarded_or",
         "pattern_guard_reset",
         "guard_call",
@@ -433,5 +468,6 @@ fn value(bound: &rstyle_core::runtime_bounds::Bound) -> u64 {
         Bound::Add(values) => values.iter().map(value).sum(),
         Bound::Mul(values) => values.iter().map(value).product(),
         Bound::Max(values) => values.iter().map(value).max().unwrap_or(0),
+        Bound::Opaque(opaque) => panic!("opaque factor {opaque:?} has no value"),
     }
 }

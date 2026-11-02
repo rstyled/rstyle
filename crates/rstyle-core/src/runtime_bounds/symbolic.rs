@@ -4,12 +4,57 @@ use serde::{Deserialize, Serialize};
 pub enum Bound {
     Const(u64),
     Input(String),
+    /// An explicitly unknown factor. A bound containing one is still a true upper
+    /// bound, but only relative to that unknown quantity.
+    Opaque(Opaque),
     Add(Vec<Bound>),
     Mul(Vec<Bound>),
     Max(Vec<Bound>),
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Opaque {
+    pub kind: OpaqueKind,
+    /// Identity of the unknown: a loop location and header node, callee or callee
+    /// input. A site that names several copies (for example an inlined closure)
+    /// stands for the maximum over them.
+    pub site: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum OpaqueKind {
+    /// Executions of an unproven loop's header (iterations of its cycle) per entry
+    /// of its innermost enclosing loop; everything inside that cycle runs at most
+    /// once per iteration, so its body entries and nested work are bounded by it.
+    Loop,
+    /// Loop-body entries of a callee that could not be summarized, per invocation.
+    Call,
+    /// Workspace invocations made by a callee that could not be summarized, per
+    /// invocation.
+    Invocations,
+    /// A callee size with no caller-side upper bound.
+    Input,
+}
+
 impl Bound {
+    pub fn opaque(kind: OpaqueKind, site: impl Into<String>) -> Self {
+        Self::Opaque(Opaque {
+            kind,
+            site: site.into(),
+        })
+    }
+
+    /// Whether no opaque factor occurs anywhere in the bound.
+    pub fn is_complete(&self) -> bool {
+        match self {
+            Self::Const(_) | Self::Input(_) => true,
+            Self::Opaque(_) => false,
+            Self::Add(items) | Self::Mul(items) | Self::Max(items) => {
+                items.iter().all(Self::is_complete)
+            }
+        }
+    }
+
     pub(super) fn add(values: Vec<Self>) -> Self {
         let values: Vec<_> = values
             .into_iter()
@@ -33,7 +78,7 @@ impl Bound {
 
     pub(super) fn size(&self) -> usize {
         match self {
-            Self::Const(_) | Self::Input(_) => 1,
+            Self::Const(_) | Self::Input(_) | Self::Opaque(_) => 1,
             Self::Add(v) | Self::Mul(v) | Self::Max(v) => {
                 1 + v.iter().map(Self::size).sum::<usize>()
             }
