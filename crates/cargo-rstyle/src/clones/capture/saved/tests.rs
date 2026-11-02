@@ -32,6 +32,7 @@ impl Fixture {
             style_inputs_only: false,
             compiler_advisory: false,
             compiler_patterns: false,
+            compiler_runtime_bounds: false,
             local_source_facts: false,
             local_mutation_facts: false,
             ledger_schema: ledger::SCHEMA.into(),
@@ -81,6 +82,7 @@ impl Fixture {
         let unit = Unit {
             compiler_advisory_only: false,
             style_inputs_only: false,
+            compiler_runtime_bounds: false,
             extraction_profile: self.plan.extraction_profile,
             target: self.plan.targets[0].clone(),
             test,
@@ -243,5 +245,16 @@ fn check_and_test_modes_retain_both_ledgers_and_reject_missing_one() {
 
     assert_eq!(fixture.load().unwrap().units.len(), 2);
     std::fs::remove_file(fixture.ledger(true)).unwrap();
+    assert!(fixture.load().is_err());
+}
+
+#[test]
+fn runtime_bound_capture_capability_must_match_the_saved_unit() {
+    let mut fixture = Fixture::new();
+    fixture.plan.compiler_runtime_bounds = true;
+    assert!(fixture.load().is_err());
+    fixture.change_ledger(|unit| unit.compiler_runtime_bounds = true);
+    assert_eq!(fixture.load().unwrap().units.len(), 1);
+    fixture.plan.compiler_runtime_bounds = false;
     assert!(fixture.load().is_err());
 }

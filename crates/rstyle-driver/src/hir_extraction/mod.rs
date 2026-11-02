@@ -14,12 +14,14 @@ mod documentation_inputs;
 mod evidence;
 mod external_imports;
 mod float_scalars;
+mod for_loops;
 mod generated_sources;
 mod hir;
 mod id_error_maps;
 mod id_reader_constants;
 mod inherent;
 mod instances;
+mod runtime_bounds;
 pub(crate) fn capture_instance_diagnostics(
     tcx: TyCtxt<'_>,
     scanned: &[source::Function],

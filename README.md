@@ -252,6 +252,57 @@ Each candidate has a `kind` (`trait_method`, `capability_set`, `enum_dispatch`, 
 
 Compiler patterns captures graph observations under `target/rstyle/clones/`. Use `--replay-run PATH` to reevaluate an explicit saved run without source files or compiler tools. Style and patterns both consume saved compiler unit snapshots.
 
+Add `--complexity` to search for runtime growth alongside abstraction candidates:
+
+```sh
+cargo rstyle patterns --complexity --top 20
+cargo rstyle patterns --complexity --replay-run RUN --format json
+```
+
+This opt-in analysis lowers typed HIR into a compact control-flow graph in the
+same compiler capture. It reports upper bounds on loop-body entries and modeled
+call-site invocations, with input measures and loop locations. For example, restarting
+an inner scan can give `n + n * m` body entries; a persistent cursor can give
+`n + m`. These counts do not establish a tight runtime bound or the cost of a
+called function. Whole-function runtime remains explicitly unknown.
+
+The initial model supports primitive unsigned increasing counters, primitive
+exclusive ranges and traversal of shared slices and standard `Vec` values,
+including fields reached through shared references. Resolved collection length
+queries and traversal adapters are abstracted and excluded from call counts. Ordinary body
+calls can have unknown cost while preserving a bound on a private scalar counter.
+Unsupported control flow, mutable limits, unproved increments and escaped counters
+produce an explicit unknown result. Exhausting an analysis budget is reported
+separately.
+
+Compiler-resolved standard `Iterator` chains over those sources become synthetic
+scans. Closure callbacks, and immutable local closures that are only called
+directly, are inlined at each invocation, so the callback calls in
+`xs.iter().map(|x| ys.iter().filter(|y| p(x, y)).count()).sum::<usize>()` are
+bounded by `len(xs) * len(ys)`. Filters, skips, takes and searches may
+exit early; `flat_map` rescans per outer item. Unresolved or escaping callbacks,
+user iterators, mutable captures of a measured value, and chains that dispatch
+to workspace `Clone`, `Ord`, `Sum` or `FromIterator` impls stay unknown.
+
+Each row also has a `composed` result that adds resolved workspace callee
+summaries: a call contributes its count times the callee's bound, with callee
+inputs replaced by per-invocation upper bounds of the caller's arguments.
+Lengths follow shared places and field paths, so passing `&g.edges` into a
+slice scan contributes `len(g.edges)`. Recursion, dynamic or generic dispatch,
+missing bodies, and sizes rooted in a callee local stay unknown. Standard-library
+bodies are outside this cost unit only when they cannot call back into workspace
+code through a callable argument or a trait bound on a workspace type; such calls,
+workspace `Drop` glue and overloaded auto-deref into workspace impls stay unknown.
+Identities include the compilation, so lib, bin and test builds never share a
+summary. The report lists its assumptions. Results retain
+each compilation context, and `--top` selects rows independently of abstraction
+scores. Polynomial degree is a search heuristic, not a comparison of runtimes
+across independent input sizes. JSON retains the full result roster and the
+selected row indices. Existing abstraction gates and reviews retain their scope.
+
+Saved replay needs a capture made with `--complexity`; older graph-only captures
+require recapture. The default command does not collect the additional graph.
+
 `--hide-implements TEXT` forgets trait links whose trait method id contains `TEXT` (`*` hides all). Evaluation oracle: hide a trait that has several impls and check the miner proposes it back.
 
 Opt a function out of mining with `// rstyle-allow(abstraction): reason` on the line above it.

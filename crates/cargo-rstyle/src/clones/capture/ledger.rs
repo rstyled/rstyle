@@ -63,6 +63,7 @@ mod tests {
             style_inputs_only: false,
             compiler_advisory: false,
             compiler_patterns: false,
+            compiler_runtime_bounds: false,
             local_source_facts: false,
             local_mutation_facts: false,
             ledger_schema: SCHEMA.into(),

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod generated_effects;
 pub mod patterns;
+pub mod runtime_bounds;
 
 pub const KEY: &str = "rstyle.compiler-advisory/1";
 pub const METRICS: &str = "rstyle.compiler-style-metrics/7";

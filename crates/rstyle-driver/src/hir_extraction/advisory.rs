@@ -11,6 +11,16 @@ pub(super) fn capture<B, S>(
     facts: &mut HirFnFacts<B, S>,
     capture: &super::Options<'_>,
 ) -> Result<(), String> {
+    super::runtime_bounds::capture(ctx, id, facts)?;
+    capture_style(ctx, id, facts, capture)
+}
+
+fn capture_style<B, S>(
+    ctx: &Context<'_>,
+    id: LocalDefId,
+    facts: &mut HirFnFacts<B, S>,
+    capture: &super::Options<'_>,
+) -> Result<(), String> {
     if std::env::var_os(CAPTURE_ENV).as_deref() != Some(std::ffi::OsStr::new("1")) {
         return Ok(());
     }

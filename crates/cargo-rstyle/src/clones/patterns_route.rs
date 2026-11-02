@@ -79,6 +79,11 @@ fn compiler_args(patterns: PatternsArgs) -> Result<Routed, String> {
 
     let options = Args {
         style_inputs_only: true,
+        compiler_runtime_bounds: patterns.complexity,
+        compiler_runtime_top: patterns
+            .complexity
+            .then_some(patterns.display.top)
+            .flatten(),
         mine: patterns.mine,
         show_ignored: patterns.show_ignored,
         pattern_display: patterns.display,
