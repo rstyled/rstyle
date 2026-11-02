@@ -1,0 +1,2016 @@
+{
+  "schema_version": "0.1.0",
+  "profile": {
+    "id": "compat.cpg",
+    "version": "0.1.0"
+  },
+  "layout": "bundled",
+  "document": "unit",
+  "producer": {
+    "name": "hand-authored example",
+    "version": "0.1.0",
+    "namespace": "rust"
+  },
+  "coverage": {
+    "capabilities": {
+      "resolution": {
+        "status": "supported",
+        "description": "Established by rustc for this unit"
+      },
+      "dispatch": {
+        "status": "supported",
+        "description": "Established by rustc for this unit"
+      },
+      "generic-instances": {
+        "status": "supported",
+        "description": "Every instance reachable in the unit is recorded"
+      },
+      "lifetimes": {
+        "status": "approximated",
+        "description": "Signature lifetimes from HIR; body regions are out of scope"
+      },
+      "types": {
+        "status": "supported",
+        "description": "Established by rustc for this unit"
+      },
+      "integer-semantics": {
+        "status": "supported",
+        "description": "Established by rustc for this unit"
+      },
+      "mutability": {
+        "status": "supported",
+        "description": "Established by rustc for this unit"
+      },
+      "aliasing": {
+        "status": "supported",
+        "description": "Established by rustc for this unit"
+      },
+      "implicit-calls": {
+        "status": "supported",
+        "description": "Established by rustc for this unit"
+      },
+      "constant-values": {
+        "status": "supported",
+        "description": "Established by rustc for this unit"
+      },
+      "evaluation-order": {
+        "status": "supported",
+        "description": "Established by rustc for this unit"
+      },
+      "exceptional-flow": {
+        "status": "approximated",
+        "description": "Normal flow only; panics are not modeled as CFG edges"
+      },
+      "macro-provenance": {
+        "status": "supported",
+        "description": "Established by rustc for this unit"
+      }
+    },
+    "layers": {
+      "unit": {
+        "status": "supported",
+        "description": "Complete for the example functions"
+      },
+      "method": {
+        "status": "supported",
+        "description": "Complete for the example functions"
+      },
+      "ast": {
+        "status": "supported",
+        "description": "Complete for the example functions"
+      },
+      "cfg": {
+        "status": "supported",
+        "description": "Complete for the example functions"
+      },
+      "symbol": {
+        "status": "supported",
+        "description": "Complete for the example functions"
+      },
+      "ref": {
+        "status": "supported",
+        "description": "Complete for the example functions"
+      },
+      "type": {
+        "status": "supported",
+        "description": "Complete for the example functions"
+      },
+      "value": {
+        "status": "supported",
+        "description": "Complete for the example functions"
+      },
+      "place": {
+        "status": "supported",
+        "description": "Complete for the example functions"
+      },
+      "evidence": {
+        "status": "supported",
+        "description": "Complete for the example functions"
+      },
+      "extension": {
+        "status": "not_applicable",
+        "description": "No extension facts are needed"
+      }
+    }
+  },
+  "unit": {
+    "id": "unit:example",
+    "language": {
+      "name": "rust",
+      "version": "2021"
+    },
+    "toolchain": {
+      "name": "rustc",
+      "version": "nightly-2026-09-30"
+    },
+    "target": {
+      "triple": "aarch64-unknown-linux-gnu",
+      "pointer_width": 64
+    },
+    "configuration": [],
+    "semantics": {
+      "integer_overflow": "checked",
+      "exceptions": "unwind",
+      "debug_assertions": true
+    },
+    "files": [
+      {
+        "id": "file:lib",
+        "path": "src/lib.rs",
+        "origin": "source",
+        "digest": "sha256:513778d09c6023b937341f7573a6cf5d818d98412837ef650009430c2cbb7e37",
+        "content": "pub const LIMIT: u32 = 3;\n\npub fn larger<T: Ord>(a: T, b: T) -> T {\n    a.max(b)\n}\n\npub fn top(a: u32, b: u32) -> u32 {\n    larger(a, b).min(LIMIT)\n}\n\npub fn count(items: &[u32]) -> u32 {\n    let mut total = 0;\n    for item in items {\n        if *item > LIMIT && total < 10 {\n            total += 1;\n        }\n    }\n    total\n}\n"
+      }
+    ],
+    "namespaces": [
+      {
+        "id": "ns:example",
+        "name": "example",
+        "file": "file:lib"
+      }
+    ],
+    "imports": [],
+    "definitions": [
+      {
+        "id": "def:LIMIT",
+        "kind": "constant",
+        "name": "example::LIMIT",
+        "stable_identity": "example::LIMIT",
+        "scope": "unit",
+        "span": {
+          "file": "file:lib",
+          "start": 0,
+          "end": 25
+        }
+      },
+      {
+        "id": "def:larger",
+        "kind": "function",
+        "name": "example::larger",
+        "stable_identity": "example::larger",
+        "scope": "unit",
+        "span": {
+          "file": "file:lib",
+          "start": 27,
+          "end": 82
+        }
+      },
+      {
+        "id": "def:larger.T",
+        "kind": "type_parameter",
+        "name": "T",
+        "stable_identity": "example::larger::T",
+        "scope": "unit",
+        "owner": "def:larger",
+        "span": {
+          "file": "file:lib",
+          "start": 41,
+          "end": 47
+        }
+      },
+      {
+        "id": "def:top",
+        "kind": "function",
+        "name": "example::top",
+        "stable_identity": "example::top",
+        "scope": "unit",
+        "span": {
+          "file": "file:lib",
+          "start": 84,
+          "end": 149
+        }
+      },
+      {
+        "id": "def:Ord",
+        "kind": "trait",
+        "name": "core::cmp::Ord",
+        "stable_identity": "core::cmp::Ord",
+        "scope": "library"
+      },
+      {
+        "id": "def:Ord.max",
+        "kind": "method",
+        "name": "core::cmp::Ord::max",
+        "stable_identity": "core::cmp::Ord::max",
+        "owner": "def:Ord",
+        "scope": "library"
+      },
+      {
+        "id": "def:Ord.min",
+        "kind": "method",
+        "name": "core::cmp::Ord::min",
+        "stable_identity": "core::cmp::Ord::min",
+        "owner": "def:Ord",
+        "scope": "library"
+      },
+      {
+        "id": "def:count",
+        "kind": "function",
+        "name": "example::count",
+        "stable_identity": "example::count",
+        "scope": "unit",
+        "span": {
+          "file": "file:lib",
+          "start": 151,
+          "end": 327
+        }
+      },
+      {
+        "id": "def:IntoIterator",
+        "kind": "trait",
+        "name": "core::iter::IntoIterator",
+        "stable_identity": "core::iter::IntoIterator",
+        "scope": "library"
+      },
+      {
+        "id": "def:IntoIterator.into_iter",
+        "kind": "method",
+        "name": "core::iter::IntoIterator::into_iter",
+        "stable_identity": "core::iter::IntoIterator::into_iter",
+        "owner": "def:IntoIterator",
+        "scope": "library"
+      },
+      {
+        "id": "def:Iterator",
+        "kind": "trait",
+        "name": "core::iter::Iterator",
+        "stable_identity": "core::iter::Iterator",
+        "scope": "library"
+      },
+      {
+        "id": "def:Iterator.next",
+        "kind": "method",
+        "name": "core::iter::Iterator::next",
+        "stable_identity": "core::iter::Iterator::next",
+        "owner": "def:Iterator",
+        "scope": "library"
+      }
+    ],
+    "types": [
+      {
+        "id": "type:T",
+        "kind": "parameter",
+        "spelling": "T",
+        "definition": "def:larger.T",
+        "bounds": [
+          "def:Ord"
+        ]
+      },
+      {
+        "id": "type:u32",
+        "kind": "integer",
+        "spelling": "u32",
+        "key": "rust:u32",
+        "bits": 32,
+        "signed": false
+      },
+      {
+        "id": "type:bool",
+        "kind": "bool",
+        "spelling": "bool",
+        "key": "rust:bool"
+      },
+      {
+        "id": "type:u32_slice",
+        "kind": "sequence",
+        "spelling": "[u32]",
+        "key": "rust:slice",
+        "element": "type:u32"
+      },
+      {
+        "id": "type:slice_ref",
+        "kind": "reference",
+        "spelling": "&[u32]",
+        "target": "type:u32_slice",
+        "mode": "shared"
+      },
+      {
+        "id": "type:u32_ref",
+        "kind": "reference",
+        "spelling": "&u32",
+        "target": "type:u32",
+        "mode": "shared"
+      },
+      {
+        "id": "type:iter",
+        "kind": "opaque",
+        "spelling": "std::slice::Iter<'_, u32>"
+      },
+      {
+        "id": "type:option_ref",
+        "kind": "opaque",
+        "spelling": "Option<&u32>"
+      }
+    ],
+    "values": [
+      {
+        "definition": "def:LIMIT",
+        "type": "type:u32",
+        "value": {
+          "kind": "integer",
+          "value": "3"
+        }
+      }
+    ],
+    "instances": [
+      {
+        "id": "instance:larger<u32>",
+        "function": "fn:larger",
+        "arguments": [
+          "type:u32"
+        ],
+        "form": "overlay",
+        "overlay": [
+          {
+            "node": "larger.max",
+            "target": {
+              "kind": "library_operation",
+              "id": "def:Ord.max",
+              "operation": "rust:Ord.max"
+            }
+          }
+        ]
+      }
+    ],
+    "functions": [
+      {
+        "id": "fn:larger",
+        "definition": "def:larger",
+        "name": "larger",
+        "span": {
+          "file": "file:lib",
+          "start": 27,
+          "end": 82
+        },
+        "signature": {
+          "span": {
+            "file": "file:lib",
+            "start": 31,
+            "end": 65
+          },
+          "parameters": [
+            {
+              "position": 0,
+              "symbol": "larger.a",
+              "type": "type:T",
+              "span": {
+                "file": "file:lib",
+                "start": 49,
+                "end": 53
+              }
+            },
+            {
+              "position": 1,
+              "symbol": "larger.b",
+              "type": "type:T",
+              "span": {
+                "file": "file:lib",
+                "start": 55,
+                "end": 59
+              }
+            }
+          ],
+          "result": "type:T",
+          "generics": [
+            {
+              "name": "T",
+              "definition": "def:larger.T",
+              "bounds": [
+                "def:Ord"
+              ]
+            }
+          ],
+          "lifetimes": [],
+          "outlives": [],
+          "modifiers": []
+        },
+        "root": "larger.block",
+        "nodes": [
+          {
+            "id": "larger.block",
+            "kind": "block",
+            "original_kind": "expr_block",
+            "span": {
+              "file": "file:lib",
+              "start": 66,
+              "end": 82
+            },
+            "children": [
+              "larger.max"
+            ],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:T"
+          },
+          {
+            "id": "larger.max",
+            "kind": "call",
+            "original_kind": "expr_method_call",
+            "span": {
+              "file": "file:lib",
+              "start": 72,
+              "end": 80
+            },
+            "children": [
+              "larger.a",
+              "larger.b"
+            ],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:T"
+          },
+          {
+            "id": "larger.a",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "span": {
+              "file": "file:lib",
+              "start": 72,
+              "end": 73
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:T"
+          },
+          {
+            "id": "larger.b",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "span": {
+              "file": "file:lib",
+              "start": 78,
+              "end": 79
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:T"
+          }
+        ],
+        "cfg": {
+          "entry": "entry",
+          "exits": [
+            {
+              "id": "larger.exit",
+              "kind": "normal"
+            }
+          ],
+          "edges": [
+            {
+              "id": "e0",
+              "source": "entry",
+              "target": "larger.a",
+              "kind": "normal"
+            },
+            {
+              "id": "e1",
+              "source": "larger.a",
+              "target": "larger.b",
+              "kind": "normal"
+            },
+            {
+              "id": "e2",
+              "source": "larger.b",
+              "target": "larger.max",
+              "kind": "normal"
+            },
+            {
+              "id": "e3",
+              "source": "larger.max",
+              "target": "larger.block",
+              "kind": "normal"
+            },
+            {
+              "id": "e4",
+              "source": "larger.block",
+              "target": "larger.exit",
+              "kind": "normal"
+            }
+          ]
+        },
+        "symbols": [
+          {
+            "id": "larger.a",
+            "name": "a",
+            "kind": "parameter",
+            "scope": "fn:larger",
+            "declared": {
+              "file": "file:lib",
+              "start": 49,
+              "end": 50
+            },
+            "mutable": false,
+            "type": "type:T"
+          },
+          {
+            "id": "larger.b",
+            "name": "b",
+            "kind": "parameter",
+            "scope": "fn:larger",
+            "declared": {
+              "file": "file:lib",
+              "start": 55,
+              "end": 56
+            },
+            "mutable": false,
+            "type": "type:T"
+          }
+        ],
+        "accesses": [
+          {
+            "node": "larger.a",
+            "symbol": "larger.a",
+            "mode": "read"
+          },
+          {
+            "node": "larger.b",
+            "symbol": "larger.b",
+            "mode": "read"
+          }
+        ],
+        "refs": [
+          {
+            "node": "larger.a",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "larger.a"
+            }
+          },
+          {
+            "node": "larger.b",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "larger.b"
+            }
+          },
+          {
+            "node": "larger.max",
+            "status": "dependent",
+            "dispatch": "method",
+            "via": "def:Ord.max",
+            "bounds": [
+              "def:Ord"
+            ]
+          }
+        ],
+        "places": [
+          {
+            "id": "larger.place.a",
+            "node": "larger.a",
+            "root": {
+              "symbol": "larger.a"
+            },
+            "path": [],
+            "access": "read",
+            "mode": "value",
+            "type": "type:T"
+          },
+          {
+            "id": "larger.place.b",
+            "node": "larger.b",
+            "root": {
+              "symbol": "larger.b"
+            },
+            "path": [],
+            "access": "read",
+            "mode": "value",
+            "type": "type:T"
+          }
+        ],
+        "values": []
+      },
+      {
+        "id": "fn:top",
+        "definition": "def:top",
+        "name": "top",
+        "span": {
+          "file": "file:lib",
+          "start": 84,
+          "end": 149
+        },
+        "signature": {
+          "span": {
+            "file": "file:lib",
+            "start": 88,
+            "end": 117
+          },
+          "parameters": [
+            {
+              "position": 0,
+              "symbol": "top.a",
+              "type": "type:u32",
+              "span": {
+                "file": "file:lib",
+                "start": 95,
+                "end": 101
+              }
+            },
+            {
+              "position": 1,
+              "symbol": "top.b",
+              "type": "type:u32",
+              "span": {
+                "file": "file:lib",
+                "start": 103,
+                "end": 109
+              }
+            }
+          ],
+          "result": "type:u32",
+          "generics": [],
+          "lifetimes": [],
+          "outlives": [],
+          "modifiers": []
+        },
+        "root": "top.block",
+        "nodes": [
+          {
+            "id": "top.block",
+            "kind": "block",
+            "original_kind": "expr_block",
+            "span": {
+              "file": "file:lib",
+              "start": 118,
+              "end": 149
+            },
+            "children": [
+              "top.min"
+            ],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32"
+          },
+          {
+            "id": "top.min",
+            "kind": "call",
+            "original_kind": "expr_method_call",
+            "span": {
+              "file": "file:lib",
+              "start": 124,
+              "end": 147
+            },
+            "children": [
+              "top.larger",
+              "top.limit"
+            ],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32"
+          },
+          {
+            "id": "top.larger",
+            "kind": "call",
+            "original_kind": "expr_call",
+            "span": {
+              "file": "file:lib",
+              "start": 124,
+              "end": 136
+            },
+            "children": [
+              "top.callee",
+              "top.a",
+              "top.b"
+            ],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32"
+          },
+          {
+            "id": "top.callee",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "span": {
+              "file": "file:lib",
+              "start": 124,
+              "end": 130
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "top.a",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "span": {
+              "file": "file:lib",
+              "start": 131,
+              "end": 132
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32"
+          },
+          {
+            "id": "top.b",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "span": {
+              "file": "file:lib",
+              "start": 134,
+              "end": 135
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32"
+          },
+          {
+            "id": "top.limit",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "span": {
+              "file": "file:lib",
+              "start": 141,
+              "end": 146
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32"
+          }
+        ],
+        "cfg": {
+          "entry": "entry",
+          "exits": [
+            {
+              "id": "top.exit",
+              "kind": "normal"
+            }
+          ],
+          "edges": [
+            {
+              "id": "e0",
+              "source": "entry",
+              "target": "top.callee",
+              "kind": "normal"
+            },
+            {
+              "id": "e1",
+              "source": "top.callee",
+              "target": "top.a",
+              "kind": "normal"
+            },
+            {
+              "id": "e2",
+              "source": "top.a",
+              "target": "top.b",
+              "kind": "normal"
+            },
+            {
+              "id": "e3",
+              "source": "top.b",
+              "target": "top.larger",
+              "kind": "normal"
+            },
+            {
+              "id": "e4",
+              "source": "top.larger",
+              "target": "top.limit",
+              "kind": "normal"
+            },
+            {
+              "id": "e5",
+              "source": "top.limit",
+              "target": "top.min",
+              "kind": "normal"
+            },
+            {
+              "id": "e6",
+              "source": "top.min",
+              "target": "top.block",
+              "kind": "normal"
+            },
+            {
+              "id": "e7",
+              "source": "top.block",
+              "target": "top.exit",
+              "kind": "normal"
+            }
+          ]
+        },
+        "symbols": [
+          {
+            "id": "top.a",
+            "name": "a",
+            "kind": "parameter",
+            "scope": "fn:top",
+            "declared": {
+              "file": "file:lib",
+              "start": 95,
+              "end": 96
+            },
+            "mutable": false,
+            "type": "type:u32"
+          },
+          {
+            "id": "top.b",
+            "name": "b",
+            "kind": "parameter",
+            "scope": "fn:top",
+            "declared": {
+              "file": "file:lib",
+              "start": 103,
+              "end": 104
+            },
+            "mutable": false,
+            "type": "type:u32"
+          }
+        ],
+        "accesses": [
+          {
+            "node": "top.a",
+            "symbol": "top.a",
+            "mode": "read"
+          },
+          {
+            "node": "top.b",
+            "symbol": "top.b",
+            "mode": "read"
+          }
+        ],
+        "refs": [
+          {
+            "node": "top.callee",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:larger"
+            }
+          },
+          {
+            "node": "top.larger",
+            "status": "resolved",
+            "dispatch": "static",
+            "target": {
+              "kind": "definition",
+              "id": "def:larger"
+            },
+            "instance_arguments": [
+              "type:u32"
+            ],
+            "instance": "instance:larger<u32>"
+          },
+          {
+            "node": "top.a",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "top.a"
+            }
+          },
+          {
+            "node": "top.b",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "top.b"
+            }
+          },
+          {
+            "node": "top.limit",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:LIMIT"
+            }
+          },
+          {
+            "node": "top.min",
+            "status": "resolved",
+            "dispatch": "method",
+            "target": {
+              "kind": "library_operation",
+              "id": "def:Ord.min",
+              "operation": "rust:Ord.min"
+            },
+            "calls_back": {
+              "value": false,
+              "reason": "u32 comparisons run only standard implementations"
+            }
+          }
+        ],
+        "places": [
+          {
+            "id": "top.place.a",
+            "node": "top.a",
+            "root": {
+              "symbol": "top.a"
+            },
+            "path": [],
+            "access": "read",
+            "mode": "value",
+            "type": "type:u32"
+          },
+          {
+            "id": "top.place.b",
+            "node": "top.b",
+            "root": {
+              "symbol": "top.b"
+            },
+            "path": [],
+            "access": "read",
+            "mode": "value",
+            "type": "type:u32"
+          }
+        ],
+        "values": [
+          {
+            "node": "top.limit",
+            "type": "type:u32",
+            "value": {
+              "kind": "integer",
+              "value": "3"
+            }
+          }
+        ]
+      },
+      {
+        "id": "fn:count",
+        "definition": "def:count",
+        "name": "count",
+        "span": {
+          "file": "file:lib",
+          "start": 151,
+          "end": 327
+        },
+        "signature": {
+          "span": {
+            "file": "file:lib",
+            "start": 155,
+            "end": 185
+          },
+          "parameters": [
+            {
+              "position": 0,
+              "symbol": "count.items",
+              "type": "type:slice_ref",
+              "span": {
+                "file": "file:lib",
+                "start": 164,
+                "end": 177
+              }
+            }
+          ],
+          "result": "type:u32",
+          "generics": [],
+          "lifetimes": [],
+          "outlives": [],
+          "modifiers": []
+        },
+        "root": "count.block",
+        "nodes": [
+          {
+            "id": "count.block",
+            "kind": "block",
+            "original_kind": "expr_block",
+            "span": {
+              "file": "file:lib",
+              "start": 186,
+              "end": 327
+            },
+            "children": [
+              "count.let",
+              "count.stmt_for",
+              "count.tail"
+            ],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32"
+          },
+          {
+            "id": "count.let",
+            "kind": "local_declaration",
+            "original_kind": "stmt_let",
+            "span": {
+              "file": "file:lib",
+              "start": 192,
+              "end": 210
+            },
+            "children": [
+              "count.total_pat",
+              "count.zero"
+            ],
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "count.total_pat",
+            "kind": "pattern_binding",
+            "original_kind": "pat_binding",
+            "span": {
+              "file": "file:lib",
+              "start": 196,
+              "end": 205
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32"
+          },
+          {
+            "id": "count.zero",
+            "kind": "literal",
+            "original_kind": "expr_lit",
+            "span": {
+              "file": "file:lib",
+              "start": 208,
+              "end": 209
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32",
+            "literal": "0"
+          },
+          {
+            "id": "count.stmt_for",
+            "kind": "expression_statement",
+            "original_kind": "stmt_expr",
+            "span": {
+              "file": "file:lib",
+              "start": 215,
+              "end": 315
+            },
+            "children": [
+              "count.for"
+            ],
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "count.for",
+            "kind": "for",
+            "original_kind": "expr_for",
+            "span": {
+              "file": "file:lib",
+              "start": 215,
+              "end": 315
+            },
+            "children": [
+              "count.item_pat",
+              "count.into_iter",
+              "count.loop_body",
+              "count.iter_pat",
+              "count.next"
+            ],
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "count.item_pat",
+            "kind": "pattern_binding",
+            "original_kind": "pat_binding",
+            "span": {
+              "file": "file:lib",
+              "start": 219,
+              "end": 223
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32_ref"
+          },
+          {
+            "id": "count.into_iter",
+            "kind": "call",
+            "original_kind": "expr_call",
+            "children": [
+              "count.items"
+            ],
+            "synthetic": true,
+            "provenance": {
+              "origin": "desugaring",
+              "construct": "for",
+              "call_site": {
+                "file": "file:lib",
+                "start": 215,
+                "end": 315
+              }
+            },
+            "type": "type:iter",
+            "span": {
+              "file": "file:lib",
+              "start": 227,
+              "end": 232
+            }
+          },
+          {
+            "id": "count.items",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "span": {
+              "file": "file:lib",
+              "start": 227,
+              "end": 232
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:slice_ref"
+          },
+          {
+            "id": "count.loop_body",
+            "kind": "block",
+            "original_kind": "expr_block",
+            "span": {
+              "file": "file:lib",
+              "start": 233,
+              "end": 315
+            },
+            "children": [
+              "count.stmt_if"
+            ],
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "count.stmt_if",
+            "kind": "expression_statement",
+            "original_kind": "stmt_expr",
+            "span": {
+              "file": "file:lib",
+              "start": 243,
+              "end": 309
+            },
+            "children": [
+              "count.if"
+            ],
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "count.if",
+            "kind": "if",
+            "original_kind": "expr_if",
+            "span": {
+              "file": "file:lib",
+              "start": 243,
+              "end": 309
+            },
+            "children": [
+              "count.cond",
+              "count.then"
+            ],
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "count.cond",
+            "kind": "operator",
+            "original_kind": "expr_binary",
+            "span": {
+              "file": "file:lib",
+              "start": 246,
+              "end": 273
+            },
+            "children": [
+              "count.gt",
+              "count.lt"
+            ],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:bool",
+            "operator": "and",
+            "token": {
+              "file": "file:lib",
+              "start": 260,
+              "end": 262
+            }
+          },
+          {
+            "id": "count.gt",
+            "kind": "operator",
+            "original_kind": "expr_binary",
+            "span": {
+              "file": "file:lib",
+              "start": 246,
+              "end": 259
+            },
+            "children": [
+              "count.deref",
+              "count.limit"
+            ],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:bool",
+            "operator": "gt",
+            "token": {
+              "file": "file:lib",
+              "start": 252,
+              "end": 253
+            }
+          },
+          {
+            "id": "count.deref",
+            "kind": "operator",
+            "original_kind": "expr_unary",
+            "span": {
+              "file": "file:lib",
+              "start": 246,
+              "end": 251
+            },
+            "children": [
+              "count.item"
+            ],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32",
+            "operator": "deref",
+            "token": {
+              "file": "file:lib",
+              "start": 246,
+              "end": 247
+            }
+          },
+          {
+            "id": "count.item",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "span": {
+              "file": "file:lib",
+              "start": 247,
+              "end": 251
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32_ref"
+          },
+          {
+            "id": "count.limit",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "span": {
+              "file": "file:lib",
+              "start": 254,
+              "end": 259
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32"
+          },
+          {
+            "id": "count.lt",
+            "kind": "operator",
+            "original_kind": "expr_binary",
+            "span": {
+              "file": "file:lib",
+              "start": 263,
+              "end": 273
+            },
+            "children": [
+              "count.total_read",
+              "count.ten"
+            ],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:bool",
+            "operator": "lt",
+            "token": {
+              "file": "file:lib",
+              "start": 269,
+              "end": 270
+            }
+          },
+          {
+            "id": "count.total_read",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "span": {
+              "file": "file:lib",
+              "start": 263,
+              "end": 268
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32"
+          },
+          {
+            "id": "count.ten",
+            "kind": "literal",
+            "original_kind": "expr_lit",
+            "span": {
+              "file": "file:lib",
+              "start": 271,
+              "end": 273
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32",
+            "literal": "10"
+          },
+          {
+            "id": "count.then",
+            "kind": "block",
+            "original_kind": "expr_block",
+            "span": {
+              "file": "file:lib",
+              "start": 274,
+              "end": 309
+            },
+            "children": [
+              "count.stmt_add"
+            ],
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "count.stmt_add",
+            "kind": "expression_statement",
+            "original_kind": "stmt_semi",
+            "span": {
+              "file": "file:lib",
+              "start": 288,
+              "end": 299
+            },
+            "children": [
+              "count.add"
+            ],
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "count.add",
+            "kind": "compound_assignment",
+            "original_kind": "expr_assign_op",
+            "span": {
+              "file": "file:lib",
+              "start": 288,
+              "end": 298
+            },
+            "children": [
+              "count.total_write",
+              "count.one"
+            ],
+            "provenance": {
+              "origin": "source"
+            },
+            "operator": "add",
+            "token": {
+              "file": "file:lib",
+              "start": 294,
+              "end": 296
+            }
+          },
+          {
+            "id": "count.total_write",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "span": {
+              "file": "file:lib",
+              "start": 288,
+              "end": 293
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32"
+          },
+          {
+            "id": "count.one",
+            "kind": "literal",
+            "original_kind": "expr_lit",
+            "span": {
+              "file": "file:lib",
+              "start": 297,
+              "end": 298
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32",
+            "literal": "1"
+          },
+          {
+            "id": "count.iter_pat",
+            "kind": "pattern_binding",
+            "original_kind": "pat_binding",
+            "children": [],
+            "synthetic": true,
+            "provenance": {
+              "origin": "desugaring",
+              "construct": "for",
+              "call_site": {
+                "file": "file:lib",
+                "start": 215,
+                "end": 315
+              }
+            },
+            "type": "type:iter"
+          },
+          {
+            "id": "count.next",
+            "kind": "call",
+            "original_kind": "expr_method_call",
+            "children": [
+              "count.iter_ref"
+            ],
+            "synthetic": true,
+            "provenance": {
+              "origin": "desugaring",
+              "construct": "for",
+              "call_site": {
+                "file": "file:lib",
+                "start": 215,
+                "end": 315
+              }
+            },
+            "type": "type:option_ref"
+          },
+          {
+            "id": "count.iter_ref",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "children": [],
+            "synthetic": true,
+            "provenance": {
+              "origin": "desugaring",
+              "construct": "for",
+              "call_site": {
+                "file": "file:lib",
+                "start": 215,
+                "end": 315
+              }
+            },
+            "type": "type:iter"
+          },
+          {
+            "id": "count.tail",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "span": {
+              "file": "file:lib",
+              "start": 320,
+              "end": 325
+            },
+            "children": [],
+            "provenance": {
+              "origin": "source"
+            },
+            "type": "type:u32"
+          }
+        ],
+        "cfg": {
+          "entry": "entry",
+          "exits": [
+            {
+              "id": "count.exit",
+              "kind": "normal"
+            }
+          ],
+          "edges": [
+            {
+              "id": "e0",
+              "source": "entry",
+              "target": "count.zero",
+              "kind": "normal"
+            },
+            {
+              "id": "e1",
+              "source": "count.zero",
+              "target": "count.total_pat",
+              "kind": "normal"
+            },
+            {
+              "id": "e2",
+              "source": "count.total_pat",
+              "target": "count.let",
+              "kind": "normal"
+            },
+            {
+              "id": "e3",
+              "source": "count.let",
+              "target": "count.items",
+              "kind": "normal"
+            },
+            {
+              "id": "e4",
+              "source": "count.items",
+              "target": "count.into_iter",
+              "kind": "normal"
+            },
+            {
+              "id": "e5",
+              "source": "count.into_iter",
+              "target": "count.iter_pat",
+              "kind": "normal"
+            },
+            {
+              "id": "e6",
+              "source": "count.iter_pat",
+              "target": "count.iter_ref",
+              "kind": "normal"
+            },
+            {
+              "id": "e7",
+              "source": "count.iter_ref",
+              "target": "count.next",
+              "kind": "normal"
+            },
+            {
+              "id": "e8",
+              "source": "count.next",
+              "target": "count.item_pat",
+              "kind": "true"
+            },
+            {
+              "id": "e9",
+              "source": "count.next",
+              "target": "count.for",
+              "kind": "false",
+              "loop_role": "loop_exit"
+            },
+            {
+              "id": "e10",
+              "source": "count.item_pat",
+              "target": "count.item",
+              "kind": "normal"
+            },
+            {
+              "id": "e11",
+              "source": "count.item",
+              "target": "count.deref",
+              "kind": "normal"
+            },
+            {
+              "id": "e12",
+              "source": "count.deref",
+              "target": "count.limit",
+              "kind": "normal"
+            },
+            {
+              "id": "e13",
+              "source": "count.limit",
+              "target": "count.gt",
+              "kind": "normal"
+            },
+            {
+              "id": "e14",
+              "source": "count.gt",
+              "target": "count.total_read",
+              "kind": "true"
+            },
+            {
+              "id": "e15",
+              "source": "count.gt",
+              "target": "count.cond",
+              "kind": "false"
+            },
+            {
+              "id": "e16",
+              "source": "count.total_read",
+              "target": "count.ten",
+              "kind": "normal"
+            },
+            {
+              "id": "e17",
+              "source": "count.ten",
+              "target": "count.lt",
+              "kind": "normal"
+            },
+            {
+              "id": "e18",
+              "source": "count.lt",
+              "target": "count.cond",
+              "kind": "normal"
+            },
+            {
+              "id": "e19",
+              "source": "count.cond",
+              "target": "count.total_write",
+              "kind": "true"
+            },
+            {
+              "id": "e20",
+              "source": "count.cond",
+              "target": "count.if",
+              "kind": "false"
+            },
+            {
+              "id": "e21",
+              "source": "count.total_write",
+              "target": "count.one",
+              "kind": "normal"
+            },
+            {
+              "id": "e22",
+              "source": "count.one",
+              "target": "count.add",
+              "kind": "normal"
+            },
+            {
+              "id": "e23",
+              "source": "count.add",
+              "target": "count.stmt_add",
+              "kind": "normal"
+            },
+            {
+              "id": "e24",
+              "source": "count.stmt_add",
+              "target": "count.then",
+              "kind": "normal"
+            },
+            {
+              "id": "e25",
+              "source": "count.then",
+              "target": "count.if",
+              "kind": "normal"
+            },
+            {
+              "id": "e26",
+              "source": "count.if",
+              "target": "count.stmt_if",
+              "kind": "normal"
+            },
+            {
+              "id": "e27",
+              "source": "count.stmt_if",
+              "target": "count.loop_body",
+              "kind": "normal"
+            },
+            {
+              "id": "e28",
+              "source": "count.loop_body",
+              "target": "count.iter_ref",
+              "kind": "normal",
+              "loop_role": "back_edge"
+            },
+            {
+              "id": "e29",
+              "source": "count.for",
+              "target": "count.stmt_for",
+              "kind": "normal"
+            },
+            {
+              "id": "e30",
+              "source": "count.stmt_for",
+              "target": "count.tail",
+              "kind": "normal"
+            },
+            {
+              "id": "e31",
+              "source": "count.tail",
+              "target": "count.block",
+              "kind": "normal"
+            },
+            {
+              "id": "e32",
+              "source": "count.block",
+              "target": "count.exit",
+              "kind": "normal"
+            }
+          ]
+        },
+        "symbols": [
+          {
+            "id": "count.items",
+            "name": "items",
+            "kind": "parameter",
+            "scope": "fn:count",
+            "declared": {
+              "file": "file:lib",
+              "start": 164,
+              "end": 169
+            },
+            "mutable": false,
+            "type": "type:slice_ref"
+          },
+          {
+            "id": "count.total",
+            "name": "total",
+            "kind": "local",
+            "scope": "count.block",
+            "declared": {
+              "file": "file:lib",
+              "start": 200,
+              "end": 205
+            },
+            "mutable": true,
+            "type": "type:u32",
+            "node": "count.total_pat"
+          },
+          {
+            "id": "count.item",
+            "name": "item",
+            "kind": "local",
+            "scope": "count.for",
+            "declared": {
+              "file": "file:lib",
+              "start": 219,
+              "end": 223
+            },
+            "mutable": false,
+            "type": "type:u32_ref",
+            "node": "count.item_pat"
+          },
+          {
+            "id": "count.iter",
+            "name": "iter",
+            "kind": "local",
+            "scope": "count.for",
+            "mutable": true,
+            "type": "type:iter",
+            "node": "count.iter_pat"
+          }
+        ],
+        "accesses": [
+          {
+            "node": "count.items",
+            "symbol": "count.items",
+            "mode": "read"
+          },
+          {
+            "node": "count.item",
+            "symbol": "count.item",
+            "mode": "read"
+          },
+          {
+            "node": "count.total_read",
+            "symbol": "count.total",
+            "mode": "read"
+          },
+          {
+            "node": "count.total_write",
+            "symbol": "count.total",
+            "mode": "read_write"
+          },
+          {
+            "node": "count.iter_ref",
+            "symbol": "count.iter",
+            "mode": "read"
+          },
+          {
+            "node": "count.tail",
+            "symbol": "count.total",
+            "mode": "read"
+          }
+        ],
+        "refs": [
+          {
+            "node": "count.into_iter",
+            "status": "resolved",
+            "dispatch": "static",
+            "target": {
+              "kind": "library_operation",
+              "id": "def:IntoIterator.into_iter",
+              "operation": "rust:IntoIterator.into_iter"
+            }
+          },
+          {
+            "node": "count.items",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "count.items"
+            }
+          },
+          {
+            "node": "count.item",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "count.item"
+            }
+          },
+          {
+            "node": "count.limit",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:LIMIT"
+            }
+          },
+          {
+            "node": "count.total_read",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "count.total"
+            }
+          },
+          {
+            "node": "count.total_write",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "count.total"
+            }
+          },
+          {
+            "node": "count.next",
+            "status": "resolved",
+            "dispatch": "method",
+            "target": {
+              "kind": "library_operation",
+              "id": "def:Iterator.next",
+              "operation": "rust:Iterator.next"
+            }
+          },
+          {
+            "node": "count.iter_ref",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "count.iter"
+            }
+          },
+          {
+            "node": "count.tail",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "count.total"
+            }
+          }
+        ],
+        "places": [
+          {
+            "id": "count.place.items",
+            "node": "count.items",
+            "root": {
+              "symbol": "count.items"
+            },
+            "path": [],
+            "access": "read",
+            "mode": "value",
+            "type": "type:slice_ref"
+          },
+          {
+            "id": "count.place.item",
+            "node": "count.item",
+            "root": {
+              "symbol": "count.item"
+            },
+            "path": [],
+            "access": "read",
+            "mode": "value",
+            "type": "type:u32_ref"
+          },
+          {
+            "id": "count.place.deref",
+            "node": "count.deref",
+            "root": {
+              "symbol": "count.item"
+            },
+            "path": [
+              {
+                "deref": true
+              }
+            ],
+            "access": "read",
+            "mode": "value",
+            "type": "type:u32"
+          },
+          {
+            "id": "count.place.total_read",
+            "node": "count.total_read",
+            "root": {
+              "symbol": "count.total"
+            },
+            "path": [],
+            "access": "read",
+            "mode": "value",
+            "type": "type:u32"
+          },
+          {
+            "id": "count.place.total_write",
+            "node": "count.total_write",
+            "root": {
+              "symbol": "count.total"
+            },
+            "path": [],
+            "access": "read_write",
+            "mode": "value",
+            "type": "type:u32",
+            "escapes": false
+          },
+          {
+            "id": "count.place.iter",
+            "node": "count.iter_ref",
+            "root": {
+              "symbol": "count.iter"
+            },
+            "path": [],
+            "access": "read",
+            "mode": "exclusive",
+            "type": "type:iter",
+            "escapes": false,
+            "adjustments": [
+              {
+                "kind": "auto_ref",
+                "mode": "exclusive"
+              }
+            ]
+          },
+          {
+            "id": "count.place.tail",
+            "node": "count.tail",
+            "root": {
+              "symbol": "count.total"
+            },
+            "path": [],
+            "access": "read",
+            "mode": "value",
+            "type": "type:u32"
+          }
+        ],
+        "values": [
+          {
+            "node": "count.zero",
+            "type": "type:u32",
+            "value": {
+              "kind": "integer",
+              "value": "0"
+            }
+          },
+          {
+            "node": "count.ten",
+            "type": "type:u32",
+            "value": {
+              "kind": "integer",
+              "value": "10"
+            }
+          },
+          {
+            "node": "count.one",
+            "type": "type:u32",
+            "value": {
+              "kind": "integer",
+              "value": "1"
+            }
+          },
+          {
+            "node": "count.limit",
+            "type": "type:u32",
+            "value": {
+              "kind": "integer",
+              "value": "3"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

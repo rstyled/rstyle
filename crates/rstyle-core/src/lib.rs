@@ -9,6 +9,7 @@ pub mod cluster;
 pub mod complexity;
 pub mod complexity_report;
 pub mod config;
+pub mod cpg;
 pub mod dispatch;
 pub mod exclusions;
 pub mod facts;
