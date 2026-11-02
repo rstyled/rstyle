@@ -89,6 +89,9 @@ pub fn user_clone(xs: &[Cloned]) -> usize { xs.iter().cloned().count() }
 pub fn ordered_collect(xs: &[usize]) -> usize { xs.iter().map(|x| Key(*x)).collect::<std::collections::BTreeSet<Key>>().len() }
 pub fn boxed_callback(xs: &[usize], f: Box<dyn Fn(&usize) -> u32>) -> u32 { xs.iter().map(f).sum() }
 pub fn vec_collect(xs: &[Cloned]) -> usize { xs.iter().map(|c| c.0).collect::<Vec<u8>>().len() }
+pub struct Bag(pub Vec<u8>);
+impl std::ops::Add for &Bag { type Output = usize; fn add(self, other: &Bag) -> usize { let mut t = 0; for _ in &other.0 { t += 1; } t } }
+pub fn bag_sum(a: &Bag, b: &Bag, m: usize) -> usize { let mut t = 0; for _ in 0..m { t += a + b; } t }
 pub fn mutable_receiver(n: usize) { let mut v = vec![1u8]; v.iter().count(); v.push(1); let mut i = 0; while i < n { i += 1; } }
 "#;
 
@@ -227,6 +230,7 @@ fn assert_composed(rows: &[Value]) {
     for (name, entries, invocations) in [
         ("edge_caller", 12, 3),
         ("varying_calls", 30, 5),
+        ("bag_sum", 20, 5),
         ("linear", 3, 0),
     ] {
         let composed = &named_row(rows, name)["composed"]["Proven"];

@@ -120,6 +120,28 @@ impl<'tcx> Collector<'_, 'tcx> {
             })
     }
 
+    /// Overloaded operators call their trait impl after the operands are evaluated.
+    pub(super) fn overloaded(
+        &mut self,
+        expression: &'tcx Expr<'tcx>,
+        operands: &[&'tcx Expr<'tcx>],
+        next: u32,
+    ) -> u32 {
+        let Some(method) = self.ctx.typeck.type_dependent_def_id(expression.hir_id) else {
+            return next;
+        };
+        let action = Action::Call {
+            callee: self.ctx.tcx.def_path_str(method),
+            target: self.method_target(expression),
+            arguments: operands
+                .iter()
+                .map(|operand| self.argument(operand))
+                .collect(),
+            may_modify: false,
+        };
+        self.node(action, Flow::Goto(next), expression.span)
+    }
+
     /// Scalars keep their captured value; shared places keep their root and field path.
     pub(super) fn argument(&self, argument: &Expr<'tcx>) -> Argument {
         if self

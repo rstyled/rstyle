@@ -40,7 +40,8 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
             ExprKind::Binary(_, left, right) | ExprKind::Index(left, right, _) => (left, right),
             _ => unreachable!(),
         };
-        let right = self.expr(right, next);
+        let operator = self.overloaded(expression, &[left, right], next);
+        let right = self.expr(right, operator);
         self.expr(left, right)
     }
 
@@ -56,7 +57,11 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
             | ExprKind::Repeat(inner, _) => inner,
             _ => unreachable!(),
         };
-        self.expr(inner, next)
+        let operator = match expression.kind {
+            ExprKind::Unary(..) => self.overloaded(expression, &[inner], next),
+            _ => next,
+        };
+        self.expr(inner, operator)
     }
 
     // A local closure value used other than by direct call could run unboundedly elsewhere.

@@ -18,6 +18,7 @@ pub const COST_SCOPE: &str = "workspace-loop-body-entries-and-invocations-throug
 pub const ASSUMPTIONS: &[&str] = &[
     "Standard-library bodies are outside the cost unit, including any workspace trait implementations they invoke.",
     "Argument sizes are replaced by a per-invocation maximum; bounds are monotone, so totals are upper bounds but may be loose.",
+    "Implicit drop glue and overloaded auto-deref adjustments are not call sites and are not counted.",
     "Composed counts still do not bound operation costs or whole runtime.",
 ];
 
