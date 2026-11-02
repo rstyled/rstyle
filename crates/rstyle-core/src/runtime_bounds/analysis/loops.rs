@@ -1,7 +1,10 @@
 use super::*;
 use std::collections::BTreeMap;
 
-pub(super) fn discover(program: &Program, graph: &Graph) -> Checked<Vec<Loop>> {
+/// Never a captured variable; opaque loops have no modeled counter.
+const NO_COUNTER: u32 = u32::MAX;
+
+pub(super) fn discover(program: &Program, graph: &Graph, opaque: bool) -> Checked<Vec<Loop>> {
     let mut regions: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
     for (source, targets) in graph.successors.iter().enumerate() {
         if !graph.reachable[source] {
@@ -28,8 +31,31 @@ pub(super) fn discover(program: &Program, graph: &Graph) -> Checked<Vec<Loop>> {
 
     regions
         .into_iter()
-        .map(|(header, members)| describe(program, graph, header, members))
+        .map(
+            |(header, members)| match describe(program, graph, header, members.clone()) {
+                Err(Failure::Unknown(reason)) if opaque => Ok(Loop {
+                    header,
+                    members,
+                    counter: NO_COUNTER,
+                    limit: Value::Unknown,
+                    increment: header,
+                    opaque: Some(reason),
+                }),
+                other => other,
+            },
+        )
         .collect()
+}
+
+// Assume mode turns a per-loop failure into that loop's opaque reason.
+fn per_loop(result: Checked<()>, item: &mut Loop, opaque: bool) -> Checked<()> {
+    match result {
+        Err(Failure::Unknown(reason)) if opaque => {
+            item.opaque.get_or_insert(reason);
+            Ok(())
+        }
+        other => other,
+    }
 }
 
 fn region(graph: &Graph, source: usize, header: usize) -> BTreeSet<usize> {
@@ -126,6 +152,7 @@ fn describe(
         counter: *variable,
         limit: limit.clone(),
         increment,
+        opaque: None,
     })
 }
 
@@ -142,7 +169,12 @@ fn unique_increment(program: &Program, members: &BTreeSet<usize>, variable: u32)
     Ok(*increment)
 }
 
-pub(super) fn validate(program: &Program, graph: &Graph, loops: &[Loop]) -> Checked<()> {
+pub(super) fn validate(
+    program: &Program,
+    graph: &Graph,
+    loops: &mut [Loop],
+    opaque: bool,
+) -> Checked<()> {
     for (index, node) in program
         .nodes
         .iter()
@@ -160,7 +192,13 @@ pub(super) fn validate(program: &Program, graph: &Graph, loops: &[Loop]) -> Chec
                         .iter()
                         .any(|item| item.counter == *variable && item.increment == index) =>
             {
-                return Err(unknown("Increment lacks a current-state no-overflow guard"));
+                let reason = "Increment lacks a current-state no-overflow guard";
+                if !opaque {
+                    return Err(unknown(reason));
+                }
+                for item in loops.iter_mut().filter(|item| item.counter == *variable) {
+                    item.opaque.get_or_insert(reason.into());
+                }
             }
             Action::Assign { variable, .. } | Action::Increment { variable }
                 if *variable as usize >= program.variables.len() =>
@@ -171,8 +209,12 @@ pub(super) fn validate(program: &Program, graph: &Graph, loops: &[Loop]) -> Chec
         }
     }
 
-    for item in loops {
-        validate_loop(program, graph, item, loops)?;
+    for index in 0..loops.len() {
+        if loops[index].opaque.is_some() {
+            continue;
+        }
+        let result = validate_loop(program, graph, &loops[index], loops);
+        per_loop(result, &mut loops[index], opaque)?;
     }
 
     Ok(())
@@ -251,7 +293,7 @@ fn validate_reset(program: &Program, graph: &Graph, item: &Loop, index: usize) -
 pub(super) fn bounds(
     program: &Program,
     graph: &Graph,
-    loops: &[Loop],
+    loops: &mut [Loop],
     limits: Limits,
 ) -> Checked<Vec<Bound>> {
     let mut result = vec![None; loops.len()];
@@ -259,17 +301,24 @@ pub(super) fn bounds(
     order.sort_by_key(|&i| std::cmp::Reverse(loops[i].members.len()));
 
     for index in order {
-        let item = &loops[index];
-        let bits = program.variables[item.counter as usize].bits;
-        let local = values::Values::new(program, graph, item.header, bits).bound(&item.limit)?;
-        let multiplier = ResetBounds {
+        let context = ResetBounds {
             program,
             graph,
             loops,
             bounds: &result,
-        }
-        .count(item)?;
-        let bound = Bound::mul(multiplier, local);
+        };
+        let modeled = match &loops[index].opaque {
+            None => context.modeled(&loops[index]),
+            Some(_) => Err(unknown("opaque")),
+        };
+        let bound = match modeled {
+            Ok(bound) => bound,
+            Err(Failure::Unknown(reason)) if limits.opaque_loops => {
+                loops[index].opaque.get_or_insert(reason);
+                opaque_bound(program, loops, &result, index)
+            }
+            Err(failure) => return Err(failure),
+        };
         if bound.size() > limits.expression_nodes {
             return Err(Failure::Budget("Symbolic bound budget exceeded".into()));
         }
@@ -277,6 +326,28 @@ pub(super) fn bounds(
     }
 
     Ok(result.into_iter().map(Option::unwrap).collect())
+}
+
+// An opaque loop runs an unknown number of times per entry of its innermost parent.
+fn opaque_bound(
+    program: &Program,
+    loops: &[Loop],
+    result: &[Option<Bound>],
+    index: usize,
+) -> Bound {
+    let item = &loops[index];
+    let line = program.nodes[item.header]
+        .source
+        .as_ref()
+        .map_or(item.header, |source| source.line);
+    let parent = loops
+        .iter()
+        .enumerate()
+        .filter(|(_, other)| other.header != item.header && item.members.is_subset(&other.members))
+        .min_by_key(|(_, other)| other.members.len())
+        .and_then(|(parent, _)| result[parent].clone())
+        .unwrap_or(Bound::Const(1));
+    Bound::mul(parent, Bound::Input(format!("?L{line}")))
 }
 
 struct ResetBounds<'a> {
@@ -287,6 +358,14 @@ struct ResetBounds<'a> {
 }
 
 impl ResetBounds<'_> {
+    fn modeled(&self, item: &Loop) -> Checked<Bound> {
+        let bits = self.program.variables[item.counter as usize].bits;
+        let at_header = values::Values::new(self.program, self.graph, item.header, bits);
+        let local = at_header.bound(&item.limit)?;
+
+        Ok(Bound::mul(self.count(item)?, local))
+    }
+
     fn count(&self, item: &Loop) -> Checked<Bound> {
         let mut resets = Vec::new();
         for (index, node) in self

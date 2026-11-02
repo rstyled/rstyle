@@ -149,6 +149,9 @@ pub struct Limits {
     pub variables: usize,
     pub iterations: usize,
     pub expression_nodes: usize,
+    /// Assume mode: an unprovable loop gets an opaque `?L<line>` entry factor instead
+    /// of making the whole owner unknown. Off for sound results.
+    pub opaque_loops: bool,
 }
 
 impl Default for Limits {
@@ -158,6 +161,7 @@ impl Default for Limits {
             variables: 128,
             iterations: 4096,
             expression_nodes: 4096,
+            opaque_loops: false,
         }
     }
 }
@@ -183,6 +187,9 @@ pub struct LoopBound {
     pub header: u32,
     pub source: Option<Source>,
     pub body_entries: Bound,
+    /// Why this loop's per-entry bound is the opaque factor, in assume mode only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub opaque: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

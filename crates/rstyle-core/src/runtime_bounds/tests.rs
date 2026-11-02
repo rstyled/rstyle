@@ -521,3 +521,66 @@ fn callbacks_that_write_a_scan_limit_or_skip_the_reset_stay_unknown() {
     modifying.nodes[5].action = opaque_call("score", true);
     assert!(matches!(analyze(&modifying), Outcome::Unknown { .. }));
 }
+
+fn assume() -> Limits {
+    Limits {
+        opaque_loops: true,
+        ..Limits::default()
+    }
+}
+
+fn assumed(program: &Program) -> Assessment {
+    match analyze_with_limits(program, assume()) {
+        Outcome::Proven(result) => result,
+        other => panic!("{other:?}"),
+    }
+}
+
+// `while (?) { j = 0; while (j < m) { j += 1 } i += 1 }` with an unprovable outer guard.
+fn opaque_outer() -> Program {
+    let mut program = nested(true);
+    program.nodes[2].flow = Flow::Branch {
+        condition: Condition::Unknown,
+        then_node: 3,
+        else_node: 8,
+    };
+    program
+}
+
+#[test]
+fn assume_mode_bounds_unprovable_loops_by_an_opaque_factor() {
+    let program = opaque_outer();
+    assert!(matches!(analyze(&program), Outcome::Unknown { .. }));
+
+    let result = assumed(&program);
+    let outer = Bound::Input("?L2".into());
+    assert_eq!(result.loops[0].body_entries, outer);
+    assert!(result.loops[0].opaque.is_some());
+    // The inner scan still resets per outer entry, so it multiplies the opaque factor.
+    assert_eq!(
+        result.loops[1].body_entries,
+        Bound::Mul(vec![outer, Bound::Input("m".into())])
+    );
+    assert_eq!(result.loops[1].opaque, None);
+}
+
+#[test]
+fn assume_mode_keeps_proven_siblings_and_whole_owner_failures() {
+    let mut twice = scan();
+    twice.nodes[2].action = Action::Increment { variable: 2 };
+    let result = assumed(&twice);
+    assert!(result.loops[0].opaque.is_some());
+    assert_eq!(result.loops[0].body_entries, Bound::Input("?L1".into()));
+
+    let sequential = assumed(&nested(false));
+    assert_eq!(sequential, proven(&nested(false)));
+
+    let mut unsupported = opaque_outer();
+    unsupported.nodes[5].action = Action::Unsupported {
+        reason: "unmodeled".into(),
+    };
+    assert!(matches!(
+        analyze_with_limits(&unsupported, assume()),
+        Outcome::Unknown { .. }
+    ));
+}
