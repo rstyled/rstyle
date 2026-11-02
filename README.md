@@ -361,6 +361,24 @@ Inspiration: comparing functions by approximate matching of their program depend
 
 Known limits: function-level only; closure bodies are opaque (except `for_each`); a cluster mixing already-trait and inherent impls is reported as a candidate rather than as "implement the existing trait"; the size floor is 4 nodes and 1 call, so small functions never cluster (on competitive-programming code that is more than half of edited-copy pairs), and the defaults were picked on a few real crates and a labeled example set, not tuned on a large corpus.
 
+## Other languages (`cpg check`)
+
+Frontends for other languages emit `compat.cpg`
+documents, a code property graph with declared coverage, and core derives the
+style rules' inputs from them, so no rule is reimplemented per language:
+
+```
+cargo rstyle cpg check unit.json [--config rstyle.toml] [--format text|json]
+cargo rstyle cpg check unit.json fn-*.json    # a split run: one unit document and its function documents
+```
+
+The profile's *Rule facts* section defines each derivation: statement counts,
+complexity constructs, calls, call edges, effects and mutations. No compiler runs,
+and only an explicit `--config` applies. Documents from another profile version,
+with undeclared coverage, without file content, or whose split function documents
+do not match their unit's digest are rejected with exit code 2. Pattern mining over
+documents needs dependence graphs derived in core and is not available yet.
+
 ## Configuration
 
 Drop an `rstyle.toml` in the project root (see the one in this repo for every key). All keys are optional, unknown keys are errors.

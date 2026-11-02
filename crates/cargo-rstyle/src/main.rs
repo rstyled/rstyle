@@ -5,6 +5,7 @@
 #[cfg(test)]
 mod cli_tests;
 mod clones;
+mod cpg;
 mod diagnostic_process;
 mod ignore;
 mod run;
@@ -123,6 +124,25 @@ enum Command {
     Patterns(PatternsArgs),
     /// Dismiss a merge candidate you reviewed, list the ledger, or prune dead entries.
     Ignore(IgnoreArgs),
+    /// Analyze compat.cpg documents from any language frontend.
+    Cpg(CpgArgs),
+}
+
+#[derive(Args)]
+struct CpgArgs {
+    #[command(subcommand)]
+    command: CpgCommand,
+}
+
+#[derive(Subcommand)]
+enum CpgCommand {
+    /// Run the style rules over one bundled document or a split run's documents.
+    Check {
+        /// compat.cpg documents: one bundled unit document, or a split unit document
+        /// and its function documents.
+        #[arg(required = true)]
+        documents: Vec<PathBuf>,
+    },
 }
 
 #[derive(Args)]
@@ -350,6 +370,11 @@ fn main() -> ExitCode {
         Some(Command::Patterns(args)) => return exit_with(clones::patterns_route::run(cli, args)),
         Some(Command::Ignore(args)) => {
             return exit_with(clones::patterns_route::ignore(cli, args));
+        }
+        Some(Command::Cpg(CpgArgs {
+            command: CpgCommand::Check { documents },
+        })) => {
+            return exit_with(cpg::check(&documents, cli.config.as_deref(), cli.format));
         }
         None => {}
     }

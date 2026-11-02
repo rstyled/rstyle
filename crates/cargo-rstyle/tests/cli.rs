@@ -12,6 +12,7 @@ mod complexity;
 mod component_helper_results;
 mod concrete_default;
 mod copy_owner_source;
+mod cpg;
 mod density_review;
 mod dependency_capture;
 #[path = "../src/diagnostic_process.rs"]
