@@ -317,6 +317,14 @@ length of `x`. A key without a contract, or a size without a stable caller-side
 bound such as a locally built map, gives an opaque `?library` or `?input` factor
 listed in `library_factors`; these never change the composed verdict. Another
 language's frontend supplies its own contract file and keys.
+The same files declare iteration roles, so frontends carry no method tables: a
+`[[stage]]` or `[[consumer]]` gives an operation such as `rust:Iterator.map` one of
+a closed set of per-item effects (`Pass`, `Map`, `Filter`, `Skip`, `Take`,
+`TakeWhile`, `FlatMap`; `Drain`, `Each`, `Search`), its arity, the callback
+argument run once per item, and the type arguments whose trait impls it may run,
+which must be standard. `[[extent]]` marks members that read a stable length
+(`Length`) or traverse each entry once (`Traversal`). A frontend lowers effects,
+never method names; an operation without a role keeps ordinary call lowering.
 Rows rank by polynomial degree, then logarithmic factors. This is a search
 heuristic, not a comparison of runtimes across independent input sizes. JSON retains the full result roster and the
 selected row indices. Existing abstraction gates and reviews retain their scope.
