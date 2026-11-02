@@ -81,6 +81,15 @@ pub fn varying_calls(m: usize) -> usize { let mut t = 0; for i in 0..m { t += co
 pub fn recursive_count(n: usize) -> usize { if n == 0 { 0 } else { recursive_count(n - 1) } }
 pub trait Area { fn area(&self) -> usize; }
 pub fn dyn_area(s: &dyn Area) -> usize { s.area() }
+pub fn flat_return(xs: &[usize], ys: &[usize], zs: &[usize]) -> u32 { xs.iter().flat_map(|x| { if *x == 0 { return zs.iter().copied(); } ys.iter().copied() }).map(|y| score(y, 0)).sum() }
+pub fn fold_init_escape(xs: &[usize]) -> u32 { let f = |a: u32| a + score(1, 1); xs.iter().fold(f, |acc, _| acc)(0) }
+#[derive(Clone)] pub struct Cloned(pub u8);
+pub fn user_clone(xs: &[Cloned]) -> usize { xs.iter().cloned().count() }
+#[derive(PartialEq, Eq, PartialOrd, Ord)] pub struct Key(pub usize);
+pub fn ordered_collect(xs: &[usize]) -> usize { xs.iter().map(|x| Key(*x)).collect::<std::collections::BTreeSet<Key>>().len() }
+pub fn boxed_callback(xs: &[usize], f: Box<dyn Fn(&usize) -> u32>) -> u32 { xs.iter().map(f).sum() }
+pub fn vec_collect(xs: &[Cloned]) -> usize { xs.iter().map(|c| c.0).collect::<Vec<u8>>().len() }
+pub fn mutable_receiver(n: usize) { let mut v = vec![1u8]; v.iter().count(); v.push(1); let mut i = 0; while i < n { i += 1; } }
 "#;
 
 fn runtime(report: &Value) -> &Value {
@@ -153,6 +162,8 @@ fn assert_known_bounds(rows: &[Value]) {
         ("range_chain", 3),
         ("short_search", 3),
         ("closure_return", 3),
+        ("vec_collect", 3),
+        ("mutable_receiver", 3),
     ] {
         let row = named_row(rows, name);
         let bound: rstyle_core::runtime_bounds::Bound =
@@ -286,6 +297,11 @@ fn assert_unknown(rows: &[Value]) {
         "unsafe_callback",
         "moved_mutable",
         "user_iterator",
+        "flat_return",
+        "fold_init_escape",
+        "user_clone",
+        "ordered_collect",
+        "boxed_callback",
     ] {
         let row = named_row(rows, name);
         assert!(row["result"].get("Unknown").is_some(), "{name}: {row}");

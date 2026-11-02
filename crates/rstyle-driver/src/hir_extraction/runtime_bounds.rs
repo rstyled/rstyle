@@ -3,6 +3,7 @@ mod branches;
 mod calls;
 mod chains;
 mod control;
+mod dispatch;
 mod extent;
 mod frame;
 mod iteration;

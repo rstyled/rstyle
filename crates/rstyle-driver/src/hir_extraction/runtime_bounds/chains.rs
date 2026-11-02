@@ -10,6 +10,10 @@ use rustc_hir::def_id::DefId;
 use rustc_span::sym;
 
 /// Upper-bound multiplicities rely on standard contracts, never on `size_hint`.
+fn method(ctx: &Context<'_>, expression: &Expr<'_>) -> String {
+    iterator_method(ctx, expression).unwrap_or_default()
+}
+
 pub(super) fn iterator_method<'tcx>(ctx: &Context<'tcx>, expression: &Expr<'_>) -> Option<String> {
     let method = ctx.typeck.type_dependent_def_id(expression.hir_id)?;
     let iterator = ctx.tcx.get_diagnostic_item(sym::Iterator)?;
@@ -47,6 +51,14 @@ struct Chain<'tcx> {
     bits: u8,
     stages: Vec<Stage<'tcx>>,
     arguments: Vec<&'tcx Expr<'tcx>>,
+    // Stages that dispatch to item trait impls are modeled only for standard items.
+    standard: bool,
+}
+
+/// A flattening callback's statements and the adapter chain it returns.
+struct Flattened<'tcx> {
+    statements: &'tcx [hir::Stmt<'tcx>],
+    chain: Option<Chain<'tcx>>,
 }
 
 #[derive(Clone, Copy)]
@@ -89,11 +101,21 @@ impl<'tcx> Collector<'_, 'tcx> {
         let ExprKind::MethodCall(_, receiver, arguments, _) = expression.kind else {
             return None;
         };
-        let consumer = self.consumer(expression, arguments)?;
+        let (consumer, inlined) = self.consumer(expression, arguments)?;
         let mut chain = self.chain(receiver)?;
+        if !chain.standard
+            || !self.standard_dispatch(expression, receiver, &method(self.ctx, expression))
+        {
+            let reason = "Iterator chain dispatches to a non-standard trait implementation";
+            return Some(self.unsupported(expression.span, next, reason));
+        }
 
-        let data = arguments.iter().filter(|a| self.callback(a).is_none());
-        chain.arguments.extend(data);
+        // Every argument but the inlined callback is evaluated, so other closures stay visible.
+        let data = arguments
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| Some(*i) != inlined);
+        chain.arguments.extend(data.map(|(_, argument)| argument));
         let targets = Targets {
             skip: next,
             stop: next,
@@ -126,45 +148,40 @@ impl<'tcx> Collector<'_, 'tcx> {
         let ExprKind::MethodCall(_, _, arguments, _) = expression.kind else {
             return false;
         };
+        // Any callable component, such as a boxed `dyn Fn`, may be invoked per item.
         let callable = |argument: &Expr<'tcx>| {
-            matches!(
-                self.ctx
-                    .typeck
-                    .expr_ty_adjusted(argument)
-                    .peel_refs()
-                    .kind(),
-                ty::Closure(..)
-                    | ty::FnDef(..)
-                    | ty::FnPtr(..)
-                    | ty::Param(_)
-                    | ty::Dynamic(..)
-                    | ty::Alias(..)
-            )
+            let ty = self.ctx.typeck.expr_ty_adjusted(argument);
+            ty.walk()
+                .any(|part| part.as_type().is_some_and(callable_kind))
         };
         iterator_method(self.ctx, expression).is_some() && arguments.iter().any(callable)
     }
 
+    /// The consumer and the index of the callback argument it inlines, if any.
     fn consumer(
         &self,
         expression: &Expr<'tcx>,
         arguments: &'tcx [Expr<'tcx>],
-    ) -> Option<Consumer<'tcx>> {
+    ) -> Option<(Consumer<'tcx>, Option<usize>)> {
         let name = iterator_method(self.ctx, expression)?;
         let callback = |index: usize| arguments.get(index).and_then(|a| self.callback(a));
         Some(match (name.as_str(), arguments.len()) {
             ("sum" | "product" | "count" | "last" | "min" | "max" | "collect", 0) => {
-                Consumer::Drain
+                (Consumer::Drain, None)
             }
             ("min_by_key" | "max_by_key" | "min_by" | "max_by" | "for_each", 1) => {
-                Consumer::Each(callback(0)?)
+                (Consumer::Each(callback(0)?), Some(0))
             }
-            ("fold", 2) => Consumer::Each(callback(1)?),
-            ("any" | "all" | "find" | "position" | "find_map", 1) => Consumer::Search(callback(0)?),
+            ("fold", 2) => (Consumer::Each(callback(1)?), Some(1)),
+            ("any" | "all" | "find" | "position" | "find_map", 1) => {
+                (Consumer::Search(callback(0)?), Some(0))
+            }
             _ => return None,
         })
     }
 
     fn chain(&self, mut receiver: &'tcx Expr<'tcx>) -> Option<Chain<'tcx>> {
+        let top = receiver;
         let mut stages = Vec::new();
         let mut arguments = Vec::new();
         while let ExprKind::MethodCall(_, inner, items, _) = receiver.kind
@@ -191,7 +208,20 @@ impl<'tcx> Collector<'_, 'tcx> {
             bits,
             stages,
             arguments,
+            standard: self.standard_stages(top),
         })
+    }
+
+    fn standard_stages(&self, mut receiver: &Expr<'tcx>) -> bool {
+        while let ExprKind::MethodCall(_, inner, _, _) = receiver.kind
+            && let Some(name) = iterator_method(self.ctx, receiver)
+        {
+            if !self.standard_dispatch(receiver, inner, &name) {
+                return false;
+            }
+            receiver = inner;
+        }
+        true
     }
 
     fn stage(&self, name: &str, items: &'tcx [Expr<'tcx>]) -> Option<Stage<'tcx>> {
@@ -347,40 +377,42 @@ impl<'tcx> Collector<'_, 'tcx> {
         rest: &[Stage<'tcx>],
         tail: Tail<'tcx>,
     ) -> u32 {
-        let (statements, chain) = self.flattened(closure);
-        let scan = self.nested_scan(chain.as_ref(), rest, tail);
-        self.sequence(statements, scan, Self::statement)
+        let flattened = self.flattened(closure);
+        self.nested_scan(flattened, rest, tail)
     }
 
-    fn flattened(
-        &mut self,
-        closure: &'tcx hir::Closure<'tcx>,
-    ) -> (&'tcx [hir::Stmt<'tcx>], Option<Chain<'tcx>>) {
+    fn flattened(&mut self, closure: &'tcx hir::Closure<'tcx>) -> Flattened<'tcx> {
         let body = self.ctx.tcx.hir_body(closure.body);
         let (statements, value) = match body.value.kind {
             ExprKind::Block(block, None) => (block.stmts, block.expr),
             _ => (&[][..], Some(body.value)),
         };
+
         self.register_locals(statements);
-        (statements, value.and_then(|value| self.chain(value)))
+        let chain = value
+            .and_then(|value| self.chain(value))
+            .filter(|c| c.standard);
+        Flattened { statements, chain }
     }
 
     // Exhausting the inner scan pulls the next outer item; stops still end the whole chain.
+    // A return anywhere in the callback, statements included, yields an unmodeled iterator.
     fn nested_scan(
         &mut self,
-        chain: Option<&Chain<'tcx>>,
+        flattened: Flattened<'tcx>,
         rest: &[Stage<'tcx>],
         tail: Tail<'tcx>,
     ) -> u32 {
-        let Some(chain) = chain else {
+        let Some(chain) = flattened.chain else {
             let reason = "Flattened callback is not a modeled chain";
             return self.unsupported(tail.span, tail.targets.skip, reason);
         };
         let reason = "Flattened callback returns early";
         let early = self.unsupported(tail.span, tail.targets.skip, reason);
         self.returning(early, |this| {
-            let scan = this.scan_chain(chain, rest, tail);
-            this.chain_inputs(chain, scan)
+            let scan = this.scan_chain(&chain, rest, tail);
+            let inputs = this.chain_inputs(&chain, scan);
+            this.sequence(flattened.statements, inputs, Self::statement)
         })
     }
 
@@ -451,3 +483,15 @@ fn consumer_step<'tcx>(tail: Tail<'tcx>) -> Step<'tcx> {
 }
 
 const CHAIN_EVIDENCE: &str = "live typed HIR; resolved standard iterator chain over a stable extent or primitive range; callbacks inlined at each invocation";
+
+fn callable_kind(ty: Ty<'_>) -> bool {
+    matches!(
+        ty.kind(),
+        ty::Closure(..)
+            | ty::FnDef(..)
+            | ty::FnPtr(..)
+            | ty::Param(_)
+            | ty::Dynamic(..)
+            | ty::Alias(..)
+    )
+}
