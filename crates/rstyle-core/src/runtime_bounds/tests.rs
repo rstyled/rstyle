@@ -439,3 +439,94 @@ fn unrelated_accumulator_increments_do_not_change_private_scan_bounds() {
     program.arithmetic = Arithmetic::Wrapping;
     assert_eq!(proven(&program).loop_body_entries, Bound::Input("n".into()));
 }
+
+// Lowered shape of `outer.map(|_| inner.filter(p).map(score).sum())`: the inlined inner
+// scan resets per outer item, the filter skips to the inner increment, and a search
+// consumer may stop the whole chain from inside the inner scan.
+fn callback_scan(early_exit: bool) -> Program {
+    let mut program = scan();
+    let call = |callee: &str, next| {
+        node(
+            Action::Call {
+                callee: callee.into(),
+                may_modify: false,
+            },
+            Flow::Goto(next),
+        )
+    };
+    program.nodes = vec![
+        assign(2, 1),
+        guard(2, 0, 2, 9),
+        assign(3, 3),
+        guard(3, 1, 4, 7),
+        node(
+            Action::Nop,
+            Flow::Branch {
+                condition: Condition::Unknown,
+                then_node: 5,
+                else_node: if early_exit { 9 } else { 6 },
+            },
+        ),
+        call("score", 6),
+        increment(3, 3),
+        call("key", 8),
+        increment(2, 1),
+        node(Action::Nop, Flow::Return),
+    ];
+    program.loop_headers = vec![1, 3];
+    program
+}
+
+fn call_count(result: &Assessment, callee: &str) -> Bound {
+    result
+        .calls
+        .iter()
+        .find(|call| call.callee == callee)
+        .unwrap_or_else(|| panic!("missing {callee}: {result:?}"))
+        .count
+        .clone()
+}
+
+#[test]
+fn inlined_callback_scans_multiply_independent_cardinalities() {
+    let result = proven(&callback_scan(false));
+    let product = Bound::Mul(vec![Bound::Input("n".into()), Bound::Input("m".into())]);
+    assert_eq!(call_count(&result, "score"), product);
+    assert_eq!(call_count(&result, "key"), Bound::Input("n".into()));
+    assert_eq!(
+        result.loop_body_entries,
+        Bound::Add(vec![Bound::Input("n".into()), product])
+    );
+}
+
+#[test]
+fn short_circuit_from_a_nested_callback_scan_keeps_the_reset_bound() {
+    let result = proven(&callback_scan(true));
+    assert_eq!(
+        call_count(&result, "score"),
+        Bound::Mul(vec![Bound::Input("n".into()), Bound::Input("m".into())])
+    );
+}
+
+#[test]
+fn callbacks_that_write_a_scan_limit_or_skip_the_reset_stay_unknown() {
+    let mut writes_limit = callback_scan(false);
+    writes_limit.nodes[5].action = Action::Assign {
+        variable: 1,
+        value: Value::Unknown,
+    };
+    assert!(matches!(analyze(&writes_limit), Outcome::Unknown { .. }));
+
+    let mut persistent = callback_scan(true);
+    persistent.nodes[2].action = Action::Nop;
+    persistent.nodes[0] = assign(2, 10);
+    persistent.nodes.push(assign(3, 1));
+    assert!(matches!(analyze(&persistent), Outcome::Unknown { .. }));
+
+    let mut modifying = callback_scan(false);
+    modifying.nodes[5].action = Action::Call {
+        callee: "score".into(),
+        may_modify: true,
+    };
+    assert!(matches!(analyze(&modifying), Outcome::Unknown { .. }));
+}
