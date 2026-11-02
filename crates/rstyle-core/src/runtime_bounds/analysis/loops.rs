@@ -453,6 +453,19 @@ impl ResetBounds<'_> {
         {
             return Err(unknown("Reset is repeated by another nested cycle"));
         }
+        // Between resets the scan is a persistent cursor over the intermediate loops'
+        // re-entries, so an early exit can enter the body without advancing it.
+        let intermediate = self.loops.iter().any(|middle| {
+            middle.header != item.header
+                && middle.header != parent.header
+                && item.members.is_subset(&middle.members)
+                && middle.members.is_subset(&parent.members)
+        });
+        if intermediate && self.early_exit(item) {
+            return Err(unknown(
+                "Reset scan re-entered by an intermediate loop has uncharged early exits",
+            ));
+        }
 
         Ok(Some(
             self.bounds[parent_index]
@@ -466,18 +479,22 @@ impl ResetBounds<'_> {
             .loops
             .iter()
             .any(|parent| parent.header != item.header && item.members.is_subset(&parent.members));
-        let early_exit = item.members.iter().any(|&source| {
-            source != item.header
-                && self.graph.successors[source]
-                    .iter()
-                    .any(|target| !item.members.contains(target))
-        });
-        if nested && early_exit {
+        if nested && self.early_exit(item) {
             return Err(unknown(
                 "Persistent cursor has uncharged early-exit entries",
             ));
         }
 
         Ok(Bound::Const(1))
+    }
+
+    // Leaving the cycle anywhere but its guard enters the body without a full step.
+    fn early_exit(&self, item: &Loop) -> bool {
+        item.members.iter().any(|&source| {
+            source != item.header
+                && self.graph.successors[source]
+                    .iter()
+                    .any(|target| !item.members.contains(target))
+        })
     }
 }

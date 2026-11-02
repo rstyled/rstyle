@@ -653,3 +653,57 @@ fn a_counter_shared_between_loop_guards_still_fails_the_whole_owner() {
     program.loop_headers = vec![1, 4];
     assert!(matches!(analyze(&program), Outcome::Unknown { .. }));
 }
+
+// `while i < n { j = 0; b = 0; while b < n { b += 1; while j < m { [break]; j += 1 } } i += 1 }`
+// The reset is per outer iteration, but the middle loop re-enters the scan.
+fn reset_under_middle(early_exit: bool) -> Program {
+    let mut program = scan();
+    program.variables.push(Variable {
+        name: "b".into(),
+        initial: Value::Unknown,
+        bits: 32,
+    });
+    let skip = node(
+        Action::Nop,
+        Flow::Branch {
+            condition: Condition::Unknown,
+            then_node: 4,
+            else_node: 8,
+        },
+    );
+    program.nodes = vec![
+        assign(2, 1),
+        guard(2, 0, 2, 10),
+        assign(3, 3),
+        assign(4, 4),
+        guard(4, 0, 5, 9),
+        increment(4, 6),
+        guard(3, 1, 7, 4),
+        if early_exit {
+            skip
+        } else {
+            node(Action::Nop, Flow::Goto(8))
+        },
+        increment(3, 6),
+        increment(2, 1),
+        node(Action::Nop, Flow::Return),
+    ];
+    program.loop_headers = vec![1, 4, 6];
+    program
+}
+
+#[test]
+fn reset_scans_reentered_by_a_middle_loop_charge_early_exits() {
+    let exact = proven(&reset_under_middle(false));
+    let scan = exact.loops.iter().find(|item| item.header == 6).unwrap();
+    assert_eq!(
+        scan.body_entries,
+        Bound::Mul(vec![Bound::Input("n".into()), Bound::Input("m".into())])
+    );
+
+    // Each `break` is a body entry that leaves the counter unchanged, once per
+    // middle iteration: n * n entries can exceed n * m.
+    let partial = partial(&reset_under_middle(true));
+    let scan = partial.loops.iter().find(|item| item.header == 6).unwrap();
+    assert!(scan.opaque.is_some(), "{scan:?}");
+}
