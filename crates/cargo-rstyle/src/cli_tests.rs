@@ -130,3 +130,19 @@ fn style_reviews_reuse_explicit_saved_finding_actions() {
     }
     assert!(Cli::try_parse_from(args.iter().copied().chain(["--review-status"])).is_err());
 }
+
+#[test]
+fn patterns_runtime_complexity_is_opt_in_and_accepts_top() {
+    let cli =
+        Cli::try_parse_from(["cargo-rstyle", "patterns", "--complexity", "--top", "20"]).unwrap();
+    let Some(Command::Patterns(patterns)) = cli.command else {
+        panic!("patterns command")
+    };
+    assert!(patterns.complexity);
+    assert_eq!(patterns.display.top, Some(20));
+    let cli = Cli::try_parse_from(["cargo-rstyle", "patterns"]).unwrap();
+    let Some(Command::Patterns(patterns)) = cli.command else {
+        panic!("patterns command")
+    };
+    assert!(!patterns.complexity);
+}

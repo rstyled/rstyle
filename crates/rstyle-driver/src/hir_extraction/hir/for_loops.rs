@@ -2,13 +2,6 @@
 use super::*;
 use rustc_span::hygiene::{DesugaringKind, ExpnKind};
 
-struct Parts<'tcx> {
-    head: &'tcx Expr<'tcx>,
-    pattern: &'tcx hir::Pat<'tcx>,
-    body: &'tcx Expr<'tcx>,
-    iteration: &'tcx Expr<'tcx>,
-}
-
 impl<'tcx> Context<'tcx> {
     pub(super) fn original_for_loop(&self, expression: &Expr<'tcx>) -> Option<HirNode> {
         if !self.profile.is_data()
@@ -20,7 +13,7 @@ impl<'tcx> Context<'tcx> {
         {
             return None;
         }
-        let parts = self.for_parts(expression)?;
+        let parts = super::super::for_loops::parts(self, expression)?;
         let head = self.original_range(parts.head)?;
         if !matches!(
             parts.pattern.kind,
@@ -87,77 +80,6 @@ impl<'tcx> Context<'tcx> {
             ..self.node(expression.hir_id, expression.span, "expr_struct")
         })
     }
-
-    fn for_parts(&self, expression: &Expr<'tcx>) -> Option<Parts<'tcx>> {
-        let ExprKind::Match(scrutinee, [outer], hir::MatchSource::ForLoopDesugar) = expression.kind
-        else {
-            return None;
-        };
-        let head = self.language_argument(scrutinee, self.tcx.lang_items().into_iter_fn()?)?;
-        let iteration = peeled(outer.body);
-        let ExprKind::Loop(block, None, hir::LoopSource::ForLoop, _) = iteration.kind else {
-            return None;
-        };
-        let ExprKind::Match(next, [none, some], _) = peeled(last_expression(block)?).kind else {
-            return None;
-        };
-        self.language_argument(next, self.tcx.lang_items().next_fn()?)?;
-        if outer.guard.is_some() || none.guard.is_some() || some.guard.is_some() {
-            return None;
-        }
-
-        let pattern = match some.pat.kind {
-            PatKind::TupleStruct(_, [pattern], _) => pattern,
-            PatKind::Struct(_, [field], _) => field.pat,
-            _ => return None,
-        };
-        if !matches!(some.body.kind, ExprKind::Block(_, None)) {
-            return None;
-        }
-
-        Some(Parts {
-            head,
-            pattern,
-            body: some.body,
-            iteration,
-        })
-    }
-
-    fn language_argument(
-        &self,
-        expression: &'tcx Expr<'tcx>,
-        expected: hir::def_id::DefId,
-    ) -> Option<&'tcx Expr<'tcx>> {
-        let ExprKind::Call(callee, [argument]) = expression.kind else {
-            return None;
-        };
-        let ExprKind::Path(ref path) = callee.kind else {
-            return None;
-        };
-        (self.typeck.qpath_res(path, callee.hir_id)
-            == Res::Def(hir::def::DefKind::AssocFn, expected))
-        .then_some(argument)
-    }
-}
-
-fn peeled<'tcx>(mut expression: &'tcx Expr<'tcx>) -> &'tcx Expr<'tcx> {
-    loop {
-        expression = match expression.kind {
-            ExprKind::DropTemps(inner) => inner,
-            ExprKind::Block(block, _) if block.stmts.is_empty() => match block.expr {
-                Some(inner) => inner,
-                None => return expression,
-            },
-            _ => return expression,
-        };
-    }
-}
-
-fn last_expression<'tcx>(block: &'tcx hir::Block<'tcx>) -> Option<&'tcx Expr<'tcx>> {
-    block.expr.or_else(|| match block.stmts.last()?.kind {
-        StmtKind::Expr(expression) | StmtKind::Semi(expression) => Some(expression),
-        _ => None,
-    })
 }
 
 fn original_span(mut span: Span) -> bool {

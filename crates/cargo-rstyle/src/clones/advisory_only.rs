@@ -53,6 +53,7 @@ pub(super) fn consume(request: &UnitRequest<'_>, result: &mut Handoff) -> Result
 
 fn check_mode(unit: &capture::Unit, plan: &capture::Plan) -> Result<(), String> {
     if !unit.compiler_advisory_only
+        || unit.compiler_runtime_bounds != plan.compiler_runtime_bounds
         || unit.style_inputs_only != plan.style_inputs_only
         || unit.extraction_profile != plan.extraction_profile
     {

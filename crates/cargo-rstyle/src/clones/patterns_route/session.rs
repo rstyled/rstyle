@@ -9,6 +9,7 @@ pub(crate) fn run(cli: Cli, mut args: IgnoreArgs) -> Result<(String, u8), String
 
 fn route(args: &mut IgnoreArgs) -> Result<Routed, String> {
     let listing = PatternsArgs {
+        complexity: false,
         route: PatternRouteArgs {
             input: std::mem::take(&mut args.route),
             ..Default::default()

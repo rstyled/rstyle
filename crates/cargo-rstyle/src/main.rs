@@ -127,6 +127,9 @@ enum Command {
 
 #[derive(Args)]
 struct PatternsArgs {
+    /// Include symbolic loop-body entry and call invocation upper bounds.
+    #[arg(long)]
+    complexity: bool,
     #[command(flatten)]
     route: PatternRouteArgs,
     #[command(flatten)]

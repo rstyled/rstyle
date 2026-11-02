@@ -170,6 +170,7 @@ fn check_units(capture: &Capture) -> Result<(), String> {
         if !ledgers.insert(path)
             || !directories.insert(&unit.directory)
             || unit.compiler_advisory_only != capture.plan.compiler_advisory_only
+            || unit.compiler_runtime_bounds != capture.plan.compiler_runtime_bounds
             || unit.style_inputs_only != capture.plan.style_inputs_only
             || unit.extraction_profile != capture.plan.extraction_profile
             || unit.test != unit.invocation.iter().any(|argument| argument == "--test")

@@ -42,6 +42,8 @@ pub struct Plan {
     pub compiler_advisory: bool,
     #[serde(default)]
     pub compiler_patterns: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub compiler_runtime_bounds: bool,
     #[serde(default)]
     pub local_source_facts: bool,
     #[serde(default)]
@@ -66,6 +68,7 @@ impl Plan {
             style_inputs_only: args.style_inputs_only,
             compiler_advisory: args.compiler_inputs_requested(),
             compiler_patterns: args.compiler_patterns,
+            compiler_runtime_bounds: args.compiler_runtime_bounds,
             local_source_facts: args.compiler_advisory_only
                 && (args.source_rules || args.guard_clauses || mutations),
             local_mutation_facts: args.compiler_advisory_only && mutations,
@@ -80,6 +83,8 @@ impl Plan {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Unit {
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub compiler_runtime_bounds: bool,
     #[serde(default)]
     pub compiler_advisory_only: bool,
     #[serde(default)]
@@ -180,6 +185,7 @@ fn plan(
         style_inputs_only: false,
         compiler_advisory: false,
         compiler_patterns: false,
+        compiler_runtime_bounds: false,
         local_source_facts: false,
         local_mutation_facts: false,
         ledger_schema: ledger::SCHEMA.into(),
@@ -550,6 +556,7 @@ fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
         let unit: Unit = read_json(&unit_path)?;
         if &unit.target != target
             || unit.compiler_advisory_only != capture.plan.compiler_advisory_only
+            || unit.compiler_runtime_bounds != capture.plan.compiler_runtime_bounds
             || unit.style_inputs_only != capture.plan.style_inputs_only
             || unit.test != test
             || unit.directory.parent() != Some(capture.directory.as_path())
@@ -675,6 +682,8 @@ fn driver_command(
                 .then_some(("RSTYLE_COMPILER_ADVISORY_ONLY", "1")),
             plan.style_inputs_only
                 .then_some(("RSTYLE_STYLE_INPUTS_ONLY", "1")),
+            plan.compiler_runtime_bounds
+                .then_some((rstyle_core::advisory::runtime_bounds::CAPTURE_ENV, "1")),
             plan.compiler_patterns
                 .then_some((rstyle_core::advisory::patterns::CAPTURE_ENV, "1")),
             plan.local_source_facts
@@ -795,6 +804,7 @@ fn capture_unit(
     let unit = Unit {
         compiler_advisory_only: selected_plan.compiler_advisory_only,
         style_inputs_only: selected_plan.style_inputs_only,
+        compiler_runtime_bounds: selected_plan.compiler_runtime_bounds,
         extraction_profile: selected_plan.extraction_profile,
         target,
         test,
@@ -1065,6 +1075,7 @@ mod snapshot_tests {
         Unit {
             compiler_advisory_only: false,
             style_inputs_only: false,
+            compiler_runtime_bounds: false,
             extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile::R0,
             target: Target {
                 package: "snapshot".into(),

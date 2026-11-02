@@ -5,6 +5,7 @@ fn unit(package: &str, test: bool) -> capture::Unit {
     capture::Unit {
         compiler_advisory_only: false,
         style_inputs_only: false,
+        compiler_runtime_bounds: false,
         extraction_profile: ExtractionProfile::R0,
         target: capture::Target {
             package: package.into(),

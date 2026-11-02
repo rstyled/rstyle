@@ -122,6 +122,7 @@ fn unit(name: &str, directory: &Path) -> Unit {
     Unit {
         compiler_advisory_only: false,
         style_inputs_only: false,
+        compiler_runtime_bounds: false,
         extraction_profile: ExtractionProfile::DataV3,
         target: Target {
             package: format!("registry+https://example.invalid#{name}@1.0.0"),

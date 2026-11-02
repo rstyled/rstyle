@@ -8,6 +8,7 @@ mod planning;
 pub(super) mod propagation;
 mod ranking;
 mod repository_session;
+mod runtime_bounds;
 mod selection;
 mod source_scope;
 pub(super) mod style;
@@ -86,6 +87,8 @@ struct Unit {
     patterns: Option<patterns::Report>,
     #[serde(skip_serializing_if = "Option::is_none")]
     complexity_ranking: Option<ranking::Report>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    runtime_bounds: Option<runtime_bounds::Report>,
 }
 
 #[derive(Serialize)]
@@ -183,15 +186,7 @@ impl Report {
             .planning
             .as_ref()
             .map_or_else(String::new, planning::Report::render);
-        let ranking: String = self
-            .units
-            .iter()
-            .filter_map(|unit| {
-                unit.complexity_ranking
-                    .as_ref()
-                    .map(|report| report.render(unit.unit))
-            })
-            .collect();
+        let ranking: String = self.units.iter().map(Unit::render_rankings).collect();
         format!("{summary}{diagnostics}{generated}{patterns}{ranking}{summaries}{planning}")
     }
 
@@ -512,17 +507,15 @@ fn evaluate_unit(
     ctx: &Context<'_>,
     unit: &super::identity::UnitContext,
     demand: &Demand<'_>,
-    Prepared {
-        mut inputs,
-        mut effects,
-    }: Prepared,
+    prepared: Prepared,
 ) -> Result<Ready, String> {
     let root = &ctx.capture.units[unit.observed_unit].target.manifest_dir;
-    let unresolved_callees = effects.unresolved_callees(&inputs.facts)?;
-    let ranking = ranking::Captured::new(ctx.args, &inputs);
-    inputs.retain_propagated(&mut effects.generated);
-    let completed =
-        diagnostics::evaluate(ctx, unit, inputs.take_diagnostics(effects.values), demand)?;
+    let DiagnosticPhase {
+        prepared: Prepared { inputs, effects },
+        unresolved: unresolved_callees,
+        ranking,
+        completed,
+    } = prepared.evaluate_diagnostics(ctx, unit, demand)?;
 
     let diagnostic_scope = diagnostic_scope::Report::new(ctx.args, &inputs, &completed);
     let report = Unit {
@@ -547,6 +540,7 @@ fn evaluate_unit(
         selected_diagnostics: None,
         patterns: None,
         complexity_ranking: None,
+        runtime_bounds: runtime_bounds::evaluate(ctx, unit.id),
     }
     .with_diagnostic_scope(diagnostic_scope, ctx);
     Ok(Ready {
@@ -558,6 +552,43 @@ fn evaluate_unit(
         missing_graphs: inputs.missing_graphs,
         generated_functions: inputs.generated_functions,
     })
+}
+
+struct DiagnosticPhase {
+    prepared: Prepared,
+    unresolved: BTreeSet<String>,
+    ranking: Option<ranking::Captured>,
+    completed: diagnostics::Completed,
+}
+
+impl Prepared {
+    fn evaluate_diagnostics(
+        self,
+        ctx: &Context<'_>,
+        unit: &super::identity::UnitContext,
+        demand: &Demand<'_>,
+    ) -> Result<DiagnosticPhase, String> {
+        let Prepared {
+            mut inputs,
+            mut effects,
+        } = self;
+        let unresolved = effects.unresolved_callees(&inputs.facts)?;
+        let ranking = ranking::Captured::new(ctx.args, &inputs);
+
+        inputs.retain_propagated(&mut effects.generated);
+        let completed = diagnostics::evaluate(
+            ctx,
+            unit,
+            inputs.take_diagnostics(effects.values.take()),
+            demand,
+        )?;
+        Ok(DiagnosticPhase {
+            prepared: Prepared { inputs, effects },
+            unresolved,
+            ranking,
+            completed,
+        })
+    }
 }
 
 struct Ready {
@@ -810,6 +841,18 @@ impl Unit {
         }
     }
 
+    fn render_rankings(&self) -> String {
+        let complexity = self
+            .complexity_ranking
+            .as_ref()
+            .map_or_else(String::new, |report| report.render(self.unit));
+        let runtime = self
+            .runtime_bounds
+            .as_ref()
+            .map_or_else(String::new, |report| report.render(self.unit));
+        format!("{complexity}{runtime}")
+    }
+
     fn render_diagnostics(&self) -> String {
         self.evaluation
             .as_ref()
@@ -843,9 +886,13 @@ impl Unit {
     }
 
     fn inputs_complete(&self) -> bool {
-        self.complexity_ranking
+        self.runtime_bounds
             .as_ref()
             .is_none_or(|report| report.input_complete)
+            && self
+                .complexity_ranking
+                .as_ref()
+                .is_none_or(|report| report.input_complete)
             && self.diagnostics_complete()
             && self
                 .patterns

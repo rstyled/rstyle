@@ -31,12 +31,7 @@ pub(super) fn load_capture(directory: &Path, args: &Args) -> Result<capture::Cap
         .canonicalize()
         .map_err(|error| error.to_string())?;
     let plan: capture::Plan = read_json(&directory.join("plan.json"))?;
-    if plan.extraction_profile != args.extraction_profile {
-        return Err("Saved-run replay requires its original extraction profile".into());
-    }
-    if plan.compiler_advisory_only != args.compiler_advisory_only {
-        return Err("Saved-run replay requires its original capture mode".into());
-    }
+    check_replay_capabilities(&plan, args)?;
     if plan.dependency_units.is_empty() || plan.compiler_advisory_only {
         return capture::load_saved(directory, plan);
     }
@@ -66,6 +61,19 @@ pub(super) fn load_capture(directory: &Path, args: &Args) -> Result<capture::Cap
     }
 
     Ok(capture)
+}
+
+fn check_replay_capabilities(plan: &capture::Plan, args: &Args) -> Result<(), String> {
+    if args.compiler_runtime_bounds && !plan.compiler_runtime_bounds {
+        return Err("Saved run is missing compiler runtime-bound capture capability".into());
+    }
+    if plan.extraction_profile != args.extraction_profile {
+        return Err("Saved-run replay requires its original extraction profile".into());
+    }
+    if plan.compiler_advisory_only != args.compiler_advisory_only {
+        return Err("Saved-run replay requires its original capture mode".into());
+    }
+    Ok(())
 }
 
 // rstyle-allow(side_effect_density): Saved closure input boundary reads and validates one manifest.

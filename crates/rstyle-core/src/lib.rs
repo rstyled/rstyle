@@ -25,6 +25,7 @@ mod pdgtest;
 pub mod prep;
 pub mod report;
 pub mod rules;
+pub mod runtime_bounds;
 pub mod shape;
 pub mod sigmine;
 pub mod spacing;
