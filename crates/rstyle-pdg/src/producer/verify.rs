@@ -13,6 +13,7 @@ mod tests;
 use normalization::normalize;
 
 use super::{Pair, PairView, analyze_facts, emit, lower};
+use crate::first_index::first_by_key;
 use crate::*;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -343,19 +344,6 @@ fn add_definitions(
     }
 
     Ok(())
-}
-
-// Preserve the original first-match behavior, including malformed inventories;
-// complete document comparison and boundary validation still reject corruption.
-fn first_by_key<'a, T>(
-    entries: &'a [T],
-    key: impl Fn(&'a T) -> &'a str,
-) -> BTreeMap<&'a str, &'a T> {
-    let mut index = BTreeMap::new();
-    for entry in entries {
-        index.entry(key(entry)).or_insert(entry);
-    }
-    index
 }
 
 fn add_cfg_names(
