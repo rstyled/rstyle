@@ -584,3 +584,38 @@ fn assume_mode_keeps_proven_siblings_and_whole_owner_failures() {
         Outcome::Unknown { .. }
     ));
 }
+
+#[test]
+fn assume_mode_marks_changed_limits_stray_increments_and_nested_opaque_loops() {
+    let mut changed = scan();
+    changed.nodes[2].action = Action::Assign {
+        variable: 0,
+        value: Value::Const(5),
+    };
+    let result = assumed(&changed);
+    assert!(result.loops[0].opaque.is_some());
+
+    // The counter is incremented again after the loop exits, outside its guard.
+    let mut stray = scan();
+    stray.nodes[4] = increment(2, 5);
+    stray.nodes.push(node(Action::Nop, Flow::Return));
+    let result = assumed(&stray);
+    assert!(result.loops.iter().any(|item| {
+        item.opaque
+            .as_deref()
+            .is_some_and(|reason| reason.contains("no-overflow"))
+    }));
+
+    let mut inner = nested(true);
+    inner.nodes[4].flow = Flow::Branch {
+        condition: Condition::Unknown,
+        then_node: 5,
+        else_node: 7,
+    };
+    let result = assumed(&inner);
+    assert_eq!(result.loops[0].body_entries, Bound::Input("n".into()));
+    assert_eq!(
+        result.loops[1].body_entries,
+        Bound::Mul(vec![Bound::Input("n".into()), Bound::Input("?L4".into())])
+    );
+}
