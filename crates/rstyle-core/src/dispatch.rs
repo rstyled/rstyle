@@ -2,7 +2,7 @@
 //! (same signature class, different callees) on the value bound by the arm pattern.
 //! This is the closest thing to a trait that already exists in the source.
 
-use crate::facts::{EdgeKind, NodeKind, Pdg};
+use crate::facts::{EdgeKind, NodeKind, Pdg, PdgEdge};
 use crate::wl::call_class;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -15,17 +15,39 @@ pub struct Dispatch {
     pub arms: Vec<(usize, String)>,
 }
 
-/// Calls controlled by arm `arm` of match node `m` that receive the matched value.
-fn arm_calls(pdg: &Pdg, m: usize) -> Vec<(usize, String, String)> {
-    let receives = |call: usize| {
-        pdg.edges
+/// PDG edges grouped once by source node. Every match node reads only its own
+/// group, so `find` scans the edge list once instead of once per match and call.
+struct EdgeIndex<'a> {
+    /// Control edges leaving each node, in edge order.
+    ctrl: BTreeMap<usize, Vec<&'a PdgEdge>>,
+    /// `(from, to)`: node `to` receives the value of `from` as its receiver operand.
+    receivers: BTreeSet<(usize, usize)>,
+}
+
+impl<'a> EdgeIndex<'a> {
+    fn new(pdg: &'a Pdg) -> Self {
+        let mut ctrl: BTreeMap<usize, Vec<&PdgEdge>> = BTreeMap::new();
+        for e in pdg.edges.iter().filter(|e| e.kind == EdgeKind::Ctrl) {
+            ctrl.entry(e.from).or_default().push(e);
+        }
+        let receivers = pdg
+            .edges
             .iter()
-            .any(|e| e.from == m && e.to == call && e.kind == EdgeKind::Data && e.arg_pos == 0)
-    };
-    pdg.edges
-        .iter()
-        .filter(|e| e.from == m && e.kind == EdgeKind::Ctrl)
-        .filter(|e| pdg.nodes[e.to].kind == NodeKind::Call && receives(e.to))
+            .filter(|e| e.kind == EdgeKind::Data && e.arg_pos == 0)
+            .map(|e| (e.from, e.to))
+            .collect();
+        EdgeIndex { ctrl, receivers }
+    }
+}
+
+/// Calls controlled by arm `arm` of match node `m` that receive the matched value.
+fn arm_calls(pdg: &Pdg, index: &EdgeIndex<'_>, m: usize) -> Vec<(usize, String, String)> {
+    index
+        .ctrl
+        .get(&m)
+        .into_iter()
+        .flatten()
+        .filter(|e| pdg.nodes[e.to].kind == NodeKind::Call && index.receivers.contains(&(m, e.to)))
         .filter_map(|e| {
             let node = &pdg.nodes[e.to];
             Some((e.arg_pos, call_class(node), node.callee_id.clone()?))
@@ -33,9 +55,9 @@ fn arm_calls(pdg: &Pdg, m: usize) -> Vec<(usize, String, String)> {
         .collect()
 }
 
-fn dispatches_of(pdg: &Pdg, m: usize) -> Vec<Dispatch> {
+fn dispatches_of(pdg: &Pdg, index: &EdgeIndex<'_>, m: usize) -> Vec<Dispatch> {
     let mut by_class: BTreeMap<String, BTreeMap<usize, String>> = BTreeMap::new();
-    for (arm, class, callee) in arm_calls(pdg, m) {
+    for (arm, class, callee) in arm_calls(pdg, index, m) {
         by_class
             .entry(class)
             .or_default()
@@ -54,15 +76,17 @@ fn dispatches_of(pdg: &Pdg, m: usize) -> Vec<Dispatch> {
 }
 
 pub fn find(pdg: &Pdg) -> Vec<Dispatch> {
+    let index = EdgeIndex::new(pdg);
     (0..pdg.nodes.len())
         .filter(|m| pdg.nodes[*m].kind == NodeKind::Match)
-        .flat_map(|m| dispatches_of(pdg, m))
+        .flat_map(|m| dispatches_of(pdg, &index, m))
         .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::facts::PdgNode;
     use crate::pdgtest::*;
 
     fn matcher(second: &str) -> Pdg {
@@ -104,5 +128,42 @@ mod tests {
         let mut same = matcher("bark");
         same.nodes[3].callee_id = Some("k::Dog::bark".into());
         assert!(find(&same).is_empty());
+    }
+
+    #[test]
+    fn each_match_reads_only_its_own_edges() {
+        // Match 5 controls the same calls as match 1, but call 3 receives its value only
+        // as a later operand, so match 5 has a single receiving arm.
+        let mut pdg = matcher("meow");
+        pdg.nodes.push(PdgNode {
+            line: 9,
+            ..node(NodeKind::Match)
+        });
+        pdg.edges
+            .extend([ctrl(5, 2, 0), ctrl(5, 3, 1), data(5, 2, 0), data(5, 3, 1)]);
+        let found = find(&pdg);
+        assert_eq!(found.iter().map(|d| d.line).collect::<Vec<_>>(), [1]);
+
+        pdg.edges.push(data(5, 3, 0));
+        let found = find(&pdg);
+        assert_eq!(found.iter().map(|d| d.line).collect::<Vec<_>>(), [1, 9]);
+        assert_eq!(found[0].arms, found[1].arms);
+    }
+
+    #[test]
+    fn control_edges_from_other_nodes_are_not_arms() {
+        let mut pdg = matcher("meow");
+        // A non-match node controlling a call that also receives match 1's value.
+        pdg.edges.push(ctrl(0, 2, 7));
+        let found = find(&pdg);
+        assert_eq!(found.len(), 1);
+        assert_eq!(
+            found[0]
+                .arms
+                .iter()
+                .map(|(arm, _)| *arm)
+                .collect::<Vec<_>>(),
+            [0, 1]
+        );
     }
 }
