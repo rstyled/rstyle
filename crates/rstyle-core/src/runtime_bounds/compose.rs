@@ -246,7 +246,9 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
         let contribution = match &call.target {
             Callee::Resolved(target) => self.contribution(caller, call, target),
             Callee::Constructor => return Ok(()),
-            Callee::Library(_) => return self.library(caller, call, summary),
+            Callee::Library(identity) => {
+                return self.library(Site::new(caller, call), identity, summary);
+            }
             Callee::Unresolved => Err(Failure::Unknown(format!(
                 "Unresolved callee {}",
                 call.callee
@@ -300,11 +302,11 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
     // not a workspace invocation.
     fn library(
         &self,
-        caller: &Program,
-        call: &CallBound,
+        site: Site<'_>,
+        identity: &str,
         summary: &mut Summary,
     ) -> Result<(), Failure> {
-        let site = Site::new(caller, call);
+        let call = site.call;
         let contract = call
             .operation
             .as_deref()
@@ -319,10 +321,7 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
             Bound::mul(call.count.clone(), steps),
         ]);
         summary.record(Evidence {
-            library: match &call.target {
-                Callee::Library(identity) => BTreeSet::from([identity.clone()]),
-                _ => BTreeSet::new(),
-            },
+            library: BTreeSet::from([identity.to_string()]),
             synthesized: site.introduced.into_inner(),
             library_opaque: site.opaque.into_inner(),
             ..Evidence::default()
