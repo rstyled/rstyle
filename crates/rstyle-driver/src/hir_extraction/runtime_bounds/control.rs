@@ -9,6 +9,9 @@ struct WhileLoop<'tcx> {
 
 impl<'a, 'tcx> Collector<'a, 'tcx> {
     pub(super) fn lower(&mut self, expression: &'tcx Expr<'tcx>, next: u32) -> u32 {
+        if let Some(reason) = self.hidden_call(expression) {
+            return self.unsupported(expression.span, next, reason);
+        }
         Self::handler(expression)(self, expression, next)
     }
 

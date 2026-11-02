@@ -92,6 +92,12 @@ pub fn vec_collect(xs: &[Cloned]) -> usize { xs.iter().map(|c| c.0).collect::<Ve
 pub struct Bag(pub Vec<u8>);
 impl std::ops::Add for &Bag { type Output = usize; fn add(self, other: &Bag) -> usize { let mut t = 0; for _ in &other.0 { t += 1; } t } }
 pub fn bag_sum(a: &Bag, b: &Bag, m: usize) -> usize { let mut t = 0; for _ in 0..m { t += a + b; } t }
+#[derive(PartialEq)] pub struct Eqd(pub u8);
+pub fn default_ne(a: &Eqd, b: &Eqd) -> bool { a.ne(b) }
+pub fn item_to_std(n: usize) -> usize { Some(n).map(counted).unwrap_or(0) }
+pub struct Guard;
+impl Drop for Guard { fn drop(&mut self) { counted(3); } }
+pub fn drops(n: usize) { let mut i = 0; while i < n { let _g = Guard; i += 1; } }
 pub fn mutable_receiver(n: usize) { let mut v = vec![1u8]; v.iter().count(); v.push(1); let mut i = 0; while i < n { i += 1; } }
 "#;
 
@@ -259,6 +265,9 @@ fn assert_composed(rows: &[Value]) {
         ("recursive_count", "Recursive"),
         ("dyn_area", "Unresolved"),
         ("unknown_continue", "Local bounds"),
+        ("default_ne", "Unresolved"),
+        ("item_to_std", "Unresolved"),
+        ("drops", "Local bounds"),
     ] {
         let composed = &named_row(rows, name)["composed"]["Unknown"]["reason"];
         assert!(

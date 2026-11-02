@@ -53,8 +53,10 @@ pub struct Field {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Callee {
-    /// Compiler-resolved definition identity, in captured owner-identity form.
+    /// Compiler-resolved workspace definition, as `crate-identity/owner-path`.
     Resolved(String),
+    /// A standard-library body that cannot call back into workspace code.
+    Library(String),
     Constructor,
     Unresolved,
 }

@@ -8,6 +8,7 @@ mod extent;
 mod frame;
 mod iteration;
 mod primitive;
+mod sysroot;
 mod values;
 use super::hir::Context;
 use rstyle_core::{
@@ -39,6 +40,7 @@ pub(super) fn capture<B, S>(
     let observation = Observation {
         schema: KEY.into(),
         owner: crate::ids::def_id_str(ctx.tcx, id.to_def_id()),
+        krate: calls::crate_identity(ctx.tcx, rustc_hir::def_id::LOCAL_CRATE),
         input,
     };
 

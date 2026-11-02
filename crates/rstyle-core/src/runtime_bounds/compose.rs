@@ -16,9 +16,9 @@ use std::rc::Rc;
 pub const COST_SCOPE: &str = "workspace-loop-body-entries-and-invocations-through-resolved-calls";
 
 pub const ASSUMPTIONS: &[&str] = &[
-    "Standard-library bodies are outside the cost unit, including any workspace trait implementations they invoke.",
+    "Standard-library bodies are outside the cost unit only when no callable argument or workspace-typed trait bound lets them call back into workspace code; others stay unresolved.",
     "Argument sizes are replaced by a per-invocation maximum; bounds are monotone, so totals are upper bounds but may be loose.",
-    "Implicit drop glue and overloaded auto-deref adjustments are not call sites and are not counted.",
+    "Modeled standard iterator scans count as the owner's own loop-body entries.",
     "Composed counts still do not bound operation costs or whole runtime.",
 ];
 
@@ -64,12 +64,6 @@ enum State {
 enum Failure {
     Unknown(String),
     Budget(String),
-}
-
-pub fn is_library(identity: &str) -> bool {
-    ["std::", "core::", "alloc::"]
-        .iter()
-        .any(|prefix| identity.starts_with(prefix))
 }
 
 /// Memoized bottom-up composition; owners are looked up and analyzed on demand.
@@ -176,16 +170,15 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
         let target = match &call.target {
             Callee::Resolved(target) => target,
             Callee::Constructor => return Ok(()),
+            Callee::Library(identity) => {
+                summary.library.insert(identity.clone());
+                return Ok(());
+            }
             Callee::Unresolved => {
                 let reason = format!("Unresolved callee {}", call.callee);
                 return Err(Failure::Unknown(reason));
             }
         };
-        if is_library(target) {
-            summary.library.insert(target.clone());
-            return Ok(());
-        }
-
         let contribution = self.contribution(caller, call, target)?;
         summary.absorb(contribution, self.limits)
     }

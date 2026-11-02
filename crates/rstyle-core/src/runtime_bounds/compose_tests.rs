@@ -16,6 +16,7 @@ fn call(target: &str, arguments: Vec<Argument>) -> Action {
         target: match target {
             "ctor" => Callee::Constructor,
             "?" => Callee::Unresolved,
+            library if library.starts_with("std::") => Callee::Library(library.into()),
             _ => Callee::Resolved(target.into()),
         },
         arguments,

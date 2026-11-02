@@ -47,7 +47,8 @@ pub(super) fn evaluate(ctx: &Context<'_>, unit: UnitId) -> Option<Report> {
         return None;
     }
     let index = owners(ctx);
-    let mut composer = Composer::new(|id: &str| analyzed(index.get(id)?), Limits::default());
+    let lookup = |id: &str| analyzed(index.get(id).copied().flatten()?);
+    let mut composer = Composer::new(lookup, Limits::default());
 
     let mut rows: Vec<_> = ctx
         .handoff
@@ -84,13 +85,25 @@ pub(super) fn evaluate(ctx: &Context<'_>, unit: UnitId) -> Option<Report> {
     })
 }
 
-// Owners across every unit, so composition can reach callees in other workspace crates.
-fn owners<'a>(ctx: &'a Context<'_>) -> HashMap<String, &'a crate::clones::Function> {
-    ctx.handoff
-        .assessed
-        .iter()
-        .filter_map(|function| Some((owner(function).ok()?, function)))
-        .collect()
+// Owners across every unit, keyed by compilation and path so callees in other
+// workspace crates are reachable; a key captured twice is ambiguous and unavailable.
+fn owners<'a>(ctx: &'a Context<'_>) -> HashMap<String, Option<&'a crate::clones::Function>> {
+    let mut index = HashMap::new();
+    for function in &ctx.handoff.assessed {
+        if let Some(key) = key(function) {
+            index
+                .entry(key)
+                .and_modify(|entry| *entry = None)
+                .or_insert(Some(function));
+        }
+    }
+    index
+}
+
+fn key(function: &crate::clones::Function) -> Option<String> {
+    let raw = function.facts.view().build.frontend_options.get(KEY)?;
+    let krate = raw["krate"].as_str()?;
+    Some(format!("{krate}/{}", owner(function).ok()?))
 }
 
 fn analyzed(function: &crate::clones::Function) -> Option<Analyzed> {
@@ -117,7 +130,9 @@ fn row<F: FnMut(&str) -> Option<Analyzed>>(
         .as_ref()
         .ok()
         .filter(|observation| matches!(observation.input, Input::Captured { .. }))
-        .map(|observation| composer.composed(&observation.owner));
+        .map(|observation| {
+            composer.composed(&format!("{}/{}", observation.krate, observation.owner))
+        });
     Row {
         key: function.key,
         name: function.facts.view().name.to_string(),

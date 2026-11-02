@@ -93,5 +93,5 @@ impl<'tcx> Collector<'_, 'tcx> {
 }
 
 fn standard_crate(tcx: ty::TyCtxt<'_>, id: rustc_hir::def_id::DefId) -> bool {
-    matches!(tcx.crate_name(id.krate).as_str(), "core" | "alloc" | "std")
+    super::sysroot::sysroot(tcx, id.krate)
 }

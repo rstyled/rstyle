@@ -2,7 +2,7 @@
 use crate::runtime_bounds::Program;
 use serde::{Deserialize, Serialize};
 
-pub const KEY: &str = "rstyle.compiler-runtime-bounds/2";
+pub const KEY: &str = "rstyle.compiler-runtime-bounds/3";
 pub const CAPTURE_ENV: &str = "RSTYLE_COMPILER_RUNTIME_BOUNDS";
 pub const MAX_NODES: usize = 8192;
 pub const MAX_VARIABLES: usize = 1024;
@@ -12,6 +12,8 @@ pub const MAX_VARIABLES: usize = 1024;
 pub struct Observation {
     pub schema: String,
     pub owner: String,
+    /// Compilation identity; owner paths alone collide across lib, bin and test builds.
+    pub krate: String,
     pub input: Input,
 }
 
@@ -89,8 +91,7 @@ mod tests {
     #[test]
     fn unavailable_and_budget_are_recorded_observations_not_missing_inputs() {
         for status in ["unavailable", "budget_exhausted"] {
-            let raw =
-                json!({"schema":KEY,"owner":"owner","input":{"status":status,"reason":"recorded"}});
+            let raw = json!({"schema":KEY,"owner":"owner","krate":"k","input":{"status":status,"reason":"recorded"}});
             assert!(Observation::read(&raw).is_ok());
         }
         assert!(Observation::read(&json!({"schema":KEY,"owner":"owner"})).is_err());

@@ -76,7 +76,7 @@ impl<'tcx> Collector<'_, 'tcx> {
             .and_then(|item| item.trait_container(tcx))
             .is_some();
         if !trait_item {
-            return Callee::Resolved(crate::ids::def_id_str(tcx, callee));
+            return self.classified(callee, arguments);
         }
 
         // Lang-item paths such as `?` desugaring may record no arguments for the item.
@@ -91,7 +91,48 @@ impl<'tcx> Collector<'_, 'tcx> {
         crate::ids::selected_instance(tcx, owner, callee, arguments)
             .filter(|instance| matches!(instance.def, ty::InstanceKind::Item(_)))
             .map_or(Callee::Unresolved, |instance| {
-                Callee::Resolved(crate::ids::def_id_str(tcx, instance.def_id()))
+                self.classified(instance.def_id(), instance.args)
+            })
+    }
+
+    // Standard bodies are excluded only when they cannot call back into workspace code.
+    fn classified(&self, callee: DefId, arguments: ty::GenericArgsRef<'tcx>) -> Callee {
+        let tcx = self.ctx.tcx;
+        if !super::sysroot::sysroot(tcx, callee.krate) {
+            return Callee::Resolved(identity(tcx, callee));
+        }
+        if super::sysroot::calls_back(tcx, callee, arguments) {
+            Callee::Unresolved
+        } else {
+            Callee::Library(crate::ids::def_id_str(tcx, callee))
+        }
+    }
+
+    /// Workspace code that runs without a call site: a workspace type's own `Deref`
+    /// impl reached by auto-deref, and drop glue.
+    pub(super) fn hidden_call(&self, expression: &Expr<'tcx>) -> Option<&'static str> {
+        if self.workspace_deref(expression) {
+            return Some("Overloaded auto-deref runs a workspace Deref impl");
+        }
+        let ty = self.ctx.typeck.expr_ty(expression);
+        super::sysroot::workspace_drop(self.ctx.tcx, ty)
+            .then_some("A value with a workspace Drop impl runs uncounted drop glue")
+    }
+
+    fn workspace_deref(&self, expression: &Expr<'tcx>) -> bool {
+        use rustc_middle::ty::adjustment::{Adjust, DerefAdjustKind};
+        let mut current = self.ctx.typeck.expr_ty(expression);
+        self.ctx
+            .typeck
+            .expr_adjustments(expression)
+            .iter()
+            .any(|adjustment| {
+                let hidden = matches!(
+                    adjustment.kind,
+                    Adjust::Deref(DerefAdjustKind::Overloaded(_))
+                ) && workspace_adt(self.ctx.tcx, current);
+                current = adjustment.target;
+                hidden
             })
     }
 
@@ -165,4 +206,23 @@ fn shared_measure(mode: hir::BindingMode, ty: Ty<'_>) -> Measure {
     } else {
         Measure::Opaque
     }
+}
+
+/// Owner identity qualified by its compilation, so lib, bin and test builds stay distinct.
+pub(super) fn identity(tcx: ty::TyCtxt<'_>, id: DefId) -> String {
+    format!(
+        "{}/{}",
+        crate_identity(tcx, id.krate),
+        crate::ids::def_id_str(tcx, id)
+    )
+}
+
+pub(super) fn crate_identity(tcx: ty::TyCtxt<'_>, krate: rustc_hir::def_id::CrateNum) -> String {
+    format!("{:016x}", tcx.stable_crate_id(krate).as_u64())
+}
+
+// Only the dereferenced type's own impl runs; `Vec<Workspace>` derefs through std.
+fn workspace_adt<'tcx>(tcx: ty::TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
+    matches!(ty.peel_refs().kind(), ty::Adt(definition, _)
+        if !super::sysroot::sysroot(tcx, definition.did().krate))
 }
