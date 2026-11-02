@@ -435,7 +435,7 @@ fn candidate<'tcx>(ctx: &Context<'tcx>, expression: &Expr<'tcx>) -> Option<&'tcx
 fn chain_root<'tcx>(ctx: &Context<'tcx>, expression: &'tcx Expr<'tcx>) -> Option<&'tcx Expr<'tcx>> {
     match expression.kind {
         ExprKind::MethodCall(_, receiver, [], _)
-            if extent::standard_method(ctx, expression, "iter") =>
+            if extent::has_role(ctx, expression, contracts::ExtentRole::Traversal) =>
         {
             Some(receiver)
         }

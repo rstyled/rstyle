@@ -1,34 +1,36 @@
 //! Standard iterator methods that dispatch to trait impls (`Clone`, `Ord`, `Sum`,
 //! `FromIterator`) are modeled only when every dispatched type is standard, since
-//! workspace impls would otherwise run uncounted inside the synthetic scan.
+//! workspace impls would otherwise run uncounted inside the synthetic scan. Which types
+//! each method dispatches on is contract data; this module only resolves them.
 use super::*;
+use contracts::{Dispatch, Dispatched};
 use rustc_span::sym;
 
 const DEPTH: usize = 32;
 
 impl<'tcx> Collector<'_, 'tcx> {
-    /// Whether `method` on `receiver` can only reach standard trait implementations.
+    /// Whether the call on `receiver` can only reach standard trait implementations.
     pub(super) fn standard_dispatch(
         &self,
         expression: &Expr<'tcx>,
         receiver: &Expr<'tcx>,
-        method: &str,
+        dispatch: &Dispatch,
     ) -> bool {
         let arguments = self.ctx.typeck.node_args(expression.hir_id);
-        let generic = |index: usize| arguments.types().nth(index);
-        let item = || self.item(self.ctx.typeck.expr_ty_adjusted(receiver));
-        let standard = |ty: Option<Ty<'tcx>>| ty.is_some_and(|ty| self.standard(ty, DEPTH));
-
-        match method {
-            "sum" | "product" => standard(item()) && standard(generic(1)),
-            "min" | "max" => standard(item()),
-            "min_by_key" | "max_by_key" => standard(generic(1)),
-            "cloned" => standard(arguments.types().last()),
-            "collect" => generic(1).is_some_and(|target| {
-                self.item_agnostic(target) || (self.standard(target, DEPTH) && standard(item()))
-            }),
-            _ => true,
+        let generic = |index: u32| arguments.types().nth(index as usize);
+        if let Some(agnostic) = &dispatch.item_agnostic
+            && generic(agnostic.generic)
+                .is_some_and(|target| self.item_agnostic(target, &agnostic.types))
+        {
+            return true;
         }
+        dispatch.standard.iter().all(|dispatched| {
+            let ty = match dispatched {
+                Dispatched::Item => self.item(self.ctx.typeck.expr_ty_adjusted(receiver)),
+                Dispatched::Generic(index) => generic(*index),
+            };
+            ty.is_some_and(|ty| self.standard(ty, DEPTH))
+        })
     }
 
     // `<iterator as Iterator>::Item`, normalized in the owner's environment.
@@ -51,18 +53,8 @@ impl<'tcx> Collector<'_, 'tcx> {
     }
 
     // Collecting into these never consults the items' own trait impls.
-    fn item_agnostic(&self, target: Ty<'tcx>) -> bool {
-        let ty::Adt(definition, _) = target.kind() else {
-            return false;
-        };
-        let tcx = self.ctx.tcx;
-        [
-            sym::Vec,
-            rustc_span::Symbol::intern("VecDeque"),
-            sym::String,
-        ]
-        .into_iter()
-        .any(|name| tcx.is_diagnostic_item(name, definition.did()))
+    fn item_agnostic(&self, target: Ty<'tcx>, types: &[String]) -> bool {
+        super::sysroot::type_key(self.ctx.tcx, target).is_some_and(|key| types.contains(&key))
     }
 
     // Closures and function items contribute only their outputs, which flow to the consumer.

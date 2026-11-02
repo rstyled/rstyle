@@ -1,5 +1,7 @@
-//! Immutable standard-library extent values, identified by resolved types and methods.
+//! Immutable standard-library extent values, identified by resolved types and by
+//! the extent roles their methods have in the library contracts.
 use super::*;
+use contracts::{Contracts, ExtentRole};
 use rustc_middle::ty::adjustment::{Adjust, AutoBorrow, AutoBorrowMutability, DerefAdjustKind};
 use rustc_span::sym;
 
@@ -49,30 +51,24 @@ pub(super) fn extent_receiver<'tcx>(
     ctx: &Context<'_>,
     expression: &Expr<'tcx>,
 ) -> Option<&'tcx Expr<'tcx>> {
-    let ExprKind::MethodCall(segment, receiver, [], _) = expression.kind else {
+    let ExprKind::MethodCall(_, receiver, [], _) = expression.kind else {
         return None;
     };
-    if segment.ident.name.as_str() != "len" || !standard_method(ctx, expression, "len") {
-        return None;
-    }
-    Some(receiver)
+    has_role(ctx, expression, ExtentRole::Length).then_some(receiver)
 }
 
-pub(super) fn standard_method(ctx: &Context<'_>, expression: &Expr<'_>, name: &str) -> bool {
+/// Whether the resolved method is an inherent standard member with this extent role.
+/// Trait members are excluded: their impl, not the contract, decides what they read.
+pub(super) fn has_role(ctx: &Context<'_>, expression: &Expr<'_>, role: ExtentRole) -> bool {
     let Some(method) = ctx.typeck.type_dependent_def_id(expression.hir_id) else {
         return false;
     };
-    let Some(implementation) = ctx.tcx.inherent_impl_of_assoc(method) else {
-        return false;
-    };
-    let ty = ctx
-        .tcx
-        .type_of(implementation)
-        .instantiate_identity()
-        .skip_norm_wip();
-
-    ctx.tcx.item_name(method).as_str() == name
-        && (is_vec(ctx, ty) || matches!(ty.kind(), ty::Slice(_) | ty::Str))
+    let inherent = ctx.tcx.inherent_impl_of_assoc(method).is_some()
+        && super::sysroot::sysroot(ctx.tcx, method.krate);
+    let key = inherent.then(|| super::sysroot::operation(ctx.tcx, method));
+    key.flatten()
+        .and_then(|key| Contracts::embedded().extent(&key))
+        .is_some_and(|extent| extent.role == role)
 }
 
 pub(super) fn place(ctx: &Context<'_>, expression: &Expr<'_>) -> Option<Place> {
@@ -183,7 +179,7 @@ pub(super) fn iteration_receiver<'tcx>(
     head: &'tcx Expr<'tcx>,
 ) -> Option<&'tcx Expr<'tcx>> {
     if let ExprKind::MethodCall(_, receiver, [], _) = head.kind {
-        return standard_method(ctx, head, "iter").then_some(receiver);
+        return has_role(ctx, head, ExtentRole::Traversal).then_some(receiver);
     }
     extent_type(ctx, ctx.typeck.expr_ty(head)).then_some(head)
 }

@@ -4,21 +4,35 @@
 //! primitive `Range`, and every stage is a compiler-resolved `Iterator` method on
 //! that standard source. Each callback runs at most once per pulled source item;
 //! filters, skips, and short-circuiting consumers become nondeterministic exits.
+//!
+//! Which methods are stages or consumers, and their per-item effects, are library
+//! contract roles keyed like `rust:Iterator.map`; this module only lowers effects.
 use super::*;
+use contracts::{ConsumerEffect, Contracts, Iteration, StageEffect};
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::DefId;
 use rustc_span::sym;
 
-/// Upper-bound multiplicities rely on standard contracts, never on `size_hint`.
-fn method(ctx: &Context<'_>, expression: &Expr<'_>) -> String {
-    iterator_method(ctx, expression).unwrap_or_default()
-}
-
+/// Contract key of a resolved standard `Iterator` method. Upper-bound multiplicities
+/// rely on its contract role, never on `size_hint`.
 pub(super) fn iterator_method<'tcx>(ctx: &Context<'tcx>, expression: &Expr<'_>) -> Option<String> {
     let method = ctx.typeck.type_dependent_def_id(expression.hir_id)?;
     let iterator = ctx.tcx.get_diagnostic_item(sym::Iterator)?;
-    (ctx.tcx.trait_of_assoc(method) == Some(iterator) && method.krate == iterator.krate)
-        .then(|| ctx.tcx.item_name(method).to_string())
+    if ctx.tcx.trait_of_assoc(method) != Some(iterator) || method.krate != iterator.krate {
+        return None;
+    }
+    super::sysroot::trait_operation(ctx.tcx, iterator, method)
+}
+
+/// Arguments evaluated once before the first item: all but the inlined callback.
+fn evaluated<'tcx>(
+    arguments: &'tcx [Expr<'tcx>],
+    callback: Option<u32>,
+) -> impl DoubleEndedIterator<Item = &'tcx Expr<'tcx>> + Clone {
+    let inlined = callback.map(|index| index as usize);
+    let data = arguments.iter().enumerate();
+    data.filter(move |(i, _)| Some(*i) != inlined)
+        .map(|(_, argument)| argument)
 }
 
 #[derive(Clone, Copy)]
@@ -101,21 +115,17 @@ impl<'tcx> Collector<'_, 'tcx> {
         let ExprKind::MethodCall(_, receiver, arguments, _) = expression.kind else {
             return None;
         };
-        let (consumer, inlined) = self.consumer(expression, arguments)?;
+        let (consumer, contract) = self.consumer(expression, arguments)?;
         let mut chain = self.chain(receiver)?;
-        if !chain.standard
-            || !self.standard_dispatch(expression, receiver, &method(self.ctx, expression))
-        {
+        if !chain.standard || !self.standard_dispatch(expression, receiver, &contract.dispatch) {
             let reason = "Iterator chain dispatches to a non-standard trait implementation";
             return Some(self.unsupported(expression.span, next, reason));
         }
 
         // Every argument but the inlined callback is evaluated, so other closures stay visible.
-        let data = arguments
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| Some(*i) != inlined);
-        chain.arguments.extend(data.map(|(_, argument)| argument));
+        chain
+            .arguments
+            .extend(evaluated(arguments, contract.callback));
         let targets = Targets {
             skip: next,
             stop: next,
@@ -157,88 +167,85 @@ impl<'tcx> Collector<'_, 'tcx> {
         iterator_method(self.ctx, expression).is_some() && arguments.iter().any(callable)
     }
 
-    /// The consumer and the index of the callback argument it inlines, if any.
+    /// The consumer and its contract role.
     fn consumer(
         &self,
         expression: &Expr<'tcx>,
         arguments: &'tcx [Expr<'tcx>],
-    ) -> Option<(Consumer<'tcx>, Option<usize>)> {
-        let name = iterator_method(self.ctx, expression)?;
-        let callback = |index: usize| arguments.get(index).and_then(|a| self.callback(a));
-        Some(match (name.as_str(), arguments.len()) {
-            ("sum" | "product" | "count" | "last" | "min" | "max" | "collect", 0) => {
-                (Consumer::Drain, None)
-            }
-            ("min_by_key" | "max_by_key" | "min_by" | "max_by" | "for_each", 1) => {
-                (Consumer::Each(callback(0)?), Some(0))
-            }
-            ("fold", 2) => (Consumer::Each(callback(1)?), Some(1)),
-            ("any" | "all" | "find" | "position" | "find_map", 1) => {
-                (Consumer::Search(callback(0)?), Some(0))
-            }
-            _ => return None,
-        })
+    ) -> Option<(Consumer<'tcx>, &'static Iteration<ConsumerEffect>)> {
+        let key = iterator_method(self.ctx, expression)?;
+        let contract = Contracts::embedded().consumer(&key)?;
+        let callback = self.role_callback(contract, arguments)?;
+
+        let consumer = match contract.effect {
+            ConsumerEffect::Drain => Consumer::Drain,
+            ConsumerEffect::Each => Consumer::Each(callback?),
+            ConsumerEffect::Search => Consumer::Search(callback?),
+        };
+        Some((consumer, contract))
+    }
+
+    /// The role's resolved callback; `None` when the arity differs or the callback is
+    /// unresolved, so ordinary call lowering keeps the call visible.
+    fn role_callback<E>(
+        &self,
+        contract: &Iteration<E>,
+        arguments: &'tcx [Expr<'tcx>],
+    ) -> Option<Option<Callback<'tcx>>> {
+        (arguments.len() == contract.arity as usize).then_some(())?;
+        match contract.callback {
+            Some(index) => self.callback(arguments.get(index as usize)?).map(Some),
+            None => Some(None),
+        }
     }
 
     fn chain(&self, mut receiver: &'tcx Expr<'tcx>) -> Option<Chain<'tcx>> {
-        let top = receiver;
-        let mut stages = Vec::new();
-        let mut arguments = Vec::new();
+        let mut links = Vec::new();
         while let ExprKind::MethodCall(_, inner, items, _) = receiver.kind
-            && let Some(name) = iterator_method(self.ctx, receiver)
+            && let Some(key) = iterator_method(self.ctx, receiver)
         {
-            if stages.len() >= MAX_STAGES || !self.ctx.typeck.expr_adjustments(inner).is_empty() {
+            if links.len() >= MAX_STAGES || !self.ctx.typeck.expr_adjustments(inner).is_empty() {
                 return None;
             }
-
-            let stage = self.stage(&name, items)?;
-            if matches!(stage, Stage::Skip | Stage::Take) {
-                arguments.extend(items.iter().rev());
-            }
-            stages.push(stage);
+            let (stage, contract) = self.stage(&key, items)?;
+            let standard = self.standard_dispatch(receiver, inner, &contract.dispatch);
+            links.push((stage, evaluated(items, contract.callback), standard));
             receiver = inner;
         }
 
-        stages.reverse();
-        arguments.reverse();
+        // Links were walked outermost first; the source's stage runs first.
         let (limit, bits) = self.source(receiver)?;
         Some(Chain {
             root: receiver,
             limit,
             bits,
-            stages,
-            arguments,
-            standard: self.standard_stages(top),
+            stages: links.iter().rev().map(|link| link.0).collect(),
+            arguments: links.iter().rev().flat_map(|link| link.1.clone()).collect(),
+            standard: links.iter().all(|link| link.2),
         })
     }
 
-    fn standard_stages(&self, mut receiver: &Expr<'tcx>) -> bool {
-        while let ExprKind::MethodCall(_, inner, _, _) = receiver.kind
-            && let Some(name) = iterator_method(self.ctx, receiver)
-        {
-            if !self.standard_dispatch(receiver, inner, &name) {
-                return false;
-            }
-            receiver = inner;
-        }
-        true
-    }
+    fn stage(
+        &self,
+        key: &str,
+        items: &'tcx [Expr<'tcx>],
+    ) -> Option<(Stage<'tcx>, &'static Iteration<StageEffect>)> {
+        let contract = Contracts::embedded().stage(key)?;
+        let callback = self.role_callback(contract, items)?;
 
-    fn stage(&self, name: &str, items: &'tcx [Expr<'tcx>]) -> Option<Stage<'tcx>> {
-        let callback = || items.first().and_then(|a| self.callback(a));
-        Some(match (name, items.len()) {
-            ("copied" | "cloned" | "enumerate" | "rev", 0) => Stage::Pass,
-            ("map" | "inspect", 1) => Stage::Map(callback()?),
-            ("filter" | "filter_map" | "skip_while", 1) => Stage::Filter(callback()?),
-            ("skip", 1) => Stage::Skip,
-            ("take", 1) => Stage::Take,
-            ("take_while", 1) => Stage::TakeWhile(callback()?),
-            ("flat_map", 1) => match callback()? {
+        let stage = match contract.effect {
+            StageEffect::Pass => Stage::Pass,
+            StageEffect::Map => Stage::Map(callback?),
+            StageEffect::Filter => Stage::Filter(callback?),
+            StageEffect::Skip => Stage::Skip,
+            StageEffect::Take => Stage::Take,
+            StageEffect::TakeWhile => Stage::TakeWhile(callback?),
+            StageEffect::FlatMap => match callback? {
                 Callback::Closure(closure) => Stage::FlatMap(closure),
                 Callback::Function(_) => return None,
             },
-            _ => return None,
-        })
+        };
+        Some((stage, contract))
     }
 
     // Slice and `Vec` traversals yield at most their stable length.
@@ -250,7 +257,7 @@ impl<'tcx> Collector<'_, 'tcx> {
             return None;
         };
 
-        if !extent::standard_method(self.ctx, root, "iter") {
+        if !extent::has_role(self.ctx, root, contracts::ExtentRole::Traversal) {
             return None;
         }
         let place = extent::place(self.ctx, receiver)?;
