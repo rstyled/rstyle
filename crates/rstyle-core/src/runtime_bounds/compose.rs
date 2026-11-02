@@ -167,20 +167,38 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
         call: &CallBound,
         summary: &mut Summary,
     ) -> Result<(), Failure> {
-        let target = match &call.target {
-            Callee::Resolved(target) => target,
+        let contribution = match &call.target {
+            Callee::Resolved(target) => self.contribution(caller, call, target),
             Callee::Constructor => return Ok(()),
             Callee::Library(identity) => {
                 summary.library.insert(identity.clone());
                 return Ok(());
             }
-            Callee::Unresolved => {
-                let reason = format!("Unresolved callee {}", call.callee);
-                return Err(Failure::Unknown(reason));
-            }
+            Callee::Unresolved => Err(Failure::Unknown(format!(
+                "Unresolved callee {}",
+                call.callee
+            ))),
         };
-        let contribution = self.contribution(caller, call, target)?;
-        summary.absorb(contribution, self.limits)
+        summary.absorb(self.assumed(contribution, call)?, self.limits)
+    }
+
+    // Assume mode charges an unsummarizable callee an opaque factor per invocation.
+    fn assumed(
+        &self,
+        contribution: Result<Contribution, Failure>,
+        call: &CallBound,
+    ) -> Result<Contribution, Failure> {
+        match contribution {
+            Err(Failure::Unknown(_)) if self.limits.opaque_loops => Ok(Contribution {
+                target: format!("?call({})", call.callee),
+                count: call.count.clone(),
+                loops: Bound::Input(format!("?call({})", call.callee)),
+                invocations: Bound::Const(0),
+                introduced: BTreeMap::new(),
+                callee: Summary::empty(),
+            }),
+            other => other,
+        }
     }
 
     // The callee summary at this site, with its inputs replaced by caller bounds.
@@ -200,6 +218,7 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
             call,
             synthesized: &callee.synthesized,
             introduced: RefCell::new(BTreeMap::new()),
+            opaque: self.limits.opaque_loops,
         };
 
         let loops = mapping.substitute(&callee.loops)?;
@@ -225,6 +244,16 @@ struct Contribution {
 }
 
 impl Summary {
+    fn empty() -> Self {
+        Self {
+            loops: Bound::Const(0),
+            invocations: Bound::Const(0),
+            callees: BTreeSet::new(),
+            library: BTreeSet::new(),
+            synthesized: BTreeMap::new(),
+        }
+    }
+
     // Each invocation adds the callee's entries and its own entry as an invocation.
     fn absorb(&mut self, part: Contribution, limits: Limits) -> Result<(), Failure> {
         let entered = Bound::add(vec![Bound::Const(1), part.invocations]);
@@ -260,6 +289,8 @@ struct Mapping<'a> {
     synthesized: &'a BTreeMap<String, (u32, Vec<Field>)>,
     // Caller-relative lengths this site introduces for the caller's own callers.
     introduced: RefCell<Introduced>,
+    // Assume mode keeps an unmappable callee input as a callee-qualified symbol.
+    opaque: bool,
 }
 
 type Introduced = BTreeMap<String, (u32, Vec<Field>)>;
@@ -268,7 +299,9 @@ impl Mapping<'_> {
     fn substitute(&self, bound: &Bound) -> Result<Bound, Failure> {
         Ok(match bound {
             Bound::Const(value) => Bound::Const(*value),
-            Bound::Input(name) => self.input(name)?,
+            Bound::Input(name) => self
+                .input(name)
+                .or_else(|failure| self.qualified(name, failure))?,
             Bound::Add(items) => Bound::add(self.all(items)?),
             Bound::Mul(items) => self
                 .all(items)?
@@ -349,6 +382,16 @@ impl Mapping<'_> {
             .borrow_mut()
             .insert(label.clone(), (*position, path));
         Ok(Bound::Input(label))
+    }
+
+    fn qualified(&self, name: &str, failure: Failure) -> Result<Bound, Failure> {
+        match failure {
+            Failure::Unknown(_) if self.opaque && !name.contains("::") => {
+                Ok(Bound::Input(format!("{}::{name}", self.call.callee)))
+            }
+            Failure::Unknown(_) if self.opaque => Ok(Bound::Input(name.into())),
+            other => Err(other),
+        }
     }
 
     fn unmapped(&self, name: &str, why: &str) -> Failure {

@@ -482,3 +482,48 @@ fn composed_expressions_respect_the_symbolic_budget() {
         "{composed:?}"
     );
 }
+
+#[test]
+fn assume_mode_charges_unsummarizable_callees_and_qualifies_unmapped_sizes() {
+    let assume = Limits {
+        opaque_loops: true,
+        ..Limits::default()
+    };
+    let a = Shape::new(&[])
+        .calls(vec![call("w::b", Vec::new())])
+        .program();
+    let b = Shape::new(&[])
+        .calls(vec![call("w::a", Vec::new())])
+        .program();
+    let result = proven(compose_with(vec![("w::a", a), ("w::b", b)], "w::a", assume));
+    assert!(render_inputs(&result.loop_body_entries).contains("?call(w::a)"));
+
+    let caller = Shape::new(&["m"])
+        .scalars()
+        .scan("m")
+        .calls(vec![
+            call("?", Vec::new()),
+            call("w::linear", vec![Argument::Scalar(Value::Unknown)]),
+        ])
+        .program();
+    let result = proven(compose_with(
+        vec![("w::linear", linear()), ("w::caller", caller)],
+        "w::caller",
+        assume,
+    ));
+    let inputs = render_inputs(&result.loop_body_entries);
+    assert!(inputs.contains("?call(?)"), "{inputs}");
+    assert!(inputs.contains("w::linear::n"), "{inputs}");
+}
+
+fn render_inputs(bound: &Bound) -> String {
+    match bound {
+        Bound::Input(name) => name.clone(),
+        Bound::Const(_) => String::new(),
+        Bound::Add(items) | Bound::Mul(items) | Bound::Max(items) => items
+            .iter()
+            .map(render_inputs)
+            .collect::<Vec<_>>()
+            .join(" "),
+    }
+}

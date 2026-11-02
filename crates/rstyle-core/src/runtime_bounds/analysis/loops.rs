@@ -23,7 +23,14 @@ pub(super) fn discover(program: &Program, graph: &Graph, opaque: bool) -> Checke
     acyclic_without_backedges(graph)?;
     let declared: BTreeSet<_> = program.loop_headers.iter().map(|&h| h as usize).collect();
     let observed: BTreeSet<_> = regions.keys().copied().collect();
-    if declared.len() != program.loop_headers.len() || declared != observed {
+    // Assume mode tolerates declared loops that never cycle (their body always exits)
+    // but still rejects a cycle without a declared header.
+    let consistent = if opaque {
+        observed.is_subset(&declared)
+    } else {
+        declared.len() == program.loop_headers.len() && declared == observed
+    };
+    if !consistent {
         return Err(unknown(
             "Captured loops include an acyclic, missing or unsupported loop guard",
         ));

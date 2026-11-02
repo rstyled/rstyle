@@ -619,3 +619,14 @@ fn assume_mode_marks_changed_limits_stray_increments_and_nested_opaque_loops() {
         Bound::Mul(vec![Bound::Input("n".into()), Bound::Input("?L4".into())])
     );
 }
+
+#[test]
+fn assume_mode_ignores_declared_loops_that_never_cycle() {
+    let mut exits = scan();
+    // The body returns instead of reaching its increment, so the guard never repeats.
+    exits.nodes[2].flow = Flow::Goto(4);
+    assert!(matches!(analyze(&exits), Outcome::Unknown { .. }));
+    let result = assumed(&exits);
+    assert!(result.loops.is_empty());
+    assert_eq!(result.calls[0].count, Bound::Const(1));
+}
