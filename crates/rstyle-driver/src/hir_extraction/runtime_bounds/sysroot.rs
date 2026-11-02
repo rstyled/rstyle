@@ -79,6 +79,9 @@ pub(super) fn calls_back<'tcx>(
             .any(|bound| !standard_type(tcx, bound.self_ty().skip_binder()))
 }
 
+/// Contract namespace of this frontend's operation keys.
+const NAMESPACE: &str = "rust";
+
 /// Language-neutral key of a standard operation, matched against library contracts:
 /// the defining impl's self type and the member name, as in `rust:BTreeMap.get`.
 /// Never derived from module path spelling.
@@ -89,12 +92,23 @@ pub(super) fn operation(tcx: ty::TyCtxt<'_>, callee: DefId) -> Option<String> {
         .instantiate_identity()
         .skip_norm_wip();
     let owner = type_key(tcx, self_ty)?;
-    Some(format!("rust:{owner}.{}", tcx.item_name(callee)))
+    Some(key(&owner, tcx, callee))
 }
 
-// A standard type by its compiler-registered name: diagnostic item, then lang item, or
-// the primitive kind. Unnamed and generic self types have no key.
-fn type_key(tcx: ty::TyCtxt<'_>, ty: Ty<'_>) -> Option<String> {
+/// Key of a standard trait's own member by the trait's diagnostic item name, as in
+/// `rust:Iterator.map`; the selected impl does not change the member's role.
+pub(super) fn trait_operation(tcx: ty::TyCtxt<'_>, owner: DefId, member: DefId) -> Option<String> {
+    let name = tcx.get_diagnostic_name(owner)?;
+    Some(key(name.as_str(), tcx, member))
+}
+
+fn key(owner: &str, tcx: ty::TyCtxt<'_>, member: DefId) -> String {
+    format!("{NAMESPACE}:{owner}.{}", tcx.item_name(member))
+}
+
+/// A standard type by its compiler-registered name: diagnostic item, then lang item, or
+/// the primitive kind. Unnamed and generic self types have no key.
+pub(super) fn type_key(tcx: ty::TyCtxt<'_>, ty: Ty<'_>) -> Option<String> {
     match ty.kind() {
         ty::Adt(definition, _) => {
             let id = definition.did();
