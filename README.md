@@ -273,7 +273,25 @@ queries and traversal adapters are abstracted and excluded from call counts. Ord
 calls can have unknown cost while preserving a bound on a private scalar counter.
 Unsupported control flow, mutable limits, unproved increments and escaped counters
 produce an explicit unknown result. Exhausting an analysis budget is reported
-separately. Results retain
+separately.
+
+Compiler-resolved standard `Iterator` chains over those sources become synthetic
+scans. Closure callbacks, and immutable local closures that are only called
+directly, are inlined at each invocation, so the callback calls in
+`xs.iter().map(|x| ys.iter().filter(|y| p(x, y)).count()).sum::<usize>()` are
+bounded by `len(xs) * len(ys)`. Filters, skips, takes and searches may
+exit early; `flat_map` rescans per outer item. Unresolved or escaping callbacks,
+user iterators, mutable captures of a measured value, and chains that dispatch
+to workspace `Clone`, `Ord`, `Sum` or `FromIterator` impls stay unknown.
+
+Each row also has a `composed` result that adds resolved workspace callee
+summaries: a call contributes its count times the callee's bound, with callee
+inputs replaced by per-invocation upper bounds of the caller's arguments.
+Lengths follow shared places and field paths, so passing `&g.edges` into a
+slice scan contributes `len(g.edges)`. Recursion, dynamic or generic dispatch,
+missing bodies, and sizes rooted in a callee local stay unknown. Standard-library
+bodies are outside this cost unit, and implicit drops and overloaded auto-deref
+are not counted; the report lists its assumptions. Results retain
 each compilation context, and `--top` selects rows independently of abstraction
 scores. Polynomial degree is a search heuristic, not a comparison of runtimes
 across independent input sizes. JSON retains the full result roster and the
