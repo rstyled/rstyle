@@ -1,5 +1,6 @@
 //! Upper bounds on loop-body entries, independently of whole-function runtime.
 mod analysis;
+pub mod compose;
 mod ir;
 mod symbolic;
 pub use ir::*;
@@ -13,5 +14,7 @@ pub fn analyze_with_limits(program: &Program, limits: Limits) -> Outcome {
     analysis::analyze(program, limits)
 }
 
+#[cfg(test)]
+mod compose_tests;
 #[cfg(test)]
 mod tests;
