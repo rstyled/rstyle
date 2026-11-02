@@ -559,6 +559,10 @@ fn composed_expressions_respect_the_symbolic_budget() {
 
 /// `fn lookup(n: usize, map: &BTreeMap<..>) { for _ in 0..n { map.get(..); } }`
 fn lookups() -> Program {
+    lookups_and(Vec::new())
+}
+
+fn lookups_and(mut calls: Vec<Action>) -> Program {
     let get = library(
         "std::collections::BTreeMap::get",
         Some("rust:BTreeMap.get"),
@@ -573,7 +577,10 @@ fn lookups() -> Program {
     Shape::new(&["n"])
         .formals(vec![scalar("n"), shared("map")])
         .scan("n")
-        .calls(vec![get])
+        .calls({
+            calls.insert(0, get);
+            calls
+        })
         .program()
 }
 
@@ -694,9 +701,18 @@ fn injected_contracts_replace_the_embedded_table() {
         basis = "test"
         steps = { Mul = [{ Size = 0 }, { Size = 0 }] }
         operations = ["BTreeMap.get"]
+        [[contract]]
+        basis = "scalar sizes are their values"
+        steps = { Size = 1 }
+        operations = ["Vec.reserve"]
     "#])
     .unwrap();
-    let program = lookups();
+    // `out.reserve(n)` per lookup too: a scalar argument's size is its bound.
+    let program = lookups_and(vec![library(
+        "std::vec::Vec::reserve",
+        Some("rust:Vec.reserve"),
+        vec![Argument::Opaque, Argument::Scalar(Value::Input("n".into()))],
+    )]);
     let mut composer = Composer::with_contracts(
         |_: &str| {
             Some(Analyzed {
@@ -710,6 +726,6 @@ fn injected_contracts_replace_the_embedded_table() {
     let composition = proven(composer.composed("w::lookup"));
     assert_eq!(
         composition.library_steps.to_string(),
-        "n * len(map) * len(map)"
+        "n * len(map) * len(map) + n * n"
     );
 }

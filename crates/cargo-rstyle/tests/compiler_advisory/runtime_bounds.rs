@@ -102,6 +102,7 @@ pub fn mutable_receiver(n: usize) { let mut v = vec![1u8]; v.iter().count(); v.p
 pub struct Index { pub names: std::collections::BTreeMap<String, usize> }
 pub fn btree_lookups(index: &Index, keys: &[String]) -> usize { let mut found = 0; for key in keys { if index.names.contains_key(key) { found += 1; } } found }
 pub fn lookup_caller(index: &Index, keys: &[String]) -> usize { btree_lookups(index, keys) }
+pub fn str_keys(s: &str) -> String { let _ = s.is_empty(); s.into() }
 pub fn local_map(n: usize) -> bool { let mut map = std::collections::BTreeMap::new(); map.insert(n, n); map.contains_key(&n) }
 "#;
 
@@ -321,6 +322,27 @@ fn assert_library(rows: &[Value]) {
         "len(keys)#4 * log(len(index.names))"
     );
     assert_eq!(caller.library_steps.order().logarithmic, 1);
+
+    // Primitive self types are keyed by kind; blanket impls over a parameter are not.
+    let keys = named_row(rows, "str_keys");
+    let calls = keys["result"]["Proven"]["calls"].as_array().unwrap();
+    let operation = |suffix: &str| {
+        calls
+            .iter()
+            .find(|call| call["callee"].as_str().unwrap().ends_with(suffix))
+            .unwrap_or_else(|| panic!("{suffix}: {keys}"))
+            .get("operation")
+            .cloned()
+    };
+    assert_eq!(
+        operation("is_empty"),
+        Some(Value::from("rust:str.is_empty"))
+    );
+    assert_eq!(operation("into"), None);
+    assert_eq!(
+        composition(keys).library_steps.to_string(),
+        "?library(std::convert::Into::into) + 1"
+    );
 
     // A local map's size has no stable bound, so its lookups stay opaque.
     let local = composition(named_row(rows, "local_map"));

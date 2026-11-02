@@ -233,10 +233,11 @@ mod tests {
         assert_eq!(folded(u64::MAX), Bound::Const(64));
         // Every value is at least log₂ x and at most log₂ x + 1.
         for value in 1..=4096_u64 {
-            let Bound::Const(bits) = folded(value) else {
-                unreachable!()
-            };
-            assert!(1 << (bits - 1) <= value && value < 1 << bits, "{value}");
+            let within = |bits: u64| 1 << (bits - 1) <= value && value < 1 << bits;
+            assert!(
+                matches!(folded(value), Bound::Const(bits) if within(bits)),
+                "{value}"
+            );
         }
     }
 
@@ -280,6 +281,14 @@ mod tests {
 
         let opaque = Bound::log(Bound::opaque(OpaqueKind::Loop, "f.rs:1:1#0"));
         assert_eq!(opaque.to_string(), "log(?loop(f.rs:1:1#0))");
+        let labels = [
+            OpaqueKind::Call,
+            OpaqueKind::Invocations,
+            OpaqueKind::Input,
+            OpaqueKind::Library,
+        ]
+        .map(OpaqueKind::label);
+        assert_eq!(labels, ["call", "invocations", "input", "library"]);
         assert!(!opaque.is_complete());
     }
 
