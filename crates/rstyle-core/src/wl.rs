@@ -206,6 +206,9 @@ fn diameter(g: &Graph) -> usize {
         .unwrap_or(0)
 }
 
+/// `(diameter, nodes, histograms)`: the inputs of `similarity_milli` for one graph.
+pub(crate) type SimilarityKey<'a> = (usize, usize, &'a [Vec<(u64, usize)>]);
+
 /// Refined colors and histograms of one graph.
 #[derive(Debug, Clone)]
 pub struct Wl {
@@ -255,6 +258,12 @@ impl Wl {
 
     pub fn nodes(&self) -> usize {
         self.graph.labels.len()
+    }
+
+    /// Everything `similarity_milli` reads from one side: graphs with equal keys score
+    /// identically against every other graph.
+    pub(crate) fn similarity_key(&self) -> SimilarityKey<'_> {
+        (self.diameter, self.nodes(), &self.hists)
     }
 
     /// Colors used when comparing against `other`: refinement depth is capped by the
