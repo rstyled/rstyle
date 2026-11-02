@@ -73,6 +73,14 @@ pub fn moved_mutable(xs: &[usize]) -> usize { let mut k = 0usize; k += 1; xs.ite
 pub struct Counter(usize);
 impl Iterator for Counter { type Item = usize; fn next(&mut self) -> Option<usize> { self.0 += 1; Some(self.0) } }
 pub fn user_iterator(c: Counter) -> u32 { c.take(3).map(|x| score(x, 0)).sum() }
+pub struct Edges { pub edges: Vec<u8> }
+pub fn walk_edges(xs: &[u8]) -> usize { let mut c = 0; for _ in xs { c += 1; } c }
+pub fn edge_caller(g: &Edges) -> usize { let mut t = 0; for _ in 0..3usize { t += walk_edges(&g.edges); } t }
+pub fn counted(n: usize) -> usize { let mut t = 0; for i in 0..n { t += i; } t }
+pub fn varying_calls(m: usize) -> usize { let mut t = 0; for i in 0..m { t += counted(i); } t }
+pub fn recursive_count(n: usize) -> usize { if n == 0 { 0 } else { recursive_count(n - 1) } }
+pub trait Area { fn area(&self) -> usize; }
+pub fn dyn_area(s: &dyn Area) -> usize { s.area() }
 "#;
 
 fn runtime(report: &Value) -> &Value {
@@ -98,6 +106,7 @@ fn runtime_bounds_are_independent_replayable_owner_results() {
     assert_known(&original);
     assert_call(runtime(&original)["rows"].as_array().unwrap());
     assert_callbacks(runtime(&original)["rows"].as_array().unwrap());
+    assert_composed(runtime(&original)["rows"].as_array().unwrap());
     assert_unknown(runtime(&original)["rows"].as_array().unwrap());
     assert_replay(directory.path(), &original);
 }
@@ -198,6 +207,48 @@ fn assert_callbacks(rows: &[Value]) {
                 .unwrap()
                 .contains("iterator chain"),
             "{name}: {assessment}"
+        );
+    }
+}
+
+// Summaries substitute caller argument bounds; local counts stay separately reported.
+fn assert_composed(rows: &[Value]) {
+    for (name, entries, invocations) in [
+        ("edge_caller", 12, 3),
+        ("varying_calls", 30, 5),
+        ("linear", 3, 0),
+    ] {
+        let composed = &named_row(rows, name)["composed"]["Proven"];
+        let bound = |key: &str| -> u64 {
+            value(
+                &serde_json::from_value(composed[key].clone())
+                    .unwrap_or_else(|_| panic!("{name}: {composed}")),
+            )
+        };
+        assert_eq!(bound("loop_body_entries"), entries, "{name}: {composed}");
+        assert_eq!(
+            bound("workspace_invocations"),
+            invocations,
+            "{name}: {composed}"
+        );
+        assert!(composed["assumptions"].as_array().unwrap().len() >= 3);
+    }
+    let edge = &named_row(rows, "edge_caller")["composed"]["Proven"];
+    assert!(
+        edge["loop_body_entries"]
+            .to_string()
+            .contains("len(g.edges)"),
+        "{edge}"
+    );
+    for (name, reason) in [
+        ("recursive_count", "Recursive"),
+        ("dyn_area", "Unresolved"),
+        ("unknown_continue", "Local bounds"),
+    ] {
+        let composed = &named_row(rows, name)["composed"]["Unknown"]["reason"];
+        assert!(
+            composed.as_str().unwrap().contains(reason),
+            "{name}: {composed}"
         );
     }
 }

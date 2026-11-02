@@ -3,9 +3,13 @@ use super::{Context, UnitId};
 use crate::clones::FunctionKey;
 use rstyle_core::{
     advisory::runtime_bounds::{Input, KEY, Observation},
-    runtime_bounds::{self, Outcome},
+    runtime_bounds::{
+        self, Limits, Outcome,
+        compose::{Analyzed, Composed, Composer},
+    },
 };
 use serde::Serialize;
+use std::collections::HashMap;
 
 #[derive(Serialize)]
 pub(super) struct Report {
@@ -33,6 +37,8 @@ struct Evidence {
     #[serde(skip_serializing_if = "Option::is_none")]
     result: Option<Outcome>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    composed: Option<Composed>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     missing: Option<String>,
 }
 
@@ -40,6 +46,9 @@ pub(super) fn evaluate(ctx: &Context<'_>, unit: UnitId) -> Option<Report> {
     if !ctx.args.compiler_runtime_bounds {
         return None;
     }
+    let index = owners(ctx);
+    let mut composer = Composer::new(|id: &str| analyzed(index.get(id)?), Limits::default());
+
     let mut rows: Vec<_> = ctx
         .handoff
         .assessed
@@ -54,16 +63,17 @@ pub(super) fn evaluate(ctx: &Context<'_>, unit: UnitId) -> Option<Report> {
                     .iter()
                     .any(|finding| finding.construct == "macro_generated_function")
         })
-        .map(|function| row(function, &ctx.capture.plan.root))
+        .map(|function| row(function, &ctx.capture.plan.root, &mut composer))
         .collect();
     rows.sort_by_key(|row| (std::cmp::Reverse(degree(row)), row.key));
     Some(Report {
-        schema: "rstyle.compiler-runtime-bounds-report/1",
+        schema: "rstyle.compiler-runtime-bounds-report/2",
         input_complete: rows.iter().all(|row| row.evidence.missing.is_none()),
         limitations: &[
             "Bounds count loop-body entries and modeled call-site invocations; whole runtime remains unknown.",
             "Compiler-resolved collection length and traversal adapters are abstracted, excluded from modeled call counts.",
             "Resolved standard iterator chains over stable extents or primitive ranges are synthetic scans; callbacks are inlined and counted at most once per pulled item.",
+            "Composed results add resolved workspace callee summaries; standard-library bodies are outside that cost unit, and recursive, unresolved or unmappable callees stay unknown.",
             "An upper bound does not establish tightness; high polynomial degree alone is not repeated-scan evidence.",
         ],
         selected: (0..rows
@@ -74,17 +84,48 @@ pub(super) fn evaluate(ctx: &Context<'_>, unit: UnitId) -> Option<Report> {
     })
 }
 
-fn row(function: &crate::clones::Function, root: &std::path::Path) -> Row {
+// Owners across every unit, so composition can reach callees in other workspace crates.
+fn owners<'a>(ctx: &'a Context<'_>) -> HashMap<String, &'a crate::clones::Function> {
+    ctx.handoff
+        .assessed
+        .iter()
+        .filter_map(|function| Some((owner(function).ok()?, function)))
+        .collect()
+}
+
+fn analyzed(function: &crate::clones::Function) -> Option<Analyzed> {
+    let Input::Captured { program } = read(function).ok()?.input else {
+        return None;
+    };
+    Some(Analyzed {
+        outcome: runtime_bounds::analyze(&program),
+        program,
+    })
+}
+
+fn row<F: FnMut(&str) -> Option<Analyzed>>(
+    function: &crate::clones::Function,
+    root: &std::path::Path,
+    composer: &mut Composer<F>,
+) -> Row {
     let path = super::source_path(function, root, true);
     let input = path
         .as_ref()
         .map_err(Clone::clone)
         .and_then(|_| read(function));
+    let composed = input
+        .as_ref()
+        .ok()
+        .filter(|observation| matches!(observation.input, Input::Captured { .. }))
+        .map(|observation| composer.composed(&observation.owner));
     Row {
         key: function.key,
         name: function.facts.view().name.to_string(),
         path: path.unwrap_or_default(),
-        evidence: evidence(input),
+        evidence: Evidence {
+            composed,
+            ..evidence(input)
+        },
     }
 }
 
@@ -96,6 +137,7 @@ fn evidence(input: Result<Observation, String>) -> Evidence {
                 capture_status: "missing",
                 inputs: None,
                 result: None,
+                composed: None,
                 missing: Some(reason),
             };
         }
@@ -114,6 +156,7 @@ fn evidence(input: Result<Observation, String>) -> Evidence {
         capture_status,
         inputs,
         result: Some(result),
+        composed: None,
         missing: None,
     }
 }
@@ -235,12 +278,28 @@ fn render_result(row: &Row) -> String {
                 })
                 .collect();
             format!(
-                "loop body entries <= {}; whole runtime {}{loops}{calls}",
+                "loop body entries <= {}; whole runtime {}{loops}{calls}{}",
                 expression(&assessment.loop_body_entries),
-                assessment.whole_runtime
+                assessment.whole_runtime,
+                render_composed(row.evidence.composed.as_ref())
             )
         }
         _ => "missing result".into(),
+    }
+}
+
+fn render_composed(composed: Option<&Composed>) -> String {
+    match composed {
+        Some(Composed::Proven(composition)) => format!(
+            "\n  composed workspace loop body entries <= {}; workspace invocations <= {}",
+            expression(&composition.loop_body_entries),
+            expression(&composition.workspace_invocations)
+        ),
+        Some(Composed::Unknown { reason }) => format!("\n  composed: unknown: {reason}"),
+        Some(Composed::BudgetExceeded { reason }) => {
+            format!("\n  composed: budget exhausted: {reason}")
+        }
+        None => String::new(),
     }
 }
 
