@@ -7,6 +7,12 @@
 //! are outside the cost unit. An unresolved, unavailable, recursive or unknown
 //! callee contributes an opaque factor per invocation, and an unmappable callee
 //! size stays opaque, so the caller keeps a sound partial bound.
+//!
+//! Library steps are a separate measure: each keyed library call contributes
+//! `count * steps[sizes := argument bounds]` from its data contract, and an operation
+//! without one contributes an opaque `?library` factor. They never change whether the
+//! loop and invocation counts are proven.
+pub use super::contracts::Contracts;
 use super::symbolic::{Bound, OpaqueKind};
 use super::*;
 use serde::{Deserialize, Serialize};
@@ -21,6 +27,7 @@ pub const ASSUMPTIONS: &[&str] = &[
     "Argument sizes are replaced by a per-invocation maximum; bounds are monotone, so totals are upper bounds but may be loose.",
     "Modeled standard iterator scans count as the owner's own loop-body entries.",
     "Composed counts still do not bound operation costs or whole runtime.",
+    "Library steps add per-invocation contract bounds for keyed library operations; each contract holds up to a constant factor and excludes the cost of every element operation it counts.",
 ];
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -58,6 +65,11 @@ pub struct Composition {
     pub opaque_factors: Vec<OpaqueFactor>,
     pub loop_body_entries: Bound,
     pub workspace_invocations: Bound,
+    /// Element operations in contracted library calls, through resolved callees.
+    pub library_steps: Bound,
+    /// Why each opaque factor in `library_steps` is unknown, by site.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub library_factors: Vec<OpaqueFactor>,
     pub resolved_callees: Vec<String>,
     pub excluded_library_callees: Vec<String>,
     pub assumptions: Vec<String>,
@@ -65,13 +77,28 @@ pub struct Composition {
 
 #[derive(Clone)]
 struct Summary {
+    totals: Totals,
+    evidence: Evidence,
+}
+
+/// The composed measures of an owner, or of one call site's contribution.
+#[derive(Clone)]
+struct Totals {
     loops: Bound,
     invocations: Bound,
+    library: Bound,
+}
+
+/// Everything composition records besides the measures.
+#[derive(Clone, Default)]
+struct Evidence {
     callees: BTreeSet<String>,
     library: BTreeSet<String>,
     // Inputs introduced by composition, keyed by label: a formal-rooted length path.
-    synthesized: BTreeMap<String, (u32, Vec<Field>)>,
+    synthesized: Introduced,
     opaque: Opaques,
+    // Opaque factors of library steps, kept apart so they never affect the verdict.
+    library_opaque: Opaques,
 }
 
 // Reasons for opaque factors, by kind and site.
@@ -79,7 +106,7 @@ type Opaques = BTreeMap<(OpaqueKind, String), String>;
 
 enum State {
     Active,
-    Done(Result<Summary, Failure>),
+    Done(Box<Result<Summary, Failure>>),
 }
 
 #[derive(Clone)]
@@ -88,19 +115,23 @@ enum Failure {
     Budget(String),
 }
 
-fn composition(summary: Summary) -> Composition {
-    let opaque_factors = summary
-        .opaque
+fn factors(opaque: Opaques) -> Vec<OpaqueFactor> {
+    opaque
         .into_iter()
         .map(|((kind, site), reason)| OpaqueFactor { kind, site, reason })
-        .collect();
+        .collect()
+}
+
+fn composition(summary: Summary) -> Composition {
     Composition {
         cost_scope: COST_SCOPE.into(),
-        opaque_factors,
-        loop_body_entries: simplified(summary.loops),
-        workspace_invocations: simplified(summary.invocations),
-        resolved_callees: summary.callees.into_iter().collect(),
-        excluded_library_callees: summary.library.into_iter().collect(),
+        opaque_factors: factors(summary.evidence.opaque),
+        loop_body_entries: simplified(summary.totals.loops),
+        workspace_invocations: simplified(summary.totals.invocations),
+        library_steps: simplified(summary.totals.library),
+        library_factors: factors(summary.evidence.library_opaque),
+        resolved_callees: summary.evidence.callees.into_iter().collect(),
+        excluded_library_callees: summary.evidence.library.into_iter().collect(),
         assumptions: ASSUMPTIONS.iter().map(|text| (*text).into()).collect(),
     }
 }
@@ -109,6 +140,7 @@ fn composition(summary: Summary) -> Composition {
 pub struct Composer<F> {
     lookup: F,
     limits: Limits,
+    contracts: Contracts,
     memo: Memo,
 }
 
@@ -119,18 +151,26 @@ struct Memo {
 }
 
 impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
+    /// A composer using the library contracts compiled into the engine.
     pub fn new(lookup: F, limits: Limits) -> Self {
+        Self::with_contracts(lookup, limits, Contracts::embedded().clone())
+    }
+
+    pub fn with_contracts(lookup: F, limits: Limits, contracts: Contracts) -> Self {
         let memo = Memo::default();
         Self {
             lookup,
             limits,
+            contracts,
             memo,
         }
     }
 
     pub fn composed(&mut self, id: &str) -> Composed {
         match self.summary(id) {
-            Ok(summary) if summary.opaque.is_empty() => Composed::Proven(composition(summary)),
+            Ok(summary) if summary.evidence.opaque.is_empty() => {
+                Composed::Proven(composition(summary))
+            }
             Ok(summary) => Composed::Partial(composition(summary)),
             Err(Failure::Unknown(reason)) => Composed::Unknown { reason },
             Err(Failure::Budget(reason)) => Composed::BudgetExceeded { reason },
@@ -139,7 +179,7 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
 
     fn summary(&mut self, id: &str) -> Result<Summary, Failure> {
         match self.memo.states.get(id) {
-            Some(State::Done(result)) => return result.clone(),
+            Some(State::Done(result)) => return (**result).clone(),
             Some(State::Active) => {
                 return Err(Failure::Unknown(format!(
                     "Recursive call cycle through {id}"
@@ -155,7 +195,7 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
         let result = self.build(id);
         self.memo
             .states
-            .insert(id.into(), State::Done(result.clone()));
+            .insert(id.into(), State::Done(Box::new(result.clone())));
         result
     }
 
@@ -182,9 +222,14 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
         };
 
         let mut summary = Summary {
-            loops: assessment.loop_body_entries.clone(),
-            opaque: local_opaque(assessment),
-            ..Summary::empty()
+            totals: Totals {
+                loops: assessment.loop_body_entries.clone(),
+                ..Totals::zero()
+            },
+            evidence: Evidence {
+                opaque: local_opaque(assessment),
+                ..Evidence::default()
+            },
         };
         for call in &assessment.calls {
             self.call(&owner.program, call, &mut summary)?;
@@ -202,8 +247,7 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
             Callee::Resolved(target) => self.contribution(caller, call, target),
             Callee::Constructor => return Ok(()),
             Callee::Library(identity) => {
-                summary.library.insert(identity.clone());
-                return Ok(());
+                return self.library(Site::new(caller, call), identity, summary);
             }
             Callee::Unresolved => Err(Failure::Unknown(format!(
                 "Unresolved callee {}",
@@ -226,94 +270,160 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
             .owner(target)
             .expect("summarized owners were looked up");
         let mapping = Mapping {
-            caller,
+            site: Site::new(caller, call),
             callee: &owner.program,
-            call,
-            synthesized: &callee.synthesized,
-            introduced: RefCell::new(BTreeMap::new()),
-            opaque: RefCell::new(BTreeMap::new()),
+            synthesized: &callee.evidence.synthesized,
         };
 
-        let loops = mapping.substitute(&callee.loops)?;
-        let invocations = mapping.substitute(&callee.invocations)?;
+        let loops = mapping.substitute(&callee.totals.loops)?;
+        let invocations = mapping.substitute(&callee.totals.invocations)?;
+        let opaque = mapping.site.opaque.take();
+        let library = mapping.substitute(&callee.totals.library)?;
+        let library_opaque = mapping.site.opaque.take();
+        let site = Evidence {
+            callees: BTreeSet::from([target.to_string()]),
+            synthesized: mapping.site.introduced.into_inner(),
+            opaque,
+            library_opaque,
+            ..Evidence::default()
+        };
         Ok(Contribution {
-            target: Some(target.into()),
             count: call.count.clone(),
-            loops,
-            invocations,
-            introduced: mapping.introduced.into_inner(),
-            opaque: mapping.opaque.into_inner(),
-            callee,
+            totals: Totals {
+                loops,
+                invocations,
+                library,
+            },
+            evidence: callee.evidence.inherited().union(site),
         })
+    }
+
+    // A library call costs its contract's steps at this site's argument sizes; it is
+    // not a workspace invocation.
+    fn library(
+        &self,
+        site: Site<'_>,
+        identity: &str,
+        summary: &mut Summary,
+    ) -> Result<(), Failure> {
+        let call = site.call;
+        let contract = call
+            .operation
+            .as_deref()
+            .and_then(|key| self.contracts.get(key));
+        let steps = match contract {
+            Some(contract) => contract.steps.instantiate(&mut |index| site.size(index))?,
+            None => site.uncontracted(),
+        };
+
+        summary.totals.library = Bound::add(vec![
+            summary.totals.library.clone(),
+            Bound::mul(call.count.clone(), steps),
+        ]);
+        summary.record(Evidence {
+            library: BTreeSet::from([identity.to_string()]),
+            synthesized: site.introduced.into_inner(),
+            library_opaque: site.opaque.into_inner(),
+            ..Evidence::default()
+        });
+        summary.within(self.limits)
     }
 }
 
 struct Contribution {
-    // The resolved callee; none for a callee charged only opaque factors.
-    target: Option<String>,
     count: Bound,
-    loops: Bound,
-    opaque: Opaques,
-    invocations: Bound,
-    introduced: Introduced,
-    callee: Summary,
+    totals: Totals,
+    // The callee's caller-visible evidence plus this site's callee, labels and factors.
+    evidence: Evidence,
 }
 
-impl Summary {
-    fn empty() -> Self {
+impl Totals {
+    fn zero() -> Self {
         Self {
             loops: Bound::Const(0),
             invocations: Bound::Const(0),
-            callees: BTreeSet::new(),
-            library: BTreeSet::new(),
-            synthesized: BTreeMap::new(),
-            opaque: BTreeMap::new(),
+            library: Bound::Const(0),
         }
     }
 
-    // Each invocation adds the callee's entries and its own entry as an invocation.
-    fn absorb(&mut self, part: Contribution, limits: Limits) -> Result<(), Failure> {
+    // `count` invocations, each adding `part` and its own entry as an invocation.
+    fn invoked(&self, count: &Bound, part: Self) -> Self {
+        let per = |total: &Bound, each: Bound| {
+            Bound::add(vec![total.clone(), Bound::mul(count.clone(), each)])
+        };
         let entered = Bound::add(vec![Bound::Const(1), part.invocations]);
-        self.loops = Bound::add(vec![
-            self.loops.clone(),
-            Bound::mul(part.count.clone(), part.loops),
-        ]);
-        self.invocations = Bound::add(vec![
-            self.invocations.clone(),
-            Bound::mul(part.count, entered),
-        ]);
+        Self {
+            loops: per(&self.loops, part.loops),
+            invocations: per(&self.invocations, entered),
+            library: per(&self.library, part.library),
+        }
+    }
 
-        self.merge(part.target, part.callee, (part.introduced, part.opaque));
-        if self.loops.size() + self.invocations.size() > limits.expression_nodes {
+    fn size(&self) -> usize {
+        self.loops.size() + self.invocations.size() + self.library.size()
+    }
+}
+
+impl Evidence {
+    fn union(self, other: Self) -> Self {
+        Self {
+            callees: joined(self.callees, other.callees),
+            library: joined(self.library, other.library),
+            synthesized: joined(self.synthesized, other.synthesized),
+            opaque: joined(self.opaque, other.opaque),
+            library_opaque: joined(self.library_opaque, other.library_opaque),
+        }
+    }
+
+    // A callee's own synthesized labels are callee-relative; its call sites introduce
+    // caller-relative ones instead.
+    fn inherited(self) -> Self {
+        Self {
+            synthesized: Introduced::new(),
+            ..self
+        }
+    }
+}
+
+fn joined<C: Extend<T> + IntoIterator<Item = T>, T>(mut first: C, second: C) -> C {
+    first.extend(second);
+    first
+}
+
+impl Summary {
+    fn absorb(&mut self, part: Contribution, limits: Limits) -> Result<(), Failure> {
+        self.totals = self.totals.invoked(&part.count, part.totals);
+        self.record(part.evidence);
+        self.within(limits)
+    }
+
+    fn record(&mut self, evidence: Evidence) {
+        self.evidence = std::mem::take(&mut self.evidence).union(evidence);
+    }
+
+    fn within(&self, limits: Limits) -> Result<(), Failure> {
+        if self.totals.size() > limits.expression_nodes {
             return Err(Failure::Budget("Composed bound budget exceeded".into()));
         }
         Ok(())
     }
-
-    fn merge(&mut self, target: Option<String>, callee: Summary, extras: (Introduced, Opaques)) {
-        self.callees
-            .extend(target.into_iter().chain(callee.callees));
-        self.library.extend(callee.library);
-        let opaque = callee.opaque.into_iter().chain(extras.1).collect();
-        self.extend((extras.0, opaque));
-    }
-
-    fn extend(&mut self, extras: (Introduced, Opaques)) {
-        self.synthesized.extend(extras.0);
-        self.opaque.extend(extras.1);
-    }
 }
 
-/// Maps callee inputs to caller-side upper bounds at one call site.
-struct Mapping<'a> {
+/// Caller-side sizes of one call site's arguments.
+struct Site<'a> {
     caller: &'a Program,
-    callee: &'a Program,
     call: &'a CallBound,
-    synthesized: &'a BTreeMap<String, (u32, Vec<Field>)>,
     // Caller-relative lengths this site introduces for the caller's own callers.
     introduced: RefCell<Introduced>,
     // Callee sizes without a caller-side bound, kept as opaque factors.
     opaque: RefCell<Opaques>,
+}
+
+/// Maps callee inputs to caller-side upper bounds at one call site.
+struct Mapping<'a> {
+    site: Site<'a>,
+    callee: &'a Program,
+    synthesized: &'a BTreeMap<String, (u32, Vec<Field>)>,
 }
 
 type Introduced = BTreeMap<String, (u32, Vec<Field>)>;
@@ -325,13 +435,14 @@ impl Mapping<'_> {
             Bound::Opaque(opaque) => Bound::Opaque(opaque.clone()),
             Bound::Input(name) => self
                 .input(name)
-                .or_else(|failure| self.qualified(name, failure))?,
+                .or_else(|failure| self.site.qualified(name, failure))?,
             Bound::Add(items) => Bound::add(self.all(items)?),
             Bound::Mul(items) => self
                 .all(items)?
                 .into_iter()
                 .fold(Bound::Const(1), Bound::mul),
             Bound::Max(items) => Bound::Max(self.all(items)?),
+            Bound::Log(value) => Bound::log(self.substitute(value)?),
         })
     }
 
@@ -343,9 +454,11 @@ impl Mapping<'_> {
         if let Some(position) = self.callee.formals.iter().position(
             |formal| matches!(&formal.measure, Measure::Scalar { input } if input == name),
         ) {
-            return match self.call.arguments.get(position) {
+            return match self.site.call.arguments.get(position) {
                 Some(ArgumentBound::Scalar(bound)) => Ok(bound.clone()),
-                _ => Err(self.unmapped(name, "scalar argument has no upper bound")),
+                _ => Err(self
+                    .site
+                    .unmapped(name, "scalar argument has no upper bound")),
             };
         }
 
@@ -360,14 +473,49 @@ impl Mapping<'_> {
                 fields,
                 ..
             }) => (*formal, fields.clone()),
-            Some(_) => return Err(self.unmapped(name, "size is rooted at a callee local")),
+            Some(_) => return Err(self.site.unmapped(name, "size is rooted at a callee local")),
             None => self
                 .synthesized
                 .get(name)
                 .cloned()
-                .ok_or_else(|| self.unmapped(name, "input has no formal provenance"))?,
+                .ok_or_else(|| self.site.unmapped(name, "input has no formal provenance"))?,
         };
-        self.length(name, (formal, &fields))
+        self.site.length(name, (formal, &fields))
+    }
+}
+
+impl<'a> Site<'a> {
+    fn new(caller: &'a Program, call: &'a CallBound) -> Self {
+        Self {
+            caller,
+            call,
+            introduced: RefCell::new(BTreeMap::new()),
+            opaque: RefCell::new(BTreeMap::new()),
+        }
+    }
+
+    // Size of argument `index`: a scalar's bound, or a stable place's length.
+    fn size(&self, index: u32) -> Result<Bound, Failure> {
+        let name = format!("size({index})");
+        match self.call.arguments.get(index as usize) {
+            Some(ArgumentBound::Scalar(bound)) => Ok(bound.clone()),
+            _ => self
+                .length(&name, (index, &[]))
+                .or_else(|failure| self.qualified(&name, failure)),
+        }
+    }
+
+    // A library operation without a contract costs unknown steps per invocation.
+    fn uncontracted(&self) -> Bound {
+        let reason = match &self.call.operation {
+            Some(key) => format!("No library contract for {key}"),
+            None => "Library call has no operation key".into(),
+        };
+        let site = self.call.callee.clone();
+        self.opaque
+            .borrow_mut()
+            .insert((OpaqueKind::Library, site.clone()), reason);
+        Bound::opaque(OpaqueKind::Library, site)
     }
 
     // `origin` is the callee formal and the field path below it.
@@ -458,6 +606,7 @@ fn simplified(bound: Bound) -> Bound {
                 .unwrap_or(Bound::Const(1))
         }
         Bound::Max(items) => Bound::Max(items.into_iter().map(simplified).collect()),
+        Bound::Log(value) => Bound::log(simplified(*value)),
         leaf => leaf,
     }
 }
@@ -492,14 +641,18 @@ fn opaque_call(call: &CallBound, failure: Failure) -> Contribution {
     let site = call.callee.clone();
     let factor = |kind| ((kind, site.clone()), reason.clone());
     Contribution {
-        target: None,
         count: call.count.clone(),
-        loops: Bound::opaque(OpaqueKind::Call, site.clone()),
-        // Its own invocations are unknown too, beyond the one counted for this call.
-        invocations: Bound::opaque(OpaqueKind::Invocations, site.clone()),
-        opaque: BTreeMap::from([factor(OpaqueKind::Call), factor(OpaqueKind::Invocations)]),
-        introduced: BTreeMap::new(),
-        callee: Summary::empty(),
+        totals: Totals {
+            loops: Bound::opaque(OpaqueKind::Call, site.clone()),
+            // Its own invocations are unknown too, beyond the one counted for this call.
+            invocations: Bound::opaque(OpaqueKind::Invocations, site.clone()),
+            library: Bound::opaque(OpaqueKind::Library, site.clone()),
+        },
+        evidence: Evidence {
+            opaque: BTreeMap::from([factor(OpaqueKind::Call), factor(OpaqueKind::Invocations)]),
+            library_opaque: BTreeMap::from([factor(OpaqueKind::Library)]),
+            ..Evidence::default()
+        },
     }
 }
 

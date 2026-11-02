@@ -4,7 +4,8 @@
 use crate::align::{Alignment, Ctx, HoleKind, align};
 use crate::facts::{NodeKind, Pdg};
 use crate::normalize::{Rules, canonicalize_or_borrow};
-use crate::wl::{Wl, call_class, comparable, similarity_milli};
+use crate::wl::{SimilarityKey, Wl, call_class, comparable, similarity_milli};
+use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Blocks larger than this are skipped: their key is too common to say anything.
@@ -159,19 +160,65 @@ fn next_seed(adjacency: &Adjacency, free: &BTreeSet<usize>) -> Option<usize> {
         .map(|(_, v)| v)
 }
 
-/// The group member with the highest total similarity to the others.
+/// Members with equal similarity keys, collapsed into one weighted class.
+struct Classes {
+    /// `(representative, members)` per class, in order of first appearance.
+    reps: Vec<(usize, u64)>,
+    /// Class of each group member, by group position.
+    of_member: Vec<usize>,
+}
+
+fn classes(wls: &[Wl], group: &[usize]) -> Classes {
+    let mut index: BTreeMap<SimilarityKey<'_>, usize> = BTreeMap::new();
+    let mut reps: Vec<(usize, u64)> = Vec::new();
+    let mut of_member = Vec::with_capacity(group.len());
+
+    for &v in group {
+        let class = *index.entry(wls[v].similarity_key()).or_insert(reps.len());
+        if class == reps.len() {
+            reps.push((v, 0));
+        }
+        reps[class].1 += 1;
+        of_member.push(class);
+    }
+    Classes { reps, of_member }
+}
+
+/// Total similarity of one member of each class to every other group member. Similarity
+/// is symmetric, so each distinct pair of classes is scored once and credited to both.
+fn class_totals(wls: &[Wl], reps: &[(usize, u64)]) -> Vec<u64> {
+    let score = |a: usize, b: usize| u64::from(similarity_milli(&wls[a], &wls[b]));
+    let mut totals = vec![0; reps.len()];
+    for (i, &(a, size_a)) in reps.iter().enumerate() {
+        let own = if size_a > 1 {
+            (size_a - 1) * score(a, a)
+        } else {
+            0
+        };
+        let mut total = totals[i] + own;
+        for (j, &(b, size_b)) in reps.iter().enumerate().skip(i + 1) {
+            let s = score(a, b);
+            total += size_b * s;
+            totals[j] += size_a * s;
+        }
+        totals[i] = total;
+    }
+    totals
+}
+
+/// The group member with the highest total similarity to the others (lowest index on
+/// ties). Group members are distinct indices.
+///
+/// Identical members are scored once as a weighted class, as when a sum over many equal
+/// subproblems is evaluated once per distinct subproblem and scaled by its multiplicity.
 fn medoid(wls: &[Wl], group: &[usize]) -> usize {
-    let total = |v: usize| -> u32 {
-        group
-            .iter()
-            .filter(|w| **w != v)
-            .map(|w| similarity_milli(&wls[v], &wls[*w]))
-            .sum()
-    };
+    let Classes { reps, of_member } = classes(wls, group);
+    let totals = class_totals(wls, &reps);
     group
         .iter()
-        .copied()
-        .min_by_key(|v| (u32::MAX - total(*v), *v))
+        .zip(&of_member)
+        .min_by_key(|(v, class)| (Reverse(totals[**class]), **v))
+        .map(|(v, _)| *v)
         .expect("group is non-empty")
 }
 
@@ -321,6 +368,76 @@ mod tests {
     fn run(pdgs: &[Pdg], params: &Params) -> Vec<Cluster> {
         let refs: Vec<&Pdg> = pdgs.iter().collect();
         cluster(&refs, params)
+    }
+
+    /// `emit_loop` plus `extra` getter calls on the loop item, each feeding the return.
+    fn extended(ty: &str, extra: usize) -> Pdg {
+        let mut pdg = emit_loop(ty, "base");
+        for k in 0..extra {
+            let call = pdg.nodes.len();
+            pdg.nodes.push(getter_call(ty, &format!("extra{k}")));
+            pdg.edges
+                .extend([data(2, call, 0), ctrl(2, call, 0), data(call, 5, k + 1)]);
+        }
+        pdg
+    }
+
+    /// The original definition: every ordered pair scored separately.
+    fn reference_medoid(wls: &[Wl], group: &[usize]) -> usize {
+        let total = |v: usize| -> u32 {
+            group
+                .iter()
+                .filter(|w| **w != v)
+                .map(|w| similarity_milli(&wls[v], &wls[*w]))
+                .sum()
+        };
+        group
+            .iter()
+            .copied()
+            .min_by_key(|v| (u32::MAX - total(*v), *v))
+            .expect("group is non-empty")
+    }
+
+    #[test]
+    fn weighted_class_medoid_matches_pairwise_definition() {
+        let pdgs = [
+            extended("Dog", 0),
+            extended("Cat", 2),
+            permuted(&extended("Cow", 2), 3),
+            extended("Pig", 1),
+            extended("Hen", 4),
+            permuted(&extended("Dog", 0), 1),
+            extended("Elk", 2),
+            extended("Owl", 1),
+        ];
+        let wls: Vec<Wl> = pdgs.iter().map(Wl::new).collect();
+        // Every non-empty subset, in ascending and descending member order.
+        for mask in 1u32..1 << pdgs.len() {
+            let mut group: Vec<usize> = (0..pdgs.len()).filter(|i| mask >> i & 1 == 1).collect();
+            assert_eq!(
+                medoid(&wls, &group),
+                reference_medoid(&wls, &group),
+                "{group:?}"
+            );
+            group.reverse();
+            assert_eq!(
+                medoid(&wls, &group),
+                reference_medoid(&wls, &group),
+                "{group:?}"
+            );
+        }
+        // Names are not labels and node order does not matter: repeated shapes share a class.
+        let Classes { reps, of_member } = classes(&wls, &[0, 1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(reps.len(), 4);
+        assert_eq!(of_member, [0, 1, 1, 2, 3, 0, 1, 2]);
+    }
+
+    #[test]
+    fn identical_majority_outweighs_a_distinct_member() {
+        let pdgs = [extended("Hen", 4), extended("Dog", 1), extended("Cat", 1)];
+        let wls: Vec<Wl> = pdgs.iter().map(Wl::new).collect();
+        assert_eq!(medoid(&wls, &[0, 1, 2]), 1);
+        assert_eq!(medoid(&wls, &[0, 2, 1]), 1, "ties keep the lowest index");
     }
 
     #[test]

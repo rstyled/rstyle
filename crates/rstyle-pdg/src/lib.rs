@@ -62,6 +62,7 @@ mod evidence_budget;
 pub mod extraction_profile;
 pub mod field_locations;
 mod fieldless_enums;
+pub(crate) mod first_index;
 pub mod float_scalars;
 mod fresh_scalar_owners;
 pub mod frontend;

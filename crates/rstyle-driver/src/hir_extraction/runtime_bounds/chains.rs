@@ -427,11 +427,13 @@ impl<'tcx> Collector<'_, 'tcx> {
             Callback::Function(id) => {
                 // Item values are opaque; generic trait items stay unresolved.
                 let identity = ty::GenericArgs::identity_for_item(self.ctx.tcx, id);
+                let (target, operation) = self.target(id, identity);
                 let action = Action::Call {
                     callee: self.ctx.tcx.def_path_str(id),
-                    target: self.target(id, identity),
+                    target,
                     arguments: Vec::new(),
                     may_modify: false,
+                    operation,
                 };
                 self.node(action, Flow::Goto(next), span)
             }

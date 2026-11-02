@@ -4,6 +4,9 @@ use rustc_hir::def::DefKind;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TypeVisitableExt;
 
+/// A call's target and, for a standard-library body, its operation key.
+pub(super) type Resolution = (Callee, Option<String>);
+
 impl<'tcx> Collector<'_, 'tcx> {
     pub(super) fn formal_positions(&mut self, parameters: &[hir::Param<'tcx>]) {
         for (position, parameter) in parameters.iter().enumerate() {
@@ -66,10 +69,10 @@ impl<'tcx> Collector<'_, 'tcx> {
     }
 
     /// Trait items resolve only through concrete compiler instance selection.
-    pub(super) fn target(&self, callee: DefId, arguments: ty::GenericArgsRef<'tcx>) -> Callee {
+    pub(super) fn target(&self, callee: DefId, arguments: ty::GenericArgsRef<'tcx>) -> Resolution {
         let tcx = self.ctx.tcx;
         if matches!(tcx.def_kind(callee), DefKind::Ctor(..)) {
-            return Callee::Constructor;
+            return (Callee::Constructor, None);
         }
         let trait_item = tcx
             .opt_associated_item(callee)
@@ -85,26 +88,30 @@ impl<'tcx> Collector<'_, 'tcx> {
             || arguments.has_infer()
             || arguments.has_escaping_bound_vars()
         {
-            return Callee::Unresolved;
+            return (Callee::Unresolved, None);
         }
         let owner = self.ctx.typeck.hir_owner.def_id;
         crate::ids::selected_instance(tcx, owner, callee, arguments)
             .filter(|instance| matches!(instance.def, ty::InstanceKind::Item(_)))
-            .map_or(Callee::Unresolved, |instance| {
+            .map_or((Callee::Unresolved, None), |instance| {
                 self.classified(instance.def_id(), instance.args)
             })
     }
 
-    // Standard bodies are excluded only when they cannot call back into workspace code.
-    fn classified(&self, callee: DefId, arguments: ty::GenericArgsRef<'tcx>) -> Callee {
+    // Standard bodies are excluded only when they cannot call back into workspace code;
+    // those keep the selected instance's language-neutral operation key.
+    fn classified(&self, callee: DefId, arguments: ty::GenericArgsRef<'tcx>) -> Resolution {
         let tcx = self.ctx.tcx;
         if !super::sysroot::sysroot(tcx, callee.krate) {
-            return Callee::Resolved(identity(tcx, callee));
+            return (Callee::Resolved(identity(tcx, callee)), None);
         }
         if super::sysroot::calls_back(tcx, callee, arguments) {
-            Callee::Unresolved
+            (Callee::Unresolved, None)
         } else {
-            Callee::Library(crate::ids::def_id_str(tcx, callee))
+            (
+                Callee::Library(crate::ids::def_id_str(tcx, callee)),
+                super::sysroot::operation(tcx, callee),
+            )
         }
     }
 
@@ -136,27 +143,27 @@ impl<'tcx> Collector<'_, 'tcx> {
             })
     }
 
-    pub(super) fn call_target(&self, expression: &Expr<'tcx>, resolved: Res) -> Callee {
+    pub(super) fn call_target(&self, expression: &Expr<'tcx>, resolved: Res) -> Resolution {
         match resolved {
-            Res::Def(DefKind::Ctor(..), _) => Callee::Constructor,
+            Res::Def(DefKind::Ctor(..), _) => (Callee::Constructor, None),
             // The callee's `FnDef` type carries its instantiation, even for lang-item paths.
             Res::Def(DefKind::Fn | DefKind::AssocFn, id) => {
                 match self.ctx.typeck.expr_ty(expression).kind() {
                     ty::FnDef(def, arguments) if *def == id => {
                         self.target(id, arguments.skip_binder())
                     }
-                    _ => Callee::Unresolved,
+                    _ => (Callee::Unresolved, None),
                 }
             }
-            _ => Callee::Unresolved,
+            _ => (Callee::Unresolved, None),
         }
     }
 
-    pub(super) fn method_target(&self, expression: &Expr<'tcx>) -> Callee {
+    pub(super) fn method_target(&self, expression: &Expr<'tcx>) -> Resolution {
         self.ctx
             .typeck
             .type_dependent_def_id(expression.hir_id)
-            .map_or(Callee::Unresolved, |id| {
+            .map_or((Callee::Unresolved, None), |id| {
                 self.target(id, self.ctx.typeck.node_args(expression.hir_id))
             })
     }
@@ -171,14 +178,16 @@ impl<'tcx> Collector<'_, 'tcx> {
         let Some(method) = self.ctx.typeck.type_dependent_def_id(expression.hir_id) else {
             return next;
         };
+        let (target, operation) = self.method_target(expression);
         let action = Action::Call {
             callee: self.ctx.tcx.def_path_str(method),
-            target: self.method_target(expression),
+            target,
             arguments: operands
                 .iter()
                 .map(|operand| self.argument(operand))
                 .collect(),
             may_modify: false,
+            operation,
         };
         self.node(action, Flow::Goto(next), expression.span)
     }
