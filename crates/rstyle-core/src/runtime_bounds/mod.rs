@@ -1,6 +1,7 @@
 //! Upper bounds on loop-body entries, independently of whole-function runtime.
 mod analysis;
 pub mod compose;
+pub mod contracts;
 mod ir;
 mod symbolic;
 pub use ir::*;

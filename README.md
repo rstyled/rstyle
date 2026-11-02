@@ -304,8 +304,21 @@ auto-deref into workspace impls make the owner unknown.
 Identities include the compilation, so lib, bin and test builds never share a
 summary. The report lists its assumptions. Results retain
 each compilation context, and `--top` selects rows independently of abstraction
-scores. Polynomial degree is a search heuristic, not a comparison of runtimes
-across independent input sizes. JSON retains the full result roster and the
+scores.
+
+Composed results also report `library_steps`: element operations in standard
+calls, from data contracts in
+[`runtime_bounds/contracts/`](crates/rstyle-core/src/runtime_bounds/contracts/rust.toml)
+rather than engine code. The frontend keys each standard call by its resolved self
+type and member, such as `rust:BTreeMap.get`, and a contract bounds its steps over
+argument sizes up to a constant factor: `log(len(map))` per B-tree lookup, so a
+lookup per key gives `len(keys) * log(len(index.names))`. `log(x)` is the bit
+length of `x`. A key without a contract, or a size without a stable caller-side
+bound such as a locally built map, gives an opaque `?library` or `?input` factor
+listed in `library_factors`; these never change the composed verdict. Another
+language's frontend supplies its own contract file and keys.
+Rows rank by polynomial degree, then logarithmic factors. This is a search
+heuristic, not a comparison of runtimes across independent input sizes. JSON retains the full result roster and the
 selected row indices. Existing abstraction gates and reviews retain their scope.
 
 Saved replay needs a capture made with `--complexity`; older graph-only captures

@@ -38,6 +38,7 @@ fn opaque_call(callee: impl Into<String>, may_modify: bool) -> Action {
         target: Callee::Unresolved,
         arguments: Vec::new(),
         may_modify,
+        operation: None,
     }
 }
 

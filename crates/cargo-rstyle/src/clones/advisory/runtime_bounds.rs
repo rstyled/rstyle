@@ -76,6 +76,7 @@ pub(super) fn evaluate(ctx: &Context<'_>, unit: UnitId) -> Option<Report> {
             "Resolved standard iterator chains over stable extents or primitive ranges are synthetic scans; callbacks are inlined and counted at most once per pulled item.",
             "Partial results are sound bounds relative to opaque factors: ?loop(site) is the number of header executions of an unproven loop per entry of its enclosing loop, ?call and ?invocations the work and calls of an unsummarized callee; whole-owner failures stay unknown.",
             "Composed results add resolved workspace callee summaries; standard-library bodies are outside that cost unit, and recursive, unresolved or unmappable callees contribute opaque ?call or ?input factors.",
+            "Library steps sum data contracts for keyed standard operations, such as log(len(map)) per B-tree lookup, up to each contract's constant factor; uncontracted operations contribute ?library factors and never change the composed verdict.",
             "An upper bound does not establish tightness; high polynomial degree alone is not repeated-scan evidence.",
         ],
         selected: (0..rows
@@ -310,15 +311,19 @@ fn render_composed(composed: Option<&Composed>) -> String {
 }
 
 fn render_composition(composition: &runtime_bounds::compose::Composition, label: &str) -> String {
-    let opaque: String = composition
-        .opaque_factors
-        .iter()
-        .map(|factor| format!("\n    opaque {}: {}", factor.site, factor.reason))
-        .collect();
+    let factors = |factors: &[runtime_bounds::compose::OpaqueFactor]| -> String {
+        factors
+            .iter()
+            .map(|factor| format!("\n    opaque {}: {}", factor.site, factor.reason))
+            .collect()
+    };
     format!(
-        "\n  composed{label} workspace loop body entries <= {}; workspace invocations <= {}{opaque}",
+        "\n  composed{label} workspace loop body entries <= {}; workspace invocations <= {}{}\n  library steps <= {} (contract orders){}",
         expression(&composition.loop_body_entries),
-        expression(&composition.workspace_invocations)
+        expression(&composition.workspace_invocations),
+        factors(&composition.opaque_factors),
+        expression(&composition.library_steps),
+        factors(&composition.library_factors),
     )
 }
 

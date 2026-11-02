@@ -46,6 +46,9 @@ pub enum OpaqueKind {
     Invocations,
     /// A callee size with no caller-side upper bound.
     Input,
+    /// Library steps of an operation without a contract, or of a callee that could not
+    /// be summarized, per invocation.
+    Library,
 }
 
 impl OpaqueKind {
@@ -56,6 +59,7 @@ impl OpaqueKind {
             Self::Call => "call",
             Self::Invocations => "invocations",
             Self::Input => "input",
+            Self::Library => "library",
         }
     }
 }

@@ -99,6 +99,10 @@ pub struct Guard;
 impl Drop for Guard { fn drop(&mut self) { counted(3); } }
 pub fn drops(n: usize) { let mut i = 0; while i < n { let _g = Guard; i += 1; } }
 pub fn mutable_receiver(n: usize) { let mut v = vec![1u8]; v.iter().count(); v.push(1); let mut i = 0; while i < n { i += 1; } }
+pub struct Index { pub names: std::collections::BTreeMap<String, usize> }
+pub fn btree_lookups(index: &Index, keys: &[String]) -> usize { let mut found = 0; for key in keys { if index.names.contains_key(key) { found += 1; } } found }
+pub fn lookup_caller(index: &Index, keys: &[String]) -> usize { btree_lookups(index, keys) }
+pub fn local_map(n: usize) -> bool { let mut map = std::collections::BTreeMap::new(); map.insert(n, n); map.contains_key(&n) }
 "#;
 
 fn runtime(report: &Value) -> &Value {
@@ -125,6 +129,7 @@ fn runtime_bounds_are_independent_replayable_owner_results() {
     assert_call(runtime(&original)["rows"].as_array().unwrap());
     assert_callbacks(runtime(&original)["rows"].as_array().unwrap());
     assert_composed(runtime(&original)["rows"].as_array().unwrap());
+    assert_library(runtime(&original)["rows"].as_array().unwrap());
     assert_partial(runtime(&original)["rows"].as_array().unwrap());
     assert_unknown(runtime(&original)["rows"].as_array().unwrap());
     assert_replay(directory.path(), &original);
@@ -284,6 +289,53 @@ fn assert_composed(rows: &[Value]) {
 }
 
 // A loop that cannot be proven becomes an opaque factor; sibling loops keep bounds.
+fn composition(row: &Value) -> rstyle_core::runtime_bounds::compose::Composition {
+    let composed: rstyle_core::runtime_bounds::compose::Composed =
+        serde_json::from_value(row["composed"].clone()).unwrap();
+    match composed {
+        rstyle_core::runtime_bounds::compose::Composed::Proven(composition) => composition,
+        other => panic!("{other:?}"),
+    }
+}
+
+// Standard calls carry type-and-member keys; B-tree lookups cost log of a stable size.
+fn assert_library(rows: &[Value]) {
+    let lookups = named_row(rows, "btree_lookups");
+    let calls = lookups["result"]["Proven"]["calls"].as_array().unwrap();
+    assert!(
+        calls
+            .iter()
+            .any(|call| call["operation"] == "rust:BTreeMap.contains_key"),
+        "{lookups}"
+    );
+    let own = composition(lookups);
+    assert_eq!(
+        own.library_steps.to_string(),
+        "len(keys)#4 * log(len(index.names))"
+    );
+    assert!(own.library_factors.is_empty(), "{own:?}");
+
+    let caller = composition(named_row(rows, "lookup_caller"));
+    assert_eq!(
+        caller.library_steps.to_string(),
+        "len(keys)#4 * log(len(index.names))"
+    );
+    assert_eq!(caller.library_steps.order().logarithmic, 1);
+
+    // A local map's size has no stable bound, so its lookups stay opaque.
+    let local = composition(named_row(rows, "local_map"));
+    assert!(!local.library_steps.is_complete());
+    let kinds: Vec<_> = local
+        .library_factors
+        .iter()
+        .map(|factor| factor.kind)
+        .collect();
+    assert!(
+        kinds.contains(&rstyle_core::runtime_bounds::OpaqueKind::Input),
+        "{local:?}"
+    );
+}
+
 fn assert_partial(rows: &[Value]) {
     for (name, all_opaque) in [
         ("unknown_continue", true),

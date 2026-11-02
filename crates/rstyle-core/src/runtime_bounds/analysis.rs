@@ -226,6 +226,7 @@ fn call_bound(site: Site<'_>, index: usize, node: &Node, bounds: &[Bound]) -> Op
         callee,
         target,
         arguments,
+        operation,
         ..
     } = &node.action
     else {
@@ -248,6 +249,7 @@ fn call_bound(site: Site<'_>, index: usize, node: &Node, bounds: &[Bound]) -> Op
             .iter()
             .map(|argument| site.argument(index, argument))
             .collect(),
+        operation: operation.clone(),
     })
 }
 

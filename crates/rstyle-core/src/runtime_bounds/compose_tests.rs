@@ -21,6 +21,32 @@ fn call(target: &str, arguments: Vec<Argument>) -> Action {
         },
         arguments,
         may_modify: false,
+        operation: None,
+    }
+}
+
+/// A standard-library call keyed by its language-neutral operation.
+fn library(callee: &str, operation: Option<&str>, arguments: Vec<Argument>) -> Action {
+    Action::Call {
+        callee: callee.into(),
+        target: Callee::Library(callee.into()),
+        arguments,
+        may_modify: false,
+        operation: operation.map(Into::into),
+    }
+}
+
+fn shared(name: &str) -> Formal {
+    Formal {
+        name: name.into(),
+        measure: Measure::Shared,
+    }
+}
+
+fn scalar(name: &str) -> Formal {
+    Formal {
+        name: name.into(),
+        measure: Measure::Scalar { input: name.into() },
     }
 }
 
@@ -528,5 +554,162 @@ fn composed_expressions_respect_the_symbolic_budget() {
     assert!(
         matches!(composed, Composed::BudgetExceeded { .. }),
         "{composed:?}"
+    );
+}
+
+/// `fn lookup(n: usize, map: &BTreeMap<..>) { for _ in 0..n { map.get(..); } }`
+fn lookups() -> Program {
+    let get = library(
+        "std::collections::BTreeMap::get",
+        Some("rust:BTreeMap.get"),
+        vec![
+            Argument::Place {
+                root: Root::Formal(1),
+                fields: Vec::new(),
+            },
+            Argument::Opaque,
+        ],
+    );
+    Shape::new(&["n"])
+        .formals(vec![scalar("n"), shared("map")])
+        .scan("n")
+        .calls(vec![get])
+        .program()
+}
+
+#[test]
+fn contracted_lookups_compose_logarithmic_library_steps() {
+    let own = proven(compose(vec![("w::lookup", lookups())], "w::lookup"));
+    assert_eq!(own.library_steps.to_string(), "n * log(len(map))");
+    assert!(own.library_factors.is_empty());
+    assert_eq!(
+        own.excluded_library_callees,
+        ["std::collections::BTreeMap::get"]
+    );
+
+    // `fn caller(ctx: &Ctx, k: usize) { lookup(k, &ctx.index) }`
+    let caller = Shape::new(&["k"])
+        .formals(vec![shared("ctx"), scalar("k")])
+        .calls(vec![call(
+            "w::lookup",
+            vec![
+                Argument::Scalar(Value::Input("k".into())),
+                Argument::Place {
+                    root: Root::Formal(0),
+                    fields: vec![field(0, "index")],
+                },
+            ],
+        )])
+        .program();
+    let composed = proven(compose(
+        vec![("w::lookup", lookups()), ("w::caller", caller)],
+        "w::caller",
+    ));
+    assert_eq!(
+        composed.library_steps.to_string(),
+        "k * log(len(ctx.index))"
+    );
+    let steps = eval(
+        &composed.library_steps,
+        &[("k", 10), ("len(ctx.index)", 1000)],
+    );
+    assert_eq!(steps, 100);
+    assert_eq!(composed.library_steps.order().logarithmic, 1);
+}
+
+#[test]
+fn library_steps_without_contracts_or_sizes_stay_opaque_without_changing_the_verdict() {
+    let local = Argument::Place {
+        root: Root::Local(7),
+        fields: Vec::new(),
+    };
+    let owner = Shape::new(&[])
+        .calls(vec![
+            library("std::vec::Vec::push", Some("rust:Vec.push"), Vec::new()),
+            library("std::mem::swap", None, Vec::new()),
+            library(
+                "std::collections::BTreeSet::contains",
+                Some("rust:BTreeSet.contains"),
+                vec![local],
+            ),
+            library("std::vec::Vec::len", Some("rust:Vec.len"), Vec::new()),
+            call("ctor", Vec::new()),
+        ])
+        .program();
+    let composition = proven(compose(vec![("w::f", owner)], "w::f"));
+    assert!(composition.opaque_factors.is_empty());
+    assert_eq!(
+        composition.library_steps.to_string(),
+        "?library(std::vec::Vec::push) + ?library(std::mem::swap) + \
+         log(?input(std::collections::BTreeSet::contains::size(0))) + 1"
+    );
+    let reasons: Vec<_> = composition
+        .library_factors
+        .iter()
+        .map(|factor| (factor.kind, factor.reason.as_str()))
+        .collect();
+    assert_eq!(
+        reasons,
+        [
+            (
+                OpaqueKind::Input,
+                "Callee input size(0) at call to std::collections::BTreeSet::contains is unmapped: caller place is not a stable extent"
+            ),
+            (OpaqueKind::Library, "Library call has no operation key"),
+            (OpaqueKind::Library, "No library contract for rust:Vec.push"),
+        ]
+    );
+}
+
+#[test]
+fn unsummarized_callees_charge_opaque_library_steps() {
+    let caller = Shape::new(&["n"])
+        .scan("n")
+        .calls(vec![call("?", Vec::new()), call("w::lookup", Vec::new())])
+        .program();
+    let composition = partial(compose(
+        vec![("w::caller", caller), ("w::lookup", lookups())],
+        "w::caller",
+    ));
+    let sites: Vec<_> = composition
+        .library_factors
+        .iter()
+        .map(|factor| (factor.kind, factor.site.as_str()))
+        .collect();
+    // The lookup's scalar size is unmapped, so its count is opaque; its map size too.
+    assert!(sites.contains(&(OpaqueKind::Library, "?")), "{sites:?}");
+    assert!(
+        sites.contains(&(OpaqueKind::Input, "w::lookup::len(map)")),
+        "{sites:?}"
+    );
+    assert!(!composition.library_steps.is_complete());
+}
+
+#[test]
+fn injected_contracts_replace_the_embedded_table() {
+    let contracts = compose::Contracts::parse_all(&[r#"
+        schema = "rstyle.library-contracts/1"
+        namespace = "rust"
+        [[contract]]
+        basis = "test"
+        steps = { Mul = [{ Size = 0 }, { Size = 0 }] }
+        operations = ["BTreeMap.get"]
+    "#])
+    .unwrap();
+    let program = lookups();
+    let mut composer = Composer::with_contracts(
+        |_: &str| {
+            Some(Analyzed {
+                outcome: analyze(&program),
+                program: program.clone(),
+            })
+        },
+        Limits::default(),
+        contracts,
+    );
+    let composition = proven(composer.composed("w::lookup"));
+    assert_eq!(
+        composition.library_steps.to_string(),
+        "n * len(map) * len(map)"
     );
 }

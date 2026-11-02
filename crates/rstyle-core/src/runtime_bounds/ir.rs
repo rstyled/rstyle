@@ -120,6 +120,10 @@ pub enum Action {
         target: Callee,
         arguments: Vec<Argument>,
         may_modify: bool,
+        /// Language-neutral key of a library operation, such as `rust:BTreeMap.get`,
+        /// matched against library contracts. Absent for workspace and unkeyed calls.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        operation: Option<String>,
     },
     Unsupported {
         reason: String,
@@ -210,6 +214,9 @@ pub struct CallBound {
     pub count: Bound,
     /// Per-invocation upper bounds or places for each argument at this site.
     pub arguments: Vec<ArgumentBound>,
+    /// The library operation key, when the frontend recorded one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
