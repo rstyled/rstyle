@@ -271,9 +271,13 @@ exclusive ranges and traversal of shared slices and standard `Vec` values,
 including fields reached through shared references. Resolved collection length
 queries and traversal adapters are abstracted and excluded from call counts. Ordinary body
 calls can have unknown cost while preserving a bound on a private scalar counter.
-Unsupported control flow, mutable limits, unproved increments and escaped counters
-produce an explicit unknown result. Exhausting an analysis budget is reported
-separately.
+A loop that cannot be proven, such as one with a mutable limit, an unproved
+increment or an unrecognized guard, does not discard the rest of the function: the
+result is `Partial`, and that loop contributes an explicit opaque `?loop(site)`
+factor per entry of its enclosing loop, so `n * ?loop(src/lib.rs:12:5)` still shows
+the proven nesting. Hazards that affect the whole body (unsupported control flow,
+escaped or aliased counters, unsafe code) produce an explicit unknown result.
+Exhausting an analysis budget is reported separately.
 
 Compiler-resolved standard `Iterator` chains over those sources become synthetic
 scans. Closure callbacks, and immutable local closures that are only called
@@ -288,11 +292,14 @@ Each row also has a `composed` result that adds resolved workspace callee
 summaries: a call contributes its count times the callee's bound, with callee
 inputs replaced by per-invocation upper bounds of the caller's arguments.
 Lengths follow shared places and field paths, so passing `&g.edges` into a
-slice scan contributes `len(g.edges)`. Recursion, dynamic or generic dispatch,
-missing bodies, and sizes rooted in a callee local stay unknown. Standard-library
-bodies are outside this cost unit only when they cannot call back into workspace
-code through a callable argument or a trait bound on a workspace type; such calls,
-workspace `Drop` glue and overloaded auto-deref into workspace impls stay unknown.
+slice scan contributes `len(g.edges)`. A recursive, dynamically or generically
+dispatched, or missing callee contributes an opaque `?call(name)` factor per
+invocation, and a callee size with no caller-side bound an opaque `?input(...)`
+factor; such composed results are `Partial` and list why each factor is opaque.
+Standard-library bodies are outside this cost unit only when they cannot call back
+into workspace code through a callable argument or a trait bound on a workspace
+type; other standard calls are opaque. Workspace `Drop` glue and overloaded
+auto-deref into workspace impls make the owner unknown.
 Identities include the compilation, so lib, bin and test builds never share a
 summary. The report lists its assumptions. Results retain
 each compilation context, and `--top` selects rows independently of abstraction
