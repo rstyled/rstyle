@@ -240,6 +240,7 @@ pub enum TypeKind {
     Function,
     Bottom,
     Parameter,
+    Interface,
     Opaque,
 }
 
@@ -254,8 +255,10 @@ pub struct Type {
     pub arguments: Option<Vec<Id>>,
     pub bits: Option<u32>,
     pub signed: Option<bool>,
+    pub pointer_sized: Option<bool>,
     pub element: Option<Id>,
     pub length: Option<u64>,
+    pub fixed: Option<bool>,
     pub key_type: Option<Id>,
     pub value_type: Option<Id>,
     pub target: Option<Id>,
@@ -266,6 +269,7 @@ pub struct Type {
     pub variants: Option<Vec<Variant>>,
     pub parameters: Option<Vec<Id>>,
     pub result: Option<Id>,
+    pub index: Option<u32>,
     pub bounds: Option<Vec<Id>>,
 }
 
@@ -358,6 +362,7 @@ pub struct Signature {
     pub parameters: Vec<Parameter>,
     pub receiver: Option<Receiver>,
     pub result: Id,
+    pub owner_type: Option<Id>,
     pub generics: Vec<Generic>,
     pub lifetimes: Vec<Lifetime>,
     pub outlives: Vec<Outlives>,
@@ -372,6 +377,7 @@ pub struct Parameter {
     #[serde(rename = "type")]
     pub ty: Id,
     pub span: Option<FileSpan>,
+    pub annotation: Option<FileSpan>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
