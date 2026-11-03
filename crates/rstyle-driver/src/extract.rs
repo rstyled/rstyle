@@ -27,6 +27,15 @@ pub fn line_of(tcx: TyCtxt<'_>, span: Span) -> usize {
         .line
 }
 
+/// Inside a macro expansion, as opposed to a compiler desugaring of source syntax.
+pub fn macro_expanded(span: Span) -> bool {
+    span.from_expansion()
+        && !matches!(
+            span.ctxt().outer_expn_data().kind,
+            rustc_span::hygiene::ExpnKind::Desugaring(_)
+        )
+}
+
 pub(crate) fn function_facts(
     tcx: TyCtxt<'_>,
     def_id: LocalDefId,
