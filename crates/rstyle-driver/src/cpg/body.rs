@@ -764,7 +764,9 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             let ty = self.unit.ty(self.typeck.node_type(hir_id));
             let mut symbol = json!({"id": self.symbol_id(hir_id), "name": ident.name.as_str(), "kind": kind,
                                     "scope": self.prefix, "mutable": mode.1.is_mut(), "type": ty});
-            if let Some(declared) = self.unit.span(ident.span) {
+            // A parameter a library macro declares is declared where the macro is invoked.
+            let declared = self.unit.span(ident.span).or_else(|| self.unit.span(ident.span.source_callsite()));
+            if let Some(declared) = declared {
                 symbol["declared"] = declared;
             }
             self.symbols.push(symbol);

@@ -134,10 +134,15 @@ fn function(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Result<Value, String> 
         _ => return Err(format!("{} has no signature or body", tcx.def_path_str(id))),
     };
     let missing = || format!("{} has no workspace source span", tcx.def_path_str(id));
-    let span = unit
-        .span(sig.span.to(body.value.span))
-        .ok_or_else(missing)?;
-    let signature_span = unit.span(sig.span).ok_or_else(missing)?;
+    // A function a library macro generates, as `thread_local!` does, is located at
+    // the workspace invocation that expands it.
+    let mut located = |span: rustc_span::Span| {
+        unit.span(span)
+            .or_else(|| unit.span(span.source_callsite()))
+            .ok_or_else(missing)
+    };
+    let span = located(sig.span.to(body.value.span))?;
+    let signature_span = located(sig.span)?;
     let has_self = sig.decl.implicit_self().has_implicit_self();
     let params = body.params.iter().map(|param| param.pat.hir_id).collect();
     let mut builder = body::Builder::new(unit, id, params);
