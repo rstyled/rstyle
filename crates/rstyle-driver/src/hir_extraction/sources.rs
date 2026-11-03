@@ -58,7 +58,7 @@ impl Sources {
         Some(snapshot)
     }
 
-    pub(super) fn range(&self, tcx: TyCtxt<'_>, span: Span) -> Option<(SourceText, ByteSpan)> {
+    pub(crate) fn range(&self, tcx: TyCtxt<'_>, span: Span) -> Option<(SourceText, ByteSpan)> {
         let file = tcx.sess.source_map().lookup_source_file(span.lo());
         if span.hi() > file.end_position() {
             return None;

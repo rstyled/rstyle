@@ -8,7 +8,7 @@ mod extent;
 mod frame;
 mod iteration;
 mod primitive;
-mod sysroot;
+pub(crate) mod sysroot;
 mod values;
 use super::hir::Context;
 use rstyle_core::{
@@ -31,12 +31,7 @@ pub(super) fn capture<B, S>(
         return Ok(());
     }
 
-    let input = match ctx.tcx.hir_node_by_def_id(id).body_id() {
-        Some(body) => Collector::collect(ctx, ctx.tcx.hir_body(body)),
-        None => Input::Unavailable {
-            reason: "Compiler owner has no HIR body".into(),
-        },
-    };
+    let input = lower(ctx, id);
     let observation = Observation {
         schema: KEY.into(),
         owner: crate::ids::def_id_str(ctx.tcx, id.to_def_id()),
@@ -49,6 +44,16 @@ pub(super) fn capture<B, S>(
         serde_json::to_value(observation).map_err(|e| e.to_string())?,
     );
     Ok(())
+}
+
+/// The runtime-bound program of one owner's body.
+pub(super) fn lower(ctx: &Context<'_>, id: LocalDefId) -> Input {
+    match ctx.tcx.hir_node_by_def_id(id).body_id() {
+        Some(body) => Collector::collect(ctx, ctx.tcx.hir_body(body)),
+        None => Input::Unavailable {
+            reason: "Compiler owner has no HIR body".into(),
+        },
+    }
 }
 
 #[derive(Clone, Copy)]

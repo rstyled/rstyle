@@ -33,6 +33,7 @@ pub fn emit(
     let mut unit = unit::Unit::new(tcx, root.to_path_buf());
     let mut functions = Vec::new();
     let mut reference = Vec::new();
+    let mut bounds = serde_json::Map::new();
     for id in tcx
         .hir_body_owners()
         .filter(|id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
@@ -41,6 +42,11 @@ pub fn emit(
             continue;
         };
         functions.push(function(&mut unit, id)?);
+        let input = crate::hir_extraction::runtime_bounds(tcx, id);
+        bounds.insert(
+            facts.id.clone(),
+            serde_json::to_value(input).map_err(|e| e.to_string())?,
+        );
         reference.push(facts);
     }
     if functions.is_empty() {
@@ -57,7 +63,9 @@ pub fn emit(
     write(
         &dir.join(format!("{name}.facts.json")),
         &serde_json::to_value(reference).map_err(|e| e.to_string())?,
-    )
+    )?;
+    // The driver's runtime-bound programs, by function identity.
+    write(&dir.join(format!("{name}.bounds.json")), &Value::Object(bounds))
 }
 
 fn write(path: &PathBuf, value: &Value) -> Result<(), String> {

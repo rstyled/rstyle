@@ -21,7 +21,7 @@ mod id_error_maps;
 mod id_reader_constants;
 mod inherent;
 mod instances;
-mod runtime_bounds;
+pub(crate) mod runtime_bounds;
 pub(crate) fn capture_instance_diagnostics(
     tcx: TyCtxt<'_>,
     scanned: &[source::Function],
@@ -185,6 +185,38 @@ fn collect_functions<T>(
     collect: impl FnMut(LocalDefId) -> Result<T, String>,
 ) -> Result<Vec<T>, String> {
     function_owners(tcx).map(collect).collect()
+}
+
+/// The runtime-bound program the advisory capture lowers for one function, without the
+/// rest of the data capture: the reference `cargo rstyle cpg compare` checks against.
+pub(crate) fn runtime_bounds(
+    tcx: TyCtxt<'_>,
+    id: LocalDefId,
+) -> rstyle_core::advisory::runtime_bounds::Input {
+    let unavailable = |reason: &str| rstyle_core::advisory::runtime_bounds::Input::Unavailable {
+        reason: reason.into(),
+    };
+    let node = tcx.hir_node_by_def_id(id);
+    let (Some(sig), Some(body)) = (node.fn_sig(), node.body_id()) else {
+        return unavailable("Compiler owner has no HIR body");
+    };
+    let body = tcx.hir_body(body);
+    let function_span = sig.span.to(body.value.span).source_callsite();
+    let sources = sources::Sources::default();
+    let Some((source_bytes, _)) = sources.range(tcx, function_span) else {
+        return unavailable("Function source is unavailable");
+    };
+    let ctx = hir::Context {
+        tcx,
+        typeck: tcx.typeck(id),
+        function_span,
+        source_bytes,
+        sources,
+        result: tcx.fn_sig(id).instantiate_identity().skip_binder().output(),
+        unit_context: None,
+        profile: Default::default(),
+    };
+    runtime_bounds::lower(&ctx, id)
 }
 
 pub(super) fn function_owners(tcx: TyCtxt<'_>) -> impl Iterator<Item = LocalDefId> {
