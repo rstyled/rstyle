@@ -9,8 +9,8 @@ pub mod compare;
 
 use crate::extraction_profile::ExtractionProfile;
 use crate::frontend::{
-    BindingFact, ByteSpan, HirFnFacts, HirNode, HirRef, ParamFact, ReceiverFact, ResolvedTy,
-    SignatureFacts, SourceFacts, SourceSnapshot, SourceText,
+    BindingFact, ByteSpan, GenericFact, HirFnFacts, HirNode, HirRef, ParamFact, ReceiverFact,
+    ResolvedTy, SignatureFacts, SourceFacts, SourceSnapshot, SourceText,
 };
 use rstyle_core::cpg::model::{Document, File, FileSpan, Function, Type, TypeKind, Unit};
 use rstyle_core::cpg::tree::{Body, Tables};
@@ -26,7 +26,7 @@ pub struct Read {
 /// Every function of a bundled document, read under `profile`.
 pub fn read(document: &Document, profile: ExtractionProfile) -> Result<Vec<Read>, String> {
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
-    let reader = Reader::new(unit, profile)?;
+    let reader = Reader::new((unit, &document.producer), profile)?;
     let functions = unit.functions.as_deref().unwrap_or_default();
 
     Ok(functions
@@ -37,13 +37,17 @@ pub fn read(document: &Document, profile: ExtractionProfile) -> Result<Vec<Read>
 
 struct Reader<'a> {
     unit: &'a Unit,
+    producer: &'a rstyle_core::cpg::model::Producer,
     tables: Tables<'a>,
     files: BTreeMap<&'a str, &'a File>,
     profile: ExtractionProfile,
 }
 
 impl<'a> Reader<'a> {
-    fn new(unit: &'a Unit, profile: ExtractionProfile) -> Result<Self, String> {
+    fn new(
+        (unit, producer): (&'a Unit, &'a rstyle_core::cpg::model::Producer),
+        profile: ExtractionProfile,
+    ) -> Result<Self, String> {
         let files = unit
             .files
             .iter()
@@ -51,6 +55,7 @@ impl<'a> Reader<'a> {
             .collect();
         Ok(Self {
             unit,
+            producer,
             tables: Tables::new(unit)?,
             files,
             profile,
@@ -134,7 +139,7 @@ impl<'a> Reader<'a> {
     }
 
     fn build(&self) -> crate::frontend::BuildFacts {
-        build::facts(self.unit)
+        build::facts(self.unit, self.producer)
     }
 
     /// The unit type as the driver records it.
@@ -200,7 +205,7 @@ impl<'a> Context<'_, 'a> {
         let receiver = signature
             .receiver
             .iter()
-            .map(|receiver| (&receiver.symbol, &receiver.ty, None));
+            .map(|receiver| (&receiver.symbol, &receiver.ty, receiver.annotation.as_ref()));
         let parameters = signature.parameters.iter().map(|parameter| {
             (
                 &parameter.symbol,
@@ -266,6 +271,10 @@ impl<'a> Context<'_, 'a> {
 
     fn signature(&self, params: Vec<ParamFact>) -> Result<SignatureFacts, String> {
         let signature = &self.body.function.signature;
+        let result_span = signature
+            .result_span
+            .as_ref()
+            .map_or(ByteSpan { start: 0, end: 0 }, |span| self.span(span));
         let modifiers = &signature.modifiers;
         let has = |modifier: &str| modifiers.iter().any(|m| m == modifier);
         let receiver = signature
@@ -280,21 +289,61 @@ impl<'a> Context<'_, 'a> {
         Ok(SignatureFacts {
             sig_span: self.span(&signature.span),
             receiver,
-            return_ty: self.reader.resolved(&signature.result, String::new())?,
-            return_ty_span: ByteSpan { start: 0, end: 0 },
+            return_ty: self
+                .reader
+                .resolved(&signature.result, self.result_spelling(result_span))?,
+            return_ty_span: result_span,
             has_self: signature.receiver.is_some(),
             abi: crate::model::StringFact {
                 status: crate::model::FactStatus::Known,
                 value: Some(if has("rust:foreign-abi") { "C" } else { "Rust" }.into()),
                 reason: None,
             },
-            generics: Vec::new(),
+            generics: self.generics(),
             is_variadic: has("variadic"),
             is_async: has("async"),
             is_unsafe: has("unsafe"),
             is_const: has("const"),
             params,
         })
+    }
+}
+
+impl Context<'_, '_> {
+    /// A written result type as written; an implicit one as the unit it is.
+    fn result_spelling(&self, span: ByteSpan) -> String {
+        match span.start == span.end {
+            true => "()".into(),
+            false => self.snippet(span),
+        }
+    }
+
+    /// The function's own generic parameters in declaration order, lifetimes included.
+    fn generics(&self) -> Vec<GenericFact> {
+        let signature = &self.body.function.signature;
+        let lifetimes = signature
+            .lifetimes
+            .iter()
+            .map(|lifetime| (lifetime.position, &lifetime.name, lifetime.span.as_ref()));
+        let types = signature
+            .generics
+            .iter()
+            .map(|generic| (generic.position, &generic.name, generic.span.as_ref()));
+        let mut declared: Vec<(u32, GenericFact)> = lifetimes
+            .chain(types)
+            .filter_map(|(position, name, span)| {
+                let span = span.map_or(ByteSpan { start: 0, end: 0 }, |span| self.span(span));
+                Some((
+                    position?,
+                    GenericFact {
+                        name: name.clone(),
+                        span,
+                    },
+                ))
+            })
+            .collect();
+        declared.sort_by_key(|(position, _)| *position);
+        declared.into_iter().map(|(_, generic)| generic).collect()
     }
 }
 

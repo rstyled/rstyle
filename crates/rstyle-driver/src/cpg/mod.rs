@@ -147,6 +147,12 @@ fn write(path: &PathBuf, value: &Value) -> Result<(), String> {
     std::fs::write(path, bytes).map_err(|error| format!("{}: {error}", path.display()))
 }
 
+/// The compiler's version, without the tool's name `rustc --version` begins with.
+fn toolchain_version() -> &'static str {
+    let version = env!("RSTYLE_RUSTC_VERSION");
+    version.strip_prefix("rustc ").unwrap_or(version)
+}
+
 fn document(tcx: TyCtxt<'_>, unit: unit::Unit<'_>, functions: Vec<Value>, name: &str) -> Value {
     let (files, definitions, types) = unit.tables();
     let session = tcx.sess;
@@ -155,17 +161,22 @@ fn document(tcx: TyCtxt<'_>, unit: unit::Unit<'_>, functions: Vec<Value>, name: 
         "profile": {"id": "compat.cpg", "version": "0.1.0"},
         "layout": "bundled",
         "document": "unit",
-        "producer": {"name": "rstyle-driver", "version": env!("CARGO_PKG_VERSION"), "namespace": "rust"},
+        "producer": {"name": "rstyle-driver", "version": env!("CARGO_PKG_VERSION"), "namespace": "rust",
+                     "revision": env!("RSTYLE_PRODUCER_REVISION")},
         "coverage": unit::coverage(),
         "unit": {
             "id": format!("unit:{name}"),
             "language": {"name": "rust", "version": session.edition().to_string()},
-            "toolchain": {"name": "rustc", "version": rustc_interface::util::rustc_version_str().unwrap_or("unknown")},
+            "toolchain": {"name": "rustc", "version": toolchain_version(),
+                          "commit": env!("RSTYLE_RUSTC_COMMIT")},
             "target": {"triple": session.opts.target_triple.tuple(),
-                       "pointer_width": session.target.pointer_width},
-            "configuration": [],
+                       "pointer_width": session.target.pointer_width,
+                       "data_layout": session.target.data_layout.to_string()},
+            "configuration": crate::hir_extraction::cfgs(tcx),
             "semantics": {"integer_overflow": if session.overflow_checks() { "checked" } else { "wrapping" },
-                          "exceptions": if format!("{:?}", session.panic_strategy()) == "Abort" { "abort" } else { "unwind" }},
+                          "exceptions": if format!("{:?}", session.panic_strategy()) == "Abort" { "abort" } else { "unwind" },
+                          "debug_assertions": session.opts.debug_assertions,
+                          "optimization": format!("{:?}", session.opts.optimize)},
             "files": files, "namespaces": [], "imports": [], "definitions": definitions, "types": types,
             "values": [], "instances": [], "functions": functions,
         },
@@ -232,7 +243,12 @@ fn signature<'tcx>(
         let (symbol, bindings) = builder.parameter(param.pat, index);
         let ty = builder.unit.ty(fn_sig.inputs()[index]);
         if has_self && index == 0 {
-            receiver = Some(json!({"symbol": symbol, "type": ty}));
+            let annotation = sig.decl.inputs.first().map(|ty| ty.span);
+            receiver = Some(annotated(
+                builder.unit,
+                json!({"symbol": symbol, "type": ty}),
+                annotation,
+            ));
             continue;
         }
         let position = index - usize::from(has_self);
@@ -253,8 +269,11 @@ fn signature<'tcx>(
     }
 
     let mut signature = json!({"parameters": parameters, "result": builder.unit.ty(fn_sig.output()),
-                               "generics": generics(builder.unit, id), "lifetimes": [], "outlives": [],
-                               "modifiers": fn_modifiers(sig.header)});
+                               "generics": generics(builder.unit, id), "lifetimes": lifetimes(builder.unit, id),
+                               "outlives": [], "modifiers": fn_modifiers(sig.header)});
+    if let Some(span) = result_span(builder.unit, sig) {
+        signature["result_span"] = span;
+    }
     if let Some(receiver) = receiver {
         signature["receiver"] = receiver;
     }
@@ -266,6 +285,27 @@ fn signature<'tcx>(
         signature["owner_type"] = json!(builder.unit.ty(owner));
     }
     signature
+}
+
+/// A receiver with the span its type is written at, located at the outermost call site.
+fn annotated(
+    unit: &mut unit::Unit<'_>,
+    mut record: Value,
+    annotation: Option<rustc_span::Span>,
+) -> Value {
+    if let Some(span) = annotation.and_then(|span| unit.span(span.source_callsite())) {
+        record["annotation"] = span;
+    }
+    record
+}
+
+/// Where the result type is written, or the empty span where an implicit one would be.
+fn result_span(unit: &mut unit::Unit<'_>, sig: &rustc_hir::FnSig<'_>) -> Option<Value> {
+    let span = match sig.decl.output {
+        rustc_hir::FnRetTy::Return(ty) => ty.span,
+        rustc_hir::FnRetTy::DefaultReturn(span) => span,
+    };
+    unit.span(span.source_callsite())
 }
 
 /// The function's own type parameters, with the traits bounding each.
@@ -291,8 +331,15 @@ fn generics(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Vec<Value> {
                 })
                 .map(|bound| unit.definition(bound.def_id()))
                 .collect();
-            json!({"name": param.name.as_str(), "definition": unit.definition(param.def_id),
-                   "bounds": bounds.into_iter().collect::<Vec<_>>()})
+            let mut record = json!({"name": param.name.as_str(), "definition": unit.definition(param.def_id),
+                                    "bounds": bounds.into_iter().collect::<Vec<_>>()});
+            if let Some((position, declared)) = declared(unit, id, param.def_id) {
+                record["position"] = json!(position);
+                if let Some(span) = unit.span(declared.span.source_callsite()) {
+                    record["span"] = span;
+                }
+            }
+            record
         })
         .collect()
 }
@@ -307,4 +354,39 @@ fn fn_modifiers(header: rustc_hir::FnHeader) -> Vec<&'static str> {
     .into_iter()
     .filter_map(|(present, modifier)| present.then_some(modifier))
     .collect()
+}
+
+/// The function's own declared generic parameter for `def_id`, with its position.
+fn declared<'tcx>(
+    unit: &unit::Unit<'tcx>,
+    id: LocalDefId,
+    def_id: rustc_hir::def_id::DefId,
+) -> Option<(usize, &'tcx rustc_hir::GenericParam<'tcx>)> {
+    let generics = unit.tcx.hir_get_generics(id)?;
+    generics
+        .params
+        .iter()
+        .enumerate()
+        .find(|(_, param)| param.def_id.to_def_id() == def_id)
+}
+
+/// The function's own lifetime parameters, declared or introduced by elision.
+fn lifetimes(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Vec<Value> {
+    let Some(generics) = unit.tcx.hir_get_generics(id) else {
+        return Vec::new();
+    };
+    let mut lifetimes = Vec::new();
+    for (position, param) in generics.params.iter().enumerate() {
+        let rustc_hir::GenericParamKind::Lifetime { kind } = param.kind else {
+            continue;
+        };
+        let elided = !matches!(kind, rustc_hir::LifetimeParamKind::Explicit);
+        let mut record = json!({"id": format!("lifetime:{}", crate::ids::def_id_str(unit.tcx, param.def_id.to_def_id())),
+                                "name": param.name.ident().to_string(), "position": position, "elided": elided});
+        if let Some(span) = unit.span(param.span.source_callsite()) {
+            record["span"] = span;
+        }
+        lifetimes.push(record);
+    }
+    lifetimes
 }

@@ -394,6 +394,8 @@ pub struct Signature {
     pub parameters: Vec<Parameter>,
     pub receiver: Option<Receiver>,
     pub result: Id,
+    /// Where the result type is written; empty at its position when it is implicit.
+    pub result_span: Option<FileSpan>,
     pub owner_type: Option<Id>,
     pub generics: Vec<Generic>,
     pub lifetimes: Vec<Lifetime>,
@@ -419,6 +421,7 @@ pub struct Receiver {
     pub symbol: Id,
     #[serde(rename = "type")]
     pub ty: Id,
+    pub annotation: Option<FileSpan>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -427,6 +430,9 @@ pub struct Generic {
     pub name: String,
     pub definition: Id,
     pub bounds: Vec<Id>,
+    /// Position among the function's own generic parameters, in declaration order.
+    pub position: Option<u32>,
+    pub span: Option<FileSpan>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -434,6 +440,12 @@ pub struct Generic {
 pub struct Lifetime {
     pub id: Id,
     pub name: String,
+    /// Position among the function's own generic parameters, in declaration order.
+    pub position: Option<u32>,
+    pub span: Option<FileSpan>,
+    /// Introduced by elision rather than declared.
+    #[serde(default)]
+    pub elided: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -21,6 +21,7 @@ mod id_error_maps;
 mod id_reader_constants;
 mod inherent;
 mod instances;
+pub(crate) use evidence::cfgs;
 pub(crate) mod hir_tags {
     pub(crate) use super::hir::kind;
 }

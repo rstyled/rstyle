@@ -2,9 +2,9 @@
 
 use crate::frontend::BuildFacts;
 use crate::model::{BoolFact, CountFact, FactStatus, StringFact};
-use rstyle_core::cpg::model::Unit;
+use rstyle_core::cpg::model::{Producer, Unit};
 
-pub(super) fn facts(unit: &Unit) -> BuildFacts {
+pub(super) fn facts(unit: &Unit, producer: &Producer) -> BuildFacts {
     let cfgs = unit.configuration.clone();
     let features = cfgs
         .iter()
@@ -21,9 +21,13 @@ pub(super) fn facts(unit: &Unit) -> BuildFacts {
     };
 
     BuildFacts {
-        producer_revision: optional(None),
+        producer_revision: optional(producer.revision.as_deref()),
         frontend_options: Default::default(),
-        rustc_version: known(&unit.toolchain.version),
+        // A toolchain's version string begins with its name, as `rustc --version` prints it.
+        rustc_version: known(&format!(
+            "{} {}",
+            unit.toolchain.name, unit.toolchain.version
+        )),
         rustc_commit: optional(unit.toolchain.commit.as_deref()),
         edition: known(&unit.language.version),
         target_triple: known(&unit.target.triple),
