@@ -92,6 +92,7 @@ impl<'tcx> Unit<'tcx> {
         if !self.definitions.contains_key(&id) {
             let record = self.definition_record(def_id, &id, stable);
             self.definitions.insert(id.clone(), record);
+            self.relations(def_id, &id);
             if matches!(self.tcx.def_kind(def_id), DefKind::Fn | DefKind::AssocFn) {
                 let callable = self.callable(def_id);
                 self.definitions.get_mut(&id).unwrap()["callable"] = callable;
@@ -110,10 +111,13 @@ impl<'tcx> Unit<'tcx> {
         let has_self = tcx
             .opt_associated_item(def_id)
             .is_some_and(|item| item.is_method());
+        let foreign = tcx.def_kind(tcx.parent(def_id)) == DefKind::ForeignMod;
         let modifiers: Vec<&str> = [
             (tcx.asyncness(def_id).is_async(), "async"),
             (signature.safety().is_unsafe(), "unsafe"),
             (tcx.is_const_fn(def_id), "const"),
+            (foreign, "foreign"),
+            (signature.abi() != rustc_abi::ExternAbi::Rust, "rust:foreign-abi"),
         ]
         .into_iter()
         .filter_map(|(present, modifier)| present.then_some(modifier))
@@ -148,8 +152,33 @@ impl<'tcx> Unit<'tcx> {
         } else {
             "library"
         };
-        json!({"id": id, "kind": definition_kind(tcx, def_id, kind), "name": tcx.def_path_str(def_id),
-               "stable_identity": stable, "scope": scope, "modifiers": modifiers(tcx, def_id, kind)})
+        let compilation = format!("{:016x}", tcx.stable_crate_id(def_id.krate).as_u64());
+        let mut record = json!({"id": id, "kind": definition_kind(tcx, def_id, kind), "name": tcx.def_path_str(def_id),
+               "stable_identity": stable, "scope": scope, "modifiers": modifiers(tcx, def_id, kind),
+               "compilation": compilation});
+        if super::compiler::standard(tcx, def_id) {
+            record["standard"] = json!(true);
+        }
+        if matches!(kind, DefKind::Struct | DefKind::Enum | DefKind::Union)
+            && tcx.adt_destructor(def_id).is_some()
+        {
+            record["destructor"] = json!(true);
+        }
+        record
+    }
+
+    /// The item an associated item belongs to, and the interface member it implements.
+    fn relations(&mut self, def_id: DefId, id: &str) {
+        let Some(item) = self.tcx.opt_associated_item(def_id) else {
+            return;
+        };
+        let owner = self.definition(self.tcx.parent(def_id));
+        let implements = item.trait_item_def_id().map(|member| self.definition(member));
+        let record = self.definitions.get_mut(id).unwrap();
+        record["owner"] = json!(owner);
+        if let Some(implements) = implements {
+            record["implements"] = json!(implements);
+        }
     }
 
     /// A placeholder target for a call through a computed value.
@@ -170,6 +199,9 @@ impl<'tcx> Unit<'tcx> {
             let mut record = self.type_record(ty);
             record["id"] = json!(id);
             record["spelling"] = json!(spelling);
+            if let Some(key) = crate::hir_extraction::runtime_bounds::sysroot::type_key(self.tcx, ty) {
+                record["key"] = json!(format!("rust:{key}"));
+            }
             self.types.insert(id.clone(), record);
         }
         id
@@ -208,7 +240,22 @@ impl<'tcx> Unit<'tcx> {
                 if let ty::FnDef(def_id, _) = *ty.kind() {
                     record["definition"] = json!(self.definition(def_id));
                 }
+                let modifiers: Vec<&str> = [
+                    (signature.safety().is_unsafe(), "unsafe"),
+                    (signature.abi() != rustc_abi::ExternAbi::Rust, "rust:foreign-abi"),
+                ]
+                .into_iter()
+                .filter_map(|(present, modifier)| present.then_some(modifier))
+                .collect();
+                if !modifiers.is_empty() {
+                    record["modifiers"] = json!(modifiers);
+                }
                 record
+            }
+            ty::Closure(_, args) => {
+                let signature = args.as_closure().sig().skip_binder();
+                let parameters = self.types_of(signature.inputs().iter().copied());
+                json!({"kind": "closure", "parameters": parameters, "result": self.ty(signature.output())})
             }
             ty::Ref(_, target, mutability) => {
                 let mode = if mutability.is_mut() {

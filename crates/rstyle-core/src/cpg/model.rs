@@ -219,6 +219,16 @@ pub struct Definition {
     pub modifiers: Vec<String>,
     pub span: Option<FileSpan>,
     pub callable: Option<Callable>,
+    /// Identity of the compilation that defines the item.
+    pub compilation: Option<String>,
+    /// Defined in the language's standard library.
+    #[serde(default)]
+    pub standard: bool,
+    /// A type whose values run a destructor when dropped.
+    #[serde(default)]
+    pub destructor: bool,
+    /// The interface member an implementation member implements.
+    pub implements: Option<Id>,
 }
 
 /// The interface a call to a function or method sees.
@@ -255,6 +265,7 @@ pub enum TypeKind {
     Bottom,
     Parameter,
     Interface,
+    Closure,
     Opaque,
 }
 
@@ -285,6 +296,8 @@ pub struct Type {
     pub result: Option<Id>,
     pub index: Option<u32>,
     pub bounds: Option<Vec<Id>>,
+    #[serde(default)]
+    pub modifiers: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -487,6 +500,11 @@ pub struct Node {
     pub literal: Option<String>,
     pub value: Option<Literal>,
     pub member: Option<String>,
+    pub member_index: Option<u32>,
+    pub members: Option<Vec<String>>,
+    pub adjustments: Option<Vec<Adjustment>>,
+    pub binding_mode: Option<String>,
+    pub captures: Option<Vec<Capture>>,
     pub operator: Option<String>,
     pub token: Option<FileSpan>,
     pub label: Option<String>,
@@ -631,6 +649,8 @@ pub struct Ref {
     pub instance: Option<Id>,
     pub calls_back: Option<CallsBack>,
     pub reason: Option<String>,
+    /// The item type of the receiver, for a call to an iteration member.
+    pub item: Option<Id>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -704,4 +724,16 @@ pub struct DerefStep {
 pub struct Adjustment {
     pub kind: String,
     pub mode: Option<String>,
+    /// The type the adjustment produces (for a pattern, the type it applies to).
+    pub target: Option<Id>,
+}
+
+/// A place a closure captures, by its root binding.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Capture {
+    pub symbol: Id,
+    pub mode: String,
+    #[serde(rename = "type")]
+    pub ty: Id,
 }

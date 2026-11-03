@@ -6,6 +6,7 @@
 //! destructuring assignment is one `assignment` whose target is rebuilt from the
 //! lowering's pattern; the lowering's temporaries are left out.
 
+use super::compiler;
 use super::unit::Unit;
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::LocalDefId;
@@ -105,10 +106,26 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         if let Some(ty) = self.typeck.node_type_opt(hir_id) {
             record["type"] = json!(self.unit.ty(ty));
         }
+        self.compiler_facts(hir_id, &mut record);
         self.emitted.insert(hir_id);
         self.nodes.push(record);
 
         id
+    }
+
+    /// What rustc decided about the node that the source does not show: implicit
+    /// adjustments, and for a binding pattern how it binds.
+    fn compiler_facts(&mut self, hir_id: HirId, record: &mut Value) {
+        let typeck = self.typeck;
+        if let Some(adjustments) = typeck.adjustments().get(hir_id).filter(|a| !a.is_empty()) {
+            record["adjustments"] = compiler::adjustments(self.unit, adjustments);
+        }
+        if let Some(adjustments) = typeck.pat_adjustments().get(hir_id).filter(|a| !a.is_empty()) {
+            record["adjustments"] = compiler::pattern_adjustments(self.unit, adjustments);
+        }
+        if let Some(mode) = typeck.pat_binding_modes().get(hir_id) {
+            record["binding_mode"] = json!(compiler::binding_mode(*mode));
+        }
     }
 
     /// A restored source construct: source provenance at the construct's call site.
@@ -260,10 +277,25 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 shape
                     .fields
                     .insert("member".into(), json!(member.name.as_str()));
+                let position = self.typeck.field_index(expr.hir_id).as_u32();
+                shape.fields.insert("member_index".into(), json!(position));
                 shape
             }
             ExprKind::Index(base, index, _) => shape("index_access", self.exprs([base, index])),
-            ExprKind::AddrOf(_, _, inner) => shape("reference", self.exprs([inner])),
+            ExprKind::AddrOf(kind, mutability, inner) => {
+                let mut shape = shape("reference", self.exprs([inner]));
+                let modifiers: Vec<&str> = [
+                    (mutability.is_mut(), "mutable"),
+                    (kind == hir::BorrowKind::Raw, "raw"),
+                ]
+                .into_iter()
+                .filter_map(|(present, modifier)| present.then_some(modifier))
+                .collect();
+                if !modifiers.is_empty() {
+                    shape.fields.insert("modifiers".into(), json!(modifiers));
+                }
+                shape
+            }
             ExprKind::Cast(inner, _) | ExprKind::Type(inner, _) => {
                 shape("cast", self.exprs([inner]))
             }
@@ -333,16 +365,22 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                     hir::StructTailExpr::Base(base) => Some(base),
                     _ => None,
                 };
-                shape(
+                let mut shape = shape(
                     "record_construction",
                     self.exprs(fields.iter().map(|f| f.expr).chain(base)),
-                )
+                );
+                let members: Vec<&str> = fields.iter().map(|f| f.ident.name.as_str()).collect();
+                shape.fields.insert("members".into(), json!(members));
+                shape
             }
             _ => {
+                let reason = match expr.kind {
+                    ExprKind::InlineAsm(_) => "Inline assembly is not modeled",
+                    ExprKind::UnsafeBinderCast(..) => "Unsafe binder casts are not modeled",
+                    _ => "Expression kind is not modeled",
+                };
                 let mut shape = shape("unsupported", vec![]);
-                shape
-                    .fields
-                    .insert("reason".into(), json!("Expression kind is not modeled"));
+                shape.fields.insert("reason".into(), json!(reason));
                 shape
             }
         }
@@ -370,7 +408,31 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             .filter_map(|param| self.pat(param.pat))
             .collect();
         children.extend(self.expr(body.value));
-        shape("closure", children)
+        let mut shape = shape("closure", children);
+        if !matches!(closure.kind, hir::ClosureKind::Closure) {
+            shape.fields.insert("modifiers".into(), json!(["coroutine"]));
+        }
+        shape.fields.insert("captures".into(), json!(self.captures(closure)));
+        shape
+    }
+
+    /// The places a closure captures, by root binding, with how it holds each.
+    fn captures(&mut self, closure: &'tcx hir::Closure<'tcx>) -> Vec<Value> {
+        self.tcx
+            .closure_captures(closure.def_id)
+            .iter()
+            .map(|capture| {
+                let mode = match capture.info.capture_kind {
+                    ty::UpvarCapture::ByValue => "value",
+                    ty::UpvarCapture::ByUse => "use",
+                    ty::UpvarCapture::ByRef(ty::BorrowKind::Immutable) => "shared",
+                    ty::UpvarCapture::ByRef(ty::BorrowKind::Mutable) => "exclusive",
+                    ty::UpvarCapture::ByRef(ty::BorrowKind::UniqueImmutable) => "unique",
+                };
+                json!({"symbol": self.symbol_id(capture.get_root_variable()), "mode": mode,
+                       "type": self.unit.ty(capture.place.ty())})
+            })
+            .collect()
     }
 
     // Restored constructs.
@@ -539,8 +601,16 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         children.extend(block.expr.and_then(|tail| self.expr(tail)));
         let mut shape = shape("block", children);
         labeled(&mut shape, label);
-        if block.rules == BlockCheckMode::UnsafeBlock(UnsafeSource::UserProvided) {
-            shape.fields.insert("modifiers".into(), json!(["unsafe"]));
+        match block.rules {
+            BlockCheckMode::UnsafeBlock(UnsafeSource::UserProvided) => {
+                shape.fields.insert("modifiers".into(), json!(["unsafe"]));
+            }
+            BlockCheckMode::UnsafeBlock(UnsafeSource::CompilerGenerated) => {
+                shape
+                    .fields
+                    .insert("modifiers".into(), json!(["rust:compiler-unsafe"]));
+            }
+            BlockCheckMode::DefaultBlock => {}
         }
 
         shape
@@ -618,17 +688,21 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 self.each(before.iter().chain(middle).chain(after), Self::pat),
             ),
             PatKind::Ref(inner, ..) | PatKind::Deref(inner) => {
+                let extension = match pat.kind {
+                    PatKind::Deref(_) => "rust:deref-pattern",
+                    _ => "rust:reference-pattern",
+                };
                 let mut shape = shape("extension", self.each([inner], Self::pat));
-                shape
-                    .fields
-                    .insert("extension".into(), json!("rust:reference-pattern"));
+                shape.fields.insert("extension".into(), json!(extension));
                 shape
             }
             _ => {
+                let reason = match pat.kind {
+                    PatKind::Guard(..) => "Pattern guards are not modeled",
+                    _ => "Pattern kind is not modeled",
+                };
                 let mut shape = shape("unsupported", vec![]);
-                shape
-                    .fields
-                    .insert("reason".into(), json!("Pattern kind is not modeled"));
+                shape.fields.insert("reason".into(), json!(reason));
                 shape
             }
         };
@@ -708,6 +782,11 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 Some(self.call_reference(callee))
             }
             ExprKind::MethodCall(_, receiver, _, _) => Some(self.method_reference(expr, receiver)),
+            ExprKind::Binary(..) | ExprKind::Unary(..) | ExprKind::Index(..) | ExprKind::AssignOp(..) => {
+                let operator = self.typeck.type_dependent_def_id(expr.hir_id);
+                let args = self.typeck.node_args(expr.hir_id);
+                operator.map(|method| self.selected_call(method, args, "overloaded"))
+            }
             _ => None,
         };
         if let Some(mut record) = record {
@@ -774,7 +853,14 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         } else {
             "method"
         };
-        self.selected_call(def_id, self.typeck.node_args(expr.hir_id), dispatch)
+        let mut record = self.selected_call(def_id, self.typeck.node_args(expr.hir_id), dispatch);
+        if compiler::iterator_member(self.tcx, def_id) {
+            let receiver = self.typeck.expr_ty_adjusted(receiver);
+            if let Some(item) = compiler::iterator_item(self.tcx, self.owner, receiver) {
+                record["item"] = json!(self.unit.ty(item));
+            }
+        }
+        record
     }
 
     /// A call's declared callee, and the implementation rustc selects for it when known.
@@ -796,17 +882,59 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         }
         let mut record = json!({"status": "resolved", "dispatch": dispatch,
                                 "target": {"kind": "definition", "id": declared}});
-        if trait_item.is_some()
-            && let Some(instance) =
-                crate::ids::selected_instance(self.tcx, self.owner, callee, args)
-            && matches!(instance.def, ty::InstanceKind::Item(_))
-            && instance.def_id() != callee
-        {
-            let selected = self.unit.definition(instance.def_id());
-            record["selected"] = json!({"kind": "definition", "id": selected});
+        if let Some(operation) = self.library_operation(callee, compiler::declared_operation) {
+            record["target"]["operation"] = json!(operation);
+        }
+        let types: Vec<String> = args.types().map(|ty| self.unit.ty(ty)).collect();
+        if !types.is_empty() {
+            record["instance_arguments"] = json!(types);
+        }
+        // An interface member runs the implementation static selection finds, if any.
+        let (runs, runs_args) = match trait_item {
+            Some(_) => match self.selection(callee, args) {
+                Some(instance) => {
+                    let selected = self.unit.definition(instance.def_id());
+                    record["selected"] = json!({"kind": "definition", "id": selected});
+                    let key = self.library_operation(instance.def_id(), compiler::selected_operation);
+                    if let Some(operation) = key {
+                        record["selected"]["operation"] = json!(operation);
+                    }
+                    (instance.def_id(), instance.args)
+                }
+                None => return record,
+            },
+            None => (callee, args),
+        };
+        if compiler::standard(self.tcx, runs) {
+            let value = crate::hir_extraction::runtime_bounds::sysroot::calls_back(self.tcx, runs, runs_args);
+            record["calls_back"] = json!({"value": value,
+                "reason": "callable arguments, or bounds on types outside the standard library"});
         }
 
         record
+    }
+
+    /// The implementation static selection finds for an interface member with concrete
+    /// arguments; none when the arguments do not instantiate the member fully.
+    fn selection(
+        &self,
+        callee: hir::def_id::DefId,
+        args: ty::GenericArgsRef<'tcx>,
+    ) -> Option<ty::Instance<'tcx>> {
+        (args.len() == self.tcx.generics_of(callee).count()).then_some(())?;
+        crate::ids::selected_instance(self.tcx, self.owner, callee, args)
+            .filter(|instance| matches!(instance.def, ty::InstanceKind::Item(_)))
+    }
+
+    /// A standard-library member's operation key, by `key`.
+    fn library_operation(
+        &self,
+        member: hir::def_id::DefId,
+        key: fn(TyCtxt<'tcx>, hir::def_id::DefId) -> Option<String>,
+    ) -> Option<String> {
+        compiler::standard(self.tcx, member)
+            .then(|| key(self.tcx, member))
+            .flatten()
     }
 
     /// The emitted node of `hir_id`, or of its nearest emitted enclosing expression.

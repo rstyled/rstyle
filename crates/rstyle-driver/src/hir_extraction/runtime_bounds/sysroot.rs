@@ -5,7 +5,7 @@ use rustc_middle::ty::GenericArgKind;
 use rustc_span::sym;
 
 /// `core`, `alloc` or `std`, identified by the crates defining their lang and diagnostic items.
-pub(super) fn sysroot(tcx: ty::TyCtxt<'_>, krate: CrateNum) -> bool {
+pub(crate) fn sysroot(tcx: ty::TyCtxt<'_>, krate: CrateNum) -> bool {
     let anchors = [
         tcx.lang_items().sized_trait(),
         tcx.lang_items().owned_box(),
@@ -18,7 +18,7 @@ pub(super) fn sysroot(tcx: ty::TyCtxt<'_>, krate: CrateNum) -> bool {
 }
 
 /// Built only from primitives and standard-library types.
-pub(super) fn standard_type<'tcx>(tcx: ty::TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
+pub(crate) fn standard_type<'tcx>(tcx: ty::TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
     ty.walk().all(|part| match part.kind() {
         GenericArgKind::Type(ty) => standard_kind(tcx, ty),
         _ => true,
@@ -46,7 +46,7 @@ fn standard_kind<'tcx>(tcx: ty::TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
 
 /// A standard callee may run workspace code through callable arguments or trait bounds
 /// on workspace types, such as `PartialEq::ne`, `Into::into` or `sort` on workspace items.
-pub(super) fn calls_back<'tcx>(
+pub(crate) fn calls_back<'tcx>(
     tcx: ty::TyCtxt<'tcx>,
     callee: DefId,
     arguments: ty::GenericArgsRef<'tcx>,
@@ -85,7 +85,7 @@ const NAMESPACE: &str = "rust";
 /// Language-neutral key of a standard operation, matched against library contracts:
 /// the defining impl's self type and the member name, as in `rust:BTreeMap.get`.
 /// Never derived from module path spelling.
-pub(super) fn operation(tcx: ty::TyCtxt<'_>, callee: DefId) -> Option<String> {
+pub(crate) fn operation(tcx: ty::TyCtxt<'_>, callee: DefId) -> Option<String> {
     let implementation = tcx.impl_of_assoc(callee)?;
     let self_ty = tcx
         .type_of(implementation)
@@ -97,7 +97,7 @@ pub(super) fn operation(tcx: ty::TyCtxt<'_>, callee: DefId) -> Option<String> {
 
 /// Key of a standard trait's own member by the trait's diagnostic item name, as in
 /// `rust:Iterator.map`; the selected impl does not change the member's role.
-pub(super) fn trait_operation(tcx: ty::TyCtxt<'_>, owner: DefId, member: DefId) -> Option<String> {
+pub(crate) fn trait_operation(tcx: ty::TyCtxt<'_>, owner: DefId, member: DefId) -> Option<String> {
     let name = tcx.get_diagnostic_name(owner)?;
     Some(key(name.as_str(), tcx, member))
 }
@@ -108,7 +108,7 @@ fn key(owner: &str, tcx: ty::TyCtxt<'_>, member: DefId) -> String {
 
 /// A standard type by its compiler-registered name: diagnostic item, then lang item, or
 /// the primitive kind. Unnamed and generic self types have no key.
-pub(super) fn type_key(tcx: ty::TyCtxt<'_>, ty: Ty<'_>) -> Option<String> {
+pub(crate) fn type_key(tcx: ty::TyCtxt<'_>, ty: Ty<'_>) -> Option<String> {
     match ty.kind() {
         ty::Adt(definition, _) => {
             let id = definition.did();
@@ -124,7 +124,7 @@ pub(super) fn type_key(tcx: ty::TyCtxt<'_>, ty: Ty<'_>) -> Option<String> {
 }
 
 /// Whether dropping a value of `ty` may run a workspace `Drop` impl.
-pub(super) fn workspace_drop<'tcx>(tcx: ty::TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
+pub(crate) fn workspace_drop<'tcx>(tcx: ty::TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
     ty.walk().any(|part| {
         part.as_type().is_some_and(|ty| match ty.kind() {
             ty::Adt(definition, _) => {

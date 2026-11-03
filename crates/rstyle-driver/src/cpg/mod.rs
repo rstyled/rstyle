@@ -3,6 +3,7 @@
 //! derivation from the document can be checked against the driver's own.
 
 mod body;
+mod compiler;
 mod places;
 mod unit;
 
@@ -223,6 +224,7 @@ fn fn_modifiers(header: rustc_hir::FnHeader) -> Vec<&'static str> {
         (header.is_async(), "async"),
         (header.is_unsafe(), "unsafe"),
         (header.constness != rustc_hir::Constness::NotConst, "const"),
+        (header.abi != rustc_abi::ExternAbi::Rust, "rust:foreign-abi"),
     ]
     .into_iter()
     .filter_map(|(present, modifier)| present.then_some(modifier))
