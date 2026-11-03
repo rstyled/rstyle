@@ -213,11 +213,16 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             // A constant block's value is a body of its own, walked in place and
             // marked `const`.
             ExprKind::ConstBlock(constant) => {
-                let id = self.expr(self.tcx.hir_body(constant.body).value)?;
+                let block = self.expr(self.tcx.hir_body(constant.body).value)?;
                 let whole = self.unit.span(expr.span);
-                if let Some(node) = self.nodes.iter_mut().rev().find(|node| node["id"] == id) {
+                // The construct is the whole `const { .. }`, identified as the frontend's
+                // facts identify it, not only its block.
+                let id = self.id(expr.hir_id);
+                let original = super::compiler::original_kind(self.tcx, expr.hir_id);
+                if let Some(node) = self.nodes.iter_mut().rev().find(|node| node["id"] == block) {
                     node["modifiers"] = json!(["const"]);
-                    // The construct is the whole `const { .. }`, not only its block.
+                    node["id"] = json!(id);
+                    node["original_kind"] = json!(original);
                     if let Some(whole) = whole {
                         node["span"] = whole;
                     }
@@ -655,7 +660,12 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 shape("expression_statement", self.exprs([expr]))
             }
         };
-        Some(self.node(stmt.hir_id, stmt.span, shape))
+        // A declaration is the `let` itself, as the frontend's facts identify it.
+        let (id, span) = match stmt.kind {
+            StmtKind::Let(local) => (local.hir_id, local.span),
+            _ => (stmt.hir_id, stmt.span),
+        };
+        Some(self.node(id, span, shape))
     }
 
     // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design

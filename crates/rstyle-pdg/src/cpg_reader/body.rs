@@ -28,7 +28,11 @@ impl<'a> Context<'_, 'a> {
             ty,
             dispatch: self.dispatch(node, tag)?,
             lit: (tag == "expr_lit").then(|| base.snippet.clone()),
-            is_unsafe_block: tag == "expr_block" && node.modifiers.iter().any(|m| m == "unsafe"),
+            is_unsafe_block: tag == "expr_block"
+                && node
+                    .modifiers
+                    .iter()
+                    .any(|m| m == "unsafe" || m == "rust:compiler-unsafe"),
             children,
             ..base
         })
@@ -240,8 +244,13 @@ impl<'a> Context<'_, 'a> {
     }
 
     /// The record every construct starts from: identity, tag, written span and source.
+    /// A construct a macro or desugaring generated is located at its outermost call site.
     fn node(&self, node: &'a Node, tag: &str) -> Built {
-        let span = self.written(node);
+        let written = self.written(node);
+        let expansion = self.expansion(node, written);
+        let span = expansion.as_ref().map_or(written, |site| site.callsite);
+        // Only an expression records where it was expanded; any construct is located there.
+        let expansion = expansion.filter(|_| tag.starts_with("expr_"));
         Ok(HirNode {
             hir: hir_ref(&node.id),
             kind: tag.into(),
@@ -250,7 +259,7 @@ impl<'a> Context<'_, 'a> {
             ty: None,
             res: None,
             dispatch: None,
-            expansion: self.expansion(node, span),
+            expansion,
             binding: None,
             binding_mut: None,
             lit: None,
@@ -301,9 +310,11 @@ impl<'a> Context<'_, 'a> {
             .map(|symbol| (symbol.id.as_str(), symbol.mutable))
     }
 
-    /// The call site of a construct a macro or desugaring expanded.
+    /// The call site of a construct a macro or desugaring expanded. A restored `for` is
+    /// the desugaring the compiler expanded at its own span.
     fn expansion(&self, node: &Node, span: ByteSpan) -> Option<ExpansionSite> {
-        if node.provenance.origin == Origin::Source {
+        let restored = node.kind == NodeKind::For;
+        if node.provenance.origin == Origin::Source && !restored {
             return None;
         }
         let callsite = node
