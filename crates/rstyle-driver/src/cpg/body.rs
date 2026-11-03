@@ -1,0 +1,821 @@
+//! One HIR body as `compat.cpg` nodes, symbols and references.
+//!
+//! Source constructs keep their source shape: a lowered `for`, `while` or `?` is
+//! one node whose source children come first, followed by the lowering's own
+//! nodes as synthetic children, so every expression rustc walks has a node.
+
+use super::unit::Unit;
+use rustc_hir::def::{DefKind, Res};
+use rustc_hir::def_id::LocalDefId;
+use rustc_hir::{
+    self as hir, Arm, BinOpKind, Block, BlockCheckMode, Expr, ExprKind, HirId, LoopSource,
+    MatchSource, Pat, PatKind, Stmt, StmtKind, UnOp, UnsafeSource,
+};
+use rustc_middle::ty::{self, TyCtxt, TypeVisitableExt, TypeckResults};
+use rustc_span::Span;
+use rustc_span::hygiene::{DesugaringKind, ExpnKind};
+use serde_json::{Value, json};
+use std::collections::HashSet;
+
+pub struct Builder<'u, 'tcx> {
+    pub unit: &'u mut Unit<'tcx>,
+    tcx: TyCtxt<'tcx>,
+    typeck: &'tcx TypeckResults<'tcx>,
+    owner: LocalDefId,
+    prefix: String,
+    params: HashSet<HirId>,
+    claimed: HashSet<HirId>,
+    lowering: Option<&'static str>,
+    pub emitted: HashSet<HirId>,
+    bound: HashSet<HirId>,
+    pub nodes: Vec<Value>,
+    pub symbols: Vec<Value>,
+    pub refs: Vec<Value>,
+}
+
+/// The parts of a node before it is recorded.
+struct Shape {
+    kind: &'static str,
+    children: Vec<String>,
+    fields: serde_json::Map<String, Value>,
+}
+
+fn shape(kind: &'static str, children: Vec<String>) -> Shape {
+    Shape {
+        kind,
+        children,
+        fields: serde_json::Map::new(),
+    }
+}
+
+impl<'u, 'tcx> Builder<'u, 'tcx> {
+    pub fn new(unit: &'u mut Unit<'tcx>, owner: LocalDefId, params: HashSet<HirId>) -> Self {
+        let tcx = unit.tcx;
+        Self {
+            unit,
+            tcx,
+            typeck: tcx.typeck(owner),
+            owner,
+            prefix: format!("f{}", owner.local_def_index.as_u32()),
+            params,
+            claimed: HashSet::new(),
+            lowering: None,
+            emitted: HashSet::new(),
+            bound: HashSet::new(),
+            nodes: vec![],
+            symbols: vec![],
+            refs: vec![],
+        }
+    }
+
+    pub fn id(&self, hir_id: HirId) -> String {
+        format!("{}.{}", self.prefix, hir_id.local_id.as_u32())
+    }
+
+    pub fn symbol_id(&self, hir_id: HirId) -> String {
+        format!("s{}.{}", self.prefix, hir_id.local_id.as_u32())
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// Records a node and returns its ID.
+    fn node(&mut self, hir_id: HirId, span: Span, shape: Shape) -> String {
+        let id = self.id(hir_id);
+        let provenance = self.provenance(span);
+        let own = self
+            .unit
+            .span(span)
+            .or_else(|| self.unit.span(span.source_callsite()));
+        // HIR gives a parenthesized expression the parentheses' span; a tuple's own syntax has them.
+        let own = match shape.kind {
+            "tuple" | "pattern_tuple" => own,
+            _ => own.map(|own| self.unit.without_parentheses(own)),
+        };
+        let mut record = json!({"id": id, "kind": shape.kind, "original_kind": shape.kind,
+                                "children": shape.children, "provenance": provenance});
+        record.as_object_mut().unwrap().extend(shape.fields);
+        match own {
+            Some(own) => record["span"] = own,
+            None => record["synthetic"] = json!(true),
+        }
+        if self.lowering.is_some() {
+            record["synthetic"] = json!(true);
+        }
+        self.emitted.insert(hir_id);
+        self.nodes.push(record);
+
+        id
+    }
+
+    /// A restored source construct: source provenance at the construct's call site.
+    fn construct(&mut self, hir_id: HirId, span: Span, shape: Shape) -> String {
+        let id = self.node(hir_id, span.source_callsite(), shape);
+        let record = self.nodes.last_mut().unwrap();
+        record["provenance"] = json!({"origin": "source"});
+        id
+    }
+
+    fn provenance(&mut self, span: Span) -> Value {
+        let call_site = self.unit.span(span.source_callsite());
+        if let Some(construct) = self.lowering {
+            return json!({"origin": "desugaring", "construct": construct, "call_site": call_site});
+        }
+        if !span.from_expansion() {
+            return json!({"origin": "source"});
+        }
+
+        let expansion = span.ctxt().outer_expn_data();
+        let definition = expansion
+            .macro_def_id
+            .map(|def_id| self.unit.definition(def_id));
+        match expansion.kind {
+            ExpnKind::Desugaring(kind) => {
+                json!({"origin": "desugaring", "construct": construct_name(kind), "call_site": call_site})
+            }
+            ExpnKind::Macro(_, name) => {
+                let mut provenance = json!({"origin": "macro_expansion", "call_site": call_site,
+                                            "macro": name.to_string()});
+                if let Some(definition) = definition {
+                    provenance["macro_definition"] = json!(definition);
+                }
+                provenance
+            }
+            _ => json!({"origin": "macro_expansion", "call_site": call_site}),
+        }
+    }
+
+    fn lowered<T>(&mut self, construct: &'static str, build: impl FnOnce(&mut Self) -> T) -> T {
+        let outer = self.lowering.replace(construct);
+        let result = build(self);
+        self.lowering = outer;
+        result
+    }
+
+    /// Node IDs of the items `emit` records, skipping those it leaves out.
+    fn each<T>(
+        &mut self,
+        items: impl IntoIterator<Item = T>,
+        emit: fn(&mut Self, T) -> Option<String>,
+    ) -> Vec<String> {
+        items
+            .into_iter()
+            .filter_map(|item| emit(self, item))
+            .collect()
+    }
+
+    fn exprs(&mut self, exprs: impl IntoIterator<Item = &'tcx Expr<'tcx>>) -> Vec<String> {
+        self.each(exprs, Self::expr)
+    }
+
+    // Expressions.
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    pub fn expr(&mut self, expr: &'tcx Expr<'tcx>) -> Option<String> {
+        if self.lowering.is_some() && self.claimed.contains(&expr.hir_id) {
+            return None;
+        }
+        match expr.kind {
+            ExprKind::DropTemps(inner) => return self.expr(inner),
+            // A constant block's value is a body of its own, walked in place.
+            ExprKind::ConstBlock(constant) => {
+                return self.expr(self.tcx.hir_body(constant.body).value);
+            }
+            _ => {}
+        }
+        if self.lowering.is_none()
+            && let Some(id) = self.restored(expr)
+        {
+            return Some(id);
+        }
+        let shape = self.expr_shape(expr);
+        let id = self.node(expr.hir_id, expr.span, shape);
+        self.reference(expr, &id);
+
+        Some(id)
+    }
+
+    fn restored(&mut self, expr: &'tcx Expr<'tcx>) -> Option<String> {
+        match expr.kind {
+            ExprKind::Match(scrutinee, [outer], MatchSource::ForLoopDesugar) => {
+                self.for_loop(expr, scrutinee, outer)
+            }
+            ExprKind::Match(scrutinee, arms, MatchSource::TryDesugar(_)) => {
+                self.propagate(expr, scrutinee, arms)
+            }
+            ExprKind::Loop(block, label, LoopSource::While, _) => {
+                self.while_loop(expr, block, label)
+            }
+            _ => None,
+        }
+    }
+
+    fn expr_shape(&mut self, expr: &'tcx Expr<'tcx>) -> Shape {
+        if let Some(shape) = self.operation_shape(expr) {
+            return shape;
+        }
+        if let Some(shape) = self.control_shape(expr) {
+            return shape;
+        }
+        self.value_shape(expr)
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// Calls, operators, assignments and accesses.
+    fn operation_shape(&mut self, expr: &'tcx Expr<'tcx>) -> Option<Shape> {
+        Some(match expr.kind {
+            ExprKind::Call(callee, args) => {
+                shape("call", self.exprs(std::iter::once(callee).chain(args)))
+            }
+            ExprKind::MethodCall(_, receiver, args, _) => {
+                shape("call", self.exprs(std::iter::once(receiver).chain(args)))
+            }
+            ExprKind::Binary(op, left, right) => {
+                self.operator(binary(op.node), op.span, vec![left, right])
+            }
+            ExprKind::Unary(op, inner) => {
+                self.operator(unary(op), expr.span.shrink_to_lo(), vec![inner])
+            }
+            ExprKind::AssignOp(op, left, right) => {
+                let mut shape = self.operator(assign_op(op.node), op.span, vec![left, right]);
+                shape.kind = "compound_assignment";
+                shape
+            }
+            ExprKind::Assign(left, right, _) => shape("assignment", self.exprs([left, right])),
+            ExprKind::Field(base, _) => shape("field_access", self.exprs([base])),
+            ExprKind::Index(base, index, _) => shape("index_access", self.exprs([base, index])),
+            ExprKind::AddrOf(_, _, inner) => shape("reference", self.exprs([inner])),
+            ExprKind::Cast(inner, _) | ExprKind::Type(inner, _) => {
+                shape("cast", self.exprs([inner]))
+            }
+            _ => return None,
+        })
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// Blocks, branches, loops, jumps and closures.
+    fn control_shape(&mut self, expr: &'tcx Expr<'tcx>) -> Option<Shape> {
+        let jump = |kind, label: Option<rustc_ast::Label>, children| {
+            let mut shape = shape(kind, children);
+            labeled(&mut shape, label);
+            shape
+        };
+        Some(match expr.kind {
+            ExprKind::Block(block, label) => self.block_shape(block, label),
+            ExprKind::If(condition, then, otherwise) => shape(
+                "if",
+                self.exprs([condition, then].into_iter().chain(otherwise)),
+            ),
+            ExprKind::Let(condition) => {
+                let pattern = self.pat(condition.pat);
+                let init = self.exprs([condition.init]);
+                shape(
+                    "pattern_condition",
+                    pattern.into_iter().chain(init).collect(),
+                )
+            }
+            ExprKind::Loop(block, label, _, _) => {
+                jump("loop", label, vec![self.block(block, None)])
+            }
+            ExprKind::Match(scrutinee, arms, _) => {
+                let mut children = self.exprs([scrutinee]);
+                children.extend(arms.iter().filter_map(|arm| self.arm(arm)));
+                shape("match", children)
+            }
+            ExprKind::Closure(closure) => self.closure(closure),
+            ExprKind::Break(destination, value) => {
+                jump("break", destination.label, self.exprs(value))
+            }
+            ExprKind::Continue(destination) => jump("continue", destination.label, vec![]),
+            ExprKind::Ret(value) => shape("return", self.exprs(value)),
+            ExprKind::Become(value) => shape("return", self.exprs([value])),
+            ExprKind::Yield(value, _) => shape("yield", self.exprs([value])),
+            _ => return None,
+        })
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// Literals, paths and aggregate values.
+    fn value_shape(&mut self, expr: &'tcx Expr<'tcx>) -> Shape {
+        match expr.kind {
+            ExprKind::Lit(_) => shape("literal", vec![]),
+            ExprKind::Path(_) => shape("identifier", vec![]),
+            ExprKind::Tup(values) => shape("tuple", self.exprs(values)),
+            ExprKind::Array(values) => shape("array", self.exprs(values)),
+            ExprKind::Repeat(value, _) => shape("array", self.exprs([value])),
+            ExprKind::Struct(_, fields, tail) => {
+                let base = match tail {
+                    hir::StructTailExpr::Base(base) => Some(base),
+                    _ => None,
+                };
+                shape(
+                    "record_construction",
+                    self.exprs(fields.iter().map(|f| f.expr).chain(base)),
+                )
+            }
+            _ => {
+                let mut shape = shape("unsupported", vec![]);
+                shape
+                    .fields
+                    .insert("reason".into(), json!("Expression kind is not modeled"));
+                shape
+            }
+        }
+    }
+
+    fn operator(
+        &mut self,
+        operator: &'static str,
+        token: Span,
+        operands: Vec<&'tcx Expr<'tcx>>,
+    ) -> Shape {
+        let mut shape = shape("operator", self.exprs(operands));
+        shape.fields.insert("operator".into(), json!(operator));
+        if let Some(token) = self.unit.span(token).filter(|_| !token.is_empty()) {
+            shape.fields.insert("token".into(), token);
+        }
+        shape
+    }
+
+    fn closure(&mut self, closure: &'tcx hir::Closure<'tcx>) -> Shape {
+        let body = self.tcx.hir_body(closure.body);
+        let mut children: Vec<String> = body
+            .params
+            .iter()
+            .filter_map(|param| self.pat(param.pat))
+            .collect();
+        children.extend(self.expr(body.value));
+        shape("closure", children)
+    }
+
+    // Restored constructs.
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// `match IntoIterator::into_iter(head) { mut iter => loop { match next(&mut iter) {
+    /// None => break, Some(pattern) => body } } }` as `for pattern in head { body }`.
+    fn for_loop(
+        &mut self,
+        expr: &'tcx Expr<'tcx>,
+        scrutinee: &'tcx Expr<'tcx>,
+        outer: &'tcx Arm<'tcx>,
+    ) -> Option<String> {
+        let (head, pattern, body) = for_parts(scrutinee, outer)?;
+        self.claimed
+            .extend([head.hir_id, pattern.hir_id, body.hir_id]);
+        let pattern = self.pat(pattern);
+        let head = self.expr(head);
+        let iterable = self.lowered("for", |b| b.wrapper(scrutinee, head));
+        let body = self.expr(body);
+        let iterator = self.lowered("for", |b| b.pat(outer.pat));
+        let iteration = self.lowered("for", |b| b.expr(outer.body));
+        let children = [pattern, Some(iterable), body, iterator, iteration]
+            .into_iter()
+            .flatten()
+            .collect();
+        let mut shape = shape("for", children);
+        if let ExprKind::Loop(_, label, _, _) = outer.body.kind {
+            labeled(&mut shape, label);
+        }
+
+        Some(self.construct(expr.hir_id, expr.span, shape))
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// `match Try::branch(operand) { Continue(v) => v, Break(r) => return from_residual(r) }`
+    /// as `operand?`.
+    fn propagate(
+        &mut self,
+        expr: &'tcx Expr<'tcx>,
+        scrutinee: &'tcx Expr<'tcx>,
+        arms: &'tcx [Arm<'tcx>],
+    ) -> Option<String> {
+        let ExprKind::Call(_, [operand]) = scrutinee.kind else {
+            return None;
+        };
+        self.claimed.insert(operand.hir_id);
+        let operand = self.expr(operand);
+        let branch = self.lowered("propagate", |b| b.wrapper(scrutinee, operand));
+        let mut children = vec![branch];
+        children.extend(self.lowered("propagate", |b| {
+            arms.iter().filter_map(|arm| b.arm(arm)).collect::<Vec<_>>()
+        }));
+        let mut shape = shape("propagate", children);
+        let span = expr.span.source_callsite();
+        if let Some(token) = self
+            .unit
+            .span(span.with_lo(span.hi() - rustc_span::BytePos(1)))
+        {
+            shape.fields.insert("token".into(), token);
+        }
+
+        Some(self.construct(expr.hir_id, expr.span, shape))
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// `loop { if condition { body } else { break } }` as `while condition { body }`.
+    fn while_loop(
+        &mut self,
+        expr: &'tcx Expr<'tcx>,
+        block: &'tcx Block<'tcx>,
+        label: Option<rustc_ast::Label>,
+    ) -> Option<String> {
+        let Some(ExprKind::If(condition, body, _)) = block.expr.map(|tail| &tail.kind) else {
+            return None;
+        };
+        self.claimed.extend([condition.hir_id, body.hir_id]);
+        let condition = self.expr(condition);
+        let body = self.expr(body);
+        let lowering = self.lowered("while", |b| b.block(block, None));
+        let mut shape = shape(
+            "while",
+            [condition, body, Some(lowering)]
+                .into_iter()
+                .flatten()
+                .collect(),
+        );
+        labeled(&mut shape, label);
+
+        Some(self.construct(expr.hir_id, expr.span, shape))
+    }
+
+    /// A lowering's call that wraps a source operand, such as `into_iter(head)`.
+    fn wrapper(&mut self, call: &'tcx Expr<'tcx>, operand: Option<String>) -> String {
+        let callee = match call.kind {
+            ExprKind::Call(callee, _) => self.expr(callee),
+            _ => None,
+        };
+        let children = callee.into_iter().chain(operand).collect();
+        let id = self.node(call.hir_id, call.span, shape("call", children));
+        self.reference(call, &id);
+
+        id
+    }
+
+    // Blocks, statements, arms and patterns.
+
+    pub fn block(&mut self, block: &'tcx Block<'tcx>, label: Option<rustc_ast::Label>) -> String {
+        let shape = self.block_shape(block, label);
+        self.node(block.hir_id, block.span, shape)
+    }
+
+    fn block_shape(&mut self, block: &'tcx Block<'tcx>, label: Option<rustc_ast::Label>) -> Shape {
+        let mut children: Vec<String> = block
+            .stmts
+            .iter()
+            .filter_map(|stmt| self.stmt(stmt))
+            .collect();
+        children.extend(block.expr.and_then(|tail| self.expr(tail)));
+        let mut shape = shape("block", children);
+        labeled(&mut shape, label);
+        if block.rules == BlockCheckMode::UnsafeBlock(UnsafeSource::UserProvided) {
+            shape.fields.insert("modifiers".into(), json!(["unsafe"]));
+        }
+
+        shape
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    fn stmt(&mut self, stmt: &'tcx Stmt<'tcx>) -> Option<String> {
+        let shape = match stmt.kind {
+            StmtKind::Let(local) => {
+                let mut children: Vec<String> = self.pat(local.pat).into_iter().collect();
+                if let Some(ty) = local.ty {
+                    children.push(self.node(ty.hir_id, ty.span, shape("type_annotation", vec![])));
+                }
+                children.extend(local.init.and_then(|init| self.expr(init)));
+                children.extend(local.els.map(|els| self.block(els, None)));
+                shape("local_declaration", children)
+            }
+            StmtKind::Item(_) => shape("item_declaration", vec![]),
+            StmtKind::Expr(expr) | StmtKind::Semi(expr) => {
+                shape("expression_statement", self.exprs([expr]))
+            }
+        };
+        Some(self.node(stmt.hir_id, stmt.span, shape))
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    fn arm(&mut self, arm: &'tcx Arm<'tcx>) -> Option<String> {
+        let mut children: Vec<String> = self.pat(arm.pat).into_iter().collect();
+        if let Some(guard) = arm.guard {
+            let condition = self.exprs([guard]);
+            let span = guard.span;
+            let id = format!("{}.guard", self.id(guard.hir_id));
+            let provenance = self.provenance(span);
+            let mut record = json!({"id": id, "kind": "match_guard", "original_kind": "match_guard",
+                                    "children": condition, "provenance": provenance});
+            match self.unit.span(span) {
+                Some(own) => record["span"] = own,
+                None => record["synthetic"] = json!(true),
+            }
+            if self.lowering.is_some() {
+                record["synthetic"] = json!(true);
+            }
+            self.nodes.push(record);
+            children.push(id);
+        }
+        children.extend(self.expr(arm.body));
+        Some(self.node(arm.hir_id, arm.span, shape("match_arm", children)))
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    pub fn pat(&mut self, pat: &'tcx Pat<'tcx>) -> Option<String> {
+        if self.lowering.is_some() && self.claimed.contains(&pat.hir_id) {
+            return None;
+        }
+        let shape = match pat.kind {
+            PatKind::Binding(mode, hir_id, ident, sub) => {
+                let children = sub.and_then(|sub| self.pat(sub)).into_iter().collect();
+                self.binding(hir_id, ident, mode.1.is_mut());
+                shape("pattern_binding", children)
+            }
+            PatKind::Wild => shape("pattern_wildcard", vec![]),
+            PatKind::Expr(_) => shape("pattern_literal", vec![]),
+            PatKind::Range(..) => shape("pattern_range", vec![]),
+            PatKind::Or(pats) => shape("pattern_or", self.each(pats, Self::pat)),
+            PatKind::Tuple(pats, _) => shape("pattern_tuple", self.each(pats, Self::pat)),
+            PatKind::TupleStruct(_, pats, _) => {
+                shape("pattern_constructor", self.each(pats, Self::pat))
+            }
+            PatKind::Struct(_, fields, _) => shape(
+                "pattern_constructor",
+                self.each(fields.iter().map(|field| field.pat), Self::pat),
+            ),
+            PatKind::Slice(before, middle, after) => shape(
+                "pattern_sequence",
+                self.each(before.iter().chain(middle).chain(after), Self::pat),
+            ),
+            PatKind::Ref(inner, ..) | PatKind::Deref(inner) => {
+                let mut shape = shape("extension", self.each([inner], Self::pat));
+                shape
+                    .fields
+                    .insert("extension".into(), json!("rust:reference-pattern"));
+                shape
+            }
+            _ => {
+                let mut shape = shape("unsupported", vec![]);
+                shape
+                    .fields
+                    .insert("reason".into(), json!("Pattern kind is not modeled"));
+                shape
+            }
+        };
+        Some(self.node(pat.hir_id, pat.span, shape))
+    }
+
+    /// The alternatives of an or-pattern share one binding, recorded at its first.
+    fn binding(&mut self, hir_id: HirId, ident: rustc_span::Ident, mutable: bool) {
+        if !self.bound.insert(hir_id) {
+            return;
+        }
+        let kind = match () {
+            _ if ident.name == rustc_span::symbol::kw::SelfLower
+                && self.params.contains(&hir_id) =>
+            {
+                "receiver"
+            }
+            _ if self.params.contains(&hir_id) => "parameter",
+            _ => "local",
+        };
+        let mut symbol = json!({"id": self.symbol_id(hir_id), "name": ident.name.as_str(), "kind": kind,
+                                "scope": self.prefix, "mutable": mutable, "node": self.id(hir_id)});
+        if let Some(declared) = self.unit.span(ident.span) {
+            symbol["declared"] = declared;
+        }
+
+        self.symbols.push(symbol);
+    }
+
+    /// A parameter's symbol, and symbols for every binding its pattern declares.
+    /// Parameter patterns are not body nodes, so these symbols name no node.
+    pub fn parameter(&mut self, pat: &'tcx Pat<'tcx>, position: usize) -> String {
+        let mut simple = None;
+        pat.each_binding(|mode, hir_id, _, ident| {
+            if !self.bound.insert(hir_id) {
+                return;
+            }
+            let kind = if ident.name == rustc_span::symbol::kw::SelfLower { "receiver" } else { "parameter" };
+            let mut symbol = json!({"id": self.symbol_id(hir_id), "name": ident.name.as_str(), "kind": kind,
+                                    "scope": self.prefix, "mutable": mode.1.is_mut()});
+            if let Some(declared) = self.unit.span(ident.span) {
+                symbol["declared"] = declared;
+            }
+            self.symbols.push(symbol);
+            if pat.hir_id == hir_id {
+                simple = Some(self.symbol_id(hir_id));
+            }
+        });
+        simple.unwrap_or_else(|| {
+            let id = format!("s{}.param{position}", self.prefix);
+            self.symbols.push(json!({"id": id, "name": "_", "kind": "parameter", "scope": self.prefix, "mutable": false}));
+            id
+        })
+    }
+
+    // References.
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    fn reference(&mut self, expr: &'tcx Expr<'tcx>, id: &str) {
+        let record = match expr.kind {
+            ExprKind::Path(ref qpath) => {
+                self.path_reference(self.typeck.qpath_res(qpath, expr.hir_id))
+            }
+            ExprKind::Call(callee, _) => {
+                self.type_callee(callee);
+                Some(self.call_reference(callee))
+            }
+            ExprKind::MethodCall(_, receiver, _, _) => Some(self.method_reference(expr, receiver)),
+            _ => None,
+        };
+        if let Some(mut record) = record {
+            record["node"] = json!(id);
+            self.refs.push(record);
+        }
+    }
+
+    fn path_reference(&mut self, res: Res) -> Option<Value> {
+        let target = match res {
+            Res::Local(hir_id) => json!({"kind": "symbol", "id": self.symbol_id(hir_id)}),
+            Res::Def(DefKind::Ctor(..), def_id) => {
+                json!({"kind": "constructor", "id": self.unit.definition(def_id)})
+            }
+            Res::Def(DefKind::Variant, def_id) => {
+                json!({"kind": "variant", "id": self.unit.definition(def_id)})
+            }
+            Res::Def(_, def_id) => {
+                json!({"kind": "definition", "id": self.unit.definition(def_id)})
+            }
+            _ => return None,
+        };
+        Some(json!({"status": "resolved", "target": target}))
+    }
+
+    fn call_reference(&mut self, callee: &'tcx Expr<'tcx>) -> Value {
+        let callee_ty = self.typeck.expr_ty(callee);
+        match *callee_ty.kind() {
+            ty::FnDef(def_id, args) => self.selected_call(def_id, args.skip_binder(), "static"),
+            ty::Closure(def_id, _) | ty::CoroutineClosure(def_id, _) => {
+                let closure = def_id
+                    .as_local()
+                    .map(|local| self.id(self.tcx.local_def_id_to_hir_id(local)));
+                let target = json!({"kind": "definition", "id": self.unit.value_definition()});
+                json!({"status": "resolved", "dispatch": "function_value", "target": target, "closure": closure})
+            }
+            _ => {
+                let target = json!({"kind": "definition", "id": self.unit.value_definition()});
+                json!({"status": "resolved", "dispatch": "function_value", "target": target})
+            }
+        }
+    }
+
+    fn method_reference(&mut self, expr: &'tcx Expr<'tcx>, receiver: &'tcx Expr<'tcx>) -> Value {
+        let Some(def_id) = self.typeck.type_dependent_def_id(expr.hir_id) else {
+            return json!({"status": "unresolved", "reason": "No method resolution"});
+        };
+        let receiver_ty = self.typeck.expr_ty_adjusted(receiver).peel_refs();
+        let dispatch = if matches!(receiver_ty.kind(), ty::Dynamic(..)) {
+            "dynamic"
+        } else {
+            "method"
+        };
+        self.selected_call(def_id, self.typeck.node_args(expr.hir_id), dispatch)
+    }
+
+    /// A call's declared callee, and the implementation rustc selects for it when known.
+    fn selected_call(
+        &mut self,
+        callee: hir::def_id::DefId,
+        args: ty::GenericArgsRef<'tcx>,
+        dispatch: &str,
+    ) -> Value {
+        let declared = self.unit.definition(callee);
+        let trait_item = self
+            .tcx
+            .opt_associated_item(callee)
+            .and_then(|item| item.trait_container(self.tcx));
+        if trait_item.is_some()
+            && (args.has_non_region_param() || args.has_infer() || args.has_escaping_bound_vars())
+        {
+            return json!({"status": "dependent", "dispatch": dispatch, "via": declared, "bounds": []});
+        }
+        let mut record = json!({"status": "resolved", "dispatch": dispatch,
+                                "target": {"kind": "definition", "id": declared}});
+        if trait_item.is_some()
+            && let Some(instance) =
+                crate::ids::selected_instance(self.tcx, self.owner, callee, args)
+            && matches!(instance.def, ty::InstanceKind::Item(_))
+            && instance.def_id() != callee
+        {
+            let selected = self.unit.definition(instance.def_id());
+            record["selected"] = json!({"kind": "definition", "id": selected});
+        }
+
+        record
+    }
+
+    /// The emitted node of `hir_id`, or of its nearest emitted enclosing expression.
+    pub fn nearest_node(&self, tcx: TyCtxt<'tcx>, hir_id: HirId) -> String {
+        let found = std::iter::once(hir_id)
+            .chain(tcx.hir_parent_id_iter(hir_id))
+            .find(|candidate| self.emitted.contains(candidate));
+        self.id(found.unwrap_or(hir_id))
+    }
+
+    /// The type of a called value, so core can tell function pointers from other callables.
+    fn type_callee(&mut self, callee: &'tcx Expr<'tcx>) {
+        let ty = self.unit.ty(self.typeck.expr_ty(callee));
+        let id = self.id(callee.hir_id);
+        if let Some(node) = self.nodes.iter_mut().rev().find(|node| node["id"] == id) {
+            node["type"] = json!(ty);
+        }
+    }
+}
+
+fn labeled(shape: &mut Shape, label: Option<rustc_ast::Label>) {
+    if let Some(label) = label {
+        shape
+            .fields
+            .insert("label".into(), json!(label.ident.name.as_str()));
+    }
+}
+
+fn for_parts<'tcx>(
+    scrutinee: &'tcx Expr<'tcx>,
+    outer: &'tcx Arm<'tcx>,
+) -> Option<(&'tcx Expr<'tcx>, &'tcx Pat<'tcx>, &'tcx Expr<'tcx>)> {
+    let ExprKind::Call(_, [head]) = scrutinee.kind else {
+        return None;
+    };
+    let ExprKind::Loop(block, _, LoopSource::ForLoop, _) = outer.body.kind else {
+        return None;
+    };
+    let tail = block.expr.or_else(|| match block.stmts.last()?.kind {
+        StmtKind::Expr(expr) | StmtKind::Semi(expr) => Some(expr),
+        _ => None,
+    })?;
+    let ExprKind::Match(_, [_, some], _) = tail.kind else {
+        return None;
+    };
+    let pattern = match some.pat.kind {
+        PatKind::TupleStruct(_, [pattern], _) => pattern,
+        PatKind::Struct(_, [field], _) => field.pat,
+        _ => return None,
+    };
+
+    Some((head, pattern, some.body))
+}
+
+fn construct_name(kind: DesugaringKind) -> &'static str {
+    match kind {
+        DesugaringKind::ForLoop => "for",
+        DesugaringKind::QuestionMark => "propagate",
+        DesugaringKind::WhileLoop => "while",
+        DesugaringKind::Await => "rust:await",
+        _ => "rust:desugaring",
+    }
+}
+
+fn binary(op: BinOpKind) -> &'static str {
+    match op {
+        BinOpKind::Add => "add",
+        BinOpKind::Sub => "sub",
+        BinOpKind::Mul => "mul",
+        BinOpKind::Div => "div",
+        BinOpKind::Rem => "rem",
+        BinOpKind::And => "and",
+        BinOpKind::Or => "or",
+        BinOpKind::BitXor => "bit_xor",
+        BinOpKind::BitAnd => "bit_and",
+        BinOpKind::BitOr => "bit_or",
+        BinOpKind::Shl => "shl",
+        BinOpKind::Shr => "shr",
+        BinOpKind::Eq => "eq",
+        BinOpKind::Lt => "lt",
+        BinOpKind::Le => "le",
+        BinOpKind::Ne => "ne",
+        BinOpKind::Ge => "ge",
+        BinOpKind::Gt => "gt",
+    }
+}
+
+fn assign_op(op: hir::AssignOpKind) -> &'static str {
+    use hir::AssignOpKind::*;
+    match op {
+        AddAssign => "add",
+        SubAssign => "sub",
+        MulAssign => "mul",
+        DivAssign => "div",
+        RemAssign => "rem",
+        BitXorAssign => "bit_xor",
+        BitAndAssign => "bit_and",
+        BitOrAssign => "bit_or",
+        ShlAssign => "shl",
+        ShrAssign => "shr",
+    }
+}
+
+fn unary(op: UnOp) -> &'static str {
+    match op {
+        UnOp::Deref => "deref",
+        UnOp::Not => "not",
+        UnOp::Neg => "neg",
+    }
+}

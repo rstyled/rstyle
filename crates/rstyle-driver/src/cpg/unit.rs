@@ -1,0 +1,275 @@
+//! Unit tables of an emitted `compat.cpg` document: files, definitions and types,
+//! interned as functions reference them.
+
+use crate::ids;
+use rustc_hir::def::DefKind;
+use rustc_hir::def_id::DefId;
+use rustc_middle::ty::{self, Ty, TyCtxt};
+use rustc_span::{FileName, Span};
+use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
+use std::path::PathBuf;
+
+pub struct Unit<'tcx> {
+    pub tcx: TyCtxt<'tcx>,
+    pub root: PathBuf,
+    files: BTreeMap<String, Value>,
+    definitions: BTreeMap<String, Value>,
+    types: BTreeMap<String, Value>,
+}
+
+impl<'tcx> Unit<'tcx> {
+    pub fn new(tcx: TyCtxt<'tcx>, root: PathBuf) -> Self {
+        Self {
+            tcx,
+            root,
+            files: BTreeMap::new(),
+            definitions: BTreeMap::new(),
+            types: BTreeMap::new(),
+        }
+    }
+
+    /// A span of a workspace source file, as file-relative byte offsets.
+    pub fn span(&mut self, span: Span) -> Option<Value> {
+        let source_map = self.tcx.sess.source_map();
+        let (lo, hi) = (
+            source_map.lookup_byte_offset(span.lo()),
+            source_map.lookup_byte_offset(span.hi()),
+        );
+        if lo.sf.start_pos != hi.sf.start_pos || !matches!(lo.sf.name, FileName::Real(_)) {
+            return None;
+        }
+        let path = crate::extract::source_path(self.tcx, &lo.sf, &self.root)?;
+        let content = lo.sf.src.as_ref()?;
+        let id = format!("file:{path}");
+        self.files.entry(id.clone()).or_insert_with(|| {
+            let digest: String = Sha256::digest(content.as_bytes())
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect();
+            json!({"id": id, "path": path, "digest": format!("sha256:{digest}"), "origin": "source",
+                   "content": content.as_str()})
+        });
+
+        Some(json!({"file": id, "start": lo.pos.0, "end": hi.pos.0}))
+    }
+
+    /// `span` without parentheses that enclose all of it, and the whitespace inside them.
+    pub fn without_parentheses(&self, mut span: Value) -> Value {
+        let Some(content) = self
+            .files
+            .get(span["file"].as_str().unwrap_or_default())
+            .and_then(|f| f["content"].as_str())
+        else {
+            return span;
+        };
+        let bytes = content.as_bytes();
+        loop {
+            let (start, end) = (
+                span["start"].as_u64().unwrap() as usize,
+                span["end"].as_u64().unwrap() as usize,
+            );
+            if end < start + 2
+                || bytes[start] != b'('
+                || bytes[end - 1] != b')'
+                || closing(bytes, start) != Some(end - 1)
+            {
+                return span;
+            }
+            let inner = &content[start + 1..end - 1];
+            let leading = inner.len() - inner.trim_start().len();
+            let trailing = inner.len() - inner.trim_end().len();
+            span["start"] = json!(start + 1 + leading);
+            span["end"] = json!(end - 1 - trailing);
+        }
+    }
+
+    /// The definition ID of `def_id`, recording the definition on first use.
+    pub fn definition(&mut self, def_id: DefId) -> String {
+        let stable = ids::def_id_str(self.tcx, def_id);
+        let id = format!("def:{stable}");
+        if !self.definitions.contains_key(&id) {
+            let record = self.definition_record(def_id, &id, stable);
+            self.definitions.insert(id.clone(), record);
+        }
+        id
+    }
+
+    fn definition_record(&self, def_id: DefId, id: &str, stable: String) -> Value {
+        let tcx = self.tcx;
+        let kind = tcx.def_kind(def_id);
+        let scope = if def_id.is_local() {
+            "unit"
+        } else if ids::in_workspace(tcx, def_id, &self.root) {
+            "workspace"
+        } else {
+            "library"
+        };
+        json!({"id": id, "kind": definition_kind(tcx, def_id, kind), "name": tcx.def_path_str(def_id),
+               "stable_identity": stable, "scope": scope, "modifiers": modifiers(tcx, def_id, kind)})
+    }
+
+    /// A placeholder target for a call through a computed value.
+    pub fn value_definition(&mut self) -> String {
+        let id = "def:<value>".to_string();
+        self.definitions.entry(id.clone()).or_insert_with(|| {
+            json!({"id": id, "kind": "other", "name": "<value>", "stable_identity": "<value>", "scope": "unit"})
+        });
+        id
+    }
+
+    /// The type ID of `ty`, recording a structured type on first use.
+    pub fn ty(&mut self, ty: Ty<'tcx>) -> String {
+        let spelling = ty.to_string();
+        let id = format!("type:{spelling}");
+        if !self.types.contains_key(&id) {
+            self.types.insert(id.clone(), json!({}));
+            let mut record = self.type_record(ty);
+            record["id"] = json!(id);
+            record["spelling"] = json!(spelling);
+            self.types.insert(id.clone(), record);
+        }
+        id
+    }
+
+    // rstyle-allow(mutation_per_target): the unit interns referenced records as it builds them
+    fn type_record(&mut self, ty: Ty<'tcx>) -> Value {
+        match ty.kind() {
+            ty::Adt(adt, _) => {
+                let kind = if adt.is_enum() { "sum" } else { "record" };
+                json!({"kind": kind, "definition": self.definition(adt.did())})
+            }
+            ty::FnPtr(..) | ty::FnDef(..) => {
+                let signature = ty.fn_sig(self.tcx).skip_binder();
+                let parameters: Vec<String> = signature
+                    .inputs()
+                    .iter()
+                    .map(|input| self.ty(*input))
+                    .collect();
+                json!({"kind": "function", "parameters": parameters, "result": self.ty(signature.output())})
+            }
+            ty::Int(int) => {
+                json!({"kind": "integer", "bits": int.bit_width().unwrap_or(64), "signed": true})
+            }
+            ty::Uint(uint) => {
+                json!({"kind": "integer", "bits": uint.bit_width().unwrap_or(64), "signed": false})
+            }
+            ty::Bool => json!({"kind": "bool"}),
+            ty::Ref(_, target, mutability) => {
+                let mode = if mutability.is_mut() {
+                    "exclusive"
+                } else {
+                    "shared"
+                };
+                json!({"kind": "reference", "target": self.ty(*target), "mode": mode})
+            }
+            ty::Never => json!({"kind": "bottom"}),
+            ty::Param(_) => json!({"kind": "parameter"}),
+            ty::Tuple(items) if items.is_empty() => json!({"kind": "unit"}),
+            _ => json!({"kind": "opaque"}),
+        }
+    }
+
+    pub fn tables(self) -> (Vec<Value>, Vec<Value>, Vec<Value>) {
+        (
+            self.files.into_values().collect(),
+            self.definitions.into_values().collect(),
+            self.types.into_values().collect(),
+        )
+    }
+}
+
+fn definition_kind(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> &'static str {
+    match kind {
+        DefKind::Fn => "function",
+        DefKind::AssocFn if tcx.associated_item(def_id).is_method() => "method",
+        DefKind::AssocFn => "function",
+        DefKind::Static { .. } => "static",
+        DefKind::Const | DefKind::AssocConst | DefKind::ConstParam => "constant",
+        DefKind::Struct | DefKind::Enum | DefKind::Union | DefKind::TyAlias => "type",
+        DefKind::Trait => "trait",
+        DefKind::Variant => "variant",
+        DefKind::Field => "field",
+        DefKind::Mod => "module",
+        DefKind::TyParam => "type_parameter",
+        _ => "other",
+    }
+}
+
+fn modifiers(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> Vec<&'static str> {
+    match kind {
+        DefKind::Fn | DefKind::AssocFn
+            if tcx
+                .fn_sig(def_id)
+                .skip_binder()
+                .skip_binder()
+                .safety()
+                .is_unsafe() =>
+        {
+            vec!["unsafe"]
+        }
+        DefKind::Static { mutability, .. } if mutability.is_mut() => vec!["mutable"],
+        _ => vec![],
+    }
+}
+
+/// Coverage this producer declares; every partial layer says what it leaves out.
+pub fn coverage() -> Value {
+    let declare =
+        |status: &str, description: &str| json!({"status": status, "description": description});
+    json!({
+        "capabilities": {
+            "resolution": declare("approximated", "Paths and calls are resolved by rustc; built-in operators carry no references"),
+            "dispatch": declare("supported", "Static, method, dynamic and function-value dispatch from typeck; selected trait implementations from instance resolution"),
+            "generic-instances": declare("unsupported", "Instances are not recorded"),
+            "lifetimes": declare("unsupported", "Lifetimes are not emitted"),
+            "types": declare("approximated", "Types are recorded for signatures, places and called values only"),
+            "integer-semantics": declare("approximated", "Integer widths and signedness are recorded where types are"),
+            "mutability": declare("supported", "Binding mutability from HIR binding modes"),
+            "aliasing": declare("approximated", "Places come from rustc's expression-use visitor for writes and exclusive borrows only"),
+            "implicit-calls": declare("unsupported", "Destructors and implicit conversions are not emitted"),
+            "constant-values": declare("unsupported", "Constant values are not emitted"),
+            "evaluation-order": declare("unknown", "No control flow is emitted"),
+            "exceptional-flow": declare("unsupported", "No control flow is emitted"),
+            "macro-provenance": declare("supported", "Macro-expanded and desugared nodes carry their outermost call site"),
+        },
+        "layers": {
+            "unit": declare("supported", "Unit files with content, target and edition"),
+            "method": declare("approximated", "Identity, spans, parameters and receiver; generics and lifetimes are not emitted"),
+            "ast": declare("supported", "The HIR tree with for, while and ? restored to their source shape"),
+            "cfg": declare("unsupported", "No control flow is emitted"),
+            "symbol": declare("approximated", "Bindings without access records"),
+            "ref": declare("approximated", "Paths, calls and method calls"),
+            "type": declare("approximated", "Signature, place and called-value types"),
+            "value": declare("unsupported", "No compile-time values are emitted"),
+            "place": declare("approximated", "Writes and exclusive borrows from rustc's expression-use visitor"),
+            "evidence": declare("approximated", "Coverage declarations only"),
+            "extension": declare("supported", "Reference patterns use rust:reference-pattern"),
+        },
+    })
+}
+
+/// Offset of the parenthesis closing the one at `open`, ignoring string contents.
+fn closing(bytes: &[u8], open: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut index = open;
+    while index < bytes.len() {
+        match (bytes[index], in_string) {
+            (b'\\', true) => index += 1,
+            (b'"', _) => in_string = !in_string,
+            (b'(', false) => depth += 1,
+            (b')', false) => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    None
+}
