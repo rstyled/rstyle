@@ -120,7 +120,11 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         if let Some(adjustments) = typeck.adjustments().get(hir_id).filter(|a| !a.is_empty()) {
             record["adjustments"] = compiler::adjustments(self.unit, adjustments);
         }
-        if let Some(adjustments) = typeck.pat_adjustments().get(hir_id).filter(|a| !a.is_empty()) {
+        if let Some(adjustments) = typeck
+            .pat_adjustments()
+            .get(hir_id)
+            .filter(|a| !a.is_empty())
+        {
             record["adjustments"] = compiler::pattern_adjustments(self.unit, adjustments);
         }
         if let Some(mode) = typeck.pat_binding_modes().get(hir_id) {
@@ -202,8 +206,13 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             // marked `const`.
             ExprKind::ConstBlock(constant) => {
                 let id = self.expr(self.tcx.hir_body(constant.body).value)?;
+                let whole = self.unit.span(expr.span);
                 if let Some(node) = self.nodes.iter_mut().rev().find(|node| node["id"] == id) {
                     node["modifiers"] = json!(["const"]);
+                    // The construct is the whole `const { .. }`, not only its block.
+                    if let Some(whole) = whole {
+                        node["span"] = whole;
+                    }
                 }
                 return Some(id);
             }
@@ -410,9 +419,14 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         children.extend(self.expr(body.value));
         let mut shape = shape("closure", children);
         if !matches!(closure.kind, hir::ClosureKind::Closure) {
-            shape.fields.insert("modifiers".into(), json!(["coroutine"]));
+            shape
+                .fields
+                .insert("modifiers".into(), json!(["coroutine"]));
         }
-        shape.fields.insert("captures".into(), json!(self.captures(closure)));
+        shape
+            .fields
+            .insert("captures".into(), json!(self.captures(closure)));
+
         shape
     }
 
@@ -687,21 +701,24 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 "pattern_sequence",
                 self.each(before.iter().chain(middle).chain(after), Self::pat),
             ),
-            PatKind::Ref(inner, ..) | PatKind::Deref(inner) => {
-                let extension = match pat.kind {
-                    PatKind::Deref(_) => "rust:deref-pattern",
-                    _ => "rust:reference-pattern",
-                };
+            PatKind::Ref(inner, ..) => {
                 let mut shape = shape("extension", self.each([inner], Self::pat));
-                shape.fields.insert("extension".into(), json!(extension));
+                shape
+                    .fields
+                    .insert("extension".into(), json!("rust:reference-pattern"));
                 shape
             }
             _ => {
-                let reason = match pat.kind {
-                    PatKind::Guard(..) => "Pattern guards are not modeled",
-                    _ => "Pattern kind is not modeled",
+                let (reason, children) = match pat.kind {
+                    // The guarded pattern and its guard stay, so their statements still count.
+                    PatKind::Guard(inner, guard) => {
+                        let children = self.pat(inner).into_iter().chain(self.expr(guard));
+                        ("Pattern guards are not modeled", children.collect())
+                    }
+                    PatKind::Deref(_) => ("Dereference patterns are not modeled", vec![]),
+                    _ => ("Pattern kind is not modeled", vec![]),
                 };
-                let mut shape = shape("unsupported", vec![]);
+                let mut shape = shape("unsupported", children);
                 shape.fields.insert("reason".into(), json!(reason));
                 shape
             }
@@ -782,7 +799,10 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 Some(self.call_reference(callee))
             }
             ExprKind::MethodCall(_, receiver, _, _) => Some(self.method_reference(expr, receiver)),
-            ExprKind::Binary(..) | ExprKind::Unary(..) | ExprKind::Index(..) | ExprKind::AssignOp(..) => {
+            ExprKind::Binary(..)
+            | ExprKind::Unary(..)
+            | ExprKind::Index(..)
+            | ExprKind::AssignOp(..) => {
                 let operator = self.typeck.type_dependent_def_id(expr.hir_id);
                 let args = self.typeck.node_args(expr.hir_id);
                 operator.map(|method| self.selected_call(method, args, "overloaded"))
@@ -847,6 +867,7 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         let Some(def_id) = self.typeck.type_dependent_def_id(expr.hir_id) else {
             return json!({"status": "unresolved", "reason": "No method resolution"});
         };
+
         let receiver_ty = self.typeck.expr_ty_adjusted(receiver).peel_refs();
         let dispatch = if matches!(receiver_ty.kind(), ty::Dynamic(..)) {
             "dynamic"
@@ -875,19 +896,20 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             .tcx
             .opt_associated_item(callee)
             .and_then(|item| item.trait_container(self.tcx));
-        if trait_item.is_some()
+        let types: Vec<String> = args.types().map(|ty| self.unit.ty(ty)).collect();
+        let mut record = if trait_item.is_some()
             && (args.has_non_region_param() || args.has_infer() || args.has_escaping_bound_vars())
         {
-            return json!({"status": "dependent", "dispatch": dispatch, "via": declared, "bounds": []});
-        }
-        let mut record = json!({"status": "resolved", "dispatch": dispatch,
-                                "target": {"kind": "definition", "id": declared}});
-        if let Some(operation) = self.library_operation(callee, compiler::declared_operation) {
-            record["target"]["operation"] = json!(operation);
-        }
-        let types: Vec<String> = args.types().map(|ty| self.unit.ty(ty)).collect();
+            json!({"status": "dependent", "dispatch": dispatch, "via": declared, "bounds": []})
+        } else {
+            json!({"status": "resolved", "dispatch": dispatch,
+                   "target": {"kind": "definition", "id": declared}})
+        };
         if !types.is_empty() {
             record["instance_arguments"] = json!(types);
+        }
+        if record["status"] == "dependent" {
+            return record;
         }
         // An interface member runs the implementation static selection finds, if any.
         let (runs, runs_args) = match trait_item {
@@ -895,10 +917,6 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 Some(instance) => {
                     let selected = self.unit.definition(instance.def_id());
                     record["selected"] = json!({"kind": "definition", "id": selected});
-                    let key = self.library_operation(instance.def_id(), compiler::selected_operation);
-                    if let Some(operation) = key {
-                        record["selected"]["operation"] = json!(operation);
-                    }
                     (instance.def_id(), instance.args)
                 }
                 None => return record,
@@ -906,7 +924,9 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             None => (callee, args),
         };
         if compiler::standard(self.tcx, runs) {
-            let value = crate::hir_extraction::runtime_bounds::sysroot::calls_back(self.tcx, runs, runs_args);
+            let value = crate::hir_extraction::runtime_bounds::sysroot::calls_back(
+                self.tcx, runs, runs_args,
+            );
             record["calls_back"] = json!({"value": value,
                 "reason": "callable arguments, or bounds on types outside the standard library"});
         }
@@ -924,17 +944,6 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         (args.len() == self.tcx.generics_of(callee).count()).then_some(())?;
         crate::ids::selected_instance(self.tcx, self.owner, callee, args)
             .filter(|instance| matches!(instance.def, ty::InstanceKind::Item(_)))
-    }
-
-    /// A standard-library member's operation key, by `key`.
-    fn library_operation(
-        &self,
-        member: hir::def_id::DefId,
-        key: fn(TyCtxt<'tcx>, hir::def_id::DefId) -> Option<String>,
-    ) -> Option<String> {
-        compiler::standard(self.tcx, member)
-            .then(|| key(self.tcx, member))
-            .flatten()
     }
 
     /// The emitted node of `hir_id`, or of its nearest emitted enclosing expression.

@@ -22,52 +22,64 @@ fn mode(mutability: rustc_hir::Mutability) -> &'static str {
 
 /// An expression's implicit adjustments in application order, each with the type it produces.
 pub fn adjustments<'tcx>(unit: &mut Unit<'tcx>, adjustments: &[Adjustment<'tcx>]) -> Value {
-    let records: Vec<Value> = adjustments
-        .iter()
-        .map(|adjustment| {
-            let (kind, mode) = match adjustment.kind {
-                Adjust::NeverToAny => ("other", None),
-                Adjust::Deref(DerefAdjustKind::Builtin) => ("auto_deref", None),
-                Adjust::Deref(DerefAdjustKind::Overloaded(deref)) => {
-                    ("overloaded_deref", Some(mode(deref.mutbl)))
-                }
-                Adjust::Deref(DerefAdjustKind::Pin) => ("other", None),
-                Adjust::Borrow(AutoBorrow::Ref(AutoBorrowMutability::Not)) => {
-                    ("auto_ref", Some("shared"))
-                }
-                Adjust::Borrow(AutoBorrow::Ref(AutoBorrowMutability::Mut { .. })) => {
-                    ("auto_ref", Some("exclusive"))
-                }
-                Adjust::Borrow(AutoBorrow::RawPtr(_)) => ("auto_ref", Some("raw")),
-                Adjust::Borrow(AutoBorrow::Pin(mutability)) => ("pin", Some(mode(mutability))),
-                Adjust::Pointer(PointerCoercion::Unsize) => ("unsize", None),
-                Adjust::Pointer(_) => ("other", None),
-                Adjust::GenericReborrow(mutability) => ("reborrow", Some(mode(mutability))),
-            };
-            let mut record = json!({"kind": kind, "target": unit.ty(adjustment.target)});
-            if let Some(mode) = mode {
-                record["mode"] = json!(mode);
-            }
-            record
-        })
-        .collect();
-    Value::Array(records)
+    records(unit, adjustments, |adjustment| {
+        (adjustment_kind(&adjustment.kind), adjustment.target)
+    })
 }
 
 /// A pattern's implicit dereferences before it matches, each with the type it applies to.
-pub fn pattern_adjustments<'tcx>(unit: &mut Unit<'tcx>, adjustments: &[PatAdjustment<'tcx>]) -> Value {
-    let records: Vec<Value> = adjustments
-        .iter()
-        .map(|adjustment| {
-            let kind = match adjustment.kind {
-                PatAdjust::BuiltinDeref => "auto_deref",
-                PatAdjust::OverloadedDeref => "overloaded_deref",
-                _ => "other",
-            };
-            json!({"kind": kind, "target": unit.ty(adjustment.source)})
-        })
-        .collect();
+pub fn pattern_adjustments<'tcx>(
+    unit: &mut Unit<'tcx>,
+    adjustments: &[PatAdjustment<'tcx>],
+) -> Value {
+    records(unit, adjustments, |adjustment| {
+        let kind = match adjustment.kind {
+            PatAdjust::BuiltinDeref => "auto_deref",
+            PatAdjust::OverloadedDeref => "overloaded_deref",
+            _ => "other",
+        };
+        ((kind, None), adjustment.source)
+    })
+}
+
+type Kind = (&'static str, Option<&'static str>);
+
+/// Adjustment records: each kind, the mode a borrow or dereference takes, and its type.
+fn records<'tcx, T>(
+    unit: &mut Unit<'tcx>,
+    adjustments: &[T],
+    describe: impl Fn(&T) -> (Kind, Ty<'tcx>),
+) -> Value {
+    let mut records = Vec::with_capacity(adjustments.len());
+    for adjustment in adjustments {
+        let ((kind, mode), target) = describe(adjustment);
+        let mut record = json!({"kind": kind, "target": unit.ty(target)});
+        if let Some(mode) = mode {
+            record["mode"] = json!(mode);
+        }
+        records.push(record);
+    }
     Value::Array(records)
+}
+
+fn adjustment_kind(kind: &Adjust) -> Kind {
+    match *kind {
+        Adjust::NeverToAny => ("other", None),
+        Adjust::Deref(DerefAdjustKind::Builtin) => ("auto_deref", None),
+        Adjust::Deref(DerefAdjustKind::Overloaded(deref)) => {
+            ("overloaded_deref", Some(mode(deref.mutbl)))
+        }
+        Adjust::Deref(DerefAdjustKind::Pin) => ("other", None),
+        Adjust::Borrow(AutoBorrow::Ref(AutoBorrowMutability::Not)) => ("auto_ref", Some("shared")),
+        Adjust::Borrow(AutoBorrow::Ref(AutoBorrowMutability::Mut { .. })) => {
+            ("auto_ref", Some("exclusive"))
+        }
+        Adjust::Borrow(AutoBorrow::RawPtr(_)) => ("auto_ref", Some("raw")),
+        Adjust::Borrow(AutoBorrow::Pin(mutability)) => ("pin", Some(mode(mutability))),
+        Adjust::Pointer(PointerCoercion::Unsize) => ("unsize", None),
+        Adjust::Pointer(_) => ("other", None),
+        Adjust::GenericReborrow(mutability) => ("reborrow", Some(mode(mutability))),
+    }
 }
 
 /// How a binding pattern binds, after default binding modes: by value or by reference.
@@ -91,17 +103,16 @@ pub fn declared_operation(tcx: TyCtxt<'_>, member: DefId) -> Option<String> {
     }
 }
 
-/// The key of the implementation member a call selects, by its impl's self type.
-pub fn selected_operation(tcx: TyCtxt<'_>, member: DefId) -> Option<String> {
-    sysroot::operation(tcx, member)
-}
-
 pub fn standard(tcx: TyCtxt<'_>, def_id: DefId) -> bool {
     sysroot::sysroot(tcx, def_id.krate)
 }
 
 /// `<receiver as Iterator>::Item`, normalized in the owner's environment.
-pub fn iterator_item<'tcx>(tcx: TyCtxt<'tcx>, owner: LocalDefId, receiver: Ty<'tcx>) -> Option<Ty<'tcx>> {
+pub fn iterator_item<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    owner: LocalDefId,
+    receiver: Ty<'tcx>,
+) -> Option<Ty<'tcx>> {
     let declaration = tcx.get_diagnostic_item(sym::IteratorItem)?;
     let projected = ty::Ty::new_projection_from_args(
         tcx,

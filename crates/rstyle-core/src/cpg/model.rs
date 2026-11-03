@@ -229,6 +229,11 @@ pub struct Definition {
     pub destructor: bool,
     /// The interface member an implementation member implements.
     pub implements: Option<Id>,
+    /// The library operation key of a standard-library function or method.
+    pub operation: Option<String>,
+    /// A member of the language's standard iteration interface.
+    #[serde(default)]
+    pub iteration: bool,
 }
 
 /// The interface a call to a function or method sees.

@@ -64,27 +64,18 @@ impl<'tcx> Unit<'tcx> {
         else {
             return span;
         };
-        let bytes = content.as_bytes();
-        loop {
-            let (start, end) = (
-                span["start"].as_u64().unwrap() as usize,
-                span["end"].as_u64().unwrap() as usize,
-            );
-            if end < start + 2
-                || bytes[start] != b'('
-                || bytes[end - 1] != b')'
-                || closing(bytes, start) != Some(end - 1)
-            {
-                return span;
-            }
-            let inner = &content[start + 1..end - 1];
-            let leading = inner.len() - inner.trim_start().len();
-            let trailing = inner.len() - inner.trim_end().len();
-            span["start"] = json!(start + 1 + leading);
-            span["end"] = json!(end - 1 - trailing);
-        }
+        let (start, end) = crate::spans::unparenthesized(
+            content,
+            span["start"].as_u64().unwrap_or_default() as usize,
+            span["end"].as_u64().unwrap_or_default() as usize,
+        );
+        span["start"] = json!(start);
+        span["end"] = json!(end);
+
+        span
     }
 
+    // rstyle-allow(mutation_per_target): the unit interns referenced records as it builds them
     /// The definition ID of `def_id`, recording the definition on first use.
     pub fn definition(&mut self, def_id: DefId) -> String {
         let stable = ids::def_id_str(self.tcx, def_id);
@@ -117,7 +108,10 @@ impl<'tcx> Unit<'tcx> {
             (signature.safety().is_unsafe(), "unsafe"),
             (tcx.is_const_fn(def_id), "const"),
             (foreign, "foreign"),
-            (signature.abi() != rustc_abi::ExternAbi::Rust, "rust:foreign-abi"),
+            (
+                signature.abi() != rustc_abi::ExternAbi::Rust,
+                "rust:foreign-abi",
+            ),
         ]
         .into_iter()
         .filter_map(|(present, modifier)| present.then_some(modifier))
@@ -156,14 +150,10 @@ impl<'tcx> Unit<'tcx> {
         let mut record = json!({"id": id, "kind": definition_kind(tcx, def_id, kind), "name": tcx.def_path_str(def_id),
                "stable_identity": stable, "scope": scope, "modifiers": modifiers(tcx, def_id, kind),
                "compilation": compilation});
-        if super::compiler::standard(tcx, def_id) {
-            record["standard"] = json!(true);
+        for (field, value) in compiler_facts(tcx, def_id, kind) {
+            record[field] = value;
         }
-        if matches!(kind, DefKind::Struct | DefKind::Enum | DefKind::Union)
-            && tcx.adt_destructor(def_id).is_some()
-        {
-            record["destructor"] = json!(true);
-        }
+
         record
     }
 
@@ -172,8 +162,11 @@ impl<'tcx> Unit<'tcx> {
         let Some(item) = self.tcx.opt_associated_item(def_id) else {
             return;
         };
+
         let owner = self.definition(self.tcx.parent(def_id));
-        let implements = item.trait_item_def_id().map(|member| self.definition(member));
+        let implements = item
+            .trait_item_def_id()
+            .map(|member| self.definition(member));
         let record = self.definitions.get_mut(id).unwrap();
         record["owner"] = json!(owner);
         if let Some(implements) = implements {
@@ -199,7 +192,9 @@ impl<'tcx> Unit<'tcx> {
             let mut record = self.type_record(ty);
             record["id"] = json!(id);
             record["spelling"] = json!(spelling);
-            if let Some(key) = crate::hir_extraction::runtime_bounds::sysroot::type_key(self.tcx, ty) {
+            if let Some(key) =
+                crate::hir_extraction::runtime_bounds::sysroot::type_key(self.tcx, ty)
+            {
                 record["key"] = json!(format!("rust:{key}"));
             }
             self.types.insert(id.clone(), record);
@@ -232,26 +227,7 @@ impl<'tcx> Unit<'tcx> {
     fn type_record(&mut self, ty: Ty<'tcx>) -> Value {
         match *ty.kind() {
             ty::Adt(adt, args) => self.nominal(ty, adt, args),
-            ty::FnPtr(..) | ty::FnDef(..) => {
-                let signature = ty.fn_sig(self.tcx).skip_binder();
-                let parameters = self.types_of(signature.inputs().iter().copied());
-                let mut record = json!({"kind": "function", "parameters": parameters,
-                                        "result": self.ty(signature.output())});
-                if let ty::FnDef(def_id, _) = *ty.kind() {
-                    record["definition"] = json!(self.definition(def_id));
-                }
-                let modifiers: Vec<&str> = [
-                    (signature.safety().is_unsafe(), "unsafe"),
-                    (signature.abi() != rustc_abi::ExternAbi::Rust, "rust:foreign-abi"),
-                ]
-                .into_iter()
-                .filter_map(|(present, modifier)| present.then_some(modifier))
-                .collect();
-                if !modifiers.is_empty() {
-                    record["modifiers"] = json!(modifiers);
-                }
-                record
-            }
+            ty::FnPtr(..) | ty::FnDef(..) => self.function_type(ty),
             ty::Closure(_, args) => {
                 let signature = args.as_closure().sig().skip_binder();
                 let parameters = self.types_of(signature.inputs().iter().copied());
@@ -280,6 +256,34 @@ impl<'tcx> Unit<'tcx> {
             ty::Param(param) => json!({"kind": "parameter", "index": param.index}),
             _ => self.scalar(ty),
         }
+    }
+
+    // rstyle-allow(mutation_per_target): the unit interns referenced records as it builds them
+    /// A function item's or function pointer's type: its signature, and for an item the
+    /// function it names.
+    fn function_type(&mut self, ty: Ty<'tcx>) -> Value {
+        let signature = ty.fn_sig(self.tcx).skip_binder();
+        let parameters = self.types_of(signature.inputs().iter().copied());
+        let mut record = json!({"kind": "function", "parameters": parameters,
+                                "result": self.ty(signature.output())});
+        if let ty::FnDef(def_id, _) = *ty.kind() {
+            record["definition"] = json!(self.definition(def_id));
+        }
+        let modifiers: Vec<&str> = [
+            (signature.safety().is_unsafe(), "unsafe"),
+            (
+                signature.abi() != rustc_abi::ExternAbi::Rust,
+                "rust:foreign-abi",
+            ),
+        ]
+        .into_iter()
+        .filter_map(|(present, modifier)| present.then_some(modifier))
+        .collect();
+        if !modifiers.is_empty() {
+            record["modifiers"] = json!(modifiers);
+        }
+
+        record
     }
 
     /// A struct, enum or union with its type arguments; `Box` is an owned pointer.
@@ -467,26 +471,30 @@ pub fn coverage() -> Value {
     })
 }
 
-/// Offset of the parenthesis closing the one at `open`, ignoring string contents.
-fn closing(bytes: &[u8], open: usize) -> Option<usize> {
-    let mut depth = 0usize;
-    let mut in_string = false;
-    let mut index = open;
-    while index < bytes.len() {
-        match (bytes[index], in_string) {
-            (b'\\', true) => index += 1,
-            (b'"', _) => in_string = !in_string,
-            (b'(', false) => depth += 1,
-            (b')', false) => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(index);
-                }
-            }
-            _ => {}
-        }
-        index += 1;
-    }
+/// The optional compiler facts of a definition: whether it is standard, the
+/// operation a standard callable declares, and whether it iterates or has a destructor.
+fn compiler_facts(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> Vec<(&'static str, Value)> {
+    let standard = super::compiler::standard(tcx, def_id);
+    let callable = matches!(kind, DefKind::Fn | DefKind::AssocFn);
+    let adt = matches!(kind, DefKind::Struct | DefKind::Enum | DefKind::Union);
+    let operation = (standard && callable)
+        .then(|| super::compiler::declared_operation(tcx, def_id))
+        .flatten();
 
-    None
+    [
+        ("standard", standard.then_some(Value::Bool(true))),
+        ("operation", operation.map(|operation| json!(operation))),
+        (
+            "iteration",
+            (standard && super::compiler::iterator_member(tcx, def_id))
+                .then_some(Value::Bool(true)),
+        ),
+        (
+            "destructor",
+            (adt && tcx.adt_destructor(def_id).is_some()).then_some(Value::Bool(true)),
+        ),
+    ]
+    .into_iter()
+    .filter_map(|(field, value)| Some((field, value?)))
+    .collect()
 }

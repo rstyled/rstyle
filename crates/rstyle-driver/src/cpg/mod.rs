@@ -32,27 +32,21 @@ pub fn emit(
         complexity: Some(complexity),
     };
     let mut unit = unit::Unit::new(tcx, root.to_path_buf());
-    let mut functions = Vec::new();
-    let mut reference = Vec::new();
-    let mut bounds = serde_json::Map::new();
-    for id in tcx
+    let captured = tcx
         .hir_body_owners()
         .filter(|id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
-    {
-        let Some(facts) = extract::function_facts(tcx, id, &options) else {
-            continue;
-        };
-        functions.push(function(&mut unit, id)?);
-        let input = crate::hir_extraction::runtime_bounds(tcx, id);
-        bounds.insert(
-            facts.id.clone(),
-            serde_json::to_value(input).map_err(|e| e.to_string())?,
-        );
-        reference.push(facts);
-    }
-    if functions.is_empty() {
+        .map(|id| capture(&mut unit, id, &options))
+        .collect::<Result<Vec<_>, String>>()?;
+    let captured: Vec<_> = captured.into_iter().flatten().collect();
+    if captured.is_empty() {
         return Ok(());
     }
+
+    let (functions, rest): (Vec<_>, Vec<_>) = captured
+        .into_iter()
+        .map(|(function, facts, bound)| (function, (facts, bound)))
+        .unzip();
+    let (reference, bounds): (Vec<_>, serde_json::Map<_, _>) = rest.into_iter().unzip();
     let name = format!(
         "{}-{:016x}",
         tcx.crate_name(LOCAL_CRATE),
@@ -60,13 +54,35 @@ pub fn emit(
     );
     let document = document(tcx, unit, functions, &name);
     write(&dir.join(format!("{name}.cpg.json")), &document)?;
-
     write(
         &dir.join(format!("{name}.facts.json")),
         &serde_json::to_value(reference).map_err(|e| e.to_string())?,
     )?;
     // The driver's runtime-bound programs, by function identity.
-    write(&dir.join(format!("{name}.bounds.json")), &Value::Object(bounds))
+    write(
+        &dir.join(format!("{name}.bounds.json")),
+        &Value::Object(bounds),
+    )
+}
+
+/// One function's document record, reference facts and runtime-bound program by identity.
+type Captured = (Value, rstyle_core::facts::FnFacts, (String, Value));
+
+fn capture(
+    unit: &mut unit::Unit<'_>,
+    id: LocalDefId,
+    options: &extract::Options<'_>,
+) -> Result<Option<Captured>, String> {
+    let tcx = unit.tcx;
+    let Some(facts) = extract::function_facts(tcx, id, options) else {
+        return Ok(None);
+    };
+
+    let function = function(unit, id)?;
+    let input = crate::hir_extraction::runtime_bounds(tcx, id);
+    let bound = serde_json::to_value(input).map_err(|e| e.to_string())?;
+    let key = facts.id.clone();
+    Ok(Some((function, facts, (key, bound))))
 }
 
 fn write(path: &PathBuf, value: &Value) -> Result<(), String> {
