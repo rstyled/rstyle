@@ -416,6 +416,9 @@ fn mutation(walk: &Walk<'_>, place: &Place) -> Result<Option<MutationEvent>, Str
         )
     };
     let escapes = place.escapes.ok_or_else(unknown)?;
+    if !escapes && declared_by_macro(walk, symbol.node.as_deref())? {
+        return Ok(None);
+    }
     let delegated = escapes && borrow && !write && reborrows_workspace_object(walk, place)?;
     let fields: Vec<&str> = place.path.iter().filter_map(field_name).collect();
     let line = walk
@@ -458,6 +461,20 @@ fn reborrows_workspace_object(walk: &Walk<'_>, place: &Place) -> Result<bool, St
         return Ok(false);
     };
     Ok(walk.tables.definition(definition)?.scope != Scope::Library)
+}
+
+/// A binding a library macro declares is that macro's working state, not the developer's.
+fn declared_by_macro(walk: &Walk<'_>, node: Option<&str>) -> Result<bool, String> {
+    let Some(node) = node else {
+        return Ok(false);
+    };
+    let provenance = &walk.body.node(node)?.provenance;
+    match (provenance.origin, provenance.macro_definition.as_deref()) {
+        (Origin::MacroExpansion, Some(definition)) => {
+            Ok(walk.tables.definition(definition)?.scope == Scope::Library)
+        }
+        _ => Ok(false),
+    }
 }
 
 /// Bindings a `for` loop's lowering introduces are excluded from source budgets.

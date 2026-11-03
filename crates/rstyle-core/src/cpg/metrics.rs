@@ -2,7 +2,7 @@
 
 use super::model::{FileSpan, Node, NodeKind, Origin};
 use super::source::Sources;
-use super::tree::{Body, generated};
+use super::tree::Body;
 use crate::complexity::{Kind, Node as Construct};
 
 /// Generated code counts once, at its outermost node.
@@ -10,10 +10,17 @@ pub fn statements(body: &Body<'_>) -> Result<usize, String> {
     count(body, body.root()?, false)
 }
 
-/// `inside`: an ancestor is generated. A child counts unless it and an enclosing node are.
+/// `inside`: a macro expansion encloses the node. Source code counts, macro-generated
+/// code counts once at its outermost node, and desugared nodes are not statements.
 fn count(body: &Body<'_>, node: &Node, inside: bool) -> Result<usize, String> {
-    let inside = inside || generated(node);
-    let counts = |child: &Node| usize::from(!(inside && generated(child)));
+    let inside = inside || node.provenance.origin == Origin::MacroExpansion;
+    let counts = |child: &Node| {
+        usize::from(match child.provenance.origin {
+            Origin::MacroExpansion => !inside,
+            Origin::Desugaring => false,
+            _ => true,
+        })
+    };
     let mut total = match node.kind {
         NodeKind::Block => body.children(node)?.into_iter().map(counts).sum(),
         NodeKind::MatchArm => match body.source_children(node)?.last() {
@@ -77,9 +84,12 @@ impl Constructs<'_> {
     }
 
     fn visit(&self, node: &Node) -> Result<Vec<Construct>, String> {
-        // Desugared nodes are looked through; macro-expanded code is not the developer's.
-        if node.provenance.origin == Origin::MacroExpansion {
-            return Ok(vec![]);
+        // Macro-expanded code is not the developer's; a desugared node is looked
+        // through, so only the source constructs below it count.
+        match node.provenance.origin {
+            Origin::MacroExpansion => return Ok(vec![]),
+            Origin::Desugaring => return self.within(node),
+            _ => {}
         }
         let span = || own_span(node);
         match node.kind {

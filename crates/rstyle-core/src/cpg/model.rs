@@ -493,6 +493,7 @@ pub struct Provenance {
     pub call_site: Option<FileSpan>,
     #[serde(rename = "macro")]
     pub macro_name: Option<String>,
+    pub macro_definition: Option<Id>,
     pub construct: Option<String>,
     pub template_nodes: Option<Vec<Id>>,
     pub description: Option<String>,

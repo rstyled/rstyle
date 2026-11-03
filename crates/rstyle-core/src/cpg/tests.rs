@@ -100,6 +100,23 @@ fn example_loop_counts_statements_and_complexity_without_its_lowering() {
 }
 
 #[test]
+fn desugared_nodes_are_looked_through() {
+    let mut document = example();
+    let nodes = document["unit"]["functions"][2]["nodes"]
+        .as_array_mut()
+        .unwrap();
+    let into_iter = nodes
+        .iter_mut()
+        .find(|n| n["id"] == "count.into_iter")
+        .unwrap();
+    into_iter["kind"] = json!("loop");
+    assert_eq!(
+        kinds(&facts_of(document)[2]),
+        [Kind::Loop, Kind::Branch, Kind::And]
+    );
+}
+
+#[test]
 fn example_mutations_separate_source_writes_from_the_lowered_iterator() {
     let count = &facts_of(example())[2];
     let event = |root: &str, line, origin| MutationEvent {
@@ -799,11 +816,176 @@ fn noisy() -> Value {
 }
 
 #[test]
+fn desugared_nodes_are_not_statements() {
+    let mut document = example();
+    let nodes = document["unit"]["functions"][2]["nodes"]
+        .as_array_mut()
+        .unwrap();
+    let block = nodes.iter_mut().find(|n| n["id"] == "count.block").unwrap();
+    block["children"]
+        .as_array_mut()
+        .unwrap()
+        .insert(0, json!("count.lowered"));
+    nodes.push(json!({"id": "count.lowered", "kind": "expression_statement", "original_kind": "stmt_semi",
+                      "children": [], "synthetic": true, "provenance": {"origin": "desugaring", "construct": "for"}}));
+    assert_eq!(facts_of(document)[2].statements, 5);
+}
+
+#[test]
+fn writes_to_library_macro_bindings_are_not_mutations_unless_they_escape() {
+    let mut document = example();
+    let function = &mut document["unit"]["functions"][2];
+    let pattern = function["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|n| n["id"] == "count.total_pat")
+        .unwrap();
+    pattern["provenance"] = json!({"origin": "macro_expansion", "call_site": pattern["span"],
+                                   "macro": "tally", "macro_definition": "def:tally"});
+    let definitions = document["unit"]["definitions"].as_array_mut().unwrap();
+    definitions.push(
+        json!({"id": "def:tally", "kind": "other", "name": "tally::tally",
+                            "stable_identity": "tally::tally", "scope": "library"}),
+    );
+    let roots = |document: &Value| {
+        facts_of(document.clone())[2]
+            .mutations
+            .iter()
+            .map(|m| m.root.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(roots(&document), ["iter"]);
+
+    let mut workspace_macro = document.clone();
+    let definitions = workspace_macro["unit"]["definitions"]
+        .as_array_mut()
+        .unwrap();
+    definitions.last_mut().unwrap()["scope"] = json!("workspace");
+    let message = "a workspace macro's bindings are the developer's";
+    assert_eq!(roots(&workspace_macro), ["total", "iter"], "{message}");
+
+    let places = document["unit"]["functions"][2]["places"]
+        .as_array_mut()
+        .unwrap();
+    places
+        .iter_mut()
+        .find(|p| p["id"] == "count.place.total_write")
+        .unwrap()["escapes"] = json!(true);
+    assert_eq!(roots(&document), ["total", "iter"]);
+}
+
+#[test]
 fn generated_code_counts_once_at_its_outermost_node() {
     let facts = &facts_of(noisy())[0];
     assert_eq!((facts.statements, facts.top_statements), (3, 3));
     assert!(
         kinds(facts).is_empty(),
         "macro-expanded control flow is not the developer's"
+    );
+}
+
+// Malformed documents the derivation relies on being well formed.
+
+fn with_node(change: impl FnOnce(&mut Value)) -> String {
+    let mut document = example();
+    let nodes = document["unit"]["functions"][2]["nodes"]
+        .as_array_mut()
+        .unwrap();
+    change(nodes.iter_mut().find(|n| n["id"] == "count.if").unwrap());
+    error_of(vec![document])
+}
+
+#[test]
+fn malformed_constructs_are_rejected() {
+    let message = with_node(|node| node["children"] = json!(["count.cond"]));
+    assert_eq!(
+        message,
+        "Node count.if: an if needs a condition and a then-block"
+    );
+
+    let mut document = example();
+    let nodes = document["unit"]["functions"][2]["nodes"]
+        .as_array_mut()
+        .unwrap();
+    let cond = nodes.iter_mut().find(|n| n["id"] == "count.cond").unwrap();
+    cond["children"] = json!(["count.gt"]);
+    assert_eq!(
+        error_of(vec![document]),
+        "Node count.cond: a binary operator needs two operands"
+    );
+
+    let mut rooted = example();
+    rooted["unit"]["functions"][2]["root"] = json!("count.let");
+    assert_eq!(
+        error_of(vec![rooted]),
+        "Function fn:count: root has a parent"
+    );
+}
+
+#[test]
+fn malformed_unit_tables_are_rejected() {
+    let mut duplicate = example();
+    let file = duplicate["unit"]["files"][0].clone();
+    duplicate["unit"]["files"]
+        .as_array_mut()
+        .unwrap()
+        .push(file);
+    assert_eq!(error_of(vec![duplicate]), "Duplicate file ID file:lib");
+
+    let mut definitions = example();
+    let definition = definitions["unit"]["definitions"][0].clone();
+    definitions["unit"]["definitions"]
+        .as_array_mut()
+        .unwrap()
+        .push(definition);
+    assert_eq!(
+        error_of(vec![definitions]),
+        "Duplicate definition ID def:LIMIT"
+    );
+
+    let mut cross_file = example();
+    let mut other = cross_file["unit"]["files"][0].clone();
+    other["id"] = json!("file:other");
+    cross_file["unit"]["files"]
+        .as_array_mut()
+        .unwrap()
+        .push(other);
+    cross_file["unit"]["functions"][0]["span"]["file"] = json!("file:other");
+    assert_eq!(
+        error_of(vec![cross_file]),
+        "Spans in file:lib and file:other do not form one range"
+    );
+
+    let mut function_document = example();
+    function_document["document"] = json!("function");
+    assert_eq!(
+        error_of(vec![function_document]),
+        "A run must merge into one bundled unit document"
+    );
+
+    let mut bodiless = example();
+    bodiless["unit"]
+        .as_object_mut()
+        .unwrap()
+        .remove("functions");
+    assert_eq!(
+        error_of(vec![bodiless]),
+        "The bundled unit document has no function bodies"
+    );
+}
+
+#[test]
+fn or_chains_and_nested_items_follow_the_profile() {
+    let mut document = example();
+    let nodes = document["unit"]["functions"][2]["nodes"]
+        .as_array_mut()
+        .unwrap();
+    nodes.iter_mut().find(|n| n["id"] == "count.cond").unwrap()["operator"] = json!("or");
+    let let_node = nodes.iter_mut().find(|n| n["id"] == "count.let").unwrap();
+    let_node["kind"] = json!("item_declaration");
+    assert_eq!(
+        kinds(&facts_of(document)[2]),
+        [Kind::Loop, Kind::Branch, Kind::Or]
     );
 }
