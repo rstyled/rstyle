@@ -218,6 +218,20 @@ pub struct Definition {
     #[serde(default)]
     pub modifiers: Vec<String>,
     pub span: Option<FileSpan>,
+    pub callable: Option<Callable>,
+}
+
+/// The interface a call to a function or method sees.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Callable {
+    pub owner_type: Option<Id>,
+    pub receiver: Option<Id>,
+    pub parameters: Vec<Id>,
+    pub result: Id,
+    pub generics: usize,
+    #[serde(default)]
+    pub modifiers: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -378,6 +392,7 @@ pub struct Parameter {
     pub ty: Id,
     pub span: Option<FileSpan>,
     pub annotation: Option<FileSpan>,
+    pub bindings: Option<Vec<Id>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -470,6 +485,8 @@ pub struct Node {
     #[serde(rename = "type")]
     pub ty: Option<Id>,
     pub literal: Option<String>,
+    pub value: Option<Literal>,
+    pub member: Option<String>,
     pub operator: Option<String>,
     pub token: Option<FileSpan>,
     pub label: Option<String>,
