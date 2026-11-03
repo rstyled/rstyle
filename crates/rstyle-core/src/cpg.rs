@@ -4,6 +4,7 @@
 //! This module derives the facts of the style rules, and the parameter details,
 //! signature shapes, mutated types and dependence graphs the pattern analyses read.
 
+pub mod bounds;
 pub mod compare;
 mod dependence;
 mod events;
@@ -18,6 +19,41 @@ mod tree;
 pub use facts::{CAPABILITIES, LAYERS, all_facts, rule_facts};
 
 use crate::facts::FnFacts;
+
+/// The runtime-bound program of every function in a run, by function identity.
+pub fn run_bounds(
+    documents: Vec<serde_json::Value>,
+) -> Result<Vec<(String, crate::advisory::runtime_bounds::Input)>, String> {
+    let document = layout::bundle(documents)?;
+    let unit = document.unit.as_ref().ok_or("The document has no unit")?;
+    let sources = source::Sources::new(unit)?;
+    let tables = tree::Tables::new(unit)?;
+    let arithmetic = match unit.semantics.integer_overflow.as_str() {
+        "checked" => crate::runtime_bounds::Arithmetic::Checked,
+        "wrapping" => crate::runtime_bounds::Arithmetic::Wrapping,
+        _ => crate::runtime_bounds::Arithmetic::Unknown,
+    };
+    let pointer_bits = unit.target.pointer_width as u8;
+    let functions = unit.functions.as_deref().unwrap_or_default();
+
+    functions
+        .iter()
+        .map(|function| {
+            let body = tree::Body::new(function)?;
+            let facts = bounds::facts::Facts {
+                body: &body,
+                tables: &tables,
+                sources: &sources,
+                pointer_bits,
+            };
+            let identity = tables
+                .definition(&function.definition)?
+                .stable_identity
+                .clone();
+            Ok((identity, bounds::lower(&facts, arithmetic)?))
+        })
+        .collect()
+}
 
 /// Rule facts of a run: one bundled document, or a split unit document and its
 /// function documents.

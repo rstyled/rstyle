@@ -1,6 +1,6 @@
 use super::*;
 
-const SOURCE: &str = r#"
+pub(crate) const SOURCE: &str = r#"
 #![feature(guard_patterns)]
 pub fn accumulator(n: usize) -> u8 { let mut i = 0; let mut total = 0u8; while i < n { total += 1; i += 1; } total }
 pub fn practical_vec(xs: &[u8]) -> Vec<u8> { let mut out = Vec::new(); for x in xs { out.push(*x); } out }

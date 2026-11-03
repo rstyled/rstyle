@@ -289,3 +289,5 @@ fn compare_reports_diagnostics_only_one_side_produces() {
         stdout(&output)
     );
 }
+
+mod bounds;
