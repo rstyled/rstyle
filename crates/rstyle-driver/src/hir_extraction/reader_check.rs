@@ -11,7 +11,6 @@ use std::io::Write;
 
 pub const DIR_ENV: &str = "RSTYLE_DIAGNOSTIC_CPG_READER_DIR";
 
-// rstyle-allow(side_effect_density): diagnostic boundary: writes the comparison it was asked for
 pub(super) fn check(
     tcx: TyCtxt<'_>,
     options: &super::Options<'_>,
@@ -20,9 +19,10 @@ pub(super) fn check(
     let Some(dir) = std::env::var_os(DIR_ENV) else {
         return Ok(());
     };
+    // Without a source root, the crate root file's directory holds its sources.
     let root = match options.source_root {
         Some(root) => root.to_path_buf(),
-        None => std::env::current_dir().map_err(|error| error.to_string())?,
+        None => crate_directory(tcx).ok_or("The crate has no root source file")?,
     };
     // A failure to read the documents is the comparison's finding, never the capture's.
     let derived = derived(tcx, &root, options.selected()).unwrap_or_else(|error| {
@@ -36,23 +36,44 @@ pub(super) fn check(
         unread
     });
 
-    let mut lines = Vec::new();
-    for reference in facts {
-        let key = (reference.name.clone(), reference.fn_span.start);
-        let differences = match derived.get(&key) {
-            Some(Ok(derived)) => cpg_reader::compare::differences(reference, derived),
-            Some(Err(reason)) => vec![unread("function.read", reason)],
-            None => vec![unread(
-                "function.absent",
-                "No document function has this name and span",
-            )],
-        };
-        let profile = options.selected().token();
-        let line =
-            json!({"function": reference.name, "profile": profile, "differences": differences});
-        lines.push(line.to_string());
-    }
+    let profile = options.selected().token();
+    let lines = facts.iter().map(|reference| {
+        let differences = function_differences(reference, &derived);
+        json!({"function": reference.name, "profile": profile, "differences": differences})
+    });
+    write(tcx, std::path::Path::new(&dir), lines)
+}
 
+/// One function's differences from the facts read for it, or why none were read.
+fn function_differences(reference: &HirFnFacts, derived: &Derived) -> Vec<Difference> {
+    let key = (reference.name.clone(), reference.fn_span.start);
+    match derived.get(&key) {
+        Some(Ok(derived)) => cpg_reader::compare::differences(reference, derived),
+        Some(Err(reason)) => vec![unread("function.read", reason)],
+        None => {
+            let starts: Vec<u32> = derived
+                .keys()
+                .filter(|(name, _)| *name == reference.name)
+                .map(|(_, start)| *start)
+                .collect();
+            let reason = match starts.as_slice() {
+                [] => "No document function has this name".to_owned(),
+                starts => format!(
+                    "Document functions of this name start at {starts:?}, not {}",
+                    key.1
+                ),
+            };
+            vec![unread("function.absent", &reason)]
+        }
+    }
+}
+
+// rstyle-allow(side_effect_density): diagnostic boundary: writes the comparison it was asked for
+fn write(
+    tcx: TyCtxt<'_>,
+    dir: &std::path::Path,
+    lines: impl Iterator<Item = serde_json::Value>,
+) -> Result<(), String> {
     let name = format!(
         "{}-{:016x}-{}.jsonl",
         tcx.crate_name(rustc_span::def_id::LOCAL_CRATE),
@@ -60,13 +81,20 @@ pub(super) fn check(
             .as_u64(),
         std::process::id()
     );
-    let path = std::path::Path::new(&dir).join(name);
+    let path = dir.join(name);
     let mut file =
         std::fs::File::create(&path).map_err(|error| format!("{}: {error}", path.display()))?;
     for line in lines {
         writeln!(file, "{line}").map_err(|error| error.to_string())?;
     }
     Ok(())
+}
+
+fn crate_directory(tcx: TyCtxt<'_>) -> Option<std::path::PathBuf> {
+    let file = tcx.sess.local_crate_source_file()?;
+    let path = std::path::absolute(file.local_path()?).ok()?;
+    let directory = path.parent()?;
+    rstyle_pdg::nominal_binding::absolute_path(directory).ok()
 }
 
 type Derived = BTreeMap<(String, u32), Result<HirFnFacts, String>>;
