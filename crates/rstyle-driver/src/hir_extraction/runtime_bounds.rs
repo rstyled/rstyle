@@ -14,9 +14,10 @@ use std::collections::BTreeMap;
 pub struct Programs(OnceCell<Result<BTreeMap<String, Input>, String>>);
 
 impl Programs {
-    fn get(&self, tcx: TyCtxt<'_>, root: Option<&std::path::Path>, owner: &str) -> Input {
-        let programs = self.0.get_or_init(|| match root {
-            Some(root) => crate::cpg::runtime_bounds(tcx, root),
+    fn get(&self, tcx: TyCtxt<'_>, options: &super::Options<'_>, owner: &str) -> Input {
+        let package = options.unit_context.map(|context| &context.package);
+        let programs = self.0.get_or_init(|| match options.source_root {
+            Some(root) => crate::cpg::runtime_bounds(tcx, (root, package)),
             None => Err("Advisory capture has no source root".into()),
         });
         let unavailable = |reason: String| Input::Unavailable { reason };
@@ -41,7 +42,7 @@ pub(super) fn capture<B, S>(
 
     let tcx = ctx.tcx;
     let owner = crate::ids::def_id_str(tcx, id.to_def_id());
-    let input = options.runtime_bounds.get(tcx, options.source_root, &owner);
+    let input = options.runtime_bounds.get(tcx, options, &owner);
     let observation = Observation {
         schema: KEY.into(),
         owner,

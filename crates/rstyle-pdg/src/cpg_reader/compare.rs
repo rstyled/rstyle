@@ -47,6 +47,7 @@ pub fn differences(reference: &HirFnFacts, derived: &HirFnFacts) -> Vec<Differen
         &reference.source_diagnostics,
         &derived.source_diagnostics,
     );
+    found.options(reference, derived);
     found.field(
         ("function.source_scan_complete", ""),
         &reference.source_scan_complete,
@@ -85,6 +86,26 @@ impl Differences {
         for (index, (reference, derived)) in reference.iter().zip(derived).enumerate() {
             self.field((channel, &index.to_string()), reference, derived);
         }
+    }
+
+    /// The frontend option families the reader rebuilds, each as its own channel.
+    fn options(&mut self, reference: &HirFnFacts, derived: &HirFnFacts) {
+        use crate::concrete_types::InterfaceObservations;
+        let (reference, derived) = (
+            &reference.build.frontend_options,
+            &derived.build.frontend_options,
+        );
+        let observed = |options: &crate::frontend::FrontendOptions| {
+            options
+                .data::<InterfaceObservations>()
+                .ok()
+                .map(|data| data.into_owned())
+        };
+        self.field(
+            ("option.concrete-types", ""),
+            &observed(reference),
+            &observed(derived),
+        );
     }
 
     fn signature(&mut self, reference: &SignatureFacts, derived: &SignatureFacts) {

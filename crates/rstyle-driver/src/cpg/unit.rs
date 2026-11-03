@@ -92,7 +92,10 @@ impl<'tcx> Unit<'tcx> {
 
         let id = format!("def:{stable}");
         if !self.definitions.contains_key(&id) {
-            let record = self.definition_record(def_id, &id, stable);
+            let mut record = self.definition_record(def_id, &id, stable);
+            if let Some(span) = self.declaration(def_id) {
+                record["span"] = span;
+            }
             self.definitions.insert(id.clone(), record);
             self.relations(def_id, &id);
             if matches!(self.tcx.def_kind(def_id), DefKind::Fn | DefKind::AssocFn) {
@@ -101,6 +104,23 @@ impl<'tcx> Unit<'tcx> {
             }
         }
         id
+    }
+
+    /// A local type's declaration as written, unless a macro generated it.
+    fn declaration(&mut self, def_id: DefId) -> Option<Value> {
+        let local = def_id.as_local()?;
+        if !matches!(
+            self.tcx.def_kind(def_id),
+            DefKind::Struct | DefKind::Enum | DefKind::Union
+        ) {
+            return None;
+        }
+        let rustc_hir::Node::Item(item) = self.tcx.hir_node_by_def_id(local) else {
+            return None;
+        };
+        (!item.span.from_expansion())
+            .then(|| self.span(item.span))
+            .flatten()
     }
 
     // rstyle-allow(mutation_per_target): the unit interns referenced records as it builds them
@@ -310,9 +330,31 @@ impl<'tcx> Unit<'tcx> {
                                    "definition": definition, "arguments": arguments}),
             None => {
                 let kind = if adt.is_enum() { "sum" } else { "record" };
-                json!({"kind": kind, "definition": definition, "arguments": arguments})
+                let mut record =
+                    json!({"kind": kind, "definition": definition, "arguments": arguments});
+                // A local record's members, which its declaration in this workspace gives.
+                if adt.did().is_local() && !adt.is_enum() {
+                    record["fields"] = json!(self.fields(adt, args));
+                }
+                record
             }
         }
+    }
+
+    /// A record's fields in declaration order, with their types instantiated.
+    fn fields(&mut self, adt: ty::AdtDef<'tcx>, args: ty::GenericArgsRef<'tcx>) -> Vec<Value> {
+        let tcx = self.tcx;
+        adt.non_enum_variant()
+            .fields
+            .iter()
+            .map(|field| {
+                let declared = tcx.type_of(field.did).instantiate(tcx, args);
+                let ty = tcx
+                    .try_normalize_erasing_regions(ty::TypingEnv::fully_monomorphized(), declared)
+                    .unwrap_or_else(|_| declared.skip_norm_wip());
+                json!({"name": field.name.as_str(), "type": self.ty(ty)})
+            })
+            .collect()
     }
 
     // rstyle-allow(mutation_per_target): the unit interns referenced records as it builds them

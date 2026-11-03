@@ -4,11 +4,12 @@
 
 use super::Context;
 use crate::concrete_types::{
-    IDENTITY, InterfaceObservations, MAX_DEPTH, MAX_ENTRIES, Observation, TypeTree,
+    Field, IDENTITY, InterfaceObservations, MAX_DEPTH, MAX_ENTRIES, MAX_FIELDS, MAX_SOURCE_BYTES,
+    Nominal, Observation, TypeTree,
 };
 use crate::extraction_profile::ExtractionProfile;
 use crate::frontend::{BindingFact, HirFnFacts, HirNode, HirRef};
-use rstyle_core::cpg::model::{Type, TypeKind};
+use rstyle_core::cpg::model::{Definition, Type, TypeKind};
 use std::collections::BTreeMap;
 
 /// Which of the frontend's capture passes the facts went through.
@@ -43,6 +44,7 @@ impl<'a> Context<'_, 'a> {
             context: self,
             types: self.hir_types(),
             entries: 0,
+            visiting: Vec::new(),
             completed: BTreeMap::new(),
         };
         let observations = capture.interface(facts)?;
@@ -121,6 +123,8 @@ struct Capture<'c, 'r, 'a> {
     context: &'c Context<'r, 'a>,
     types: BTreeMap<(u32, u32), &'a str>,
     entries: usize,
+    /// The structs being expanded, which a field of theirs may not expand again.
+    visiting: Vec<&'a str>,
     /// Each root type's completed observation and token.
     completed: BTreeMap<&'a str, (Observation, Option<String>)>,
 }
@@ -326,10 +330,159 @@ impl<'a> Capture<'_, '_, 'a> {
                     length,
                 })
             }
+            TypeKind::Record => self.structure(ty, depth),
+            TypeKind::Sum if !self.supports("rust.scalar-enum-values") => self.structure(ty, depth),
+            TypeKind::Sum => Err(unsupported("Concrete enum observations are not read yet")),
             _ => Err(unsupported(
                 "Outside the concrete drop-free/shared type observation grammar",
             )),
         }
+    }
+
+    /// A local struct with its declaration as written and its fields' types.
+    fn structure(&mut self, ty: &'a Type, depth: usize) -> Result<TypeTree, Failure> {
+        let (definition, fields) = self.checked_structure(ty)?;
+        let source = self.declaration(definition)?;
+        if self.context.reader.profile.is_data() {
+            crate::concrete_types::lifetimes::declaration_count(&source)
+                .map_err(Failure::Unsupported)?;
+        }
+        let declarations =
+            crate::concrete_types::field_declarations(&source).map_err(Failure::Unsupported)?;
+        if declarations.len() != fields.len() {
+            return Err(unsupported("Concrete field/source inventory disagrees"));
+        }
+
+        self.visiting.push(definition.id.as_str());
+        let captured = self.fields(fields, declarations, depth);
+        self.visiting.pop();
+        Ok(TypeTree::Struct {
+            nominal: self.nominal(&definition.name, &source)?,
+            source,
+            fields: captured?,
+        })
+    }
+
+    /// A struct the grammar admits: local, concrete, destructor-free and within budget.
+    fn checked_structure(
+        &self,
+        ty: &'a Type,
+    ) -> Result<(&'a Definition, &'a [rstyle_core::cpg::model::TypeField]), Failure> {
+        let definition = self.definition_of(ty)?;
+        let generic = ty
+            .arguments
+            .as_ref()
+            .is_some_and(|arguments| !arguments.is_empty());
+        if ty.kind != TypeKind::Record
+            || definition.scope != rstyle_core::cpg::model::Scope::Unit
+            || generic
+            || definition.destructor
+        {
+            return Err(unsupported(
+                "Struct requires local concrete source, no generics/destructor/interior mutability",
+            ));
+        }
+        if self.visiting.contains(&definition.id.as_str()) {
+            return Err(unsupported(
+                "Recursive concrete type expansion is unavailable",
+            ));
+        }
+        let fields = ty.fields.as_deref().unwrap_or_default();
+        if fields.len() > MAX_FIELDS {
+            return Err(Failure::Budget(
+                "Concrete struct exceeds field budget".into(),
+            ));
+        }
+        Ok((definition, fields))
+    }
+
+    fn definition_of(&self, ty: &Type) -> Result<&'a Definition, Failure> {
+        ty.definition
+            .as_deref()
+            .and_then(|id| self.context.reader.tables.definition(id).ok())
+            .ok_or_else(|| unsupported("Missing nominal definition"))
+    }
+
+    /// A local type's declaration as written, within the source budget.
+    fn declaration(&self, definition: &Definition) -> Result<crate::SourceText, Failure> {
+        let span = definition
+            .span
+            .as_ref()
+            .ok_or_else(|| unsupported("Macro-generated struct declaration is unavailable"))?;
+        let source = self
+            .context
+            .reader
+            .source(span)
+            .map_err(|_| unsupported("Missing original concrete declaration bytes"))?;
+        if source.len() > MAX_SOURCE_BYTES {
+            return Err(Failure::Budget(
+                "Concrete declaration exceeds source budget".into(),
+            ));
+        }
+        Ok(source)
+    }
+
+    fn fields(
+        &mut self,
+        fields: &'a [rstyle_core::cpg::model::TypeField],
+        declarations: Vec<(String, String)>,
+        depth: usize,
+    ) -> Result<Vec<Field>, Failure> {
+        fields
+            .iter()
+            .zip(declarations)
+            .enumerate()
+            .map(|(position, (field, (name, declaration)))| {
+                if field.name != name {
+                    return Err(unsupported(
+                        "Resolved field identity disagrees with original declaration",
+                    ));
+                }
+                Ok(Field {
+                    position,
+                    name,
+                    declaration: declaration.into(),
+                    ty: self.tree(&field.ty, depth + 1)?,
+                })
+            })
+            .collect()
+    }
+
+    /// A struct's package and declaration identity, as the frontend names it.
+    fn nominal(
+        &self,
+        definition_path: &str,
+        source: &crate::SourceText,
+    ) -> Result<Nominal, Failure> {
+        let package = self
+            .context
+            .reader
+            .unit
+            .extensions
+            .as_ref()
+            .and_then(|extensions| extensions.get("rust:cargo-package"));
+        let text = |key: &str| {
+            package
+                .and_then(|package| package.get(key)?.as_str())
+                .map(str::to_owned)
+        };
+        let data = self.context.reader.profile.is_data();
+        let source_identity = match data {
+            true => Some(
+                text("package_id")
+                    .ok_or_else(|| unsupported("Missing explicit selected-unit context"))?,
+            ),
+            false => None,
+        };
+        let missing = || unsupported("Missing Cargo package identity");
+        Ok(Nominal {
+            source_identity,
+            package_name: text("name").ok_or_else(missing)?,
+            package_version: text("version").ok_or_else(missing)?,
+            manifest_digest: text("manifest_digest").ok_or_else(missing)?,
+            definition_path: definition_path.to_owned(),
+            declaration_digest: source.checksum().to_owned(),
+        })
     }
 
     /// A standard library type's arguments, when `key` names the type.

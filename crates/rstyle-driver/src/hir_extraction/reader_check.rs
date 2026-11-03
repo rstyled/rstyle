@@ -25,16 +25,18 @@ pub(super) fn check(
         None => crate_directory(tcx).ok_or("The crate has no root source file")?,
     };
     // A failure to read the documents is the comparison's finding, never the capture's.
-    let derived = derived(tcx, &root, (options.selected(), passes)).unwrap_or_else(|error| {
-        let mut unread = BTreeMap::new();
-        for reference in facts {
-            unread.insert(
-                (reference.name.clone(), reference.fn_span.start),
-                Err(error.clone()),
-            );
-        }
-        unread
-    });
+    let package = options.unit_context.map(|context| &context.package);
+    let derived =
+        derived(tcx, (&root, package), (options.selected(), passes)).unwrap_or_else(|error| {
+            let mut unread = BTreeMap::new();
+            for reference in facts {
+                unread.insert(
+                    (reference.name.clone(), reference.fn_span.start),
+                    Err(error.clone()),
+                );
+            }
+            unread
+        });
 
     let profile = options.selected().token();
     let lines = facts.iter().map(|reference| {
@@ -101,14 +103,17 @@ type Derived = BTreeMap<(String, u32), Result<HirFnFacts, String>>;
 
 fn derived(
     tcx: TyCtxt<'_>,
-    root: &std::path::Path,
+    origin: (
+        &std::path::Path,
+        Option<&rstyle_pdg::nominal_binding::PackageContext>,
+    ),
     (profile, passes): (
         rstyle_pdg::extraction_profile::ExtractionProfile,
         cpg_reader::Passes,
     ),
 ) -> Result<Derived, String> {
     let mut derived = BTreeMap::new();
-    for (document, _) in crate::cpg::documents(tcx, root) {
+    for (document, _) in crate::cpg::documents(tcx, origin) {
         let document = rstyle_core::cpg::layout::bundle(vec![document])?;
         for read in cpg_reader::read(&document, profile, passes)? {
             derived.insert((read.name, read.fn_span.start), read.facts);

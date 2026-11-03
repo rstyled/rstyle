@@ -10,6 +10,7 @@ mod unit;
 
 use crate::{extract, ids};
 use rstyle_core::advisory::runtime_bounds::Input;
+use rstyle_pdg::nominal_binding::PackageContext;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::LOCAL_CRATE;
@@ -53,9 +54,12 @@ pub fn emit(
 
 /// Each function's runtime-bound program by owner identity, as the core lowers it
 /// from the crate's documents. An owner the document cannot record keeps its reason.
-pub fn runtime_bounds(tcx: TyCtxt<'_>, root: &Path) -> Result<BTreeMap<String, Input>, String> {
+pub fn runtime_bounds(
+    tcx: TyCtxt<'_>,
+    origin: (&Path, Option<&PackageContext>),
+) -> Result<BTreeMap<String, Input>, String> {
     let mut programs = BTreeMap::new();
-    for (document, unrecorded) in documents(tcx, root) {
+    for (document, unrecorded) in documents(tcx, origin) {
         let unavailable = unrecorded.into_iter().map(|(id, reason)| {
             (
                 ids::def_id_str(tcx, id.to_def_id()),
@@ -72,13 +76,33 @@ pub fn runtime_bounds(tcx: TyCtxt<'_>, root: &Path) -> Result<BTreeMap<String, I
 /// Each function reads from its own body and the tables it references, so a batch of
 /// functions per document bounds memory by the batch rather than the crate; a batch
 /// keeps to one source file, which each document then carries once.
+/// `origin` is the workspace root paths are relative to, and the package the capture
+/// selected, if any.
 pub fn documents<'tcx, 'r>(
     tcx: TyCtxt<'tcx>,
-    root: &'r Path,
+    (root, package): (&'r Path, Option<&'r PackageContext>),
 ) -> impl Iterator<Item = (Value, Vec<(LocalDefId, String)>)> + use<'tcx, 'r> {
+    let package = cargo_package(package);
     batches(tcx)
         .into_iter()
-        .map(move |batch| batch_document(tcx, root, &batch))
+        .map(move |batch| batch_document(tcx, (root, package.clone()), &batch))
+}
+
+/// The package a unit belongs to, as Cargo names it: the selected package of a
+/// capture, else the one Cargo compiles, with its manifest's digest.
+fn cargo_package(selected: Option<&PackageContext>) -> Option<Value> {
+    if let Some(package) = selected {
+        return Some(json!({"name": package.name, "version": package.version,
+                           "manifest_digest": package.manifest_digest, "package_id": package.package_id}));
+    }
+    let name = std::env::var("CARGO_PKG_NAME").ok()?;
+    let version = std::env::var("CARGO_PKG_VERSION").ok()?;
+    let directory = std::env::var("CARGO_MANIFEST_DIR").ok()?;
+    let manifest = std::fs::read_to_string(Path::new(&directory).join("Cargo.toml")).ok()?;
+    let digest = rstyle_pdg::SourceSnapshot::from(manifest)
+        .checksum()
+        .to_owned();
+    Some(json!({"name": name, "version": version, "manifest_digest": digest}))
 }
 
 const BATCH: usize = 256;
@@ -105,7 +129,7 @@ fn batches(tcx: TyCtxt<'_>) -> Vec<Vec<LocalDefId>> {
 
 fn batch_document(
     tcx: TyCtxt<'_>,
-    root: &Path,
+    (root, package): (&Path, Option<Value>),
     owners: &[LocalDefId],
 ) -> (Value, Vec<(LocalDefId, String)>) {
     let mut unit = unit::Unit::new(tcx, root.to_path_buf());
@@ -118,7 +142,11 @@ fn batch_document(
         }
     }
 
-    (document(tcx, unit, recorded, &unit_name(tcx)), unrecorded)
+    let mut document = document(tcx, unit, recorded, &unit_name(tcx));
+    if let Some(package) = package {
+        document["unit"]["extensions"]["rust:cargo-package"] = package;
+    }
+    (document, unrecorded)
 }
 
 fn unit_name(tcx: TyCtxt<'_>) -> String {
