@@ -39,8 +39,9 @@ export does not. Both support explicit `--replay-run PATH`, reusing the existing
 diagnostic baseline format and comparison workflow.
 
 Exit codes: `0` clean, `1` violations found, `2` tool/config/compile error or
-incomplete analysis. Tool errors appear on stderr; unavailable measurements stay
-in the report.
+incomplete analysis, including a run with no completed compiler evaluation
+(`summary unavailable`, JSON `summary_complete: false`). Tool errors appear on
+stderr; unavailable measurements stay in the report.
 
 Density findings block by default. Existing `// rstyle-allow(side_effect_density):
 reason` comments work. To avoid code comments, use the existing saved diagnostic

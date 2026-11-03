@@ -230,7 +230,8 @@ cargo rstyle [-p PKG] [--all-targets] [--format text|json]
 mkdir -p .cursor/skills/rstyle && cargo rstyle --skill > .cursor/skills/rstyle/SKILL.md
 ```
 
-Exit codes: `0` clean, `1` violations, `2` tool error.
+Exit codes: `0` clean, `1` violations, `2` tool error or incomplete analysis,
+including a run with no completed compiler evaluation (`summary unavailable`).
 
 ## Abstraction mining (`patterns`)
 

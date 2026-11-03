@@ -70,6 +70,12 @@ impl<'a> Projection<'a> {
         })
     }
 
+    /// Every captured unit was evaluated and the evaluation permits success. A
+    /// capture that matched no source has no evaluation, so it is never complete.
+    pub(in crate::clones) fn complete(&self) -> bool {
+        self.summary_complete
+    }
+
     pub(in crate::clones) fn text(&self) -> String {
         let mut lines: Vec<_> = self
             .diagnostics

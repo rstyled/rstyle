@@ -25,6 +25,11 @@ impl Report<'_> {
         self.publish_with(|| self.render_style(format))
     }
 
+    /// Whether the style summary covers a completed evaluation of every unit.
+    pub(in crate::clones) fn style_complete(&self) -> Result<bool, String> {
+        Projection::new(self.compiler_advisory.as_ref()).map(|evaluation| evaluation.complete())
+    }
+
     fn render_style(&self, format: Format) -> Result<String, String> {
         let evaluation = Projection::new(self.compiler_advisory.as_ref())?;
         match format {
