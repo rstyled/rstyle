@@ -92,8 +92,50 @@ impl<'tcx> Unit<'tcx> {
         if !self.definitions.contains_key(&id) {
             let record = self.definition_record(def_id, &id, stable);
             self.definitions.insert(id.clone(), record);
+            if matches!(self.tcx.def_kind(def_id), DefKind::Fn | DefKind::AssocFn) {
+                let callable = self.callable(def_id);
+                self.definitions.get_mut(&id).unwrap()["callable"] = callable;
+            }
         }
         id
+    }
+
+    // rstyle-allow(mutation_per_target): the unit interns referenced records as it builds them
+    /// What a call to a function or method sees: its owner type, receiver, parameter
+    /// and result types, own type parameter count and modifiers.
+    fn callable(&mut self, def_id: DefId) -> Value {
+        let tcx = self.tcx;
+        let signature = tcx.fn_sig(def_id).instantiate_identity().skip_binder();
+        let inputs = signature.inputs();
+        let has_self = tcx
+            .opt_associated_item(def_id)
+            .is_some_and(|item| item.is_method());
+        let modifiers: Vec<&str> = [
+            (tcx.asyncness(def_id).is_async(), "async"),
+            (signature.safety().is_unsafe(), "unsafe"),
+            (tcx.is_const_fn(def_id), "const"),
+        ]
+        .into_iter()
+        .filter_map(|(present, modifier)| present.then_some(modifier))
+        .collect();
+        let mut record = json!({
+            "parameters": self.types_of(inputs.iter().skip(usize::from(has_self)).copied()),
+            "result": self.ty(signature.output()),
+            "generics": tcx.generics_of(def_id).own_counts().types,
+            "modifiers": modifiers,
+        });
+        if let Some(receiver) = inputs.first().filter(|_| has_self) {
+            record["receiver"] = json!(self.ty(*receiver));
+        }
+        if let Some(implementation) = tcx.impl_of_assoc(def_id) {
+            let owner = tcx
+                .type_of(implementation)
+                .instantiate_identity()
+                .skip_norm_wip();
+            record["owner_type"] = json!(self.ty(owner));
+        }
+
+        record
     }
 
     fn definition_record(&self, def_id: DefId, id: &str, stable: String) -> Value {
@@ -161,7 +203,12 @@ impl<'tcx> Unit<'tcx> {
             ty::FnPtr(..) | ty::FnDef(..) => {
                 let signature = ty.fn_sig(self.tcx).skip_binder();
                 let parameters = self.types_of(signature.inputs().iter().copied());
-                json!({"kind": "function", "parameters": parameters, "result": self.ty(signature.output())})
+                let mut record = json!({"kind": "function", "parameters": parameters,
+                                        "result": self.ty(signature.output())});
+                if let ty::FnDef(def_id, _) = *ty.kind() {
+                    record["definition"] = json!(self.definition(def_id));
+                }
+                record
             }
             ty::Ref(_, target, mutability) => {
                 let mode = if mutability.is_mut() {
