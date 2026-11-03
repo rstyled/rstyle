@@ -143,7 +143,7 @@ fn rustc_documents_derive_the_frontends_own_rule_facts() {
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["differences"], json!([]), "{report:#}");
     assert_eq!(report["diagnostic_differences"], json!([]));
-    assert_eq!(report["functions"], 15);
+    assert_eq!(report["functions"], 16);
     assert_eq!(output.status.code(), Some(0));
 }
 
@@ -169,6 +169,11 @@ fn the_driver_counts_statements_by_source_shape() {
         statements("Store::countdown"),
         4,
         "a while loop's lowering adds no statement"
+    );
+    assert_eq!(
+        statements("shapes::destructure"),
+        10,
+        "a destructuring assignment is one statement, also as an arm body"
     );
 }
 

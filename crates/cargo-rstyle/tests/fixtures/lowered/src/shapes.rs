@@ -73,3 +73,20 @@ fn combine(a: i64, b: i64, c: i64, d: i64) -> i64 {
 fn unreachable_value() -> ! {
     panic!("unreachable")
 }
+
+pub struct Pair(pub i64, pub i64);
+
+/// Destructuring assignments: one statement each, writing their source places.
+pub fn destructure(values: [i64; 3], point: &mut Point) -> i64 {
+    let (mut a, mut b, mut last) = (0, 0, 0);
+    (a, b) = (values[0], values[1]);
+    Pair(a, b) = Pair(b, a);
+    [.., last] = values;
+    Point { x: point.y, tags: [point.tags[1], _], .. } = Point::default();
+    _ = last;
+    match last {
+        0 => _ = a,
+        _ => (a, b) = (b, a),
+    }
+    a + b + last
+}

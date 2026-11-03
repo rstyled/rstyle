@@ -2,7 +2,7 @@
 //! that need no config (`unsafe`, `static mut`, indirect calls).
 
 use crate::args::{self, ParamIndex};
-use crate::extract::{Options, line_of, macro_expanded};
+use crate::extract::{Options, destructuring_assignment, line_of, macro_expanded};
 use crate::ids;
 use rstyle_core::facts::{ArgSource, CallEvent, Edge, EffectEvent, EffectKind};
 use rstyle_core::paths::strip_generics;
@@ -65,6 +65,7 @@ pub fn collect<'tcx>(
         generated_depth: 0,
         unsafe_depth: 0,
         while_blocks: HashSet::new(),
+        lowered_statements: HashSet::new(),
     };
 
     walker.visit_body(body);
@@ -92,6 +93,8 @@ struct Walker<'tcx> {
     unsafe_depth: usize,
     /// Blocks rustc builds to lower `while` loops; they are not statements of the source.
     while_blocks: HashSet<HirId>,
+    /// Statements rustc builds to lower a destructuring assignment, itself one statement.
+    lowered_statements: HashSet<HirId>,
 }
 
 impl<'tcx> Walker<'tcx> {
@@ -292,7 +295,8 @@ impl<'tcx> Visitor<'tcx> for Walker<'tcx> {
 
     // rstyle-allow(mutation_per_target, side_effect_density): visitor accumulates results in self by design
     fn visit_stmt(&mut self, stmt: &'tcx Stmt<'tcx>) {
-        self.out.statements += usize::from(self.counts(stmt.span));
+        let lowered = self.lowered_statements.contains(&stmt.hir_id);
+        self.out.statements += usize::from(!lowered && self.counts(stmt.span));
         let generated = macro_expanded(stmt.span);
         self.generated_depth += usize::from(generated);
         intravisit::walk_stmt(self, stmt);
@@ -320,6 +324,10 @@ impl<'tcx> Visitor<'tcx> for Walker<'tcx> {
 
     // rstyle-allow(side_effect_density): visitor accumulates results in self by design
     fn visit_block(&mut self, block: &'tcx rustc_hir::Block<'tcx>) {
+        if destructuring_assignment(block) {
+            self.lowered_statements
+                .extend(block.stmts.iter().map(|stmt| stmt.hir_id));
+        }
         if let Some(tail) = block
             .expr
             .filter(|_| !self.while_blocks.contains(&block.hir_id))
@@ -331,8 +339,9 @@ impl<'tcx> Visitor<'tcx> for Walker<'tcx> {
 
     // rstyle-allow(side_effect_density): visitor accumulates results in self by design
     fn visit_arm(&mut self, arm: &'tcx rustc_hir::Arm<'tcx>) {
-        // Block bodies count their own statements/tail; bare-expression arms count as one.
-        let bare = !matches!(arm.body.kind, ExprKind::Block(..))
+        // Block bodies count their own statements/tail; bare-expression arms count as one,
+        // including a destructuring assignment, which rustc lowers to a block.
+        let bare = !matches!(arm.body.kind, ExprKind::Block(block, _) if !destructuring_assignment(block))
             && arm.span.desugaring_kind() != Some(DesugaringKind::QuestionMark);
         self.out.statements += usize::from(bare && self.counts_expr(arm.body));
         intravisit::walk_arm(self, arm);

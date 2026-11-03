@@ -2,20 +2,22 @@
 //!
 //! Source constructs keep their source shape: a lowered `for`, `while` or `?` is
 //! one node whose source children come first, followed by the lowering's own
-//! nodes as synthetic children, so every expression rustc walks has a node.
+//! nodes as synthetic children, so every expression rustc walks has a node. A
+//! destructuring assignment is one `assignment` whose target is rebuilt from the
+//! lowering's pattern; the lowering's temporaries are left out.
 
 use super::unit::Unit;
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{
     self as hir, Arm, BinOpKind, Block, BlockCheckMode, Expr, ExprKind, HirId, LoopSource,
-    MatchSource, Pat, PatKind, Stmt, StmtKind, UnOp, UnsafeSource,
+    MatchSource, Pat, PatKind, QPath, Stmt, StmtKind, UnOp, UnsafeSource,
 };
 use rustc_middle::ty::{self, TyCtxt, TypeVisitableExt, TypeckResults};
 use rustc_span::Span;
 use rustc_span::hygiene::{DesugaringKind, ExpnKind};
 use serde_json::{Value, json};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 pub struct Builder<'u, 'tcx> {
     pub unit: &'u mut Unit<'tcx>,
@@ -193,6 +195,7 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         Some(id)
     }
 
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
     fn restored(&mut self, expr: &'tcx Expr<'tcx>) -> Option<String> {
         match expr.kind {
             ExprKind::Match(scrutinee, [outer], MatchSource::ForLoopDesugar) => {
@@ -203,6 +206,9 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             }
             ExprKind::Loop(block, label, LoopSource::While, _) => {
                 self.while_loop(expr, block, label)
+            }
+            ExprKind::Block(block, None) if crate::extract::destructuring_assignment(block) => {
+                Some(self.destructuring(expr, block))
             }
             _ => None,
         }
@@ -434,6 +440,53 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         labeled(&mut shape, label);
 
         Some(self.construct(expr.hir_id, expr.span, shape))
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// `{ let (lhs, lhs) = value; a = lhs; b = lhs; }` as `(a, b) = value`.
+    fn destructuring(&mut self, expr: &'tcx Expr<'tcx>, block: &'tcx Block<'tcx>) -> String {
+        let places: HashMap<HirId, &'tcx Expr<'tcx>> =
+            block.stmts.iter().filter_map(assigned_place).collect();
+        let (pattern, value) = match block.stmts[0].kind {
+            StmtKind::Let(local) => (local.pat, local.init),
+            _ => unreachable!("a destructuring assignment starts with its let"),
+        };
+        let target = self.target(pattern, &places);
+        let value = value.and_then(|value| self.expr(value));
+        let children = [target, value].into_iter().flatten().collect();
+
+        self.node(expr.hir_id, expr.span, shape("assignment", children))
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// A destructuring target in source shape: each binding of the lowering's pattern
+    /// stands for the place it is assigned to.
+    fn target(
+        &mut self,
+        pat: &'tcx Pat<'tcx>,
+        places: &HashMap<HirId, &'tcx Expr<'tcx>>,
+    ) -> Option<String> {
+        let (kind, parts): (_, Vec<&'tcx Pat<'tcx>>) = match pat.kind {
+            PatKind::Binding(_, hir_id, _, None) => {
+                return places.get(&hir_id).and_then(|place| self.expr(place));
+            }
+            PatKind::Tuple(pats, _) => ("tuple", pats.iter().collect()),
+            PatKind::Slice(before, middle, after) => {
+                ("array", before.iter().chain(middle).chain(after).collect())
+            }
+            PatKind::TupleStruct(_, pats, _) => ("record_construction", pats.iter().collect()),
+            PatKind::Struct(_, fields, _) => (
+                "record_construction",
+                fields.iter().map(|field| field.pat).collect(),
+            ),
+            _ => return self.pat(pat),
+        };
+        let children = parts
+            .into_iter()
+            .filter_map(|part| self.target(part, places))
+            .collect();
+
+        Some(self.node(pat.hir_id, pat.span, shape(kind, children)))
     }
 
     /// A lowering's call that wraps a source operand, such as `into_iter(head)`.
@@ -761,6 +814,23 @@ fn for_parts<'tcx>(
     };
 
     Some((head, pattern, some.body))
+}
+
+/// The binding a destructuring assignment's statement reads, and the place it writes.
+fn assigned_place<'tcx>(stmt: &'tcx Stmt<'tcx>) -> Option<(HirId, &'tcx Expr<'tcx>)> {
+    let (StmtKind::Semi(assign) | StmtKind::Expr(assign)) = stmt.kind else {
+        return None;
+    };
+    let ExprKind::Assign(place, value, _) = assign.kind else {
+        return None;
+    };
+    match value.kind {
+        ExprKind::Path(QPath::Resolved(None, path)) => match path.res {
+            Res::Local(binding) => Some((binding, place)),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 fn construct_name(kind: DesugaringKind) -> &'static str {
