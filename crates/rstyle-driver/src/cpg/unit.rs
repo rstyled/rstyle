@@ -4,11 +4,11 @@
 use crate::ids;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::{self, Ty, TyCtxt};
+use rustc_middle::ty::{self, Ty, TyCtxt, consts::ConstExt};
 use rustc_span::{FileName, Span};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 pub struct Unit<'tcx> {
@@ -122,7 +122,7 @@ impl<'tcx> Unit<'tcx> {
     /// The type ID of `ty`, recording a structured type on first use.
     pub fn ty(&mut self, ty: Ty<'tcx>) -> String {
         let spelling = ty.to_string();
-        let id = format!("type:{spelling}");
+        let id = type_id(&spelling, ty);
         if !self.types.contains_key(&id) {
             self.types.insert(id.clone(), json!({}));
             let mut record = self.type_record(ty);
@@ -133,40 +133,145 @@ impl<'tcx> Unit<'tcx> {
         id
     }
 
+    /// IDs of the records `intern` makes for the items, in order.
+    fn interned<T>(
+        &mut self,
+        items: impl IntoIterator<Item = T>,
+        intern: fn(&mut Self, T) -> String,
+    ) -> Vec<String> {
+        items.into_iter().map(|item| intern(self, item)).collect()
+    }
+
+    fn types_of(&mut self, types: impl IntoIterator<Item = Ty<'tcx>>) -> Vec<String> {
+        self.interned(types, Self::ty)
+    }
+
+    /// Definition IDs, sorted and without repeats.
+    fn definitions_of(&mut self, def_ids: impl IntoIterator<Item = DefId>) -> Vec<String> {
+        let mut ids = self.interned(def_ids, Self::definition);
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+
     // rstyle-allow(mutation_per_target): the unit interns referenced records as it builds them
     fn type_record(&mut self, ty: Ty<'tcx>) -> Value {
-        match ty.kind() {
-            ty::Adt(adt, _) => {
-                let kind = if adt.is_enum() { "sum" } else { "record" };
-                json!({"kind": kind, "definition": self.definition(adt.did())})
-            }
+        match *ty.kind() {
+            ty::Adt(adt, args) => self.nominal(ty, adt, args),
             ty::FnPtr(..) | ty::FnDef(..) => {
                 let signature = ty.fn_sig(self.tcx).skip_binder();
-                let parameters: Vec<String> = signature
-                    .inputs()
-                    .iter()
-                    .map(|input| self.ty(*input))
-                    .collect();
+                let parameters = self.types_of(signature.inputs().iter().copied());
                 json!({"kind": "function", "parameters": parameters, "result": self.ty(signature.output())})
             }
-            ty::Int(int) => {
-                json!({"kind": "integer", "bits": int.bit_width().unwrap_or(64), "signed": true})
-            }
-            ty::Uint(uint) => {
-                json!({"kind": "integer", "bits": uint.bit_width().unwrap_or(64), "signed": false})
-            }
-            ty::Bool => json!({"kind": "bool"}),
             ty::Ref(_, target, mutability) => {
                 let mode = if mutability.is_mut() {
                     "exclusive"
                 } else {
                     "shared"
                 };
-                json!({"kind": "reference", "target": self.ty(*target), "mode": mode})
+                json!({"kind": "reference", "target": self.ty(target), "mode": mode})
             }
-            ty::Never => json!({"kind": "bottom"}),
-            ty::Param(_) => json!({"kind": "parameter"}),
+            ty::RawPtr(target, _) => {
+                json!({"kind": "pointer", "target": self.ty(target), "mode": "raw"})
+            }
+            ty::Tuple(..) | ty::Slice(..) | ty::Array(..) => self.aggregate(ty),
+            ty::Dynamic(predicates, ..) => self.interface(predicates),
+            ty::Alias(
+                _,
+                ty::AliasTy {
+                    kind: ty::AliasTyKind::Opaque { def_id },
+                    ..
+                },
+            ) => self.opaque(def_id),
+            ty::Param(param) => json!({"kind": "parameter", "index": param.index}),
+            _ => self.scalar(ty),
+        }
+    }
+
+    /// A struct, enum or union with its type arguments; `Box` is an owned pointer.
+    fn nominal(
+        &mut self,
+        ty: Ty<'tcx>,
+        adt: ty::AdtDef<'tcx>,
+        args: ty::GenericArgsRef<'tcx>,
+    ) -> Value {
+        let definition = self.definition(adt.did());
+        let arguments = self.types_of(args.types());
+        match ty.boxed_ty() {
+            Some(target) => json!({"kind": "pointer", "mode": "owned", "target": self.ty(target),
+                                   "definition": definition, "arguments": arguments}),
+            None => {
+                let kind = if adt.is_enum() { "sum" } else { "record" };
+                json!({"kind": kind, "definition": definition, "arguments": arguments})
+            }
+        }
+    }
+
+    // rstyle-allow(mutation_per_target): the unit interns referenced records as it builds them
+    /// Tuples, slices and arrays.
+    fn aggregate(&mut self, ty: Ty<'tcx>) -> Value {
+        match *ty.kind() {
             ty::Tuple(items) if items.is_empty() => json!({"kind": "unit"}),
+            ty::Tuple(items) => json!({"kind": "tuple", "items": self.types_of(items.iter())}),
+            ty::Array(element, length) => {
+                let mut record =
+                    json!({"kind": "sequence", "element": self.ty(element), "fixed": true});
+                if let Some(length) = length.try_to_target_usize(self.tcx) {
+                    record["length"] = json!(length);
+                }
+                record
+            }
+            ty::Slice(element) => json!({"kind": "sequence", "element": self.ty(element)}),
+            _ => json!({"kind": "opaque"}),
+        }
+    }
+
+    /// `impl Trait`: the hidden type, bounded by its traits.
+    fn opaque(&mut self, def_id: DefId) -> Value {
+        let bounds = self.tcx.explicit_item_bounds(def_id).skip_binder().iter();
+        let traits: Vec<DefId> = bounds
+            .filter_map(|(clause, _)| clause.as_trait_clause().map(|t| t.def_id()))
+            .collect();
+        match self.definitions_of(traits) {
+            bounds if bounds.is_empty() => json!({"kind": "opaque"}),
+            bounds => json!({"kind": "opaque", "bounds": bounds}),
+        }
+    }
+
+    /// `dyn Trait`: its principal trait, and every trait bounding it.
+    fn interface(
+        &mut self,
+        predicates: &'tcx ty::List<ty::PolyExistentialPredicate<'tcx>>,
+    ) -> Value {
+        let principal = predicates.principal_def_id();
+        let bounds = self.definitions_of(principal.into_iter().chain(predicates.auto_traits()));
+
+        if bounds.is_empty() {
+            return json!({"kind": "opaque"});
+        }
+        let mut record = json!({"kind": "interface", "bounds": bounds});
+        if let Some(principal) = principal {
+            record["definition"] = json!(self.definition(principal));
+        }
+        record
+    }
+
+    fn scalar(&self, ty: Ty<'tcx>) -> Value {
+        let pointer_width = self.tcx.sess.target.pointer_width;
+        let integer = |bits: Option<u64>, signed: bool| match bits {
+            Some(bits) => json!({"kind": "integer", "bits": bits, "signed": signed}),
+            None => {
+                json!({"kind": "integer", "bits": pointer_width, "signed": signed, "pointer_sized": true})
+            }
+        };
+        match ty.kind() {
+            ty::Int(int) => integer(int.bit_width(), true),
+            ty::Uint(uint) => integer(uint.bit_width(), false),
+            ty::Float(float) => json!({"kind": "float", "bits": float.bit_width()}),
+            ty::Bool => json!({"kind": "bool"}),
+            ty::Char => json!({"kind": "char"}),
+            ty::Str => json!({"kind": "string"}),
+            ty::Never => json!({"kind": "bottom"}),
             _ => json!({"kind": "opaque"}),
         }
     }
@@ -178,6 +283,24 @@ impl<'tcx> Unit<'tcx> {
             self.types.into_values().collect(),
         )
     }
+}
+
+/// A type's ID: its spelling, and for a type mentioning type parameters their indices,
+/// since the same spelling names different parameters in different functions.
+fn type_id(spelling: &str, ty: Ty<'_>) -> String {
+    let parameters: BTreeSet<String> = ty
+        .walk()
+        .filter_map(|arg| arg.as_type())
+        .filter_map(|ty| match ty.kind() {
+            ty::Param(param) => Some(format!("{}={}", param.name, param.index)),
+            _ => None,
+        })
+        .collect();
+    if parameters.is_empty() {
+        return format!("type:{spelling}");
+    }
+    let parameters: Vec<String> = parameters.into_iter().collect();
+    format!("type:{spelling}#{}", parameters.join(","))
 }
 
 fn definition_kind(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> &'static str {

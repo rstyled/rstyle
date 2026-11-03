@@ -106,7 +106,7 @@ fn function(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Result<Value, String> 
     let has_self = sig.decl.implicit_self().has_implicit_self();
     let params = body.params.iter().map(|param| param.pat.hir_id).collect();
     let mut builder = body::Builder::new(unit, id, params);
-    let mut signature = signature(&mut builder, id, body, has_self);
+    let mut signature = signature(&mut builder, id, (sig, body), has_self);
     signature["span"] = signature_span;
 
     let root = builder.expr(body.value).ok_or_else(missing)?;
@@ -129,20 +129,16 @@ fn function(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Result<Value, String> 
     Ok(function)
 }
 
-// rstyle-allow(mutated_targets): assembles one document from the builder that accumulates it
+// rstyle-allow(mutated_targets, mutation_per_target): assembles one document from the builder that accumulates it
 /// Parameters in order, the receiver apart, with their symbols and types.
 fn signature<'tcx>(
     builder: &mut body::Builder<'_, 'tcx>,
     id: LocalDefId,
-    body: &'tcx rustc_hir::Body<'tcx>,
+    (sig, body): (&'tcx rustc_hir::FnSig<'tcx>, &'tcx rustc_hir::Body<'tcx>),
     has_self: bool,
 ) -> Value {
-    let fn_sig = builder
-        .unit
-        .tcx
-        .fn_sig(id)
-        .instantiate_identity()
-        .skip_binder();
+    let tcx = builder.unit.tcx;
+    let fn_sig = tcx.fn_sig(id).instantiate_identity().skip_binder();
     let mut parameters = Vec::new();
     let mut receiver = None;
     for (index, param) in body.params.iter().enumerate() {
@@ -150,16 +146,73 @@ fn signature<'tcx>(
         let ty = builder.unit.ty(fn_sig.inputs()[index]);
         if has_self && index == 0 {
             receiver = Some(json!({"symbol": symbol, "type": ty}));
-        } else {
-            let position = index - usize::from(has_self);
-            parameters.push(json!({"position": position, "symbol": symbol, "type": ty}));
+            continue;
         }
+        let position = index - usize::from(has_self);
+        let mut parameter = json!({"position": position, "symbol": symbol, "type": ty});
+        if let Some(annotation) = sig
+            .decl
+            .inputs
+            .get(index)
+            .and_then(|ty| builder.unit.span(ty.span))
+        {
+            parameter["annotation"] = annotation;
+        }
+        parameters.push(parameter);
     }
 
     let mut signature = json!({"parameters": parameters, "result": builder.unit.ty(fn_sig.output()),
-                               "generics": [], "lifetimes": [], "outlives": [], "modifiers": []});
+                               "generics": generics(builder.unit, id), "lifetimes": [], "outlives": [],
+                               "modifiers": fn_modifiers(sig.header)});
     if let Some(receiver) = receiver {
         signature["receiver"] = receiver;
     }
+    if let Some(implementation) = tcx.impl_of_assoc(id.to_def_id()) {
+        let owner = tcx
+            .type_of(implementation)
+            .instantiate_identity()
+            .skip_norm_wip();
+        signature["owner_type"] = json!(builder.unit.ty(owner));
+    }
     signature
+}
+
+/// The function's own type parameters, with the traits bounding each.
+fn generics(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Vec<Value> {
+    let tcx = unit.tcx;
+    let predicates = tcx.clauses_of(id).clauses;
+    tcx.generics_of(id)
+        .own_params
+        .iter()
+        .filter(|param| {
+            matches!(
+                param.kind,
+                rustc_middle::ty::GenericParamDefKind::Type { .. }
+            )
+        })
+        .map(|param| {
+            let bounds: std::collections::BTreeSet<String> = predicates
+                .iter()
+                .filter_map(|(clause, _)| clause.as_trait_clause())
+                .filter(|bound| {
+                    matches!(bound.self_ty().skip_binder().kind(),
+                             rustc_middle::ty::Param(own) if own.index == param.index)
+                })
+                .map(|bound| unit.definition(bound.def_id()))
+                .collect();
+            json!({"name": param.name.as_str(), "definition": unit.definition(param.def_id),
+                   "bounds": bounds.into_iter().collect::<Vec<_>>()})
+        })
+        .collect()
+}
+
+fn fn_modifiers(header: rustc_hir::FnHeader) -> Vec<&'static str> {
+    [
+        (header.is_async(), "async"),
+        (header.is_unsafe(), "unsafe"),
+        (header.constness != rustc_hir::Constness::NotConst, "const"),
+    ]
+    .into_iter()
+    .filter_map(|(present, modifier)| present.then_some(modifier))
+    .collect()
 }
