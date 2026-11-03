@@ -1,5 +1,6 @@
 //! FnFacts for the style rules, derived from one bundled unit document.
 
+use super::dependence::{Roles, dependence_graph};
 use super::events::{Events, Walk, mutations};
 use super::metrics::{Constructs, statements, top_statements};
 use super::model::{Coverage, Document, Function, Status};
@@ -39,18 +40,28 @@ pub const LAYERS: [&str; 11] = [
     "extension",
 ];
 
-/// Rule facts of every function, in document order.
+/// Rule facts of every function, in document order; dependence graphs are left out.
 pub fn rule_facts(document: &Document) -> Result<Vec<FnFacts>, String> {
+    derive(document, false)
+}
+
+/// Every fact of every function, dependence graphs included.
+pub fn all_facts(document: &Document) -> Result<Vec<FnFacts>, String> {
+    derive(document, true)
+}
+
+fn derive(document: &Document, graphs: bool) -> Result<Vec<FnFacts>, String> {
     declared(&document.coverage)?;
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let sources = Sources::new(unit)?;
     let tables = Tables::new(unit)?;
 
     let measured = complexity_available(&document.coverage);
+    let roles = graphs.then(|| Roles::of(&document.producer.namespace));
     let functions = unit.functions.as_deref().unwrap_or_default();
     functions
         .iter()
-        .map(|function| function_facts(function, &tables, &sources, measured))
+        .map(|function| function_facts(function, (&tables, &sources, roles), measured))
         .collect()
 }
 
@@ -81,8 +92,7 @@ fn complexity_available(coverage: &Coverage) -> bool {
 
 fn function_facts(
     function: &Function,
-    tables: &Tables<'_>,
-    sources: &Sources<'_>,
+    (tables, sources, roles): (&Tables<'_>, &Sources<'_>, Option<&Roles>),
     measured: bool,
 ) -> Result<FnFacts, String> {
     let body = Body::new(function)?;
@@ -122,7 +132,10 @@ fn function_facts(
         edges: events.edges,
         mutated_types: mutated_types(tables, mutated)?,
         sig: signature_shape(&body, tables)?,
-        pdg: None,
+        pdg: match roles {
+            Some(roles) => Some(dependence_graph(&body, tables, sources, roles)?),
+            None => None,
+        },
     })
 }
 

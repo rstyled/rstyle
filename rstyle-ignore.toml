@@ -29,6 +29,14 @@ fns = [
   "rstyle_pdg::model::StringFact::shape_ok",
 ]
 
+[ignore.014f958d24e7]
+kind = "parameterize"
+reason = "unrelated lookups (a file position and an observation match) that share only the frontend-option read idiom used across rstyle-pdg"
+fns = [
+  "rstyle_pdg::consumer_facts::planning::file_index",
+  "rstyle_pdg::nominal_boundary::resolution::has_transport_observation",
+]
+
 [ignore.0ee0a828b288]
 kind = "parameterize"
 reason = "BFS successor scan over ProjectedGraph vs CfgDocument in different crates; a shared generic would couple ccgraph to pdg internals for 8 lines"

@@ -10,7 +10,7 @@ const EXAMPLE: &str = include_str!("testdata/example.cpg.json");
 /// `unit_ref.digest` of the example's split unit document, pinned so a change to
 /// canonical JSON or digests shows up here first.
 const SPLIT_DIGEST: &str =
-    "sha256:f3e06f68d2feba04cbd1fe5665110e56ec3b428511ad3f4d94c8376e33442502";
+    "sha256:6f37ad7656340841e63b531345b0770dbeedeced8978cea5901a1171a6920847";
 
 fn example() -> Value {
     serde_json::from_str(EXAMPLE).unwrap()

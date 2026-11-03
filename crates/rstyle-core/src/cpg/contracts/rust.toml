@@ -1,0 +1,16 @@
+# Dependence-graph roles of methods, by name, for the Rust frontend's documents.
+#
+# The dependence graph follows values, so a call that only changes how a collection
+# is viewed, or that runs a closure once per item, is not an opaque call there.
+
+schema = "rstyle.dependence-roles/1"
+namespace = "rust"
+
+# Library methods without arguments that only change how a collection is viewed
+# (matched on the method's own name): the graph looks through them to the receiver.
+views = ["iter", "iter_mut", "into_iter"]
+
+# Methods whose single closure argument runs once per item of the receiver (matched
+# as a suffix of the method's qualified name): the graph treats the call as iteration
+# over the receiver, binding the closure's parameter to each item.
+per_item = ["Iterator::for_each"]

@@ -21,6 +21,7 @@ pub mod locator;
 pub mod normalize;
 pub mod paths;
 pub mod patterns_report;
+pub mod pdg_builder;
 #[cfg(test)]
 mod pdgtest;
 pub mod prep;
@@ -32,6 +33,7 @@ pub mod sigmine;
 pub mod spacing;
 pub mod stacking;
 pub mod suppress;
+pub mod versioned;
 pub mod wl;
 pub mod wl_trace;
 

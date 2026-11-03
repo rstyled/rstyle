@@ -27,7 +27,7 @@ pub fn emit(
 ) -> Result<(), String> {
     let options = extract::Options {
         root,
-        with_pdg: false,
+        with_pdg: true,
         complexity: Some(complexity),
     };
     let mut unit = unit::Unit::new(tcx, root.to_path_buf());
@@ -142,14 +142,18 @@ fn signature<'tcx>(
     let mut parameters = Vec::new();
     let mut receiver = None;
     for (index, param) in body.params.iter().enumerate() {
-        let symbol = builder.parameter(param.pat, index);
+        let (symbol, bindings) = builder.parameter(param.pat, index);
         let ty = builder.unit.ty(fn_sig.inputs()[index]);
         if has_self && index == 0 {
             receiver = Some(json!({"symbol": symbol, "type": ty}));
             continue;
         }
         let position = index - usize::from(has_self);
-        let mut parameter = json!({"position": position, "symbol": symbol, "type": ty});
+        let mut parameter =
+            json!({"position": position, "symbol": symbol, "type": ty, "bindings": bindings});
+        if let Some(span) = builder.unit.span(param.pat.span) {
+            parameter["span"] = span;
+        }
         if let Some(annotation) = sig
             .decl
             .inputs

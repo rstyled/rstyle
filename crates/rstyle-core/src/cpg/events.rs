@@ -6,7 +6,7 @@ use super::model::{
     RefTarget, Scope, Step, Symbol, TargetKind, TypeKind,
 };
 use super::source::Sources;
-use super::tree::{Body, Tables, anchor, generated, is_kind};
+use super::tree::{Body, Tables, anchor, generated, is_kind, line};
 use crate::complexity::{Kind, Node as Construct};
 use crate::facts::{
     ArgSource, CallEvent, Edge, EffectEvent, EffectKind, MutationEvent, MutationOrigin,
@@ -85,7 +85,7 @@ impl<'a> Walk<'a> {
     }
 
     fn line(&self, node: &Node) -> Result<usize, String> {
-        Ok(self.sources.location(anchor(node)?)?.0)
+        line(self.sources, node)
     }
 
     fn effect(&self, kind: EffectKind, detail: String, node: &Node) -> Result<EffectEvent, String> {

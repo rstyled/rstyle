@@ -102,6 +102,9 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         if self.lowering.is_some() {
             record["synthetic"] = json!(true);
         }
+        if let Some(ty) = self.typeck.node_type_opt(hir_id) {
+            record["type"] = json!(self.unit.ty(ty));
+        }
         self.emitted.insert(hir_id);
         self.nodes.push(record);
 
@@ -178,8 +181,14 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         match expr.kind {
             ExprKind::DropTemps(inner) => return self.expr(inner),
             // A constant block's value is a body of its own, walked in place.
+            // A constant block's value is a body of its own, walked in place and
+            // marked `const`.
             ExprKind::ConstBlock(constant) => {
-                return self.expr(self.tcx.hir_body(constant.body).value);
+                let id = self.expr(self.tcx.hir_body(constant.body).value)?;
+                if let Some(node) = self.nodes.iter_mut().rev().find(|node| node["id"] == id) {
+                    node["modifiers"] = json!(["const"]);
+                }
+                return Some(id);
             }
             _ => {}
         }
@@ -246,7 +255,13 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 shape
             }
             ExprKind::Assign(left, right, _) => shape("assignment", self.exprs([left, right])),
-            ExprKind::Field(base, _) => shape("field_access", self.exprs([base])),
+            ExprKind::Field(base, member) => {
+                let mut shape = shape("field_access", self.exprs([base]));
+                shape
+                    .fields
+                    .insert("member".into(), json!(member.name.as_str()));
+                shape
+            }
             ExprKind::Index(base, index, _) => shape("index_access", self.exprs([base, index])),
             ExprKind::AddrOf(_, _, inner) => shape("reference", self.exprs([inner])),
             ExprKind::Cast(inner, _) | ExprKind::Type(inner, _) => {
@@ -302,7 +317,13 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
     /// Literals, paths and aggregate values.
     fn value_shape(&mut self, expr: &'tcx Expr<'tcx>) -> Shape {
         match expr.kind {
-            ExprKind::Lit(_) => shape("literal", vec![]),
+            ExprKind::Lit(literal) => {
+                let mut shape = shape("literal", vec![]);
+                if let Some(value) = literal_value(&literal.node) {
+                    shape.fields.insert("value".into(), value);
+                }
+                shape
+            }
             ExprKind::Path(_) => shape("identifier", vec![]),
             ExprKind::Tup(values) => shape("tuple", self.exprs(values)),
             ExprKind::Array(values) => shape("array", self.exprs(values)),
@@ -639,10 +660,11 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         self.symbols.push(symbol);
     }
 
-    /// A parameter's symbol, and symbols for every binding its pattern declares.
+    /// A parameter's symbol, and the symbols of every binding its pattern declares.
     /// Parameter patterns are not body nodes, so these symbols name no node.
-    pub fn parameter(&mut self, pat: &'tcx Pat<'tcx>, position: usize) -> String {
+    pub fn parameter(&mut self, pat: &'tcx Pat<'tcx>, position: usize) -> (String, Vec<String>) {
         let mut simple = None;
+        let mut bindings = Vec::new();
         pat.each_binding(|mode, hir_id, _, ident| {
             if !self.bound.insert(hir_id) {
                 return;
@@ -655,11 +677,12 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 symbol["declared"] = declared;
             }
             self.symbols.push(symbol);
+            bindings.push(self.symbol_id(hir_id));
             if pat.hir_id == hir_id {
                 simple = Some(self.symbol_id(hir_id));
             }
         });
-        simple.unwrap_or_else(|| {
+        let symbol = simple.unwrap_or_else(|| {
             let id = format!("s{}.param{position}", self.prefix);
             let ty = self.unit.ty(self.typeck.pat_ty(pat));
             self.symbols.push(
@@ -667,7 +690,9 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                                      "mutable": false, "type": ty}),
             );
             id
-        })
+        });
+
+        (symbol, bindings)
     }
 
     // References.
@@ -691,11 +716,24 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         }
     }
 
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
     fn path_reference(&mut self, res: Res) -> Option<Value> {
         let target = match res {
             Res::Local(hir_id) => json!({"kind": "symbol", "id": self.symbol_id(hir_id)}),
             Res::Def(DefKind::Ctor(..), def_id) => {
                 json!({"kind": "constructor", "id": self.unit.definition(def_id)})
+            }
+            // `Self(..)` in an impl names the self type's constructor.
+            Res::SelfCtor(implementation) => {
+                let owner = self
+                    .tcx
+                    .type_of(implementation)
+                    .instantiate_identity()
+                    .skip_norm_wip();
+                let ctor = owner
+                    .ty_adt_def()
+                    .and_then(|adt| adt.non_enum_variant().ctor_def_id())?;
+                json!({"kind": "constructor", "id": self.unit.definition(ctor)})
             }
             Res::Def(DefKind::Variant, def_id) => {
                 json!({"kind": "variant", "id": self.unit.definition(def_id)})
@@ -838,6 +876,21 @@ fn assigned_place<'tcx>(stmt: &'tcx Stmt<'tcx>) -> Option<(HirId, &'tcx Expr<'tc
         },
         _ => None,
     }
+}
+
+/// A literal's value as the language parses it, for text, numbers, bools and chars.
+fn literal_value(literal: &rustc_ast::LitKind) -> Option<Value> {
+    use rustc_ast::LitKind;
+    Some(match literal {
+        LitKind::Str(text, _) => json!({"kind": "string", "value": text.as_str()}),
+        LitKind::Int(value, _) => json!({"kind": "integer", "value": value.get().to_string()}),
+        LitKind::Byte(value) => json!({"kind": "integer", "value": value.to_string()}),
+        LitKind::Float(text, _) => json!({"kind": "float", "value": text.as_str()}),
+        LitKind::Bool(value) => json!({"kind": "bool", "value": value.to_string()}),
+        LitKind::Char(value) => json!({"kind": "char", "value": value.to_string()}),
+        LitKind::ByteStr(..) | LitKind::CStr(..) => json!({"kind": "string"}),
+        LitKind::Err(_) => return None,
+    })
 }
 
 fn construct_name(kind: DesugaringKind) -> &'static str {

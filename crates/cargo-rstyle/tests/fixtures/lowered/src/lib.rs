@@ -1,5 +1,6 @@
 //! Constructs rustc lowers before analysis, for `cpg emit` and `cpg compare`.
 
+mod graphs;
 mod shapes;
 
 use std::collections::BTreeMap;

@@ -377,8 +377,9 @@ The profile's *Rule facts* section defines each derivation: statement counts,
 complexity constructs, calls, call edges, effects and mutations. No compiler runs,
 and only an explicit `--config` applies. Documents from another profile version,
 with undeclared coverage, without file content, or whose split function documents
-do not match their unit's digest are rejected with exit code 2. Pattern mining over
-documents needs dependence graphs derived in core and is not available yet.
+do not match their unit's digest are rejected with exit code 2. Core also derives
+the dependence graphs the pattern miner reads, but `rstyle patterns` does not run
+over documents yet.
 
 The Rust frontend emits the same documents, which checks the derivation against
 the facts rustc gives rstyle directly:
@@ -388,10 +389,9 @@ cargo rstyle cpg emit --out cpg/     # a fresh check of the workspace with the d
 cargo rstyle cpg compare cpg/        # derived facts and rule diagnostics against the driver's
 ```
 
-`compare` exits 1 when any function's facts or rule diagnostics differ, and names
-the facts not derived yet (dependence graphs). Parameter lists, signature shapes and
-mutated types are derived and compared too. On rstyle's own workspace it reports no
-differences.
+`compare` exits 1 when any function's facts or rule diagnostics differ. Every fact is
+derived and compared: rule facts, parameter lists, signature shapes, mutated types
+and dependence graphs. On rstyle's own workspace it reports no differences.
 
 ## Configuration
 
