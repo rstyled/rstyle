@@ -52,20 +52,55 @@ pub fn emit(
 }
 
 /// Each function's runtime-bound program by owner identity, as the core lowers it
-/// from the crate's document. An owner the document cannot record keeps its reason.
+/// from the crate's documents. An owner the document cannot record keeps its reason.
 pub fn runtime_bounds(tcx: TyCtxt<'_>, root: &Path) -> Result<BTreeMap<String, Input>, String> {
-    let mut unit = unit::Unit::new(tcx, root.to_path_buf());
     let mut programs = BTreeMap::new();
-    let mut recorded = Vec::new();
+    // Each function lowers from its own body and the tables it references, so a batch
+    // of functions per document bounds memory by the batch rather than the crate; a
+    // batch keeps to one source file, which each document then carries once.
+    for batch in batches(tcx) {
+        programs.extend(batch_bounds(tcx, root, &batch)?);
+    }
+    Ok(programs)
+}
+
+const BATCH: usize = 256;
+
+/// The crate's function owners in order, in batches of consecutive owners of one file.
+fn batches(tcx: TyCtxt<'_>) -> Vec<Vec<LocalDefId>> {
+    let source_map = tcx.sess.source_map();
+    let file = |id: LocalDefId| {
+        source_map
+            .lookup_source_file(tcx.def_span(id).lo())
+            .start_pos
+    };
+    let mut batches: Vec<(rustc_span::BytePos, Vec<LocalDefId>)> = Vec::new();
     for id in crate::hir_extraction::function_owners(tcx) {
+        let file = file(id);
+        match batches.last_mut() {
+            Some((current, batch)) if *current == file && batch.len() < BATCH => batch.push(id),
+            _ => batches.push((file, vec![id])),
+        }
+    }
+
+    batches.into_iter().map(|(_, batch)| batch).collect()
+}
+
+fn batch_bounds(
+    tcx: TyCtxt<'_>,
+    root: &Path,
+    owners: &[LocalDefId],
+) -> Result<Vec<(String, Input)>, String> {
+    let mut unit = unit::Unit::new(tcx, root.to_path_buf());
+    let mut programs = Vec::new();
+    let mut recorded = Vec::new();
+    for &id in owners {
         match function(&mut unit, id) {
             Ok(function) => recorded.push(function),
-            Err(reason) => {
-                _ = programs.insert(
-                    ids::def_id_str(tcx, id.to_def_id()),
-                    Input::Unavailable { reason },
-                )
-            }
+            Err(reason) => programs.push((
+                ids::def_id_str(tcx, id.to_def_id()),
+                Input::Unavailable { reason },
+            )),
         }
     }
 
