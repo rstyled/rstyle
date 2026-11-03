@@ -159,6 +159,18 @@ Reviewed and rejected candidates: every candidate has an `id`. Only when the use
 
 Defaults (WL similarity 600, alignment coverage 600, 3 holes max for `parameterize`) are the evaluated setting. Opt-in experiments, not recommended unless asked: `--normalize all|ctor,pred,case,exit,counter,cmp,try` (canonicalize graphs; on CodeNet it removes about one unmatched node per pair and did not change what gets flagged, `case` does nearly all the work), `--pair-coverage N`, `--max-holes N`, `--single-call-guard`, `--threshold N`, `--min-coverage N` (more recall of strangers' spellings at the price of more false positives; `--pair-coverage 650 --max-holes 4` on CodeNet: about 20 extra cross-problem flags per 350k pairs).
 
+## Other languages (`cpg check`)
+
+`cargo rstyle cpg check DOC.json [MORE.json ...] [--config rstyle.toml] [--format json]`
+runs the same style rules over `compat.cpg` documents from a non-Rust frontend
+(one bundled unit document, or a split unit document and its function documents).
+Core derives statement counts, complexity, calls, edges, effects and mutations from
+the documents; no compiler runs and only an explicit `--config` applies. Exit codes
+are as for the default command; invalid or mismatched documents return 2.
+`cargo rstyle cpg emit --out DIR` writes such documents for a Rust workspace, and
+`cargo rstyle cpg compare DIR` checks the derived facts against the driver's own
+(exit 1 on any difference).
+
 ## Requirements
 
 Needs the pinned nightly from the project's `rust-toolchain.toml` (installed by rustup automatically) and `rstyle-driver` installed next to the `cargo-rstyle` binary.

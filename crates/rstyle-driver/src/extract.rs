@@ -27,6 +27,25 @@ pub fn line_of(tcx: TyCtxt<'_>, span: Span) -> usize {
         .line
 }
 
+/// Inside a macro expansion, as opposed to a compiler desugaring of source syntax.
+pub fn macro_expanded(span: Span) -> bool {
+    span.from_expansion()
+        && !matches!(
+            span.ctxt().outer_expn_data().kind,
+            rustc_span::hygiene::ExpnKind::Desugaring(_)
+        )
+}
+
+/// The block rustc lowers a destructuring assignment `(a, b) = value` to:
+/// `{ let (lhs, lhs) = value; a = lhs; b = lhs; }`. Nothing marks it as a desugaring.
+pub fn destructuring_assignment(block: &rustc_hir::Block<'_>) -> bool {
+    matches!(
+        block.stmts.first().map(|stmt| &stmt.kind),
+        Some(rustc_hir::StmtKind::Let(local))
+            if matches!(local.source, rustc_hir::LocalSource::AssignDesugar)
+    )
+}
+
 pub(crate) fn function_facts(
     tcx: TyCtxt<'_>,
     def_id: LocalDefId,

@@ -61,6 +61,8 @@ pub fn pair_chain(xs: &[usize]) -> u32 { xs.iter().enumerate().flat_map(|(i, a)|
 pub fn item_callback(xs: &[usize]) -> usize { xs.iter().copied().map(double).sum() }
 pub fn range_chain(n: usize) -> u32 { (0..n).map(|i| score(i, i)).sum() }
 pub fn short_search(xs: &[usize]) -> bool { xs.iter().any(|x| score(*x, 1) > 3) }
+pub fn bounded_prefix(xs: &[usize]) -> u32 { xs.iter().take_while(|x| **x > 0).map(|x| score(*x, 0)).sum() }
+pub fn explicit_iter(xs: &[u8]) { for _x in xs.iter() {} }
 pub fn closure_return(xs: &[usize]) -> u32 { xs.iter().map(|x| { if *x == 0 { return 0; } score(*x, 0) }).sum() }
 pub fn mutable_callback_capture(xs: &[usize], n: usize) { let mut i = 0; xs.iter().for_each(|_| i += 1); while i < n { i += 1; } }
 pub fn escaped_closure(xs: &[usize]) -> usize { let f = |x: &usize| *x; let g = f; xs.iter().map(g).sum() }
@@ -177,6 +179,8 @@ fn assert_known_bounds(rows: &[Value]) {
         ("item_callback", 3),
         ("range_chain", 3),
         ("short_search", 3),
+        ("bounded_prefix", 3),
+        ("explicit_iter", 3),
         ("closure_return", 3),
         ("vec_collect", 3),
         ("mutable_receiver", 3),
@@ -218,6 +222,7 @@ fn assert_callbacks(rows: &[Value]) {
         ("item_callback", "double", 3),
         ("range_chain", "score", 3),
         ("short_search", "score", 3),
+        ("bounded_prefix", "score", 3),
     ] {
         let assessment = &named_row(rows, name)["result"]["Proven"];
         let calls = assessment["calls"].as_array().unwrap();

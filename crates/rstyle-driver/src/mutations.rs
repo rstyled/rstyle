@@ -15,12 +15,17 @@ use std::path::Path;
 use crate::extract::{Options, line_of};
 use crate::ids;
 
-/// Mutation events plus the sorted ids of workspace types written through.
-pub fn collect<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    def_id: LocalDefId,
-    options: &Options<'_>,
-) -> (Vec<MutationEvent>, Vec<String>) {
+/// A write to, or exclusive borrow of, a place rooted at a binding, where rustc reports it.
+pub struct Use<'tcx> {
+    pub place: Place<'tcx>,
+    pub root: HirId,
+    pub at: HirId,
+    pub borrow: bool,
+}
+
+/// Writes and exclusive borrows from rustc's expression-use visitor, in its order.
+/// Statics are reported as `global` effects by the expression visitor instead.
+pub fn uses<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Vec<Use<'tcx>> {
     let body_id = tcx
         .hir_node_by_def_id(def_id)
         .body_id()
@@ -35,14 +40,28 @@ pub fn collect<'tcx>(
         generics: None,
         only_module: false,
     };
+
+    let mut uses = Uses(Vec::new());
+    let visitor = ExprUseVisitor::for_clippy(&cx, def_id, &mut uses);
+    let _ = visitor.consume_body(tcx.hir_body(body_id));
+    uses.0
+}
+
+/// Mutation events plus the sorted ids of workspace types written through.
+pub fn collect<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    def_id: LocalDefId,
+    options: &Options<'_>,
+) -> (Vec<MutationEvent>, Vec<String>) {
     let mut collector = Collector {
         tcx,
         root: options.root,
         events: Vec::new(),
         types: BTreeSet::new(),
     };
-    let visitor = ExprUseVisitor::for_clippy(&cx, def_id, &mut collector);
-    let _ = visitor.consume_body(tcx.hir_body(body_id));
+    for place_use in uses(tcx, def_id) {
+        collector.record(&place_use);
+    }
 
     (collector.events, collector.types.into_iter().collect())
 }
@@ -55,12 +74,22 @@ struct Collector<'a, 'tcx> {
 }
 
 impl<'tcx> Collector<'_, 'tcx> {
-    fn record(&mut self, place: &PlaceWithHirId<'tcx>, at: HirId, is_helper_call: bool) {
-        let Some(root) = Self::root_id(&place.place) else {
+    fn record(&mut self, place_use: &Use<'tcx>) {
+        let Use {
+            place,
+            root,
+            at,
+            borrow: is_helper_call,
+        } = place_use;
+        let (root, at, is_helper_call) = (*root, *at, *is_helper_call);
+        let (field_path, escapes) = describe(place);
+        // A binding a library macro declares is that macro's working state; a write
+        // through it that escapes is still an effect.
+        if !escapes && self.library_macro(self.tcx.hir_span(root)) {
             return;
-        };
+        }
 
-        self.note_type(place.place.base_ty);
+        self.note_type(place.base_ty);
         let origin = if self.tcx.hir_span(root).desugaring_kind() == Some(DesugaringKind::ForLoop) {
             MutationOrigin::ForDesugaring
         } else {
@@ -69,8 +98,7 @@ impl<'tcx> Collector<'_, 'tcx> {
         let root = self.tcx.hir_name(root).to_string();
         let span = self.tcx.hir_span(at);
         let line = line_of(self.tcx, span);
-        let (field_path, escapes) = self.describe(&place.place);
-        let delegated = escapes && is_helper_call && self.is_workspace_reborrow(&place.place);
+        let delegated = escapes && is_helper_call && self.is_workspace_reborrow(place);
         let escapes = escapes && !delegated;
         self.events.push(MutationEvent {
             origin,
@@ -80,6 +108,16 @@ impl<'tcx> Collector<'_, 'tcx> {
             escapes,
             delegated,
         });
+    }
+
+    /// Inside the expansion of a macro defined outside the workspace, such as `json!`.
+    fn library_macro(&self, span: rustc_span::Span) -> bool {
+        crate::extract::macro_expanded(span)
+            && span
+                .ctxt()
+                .outer_expn_data()
+                .macro_def_id
+                .is_some_and(|def_id| !ids::in_workspace(self.tcx, def_id, self.root))
     }
 
     /// `&mut *r` of a whole workspace object (e.g. autoref for `self.helper()`).
@@ -106,39 +144,32 @@ impl<'tcx> Collector<'_, 'tcx> {
             self.types.insert(ids::def_id_str(self.tcx, adt.did()));
         }
     }
-
-    /// Statics are reported as `global` effects by the expression visitor instead.
-    fn root_id(place: &Place<'tcx>) -> Option<HirId> {
-        match place.base {
-            PlaceBase::Local(id) => Some(id),
-            PlaceBase::Upvar(upvar) => Some(upvar.var_path.hir_id),
-            PlaceBase::Rvalue | PlaceBase::StaticItem => None,
-        }
-    }
-
-    /// Dotted field path below the root, and whether the write escapes the
-    /// function (a deref of a reference or raw pointer; `Box` derefs stay owned).
-    fn describe(&self, place: &Place<'tcx>) -> (String, bool) {
-        let before = std::iter::once(place.base_ty).chain(place.projections.iter().map(|p| p.ty));
-        let steps: Vec<_> = before.zip(&place.projections).collect();
-        let names: Vec<String> = steps
-            .iter()
-            .filter_map(|(ty, p)| match p.kind {
-                ProjectionKind::Field(index, variant) => {
-                    Some(field_name(*ty, index.as_usize(), variant.as_usize()))
-                }
-                _ => None,
-            })
-            .collect();
-        let escapes = steps.iter().any(|(ty, p)| {
-            p.kind == ProjectionKind::Deref && matches!(ty.kind(), ty::Ref(..) | ty::RawPtr(..))
-        });
-
-        (names.join("."), escapes)
-    }
 }
 
-fn field_name(ty: Ty<'_>, index: usize, variant: usize) -> String {
+/// Dotted field path below the root, and whether the write escapes the function.
+fn describe(place: &Place<'_>) -> (String, bool) {
+    let before = std::iter::once(place.base_ty).chain(place.projections.iter().map(|p| p.ty));
+    let names: Vec<String> = before
+        .zip(&place.projections)
+        .filter_map(|(ty, p)| match p.kind {
+            ProjectionKind::Field(index, variant) => {
+                Some(field_name(ty, index.as_usize(), variant.as_usize()))
+            }
+            _ => None,
+        })
+        .collect();
+    (names.join("."), escapes(place))
+}
+
+/// A deref of a reference or raw pointer below the root; `Box` derefs stay owned.
+pub fn escapes(place: &Place<'_>) -> bool {
+    let before = std::iter::once(place.base_ty).chain(place.projections.iter().map(|p| p.ty));
+    before.zip(&place.projections).any(|(ty, p)| {
+        p.kind == ProjectionKind::Deref && matches!(ty.kind(), ty::Ref(..) | ty::RawPtr(..))
+    })
+}
+
+pub fn field_name(ty: Ty<'_>, index: usize, variant: usize) -> String {
     match ty.kind() {
         ty::Adt(def, _) => {
             let variant = &def.variants()[rustc_abi::VariantIdx::from_usize(variant)];
@@ -150,7 +181,25 @@ fn field_name(ty: Ty<'_>, index: usize, variant: usize) -> String {
     }
 }
 
-impl<'tcx> Delegate<'tcx> for Collector<'_, 'tcx> {
+struct Uses<'tcx>(Vec<Use<'tcx>>);
+
+impl<'tcx> Uses<'tcx> {
+    fn record(&mut self, place: &PlaceWithHirId<'tcx>, at: HirId, borrow: bool) {
+        let root = match place.place.base {
+            PlaceBase::Local(id) => id,
+            PlaceBase::Upvar(upvar) => upvar.var_path.hir_id,
+            PlaceBase::Rvalue | PlaceBase::StaticItem => return,
+        };
+        self.0.push(Use {
+            place: place.place.clone(),
+            root,
+            at,
+            borrow,
+        });
+    }
+}
+
+impl<'tcx> Delegate<'tcx> for Uses<'tcx> {
     fn consume(&mut self, _: &PlaceWithHirId<'tcx>, _: HirId) {}
 
     fn use_cloned(&mut self, _: &PlaceWithHirId<'tcx>, _: HirId) {}

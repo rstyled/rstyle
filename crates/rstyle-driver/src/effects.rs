@@ -2,17 +2,21 @@
 //! that need no config (`unsafe`, `static mut`, indirect calls).
 
 use crate::args::{self, ParamIndex};
-use crate::extract::{Options, line_of};
+use crate::extract::{Options, destructuring_assignment, line_of, macro_expanded};
 use crate::ids;
 use rstyle_core::facts::{ArgSource, CallEvent, Edge, EffectEvent, EffectKind};
 use rstyle_core::paths::strip_generics;
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_hir::intravisit::{self, Visitor};
-use rustc_hir::{BlockCheckMode, Body, Expr, ExprKind, PatKind, QPath, Stmt, UnsafeSource};
+use rustc_hir::{
+    BlockCheckMode, Body, Expr, ExprKind, HirId, LoopSource, MatchSource, PatKind, QPath, Stmt,
+    UnsafeSource,
+};
 use rustc_middle::hir::nested_filter::OnlyBodies;
 use rustc_middle::ty::{self, TyCtxt, TypeVisitableExt, TypeckResults};
 use rustc_span::{DesugaringKind, Span};
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 #[derive(Default)]
@@ -60,6 +64,8 @@ pub fn collect<'tcx>(
         out,
         generated_depth: 0,
         unsafe_depth: 0,
+        while_blocks: HashSet::new(),
+        lowered_statements: HashSet::new(),
     };
 
     walker.visit_body(body);
@@ -85,6 +91,10 @@ struct Walker<'tcx> {
     generated_depth: usize,
     /// Nonzero while inside a user-written `unsafe` block.
     unsafe_depth: usize,
+    /// Blocks rustc builds to lower `while` loops; they are not statements of the source.
+    while_blocks: HashSet<HirId>,
+    /// Statements rustc builds to lower a destructuring assignment, itself one statement.
+    lowered_statements: HashSet<HirId>,
 }
 
 impl<'tcx> Walker<'tcx> {
@@ -97,8 +107,16 @@ impl<'tcx> Walker<'tcx> {
         self.out.effects.push(EffectEvent { kind, detail, line });
     }
 
+    /// Source code counts; macro-generated code counts once, at its outermost node;
+    /// the internals of a desugaring are not statements of the source.
     fn counts(&self, span: Span) -> bool {
-        !span.from_expansion() || self.generated_depth == 0
+        !span.from_expansion() || macro_expanded(span) && self.generated_depth == 0
+    }
+
+    /// A `for` loop or `?` keeps the desugaring span rustc lowers it with, but it is
+    /// one construct of the source wherever it occurs.
+    fn counts_expr(&self, expr: &Expr<'_>) -> bool {
+        self.counts(expr.span) || lowered_source_construct(expr)
     }
 
     fn call(&mut self, target: Target, declaration: DefId, expr: &Expr<'tcx>) {
@@ -277,8 +295,9 @@ impl<'tcx> Visitor<'tcx> for Walker<'tcx> {
 
     // rstyle-allow(mutation_per_target, side_effect_density): visitor accumulates results in self by design
     fn visit_stmt(&mut self, stmt: &'tcx Stmt<'tcx>) {
-        self.out.statements += usize::from(self.counts(stmt.span));
-        let generated = stmt.span.from_expansion();
+        let lowered = self.lowered_statements.contains(&stmt.hir_id);
+        self.out.statements += usize::from(!lowered && self.counts(stmt.span));
+        let generated = macro_expanded(stmt.span);
         self.generated_depth += usize::from(generated);
         intravisit::walk_stmt(self, stmt);
 
@@ -287,9 +306,12 @@ impl<'tcx> Visitor<'tcx> for Walker<'tcx> {
 
     // rstyle-allow(mutation_per_target, side_effect_density): visitor accumulates results in self by design
     fn visit_expr(&mut self, expr: &'tcx Expr<'tcx>) {
-        let generated = expr.span.from_expansion();
+        let generated = macro_expanded(expr.span);
 
         self.generated_depth += usize::from(generated);
+        if let ExprKind::Loop(block, _, LoopSource::While, _) = expr.kind {
+            self.while_blocks.insert(block.hir_id);
+        }
         match expr.kind {
             ExprKind::Call(callee, args) => self.on_call(expr, callee, args),
             ExprKind::MethodCall(_, receiver, args, _) => self.on_method(expr, receiver, args),
@@ -302,18 +324,26 @@ impl<'tcx> Visitor<'tcx> for Walker<'tcx> {
 
     // rstyle-allow(side_effect_density): visitor accumulates results in self by design
     fn visit_block(&mut self, block: &'tcx rustc_hir::Block<'tcx>) {
-        if let Some(tail) = block.expr {
-            self.out.statements += usize::from(self.counts(tail.span));
+        if destructuring_assignment(block) {
+            self.lowered_statements
+                .extend(block.stmts.iter().map(|stmt| stmt.hir_id));
+        }
+        if let Some(tail) = block
+            .expr
+            .filter(|_| !self.while_blocks.contains(&block.hir_id))
+        {
+            self.out.statements += usize::from(self.counts_expr(tail));
         }
         intravisit::walk_block(self, block);
     }
 
     // rstyle-allow(side_effect_density): visitor accumulates results in self by design
     fn visit_arm(&mut self, arm: &'tcx rustc_hir::Arm<'tcx>) {
-        // Block bodies count their own statements/tail; bare-expression arms count as one.
-        let bare = !matches!(arm.body.kind, ExprKind::Block(..))
+        // Block bodies count their own statements/tail; bare-expression arms count as one,
+        // including a destructuring assignment, which rustc lowers to a block.
+        let bare = !matches!(arm.body.kind, ExprKind::Block(block, _) if !destructuring_assignment(block))
             && arm.span.desugaring_kind() != Some(DesugaringKind::QuestionMark);
-        self.out.statements += usize::from(bare && self.counts(arm.body.span));
+        self.out.statements += usize::from(bare && self.counts_expr(arm.body));
         intravisit::walk_arm(self, arm);
     }
 }
@@ -334,4 +364,19 @@ impl<'tcx> Walker<'tcx> {
         intravisit::walk_expr(self, expr);
         self.unsafe_depth -= usize::from(user_unsafe);
     }
+}
+
+fn lowered_source_construct(expr: &Expr<'_>) -> bool {
+    let expr = match expr.kind {
+        ExprKind::DropTemps(inner) => inner,
+        _ => expr,
+    };
+    matches!(
+        expr.kind,
+        ExprKind::Match(
+            _,
+            _,
+            MatchSource::ForLoopDesugar | MatchSource::TryDesugar(_)
+        )
+    )
 }

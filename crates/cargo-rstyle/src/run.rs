@@ -67,6 +67,8 @@ fn control_environment(key: &OsStr) -> bool {
                     | "RSTYLE_COMPILER_PATTERNS"
                     | "RSTYLE_COMPILER_RUNTIME_BOUNDS"
                     | "RSTYLE_COMPILER_SOURCE_ROOT"
+                    | "RSTYLE_CPG_DIR"
+                    | "RSTYLE_CPG_ROOT"
                     | "RSTYLE_DRIVER"
                     | "RSTYLE_HIR_DOCUMENT_DIR"
                     | "RSTYLE_HIR_FACTS_FILE"

@@ -5,6 +5,7 @@
 #[cfg(test)]
 mod cli_tests;
 mod clones;
+mod cpg;
 mod diagnostic_process;
 mod ignore;
 mod run;
@@ -123,6 +124,37 @@ enum Command {
     Patterns(PatternsArgs),
     /// Dismiss a merge candidate you reviewed, list the ledger, or prune dead entries.
     Ignore(IgnoreArgs),
+    /// Analyze compat.cpg documents from any language frontend.
+    Cpg(CpgArgs),
+}
+
+#[derive(Args)]
+struct CpgArgs {
+    #[command(subcommand)]
+    command: CpgCommand,
+}
+
+#[derive(Subcommand)]
+enum CpgCommand {
+    /// Run the style rules over one bundled document or a split run's documents.
+    Check {
+        /// compat.cpg documents: one bundled unit document, or a split unit document
+        /// and its function documents.
+        #[arg(required = true)]
+        documents: Vec<PathBuf>,
+    },
+    /// Write compat.cpg documents for the workspace from the rustc frontend, beside
+    /// the facts it derives itself.
+    Emit {
+        /// Output directory; its `target` subdirectory holds the private build.
+        #[arg(long)]
+        out: PathBuf,
+    },
+    /// Check documents written by `emit` against the frontend's own facts.
+    Compare {
+        /// Directory written by `cargo rstyle cpg emit`.
+        dir: PathBuf,
+    },
 }
 
 #[derive(Args)]
@@ -302,6 +334,23 @@ fn status_text(mut statuses: Vec<ledger::status::EntryStatus>, filter: Option<&s
     ledger::status::text(&statuses)
 }
 
+fn cpg_command(cli: &Cli, command: CpgCommand) -> Result<(String, u8), String> {
+    match command {
+        CpgCommand::Check { documents } => {
+            cpg::check(&documents, cli.config.as_deref(), cli.format)
+        }
+        CpgCommand::Emit { out } => {
+            let selection = cpg::Selection {
+                packages: &cli.packages,
+                all_targets: cli.all_targets,
+                manifest: cli.manifest_path.as_deref(),
+            };
+            cpg::emit(&selection, &out)
+        }
+        CpgCommand::Compare { dir } => cpg::compare(&dir, cli.config.as_deref(), cli.format),
+    }
+}
+
 // rstyle-allow(side_effect_density): process boundary: prints the output and sets the exit code
 fn exit_with(result: Result<(String, u8), String>) -> ExitCode {
     match result {
@@ -351,6 +400,7 @@ fn main() -> ExitCode {
         Some(Command::Ignore(args)) => {
             return exit_with(clones::patterns_route::ignore(cli, args));
         }
+        Some(Command::Cpg(CpgArgs { command })) => return exit_with(cpg_command(&cli, command)),
         None => {}
     }
     exit_with(clones::style_route::run(cli))
