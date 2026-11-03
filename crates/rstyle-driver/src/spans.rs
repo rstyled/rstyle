@@ -2,9 +2,10 @@
 //! parenthesized expression the parentheses' span, while its location is its own.
 
 /// Byte range of `content[start..end]` without enclosing parentheses and the space
-/// inside them.
-pub fn unparenthesized(content: &str, mut start: usize, mut end: usize) -> (usize, usize) {
+/// inside them, and how many pairs enclosed it.
+pub fn unparenthesized(content: &str, mut start: usize, mut end: usize) -> (usize, usize, usize) {
     let bytes = content.as_bytes();
+    let mut levels = 0;
     while end >= start + 2
         && bytes.get(start) == Some(&b'(')
         && bytes.get(end - 1) == Some(&b')')
@@ -14,8 +15,9 @@ pub fn unparenthesized(content: &str, mut start: usize, mut end: usize) -> (usiz
         let leading = inner.len() - inner.trim_start().len();
         let trailing = inner.len() - inner.trim_end().len();
         (start, end) = (start + 1 + leading, end - 1 - trailing);
+        levels += 1;
     }
-    (start, end)
+    (start, end, levels)
 }
 
 fn closing(bytes: &[u8], open: usize) -> Option<usize> {

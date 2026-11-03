@@ -499,6 +499,8 @@ pub struct Node {
     pub kind: NodeKind,
     pub original_kind: String,
     pub span: Option<FileSpan>,
+    /// Pairs of parentheses the expression is written in, which its span excludes.
+    pub parentheses: Option<u32>,
     pub children: Vec<Id>,
     #[serde(rename = "type")]
     pub ty: Option<Id>,

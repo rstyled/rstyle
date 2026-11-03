@@ -21,6 +21,9 @@ mod id_error_maps;
 mod id_reader_constants;
 mod inherent;
 mod instances;
+pub(crate) mod hir_tags {
+    pub(crate) use super::hir::kind;
+}
 mod reader_check;
 pub(crate) mod runtime_bounds;
 pub(crate) fn capture_instance_diagnostics(

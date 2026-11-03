@@ -88,17 +88,25 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             .unit
             .span(span)
             .or_else(|| self.unit.span(span.source_callsite()));
-        // HIR gives a parenthesized expression the parentheses' span; a tuple's own syntax has them.
-        let own = match shape.kind {
-            "tuple" | "pattern_tuple" => own,
-            _ => own.map(|own| self.unit.without_parentheses(own)),
+        // HIR gives a parenthesized expression the parentheses' span; a tuple's own syntax has
+        // them. The span is the expression's own; `parentheses` counts the pairs around it.
+        let (own, parentheses) = match (shape.kind, own) {
+            ("tuple" | "pattern_tuple", own) | (_, own @ None) => (own, 0),
+            (_, Some(own)) => {
+                let (own, levels) = self.unit.without_parentheses(own);
+                (Some(own), levels)
+            }
         };
-        let mut record = json!({"id": id, "kind": shape.kind, "original_kind": shape.kind,
+        let original = super::compiler::original_kind(self.tcx, hir_id);
+        let mut record = json!({"id": id, "kind": shape.kind, "original_kind": original,
                                 "children": shape.children, "provenance": provenance});
         record.as_object_mut().unwrap().extend(shape.fields);
         match own {
             Some(own) => record["span"] = own,
             None => record["synthetic"] = json!(true),
+        }
+        if parentheses > 0 {
+            record["parentheses"] = json!(parentheses);
         }
         if self.lowering.is_some() {
             record["synthetic"] = json!(true);

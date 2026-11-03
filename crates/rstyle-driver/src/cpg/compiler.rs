@@ -134,3 +134,48 @@ pub fn iterator_member(tcx: TyCtxt<'_>, member: DefId) -> bool {
     };
     tcx.trait_of_assoc(member) == Some(iterator) && member.krate == iterator.krate
 }
+
+/// The frontend's own construct tag for the HIR node at `id`, as rstyle's HIR facts
+/// name it before any extraction profile refines it.
+pub fn original_kind(tcx: TyCtxt<'_>, id: rustc_hir::HirId) -> &'static str {
+    use rustc_hir::{ExprKind, LoopSource, Node, PatKind, StmtKind};
+    match tcx.hir_node(id) {
+        Node::Expr(expr) => match expr.kind {
+            ExprKind::Loop(_, Some(_), _, _) => "expr_labelled_loop",
+            ExprKind::Loop(_, None, LoopSource::While, _) => "expr_while",
+            ExprKind::Loop(_, None, LoopSource::ForLoop, _) => "expr_for",
+            ref kind => crate::hir_extraction::hir_tags::kind(kind),
+        },
+        Node::Stmt(stmt) => match stmt.kind {
+            StmtKind::Let(_) => "stmt_let",
+            StmtKind::Semi(_) => "stmt_semi",
+            StmtKind::Expr(_) => "stmt_expr",
+            StmtKind::Item(_) => "stmt_item",
+        },
+        Node::LetStmt(_) => "stmt_let",
+        Node::Arm(_) => "match_arm",
+        Node::Block(_) => "expr_block",
+        Node::Ty(_) => "ty_annotation",
+        Node::Param(_) => "param",
+        Node::Pat(pat) => match pat.kind {
+            PatKind::Binding(rustc_hir::BindingMode(rustc_hir::ByRef::No, _), _, _, None) => {
+                "pat_binding"
+            }
+            PatKind::Binding(..) => "pat_binding_pattern",
+            PatKind::Wild => "pat_wild",
+            PatKind::Or(_) => "pat_or",
+            PatKind::Range(..) => "pat_range",
+            PatKind::Expr(_) => "pat_expr",
+            PatKind::Struct(..) => "pat_struct",
+            PatKind::TupleStruct(..) => "pat_tuple_struct",
+            PatKind::Tuple(..) => "pat_tuple",
+            PatKind::Slice(..) => "pat_slice",
+            PatKind::Ref(..) => "pat_ref",
+            PatKind::Deref(_) => "pat_deref",
+            PatKind::Guard(..) => "pat_guard",
+            PatKind::Never => "pat_never",
+            PatKind::Missing | PatKind::Err(_) => "pat_unsupported",
+        },
+        _ => "other",
+    }
+}

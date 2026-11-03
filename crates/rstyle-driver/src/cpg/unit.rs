@@ -55,16 +55,17 @@ impl<'tcx> Unit<'tcx> {
         Some(json!({"file": id, "start": lo.pos.0, "end": hi.pos.0}))
     }
 
-    /// `span` without parentheses that enclose all of it, and the whitespace inside them.
-    pub fn without_parentheses(&self, mut span: Value) -> Value {
+    /// `span` without parentheses that enclose all of it, and the whitespace inside them,
+    /// with how many pairs enclosed it.
+    pub fn without_parentheses(&self, mut span: Value) -> (Value, usize) {
         let Some(content) = self
             .files
             .get(span["file"].as_str().unwrap_or_default())
             .and_then(|f| f["content"].as_str())
         else {
-            return span;
+            return (span, 0);
         };
-        let (start, end) = crate::spans::unparenthesized(
+        let (start, end, levels) = crate::spans::unparenthesized(
             content,
             span["start"].as_u64().unwrap_or_default() as usize,
             span["end"].as_u64().unwrap_or_default() as usize,
@@ -72,7 +73,7 @@ impl<'tcx> Unit<'tcx> {
         span["start"] = json!(start);
         span["end"] = json!(end);
 
-        span
+        (span, levels)
     }
 
     // rstyle-allow(mutation_per_target): the unit interns referenced records as it builds them

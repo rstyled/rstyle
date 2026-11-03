@@ -137,6 +137,15 @@ impl<'a> Reader<'a> {
         build::facts(self.unit)
     }
 
+    /// The unit type as the driver records it.
+    fn unit_type(&self) -> Result<ResolvedTy, String> {
+        Ok(ResolvedTy {
+            normalized: Some("unit".into()),
+            observed: "()".into(),
+            spelling: String::new(),
+        })
+    }
+
     fn ty(&self, id: &str) -> Result<&'a Type, String> {
         self.tables.ty(id)
     }

@@ -1140,7 +1140,7 @@ fn callee_safety(tcx: TyCtxt<'_>, callee: rustc_hir::def_id::DefId) -> Option<bo
     })
 }
 
-fn kind(kind: &ExprKind<'_>) -> &'static str {
+pub(crate) fn kind(kind: &ExprKind<'_>) -> &'static str {
     match kind {
         ExprKind::Block(..) => "expr_block",
         ExprKind::Binary(..) => "expr_binary",

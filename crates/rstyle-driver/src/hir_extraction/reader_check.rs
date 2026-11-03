@@ -37,7 +37,10 @@ pub(super) fn check(
                 "No document function has this name and span",
             )],
         };
-        lines.push(json!({"function": reference.name, "differences": differences}).to_string());
+        let profile = options.selected().token();
+        let line =
+            json!({"function": reference.name, "profile": profile, "differences": differences});
+        lines.push(line.to_string());
     }
 
     let name = format!(
