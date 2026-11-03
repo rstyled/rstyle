@@ -21,6 +21,7 @@ mod id_error_maps;
 mod id_reader_constants;
 mod inherent;
 mod instances;
+mod reader_check;
 pub(crate) mod runtime_bounds;
 pub(crate) fn capture_instance_diagnostics(
     tcx: TyCtxt<'_>,
@@ -164,11 +165,13 @@ fn collect_crate_facts(
     evidence: FunctionEvidence,
 ) -> Result<Vec<HirFnFacts>, String> {
     let collector = FunctionCollector { evidence };
-    collect_source_functions(tcx, scanned, options, |sources, id| {
+    let facts = collect_source_functions(tcx, scanned, options, |sources, id| {
         collector.function(id, sources).map_err(|error| format!("{}: {error}", tcx.def_path_str(id.to_def_id()))).and_then(|facts| facts.ok_or_else(|| format!(
             "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
         )))
-    })
+    })?;
+    reader_check::check(tcx, options, &facts)?;
+    Ok(facts)
 }
 
 fn collect_source_functions<T>(
@@ -313,8 +316,8 @@ impl<'tcx> FunctionSources<'_, 'tcx, '_> {
             let scope = format!("scope:source:fn:0:{}", ctx.source_bytes.len());
             let bindings = params
                 .iter()
-                .flat_map(|p| hir::bindings(&p.pat, &scope))
-                .chain(hir::bindings(&body, &scope))
+                .flat_map(|p| rstyle_pdg::frontend::bindings(&p.pat, &scope))
+                .chain(rstyle_pdg::frontend::bindings(&body, &scope))
                 .collect();
             (body, bindings)
         })

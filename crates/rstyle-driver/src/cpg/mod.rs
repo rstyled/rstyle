@@ -55,13 +55,30 @@ pub fn emit(
 /// from the crate's documents. An owner the document cannot record keeps its reason.
 pub fn runtime_bounds(tcx: TyCtxt<'_>, root: &Path) -> Result<BTreeMap<String, Input>, String> {
     let mut programs = BTreeMap::new();
-    // Each function lowers from its own body and the tables it references, so a batch
-    // of functions per document bounds memory by the batch rather than the crate; a
-    // batch keeps to one source file, which each document then carries once.
-    for batch in batches(tcx) {
-        programs.extend(batch_bounds(tcx, root, &batch)?);
+    for (document, unrecorded) in documents(tcx, root) {
+        let unavailable = unrecorded.into_iter().map(|(id, reason)| {
+            (
+                ids::def_id_str(tcx, id.to_def_id()),
+                Input::Unavailable { reason },
+            )
+        });
+        programs.extend(unavailable);
+        programs.extend(rstyle_core::cpg::run_bounds(vec![document])?);
     }
     Ok(programs)
+}
+
+/// The crate's function documents, each with the owners it could not record and why.
+/// Each function reads from its own body and the tables it references, so a batch of
+/// functions per document bounds memory by the batch rather than the crate; a batch
+/// keeps to one source file, which each document then carries once.
+pub fn documents<'tcx, 'r>(
+    tcx: TyCtxt<'tcx>,
+    root: &'r Path,
+) -> impl Iterator<Item = (Value, Vec<(LocalDefId, String)>)> + use<'tcx, 'r> {
+    batches(tcx)
+        .into_iter()
+        .map(move |batch| batch_document(tcx, root, &batch))
 }
 
 const BATCH: usize = 256;
@@ -86,27 +103,22 @@ fn batches(tcx: TyCtxt<'_>) -> Vec<Vec<LocalDefId>> {
     batches.into_iter().map(|(_, batch)| batch).collect()
 }
 
-fn batch_bounds(
+fn batch_document(
     tcx: TyCtxt<'_>,
     root: &Path,
     owners: &[LocalDefId],
-) -> Result<Vec<(String, Input)>, String> {
+) -> (Value, Vec<(LocalDefId, String)>) {
     let mut unit = unit::Unit::new(tcx, root.to_path_buf());
-    let mut programs = Vec::new();
+    let mut unrecorded = Vec::new();
     let mut recorded = Vec::new();
     for &id in owners {
         match function(&mut unit, id) {
             Ok(function) => recorded.push(function),
-            Err(reason) => programs.push((
-                ids::def_id_str(tcx, id.to_def_id()),
-                Input::Unavailable { reason },
-            )),
+            Err(reason) => unrecorded.push((id, reason)),
         }
     }
 
-    let document = document(tcx, unit, recorded, &unit_name(tcx));
-    programs.extend(rstyle_core::cpg::run_bounds(vec![document])?);
-    Ok(programs)
+    (document(tcx, unit, recorded, &unit_name(tcx)), unrecorded)
 }
 
 fn unit_name(tcx: TyCtxt<'_>) -> String {

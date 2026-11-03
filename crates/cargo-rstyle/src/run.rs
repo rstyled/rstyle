@@ -85,6 +85,7 @@ fn control_environment(key: &OsStr) -> bool {
 
 fn diagnostic_environment(key: &OsStr, value: &OsStr) -> bool {
     key == "RSTYLE_DIAGNOSTIC_FACTS_DIR"
+        || key == "RSTYLE_DIAGNOSTIC_CPG_READER_DIR"
         || (key == "RSTYLE_PERF"
             || key == "RSTYLE_DIAGNOSTIC_CAPTURE_ONLY"
             || key == "RSTYLE_DIAGNOSTIC_GENERATED_SOURCES")

@@ -13,8 +13,8 @@ pub mod layout;
 mod metrics;
 pub mod model;
 mod shapes;
-mod source;
-mod tree;
+pub mod source;
+pub mod tree;
 
 pub use facts::{CAPABILITIES, LAYERS, all_facts, rule_facts};
 
