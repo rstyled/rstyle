@@ -25,6 +25,7 @@ mod ids;
 mod mutations;
 mod pdg;
 mod sig;
+mod spans;
 
 use rstyle_core::cli_args::flag_value;
 use rustc_driver::{Callbacks, Compilation};

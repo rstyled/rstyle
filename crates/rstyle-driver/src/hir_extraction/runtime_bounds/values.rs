@@ -35,6 +35,8 @@ impl Collector<'_, '_> {
                 rustc_ast::LitKind::Int(value, _) => {
                     u64::try_from(value.get()).map_or(Value::Unknown, Value::Const)
                 }
+                // A byte literal is the integer it names.
+                rustc_ast::LitKind::Byte(value) => Value::Const(u64::from(value)),
                 _ => Value::Unknown,
             },
             ExprKind::DropTemps(inner) => self.value(inner),

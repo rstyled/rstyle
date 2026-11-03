@@ -205,9 +205,9 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
             .tcx
             .sess
             .source_map()
-            .lookup_char_pos(span.source_callsite().lo());
+            .lookup_char_pos(crate::spans::start(self.ctx.tcx, span.source_callsite()));
         let source = Some(Source {
-            file: at.file.name.prefer_local_unconditionally().to_string(),
+            file: normalized(&at.file.name.prefer_local_unconditionally().to_string()),
             line: at.line,
             column: at.col.0 + 1,
             evidence:
@@ -350,6 +350,21 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
         }
         true
     }
+}
+
+/// A path without `.` and `x/..` segments, as reports name files.
+fn normalized(path: &str) -> String {
+    let mut parts: Vec<&str> = Vec::new();
+    for part in path.split('/') {
+        match part {
+            "." => {}
+            ".." if parts.last().is_some_and(|last| *last != "..") => {
+                parts.pop();
+            }
+            part => parts.push(part),
+        }
+    }
+    parts.join("/")
 }
 
 fn local_closure<'tcx>(local: &hir::LetStmt<'tcx>) -> Option<(HirId, &'tcx hir::Closure<'tcx>)> {

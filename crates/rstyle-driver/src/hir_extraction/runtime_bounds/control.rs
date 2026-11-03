@@ -112,6 +112,19 @@ impl<'a, 'tcx> Collector<'a, 'tcx> {
             ExprKind::Path(ref path) => self.ctx.typeck.qpath_res(path, callee.hir_id),
             _ => Res::Err,
         };
+        // `Self(..)` in an impl constructs the self type, as its constructor does.
+        let resolved = match resolved {
+            Res::SelfCtor(implementation) => self
+                .ctx
+                .tcx
+                .type_of(implementation)
+                .instantiate_identity()
+                .skip_norm_wip()
+                .ty_adt_def()
+                .and_then(|adt| adt.non_enum_variant().ctor_def_id())
+                .map_or(Res::Err, |ctor| Res::Def(self.ctx.tcx.def_kind(ctor), ctor)),
+            resolved => resolved,
+        };
         match resolved {
             Res::Local(id) if self.closures.contains_key(&id) => {
                 let closure = self.closures[&id];
