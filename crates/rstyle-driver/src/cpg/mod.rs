@@ -264,8 +264,9 @@ fn signature<'tcx>(
             continue;
         }
         let position = index - usize::from(has_self);
-        let mut parameter =
-            json!({"position": position, "symbol": symbol, "type": ty, "bindings": bindings});
+        let mut parameter = json!({"position": position, "symbol": symbol, "type": ty, "bindings": bindings,
+                                   "pattern": builder.id(param.pat.hir_id),
+                                   "original_kind": compiler::original_kind(tcx, param.pat.hir_id)});
         if let Some(span) = builder.unit.span(param.pat.span) {
             parameter["span"] = span;
         }

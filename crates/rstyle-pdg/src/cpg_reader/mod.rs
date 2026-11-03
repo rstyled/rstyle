@@ -183,6 +183,15 @@ impl<'a> Reader<'a> {
 
 mod build;
 
+/// A signature parameter's records, the receiver included.
+struct Parameter<'p> {
+    symbol: &'p str,
+    ty: &'p str,
+    annotation: Option<&'p FileSpan>,
+    /// A parameter pattern's ID, tag and span.
+    pattern: Option<(&'p str, &'p str, &'p FileSpan)>,
+}
+
 /// One function's reading context.
 struct Context<'r, 'a> {
     reader: &'r Reader<'a>,
@@ -212,48 +221,105 @@ impl<'a> Context<'_, 'a> {
 
     fn parameters(&self) -> Result<Vec<ParamFact>, String> {
         let signature = &self.body.function.signature;
-        let receiver = signature
-            .receiver
-            .iter()
-            .map(|receiver| (&receiver.symbol, &receiver.ty, receiver.annotation.as_ref()));
-        let parameters = signature.parameters.iter().map(|parameter| {
-            (
-                &parameter.symbol,
-                &parameter.ty,
-                parameter.annotation.as_ref(),
-            )
+        let receiver = signature.receiver.iter().map(|receiver| Parameter {
+            symbol: &receiver.symbol,
+            ty: &receiver.ty,
+            annotation: receiver.annotation.as_ref(),
+            pattern: None,
+        });
+        let parameters = signature.parameters.iter().map(|parameter| Parameter {
+            symbol: &parameter.symbol,
+            ty: &parameter.ty,
+            annotation: parameter.annotation.as_ref(),
+            pattern: parameter
+                .pattern
+                .as_deref()
+                .zip(parameter.original_kind.as_deref())
+                .zip(parameter.span.as_ref())
+                .map(|((id, tag), span)| (id, tag, span)),
         });
 
         receiver
             .chain(parameters)
             .enumerate()
-            .map(|(position, (symbol, ty, annotation))| {
-                self.parameter(position as u32, (symbol, ty), annotation)
-            })
+            .map(|(position, parameter)| self.parameter(position as u32, parameter))
             .collect()
     }
 
-    fn parameter(
-        &self,
-        position: u32,
-        (symbol, ty): (&str, &str),
-        annotation: Option<&FileSpan>,
-    ) -> Result<ParamFact, String> {
+    fn parameter(&self, position: u32, parameter: Parameter<'_>) -> Result<ParamFact, String> {
+        let ty_span = parameter
+            .annotation
+            .map_or(ByteSpan { start: 0, end: 0 }, |span| self.span(span));
+        let resolved = self.reader.resolved(parameter.ty, self.snippet(ty_span))?;
+        let pat = match parameter.pattern {
+            Some((id, tag, span)) if tag != "pat_binding" => {
+                self.parameter_pattern((id, tag, span), parameter.symbol, &resolved)?
+            }
+            _ => self.binding_parameter(parameter.symbol, &resolved)?,
+        };
+        let pat = HirNode {
+            param_index: Some(position),
+            ..pat
+        };
+
+        Ok(ParamFact {
+            symbol: pat.binding.clone().unwrap_or_default(),
+            position,
+            name_span: pat.span,
+            ty_span,
+            ty: resolved,
+            pat,
+        })
+    }
+
+    /// A parameter that is a plain binding, located at its identifier.
+    fn binding_parameter(&self, symbol: &str, resolved: &ResolvedTy) -> Result<HirNode, String> {
         let record = self.body.symbol(symbol)?;
-        let name_span = record
+        let span = record
             .declared
             .as_ref()
-            .map(|span| self.span(span))
-            .unwrap_or(ByteSpan { start: 0, end: 0 });
-        let ty_span = annotation
-            .map(|span| self.span(span))
-            .unwrap_or(ByteSpan { start: 0, end: 0 });
-        let resolved = self.reader.resolved(ty, self.snippet(ty_span))?;
-        let pat = HirNode {
-            hir: hir_ref(symbol),
-            kind: "pat_binding".into(),
-            span: name_span,
-            snippet: self.snippet(name_span),
+            .map_or(ByteSpan { start: 0, end: 0 }, |span| self.span(span));
+        Ok(HirNode {
+            binding: Some(symbol_name(symbol)),
+            binding_mut: Some(record.mutable),
+            ..self.parameter_node(hir_ref(symbol), ("pat_binding", span), resolved)
+        })
+    }
+
+    /// Any other parameter pattern, as the frontend's pattern records tag it.
+    fn parameter_pattern(
+        &self,
+        (id, tag, span): (&str, &str, &FileSpan),
+        symbol: &str,
+        resolved: &ResolvedTy,
+    ) -> Result<HirNode, String> {
+        let tag = match tag {
+            "pat_wild" | "pat_binding_pattern" => tag,
+            _ => "pat_unsupported",
+        };
+        let node = self.parameter_node(hir_ref(id), (tag, self.span(span)), resolved);
+        if tag != "pat_binding_pattern" {
+            return Ok(node);
+        }
+        let record = self.body.symbol(symbol)?;
+        Ok(HirNode {
+            binding: Some(symbol_name(symbol)),
+            binding_mut: Some(record.mutable),
+            ..node
+        })
+    }
+
+    fn parameter_node(
+        &self,
+        hir: HirRef,
+        (tag, span): (&str, ByteSpan),
+        resolved: &ResolvedTy,
+    ) -> HirNode {
+        HirNode {
+            hir,
+            kind: tag.into(),
+            span,
+            snippet: self.snippet(span),
             ty: Some(ResolvedTy {
                 spelling: String::new(),
                 ..resolved.clone()
@@ -261,22 +327,13 @@ impl<'a> Context<'_, 'a> {
             res: None,
             dispatch: None,
             expansion: None,
-            binding: Some(symbol_name(symbol)),
-            binding_mut: Some(record.mutable),
+            binding: None,
+            binding_mut: None,
             lit: None,
-            param_index: Some(position),
+            param_index: None,
             is_unsafe_block: false,
             children: Vec::new(),
-        };
-
-        Ok(ParamFact {
-            symbol: symbol_name(symbol),
-            position,
-            name_span,
-            ty_span,
-            ty: resolved,
-            pat,
-        })
+        }
     }
 
     fn signature(&self, params: Vec<ParamFact>) -> Result<SignatureFacts, String> {

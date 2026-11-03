@@ -418,6 +418,9 @@ pub struct Parameter {
     pub span: Option<FileSpan>,
     pub annotation: Option<FileSpan>,
     pub bindings: Option<Vec<Id>>,
+    /// The parameter's pattern, identified and tagged as the frontend's facts are.
+    pub pattern: Option<Id>,
+    pub original_kind: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
