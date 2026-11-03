@@ -6,6 +6,7 @@
 
 mod body;
 pub mod compare;
+mod resolution;
 
 use crate::extraction_profile::ExtractionProfile;
 use crate::frontend::{
@@ -80,6 +81,7 @@ impl<'a> Reader<'a> {
         let context = Context {
             reader: self,
             body: &body,
+            exits: resolution::loop_exits(&body)?,
             origin: function.span.start,
             source: source.as_str(),
         };
@@ -179,6 +181,8 @@ mod build;
 struct Context<'r, 'a> {
     reader: &'r Reader<'a>,
     body: &'r Body<'a>,
+    /// Each loop exit's labelled flag and destination loop.
+    exits: std::collections::BTreeMap<String, (bool, HirRef)>,
     /// File offset the function's relative spans count from.
     origin: usize,
     source: &'r str,

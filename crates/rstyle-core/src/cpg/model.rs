@@ -234,6 +234,9 @@ pub struct Definition {
     /// A member of the language's standard iteration interface.
     #[serde(default)]
     pub iteration: bool,
+    /// Registered frontend facts with no neutral home, by namespaced key.
+    #[serde(default)]
+    pub extensions: BTreeMap<String, String>,
 }
 
 /// The interface a call to a function or method sees.

@@ -27,6 +27,7 @@ impl<'a> Context<'_, 'a> {
         Ok(HirNode {
             ty,
             dispatch: self.dispatch(node, tag)?,
+            res: self.resolution(node, tag),
             lit: (tag == "expr_lit").then(|| base.snippet.clone()),
             is_unsafe_block: tag == "expr_block"
                 && node
