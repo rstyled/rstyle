@@ -407,6 +407,57 @@ fn symlinked_manifest_checks_the_same_code() {
     assert!(reports[1]["summary"]["violations"].as_u64().unwrap() > 0);
 }
 
+/// A crate without functions is a complete evaluation of nothing and passes.
+#[test]
+fn crate_without_functions_exits_zero() {
+    let dir = fixture("clean");
+    std::fs::write(dir.path().join("src/lib.rs"), "").unwrap();
+    let output = rstyle(dir.path(), &["--format", "json"]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["summary"]["functions"], 0);
+    assert_eq!(report["summary_complete"], true);
+}
+
+/// A build whose driver captured no facts leaves no compiler evaluation; the
+/// style check cannot vouch for the code and must not pass.
+#[cfg(unix)]
+#[test]
+fn capture_without_evaluations_exits_two() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = fixture("violations");
+    let driver = dir.path().join("plain-rustc");
+    std::fs::write(
+        &driver,
+        "#!/bin/sh\nwhile [ \"${1#--rstyle-}\" != \"$1\" ]; do shift; done\nexec \"$@\"\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&driver, std::fs::Permissions::from_mode(0o755)).unwrap();
+    for format in ["text", "json"] {
+        let output = diagnostic_process::output(
+            Command::new(cargo_bin("cargo-rstyle"))
+                .args(["--format", format])
+                .current_dir(dir.path())
+                .env("RSTYLE_DRIVER", &driver)
+                .env_remove("CARGO_TARGET_DIR"),
+        )
+        .unwrap();
+        assert_eq!(output.status.code(), Some(2), "{format}");
+        if format == "text" {
+            assert!(stdout(&output).contains("no completed compiler evaluations"));
+            continue;
+        }
+        let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert!(report["summary"].is_null());
+        assert_eq!(report["summary_complete"], false);
+    }
+}
+
 #[test]
 fn bad_config_exits_two() {
     let dir = fixture("clean");

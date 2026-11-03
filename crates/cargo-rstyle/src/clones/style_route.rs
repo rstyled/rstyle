@@ -15,9 +15,17 @@ pub(crate) fn run(mut cli: Cli) -> Result<(String, u8), String> {
             compile_capture(capture, &cli, &args)
         };
         run_captured_with(&cli, &args, CapturedRun { config, capture }, |report, _| {
-            report.publish_style(cli.format)
+            Ok((report.publish_style(cli.format)?, report.style_complete()?))
         })
+        .map(summary_exit)
     })
+}
+
+/// Findings decide 0 or 1 only over a complete summary. Without one, such as a
+/// capture with no completed compiler evaluation, the style check could not
+/// evaluate the code and exits 2 rather than passing.
+fn summary_exit(((text, complete), code): ((String, bool), u8)) -> (String, u8) {
+    (text, if complete { code } else { 2 })
 }
 
 fn apply_inputs(cli: &mut Cli, args: Args) -> Args {
@@ -84,4 +92,26 @@ fn compiler_args() -> Result<Args, String> {
     let mut args = Args::from_arg_matches(&matches).map_err(|error| error.to_string())?;
     args.style_inputs_only = true;
     Ok(args)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::summary_exit;
+    use crate::clones::advisory::style::Projection;
+
+    #[test]
+    fn findings_decide_the_exit_only_over_a_complete_summary() {
+        for code in [0, 1, 2] {
+            assert_eq!(summary_exit((("out".into(), true), code)).1, code);
+            assert_eq!(
+                summary_exit((("out".into(), false), code)),
+                ("out".into(), 2)
+            );
+        }
+    }
+
+    #[test]
+    fn capture_without_units_is_incomplete() {
+        assert!(!Projection::new(None).unwrap().complete());
+    }
 }
