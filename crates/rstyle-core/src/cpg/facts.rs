@@ -3,6 +3,7 @@
 use super::events::{Events, Walk, mutations};
 use super::metrics::{Constructs, statements, top_statements};
 use super::model::{Coverage, Document, Function, Status};
+use super::shapes::{mutated_types, param_list, signature_shape};
 use super::source::Sources;
 use super::tree::{Body, Tables};
 use crate::complexity::Measurement;
@@ -87,7 +88,7 @@ fn function_facts(
     let body = Body::new(function)?;
     let walk = Walk::new(&body, tables, sources);
     let events = walk.events()?;
-    let mutations = mutations(&walk)?;
+    let (mutations, mutated): (Vec<_>, Vec<_>) = mutations(&walk)?.into_iter().unzip();
     let complexity = match measured {
         true => Some(measure(&body, sources, &events)?),
         false => None,
@@ -106,7 +107,7 @@ fn function_facts(
         column,
         name: function.name.clone(),
         params: signature.parameters.len(),
-        param_list: vec![],
+        param_list: param_list(&body, sources)?,
         has_self: signature.receiver.is_some(),
         statements: statements(&body)?,
         top_statements: top_statements(&body)?,
@@ -119,8 +120,8 @@ fn function_facts(
         calls: events.calls,
         effects: events.effects,
         edges: events.edges,
-        mutated_types: vec![],
-        sig: None,
+        mutated_types: mutated_types(tables, mutated)?,
+        sig: signature_shape(&body, tables)?,
         pdg: None,
     })
 }

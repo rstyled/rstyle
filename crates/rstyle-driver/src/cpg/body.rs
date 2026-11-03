@@ -614,6 +614,7 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         Some(self.node(pat.hir_id, pat.span, shape))
     }
 
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
     /// The alternatives of an or-pattern share one binding, recorded at its first.
     fn binding(&mut self, hir_id: HirId, ident: rustc_span::Ident, mutable: bool) {
         if !self.bound.insert(hir_id) {
@@ -628,8 +629,9 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             _ if self.params.contains(&hir_id) => "parameter",
             _ => "local",
         };
+        let ty = self.unit.ty(self.typeck.node_type(hir_id));
         let mut symbol = json!({"id": self.symbol_id(hir_id), "name": ident.name.as_str(), "kind": kind,
-                                "scope": self.prefix, "mutable": mutable, "node": self.id(hir_id)});
+                                "scope": self.prefix, "mutable": mutable, "node": self.id(hir_id), "type": ty});
         if let Some(declared) = self.unit.span(ident.span) {
             symbol["declared"] = declared;
         }
@@ -646,8 +648,9 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 return;
             }
             let kind = if ident.name == rustc_span::symbol::kw::SelfLower { "receiver" } else { "parameter" };
+            let ty = self.unit.ty(self.typeck.node_type(hir_id));
             let mut symbol = json!({"id": self.symbol_id(hir_id), "name": ident.name.as_str(), "kind": kind,
-                                    "scope": self.prefix, "mutable": mode.1.is_mut()});
+                                    "scope": self.prefix, "mutable": mode.1.is_mut(), "type": ty});
             if let Some(declared) = self.unit.span(ident.span) {
                 symbol["declared"] = declared;
             }
@@ -658,7 +661,11 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         });
         simple.unwrap_or_else(|| {
             let id = format!("s{}.param{position}", self.prefix);
-            self.symbols.push(json!({"id": id, "name": "_", "kind": "parameter", "scope": self.prefix, "mutable": false}));
+            let ty = self.unit.ty(self.typeck.pat_ty(pat));
+            self.symbols.push(
+                json!({"id": id, "name": "_", "kind": "parameter", "scope": self.prefix,
+                                     "mutable": false, "type": ty}),
+            );
             id
         })
     }

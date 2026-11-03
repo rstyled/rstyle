@@ -1,9 +1,9 @@
 //! `compat.cpg` interchange documents: any language frontend emits them, and core
 //! derives analysis inputs from them.
 //!
-//! This module derives the facts of the style rules.
-//! Parameter details, signature shapes, mutated types and dependence graphs feed
-//! the pattern analyses and are not derived yet, so they are left empty.
+//! This module derives the facts of the style rules, and the parameter details,
+//! signature shapes and mutated types the pattern analyses read. Dependence graphs
+//! are not derived yet, so they are left empty.
 
 pub mod compare;
 mod events;
@@ -11,6 +11,7 @@ mod facts;
 pub mod layout;
 mod metrics;
 pub mod model;
+mod shapes;
 mod source;
 mod tree;
 
@@ -24,5 +25,7 @@ pub fn run_facts(documents: Vec<serde_json::Value>) -> Result<Vec<FnFacts>, Stri
     rule_facts(&layout::bundle(documents)?)
 }
 
+#[cfg(test)]
+mod shapes_tests;
 #[cfg(test)]
 mod tests;

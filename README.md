@@ -384,11 +384,13 @@ the facts rustc gives rstyle directly:
 
 ```
 cargo rstyle cpg emit --out cpg/     # a fresh check of the workspace with the driver
-cargo rstyle cpg compare cpg/        # derived rule facts and diagnostics against the driver's
+cargo rstyle cpg compare cpg/        # derived facts and rule diagnostics against the driver's
 ```
 
 `compare` exits 1 when any function's facts or rule diagnostics differ, and names
-the facts not derived yet. On rstyle's own workspace it reports no differences.
+the facts not derived yet (dependence graphs). Parameter lists, signature shapes and
+mutated types are derived and compared too. On rstyle's own workspace it reports no
+differences.
 
 ## Configuration
 
