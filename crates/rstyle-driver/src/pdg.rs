@@ -148,6 +148,7 @@ fn literal_detail(lit: &LitKind, span: Span) -> String {
     match lit {
         LitKind::Str(sym, _) => clip(&format!("{:?}", sym.as_str()), 24),
         LitKind::Int(n, _) => n.get().to_string(),
+        LitKind::Byte(b) => b.to_string(),
         LitKind::Bool(b) => b.to_string(),
         LitKind::Char(c) => format!("{c:?}"),
         _ => String::new(),
@@ -322,7 +323,8 @@ impl<'tcx> Builder<'tcx> {
     // rstyle-allow(mutation_per_target): the builder accumulates the graph in self by design
     fn expr(&mut self, expr: &'tcx Expr<'tcx>) -> Option<usize> {
         if let Some((head, pat, body)) = for_parts(expr) {
-            return Some(self.iterate(expr, head, (pat, body)));
+            // The loop itself, not a block that holds only it, gives the node's line.
+            return Some(self.iterate(peeled(expr), head, (pat, body)));
         }
         if let Some(operand) = try_operand(expr) {
             let node = self.add(self.typed(NodeKind::Try, expr));
@@ -652,7 +654,7 @@ impl<'tcx> Builder<'tcx> {
         let (kind, detail) = match expr.kind {
             ExprKind::Binary(op, ..) => (NodeKind::Op, op.node.as_str().to_string()),
             ExprKind::Unary(op, _) => (NodeKind::Op, op.as_str().to_string()),
-            ExprKind::AssignOp(op, ..) => (NodeKind::Op, format!("{}=", op.node.as_str())),
+            ExprKind::AssignOp(op, ..) => (NodeKind::Op, op.node.as_str().to_string()),
             ExprKind::Assign(..) => (NodeKind::Op, "=".into()),
             ExprKind::Index(..) => (NodeKind::Op, "index".into()),
             ExprKind::Struct(..) => (NodeKind::Op, "struct".into()),
