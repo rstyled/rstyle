@@ -153,7 +153,18 @@ fn toolchain_version() -> &'static str {
     version.strip_prefix("rustc ").unwrap_or(version)
 }
 
+/// The crate root file's ID, as the unit names files.
+fn root_file(tcx: TyCtxt<'_>, root: &Path) -> Option<String> {
+    let path = tcx.sess.local_crate_source_file()?;
+    let file = tcx
+        .sess
+        .source_map()
+        .get_source_file(&rustc_span::FileName::Real(path))?;
+    crate::extract::source_path(tcx, &file, root).map(|path| format!("file:{path}"))
+}
+
 fn document(tcx: TyCtxt<'_>, unit: unit::Unit<'_>, functions: Vec<Value>, name: &str) -> Value {
+    let root = unit.root.clone();
     let (files, definitions, types) = unit.tables();
     let session = tcx.sess;
     json!({
@@ -166,6 +177,7 @@ fn document(tcx: TyCtxt<'_>, unit: unit::Unit<'_>, functions: Vec<Value>, name: 
         "coverage": unit::coverage(),
         "unit": {
             "id": format!("unit:{name}"),
+            "root_file": root_file(tcx, &root),
             "language": {"name": "rust", "version": session.edition().to_string()},
             "toolchain": {"name": "rustc", "version": toolchain_version(),
                           "commit": env!("RSTYLE_RUSTC_COMMIT")},

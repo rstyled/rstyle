@@ -6,7 +6,9 @@
 
 mod body;
 pub mod compare;
+mod findings;
 mod resolution;
+mod scan;
 
 use crate::extraction_profile::ExtractionProfile;
 use crate::frontend::{
@@ -38,6 +40,8 @@ pub fn read(document: &Document, profile: ExtractionProfile) -> Result<Vec<Read>
 
 struct Reader<'a> {
     unit: &'a Unit,
+    /// Each scanned file's functions, by file ID.
+    scans: std::cell::RefCell<BTreeMap<&'a str, std::rc::Rc<Vec<scan::Function>>>>,
     producer: &'a rstyle_core::cpg::model::Producer,
     tables: Tables<'a>,
     files: BTreeMap<&'a str, &'a File>,
@@ -56,6 +60,7 @@ impl<'a> Reader<'a> {
             .collect();
         Ok(Self {
             unit,
+            scans: Default::default(),
             producer,
             tables: Tables::new(unit)?,
             files,
@@ -94,6 +99,7 @@ impl<'a> Reader<'a> {
             .chain(crate::frontend::bindings(&tree, &scope))
             .collect();
         let signature = context.signature(params)?;
+        let (source_diagnostics, source_scan_complete) = context.source_scan(function)?;
 
         Ok(HirFnFacts {
             name: function.name.clone(),
@@ -106,8 +112,8 @@ impl<'a> Reader<'a> {
             bindings,
             body: tree,
             build: self.build(),
-            source_diagnostics: Vec::new(),
-            source_scan_complete: false,
+            source_diagnostics,
+            source_scan_complete,
         })
     }
 

@@ -94,6 +94,8 @@ pub struct UnitRef {
 #[serde(deny_unknown_fields)]
 pub struct Unit {
     pub id: Id,
+    /// The file the compilation starts from, which the frontend parses before expansion.
+    pub root_file: Option<Id>,
     pub language: Named,
     pub toolchain: Toolchain,
     pub target: Target,
