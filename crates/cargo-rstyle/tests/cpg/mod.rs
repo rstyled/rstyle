@@ -103,3 +103,178 @@ fn cpg_check_rejects_invalid_runs() {
     assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("exactly one unit document, found 0"));
 }
+
+/// `cpg emit` over the lowering fixture: its directory, output and reference facts.
+fn emitted() -> (TempDir, PathBuf, PathBuf) {
+    let dir = fixture("lowered");
+    let out = dir.path().join("cpg");
+    let output = rstyle(
+        dir.path(),
+        &["rstyle", "cpg", "emit", "--out", out.to_str().unwrap()],
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(
+        stdout(&output).starts_with("1 compat.cpg documents written"),
+        "{}",
+        stdout(&output)
+    );
+    let facts = std::fs::read_dir(&out)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| path.to_string_lossy().ends_with(".facts.json"))
+        .unwrap();
+    (dir, out, facts)
+}
+
+#[test]
+fn rustc_documents_derive_the_frontends_own_rule_facts() {
+    let (dir, out, _) = emitted();
+    let output = rstyle(
+        dir.path(),
+        &[
+            "rstyle",
+            "cpg",
+            "compare",
+            out.to_str().unwrap(),
+            "--format",
+            "json",
+        ],
+    );
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["differences"], json!([]), "{report:#}");
+    assert_eq!(report["diagnostic_differences"], json!([]));
+    assert_eq!(report["functions"], 15);
+    assert_eq!(output.status.code(), Some(0));
+}
+
+#[test]
+fn the_driver_counts_statements_by_source_shape() {
+    let (_dir, _, facts) = emitted();
+    let facts: Value = serde_json::from_str(&std::fs::read_to_string(facts).unwrap()).unwrap();
+    let statements = |name: &str| {
+        let record = facts
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["name"] == name)
+            .unwrap();
+        record["statements"].clone()
+    };
+    assert_eq!(
+        statements("Store::nested"),
+        5,
+        "a for loop ending another loop's body is a statement"
+    );
+    assert_eq!(
+        statements("Store::countdown"),
+        4,
+        "a while loop's lowering adds no statement"
+    );
+}
+
+#[test]
+fn compare_reports_differences_and_fails() {
+    let (dir, out, facts) = emitted();
+    let mut reference: Value =
+        serde_json::from_str(&std::fs::read_to_string(&facts).unwrap()).unwrap();
+    reference[0]["statements"] = json!(999);
+    std::fs::write(&facts, serde_json::to_vec(&reference).unwrap()).unwrap();
+
+    let output = rstyle(
+        dir.path(),
+        &["rstyle", "cpg", "compare", out.to_str().unwrap()],
+    );
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(
+        stdout(&output).contains("statements: 1 functions"),
+        "{}",
+        stdout(&output)
+    );
+}
+
+#[test]
+fn emit_selects_packages_and_targets() {
+    let dir = fixture("lowered");
+    let out = dir.path().join("cpg");
+    let manifest = dir.path().join("Cargo.toml");
+    let args = [
+        "rstyle",
+        "cpg",
+        "emit",
+        "-p",
+        "lowered",
+        "--all-targets",
+        "--manifest-path",
+    ];
+    let mut args: Vec<&str> = args.to_vec();
+    args.extend([manifest.to_str().unwrap(), "--out", out.to_str().unwrap()]);
+    let output = rstyle(dir.path(), &args);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    // The library and its test harness are two compilations.
+    assert!(
+        stdout(&output).starts_with("2 compat.cpg documents written"),
+        "{}",
+        stdout(&output)
+    );
+
+    // A second run replaces the first run's documents.
+    let output = rstyle(dir.path(), &args);
+    assert!(
+        stdout(&output).starts_with("2 compat.cpg documents written"),
+        "{}",
+        stdout(&output)
+    );
+}
+
+#[test]
+fn compare_rejects_directories_without_valid_documents() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = rstyle(
+        dir.path(),
+        &["rstyle", "cpg", "compare", dir.path().to_str().unwrap()],
+    );
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("has no compat.cpg documents"));
+
+    std::fs::write(dir.path().join("unit.cpg.json"), b"{}").unwrap();
+    let output = rstyle(
+        dir.path(),
+        &["rstyle", "cpg", "compare", dir.path().to_str().unwrap()],
+    );
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unit.cpg.json: "));
+
+    std::fs::write(
+        dir.path().join("unit.cpg.json"),
+        serde_json::to_vec(&example()).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("unit.facts.json"), b"{}").unwrap();
+    let output = rstyle(
+        dir.path(),
+        &["rstyle", "cpg", "compare", dir.path().to_str().unwrap()],
+    );
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unit.facts.json"));
+}
+
+#[test]
+fn compare_reports_diagnostics_only_one_side_produces() {
+    let (dir, out, facts) = emitted();
+    let mut reference: Value =
+        serde_json::from_str(&std::fs::read_to_string(&facts).unwrap()).unwrap();
+    for function in reference.as_array_mut().unwrap() {
+        function["params"] = json!(9);
+    }
+    std::fs::write(&facts, serde_json::to_vec(&reference).unwrap()).unwrap();
+    let output = rstyle(
+        dir.path(),
+        &["rstyle", "cpg", "compare", out.to_str().unwrap()],
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stdout(&output).contains("rustc only: "),
+        "{}",
+        stdout(&output)
+    );
+}

@@ -5,6 +5,7 @@
 //! Parameter details, signature shapes, mutated types and dependence graphs feed
 //! the pattern analyses and are not derived yet, so they are left empty.
 
+pub mod compare;
 mod events;
 mod facts;
 pub mod layout;

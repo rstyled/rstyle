@@ -379,6 +379,17 @@ with undeclared coverage, without file content, or whose split function document
 do not match their unit's digest are rejected with exit code 2. Pattern mining over
 documents needs dependence graphs derived in core and is not available yet.
 
+The Rust frontend emits the same documents, which checks the derivation against
+the facts rustc gives rstyle directly:
+
+```
+cargo rstyle cpg emit --out cpg/     # a fresh check of the workspace with the driver
+cargo rstyle cpg compare cpg/        # derived rule facts and diagnostics against the driver's
+```
+
+`compare` exits 1 when any function's facts or rule diagnostics differ, and names
+the facts not derived yet. On rstyle's own workspace it reports no differences.
+
 ## Configuration
 
 Drop an `rstyle.toml` in the project root (see the one in this repo for every key). All keys are optional, unknown keys are errors.
