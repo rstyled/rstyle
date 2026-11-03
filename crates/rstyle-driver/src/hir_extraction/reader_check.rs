@@ -13,7 +13,7 @@ pub const DIR_ENV: &str = "RSTYLE_DIAGNOSTIC_CPG_READER_DIR";
 
 pub(super) fn check(
     tcx: TyCtxt<'_>,
-    options: &super::Options<'_>,
+    (options, passes): (&super::Options<'_>, cpg_reader::Passes),
     facts: &[HirFnFacts],
 ) -> Result<(), String> {
     let Some(dir) = std::env::var_os(DIR_ENV) else {
@@ -25,7 +25,7 @@ pub(super) fn check(
         None => crate_directory(tcx).ok_or("The crate has no root source file")?,
     };
     // A failure to read the documents is the comparison's finding, never the capture's.
-    let derived = derived(tcx, &root, options.selected()).unwrap_or_else(|error| {
+    let derived = derived(tcx, &root, (options.selected(), passes)).unwrap_or_else(|error| {
         let mut unread = BTreeMap::new();
         for reference in facts {
             unread.insert(
@@ -102,12 +102,15 @@ type Derived = BTreeMap<(String, u32), Result<HirFnFacts, String>>;
 fn derived(
     tcx: TyCtxt<'_>,
     root: &std::path::Path,
-    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
+    (profile, passes): (
+        rstyle_pdg::extraction_profile::ExtractionProfile,
+        cpg_reader::Passes,
+    ),
 ) -> Result<Derived, String> {
     let mut derived = BTreeMap::new();
     for (document, _) in crate::cpg::documents(tcx, root) {
         let document = rstyle_core::cpg::layout::bundle(vec![document])?;
-        for read in cpg_reader::read(&document, profile)? {
+        for read in cpg_reader::read(&document, profile, passes)? {
             derived.insert((read.name, read.fn_span.start), read.facts);
         }
     }

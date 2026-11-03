@@ -169,13 +169,17 @@ fn collect_crate_facts(
     options: &Options<'_>,
     evidence: FunctionEvidence,
 ) -> Result<Vec<HirFnFacts>, String> {
+    let passes = match evidence {
+        FunctionEvidence::Advisory { .. } => rstyle_pdg::cpg_reader::Passes::Advisory,
+        FunctionEvidence::All => rstyle_pdg::cpg_reader::Passes::Complete,
+    };
     let collector = FunctionCollector { evidence };
     let facts = collect_source_functions(tcx, scanned, options, |sources, id| {
         collector.function(id, sources).map_err(|error| format!("{}: {error}", tcx.def_path_str(id.to_def_id()))).and_then(|facts| facts.ok_or_else(|| format!(
             "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
         )))
     })?;
-    reader_check::check(tcx, options, &facts)?;
+    reader_check::check(tcx, (options, passes), &facts)?;
     Ok(facts)
 }
 

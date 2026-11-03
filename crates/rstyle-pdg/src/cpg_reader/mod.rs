@@ -5,6 +5,8 @@
 //! driver's own capture, never filled with a default that hides the difference.
 
 mod body;
+mod concrete;
+pub use concrete::Passes;
 pub mod compare;
 mod findings;
 mod resolution;
@@ -26,10 +28,14 @@ pub struct Read {
     pub facts: Result<HirFnFacts, String>,
 }
 
-/// Every function of a bundled document, read under `profile`.
-pub fn read(document: &Document, profile: ExtractionProfile) -> Result<Vec<Read>, String> {
+/// Every function of a bundled document, read under `profile` through `passes`.
+pub fn read(
+    document: &Document,
+    profile: ExtractionProfile,
+    passes: Passes,
+) -> Result<Vec<Read>, String> {
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
-    let reader = Reader::new((unit, &document.producer), profile)?;
+    let reader = Reader::new((unit, &document.producer), (profile, passes))?;
     let functions = unit.functions.as_deref().unwrap_or_default();
 
     Ok(functions
@@ -40,6 +46,7 @@ pub fn read(document: &Document, profile: ExtractionProfile) -> Result<Vec<Read>
 
 struct Reader<'a> {
     unit: &'a Unit,
+    passes: Passes,
     /// Each scanned file's functions, by file ID.
     scans: std::cell::RefCell<BTreeMap<&'a str, std::rc::Rc<Vec<scan::Function>>>>,
     producer: &'a rstyle_core::cpg::model::Producer,
@@ -51,7 +58,7 @@ struct Reader<'a> {
 impl<'a> Reader<'a> {
     fn new(
         (unit, producer): (&'a Unit, &'a rstyle_core::cpg::model::Producer),
-        profile: ExtractionProfile,
+        (profile, passes): (ExtractionProfile, Passes),
     ) -> Result<Self, String> {
         let files = unit
             .files
@@ -65,6 +72,7 @@ impl<'a> Reader<'a> {
             tables: Tables::new(unit)?,
             files,
             profile,
+            passes,
         })
     }
 
@@ -101,12 +109,12 @@ impl<'a> Reader<'a> {
         let signature = context.signature(params)?;
         let (source_diagnostics, source_scan_complete) = context.source_scan(function)?;
 
-        Ok(HirFnFacts {
+        let mut facts = HirFnFacts {
             name: function.name.clone(),
             fn_span,
             source: SourceFacts {
                 digest: self.digest(&source),
-                bytes: source,
+                bytes: source.clone(),
             },
             signature,
             bindings,
@@ -114,7 +122,13 @@ impl<'a> Reader<'a> {
             build: self.build(),
             source_diagnostics,
             source_scan_complete,
-        })
+        };
+        // The frontend's passes after its walk, in its order.
+        context.concrete_types(&mut facts, self.passes)?;
+        if self.passes == Passes::Complete {
+            crate::field_locations::capture(&mut facts)?;
+        }
+        Ok(facts)
     }
 
     fn source(&self, span: &FileSpan) -> Result<SourceText, String> {
@@ -250,7 +264,14 @@ impl<'a> Context<'_, 'a> {
         let ty_span = parameter
             .annotation
             .map_or(ByteSpan { start: 0, end: 0 }, |span| self.span(span));
-        let resolved = self.reader.resolved(parameter.ty, self.snippet(ty_span))?;
+        // A binding's type is the one typeck records, with its regions erased.
+        let ty = self
+            .body
+            .symbol(parameter.symbol)
+            .ok()
+            .and_then(|symbol| symbol.ty.as_deref())
+            .unwrap_or(parameter.ty);
+        let resolved = self.reader.resolved(ty, self.snippet(ty_span))?;
         let pat = match parameter.pattern {
             Some((id, tag, span)) if tag != "pat_binding" => {
                 self.parameter_pattern((id, tag, span), parameter.symbol, &resolved)?

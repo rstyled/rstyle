@@ -1,0 +1,452 @@
+//! The data profiles' concrete type observations: the frontend's type grammar for
+//! a function's interface, and the type tokens it installs on the signature, body
+//! and bindings, rebuilt from the document's type table.
+
+use super::Context;
+use crate::concrete_types::{
+    IDENTITY, InterfaceObservations, MAX_DEPTH, MAX_ENTRIES, Observation, TypeTree,
+};
+use crate::extraction_profile::ExtractionProfile;
+use crate::frontend::{BindingFact, HirFnFacts, HirNode, HirRef};
+use rstyle_core::cpg::model::{Type, TypeKind};
+use std::collections::BTreeMap;
+
+/// Which of the frontend's capture passes the facts went through.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Passes {
+    /// Advisory consumers: the interface's types only.
+    Advisory,
+    /// The complete data capture: the body and bindings too.
+    Complete,
+}
+
+enum Failure {
+    Unsupported(String),
+    Budget(String),
+}
+
+fn unsupported(reason: &str) -> Failure {
+    Failure::Unsupported(reason.into())
+}
+
+impl<'a> Context<'_, 'a> {
+    /// Installs the concrete type observations the frontend installs on `facts`.
+    pub(super) fn concrete_types(
+        &self,
+        facts: &mut HirFnFacts,
+        passes: Passes,
+    ) -> Result<(), String> {
+        if !has_data_interface(facts, self.reader.profile) {
+            return Ok(());
+        }
+        let mut capture = Capture {
+            context: self,
+            types: self.hir_types(),
+            entries: 0,
+            completed: BTreeMap::new(),
+        };
+        let observations = capture.interface(facts)?;
+        let data = self.reader.profile.supports("rust.concrete-read-only-data");
+        if data {
+            interface_tokens(facts, &observations)?;
+            match passes {
+                Passes::Complete => {
+                    capture.node_tokens(&mut facts.body, false)?;
+                    capture.binding_tokens(&mut facts.bindings, false)?;
+                }
+                Passes::Advisory => capture.binding_tokens(&mut facts.bindings, true)?,
+            }
+        }
+        facts.build.frontend_options.insert_data(observations);
+        Ok(())
+    }
+
+    /// Each HIR node's and binding's value type, as the compiler's typeck records it.
+    fn hir_types(&self) -> BTreeMap<(u32, u32), &'a str> {
+        let function = self.body.function;
+        let nodes = function
+            .nodes
+            .iter()
+            .filter_map(|node| Some((&node.id, node.ty.as_deref()?)));
+        let symbols = function
+            .symbols
+            .iter()
+            .filter_map(|symbol| Some((&symbol.id, symbol.ty.as_deref()?)));
+        let patterns = function
+            .signature
+            .parameters
+            .iter()
+            .filter_map(|parameter| Some((parameter.pattern.as_ref()?, parameter.ty.as_str())));
+        // A binding's own type, as typeck records it, wins over its parameter's.
+        patterns
+            .chain(nodes)
+            .chain(symbols)
+            .map(|(id, ty)| {
+                let reference = super::hir_ref(id);
+                ((reference.owner, reference.local), ty)
+            })
+            .collect()
+    }
+}
+
+fn has_data_interface(facts: &HirFnFacts, profile: ExtractionProfile) -> bool {
+    profile.supports("rust.concrete-read-only-data")
+        || profile.supports("rust.verified-helper-calls")
+            && (facts.signature.return_ty.normalized.is_none()
+                || facts
+                    .signature
+                    .params
+                    .iter()
+                    .any(|parameter| parameter.ty.normalized.is_none()))
+}
+
+fn interface_tokens(
+    facts: &mut HirFnFacts,
+    interface: &InterfaceObservations,
+) -> Result<(), String> {
+    let signature = &mut facts.signature;
+    for (parameter, observation) in signature.params.iter_mut().zip(&interface.parameters) {
+        if let Observation::Captured { ty } = observation {
+            parameter.ty.normalized = Some(crate::data_types::token(ty)?);
+            parameter.pat.ty = Some(parameter.ty.clone());
+        }
+    }
+    if let Observation::Captured { ty } = &interface.result {
+        signature.return_ty.normalized = Some(crate::data_types::token(ty)?);
+    }
+    Ok(())
+}
+
+struct Capture<'c, 'r, 'a> {
+    context: &'c Context<'r, 'a>,
+    types: BTreeMap<(u32, u32), &'a str>,
+    entries: usize,
+    /// Each root type's completed observation and token.
+    completed: BTreeMap<&'a str, (Observation, Option<String>)>,
+}
+
+impl<'a> Capture<'_, '_, 'a> {
+    fn interface(&mut self, facts: &HirFnFacts) -> Result<InterfaceObservations, String> {
+        let parameters = facts
+            .signature
+            .params
+            .iter()
+            .map(|parameter| {
+                let ty = self
+                    .hir_type(&parameter.pat.hir)
+                    .ok_or("Missing concrete parameter type")?;
+                Ok(self.observe(ty)?.0)
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let result = self.context.body.function.signature.result.as_str();
+        let observations = InterfaceObservations {
+            identity: IDENTITY.into(),
+            parameters,
+            result: self.observe(result)?.0,
+        };
+        observations.validate()?;
+        Ok(observations)
+    }
+
+    fn hir_type(&self, reference: &HirRef) -> Option<&'a str> {
+        self.types.get(&(reference.owner, reference.local)).copied()
+    }
+
+    fn observe(&mut self, ty: &'a str) -> Result<(Observation, Option<String>), String> {
+        if let Some(completed) = self.completed.get(ty) {
+            return Ok(completed.clone());
+        }
+        let observation = match self.tree(ty, 0) {
+            Ok(tree) => Observation::Captured { ty: tree },
+            Err(Failure::Unsupported(reason)) => Observation::Unsupported { reason },
+            Err(Failure::Budget(reason)) => return Err(reason),
+        };
+        let token = match &observation {
+            Observation::Captured { ty } => Some(crate::data_types::token(ty)?),
+            Observation::Unsupported { .. } => None,
+        };
+        self.completed
+            .insert(ty, (observation.clone(), token.clone()));
+        Ok((observation, token))
+    }
+
+    fn token(&mut self, reference: &HirRef, returning: bool) -> Result<Option<String>, String> {
+        let ty = match returning {
+            true => Some(self.context.body.function.signature.result.as_str()),
+            false => self.hir_type(reference),
+        };
+        match ty {
+            Some(ty) => Ok(self.observe(ty)?.1),
+            None => Ok(None),
+        }
+    }
+
+    fn binding_tokens(
+        &mut self,
+        bindings: &mut [BindingFact],
+        formals_only: bool,
+    ) -> Result<(), String> {
+        for binding in bindings {
+            if (!formals_only || binding.is_param) && binding.ty.normalized.is_none() {
+                binding.ty.normalized = self.token(&binding.hir, false)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn node_tokens(&mut self, node: &mut HirNode, index_bound: bool) -> Result<(), String> {
+        let range_syntax = index_bound
+            && node.kind == "expr_struct"
+            && node
+                .res
+                .as_ref()
+                .is_some_and(|resolution| resolution.kind == "resolved_range_type");
+        if !range_syntax && node.ty.as_ref().is_some_and(|ty| ty.normalized.is_none()) {
+            let token = self.token(&node.hir, node.kind == "expr_ret")?;
+            node.ty.as_mut().expect("present type").normalized = token;
+        }
+        let bound = node
+            .children
+            .get(1)
+            .filter(|_| node.kind == "expr_index")
+            .map(|child| child.hir.clone());
+        for child in &mut node.children {
+            let bounded = bound.as_ref() == Some(&child.hir);
+            self.node_tokens(child, bounded)?;
+        }
+        let profile = self.context.reader.profile;
+        if matches!(node.kind.as_str(), "expr_method_call" | "expr_call")
+            || node.kind == "expr_cast" && profile.supports("rust.fieldless-enum-values")
+        {
+            call_tokens(node);
+        }
+        Ok(())
+    }
+
+    fn ty(&self, id: &str) -> Result<&'a Type, Failure> {
+        self.context.reader.ty(id).map_err(Failure::Unsupported)
+    }
+
+    fn supports(&self, capability: &str) -> bool {
+        self.context.reader.profile.supports(capability)
+    }
+
+    fn tree(&mut self, id: &'a str, depth: usize) -> Result<TypeTree, Failure> {
+        self.entries += 1;
+        if depth > MAX_DEPTH || self.entries > MAX_ENTRIES {
+            return Err(Failure::Budget(format!(
+                "Concrete type observation exceeds depth/entry budget (depth {depth}/{MAX_DEPTH}, entries {}/{MAX_ENTRIES})",
+                self.entries
+            )));
+        }
+        let ty = self.ty(id)?;
+        match ty.kind {
+            TypeKind::Integer | TypeKind::Bool => Ok(TypeTree::Scalar(ty.spelling.clone())),
+            TypeKind::Char if depth == 0 && self.supports("rust.character-scalars") => {
+                Ok(TypeTree::Scalar("char".into()))
+            }
+            TypeKind::Float
+                if depth == 0
+                    && matches!(ty.bits, Some(32 | 64))
+                    && self.supports("rust.float-kernel-scalars") =>
+            {
+                Ok(TypeTree::Scalar(ty.spelling.clone()))
+            }
+            TypeKind::Unit => Ok(TypeTree::Scalar("unit".into())),
+            TypeKind::String => Ok(TypeTree::Str),
+            _ => self.composite(ty, depth),
+        }
+    }
+
+    fn composite(&mut self, ty: &'a Type, depth: usize) -> Result<TypeTree, Failure> {
+        let mode = ty.mode.as_deref();
+        match ty.kind {
+            TypeKind::Reference
+                if mode == Some("exclusive")
+                    && depth == 0
+                    && self.supports("rust.mutable-scalar-formals")
+                    && self.is_usize(ty.target.as_deref()) =>
+            {
+                Ok(TypeTree::MutableScalar("usize".into()))
+            }
+            TypeKind::Tuple => {
+                let items = ty.items.as_deref().unwrap_or_default();
+                let trees = items.iter().map(|item| self.tree(item, depth + 1));
+                trees.collect::<Result<Vec<_>, _>>().map(TypeTree::Tuple)
+            }
+            TypeKind::Reference if mode == Some("shared") => {
+                let target = ty
+                    .target
+                    .as_deref()
+                    .ok_or_else(|| unsupported("Reference has no target"))?;
+                Ok(TypeTree::Shared(Box::new(self.tree(target, depth + 1)?)))
+            }
+            TypeKind::Sequence if ty.fixed != Some(true) => {
+                let element = ty
+                    .element
+                    .as_deref()
+                    .ok_or_else(|| unsupported("Slice has no element"))?;
+                Ok(TypeTree::Slice(Box::new(self.tree(element, depth + 1)?)))
+            }
+            _ => self.storage(ty, depth),
+        }
+    }
+
+    fn storage(&mut self, ty: &'a Type, depth: usize) -> Result<TypeTree, Failure> {
+        if self.context.reader.profile == ExtractionProfile::DataV3
+            && let Some(payload) = self
+                .option_payload(ty)
+                .or_else(|| self.nonnested_payload(ty))
+        {
+            let option = TypeTree::Option(Box::new(self.tree(payload, depth + 1)?));
+            crate::concrete_types::validate(&option).map_err(Failure::Unsupported)?;
+            return Ok(option);
+        }
+        if self.supports("rust.fresh-concrete-results")
+            && let Some((ok, err)) = self.result_payloads(ty)
+        {
+            let result = TypeTree::Result {
+                ok: Box::new(self.tree(ok, depth + 1)?),
+                err: Box::new(self.tree(err, depth + 1)?),
+            };
+            crate::concrete_types::validate(&result).map_err(Failure::Unsupported)?;
+            return Ok(result);
+        }
+        match ty.kind {
+            TypeKind::Sequence => {
+                let element = ty
+                    .element
+                    .as_deref()
+                    .ok_or_else(|| unsupported("Array has no element"))?;
+                let length = ty
+                    .length
+                    .ok_or_else(|| unsupported("Array length is not a resolved concrete value"))?;
+                Ok(TypeTree::Array {
+                    element: Box::new(self.tree(element, depth + 1)?),
+                    length,
+                })
+            }
+            _ => Err(unsupported(
+                "Outside the concrete drop-free/shared type observation grammar",
+            )),
+        }
+    }
+
+    /// A standard library type's arguments, when `key` names the type.
+    fn standard_arguments(&self, ty: &'a Type, key: &str) -> Option<&'a [String]> {
+        let standard = ty
+            .definition
+            .as_deref()
+            .and_then(|id| self.context.reader.tables.definition(id).ok())
+            .is_some_and(|definition| definition.standard);
+        (standard && ty.key.as_deref() == Some(key))
+            .then_some(ty.arguments.as_deref())
+            .flatten()
+    }
+
+    fn option_payload(&self, ty: &'a Type) -> Option<&'a str> {
+        let [payload] = self.standard_arguments(ty, "rust:Option")? else {
+            return None;
+        };
+        let payload_type = self.ty(payload).ok()?;
+        let scalar = |ty: &Type| matches!(ty.kind, TypeKind::Bool | TypeKind::Integer);
+        let shared_scalar = payload_type.kind == TypeKind::Reference
+            && payload_type.mode.as_deref() == Some("shared")
+            && payload_type
+                .target
+                .as_deref()
+                .and_then(|target| self.ty(target).ok())
+                .is_some_and(scalar);
+        (scalar(payload_type) || shared_scalar).then_some(payload.as_str())
+    }
+
+    /// A product or borrowed byte slice `Option` payload, at the root of an observation.
+    fn nonnested_payload(&self, ty: &'a Type) -> Option<&'a str> {
+        let [payload] = self.standard_arguments(ty, "rust:Option")? else {
+            return None;
+        };
+        let payload_type = self.ty(payload).ok()?;
+        let product = self.supports("rust.concrete-option-propagation")
+            && matches!(
+                payload_type.kind,
+                TypeKind::Tuple | TypeKind::Record | TypeKind::Sum
+            )
+            && payload_type.key.as_deref() != Some("rust:Option");
+        let borrowed_bytes = self.supports("rust.checked-borrowed-result-flow")
+            && payload_type.kind == TypeKind::Reference
+            && payload_type.mode.as_deref() == Some("shared")
+            && payload_type
+                .target
+                .as_deref()
+                .and_then(|target| self.ty(target).ok())
+                .is_some_and(|slice| {
+                    slice.kind == TypeKind::Sequence
+                        && slice.fixed != Some(true)
+                        && slice
+                            .element
+                            .as_deref()
+                            .and_then(|element| self.ty(element).ok())
+                            .is_some_and(|element| {
+                                element.kind == TypeKind::Integer && element.spelling == "u8"
+                            })
+                });
+        (product || borrowed_bytes).then_some(payload.as_str())
+    }
+
+    fn result_payloads(&self, ty: &'a Type) -> Option<(&'a str, &'a str)> {
+        let [ok, err] = self.standard_arguments(ty, "rust:Result")? else {
+            return None;
+        };
+        Some((ok.as_str(), err.as_str()))
+    }
+
+    fn is_usize(&self, id: Option<&str>) -> bool {
+        id.and_then(|id| self.ty(id).ok())
+            .is_some_and(|ty| ty.kind == TypeKind::Integer && ty.spelling == "usize")
+    }
+}
+
+/// A call's dispatch evidence refreshed with its operands' and result's tokens.
+fn call_tokens(node: &mut HirNode) {
+    let complete = node.ty.as_ref().is_some_and(|ty| ty.normalized.is_some())
+        && node
+            .children
+            .iter()
+            .all(|child| child.ty.as_ref().is_some_and(|ty| ty.normalized.is_some()));
+    if !complete && !original_free_call(node) {
+        return;
+    }
+    let Some(dispatch) = &mut node.dispatch else {
+        return;
+    };
+    let operands = dispatch
+        .operand_tys
+        .iter()
+        .enumerate()
+        .map(|(position, declared)| {
+            node.children
+                .get(position)
+                .and_then(|child| child.ty.as_ref())
+                .and_then(|ty| ty.normalized.as_ref())
+                .unwrap_or(declared)
+                .clone()
+        })
+        .collect();
+    dispatch.operand_tys = operands;
+    if let Some(token) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) {
+        token.clone_into(&mut dispatch.result_ty);
+    }
+}
+
+fn original_free_call(node: &HirNode) -> bool {
+    node.kind == "expr_call"
+        && node.expansion.is_none()
+        && node
+            .dispatch
+            .as_ref()
+            .is_some_and(|dispatch| dispatch.kind == "resolved_direct")
+        && node
+            .res
+            .as_ref()
+            .is_some_and(|resolution| resolution.kind == "resolved_direct_callee")
+}
