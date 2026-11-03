@@ -2,7 +2,7 @@
 
 use super::{Context, hir_ref};
 use crate::frontend::{HirRef, PathRes};
-use rstyle_core::cpg::model::{Node, NodeKind, TargetKind};
+use rstyle_core::cpg::model::{Node, NodeKind, TargetKind, TypeKind};
 use rstyle_core::cpg::tree::Body;
 use std::collections::BTreeMap;
 
@@ -64,6 +64,9 @@ impl Context<'_, '_> {
             "expr_break" | "expr_continue" => self.loop_exit(node),
             "expr_path" => self.path(node),
             "expr_method_call" => self.method_callee(node),
+            "expr_field" if self.reader.profile.supports("rust.verified-helper-calls") => {
+                self.field_resolution(node)
+            }
             _ => None,
         }
     }
@@ -110,6 +113,39 @@ impl Context<'_, '_> {
             }
             _ => None,
         }
+    }
+
+    /// A field access's position in its owner, as the frontend records helper fields.
+    fn field_resolution(&self, node: &Node) -> Option<PathRes> {
+        let base = self.body.child(node, 0).ok()?;
+        let adjusted = base
+            .adjustments
+            .as_ref()
+            .and_then(|adjustments| adjustments.last())
+            .and_then(|adjustment| adjustment.target.as_deref())
+            .or(base.ty.as_deref())?;
+        let ty = self.reader.ty(adjusted).ok()?;
+        let owner_path = match ty.kind {
+            TypeKind::Record | TypeKind::Sum => {
+                let definition = self
+                    .reader
+                    .tables
+                    .definition(ty.definition.as_deref()?)
+                    .ok()?;
+                Some(definition.name.clone())
+            }
+            TypeKind::Tuple => None,
+            _ => return None,
+        };
+        let resolution = crate::field_locations::FieldResolution {
+            position: node.member_index? as usize,
+            owner_path,
+        };
+        Some(PathRes {
+            kind: "resolved_field".into(),
+            target: None,
+            description: serde_json::to_string(&resolution).ok()?,
+        })
     }
 
     /// A method call's declared callee, as a library callee record.

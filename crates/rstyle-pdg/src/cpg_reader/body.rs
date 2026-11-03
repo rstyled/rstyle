@@ -3,7 +3,7 @@
 
 use super::{Context, hir_ref, symbol_name};
 use crate::frontend::{ByteSpan, ExpansionSite, HirNode, ResolvedTy};
-use rstyle_core::cpg::model::{Node, NodeKind, Origin};
+use rstyle_core::cpg::model::{Node, NodeKind, Origin, TypeKind};
 
 type Built = Result<HirNode, String>;
 
@@ -21,7 +21,8 @@ impl<'a> Context<'_, 'a> {
             ),
             _ => self.ty(node)?,
         };
-        let children = self.expression_children(node, tag)?;
+        // Children follow the HIR construct, whatever tag the profile gives it.
+        let children = self.expression_children(node, &node.original_kind)?;
         let base = self.node(node, tag)?;
 
         Ok(HirNode {
@@ -41,7 +42,45 @@ impl<'a> Context<'_, 'a> {
 
     /// The driver's construct tag: the HIR's own, refined by the profile.
     fn tag(&self, node: &'a Node) -> &'a str {
-        node.original_kind.as_str()
+        let supports = |capability: &str| self.reader.profile.supports(capability);
+        let constructed = match node.original_kind.as_str() {
+            "expr_call" if supports("rust.tuple-struct-values") => self
+                .body
+                .child(node, 0)
+                .is_ok_and(|callee| self.constructs(callee, "Ctor(Struct, Fn)")),
+            "expr_path" if supports("rust.unit-struct-values") => {
+                self.constructs(node, "Ctor(Struct, Const)")
+                    && node
+                        .ty
+                        .as_deref()
+                        .and_then(|ty| self.reader.ty(ty).ok())
+                        .is_some_and(|ty| matches!(ty.kind, TypeKind::Record | TypeKind::Sum))
+            }
+            _ => false,
+        };
+        match constructed {
+            true => "expr_struct",
+            false => node.original_kind.as_str(),
+        }
+    }
+
+    /// Whether a path names a struct constructor of the compiler's `kind`.
+    fn constructs(&self, path: &Node, kind: &str) -> bool {
+        let Some(target) = self
+            .body
+            .reference(&path.id)
+            .and_then(|reference| reference.target.as_ref())
+        else {
+            return false;
+        };
+        target.kind == rstyle_core::cpg::model::TargetKind::Constructor
+            && target
+                .id
+                .as_deref()
+                .and_then(|id| self.reader.tables.definition(id).ok())
+                .and_then(|definition| definition.extensions.get("rust:compiler-identity"))
+                .and_then(|identity| identity.get("def_kind")?.as_str())
+                == Some(kind)
     }
 
     fn expression_children(&self, node: &'a Node, tag: &str) -> Result<Vec<HirNode>, String> {
