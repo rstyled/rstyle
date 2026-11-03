@@ -406,6 +406,9 @@ pub struct Signature {
     pub implicit_result: bool,
     pub owner_type: Option<Id>,
     pub generics: Vec<Generic>,
+    /// Constant parameters the function itself declares.
+    #[serde(default)]
+    pub constants: Vec<ConstantParameter>,
     pub lifetimes: Vec<Lifetime>,
     pub outlives: Vec<Outlives>,
     pub modifiers: Vec<String>,
@@ -441,6 +444,18 @@ pub struct Generic {
     pub name: String,
     pub definition: Id,
     pub bounds: Vec<Id>,
+    /// Position among the function's own generic parameters, in declaration order.
+    pub position: Option<u32>,
+    pub span: Option<FileSpan>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConstantParameter {
+    pub name: String,
+    pub definition: Id,
+    #[serde(rename = "type")]
+    pub ty: Id,
     /// Position among the function's own generic parameters, in declaration order.
     pub position: Option<u32>,
     pub span: Option<FileSpan>,

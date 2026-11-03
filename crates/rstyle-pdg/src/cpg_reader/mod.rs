@@ -418,8 +418,13 @@ impl Context<'_, '_> {
             .generics
             .iter()
             .map(|generic| (generic.position, &generic.name, generic.span.as_ref()));
+        let constants = signature
+            .constants
+            .iter()
+            .map(|constant| (constant.position, &constant.name, constant.span.as_ref()));
         let mut declared: Vec<(u32, GenericFact)> = lifetimes
             .chain(types)
+            .chain(constants)
             .filter_map(|(position, name, span)| {
                 let span = span.map_or(ByteSpan { start: 0, end: 0 }, |span| self.span(span));
                 Some((

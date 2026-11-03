@@ -285,6 +285,7 @@ fn signature<'tcx>(
 
     let mut signature = json!({"parameters": parameters, "result": builder.unit.ty(fn_sig.output()),
                                "generics": generics(builder.unit, id), "lifetimes": lifetimes(builder.unit, id),
+                               "constants": constants(builder.unit, id),
                                "outlives": [], "modifiers": fn_modifiers(sig.header)});
     result(builder.unit, sig, &mut signature);
     if let Some(receiver) = receiver {
@@ -407,4 +408,30 @@ fn lifetimes(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Vec<Value> {
         lifetimes.push(record);
     }
     lifetimes
+}
+
+/// The function's own constant parameters, with their types.
+fn constants(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Vec<Value> {
+    let tcx = unit.tcx;
+    let Some(generics) = tcx.hir_get_generics(id) else {
+        return Vec::new();
+    };
+    let mut constants = Vec::new();
+    for (position, param) in generics.params.iter().enumerate() {
+        if !matches!(param.kind, rustc_hir::GenericParamKind::Const { .. }) {
+            continue;
+        }
+        let ty = tcx
+            .type_of(param.def_id)
+            .instantiate_identity()
+            .skip_norm_wip();
+        let mut record = json!({"name": param.name.ident().to_string(),
+                                "definition": unit.definition(param.def_id.to_def_id()),
+                                "type": unit.ty(ty), "position": position});
+        if let Some(span) = unit.span(param.span.source_callsite()) {
+            record["span"] = span;
+        }
+        constants.push(record);
+    }
+    constants
 }
