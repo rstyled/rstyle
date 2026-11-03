@@ -22,6 +22,7 @@ mod id_reader_constants;
 mod inherent;
 mod instances;
 pub(crate) use evidence::cfgs;
+pub(crate) use sources::recover as recover_source;
 pub(crate) mod hir_tags {
     pub(crate) use super::hir::kind;
 }

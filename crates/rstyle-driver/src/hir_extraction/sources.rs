@@ -85,7 +85,8 @@ fn observed_recovery(file: &SourceFile) -> Option<String> {
     .ok()
 }
 
-fn recover(file: &SourceFile) -> Option<String> {
+/// The file's original bytes, restored from the compiler's normalization positions.
+pub(crate) fn recover(file: &SourceFile) -> Option<String> {
     if !matches!(file.original_relative_byte_pos(file.start_pos).0, 0 | 3) {
         return None;
     }

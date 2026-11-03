@@ -41,18 +41,22 @@ impl<'tcx> Unit<'tcx> {
             return None;
         }
         let path = crate::extract::source_path(self.tcx, &lo.sf, &self.root)?;
-        let content = lo.sf.src.as_ref()?;
         let id = format!("file:{path}");
-        self.files.entry(id.clone()).or_insert_with(|| {
+        // A file is recorded as written: its original bytes, and offsets into them.
+        if !self.files.contains_key(&id) {
+            let content = crate::hir_extraction::recover_source(&lo.sf)?;
             let digest: String = Sha256::digest(content.as_bytes())
                 .iter()
                 .map(|b| format!("{b:02x}"))
                 .collect();
-            json!({"id": id, "path": path, "digest": format!("sha256:{digest}"), "origin": "source",
-                   "content": content.as_str()})
-        });
+            let record = json!({"id": id, "path": path, "digest": format!("sha256:{digest}"),
+                                "origin": "source", "content": content});
+            self.files.insert(id.clone(), record);
+        }
+        let start = lo.sf.original_relative_byte_pos(span.lo()).0;
+        let end = hi.sf.original_relative_byte_pos(span.hi()).0;
 
-        Some(json!({"file": id, "start": lo.pos.0, "end": hi.pos.0}))
+        Some(json!({"file": id, "start": start, "end": end}))
     }
 
     /// `span` without parentheses that enclose all of it, and the whitespace inside them,
