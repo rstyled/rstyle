@@ -24,7 +24,17 @@ pub(super) fn check(
         Some(root) => root.to_path_buf(),
         None => std::env::current_dir().map_err(|error| error.to_string())?,
     };
-    let derived = derived(tcx, &root, options.selected())?;
+    // A failure to read the documents is the comparison's finding, never the capture's.
+    let derived = derived(tcx, &root, options.selected()).unwrap_or_else(|error| {
+        let mut unread = BTreeMap::new();
+        for reference in facts {
+            unread.insert(
+                (reference.name.clone(), reference.fn_span.start),
+                Err(error.clone()),
+            );
+        }
+        unread
+    });
 
     let mut lines = Vec::new();
     for reference in facts {

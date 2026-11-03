@@ -277,6 +277,10 @@ impl<'a> Context<'_, 'a> {
         };
         let mut span = self.span(span);
         let bytes = self.source.as_bytes();
+        // A span outside the function's own bytes has no parentheses of its own to restore.
+        if span.end as usize > bytes.len() {
+            return span;
+        }
         for _ in 0..node.parentheses.unwrap_or(0) {
             let mut start = span.start as usize;
             let mut end = span.end as usize;
