@@ -9,7 +9,8 @@
 use crate::extract::line_of;
 use crate::{ids, sig};
 use rstyle_core::clip::clip;
-use rstyle_core::facts::{EdgeKind, NodeKind, Pdg, PdgEdge, PdgNode, TyShape};
+use rstyle_core::facts::{NodeKind, Pdg, PdgNode, TyShape};
+use rstyle_core::pdg_builder::{GraphBuilder, Lowering};
 use rustc_ast::LitKind;
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -159,11 +160,14 @@ pub struct Builder<'tcx> {
     tcx: TyCtxt<'tcx>,
     typeck: &'tcx TypeckResults<'tcx>,
     root: PathBuf,
-    nodes: Vec<PdgNode>,
-    edges: Vec<PdgEdge>,
+    graph: GraphBuilder,
     binds: HashMap<HirId, usize>,
-    /// Innermost enclosing control construct and the arm/branch index being lowered.
-    ctrl: Vec<(usize, usize)>,
+}
+
+impl Lowering for Builder<'_> {
+    fn graph(&mut self) -> &mut GraphBuilder {
+        &mut self.graph
+    }
 }
 
 /// Builds the graph of a function body.
@@ -177,13 +181,11 @@ pub fn build<'tcx>(
         tcx,
         typeck: tcx.typeck(def_id),
         root: root.to_path_buf(),
-        nodes: vec![],
-        edges: vec![],
+        graph: GraphBuilder::default(),
         binds: HashMap::new(),
-        ctrl: vec![],
     };
     builder.lower_body(body);
-    builder.finish()
+    builder.graph.finish()
 }
 
 fn blank(kind: NodeKind) -> PdgNode {
@@ -207,21 +209,11 @@ impl<'tcx> Builder<'tcx> {
         // A unit-valued body returns nothing: `f();` and a tail `f()` must give the same graph.
         if !self.typeck.expr_ty(body.value).is_unit() {
             let line = self.line(body.value.span);
-            let ret = self.add(PdgNode {
+            let ret = self.graph.add(PdgNode {
                 line,
                 ..blank(NodeKind::Return)
             });
-            self.link(value, ret, 0);
-        }
-    }
-
-    fn finish(self) -> Pdg {
-        let mut edges = self.edges;
-        edges.sort_by_key(|e| (e.from, e.to, e.kind, e.arg_pos));
-        edges.dedup();
-        Pdg {
-            nodes: self.nodes,
-            edges,
+            self.graph.link(value, ret, 0);
         }
     }
 
@@ -248,32 +240,6 @@ impl<'tcx> Builder<'tcx> {
         }
     }
 
-    /// Adds a node; inside a control construct it also gets the control edge.
-    fn add(&mut self, node: PdgNode) -> usize {
-        let index = self.nodes.len();
-        self.nodes.push(node);
-        if let Some(&(owner, position)) = self.ctrl.last() {
-            self.edges.push(PdgEdge {
-                from: owner,
-                to: index,
-                kind: EdgeKind::Ctrl,
-                arg_pos: position,
-            });
-        }
-        index
-    }
-
-    fn link(&mut self, from: Option<usize>, to: usize, arg_pos: usize) {
-        if let Some(from) = from {
-            self.edges.push(PdgEdge {
-                from,
-                to,
-                kind: EdgeKind::Data,
-                arg_pos,
-            });
-        }
-    }
-
     fn shape_of(&self, expr: &Expr<'tcx>) -> Option<TyShape> {
         Some(sig::shape(self.tcx, self.typeck.expr_ty(expr)))
     }
@@ -297,7 +263,7 @@ impl<'tcx> Builder<'tcx> {
             let mut node = blank(NodeKind::Param);
             node.ty = Some(sig::shape(self.tcx, self.typeck.pat_ty(param.pat)));
             node.line = self.line(param.pat.span);
-            let index = self.add(node);
+            let index = self.graph.add(node);
             self.bind(param.pat, index);
         }
     }
@@ -306,15 +272,8 @@ impl<'tcx> Builder<'tcx> {
     fn operands(&mut self, to: usize, kids: &[&'tcx Expr<'tcx>], start: usize) {
         for (offset, kid) in kids.iter().enumerate() {
             let value = self.expr(kid);
-            self.link(value, to, start + offset);
+            self.graph.link(value, to, start + offset);
         }
-    }
-
-    fn under<R>(&mut self, owner: usize, position: usize, f: impl FnOnce(&mut Self) -> R) -> R {
-        self.ctrl.push((owner, position));
-        let result = f(self);
-        self.ctrl.pop();
-        result
     }
 }
 
@@ -327,9 +286,9 @@ impl<'tcx> Builder<'tcx> {
             return Some(self.iterate(peeled(expr), head, (pat, body)));
         }
         if let Some(operand) = try_operand(expr) {
-            let node = self.add(self.typed(NodeKind::Try, expr));
+            let node = self.graph.add(self.typed(NodeKind::Try, expr));
             let value = self.expr(operand);
-            self.link(value, node, 0);
+            self.graph.link(value, node, 0);
             return Some(node);
         }
         if let Some(name) = macro_name(expr) {
@@ -346,12 +305,12 @@ impl<'tcx> Builder<'tcx> {
             ExprKind::Call(callee, args) => self.call(expr, callee, args),
             ExprKind::MethodCall(_, receiver, args, _) => self.method(expr, receiver, args),
             ExprKind::Field(base, ident) => {
-                let node = self.add(PdgNode {
+                let node = self.graph.add(PdgNode {
                     detail: ident.name.to_string(),
                     ..self.typed(NodeKind::Field, expr)
                 });
                 let value = self.expr(base);
-                self.link(value, node, 0);
+                self.graph.link(value, node, 0);
                 Some(node)
             }
             ExprKind::AddrOf(_, _, inner) | ExprKind::DropTemps(inner) => self.expr(inner),
@@ -360,7 +319,7 @@ impl<'tcx> Builder<'tcx> {
             ExprKind::If(cond, then, otherwise) => Some(self.branch(expr, cond, (then, otherwise))),
             ExprKind::Match(scrutinee, arms, _) => Some(self.matcher(expr, scrutinee, arms)),
             ExprKind::Loop(block, _, source, _) => Some(self.looping(expr, block, source)),
-            ExprKind::Closure(_) => Some(self.add(self.typed(NodeKind::Closure, expr))),
+            ExprKind::Closure(_) => Some(self.graph.add(self.typed(NodeKind::Closure, expr))),
             ExprKind::Ret(value) => self.returned(expr, value),
             ExprKind::Let(let_expr) => Some(self.let_expr(expr, let_expr.pat, let_expr.init)),
             ExprKind::Break(_, value) => value.and_then(|v| self.expr(v)),
@@ -380,7 +339,7 @@ impl<'tcx> Builder<'tcx> {
                     callee_sig: sig::callee_sig(self.tcx, def_id),
                     ..self.typed(NodeKind::Lit, expr)
                 };
-                Some(self.add(node))
+                Some(self.graph.add(node))
             }
             _ => {
                 let node = PdgNode {
@@ -388,7 +347,7 @@ impl<'tcx> Builder<'tcx> {
                     detail: self.path_detail(expr.span),
                     ..self.typed(NodeKind::Lit, expr)
                 };
-                Some(self.add(node))
+                Some(self.graph.add(node))
             }
         }
     }
@@ -399,7 +358,7 @@ impl<'tcx> Builder<'tcx> {
             detail: literal_detail(lit, expr.span),
             ..self.typed(NodeKind::Lit, expr)
         };
-        self.add(node)
+        self.graph.add(node)
     }
 
     fn call_node(&self, expr: &Expr<'tcx>, def_id: Option<DefId>) -> PdgNode {
@@ -430,11 +389,11 @@ impl<'tcx> Builder<'tcx> {
         } else {
             self.call_node(expr, target)
         };
-        let index = self.add(node);
+        let index = self.graph.add(node);
 
         if target.is_none() {
             let value = self.expr(callee);
-            self.link(value, index, 0);
+            self.graph.link(value, index, 0);
         }
         let kids: Vec<&Expr<'tcx>> = args.iter().collect();
         self.operands(index, &kids, 0);
@@ -464,7 +423,7 @@ impl<'tcx> Builder<'tcx> {
         {
             return Some(self.for_each(expr, receiver, c.body));
         }
-        let index = self.add(self.call_node(expr, def_id));
+        let index = self.graph.add(self.call_node(expr, def_id));
         let kids: Vec<&Expr<'tcx>> = std::iter::once(receiver).chain(args).collect();
         self.operands(index, &kids, 0);
         Some(index)
@@ -490,10 +449,10 @@ impl<'tcx> Builder<'tcx> {
             ty: item.map(|p| sig::shape(self.tcx, self.typeck.pat_ty(p))),
             ..self.typed(NodeKind::Iterate, expr)
         };
-        let index = self.add(node);
+        let index = self.graph.add(node);
         let value = self.expr(head);
 
-        self.link(value, index, 0);
+        self.graph.link(value, index, 0);
         if let Some(pat) = item {
             self.bind(pat, index);
         }
@@ -512,17 +471,17 @@ impl<'tcx> Builder<'tcx> {
             ty: Some(sig::shape(self.tcx, self.typeck.pat_ty(pat))),
             ..self.typed(NodeKind::Iterate, expr)
         };
-        let index = self.add(node);
+        let index = self.graph.add(node);
         let value = self.expr(head);
 
-        self.link(value, index, 0);
+        self.graph.link(value, index, 0);
         self.bind(pat, index);
         self.under(index, 0, |b| b.expr(body));
         index
     }
 
     fn macro_call(&mut self, expr: &'tcx Expr<'tcx>, name: String) -> usize {
-        let index = self.add(PdgNode {
+        let index = self.graph.add(PdgNode {
             macro_name: Some(name),
             ..self.typed(NodeKind::Macro, expr)
         });
@@ -554,12 +513,12 @@ impl<'tcx> Builder<'tcx> {
         match init {
             Some(node) if simple => self.bind(local.pat, node),
             _ => {
-                let node = self.add(PdgNode {
+                let node = self.graph.add(PdgNode {
                     ty: Some(sig::shape(self.tcx, self.typeck.pat_ty(local.pat))),
                     line: self.line(local.span),
                     ..blank(NodeKind::Let)
                 });
-                self.link(init, node, 0);
+                self.graph.link(init, node, 0);
                 self.bind(local.pat, node);
             }
         }
@@ -575,10 +534,10 @@ impl<'tcx> Builder<'tcx> {
         pat: &'tcx Pat<'tcx>,
         init: &'tcx Expr<'tcx>,
     ) -> usize {
-        let node = self.add(self.typed(NodeKind::Let, expr));
+        let node = self.graph.add(self.typed(NodeKind::Let, expr));
         let value = self.expr(init);
 
-        self.link(value, node, 0);
+        self.graph.link(value, node, 0);
         self.bind(pat, node);
         node
     }
@@ -590,10 +549,10 @@ impl<'tcx> Builder<'tcx> {
         cond: &'tcx Expr<'tcx>,
         (then, otherwise): (&'tcx Expr<'tcx>, Option<&'tcx Expr<'tcx>>),
     ) -> usize {
-        let node = self.add(self.typed(NodeKind::Branch, expr));
+        let node = self.graph.add(self.typed(NodeKind::Branch, expr));
         let value = self.expr(cond);
 
-        self.link(value, node, 0);
+        self.graph.link(value, node, 0);
         self.under(node, 0, |b| b.expr(then));
         if let Some(other) = otherwise {
             self.under(node, 1, |b| b.expr(other));
@@ -608,10 +567,10 @@ impl<'tcx> Builder<'tcx> {
         scrutinee: &'tcx Expr<'tcx>,
         arms: &'tcx [Arm<'tcx>],
     ) -> usize {
-        let node = self.add(self.typed(NodeKind::Match, expr));
+        let node = self.graph.add(self.typed(NodeKind::Match, expr));
         let value = self.expr(scrutinee);
 
-        self.link(value, node, 0);
+        self.graph.link(value, node, 0);
         for (position, arm) in arms.iter().enumerate() {
             self.bind(arm.pat, node);
             self.under(node, position, |b| {
@@ -624,13 +583,14 @@ impl<'tcx> Builder<'tcx> {
         node
     }
 
+    // rstyle-allow(side_effect_density): the builder accumulates the graph in self by design
     fn looping(
         &mut self,
         expr: &'tcx Expr<'tcx>,
         block: &'tcx rustc_hir::Block<'tcx>,
         source: LoopSource,
     ) -> usize {
-        let node = self.add(PdgNode {
+        let node = self.graph.add(PdgNode {
             detail: format!("{source:?}").to_lowercase(),
             ..self.typed(NodeKind::Loop, expr)
         });
@@ -643,9 +603,9 @@ impl<'tcx> Builder<'tcx> {
         expr: &'tcx Expr<'tcx>,
         value: Option<&'tcx Expr<'tcx>>,
     ) -> Option<usize> {
-        let node = self.add(self.typed(NodeKind::Return, expr));
+        let node = self.graph.add(self.typed(NodeKind::Return, expr));
         let value = value.and_then(|v| self.expr(v));
-        self.link(value, node, 0);
+        self.graph.link(value, node, 0);
         None
     }
 
@@ -663,7 +623,7 @@ impl<'tcx> Builder<'tcx> {
             ExprKind::Cast(..) => (NodeKind::Cast, String::new()),
             _ => (NodeKind::Op, "expr".into()),
         };
-        let index = self.add(PdgNode {
+        let index = self.graph.add(PdgNode {
             detail,
             ..self.typed(kind, expr)
         });

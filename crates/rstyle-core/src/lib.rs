@@ -20,6 +20,7 @@ pub mod lines;
 pub mod locator;
 pub mod normalize;
 pub mod paths;
+pub mod pdg_builder;
 pub mod patterns_report;
 #[cfg(test)]
 mod pdgtest;
