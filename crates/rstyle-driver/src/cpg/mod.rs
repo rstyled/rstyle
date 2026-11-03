@@ -191,6 +191,8 @@ fn document(tcx: TyCtxt<'_>, unit: unit::Unit<'_>, functions: Vec<Value>, name: 
                           "optimization": format!("{:?}", session.opts.optimize)},
             "files": files, "namespaces": [], "imports": [], "definitions": definitions, "types": types,
             "values": [], "instances": [], "functions": functions,
+            // The LLVM target the compiler builds for, which the frontend's facts name.
+            "extensions": {"rust:llvm-target": session.target.llvm_target.to_string()},
         },
     })
 }
@@ -284,9 +286,7 @@ fn signature<'tcx>(
     let mut signature = json!({"parameters": parameters, "result": builder.unit.ty(fn_sig.output()),
                                "generics": generics(builder.unit, id), "lifetimes": lifetimes(builder.unit, id),
                                "outlives": [], "modifiers": fn_modifiers(sig.header)});
-    if let Some(span) = result_span(builder.unit, sig) {
-        signature["result_span"] = span;
-    }
+    result(builder.unit, sig, &mut signature);
     if let Some(receiver) = receiver {
         signature["receiver"] = receiver;
     }
@@ -313,12 +313,17 @@ fn annotated(
 }
 
 /// Where the result type is written, or the empty span where an implicit one would be.
-fn result_span(unit: &mut unit::Unit<'_>, sig: &rustc_hir::FnSig<'_>) -> Option<Value> {
-    let span = match sig.decl.output {
-        rustc_hir::FnRetTy::Return(ty) => ty.span,
-        rustc_hir::FnRetTy::DefaultReturn(span) => span,
+fn result(unit: &mut unit::Unit<'_>, sig: &rustc_hir::FnSig<'_>, signature: &mut Value) {
+    let (span, implicit) = match sig.decl.output {
+        rustc_hir::FnRetTy::Return(ty) => (ty.span, false),
+        rustc_hir::FnRetTy::DefaultReturn(span) => (span, true),
     };
-    unit.span(span.source_callsite())
+    if let Some(span) = unit.span(span.source_callsite()) {
+        signature["result_span"] = span;
+    }
+    if implicit {
+        signature["implicit_result"] = json!(true);
+    }
 }
 
 /// The function's own type parameters, with the traits bounding each.

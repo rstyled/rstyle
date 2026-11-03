@@ -356,9 +356,10 @@ impl<'a> Context<'_, 'a> {
         Ok(SignatureFacts {
             sig_span: self.span(&signature.span),
             receiver,
-            return_ty: self
-                .reader
-                .resolved(&signature.result, self.result_spelling(result_span))?,
+            return_ty: self.reader.resolved(
+                &signature.result,
+                self.result_spelling(result_span, signature.implicit_result),
+            )?,
             return_ty_span: result_span,
             has_self: signature.receiver.is_some(),
             abi: crate::model::StringFact {
@@ -378,8 +379,8 @@ impl<'a> Context<'_, 'a> {
 
 impl Context<'_, '_> {
     /// A written result type as written; an implicit one as the unit it is.
-    fn result_spelling(&self, span: ByteSpan) -> String {
-        match span.start == span.end {
+    fn result_spelling(&self, span: ByteSpan, implicit: bool) -> String {
+        match implicit {
             true => "()".into(),
             false => self.snippet(span),
         }

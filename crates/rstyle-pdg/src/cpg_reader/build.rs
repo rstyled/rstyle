@@ -30,7 +30,12 @@ pub(super) fn facts(unit: &Unit, producer: &Producer) -> BuildFacts {
         )),
         rustc_commit: optional(unit.toolchain.commit.as_deref()),
         edition: known(&unit.language.version),
-        target_triple: known(&unit.target.triple),
+        target_triple: known(
+            unit.extensions
+                .as_ref()
+                .and_then(|extensions| extensions.get("rust:llvm-target")?.as_str())
+                .unwrap_or(&unit.target.triple),
+        ),
         pointer_width: CountFact {
             status: FactStatus::Known,
             value: Some(u64::from(unit.target.pointer_width)),

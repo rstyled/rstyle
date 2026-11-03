@@ -401,6 +401,9 @@ pub struct Signature {
     pub result: Id,
     /// Where the result type is written; empty at its position when it is implicit.
     pub result_span: Option<FileSpan>,
+    /// The result type is not written, as a function returning unit leaves it.
+    #[serde(default)]
+    pub implicit_result: bool,
     pub owner_type: Option<Id>,
     pub generics: Vec<Generic>,
     pub lifetimes: Vec<Lifetime>,
