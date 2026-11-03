@@ -173,6 +173,15 @@
           "file": "file:lib",
           "start": 27,
           "end": 82
+        },
+        "callable": {
+          "parameters": [
+            "type:T",
+            "type:T"
+          ],
+          "result": "type:T",
+          "generics": 1,
+          "modifiers": []
         }
       },
       {
@@ -321,6 +330,22 @@
         "id": "type:option_ref",
         "kind": "opaque",
         "spelling": "Option<&u32>"
+      },
+      {
+        "id": "type:unit",
+        "kind": "unit",
+        "spelling": "()"
+      },
+      {
+        "id": "type:fn_larger",
+        "kind": "function",
+        "spelling": "fn(u32, u32) -> u32 {larger::<u32>}",
+        "parameters": [
+          "type:u32",
+          "type:u32"
+        ],
+        "result": "type:u32",
+        "definition": "def:larger"
       }
     ],
     "values": [
@@ -738,7 +763,8 @@
             "children": [],
             "provenance": {
               "origin": "source"
-            }
+            },
+            "type": "type:fn_larger"
           },
           {
             "id": "top.a",
@@ -1086,7 +1112,11 @@
               "origin": "source"
             },
             "type": "type:u32",
-            "literal": "0"
+            "literal": "0",
+            "value": {
+              "kind": "integer",
+              "value": "0"
+            }
           },
           {
             "id": "count.stmt_for",
@@ -1122,7 +1152,8 @@
             ],
             "provenance": {
               "origin": "source"
-            }
+            },
+            "type": "type:unit"
           },
           {
             "id": "count.item_pat",
@@ -1225,7 +1256,8 @@
             ],
             "provenance": {
               "origin": "source"
-            }
+            },
+            "type": "type:unit"
           },
           {
             "id": "count.cond",
@@ -1381,7 +1413,11 @@
               "origin": "source"
             },
             "type": "type:u32",
-            "literal": "10"
+            "literal": "10",
+            "value": {
+              "kind": "integer",
+              "value": "10"
+            }
           },
           {
             "id": "count.then",
@@ -1436,7 +1472,8 @@
               "file": "file:lib",
               "start": 294,
               "end": 296
-            }
+            },
+            "type": "type:unit"
           },
           {
             "id": "count.total_write",
@@ -1467,7 +1504,11 @@
               "origin": "source"
             },
             "type": "type:u32",
-            "literal": "1"
+            "literal": "1",
+            "value": {
+              "kind": "integer",
+              "value": "1"
+            }
           },
           {
             "id": "count.iter_pat",

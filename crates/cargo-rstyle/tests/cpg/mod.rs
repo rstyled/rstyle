@@ -143,7 +143,7 @@ fn rustc_documents_derive_the_frontends_own_rule_facts() {
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["differences"], json!([]), "{report:#}");
     assert_eq!(report["diagnostic_differences"], json!([]));
-    assert_eq!(report["functions"], 16);
+    assert_eq!(report["functions"], 21);
     assert_eq!(output.status.code(), Some(0));
 }
 

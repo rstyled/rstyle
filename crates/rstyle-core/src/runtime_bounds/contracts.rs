@@ -95,14 +95,9 @@ pub struct Contracts {
 
 impl File {
     fn parse(text: &str) -> Result<Self, String> {
-        let file: Self = toml::from_str(text).map_err(|error| error.to_string())?;
-        if file.schema != SCHEMA {
-            return Err(format!(
-                "Unsupported library contract schema {}",
-                file.schema
-            ));
-        }
-        Ok(file)
+        crate::versioned::parse(text, (SCHEMA, "library contract"), |file: &Self| {
+            &file.schema
+        })
     }
 }
 

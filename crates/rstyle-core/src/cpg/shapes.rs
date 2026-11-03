@@ -1,6 +1,6 @@
 //! Parameter lists, signature shapes and mutated types (the profile's Pattern facts).
 
-use super::model::{Scope, Symbol, TargetKind, Type, TypeKind};
+use super::model::{Callable, Scope, Symbol, TargetKind, Type, TypeKind};
 use super::source::Sources;
 use super::tree::{Body, Tables};
 use crate::facts::{ParamFacts, Receiver, SigFacts, TyShape};
@@ -43,6 +43,8 @@ pub fn shape(tables: &Tables<'_>, id: &str) -> Result<TyShape, String> {
                 .ok_or_else(|| format!("Type parameter {} has no index", ty.id))?;
             Ok(TyShape::Param(index as usize))
         }
+        // The type of one named function (a function item) is not a pointer.
+        TypeKind::Function if ty.definition.is_some() => Ok(TyShape::Other),
         TypeKind::Function => Ok(TyShape::FnPtr),
         TypeKind::Interface => Ok(TyShape::Dyn(match ty.definition.as_deref() {
             Some(principal) => tables.definition(principal)?.stable_identity.clone(),
@@ -163,6 +165,61 @@ pub fn signature_shape(body: &Body<'_>, tables: &Tables<'_>) -> Result<Option<Si
         is_const: modifier("const"),
         generics: signature.generics.len(),
     }))
+}
+
+/// The shape a call to a function or method sees; `None` for other definitions.
+pub fn callable_shape(
+    tables: &Tables<'_>,
+    callable: Option<&Callable>,
+) -> Result<Option<SigFacts>, String> {
+    let Some(callable) = callable else {
+        return Ok(None);
+    };
+    let owner = callable
+        .owner_type
+        .as_deref()
+        .map(|id| tables.ty(id))
+        .transpose()?;
+    let nominal_owner = match owner {
+        Some(owner) => nominal(tables, owner)?.map(|shape| (owner, shape)),
+        None => None,
+    };
+    let receiver = match (&callable.receiver, &nominal_owner) {
+        (None, _) => Receiver::None,
+        (Some(receiver), Some((owner, _))) => receiver_of(tables, tables.ty(receiver)?, owner)?,
+        (Some(receiver), None) => by_reference(tables.ty(receiver)?),
+    };
+    let (self_ty, self_args) = match nominal_owner {
+        Some((_, (id, args))) => (Some(id), args),
+        None => (None, vec![]),
+    };
+    let params = callable
+        .parameters
+        .iter()
+        .map(|parameter| shape(tables, parameter))
+        .collect::<Result<_, _>>()?;
+    let modifier = |name: &str| callable.modifiers.iter().any(|m| m == name);
+
+    Ok(Some(SigFacts {
+        self_ty,
+        self_args,
+        receiver,
+        params,
+        ret: shape(tables, &callable.result)?,
+        is_async: modifier("async"),
+        is_unsafe: modifier("unsafe"),
+        is_const: modifier("const"),
+        generics: callable.generics,
+    }))
+}
+
+/// A receiver with no nominal owner to compare with, by its own reference shape.
+fn by_reference(ty: &Type) -> Receiver {
+    match (ty.kind, ty.mode.as_deref()) {
+        (TypeKind::Reference, Some("exclusive")) => Receiver::RefMut,
+        (TypeKind::Reference, _) => Receiver::Ref,
+        _ => Receiver::Value,
+    }
 }
 
 /// How the receiver's type takes the owner: by value, by reference, or otherwise.

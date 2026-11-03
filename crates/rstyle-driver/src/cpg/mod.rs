@@ -27,7 +27,7 @@ pub fn emit(
 ) -> Result<(), String> {
     let options = extract::Options {
         root,
-        with_pdg: false,
+        with_pdg: true,
         complexity: Some(complexity),
     };
     let mut unit = unit::Unit::new(tcx, root.to_path_buf());

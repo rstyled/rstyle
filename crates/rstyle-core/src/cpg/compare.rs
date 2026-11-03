@@ -6,9 +6,6 @@ use crate::facts::FnFacts;
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-/// Facts the rule derivation does not produce yet, so they are not compared.
-pub const NOT_DERIVED: [&str; 1] = ["pdg"];
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Difference {
     pub function: String,
@@ -108,6 +105,7 @@ fn fields(facts: &FnFacts) -> Vec<(&'static str, String)> {
         ("param_list", format!("{:?}", facts.param_list)),
         ("mutated_types", format!("{:?}", facts.mutated_types)),
         ("sig", format!("{:?}", facts.sig)),
+        ("pdg", format!("{:?}", facts.pdg)),
     ]
 }
 

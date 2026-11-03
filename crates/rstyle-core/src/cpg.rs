@@ -2,10 +2,10 @@
 //! derives analysis inputs from them.
 //!
 //! This module derives the facts of the style rules, and the parameter details,
-//! signature shapes and mutated types the pattern analyses read. Dependence graphs
-//! are not derived yet, so they are left empty.
+//! signature shapes, mutated types and dependence graphs the pattern analyses read.
 
 pub mod compare;
+mod dependence;
 mod events;
 mod facts;
 pub mod layout;
@@ -15,7 +15,7 @@ mod shapes;
 mod source;
 mod tree;
 
-pub use facts::{CAPABILITIES, LAYERS, rule_facts};
+pub use facts::{CAPABILITIES, LAYERS, all_facts, rule_facts};
 
 use crate::facts::FnFacts;
 
@@ -25,6 +25,8 @@ pub fn run_facts(documents: Vec<serde_json::Value>) -> Result<Vec<FnFacts>, Stri
     rule_facts(&layout::bundle(documents)?)
 }
 
+#[cfg(test)]
+mod dependence_tests;
 #[cfg(test)]
 mod shapes_tests;
 #[cfg(test)]

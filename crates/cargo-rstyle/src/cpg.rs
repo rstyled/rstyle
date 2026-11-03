@@ -188,7 +188,8 @@ pub fn compare(dir: &Path, config: Option<&Path>, format: Format) -> Result<(Str
     }
 
     for (document, facts) in &pairs {
-        let derived = rstyle_core::cpg::run_facts(vec![read(document)?])
+        let derived = rstyle_core::cpg::layout::bundle(vec![read(document)?])
+            .and_then(|bundled| rstyle_core::cpg::all_facts(&bundled))
             .map_err(|error| format!("{}: {error}", document.display()))?;
         let reference: Vec<rstyle_core::facts::FnFacts> = serde_json::from_value(read(facts)?)
             .map_err(|error| format!("{}: {error}", facts.display()))?;
@@ -200,7 +201,7 @@ pub fn compare(dir: &Path, config: Option<&Path>, format: Format) -> Result<(Str
         Format::Text => comparison_text(&comparison, &diagnostics, pairs.len()),
         Format::Json => serde_json::to_string_pretty(&serde_json::json!({
             "documents": pairs.len(), "functions": comparison.functions,
-            "not_compared": rstyle_core::cpg::compare::NOT_DERIVED, "by_field": comparison.by_field(),
+            "by_field": comparison.by_field(),
             "differences": comparison.differences, "diagnostic_differences": diagnostics,
         }))
         .map_err(|error| error.to_string())?,
@@ -241,11 +242,10 @@ fn comparison_text(
     documents: usize,
 ) -> String {
     let mut lines = vec![format!(
-        "{documents} documents, {} functions, {} differing facts, {} differing diagnostics; not derived yet: {}",
+        "{documents} documents, {} functions, {} differing facts, {} differing diagnostics",
         comparison.functions,
         comparison.differences.len(),
         diagnostics.len(),
-        rstyle_core::cpg::compare::NOT_DERIVED.join(", ")
     )];
     lines.extend(
         comparison

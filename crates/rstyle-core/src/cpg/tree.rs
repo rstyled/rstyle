@@ -153,6 +153,11 @@ pub fn anchor(node: &Node) -> Result<&FileSpan, String> {
     chosen.ok_or_else(|| format!("Node {} has neither a span nor a call site", node.id))
 }
 
+/// The line of a node's location.
+pub fn line(sources: &super::source::Sources<'_>, node: &Node) -> Result<usize, String> {
+    Ok(sources.location(anchor(node)?)?.0)
+}
+
 pub fn is_kind(node: &Node, kinds: &[NodeKind]) -> bool {
     kinds.contains(&node.kind)
 }
