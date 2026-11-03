@@ -78,7 +78,13 @@ impl<'tcx> Unit<'tcx> {
     // rstyle-allow(mutation_per_target): the unit interns referenced records as it builds them
     /// The definition ID of `def_id`, recording the definition on first use.
     pub fn definition(&mut self, def_id: DefId) -> String {
-        let stable = ids::def_id_str(self.tcx, def_id);
+        let mut stable = ids::def_id_str(self.tcx, def_id);
+        // A macro shares its path with an item of another namespace, as derive macros
+        // share the traits they implement; `!` names the macro, as invoking it does.
+        if matches!(self.tcx.def_kind(def_id), DefKind::Macro(_)) {
+            stable.push('!');
+        }
+
         let id = format!("def:{stable}");
         if !self.definitions.contains_key(&id) {
             let record = self.definition_record(def_id, &id, stable);

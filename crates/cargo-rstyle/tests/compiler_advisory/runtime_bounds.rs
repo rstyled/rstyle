@@ -502,6 +502,32 @@ fn assert_default_off(directory: &Path, original: &Value) {
     );
 }
 
+/// A derive macro shares its path with the trait it implements; the derived body,
+/// recorded first, must not turn the trait into the macro and hide its implementations.
+#[test]
+fn derive_macros_keep_their_traits_implementations_selectable() {
+    let directory = clone_workspace();
+    let source = "#[derive(Default)] pub struct Settings { pub limit: usize }\n\
+                  pub fn settings() -> Settings { Settings { ..Default::default() } }\n";
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let output = rstyle(
+        directory.path(),
+        &["patterns", "--format", "json", "--complexity"],
+    );
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(output.status.success(), "{}", stdout(&output));
+    let rows = runtime(&report)["rows"].as_array().unwrap();
+    let composed = &named_row(rows, "settings")["composed"]["Proven"];
+    let callees = composed["resolved_callees"].as_array().unwrap();
+    assert!(
+        callees.iter().any(|callee| callee
+            .as_str()
+            .unwrap()
+            .ends_with("clone_fixture::{impl#0}::default")),
+        "{composed:#}"
+    );
+}
+
 #[test]
 fn old_capture_cannot_silently_supply_runtime_bounds() {
     let (directory, output, original) = capture("pub fn empty() {}", &["--compiler-advisory-only"]);
