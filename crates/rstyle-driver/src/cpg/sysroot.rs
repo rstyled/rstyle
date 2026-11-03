@@ -1,7 +1,7 @@
 //! Standard-library identity by crate number, never by crate or path spelling.
-use super::*;
 use rustc_hir::def_id::{CrateNum, DefId};
 use rustc_middle::ty::GenericArgKind;
+use rustc_middle::ty::{self, Ty};
 use rustc_span::sym;
 
 /// `core`, `alloc` or `std`, identified by the crates defining their lang and diagnostic items.
@@ -121,17 +121,4 @@ pub(crate) fn type_key(tcx: ty::TyCtxt<'_>, ty: Ty<'_>) -> Option<String> {
         ty::Str => Some("str".into()),
         _ => None,
     }
-}
-
-/// Whether dropping a value of `ty` may run a workspace `Drop` impl.
-pub(crate) fn workspace_drop<'tcx>(tcx: ty::TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
-    ty.walk().any(|part| {
-        part.as_type().is_some_and(|ty| match ty.kind() {
-            ty::Adt(definition, _) => {
-                !sysroot(tcx, definition.did().krate)
-                    && tcx.adt_destructor(definition.did()).is_some()
-            }
-            _ => false,
-        })
-    })
 }

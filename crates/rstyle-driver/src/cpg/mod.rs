@@ -5,14 +5,16 @@
 mod body;
 mod compiler;
 mod places;
+pub(crate) mod sysroot;
 mod unit;
 
-use crate::extract;
-use rustc_hir::def::DefKind;
+use crate::{extract, ids};
+use rstyle_core::advisory::runtime_bounds::Input;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::LOCAL_CRATE;
 use serde_json::{Value, json};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 /// Directory the documents are written to; setting it selects this mode.
@@ -32,57 +34,65 @@ pub fn emit(
         complexity: Some(complexity),
     };
     let mut unit = unit::Unit::new(tcx, root.to_path_buf());
-    let captured = tcx
-        .hir_body_owners()
-        .filter(|id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
+    let captured = crate::hir_extraction::function_owners(tcx)
         .map(|id| capture(&mut unit, id, &options))
         .collect::<Result<Vec<_>, String>>()?;
-    let captured: Vec<_> = captured.into_iter().flatten().collect();
-    if captured.is_empty() {
+    let (functions, reference): (Vec<_>, Vec<_>) = captured.into_iter().flatten().unzip();
+    if functions.is_empty() {
         return Ok(());
     }
 
-    let (functions, rest): (Vec<_>, Vec<_>) = captured
-        .into_iter()
-        .map(|(function, facts, bound)| (function, (facts, bound)))
-        .unzip();
-    let (reference, bounds): (Vec<_>, serde_json::Map<_, _>) = rest.into_iter().unzip();
-    let name = format!(
-        "{}-{:016x}",
-        tcx.crate_name(LOCAL_CRATE),
-        tcx.stable_crate_id(LOCAL_CRATE).as_u64()
-    );
+    let name = unit_name(tcx);
     let document = document(tcx, unit, functions, &name);
     write(&dir.join(format!("{name}.cpg.json")), &document)?;
     write(
         &dir.join(format!("{name}.facts.json")),
         &serde_json::to_value(reference).map_err(|e| e.to_string())?,
-    )?;
-    // The driver's runtime-bound programs, by function identity.
-    write(
-        &dir.join(format!("{name}.bounds.json")),
-        &Value::Object(bounds),
     )
 }
 
-/// One function's document record, reference facts and runtime-bound program by identity.
-type Captured = (Value, rstyle_core::facts::FnFacts, (String, Value));
+/// Each function's runtime-bound program by owner identity, as the core lowers it
+/// from the crate's document. An owner the document cannot record keeps its reason.
+pub fn runtime_bounds(tcx: TyCtxt<'_>, root: &Path) -> Result<BTreeMap<String, Input>, String> {
+    let mut unit = unit::Unit::new(tcx, root.to_path_buf());
+    let mut programs = BTreeMap::new();
+    let mut recorded = Vec::new();
+    for id in crate::hir_extraction::function_owners(tcx) {
+        match function(&mut unit, id) {
+            Ok(function) => recorded.push(function),
+            Err(reason) => {
+                _ = programs.insert(
+                    ids::def_id_str(tcx, id.to_def_id()),
+                    Input::Unavailable { reason },
+                )
+            }
+        }
+    }
 
+    let document = document(tcx, unit, recorded, &unit_name(tcx));
+    programs.extend(rstyle_core::cpg::run_bounds(vec![document])?);
+    Ok(programs)
+}
+
+fn unit_name(tcx: TyCtxt<'_>) -> String {
+    format!(
+        "{}-{:016x}",
+        tcx.crate_name(LOCAL_CRATE),
+        tcx.stable_crate_id(LOCAL_CRATE).as_u64()
+    )
+}
+
+/// One function's document record and reference facts.
 fn capture(
     unit: &mut unit::Unit<'_>,
     id: LocalDefId,
     options: &extract::Options<'_>,
-) -> Result<Option<Captured>, String> {
-    let tcx = unit.tcx;
-    let Some(facts) = extract::function_facts(tcx, id, options) else {
+) -> Result<Option<(Value, rstyle_core::facts::FnFacts)>, String> {
+    let Some(facts) = extract::function_facts(unit.tcx, id, options) else {
         return Ok(None);
     };
 
-    let function = function(unit, id)?;
-    let input = crate::hir_extraction::runtime_bounds(tcx, id);
-    let bound = serde_json::to_value(input).map_err(|e| e.to_string())?;
-    let key = facts.id.clone();
-    Ok(Some((function, facts, (key, bound))))
+    Ok(Some((function(unit, id)?, facts)))
 }
 
 fn write(path: &PathBuf, value: &Value) -> Result<(), String> {

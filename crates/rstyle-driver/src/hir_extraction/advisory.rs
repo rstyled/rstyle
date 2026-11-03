@@ -11,7 +11,7 @@ pub(super) fn capture<B, S>(
     facts: &mut HirFnFacts<B, S>,
     capture: &super::Options<'_>,
 ) -> Result<(), String> {
-    super::runtime_bounds::capture(ctx, id, facts)?;
+    super::runtime_bounds::capture(ctx, id, facts, capture)?;
     capture_style(ctx, id, facts, capture)
 }
 

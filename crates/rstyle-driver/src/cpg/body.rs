@@ -924,9 +924,7 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             None => (callee, args),
         };
         if compiler::standard(self.tcx, runs) {
-            let value = crate::hir_extraction::runtime_bounds::sysroot::calls_back(
-                self.tcx, runs, runs_args,
-            );
+            let value = super::sysroot::calls_back(self.tcx, runs, runs_args);
             record["calls_back"] = json!({"value": value,
                 "reason": "callable arguments, or bounds on types outside the standard library"});
         }

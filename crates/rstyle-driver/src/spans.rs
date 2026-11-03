@@ -1,9 +1,6 @@
 //! Source spans without the parentheses around an expression: rustc gives a
 //! parenthesized expression the parentheses' span, while its location is its own.
 
-use rustc_middle::ty::TyCtxt;
-use rustc_span::{BytePos, Span};
-
 /// Byte range of `content[start..end]` without enclosing parentheses and the space
 /// inside them.
 pub fn unparenthesized(content: &str, mut start: usize, mut end: usize) -> (usize, usize) {
@@ -19,21 +16,6 @@ pub fn unparenthesized(content: &str, mut start: usize, mut end: usize) -> (usiz
         (start, end) = (start + 1 + leading, end - 1 - trailing);
     }
     (start, end)
-}
-
-/// Where an expression at `span` begins, past enclosing parentheses.
-pub fn start(tcx: TyCtxt<'_>, span: Span) -> BytePos {
-    let file = tcx.sess.source_map().lookup_source_file(span.lo());
-    let Some(content) = file.src.as_deref() else {
-        return span.lo();
-    };
-    let offset = |position: BytePos| (position - file.start_pos).0 as usize;
-    if span.hi() > file.end_position() {
-        return span.lo();
-    }
-    let (start, _) = unparenthesized(content, offset(span.lo()), offset(span.hi()));
-
-    file.start_pos + BytePos(start as u32)
 }
 
 fn closing(bytes: &[u8], open: usize) -> Option<usize> {

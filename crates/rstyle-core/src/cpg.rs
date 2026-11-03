@@ -39,18 +39,26 @@ pub fn run_bounds(
     functions
         .iter()
         .map(|function| {
-            let body = tree::Body::new(function)?;
-            let facts = bounds::facts::Facts {
-                body: &body,
-                tables: &tables,
-                sources: &sources,
-                pointer_bits,
-            };
             let identity = tables
                 .definition(&function.definition)?
                 .stable_identity
                 .clone();
-            Ok((identity, bounds::lower(&facts, arithmetic)?))
+            let lowered = tree::Body::new(function).and_then(|body| {
+                let facts = bounds::facts::Facts {
+                    body: &body,
+                    tables: &tables,
+                    sources: &sources,
+                    pointer_bits,
+                };
+                bounds::lower(&facts, arithmetic)
+            });
+            // A function the lowering cannot read is unavailable, not a failed unit.
+            let input = lowered.unwrap_or_else(|reason| {
+                crate::advisory::runtime_bounds::Input::Unavailable {
+                    reason: format!("compat.cpg lowering: {reason}"),
+                }
+            });
+            Ok((identity, input))
         })
         .collect()
 }

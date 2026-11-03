@@ -115,34 +115,6 @@ fn sorted<T: std::fmt::Debug>(events: &[T]) -> String {
     rendered.join("\n")
 }
 
-/// Runtime-bound inputs the frontend lowered, against those derived from its document.
-/// Local and loop numbers are opaque identities, so both sides are compared after
-/// renumbering them in order of appearance.
-pub fn compare_bounds(
-    reference: &serde_json::Value,
-    derived: &[(String, crate::advisory::runtime_bounds::Input)],
-) -> Vec<Difference> {
-    let mut differences = Vec::new();
-    for (function, input) in derived {
-        let expected = reference.get(function).map(canonical_bounds);
-        let actual = serde_json::to_value(input).map(|value| canonical_bounds(&value));
-        let (expected, actual) = match (expected, actual) {
-            (Some(expected), Ok(actual)) => (expected, actual),
-            (None, _) => ("absent".into(), "present".into()),
-            (_, Err(error)) => ("present".into(), error.to_string()),
-        };
-        if expected != actual {
-            differences.push(Difference {
-                function: function.clone(),
-                field: "runtime_bounds",
-                reference: expected,
-                derived: actual,
-            });
-        }
-    }
-    differences
-}
-
 /// The input's JSON with local and loop numbers renumbered by first appearance.
 pub fn canonical_bounds(value: &serde_json::Value) -> String {
     let text = value.to_string();

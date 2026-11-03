@@ -2,8 +2,8 @@
 //! rustc: implicit adjustments, binding modes, standard-library identity, library
 //! operation keys and iterator item types.
 
+use super::sysroot;
 use super::unit::Unit;
-use crate::hir_extraction::runtime_bounds::sysroot;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::ty::adjustment::{
     Adjust, Adjustment, AutoBorrow, AutoBorrowMutability, DerefAdjustKind, PatAdjust,

@@ -192,9 +192,7 @@ impl<'tcx> Unit<'tcx> {
             let mut record = self.type_record(ty);
             record["id"] = json!(id);
             record["spelling"] = json!(spelling);
-            if let Some(key) =
-                crate::hir_extraction::runtime_bounds::sysroot::type_key(self.tcx, ty)
-            {
+            if let Some(key) = super::sysroot::type_key(self.tcx, ty) {
                 record["key"] = json!(format!("rust:{key}"));
             }
             self.types.insert(id.clone(), record);

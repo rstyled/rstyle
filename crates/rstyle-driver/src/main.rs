@@ -154,6 +154,7 @@ impl Callbacks for HirExtract {
             source_root: self.source_root.as_deref(),
             complexity: &self.complexity,
             sources: Default::default(),
+            runtime_bounds: Default::default(),
             profile: self.profile,
             invocation: &self.invocation,
             unit_context: self.unit_context.as_ref(),

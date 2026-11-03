@@ -17,7 +17,7 @@ pub struct Observation {
     pub input: Input,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Input {
     Captured { program: Program },

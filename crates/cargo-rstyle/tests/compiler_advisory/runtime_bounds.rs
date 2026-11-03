@@ -317,14 +317,14 @@ fn assert_library(rows: &[Value]) {
     let own = composition(lookups);
     assert_eq!(
         own.library_steps.to_string(),
-        "len(keys)#4 * log(len(index.names))"
+        "len(keys)#1 * log(len(index.names))"
     );
     assert!(own.library_factors.is_empty(), "{own:?}");
 
     let caller = composition(named_row(rows, "lookup_caller"));
     assert_eq!(
         caller.library_steps.to_string(),
-        "len(keys)#4 * log(len(index.names))"
+        "len(keys)#1 * log(len(index.names))"
     );
     assert_eq!(caller.library_steps.order().logarithmic, 1);
 

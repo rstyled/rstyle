@@ -118,31 +118,31 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 
     fn variable(&mut self, name: String, initial: Value, bits: u8) -> u32 {
-        if self.program.variables.len() >= MAX_VARIABLES {
-            self.exhausted = true;
-            return 0;
-        }
-        let index = self.program.variables.len() as u32;
-        self.program.variables.push(Variable {
+        let variable = Variable {
             name,
             initial,
             bits,
-        });
-        index
+        };
+        bounded_push(
+            &mut self.program.variables,
+            variable,
+            MAX_VARIABLES,
+            &mut self.exhausted,
+        )
     }
 
     fn node_with(&mut self, (action, flow): (Action, Flow), at: &Node, evidence: &str) -> u32 {
-        if self.program.nodes.len() >= MAX_NODES {
-            self.exhausted = true;
-            return 0;
-        }
-        let index = self.program.nodes.len() as u32;
-        self.program.nodes.push(crate::runtime_bounds::Node {
+        let node = crate::runtime_bounds::Node {
             action,
             flow,
             source: self.facts.source(at, evidence),
-        });
-        index
+        };
+        bounded_push(
+            &mut self.program.nodes,
+            node,
+            MAX_NODES,
+            &mut self.exhausted,
+        )
     }
 
     fn node(&mut self, action: Action, flow: Flow, at: &Node) -> u32 {
@@ -346,6 +346,17 @@ struct Local<'a> {
     pattern: &'a Node,
     init: Option<&'a Node>,
     otherwise: Option<&'a Node>,
+}
+
+/// Appends `item` and returns its index, unless `items` is full: then the program's
+/// budget is exhausted and 0 stands in for the index.
+fn bounded_push<T>(items: &mut Vec<T>, item: T, limit: usize, exhausted: &mut bool) -> u32 {
+    if items.len() >= limit {
+        *exhausted = true;
+        return 0;
+    }
+    items.push(item);
+    items.len() as u32 - 1
 }
 
 fn is_statement(node: &Node) -> bool {

@@ -144,11 +144,10 @@ fn status(mut command: std::process::Command, what: &str) -> Result<(), String> 
 
 /// Bundled documents in `dir`, each with its reference facts.
 // rstyle-allow(side_effect_density): IO boundary: lists the output directory
-/// Each document an emit wrote, with its reference facts and runtime-bound programs.
+/// Each document an emit wrote, with its reference facts.
 struct Emitted {
     document: PathBuf,
     facts: PathBuf,
-    bounds: PathBuf,
 }
 
 // rstyle-allow(side_effect_density): IO boundary: lists the documents an emit wrote
@@ -165,7 +164,6 @@ fn documents(dir: &Path) -> Result<Vec<Emitted>, String> {
         };
         pairs.push(Emitted {
             facts: dir.join(format!("{stem}.facts.json")),
-            bounds: dir.join(format!("{stem}.bounds.json")),
             document: path,
         });
     }
@@ -177,7 +175,7 @@ fn documents(dir: &Path) -> Result<Vec<Emitted>, String> {
 // rstyle-allow(side_effect_density): IO boundary: removes documents of an earlier run
 fn remove_documents(dir: &Path) -> Result<(), String> {
     for emitted in documents(dir)? {
-        for path in [emitted.document, emitted.facts, emitted.bounds] {
+        for path in [emitted.document, emitted.facts] {
             if path.exists() {
                 std::fs::remove_file(&path)
                     .map_err(|error| format!("{}: {error}", path.display()))?;
@@ -198,12 +196,7 @@ pub fn compare(dir: &Path, config: Option<&Path>, format: Format) -> Result<(Str
         return Err(format!("{} has no compat.cpg documents", dir.display()));
     }
 
-    for Emitted {
-        document,
-        facts,
-        bounds,
-    } in &pairs
-    {
+    for Emitted { document, facts } in &pairs {
         let derived = rstyle_core::cpg::layout::bundle(vec![read(document)?])
             .and_then(|bundled| rstyle_core::cpg::all_facts(&bundled))
             .map_err(|error| format!("{}: {error}", document.display()))?;
@@ -211,10 +204,6 @@ pub fn compare(dir: &Path, config: Option<&Path>, format: Format) -> Result<(Str
             .map_err(|error| format!("{}: {error}", facts.display()))?;
         comparison.extend(rstyle_core::cpg::compare::compare(&reference, &derived));
         diagnostics.extend(diagnostic_differences(&reference, &derived, &config)?);
-        let derived = rstyle_core::cpg::run_bounds(vec![read(document)?])
-            .map_err(|error| format!("{}: {error}", document.display()))?;
-        let differences = rstyle_core::cpg::compare::compare_bounds(&read(bounds)?, &derived);
-        comparison.differences.extend(differences);
     }
     let failed = !comparison.differences.is_empty() || !diagnostics.is_empty();
     let output = match format {
