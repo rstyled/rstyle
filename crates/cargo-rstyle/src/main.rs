@@ -52,6 +52,21 @@ impl Cli {
         }
         Ok(())
     }
+
+    /// rustc resolves source paths against its working directory, which the OS
+    /// reports with symlinks resolved, while cargo reports the workspace and
+    /// package roots as spelled in `--manifest-path`. A manifest reached through
+    /// a symlink would then match no source file; resolve it once so every root
+    /// agrees with the compiler. A missing manifest is left for cargo to report.
+    fn resolve_manifest_path(&mut self) {
+        if let Some(resolved) = self
+            .manifest_path
+            .as_deref()
+            .and_then(|path| path.canonicalize().ok())
+        {
+            self.manifest_path = Some(resolved);
+        }
+    }
 }
 
 #[derive(Args, Default)]
@@ -344,6 +359,7 @@ fn main() -> ExitCode {
         eprintln!("{error}");
         return ExitCode::from(2);
     }
+    cli.resolve_manifest_path();
 
     match cli.command.take() {
         Some(Command::Clones(args)) => return exit_with(clones::run(&cli, &args)),

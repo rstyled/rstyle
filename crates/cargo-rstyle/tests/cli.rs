@@ -372,6 +372,41 @@ fn compile_errors_exit_two() {
     );
 }
 
+/// A manifest reached through a symlink (macOS `/var` -> `/private/var` temp
+/// dirs) checks the same code as its real path: rustc reports sources under the
+/// resolved directory, so an unresolved root would match none of them.
+#[cfg(unix)]
+#[test]
+fn symlinked_manifest_checks_the_same_code() {
+    let dir = fixture("violations");
+    let links = tempfile::tempdir().unwrap();
+    let alias = links.path().join("violations");
+    std::os::unix::fs::symlink(dir.path(), &alias).unwrap();
+    let real = dir.path().join("Cargo.toml");
+    let linked = alias.join("Cargo.toml");
+    let reports = [real, linked].map(|manifest| {
+        let manifest = manifest.to_str().unwrap();
+        let output = rstyle(
+            links.path(),
+            &["--manifest-path", manifest, "--format", "json"],
+        );
+        assert_eq!(
+            output.status.code(),
+            Some(1),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()
+    });
+    for report in &reports {
+        assert_eq!(report["summary_complete"], true);
+        assert_eq!(report["capture_complete"], true);
+    }
+    assert_eq!(reports[0]["summary"], reports[1]["summary"]);
+    assert_eq!(reports[0]["diagnostics"], reports[1]["diagnostics"]);
+    assert!(reports[1]["summary"]["violations"].as_u64().unwrap() > 0);
+}
+
 #[test]
 fn bad_config_exits_two() {
     let dir = fixture("clean");
