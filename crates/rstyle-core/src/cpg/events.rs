@@ -3,7 +3,7 @@
 
 use super::model::{
     Definition, DefinitionKind, Dispatch, Node, NodeKind, Origin, Place, PlaceMode, Ref, RefStatus,
-    RefTarget, Scope, Step, TargetKind, TypeKind,
+    RefTarget, Scope, Step, Symbol, TargetKind, TypeKind,
 };
 use super::source::Sources;
 use super::tree::{Body, Tables, anchor, generated, is_kind};
@@ -391,7 +391,8 @@ fn own_span(node: &Node) -> Result<&super::model::FileSpan, String> {
 }
 
 /// Writes and exclusive borrows of places rooted at a binding, in place order.
-pub fn mutations(walk: &Walk<'_>) -> Result<Vec<MutationEvent>, String> {
+/// Mutation events in place order, each with the symbol its place is rooted at.
+pub fn mutations<'a>(walk: &Walk<'a>) -> Result<Vec<(MutationEvent, &'a Symbol)>, String> {
     let mut events = Vec::new();
     for place in &walk.body.function.places {
         if let Some(event) = mutation(walk, place)? {
@@ -401,7 +402,10 @@ pub fn mutations(walk: &Walk<'_>) -> Result<Vec<MutationEvent>, String> {
     Ok(events)
 }
 
-fn mutation(walk: &Walk<'_>, place: &Place) -> Result<Option<MutationEvent>, String> {
+fn mutation<'a>(
+    walk: &Walk<'a>,
+    place: &Place,
+) -> Result<Option<(MutationEvent, &'a Symbol)>, String> {
     let write = place.access != super::model::AccessMode::Read;
     let borrow = place.mode == PlaceMode::Exclusive;
     let Some(root) = place.root.symbol.as_deref().filter(|_| write || borrow) else {
@@ -425,14 +429,15 @@ fn mutation(walk: &Walk<'_>, place: &Place) -> Result<Option<MutationEvent>, Str
         .sources
         .location(anchor(walk.body.node(&place.node)?)?)?
         .0;
-    Ok(Some(MutationEvent {
+    let event = MutationEvent {
         origin: binding_origin(walk, symbol.node.as_deref())?,
         root: symbol.name.clone(),
         field_path: fields.join("."),
         line,
         escapes: escapes && !delegated,
         delegated,
-    }))
+    };
+    Ok(Some((event, symbol)))
 }
 
 fn field_name(step: &Step) -> Option<&str> {

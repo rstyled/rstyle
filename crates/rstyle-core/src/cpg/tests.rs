@@ -10,7 +10,7 @@ const EXAMPLE: &str = include_str!("testdata/example.cpg.json");
 /// `unit_ref.digest` of the example's split unit document, pinned so a change to
 /// canonical JSON or digests shows up here first.
 const SPLIT_DIGEST: &str =
-    "sha256:5b2ffbfdd72130d8f95fd8cf81d2bbe954945710a713c6a79a338b5435da2558";
+    "sha256:f3e06f68d2feba04cbd1fe5665110e56ec3b428511ad3f4d94c8376e33442502";
 
 fn example() -> Value {
     serde_json::from_str(EXAMPLE).unwrap()
@@ -315,8 +315,10 @@ impl Fixture {
     }
 
     fn symbol(&mut self, id: &str, name: &str, kind: &str) {
-        self.symbols
-            .push(json!({"id": id, "name": name, "kind": kind, "scope": "fn:f", "mutable": true}));
+        self.symbols.push(
+            json!({"id": id, "name": name, "kind": kind, "scope": "fn:f", "mutable": true,
+                         "type": "type:u32"}),
+        );
     }
 
     fn reference(&mut self, node: &str, (target_kind, target): (&str, &str), extra: Value) {

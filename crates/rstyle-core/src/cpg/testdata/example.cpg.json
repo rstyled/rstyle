@@ -274,7 +274,8 @@
         "definition": "def:larger.T",
         "bounds": [
           "def:Ord"
-        ]
+        ],
+        "index": 0
       },
       {
         "id": "type:u32",
@@ -377,6 +378,11 @@
                 "file": "file:lib",
                 "start": 49,
                 "end": 53
+              },
+              "annotation": {
+                "file": "file:lib",
+                "start": 52,
+                "end": 53
               }
             },
             {
@@ -386,6 +392,11 @@
               "span": {
                 "file": "file:lib",
                 "start": 55,
+                "end": 59
+              },
+              "annotation": {
+                "file": "file:lib",
+                "start": 58,
                 "end": 59
               }
             }
@@ -630,6 +641,11 @@
                 "file": "file:lib",
                 "start": 95,
                 "end": 101
+              },
+              "annotation": {
+                "file": "file:lib",
+                "start": 98,
+                "end": 101
               }
             },
             {
@@ -640,6 +656,11 @@
                 "file": "file:lib",
                 "start": 103,
                 "end": 109
+              },
+              "annotation": {
+                "file": "file:lib",
+                "start": 98,
+                "end": 101
               }
             }
           ],
@@ -983,6 +1004,11 @@
               "span": {
                 "file": "file:lib",
                 "start": 164,
+                "end": 177
+              },
+              "annotation": {
+                "file": "file:lib",
+                "start": 171,
                 "end": 177
               }
             }

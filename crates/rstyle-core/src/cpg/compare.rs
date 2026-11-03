@@ -7,7 +7,7 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 
 /// Facts the rule derivation does not produce yet, so they are not compared.
-pub const NOT_DERIVED: [&str; 4] = ["param_list", "mutated_types", "sig", "pdg"];
+pub const NOT_DERIVED: [&str; 1] = ["pdg"];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Difference {
@@ -105,6 +105,9 @@ fn fields(facts: &FnFacts) -> Vec<(&'static str, String)> {
         ("calls", sorted(&facts.calls)),
         ("effects", sorted(&facts.effects)),
         ("edges", sorted(&facts.edges)),
+        ("param_list", format!("{:?}", facts.param_list)),
+        ("mutated_types", format!("{:?}", facts.mutated_types)),
+        ("sig", format!("{:?}", facts.sig)),
     ]
 }
 
