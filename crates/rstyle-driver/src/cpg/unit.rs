@@ -164,7 +164,7 @@ impl<'tcx> Unit<'tcx> {
         for (field, value) in compiler_facts(tcx, def_id, kind) {
             record[field] = value;
         }
-        record["extensions"] = json!(rust_identity(tcx, def_id, kind));
+        record["extensions"] = json!({"rust:compiler-identity": rust_identity(tcx, def_id, kind)});
 
         record
     }
@@ -513,16 +513,13 @@ fn compiler_facts(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> Vec<(&'stati
 /// its `DefId`, `DefKind`, `DefPathHash`, crate name and, for another crate, its hash.
 fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> BTreeMap<&'static str, String> {
     let mut identity = BTreeMap::from([
-        ("rust:def-id", format!("{def_id:?}")),
-        ("rust:def-kind", format!("{kind:?}")),
-        (
-            "rust:def-path-hash",
-            format!("{:?}", tcx.def_path_hash(def_id)),
-        ),
-        ("rust:crate-name", tcx.crate_name(def_id.krate).to_string()),
+        ("def_id", format!("{def_id:?}")),
+        ("def_kind", format!("{kind:?}")),
+        ("def_path_hash", format!("{:?}", tcx.def_path_hash(def_id))),
+        ("crate_name", tcx.crate_name(def_id.krate).to_string()),
     ]);
     if !def_id.is_local() {
-        identity.insert("rust:crate-hash", tcx.crate_hash(def_id.krate).to_string());
+        identity.insert("crate_hash", tcx.crate_hash(def_id.krate).to_string());
     }
     identity
 }

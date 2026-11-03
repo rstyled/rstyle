@@ -238,7 +238,7 @@ pub struct Definition {
     pub iteration: bool,
     /// Registered frontend facts with no neutral home, by namespaced key.
     #[serde(default)]
-    pub extensions: BTreeMap<String, String>,
+    pub extensions: BTreeMap<String, serde_json::Value>,
 }
 
 /// The interface a call to a function or method sees.

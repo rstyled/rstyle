@@ -101,15 +101,11 @@ impl Context<'_, '_> {
             }
             TargetKind::Definition | TargetKind::Constructor => {
                 let definition = self.reader.tables.definition(target.id.as_deref()?).ok()?;
-                let rust = |key: &str| definition.extensions.get(key);
+                let rust = |key: &str| identity(definition, key);
                 Some(PathRes {
                     kind: "other".into(),
                     target: None,
-                    description: format!(
-                        "Def({}, {})",
-                        rust("rust:def-kind")?,
-                        rust("rust:def-id")?
-                    ),
+                    description: format!("Def({}, {})", rust("def_kind")?, rust("def_id")?),
                 })
             }
             _ => None,
@@ -124,12 +120,12 @@ impl Context<'_, '_> {
             None => reference.via.as_deref()?,
         };
         let definition = self.reader.tables.definition(declared).ok()?;
-        let rust = |key: &str| definition.extensions.get(key).cloned();
+        let rust = |key: &str| identity(definition, key).map(str::to_owned);
         let callee = crate::data_library::Callee {
             path: definition.name.clone(),
-            crate_name: rust("rust:crate-name")?,
-            crate_hash: rust("rust:crate-hash").unwrap_or_else(|| "local-unencoded".into()),
-            definition_hash: rust("rust:def-path-hash")?,
+            crate_name: rust("crate_name")?,
+            crate_hash: rust("crate_hash").unwrap_or_else(|| "local-unencoded".into()),
+            definition_hash: rust("def_path_hash")?,
             implementation: None,
         };
         Some(PathRes {
@@ -154,4 +150,13 @@ impl Context<'_, '_> {
             compilation.get(..4)?
         ))
     }
+}
+
+/// A part of the compiler's own identity of a definition, as the compiler prints it.
+fn identity<'d>(definition: &'d rstyle_core::cpg::model::Definition, key: &str) -> Option<&'d str> {
+    definition
+        .extensions
+        .get("rust:compiler-identity")?
+        .get(key)?
+        .as_str()
 }
