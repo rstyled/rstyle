@@ -197,11 +197,17 @@ fn compare_reports_differences_and_fails() {
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn emit_selects_packages_and_targets() {
     let dir = fixture("lowered");
     let out = dir.path().join("cpg");
-    let manifest = dir.path().join("Cargo.toml");
+    // The manifest is reached through a symlink, as macOS temporary directories
+    // are (`/var` -> `/private/var`); its sources still count as workspace code.
+    let links = tempfile::tempdir().unwrap();
+    let alias = links.path().join("lowered");
+    std::os::unix::fs::symlink(dir.path(), &alias).unwrap();
+    let manifest = alias.join("Cargo.toml");
     let args = [
         "rstyle",
         "cpg",

@@ -62,6 +62,13 @@ pub fn emit(selection: &Selection<'_>, out: &Path) -> Result<(String, u8), Strin
     )?;
     std::fs::create_dir_all(out).map_err(|error| format!("{}: {error}", out.display()))?;
     let out = out.canonicalize().map_err(|error| error.to_string())?;
+    // rustc resolves source paths against its working directory, which the OS
+    // reports with symlinks resolved; a root reached through a symlink (e.g.
+    // `--manifest-path` under macOS's `/var`) would match no source file.
+    let root = metadata
+        .workspace_root
+        .canonicalize()
+        .map_err(|error| format!("{}: {error}", metadata.workspace_root.display()))?;
     remove_documents(&out)?;
     let target = out.join("target");
 
@@ -82,7 +89,7 @@ pub fn emit(selection: &Selection<'_>, out: &Path) -> Result<(String, u8), Strin
         .env("CARGO_INCREMENTAL", "0")
         .env("RUSTC_WORKSPACE_WRAPPER", crate::run::driver_path()?)
         .env("RSTYLE_CPG_DIR", &out)
-        .env("RSTYLE_CPG_ROOT", &metadata.workspace_root);
+        .env("RSTYLE_CPG_ROOT", &root);
     status(check, "cargo check")?;
     let written = documents(&out)?.len();
 
