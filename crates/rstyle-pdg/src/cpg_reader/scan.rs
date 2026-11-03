@@ -33,6 +33,7 @@ pub(super) fn scan(source: &str, profile: ExtractionProfile) -> Vec<Function> {
         return Vec::new();
     };
     let mut scan = Scan {
+        source,
         positions: Positions::new(source),
         profile,
         functions: Vec::new(),
@@ -41,13 +42,14 @@ pub(super) fn scan(source: &str, profile: ExtractionProfile) -> Vec<Function> {
     scan.functions
 }
 
-struct Scan {
+struct Scan<'s> {
+    source: &'s str,
     positions: Positions,
     profile: ExtractionProfile,
     functions: Vec<Function>,
 }
 
-impl Scan {
+impl Scan<'_> {
     fn offsets(&self, span: Span) -> (usize, usize) {
         offsets(&self.positions, span)
     }
@@ -57,6 +59,7 @@ impl Scan {
         let span = (self.offsets(start).0, self.offsets(body.span()).1);
         let mut owned = Owned {
             positions: &self.positions,
+            source: self.source,
             profile: self.profile,
             findings: Vec::new(),
             conditional: false,
@@ -71,6 +74,53 @@ impl Scan {
             conditional: owned.conditional,
         });
     }
+}
+
+/// The first byte of `source[start..end]` after outer attributes and doc comments,
+/// which a construct's own span excludes.
+fn after_attributes(source: &str, mut start: usize, end: usize) -> usize {
+    let bytes = source.as_bytes();
+    loop {
+        let rest = source.get(start..end).unwrap_or_default();
+        let trimmed = rest.trim_start();
+        let at = start + (rest.len() - trimmed.len());
+        let next = if trimmed.starts_with("#[") || trimmed.starts_with("#![") {
+            closing_bracket(bytes, at + trimmed.find('[').unwrap_or(0)).map(|close| close + 1)
+        } else if trimmed.starts_with("///") || trimmed.starts_with("//!") {
+            trimmed.find('\n').map(|line| at + line + 1)
+        } else if trimmed.starts_with("/**") || trimmed.starts_with("/*!") {
+            trimmed.find("*/").map(|close| at + close + 2)
+        } else {
+            None
+        };
+        match next {
+            Some(next) if next < end => start = next,
+            _ => return at,
+        }
+    }
+}
+
+/// The `]` closing the `[` at `open`, outside string literals.
+fn closing_bracket(bytes: &[u8], open: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut text = false;
+    let mut index = open;
+    while index < bytes.len() {
+        match (bytes[index], text) {
+            (b'\\', true) => index += 1,
+            (b'"', _) => text = !text,
+            (b'[', false) => depth += 1,
+            (b']', false) => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
 }
 
 fn offsets(positions: &Positions, span: Span) -> (usize, usize) {
@@ -88,7 +138,7 @@ fn item_start(visibility: &syn::Visibility, signature: &syn::Signature) -> Span 
     }
 }
 
-impl<'ast> Visit<'ast> for Scan {
+impl<'ast> Visit<'ast> for Scan<'_> {
     fn visit_item_fn(&mut self, item: &'ast syn::ItemFn) {
         self.function(item_start(&item.vis, &item.sig), &item.block);
     }
@@ -110,6 +160,7 @@ impl<'ast> Visit<'ast> for Scan {
 
 struct Owned<'p> {
     positions: &'p Positions,
+    source: &'p str,
     profile: ExtractionProfile,
     findings: Vec<Finding>,
     conditional: bool,
@@ -118,9 +169,11 @@ struct Owned<'p> {
 }
 
 impl Owned<'_> {
+    /// A finding at a construct's own span, which excludes its outer attributes.
     fn reject(&mut self, span: Span, capability: &'static str, construct: &'static str) {
+        let (start, end) = offsets(self.positions, span);
         self.findings.push(Finding {
-            span: offsets(self.positions, span),
+            span: (after_attributes(self.source, start, end), end),
             capability,
             construct,
         });
