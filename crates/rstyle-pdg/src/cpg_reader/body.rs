@@ -22,7 +22,10 @@ impl<'a> Context<'_, 'a> {
             _ => self.ty(node)?,
         };
         // Children follow the HIR construct, whatever tag the profile gives it.
-        let children = self.expression_children(node, &node.original_kind)?;
+        let children = match tag {
+            "expr_try_desugar" => self.match_children(&self.body.children(node)?)?,
+            _ => self.expression_children(node, &node.original_kind)?,
+        };
         let base = self.node(node, tag)?;
 
         Ok(HirNode {
@@ -59,9 +62,13 @@ impl<'a> Context<'_, 'a> {
             }
             _ => false,
         };
-        match constructed {
-            true => "expr_struct",
-            false => node.original_kind.as_str(),
+        // The data profile keeps a `?`'s compiler continuations, its desugared match.
+        let desugared = node.kind == NodeKind::Propagate
+            && self.reader.profile == crate::extraction_profile::ExtractionProfile::DataV3;
+        match (constructed, desugared) {
+            (true, _) => "expr_struct",
+            (false, true) => "expr_try_desugar",
+            (false, false) => node.original_kind.as_str(),
         }
     }
 
@@ -85,7 +92,7 @@ impl<'a> Context<'_, 'a> {
     }
 
     fn expression_children(&self, node: &'a Node, tag: &str) -> Result<Vec<HirNode>, String> {
-        let children = self.body.source_children(node)?;
+        let children = self.parts(node)?;
         let supports = |capability: &str| self.reader.profile.supports(capability);
         let selected: Vec<&'a Node> = match tag {
             "expr_block" => return self.block_children(&children),
@@ -127,7 +134,7 @@ impl<'a> Context<'_, 'a> {
         let unit = self.reader.unit_type()?;
         let node = self.node(block, "expr_block")?;
         Ok(vec![HirNode {
-            children: self.block_children(&self.body.source_children(block)?)?,
+            children: self.block_children(&self.parts(block)?)?,
             ty: Some(unit),
             ..node
         }])
@@ -151,7 +158,7 @@ impl<'a> Context<'_, 'a> {
 
     fn arm(&self, arm: &'a Node) -> Built {
         let mut children = Vec::new();
-        for part in self.body.source_children(arm)? {
+        for part in self.parts(arm)? {
             children.push(match part.kind {
                 NodeKind::MatchGuard => self.guard(part)?,
                 _ if children.is_empty() => self.pattern(part)?,
@@ -219,7 +226,7 @@ impl<'a> Context<'_, 'a> {
 
     fn declaration(&self, local: &'a Node) -> Built {
         let mut children = Vec::new();
-        for (index, part) in self.body.source_children(local)?.into_iter().enumerate() {
+        for (index, part) in self.parts(local)?.into_iter().enumerate() {
             children.push(match part.kind {
                 _ if index == 0 => self.pattern(part)?,
                 NodeKind::TypeAnnotation => self.annotation(local, part)?,
@@ -285,6 +292,15 @@ impl<'a> Context<'_, 'a> {
             lit: (tag == "pat_literal").then(|| base.snippet.clone()),
             ..base
         })
+    }
+
+    /// A node's parts as the HIR has them: a source node's source children, and all of
+    /// a synthetic node's, which is itself part of a lowering.
+    pub(super) fn parts(&self, node: &'a Node) -> Result<Vec<&'a Node>, String> {
+        match node.synthetic {
+            true => self.body.children(node),
+            false => self.body.source_children(node),
+        }
     }
 
     /// A pattern's record with its type, before any binding.
@@ -397,7 +413,7 @@ mod dispatch {
             node: &'a Node,
             tag: &str,
         ) -> Result<Option<Dispatch>, String> {
-            let children = self.body.source_children(node)?;
+            let children = self.parts(node)?;
             let (op, operands): (String, &[&'a Node]) = match tag {
                 "expr_binary" => (rendering(node, "")?, &children[..children.len().min(2)]),
                 "expr_assign_op" => (rendering(node, "=")?, &children[..children.len().min(2)]),

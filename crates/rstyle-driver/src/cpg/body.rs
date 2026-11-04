@@ -150,11 +150,12 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
 
     fn provenance(&mut self, span: Span) -> Value {
         let call_site = self.unit.span(span.source_callsite());
-        if let Some(construct) = self.lowering {
-            return json!({"origin": "desugaring", "construct": construct, "call_site": call_site});
-        }
+        // A lowering's own node is synthetic; its provenance is where its span comes from.
         if !span.from_expansion() {
             return json!({"origin": "source"});
+        }
+        if let Some(construct) = self.lowering {
+            return json!({"origin": "desugaring", "construct": construct, "call_site": call_site});
         }
 
         let expansion = span.ctxt().outer_expn_data();

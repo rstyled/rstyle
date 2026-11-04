@@ -46,7 +46,7 @@ impl<'a> Context<'_, 'a> {
         let Some(value) = pattern.ty.as_deref().and_then(|ty| self.reader.ty(ty).ok()) else {
             return Ok(None);
         };
-        let children = self.body.source_children(pattern)?;
+        let children = self.parts(pattern)?;
         let (kind, resolution, children) = match pattern.original_kind.as_str() {
             "pat_ref" if self.shared_scalar(value) => {
                 let inner = children
@@ -109,7 +109,7 @@ impl<'a> Context<'_, 'a> {
             return Ok(None);
         };
         resolution.kind = "resolved_local_variant".into();
-        let children = self.body.source_children(pattern)?;
+        let children = self.parts(pattern)?;
         let children = children
             .iter()
             .map(|child| self.pattern(child))
