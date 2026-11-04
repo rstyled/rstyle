@@ -12,6 +12,7 @@ mod concrete;
 pub use concrete::Passes;
 pub mod compare;
 mod findings;
+mod patterns;
 mod resolution;
 mod scan;
 mod variants;

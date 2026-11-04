@@ -273,6 +273,9 @@ impl<'a> Context<'_, 'a> {
         if let Some(observed) = self.observed_pattern(node)? {
             return Ok(observed);
         }
+        if let Some(scalar) = self.scalar_pattern(node)? {
+            return Ok(scalar);
+        }
         let tag = match node.original_kind.as_str() {
             tag @ ("pat_binding" | "pat_binding_pattern" | "pat_wild") => tag,
             "pat_literal" => "pat_literal",

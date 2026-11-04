@@ -706,7 +706,17 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             }
             PatKind::Wild => shape("pattern_wildcard", vec![]),
             PatKind::Expr(_) => shape("pattern_literal", vec![]),
-            PatKind::Range(..) => shape("pattern_range", vec![]),
+            PatKind::Range(start, end, ending) => {
+                let bounds = start.into_iter().chain(end);
+                let children = bounds.map(|bound| self.range_bound(bound)).collect();
+                let mut shape = shape("pattern_range", children);
+                if end.is_some() && matches!(ending, rustc_hir::RangeEnd::Included) {
+                    shape
+                        .fields
+                        .insert("modifiers".into(), json!(["inclusive"]));
+                }
+                shape
+            }
             PatKind::Or(pats) => shape("pattern_or", self.each(pats, Self::pat)),
             PatKind::Tuple(pats, _) => shape("pattern_tuple", self.each(pats, Self::pat)),
             PatKind::TupleStruct(_, pats, _) => {
@@ -745,6 +755,20 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         let id = self.node(pat.hir_id, pat.span, shape);
         self.pattern_reference(pat, &id);
         Some(id)
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// A range pattern's bound: a literal, or a path with what it resolves to.
+    fn range_bound(&mut self, bound: &'tcx rustc_hir::PatExpr<'tcx>) -> String {
+        let id = self.node(bound.hir_id, bound.span, shape("pattern_literal", vec![]));
+        if let rustc_hir::PatExprKind::Path(ref qpath) = bound.kind
+            && let Some(mut record) =
+                self.path_reference(self.typeck.qpath_res(qpath, bound.hir_id))
+        {
+            record["node"] = json!(id);
+            self.refs.push(record);
+        }
+        id
     }
 
     /// What a constructor, struct or path pattern's path resolves to.

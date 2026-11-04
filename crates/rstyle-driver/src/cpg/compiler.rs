@@ -157,6 +157,10 @@ pub fn original_kind(tcx: TyCtxt<'_>, id: rustc_hir::HirId) -> &'static str {
         Node::Block(_) => "expr_block",
         Node::Ty(_) => "ty_annotation",
         Node::Param(_) => "param",
+        Node::PatExpr(expr) => match expr.kind {
+            rustc_hir::PatExprKind::Lit { .. } => "pat_expr_lit",
+            rustc_hir::PatExprKind::Path(_) => "pat_expr_path",
+        },
         Node::Pat(pat) => match pat.kind {
             PatKind::Binding(rustc_hir::BindingMode(rustc_hir::ByRef::No, _), _, _, None) => {
                 "pat_binding"
