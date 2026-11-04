@@ -79,7 +79,7 @@ impl<'a> Context<'_, 'a> {
     }
 
     /// Each HIR node's and binding's value type, as the compiler's typeck records it.
-    fn hir_types(&self) -> BTreeMap<(u32, u32), &'a str> {
+    pub(super) fn hir_types(&self) -> BTreeMap<(u32, u32), &'a str> {
         let function = self.body.function;
         let nodes = function
             .nodes

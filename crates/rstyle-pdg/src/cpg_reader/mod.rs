@@ -15,6 +15,7 @@ mod findings;
 mod for_loops;
 mod inherent;
 mod items;
+mod locals;
 mod patterns;
 mod propagation;
 mod resolution;
@@ -310,12 +311,16 @@ struct Context<'r, 'a> {
 }
 
 impl<'a> Context<'_, 'a> {
+    // rstyle-allow(mutation_per_target): each pass installs its own records on the facts in turn
     /// The frontend's passes after its walk, in its order.
     fn after_walk(&self, mut facts: HirFnFacts, passes: Passes) -> Result<HirFnFacts, String> {
         self.concrete_types(&mut facts, passes)?;
         if passes == Passes::Complete {
             self.inherent_definition(&mut facts)?;
             crate::field_locations::capture(&mut facts)?;
+            if self.reader.profile == ExtractionProfile::DataV3 {
+                self.local_observations(&mut facts)?;
+            }
         }
         Ok(facts)
     }

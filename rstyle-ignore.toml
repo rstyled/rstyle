@@ -29,6 +29,17 @@ fns = [
   "rstyle_pdg::cpg_reader::concrete::Capture::shared_uses",
 ]
 
+[ignore.97f955358ef9]
+kind = "generic_fn"
+allow_growth = true
+reason = "distinct type predicates (shared character, mutable scalar reference, shared byte slice, bottom) that share only the type lookup idiom"
+sites = [
+  "rstyle_pdg::cpg_reader::Context::byte_slice@288f8b59270e60d1",
+  "rstyle_pdg::cpg_reader::Context::mutable_reference_to@e39f9c7a491c1a99",
+  "rstyle_pdg::cpg_reader::Context::never@288f8b59270e60d1",
+  "rstyle_pdg::cpg_reader::concrete::Capture::shared_character@58368fa842578867",
+]
+
 [ignore.99265b04daac]
 kind = "generic_fn"
 reason = "unrelated predicates (a standard definition lookup and an integer type check) that share only the type-table lookup idiom"
@@ -93,6 +104,14 @@ fns = [
   "rstyle_pdg::validate::check_node_requirements",
   "rstyle_pdg::validate::check_source_digests",
   "rstyle_pdg::validate::check_source_identities",
+]
+
+[ignore.22c27d75a139]
+kind = "parameterize"
+reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
+fns = [
+  "rstyle_driver::hir_extraction::mutable_scalar_formals::capture",
+  "rstyle_pdg::cpg_reader::Context::scalar_formals",
 ]
 
 [ignore.28ac5efc1baa]
@@ -188,6 +207,14 @@ fns = [
   "rstyle_driver::effects::Walker::sources",
   "rstyle_pdg::cfg::id_set",
   "rstyle_pdg::cfg::sorted_triples",
+]
+
+[ignore.84ee5353360e]
+kind = "parameterize"
+reason = "two lookups of one HIR-identity type map, one inside the budgeted observer and one for its local observations; a shared owner would couple the passes"
+fns = [
+  "rstyle_pdg::cpg_reader::concrete::Capture::hir_type",
+  "rstyle_pdg::cpg_reader::locals::Types::of",
 ]
 
 [ignore.8758139492e7]
