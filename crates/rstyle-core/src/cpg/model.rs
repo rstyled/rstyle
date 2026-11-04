@@ -304,6 +304,8 @@ pub struct Type {
     pub variants: Option<Vec<Variant>>,
     pub parameters: Option<Vec<Id>>,
     pub result: Option<Id>,
+    /// A closure type's captured environment, as the language stores it.
+    pub environment: Option<Id>,
     pub index: Option<u32>,
     pub bounds: Option<Vec<Id>>,
     #[serde(default)]
@@ -785,4 +787,17 @@ pub struct Capture {
     pub mode: String,
     #[serde(rename = "type")]
     pub ty: Id,
+    /// The projections from the root binding to the captured place.
+    #[serde(default)]
+    pub path: Vec<CaptureStep>,
+}
+
+/// One projection of a captured place, with the type it reaches.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CaptureStep {
+    pub kind: String,
+    #[serde(rename = "type")]
+    pub ty: Id,
+    pub member_index: Option<u32>,
 }

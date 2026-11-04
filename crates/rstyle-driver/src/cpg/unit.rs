@@ -310,10 +310,14 @@ impl<'tcx> Unit<'tcx> {
         match *ty.kind() {
             ty::Adt(adt, args) => self.nominal(ty, adt, args),
             ty::FnPtr(..) | ty::FnDef(..) => self.function_type(ty),
-            ty::Closure(_, args) => {
-                let signature = args.as_closure().sig().skip_binder();
+            ty::Closure(def_id, args) => {
+                let closure = args.as_closure();
+                let signature = closure.sig().skip_binder();
                 let parameters = self.types_of(signature.inputs().iter().copied());
-                json!({"kind": "closure", "parameters": parameters, "result": self.ty(signature.output())})
+                // The closure's environment, as the compiler stores its captures.
+                let environment = self.ty(closure.tupled_upvars_ty());
+                json!({"kind": "closure", "parameters": parameters, "result": self.ty(signature.output()),
+                       "definition": self.definition(def_id), "environment": environment})
             }
             ty::Ref(_, target, mutability) => {
                 let mode = if mutability.is_mut() {

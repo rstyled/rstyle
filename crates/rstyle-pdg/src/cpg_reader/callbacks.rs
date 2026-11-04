@@ -117,7 +117,7 @@ const RESULT_CALLBACKS: [&str; 6] = [
     "core::result::Result::<T, E>::map_err",
     "std::result::Result::<T, E>::map_err",
 ];
-const USIZE_READERS: &str = "rust.usize-reader-callback-observations";
+pub(super) const USIZE_READERS: &str = "rust.usize-reader-callback-observations";
 
 type Children = Result<Vec<HirNode>, String>;
 
@@ -195,7 +195,7 @@ impl<'a> Context<'_, 'a> {
     }
 
     /// Whether a node is the only argument of one of the `core` methods `paths`.
-    fn immediate_core_callback(&self, node: &Node, paths: &[&str]) -> bool {
+    pub(super) fn immediate_core_callback(&self, node: &Node, paths: &[&str]) -> bool {
         let Some((_, arguments, definition)) = self.calling(node) else {
             return false;
         };
@@ -206,14 +206,14 @@ impl<'a> Context<'_, 'a> {
     }
 
     /// A `Result` callback, without a return, of a function reading a `(usize, usize)`.
-    fn usize_reader_callback(&self, closure: &'a Node) -> Result<bool, String> {
+    pub(super) fn usize_reader_callback(&self, closure: &'a Node) -> Result<bool, String> {
         Ok(self.reader.profile.supports(USIZE_READERS)
             && self.usize_reader_result()
             && self.immediate_core_callback(closure, &RESULT_CALLBACKS)
             && self.return_free(closure)?)
     }
 
-    fn usize_reader_result(&self) -> bool {
+    pub(super) fn usize_reader_result(&self) -> bool {
         let result = &self.body.function.signature.result;
         let Ok(result) = self.reader.ty(result) else {
             return false;

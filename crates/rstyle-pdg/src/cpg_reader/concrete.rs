@@ -2,6 +2,7 @@
 //! a function's interface, and the type tokens it installs on the signature, body
 //! and bindings, rebuilt from the document's type table.
 
+mod callbacks;
 mod enums;
 mod storage;
 
@@ -58,6 +59,7 @@ impl<'a> Context<'_, 'a> {
                 Passes::Complete => {
                     capture.node_tokens(&mut facts.body, false)?;
                     capture.binding_tokens(&mut facts.bindings, false)?;
+                    capture.callback_environments(&mut facts.body)?;
                 }
                 Passes::Advisory => capture.binding_tokens(&mut facts.bindings, true)?,
             }
@@ -248,6 +250,12 @@ impl<'a> Capture<'_, '_, 'a> {
         }
         let ty = self.ty(id)?;
         match ty.kind {
+            TypeKind::Bottom
+                if self.supports("rust.u16-usize-reader-observations")
+                    && self.context.usize_reader_result() =>
+            {
+                Ok(TypeTree::NeverError)
+            }
             TypeKind::Integer | TypeKind::Bool => Ok(TypeTree::Scalar(ty.spelling.clone())),
             TypeKind::Char if depth == 0 && self.supports("rust.character-scalars") => {
                 Ok(TypeTree::Scalar("char".into()))

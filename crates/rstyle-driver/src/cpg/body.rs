@@ -14,6 +14,7 @@ use rustc_hir::{
     self as hir, Arm, BinOpKind, Block, BlockCheckMode, Expr, ExprKind, HirId, LoopSource,
     MatchSource, Pat, PatKind, QPath, Stmt, StmtKind, UnOp, UnsafeSource,
 };
+use rustc_middle::hir::place::ProjectionKind;
 use rustc_middle::ty::{self, TyCtxt, TypeVisitableExt, TypeckResults};
 use rustc_span::Span;
 use rustc_span::hygiene::{DesugaringKind, ExpnKind};
@@ -457,8 +458,28 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                     ty::UpvarCapture::ByRef(ty::BorrowKind::Mutable) => "exclusive",
                     ty::UpvarCapture::ByRef(ty::BorrowKind::UniqueImmutable) => "unique",
                 };
+                let path: Vec<Value> = capture
+                    .place
+                    .projections
+                    .iter()
+                    .map(|projection| {
+                        let mut step = json!({"type": self.unit.ty(projection.ty)});
+                        step["kind"] = json!(match projection.kind {
+                            ProjectionKind::Deref => "deref",
+                            ProjectionKind::Field(..) => "field",
+                            ProjectionKind::Index => "index",
+                            ProjectionKind::Subslice => "rust:subslice",
+                            ProjectionKind::OpaqueCast => "rust:opaque-cast",
+                            ProjectionKind::UnwrapUnsafeBinder => "rust:unsafe-binder",
+                        });
+                        if let ProjectionKind::Field(field, _) = projection.kind {
+                            step["member_index"] = json!(field.as_u32());
+                        }
+                        step
+                    })
+                    .collect();
                 json!({"symbol": self.symbol_id(capture.get_root_variable()), "mode": mode,
-                       "type": self.unit.ty(capture.place.ty())})
+                       "type": self.unit.ty(capture.place.ty()), "path": path})
             })
             .collect()
     }
