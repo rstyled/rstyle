@@ -60,38 +60,10 @@ fn collect(
             callees.insert(library.crate_hash.clone(), library);
         }
     }
-    collect_product_dependency(node, callees)?;
+    rstyle_pdg::cpg_reader::unit::product_dependency(node, callees)?;
     for child in &node.children {
         collect(tcx, child, callees)?;
     }
-    Ok(())
-}
-
-/// Const initializers are dependencies, not runtime calls in the captured body.
-fn collect_product_dependency(
-    node: &HirNode,
-    libraries: &mut BTreeMap<String, Library>,
-) -> Result<(), String> {
-    let Some(resolution) = node
-        .res
-        .as_ref()
-        .filter(|resolution| resolution.kind == rstyle_pdg::nominal_constants::RESOLUTION)
-    else {
-        return Ok(());
-    };
-    let record = rstyle_pdg::nominal_constants::decode(resolution)?;
-    let dependency = record.initializer.core_constant.definition;
-    if dependency.crate_name != "core" || dependency.crate_hash.is_empty() {
-        return Err("Product constant lacks its compiler-selected core dependency".into());
-    }
-    libraries.insert(
-        dependency.crate_hash.clone(),
-        Library {
-            crate_name: dependency.crate_name,
-            crate_hash: dependency.crate_hash,
-        },
-    );
-
     Ok(())
 }
 

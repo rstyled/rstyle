@@ -25,6 +25,7 @@ pub(crate) mod hir_tags {
     pub(crate) use super::hir::kind;
 }
 mod document_facts;
+mod unit_check;
 pub(crate) mod runtime_bounds;
 pub(crate) fn capture_instance_diagnostics(
     tcx: TyCtxt<'_>,
@@ -193,14 +194,17 @@ pub(crate) fn function_owners(tcx: TyCtxt<'_>) -> impl Iterator<Item = LocalDefI
         .filter(move |id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
 }
 
+// rstyle-allow(side_effect_density): unit capture boundary: installs each unit pass's evidence on the facts in turn
 fn capture_unit_evidence(
     tcx: TyCtxt<'_>,
     options: &Options<'_>,
     facts: &mut [HirFnFacts],
 ) -> Result<(), String> {
+    let reference = unit_check::reference(tcx, options, facts);
     capture_source_evidence(tcx, options, facts)?;
-    library_resolution::capture(tcx, options, facts)?;
-    inherent::capture_unit(facts, options)
+    rstyle_pdg::cpg_reader::unit::capture(options.selected(), facts)?;
+
+    unit_check::compare(tcx, reference, facts)
 }
 
 fn capture_source_evidence(

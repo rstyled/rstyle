@@ -1,8 +1,8 @@
 //! Frontend facts read from `compat.cpg` documents: the [`HirFnFacts`] the analyses
 //! consume, rebuilt from what a Rust document records instead of from the compiler.
 //!
-//! A channel the document does not yet carry is reported by [`compare`] against the
-//! driver's own capture, never filled with a default that hides the difference.
+//! A channel the document does not carry is never filled with a default that hides
+//! the difference.
 
 mod advisory;
 mod assertions;
@@ -21,6 +21,7 @@ mod propagation;
 mod resolution;
 mod scan;
 mod slices;
+pub mod unit;
 mod variants;
 
 use crate::extraction_profile::ExtractionProfile;
