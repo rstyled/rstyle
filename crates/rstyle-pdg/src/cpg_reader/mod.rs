@@ -18,6 +18,7 @@ mod inherent;
 mod items;
 mod locals;
 mod patterns;
+pub mod projections;
 mod propagation;
 mod resolution;
 mod scan;

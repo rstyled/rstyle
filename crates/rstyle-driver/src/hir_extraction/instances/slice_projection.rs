@@ -5,10 +5,11 @@ use rstyle_pdg::{HirFnFacts, HirNode};
 use rustc_hir::{self as hir, def::DefKind, def_id::LocalDefId};
 use rustc_middle::ty::{self, GenericArgsRef, Ty, TyCtxt};
 use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::collections::BTreeMap;
 
 mod methods;
+pub(in crate::hir_extraction) mod record;
 
 const KEY: &str = "rstyle.rust.shared-slice-instance-projections";
 
@@ -120,75 +121,7 @@ fn install(original: &mut HirFnFacts, value: Value) {
 }
 
 fn receipts(facts: &[HirFnFacts]) -> BTreeMap<String, Vec<Value>> {
-    facts
-        .iter()
-        .flat_map(receipt_pairs)
-        .fold(BTreeMap::new(), group_receipt)
-}
-
-fn group_receipt(
-    mut grouped: BTreeMap<String, Vec<Value>>,
-    pair: (String, Value),
-) -> BTreeMap<String, Vec<Value>> {
-    grouped.entry(pair.0).or_default().push(pair.1);
-    grouped
-}
-
-fn receipt_pairs(caller: &HirFnFacts) -> Vec<(String, Value)> {
-    let options = &caller.build.frontend_options;
-    let Some(inventory) = options.get("rstyle.rust.call-instances") else {
-        return Vec::new();
-    };
-    if inventory.get("identity").and_then(Value::as_str)
-        != Some("rstyle.rust.call-instance-observations/1")
-        || inventory.get("complete") != Some(&Value::Bool(true))
-    {
-        return Vec::new();
-    }
-    let Some(calls) = inventory.get("calls").and_then(Value::as_array) else {
-        return Vec::new();
-    };
-
-    calls
-        .iter()
-        .filter_map(|call| {
-            let identity = receipt_identity(call)?;
-            Some((
-                identity.into(),
-                json!({
-                    "caller":options.get("definition_identity"),
-                    "caller_source_digest":caller.source.digest,
-                    "caller_fn_span":caller.fn_span,
-                    "call":call,
-                }),
-            ))
-        })
-        .collect()
-}
-
-fn receipt_identity(call: &Value) -> Option<&str> {
-    let requested = call.get("requested")?;
-    if call.get("status").and_then(Value::as_str) != Some("resolved")
-        || call.get("expanded") != Some(&Value::Bool(false))
-        || requested.get("local") != Some(&Value::Bool(true))
-        || call.get("selected") != Some(requested)
-        || !u8_arguments(call.get("requested_arguments"))
-        || !u8_arguments(call.get("selected_arguments"))
-    {
-        return None;
-    }
-
-    requested.get("definition_identity").and_then(Value::as_str)
-}
-
-fn u8_arguments(value: Option<&Value>) -> bool {
-    let Some(arguments) = value.and_then(Value::as_array) else {
-        return false;
-    };
-    matches!(arguments.as_slice(), [argument]
-        if argument.get("kind").and_then(Value::as_str) == Some("type")
-        && argument.get("identity_status").and_then(Value::as_str) == Some("known")
-        && argument.get("identity") == Some(&json!({"kind":"builtin","name":"u8"})))
+    rstyle_pdg::cpg_reader::projections::receipts(facts)
 }
 
 fn candidate(tcx: TyCtxt<'_>, owner: LocalDefId) -> bool {
@@ -430,27 +363,4 @@ fn observe<'tcx>(
         nodes,
         methods: methods::capture(context, &lens, original)?,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn concrete_request_uses_structural_identity_instead_of_display() {
-        let mut arguments = json!([{
-            "kind":"type", "identity_status":"known",
-            "identity":{"kind":"builtin","name":"u8"},
-            "value":"display is not authority", "display_only":true,
-        }]);
-        assert!(u8_arguments(Some(&arguments)));
-        arguments[0]["value"] = json!("u8");
-        arguments[0]["identity"]["name"] = json!("u16");
-        assert!(!u8_arguments(Some(&arguments)));
-        arguments[0]["identity"]["name"] = json!("u8");
-        arguments[0]["identity_status"] = json!("unsupported");
-        assert!(!u8_arguments(Some(&arguments)));
-        assert!(!u8_arguments(Some(&json!([]))));
-        assert!(!u8_arguments(Some(&json!([arguments[0], arguments[0]]))));
-    }
 }

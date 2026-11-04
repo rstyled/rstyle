@@ -61,7 +61,7 @@ struct CompilerBound {
 }
 
 #[derive(Serialize)]
-struct Assertion {
+pub(super) struct Assertion {
     status: &'static str,
     hir: HirRef,
     span: ByteSpan,
@@ -75,6 +75,37 @@ pub(super) fn capture<'tcx>(
     projection: &Projection<'tcx>,
     body: &HirNode,
 ) -> Result<Observation, String> {
+    let Owned {
+        parameters,
+        bounds,
+        compiler_bounds,
+    } = owned(context, owner, projection)?;
+    let mut assertions = Vec::new();
+    assertion_census(context, body, &mut assertions)?;
+
+    Ok(Observation {
+        identity: "rstyle.rust.scalar-instance-provenance/1",
+        complete: true,
+        parameters,
+        bounds,
+        compiler_bounds,
+        assertions,
+    })
+}
+
+/// The provenance an owner's generics give, without its body's assertions.
+#[derive(Serialize)]
+pub(super) struct Owned {
+    parameters: Vec<Parameter>,
+    bounds: Vec<Bound>,
+    compiler_bounds: Vec<CompilerBound>,
+}
+
+pub(super) fn owned<'tcx>(
+    context: &Context<'tcx>,
+    owner: LocalDefId,
+    projection: &Projection<'tcx>,
+) -> Result<Owned, String> {
     let generics = context
         .tcx
         .hir_get_generics(owner)
@@ -93,15 +124,10 @@ pub(super) fn capture<'tcx>(
     }
     .capture(parameter)?;
 
-    let mut assertions = Vec::new();
-    assertion_census(context, body, &mut assertions)?;
-    Ok(Observation {
-        identity: "rstyle.rust.scalar-instance-provenance/1",
-        complete: true,
+    Ok(Owned {
         parameters: vec![parameter_record],
         bounds,
         compiler_bounds,
-        assertions,
     })
 }
 
@@ -310,6 +336,28 @@ fn bound_origin(predicate: &hir::WherePredicate<'_>) -> Result<&'static str, Str
     }
 }
 
+/// An expression's assertion record, when the expression is a core assertion.
+pub(super) fn assertion(
+    context: &Context<'_>,
+    expression: &hir::Expr<'_>,
+) -> Result<Assertion, String> {
+    let expansion = expression.span.ctxt().outer_expn_data();
+    let definition = expansion
+        .macro_def_id
+        .ok_or("Missing assertion macro definition")?;
+    if definition.is_local() || context.tcx.crate_name(definition.krate).as_str() != "core" {
+        return Err("Assertion macro is outside core".into());
+    }
+
+    Ok(Assertion {
+        status: "resolved",
+        hir: reference(expression.hir_id),
+        span: context.span(expression.span),
+        callsite: context.span(expansion.call_site),
+        definition: comparisons::definition(context.tcx, definition),
+    })
+}
+
 fn assertion_census(
     context: &Context<'_>,
     node: &HirNode,
@@ -327,20 +375,7 @@ fn assertion_census(
         let hir::Node::Expr(expression) = context.tcx.hir_node(id) else {
             return Err("Assertion HIR is not an expression".into());
         };
-        let expansion = expression.span.ctxt().outer_expn_data();
-        let definition = expansion
-            .macro_def_id
-            .ok_or("Missing assertion macro definition")?;
-        if definition.is_local() || context.tcx.crate_name(definition.krate).as_str() != "core" {
-            return Err("Assertion macro is outside core".into());
-        }
-        result.push(Assertion {
-            status: "resolved",
-            hir: reference(expression.hir_id),
-            span: context.span(expression.span),
-            callsite: context.span(expansion.call_site),
-            definition: comparisons::definition(context.tcx, definition),
-        });
+        result.push(assertion(context, expression)?);
     }
     for child in &node.children {
         assertion_census(context, child, result)?;

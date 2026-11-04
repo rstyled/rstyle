@@ -19,8 +19,14 @@ pub struct Documents {
     paths: BTreeMap<String, String>,
     selected: Option<Value>,
     observations: BTreeMap<&'static str, Value>,
-    generated: BTreeMap<u32, Value>,
+    functions: BTreeMap<(&'static str, u32), Value>,
 }
+
+/// The function extensions recording a function's own observations for the unit.
+const FUNCTION_OBSERVATIONS: [&str; 2] = [
+    super::generated_sources::FUNCTION_EXTENSION,
+    super::projections::EXTENSION,
+];
 
 /// The unit extensions recording the unit's own compiler observations.
 const OBSERVATIONS: [&str; 3] = [
@@ -40,13 +46,15 @@ impl Documents {
             .filter_map(|file| Some((file.id.clone(), file.content.clone()?)));
         self.files.extend(files);
         self.extensions(unit);
-        let generated = unit.functions.iter().flatten().filter_map(|function| {
-            let extensions = function.extensions.as_ref()?;
-            let observed = extensions.get(super::generated_sources::FUNCTION_EXTENSION)?;
-            Some((super::hir_ref(&function.root).owner, observed.clone()))
+        let functions = unit.functions.iter().flatten().flat_map(|function| {
+            let owner = super::hir_ref(&function.root).owner;
+            FUNCTION_OBSERVATIONS.into_iter().filter_map(move |name| {
+                let observed = function.extensions.as_ref()?.get(name)?;
+                Some(((name, owner), observed.clone()))
+            })
         });
 
-        self.generated.extend(generated);
+        self.functions.extend(functions);
     }
 
     /// The capture session and the unit's own observations its extensions record.
@@ -60,6 +68,21 @@ impl Documents {
             .filter_map(|name| Some((name, extension(name)?.clone())));
 
         self.observations.extend(observed);
+    }
+
+    /// The functions among `facts` whose documents record the observation `name`, by
+    /// their position.
+    pub(super) fn function_observations<'s>(
+        &'s self,
+        name: &'static str,
+        facts: &'s [HirFnFacts],
+    ) -> impl Iterator<Item = (usize, &'s Value)> + 's {
+        facts
+            .iter()
+            .enumerate()
+            .filter_map(move |(index, function)| {
+                Some((index, self.functions.get(&(name, function.body.hir.owner))?))
+            })
     }
 
     /// A unit observation the documents record, decoded, or the error that prevented
@@ -78,9 +101,8 @@ impl Documents {
         &self,
         facts: &[HirFnFacts],
     ) -> Result<Vec<(usize, super::generated_sources::Function)>, String> {
-        let recorded = facts.iter().enumerate().filter_map(|(index, function)| {
-            Some((index, self.generated.get(&function.body.hir.owner)?))
-        });
+        let recorded =
+            self.function_observations(super::generated_sources::FUNCTION_EXTENSION, facts);
         recorded
             .map(|(index, observed)| {
                 let function =

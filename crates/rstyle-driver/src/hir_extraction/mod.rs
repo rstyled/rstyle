@@ -25,6 +25,7 @@ pub(crate) mod hir_tags {
     pub(crate) use super::hir::kind;
 }
 mod document_facts;
+mod projection_check;
 pub(crate) mod runtime_bounds;
 pub(crate) fn capture_instance_diagnostics(
     tcx: TyCtxt<'_>,
@@ -107,8 +108,13 @@ pub fn raw_crate_facts(
     for function in &mut facts {
         capture_correspondence(function, options.selected(), &sources);
     }
-    instances::capture_projections(tcx, scanned, options, &mut facts)
+    let reference = projection_check::reference(&facts, |reference| {
+        instances::capture_projections(tcx, scanned, options, reference)
+    });
+    rstyle_pdg::cpg_reader::projections::capture(&documents, options.selected(), &mut facts)
         .map_err(|error| format!("Instance projections: {error}"))?;
+    projection_check::compare(tcx, reference, &facts)?;
+
     Ok(facts)
 }
 
@@ -283,6 +289,22 @@ impl<'tcx> FunctionSources<'_, 'tcx, '_> {
     }
 }
 
+/// A function's capture context, when its source and build evidence are available, as
+/// they are for a function whose facts are captured.
+pub(super) fn source_context<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    id: LocalDefId,
+    options: &Options<'_>,
+) -> Option<hir::Context<'tcx>> {
+    let node = tcx.hir_node_by_def_id(id);
+    node.fn_sig()?;
+    node.body_id()?;
+    let (ctx, _) = function_context(tcx, id, options)?;
+    function_build(tcx, id, ctx.function_span, options)?;
+
+    Some(ctx)
+}
+
 /// A function's capture context: its typeck results, source bytes and profile.
 fn function_context<'tcx>(
     tcx: TyCtxt<'tcx>,
@@ -320,6 +342,10 @@ pub(super) fn function_observations(
     if let Some(generated) = generated_sources::observe::function(tcx, options, id) {
         let name = rstyle_pdg::cpg_reader::generated_sources::FUNCTION_EXTENSION;
         extensions.insert(name.into(), generated);
+    }
+    if let Some(projection) = instances::projection_record(tcx, id, options) {
+        let name = rstyle_pdg::cpg_reader::projections::EXTENSION;
+        extensions.insert(name.into(), projection);
     }
     let Some((ctx, _)) = function_context(tcx, id, options) else {
         return extensions;
