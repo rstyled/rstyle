@@ -137,6 +137,9 @@ impl<'a> Context<'_, 'a> {
             .ok()?
             .normalized?;
         let declaration = self.reader.source(definition.span.as_ref()?).ok()?;
+        if value.value.kind == "float" && !self.float_constant(definition, declaration.as_str()) {
+            return None;
+        }
         let constant = crate::scalar_constants::ScalarConstant {
             definition: definition.name.clone(),
             declaration: declaration.as_str().to_owned(),
@@ -148,6 +151,43 @@ impl<'a> Context<'_, 'a> {
             target: None,
             description: serde_json::to_string(&constant).ok()?,
         })
+    }
+
+    /// A float constant the profile observes exactly: a float literal, possibly negated,
+    /// declared beside the function reading it.
+    fn float_constant(&self, definition: &Definition, declaration: &str) -> bool {
+        let function = self
+            .reader
+            .tables
+            .definition(&self.body.function.definition)
+            .ok();
+        let parent = |definition: &Definition| identity(definition, "parent").map(str::to_owned);
+        if !self.reader.profile.supports("rust.float-kernel-scalars")
+            || function
+                .and_then(parent)
+                .is_none_or(|own| parent(definition) != Some(own))
+        {
+            return false;
+        }
+        let expression = match syn::parse_str::<syn::ImplItemConst>(declaration) {
+            Ok(constant) => constant.expr,
+            Err(_) => return false,
+        };
+        let expression = match expression {
+            syn::Expr::Unary(syn::ExprUnary {
+                op: syn::UnOp::Neg(_),
+                expr,
+                ..
+            }) => *expr,
+            expression => expression,
+        };
+        matches!(
+            expression,
+            syn::Expr::Lit(syn::ExprLit {
+                lit: syn::Lit::Float(_),
+                ..
+            })
+        )
     }
 
     /// The data profile's own pattern records: shared scalars, Option and local variants.

@@ -2,7 +2,7 @@
 
 use super::{Context, hir_ref};
 use crate::frontend::{HirRef, PathRes};
-use rstyle_core::cpg::model::{Node, NodeKind, TargetKind, TypeKind};
+use rstyle_core::cpg::model::{Node, NodeKind, Origin, TargetKind, TypeKind};
 use rstyle_core::cpg::tree::Body;
 use std::collections::BTreeMap;
 
@@ -60,17 +60,29 @@ fn looped(body: &Body<'_>, node: &Node) -> Result<Option<HirRef>, String> {
 
 impl Context<'_, '_> {
     pub(super) fn resolution(&self, node: &Node, tag: &str) -> Option<PathRes> {
-        if let Some(variant) = self
-            .option_expression(node)
-            .or_else(|| self.result_expression(node))
-        {
-            return Some(variant);
+        let observed = self
+            .float_literal(node, tag)
+            .or_else(|| self.option_expression(node))
+            .or_else(|| self.result_expression(node));
+        if let Some(observed) = observed {
+            return Some(observed);
         }
         match tag {
             "expr_break" | "expr_continue" => self.loop_exit(node),
             "expr_path" => self.path(node),
             "expr_method_call" => self.method_callee(node),
             "expr_index" if self.reader.profile.is_data() => self.method_callee(node),
+            "expr_struct" if self.range_desugaring(node) => {
+                let ty = self.reader.ty(node.ty.as_deref()?).ok()?;
+                let definition = self
+                    .reader
+                    .tables
+                    .definition(ty.definition.as_deref()?)
+                    .ok()?;
+                let mut resolution = self.library_callee(definition)?;
+                resolution.kind = "resolved_range_type".into();
+                Some(resolution)
+            }
             "expr_call" | "expr_struct" if node.original_kind == "expr_call" => {
                 self.direct_callee(node)
             }
@@ -79,6 +91,41 @@ impl Context<'_, '_> {
             }
             _ => None,
         }
+    }
+
+    /// A range expression the data profile observes as the library range it builds.
+    fn range_desugaring(&self, node: &Node) -> bool {
+        self.reader.profile.is_data()
+            && node.original_kind == "expr_struct"
+            && node.provenance.construct.as_deref() == Some("rust:range")
+    }
+
+    /// A source float literal's value as the compiler evaluates it, by its bits.
+    fn float_literal(&self, node: &Node, tag: &str) -> Option<PathRes> {
+        if tag != "expr_lit"
+            || !self.reader.profile.supports("rust.float-kernel-scalars")
+            || node.provenance.origin != Origin::Source
+        {
+            return None;
+        }
+        let ty = self.reader.ty(node.ty.as_deref()?).ok()?;
+        if ty.kind != TypeKind::Float {
+            return None;
+        }
+        let text = self
+            .snippet(self.span(node.span.as_ref()?))
+            .replace('_', "");
+        let digits = text.trim_end_matches("f32").trim_end_matches("f64");
+        let bits = match ty.spelling.as_str() {
+            "f32" => format!("0x{:08x}", digits.parse::<f32>().ok()?.to_bits()),
+            "f64" => format!("0x{:016x}", digits.parse::<f64>().ok()?.to_bits()),
+            _ => return None,
+        };
+        Some(PathRes {
+            kind: "resolved_float_literal".into(),
+            target: None,
+            description: serde_json::json!({"ty": ty.spelling, "bits": bits}).to_string(),
+        })
     }
 
     fn loop_exit(&self, node: &Node) -> Option<PathRes> {

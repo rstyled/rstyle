@@ -1074,6 +1074,7 @@ fn construct_name(kind: DesugaringKind) -> &'static str {
         DesugaringKind::QuestionMark => "propagate",
         DesugaringKind::WhileLoop => "while",
         DesugaringKind::Await => "rust:await",
+        DesugaringKind::RangeExpr => "rust:range",
         _ => "rust:desugaring",
     }
 }

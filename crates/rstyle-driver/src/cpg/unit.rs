@@ -582,6 +582,12 @@ impl<'tcx> Unit<'tcx> {
             ty::Uint(_) => evaluated.try_to_scalar_int().map(|value| {
                 json!({"kind": "integer", "value": value.to_bits(value.size()).to_string()})
             }),
+            // A float's exact value is its IEEE bits, in hexadecimal at the float's width.
+            ty::Float(_) => evaluated.try_to_scalar_int().map(|value| {
+                let bits = value.to_bits(value.size());
+                let digits = value.size().bytes_usize() * 2;
+                json!({"kind": "float", "value": format!("0x{bits:0digits$x}")})
+            }),
             _ => None,
         };
         if let Some(literal) = literal {
@@ -728,6 +734,11 @@ fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> serde_json::M
         "stable_crate_id".into(),
         json!(format!("{:?}", tcx.stable_crate_id(def_id.krate))),
     );
+    if def_id.is_local()
+        && let Some(parent) = tcx.opt_parent(def_id)
+    {
+        identity.insert("parent".into(), json!(format!("{parent:?}")));
+    }
     if !def_id.is_local() {
         identity.insert(
             "crate_hash".into(),
