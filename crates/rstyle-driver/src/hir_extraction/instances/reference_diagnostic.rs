@@ -1,6 +1,6 @@
 //! Owning reference-instance observations, never an admission or lifetime proof.
 mod association;
-use super::super::{Options, function_source, hir::Context, source};
+use super::super::{Options, hir::Context, read_function};
 use super::diagnostic_support::ArgumentsProjection;
 use super::{
     borrowed_operations, definition_record, diagnostic_support, reference_owners,
@@ -94,7 +94,7 @@ struct Call {
 // rstyle-allow(side_effect_density): Diagnostic capture boundary loads explicit requests and publishes original reference-instance observations.
 pub(crate) fn capture(
     tcx: TyCtxt<'_>,
-    scanned: &[source::Function],
+    read: &[rstyle_pdg::HirFnFacts],
     options: &Options<'_>,
 ) -> Result<(), String> {
     let Some(requests): Option<Requests> =
@@ -107,7 +107,7 @@ pub(crate) fn capture(
     let owners = diagnostic_support::owners(tcx, &[DefKind::Fn, DefKind::AssocFn]);
     let entries = requests.requests.into_iter().map(|request| {
         let outcome = match owners.get(&request.function).copied().flatten() {
-            Some(id) => observe(Owner { tcx, id }, &request, scanned, options),
+            Some(id) => observe(Owner { tcx, id }, &request, read, options),
             None => Outcome::Unavailable {
                 reason: "Original owning function is absent or ambiguous".into(),
             },
@@ -146,10 +146,10 @@ struct Owner<'tcx> {
 fn observe(
     owner: Owner<'_>,
     request: &Request,
-    scanned: &[source::Function],
+    read: &[rstyle_pdg::HirFnFacts],
     options: &Options<'_>,
 ) -> Outcome {
-    let Some((facts, context)) = function_source(owner.tcx, owner.id, scanned, options) else {
+    let Some((facts, context)) = read_function(owner.tcx, owner.id, read, options) else {
         return Outcome::Unavailable {
             reason: "Original owner source/signature is unavailable".into(),
         };

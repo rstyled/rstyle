@@ -31,7 +31,9 @@ impl<'a> SourceScans<'a> {
         }
     }
 
-    pub(super) fn linear(functions: &'a [source::Function]) -> Self {
+    /// The unindexed lookup the index must agree with.
+    #[cfg(test)]
+    fn linear(functions: &'a [source::Function]) -> Self {
         Self {
             functions,
             indexed: None,

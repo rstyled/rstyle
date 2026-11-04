@@ -1,5 +1,5 @@
 //! Explicit owner-local feasibility capture; never imported as admission evidence.
-use super::super::{Options, function_source, hir::Context, source};
+use super::super::{Options, hir::Context, read_function};
 use super::{
     adjustments, comparisons, definition_record, diagnostic_support, projection::Projection,
     provenance, types,
@@ -95,7 +95,7 @@ struct Body {
 
 pub(crate) fn capture(
     tcx: TyCtxt<'_>,
-    scanned: &[source::Function],
+    read: &[rstyle_pdg::HirFnFacts],
     options: &Options<'_>,
 ) -> Result<(), String> {
     let Some(path) = std::env::var_os("RSTYLE_DIAGNOSTIC_INSTANCE_REQUESTS") else {
@@ -129,7 +129,7 @@ pub(crate) fn capture(
                     tcx,
                     id: owners.get(&request.function).copied().flatten(),
                 };
-                let outcome = project(owner, scanned, options, &request);
+                let outcome = project(owner, read, options, &request);
                 Entry { request, outcome }
             })
             .collect(),
@@ -146,30 +146,9 @@ struct Owner<'tcx> {
     id: Option<LocalDefId>,
 }
 
-/// Original-owner scalar observations reused by normal bundle capture. The
-/// resulting records remain inputs to independent verification, never authority.
-pub(super) fn projected(
-    tcx: TyCtxt<'_>,
-    id: LocalDefId,
-    scanned: &[source::Function],
-    options: &Options<'_>,
-) -> Vec<Entry> {
-    ["i32", "u32"]
-        .into_iter()
-        .map(|scalar| {
-            let request = Request {
-                function: tcx.def_path_str(id.to_def_id()),
-                arguments: vec![scalar.into()],
-            };
-            let outcome = project(Owner { tcx, id: Some(id) }, scanned, options, &request);
-            Entry { request, outcome }
-        })
-        .collect()
-}
-
 fn project(
     owner: Owner<'_>,
-    scanned: &[source::Function],
+    read: &[rstyle_pdg::HirFnFacts],
     options: &Options<'_>,
     request: &Request,
 ) -> Outcome {
@@ -178,7 +157,7 @@ fn project(
             reason: "Requested original free-function owner is unavailable or ambiguous".into(),
         };
     };
-    let Some((facts, context)) = function_source(owner.tcx, id, scanned, options) else {
+    let Some((facts, context)) = read_function(owner.tcx, id, read, options) else {
         return Outcome::Unavailable {
             reason: "Requested original source evidence is unavailable".into(),
         };

@@ -52,7 +52,8 @@ pub(in crate::hir_extraction) fn product_constant<'tcx>(
     {
         return Ok(None);
     }
-    let mut node = ctx.expression(expression);
+    // A path's node is its own, without children.
+    let mut node = ctx.node(expression.hir_id, expression.span, "expr_path");
     if super::nominal_constants::selected(ctx, &node).is_none() {
         return Ok(None);
     }

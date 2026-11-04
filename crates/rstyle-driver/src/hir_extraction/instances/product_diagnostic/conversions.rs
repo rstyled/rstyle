@@ -228,10 +228,10 @@ fn signature<'tcx>(
 pub(super) fn local_owner(
     tcx: TyCtxt<'_>,
     owner: LocalDefId,
-    scanned: &[source::Function],
+    read: &[rstyle_pdg::HirFnFacts],
     options: &Options<'_>,
 ) -> Result<LocalBody, String> {
-    let (facts, _) = function_source(tcx, owner, scanned, options)
+    let (facts, _) = read_function(tcx, owner, read, options)
         .ok_or("Selected local From body/source is unavailable")?;
     Ok(LocalBody {
         definition: compiler_definition(tcx, owner.to_def_id()),

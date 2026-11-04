@@ -25,16 +25,16 @@ pub(crate) mod hir_tags {
     pub(crate) use super::hir::kind;
 }
 mod document_facts;
-mod projection_check;
 pub(crate) mod runtime_bounds;
+/// The requested instance diagnostics, over the facts read for the crate.
 pub(crate) fn capture_instance_diagnostics(
     tcx: TyCtxt<'_>,
-    scanned: &[source::Function],
+    read: &[HirFnFacts],
     options: &Options<'_>,
 ) -> Result<(), String> {
-    instances::diagnostic::capture(tcx, scanned, options)?;
-    instances::reference_diagnostic::capture(tcx, scanned, options)?;
-    instances::product_diagnostic::capture(tcx, scanned, options)
+    instances::diagnostic::capture(tcx, read, options)?;
+    instances::reference_diagnostic::capture(tcx, read, options)?;
+    instances::product_diagnostic::capture(tcx, read, options)
 }
 mod library_resolution;
 mod module_expansions;
@@ -97,7 +97,7 @@ pub fn crate_facts(
 /// Owned compiler facts before ordinary-library helper certification.
 pub fn raw_crate_facts(
     tcx: TyCtxt<'_>,
-    scanned: &[source::Function],
+    _scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<Vec<HirFnFacts>, String> {
     let (mut facts, documents) = collect_crate_facts(tcx, options, FunctionEvidence::All)?;
@@ -108,13 +108,8 @@ pub fn raw_crate_facts(
     for function in &mut facts {
         capture_correspondence(function, options.selected(), &sources);
     }
-    let reference = projection_check::reference(&facts, |reference| {
-        instances::capture_projections(tcx, scanned, options, reference)
-    });
     rstyle_pdg::cpg_reader::projections::capture(&documents, options.selected(), &mut facts)
         .map_err(|error| format!("Instance projections: {error}"))?;
-    projection_check::compare(tcx, reference, &facts)?;
-
     Ok(facts)
 }
 
@@ -199,34 +194,7 @@ pub(crate) fn function_owners(tcx: TyCtxt<'_>) -> impl Iterator<Item = LocalDefI
         .filter(move |id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
 }
 
-fn function_source<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    id: LocalDefId,
-    scanned: &[source::Function],
-    options: &Options<'_>,
-) -> Option<(HirFnFacts, hir::Context<'tcx>)> {
-    FunctionSources {
-        tcx,
-        scanned: source_scans::SourceScans::linear(scanned),
-        options,
-    }
-    .function(id)
-}
-
-impl<'tcx> FunctionSources<'_, 'tcx, '_> {
-    fn function(&self, id: LocalDefId) -> Option<(HirFnFacts, hir::Context<'tcx>)> {
-        self.function_source_with(id, |ctx, original, params| {
-            let body = ctx.expression(original.value);
-            let scope = format!("scope:source:fn:0:{}", ctx.source_bytes.len());
-            let bindings = params
-                .iter()
-                .flat_map(|p| rstyle_pdg::frontend::bindings(&p.pat, &scope))
-                .chain(rstyle_pdg::frontend::bindings(&body, &scope))
-                .collect();
-            (body, bindings)
-        })
-    }
-}
+impl<'tcx> FunctionSources<'_, 'tcx, '_> {}
 
 struct FunctionSources<'a, 'tcx, 'options> {
     tcx: TyCtxt<'tcx>,
@@ -287,6 +255,20 @@ impl<'tcx> FunctionSources<'_, 'tcx, '_> {
         };
         Some((facts, ctx))
     }
+}
+
+/// A function's facts as read from the crate's documents, with its capture context.
+pub(super) fn read_function<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    id: LocalDefId,
+    read: &[HirFnFacts],
+    options: &Options<'_>,
+) -> Option<(HirFnFacts, hir::Context<'tcx>)> {
+    let context = source_context(tcx, id, options)?;
+    let owner = id.local_def_index.as_u32();
+    let facts = read.iter().find(|facts| facts.body.hir.owner == owner)?;
+
+    Some((facts.clone(), context))
 }
 
 /// A function's capture context, when its source and build evidence are available, as

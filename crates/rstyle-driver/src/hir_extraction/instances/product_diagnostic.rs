@@ -2,7 +2,7 @@
 mod conversions;
 mod projection;
 
-use super::super::{Options, function_source, hir::Context, source};
+use super::super::{Options, hir::Context, read_function};
 use super::diagnostic_support::ArgumentsProjection;
 use super::{diagnostic_support, types};
 use rstyle_pdg::{HirFnFacts, HirNode};
@@ -145,7 +145,7 @@ enum NodeType {
 // rstyle-allow(side_effect_density): Diagnostic capture boundary loads explicit requests and publishes original product-instance observations.
 pub(crate) fn capture(
     tcx: TyCtxt<'_>,
-    scanned: &[source::Function],
+    read: &[rstyle_pdg::HirFnFacts],
     options: &Options<'_>,
 ) -> Result<(), String> {
     let Some(requests): Option<Requests> =
@@ -160,7 +160,7 @@ pub(crate) fn capture(
         .into_iter()
         .map(|request| {
             let outcome = match owners.get(&request.function).copied().flatten() {
-                Some(owner) => observe_owner(tcx, owner, &request, Inputs { scanned, options }),
+                Some(owner) => observe_owner(tcx, owner, &request, Inputs { read, options }),
                 None => Outcome::Unavailable {
                     reason: "Original associated owner is unavailable or ambiguous".into(),
                 },
@@ -209,7 +209,7 @@ fn validate(requests: &Requests, tcx: TyCtxt<'_>, options: &Options<'_>) -> Resu
 
 #[derive(Clone, Copy)]
 struct Inputs<'a, 'b> {
-    scanned: &'a [source::Function],
+    read: &'a [rstyle_pdg::HirFnFacts],
     options: &'a Options<'b>,
 }
 
@@ -226,7 +226,7 @@ fn observe_owner(
     request: &Request,
     inputs: Inputs<'_, '_>,
 ) -> Outcome {
-    let Some((facts, context)) = function_source(tcx, owner, inputs.scanned, inputs.options) else {
+    let Some((facts, context)) = read_function(tcx, owner, inputs.read, inputs.options) else {
         return Outcome::Unavailable {
             reason: "Original product source/signature is unavailable".into(),
         };
@@ -284,7 +284,7 @@ fn observe_instance(
 
     let selected_local_from = scan
         .local_from
-        .map(|id| conversions::local_owner(tcx, id, inputs.scanned, inputs.options))
+        .map(|id| conversions::local_owner(tcx, id, inputs.read, inputs.options))
         .transpose()?;
     Ok(InstanceObservation {
         arguments: types::arguments(tcx, lens.arguments()),

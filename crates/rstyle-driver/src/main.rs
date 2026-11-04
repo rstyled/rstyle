@@ -177,7 +177,7 @@ impl HirExtract {
     fn capture_diagnostic(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
         let facts = hir_extraction::raw_crate_facts(tcx, &self.scanned, options)
             .expect("capture diagnostic raw facts");
-        hir_extraction::capture_instance_diagnostics(tcx, &self.scanned, options)
+        hir_extraction::capture_instance_diagnostics(tcx, &facts, options)
             .expect("capture requested instance diagnostics");
         Self::retain_diagnostic(&facts);
     }

@@ -24,7 +24,6 @@ pub(super) mod reference_diagnostic;
 mod reference_owners;
 pub(super) mod scalar_record;
 pub(super) mod slice_projection;
-pub(super) use publication::capture as capture_projections;
 
 /// A candidate's instance projection observations, as its `rust:instance-projection`
 /// extension: its scalar and its shared-slice records; none for another function.
