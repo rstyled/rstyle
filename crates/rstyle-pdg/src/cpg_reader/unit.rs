@@ -1,9 +1,183 @@
-//! A unit's evidence, derived from the facts read for all of its functions: the core
-//! libraries its operations select, and its inherent method owners.
+//! A unit's evidence, derived from its documents and the facts read for all of its
+//! functions: its source census, the core libraries its operations select, and its
+//! inherent method owners.
 
 use crate::extraction_profile::ExtractionProfile;
+use crate::nominal_boundary::census::{self, Census, UnitFile};
 use crate::{HirFnFacts, HirNode, data_library, inherent_calls};
+use rstyle_core::cpg::model::Document;
+use serde_json::Value;
 use std::collections::BTreeMap;
+use std::sync::Arc;
+
+/// What a unit's documents record of the unit itself, gathered as each is read: its
+/// files, their absolute paths and the selected unit, as the capture session records
+/// them, and the census's compiler observations.
+#[derive(Default)]
+pub struct Documents {
+    files: BTreeMap<String, String>,
+    paths: BTreeMap<String, String>,
+    selected: Option<Value>,
+    observations: BTreeMap<&'static str, Value>,
+}
+
+/// The unit extensions recording the unit's own compiler observations.
+const OBSERVATIONS: [&str; 2] = ["rust:source-census", "rust:dependency-namespaces"];
+
+impl Documents {
+    pub fn add(&mut self, document: &Document) {
+        let Some(unit) = &document.unit else {
+            return;
+        };
+        let files = unit
+            .files
+            .iter()
+            .filter_map(|file| Some((file.id.clone(), file.content.clone()?)));
+        self.files.extend(files);
+        let extension = |name: &str| unit.extensions.as_ref()?.get(name);
+        if let Some(session) = extension("rust:compiler-session") {
+            self.session(session);
+        }
+        let observed = OBSERVATIONS
+            .into_iter()
+            .filter_map(|name| Some((name, extension(name)?.clone())));
+
+        self.observations.extend(observed);
+    }
+
+    /// Each file's absolute path and the selected unit, as the capture session records them.
+    fn session(&mut self, session: &Value) {
+        let paths = session
+            .get("files")
+            .and_then(Value::as_object)
+            .into_iter()
+            .flatten();
+        let paths = paths.filter_map(|(id, path)| Some((id.clone(), path.as_str()?.to_owned())));
+        self.paths.extend(paths);
+        self.selected = session.get("selected_unit").cloned();
+    }
+
+    /// The unit's census of its files, without the compiler observations; none outside
+    /// a selected unit.
+    fn file_census(&self) -> Result<Option<Census>, String> {
+        let Some(context) = self.selected.as_ref().filter(|context| !context.is_null()) else {
+            return Ok(None);
+        };
+        let context = serde_json::from_value(context.clone()).map_err(|error| error.to_string())?;
+        let mut files = self
+            .files
+            .iter()
+            .filter_map(|(id, content)| {
+                let path = self.paths.get(id)?;
+                let bytes = crate::SourceSnapshot::from(content.as_str());
+                Some(UnitFile {
+                    path: path.into(),
+                    digest: bytes.checksum().to_owned(),
+                    bytes,
+                })
+            })
+            .collect::<Vec<_>>();
+        files.sort_by(|a, b| a.path.cmp(&b.path));
+
+        Ok(Some(Census {
+            identity: census::IDENTITY.into(),
+            context,
+            files,
+            external_imports: Vec::new(),
+            documentation: Vec::new(),
+            expansions: Vec::new(),
+        }))
+    }
+
+    /// The census's compiler observations, as the unit records them.
+    fn observations(&self) -> Result<census::Observations, String> {
+        observed(
+            self.observations.get(OBSERVATIONS[0]),
+            "source census observations",
+        )
+    }
+}
+
+/// A unit observation the documents record, or the error that prevented observing it.
+fn observed<T: serde::de::DeserializeOwned>(
+    observation: Option<&Value>,
+    what: &str,
+) -> Result<T, String> {
+    let observation = observation.ok_or_else(|| format!("The unit records no {what}"))?;
+    if let Some(error) = observation.get("error").and_then(Value::as_str) {
+        return Err(error.to_owned());
+    }
+    serde_json::from_value(observation.clone()).map_err(|error| error.to_string())
+}
+
+/// Installs the unit's dependency namespaces on its first function's facts, for the
+/// data profile that reads them.
+fn dependency_namespaces(
+    documents: &Documents,
+    profile: ExtractionProfile,
+    facts: &mut [HirFnFacts],
+) -> Result<(), String> {
+    let Some(first) = facts.first_mut() else {
+        return Ok(());
+    };
+    if profile != ExtractionProfile::DataV3 {
+        return Ok(());
+    }
+    let namespaces: crate::dependency_namespaces::capture::UnitCapture = observed(
+        documents.observations.get(OBSERVATIONS[1]),
+        "dependency namespaces",
+    )?;
+    first
+        .build
+        .frontend_options
+        .insert_data(Arc::new(namespaces));
+
+    Ok(())
+}
+
+/// Installs the unit's source evidence on its functions' facts: its census and its
+/// dependency namespaces.
+pub fn sources(
+    documents: &Documents,
+    profile: ExtractionProfile,
+    facts: &mut [HirFnFacts],
+) -> Result<(), String> {
+    source_census(documents, facts)?;
+    dependency_namespaces(documents, profile, facts)
+}
+
+/// Installs the unit's census on each of its functions' facts.
+fn source_census(documents: &Documents, facts: &mut [HirFnFacts]) -> Result<(), String> {
+    let Some(mut census) = documents.file_census()? else {
+        return Ok(());
+    };
+    let observed = documents.observations()?;
+    census.external_imports = observed.external_imports;
+    census.documentation = observed.documentation;
+    census.expansions = observed.expansions;
+
+    retain(census, facts)
+}
+
+/// Installs the unit's census of its files alone, for local consumers.
+pub fn file_census(documents: &Documents, facts: &mut [HirFnFacts]) -> Result<(), String> {
+    match documents.file_census()? {
+        Some(census) => retain(census, facts),
+        None => Ok(()),
+    }
+}
+
+/// Installs `census` on each function's facts, within its budget.
+pub fn retain(census: Census, facts: &mut [HirFnFacts]) -> Result<(), String> {
+    census::check_budget(&census)?;
+    let census = Arc::new(census);
+    for function in facts {
+        let options = &mut function.build.frontend_options;
+        options.insert_data(Arc::clone(&census));
+    }
+
+    Ok(())
+}
 
 /// Installs the unit's evidence on each of its functions' facts.
 pub fn capture(profile: ExtractionProfile, facts: &mut [HirFnFacts]) -> Result<(), String> {

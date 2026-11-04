@@ -82,11 +82,20 @@ pub fn documents<'tcx, 'r>(
     tcx: TyCtxt<'tcx>,
     origin: (&'r Path, Option<&'r PackageContext>),
 ) -> impl Iterator<Item = (Value, Vec<(LocalDefId, String)>)> + use<'tcx, 'r> {
-    documents_in(tcx, origin, (None, None))
+    documents_in(tcx, origin, Capture::default())
 }
 
 /// A frontend's own observations of a function, recorded as its extensions.
 pub type Observe<'r> = dyn Fn(LocalDefId) -> serde_json::Map<String, Value> + 'r;
+
+/// What a capture adds to the crate's documents: its session, each function's own
+/// observations, and the unit's, which the first document records.
+#[derive(Default)]
+pub struct Capture<'r> {
+    pub session: Option<Value>,
+    pub observe: Option<&'r Observe<'r>>,
+    pub unit: serde_json::Map<String, Value>,
+}
 
 // rstyle-allow(side_effect_density): documents are produced lazily, one batch at a time
 /// The crate's function documents, each recording the capture `session` when given:
@@ -94,13 +103,18 @@ pub type Observe<'r> = dyn Fn(LocalDefId) -> serde_json::Map<String, Value> + 'r
 pub fn documents_in<'tcx, 'r>(
     tcx: TyCtxt<'tcx>,
     (root, package): (&'r Path, Option<&'r PackageContext>),
-    (session, observe): (Option<Value>, Option<&'r Observe<'r>>),
+    capture: Capture<'r>,
 ) -> impl Iterator<Item = (Value, Vec<(LocalDefId, String)>)> + use<'tcx, 'r> {
     let package = cargo_package(package);
-    batches(tcx).into_iter().map(move |batch| {
-        let origin = (root, package.clone(), session.clone());
-        batch_document(tcx, (origin, observe), &batch)
-    })
+    batches(tcx)
+        .into_iter()
+        .enumerate()
+        .map(move |(index, batch)| {
+            let origin = (root, package.clone(), capture.session.clone());
+            // The first document records every file of the unit, and the unit's observations.
+            let unit = (index == 0).then(|| capture.unit.clone());
+            batch_document(tcx, (origin, capture.observe, unit), &batch)
+        })
 }
 
 /// The package a unit belongs to, as Cargo names it: the selected package of a
@@ -150,10 +164,17 @@ type Origin<'r> = (&'r Path, Option<Value>, Option<Value>);
 // rstyle-allow(mutated_targets): assembles one document from the builder that accumulates it
 fn batch_document(
     tcx: TyCtxt<'_>,
-    ((root, package, session), observe): (Origin<'_>, Option<&Observe<'_>>),
+    ((root, package, session), observe, observed): (
+        Origin<'_>,
+        Option<&Observe<'_>>,
+        Option<serde_json::Map<String, Value>>,
+    ),
     owners: &[LocalDefId],
 ) -> (Value, Vec<(LocalDefId, String)>) {
     let mut unit = unit::Unit::new(tcx, root.to_path_buf());
+    if observed.is_some() {
+        unit.record_local_files();
+    }
     let mut unrecorded = Vec::new();
     let mut recorded = Vec::new();
     for &id in owners {
@@ -178,6 +199,10 @@ fn batch_document(
         session["files"] = json!(paths);
         document["unit"]["extensions"]["rust:compiler-session"] = session;
     }
+    for (name, observation) in observed.into_iter().flatten() {
+        document["unit"]["extensions"][name] = observation;
+    }
+
     (document, unrecorded)
 }
 

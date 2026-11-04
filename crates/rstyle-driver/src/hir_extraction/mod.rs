@@ -100,8 +100,8 @@ pub fn raw_crate_facts(
     scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<Vec<HirFnFacts>, String> {
-    let mut facts = collect_crate_facts(tcx, options, FunctionEvidence::All)?;
-    capture_unit_evidence(tcx, options, &mut facts)
+    let (mut facts, documents) = collect_crate_facts(tcx, options, FunctionEvidence::All)?;
+    capture_unit_evidence(tcx, options, &documents, &mut facts)
         .map_err(|error| format!("Unit source evidence: {error}"))?;
 
     let sources = rstyle_pdg::unit_store::SourceAnalyses::default();
@@ -122,9 +122,13 @@ pub fn advisory_crate_facts(
     let evidence = FunctionEvidence::Advisory {
         mutations: rstyle_pdg::diagnostics::switch("RSTYLE_LOCAL_MUTATION_FACTS"),
     };
-    let mut facts = collect_crate_facts(tcx, options, evidence)?;
+    let (mut facts, documents) = collect_crate_facts(tcx, options, evidence)?;
     if rstyle_pdg::diagnostics::switch("RSTYLE_LOCAL_SOURCE_FACTS") {
-        nominal_census::capture_files(tcx, options, &mut facts)?;
+        let reference = unit_check::reference(&facts, |reference| {
+            nominal_census::capture_files(tcx, options, reference)
+        });
+        rstyle_pdg::cpg_reader::unit::file_census(&documents, &mut facts)?;
+        unit_check::compare(tcx, reference, &facts)?;
     }
     Ok(facts)
 }
@@ -161,7 +165,7 @@ fn collect_crate_facts(
     tcx: TyCtxt<'_>,
     options: &Options<'_>,
     evidence: FunctionEvidence,
-) -> Result<Vec<HirFnFacts>, String> {
+) -> Result<(Vec<HirFnFacts>, rstyle_pdg::cpg_reader::unit::Documents), String> {
     let passes = match evidence {
         FunctionEvidence::Advisory { mutations: false } => rstyle_pdg::cpg_reader::Passes::Advisory,
         FunctionEvidence::Advisory { mutations: true } => {
@@ -198,15 +202,22 @@ pub(crate) fn function_owners(tcx: TyCtxt<'_>) -> impl Iterator<Item = LocalDefI
 fn capture_unit_evidence(
     tcx: TyCtxt<'_>,
     options: &Options<'_>,
+    documents: &rstyle_pdg::cpg_reader::unit::Documents,
     facts: &mut [HirFnFacts],
 ) -> Result<(), String> {
-    let reference = unit_check::reference(tcx, options, facts);
-    capture_source_evidence(tcx, options, facts)?;
+    let reference = unit_check::reference(facts, |reference| {
+        capture_source_evidence(tcx, options, reference)?;
+        library_resolution::capture(tcx, options, reference)?;
+        inherent::capture_unit(reference, options)
+    });
+    rstyle_pdg::cpg_reader::unit::sources(documents, options.selected(), facts)?;
+    generated_sources::capture(tcx, options, facts)?;
     rstyle_pdg::cpg_reader::unit::capture(options.selected(), facts)?;
 
     unit_check::compare(tcx, reference, facts)
 }
 
+/// The unit's source evidence as the compiler passes the documents replace observe it.
 fn capture_source_evidence(
     tcx: TyCtxt<'_>,
     options: &Options<'_>,

@@ -1,19 +1,20 @@
 //! The capture's frontend facts, read from the crate's `compat.cpg` documents.
 
 use rstyle_pdg::HirFnFacts;
-use rstyle_pdg::cpg_reader;
+use rstyle_pdg::cpg_reader::{self, unit::Documents};
 use rustc_middle::ty::TyCtxt;
 use serde_json::json;
 use std::collections::BTreeMap;
 
-/// The facts of every function the crate owns, in owner order, read from its documents.
+/// The facts of every function the crate owns, in owner order, read from its
+/// documents, and what the documents record of the unit.
 pub(super) fn capture(
     tcx: TyCtxt<'_>,
     (options, passes): (&super::Options<'_>, cpg_reader::Passes),
-) -> Result<Vec<HirFnFacts>, String> {
-    let mut derived = read_documents(tcx, (options, passes))?;
+) -> Result<(Vec<HirFnFacts>, Documents), String> {
+    let (mut derived, documents) = read_documents(tcx, (options, passes))?;
 
-    super::function_owners(tcx)
+    let facts = super::function_owners(tcx)
         .map(|id| {
             let key = (tcx.def_path_str(id.to_def_id()), id.local_def_index.as_u32());
             derived
@@ -21,14 +22,15 @@ pub(super) fn capture(
                 .unwrap_or_else(|| Err(format!("No document function {} at {}", key.0, key.1)))
                 .map_err(|reason| format!("{}: {reason}", key.0))
         })
-        .collect()
+        .collect::<Result<_, _>>()?;
+    Ok((facts, documents))
 }
 
 /// The facts read from the crate's documents, by function.
 fn read_documents(
     tcx: TyCtxt<'_>,
     (options, passes): (&super::Options<'_>, cpg_reader::Passes),
-) -> Result<Derived, String> {
+) -> Result<(Derived, Documents), String> {
     let root = document_root(tcx, options);
     let package = options.unit_context.map(|context| &context.package);
     let session = json!({"invocation": options.invocation,
@@ -76,19 +78,39 @@ fn derived(
         serde_json::Value,
     ),
     (options, passes): (&super::Options<'_>, cpg_reader::Passes),
-) -> Result<Derived, String> {
+) -> Result<(Derived, Documents), String> {
     let profile = options.selected();
     let mut derived = BTreeMap::new();
+    let mut documents = Documents::default();
     let observe = |id| super::function_observations(tcx, options, id);
-    let observe: &crate::cpg::Observe<'_> = &observe;
-    for (document, _) in
-        crate::cpg::documents_in(tcx, (root, package), (Some(session.clone()), Some(observe)))
-    {
+    let capture = crate::cpg::Capture {
+        session: Some(session),
+        observe: Some(&observe),
+        unit: unit_observations(tcx, options),
+    };
+    for (document, _) in crate::cpg::documents_in(tcx, (root, package), capture) {
         let document = rstyle_core::cpg::layout::bundle(vec![document])?;
+        documents.add(&document);
         for read in cpg_reader::read(&document, profile, passes)? {
             derived.insert(read_key(&read), read.facts);
         }
     }
 
-    Ok(derived)
+    Ok((derived, documents))
+}
+
+/// The unit's own compiler observations, as its extensions.
+fn unit_observations(
+    tcx: TyCtxt<'_>,
+    options: &super::Options<'_>,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut observed = serde_json::Map::new();
+    if let Some(census) = super::nominal_census::observation(tcx, options) {
+        observed.insert("rust:source-census".into(), census);
+    }
+    if let Some(namespaces) = super::nominal_census::namespace_observation(tcx, options) {
+        observed.insert("rust:dependency-namespaces".into(), namespaces);
+    }
+
+    observed
 }

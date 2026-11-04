@@ -82,6 +82,16 @@ impl<'tcx> Unit<'tcx> {
         self.local_paths.clone()
     }
 
+    /// Records every local source file the compiler loaded, as the unit's files.
+    pub fn record_local_files(&mut self) {
+        let files = self.tcx.sess.source_map().files().clone();
+        for file in files.iter() {
+            if file.cnum == rustc_hir::def_id::LOCAL_CRATE && matches!(file.name, FileName::Real(_)) {
+                self.span(rustc_span::Span::with_root_ctxt(file.start_pos, file.start_pos));
+            }
+        }
+    }
+
     /// A span of a workspace source file, as file-relative byte offsets.
     pub fn span(&mut self, span: Span) -> Option<Value> {
         let source_map = self.tcx.sess.source_map();

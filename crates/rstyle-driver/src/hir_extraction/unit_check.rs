@@ -9,20 +9,15 @@ use std::io::Write;
 
 pub const DIR_ENV: &str = "RSTYLE_DIAGNOSTIC_UNIT_READER_DIR";
 
-// rstyle-allow(side_effect_density): diagnostic boundary: runs the compiler passes it compares with
-/// The facts the compiler passes produce from `facts`, when a comparison is requested.
+/// The facts the compiler `passes` produce from `facts`, when a comparison is requested.
 pub(super) fn reference(
-    tcx: TyCtxt<'_>,
-    options: &super::Options<'_>,
     facts: &[HirFnFacts],
+    passes: impl FnOnce(&mut [HirFnFacts]) -> Result<(), String>,
 ) -> Option<Result<Vec<HirFnFacts>, String>> {
     std::env::var_os(DIR_ENV)?;
     let mut reference = facts.to_vec();
-    let captured = super::capture_source_evidence(tcx, options, &mut reference)
-        .and_then(|()| super::library_resolution::capture(tcx, options, &mut reference))
-        .and_then(|()| super::inherent::capture_unit(&mut reference, options));
 
-    Some(captured.map(|()| reference))
+    Some(passes(&mut reference).map(|()| reference))
 }
 
 // rstyle-allow(side_effect_density): diagnostic boundary: writes the comparison it was asked for

@@ -46,6 +46,15 @@ pub struct Census {
     pub external_imports: Vec<external_imports::Import>,
 }
 
+/// A census's compiler observations beyond its files, as a capture records them.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Observations {
+    pub external_imports: Vec<external_imports::Import>,
+    pub documentation: Vec<documentation::Input>,
+    pub expansions: Vec<expansions::ModuleExpansion>,
+}
+
 pub struct Module {
     pub path: PathBuf,
     pub namespace: Vec<String>,

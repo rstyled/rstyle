@@ -427,9 +427,7 @@ impl<'a> Capture<'_, '_, 'a> {
             .unwrap_or_default();
         // A data profile budgets a struct's lifetime arguments, as it does its fields.
         let profile = self.context.reader.profile;
-        if profile.is_data()
-            && own.len() > MAX_FIELDS
-            && own.iter().all(|kind| kind == "lifetime")
+        if profile.is_data() && own.len() > MAX_FIELDS && own.iter().all(|kind| kind == "lifetime")
         {
             return Err(Failure::Budget(
                 "Nominal lifetime arguments exceed count budget".into(),
