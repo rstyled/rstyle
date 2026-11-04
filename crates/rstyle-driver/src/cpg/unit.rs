@@ -118,6 +118,9 @@ impl<'tcx> Unit<'tcx> {
             if let Some(generated) = self.generated_declaration(def_id) {
                 record["extensions"]["rust:generated-declaration"] = generated;
             }
+            if let Some(copy) = self.builtin_copy(def_id) {
+                record["extensions"]["rust:builtin-copy"] = copy;
+            }
             // An inherent method names its implementation, recorded as a definition too.
             // A local function's name as written, where its identifier is.
             if matches!(self.tcx.def_kind(def_id), DefKind::Fn | DefKind::AssocFn)
@@ -234,6 +237,44 @@ impl<'tcx> Unit<'tcx> {
         )
     }
 
+    /// A local type whose only `Copy` implementation is the standard derive: the trait,
+    /// the derive macro, and where the derive is written.
+    fn builtin_copy(&mut self, def_id: DefId) -> Option<Value> {
+        use rustc_span::hygiene::{ExpnKind, MacroKind};
+        let tcx = self.tcx;
+        if !def_id.is_local()
+            || !matches!(
+                tcx.def_kind(def_id),
+                DefKind::Struct | DefKind::Enum | DefKind::Union
+            )
+        {
+            return None;
+        }
+        let copy = tcx.lang_items().copy_trait()?;
+        let self_ty = tcx.type_of(def_id).instantiate_identity().skip_norm_wip();
+        let mut implementations = tcx
+            .non_blanket_impls_for_ty(copy, self_ty)
+            .filter(|id| id.is_local());
+        let implementation = implementations.next()?;
+        if implementations.next().is_some() || !tcx.is_automatically_derived(implementation) {
+            return None;
+        }
+        let expansion = tcx.def_span(implementation).ctxt().outer_expn_data();
+        let derive = expansion.macro_def_id?;
+        let standard = !derive.is_local()
+            && tcx.crate_name(derive.krate).as_str() == "core"
+            && tcx.item_name(derive).as_str() == "Copy"
+            && matches!(expansion.kind, ExpnKind::Macro(MacroKind::Derive, name) if name.as_str() == "Copy");
+        if !standard {
+            return None;
+        }
+        let span = self.span(expansion.call_site.source_callsite())?;
+
+        Some(
+            json!({"trait": self.definition(copy), "derive": self.definition(derive), "derive_span": span}),
+        )
+    }
+
     /// A local struct a macro generates: its declaration and field types as the macro
     /// writes them, and the original local macro invocation it comes from, if unique.
     fn generated_declaration(&mut self, def_id: DefId) -> Option<Value> {
@@ -265,6 +306,18 @@ impl<'tcx> Unit<'tcx> {
         if !generics.params.is_empty() || !generics.predicates.is_empty() {
             record["generic"] = json!(true);
         }
+        // The hygiene marks of the declaration's span, outermost expansion first.
+        let marks: Vec<Value> = item
+            .span
+            .ctxt()
+            .marks()
+            .into_iter()
+            .map(|(expansion, transparency)| {
+                json!({"expansion": format!("{:?}", expansion.expn_hash()),
+                       "transparency": format!("{transparency:?}")})
+            })
+            .collect();
+        record["marks"] = json!(marks);
         if let Some(root) =
             crate::hir_extraction::generated_sources::generated_root(self.tcx, local)
         {

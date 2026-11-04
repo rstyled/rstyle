@@ -7,6 +7,7 @@ use crate::scalar_product_instances::{Argument, Observation};
 use rstyle_core::cpg::model::{Scope, Type};
 
 impl<'a> Capture<'_, '_, 'a> {
+    // rstyle-allow(mutation_per_target): recursive observation shares one budgeted observer
     pub(super) fn scalar_product_instance(
         &mut self,
         ty: &'a Type,
@@ -47,7 +48,7 @@ impl<'a> Capture<'_, '_, 'a> {
         let captured = self.fields(fields, declarations, depth);
         self.visiting.pop();
         let observation = Observation {
-            nominal: self.nominal(&definition.name, &source)?,
+            nominal: self.origin_nominal(definition, &source)?,
             source,
             argument,
             fields: captured?,

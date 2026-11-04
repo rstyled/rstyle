@@ -74,7 +74,7 @@ impl<'a> Capture<'_, '_, 'a> {
         }
 
         Ok(TypeTree::FieldlessEnum {
-            nominal: self.nominal(&definition.name, &source)?,
+            nominal: self.origin_nominal(definition, &source)?,
             source,
             variants,
         })
@@ -101,6 +101,7 @@ impl<'a> Capture<'_, '_, 'a> {
         crate::concrete_types::explicit_u8_fieldless_variants(source).map_err(Failure::Unsupported)
     }
 
+    // rstyle-allow(mutation_per_target): recursive observation shares one budgeted observer
     fn mixed_enum(
         &mut self,
         ty: &'a Type,
@@ -140,7 +141,7 @@ impl<'a> Capture<'_, '_, 'a> {
             .collect();
         self.visiting.pop();
         let tree = TypeTree::MixedEnum {
-            nominal: self.nominal(&definition.name, &source)?,
+            nominal: self.origin_nominal(definition, &source)?,
             source,
             variants: captured?,
         };
@@ -229,7 +230,7 @@ impl<'a> Capture<'_, '_, 'a> {
             .collect::<Result<Vec<_>, Failure>>()?;
 
         Ok(TypeTree::Enum {
-            nominal: self.nominal(&definition.name, &source)?,
+            nominal: self.origin_nominal(definition, &source)?,
             source,
             variants,
         })

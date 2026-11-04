@@ -13,6 +13,7 @@ pub use concrete::Passes;
 pub mod compare;
 mod findings;
 mod for_loops;
+mod inherent;
 mod items;
 mod patterns;
 mod propagation;
@@ -118,6 +119,19 @@ impl<'a> Reader<'a> {
             origin: located.start,
             source: source.as_str(),
         };
+
+        let facts = self.walked(&context, (function, fn_span), &source)?;
+        context.after_walk(facts, self.passes)
+    }
+
+    /// The facts the walk itself produces: the signature, body and bindings.
+    fn walked(
+        &self,
+        context: &Context<'_, 'a>,
+        (function, fn_span): (&'a Function, ByteSpan),
+        source: &SourceText,
+    ) -> Result<HirFnFacts, String> {
+        let body = context.body;
         let params = context.parameters()?;
         let tree = context.tree(body.root()?)?;
         let scope = format!("scope:source:fn:0:{}", source.len());
@@ -129,11 +143,11 @@ impl<'a> Reader<'a> {
         let signature = context.signature(params)?;
         let (source_diagnostics, source_scan_complete) = context.source_scan(function)?;
 
-        let mut facts = HirFnFacts {
+        Ok(HirFnFacts {
             name: function.name.clone(),
             fn_span,
             source: SourceFacts {
-                digest: self.digest(&source),
+                digest: self.digest(source),
                 bytes: source.clone(),
             },
             signature,
@@ -142,13 +156,7 @@ impl<'a> Reader<'a> {
             build: self.function_build(function),
             source_diagnostics,
             source_scan_complete,
-        };
-        // The frontend's passes after its walk, in its order.
-        context.concrete_types(&mut facts, self.passes)?;
-        if self.passes == Passes::Complete {
-            crate::field_locations::capture(&mut facts)?;
-        }
-        Ok(facts)
+        })
     }
 
     fn source(&self, span: &FileSpan) -> Result<SourceText, String> {
@@ -171,6 +179,17 @@ impl<'a> Reader<'a> {
         // The type table outlives the type a caller holds.
         let own = self.tables.ty(&ty.id).ok()?;
         own.arguments.as_deref()
+    }
+
+    /// A file's absolute path, as the capture session records it.
+    fn session_file(&self, file: &str) -> Option<&'a str> {
+        self.unit
+            .extensions
+            .as_ref()?
+            .get("rust:compiler-session")?
+            .get("files")?
+            .get(file)?
+            .as_str()
     }
 
     /// Whether a type is the integer type `spelling` names.
@@ -291,6 +310,16 @@ struct Context<'r, 'a> {
 }
 
 impl<'a> Context<'_, 'a> {
+    /// The frontend's passes after its walk, in its order.
+    fn after_walk(&self, mut facts: HirFnFacts, passes: Passes) -> Result<HirFnFacts, String> {
+        self.concrete_types(&mut facts, passes)?;
+        if passes == Passes::Complete {
+            self.inherent_definition(&mut facts)?;
+            crate::field_locations::capture(&mut facts)?;
+        }
+        Ok(facts)
+    }
+
     /// The definition a node's reference targets, when the target is of `kind`.
     fn target_definition(
         &self,

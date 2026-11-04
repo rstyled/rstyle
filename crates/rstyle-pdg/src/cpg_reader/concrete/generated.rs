@@ -8,6 +8,7 @@ use rstyle_core::cpg::model::{Definition, FileSpan, TypeField};
 use serde_json::Value;
 
 impl<'a> Capture<'_, '_, 'a> {
+    // rstyle-allow(mutation_per_target): recursive observation shares one budgeted observer
     /// A unary tuple struct a local macro generates, with its declaration and field type
     /// as the macro writes them.
     pub(super) fn generated_structure(
@@ -22,6 +23,7 @@ impl<'a> Capture<'_, '_, 'a> {
         let captured = self.fields(fields, vec![("0".into(), field.as_str().to_owned())], depth);
         self.visiting.pop();
         let nominal = self.nominal(&definition.name, &template)?;
+        self.generated_origin(generated, (&nominal, &record))?;
         let mut captured = captured?;
         let [only] = captured.as_mut_slice() else {
             return Err(unsupported("Generated tuple field inventory disagrees"));
@@ -83,6 +85,72 @@ impl<'a> Capture<'_, '_, 'a> {
         }
 
         Ok(source)
+    }
+}
+
+impl<'a> Capture<'_, '_, 'a> {
+    /// Where a generated declaration's template is written, with its hygiene marks
+    /// and the original local invocation that defines it.
+    fn generated_origin(
+        &mut self,
+        generated: &Value,
+        (nominal, definition): (
+            &crate::concrete_types::Nominal,
+            &crate::generated_sources::capture::Definition,
+        ),
+    ) -> Result<(), Failure> {
+        use crate::generated_sources::capture::{Mark, Origin};
+        let missing = || unsupported("Missing exact raw generated declaration bytes");
+        let span: FileSpan =
+            serde_json::from_value(generated.get("template").ok_or_else(missing)?.clone())
+                .map_err(|_| missing())?;
+        let (path, snapshot) = self.raw_file(&span.file)?;
+        let marks: Vec<Mark> =
+            serde_json::from_value(generated.get("marks").cloned().unwrap_or_default())
+                .map_err(|_| unsupported("Generated declaration hygiene is unavailable"))?;
+        let root = generated
+            .get("root")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                unsupported("Generated declaration has no unique original local bang root")
+            })?;
+        let origin = crate::declaration_origins::GeneratedOrigin {
+            nominal: nominal.clone(),
+            definition: definition.clone(),
+            origin: Origin {
+                raw: crate::nominal_boundary::census::expansions::FileSpan {
+                    path,
+                    digest: snapshot.checksum().to_owned(),
+                    span: crate::frontend::ByteSpan {
+                        start: span.start as u32,
+                        end: span.end as u32,
+                    },
+                },
+                marks,
+            },
+            defining_expansion: root.to_owned(),
+            file_bytes: snapshot,
+        };
+        self.generated_origins
+            .insert(nominal.definition_path.clone(), origin);
+
+        Ok(())
+    }
+}
+
+impl Capture<'_, '_, '_> {
+    /// A file's absolute path and its bytes, as the compiler read them.
+    fn raw_file(&self, file: &str) -> Result<(std::path::PathBuf, crate::SourceSnapshot), Failure> {
+        let reader = self.context.reader;
+        let path = reader
+            .session_file(file)
+            .ok_or_else(|| unsupported("Module expansion source path is unavailable"))?;
+        let content = reader
+            .file(file)
+            .ok()
+            .and_then(|file| file.content.as_deref())
+            .ok_or_else(|| unsupported("Module expansion source buffer is unavailable"))?;
+        Ok((path.into(), crate::SourceSnapshot::from(content)))
     }
 }
 

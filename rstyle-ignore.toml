@@ -78,6 +78,14 @@ fns = [
   "rstyle_core::align::reverse_conflicts",
 ]
 
+[ignore.1393a99a2769]
+kind = "parameterize"
+reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
+fns = [
+  "rstyle_driver::hir_extraction::concrete_types::Capture::install_origins",
+  "rstyle_pdg::cpg_reader::concrete::Capture::install_origins",
+]
+
 [ignore.1a2db6420b6e]
 kind = "parameterize"
 reason = "one-line flat_map-collect validators over distinct check domains; merging saves nothing"
@@ -246,6 +254,14 @@ fns = [
   "rstyle_core::cluster::classes_of",
   "rstyle_core::normalize::data_consumers",
   "rstyle_core::normalize::data_producers",
+]
+
+[ignore.ab05fa190fbc]
+kind = "parameterize"
+reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
+fns = [
+  "rstyle_driver::hir_extraction::inherent::owner_nominal",
+  "rstyle_pdg::cpg_reader::inherent::owner_nominal",
 ]
 
 [ignore.b960b3d08c82]

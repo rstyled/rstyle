@@ -350,6 +350,18 @@ impl<'a> Context<'_, 'a> {
 
     /// The inherent implementation a local method belongs to, as a call owner.
     fn inherent_owner(&self, definition: &Definition) -> Option<crate::inherent_calls::CallOwner> {
+        let implementation = self.inherent_implementation(definition)?;
+        Some(crate::inherent_calls::CallOwner {
+            identity: crate::inherent_calls::IDENTITY.into(),
+            implementation_identity: identity(implementation, "def_path_hash")?.to_owned(),
+        })
+    }
+
+    /// The inherent implementation a local method's calls are verified through.
+    pub(super) fn inherent_implementation(
+        &self,
+        definition: &Definition,
+    ) -> Option<&'a Definition> {
         let profile = self.reader.profile;
         if !profile.supports("rust.verified-inherent-helper-calls")
             || definition.scope != Scope::Unit
@@ -373,10 +385,7 @@ impl<'a> Context<'_, 'a> {
             return None;
         }
 
-        Some(crate::inherent_calls::CallOwner {
-            identity: crate::inherent_calls::IDENTITY.into(),
-            implementation_identity: identity(implementation, "def_path_hash")?.to_owned(),
-        })
+        Some(implementation)
     }
 
     /// A method of an implementation generic only over lifetimes, written as its own

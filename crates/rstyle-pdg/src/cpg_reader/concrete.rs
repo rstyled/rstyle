@@ -5,6 +5,7 @@
 mod callbacks;
 mod enums;
 mod generated;
+mod origins;
 mod products;
 mod receivers;
 mod storage;
@@ -54,6 +55,8 @@ impl<'a> Context<'_, 'a> {
             entries: 0,
             visiting: Vec::new(),
             completed: BTreeMap::new(),
+            origins: BTreeMap::new(),
+            generated_origins: BTreeMap::new(),
         };
         let observations = capture.interface(facts)?;
         let data = self.reader.profile.supports("rust.concrete-read-only-data");
@@ -65,6 +68,7 @@ impl<'a> Context<'_, 'a> {
                     capture.binding_tokens(&mut facts.bindings, false)?;
                     capture.install_receivers(facts)?;
                     capture.callback_environments(&mut facts.body)?;
+                    capture.install_origins(&observations, facts)?;
                 }
                 Passes::Advisory => capture.binding_tokens(&mut facts.bindings, true)?,
             }
@@ -140,6 +144,10 @@ struct Capture<'c, 'r, 'a> {
     visiting: Vec<&'a str>,
     /// Each root type's completed observation and token.
     completed: BTreeMap<&'a str, (Observation, Option<String>)>,
+    /// Where each observed local declaration is written, by definition path.
+    origins: BTreeMap<String, crate::declaration_origins::Origin>,
+    /// Where each observed generated declaration's template is, by definition path.
+    generated_origins: BTreeMap<String, crate::declaration_origins::GeneratedOrigin>,
 }
 
 impl<'a> Capture<'_, '_, 'a> {
@@ -384,7 +392,7 @@ impl<'a> Capture<'_, '_, 'a> {
         let captured = self.fields(fields, declarations, depth);
         self.visiting.pop();
         Ok(TypeTree::Struct {
-            nominal: self.nominal(&definition.name, &source)?,
+            nominal: self.origin_nominal(definition, &source)?,
             source,
             fields: captured?,
         })
@@ -497,36 +505,7 @@ impl<'a> Capture<'_, '_, 'a> {
         definition_path: &str,
         source: &crate::SourceText,
     ) -> Result<Nominal, Failure> {
-        let package = self
-            .context
-            .reader
-            .unit
-            .extensions
-            .as_ref()
-            .and_then(|extensions| extensions.get("rust:cargo-package"));
-        let text = |key: &str| {
-            package
-                .and_then(|package| package.get(key)?.as_str())
-                .map(str::to_owned)
-        };
-        let data = self.context.reader.profile.is_data();
-        let source_identity = match data {
-            true => Some(
-                text("package_id")
-                    .ok_or_else(|| unsupported("Missing explicit selected-unit context"))?,
-            ),
-            false => None,
-        };
-        let missing = || unsupported("Missing Cargo package identity");
-
-        Ok(Nominal {
-            source_identity,
-            package_name: text("name").ok_or_else(missing)?,
-            package_version: text("version").ok_or_else(missing)?,
-            manifest_digest: text("manifest_digest").ok_or_else(missing)?,
-            definition_path: definition_path.to_owned(),
-            declaration_digest: source.checksum().to_owned(),
-        })
+        nominal(self.context.reader, definition_path, source)
     }
 
     /// A standard library type's arguments, when `key` names the type.
@@ -560,16 +539,26 @@ impl<'a> Capture<'_, '_, 'a> {
 
     /// A product or borrowed byte slice `Option` payload, at the root of an observation.
     fn nonnested_payload(&self, ty: &'a Type) -> Option<&'a str> {
+        if !self.visiting.is_empty() {
+            return None;
+        }
         let [payload] = self.standard_arguments(ty, "rust:Option")? else {
             return None;
         };
         let payload_type = self.ty(payload).ok()?;
-        let product = self.supports("rust.concrete-option-propagation")
-            && matches!(
+        // A tuple or any nominal type, as the compiler's ADTs are, the library's
+        // containers and `Option` itself included.
+        let nominal = payload_type.definition.is_some()
+            && !matches!(
                 payload_type.kind,
-                TypeKind::Tuple | TypeKind::Record | TypeKind::Sum
-            )
-            && payload_type.key.as_deref() != Some("rust:Option");
+                TypeKind::Function
+                    | TypeKind::Closure
+                    | TypeKind::Interface
+                    | TypeKind::Opaque
+                    | TypeKind::Parameter
+            );
+        let product = self.supports("rust.concrete-option-propagation")
+            && (matches!(payload_type.kind, TypeKind::Tuple | TypeKind::Unit) || nominal);
         let borrowed_bytes = self.supports("rust.checked-borrowed-result-flow")
             && payload_type.kind == TypeKind::Reference
             && payload_type.mode.as_deref() == Some("shared")
@@ -644,4 +633,77 @@ fn original_free_call(node: &HirNode) -> bool {
             .res
             .as_ref()
             .is_some_and(|resolution| resolution.kind == "resolved_direct_callee")
+}
+
+/// A struct's package and declaration identity, as the frontend names it.
+fn nominal(
+    reader: &super::Reader<'_>,
+    definition_path: &str,
+    source: &crate::SourceText,
+) -> Result<Nominal, Failure> {
+    let package = reader
+        .unit
+        .extensions
+        .as_ref()
+        .and_then(|extensions| extensions.get("rust:cargo-package"));
+    let text = |key: &str| {
+        package
+            .and_then(|package| package.get(key)?.as_str())
+            .map(str::to_owned)
+    };
+    let data = reader.profile.is_data();
+    let source_identity = match data {
+        true => Some(
+            text("package_id")
+                .ok_or_else(|| unsupported("Missing explicit selected-unit context"))?,
+        ),
+        false => None,
+    };
+    let missing = || unsupported("Missing Cargo package identity");
+
+    Ok(Nominal {
+        source_identity,
+        package_name: text("name").ok_or_else(missing)?,
+        package_version: text("version").ok_or_else(missing)?,
+        manifest_digest: text("manifest_digest").ok_or_else(missing)?,
+        definition_path: definition_path.to_owned(),
+        declaration_digest: source.checksum().to_owned(),
+    })
+}
+
+impl Context<'_, '_> {
+    /// The local struct a static method's implementation is for, as its nominal
+    /// identity; none for any other owner, and an error past the source budget.
+    pub(super) fn static_owner(&self, owner_type: &str) -> Result<Option<Nominal>, String> {
+        let reader = self.reader;
+        let Ok(ty) = reader.ty(owner_type) else {
+            return Ok(None);
+        };
+        let definition = ty
+            .definition
+            .as_deref()
+            .and_then(|definition| reader.tables.definition(definition).ok());
+        let Some(definition) = definition.filter(|definition| {
+            definition.scope == rstyle_core::cpg::model::Scope::Unit
+                && super::identity(definition, "def_kind") == Some("Struct")
+        }) else {
+            return Ok(None);
+        };
+        let Some(source) = definition
+            .span
+            .as_ref()
+            .and_then(|span| reader.source(span).ok())
+        else {
+            return Ok(None);
+        };
+        if source.len() > MAX_SOURCE_BYTES {
+            return Err("Static owner declaration exceeds source budget".into());
+        }
+
+        match nominal(reader, &definition.name, &source) {
+            Ok(owner) => Ok(Some(owner)),
+            Err(Failure::Unsupported(_)) => Ok(None),
+            Err(Failure::Budget(reason)) => Err(reason),
+        }
+    }
 }
