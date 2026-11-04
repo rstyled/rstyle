@@ -15,6 +15,7 @@ mod findings;
 mod patterns;
 mod resolution;
 mod scan;
+mod slices;
 mod variants;
 
 use crate::extraction_profile::ExtractionProfile;

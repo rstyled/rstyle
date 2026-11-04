@@ -391,7 +391,7 @@ impl<'a> Context<'_, 'a> {
 
     /// The call site of a construct a macro or desugaring expanded. A restored `for` is
     /// the desugaring the compiler expanded at its own span.
-    fn expansion(&self, node: &Node, span: ByteSpan) -> Option<ExpansionSite> {
+    pub(super) fn expansion(&self, node: &Node, span: ByteSpan) -> Option<ExpansionSite> {
         let restored = node.kind == NodeKind::For;
         if node.provenance.origin == Origin::Source && !restored {
             return None;

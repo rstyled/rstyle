@@ -19,7 +19,7 @@ impl<'a> Capture<'_, '_, 'a> {
         self.range(ty, depth)
     }
 
-    fn nonzero(&self, ty: &'a Type) -> Result<Option<TypeTree>, Failure> {
+    pub(super) fn nonzero(&self, ty: &'a Type) -> Result<Option<TypeTree>, Failure> {
         use crate::nonzero_values::{Definition as Identity, Observation, Scalar};
         if self.context.reader.profile != ExtractionProfile::DataV3 {
             return Ok(None);

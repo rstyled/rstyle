@@ -192,13 +192,15 @@ impl<'a> Context<'_, 'a> {
 
     /// The data profile's own pattern records: shared scalars, Option and local variants.
     pub(super) fn observed_pattern(&self, pattern: &'a Node) -> Built {
-        if !self.data_v3() {
-            return Ok(None);
+        if self.data_v3() {
+            if let Some(observed) = self.option_pattern(pattern)? {
+                return Ok(Some(observed));
+            }
+            if let Some(observed) = self.local_variant_pattern(pattern)? {
+                return Ok(Some(observed));
+            }
         }
-        if let Some(observed) = self.option_pattern(pattern)? {
-            return Ok(Some(observed));
-        }
-        self.local_variant_pattern(pattern)
+        self.slice_prefix_pattern(pattern)
     }
 
     fn option_pattern(&self, pattern: &'a Node) -> Built {

@@ -143,12 +143,31 @@ impl Context<'_, '_> {
     }
 
     fn path(&self, node: &Node) -> Option<PathRes> {
-        let reference = self.body.reference(&node.id)?;
-        let target = reference.target.as_ref()?;
+        let target = self.body.reference(&node.id)?.target.as_ref()?;
+        if matches!(
+            target.kind,
+            TargetKind::Definition | TargetKind::Constructor | TargetKind::Variant
+        ) {
+            let definition = self.reader.tables.definition(target.id.as_deref()?).ok()?;
+            if let Some((resolution, _)) = self.named_option_function(node) {
+                return Some(resolution);
+            }
+            if let Some(resolution) = self
+                .fieldless_variant(definition)
+                .or_else(|| self.constant_resolution(definition))
+            {
+                return Some(resolution);
+            }
+        }
+        self.path_resolution(node)
+    }
+
+    /// What a path resolves to, as the compiler prints the resolution.
+    pub(super) fn path_resolution(&self, node: &Node) -> Option<PathRes> {
+        let target = self.body.reference(&node.id)?.target.as_ref()?;
         match target.kind {
             TargetKind::Symbol => {
-                let symbol = target.id.as_deref()?;
-                let binding = hir_ref(symbol);
+                let binding = hir_ref(target.id.as_deref()?);
                 Some(PathRes {
                     kind: "local".into(),
                     description: format!(
@@ -161,15 +180,6 @@ impl Context<'_, '_> {
             }
             TargetKind::Definition | TargetKind::Constructor | TargetKind::Variant => {
                 let definition = self.reader.tables.definition(target.id.as_deref()?).ok()?;
-                if let Some((resolution, _)) = self.named_option_function(node) {
-                    return Some(resolution);
-                }
-                if let Some(resolution) = self
-                    .fieldless_variant(definition)
-                    .or_else(|| self.constant_resolution(definition))
-                {
-                    return Some(resolution);
-                }
                 let rust = |key: &str| identity(definition, key);
                 Some(PathRes {
                     kind: "other".into(),

@@ -5,6 +5,7 @@
 mod callbacks;
 mod enums;
 mod generated;
+mod products;
 mod storage;
 
 use super::Context;
@@ -349,6 +350,9 @@ impl<'a> Capture<'_, '_, 'a> {
 
     /// A local struct with its declaration as written and its fields' types.
     fn structure(&mut self, ty: &'a Type, depth: usize) -> Result<TypeTree, Failure> {
+        if let Some(captured) = self.scalar_product_instance(ty, depth)? {
+            return Ok(captured);
+        }
         let (definition, fields) = self.checked_structure(ty)?;
         if let Some(generated) = definition.extensions.get("rust:generated-declaration") {
             return self.generated_structure((definition, fields), generated, depth);

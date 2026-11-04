@@ -747,10 +747,22 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 "pattern_constructor",
                 self.each(fields.iter().map(|field| field.pat), Self::pat),
             ),
-            PatKind::Slice(before, middle, after) => shape(
-                "pattern_sequence",
-                self.each(before.iter().chain(middle).chain(after), Self::pat),
-            ),
+            PatKind::Slice(before, middle, after) => {
+                let children = self.each(before.iter().chain(middle).chain(after), Self::pat);
+                // The element matching the rest of the sequence.
+                if let Some(middle) = middle {
+                    let id = self.id(middle.hir_id);
+                    if let Some(record) = self
+                        .nodes
+                        .iter_mut()
+                        .rev()
+                        .find(|record| record["id"] == id)
+                    {
+                        record["modifiers"] = json!(["rest"]);
+                    }
+                }
+                shape("pattern_sequence", children)
+            }
             PatKind::Ref(inner, ..) => {
                 let mut shape = shape("extension", self.each([inner], Self::pat));
                 shape
