@@ -60,7 +60,10 @@ fn looped(body: &Body<'_>, node: &Node) -> Result<Option<HirRef>, String> {
 
 impl Context<'_, '_> {
     pub(super) fn resolution(&self, node: &Node, tag: &str) -> Option<PathRes> {
-        if let Some(variant) = self.option_expression(node) {
+        if let Some(variant) = self
+            .option_expression(node)
+            .or_else(|| self.result_expression(node))
+        {
             return Some(variant);
         }
         match tag {

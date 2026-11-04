@@ -31,6 +31,58 @@ impl<'a> Context<'_, 'a> {
         (self.scalar_payload(ty) || self.product_payload(ty)).then_some(resolution)
     }
 
+    /// `Ok(value)` or `Err(error)` of a Result, where the profile observes fresh results.
+    pub(super) fn result_expression(&self, node: &Node) -> Option<PathRes> {
+        if !self.reader.profile.supports("rust.fresh-concrete-results")
+            || node.original_kind != "expr_call"
+            || node.children.len() != 2
+        {
+            return None;
+        }
+        let ty = self.reader.ty(node.ty.as_deref()?).ok()?;
+        let definition = self
+            .reader
+            .tables
+            .definition(ty.definition.as_deref()?)
+            .ok()?;
+        if identity(definition, "diagnostic") != Some("Result") || ty.arguments.as_ref()?.len() != 2
+        {
+            return None;
+        }
+        let callee = self.body.child(node, 0).ok()?;
+        if callee.original_kind != "expr_path" {
+            return None;
+        }
+        let constructor = self.constructor(callee)?;
+        let owner = self
+            .reader
+            .tables
+            .definition(identity(constructor, "enum")?)
+            .ok()?;
+        if identity(owner, "diagnostic") != Some("Result")
+            || !matches!(identity(constructor, "variant"), Some("Ok" | "Err"))
+        {
+            return None;
+        }
+        self.variant_record(constructor, "resolved_result_variant")
+    }
+
+    /// A variant constructor as the library record the frontend serializes for it.
+    fn variant_record(&self, definition: &Definition, kind: &str) -> Option<PathRes> {
+        let callee = crate::data_library::Callee {
+            path: definition.name.clone(),
+            crate_name: identity(definition, "crate_name")?.to_owned(),
+            crate_hash: identity(definition, "crate_hash")?.to_owned(),
+            definition_hash: identity(definition, "def_path_hash")?.to_owned(),
+            implementation: None,
+        };
+        Some(PathRes {
+            kind: kind.into(),
+            target: None,
+            description: serde_json::to_string(&callee).ok()?,
+        })
+    }
+
     /// The data profile's own pattern records: shared scalars, Option and local variants.
     pub(super) fn observed_pattern(&self, pattern: &'a Node) -> Built {
         if !self.data_v3() {
@@ -155,18 +207,7 @@ impl<'a> Context<'_, 'a> {
         {
             return None;
         }
-        let callee = crate::data_library::Callee {
-            path: definition.name.clone(),
-            crate_name: identity(definition, "crate_name")?.to_owned(),
-            crate_hash: identity(definition, "crate_hash")?.to_owned(),
-            definition_hash: identity(definition, "def_path_hash")?.to_owned(),
-            implementation: None,
-        };
-        Some(PathRes {
-            kind: "resolved_option_variant".into(),
-            target: None,
-            description: serde_json::to_string(&callee).ok()?,
-        })
+        self.variant_record(definition, "resolved_option_variant")
     }
 
     fn option_argument(&self, ty: &Type) -> Option<&'a Type> {
