@@ -145,8 +145,19 @@ impl<'a> Capture<'_, '_, 'a> {
             return Ok(Some(result));
         }
         if self.supports("rust.fresh-concrete-results") && self.visiting.is_empty() {
+            let ok = self.tree(ok, depth + 1)?;
+            // Only this product shape's associated error resolves to the type it names.
+            let alias = self.ty(err)?;
+            let err = match alias.modifiers.iter().any(|m| m == "rust:alias")
+                && crate::concrete_types::observed_static_string_result_success(&ok)
+            {
+                true => alias.normalized.as_deref().ok_or_else(|| {
+                    super::unsupported("Static product associated error cannot be resolved")
+                })?,
+                false => err,
+            };
             let result = TypeTree::Result {
-                ok: Box::new(self.tree(ok, depth + 1)?),
+                ok: Box::new(ok),
                 err: Box::new(self.tree(err, depth + 1)?),
             };
             crate::concrete_types::validate(&result).map_err(Failure::Unsupported)?;

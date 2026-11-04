@@ -37,6 +37,9 @@ use std::collections::BTreeMap;
 pub struct Read {
     pub name: String,
     pub fn_span: ByteSpan,
+    /// The compiler owner of the function's body, which tells apart functions of
+    /// one name and source.
+    pub owner: u32,
     pub facts: Result<HirFnFacts, String>,
 }
 
@@ -104,6 +107,7 @@ impl<'a> Reader<'a> {
         Read {
             name: function.name.clone(),
             fn_span,
+            owner: hir_ref(&function.root).owner,
             facts: self.facts(function, fn_span),
         }
     }

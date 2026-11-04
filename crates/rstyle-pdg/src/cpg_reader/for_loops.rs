@@ -102,3 +102,70 @@ impl<'a> Context<'_, 'a> {
             .then_some(definition)
     }
 }
+
+impl<'a> Context<'_, 'a> {
+    /// A destructuring assignment of a tuple to scalar places, as the profile restores it.
+    pub(super) fn tuple_assignment(&self, node: &'a Node) -> Built {
+        if node.kind != NodeKind::Assignment
+            || node.original_kind != "expr_block"
+            || !self.reader.profile.supports("rust.scalar-tuple-assignment")
+        {
+            return Ok(None);
+        }
+        let parts = self.body.children(node)?;
+        let [target, value] = parts.as_slice() else {
+            return Ok(None);
+        };
+        let places = self.body.children(target)?;
+        if !self.scalar_places((target, value), &places)? {
+            return Ok(None);
+        }
+        let left = HirNode {
+            ty: self.ty(target)?,
+            children: places
+                .into_iter()
+                .map(|place| self.expression(place))
+                .collect::<Result<_, _>>()?,
+            expansion: None,
+            ..self.node(target, "expr_tup")?
+        };
+
+        Ok(Some(HirNode {
+            ty: self.ty(node)?,
+            children: vec![left, self.expression(value)?],
+            expansion: None,
+            ..self.node(node, "expr_tuple_assign")?
+        }))
+    }
+}
+
+impl Context<'_, '_> {
+    /// Whether a destructuring assignment assigns a tuple, element by element, to
+    /// scalar local places.
+    fn scalar_places(
+        &self,
+        (target, value): (&Node, &Node),
+        places: &[&Node],
+    ) -> Result<bool, String> {
+        let values = self.body.children(value)?;
+        let scalar = |place: &&Node| {
+            place.original_kind == "expr_path"
+                && place
+                    .ty
+                    .as_deref()
+                    .and_then(|ty| self.reader.ty(ty).ok())
+                    .is_some_and(|ty| {
+                        matches!(
+                            ty.kind,
+                            rstyle_core::cpg::model::TypeKind::Bool
+                                | rstyle_core::cpg::model::TypeKind::Integer
+                        )
+                    })
+        };
+        Ok(target.original_kind == "pat_tuple"
+            && value.original_kind == "expr_tup"
+            && !places.is_empty()
+            && places.len() == values.len()
+            && places.iter().all(scalar))
+    }
+}

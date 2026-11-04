@@ -44,7 +44,7 @@ pub(super) fn check(
     facts
         .iter()
         .map(|reference| {
-            let key = (reference.name.clone(), reference.fn_span.start);
+            let key = key(reference);
             derived
                 .remove(&key)
                 .unwrap_or_else(|| Err(format!("No document function {} at {}", key.0, key.1)))
@@ -72,19 +72,14 @@ fn read_documents(
     result.unwrap_or_else(|error| {
         facts
             .iter()
-            .map(|reference| {
-                (
-                    (reference.name.clone(), reference.fn_span.start),
-                    Err(error.clone()),
-                )
-            })
+            .map(|reference| (key(reference), Err(error.clone())))
             .collect()
     })
 }
 
 /// One function's differences from the facts read for it, or why none were read.
 fn function_differences(reference: &HirFnFacts, derived: &Derived) -> Vec<Difference> {
-    let key = (reference.name.clone(), reference.fn_span.start);
+    let key = key(reference);
     match derived.get(&key) {
         Some(Ok(derived)) => cpg_reader::compare::differences(reference, derived),
         Some(Err(reason)) => vec![unread("function.read", reason)],
@@ -92,12 +87,12 @@ fn function_differences(reference: &HirFnFacts, derived: &Derived) -> Vec<Differ
             let starts: Vec<u32> = derived
                 .keys()
                 .filter(|(name, _)| *name == reference.name)
-                .map(|(_, start)| *start)
+                .map(|(_, owner)| *owner)
                 .collect();
             let reason = match starts.as_slice() {
                 [] => "No document function has this name".to_owned(),
                 starts => format!(
-                    "Document functions of this name start at {starts:?}, not {}",
+                    "Document functions of this name have owners {starts:?}, not {}",
                     key.1
                 ),
             };
@@ -151,7 +146,17 @@ fn crate_directory(tcx: TyCtxt<'_>) -> Option<std::path::PathBuf> {
     rstyle_pdg::nominal_binding::absolute_path(directory).ok()
 }
 
-type Derived = BTreeMap<(String, u32), Result<HirFnFacts, String>>;
+type Key = (String, u32);
+type Derived = BTreeMap<Key, Result<HirFnFacts, String>>;
+
+/// A captured function's key: its name and its body's compiler owner.
+fn key(facts: &HirFnFacts) -> Key {
+    (facts.name.clone(), facts.body.hir.owner)
+}
+
+fn read_key(read: &cpg_reader::Read) -> Key {
+    (read.name.clone(), read.owner)
+}
 
 fn derived(
     tcx: TyCtxt<'_>,
@@ -171,7 +176,7 @@ fn derived(
     {
         let document = rstyle_core::cpg::layout::bundle(vec![document])?;
         for read in cpg_reader::read(&document, profile, passes)? {
-            derived.insert((read.name, read.fn_span.start), read.facts);
+            derived.insert(read_key(&read), read.facts);
         }
     }
 

@@ -17,6 +17,8 @@ pub struct Unit<'tcx> {
     files: BTreeMap<String, Value>,
     /// Each file's path as the compiler opened it, made absolute.
     local_paths: BTreeMap<String, String>,
+    /// The unit's own value item paths, computed once.
+    value_paths: Option<std::collections::HashSet<String>>,
     definitions: BTreeMap<String, Value>,
     types: BTreeMap<String, Value>,
     /// The compile-time values of local constants the unit references, by definition.
@@ -30,10 +32,49 @@ impl<'tcx> Unit<'tcx> {
             root,
             files: BTreeMap::new(),
             local_paths: BTreeMap::new(),
+            value_paths: None,
             definitions: BTreeMap::new(),
             types: BTreeMap::new(),
             values: BTreeMap::new(),
         }
+    }
+
+    /// A definition's stable identity: its path, with `!` for a macro and `#type` for a
+    /// type that shares its path with one of the unit's value items.
+    fn stable_identity(&mut self, def_id: DefId) -> String {
+        let mut stable = ids::def_id_str(self.tcx, def_id);
+        // A macro shares its path with an item of another namespace, as derive macros
+        // share the traits they implement; `!` names the macro, as invoking it does.
+        if matches!(self.tcx.def_kind(def_id), DefKind::Macro(_)) {
+            stable.push('!');
+        }
+        // A type may share its path with a function of the value namespace, as a braced
+        // struct and a function of its name do; `#type` names the type.
+        let type_namespace = matches!(
+            self.tcx.def_kind(def_id),
+            DefKind::Struct | DefKind::Enum | DefKind::Union | DefKind::TyAlias | DefKind::Trait
+        );
+        if type_namespace && def_id.is_local() && self.value_paths().contains(&stable) {
+            stable.push_str("#type");
+        }
+
+        stable
+    }
+
+    /// The paths of the unit's own value items: functions, constants and statics.
+    fn value_paths(&mut self) -> &std::collections::HashSet<String> {
+        let tcx = self.tcx;
+        self.value_paths.get_or_insert_with(|| {
+            tcx.iter_local_def_id()
+                .filter(|id| {
+                    matches!(
+                        tcx.def_kind(*id),
+                        DefKind::Fn | DefKind::Const | DefKind::Static { .. }
+                    )
+                })
+                .map(|id| ids::def_id_str(tcx, id.to_def_id()))
+                .collect()
+        })
     }
 
     /// Each recorded file's absolute path, as the compiler opened it.
@@ -102,13 +143,7 @@ impl<'tcx> Unit<'tcx> {
     // rstyle-allow(mutated_targets, mutation_per_target): the unit interns referenced records as it builds them
     /// The definition ID of `def_id`, recording the definition on first use.
     pub fn definition(&mut self, def_id: DefId) -> String {
-        let mut stable = ids::def_id_str(self.tcx, def_id);
-        // A macro shares its path with an item of another namespace, as derive macros
-        // share the traits they implement; `!` names the macro, as invoking it does.
-        if matches!(self.tcx.def_kind(def_id), DefKind::Macro(_)) {
-            stable.push('!');
-        }
-
+        let stable = self.stable_identity(def_id);
         let id = format!("def:{stable}");
         if !self.definitions.contains_key(&id) {
             let mut record = self.definition_record(def_id, &id, stable);
@@ -491,6 +526,7 @@ impl<'tcx> Unit<'tcx> {
                     ..
                 },
             ) => self.opaque(def_id),
+            ty::Alias(..) => self.alias(ty),
             ty::Param(param) => json!({"kind": "parameter", "index": param.index}),
             _ => self.scalar(ty),
         }
@@ -680,6 +716,29 @@ impl<'tcx> Unit<'tcx> {
         if let Some(principal) = principal {
             record["definition"] = json!(self.definition(principal));
         }
+        record
+    }
+
+    // rstyle-allow(mutation_per_target): the unit interns referenced records as it builds them
+    /// An associated or free alias type, with the type it normalizes to where that
+    /// needs no bounds of an owner.
+    fn alias(&mut self, ty: Ty<'tcx>) -> Value {
+        let mut record = json!({"kind": "opaque", "modifiers": ["rust:alias"]});
+        let concrete =
+            !ty.has_non_region_param() && !ty.has_infer() && !ty.has_escaping_bound_vars();
+        let environment = ty::TypingEnv::fully_monomorphized();
+        let normalized = concrete
+            .then(|| {
+                self.tcx
+                    .try_normalize_erasing_regions(environment, ty::Unnormalized::new_wip(ty))
+                    .ok()
+            })
+            .flatten()
+            .filter(|normalized| *normalized != ty);
+        if let Some(normalized) = normalized {
+            record["normalized"] = json!(self.ty(normalized));
+        }
+
         record
     }
 

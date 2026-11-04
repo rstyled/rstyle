@@ -306,6 +306,8 @@ pub struct Type {
     pub result: Option<Id>,
     /// A closure type's captured environment, as the language stores it.
     pub environment: Option<Id>,
+    /// The type an alias type normalizes to, where it needs no bounds of an owner.
+    pub normalized: Option<Id>,
     pub index: Option<u32>,
     pub bounds: Option<Vec<Id>>,
     #[serde(default)]

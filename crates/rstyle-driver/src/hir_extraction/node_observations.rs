@@ -78,6 +78,12 @@ impl<'tcx> Visitor<'tcx> for Scan<'_, 'tcx> {
         }
         if let ExprKind::Path(ref path) = expression.kind {
             let resolution = context.typeck.qpath_res(path, expression.hir_id);
+            if let rustc_hir::def::Res::Def(rustc_hir::def::DefKind::AssocFn, callee) = resolution
+                && !callee.is_local()
+                && let Some(call) = super::trait_members::default_call(context, expression, callee)
+            {
+                self.record(expression.hir_id, "default_call", json!(call));
+            }
             if let Some(constant) = context.id_reader_constant_resolution(resolution) {
                 self.record(expression.hir_id, "id_reader_constant", json!(constant));
             }

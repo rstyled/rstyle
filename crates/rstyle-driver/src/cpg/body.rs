@@ -830,15 +830,18 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
 
     /// What a constructor, struct or path pattern's path resolves to.
     fn pattern_reference(&mut self, pat: &'tcx Pat<'tcx>, id: &str) {
-        let qpath = match pat.kind {
-            PatKind::TupleStruct(ref qpath, ..) | PatKind::Struct(ref qpath, ..) => qpath,
+        // A path pattern's type-relative resolution is the path expression's own.
+        let (qpath, id_of_path) = match pat.kind {
+            PatKind::TupleStruct(ref qpath, ..) | PatKind::Struct(ref qpath, ..) => {
+                (qpath, pat.hir_id)
+            }
             PatKind::Expr(expr) => match expr.kind {
-                rustc_hir::PatExprKind::Path(ref qpath) => qpath,
+                rustc_hir::PatExprKind::Path(ref qpath) => (qpath, expr.hir_id),
                 rustc_hir::PatExprKind::Lit { .. } => return,
             },
             _ => return,
         };
-        let res = self.typeck.qpath_res(qpath, pat.hir_id);
+        let res = self.typeck.qpath_res(qpath, id_of_path);
         if let Some(mut record) = self.path_reference(res) {
             record["node"] = json!(id);
             self.refs.push(record);

@@ -24,6 +24,9 @@ impl<'a> Context<'_, 'a> {
         if let Some(iteration) = self.original_for_loop(node)? {
             return Ok(iteration);
         }
+        if let Some(assignment) = self.tuple_assignment(node)? {
+            return Ok(assignment);
+        }
         if let Some(assertion) = self.assertion(node)? {
             return Ok(assertion);
         }

@@ -63,6 +63,9 @@ impl<'a> Context<'_, 'a> {
             return self.library_callee(definition);
         }
         if !local && kind == "AssocFn" && profile.is_data() {
+            if let Some(resolution) = self.node_observation(callee, "default_call") {
+                return Some(resolution);
+            }
             if let Some(resolution) = self.range_from_helper(call, definition) {
                 return Some(resolution);
             }
