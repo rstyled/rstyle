@@ -25,7 +25,7 @@ struct DirectCallee {
 
 /// The compiled crate a library helper comes from, in the frontend's field order.
 #[derive(Serialize)]
-struct Dependency {
+pub(super) struct Dependency {
     identity: &'static str,
     crate_name: String,
     stable_crate_id: String,
@@ -59,6 +59,11 @@ impl<'a> Context<'_, 'a> {
         if !local && kind == "AssocFn" && profile.is_data() {
             let capture = self.associated_capture(call, definition);
             return self.instantiated_callee(call, definition, capture);
+        }
+        if kind == "Fn"
+            && let Some(resolution) = self.size_callee((call, callee), definition)
+        {
+            return Some(resolution);
         }
         let inherent = self.inherent_owner(definition);
         if generics_count(definition) != Some(0) && inherent.is_none() {
@@ -217,6 +222,49 @@ impl<'a> Context<'_, 'a> {
     }
 
     /// A definition as a library callee record.
+    /// `size_of` of an unsigned scalar, with the argument the call instantiates.
+    fn size_callee(
+        &self,
+        (call, path): (&Node, &Node),
+        definition: &Definition,
+    ) -> Option<PathRes> {
+        if !self.reader.profile.supports(crate::size_calls::CAPABILITY)
+            || definition.scope == Scope::Unit
+            || identity(definition, "crate_name") != Some("core")
+            || !matches!(
+                definition.name.as_str(),
+                "core::mem::size_of" | "std::mem::size_of"
+            )
+        {
+            return None;
+        }
+        let arguments = [call, path]
+            .into_iter()
+            .find_map(|node| self.body.reference(&node.id)?.instance_arguments.as_deref())?;
+        let [argument] = arguments else {
+            return None;
+        };
+        let argument = self.reader.ty(argument).ok()?;
+        let callable = definition.callable.as_ref()?;
+        let result = self.reader.ty(&callable.result).ok()?;
+        if argument.kind != rstyle_core::cpg::model::TypeKind::Integer
+            || !matches!(argument.spelling.as_str(), "u16" | "u32" | "u128")
+            || !callable.parameters.is_empty()
+            || result.spelling != "usize"
+        {
+            return None;
+        }
+        let capture = crate::size_calls::Capture {
+            callee: self.library_record(definition)?,
+            argument: argument.spelling.clone(),
+        };
+        Some(PathRes {
+            kind: crate::size_calls::RESOLUTION.into(),
+            target: None,
+            description: serde_json::to_string(&capture).ok()?,
+        })
+    }
+
     pub(super) fn library_callee(&self, definition: &Definition) -> Option<PathRes> {
         let callee = self.library_record(definition)?;
         Some(PathRes {
@@ -226,7 +274,7 @@ impl<'a> Context<'_, 'a> {
         })
     }
 
-    fn helper(
+    pub(super) fn helper(
         &self,
         definition: &Definition,
         (kind, inherent): (&str, Option<crate::inherent_calls::CallOwner>),

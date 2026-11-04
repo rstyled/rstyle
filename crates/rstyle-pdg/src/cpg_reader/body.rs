@@ -416,6 +416,9 @@ mod dispatch {
             node: &'a Node,
             tag: &str,
         ) -> Result<Option<Dispatch>, String> {
+            if let Some((_, dispatch)) = self.named_option_function(node) {
+                return Ok(Some(dispatch));
+            }
             let children = self.parts(node)?;
             let (op, operands): (String, &[&'a Node]) = match tag {
                 "expr_binary" => (rendering(node, "")?, &children[..children.len().min(2)]),

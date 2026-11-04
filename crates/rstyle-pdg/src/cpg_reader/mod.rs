@@ -6,6 +6,7 @@
 
 mod assertions;
 mod body;
+mod callbacks;
 mod callees;
 mod concrete;
 pub use concrete::Passes;
@@ -20,7 +21,7 @@ use crate::frontend::{
     BindingFact, ByteSpan, GenericFact, HirFnFacts, HirNode, HirRef, ParamFact, ReceiverFact,
     ResolvedTy, SignatureFacts, SourceFacts, SourceSnapshot, SourceText,
 };
-use rstyle_core::cpg::model::{Document, File, FileSpan, Function, Type, TypeKind, Unit};
+use rstyle_core::cpg::model::{Document, File, FileSpan, Function, Node, Type, TypeKind, Unit};
 use rstyle_core::cpg::tree::{Body, Tables};
 use std::collections::BTreeMap;
 
@@ -98,6 +99,15 @@ impl<'a> Reader<'a> {
             reader: self,
             body: &body,
             exits: resolution::loop_exits(&body)?,
+            parents: function
+                .nodes
+                .iter()
+                .flat_map(|node| {
+                    node.children
+                        .iter()
+                        .map(move |child| (child.as_str(), node))
+                })
+                .collect(),
             origin: function.span.start,
             source: source.as_str(),
         };
@@ -215,6 +225,8 @@ struct Context<'r, 'a> {
     body: &'r Body<'a>,
     /// Each loop exit's labelled flag and destination loop.
     exits: std::collections::BTreeMap<String, (bool, HirRef)>,
+    /// Each node's parent.
+    parents: std::collections::BTreeMap<&'a str, &'a Node>,
     /// File offset the function's relative spans count from.
     origin: usize,
     source: &'r str,

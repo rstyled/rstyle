@@ -161,6 +161,9 @@ impl Context<'_, '_> {
             }
             TargetKind::Definition | TargetKind::Constructor | TargetKind::Variant => {
                 let definition = self.reader.tables.definition(target.id.as_deref()?).ok()?;
+                if let Some((resolution, _)) = self.named_option_function(node) {
+                    return Some(resolution);
+                }
                 if let Some(resolution) = self
                     .fieldless_variant(definition)
                     .or_else(|| self.constant_resolution(definition))
