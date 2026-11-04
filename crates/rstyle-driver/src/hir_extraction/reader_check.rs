@@ -11,42 +11,79 @@ use std::io::Write;
 
 pub const DIR_ENV: &str = "RSTYLE_DIAGNOSTIC_CPG_READER_DIR";
 
+/// With `READ_ENV` set, the capture's facts are the ones read from its documents.
+pub const READ_ENV: &str = "RSTYLE_CPG_READER_FACTS";
+
+/// Compares the capture's facts with those read from its documents when asked, and
+/// returns the facts the capture continues with: its own, or with `READ_ENV` set the
+/// facts read back, which must then cover every function.
 pub(super) fn check(
     tcx: TyCtxt<'_>,
     (options, passes): (&super::Options<'_>, cpg_reader::Passes),
+    facts: Vec<HirFnFacts>,
+) -> Result<Vec<HirFnFacts>, String> {
+    let dir = std::env::var_os(DIR_ENV);
+    let read = std::env::var_os(READ_ENV).is_some();
+    if dir.is_none() && !read {
+        return Ok(facts);
+    }
+    let derived = read_documents(tcx, (options, passes), &facts);
+    if let Some(dir) = dir {
+        let profile = options.selected().token();
+        let lines = facts.iter().map(|reference| {
+            let differences = function_differences(reference, &derived);
+            json!({"function": reference.name, "profile": profile, "differences": differences})
+        });
+        write(tcx, std::path::Path::new(&dir), lines)?;
+    }
+    if !read {
+        return Ok(facts);
+    }
+    let mut derived = derived;
+
+    facts
+        .iter()
+        .map(|reference| {
+            let key = (reference.name.clone(), reference.fn_span.start);
+            derived
+                .remove(&key)
+                .unwrap_or_else(|| Err(format!("No document function {} at {}", key.0, key.1)))
+                .map_err(|reason| format!("{}: {reason}", reference.name))
+        })
+        .collect()
+}
+
+/// The facts read from the crate's documents, by function; a failure to read the
+/// documents is each function's.
+fn read_documents(
+    tcx: TyCtxt<'_>,
+    (options, passes): (&super::Options<'_>, cpg_reader::Passes),
     facts: &[HirFnFacts],
-) -> Result<(), String> {
-    let Some(dir) = std::env::var_os(DIR_ENV) else {
-        return Ok(());
-    };
+) -> Derived {
     // Without a source root, the crate root file's directory holds its sources.
     let root = match options.source_root {
-        Some(root) => root.to_path_buf(),
-        None => crate_directory(tcx).ok_or("The crate has no root source file")?,
+        Some(root) => Some(root.to_path_buf()),
+        None => crate_directory(tcx),
     };
-    // A failure to read the documents is the comparison's finding, never the capture's.
     let package = options.unit_context.map(|context| &context.package);
     let session = json!({"invocation": options.invocation,
                          "profile_selection": options.profile.map(|profile| profile.token()),
                          "selected_unit": options.unit_context});
-    let origin = (root.as_path(), package, session);
-    let derived = derived(tcx, origin, (options, passes)).unwrap_or_else(|error| {
-        let mut unread = BTreeMap::new();
-        for reference in facts {
-            unread.insert(
-                (reference.name.clone(), reference.fn_span.start),
-                Err(error.clone()),
-            );
-        }
-        unread
-    });
+    let result = root
+        .ok_or_else(|| "The crate has no root source file".to_owned())
+        .and_then(|root| derived(tcx, (root.as_path(), package, session), (options, passes)));
 
-    let profile = options.selected().token();
-    let lines = facts.iter().map(|reference| {
-        let differences = function_differences(reference, &derived);
-        json!({"function": reference.name, "profile": profile, "differences": differences})
-    });
-    write(tcx, std::path::Path::new(&dir), lines)
+    result.unwrap_or_else(|error| {
+        facts
+            .iter()
+            .map(|reference| {
+                (
+                    (reference.name.clone(), reference.fn_span.start),
+                    Err(error.clone()),
+                )
+            })
+            .collect()
+    })
 }
 
 /// One function's differences from the facts read for it, or why none were read.

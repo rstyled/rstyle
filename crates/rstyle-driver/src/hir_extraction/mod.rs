@@ -180,9 +180,7 @@ fn collect_crate_facts(
             "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
         )))
     })?;
-    reader_check::check(tcx, (options, passes), &facts)?;
-
-    Ok(facts)
+    reader_check::check(tcx, (options, passes), facts)
 }
 
 fn collect_source_functions<T>(
