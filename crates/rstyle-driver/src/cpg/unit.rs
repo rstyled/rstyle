@@ -4,7 +4,7 @@
 use crate::ids;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::{self, Ty, TyCtxt, consts::ConstExt};
+use rustc_middle::ty::{self, Ty, TyCtxt, TypeVisitableExt, consts::ConstExt};
 use rustc_span::{FileName, Span};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -332,19 +332,86 @@ impl<'tcx> Unit<'tcx> {
                 let kind = if adt.is_enum() { "sum" } else { "record" };
                 let mut record =
                     json!({"kind": kind, "definition": definition, "arguments": arguments});
-                // A local record's members, which its declaration in this workspace gives.
-                if adt.did().is_local() && !adt.is_enum() {
-                    record["fields"] = json!(self.fields(adt, args));
+                // A local record's members, which its declaration in this workspace gives,
+                // and a standard range's, whose values the frontend observes.
+                if (adt.did().is_local() || self.range(adt)) && !adt.is_enum() {
+                    record["fields"] = json!(self.fields(adt.non_enum_variant(), args));
+                }
+                let mut modifiers = self.value_traits(ty);
+                // Type arguments are recorded; lifetime arguments only by their presence.
+                if args.regions().next().is_some() {
+                    modifiers.push("rust:lifetime-arguments");
+                }
+                // A library sum's variant shapes, which choose how its values are observed.
+                if !adt.did().is_local() && adt.is_enum() {
+                    modifiers.extend(variant_shapes(adt));
+                }
+                if adt.did().is_local() && adt.is_enum() {
+                    record["variants"] = json!(self.variants(adt, args));
+                    if exact_u8(adt) {
+                        modifiers.push("rust:repr-u8");
+                    }
+                }
+                if !modifiers.is_empty() {
+                    record["modifiers"] = json!(modifiers);
                 }
                 record
             }
         }
     }
 
-    /// A record's fields in declaration order, with their types instantiated.
-    fn fields(&mut self, adt: ty::AdtDef<'tcx>, args: ty::GenericArgsRef<'tcx>) -> Vec<Value> {
+    fn range(&self, adt: ty::AdtDef<'tcx>) -> bool {
+        let items = self.tcx.lang_items();
+        [
+            items.range_struct(),
+            items.range_from_struct(),
+            items.range_to_struct(),
+        ]
+        .contains(&Some(adt.did()))
+    }
+
+    /// Whether a concrete value type is `Copy` and whether dropping it runs code.
+    fn value_traits(&self, ty: Ty<'tcx>) -> Vec<&'static str> {
+        // Only a closed concrete type has these judgments of its own.
+        if ty.has_param() || ty.has_escaping_bound_vars() || ty.has_infer() {
+            return Vec::new();
+        }
+        let environment = ty::TypingEnv::fully_monomorphized();
+        let mut traits = Vec::new();
+        if self.tcx.type_is_copy_modulo_regions(environment, ty) {
+            traits.push("rust:copy");
+        }
+        if ty.needs_drop(self.tcx, environment) {
+            traits.push("rust:needs-drop");
+        }
+        traits
+    }
+
+    /// A sum's variants in declaration order: shape, discriminant and fields.
+    fn variants(&mut self, adt: ty::AdtDef<'tcx>, args: ty::GenericArgsRef<'tcx>) -> Vec<Value> {
+        let discriminants: Vec<i64> = adt
+            .discriminants(self.tcx)
+            .map(|(_, discriminant)| discriminant.val as i64)
+            .collect();
+        adt.variants()
+            .iter()
+            .zip(discriminants)
+            .map(|(variant, discriminant)| {
+                let shape = match variant.ctor_kind() {
+                    Some(rustc_hir::def::CtorKind::Const) => "unit",
+                    Some(rustc_hir::def::CtorKind::Fn) => "tuple",
+                    None => "record",
+                };
+                json!({"name": variant.name.as_str(), "definition": self.definition(variant.def_id),
+                       "shape": shape, "discriminant": discriminant, "fields": self.fields(variant, args)})
+            })
+            .collect()
+    }
+
+    /// A variant's or record's fields in declaration order, with their types instantiated.
+    fn fields(&mut self, variant: &ty::VariantDef, args: ty::GenericArgsRef<'tcx>) -> Vec<Value> {
         let tcx = self.tcx;
-        adt.non_enum_variant()
+        variant
             .fields
             .iter()
             .map(|field| {
@@ -559,9 +626,45 @@ fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> BTreeMap<&'st
         ("def_kind", format!("{kind:?}")),
         ("def_path_hash", format!("{:?}", tcx.def_path_hash(def_id))),
         ("crate_name", tcx.crate_name(def_id.krate).to_string()),
+        (
+            "stable_crate_id",
+            format!("{:?}", tcx.stable_crate_id(def_id.krate)),
+        ),
     ]);
     if !def_id.is_local() {
         identity.insert("crate_hash", tcx.crate_hash(def_id.krate).to_string());
     }
     identity
+}
+
+/// Whether a sum is represented exactly as `u8`, with no other representation hint.
+fn exact_u8(adt: ty::AdtDef<'_>) -> bool {
+    let representation = adt.repr();
+    representation.int == Some(rustc_abi::IntegerType::Fixed(rustc_abi::Integer::I8, false))
+        && !representation.c()
+        && !representation.transparent()
+        && !representation.simd()
+        && !representation.scalable()
+        && representation.align.is_none()
+        && representation.pack.is_none()
+}
+
+/// Whether every variant of a sum is fieldless, and whether any is unit or record-like.
+fn variant_shapes(adt: ty::AdtDef<'_>) -> Vec<&'static str> {
+    let mut shapes = Vec::new();
+    if adt
+        .variants()
+        .iter()
+        .all(|variant| variant.fields.is_empty())
+    {
+        shapes.push("rust:fieldless-variants");
+    }
+    if adt
+        .variants()
+        .iter()
+        .any(|variant| variant.fields.is_empty() || variant.ctor_kind().is_none())
+    {
+        shapes.push("rust:unit-or-record-variant");
+    }
+    shapes
 }

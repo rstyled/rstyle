@@ -2,6 +2,9 @@
 //! a function's interface, and the type tokens it installs on the signature, body
 //! and bindings, rebuilt from the document's type table.
 
+mod enums;
+mod storage;
+
 use super::Context;
 use crate::concrete_types::{
     Field, IDENTITY, InterfaceObservations, MAX_DEPTH, MAX_ENTRIES, MAX_FIELDS, MAX_SOURCE_BYTES,
@@ -297,6 +300,9 @@ impl<'a> Capture<'_, '_, 'a> {
     }
 
     fn storage(&mut self, ty: &'a Type, depth: usize) -> Result<TypeTree, Failure> {
+        if let Some(carrier) = self.carrier(ty, depth)? {
+            return Ok(carrier);
+        }
         if self.context.reader.profile == ExtractionProfile::DataV3
             && let Some(payload) = self
                 .option_payload(ty)
@@ -306,14 +312,7 @@ impl<'a> Capture<'_, '_, 'a> {
             crate::concrete_types::validate(&option).map_err(Failure::Unsupported)?;
             return Ok(option);
         }
-        if self.supports("rust.fresh-concrete-results")
-            && let Some((ok, err)) = self.result_payloads(ty)
-        {
-            let result = TypeTree::Result {
-                ok: Box::new(self.tree(ok, depth + 1)?),
-                err: Box::new(self.tree(err, depth + 1)?),
-            };
-            crate::concrete_types::validate(&result).map_err(Failure::Unsupported)?;
+        if let Some(result) = self.observed_result(ty, depth)? {
             return Ok(result);
         }
         match ty.kind {
@@ -332,7 +331,7 @@ impl<'a> Capture<'_, '_, 'a> {
             }
             TypeKind::Record => self.structure(ty, depth),
             TypeKind::Sum if !self.supports("rust.scalar-enum-values") => self.structure(ty, depth),
-            TypeKind::Sum => Err(unsupported("Concrete enum observations are not read yet")),
+            TypeKind::Sum => self.enumeration(ty, depth),
             _ => Err(unsupported(
                 "Outside the concrete drop-free/shared type observation grammar",
             )),
@@ -369,10 +368,13 @@ impl<'a> Capture<'_, '_, 'a> {
         ty: &'a Type,
     ) -> Result<(&'a Definition, &'a [rstyle_core::cpg::model::TypeField]), Failure> {
         let definition = self.definition_of(ty)?;
+        // A data profile admits a struct whose only arguments are lifetimes.
+        let lifetimes = ty.modifiers.iter().any(|m| m == "rust:lifetime-arguments");
         let generic = ty
             .arguments
             .as_ref()
-            .is_some_and(|arguments| !arguments.is_empty());
+            .is_some_and(|arguments| !arguments.is_empty())
+            || lifetimes && !self.context.reader.profile.is_data();
         if ty.kind != TypeKind::Record
             || definition.scope != rstyle_core::cpg::model::Scope::Unit
             || generic

@@ -324,6 +324,10 @@ pub struct Variant {
     pub name: String,
     pub definition: Option<Id>,
     pub fields: Option<Vec<TypeField>>,
+    /// How the variant is constructed: `unit`, `tuple` or `record`.
+    pub shape: Option<String>,
+    /// The variant's discriminant value.
+    pub discriminant: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
