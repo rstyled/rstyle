@@ -34,20 +34,25 @@ impl Reader<'_> {
         let Some(derived) = self.advisory.as_ref() else {
             return Ok(());
         };
-        let position = self
-            .unit
-            .functions
-            .as_deref()
-            .unwrap_or_default()
-            .iter()
-            .position(|candidate| std::ptr::eq(candidate, function))
-            .ok_or("Function is not in its document")?;
+        let identity = self
+            .tables
+            .definition(&function.definition)?
+            .stable_identity
+            .as_str();
         // A function whose signature a macro writes has no original source to measure.
         let generated = !std::ptr::eq(super::located(function), &function.span);
-        let observation = match derived.get(position).filter(|_| !generated) {
+        let observation = match derived
+            .iter()
+            .find(|facts| facts.id == identity)
+            .filter(|_| !generated)
+        {
             Some(collected) => self.known(collected, facts)?,
             None => {
-                if let Some(collected) = derived.get(position).filter(|_| generated) {
+                if let Some(collected) = derived
+                    .iter()
+                    .find(|facts| facts.id == identity)
+                    .filter(|_| generated)
+                {
                     self.generated_effects(function, (collected, facts))?;
                 }
                 Observation::Unavailable {

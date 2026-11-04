@@ -51,7 +51,7 @@ impl<'tcx> Unit<'tcx> {
         if lo.sf.start_pos != hi.sf.start_pos || !matches!(lo.sf.name, FileName::Real(_)) {
             return None;
         }
-        let path = crate::extract::source_path(self.tcx, &lo.sf, &self.root)?;
+        let path = crate::extract::document_path(self.tcx, &lo.sf, &self.root)?;
         let id = format!("file:{path}");
         // A file is recorded as written: its original bytes, and offsets into them.
         if !self.files.contains_key(&id) {
@@ -422,7 +422,7 @@ impl<'tcx> Unit<'tcx> {
     /// The type ID of `ty`, recording a structured type on first use.
     pub fn ty(&mut self, ty: Ty<'tcx>) -> String {
         let spelling = ty.to_string();
-        let id = type_id(&spelling, ty);
+        let id = type_id(self.tcx, &spelling, ty);
         if !self.types.contains_key(&id) {
             self.types.insert(id.clone(), json!({}));
             let mut record = self.type_record(ty);
@@ -831,12 +831,16 @@ fn bool_array<'tcx>(
 
 /// A type's ID: its spelling, and for a type mentioning type parameters their indices,
 /// since the same spelling names different parameters in different functions.
-fn type_id(spelling: &str, ty: Ty<'_>) -> String {
+fn type_id(tcx: TyCtxt<'_>, spelling: &str, ty: Ty<'_>) -> String {
     let parameters: BTreeSet<String> = ty
         .walk()
         .filter_map(|arg| arg.as_type())
         .filter_map(|ty| match ty.kind() {
             ty::Param(param) => Some(format!("{}={}", param.name, param.index)),
+            // A nominal type spelled as a primitive is, as `struct u32` is, by its identity.
+            ty::Adt(adt, _) if primitive_name(&tcx.def_path_str(adt.did())) => {
+                Some(format!("{:?}", tcx.def_path_hash(adt.did())))
+            }
             _ => None,
         })
         .collect();
@@ -845,6 +849,31 @@ fn type_id(spelling: &str, ty: Ty<'_>) -> String {
     }
     let parameters: Vec<String> = parameters.into_iter().collect();
     format!("type:{spelling}#{}", parameters.join(","))
+}
+
+fn primitive_name(name: &str) -> bool {
+    matches!(
+        name,
+        "bool"
+            | "char"
+            | "str"
+            | "f16"
+            | "f32"
+            | "f64"
+            | "f128"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "u128"
+            | "usize"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "i128"
+            | "isize"
+    )
 }
 
 fn definition_kind(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> &'static str {

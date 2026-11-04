@@ -145,12 +145,10 @@ impl Capture<'_, '_, '_> {
         let path = reader
             .session_file(file)
             .ok_or_else(|| unsupported("Module expansion source path is unavailable"))?;
-        let content = reader
-            .file(file)
-            .ok()
-            .and_then(|file| file.content.as_deref())
-            .ok_or_else(|| unsupported("Module expansion source buffer is unavailable"))?;
-        Ok((path.into(), crate::SourceSnapshot::from(content)))
+        let snapshot = reader
+            .snapshot(file)
+            .map_err(|_| unsupported("Module expansion source buffer is unavailable"))?;
+        Ok((path.into(), snapshot))
     }
 }
 

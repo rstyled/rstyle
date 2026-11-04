@@ -2,11 +2,11 @@
 //! it, the declaration's span in it, and a standard `Copy` derive it carries.
 
 use super::{Capture, Failure, unsupported};
+use crate::SourceText;
 use crate::concrete_types::{InterfaceObservations, Nominal};
 use crate::declaration_origins::{self as records, BuiltinCopy, Origin, Origins};
 use crate::extraction_profile::ExtractionProfile;
 use crate::frontend::{ByteSpan, HirFnFacts};
-use crate::{SourceSnapshot, SourceText};
 use rstyle_core::cpg::model::{Definition, FileSpan};
 
 impl<'a> Capture<'_, '_, 'a> {
@@ -30,12 +30,9 @@ impl<'a> Capture<'_, '_, 'a> {
         let source_file = reader
             .session_file(&span.file)
             .ok_or_else(|| unsupported("Missing local declaration file"))?;
-        let content = reader
-            .file(&span.file)
-            .ok()
-            .and_then(|file| file.content.as_deref())
-            .ok_or_else(|| unsupported("Missing original declaration file buffer"))?;
-        let snapshot = SourceSnapshot::from(content);
+        let snapshot = reader
+            .snapshot(&span.file)
+            .map_err(|_| unsupported("Missing original declaration file buffer"))?;
         let origin = Origin {
             nominal: nominal.clone(),
             source_file: source_file.to_owned(),

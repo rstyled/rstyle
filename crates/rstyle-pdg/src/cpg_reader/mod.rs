@@ -66,6 +66,8 @@ struct Reader<'a> {
     tables: Tables<'a>,
     files: BTreeMap<&'a str, &'a File>,
     profile: ExtractionProfile,
+    /// Each file's shared snapshot, by file ID.
+    snapshots: std::cell::RefCell<BTreeMap<&'a str, SourceSnapshot>>,
     /// Each function's core facts, when the advisory run records them.
     advisory: Option<Vec<rstyle_core::facts::FnFacts>>,
 }
@@ -85,6 +87,7 @@ impl<'a> Reader<'a> {
             scans: Default::default(),
             producer,
             advisory: None,
+            snapshots: Default::default(),
             tables: Tables::new(unit)?,
             files,
             profile,
@@ -166,16 +169,29 @@ impl<'a> Reader<'a> {
     }
 
     fn source(&self, span: &FileSpan) -> Result<SourceText, String> {
-        let file = self.file(&span.file)?;
-        let content = file
-            .content
-            .as_deref()
-            .ok_or_else(|| format!("File {} has no content", file.id))?;
         let range = ByteSpan {
             start: span.start as u32,
             end: span.end as u32,
         };
-        SourceText::from_snapshot(SourceSnapshot::from(content), range)
+        SourceText::from_snapshot(self.snapshot(&span.file)?, range)
+    }
+
+    /// A file's bytes, one snapshot per file, as the frontend shares them.
+    fn snapshot(&self, id: &str) -> Result<SourceSnapshot, String> {
+        let file = self.file(id)?;
+        if let Some(snapshot) = self.snapshots.borrow().get(file.id.as_str()) {
+            return Ok(snapshot.clone());
+        }
+        let content = file
+            .content
+            .as_deref()
+            .ok_or_else(|| format!("File {} has no content", file.id))?;
+        let snapshot = SourceSnapshot::from(content);
+        self.snapshots
+            .borrow_mut()
+            .insert(file.id.as_str(), snapshot.clone());
+
+        Ok(snapshot)
     }
 
     /// The type arguments of a type the compiler names by diagnostic item `name`.
@@ -330,6 +346,11 @@ impl<'a> Context<'_, 'a> {
             }
             self.call_instances(&mut facts)?;
         }
+        // An advisory consumer of mutations reads the body's local mutation types too.
+        if passes == Passes::AdvisoryMutations && self.reader.profile == ExtractionProfile::DataV3 {
+            self.local_observations(&mut facts)?;
+        }
+
         Ok(facts)
     }
 

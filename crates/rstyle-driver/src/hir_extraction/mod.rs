@@ -171,7 +171,10 @@ fn collect_crate_facts(
     evidence: FunctionEvidence,
 ) -> Result<Vec<HirFnFacts>, String> {
     let passes = match evidence {
-        FunctionEvidence::Advisory { .. } => rstyle_pdg::cpg_reader::Passes::Advisory,
+        FunctionEvidence::Advisory { mutations: false } => rstyle_pdg::cpg_reader::Passes::Advisory,
+        FunctionEvidence::Advisory { mutations: true } => {
+            rstyle_pdg::cpg_reader::Passes::AdvisoryMutations
+        }
         FunctionEvidence::All => rstyle_pdg::cpg_reader::Passes::Complete,
     };
     let collector = FunctionCollector { evidence };

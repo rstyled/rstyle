@@ -25,6 +25,8 @@ use std::collections::BTreeMap;
 pub enum Passes {
     /// Advisory consumers: the interface's types only.
     Advisory,
+    /// Advisory consumers that also read the body's local mutation types.
+    AdvisoryMutations,
     /// The complete data capture: the body and bindings too.
     Complete,
 }
@@ -70,7 +72,9 @@ impl<'a> Context<'_, 'a> {
                     capture.install_receivers(facts)?;
                     capture.callback_environments(&mut facts.body)?;
                 }
-                Passes::Advisory => capture.binding_tokens(&mut facts.bindings, true)?,
+                Passes::Advisory | Passes::AdvisoryMutations => {
+                    capture.binding_tokens(&mut facts.bindings, true)?;
+                }
             }
         }
         // The complete capture records where the observed declarations are, whatever

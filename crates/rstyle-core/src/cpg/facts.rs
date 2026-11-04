@@ -59,8 +59,15 @@ fn derive(document: &Document, graphs: bool) -> Result<Vec<FnFacts>, String> {
     let measured = complexity_available(&document.coverage);
     let roles = graphs.then(|| Roles::of(&document.producer.namespace));
     let functions = unit.functions.as_deref().unwrap_or_default();
+    // A function whose file lies outside the workspace root has no workspace facts.
+    let inside = |function: &&Function| {
+        sources
+            .path(&function.signature.span)
+            .is_ok_and(|path| !path.starts_with("../"))
+    };
     functions
         .iter()
+        .filter(inside)
         .map(|function| function_facts(function, (&tables, &sources, roles), measured))
         .collect()
 }

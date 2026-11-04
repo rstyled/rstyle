@@ -60,11 +60,7 @@ fn read_documents(
     (options, passes): (&super::Options<'_>, cpg_reader::Passes),
     facts: &[HirFnFacts],
 ) -> Derived {
-    // Without a source root, the crate root file's directory holds its sources.
-    let root = match options.source_root {
-        Some(root) => Some(root.to_path_buf()),
-        None => crate_directory(tcx),
-    };
+    let root = document_root(tcx, options);
     let package = options.unit_context.map(|context| &context.package);
     let session = json!({"invocation": options.invocation,
                          "profile_selection": options.profile.map(|profile| profile.token()),
@@ -131,6 +127,21 @@ fn write(
     }
 
     Ok(())
+}
+
+/// The root a capture's paths are relative to, as its advisory facts locate them: the
+/// source root that holds the selected package, else the package's own directory;
+/// without either, the crate root file's directory.
+fn document_root(tcx: TyCtxt<'_>, options: &super::Options<'_>) -> Option<std::path::PathBuf> {
+    let package = options
+        .unit_context
+        .and_then(|context| context.package.manifest_path.parent());
+    match (options.source_root, package) {
+        (Some(root), Some(package)) if !package.starts_with(root) => Some(package.to_path_buf()),
+        (Some(root), _) => Some(root.to_path_buf()),
+        (None, Some(package)) => Some(package.to_path_buf()),
+        (None, None) => crate_directory(tcx),
+    }
 }
 
 fn crate_directory(tcx: TyCtxt<'_>) -> Option<std::path::PathBuf> {
