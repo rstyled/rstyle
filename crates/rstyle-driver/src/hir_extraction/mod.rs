@@ -40,6 +40,7 @@ pub(crate) fn capture_instance_diagnostics(
 mod library_resolution;
 mod module_expansions;
 mod mutable_scalar_formals;
+mod node_observations;
 mod nominal_census;
 mod nominal_constants;
 mod option_propagation;
@@ -438,6 +439,17 @@ pub(super) fn function_observations(
     };
     if let Some(inventory) = inventory {
         extensions.insert("rust:call-instances".into(), inventory);
+    }
+
+    let node = tcx.hir_node_by_def_id(id);
+    if let Some(body) = node.body_id().map(|body| tcx.hir_body(body)) {
+        let nodes = node_observations::observe(&ctx, body);
+        if !nodes.is_empty() {
+            extensions.insert(
+                "rust:node-observations".into(),
+                serde_json::Value::Object(nodes),
+            );
+        }
     }
 
     let observations = trait_member_observations(&ctx, id);

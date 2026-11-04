@@ -76,6 +76,30 @@ fn capture_with(
     Ok(())
 }
 
+/// A path's nominal product constant, as the data profile observes it: its
+/// resolution, and the use it selects; none for any other path.
+pub(in crate::hir_extraction) fn product_constant<'tcx>(
+    ctx: &Context<'tcx>,
+    expression: &rustc_hir::Expr<'tcx>,
+) -> Result<Option<serde_json::Value>, String> {
+    if !ctx.profile.supports("rust.nominal-product-constants")
+        || !matches!(expression.kind, rustc_hir::ExprKind::Path(_))
+    {
+        return Ok(None);
+    }
+    let mut node = ctx.expression(expression);
+    if super::nominal_constants::selected(ctx, &node).is_none() {
+        return Ok(None);
+    }
+    let mut capture = Capture::new(ctx);
+    capture.product_constant(&mut node)?;
+    let selection = capture.product_selections.pop();
+
+    Ok(Some(
+        serde_json::json!({"res": node.res, "selection": selection}),
+    ))
+}
+
 fn has_data_interface(
     facts: &HirFnFacts,
     profile: rstyle_pdg::extraction_profile::ExtractionProfile,

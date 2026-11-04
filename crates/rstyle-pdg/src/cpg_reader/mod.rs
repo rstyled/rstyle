@@ -346,6 +346,21 @@ impl<'a> Context<'_, 'a> {
         }
     }
 
+    /// A Rust-only contract the frontend observes at a node, as it records it.
+    pub(super) fn node_observation<T: serde::de::DeserializeOwned>(
+        &self,
+        node: &Node,
+        key: &str,
+    ) -> Option<T> {
+        let observations = self
+            .body
+            .function
+            .extensions
+            .as_ref()?
+            .get("rust:node-observations")?;
+        serde_json::from_value(observations.get(&node.id)?.get(key)?.clone()).ok()
+    }
+
     /// The generic and trait call instances the frontend observes, as it records them.
     fn call_instances(&self, facts: &mut HirFnFacts) -> Result<(), String> {
         if let Some(inventory) = self.function_extension("rust:call-instances")? {

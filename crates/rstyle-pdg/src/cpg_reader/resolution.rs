@@ -65,7 +65,8 @@ impl Context<'_, '_> {
             .float_literal(node, tag)
             .or_else(|| self.option_expression(node))
             .or_else(|| self.result_expression(node))
-            .or_else(|| self.propagation(node));
+            .or_else(|| self.propagation(node))
+            .or_else(|| self.node_observation(node, "scalar_product_constructor"));
         if let Some(observed) = observed {
             return Some(observed);
         }
@@ -158,6 +159,7 @@ impl Context<'_, '_> {
             if let Some(resolution) = self
                 .fieldless_variant(definition)
                 .or_else(|| self.bool_array_resolution(definition))
+                .or_else(|| self.node_observation(node, "id_reader_constant"))
                 .or_else(|| self.constant_resolution(definition))
                 .or_else(|| self.primitive_constant_resolution(definition))
             {

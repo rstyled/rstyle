@@ -7,6 +7,14 @@ use rstyle_core::cpg::model::{Node, NodeKind, Origin, TypeKind};
 
 type Built = Result<HirNode, String>;
 
+/// A scalar instance call's selected instance and its dispatch, as the frontend
+/// records them.
+#[derive(serde::Deserialize)]
+struct ScalarInstance {
+    res: crate::frontend::PathRes,
+    dispatch: crate::frontend::Dispatch,
+}
+
 impl<'a> Context<'_, 'a> {
     pub(super) fn tree(&self, node: &'a Node) -> Built {
         self.expression(node)
@@ -33,6 +41,17 @@ impl<'a> Context<'_, 'a> {
             _ => self.expression_children(node, &node.original_kind)?,
         };
         let base = self.node(node, tag)?;
+        // A scalar instance call resolves to the instance the frontend selects.
+        let instance: Option<ScalarInstance> = self.node_observation(node, "scalar_instance");
+        if let Some(instance) = instance {
+            return Ok(HirNode {
+                ty,
+                res: Some(instance.res),
+                dispatch: Some(instance.dispatch),
+                children,
+                ..base
+            });
+        }
 
         Ok(HirNode {
             ty,
@@ -264,12 +283,14 @@ impl<'a> Context<'_, 'a> {
 
     fn annotation(&self, local: &'a Node, annotation: &'a Node) -> Built {
         let pattern = self.body.child(local, 0)?;
-        let node = self.node(annotation, "ty_annotation")?;
+        let mut node = self.node(annotation, "ty_annotation")?;
+        node.res = self.node_observation(annotation, "id_reader_annotation");
         let ty = pattern
             .ty
             .as_deref()
             .map(|ty| self.reader.resolved(ty, node.snippet.clone()))
             .transpose()?;
+
         Ok(HirNode { ty, ..node })
     }
 

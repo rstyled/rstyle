@@ -331,6 +331,14 @@ fns = [
   "rstyle_core::wl::weights",
 ]
 
+[ignore.c44264ef5861]
+kind = "parameterize"
+reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
+fns = [
+  "rstyle_driver::hir_extraction::concrete_types::Capture::install_product_selections",
+  "rstyle_pdg::cpg_reader::concrete::Capture::install_product_selections",
+]
+
 [ignore.c58a592ee111]
 kind = "parameterize"
 reason = "unrelated lookups (a document file and a PDG node) that share only the map get-or-error idiom"

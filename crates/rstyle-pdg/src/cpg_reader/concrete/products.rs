@@ -98,3 +98,72 @@ impl<'a> Capture<'_, '_, 'a> {
         })
     }
 }
+
+/// A path's nominal product constant, as the frontend records it for the node.
+#[derive(serde::Deserialize)]
+struct ProductConstant {
+    res: Option<crate::frontend::PathRes>,
+    selection: Option<crate::product_constant_values::SelectedUse>,
+    error: Option<String>,
+}
+
+impl Capture<'_, '_, '_> {
+    /// A nominal product constant's resolution and token, with the use it selects.
+    pub(super) fn product_constant(
+        &mut self,
+        node: &mut crate::frontend::HirNode,
+    ) -> Result<(), String> {
+        if !self.supports("rust.nominal-product-constants") || node.kind != "expr_path" {
+            return Ok(());
+        }
+        let document = self.cpg_node(node)?;
+        let Some(constant) = self
+            .context
+            .node_observation::<ProductConstant>(document, "product_constant")
+        else {
+            return Ok(());
+        };
+        if let Some(error) = constant.error {
+            return Err(error);
+        }
+        let ty = document
+            .ty
+            .as_deref()
+            .ok_or("Missing product constant type")?;
+        if let (crate::concrete_types::Observation::Captured { ty }, Some(observed)) =
+            (self.observe(ty)?.0, node.ty.as_mut())
+        {
+            observed.normalized = Some(crate::data_types::token(&ty)?);
+        }
+        node.res = constant.res;
+        if let Some(selection) = constant.selection {
+            if self.product_selections.len() >= crate::product_constant_values::MAX_USES {
+                return Err("Product constant selections exceed use budget".into());
+            }
+            self.product_selections.push(selection);
+        }
+
+        Ok(())
+    }
+
+    pub(super) fn install_product_selections(
+        &mut self,
+        facts: &mut crate::frontend::HirFnFacts,
+    ) -> Result<(), String> {
+        if self.product_selections.is_empty() {
+            return Ok(());
+        }
+        let observations = crate::product_constant_values::Selections {
+            identity: crate::product_constant_values::IDENTITY.into(),
+            uses: std::mem::take(&mut self.product_selections),
+        };
+        observations.validate()?;
+        let value = serde_json::to_value(observations).map_err(|error| error.to_string())?;
+        facts
+            .build
+            .frontend_options
+            .insert(crate::product_constant_values::KEY.into(), value);
+
+        Ok(())
+    }
+}

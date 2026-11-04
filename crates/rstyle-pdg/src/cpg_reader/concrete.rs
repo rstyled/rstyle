@@ -57,6 +57,7 @@ impl<'a> Context<'_, 'a> {
             completed: BTreeMap::new(),
             origins: BTreeMap::new(),
             generated_origins: BTreeMap::new(),
+            product_selections: Vec::new(),
         };
         let observations = capture.interface(facts)?;
         let data = self.reader.profile.supports("rust.concrete-read-only-data");
@@ -68,10 +69,15 @@ impl<'a> Context<'_, 'a> {
                     capture.binding_tokens(&mut facts.bindings, false)?;
                     capture.install_receivers(facts)?;
                     capture.callback_environments(&mut facts.body)?;
-                    capture.install_origins(&observations, facts)?;
                 }
                 Passes::Advisory => capture.binding_tokens(&mut facts.bindings, true)?,
             }
+        }
+        // The complete capture records where the observed declarations are, whatever
+        // the profile installs.
+        if passes == Passes::Complete {
+            capture.install_product_selections(facts)?;
+            capture.install_origins(&observations, facts)?;
         }
         facts.build.frontend_options.insert_data(observations);
 
@@ -146,6 +152,8 @@ struct Capture<'c, 'r, 'a> {
     completed: BTreeMap<&'a str, (Observation, Option<String>)>,
     /// Where each observed local declaration is written, by definition path.
     origins: BTreeMap<String, crate::declaration_origins::Origin>,
+    /// The nominal product constants the body's paths select, in walk order.
+    product_selections: Vec<crate::product_constant_values::SelectedUse>,
     /// Where each observed generated declaration's template is, by definition path.
     generated_origins: BTreeMap<String, crate::declaration_origins::GeneratedOrigin>,
 }
@@ -221,7 +229,9 @@ impl<'a> Capture<'_, '_, 'a> {
         Ok(())
     }
 
+    // rstyle-allow(mutation_per_target): installs each token on the node and its children in turn
     fn node_tokens(&mut self, node: &mut HirNode, index_bound: bool) -> Result<(), String> {
+        self.product_constant(node)?;
         let range_syntax = index_bound
             && node.kind == "expr_struct"
             && node
