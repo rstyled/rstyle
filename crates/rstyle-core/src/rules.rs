@@ -1,5 +1,8 @@
 //! Pure rules over `FnFacts`. No IO, no compiler types.
 
+#[cfg(test)]
+mod source_weights_tests;
+
 use crate::config::{Config, Granularity, MutationBudgetConfig};
 use crate::facts::{EffectKind, FnFacts};
 use crate::lines::{code_lines, has_blank_line};
@@ -225,16 +228,16 @@ pub fn effects_of(f: &FnFacts, cfg: &Config) -> Vec<Effect> {
 pub fn density_milli(f: &FnFacts, effects: &[Effect], cfg: &Config) -> usize {
     let total: usize = effects
         .iter()
-        .map(|e| cfg.side_effects.weights.of(e.kind))
+        .map(|e| cfg.side_effects.weight_for(&f.path, e.kind))
         .sum();
     1000 * total / f.statements.max(1)
 }
 
-fn effect_details(effects: &[Effect], cfg: &Config) -> Vec<Detail> {
+fn effect_details(path: &str, effects: &[Effect], cfg: &Config) -> Vec<Detail> {
     let mut groups: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for e in effects
         .iter()
-        .filter(|e| cfg.side_effects.weights.of(e.kind) > 0)
+        .filter(|e| cfg.side_effects.weight_for(path, e.kind) > 0)
     {
         let via = e
             .via
@@ -259,7 +262,7 @@ pub fn side_effect_density(f: &FnFacts, effects: &[Effect], cfg: &Config) -> Vec
         return Vec::new();
     }
     let message = format!("function `{}` has a high side-effect density", f.name);
-    let details = effect_details(effects, cfg);
+    let details = effect_details(&f.path, effects, cfg);
     vec![Diagnostic {
         details,
         ..diagnostic(f, "side_effect_density", message, Measure { actual, limit })

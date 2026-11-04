@@ -1,6 +1,9 @@
 use crate::facts::EffectKind;
 use serde::Deserialize;
 
+mod weights;
+pub use weights::SourceWeights;
+
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
@@ -122,6 +125,8 @@ pub struct SideEffectsConfig {
     pub transitive_depth: usize,
     pub weights: Weights,
     pub paths: EffectPaths,
+    /// Matching source-path overrides apply in order; later supplied weights win.
+    pub overrides: Vec<SourceWeights>,
 }
 
 impl Default for SideEffectsConfig {
@@ -133,7 +138,19 @@ impl Default for SideEffectsConfig {
             transitive_depth: 3,
             weights: Weights::default(),
             paths: EffectPaths::default(),
+            overrides: Vec::new(),
         }
+    }
+}
+
+impl SideEffectsConfig {
+    /// Effective weight for the function being measured, including inherited effects.
+    pub fn weight_for(&self, path: &str, kind: EffectKind) -> usize {
+        self.overrides
+            .iter()
+            .rev()
+            .find_map(|rule| rule.weight(path, kind))
+            .unwrap_or_else(|| self.weights.of(kind))
     }
 }
 

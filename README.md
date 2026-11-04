@@ -242,6 +242,27 @@ Drop an `rstyle.toml` in the project root (see the one in this repo for every ke
 
 Callee classification (`[side_effects.paths]`) and effect weights (`[side_effects.weights]`) are configurable. Changing config never triggers a recompile.
 
+Source-path overrides change weights only for matching functions. For example,
+an adapter can allow more I/O while domain and application functions keep the
+default weights:
+
+```toml
+[[side_effects.overrides]]
+paths = ["src/adapters/**"]
+weights = { io = 1, network = 1 }
+
+[[side_effects.overrides]]
+paths = ["src/adapters/critical/**"]
+weights = { io = 5 }
+```
+
+Paths match the function source paths shown in reports. Rules apply in declaration
+order; the last matching rule that supplies a given weight wins. Other weights
+keep their earlier or global values. Invalid globs, empty path lists, and unknown
+weight names are errors. Inherited effects use the caller's source-path policy,
+so an adapter override does not lower weights in its application callers. These
+overrides do not change complexity, mutation budgets, or density thresholds.
+
 ## Suppression
 
 On the line directly above the function, with a mandatory reason:
