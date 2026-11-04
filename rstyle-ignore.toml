@@ -428,3 +428,13 @@ fns = [
   "rstyle_pdg::cpg_reader::concrete::Capture::binding_tokens",
   "rstyle_pdg::cpg_reader::concrete::Capture::token",
 ]
+
+[ignore.8f64799c2b01]
+kind = "trait_method"
+reason = "The reader's generated-source walk mirrors the compiler pass that is its oracle until the unit passes are deleted"
+fns = [
+  "rstyle_driver::hir_extraction::generated_sources::nodes::Traversal::walk",
+  "rstyle_driver::hir_extraction::generated_sources::nodes::capture",
+  "rstyle_pdg::cpg_reader::generated_sources::Provenance::nodes",
+  "rstyle_pdg::cpg_reader::generated_sources::Walk::walk",
+]

@@ -59,7 +59,6 @@ impl<'tcx> Context<'tcx> {
     pub(super) fn usize_reader_children(&self, expression: &Expr<'tcx>) -> Option<Vec<HirNode>> {
         self.closure_children(expression, |pattern| self.local_pattern(pattern))
     }
-
 }
 
 struct ReturnScan<'tcx> {

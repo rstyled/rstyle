@@ -13,6 +13,7 @@ mod concrete;
 pub use concrete::Passes;
 mod findings;
 mod for_loops;
+pub mod generated_sources;
 mod inherent;
 mod items;
 mod locals;

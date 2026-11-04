@@ -894,9 +894,8 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
     fn rebinding(&mut self, pattern: HirId, binding: HirId) {
         if pattern != binding {
             let target = json!({"kind": "symbol", "id": self.symbol_id(binding)});
-            self.refs.push(
-                json!({"node": self.id(pattern), "status": "resolved", "target": target}),
-            );
+            self.refs
+                .push(json!({"node": self.id(pattern), "status": "resolved", "target": target}));
         }
     }
 
@@ -1221,9 +1220,7 @@ fn binding_patterns<'tcx>(pat: &'tcx Pat<'tcx>) -> Vec<&'tcx Pat<'tcx>> {
     let parts: Vec<&'tcx Pat<'tcx>> = match pat.kind {
         PatKind::Binding(..) => return vec![pat],
         PatKind::Tuple(pats, _) | PatKind::TupleStruct(_, pats, _) => pats.iter().collect(),
-        PatKind::Slice(before, middle, after) => {
-            before.iter().chain(middle).chain(after).collect()
-        }
+        PatKind::Slice(before, middle, after) => before.iter().chain(middle).chain(after).collect(),
         PatKind::Struct(_, fields, _) => fields.iter().map(|field| field.pat).collect(),
         _ => return Vec::new(),
     };

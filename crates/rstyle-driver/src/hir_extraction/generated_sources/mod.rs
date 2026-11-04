@@ -1,5 +1,6 @@
 //! Explicit diagnostic-only raw generated-source capture. No admission changes.
 mod nodes;
+pub(super) mod observe;
 mod provenance;
 mod roots;
 mod roster;
@@ -41,7 +42,9 @@ pub(super) fn capture(
     if !options
         .selected()
         .supports(rstyle_pdg::result_maps::CAPABILITY)
-        && !rstyle_pdg::diagnostics::switch("RSTYLE_DIAGNOSTIC_GENERATED_SOURCES")
+        && !rstyle_pdg::diagnostics::switch(
+            rstyle_pdg::cpg_reader::generated_sources::DIAGNOSTIC_ENV,
+        )
     {
         return Ok(());
     }
@@ -63,29 +66,6 @@ pub(super) fn capture(
     .frontend_options
     .insert_data(capture);
     Ok(())
-}
-
-fn declaration_roots(facts: &[HirFnFacts]) -> Result<BTreeSet<String>, String> {
-    let mut roots = BTreeSet::new();
-    for facts in facts {
-        if facts
-            .build
-            .frontend_options
-            .contains_key(rstyle_pdg::declaration_origins::KEY)
-        {
-            let origins = facts
-                .build
-                .frontend_options
-                .data::<rstyle_pdg::declaration_origins::Origins>()?;
-            roots.extend(
-                origins
-                    .generated
-                    .iter()
-                    .map(|origin| origin.defining_expansion.clone()),
-            );
-        }
-    }
-    Ok(roots)
 }
 
 fn unit_capture<'tcx>(
@@ -147,7 +127,7 @@ impl Selection {
         roots: &mut Roots<'_>,
     ) -> Result<Self, String> {
         let functions = selected(tcx, facts, roots);
-        let mut root_ids = declaration_roots(facts)?;
+        let mut root_ids = rstyle_pdg::cpg_reader::generated_sources::declaration_roots(facts)?;
         root_ids.extend(
             functions
                 .iter()

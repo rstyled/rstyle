@@ -36,7 +36,8 @@ pub(super) fn compare(
             .iter()
             .zip(derived)
             .map(|(reference, derived)| {
-                json!({"function": reference.name, "differences": differences(reference, derived)})
+                json!({"function": reference.name, "differences": differences(reference, derived),
+                       "present": present(derived)})
             })
             .collect(),
     };
@@ -57,6 +58,20 @@ pub(super) fn compare(
     Ok(())
 }
 
+/// The unit evidence options a function's facts carry.
+fn present(facts: &HirFnFacts) -> Vec<&'static str> {
+    [
+        rstyle_pdg::nominal_boundary::census::KEY,
+        rstyle_pdg::dependency_namespaces::capture::KEY,
+        rstyle_pdg::generated_sources::capture::KEY,
+        rstyle_pdg::data_library::KEY,
+        rstyle_pdg::inherent_calls::UNIT_KEY,
+    ]
+    .into_iter()
+    .filter(|key| facts.build.frontend_options.contains_key(key))
+    .collect()
+}
+
 /// The option keys whose values differ, with both values.
 fn differences(reference: &HirFnFacts, derived: &HirFnFacts) -> Vec<Value> {
     let options = |facts: &HirFnFacts| match serde_json::to_value(&facts.build.frontend_options) {
@@ -70,6 +85,8 @@ fn differences(reference: &HirFnFacts, derived: &HirFnFacts) -> Vec<Value> {
 
     keys.into_iter()
         .filter(|key| reference.get(*key) != derived.get(*key))
-        .map(|key| json!({"key": key, "reference": reference.get(key), "derived": derived.get(key)}))
+        .map(
+            |key| json!({"key": key, "reference": reference.get(key), "derived": derived.get(key)}),
+        )
         .collect()
 }

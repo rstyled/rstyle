@@ -16,7 +16,10 @@ pub(super) fn capture(
 
     let facts = super::function_owners(tcx)
         .map(|id| {
-            let key = (tcx.def_path_str(id.to_def_id()), id.local_def_index.as_u32());
+            let key = (
+                tcx.def_path_str(id.to_def_id()),
+                id.local_def_index.as_u32(),
+            );
             derived
                 .remove(&key)
                 .unwrap_or_else(|| Err(format!("No document function {} at {}", key.0, key.1)))
@@ -110,6 +113,10 @@ fn unit_observations(
     }
     if let Some(namespaces) = super::nominal_census::namespace_observation(tcx, options) {
         observed.insert("rust:dependency-namespaces".into(), namespaces);
+    }
+    if let Some(generated) = super::generated_sources::observe::unit(tcx, options) {
+        let name = cpg_reader::generated_sources::UNIT_EXTENSION;
+        observed.insert(name.into(), generated);
     }
 
     observed

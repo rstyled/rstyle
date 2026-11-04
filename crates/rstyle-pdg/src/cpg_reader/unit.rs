@@ -19,10 +19,15 @@ pub struct Documents {
     paths: BTreeMap<String, String>,
     selected: Option<Value>,
     observations: BTreeMap<&'static str, Value>,
+    generated: BTreeMap<u32, Value>,
 }
 
 /// The unit extensions recording the unit's own compiler observations.
-const OBSERVATIONS: [&str; 2] = ["rust:source-census", "rust:dependency-namespaces"];
+const OBSERVATIONS: [&str; 3] = [
+    "rust:source-census",
+    "rust:dependency-namespaces",
+    super::generated_sources::UNIT_EXTENSION,
+];
 
 impl Documents {
     pub fn add(&mut self, document: &Document) {
@@ -34,6 +39,18 @@ impl Documents {
             .iter()
             .filter_map(|file| Some((file.id.clone(), file.content.clone()?)));
         self.files.extend(files);
+        self.extensions(unit);
+        let generated = unit.functions.iter().flatten().filter_map(|function| {
+            let extensions = function.extensions.as_ref()?;
+            let observed = extensions.get(super::generated_sources::FUNCTION_EXTENSION)?;
+            Some((super::hir_ref(&function.root).owner, observed.clone()))
+        });
+
+        self.generated.extend(generated);
+    }
+
+    /// The capture session and the unit's own observations its extensions record.
+    fn extensions(&mut self, unit: &rstyle_core::cpg::model::Unit) {
         let extension = |name: &str| unit.extensions.as_ref()?.get(name);
         if let Some(session) = extension("rust:compiler-session") {
             self.session(session);
@@ -43,6 +60,34 @@ impl Documents {
             .filter_map(|name| Some((name, extension(name)?.clone())));
 
         self.observations.extend(observed);
+    }
+
+    /// A unit observation the documents record, decoded, or the error that prevented
+    /// observing it.
+    pub(super) fn observation<T: serde::de::DeserializeOwned>(
+        &self,
+        name: &str,
+        what: &str,
+    ) -> Result<T, String> {
+        observed(self.observations.get(name), what)
+    }
+
+    /// The generated functions among `facts`, by their position, with the sites their
+    /// documents record.
+    pub(super) fn generated_functions(
+        &self,
+        facts: &[HirFnFacts],
+    ) -> Result<Vec<(usize, super::generated_sources::Function)>, String> {
+        let recorded = facts.iter().enumerate().filter_map(|(index, function)| {
+            Some((index, self.generated.get(&function.body.hir.owner)?))
+        });
+        recorded
+            .map(|(index, observed)| {
+                let function =
+                    serde_json::from_value(observed.clone()).map_err(|e| e.to_string())?;
+                Ok((index, function))
+            })
+            .collect()
     }
 
     /// Each file's absolute path and the selected unit, as the capture session records them.

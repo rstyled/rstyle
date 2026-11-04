@@ -25,8 +25,8 @@ pub(crate) mod hir_tags {
     pub(crate) use super::hir::kind;
 }
 mod document_facts;
-mod unit_check;
 pub(crate) mod runtime_bounds;
+mod unit_check;
 pub(crate) fn capture_instance_diagnostics(
     tcx: TyCtxt<'_>,
     scanned: &[source::Function],
@@ -211,7 +211,7 @@ fn capture_unit_evidence(
         inherent::capture_unit(reference, options)
     });
     rstyle_pdg::cpg_reader::unit::sources(documents, options.selected(), facts)?;
-    generated_sources::capture(tcx, options, facts)?;
+    rstyle_pdg::cpg_reader::generated_sources::capture(documents, options.selected(), facts)?;
     rstyle_pdg::cpg_reader::unit::capture(options.selected(), facts)?;
 
     unit_check::compare(tcx, reference, facts)
@@ -344,6 +344,7 @@ fn function_context<'tcx>(
     Some((ctx, fn_span))
 }
 
+// rstyle-allow(mutation_per_target): records each observation family as one extension
 /// The frontend observations a function's document records as its extensions.
 pub(super) fn function_observations(
     tcx: TyCtxt<'_>,
@@ -351,6 +352,10 @@ pub(super) fn function_observations(
     id: LocalDefId,
 ) -> serde_json::Map<String, serde_json::Value> {
     let mut extensions = serde_json::Map::new();
+    if let Some(generated) = generated_sources::observe::function(tcx, options, id) {
+        let name = rstyle_pdg::cpg_reader::generated_sources::FUNCTION_EXTENSION;
+        extensions.insert(name.into(), generated);
+    }
     let Some((ctx, _)) = function_context(tcx, id, options) else {
         return extensions;
     };
