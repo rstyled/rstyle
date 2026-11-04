@@ -34,8 +34,20 @@ pub(super) fn capture(
     owner: hir::def_id::LocalDefId,
     mut facts: HirFnFacts,
 ) -> Result<HirFnFacts, String> {
+    if let Some(value) = inventory(context, owner)? {
+        facts.build.frontend_options.insert(KEY.into(), value);
+    }
+    Ok(facts)
+}
+
+/// The function's generic and trait call instances, where the data profile observes
+/// them.
+pub(super) fn inventory(
+    context: &Context<'_>,
+    owner: hir::def_id::LocalDefId,
+) -> Result<Option<serde_json::Value>, String> {
     if context.profile != ExtractionProfile::DataV3 {
-        return Ok(facts);
+        return Ok(None);
     }
     let node = context.tcx.hir_node_by_def_id(owner);
     let body = context
@@ -57,9 +69,9 @@ pub(super) fn capture(
         calls: scan.calls,
         callbacks: scan.callbacks,
     };
-    let value = serde_json::to_value(inventory).map_err(|error| error.to_string())?;
-    facts.build.frontend_options.insert(KEY.into(), value);
-    Ok(facts)
+    serde_json::to_value(inventory)
+        .map(Some)
+        .map_err(|error| error.to_string())
 }
 
 #[derive(Serialize)]

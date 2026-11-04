@@ -4,7 +4,7 @@ use crate::hir_extraction::{
     hir::{self, Context},
     instances::{definition_record, types},
 };
-use rstyle_pdg::{ByteSpan, HirFnFacts, HirRef, PathRes};
+use rstyle_pdg::{ByteSpan, HirRef, PathRes};
 use rustc_hir::{
     Expr, ExprKind, Node,
     def_id::{DefId, LocalDefId},
@@ -19,7 +19,7 @@ const CAPABILITY: &str = "rust.checked-concrete-default";
 pub(super) fn capture(
     context: &Context<'_>,
     owner: LocalDefId,
-    facts: &mut HirFnFacts,
+    options: &mut rstyle_pdg::FrontendOptions,
 ) -> Result<(), String> {
     let outcome = match conversions::observe(context, owner, false) {
         Ok(mut observation) => {
@@ -30,7 +30,7 @@ pub(super) fn capture(
         }
         Err(reason) => Outcome::Unsupported { reason },
     };
-    facts.build.frontend_options.insert(
+    options.insert(
         KEY.into(),
         serde_json::to_value(outcome).map_err(|error| error.to_string())?,
     );

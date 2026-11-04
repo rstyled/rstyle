@@ -323,12 +323,52 @@ impl<'a> Context<'_, 'a> {
         self.reader.advisory(self.body.function, &mut facts)?;
         if passes == Passes::Complete {
             self.inherent_definition(&mut facts)?;
+            self.trait_members(&mut facts)?;
             crate::field_locations::capture(&mut facts)?;
             if self.reader.profile == ExtractionProfile::DataV3 {
                 self.local_observations(&mut facts)?;
             }
+            self.call_instances(&mut facts)?;
         }
         Ok(facts)
+    }
+
+    /// A frontend observation the function's document records, or the error the
+    /// frontend met observing it.
+    fn function_extension(&self, key: &str) -> Result<Option<&'a serde_json::Value>, String> {
+        let extensions = self.body.function.extensions.as_ref();
+        let Some(value) = extensions.and_then(|extensions| extensions.get(key)) else {
+            return Ok(None);
+        };
+        match value.get("error").and_then(serde_json::Value::as_str) {
+            Some(error) => Err(error.to_owned()),
+            None => Ok(Some(value)),
+        }
+    }
+
+    /// The generic and trait call instances the frontend observes, as it records them.
+    fn call_instances(&self, facts: &mut HirFnFacts) -> Result<(), String> {
+        if let Some(inventory) = self.function_extension("rust:call-instances")? {
+            let options = &mut facts.build.frontend_options;
+            options.insert("rstyle.rust.call-instances".into(), inventory.clone());
+        }
+        Ok(())
+    }
+
+    /// A trait member's own selections, as the frontend observes them.
+    fn trait_members(&self, facts: &mut HirFnFacts) -> Result<(), String> {
+        let members = self.function_extension("rust:trait-members")?;
+        for (key, value) in members
+            .and_then(serde_json::Value::as_object)
+            .into_iter()
+            .flatten()
+        {
+            facts
+                .build
+                .frontend_options
+                .insert(key.clone(), value.clone());
+        }
+        Ok(())
     }
 
     /// The definition a node's reference targets, when the target is of `kind`.

@@ -30,7 +30,7 @@ pub(super) fn check(
                          "profile_selection": options.profile.map(|profile| profile.token()),
                          "selected_unit": options.unit_context});
     let origin = (root.as_path(), package, session);
-    let derived = derived(tcx, origin, (options.selected(), passes)).unwrap_or_else(|error| {
+    let derived = derived(tcx, origin, (options, passes)).unwrap_or_else(|error| {
         let mut unread = BTreeMap::new();
         for reference in facts {
             unread.insert(
@@ -112,18 +112,21 @@ fn derived(
         Option<&rstyle_pdg::nominal_binding::PackageContext>,
         serde_json::Value,
     ),
-    (profile, passes): (
-        rstyle_pdg::extraction_profile::ExtractionProfile,
-        cpg_reader::Passes,
-    ),
+    (options, passes): (&super::Options<'_>, cpg_reader::Passes),
 ) -> Result<Derived, String> {
+    let profile = options.selected();
     let mut derived = BTreeMap::new();
-    for (document, _) in crate::cpg::documents_in(tcx, (root, package), Some(session.clone())) {
+    let observe = |id| super::function_observations(tcx, options, id);
+    let observe: &crate::cpg::Observe<'_> = &observe;
+    for (document, _) in
+        crate::cpg::documents_in(tcx, (root, package), (Some(session.clone()), Some(observe)))
+    {
         let document = rstyle_core::cpg::layout::bundle(vec![document])?;
         for read in cpg_reader::read(&document, profile, passes)? {
             derived.insert((read.name, read.fn_span.start), read.facts);
         }
     }
+
     Ok(derived)
 }
 

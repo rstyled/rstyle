@@ -5,7 +5,7 @@ mod errors;
 mod model;
 
 use super::{hir::Context, instances};
-use rstyle_pdg::{HirFnFacts, extraction_profile::ExtractionProfile};
+use rstyle_pdg::extraction_profile::ExtractionProfile;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use serde::Serialize;
 
@@ -27,13 +27,13 @@ enum Outcome {
 pub(super) fn capture(
     context: &Context<'_>,
     owner: LocalDefId,
-    facts: &mut HirFnFacts,
+    options: &mut rstyle_pdg::FrontendOptions,
 ) -> Result<(), String> {
     if context.profile != ExtractionProfile::DataV3 {
         return Ok(());
     }
     if candidate(context.tcx, owner, &["default_fn"]) {
-        return defaults::capture(context, owner, facts);
+        return defaults::capture(context, owner, options);
     }
     if !candidate(context.tcx, owner, &["from_fn", "try_from_fn"]) {
         return Ok(());
@@ -45,18 +45,18 @@ pub(super) fn capture(
         },
         Err(reason) => Outcome::Unsupported { reason },
     };
-    facts.build.frontend_options.insert(
+    options.insert(
         KEY.into(),
         serde_json::to_value(outcome).map_err(|error| error.to_string())?,
     );
-    capture_generated(context, owner, facts)?;
+    capture_generated(context, owner, options)?;
     Ok(())
 }
 
 fn capture_generated(
     context: &Context<'_>,
     owner: LocalDefId,
-    facts: &mut HirFnFacts,
+    options: &mut rstyle_pdg::FrontendOptions,
 ) -> Result<(), String> {
     if !candidate(context.tcx, owner, &["try_from_fn"])
         || !context.tcx.def_span(owner).from_expansion()
@@ -72,7 +72,7 @@ fn capture_generated(
         }
         Err(reason) => Outcome::Unsupported { reason },
     };
-    facts.build.frontend_options.insert(
+    options.insert(
         "rstyle.rust.generated-conversion-member".into(),
         serde_json::to_value(outcome).map_err(|error| error.to_string())?,
     );

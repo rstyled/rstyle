@@ -279,6 +279,7 @@ fn capture_complete_function(
     instances::capture(ctx, id, facts)
 }
 
+// rstyle-allow(side_effect_density): installs each owner observation on the facts in turn
 fn capture_callable_owner(
     ctx: &hir::Context<'_>,
     id: LocalDefId,
@@ -287,7 +288,7 @@ fn capture_callable_owner(
 ) -> Result<(), String> {
     advisory::capture(ctx, id, facts, options)?;
     inherent::capture(ctx, id, facts)?;
-    trait_members::capture(ctx, id, facts)
+    trait_members::capture(ctx, id, &mut facts.build.frontend_options)
 }
 
 fn capture_locations(ctx: &hir::Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
@@ -365,19 +366,8 @@ impl<'tcx> FunctionSources<'_, 'tcx, '_> {
         let node = tcx.hir_node_by_def_id(id);
         let sig = node.fn_sig()?;
         let body = tcx.hir_body(node.body_id()?);
-        let function_span = sig.span.to(body.value.span).source_callsite();
-        let result = tcx.fn_sig(id).instantiate_identity().skip_binder().output();
-        let (source_bytes, fn_span) = options.sources.range(tcx, function_span)?;
-        let ctx = hir::Context {
-            tcx,
-            typeck: tcx.typeck(id),
-            function_span,
-            source_bytes: source_bytes.clone(),
-            sources: options.sources.clone(),
-            result,
-            unit_context: options.unit_context.cloned(),
-            profile: options.selected(),
-        };
+        let (ctx, fn_span) = function_context(tcx, id, options)?;
+        let (function_span, source_bytes) = (ctx.function_span, ctx.source_bytes.clone());
         let params = parameters(&ctx, sig, body);
         let (body, bindings) = contents(&ctx, body, &params);
         let scan = self.scanned.find(
@@ -403,6 +393,75 @@ impl<'tcx> FunctionSources<'_, 'tcx, '_> {
             source_scan_complete: scan.is_some_and(|scan| !scan.conditional_source),
         };
         Some((facts, ctx))
+    }
+}
+
+/// A function's capture context: its typeck results, source bytes and profile.
+fn function_context<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    id: LocalDefId,
+    options: &Options<'_>,
+) -> Option<(hir::Context<'tcx>, rstyle_pdg::ByteSpan)> {
+    let node = tcx.hir_node_by_def_id(id);
+    let sig = node.fn_sig()?;
+    let body = tcx.hir_body(node.body_id()?);
+    let function_span = sig.span.to(body.value.span).source_callsite();
+    let result = tcx.fn_sig(id).instantiate_identity().skip_binder().output();
+    let (source_bytes, fn_span) = options.sources.range(tcx, function_span)?;
+    let ctx = hir::Context {
+        tcx,
+        typeck: tcx.typeck(id),
+        function_span,
+        source_bytes,
+        sources: options.sources.clone(),
+        result,
+        unit_context: options.unit_context.cloned(),
+        profile: options.selected(),
+    };
+
+    Some((ctx, fn_span))
+}
+
+/// The frontend observations a function's document records as its extensions.
+pub(super) fn function_observations(
+    tcx: TyCtxt<'_>,
+    options: &Options<'_>,
+    id: LocalDefId,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut extensions = serde_json::Map::new();
+    let Some((ctx, _)) = function_context(tcx, id, options) else {
+        return extensions;
+    };
+    let inventory = match instances::inventory(&ctx, id) {
+        Ok(inventory) => inventory,
+        Err(reason) => Some(serde_json::json!({"error": reason})),
+    };
+    if let Some(inventory) = inventory {
+        extensions.insert("rust:call-instances".into(), inventory);
+    }
+
+    let observations = trait_member_observations(&ctx, id);
+    if !observations.is_empty() {
+        extensions.insert(
+            "rust:trait-members".into(),
+            serde_json::Value::Object(observations),
+        );
+    }
+    extensions
+}
+
+/// The selections a trait member's own body makes, which its facts record.
+fn trait_member_observations(
+    ctx: &hir::Context<'_>,
+    id: LocalDefId,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut options = rstyle_pdg::FrontendOptions::default();
+    match trait_members::capture(ctx, id, &mut options) {
+        Ok(()) => options
+            .keys()
+            .filter_map(|key| Some((key.to_owned(), options.get(key)?.clone())))
+            .collect(),
+        Err(reason) => serde_json::Map::from_iter([("error".into(), serde_json::json!(reason))]),
     }
 }
 

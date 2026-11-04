@@ -82,8 +82,11 @@ pub fn documents<'tcx, 'r>(
     tcx: TyCtxt<'tcx>,
     origin: (&'r Path, Option<&'r PackageContext>),
 ) -> impl Iterator<Item = (Value, Vec<(LocalDefId, String)>)> + use<'tcx, 'r> {
-    documents_in(tcx, origin, None)
+    documents_in(tcx, origin, (None, None))
 }
+
+/// A frontend's own observations of a function, recorded as its extensions.
+pub type Observe<'r> = dyn Fn(LocalDefId) -> serde_json::Map<String, Value> + 'r;
 
 // rstyle-allow(side_effect_density): documents are produced lazily, one batch at a time
 /// The crate's function documents, each recording the capture `session` when given:
@@ -91,12 +94,12 @@ pub fn documents<'tcx, 'r>(
 pub fn documents_in<'tcx, 'r>(
     tcx: TyCtxt<'tcx>,
     (root, package): (&'r Path, Option<&'r PackageContext>),
-    session: Option<Value>,
+    (session, observe): (Option<Value>, Option<&'r Observe<'r>>),
 ) -> impl Iterator<Item = (Value, Vec<(LocalDefId, String)>)> + use<'tcx, 'r> {
     let package = cargo_package(package);
     batches(tcx).into_iter().map(move |batch| {
         let origin = (root, package.clone(), session.clone());
-        batch_document(tcx, origin, &batch)
+        batch_document(tcx, (origin, observe), &batch)
     })
 }
 
@@ -140,10 +143,14 @@ fn batches(tcx: TyCtxt<'_>) -> Vec<Vec<LocalDefId>> {
     batches.into_iter().map(|(_, batch)| batch).collect()
 }
 
+/// Where a batch's document comes from: the workspace root, the Cargo package and
+/// the capture session it records, if any.
+type Origin<'r> = (&'r Path, Option<Value>, Option<Value>);
+
 // rstyle-allow(mutated_targets): assembles one document from the builder that accumulates it
 fn batch_document(
     tcx: TyCtxt<'_>,
-    (root, package, session): (&Path, Option<Value>, Option<Value>),
+    ((root, package, session), observe): (Origin<'_>, Option<&Observe<'_>>),
     owners: &[LocalDefId],
 ) -> (Value, Vec<(LocalDefId, String)>) {
     let mut unit = unit::Unit::new(tcx, root.to_path_buf());
@@ -151,7 +158,13 @@ fn batch_document(
     let mut recorded = Vec::new();
     for &id in owners {
         match function(&mut unit, id) {
-            Ok(function) => recorded.push(function),
+            Ok(mut function) => {
+                let extensions = observe.map(|observe| observe(id)).unwrap_or_default();
+                if !extensions.is_empty() {
+                    function["extensions"] = Value::Object(extensions);
+                }
+                recorded.push(function);
+            }
             Err(reason) => unrecorded.push((id, reason)),
         }
     }
