@@ -85,6 +85,7 @@ pub fn documents<'tcx, 'r>(
     documents_in(tcx, origin, None)
 }
 
+// rstyle-allow(side_effect_density): documents are produced lazily, one batch at a time
 /// The crate's function documents, each recording the capture `session` when given:
 /// the compiler invocation, the selected profile and unit, and each file's path.
 pub fn documents_in<'tcx, 'r>(

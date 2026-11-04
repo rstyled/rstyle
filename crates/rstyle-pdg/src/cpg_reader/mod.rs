@@ -231,6 +231,7 @@ impl<'a> Reader<'a> {
         if let Some(definition) = definition {
             build::identity_options(self.profile, definition, options);
         }
+
         build
     }
 

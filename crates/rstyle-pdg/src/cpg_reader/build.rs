@@ -52,6 +52,7 @@ pub(super) fn facts(unit: &Unit, producer: &Producer) -> BuildFacts {
     }
 }
 
+// rstyle-allow(mutation_per_target): installs each session option the frontend records
 /// The options the frontend records from its session: the edition, target and
 /// compiler invocation, and the profile and unit it selected.
 pub(super) fn session_options(
@@ -76,6 +77,7 @@ pub(super) fn session_options(
             selection.clone(),
         );
     }
+
     if let Some(unit) = session.get("selected_unit").filter(|unit| !unit.is_null()) {
         options.insert(crate::nominal_boundary::CONTEXT_KEY.into(), unit.clone());
     }

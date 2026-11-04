@@ -150,6 +150,7 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         let id = self.node(hir_id, site, shape);
         let record = self.nodes.last_mut().unwrap();
         record["provenance"] = provenance;
+
         id
     }
 

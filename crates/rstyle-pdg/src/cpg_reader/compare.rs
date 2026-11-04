@@ -111,6 +111,7 @@ impl Differences {
         // Every other option family, each by its key, as the frontend records it.
         let keys: std::collections::BTreeSet<&str> =
             reference.keys().chain(derived.keys()).collect();
+
         for key in keys {
             if key == crate::concrete_types::KEY {
                 continue;
