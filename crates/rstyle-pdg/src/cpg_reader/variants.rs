@@ -367,7 +367,7 @@ fn scalar(ty: &Type) -> bool {
 }
 
 /// Whether a tuple struct pattern elides fields with `..`.
-fn rest(context: &Context<'_, '_>, pattern: &Node) -> bool {
+pub(super) fn rest(context: &Context<'_, '_>, pattern: &Node) -> bool {
     let Some(span) = pattern.span.as_ref() else {
         return false;
     };

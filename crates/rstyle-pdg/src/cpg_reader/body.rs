@@ -114,6 +114,7 @@ impl<'a> Context<'_, 'a> {
             "expr_field" if supports("rust.verified-helper-calls") => {
                 children.into_iter().take(1).collect()
             }
+            "expr_closure" => return self.callback_children(node),
             "expr_struct" | "expr_array" | "expr_repeat" => {
                 return self.aggregate_children(node, tag, &children);
             }
@@ -231,7 +232,7 @@ impl<'a> Context<'_, 'a> {
         let mut children = Vec::new();
         for (index, part) in self.parts(local)?.into_iter().enumerate() {
             children.push(match part.kind {
-                _ if index == 0 => self.pattern(part)?,
+                _ if index == 0 => self.local_pattern(part)?,
                 NodeKind::TypeAnnotation => self.annotation(local, part)?,
                 NodeKind::Block
                     if index + 1 == local.children.len() && self.is_else(local, index) =>
@@ -379,7 +380,7 @@ impl<'a> Context<'_, 'a> {
     }
 
     /// The symbol a binding pattern declares, with its mutability.
-    fn declared(&self, node: &Node) -> Option<(&'a str, bool)> {
+    pub(super) fn declared(&self, node: &Node) -> Option<(&'a str, bool)> {
         self.body
             .function
             .symbols
