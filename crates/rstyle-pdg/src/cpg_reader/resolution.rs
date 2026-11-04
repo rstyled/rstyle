@@ -69,7 +69,7 @@ impl Context<'_, '_> {
             "expr_method_call" => self.method_callee(node),
             "expr_index" if self.reader.profile.is_data() => self.method_callee(node),
             "expr_call" | "expr_struct" if node.original_kind == "expr_call" => {
-                self.direct_callee(self.body.child(node, 0).ok()?)
+                self.direct_callee(node)
             }
             "expr_field" if self.reader.profile.supports("rust.verified-helper-calls") => {
                 self.field_resolution(node)

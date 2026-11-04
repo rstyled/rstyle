@@ -36,7 +36,8 @@ struct Dependency {
 
 impl<'a> Context<'_, 'a> {
     /// The callee a call's path names, when the profile verifies helper calls.
-    pub(super) fn direct_callee(&self, callee: &Node) -> Option<PathRes> {
+    pub(super) fn direct_callee(&self, call: &Node) -> Option<PathRes> {
+        let callee = self.body.child(call, 0).ok()?;
         let profile = self.reader.profile;
         if !profile.supports("rust.verified-helper-calls") || callee.original_kind != "expr_path" {
             return None;
@@ -56,7 +57,8 @@ impl<'a> Context<'_, 'a> {
             return self.library_callee(definition);
         }
         if !local && kind == "AssocFn" && profile.is_data() {
-            return self.library_callee(definition);
+            let capture = self.associated_capture(call, definition);
+            return self.instantiated_callee(call, definition, capture);
         }
         let inherent = self.inherent_owner(definition);
         if generics_count(definition) != Some(0) && inherent.is_none() {
@@ -82,12 +84,128 @@ impl<'a> Context<'_, 'a> {
         if let Some(owner) = self.inherent_owner(definition) {
             return self.helper(definition, ("resolved_inherent_callee", Some(owner)), None);
         }
-        self.library_callee(definition)
+        let profile = self.reader.profile;
+        let path = definition.name.as_str();
+        let capture = profile.supports("rust.byte-iterator-position")
+            && matches!(
+                path,
+                "core::iter::Iterator::position" | "std::iter::Iterator::position"
+            )
+            || profile.supports("rust.slice-array-byte-calls")
+                && path.ends_with("::convert::TryInto::try_into");
+        self.instantiated_callee(node, definition, capture)
     }
 
-    /// A definition as a library callee record.
-    pub(super) fn library_callee(&self, definition: &Definition) -> Option<PathRes> {
-        let callee = crate::data_library::Callee {
+    /// A library callee, with the implementation static selection finds for a call the
+    /// profile captures.
+    fn instantiated_callee(
+        &self,
+        call: &Node,
+        definition: &Definition,
+        capture: bool,
+    ) -> Option<PathRes> {
+        if !capture {
+            return self.library_callee(definition);
+        }
+        let mut record = self.library_record(definition)?;
+        record.implementation = self
+            .selected(call)
+            .and_then(|selected| self.library_record(selected))
+            .map(Box::new);
+        Some(PathRes {
+            kind: "resolved_callee".into(),
+            target: None,
+            description: serde_json::to_string(&record).ok()?,
+        })
+    }
+
+    /// The implementation static selection finds for a call: a trait member's selected
+    /// implementation, or any other callee itself.
+    fn selected(&self, call: &Node) -> Option<&'a Definition> {
+        let reference = self.body.reference(&call.id)?;
+        if let Some(selected) = &reference.selected {
+            return self.reader.tables.definition(selected.id.as_deref()?).ok();
+        }
+        let target = reference.target.as_ref()?;
+        let callee = self.reader.tables.definition(target.id.as_deref()?).ok()?;
+        let member = callee
+            .owner
+            .as_deref()
+            .and_then(|owner| self.reader.tables.definition(owner).ok())
+            .is_some_and(|owner| owner.kind == rstyle_core::cpg::model::DefinitionKind::Trait);
+        (!member).then_some(callee)
+    }
+
+    /// Whether the profile captures a library associated function's conversion.
+    fn associated_capture(&self, call: &Node, definition: &Definition) -> bool {
+        let profile = self.reader.profile;
+        let path = definition.name.as_str();
+        let spelling = |id: Option<&str>| {
+            id.and_then(|id| self.reader.ty(id).ok())
+                .map(|ty| ty.spelling.as_str())
+        };
+        let arguments: Vec<Option<&str>> = self
+            .body
+            .children(call)
+            .unwrap_or_default()
+            .iter()
+            .skip(1)
+            .map(|argument| spelling(argument.ty.as_deref()))
+            .collect();
+        let result = call.ty.as_deref().and_then(|id| self.reader.ty(id).ok());
+        let output = result.map(|ty| ty.spelling.as_str());
+        let input = |scalar: &str| arguments == [Some(scalar)];
+        let scalar_from = profile.supports("rust.scalar-from-conversions")
+            && path.ends_with("::convert::From::from")
+            && (input("u16") && output == Some("u32")
+                || profile.supports("rust.usize-from-u8")
+                    && input("u8")
+                    && output == Some("usize")
+                || profile.supports("rust.tagged-unit-classifiers")
+                    && input("u16")
+                    && output == Some("usize")
+                || profile.supports("rust.unsigned-index-conversion-family")
+                    && input("u16")
+                    && output == Some("u64")
+                || profile.supports("rust.u64-from-u32") && input("u32") && output == Some("u64"));
+        let ok = result.and_then(|ty| self.result_ok(ty));
+        let int_conversion = profile.supports("rust.bitset-cardinality")
+            && path.ends_with("::convert::TryFrom::try_from")
+            && (input("u32") && ok == Some("usize")
+                || profile.supports("rust.end-of-input") && input("usize") && ok == Some("u16"));
+        scalar_from || int_conversion || self.local_from(call, definition)
+    }
+
+    /// A `From::from` call whose selected implementation is local and nongeneric.
+    fn local_from(&self, call: &Node, definition: &Definition) -> bool {
+        let trait_from = definition
+            .owner
+            .as_deref()
+            .and_then(|owner| self.reader.tables.definition(owner).ok())
+            .is_some_and(|owner| identity(owner, "diagnostic") == Some("From"));
+        let named = definition.name.rsplit("::").next() == Some("from");
+        let selected = self.selected(call).is_some_and(|selected| {
+            selected.scope == Scope::Unit && generics_count(selected) == Some(0)
+        });
+        trait_from && named && selected
+    }
+
+    /// A standard `Result`'s success type spelling.
+    fn result_ok(&self, ty: &rstyle_core::cpg::model::Type) -> Option<&'a str> {
+        let definition = self
+            .reader
+            .tables
+            .definition(ty.definition.as_deref()?)
+            .ok()?;
+        if identity(definition, "diagnostic") != Some("Result") {
+            return None;
+        }
+        let ok = ty.arguments.as_deref()?.first()?;
+        Some(self.reader.ty(ok).ok()?.spelling.as_str())
+    }
+
+    fn library_record(&self, definition: &Definition) -> Option<crate::data_library::Callee> {
+        Some(crate::data_library::Callee {
             path: definition.name.clone(),
             crate_name: identity(definition, "crate_name")?.to_owned(),
             crate_hash: identity(definition, "crate_hash")
@@ -95,7 +213,12 @@ impl<'a> Context<'_, 'a> {
                 .to_owned(),
             definition_hash: identity(definition, "def_path_hash")?.to_owned(),
             implementation: None,
-        };
+        })
+    }
+
+    /// A definition as a library callee record.
+    pub(super) fn library_callee(&self, definition: &Definition) -> Option<PathRes> {
+        let callee = self.library_record(definition)?;
         Some(PathRes {
             kind: "resolved_callee".into(),
             target: None,

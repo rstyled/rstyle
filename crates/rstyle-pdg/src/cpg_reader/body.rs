@@ -439,8 +439,7 @@ mod dispatch {
 
         /// The path a direct call's resolved helper callee records.
         fn call_path(&self, node: &Node) -> Option<String> {
-            let callee = self.body.child(node, 0).ok()?;
-            let resolution = self.direct_callee(callee)?;
+            let resolution = self.direct_callee(node)?;
             let value: serde_json::Value = serde_json::from_str(&resolution.description).ok()?;
             let path = match resolution.kind == crate::size_calls::RESOLUTION {
                 true => &value["callee"]["path"],
