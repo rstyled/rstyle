@@ -5,8 +5,6 @@ mod assertions;
 mod bool_constants;
 mod callbacks;
 mod concrete_types;
-mod consumer_control_types;
-mod consumer_formal_types;
 mod crate_association;
 mod dependency_namespaces;
 pub mod diagnostics;
@@ -26,7 +24,7 @@ pub(crate) use sources::recover as recover_source;
 pub(crate) mod hir_tags {
     pub(crate) use super::hir::kind;
 }
-mod reader_check;
+mod document_facts;
 pub(crate) mod runtime_bounds;
 pub(crate) fn capture_instance_diagnostics(
     tcx: TyCtxt<'_>,
@@ -39,7 +37,6 @@ pub(crate) fn capture_instance_diagnostics(
 }
 mod library_resolution;
 mod module_expansions;
-mod mutable_scalar_formals;
 mod node_observations;
 mod nominal_census;
 mod nominal_constants;
@@ -102,7 +99,7 @@ pub fn raw_crate_facts(
     scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<Vec<HirFnFacts>, String> {
-    let mut facts = collect_crate_facts(tcx, scanned, options, FunctionEvidence::All)?;
+    let mut facts = collect_crate_facts(tcx, options, FunctionEvidence::All)?;
     capture_unit_evidence(tcx, options, &mut facts)
         .map_err(|error| format!("Unit source evidence: {error}"))?;
 
@@ -119,13 +116,12 @@ pub fn raw_crate_facts(
 /// correspondence, call instances, projections or strict unit metadata.
 pub fn advisory_crate_facts(
     tcx: TyCtxt<'_>,
-    scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<Vec<HirFnFacts>, String> {
     let evidence = FunctionEvidence::Advisory {
         mutations: rstyle_pdg::diagnostics::switch("RSTYLE_LOCAL_MUTATION_FACTS"),
     };
-    let mut facts = collect_crate_facts(tcx, scanned, options, evidence)?;
+    let mut facts = collect_crate_facts(tcx, options, evidence)?;
     if rstyle_pdg::diagnostics::switch("RSTYLE_LOCAL_SOURCE_FACTS") {
         nominal_census::capture_files(tcx, options, &mut facts)?;
     }
@@ -160,13 +156,8 @@ enum FunctionEvidence {
     All,
 }
 
-struct FunctionCollector {
-    evidence: FunctionEvidence,
-}
-
 fn collect_crate_facts(
     tcx: TyCtxt<'_>,
-    scanned: &[source::Function],
     options: &Options<'_>,
     evidence: FunctionEvidence,
 ) -> Result<Vec<HirFnFacts>, String> {
@@ -177,15 +168,7 @@ fn collect_crate_facts(
         }
         FunctionEvidence::All => rstyle_pdg::cpg_reader::Passes::Complete,
     };
-    let collector = FunctionCollector { evidence };
-    let direct = || {
-        collect_source_functions(tcx, scanned, options, |sources, id| {
-            collector.function(id, sources).map_err(|error| format!("{}: {error}", tcx.def_path_str(id.to_def_id()))).and_then(|facts| facts.ok_or_else(|| format!(
-                "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
-            )))
-        })
-    };
-    reader_check::capture(tcx, (options, passes), direct)
+    document_facts::capture(tcx, (options, passes))
 }
 
 fn collect_source_functions<T>(
@@ -228,86 +211,6 @@ fn capture_source_evidence(
     nominal_census::capture(tcx, options, facts)?;
     nominal_census::namespaces(tcx, options, facts)?;
     generated_sources::capture(tcx, options, facts)
-}
-
-impl FunctionCollector {
-    fn function(
-        &self,
-        id: LocalDefId,
-        sources: &FunctionSources<'_, '_, '_>,
-    ) -> Result<Option<HirFnFacts>, String> {
-        let options = sources.options;
-        let Some((facts, ctx)) = sources.function(id) else {
-            return Ok(None);
-        };
-
-        let mut facts = match self.evidence {
-            FunctionEvidence::Advisory { .. } => {
-                capture_advisory_function(&ctx, id, facts, options)
-            }
-            FunctionEvidence::All => capture_complete_function(&ctx, id, facts, options),
-        }?;
-        if matches!(
-            self.evidence,
-            FunctionEvidence::Advisory { mutations: true }
-        ) && ctx.profile == ExtractionProfile::DataV3
-        {
-            capture_mutation_types(&ctx, &mut facts)?;
-        }
-        Ok(Some(facts))
-    }
-}
-
-fn capture_advisory_function(
-    ctx: &hir::Context<'_>,
-    id: LocalDefId,
-    mut facts: HirFnFacts,
-    options: &Options<'_>,
-) -> Result<HirFnFacts, String> {
-    concrete_types::capture_signature(ctx, &mut facts)?;
-    advisory::capture(ctx, id, &mut facts, options)?;
-
-    Ok(facts)
-}
-
-fn capture_complete_function(
-    ctx: &hir::Context<'_>,
-    id: LocalDefId,
-    mut facts: HirFnFacts,
-    options: &Options<'_>,
-) -> Result<HirFnFacts, String> {
-    concrete_types::capture(ctx, &mut facts)?;
-    capture_callable_owner(ctx, id, &mut facts, options)?;
-    capture_locations(ctx, &mut facts)?;
-
-    instances::capture(ctx, id, facts)
-}
-
-// rstyle-allow(side_effect_density): installs each owner observation on the facts in turn
-fn capture_callable_owner(
-    ctx: &hir::Context<'_>,
-    id: LocalDefId,
-    facts: &mut HirFnFacts,
-    options: &Options<'_>,
-) -> Result<(), String> {
-    advisory::capture(ctx, id, facts, options)?;
-    inherent::capture(ctx, id, facts)?;
-    trait_members::capture(ctx, id, &mut facts.build.frontend_options)
-}
-
-fn capture_locations(ctx: &hir::Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
-    rstyle_pdg::field_locations::capture(facts)?;
-    if ctx.profile == ExtractionProfile::DataV3 {
-        capture_mutation_types(ctx, facts)?;
-        mutable_scalar_formals::capture(ctx, facts)?;
-    }
-
-    Ok(())
-}
-
-fn capture_mutation_types(ctx: &hir::Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
-    consumer_formal_types::capture(ctx, facts)?;
-    consumer_control_types::capture(ctx, facts)
 }
 
 fn function_source<'tcx>(

@@ -1,6 +1,6 @@
 //! Observations only: selected generic calls do not certify instantiated bodies.
 use super::hir::{Context, reference};
-use rstyle_pdg::{HirFnFacts, extraction_profile::ExtractionProfile};
+use rstyle_pdg::extraction_profile::ExtractionProfile;
 use rustc_hir::{
     self as hir, Expr, ExprKind,
     def_id::DefId,
@@ -26,19 +26,6 @@ mod slice_projection;
 pub(super) use publication::capture as capture_projections;
 pub(in crate::hir_extraction) mod types;
 mod usize_reader_conversions;
-
-const KEY: &str = "rstyle.rust.call-instances";
-
-pub(super) fn capture(
-    context: &Context<'_>,
-    owner: hir::def_id::LocalDefId,
-    mut facts: HirFnFacts,
-) -> Result<HirFnFacts, String> {
-    if let Some(value) = inventory(context, owner)? {
-        facts.build.frontend_options.insert(KEY.into(), value);
-    }
-    Ok(facts)
-}
 
 /// The function's generic and trait call instances, where the data profile observes
 /// them.

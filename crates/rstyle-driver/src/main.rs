@@ -195,7 +195,7 @@ impl HirExtract {
             self.capture_style(tcx, options);
             return;
         }
-        let facts = hir_extraction::advisory_crate_facts(tcx, &self.scanned, options)
+        let facts = hir_extraction::advisory_crate_facts(tcx, options)
             .expect("capture compiler advisory facts");
         let inventory = self.inventory(tcx, options, &facts);
         self.output

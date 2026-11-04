@@ -11,7 +11,6 @@ mod callbacks;
 mod callees;
 mod concrete;
 pub use concrete::Passes;
-pub mod compare;
 mod findings;
 mod for_loops;
 mod inherent;
