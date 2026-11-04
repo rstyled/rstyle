@@ -83,6 +83,73 @@ impl<'a> Context<'_, 'a> {
         })
     }
 
+    /// A path to a local enum's variant, where the profile observes fieldless enums.
+    pub(super) fn fieldless_variant(&self, definition: &'a Definition) -> Option<PathRes> {
+        if !self.reader.profile.supports("rust.fieldless-enum-values") {
+            return None;
+        }
+        let variant = match identity(definition, "def_kind")? {
+            "Variant" => definition,
+            "Ctor(Variant, Const)" => self
+                .reader
+                .tables
+                .definition(identity(definition, "variant_definition")?)
+                .ok()?,
+            _ => return None,
+        };
+        if variant.scope != rstyle_core::cpg::model::Scope::Unit {
+            return None;
+        }
+        let mut resolution = self.library_callee(variant)?;
+        resolution.kind = "resolved_fieldless_variant".into();
+        Some(resolution)
+    }
+
+    /// A path to a local nongeneric scalar constant, with its declaration and value.
+    pub(super) fn constant_resolution(&self, definition: &'a Definition) -> Option<PathRes> {
+        let kind = identity(definition, "def_kind")?;
+        let inherent = identity(definition, "inherent_impl").is_some();
+        let generic = definition
+            .extensions
+            .get("rust:compiler-identity")?
+            .get("generics")
+            .and_then(|generics| generics.get("count")?.as_u64())
+            .unwrap_or(0);
+        if !self
+            .reader
+            .profile
+            .supports("rust.resolved-scalar-constants")
+            || definition.scope != rstyle_core::cpg::model::Scope::Unit
+            || generic != 0
+            || !(kind == "Const" || kind == "AssocConst" && inherent)
+        {
+            return None;
+        }
+        let value = self
+            .reader
+            .unit
+            .values
+            .iter()
+            .find(|value| value.definition.as_deref() == Some(definition.id.as_str()))?;
+        let ty = self
+            .reader
+            .resolved(value.ty.as_deref()?, String::new())
+            .ok()?
+            .normalized?;
+        let declaration = self.reader.source(definition.span.as_ref()?).ok()?;
+        let constant = crate::scalar_constants::ScalarConstant {
+            definition: definition.name.clone(),
+            declaration: declaration.as_str().to_owned(),
+            ty,
+            value: value.value.value.clone()?,
+        };
+        Some(PathRes {
+            kind: crate::scalar_constants::RESOLUTION.into(),
+            target: None,
+            description: serde_json::to_string(&constant).ok()?,
+        })
+    }
+
     /// The data profile's own pattern records: shared scalars, Option and local variants.
     pub(super) fn observed_pattern(&self, pattern: &'a Node) -> Built {
         if !self.data_v3() {

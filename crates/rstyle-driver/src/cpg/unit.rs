@@ -17,6 +17,8 @@ pub struct Unit<'tcx> {
     files: BTreeMap<String, Value>,
     definitions: BTreeMap<String, Value>,
     types: BTreeMap<String, Value>,
+    /// The compile-time values of local constants the unit references, by definition.
+    values: BTreeMap<String, Value>,
 }
 
 impl<'tcx> Unit<'tcx> {
@@ -27,6 +29,7 @@ impl<'tcx> Unit<'tcx> {
             files: BTreeMap::new(),
             definitions: BTreeMap::new(),
             types: BTreeMap::new(),
+            values: BTreeMap::new(),
         }
     }
 
@@ -102,12 +105,16 @@ impl<'tcx> Unit<'tcx> {
                     json!(implementation);
             }
             // A constructor's or variant's enum and variant, which name the value it builds.
-            if let Some((owner, variant)) = self.variant_of(def_id) {
+            if let Some((owner, variant, definition)) = self.variant_of(def_id) {
                 let identity = &mut record["extensions"]["rust:compiler-identity"];
                 identity["enum"] = json!(owner);
                 identity["variant"] = json!(variant);
+                if let Some(definition) = definition {
+                    identity["variant_definition"] = json!(definition);
+                }
             }
             self.definitions.insert(id.clone(), record);
+            self.constant_value(def_id, &id);
             self.relations(def_id, &id);
             if matches!(self.tcx.def_kind(def_id), DefKind::Fn | DefKind::AssocFn) {
                 let callable = self.callable(def_id);
@@ -119,20 +126,27 @@ impl<'tcx> Unit<'tcx> {
 
     /// A local type's declaration as written, unless a macro generated it.
     /// The enum a variant or variant constructor belongs to, and the variant's name.
-    fn variant_of(&mut self, def_id: DefId) -> Option<(String, String)> {
+    /// A constructor's variant definition is recorded too.
+    fn variant_of(&mut self, def_id: DefId) -> Option<(String, String, Option<String>)> {
         let tcx = self.tcx;
-        let variant = match tcx.def_kind(def_id) {
-            DefKind::Ctor(rustc_hir::def::CtorOf::Variant, _) => tcx.parent(def_id),
-            DefKind::Variant => def_id,
+        let (variant, constructed) = match tcx.def_kind(def_id) {
+            DefKind::Ctor(rustc_hir::def::CtorOf::Variant, _) => (tcx.parent(def_id), true),
+            DefKind::Variant => (def_id, false),
             _ => return None,
         };
         let owner = self.definition(tcx.parent(variant));
-        Some((owner, tcx.item_name(variant).to_string()))
+        let definition = constructed.then(|| self.definition(variant));
+        Some((owner, tcx.item_name(variant).to_string(), definition))
     }
 
     /// The inherent implementation a local associated function belongs to.
     fn inherent_implementation(&mut self, def_id: DefId) -> Option<String> {
-        if !def_id.is_local() || self.tcx.def_kind(def_id) != DefKind::AssocFn {
+        if !def_id.is_local()
+            || !matches!(
+                self.tcx.def_kind(def_id),
+                DefKind::AssocFn | DefKind::AssocConst
+            )
+        {
             return None;
         }
         let implementation = self.tcx.inherent_impl_of_assoc(def_id)?;
@@ -144,16 +158,21 @@ impl<'tcx> Unit<'tcx> {
         let local = def_id.as_local()?;
         if !matches!(
             self.tcx.def_kind(def_id),
-            DefKind::Struct | DefKind::Enum | DefKind::Union | DefKind::Impl { .. }
+            DefKind::Struct
+                | DefKind::Enum
+                | DefKind::Union
+                | DefKind::Impl { .. }
+                | DefKind::Const
+                | DefKind::AssocConst
         ) {
             return None;
         }
-        let rustc_hir::Node::Item(item) = self.tcx.hir_node_by_def_id(local) else {
-            return None;
+        let span = match self.tcx.hir_node_by_def_id(local) {
+            rustc_hir::Node::Item(item) => item.span,
+            rustc_hir::Node::ImplItem(item) => item.span,
+            _ => return None,
         };
-        (!item.span.from_expansion())
-            .then(|| self.span(item.span))
-            .flatten()
+        (!span.from_expansion()).then(|| self.span(span)).flatten()
     }
 
     // rstyle-allow(mutation_per_target): the unit interns referenced records as it builds them
@@ -526,12 +545,49 @@ impl<'tcx> Unit<'tcx> {
         }
     }
 
-    pub fn tables(self) -> (Vec<Value>, Vec<Value>, Vec<Value>) {
+    pub fn tables(self) -> (Vec<Value>, Vec<Value>, Vec<Value>, Vec<Value>) {
         (
             self.files.into_values().collect(),
             self.definitions.into_values().collect(),
             self.types.into_values().collect(),
+            self.values.into_values().collect(),
         )
+    }
+
+    /// A local, nongeneric constant's evaluated scalar value.
+    fn constant_value(&mut self, def_id: DefId, id: &str) {
+        let tcx = self.tcx;
+        if !def_id.is_local()
+            || !matches!(tcx.def_kind(def_id), DefKind::Const | DefKind::AssocConst)
+            || tcx.generics_of(def_id).count() != 0
+        {
+            return;
+        }
+        let environment = ty::TypingEnv::post_analysis(tcx, def_id);
+        let declared = tcx.type_of(def_id).instantiate_identity();
+        let Ok(ty) = tcx.try_normalize_erasing_regions(environment, declared) else {
+            return;
+        };
+        let Ok(evaluated) = tcx.const_eval_poly(def_id) else {
+            return;
+        };
+        let literal = match ty.kind() {
+            ty::Bool => evaluated
+                .try_to_bool()
+                .map(|value| json!({"kind": "bool", "value": value.to_string()})),
+            ty::Tuple(items) if items.is_empty() => Some(json!({"kind": "unit", "value": "()"})),
+            ty::Int(_) => evaluated.try_to_scalar_int().map(|value| {
+                json!({"kind": "integer", "value": value.to_int(value.size()).to_string()})
+            }),
+            ty::Uint(_) => evaluated.try_to_scalar_int().map(|value| {
+                json!({"kind": "integer", "value": value.to_bits(value.size()).to_string()})
+            }),
+            _ => None,
+        };
+        if let Some(literal) = literal {
+            let record = json!({"definition": id, "type": self.ty(ty), "value": literal});
+            self.values.insert(id.to_owned(), record);
+        }
     }
 }
 

@@ -193,7 +193,7 @@ fn root_file(tcx: TyCtxt<'_>, root: &Path) -> Option<String> {
 
 fn document(tcx: TyCtxt<'_>, unit: unit::Unit<'_>, functions: Vec<Value>, name: &str) -> Value {
     let root = unit.root.clone();
-    let (files, definitions, types) = unit.tables();
+    let (files, definitions, types, values) = unit.tables();
     let session = tcx.sess;
     json!({
         "schema_version": "0.1.0",
@@ -218,7 +218,7 @@ fn document(tcx: TyCtxt<'_>, unit: unit::Unit<'_>, functions: Vec<Value>, name: 
                           "debug_assertions": session.opts.debug_assertions,
                           "optimization": format!("{:?}", session.opts.optimize)},
             "files": files, "namespaces": [], "imports": [], "definitions": definitions, "types": types,
-            "values": [], "instances": [], "functions": functions,
+            "values": values, "instances": [], "functions": functions,
             // The LLVM target the compiler builds for, which the frontend's facts name.
             "extensions": {"rust:llvm-target": session.target.llvm_target.to_string()},
         },

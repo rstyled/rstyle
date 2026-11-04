@@ -112,8 +112,14 @@ impl Context<'_, '_> {
                     target: Some(binding),
                 })
             }
-            TargetKind::Definition | TargetKind::Constructor => {
+            TargetKind::Definition | TargetKind::Constructor | TargetKind::Variant => {
                 let definition = self.reader.tables.definition(target.id.as_deref()?).ok()?;
+                if let Some(resolution) = self
+                    .fieldless_variant(definition)
+                    .or_else(|| self.constant_resolution(definition))
+                {
+                    return Some(resolution);
+                }
                 let rust = |key: &str| identity(definition, key);
                 Some(PathRes {
                     kind: "other".into(),
