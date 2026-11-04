@@ -260,9 +260,12 @@ impl<'a> Context<'_, 'a> {
     }
 
     pub(super) fn pattern(&self, node: &'a Node) -> Built {
+        if let Some(observed) = self.observed_pattern(node)? {
+            return Ok(observed);
+        }
         let tag = match node.original_kind.as_str() {
             tag @ ("pat_binding" | "pat_binding_pattern" | "pat_wild") => tag,
-            "pat_expr" if node.kind == NodeKind::PatternLiteral => "pat_literal",
+            "pat_literal" => "pat_literal",
             _ => "pat_unsupported",
         };
         let symbol = self.declared(node);
@@ -281,6 +284,14 @@ impl<'a> Context<'_, 'a> {
             binding_mut: symbol.map(|(_, mutable)| mutable),
             lit: (tag == "pat_literal").then(|| base.snippet.clone()),
             ..base
+        })
+    }
+
+    /// A pattern's record with its type, before any binding.
+    pub(super) fn pattern_node(&self, node: &'a Node, tag: &str) -> Built {
+        Ok(HirNode {
+            ty: self.ty(node)?,
+            ..self.node(node, tag)?
         })
     }
 

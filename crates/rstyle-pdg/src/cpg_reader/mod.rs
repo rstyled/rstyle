@@ -12,6 +12,7 @@ pub mod compare;
 mod findings;
 mod resolution;
 mod scan;
+mod variants;
 
 use crate::extraction_profile::ExtractionProfile;
 use crate::frontend::{

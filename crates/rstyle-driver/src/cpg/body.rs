@@ -741,7 +741,26 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 shape
             }
         };
-        Some(self.node(pat.hir_id, pat.span, shape))
+        let id = self.node(pat.hir_id, pat.span, shape);
+        self.pattern_reference(pat, &id);
+        Some(id)
+    }
+
+    /// What a constructor, struct or path pattern's path resolves to.
+    fn pattern_reference(&mut self, pat: &'tcx Pat<'tcx>, id: &str) {
+        let qpath = match pat.kind {
+            PatKind::TupleStruct(ref qpath, ..) | PatKind::Struct(ref qpath, ..) => qpath,
+            PatKind::Expr(expr) => match expr.kind {
+                rustc_hir::PatExprKind::Path(ref qpath) => qpath,
+                rustc_hir::PatExprKind::Lit { .. } => return,
+            },
+            _ => return,
+        };
+        let res = self.typeck.qpath_res(qpath, pat.hir_id);
+        if let Some(mut record) = self.path_reference(res) {
+            record["node"] = json!(id);
+            self.refs.push(record);
+        }
     }
 
     // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design

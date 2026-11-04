@@ -165,7 +165,10 @@ pub fn original_kind(tcx: TyCtxt<'_>, id: rustc_hir::HirId) -> &'static str {
             PatKind::Wild => "pat_wild",
             PatKind::Or(_) => "pat_or",
             PatKind::Range(..) => "pat_range",
-            PatKind::Expr(_) => "pat_expr",
+            PatKind::Expr(expr) => match expr.kind {
+                rustc_hir::PatExprKind::Lit { .. } => "pat_literal",
+                rustc_hir::PatExprKind::Path(_) => "pat_path",
+            },
             PatKind::Struct(..) => "pat_struct",
             PatKind::TupleStruct(..) => "pat_tuple_struct",
             PatKind::Tuple(..) => "pat_tuple",

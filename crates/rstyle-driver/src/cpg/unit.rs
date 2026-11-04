@@ -101,6 +101,12 @@ impl<'tcx> Unit<'tcx> {
                 record["extensions"]["rust:compiler-identity"]["inherent_impl"] =
                     json!(implementation);
             }
+            // A constructor's or variant's enum and variant, which name the value it builds.
+            if let Some((owner, variant)) = self.variant_of(def_id) {
+                let identity = &mut record["extensions"]["rust:compiler-identity"];
+                identity["enum"] = json!(owner);
+                identity["variant"] = json!(variant);
+            }
             self.definitions.insert(id.clone(), record);
             self.relations(def_id, &id);
             if matches!(self.tcx.def_kind(def_id), DefKind::Fn | DefKind::AssocFn) {
@@ -112,6 +118,18 @@ impl<'tcx> Unit<'tcx> {
     }
 
     /// A local type's declaration as written, unless a macro generated it.
+    /// The enum a variant or variant constructor belongs to, and the variant's name.
+    fn variant_of(&mut self, def_id: DefId) -> Option<(String, String)> {
+        let tcx = self.tcx;
+        let variant = match tcx.def_kind(def_id) {
+            DefKind::Ctor(rustc_hir::def::CtorOf::Variant, _) => tcx.parent(def_id),
+            DefKind::Variant => def_id,
+            _ => return None,
+        };
+        let owner = self.definition(tcx.parent(variant));
+        Some((owner, tcx.item_name(variant).to_string()))
+    }
+
     /// The inherent implementation a local associated function belongs to.
     fn inherent_implementation(&mut self, def_id: DefId) -> Option<String> {
         if !def_id.is_local() || self.tcx.def_kind(def_id) != DefKind::AssocFn {
@@ -639,6 +657,9 @@ fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> serde_json::M
     let mut identity = serde_json::Map::new();
     identity.insert("def_id".into(), json!(format!("{def_id:?}")));
     identity.insert("def_kind".into(), json!(format!("{kind:?}")));
+    if let Some(name) = tcx.get_diagnostic_name(def_id) {
+        identity.insert("diagnostic".into(), json!(name.as_str()));
+    }
     identity.insert(
         "def_path_hash".into(),
         json!(format!("{:?}", tcx.def_path_hash(def_id))),
