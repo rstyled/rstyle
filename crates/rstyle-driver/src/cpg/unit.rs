@@ -41,7 +41,7 @@ impl<'tcx> Unit<'tcx> {
 
     /// A definition's stable identity: its path, with `!` for a macro and `#type` for a
     /// type that shares its path with one of the unit's value items.
-    fn stable_identity(&mut self, def_id: DefId) -> String {
+    pub(super) fn stable_identity(&mut self, def_id: DefId) -> String {
         let mut stable = ids::def_id_str(self.tcx, def_id);
         // A macro shares its path with an item of another namespace, as derive macros
         // share the traits they implement; `!` names the macro, as invoking it does.
@@ -446,7 +446,12 @@ impl<'tcx> Unit<'tcx> {
             "library"
         };
         let compilation = format!("{:016x}", tcx.stable_crate_id(def_id.krate).as_u64());
-        let mut record = json!({"id": id, "kind": definition_kind(tcx, def_id, kind), "name": tcx.def_path_str(def_id),
+        // A crate's root, which has no path of its own, is named by its crate.
+        let name = match def_id.is_crate_root() {
+            true => tcx.crate_name(def_id.krate).to_string(),
+            false => tcx.def_path_str(def_id),
+        };
+        let mut record = json!({"id": id, "kind": definition_kind(tcx, def_id, kind), "name": name,
                "stable_identity": stable, "scope": scope, "modifiers": modifiers(tcx, def_id, kind),
                "compilation": compilation});
         for (field, value) in compiler_facts(tcx, def_id, kind) {

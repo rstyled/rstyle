@@ -4,6 +4,7 @@
 
 mod body;
 mod compiler;
+mod namespaces;
 mod places;
 pub(crate) mod sysroot;
 mod unit;
@@ -44,7 +45,8 @@ pub fn emit(
     }
 
     let name = unit_name(tcx);
-    let document = document(tcx, unit, functions, &name);
+    unit.record_local_files();
+    let document = document(tcx, (unit, true), functions, &name);
     write(&dir.join(format!("{name}.cpg.json")), &document)?;
     write(
         &dir.join(format!("{name}.facts.json")),
@@ -172,7 +174,9 @@ fn batch_document(
     owners: &[LocalDefId],
 ) -> (Value, Vec<(LocalDefId, String)>) {
     let mut unit = unit::Unit::new(tcx, root.to_path_buf());
-    if observed.is_some() {
+    // The first document records the whole unit: every file, namespace and import.
+    let whole = observed.is_some();
+    if whole {
         unit.record_local_files();
     }
     let mut unrecorded = Vec::new();
@@ -191,7 +195,7 @@ fn batch_document(
     }
 
     let paths = unit.local_paths();
-    let mut document = document(tcx, unit, recorded, &unit_name(tcx));
+    let mut document = document(tcx, (unit, whole), recorded, &unit_name(tcx));
     if let Some(package) = package {
         document["unit"]["extensions"]["rust:cargo-package"] = package;
     }
@@ -248,7 +252,18 @@ fn root_file(tcx: TyCtxt<'_>, root: &Path) -> Option<String> {
     crate::extract::source_path(tcx, &file, root).map(|path| format!("file:{path}"))
 }
 
-fn document(tcx: TyCtxt<'_>, mut unit: unit::Unit<'_>, functions: Vec<Value>, name: &str) -> Value {
+/// A unit document of `functions`; a `whole` one, which has recorded every file of the
+/// unit, also records its namespaces and imports.
+fn document(
+    tcx: TyCtxt<'_>,
+    (mut unit, whole): (unit::Unit<'_>, bool),
+    functions: Vec<Value>,
+    name: &str,
+) -> Value {
+    let (namespaces, imports) = match whole {
+        true => namespaces::record(&mut unit),
+        false => (Vec::new(), Vec::new()),
+    };
     let root = unit.root.clone();
     let mut extensions = json!({"rust:llvm-target": tcx.sess.target.llvm_target.to_string()});
     if let Some(conversion) = reflexive_conversion(&mut unit) {
@@ -279,7 +294,7 @@ fn document(tcx: TyCtxt<'_>, mut unit: unit::Unit<'_>, functions: Vec<Value>, na
                           "exceptions": if format!("{:?}", session.panic_strategy()) == "Abort" { "abort" } else { "unwind" },
                           "debug_assertions": session.opts.debug_assertions,
                           "optimization": format!("{:?}", session.opts.optimize)},
-            "files": files, "namespaces": [], "imports": [], "definitions": definitions, "types": types,
+            "files": files, "namespaces": namespaces, "imports": imports, "definitions": definitions, "types": types,
             "values": values, "instances": [], "functions": functions,
             // The LLVM target the compiler builds for, which the frontend's facts name.
             "extensions": extensions,
