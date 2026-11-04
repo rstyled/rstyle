@@ -239,6 +239,14 @@ fns = [
   "rstyle_core::normalize::data_producers",
 ]
 
+[ignore.b960b3d08c82]
+kind = "parameterize"
+reason = "two distinct type predicates (a shared byte slice and the bottom type) that share only the type lookup idiom"
+fns = [
+  "rstyle_pdg::cpg_reader::Context::byte_slice",
+  "rstyle_pdg::cpg_reader::Context::never",
+]
+
 [ignore.bd6ed2f06436]
 kind = "parameterize"
 reason = "recursive all() checks with different leaf rules; a shared helper would just take the predicate (#11)"
@@ -329,6 +337,16 @@ fns = [
   "rstyle_driver::hir_extraction::concrete_types::Capture::callback_environments_in",
   "rstyle_pdg::cpg_reader::concrete::Capture::option_environment",
   "rstyle_pdg::cpg_reader::concrete::Capture::option_environments",
+]
+
+[ignore.650993688493]
+kind = "trait_method"
+reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
+fns = [
+  "rstyle_driver::hir_extraction::hir::Context::propagation_arm",
+  "rstyle_driver::hir_extraction::hir::Context::propagation_arms",
+  "rstyle_pdg::cpg_reader::Context::propagation_arm",
+  "rstyle_pdg::cpg_reader::Context::propagation_arms",
 ]
 
 [ignore.896e0a5c17f0]

@@ -1000,6 +1000,7 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         record
     }
 
+    // rstyle-allow(mutation_per_target): assembles one reference record field by field
     /// A call's declared callee, and the implementation rustc selects for it when known.
     fn selected_call(
         &mut self,
@@ -1033,6 +1034,9 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 Some(instance) => {
                     let selected = self.unit.definition(instance.def_id());
                     record["selected"] = json!({"kind": "definition", "id": selected});
+                    if let Some(types) = self.selected_arguments(instance.args) {
+                        record["selected_arguments"] = json!(types);
+                    }
                     (instance.def_id(), instance.args)
                 }
                 None => return record,
@@ -1046,6 +1050,15 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         }
 
         record
+    }
+
+    /// The selected implementation's own arguments, when there are any and all are types.
+    fn selected_arguments(&mut self, args: ty::GenericArgsRef<'tcx>) -> Option<Vec<String>> {
+        let types: Option<Vec<String>> = args
+            .iter()
+            .map(|argument| argument.as_type().map(|ty| self.unit.ty(ty)))
+            .collect();
+        types.filter(|types| !types.is_empty())
     }
 
     /// The implementation static selection finds for an interface member with concrete

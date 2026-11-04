@@ -64,7 +64,8 @@ impl Context<'_, '_> {
         let observed = self
             .float_literal(node, tag)
             .or_else(|| self.option_expression(node))
-            .or_else(|| self.result_expression(node));
+            .or_else(|| self.result_expression(node))
+            .or_else(|| self.propagation(node));
         if let Some(observed) = observed {
             return Some(observed);
         }

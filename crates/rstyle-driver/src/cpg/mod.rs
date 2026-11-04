@@ -193,10 +193,15 @@ fn root_file(tcx: TyCtxt<'_>, root: &Path) -> Option<String> {
     crate::extract::source_path(tcx, &file, root).map(|path| format!("file:{path}"))
 }
 
-fn document(tcx: TyCtxt<'_>, unit: unit::Unit<'_>, functions: Vec<Value>, name: &str) -> Value {
+fn document(tcx: TyCtxt<'_>, mut unit: unit::Unit<'_>, functions: Vec<Value>, name: &str) -> Value {
     let root = unit.root.clone();
+    let mut extensions = json!({"rust:llvm-target": tcx.sess.target.llvm_target.to_string()});
+    if let Some(conversion) = reflexive_conversion(&mut unit) {
+        extensions["rust:reflexive-conversion"] = conversion;
+    }
     let (files, definitions, types, values) = unit.tables();
     let session = tcx.sess;
+
     json!({
         "schema_version": "0.1.0",
         "profile": {"id": "compat.cpg", "version": "0.1.0"},
@@ -222,9 +227,23 @@ fn document(tcx: TyCtxt<'_>, unit: unit::Unit<'_>, functions: Vec<Value>, name: 
             "files": files, "namespaces": [], "imports": [], "definitions": definitions, "types": types,
             "values": values, "instances": [], "functions": functions,
             // The LLVM target the compiler builds for, which the frontend's facts name.
-            "extensions": {"rust:llvm-target": session.target.llvm_target.to_string()},
+            "extensions": extensions,
         },
     })
+}
+
+/// The conversion `?` applies to an error of the same type: `From::from`, and the
+/// implementation every type's conversion to itself selects.
+fn reflexive_conversion(unit: &mut unit::Unit<'_>) -> Option<Value> {
+    let tcx = unit.tcx;
+    let method = tcx.get_diagnostic_item(rustc_span::Symbol::intern("from_fn"))?;
+    let arguments = tcx.mk_args(&[tcx.types.u8.into(), tcx.types.u8.into()]);
+    let environment = rustc_middle::ty::TypingEnv::fully_monomorphized();
+    let instance =
+        rustc_middle::ty::Instance::try_resolve(tcx, environment, method, arguments).ok()??;
+    let implementation = unit.definition(instance.def_id());
+
+    Some(json!({"method": unit.definition(method), "implementation": implementation}))
 }
 
 // rstyle-allow(mutated_targets, mutation_per_target): assembles one document from the builder that accumulates it

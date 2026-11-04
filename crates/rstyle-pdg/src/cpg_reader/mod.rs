@@ -15,6 +15,7 @@ mod findings;
 mod for_loops;
 mod items;
 mod patterns;
+mod propagation;
 mod resolution;
 mod scan;
 mod slices;

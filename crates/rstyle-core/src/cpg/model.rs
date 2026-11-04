@@ -697,6 +697,8 @@ pub struct Ref {
     pub via: Option<Id>,
     pub bounds: Option<Vec<Id>>,
     pub instance_arguments: Option<Vec<Id>>,
+    /// The selected implementation's own type arguments.
+    pub selected_arguments: Option<Vec<Id>>,
     pub instance: Option<Id>,
     pub calls_back: Option<CallsBack>,
     pub reason: Option<String>,
