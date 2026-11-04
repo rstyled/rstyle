@@ -226,7 +226,7 @@ impl<'a> Context<'_, 'a> {
                     ..self.node(node, tag)?
                 })
             }
-            "stmt_item" => self.node(node, "stmt_item"),
+            "stmt_item" => self.item_statement(node),
             _ => self.expression(node),
         }
     }

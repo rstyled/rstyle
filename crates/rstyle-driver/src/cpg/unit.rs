@@ -161,7 +161,8 @@ impl<'tcx> Unit<'tcx> {
         let local = def_id.as_local()?;
         if !matches!(
             self.tcx.def_kind(def_id),
-            DefKind::Struct
+            DefKind::Fn
+                | DefKind::Struct
                 | DefKind::Enum
                 | DefKind::Union
                 | DefKind::Impl { .. }
@@ -176,6 +177,33 @@ impl<'tcx> Unit<'tcx> {
             _ => return None,
         };
         (!span.from_expansion()).then(|| self.span(span)).flatten()
+    }
+
+    /// What a local constant's body calls, when it is only a call with no arguments:
+    /// the callee and the type arguments the call instantiates it with.
+    fn initializer(&mut self, def_id: DefId) -> Option<Value> {
+        use rustc_hir::{ExprKind, def::Res};
+        let local = def_id.as_local()?;
+        let body = self.tcx.hir_maybe_body_owned_by(local)?;
+        let ExprKind::Call(callee, []) = body.value.kind else {
+            return None;
+        };
+        let ExprKind::Path(ref path) = callee.kind else {
+            return None;
+        };
+        let typeck = self.tcx.typeck(local);
+        let Res::Def(_, function) = typeck.qpath_res(path, callee.hir_id) else {
+            return None;
+        };
+        let arguments: Vec<String> = typeck
+            .node_args(callee.hir_id)
+            .types()
+            .map(|ty| self.ty(ty))
+            .collect();
+        let generated = body.value.span.from_expansion();
+        Some(
+            json!({"callee": self.definition(function), "arguments": arguments, "generated": generated}),
+        )
     }
 
     /// A local struct a macro generates: its declaration and field types as the macro
@@ -603,11 +631,28 @@ impl<'tcx> Unit<'tcx> {
     /// A local, nongeneric constant's evaluated scalar value.
     fn constant_value(&mut self, def_id: DefId, id: &str) {
         let tcx = self.tcx;
-        if !def_id.is_local()
+        // A library constant of a primitive's own implementation, as `u32::MAX` is.
+        let primitive = || {
+            tcx.def_kind(def_id) == DefKind::AssocConst
+                && matches!(
+                    tcx.def_kind(tcx.parent(def_id)),
+                    DefKind::Impl { of_trait: false }
+                )
+                && tcx
+                    .type_of(tcx.parent(def_id))
+                    .instantiate_identity()
+                    .skip_norm_wip()
+                    .is_primitive()
+        };
+        if !(def_id.is_local() || primitive())
             || !matches!(tcx.def_kind(def_id), DefKind::Const | DefKind::AssocConst)
             || tcx.generics_of(def_id).count() != 0
         {
             return;
+        }
+        if let Some(initializer) = self.initializer(def_id) {
+            let definition = self.definitions.get_mut(id).unwrap();
+            definition["extensions"]["rust:constant-initializer"] = initializer;
         }
         let environment = ty::TypingEnv::post_analysis(tcx, def_id);
         let declared = tcx.type_of(def_id).instantiate_identity();
@@ -628,6 +673,9 @@ impl<'tcx> Unit<'tcx> {
             ty::Uint(_) => evaluated.try_to_scalar_int().map(|value| {
                 json!({"kind": "integer", "value": value.to_bits(value.size()).to_string()})
             }),
+            ty::Array(element, length) if element.is_bool() => {
+                bool_array(tcx, def_id, ty, length.try_to_target_usize(tcx))
+            }
             // A float's exact value is its IEEE bits, in hexadecimal at the float's width.
             ty::Float(_) => evaluated.try_to_scalar_int().map(|value| {
                 let bits = value.to_bits(value.size());
@@ -641,6 +689,46 @@ impl<'tcx> Unit<'tcx> {
             self.values.insert(id.to_owned(), record);
         }
     }
+}
+
+/// A bool array constant's elements, read from its evaluated allocation.
+fn bool_array<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    def_id: DefId,
+    ty: Ty<'tcx>,
+    length: Option<u64>,
+) -> Option<Value> {
+    use rustc_middle::mir::{
+        ConstValue,
+        interpret::{GlobalAlloc, alloc_range},
+    };
+    let length = length?;
+    let environment = ty::TypingEnv::post_analysis(tcx, def_id);
+    let layout = tcx.layout_of(environment.as_query_input(ty)).ok()?;
+    if layout.size.bytes() != length || layout.align.abi.bytes() != 1 {
+        return None;
+    }
+    let ConstValue::Indirect { alloc_id, offset } = tcx.const_eval_poly(def_id).ok()? else {
+        return None;
+    };
+    let GlobalAlloc::Memory(allocation) = tcx.global_alloc(alloc_id) else {
+        return None;
+    };
+    let allocation = allocation.inner();
+    if offset.bytes().checked_add(length)? > allocation.size().bytes() {
+        return None;
+    }
+    let range = alloc_range(offset, rustc_abi::Size::from_bytes(length));
+    let bytes = allocation.get_bytes_strip_provenance(&tcx, range).ok()?;
+    let items: Option<Vec<Value>> = bytes
+        .iter()
+        .map(|byte| match byte {
+            0 => Some(json!({"kind": "bool", "value": "false"})),
+            1 => Some(json!({"kind": "bool", "value": "true"})),
+            _ => None,
+        })
+        .collect();
+    Some(json!({"kind": "array", "items": items?}))
 }
 
 /// A type's ID: its spelling, and for a type mentioning type parameters their indices,

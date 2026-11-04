@@ -251,7 +251,10 @@ impl<'a> Context<'_, 'a> {
         Some(self.reader.ty(ok).ok()?.spelling.as_str())
     }
 
-    fn library_record(&self, definition: &Definition) -> Option<crate::data_library::Callee> {
+    pub(super) fn library_record(
+        &self,
+        definition: &Definition,
+    ) -> Option<crate::data_library::Callee> {
         Some(crate::data_library::Callee {
             path: definition.name.clone(),
             crate_name: identity(definition, "crate_name")?.to_owned(),

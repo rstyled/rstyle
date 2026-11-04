@@ -154,7 +154,9 @@ impl Context<'_, '_> {
             }
             if let Some(resolution) = self
                 .fieldless_variant(definition)
+                .or_else(|| self.bool_array_resolution(definition))
                 .or_else(|| self.constant_resolution(definition))
+                .or_else(|| self.primitive_constant_resolution(definition))
             {
                 return Some(resolution);
             }
