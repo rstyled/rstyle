@@ -13,6 +13,9 @@ impl<'a> Context<'_, 'a> {
     }
 
     pub(super) fn expression(&self, node: &'a Node) -> Built {
+        if let Some(iteration) = self.original_for_loop(node)? {
+            return Ok(iteration);
+        }
         if let Some(assertion) = self.assertion(node)? {
             return Ok(assertion);
         }
