@@ -139,11 +139,21 @@ fn function_facts(
         edges: events.edges,
         mutated_types: mutated_types(tables, mutated)?,
         sig: signature_shape(&body, tables)?,
-        pdg: match roles {
+        // Patterns are searched in source functions; a macro-written one has no graph.
+        pdg: match roles.filter(|_| !written_by_macro(function)) {
             Some(roles) => Some(dependence_graph(&body, tables, sources, roles)?),
             None => None,
         },
     })
+}
+
+/// Whether a macro expansion writes the function, as its body's root records.
+fn written_by_macro(function: &Function) -> bool {
+    function
+        .nodes
+        .iter()
+        .find(|node| node.id == function.root)
+        .is_some_and(|root| root.provenance.origin == super::model::Origin::MacroExpansion)
 }
 
 fn measure(body: &Body<'_>, sources: &Sources<'_>, events: &Events) -> Result<Measurement, String> {

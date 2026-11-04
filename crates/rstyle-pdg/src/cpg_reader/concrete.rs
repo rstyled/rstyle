@@ -23,6 +23,8 @@ use std::collections::BTreeMap;
 /// Which of the frontend's capture passes the facts went through.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Passes {
+    /// Numeric style inputs: no concrete type observations.
+    Style,
     /// Advisory consumers: the interface's types only.
     Advisory,
     /// Advisory consumers that also read the body's local mutation types.
@@ -72,7 +74,7 @@ impl<'a> Context<'_, 'a> {
                     capture.install_receivers(facts)?;
                     capture.callback_environments(&mut facts.body)?;
                 }
-                Passes::Advisory | Passes::AdvisoryMutations => {
+                Passes::Style | Passes::Advisory | Passes::AdvisoryMutations => {
                     capture.binding_tokens(&mut facts.bindings, true)?;
                 }
             }

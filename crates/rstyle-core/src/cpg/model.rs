@@ -435,6 +435,8 @@ pub struct Parameter {
     /// The parameter's pattern, identified and tagged as the frontend's facts are.
     pub pattern: Option<Id>,
     pub original_kind: Option<String>,
+    /// Where the parameter is declared, when a macro expansion or a desugaring writes it.
+    pub provenance: Option<Provenance>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -444,6 +446,8 @@ pub struct Receiver {
     #[serde(rename = "type")]
     pub ty: Id,
     pub annotation: Option<FileSpan>,
+    /// Where the receiver is declared, when a macro expansion or a desugaring writes it.
+    pub provenance: Option<Provenance>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

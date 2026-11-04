@@ -154,7 +154,7 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         id
     }
 
-    fn provenance(&mut self, span: Span) -> Value {
+    pub(super) fn provenance(&mut self, span: Span) -> Value {
         let call_site = self.unit.span(span.source_callsite());
         // A lowering's own node is synthetic; its provenance is where its span comes from.
         if !span.from_expansion() {
@@ -357,10 +357,18 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             ExprKind::Loop(block, label, _, _) => {
                 jump("loop", label, vec![self.block(block, None)])
             }
-            ExprKind::Match(scrutinee, arms, _) => {
+            ExprKind::Match(scrutinee, arms, source) => {
                 let mut children = self.exprs([scrutinee]);
                 children.extend(arms.iter().filter_map(|arm| self.arm(arm)));
-                shape("match", children)
+                let mut shape = shape("match", children);
+                // An `.await` lowers to a match the compiler spans as the written expression.
+                if source == MatchSource::AwaitDesugar {
+                    let call_site = self.unit.span(expr.span.source_callsite());
+                    let provenance = json!({"origin": "desugaring", "construct": "rust:await",
+                                            "call_site": call_site});
+                    shape.fields.insert("provenance".into(), provenance);
+                }
+                shape
             }
             ExprKind::Closure(closure) => self.closure(closure),
             ExprKind::Break(destination, value) => {

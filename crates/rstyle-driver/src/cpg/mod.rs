@@ -370,31 +370,7 @@ fn signature<'tcx>(
 ) -> Value {
     let tcx = builder.unit.tcx;
     let fn_sig = tcx.fn_sig(id).instantiate_identity().skip_binder();
-    let mut parameters = Vec::new();
-    let mut receiver = None;
-    for (index, param) in body.params.iter().enumerate() {
-        let (symbol, bindings) = builder.parameter(param.pat, index);
-        let ty = builder.unit.ty(fn_sig.inputs()[index]);
-        if has_self && index == 0 {
-            let annotation = sig.decl.inputs.first().map(|ty| ty.span);
-            receiver = Some(annotated(
-                builder.unit,
-                json!({"symbol": symbol, "type": ty}),
-                annotation,
-            ));
-            continue;
-        }
-        let position = index - usize::from(has_self);
-        let record = json!({"position": position, "symbol": symbol, "type": ty, "bindings": bindings,
-                            "pattern": builder.id(param.pat.hir_id),
-                            "original_kind": compiler::original_kind(tcx, param.pat.hir_id)});
-        let annotation = sig.decl.inputs.get(index).map(|ty| ty.span);
-        parameters.push(located_parameter(
-            builder.unit,
-            record,
-            (param.pat.span, annotation),
-        ));
-    }
+    let (parameters, receiver) = parameters(builder, (sig, body), fn_sig, has_self);
 
     let mut signature = json!({"parameters": parameters, "result": builder.unit.ty(fn_sig.output()),
                                "generics": generics(builder.unit, id), "lifetimes": lifetimes(builder.unit, id),
@@ -412,6 +388,57 @@ fn signature<'tcx>(
         signature["owner_type"] = json!(builder.unit.ty(owner));
     }
     signature
+}
+
+// rstyle-allow(mutated_targets, mutation_per_target): records each parameter through the builder that accumulates the document
+/// The parameters in order and the receiver, each with its symbol, type and spans.
+fn parameters<'tcx>(
+    builder: &mut body::Builder<'_, 'tcx>,
+    (sig, body): (&'tcx rustc_hir::FnSig<'tcx>, &'tcx rustc_hir::Body<'tcx>),
+    fn_sig: rustc_middle::ty::FnSig<'tcx>,
+    has_self: bool,
+) -> (Vec<Value>, Option<Value>) {
+    let tcx = builder.unit.tcx;
+    let mut parameters = Vec::new();
+    let mut receiver = None;
+    for (index, param) in body.params.iter().enumerate() {
+        let (symbol, bindings) = builder.parameter(param.pat, index);
+        let ty = builder.unit.ty(fn_sig.inputs()[index]);
+        let declared = declared_provenance(builder, param.pat.span);
+        if has_self && index == 0 {
+            let annotation = sig.decl.inputs.first().map(|ty| ty.span);
+            let mut record = json!({"symbol": symbol, "type": ty});
+            if let Some(declared) = declared {
+                record["provenance"] = declared;
+            }
+            receiver = Some(annotated(builder.unit, record, annotation));
+            continue;
+        }
+        let position = index - usize::from(has_self);
+        let mut record = json!({"position": position, "symbol": symbol, "type": ty, "bindings": bindings,
+                            "pattern": builder.id(param.pat.hir_id),
+                            "original_kind": compiler::original_kind(tcx, param.pat.hir_id)});
+        if let Some(declared) = declared {
+            record["provenance"] = declared;
+        }
+        let annotation = sig.decl.inputs.get(index).map(|ty| ty.span);
+        parameters.push(located_parameter(
+            builder.unit,
+            record,
+            (param.pat.span, annotation),
+        ));
+    }
+
+    (parameters, receiver)
+}
+
+/// Where a parameter is declared, when a macro expansion or a desugaring writes it.
+fn declared_provenance(
+    builder: &mut body::Builder<'_, '_>,
+    span: rustc_span::Span,
+) -> Option<Value> {
+    let provenance = builder.provenance(span);
+    (provenance["origin"] != "source").then_some(provenance)
 }
 
 /// A parameter with the spans its pattern and its type are written at.

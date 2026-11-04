@@ -1,5 +1,6 @@
 //! The capture's frontend facts, read from the crate's `compat.cpg` documents.
 
+use rstyle_core::advisory::runtime_bounds::{CAPTURE_ENV, Input, KEY, Observation};
 use rstyle_pdg::HirFnFacts;
 use rstyle_pdg::cpg_reader::{self, unit::Documents};
 use rustc_middle::ty::TyCtxt;
@@ -12,9 +13,13 @@ pub(super) fn capture(
     tcx: TyCtxt<'_>,
     (options, passes): (&super::Options<'_>, cpg_reader::Passes),
 ) -> Result<(Vec<HirFnFacts>, Documents), String> {
-    let (mut derived, documents) = read_documents(tcx, (options, passes))?;
+    let Read {
+        facts: mut derived,
+        documents,
+        programs,
+    } = read_documents(tcx, (options, passes))?;
 
-    let facts = super::function_owners(tcx)
+    let mut facts: Vec<HirFnFacts> = super::function_owners(tcx)
         .map(|id| {
             let key = (
                 tcx.def_path_str(id.to_def_id()),
@@ -26,14 +31,62 @@ pub(super) fn capture(
                 .map_err(|reason| format!("{}: {reason}", key.0))
         })
         .collect::<Result<_, _>>()?;
+    if let Some(programs) = programs {
+        bounds(tcx, options, &programs, &mut facts)?;
+    }
+
     Ok((facts, documents))
+}
+
+/// What the crate's documents give the capture: each function's facts, what they
+/// record of the unit and, when the run asks for them, each owner's runtime-bound
+/// program as the core lowers it, or why lowering failed.
+struct Read {
+    facts: Derived,
+    documents: Documents,
+    programs: Option<Result<BTreeMap<String, Input>, String>>,
+}
+
+/// Each function's runtime-bound observation: its program, or why it has none.
+fn bounds(
+    tcx: TyCtxt<'_>,
+    options: &super::Options<'_>,
+    programs: &Result<BTreeMap<String, Input>, String>,
+    facts: &mut [HirFnFacts],
+) -> Result<(), String> {
+    let krate = format!(
+        "{:016x}",
+        tcx.stable_crate_id(rustc_span::def_id::LOCAL_CRATE)
+            .as_u64()
+    );
+    for (id, function) in super::function_owners(tcx).zip(facts.iter_mut()) {
+        let owner = crate::ids::def_id_str(tcx, id.to_def_id());
+        let unavailable = |reason: String| Input::Unavailable { reason };
+        let input = match (options.source_root, programs) {
+            (None, _) => unavailable("Advisory capture has no source root".into()),
+            (Some(_), Err(error)) => unavailable(format!("compat.cpg lowering failed: {error}")),
+            (Some(_), Ok(programs)) => programs.get(&owner).cloned().unwrap_or_else(|| {
+                unavailable("Owner is absent from the crate's compat.cpg document".into())
+            }),
+        };
+        let observation = Observation {
+            schema: KEY.into(),
+            owner,
+            krate: krate.clone(),
+            input,
+        };
+        let value = serde_json::to_value(observation).map_err(|error| error.to_string())?;
+        function.build.frontend_options.insert(KEY.into(), value);
+    }
+
+    Ok(())
 }
 
 /// The facts read from the crate's documents, by function.
 fn read_documents(
     tcx: TyCtxt<'_>,
     (options, passes): (&super::Options<'_>, cpg_reader::Passes),
-) -> Result<(Derived, Documents), String> {
+) -> Result<Read, String> {
     let root = document_root(tcx, options);
     let package = options.unit_context.map(|context| &context.package);
     let session = json!({"invocation": options.invocation,
@@ -81,17 +134,22 @@ fn derived(
         serde_json::Value,
     ),
     (options, passes): (&super::Options<'_>, cpg_reader::Passes),
-) -> Result<(Derived, Documents), String> {
+) -> Result<Read, String> {
     let profile = options.selected();
     let mut derived = BTreeMap::new();
     let mut documents = Documents::default();
+    let requested = std::env::var_os(CAPTURE_ENV).as_deref() == Some(std::ffi::OsStr::new("1"));
+    let mut programs = requested.then(|| Ok(BTreeMap::new()));
     let observe = |id| super::function_observations(tcx, options, id);
     let capture = crate::cpg::Capture {
         session: Some(session),
         observe: Some(&observe),
         unit: unit_observations(tcx, options),
     };
-    for (document, _) in crate::cpg::documents_in(tcx, (root, package), capture) {
+    for (document, unrecorded) in crate::cpg::documents_in(tcx, (root, package), capture) {
+        if let Some(programs) = programs.as_mut() {
+            lower(tcx, programs, (&document, unrecorded));
+        }
         let document = rstyle_core::cpg::layout::bundle(vec![document])?;
         documents.add(&document);
         for read in cpg_reader::read(&document, profile, passes)? {
@@ -99,7 +157,36 @@ fn derived(
         }
     }
 
-    Ok((derived, documents))
+    Ok(Read {
+        facts: derived,
+        documents,
+        programs,
+    })
+}
+
+// rstyle-allow(mutation_per_target): extends the crate's programs with one document's, or keeps why lowering failed
+/// Extends the crate's runtime-bound programs with one document's: each function it
+/// records, lowered by the core, and each it could not record, with why.
+fn lower(
+    tcx: TyCtxt<'_>,
+    programs: &mut Result<BTreeMap<String, Input>, String>,
+    (document, unrecorded): (
+        &serde_json::Value,
+        Vec<(rustc_hir::def_id::LocalDefId, String)>,
+    ),
+) {
+    let Ok(lowered) = programs else {
+        return;
+    };
+    let unavailable = unrecorded.into_iter().map(|(id, reason)| {
+        let owner = crate::ids::def_id_str(tcx, id.to_def_id());
+        (owner, Input::Unavailable { reason })
+    });
+    lowered.extend(unavailable);
+    match rstyle_core::cpg::run_bounds(vec![document.clone()]) {
+        Ok(bounds) => lowered.extend(bounds),
+        Err(error) => *programs = Err(error),
+    }
 }
 
 /// The unit's own compiler observations, as its extensions.

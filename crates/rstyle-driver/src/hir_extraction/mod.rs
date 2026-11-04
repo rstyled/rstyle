@@ -26,6 +26,7 @@ pub(crate) mod hir_tags {
 }
 mod document_facts;
 pub(crate) mod runtime_bounds;
+mod style_check;
 /// The requested instance diagnostics, over the facts read for the crate.
 pub(crate) fn capture_instance_diagnostics(
     tcx: TyCtxt<'_>,
@@ -52,7 +53,7 @@ mod scalar_product_constructors;
 mod size_calls;
 mod slice_patterns;
 pub mod source;
-mod source_scans;
+pub(crate) mod source_scans;
 mod sources;
 mod trait_members;
 mod tuple_assignment;
@@ -69,12 +70,30 @@ pub struct Options<'a> {
     pub source_root: Option<&'a std::path::Path>,
     pub(super) sources: sources::Sources,
     pub(super) runtime_bounds: runtime_bounds::Programs,
+    /// The crate's pre-expansion source scan, and its index, built once when first read.
+    pub scanned: &'a [source::Function],
+    pub(super) scans: std::cell::OnceCell<source_scans::SourceScans<'a>>,
     pub profile: Option<ExtractionProfile>,
     pub invocation: &'a [String],
     pub unit_context: Option<&'a rstyle_pdg::nominal_boundary::UnitContext>,
 }
 
-impl Options<'_> {
+impl<'a> Options<'a> {
+    /// The scanned function a captured function corresponds to, as the frontend finds it.
+    pub(super) fn scan(
+        &self,
+        signature: rustc_span::Span,
+        body: rustc_span::Span,
+    ) -> Option<&'a source::Function> {
+        let scans = self
+            .scans
+            .get_or_init(|| source_scans::SourceScans::new(self.scanned));
+        let conditional = self
+            .selected()
+            .supports("rust.conditional-source-correspondence");
+        scans.find(signature, body, conditional)
+    }
+
     pub fn selected(&self) -> ExtractionProfile {
         self.profile.unwrap_or_default()
     }
@@ -129,9 +148,36 @@ pub fn advisory_crate_facts(
     Ok(facts)
 }
 
-/// Numeric style inputs retain original owner metadata without materializing a
-/// source-facing body tree or a binding inventory that no requested consumer uses.
+/// Numeric style inputs retain original owner metadata without a source-facing body
+/// tree or a binding inventory that no requested consumer uses: the advisory facts
+/// read from the crate's documents, each body kept as its root's identity.
 pub fn style_crate_facts(
+    tcx: TyCtxt<'_>,
+    scanned: &[source::Function],
+    options: &Options<'_>,
+) -> Result<Vec<StyleFnFacts>, String> {
+    let (facts, _) = collect_crate_facts(tcx, options, FunctionEvidence::Style)?;
+    let facts: Vec<StyleFnFacts> = facts
+        .into_iter()
+        .map(|facts| HirFnFacts {
+            body: facts.body.hir,
+            bindings: Uncaptured::NotRequested,
+            name: facts.name,
+            fn_span: facts.fn_span,
+            source: facts.source,
+            signature: facts.signature,
+            build: facts.build,
+            source_diagnostics: facts.source_diagnostics,
+            source_scan_complete: facts.source_scan_complete,
+        })
+        .collect();
+    style_check::compare(tcx, &facts, || style_reference(tcx, scanned, options))?;
+
+    Ok(facts)
+}
+
+/// The style inputs as the compiler capture the documents replace collects them.
+fn style_reference(
     tcx: TyCtxt<'_>,
     scanned: &[source::Function],
     options: &Options<'_>,
@@ -153,6 +199,7 @@ pub fn style_crate_facts(
 }
 
 enum FunctionEvidence {
+    Style,
     Advisory { mutations: bool },
     All,
 }
@@ -163,6 +210,7 @@ fn collect_crate_facts(
     evidence: FunctionEvidence,
 ) -> Result<(Vec<HirFnFacts>, rstyle_pdg::cpg_reader::unit::Documents), String> {
     let passes = match evidence {
+        FunctionEvidence::Style => rstyle_pdg::cpg_reader::Passes::Style,
         FunctionEvidence::Advisory { mutations: false } => rstyle_pdg::cpg_reader::Passes::Advisory,
         FunctionEvidence::Advisory { mutations: true } => {
             rstyle_pdg::cpg_reader::Passes::AdvisoryMutations
@@ -321,6 +369,9 @@ pub(super) fn function_observations(
     id: LocalDefId,
 ) -> serde_json::Map<String, serde_json::Value> {
     let mut extensions = serde_json::Map::new();
+    if let Some(scan) = source_scan(tcx, id, options) {
+        extensions.insert("rust:source-scan".into(), scan);
+    }
     if let Some(generated) = generated_sources::observe::function(tcx, options, id) {
         let name = rstyle_pdg::cpg_reader::generated_sources::FUNCTION_EXTENSION;
         extensions.insert(name.into(), generated);
@@ -562,6 +613,22 @@ fn signature<'tcx>(
         is_unsafe: sig.header.is_unsafe(),
         is_const: matches!(sig.header.constness, rhir::Constness::Const { .. }),
     }
+}
+
+/// A function's pre-expansion source scan, as the `rust:source-scan` extension: the
+/// findings on its own source, and whether all of it was scanned.
+fn source_scan(
+    tcx: TyCtxt<'_>,
+    id: LocalDefId,
+    options: &Options<'_>,
+) -> Option<serde_json::Value> {
+    let sig = tcx.hir_node_by_def_id(id).fn_sig()?;
+    let (ctx, _) = function_context(tcx, id, options)?;
+    let scan = options.scan(ctx.function_span, body_source_span(tcx, id));
+    let findings = source_findings(&ctx, scan, sig.span);
+    let complete = scan.is_some_and(|scan| !scan.conditional_source);
+
+    Some(serde_json::json!({"findings": findings, "complete": complete}))
 }
 
 fn source_findings(

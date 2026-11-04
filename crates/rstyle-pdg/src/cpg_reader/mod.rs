@@ -21,7 +21,6 @@ mod patterns;
 pub mod projections;
 mod propagation;
 mod resolution;
-mod scan;
 mod slices;
 pub mod unit;
 mod variants;
@@ -65,8 +64,6 @@ pub fn read(
 struct Reader<'a> {
     unit: &'a Unit,
     passes: Passes,
-    /// Each scanned file's functions, by file ID.
-    scans: std::cell::RefCell<BTreeMap<&'a str, std::rc::Rc<Vec<scan::Function>>>>,
     producer: &'a rstyle_core::cpg::model::Producer,
     tables: Tables<'a>,
     files: BTreeMap<&'a str, &'a File>,
@@ -89,7 +86,6 @@ impl<'a> Reader<'a> {
             .collect();
         Ok(Self {
             unit,
-            scans: Default::default(),
             producer,
             advisory: None,
             snapshots: Default::default(),
@@ -156,7 +152,7 @@ impl<'a> Reader<'a> {
             .chain(crate::frontend::bindings(&tree, &scope))
             .collect();
         let signature = context.signature(params)?;
-        let (source_diagnostics, source_scan_complete) = context.source_scan(function)?;
+        let (source_diagnostics, source_scan_complete) = context.source_scan()?;
 
         Ok(HirFnFacts {
             name: function.name.clone(),
@@ -341,7 +337,9 @@ impl<'a> Context<'_, 'a> {
     // rstyle-allow(mutation_per_target): each pass installs its own records on the facts in turn
     /// The frontend's passes after its walk, in its order.
     fn after_walk(&self, mut facts: HirFnFacts, passes: Passes) -> Result<HirFnFacts, String> {
-        self.concrete_types(&mut facts, passes)?;
+        if passes != Passes::Style {
+            self.concrete_types(&mut facts, passes)?;
+        }
         self.reader.advisory(self.body.function, &mut facts)?;
         if passes == Passes::Complete {
             self.inherent_definition(&mut facts)?;
