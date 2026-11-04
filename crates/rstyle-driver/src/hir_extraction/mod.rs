@@ -178,12 +178,14 @@ fn collect_crate_facts(
         FunctionEvidence::All => rstyle_pdg::cpg_reader::Passes::Complete,
     };
     let collector = FunctionCollector { evidence };
-    let facts = collect_source_functions(tcx, scanned, options, |sources, id| {
-        collector.function(id, sources).map_err(|error| format!("{}: {error}", tcx.def_path_str(id.to_def_id()))).and_then(|facts| facts.ok_or_else(|| format!(
-            "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
-        )))
-    })?;
-    reader_check::check(tcx, (options, passes), facts)
+    let direct = || {
+        collect_source_functions(tcx, scanned, options, |sources, id| {
+            collector.function(id, sources).map_err(|error| format!("{}: {error}", tcx.def_path_str(id.to_def_id()))).and_then(|facts| facts.ok_or_else(|| format!(
+                "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
+            )))
+        })
+    };
+    reader_check::capture(tcx, (options, passes), direct)
 }
 
 fn collect_source_functions<T>(

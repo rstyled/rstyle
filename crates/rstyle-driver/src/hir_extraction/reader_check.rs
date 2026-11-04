@@ -1,6 +1,8 @@
-//! Diagnostic: the frontend facts read back from the crate's `compat.cpg` documents,
-//! compared channel by channel with the facts this capture produced. Enabled by
-//! `RSTYLE_DIAGNOSTIC_CPG_READER_DIR`, which receives one JSON-lines file per crate.
+//! The capture's frontend facts, read from the crate's `compat.cpg` documents. The
+//! compiler capture these documents replace remains a diagnostic oracle:
+//! `RSTYLE_DIAGNOSTIC_CPG_READER_DIR` receives, per crate, one JSON-lines file comparing
+//! it channel by channel with the facts read, and `RSTYLE_DIAGNOSTIC_DIRECT_CAPTURE`
+//! continues with its facts instead.
 
 use rstyle_pdg::HirFnFacts;
 use rstyle_pdg::cpg_reader::{self, compare::Difference};
@@ -11,70 +13,79 @@ use std::io::Write;
 
 pub const DIR_ENV: &str = "RSTYLE_DIAGNOSTIC_CPG_READER_DIR";
 
-/// With `READ_ENV` set, the capture's facts are the ones read from its documents.
-pub const READ_ENV: &str = "RSTYLE_CPG_READER_FACTS";
+/// With `DIRECT_ENV` set, the capture continues with the compiler capture's own facts.
+pub const DIRECT_ENV: &str = "RSTYLE_DIAGNOSTIC_DIRECT_CAPTURE";
 
-/// Compares the capture's facts with those read from its documents when asked, and
-/// returns the facts the capture continues with: its own, or with `READ_ENV` set the
-/// facts read back, which must then cover every function.
-pub(super) fn check(
+/// The facts of every function the crate owns, in owner order, read from its documents;
+/// with `DIRECT_ENV` set, the `direct` capture's. With `DIR_ENV` set, the two are
+/// compared first.
+pub(super) fn capture(
     tcx: TyCtxt<'_>,
     (options, passes): (&super::Options<'_>, cpg_reader::Passes),
-    facts: Vec<HirFnFacts>,
+    direct: impl FnOnce() -> Result<Vec<HirFnFacts>, String>,
 ) -> Result<Vec<HirFnFacts>, String> {
     let dir = std::env::var_os(DIR_ENV);
-    let read = std::env::var_os(READ_ENV).is_some();
-    if dir.is_none() && !read {
-        return Ok(facts);
+    let continue_direct = std::env::var_os(DIRECT_ENV).is_some();
+    if continue_direct && dir.is_none() {
+        return direct();
     }
-    let derived = read_documents(tcx, (options, passes), &facts);
+    let derived = read_documents(tcx, (options, passes));
     if let Some(dir) = dir {
-        let profile = options.selected().token();
-        let lines = facts.iter().map(|reference| {
-            let differences = function_differences(reference, &derived);
-            json!({"function": reference.name, "profile": profile, "differences": differences})
-        });
-        write(tcx, std::path::Path::new(&dir), lines)?;
+        let facts = direct()?;
+        compare(tcx, (options, std::path::Path::new(&dir)), &facts, &derived)?;
+        if continue_direct {
+            return Ok(facts);
+        }
     }
-    if !read {
-        return Ok(facts);
-    }
-    let mut derived = derived;
+    let mut derived = derived?;
 
-    facts
-        .iter()
-        .map(|reference| {
-            let key = key(reference);
+    super::function_owners(tcx)
+        .map(|id| {
+            let key = (tcx.def_path_str(id.to_def_id()), id.local_def_index.as_u32());
             derived
                 .remove(&key)
                 .unwrap_or_else(|| Err(format!("No document function {} at {}", key.0, key.1)))
-                .map_err(|reason| format!("{}: {reason}", reference.name))
+                .map_err(|reason| format!("{}: {reason}", key.0))
         })
         .collect()
 }
 
-/// The facts read from the crate's documents, by function; a failure to read the
-/// documents is each function's.
+/// Writes each captured function's differences from the facts read for it.
+fn compare(
+    tcx: TyCtxt<'_>,
+    (options, dir): (&super::Options<'_>, &std::path::Path),
+    facts: &[HirFnFacts],
+    derived: &Result<Derived, String>,
+) -> Result<(), String> {
+    let profile = options.selected().token();
+    let lines = facts.iter().map(|reference| {
+        let differences = match derived {
+            Ok(derived) => function_differences(reference, derived),
+            Err(error) => vec![unread("function.read", error)],
+        };
+        let mut line = json!({"function": reference.name, "profile": profile});
+        if !differences.is_empty() {
+            line["source"] = json!(reference.source.bytes);
+        }
+        line["differences"] = json!(differences);
+        line
+    });
+    write(tcx, dir, lines)
+}
+
+/// The facts read from the crate's documents, by function.
 fn read_documents(
     tcx: TyCtxt<'_>,
     (options, passes): (&super::Options<'_>, cpg_reader::Passes),
-    facts: &[HirFnFacts],
-) -> Derived {
+) -> Result<Derived, String> {
     let root = document_root(tcx, options);
     let package = options.unit_context.map(|context| &context.package);
     let session = json!({"invocation": options.invocation,
                          "profile_selection": options.profile.map(|profile| profile.token()),
                          "selected_unit": options.unit_context});
-    let result = root
-        .ok_or_else(|| "The crate has no root source file".to_owned())
-        .and_then(|root| derived(tcx, (root.as_path(), package, session), (options, passes)));
+    let root = root.ok_or_else(|| "The crate has no root source file".to_owned())?;
 
-    result.unwrap_or_else(|error| {
-        facts
-            .iter()
-            .map(|reference| (key(reference), Err(error.clone())))
-            .collect()
-    })
+    derived(tcx, (root.as_path(), package, session), (options, passes))
 }
 
 /// One function's differences from the facts read for it, or why none were read.
