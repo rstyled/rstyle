@@ -15,7 +15,7 @@ mod evidence;
 mod external_imports;
 mod float_scalars;
 mod for_loops;
-mod generated_sources;
+pub(crate) mod generated_sources;
 mod hir;
 mod id_error_maps;
 mod id_reader_constants;

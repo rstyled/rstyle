@@ -4,6 +4,7 @@
 
 mod callbacks;
 mod enums;
+mod generated;
 mod storage;
 
 use super::Context;
@@ -349,6 +350,9 @@ impl<'a> Capture<'_, '_, 'a> {
     /// A local struct with its declaration as written and its fields' types.
     fn structure(&mut self, ty: &'a Type, depth: usize) -> Result<TypeTree, Failure> {
         let (definition, fields) = self.checked_structure(ty)?;
+        if let Some(generated) = definition.extensions.get("rust:generated-declaration") {
+            return self.generated_structure((definition, fields), generated, depth);
+        }
         let source = self.declaration(definition)?;
         if self.context.reader.profile.is_data() {
             crate::concrete_types::lifetimes::declaration_count(&source)

@@ -99,6 +99,9 @@ impl<'tcx> Unit<'tcx> {
             if let Some(span) = self.declaration(def_id) {
                 record["span"] = span;
             }
+            if let Some(generated) = self.generated_declaration(def_id) {
+                record["extensions"]["rust:generated-declaration"] = generated;
+            }
             // An inherent method names its implementation, recorded as a definition too.
             if let Some(implementation) = self.inherent_implementation(def_id) {
                 record["extensions"]["rust:compiler-identity"]["inherent_impl"] =
@@ -173,6 +176,45 @@ impl<'tcx> Unit<'tcx> {
             _ => return None,
         };
         (!span.from_expansion()).then(|| self.span(span)).flatten()
+    }
+
+    /// A local struct a macro generates: its declaration and field types as the macro
+    /// writes them, and the original local macro invocation it comes from, if unique.
+    fn generated_declaration(&mut self, def_id: DefId) -> Option<Value> {
+        let local = def_id.as_local()?;
+        if self.tcx.def_kind(def_id) != DefKind::Struct {
+            return None;
+        }
+        let rustc_hir::Node::Item(item) = self.tcx.hir_node_by_def_id(local) else {
+            return None;
+        };
+        let rustc_hir::ItemKind::Struct(_, generics, data) = item.kind else {
+            return None;
+        };
+        if !item.span.from_expansion() {
+            return None;
+        }
+        let shape = match data {
+            rustc_hir::VariantData::Struct { .. } => "record",
+            rustc_hir::VariantData::Tuple(..) => "tuple",
+            rustc_hir::VariantData::Unit(..) => "unit",
+        };
+        let fields: Option<Vec<Value>> = data
+            .fields()
+            .iter()
+            .map(|field| self.span(field.ty.span))
+            .collect();
+        let mut record =
+            json!({"template": self.span(item.span)?, "shape": shape, "field_types": fields?});
+        if !generics.params.is_empty() || !generics.predicates.is_empty() {
+            record["generic"] = json!(true);
+        }
+        if let Some(root) =
+            crate::hir_extraction::generated_sources::generated_root(self.tcx, local)
+        {
+            record["root"] = json!(root);
+        }
+        Some(record)
     }
 
     // rstyle-allow(mutation_per_target): the unit interns referenced records as it builds them

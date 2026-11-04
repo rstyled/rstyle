@@ -82,9 +82,10 @@ impl<'a> Reader<'a> {
     }
 
     fn read(&self, function: &'a Function) -> Read {
+        let located = located(function);
         let fn_span = ByteSpan {
-            start: function.span.start as u32,
-            end: function.span.end as u32,
+            start: located.start as u32,
+            end: located.end as u32,
         };
         Read {
             name: function.name.clone(),
@@ -95,7 +96,8 @@ impl<'a> Reader<'a> {
 
     fn facts(&self, function: &'a Function, fn_span: ByteSpan) -> Result<HirFnFacts, String> {
         let body = Body::new(function)?;
-        let source = self.source(&function.span)?;
+        let located = located(function);
+        let source = self.source(located)?;
         let context = Context {
             reader: self,
             body: &body,
@@ -109,7 +111,7 @@ impl<'a> Reader<'a> {
                         .map(move |child| (child.as_str(), node))
                 })
                 .collect(),
-            origin: function.span.start,
+            origin: located.start,
             source: source.as_str(),
         };
         let params = context.parameters()?;
@@ -235,7 +237,16 @@ struct Context<'r, 'a> {
 
 impl<'a> Context<'_, 'a> {
     /// A file span relative to the function's bytes.
+    /// A macro-generated function locates what its macro writes at the call site.
     fn span(&self, span: &FileSpan) -> ByteSpan {
+        let located = located(self.body.function);
+        let outside =
+            span.file != located.file || span.start < located.start || span.end > located.end;
+        let span = if outside && !std::ptr::eq(located, &self.body.function.span) {
+            located
+        } else {
+            span
+        };
         ByteSpan {
             start: span.start.saturating_sub(self.origin) as u32,
             end: span.end.saturating_sub(self.origin) as u32,
@@ -458,6 +469,18 @@ impl Context<'_, '_> {
 }
 
 /// The HIR identity a node or symbol ID carries: `f<owner>.<local>` or `sf<owner>.<local>`.
+/// Where the frontend locates a function: where it is written, or for a function a
+/// macro generates, the macro's outermost call site.
+fn located(function: &Function) -> &FileSpan {
+    function
+        .nodes
+        .iter()
+        .find(|node| node.id == function.root)
+        .filter(|root| root.provenance.origin == rstyle_core::cpg::model::Origin::MacroExpansion)
+        .and_then(|root| root.provenance.call_site.as_ref())
+        .unwrap_or(&function.span)
+}
+
 fn hir_ref(id: &str) -> HirRef {
     let id = id.strip_prefix('s').unwrap_or(id);
     let id = id.strip_prefix('f').unwrap_or(id);

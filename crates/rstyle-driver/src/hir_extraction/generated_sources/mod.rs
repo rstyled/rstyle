@@ -13,6 +13,11 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::{ExpnId, Span};
 use std::{collections::BTreeSet, sync::Arc};
 
+/// The unique original local bang expansion a generated definition comes from.
+pub(crate) fn generated_root(tcx: TyCtxt<'_>, id: LocalDefId) -> Option<String> {
+    Roots::new(tcx).definition(id).ok().flatten().map(identity)
+}
+
 pub(super) fn declaration_origin(
     ctx: &super::hir::Context<'_>,
     id: DefId,

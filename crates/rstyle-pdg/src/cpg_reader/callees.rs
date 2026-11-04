@@ -5,7 +5,6 @@ use super::Context;
 use crate::frontend::PathRes;
 use rstyle_core::cpg::model::{Definition, Node, Scope, TargetKind};
 use serde::Serialize;
-use serde_json::Value;
 
 /// A direct or inherent helper callee, as the frontend serializes it.
 #[derive(Serialize)]
@@ -31,7 +30,14 @@ pub(super) struct Dependency {
     stable_crate_id: String,
     crate_hash: String,
     rmeta: String,
-    instance: Value,
+    instance: Instance,
+}
+
+/// A nongeneric dependency's instance: no type or const arguments.
+#[derive(Serialize, Default)]
+pub(super) struct Instance {
+    type_arguments: [(); 0],
+    const_arguments: [(); 0],
 }
 
 impl<'a> Context<'_, 'a> {
@@ -57,6 +63,9 @@ impl<'a> Context<'_, 'a> {
             return self.library_callee(definition);
         }
         if !local && kind == "AssocFn" && profile.is_data() {
+            if let Some(resolution) = self.range_from_helper(call, definition) {
+                return Some(resolution);
+            }
             let capture = self.associated_capture(call, definition);
             return self.instantiated_callee(call, definition, capture);
         }
@@ -139,6 +148,39 @@ impl<'a> Context<'_, 'a> {
             .and_then(|owner| self.reader.tables.definition(owner).ok())
             .is_some_and(|owner| owner.kind == rstyle_core::cpg::model::DefinitionKind::Trait);
         (!member).then_some(callee)
+    }
+
+    /// A local nongeneric `From` conversion producing a `Range<usize>`, as the local
+    /// helper it selects, with the trait call's selection.
+    fn range_from_helper(&self, call: &Node, definition: &Definition) -> Option<PathRes> {
+        if !self.reader.profile.supports("rust.fresh-range-results")
+            || !self.local_from(call, definition)
+        {
+            return None;
+        }
+        let output = self.reader.ty(call.ty.as_deref()?).ok()?;
+        let range = self
+            .reader
+            .tables
+            .definition(output.definition.as_deref()?)
+            .ok()?;
+        let usize = match output.arguments.as_deref()? {
+            [argument] => self.reader.ty(argument).ok()?.spelling == "usize",
+            _ => false,
+        };
+        if !matches!(range.name.as_str(), "core::ops::Range" | "std::ops::Range")
+            || range.scope == Scope::Unit
+            || !usize
+        {
+            return None;
+        }
+        let selected = self.selected(call)?;
+        let mut resolution = self.helper(selected, ("resolved_direct_callee", None), None)?;
+        let mut record: serde_json::Value = serde_json::from_str(&resolution.description).ok()?;
+        let selection = self.instantiated_callee(call, definition, true)?;
+        record["trait_selection"] = serde_json::from_str(&selection.description).ok()?;
+        resolution.description = record.to_string();
+        Some(resolution)
     }
 
     /// Whether the profile captures a library associated function's conversion.
@@ -481,7 +523,7 @@ impl<'a> Context<'_, 'a> {
             stable_crate_id: identity(definition, "stable_crate_id")?.to_owned(),
             crate_hash: identity(definition, "crate_hash")?.to_owned(),
             rmeta: identity(definition, "rmeta")?.to_owned(),
-            instance: serde_json::json!({"type_arguments": [], "const_arguments": []}),
+            instance: Instance::default(),
         })
     }
 }
