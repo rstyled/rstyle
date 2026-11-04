@@ -6,6 +6,7 @@ mod callbacks;
 mod enums;
 mod generated;
 mod products;
+mod receivers;
 mod storage;
 
 use super::Context;
@@ -62,6 +63,7 @@ impl<'a> Context<'_, 'a> {
                 Passes::Complete => {
                     capture.node_tokens(&mut facts.body, false)?;
                     capture.binding_tokens(&mut facts.bindings, false)?;
+                    capture.install_receivers(facts)?;
                     capture.callback_environments(&mut facts.body)?;
                 }
                 Passes::Advisory => capture.binding_tokens(&mut facts.bindings, true)?,

@@ -41,7 +41,8 @@ impl<'a> Capture<'_, '_, 'a> {
         Ok(())
     }
 
-    fn closure(&self, node: &HirNode) -> Result<&'a Node, String> {
+    /// The document node a record's HIR identity names.
+    pub(super) fn cpg_node(&self, node: &HirNode) -> Result<&'a Node, String> {
         self.context
             .body
             .node(&format!("f{}.{}", node.hir.owner, node.hir.local))
@@ -69,7 +70,7 @@ impl<'a> Capture<'_, '_, 'a> {
         (kind, identity): (&str, &str),
     ) -> Result<(), String> {
         if node.kind == "expr_closure" && !node.children.is_empty() {
-            let closure = self.closure(node)?;
+            let closure = self.cpg_node(node)?;
             if selected(self.context, closure) {
                 let environment = self.reader_environment(closure, identity)?;
                 node.res = Some(PathRes {
@@ -115,7 +116,7 @@ impl<'a> Capture<'_, '_, 'a> {
         node: &HirNode,
         shared_owner: bool,
     ) -> Result<PathRes, String> {
-        let closure = self.closure(node)?;
+        let closure = self.cpg_node(node)?;
         let (_, environment, captures) = self.environment_parts(closure)?;
         let shared_place = captures
             .first()

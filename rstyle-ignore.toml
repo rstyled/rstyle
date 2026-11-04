@@ -4,6 +4,15 @@
 
 version = 1
 
+[ignore.0cdd2c857234]
+kind = "generic_fn"
+reason = "distinct type predicates (a shared character, a shared byte slice, the bottom type) that share only the type lookup idiom"
+fns = [
+  "rstyle_pdg::cpg_reader::Context::byte_slice",
+  "rstyle_pdg::cpg_reader::Context::never",
+  "rstyle_pdg::cpg_reader::concrete::Capture::shared_character",
+]
+
 [ignore.3d01b396fee9]
 kind = "generic_fn"
 reason = "residual one-line wrappers around shared well_formed helper; nothing left to merge"
@@ -347,6 +356,16 @@ fns = [
   "rstyle_driver::hir_extraction::hir::Context::propagation_arms",
   "rstyle_pdg::cpg_reader::Context::propagation_arm",
   "rstyle_pdg::cpg_reader::Context::propagation_arms",
+]
+
+[ignore.7c579a40f714]
+kind = "trait_method"
+reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
+fns = [
+  "rstyle_driver::hir_extraction::concrete_types::Capture::install_receivers",
+  "rstyle_driver::hir_extraction::concrete_types::Capture::receiver_records",
+  "rstyle_pdg::cpg_reader::concrete::Capture::install_receivers",
+  "rstyle_pdg::cpg_reader::concrete::Capture::receiver_records",
 ]
 
 [ignore.896e0a5c17f0]

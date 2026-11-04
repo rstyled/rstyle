@@ -995,7 +995,9 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         } else {
             "method"
         };
-        let mut record = self.selected_call(def_id, self.typeck.node_args(expr.hir_id), dispatch);
+        let args = self.typeck.node_args(expr.hir_id);
+        let mut record = self.selected_call(def_id, args, dispatch);
+        record["signature"] = self.instance_signature(def_id, args);
         if compiler::iterator_member(self.tcx, def_id) {
             let receiver = self.typeck.expr_ty_adjusted(receiver);
             if let Some(item) = compiler::iterator_item(self.tcx, self.owner, receiver) {
@@ -1003,6 +1005,35 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             }
         }
         record
+    }
+
+    /// The callee's parameter and result types as the call instantiates them, each
+    /// normalized as the body's own types are, or null where it cannot be.
+    fn instance_signature(
+        &mut self,
+        callee: hir::def_id::DefId,
+        args: ty::GenericArgsRef<'tcx>,
+    ) -> Value {
+        let signature = self
+            .tcx
+            .fn_sig(callee)
+            .instantiate(self.tcx, args)
+            .skip_binder();
+        let environment = ty::TypingEnv::post_typeck_until_borrowck(self.tcx, self.owner);
+        let mut normalized = |ty: ty::Ty<'tcx>| {
+            self.tcx
+                .try_normalize_erasing_regions(environment, ty::Unnormalized::new_wip(ty))
+                .ok()
+                .map(|ty| self.unit.ty(ty))
+        };
+        let parameters: Vec<Option<String>> = signature
+            .inputs()
+            .iter()
+            .map(|ty| normalized(*ty))
+            .collect();
+        let result = normalized(signature.output());
+
+        json!({"parameters": parameters, "result": result})
     }
 
     // rstyle-allow(mutation_per_target): assembles one reference record field by field

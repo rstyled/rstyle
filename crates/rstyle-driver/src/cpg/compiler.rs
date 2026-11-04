@@ -64,12 +64,12 @@ fn records<'tcx, T>(
 
 fn adjustment_kind(kind: &Adjust) -> Kind {
     match *kind {
-        Adjust::NeverToAny => ("other", None),
+        Adjust::NeverToAny => ("rust:never-to-any", None),
         Adjust::Deref(DerefAdjustKind::Builtin) => ("auto_deref", None),
         Adjust::Deref(DerefAdjustKind::Overloaded(deref)) => {
             ("overloaded_deref", Some(mode(deref.mutbl)))
         }
-        Adjust::Deref(DerefAdjustKind::Pin) => ("other", None),
+        Adjust::Deref(DerefAdjustKind::Pin) => ("rust:pin-deref", None),
         Adjust::Borrow(AutoBorrow::Ref(AutoBorrowMutability::Not)) => ("auto_ref", Some("shared")),
         Adjust::Borrow(AutoBorrow::Ref(AutoBorrowMutability::Mut { .. })) => {
             ("auto_ref", Some("exclusive"))
@@ -77,7 +77,7 @@ fn adjustment_kind(kind: &Adjust) -> Kind {
         Adjust::Borrow(AutoBorrow::RawPtr(_)) => ("auto_ref", Some("raw")),
         Adjust::Borrow(AutoBorrow::Pin(mutability)) => ("pin", Some(mode(mutability))),
         Adjust::Pointer(PointerCoercion::Unsize) => ("unsize", None),
-        Adjust::Pointer(_) => ("other", None),
+        Adjust::Pointer(_) => ("rust:pointer-coercion", None),
         Adjust::GenericReborrow(mutability) => ("reborrow", Some(mode(mutability))),
     }
 }

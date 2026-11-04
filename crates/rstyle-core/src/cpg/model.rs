@@ -699,11 +699,22 @@ pub struct Ref {
     pub instance_arguments: Option<Vec<Id>>,
     /// The selected implementation's own type arguments.
     pub selected_arguments: Option<Vec<Id>>,
+    /// The callee's parameter and result types as the call instantiates them.
+    pub signature: Option<InstanceSignature>,
     pub instance: Option<Id>,
     pub calls_back: Option<CallsBack>,
     pub reason: Option<String>,
     /// The item type of the receiver, for a call to an iteration member.
     pub item: Option<Id>,
+}
+
+/// A callee's parameter and result types at one call, each absent where the frontend
+/// cannot normalize it.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InstanceSignature {
+    pub parameters: Vec<Option<Id>>,
+    pub result: Option<Id>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
