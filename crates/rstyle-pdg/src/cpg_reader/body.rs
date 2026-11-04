@@ -3,7 +3,7 @@
 
 use super::{Context, hir_ref, symbol_name};
 use crate::frontend::{ByteSpan, ExpansionSite, HirNode, ResolvedTy};
-use rstyle_core::cpg::model::{Node, NodeKind, Origin, TypeKind};
+use rstyle_core::cpg::model::{Node, NodeKind, Origin, TargetKind, TypeKind};
 
 type Built = Result<HirNode, String>;
 
@@ -109,7 +109,7 @@ impl<'a> Context<'_, 'a> {
         else {
             return false;
         };
-        target.kind == rstyle_core::cpg::model::TargetKind::Constructor
+        target.kind == TargetKind::Constructor
             && target
                 .id
                 .as_deref()
@@ -312,7 +312,9 @@ impl<'a> Context<'_, 'a> {
         let symbol = self.declared(node);
         let mut base = self.node(node, tag)?;
         // A plain binding is located at its identifier, without `mut`.
+        // A binding a macro declares stays at the macro's call site.
         if tag == "pat_binding"
+            && node.provenance.origin == Origin::Source
             && let Some(declared) =
                 symbol.and_then(|(symbol, _)| self.body.symbol(symbol).ok()?.declared.as_ref())
         {
@@ -409,13 +411,21 @@ impl<'a> Context<'_, 'a> {
             .transpose()
     }
 
-    /// The symbol a binding pattern declares, with its mutability.
+    /// The symbol a binding pattern declares, with its mutability. A later alternative of
+    /// an or-pattern refers to the symbol its first alternative declares.
     pub(super) fn declared(&self, node: &Node) -> Option<(&'a str, bool)> {
-        self.body
-            .function
-            .symbols
+        let symbols = &self.body.function.symbols;
+        let own = symbols
             .iter()
-            .find(|symbol| symbol.node.as_deref() == Some(node.id.as_str()))
+            .find(|symbol| symbol.node.as_deref() == Some(node.id.as_str()));
+        let rebound = || {
+            let target = self.body.reference(&node.id)?.target.as_ref()?;
+            let id = target.id.as_deref()?;
+            (target.kind == TargetKind::Symbol)
+                .then(|| symbols.iter().find(|symbol| symbol.id == id))
+                .flatten()
+        };
+        own.or_else(rebound)
             .map(|symbol| (symbol.id.as_str(), symbol.mutable))
     }
 

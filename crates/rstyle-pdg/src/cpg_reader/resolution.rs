@@ -147,15 +147,15 @@ impl Context<'_, '_> {
     }
 
     fn path(&self, node: &Node) -> Option<PathRes> {
+        if let Some((resolution, _)) = self.named_option_function(node) {
+            return Some(resolution);
+        }
         let target = self.body.reference(&node.id)?.target.as_ref()?;
         if matches!(
             target.kind,
             TargetKind::Definition | TargetKind::Constructor | TargetKind::Variant
         ) {
             let definition = self.reader.tables.definition(target.id.as_deref()?).ok()?;
-            if let Some((resolution, _)) = self.named_option_function(node) {
-                return Some(resolution);
-            }
             if let Some(resolution) = self
                 .fieldless_variant(definition)
                 .or_else(|| self.bool_array_resolution(definition))
@@ -171,6 +171,13 @@ impl Context<'_, '_> {
 
     /// What a path resolves to, as the compiler prints the resolution.
     pub(super) fn path_resolution(&self, node: &Node) -> Option<PathRes> {
+        if let Some(description) = self.node_observation::<String>(node, "self_constructor") {
+            return Some(PathRes {
+                kind: "other".into(),
+                target: None,
+                description,
+            });
+        }
         let target = self.body.reference(&node.id)?.target.as_ref()?;
         match target.kind {
             TargetKind::Symbol => {

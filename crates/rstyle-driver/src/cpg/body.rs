@@ -590,9 +590,49 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         };
         let target = self.target(pattern, &places);
         let value = value.and_then(|value| self.expr(value));
-        let children = [target, value].into_iter().flatten().collect();
+        let lowering = self.lowered("rust:destructuring", |builder| {
+            builder.destructuring_lowering(block)
+        });
+        let children = [target, value]
+            .into_iter()
+            .flatten()
+            .chain(lowering)
+            .collect();
 
         self.node(expr.hir_id, expr.span, shape("assignment", children))
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// A destructuring assignment's lowering, as synthetic nodes: the `let` of its
+    /// temporaries, then each statement assigning one temporary to its place.
+    fn destructuring_lowering(&mut self, block: &'tcx Block<'tcx>) -> Vec<String> {
+        let StmtKind::Let(local) = block.stmts[0].kind else {
+            return Vec::new();
+        };
+        // The temporaries, left to right; the target already records the pattern's shape.
+        let temporaries = self.each(binding_patterns(local.pat), Self::pat);
+        let mut lowering = vec![self.node(
+            local.hir_id,
+            local.span,
+            shape("local_declaration", temporaries),
+        )];
+        for stmt in &block.stmts[1..] {
+            let (StmtKind::Semi(assign) | StmtKind::Expr(assign)) = stmt.kind else {
+                continue;
+            };
+            let ExprKind::Assign(_, value, _) = assign.kind else {
+                continue;
+            };
+            let read = self.expr(value).into_iter().collect();
+            let assignment = self.node(assign.hir_id, assign.span, shape("assignment", read));
+            lowering.push(self.node(
+                stmt.hir_id,
+                stmt.span,
+                shape("expression_statement", vec![assignment]),
+            ));
+        }
+
+        lowering
     }
 
     // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
@@ -728,6 +768,7 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             PatKind::Binding(mode, hir_id, ident, sub) => {
                 let children = sub.and_then(|sub| self.pat(sub)).into_iter().collect();
                 self.binding(hir_id, ident, mode.1.is_mut());
+                self.rebinding(pat.hir_id, hir_id);
                 shape("pattern_binding", children)
             }
             PatKind::Wild => shape("pattern_wildcard", vec![]),
@@ -845,6 +886,17 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         if let Some(mut record) = self.path_reference(res) {
             record["node"] = json!(id);
             self.refs.push(record);
+        }
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// A later alternative of an or-pattern refers to the symbol its first declares.
+    fn rebinding(&mut self, pattern: HirId, binding: HirId) {
+        if pattern != binding {
+            let target = json!({"kind": "symbol", "id": self.symbol_id(binding)});
+            self.refs.push(
+                json!({"node": self.id(pattern), "status": "resolved", "target": target}),
+            );
         }
     }
 
@@ -1162,6 +1214,20 @@ fn for_parts<'tcx>(
     };
 
     Some((head, pattern, some.body))
+}
+
+/// A destructuring pattern's binding temporaries, left to right through its nesting.
+fn binding_patterns<'tcx>(pat: &'tcx Pat<'tcx>) -> Vec<&'tcx Pat<'tcx>> {
+    let parts: Vec<&'tcx Pat<'tcx>> = match pat.kind {
+        PatKind::Binding(..) => return vec![pat],
+        PatKind::Tuple(pats, _) | PatKind::TupleStruct(_, pats, _) => pats.iter().collect(),
+        PatKind::Slice(before, middle, after) => {
+            before.iter().chain(middle).chain(after).collect()
+        }
+        PatKind::Struct(_, fields, _) => fields.iter().map(|field| field.pat).collect(),
+        _ => return Vec::new(),
+    };
+    parts.into_iter().flat_map(binding_patterns).collect()
 }
 
 /// The binding a destructuring assignment's statement reads, and the place it writes.

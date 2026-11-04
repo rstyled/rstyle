@@ -148,7 +148,10 @@ impl<'a> Context<'_, 'a> {
             identity,
             root: hir_ref(&root.id),
             operand: hir_ref(&operand.id),
-            try_span: self.written(root),
+            // A `?` a macro writes is located at the macro's call site.
+            try_span: self
+                .expansion(root, self.written(root))
+                .map_or(self.written(root), |site| site.callsite),
             operand_span: self.written(operand),
             branch_call: hir_ref(&branch.id),
             residual_call: hir_ref(&residual.id),

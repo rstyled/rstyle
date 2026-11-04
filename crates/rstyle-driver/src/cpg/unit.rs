@@ -140,11 +140,26 @@ impl<'tcx> Unit<'tcx> {
         (span, levels)
     }
 
+    /// A definition's ID from its stable identity. Another crate of the unit's own name,
+    /// as a binary's library is, is told apart by its crate identity.
+    fn definition_id(&self, def_id: DefId, stable: &str) -> String {
+        let tcx = self.tcx;
+        let namesake = !def_id.is_local()
+            && tcx.crate_name(def_id.krate) == tcx.crate_name(rustc_span::def_id::LOCAL_CRATE);
+        match namesake {
+            true => format!(
+                "def:{stable}@{:016x}",
+                tcx.stable_crate_id(def_id.krate).as_u64()
+            ),
+            false => format!("def:{stable}"),
+        }
+    }
+
     // rstyle-allow(mutated_targets, mutation_per_target): the unit interns referenced records as it builds them
     /// The definition ID of `def_id`, recording the definition on first use.
     pub fn definition(&mut self, def_id: DefId) -> String {
         let stable = self.stable_identity(def_id);
-        let id = format!("def:{stable}");
+        let id = self.definition_id(def_id, &stable);
         if !self.definitions.contains_key(&id) {
             let mut record = self.definition_record(def_id, &id, stable);
             if let Some(span) = self.declaration(def_id) {

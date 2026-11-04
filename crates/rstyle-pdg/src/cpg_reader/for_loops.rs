@@ -9,7 +9,10 @@ type Built = Result<Option<HirNode>, String>;
 
 impl<'a> Context<'_, 'a> {
     pub(super) fn original_for_loop(&self, node: &'a Node) -> Built {
-        if !self.reader.profile.is_data() || node.kind != NodeKind::For {
+        if !self.reader.profile.is_data()
+            || node.kind != NodeKind::For
+            || node.provenance.origin != Origin::Source
+        {
             return Ok(None);
         }
         let parts = self.body.children(node)?;
@@ -106,19 +109,18 @@ impl<'a> Context<'_, 'a> {
 impl<'a> Context<'_, 'a> {
     /// A destructuring assignment of a tuple to scalar places, as the profile restores it.
     pub(super) fn tuple_assignment(&self, node: &'a Node) -> Built {
-        if node.kind != NodeKind::Assignment
-            || node.original_kind != "expr_block"
-            || !self.reader.profile.supports("rust.scalar-tuple-assignment")
-        {
+        if node.kind != NodeKind::Assignment || node.original_kind != "expr_block" {
             return Ok(None);
         }
         let parts = self.body.children(node)?;
-        let [target, value] = parts.as_slice() else {
+        let [target, value, ..] = parts.as_slice() else {
             return Ok(None);
         };
         let places = self.body.children(target)?;
-        if !self.scalar_places((target, value), &places)? {
-            return Ok(None);
+        let restored = self.reader.profile.supports("rust.scalar-tuple-assignment")
+            && self.scalar_places((target, value), &places)?;
+        if !restored {
+            return self.raw_destructuring(node, (target, value), &places);
         }
         let left = HirNode {
             ty: self.ty(target)?,
@@ -167,5 +169,76 @@ impl Context<'_, '_> {
             && !places.is_empty()
             && places.len() == values.len()
             && places.iter().all(scalar))
+    }
+}
+
+impl<'a> Context<'_, 'a> {
+    /// A destructuring assignment as the compiler lowers it: a block declaring the
+    /// value's elements as temporaries, then assigning each to its place.
+    fn raw_destructuring(
+        &self,
+        node: &'a Node,
+        (target, value): (&'a Node, &'a Node),
+        places: &[&'a Node],
+    ) -> Built {
+        let parts = self.body.children(node)?;
+        let Some((local, statements)) = parts.get(2..).and_then(<[&Node]>::split_first) else {
+            return Ok(None);
+        };
+        // Each statement assigns the next place of the target, left to right.
+        let places = self.target_places(places)?;
+        if local.original_kind != "stmt_let" || statements.len() != places.len() {
+            return Ok(None);
+        }
+        // Only a flat target's temporaries are the pattern's own elements.
+        let nested = self
+            .body
+            .children(target)?
+            .iter()
+            .any(|child| child.original_kind.starts_with("pat_"));
+        let temporaries = match nested {
+            true => Vec::new(),
+            false => self.body.children(local)?,
+        };
+        let pattern = self.local_pattern_of(target, temporaries)?;
+        let declaration = HirNode {
+            children: vec![pattern, self.expression(value)?],
+            ..self.node(local, "stmt_let")?
+        };
+        let mut children = vec![declaration];
+        for (statement, place) in statements.iter().zip(&places) {
+            let assignment = self.body.child(statement, 0)?;
+            let read = self.body.child(assignment, 0)?;
+            let assign = HirNode {
+                ty: self.ty(assignment)?,
+                children: vec![self.expression(place)?, self.expression(read)?],
+                ..self.node(assignment, "expr_assign")?
+            };
+            children.push(HirNode {
+                children: vec![assign],
+                ..self.node(statement, &statement.original_kind)?
+            });
+        }
+
+        Ok(Some(HirNode {
+            ty: self.ty(node)?,
+            children,
+            ..self.node(node, "expr_block")?
+        }))
+    }
+}
+
+impl<'a> Context<'_, 'a> {
+    /// The places a destructuring target assigns, left to right through its nesting.
+    fn target_places(&self, children: &[&'a Node]) -> Result<Vec<&'a Node>, String> {
+        let mut places = Vec::new();
+        for child in children {
+            if child.original_kind.starts_with("pat_") {
+                places.extend(self.target_places(&self.body.children(child)?)?);
+            } else {
+                places.push(*child);
+            }
+        }
+        Ok(places)
     }
 }

@@ -3,7 +3,7 @@
 
 use super::Context;
 use crate::frontend::{Dispatch, HirNode, PathRes};
-use rstyle_core::cpg::model::{Definition, Node, Origin, Scope, TargetKind, TypeKind};
+use rstyle_core::cpg::model::{Definition, Node, Origin, Scope, TypeKind};
 
 const MAP_OR: [&str; 2] = [
     "core::option::Option::<T>::map_or",
@@ -64,11 +64,21 @@ impl<'a> Context<'_, 'a> {
         {
             return None;
         }
-        let target = self.body.reference(&node.id)?.target.as_ref()?;
-        if target.kind != TargetKind::Definition {
+        // The function item the path's value is, whatever binding names it.
+        let ty = self.reader.ty(node.ty.as_deref()?).ok()?;
+        if ty.kind != TypeKind::Function
+            || ty
+                .arguments
+                .as_ref()
+                .is_some_and(|arguments| !arguments.is_empty())
+        {
             return None;
         }
-        let definition = self.reader.tables.definition(target.id.as_deref()?).ok()?;
+        let definition = self
+            .reader
+            .tables
+            .definition(ty.definition.as_deref()?)
+            .ok()?;
         let compiler = definition.extensions.get("rust:compiler-identity")?;
         let generics = compiler.get("generics")?.get("count")?.as_u64()?;
         if definition.scope != Scope::Unit
@@ -79,17 +89,7 @@ impl<'a> Context<'_, 'a> {
         {
             return None;
         }
-        let callable = definition.callable.as_ref()?;
-        let [parameter] = callable.parameters.as_slice() else {
-            return None;
-        };
-        let parameter = self.reader.ty(parameter).ok()?;
-        let result = self.reader.ty(&callable.result).ok()?;
-        if parameter.kind != TypeKind::Integer
-            || parameter.spelling != "u8"
-            || result.kind != TypeKind::Bool
-            || callable.receiver.is_some()
-        {
+        if !self.byte_predicate(definition) {
             return None;
         }
         let resolution = self.helper(definition, ("resolved_function_item", None), None)?;
@@ -281,12 +281,21 @@ impl<'a> Context<'_, 'a> {
     /// A declaration's or reader callback's pattern, where a tuple of plain scalar
     /// bindings is observed as a scalar tuple.
     pub(super) fn local_pattern(&self, pattern: &'a Node) -> Result<HirNode, String> {
+        let children = self.parts(pattern)?;
+        self.local_pattern_of(pattern, children)
+    }
+
+    /// A tuple pattern of these element patterns, as a declaration observes it.
+    pub(super) fn local_pattern_of(
+        &self,
+        pattern: &'a Node,
+        children: Vec<&'a Node>,
+    ) -> Result<HirNode, String> {
         let node = self.pattern(pattern)?;
         if pattern.original_kind != "pat_tuple" {
             return Ok(node);
         }
         let supports = |capability: &str| self.reader.profile.supports(capability);
-        let children = self.parts(pattern)?;
         let scalar = |child: &&Node| {
             child.original_kind == "pat_binding"
                 && self.declared(child).is_some_and(|(_, mutable)| !mutable)
@@ -315,5 +324,19 @@ impl<'a> Context<'_, 'a> {
                 .collect::<Result<_, _>>()?,
             ..node
         })
+    }
+
+    /// Whether a function is a `fn(u8) -> bool`.
+    fn byte_predicate(&self, definition: &Definition) -> bool {
+        let Some(callable) = definition.callable.as_ref() else {
+            return false;
+        };
+        let [parameter] = callable.parameters.as_slice() else {
+            return false;
+        };
+        let result = self.reader.ty(&callable.result);
+        self.reader.integer(Some(parameter), "u8")
+            && result.is_ok_and(|result| result.kind == TypeKind::Bool)
+            && callable.receiver.is_none()
     }
 }

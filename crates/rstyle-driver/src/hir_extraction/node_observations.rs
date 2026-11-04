@@ -78,6 +78,14 @@ impl<'tcx> Visitor<'tcx> for Scan<'_, 'tcx> {
         }
         if let ExprKind::Path(ref path) = expression.kind {
             let resolution = context.typeck.qpath_res(path, expression.hir_id);
+            // `Self` as a constructor resolves to its implementation, as the frontend prints it.
+            if matches!(resolution, rustc_hir::def::Res::SelfCtor(_)) {
+                self.record(
+                    expression.hir_id,
+                    "self_constructor",
+                    json!(format!("{resolution:?}")),
+                );
+            }
             if let rustc_hir::def::Res::Def(rustc_hir::def::DefKind::AssocFn, callee) = resolution
                 && !callee.is_local()
                 && let Some(call) = super::trait_members::default_call(context, expression, callee)

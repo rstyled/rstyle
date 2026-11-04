@@ -420,11 +420,29 @@ impl<'a> Capture<'_, '_, 'a> {
         let definition = self.definition_of(ty)?;
         // A data profile admits a struct whose only arguments are lifetimes.
         let lifetimes = ty.modifiers.iter().any(|m| m == "rust:lifetime-arguments");
-        let generic = ty
-            .arguments
-            .as_ref()
-            .is_some_and(|arguments| !arguments.is_empty())
-            || lifetimes && !self.context.reader.profile.is_data();
+        let own = definition
+            .extensions
+            .get("rust:compiler-identity")
+            .and_then(|identity| identity.get("generics")?.get("own")?.as_array().cloned())
+            .unwrap_or_default();
+        // A data profile budgets a struct's lifetime arguments, as it does its fields.
+        let profile = self.context.reader.profile;
+        if profile.is_data()
+            && own.len() > MAX_FIELDS
+            && own.iter().all(|kind| kind == "lifetime")
+        {
+            return Err(Failure::Budget(
+                "Nominal lifetime arguments exceed count budget".into(),
+            ));
+        }
+        // Type and const parameters both make a struct generic; only types are arguments.
+        let parameters = own.iter().any(|kind| kind != "lifetime");
+        let generic = parameters
+            || ty
+                .arguments
+                .as_ref()
+                .is_some_and(|arguments| !arguments.is_empty())
+            || lifetimes && !profile.is_data();
         if ty.kind != TypeKind::Record
             || definition.scope != rstyle_core::cpg::model::Scope::Unit
             || generic

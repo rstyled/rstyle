@@ -34,7 +34,7 @@ pub(super) fn scan(source: &str, profile: ExtractionProfile) -> Vec<Function> {
     };
     let mut scan = Scan {
         source,
-        positions: Positions::new(source),
+        positions: Locations::new(source),
         profile,
         functions: Vec::new(),
     };
@@ -44,7 +44,7 @@ pub(super) fn scan(source: &str, profile: ExtractionProfile) -> Vec<Function> {
 
 struct Scan<'s> {
     source: &'s str,
-    positions: Positions,
+    positions: Locations,
     profile: ExtractionProfile,
     functions: Vec<Function>,
 }
@@ -124,11 +124,26 @@ fn closing_bracket(bytes: &[u8], open: usize) -> Option<usize> {
     None
 }
 
-fn offsets(positions: &Positions, span: Span) -> (usize, usize) {
-    (
-        positions.offset(span.start()) as usize,
-        positions.offset(span.end()) as usize,
-    )
+/// Original file offsets of the positions the parser reports in its text, which begins
+/// after any byte order mark.
+struct Locations {
+    positions: Positions,
+    prefix: usize,
+}
+
+impl Locations {
+    fn new(source: &str) -> Self {
+        let text = source.strip_prefix('\u{feff}');
+        Self {
+            positions: Positions::new(text.unwrap_or(source)),
+            prefix: source.len() - text.map_or(source.len(), str::len),
+        }
+    }
+}
+
+fn offsets(locations: &Locations, span: Span) -> (usize, usize) {
+    let offset = |position| locations.prefix + locations.positions.offset(position) as usize;
+    (offset(span.start()), offset(span.end()))
 }
 
 /// Where an item's own span begins: its visibility, else its signature.
@@ -160,7 +175,7 @@ impl<'ast> Visit<'ast> for Scan<'_> {
 }
 
 struct Owned<'p> {
-    positions: &'p Positions,
+    positions: &'p Locations,
     source: &'p str,
     profile: ExtractionProfile,
     findings: Vec<Finding>,
@@ -193,6 +208,7 @@ impl<'ast> Visit<'ast> for Owned<'_> {
         }
     }
 
+    // rstyle-allow(mutation_per_target): the scan visitor records rejections as it walks
     fn visit_type(&mut self, ty: &'ast syn::Type) {
         let permitted = match ty {
             syn::Type::Path(_) | syn::Type::Infer(_) => true,
@@ -209,6 +225,26 @@ impl<'ast> Visit<'ast> for Owned<'_> {
                 "rust.additional-types",
                 "unsupported_type_annotation",
             );
+        }
+        // A function pointer's parameters are patterns to the compiler: an unnamed one is
+        // a pattern at its type, and a `_` one a wildcard.
+        if let syn::Type::BareFn(function) = ty {
+            for input in &function.inputs {
+                match &input.name {
+                    None => {
+                        self.reject(input.ty.span(), "rust.scalar-interface", "binding_pattern")
+                    }
+                    Some((name, _)) if name == "_" => {
+                        self.reject(name.span(), "rust.scalar-interface", "binding_pattern");
+                    }
+                    Some(_) => {}
+                }
+                self.visit_type(&input.ty);
+            }
+            if let syn::ReturnType::Type(_, output) = &function.output {
+                self.visit_type(output);
+            }
+            return;
         }
         visit::visit_type(self, ty);
     }

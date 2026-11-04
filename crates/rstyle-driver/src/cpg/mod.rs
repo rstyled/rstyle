@@ -383,7 +383,12 @@ fn located_parameter(
     if let Some(span) = unit.span(pattern) {
         record["span"] = span;
     }
-    if let Some(annotation) = annotation.and_then(|span| unit.span(span)) {
+    // A library macro's parameter is written at the workspace invocation that expands it.
+    let annotation = annotation.and_then(|span| {
+        unit.span(span)
+            .or_else(|| unit.span(span.source_callsite()))
+    });
+    if let Some(annotation) = annotation {
         record["annotation"] = annotation;
     }
     record
