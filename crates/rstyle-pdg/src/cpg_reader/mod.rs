@@ -5,6 +5,7 @@
 //! driver's own capture, never filled with a default that hides the difference.
 
 mod body;
+mod callees;
 mod concrete;
 pub use concrete::Passes;
 pub mod compare;

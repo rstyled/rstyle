@@ -64,6 +64,10 @@ impl Context<'_, '_> {
             "expr_break" | "expr_continue" => self.loop_exit(node),
             "expr_path" => self.path(node),
             "expr_method_call" => self.method_callee(node),
+            "expr_index" if self.reader.profile.is_data() => self.method_callee(node),
+            "expr_call" | "expr_struct" if node.original_kind == "expr_call" => {
+                self.direct_callee(self.body.child(node, 0).ok()?)
+            }
             "expr_field" if self.reader.profile.supports("rust.verified-helper-calls") => {
                 self.field_resolution(node)
             }
@@ -145,29 +149,6 @@ impl Context<'_, '_> {
             kind: "resolved_field".into(),
             target: None,
             description: serde_json::to_string(&resolution).ok()?,
-        })
-    }
-
-    /// A method call's declared callee, as a library callee record.
-    fn method_callee(&self, node: &Node) -> Option<PathRes> {
-        let reference = self.body.reference(&node.id)?;
-        let declared = match &reference.target {
-            Some(target) => target.id.as_deref()?,
-            None => reference.via.as_deref()?,
-        };
-        let definition = self.reader.tables.definition(declared).ok()?;
-        let rust = |key: &str| identity(definition, key).map(str::to_owned);
-        let callee = crate::data_library::Callee {
-            path: definition.name.clone(),
-            crate_name: rust("crate_name")?,
-            crate_hash: rust("crate_hash").unwrap_or_else(|| "local-unencoded".into()),
-            definition_hash: rust("def_path_hash")?,
-            implementation: None,
-        };
-        Some(PathRes {
-            kind: "resolved_callee".into(),
-            target: None,
-            description: serde_json::to_value(callee).ok()?.to_string(),
         })
     }
 

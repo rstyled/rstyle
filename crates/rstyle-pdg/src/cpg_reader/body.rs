@@ -27,7 +27,8 @@ impl<'a> Context<'_, 'a> {
 
         Ok(HirNode {
             ty,
-            dispatch: self.dispatch(node, tag)?,
+            // Operator evidence follows the HIR construct, whatever tag the profile gives it.
+            dispatch: self.dispatch(node, &node.original_kind)?,
             res: self.resolution(node, tag),
             lit: (tag == "expr_lit").then(|| base.snippet.clone()),
             is_unsafe_block: tag == "expr_block"
@@ -396,6 +397,10 @@ mod dispatch {
                     Some(path) => (path, &children[..]),
                     None => return Ok(None),
                 },
+                "expr_call" => match self.call_path(node) {
+                    Some(path) => (path, &children[children.len().min(1)..]),
+                    None => return Ok(None),
+                },
                 _ => return Ok(None),
             };
             let operand_tys = operands
@@ -407,6 +412,7 @@ mod dispatch {
                 .reference(&node.id)
                 .is_some_and(|reference| reference.dispatch == Some(Kind::Overloaded));
             let kind = match tag {
+                "expr_call" => "resolved_direct",
                 "expr_method_call" => "resolved_method",
                 _ if overloaded => "overloaded",
                 _ => "builtin",
@@ -418,6 +424,18 @@ mod dispatch {
                 operand_tys,
                 result_ty: self.token_type(node)?,
             }))
+        }
+
+        /// The path a direct call's resolved helper callee records.
+        fn call_path(&self, node: &Node) -> Option<String> {
+            let callee = self.body.child(node, 0).ok()?;
+            let resolution = self.direct_callee(callee)?;
+            let value: serde_json::Value = serde_json::from_str(&resolution.description).ok()?;
+            let path = match resolution.kind == crate::size_calls::RESOLUTION {
+                true => &value["callee"]["path"],
+                false => &value["path"],
+            };
+            Some(path.as_str()?.to_owned())
         }
 
         /// The method a call resolves to, as the compiler names it.

@@ -96,6 +96,11 @@ impl<'tcx> Unit<'tcx> {
             if let Some(span) = self.declaration(def_id) {
                 record["span"] = span;
             }
+            // An inherent method names its implementation, recorded as a definition too.
+            if let Some(implementation) = self.inherent_implementation(def_id) {
+                record["extensions"]["rust:compiler-identity"]["inherent_impl"] =
+                    json!(implementation);
+            }
             self.definitions.insert(id.clone(), record);
             self.relations(def_id, &id);
             if matches!(self.tcx.def_kind(def_id), DefKind::Fn | DefKind::AssocFn) {
@@ -107,11 +112,21 @@ impl<'tcx> Unit<'tcx> {
     }
 
     /// A local type's declaration as written, unless a macro generated it.
+    /// The inherent implementation a local associated function belongs to.
+    fn inherent_implementation(&mut self, def_id: DefId) -> Option<String> {
+        if !def_id.is_local() || self.tcx.def_kind(def_id) != DefKind::AssocFn {
+            return None;
+        }
+        let implementation = self.tcx.inherent_impl_of_assoc(def_id)?;
+        Some(self.definition(implementation))
+    }
+
+    /// A local type's or implementation's declaration as written, unless a macro generated it.
     fn declaration(&mut self, def_id: DefId) -> Option<Value> {
         let local = def_id.as_local()?;
         if !matches!(
             self.tcx.def_kind(def_id),
-            DefKind::Struct | DefKind::Enum | DefKind::Union
+            DefKind::Struct | DefKind::Enum | DefKind::Union | DefKind::Impl { .. }
         ) {
             return None;
         }
@@ -620,21 +635,65 @@ fn compiler_facts(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> Vec<(&'stati
 
 /// The compiler's own identity of a definition, as the frontend's facts print it:
 /// its `DefId`, `DefKind`, `DefPathHash`, crate name and, for another crate, its hash.
-fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> BTreeMap<&'static str, String> {
-    let mut identity = BTreeMap::from([
-        ("def_id", format!("{def_id:?}")),
-        ("def_kind", format!("{kind:?}")),
-        ("def_path_hash", format!("{:?}", tcx.def_path_hash(def_id))),
-        ("crate_name", tcx.crate_name(def_id.krate).to_string()),
-        (
-            "stable_crate_id",
-            format!("{:?}", tcx.stable_crate_id(def_id.krate)),
-        ),
-    ]);
+fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> serde_json::Map<String, Value> {
+    let mut identity = serde_json::Map::new();
+    identity.insert("def_id".into(), json!(format!("{def_id:?}")));
+    identity.insert("def_kind".into(), json!(format!("{kind:?}")));
+    identity.insert(
+        "def_path_hash".into(),
+        json!(format!("{:?}", tcx.def_path_hash(def_id))),
+    );
+    identity.insert(
+        "crate_name".into(),
+        json!(tcx.crate_name(def_id.krate).to_string()),
+    );
+    identity.insert(
+        "stable_crate_id".into(),
+        json!(format!("{:?}", tcx.stable_crate_id(def_id.krate))),
+    );
     if !def_id.is_local() {
-        identity.insert("crate_hash", tcx.crate_hash(def_id.krate).to_string());
+        identity.insert(
+            "crate_hash".into(),
+            json!(tcx.crate_hash(def_id.krate).to_string()),
+        );
+        let rmeta = tcx.used_crate_source(def_id.krate).rmeta.clone();
+        if let Some(rmeta) = rmeta {
+            identity.insert("rmeta".into(), json!(rmeta));
+        }
+    }
+    if let Some(generics) = generics(tcx, def_id, kind) {
+        identity.insert("generics".into(), generics);
     }
     identity
+}
+
+/// The count of a generic item's parameters, its parents' included, and its own
+/// parameters' kinds, as the compiler's generics record them.
+fn generics(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> Option<Value> {
+    if !matches!(
+        kind,
+        DefKind::Fn
+            | DefKind::AssocFn
+            | DefKind::Ctor(..)
+            | DefKind::Struct
+            | DefKind::Enum
+            | DefKind::Union
+            | DefKind::Impl { .. }
+            | DefKind::Trait
+    ) {
+        return None;
+    }
+    let generics = tcx.generics_of(def_id);
+    let own: Vec<&str> = generics
+        .own_params
+        .iter()
+        .map(|parameter| match parameter.kind {
+            ty::GenericParamDefKind::Lifetime => "lifetime",
+            ty::GenericParamDefKind::Type { .. } => "type",
+            ty::GenericParamDefKind::Const { .. } => "const",
+        })
+        .collect();
+    Some(json!({"count": generics.count(), "own": own, "parented": generics.parent.is_some()}))
 }
 
 /// Whether a sum is represented exactly as `u8`, with no other representation hint.
