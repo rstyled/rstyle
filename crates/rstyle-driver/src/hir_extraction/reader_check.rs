@@ -89,6 +89,7 @@ fn write(
     for line in lines {
         writeln!(file, "{line}").map_err(|error| error.to_string())?;
     }
+
     Ok(())
 }
 

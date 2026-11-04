@@ -295,6 +295,7 @@ impl<'a> Context<'_, 'a> {
             base.span = self.span(declared);
             base.snippet = self.snippet(base.span);
         }
+
         Ok(HirNode {
             ty: self.ty(node)?,
             binding: symbol.map(|(symbol, _)| symbol_name(symbol)),
@@ -329,6 +330,7 @@ impl<'a> Context<'_, 'a> {
         let span = expansion.as_ref().map_or(written, |site| site.callsite);
         // Only an expression records where it was expanded; any construct is located there.
         let expansion = expansion.filter(|_| tag.starts_with("expr_"));
+
         Ok(HirNode {
             hir: hir_ref(&node.id),
             kind: tag.into(),
@@ -372,6 +374,7 @@ impl<'a> Context<'_, 'a> {
                 end: (end + 1).min(bytes.len()) as u32,
             };
         }
+
         span
     }
 

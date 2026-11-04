@@ -727,17 +727,7 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             }
             PatKind::Wild => shape("pattern_wildcard", vec![]),
             PatKind::Expr(_) => shape("pattern_literal", vec![]),
-            PatKind::Range(start, end, ending) => {
-                let bounds = start.into_iter().chain(end);
-                let children = bounds.map(|bound| self.range_bound(bound)).collect();
-                let mut shape = shape("pattern_range", children);
-                if end.is_some() && matches!(ending, rustc_hir::RangeEnd::Included) {
-                    shape
-                        .fields
-                        .insert("modifiers".into(), json!(["inclusive"]));
-                }
-                shape
-            }
+            PatKind::Range(start, end, ending) => self.range_pattern((start, end), ending),
             PatKind::Or(pats) => shape("pattern_or", self.each(pats, Self::pat)),
             PatKind::Tuple(pats, _) => shape("pattern_tuple", self.each(pats, Self::pat)),
             PatKind::TupleStruct(_, pats, _) => {
@@ -747,22 +737,7 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 "pattern_constructor",
                 self.each(fields.iter().map(|field| field.pat), Self::pat),
             ),
-            PatKind::Slice(before, middle, after) => {
-                let children = self.each(before.iter().chain(middle).chain(after), Self::pat);
-                // The element matching the rest of the sequence.
-                if let Some(middle) = middle {
-                    let id = self.id(middle.hir_id);
-                    if let Some(record) = self
-                        .nodes
-                        .iter_mut()
-                        .rev()
-                        .find(|record| record["id"] == id)
-                    {
-                        record["modifiers"] = json!(["rest"]);
-                    }
-                }
-                shape("pattern_sequence", children)
-            }
+            PatKind::Slice(before, middle, after) => self.sequence_pattern(before, middle, after),
             PatKind::Ref(inner, ..) => {
                 let mut shape = shape("extension", self.each([inner], Self::pat));
                 shape
@@ -787,7 +762,51 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         };
         let id = self.node(pat.hir_id, pat.span, shape);
         self.pattern_reference(pat, &id);
+
         Some(id)
+    }
+
+    /// A range pattern: its present bounds, and whether its end is included.
+    fn range_pattern(
+        &mut self,
+        (start, end): (
+            Option<&'tcx rustc_hir::PatExpr<'tcx>>,
+            Option<&'tcx rustc_hir::PatExpr<'tcx>>,
+        ),
+        ending: rustc_hir::RangeEnd,
+    ) -> Shape {
+        let bounds = start.into_iter().chain(end);
+        let children = bounds.map(|bound| self.range_bound(bound)).collect();
+        let mut shape = shape("pattern_range", children);
+        if end.is_some() && matches!(ending, rustc_hir::RangeEnd::Included) {
+            shape
+                .fields
+                .insert("modifiers".into(), json!(["inclusive"]));
+        }
+
+        shape
+    }
+
+    /// A slice pattern, with the element matching the rest of the sequence marked.
+    fn sequence_pattern(
+        &mut self,
+        before: &'tcx [Pat<'tcx>],
+        middle: Option<&'tcx Pat<'tcx>>,
+        after: &'tcx [Pat<'tcx>],
+    ) -> Shape {
+        let children = self.each(before.iter().chain(middle).chain(after), Self::pat);
+        if let Some(middle) = middle {
+            let id = self.id(middle.hir_id);
+            let record = self
+                .nodes
+                .iter_mut()
+                .rev()
+                .find(|record| record["id"] == id);
+            if let Some(record) = record {
+                record["modifiers"] = json!(["rest"]);
+            }
+        }
+        shape("pattern_sequence", children)
     }
 
     // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design

@@ -35,6 +35,7 @@ impl<'a> Context<'_, 'a> {
         else {
             return Ok(None);
         };
+
         Ok(Some(HirNode {
             ty: self.ty(node)?,
             res: Some(PathRes {
@@ -79,17 +80,7 @@ impl<'a> Context<'_, 'a> {
                 return Ok(None);
             }
             let spans = [assertion.condition_span(source, offset), right];
-            let mut operands = Vec::new();
-            for span in spans {
-                let found = self.within(node, &|candidate| {
-                    candidate.provenance.origin == Origin::Source && self.written(candidate) == span
-                })?;
-                let [operand] = found.as_slice() else {
-                    return Ok(None);
-                };
-                operands.push(self.expression(operand)?);
-            }
-            return Ok(Some(operands));
+            return self.comparison_operands(node, spans);
         }
 
         let debug = self.reader.unit.semantics.debug_assertions.unwrap_or(false);
@@ -100,27 +91,63 @@ impl<'a> Context<'_, 'a> {
         let Some(condition) = condition else {
             return Ok(None);
         };
+        let Some(captures) = self.diagnostic_captures(node, (source, offset), assertion)? else {
+            return Ok(None);
+        };
         let mut children = vec![self.expression(condition)?];
-        if let Some(diagnostic) = assertion.diagnostic.as_ref() {
-            if !self.reader.profile.supports("rust.end-of-input") {
-                return Ok(None);
-            }
-            for capture in &diagnostic.captures {
-                let expected = crate::assertions::formatting::span(source, offset, capture);
-                let found = self.within(node, &|candidate| {
-                    candidate.original_kind == "expr_path"
-                        && candidate
-                            .span
-                            .as_ref()
-                            .is_some_and(|span| self.span(span) == expected)
-                })?;
-                let [operand] = found.as_slice() else {
-                    return Ok(None);
-                };
-                children.push(self.expression(operand)?);
-            }
-        }
+        children.extend(captures);
         Ok(Some(children))
+    }
+
+    /// The compared source operands, each the one source node at its span.
+    fn comparison_operands(
+        &self,
+        node: &'a Node,
+        spans: [crate::ByteSpan; 2],
+    ) -> Result<Option<Vec<HirNode>>, String> {
+        let mut operands = Vec::new();
+        for span in spans {
+            let found = self.within(node, &|candidate| {
+                candidate.provenance.origin == Origin::Source && self.written(candidate) == span
+            })?;
+            let [operand] = found.as_slice() else {
+                return Ok(None);
+            };
+            operands.push(self.expression(operand)?);
+        }
+        Ok(Some(operands))
+    }
+
+    /// The locals a formatted message captures, each the one path at its span.
+    fn diagnostic_captures(
+        &self,
+        node: &'a Node,
+        (source, offset): (&str, u32),
+        assertion: &Assertion,
+    ) -> Result<Option<Vec<HirNode>>, String> {
+        let Some(diagnostic) = assertion.diagnostic.as_ref() else {
+            return Ok(Some(Vec::new()));
+        };
+        if !self.reader.profile.supports("rust.end-of-input") {
+            return Ok(None);
+        }
+        let mut captures = Vec::new();
+        for capture in &diagnostic.captures {
+            let expected = crate::assertions::formatting::span(source, offset, capture);
+            let found = self.within(node, &|candidate| {
+                candidate.original_kind == "expr_path"
+                    && candidate
+                        .span
+                        .as_ref()
+                        .is_some_and(|span| self.span(span) == expected)
+            })?;
+            let [operand] = found.as_slice() else {
+                return Ok(None);
+            };
+            captures.push(self.expression(operand)?);
+        }
+
+        Ok(Some(captures))
     }
 
     /// `if !condition { .. }`, without an else branch.
@@ -135,6 +162,7 @@ impl<'a> Context<'_, 'a> {
         if test.original_kind != "expr_unary" || test.operator.as_deref() != Some("not") {
             return Ok(None);
         }
+
         Ok(self.body.children(test)?.first().copied())
     }
 
@@ -161,6 +189,7 @@ impl<'a> Context<'_, 'a> {
         if statement.original_kind != "stmt_semi" {
             return Ok(None);
         }
+
         match self.body.children(statement)?.as_slice() {
             [inner] => self.assert_condition(inner),
             _ => Ok(None),

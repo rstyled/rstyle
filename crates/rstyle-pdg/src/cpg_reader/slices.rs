@@ -30,6 +30,7 @@ impl<'a> Context<'_, 'a> {
         let symbol = self.declared(pattern);
         let base = self.node(pattern, kind)?;
         let observation = self.slice_observation(pattern, rest, base.span)?;
+
         Ok(HirNode {
             ty: self.ty(pattern)?,
             binding: symbol.map(|(symbol, _)| symbol_name(symbol)),
@@ -202,6 +203,7 @@ impl<'a> Context<'_, 'a> {
                 self.range_bounds(pattern, &children),
                 (Some(start), Some(end)) if self.byte_bound(start) == Some(b'0') && self.byte_bound(end) == Some(b'9')
             );
+
         Ok(match pattern.original_kind.as_str() {
             "pat_slice" => self.prefix_status(pattern, &children)?,
             "pat_binding" | "pat_binding_pattern" => {
@@ -214,14 +216,16 @@ impl<'a> Context<'_, 'a> {
     }
 
     fn digit_status(&self, pattern: &Node, bounds: &[&Node]) -> CaptureStatus {
-        if !self.is_byte(pattern.ty.as_deref()) {
+        if !self.reader.integer(pattern.ty.as_deref(), "u8") {
             return unsupported("Digit range does not have compiler byte type");
         }
         for bound in bounds {
             if bound.ty.is_none() {
                 return CaptureStatus::Unknown("Missing compiler range endpoint type".into());
             }
-            if !self.is_byte(bound.ty.as_deref()) || bound.provenance.origin != Origin::Source {
+            if !self.reader.integer(bound.ty.as_deref(), "u8")
+                || bound.provenance.origin != Origin::Source
+            {
                 return unsupported("Outside original compiler byte endpoint contract");
             }
         }
@@ -273,6 +277,7 @@ impl<'a> Context<'_, 'a> {
                 return Ok(status);
             }
         }
+
         Ok(CaptureStatus::Captured)
     }
 
@@ -286,7 +291,7 @@ impl<'a> Context<'_, 'a> {
         let slice = self.reader.ty(value).is_ok_and(|ty| {
             ty.kind == TypeKind::Sequence
                 && ty.fixed != Some(true)
-                && self.is_byte(ty.element.as_deref())
+                && self.reader.integer(ty.element.as_deref(), "u8")
         });
         let source = adjustment
             .target
@@ -297,6 +302,7 @@ impl<'a> Context<'_, 'a> {
                     && ty.mode.as_deref() == Some("shared")
                     && ty.target.as_deref() == Some(value)
             });
+
         slice && adjustment.kind == "auto_deref" && source
     }
 
@@ -329,6 +335,7 @@ impl<'a> Context<'_, 'a> {
         {
             return Ok(unsupported("Expected digit range or named trailing rest"));
         }
+
         self.slice_status(subpattern, rest)
     }
 
@@ -346,9 +353,9 @@ impl<'a> Context<'_, 'a> {
                 .is_some_and(|ty| {
                     ty.kind == TypeKind::Sequence
                         && ty.fixed != Some(true)
-                        && self.is_byte(ty.element.as_deref())
+                        && self.reader.integer(ty.element.as_deref(), "u8")
                 }),
-            false => self.is_byte(inner),
+            false => self.reader.integer(inner, "u8"),
         }
     }
 
@@ -388,6 +395,7 @@ impl<'a> Context<'_, 'a> {
             status,
         };
         node.res = observation.resolution().ok();
+
         Ok(node)
     }
 
@@ -423,11 +431,6 @@ impl<'a> Context<'_, 'a> {
             (value, false) => Some(value),
             _ => None,
         }
-    }
-
-    fn is_byte(&self, ty: Option<&str>) -> bool {
-        ty.and_then(|ty| self.reader.ty(ty).ok())
-            .is_some_and(|ty| ty.kind == TypeKind::Integer && ty.spelling == "u8")
     }
 
     fn shape(&self, ty: Option<&str>) -> TypeShape {

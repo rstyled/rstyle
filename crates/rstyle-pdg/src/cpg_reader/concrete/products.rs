@@ -53,6 +53,7 @@ impl<'a> Capture<'_, '_, 'a> {
             fields: captured?,
         };
         observation.check_shape().map_err(Failure::Unsupported)?;
+
         Ok(Some(TypeTree::ScalarProductInstance(Box::new(observation))))
     }
 
@@ -86,6 +87,7 @@ impl<'a> Capture<'_, '_, 'a> {
             }
             _ => {}
         }
+
         Ok(match self.nonzero(value)? {
             Some(TypeTree::NonZero(observation)) => Some(match observation.scalar {
                 crate::nonzero_values::Scalar::U8 => Argument::NonZeroU8,

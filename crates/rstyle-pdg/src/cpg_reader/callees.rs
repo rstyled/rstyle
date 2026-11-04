@@ -1,7 +1,7 @@
 //! Helper call resolutions: the callee a call, method call or index names, as the
 //! frontend records its direct, inherent and library callees.
 
-use super::Context;
+use super::{Context, identity};
 use crate::frontend::PathRes;
 use rstyle_core::cpg::model::{Definition, Node, Scope, TargetKind};
 use serde::Serialize;
@@ -84,6 +84,7 @@ impl<'a> Context<'_, 'a> {
         let dependency = (kind == "Fn" && self.compiled_dependencies())
             .then(|| self.dependency(definition))
             .flatten();
+
         self.helper(definition, ("resolved_direct_callee", inherent), dependency)
     }
 
@@ -107,6 +108,7 @@ impl<'a> Context<'_, 'a> {
             )
             || profile.supports("rust.slice-array-byte-calls")
                 && path.ends_with("::convert::TryInto::try_into");
+
         self.instantiated_callee(node, definition, capture)
     }
 
@@ -147,6 +149,7 @@ impl<'a> Context<'_, 'a> {
             .as_deref()
             .and_then(|owner| self.reader.tables.definition(owner).ok())
             .is_some_and(|owner| owner.kind == rstyle_core::cpg::model::DefinitionKind::Trait);
+
         (!member).then_some(callee)
     }
 
@@ -180,6 +183,7 @@ impl<'a> Context<'_, 'a> {
         let selection = self.instantiated_callee(call, definition, true)?;
         record["trait_selection"] = serde_json::from_str(&selection.description).ok()?;
         resolution.description = record.to_string();
+
         Some(resolution)
     }
 
@@ -220,6 +224,7 @@ impl<'a> Context<'_, 'a> {
             && path.ends_with("::convert::TryFrom::try_from")
             && (input("u32") && ok == Some("usize")
                 || profile.supports("rust.end-of-input") && input("usize") && ok == Some("u16"));
+
         scalar_from || int_conversion || self.local_from(call, definition)
     }
 
@@ -239,15 +244,7 @@ impl<'a> Context<'_, 'a> {
 
     /// A standard `Result`'s success type spelling.
     fn result_ok(&self, ty: &rstyle_core::cpg::model::Type) -> Option<&'a str> {
-        let definition = self
-            .reader
-            .tables
-            .definition(ty.definition.as_deref()?)
-            .ok()?;
-        if identity(definition, "diagnostic") != Some("Result") {
-            return None;
-        }
-        let ok = ty.arguments.as_deref()?.first()?;
+        let ok = self.reader.diagnostic_arguments(ty, "Result")?.first()?;
         Some(self.reader.ty(ok).ok()?.spelling.as_str())
     }
 
@@ -303,6 +300,7 @@ impl<'a> Context<'_, 'a> {
             callee: self.library_record(definition)?,
             argument: argument.spelling.clone(),
         };
+
         Some(PathRes {
             kind: crate::size_calls::RESOLUTION.into(),
             target: None,
@@ -374,6 +372,7 @@ impl<'a> Context<'_, 'a> {
         {
             return None;
         }
+
         Some(crate::inherent_calls::CallOwner {
             identity: crate::inherent_calls::IDENTITY.into(),
             implementation_identity: identity(implementation, "def_path_hash")?.to_owned(),
@@ -402,6 +401,7 @@ impl<'a> Context<'_, 'a> {
                 .cloned()
                 .unwrap_or_default()
         };
+
         let parameters = own(&owner);
         let lifetimes = !parameters.is_empty()
             && parameters.len() <= crate::concrete_types::MAX_FIELDS
@@ -413,6 +413,7 @@ impl<'a> Context<'_, 'a> {
         {
             return false;
         }
+
         match method
             .callable
             .as_ref()
@@ -464,6 +465,7 @@ impl<'a> Context<'_, 'a> {
         let syn::PathArguments::AngleBracketed(arguments) = &last.arguments else {
             return false;
         };
+
         generics.where_clause.is_none()
             && path.qself.is_none()
             && parents
@@ -529,14 +531,6 @@ impl<'a> Context<'_, 'a> {
             instance: Instance::default(),
         })
     }
-}
-
-fn identity<'d>(definition: &'d Definition, key: &str) -> Option<&'d str> {
-    definition
-        .extensions
-        .get("rust:compiler-identity")?
-        .get(key)?
-        .as_str()
 }
 
 /// All of a definition's generic parameters, its parents' included.

@@ -31,6 +31,7 @@ impl<'a> Context<'_, 'a> {
             None => reference.via.as_deref()?,
         };
         let definition = self.reader.tables.definition(declared).ok()?;
+
         Some((parent, children.len() - 1, definition))
     }
 
@@ -45,6 +46,7 @@ impl<'a> Context<'_, 'a> {
         let position = self.reader.profile.supports("rust.byte-iterator-position")
             && arguments == 1
             && POSITION.contains(&path);
+
         definition.scope != Scope::Unit
             && crate_name(definition) == Some("core")
             && (option || position)
@@ -97,16 +99,13 @@ impl<'a> Context<'_, 'a> {
             operand_tys: vec!["u8".into()],
             result_ty: "bool".into(),
         };
+
         Some((resolution, dispatch))
     }
 }
 
 fn crate_name(definition: &Definition) -> Option<&str> {
-    definition
-        .extensions
-        .get("rust:compiler-identity")?
-        .get("crate_name")?
-        .as_str()
+    super::identity(definition, "crate_name")
 }
 
 const RESULT_CALLBACKS: [&str; 6] = [
@@ -187,6 +186,7 @@ impl<'a> Context<'_, 'a> {
             .into_iter()
             .map(|inner| self.pattern(inner))
             .collect::<Result<_, _>>()?;
+
         Ok(HirNode {
             kind: "pat_shared_copy".into(),
             children: inner,
@@ -240,6 +240,7 @@ impl<'a> Context<'_, 'a> {
             return false;
         };
         let usize = |ty: &str| self.reader.ty(ty).is_ok_and(|ty| ty.spelling == "usize");
+
         is_result
             && value.kind == TypeKind::Tuple
             && matches!(value.items.as_deref(), Some([first, second]) if usize(first) && usize(second))
@@ -273,6 +274,7 @@ impl<'a> Context<'_, 'a> {
                     .map(|child| (child, depth)),
             );
         }
+
         Ok(true)
     }
 
@@ -304,6 +306,7 @@ impl<'a> Context<'_, 'a> {
         if !permitted {
             return Ok(node);
         }
+
         Ok(HirNode {
             kind: "pat_scalar_tuple".into(),
             children: children

@@ -16,6 +16,7 @@ pub struct Difference {
     pub derived: String,
 }
 
+// rstyle-allow(mutation_per_target): collects every channel difference into one list
 pub fn differences(reference: &HirFnFacts, derived: &HirFnFacts) -> Vec<Difference> {
     let mut found = Differences::default();
     found.field(("function.name", ""), &reference.name, &derived.name);
@@ -53,6 +54,7 @@ pub fn differences(reference: &HirFnFacts, derived: &HirFnFacts) -> Vec<Differen
         &reference.source_scan_complete,
         &derived.source_scan_complete,
     );
+
     found.0
 }
 
@@ -108,6 +110,7 @@ impl Differences {
         );
     }
 
+    // rstyle-allow(mutation_per_target): collects every channel difference into one list
     fn signature(&mut self, reference: &SignatureFacts, derived: &SignatureFacts) {
         self.field(
             ("signature.sig_span", ""),
@@ -145,11 +148,13 @@ impl Differences {
             self.field(site, &reference.params.len(), &derived.params.len());
             return;
         }
+
         for (reference, derived) in reference.params.iter().zip(&derived.params) {
             self.parameter(reference, derived);
         }
     }
 
+    // rstyle-allow(mutation_per_target): collects every channel difference into one list
     fn parameter(&mut self, reference: &ParamFact, derived: &ParamFact) {
         let path = reference.position.to_string();
         self.field(
@@ -162,6 +167,7 @@ impl Differences {
         let site = ("signature.param.ty_span", path.as_str());
         self.field(site, &reference.ty_span, &derived.ty_span);
         self.field(("signature.param.ty", &path), &reference.ty, &derived.ty);
+
         self.node(&format!("param{path}"), &reference.pat, &derived.pat);
     }
 
@@ -178,6 +184,7 @@ impl Differences {
         }
     }
 
+    // rstyle-allow(mutation_per_target): collects every channel difference into one list
     fn node_fields(&mut self, path: &str, reference: &HirNode, derived: &HirNode) {
         self.field(("node.hir", path), &reference.hir, &derived.hir);
         self.field(("node.kind", path), &reference.kind, &derived.kind);
@@ -208,6 +215,7 @@ impl Differences {
             &derived.param_index,
         );
         let unsafe_block = (&reference.is_unsafe_block, &derived.is_unsafe_block);
+
         self.field(
             ("node.is_unsafe_block", path),
             unsafe_block.0,

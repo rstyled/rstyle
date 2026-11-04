@@ -1,6 +1,6 @@
 //! Path and loop-exit resolutions, as the frontend's facts record them.
 
-use super::{Context, hir_ref};
+use super::{Context, hir_ref, identity};
 use crate::frontend::{HirRef, PathRes};
 use rstyle_core::cpg::model::{Node, NodeKind, Origin, TargetKind, TypeKind};
 use rstyle_core::cpg::tree::Body;
@@ -42,6 +42,7 @@ fn visit<'a>(
     if entered.is_some() {
         loops.pop();
     }
+
     Ok(())
 }
 
@@ -121,6 +122,7 @@ impl Context<'_, '_> {
             "f64" => format!("0x{:016x}", digits.parse::<f64>().ok()?.to_bits()),
             _ => return None,
         };
+
         Some(PathRes {
             kind: "resolved_float_literal".into(),
             target: None,
@@ -219,6 +221,7 @@ impl Context<'_, '_> {
             position: node.member_index? as usize,
             owner_path,
         };
+
         Some(PathRes {
             kind: "resolved_field".into(),
             target: None,
@@ -236,18 +239,10 @@ impl Context<'_, '_> {
         let identity = &definition.stable_identity;
         let (krate, path) = identity.split_at(identity.find("::").unwrap_or(identity.len()));
         let compilation = definition.compilation.as_deref()?;
+
         Some(format!(
             "DefId(0:{owner} ~ {krate}[{}]{path})",
             compilation.get(..4)?
         ))
     }
-}
-
-/// A part of the compiler's own identity of a definition, as the compiler prints it.
-fn identity<'d>(definition: &'d rstyle_core::cpg::model::Definition, key: &str) -> Option<&'d str> {
-    definition
-        .extensions
-        .get("rust:compiler-identity")?
-        .get(key)?
-        .as_str()
 }

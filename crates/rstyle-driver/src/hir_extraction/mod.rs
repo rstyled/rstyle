@@ -180,6 +180,7 @@ fn collect_crate_facts(
         )))
     })?;
     reader_check::check(tcx, (options, passes), &facts)?;
+
     Ok(facts)
 }
 

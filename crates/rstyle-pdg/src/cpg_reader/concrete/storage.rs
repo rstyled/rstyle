@@ -50,6 +50,7 @@ impl<'a> Capture<'_, '_, 'a> {
             scalar,
         };
         let observation = observation.canonicalized().map_err(Failure::Unsupported)?;
+
         Ok(Some(TypeTree::NonZero(observation)))
     }
 
@@ -95,6 +96,7 @@ impl<'a> Capture<'_, '_, 'a> {
             needs_drop: has("rust:needs-drop"),
             has_drop_impl: definition.destructor,
         };
+
         Ok(Some(match kind {
             "RangeTo" => TypeTree::RangeToUsize { observation },
             "RangeFrom" => TypeTree::RangeFromUsize { observation },
@@ -120,6 +122,7 @@ impl<'a> Capture<'_, '_, 'a> {
             .collect()
     }
 
+    // rstyle-allow(mutation_per_target): recursive observation shares one budgeted observer
     /// A Result shape the grammar observes: integer, slice-to-array or fresh conversions.
     pub(super) fn observed_result(
         &mut self,
@@ -149,6 +152,7 @@ impl<'a> Capture<'_, '_, 'a> {
             crate::concrete_types::validate(&result).map_err(Failure::Unsupported)?;
             return Ok(Some(result));
         }
+
         Ok(None)
     }
 
@@ -163,13 +167,14 @@ impl<'a> Capture<'_, '_, 'a> {
         {
             return Ok(None);
         }
-        if !(self.spelled(ok, "usize") || self.usize_pair(ok)) {
+        if !(self.context.reader.integer(Some(ok), "usize") || self.usize_pair(ok)) {
             return Ok(None);
         }
         let result = TypeTree::NeverConversionResult {
             ok: Box::new(self.tree(ok, depth + 1)?),
         };
         crate::concrete_types::validate(&result).map_err(Failure::Unsupported)?;
+
         Ok(Some(result))
     }
 
@@ -225,7 +230,8 @@ impl<'a> Capture<'_, '_, 'a> {
             && array
                 .element
                 .as_deref()
-                .is_some_and(|element| self.spelled(element, "u8"));
+                .is_some_and(|element| self.context.reader.integer(Some(element), "u8"));
+
         Ok(match (bytes, array.length) {
             (true, Some(length)) if length <= MAX_FIELDS as u64 => {
                 Some(TypeTree::SliceArrayResult { length, borrowed })
@@ -258,14 +264,10 @@ impl<'a> Capture<'_, '_, 'a> {
         (self.identity(definition, "crate_name").ok()? == "core").then_some(definition)
     }
 
-    fn spelled(&self, id: &str, spelling: &str) -> bool {
-        self.ty(id).is_ok_and(|ty| ty.spelling == spelling)
-    }
-
     fn usize_pair(&self, id: &str) -> bool {
         self.ty(id).is_ok_and(|ty| {
             matches!(ty.items.as_deref(), Some([first, second])
-                if ty.kind == TypeKind::Tuple && self.spelled(first, "usize") && self.spelled(second, "usize"))
+                if ty.kind == TypeKind::Tuple && self.context.reader.integer(Some(first), "usize") && self.context.reader.integer(Some(second), "usize"))
         })
     }
 

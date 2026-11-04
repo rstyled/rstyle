@@ -102,6 +102,7 @@ fn cargo_package(selected: Option<&PackageContext>) -> Option<Value> {
     let digest = rstyle_pdg::SourceSnapshot::from(manifest)
         .checksum()
         .to_owned();
+
     Some(json!({"name": name, "version": version, "manifest_digest": digest}))
 }
 
@@ -127,6 +128,7 @@ fn batches(tcx: TyCtxt<'_>) -> Vec<Vec<LocalDefId>> {
     batches.into_iter().map(|(_, batch)| batch).collect()
 }
 
+// rstyle-allow(mutated_targets): assembles one document from the builder that accumulates it
 fn batch_document(
     tcx: TyCtxt<'_>,
     (root, package): (&Path, Option<Value>),
@@ -294,21 +296,15 @@ fn signature<'tcx>(
             continue;
         }
         let position = index - usize::from(has_self);
-        let mut parameter = json!({"position": position, "symbol": symbol, "type": ty, "bindings": bindings,
-                                   "pattern": builder.id(param.pat.hir_id),
-                                   "original_kind": compiler::original_kind(tcx, param.pat.hir_id)});
-        if let Some(span) = builder.unit.span(param.pat.span) {
-            parameter["span"] = span;
-        }
-        if let Some(annotation) = sig
-            .decl
-            .inputs
-            .get(index)
-            .and_then(|ty| builder.unit.span(ty.span))
-        {
-            parameter["annotation"] = annotation;
-        }
-        parameters.push(parameter);
+        let record = json!({"position": position, "symbol": symbol, "type": ty, "bindings": bindings,
+                            "pattern": builder.id(param.pat.hir_id),
+                            "original_kind": compiler::original_kind(tcx, param.pat.hir_id)});
+        let annotation = sig.decl.inputs.get(index).map(|ty| ty.span);
+        parameters.push(located_parameter(
+            builder.unit,
+            record,
+            (param.pat.span, annotation),
+        ));
     }
 
     let mut signature = json!({"parameters": parameters, "result": builder.unit.ty(fn_sig.output()),
@@ -327,6 +323,21 @@ fn signature<'tcx>(
         signature["owner_type"] = json!(builder.unit.ty(owner));
     }
     signature
+}
+
+/// A parameter with the spans its pattern and its type are written at.
+fn located_parameter(
+    unit: &mut unit::Unit<'_>,
+    mut record: Value,
+    (pattern, annotation): (rustc_span::Span, Option<rustc_span::Span>),
+) -> Value {
+    if let Some(span) = unit.span(pattern) {
+        record["span"] = span;
+    }
+    if let Some(annotation) = annotation.and_then(|span| unit.span(span)) {
+        record["annotation"] = annotation;
+    }
+    record
 }
 
 /// A receiver with the span its type is written at, located at the outermost call site.
@@ -461,5 +472,6 @@ fn constants(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Vec<Value> {
         }
         constants.push(record);
     }
+
     constants
 }

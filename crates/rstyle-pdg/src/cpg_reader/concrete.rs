@@ -37,6 +37,7 @@ fn unsupported(reason: &str) -> Failure {
 }
 
 impl<'a> Context<'_, 'a> {
+    // rstyle-allow(mutation_per_target): one observer installs the interface, body and binding tokens in turn
     /// Installs the concrete type observations the frontend installs on `facts`.
     pub(super) fn concrete_types(
         &self,
@@ -67,6 +68,7 @@ impl<'a> Context<'_, 'a> {
             }
         }
         facts.build.frontend_options.insert_data(observations);
+
         Ok(())
     }
 
@@ -86,6 +88,7 @@ impl<'a> Context<'_, 'a> {
             .parameters
             .iter()
             .filter_map(|parameter| Some((parameter.pattern.as_ref()?, parameter.ty.as_str())));
+
         // A binding's own type, as typeck records it, wins over its parameter's.
         patterns
             .chain(nodes)
@@ -109,6 +112,7 @@ fn has_data_interface(facts: &HirFnFacts, profile: ExtractionProfile) -> bool {
                     .any(|parameter| parameter.ty.normalized.is_none()))
 }
 
+// rstyle-allow(side_effect_density): installs each observed interface token in place
 fn interface_tokens(
     facts: &mut HirFnFacts,
     interface: &InterfaceObservations,
@@ -156,6 +160,7 @@ impl<'a> Capture<'_, '_, 'a> {
             result: self.observe(result)?.0,
         };
         observations.validate()?;
+
         Ok(observations)
     }
 
@@ -178,6 +183,7 @@ impl<'a> Capture<'_, '_, 'a> {
         };
         self.completed
             .insert(ty, (observation.clone(), token.clone()));
+
         Ok((observation, token))
     }
 
@@ -231,6 +237,7 @@ impl<'a> Capture<'_, '_, 'a> {
         {
             call_tokens(node);
         }
+
         Ok(())
     }
 
@@ -275,6 +282,7 @@ impl<'a> Capture<'_, '_, 'a> {
         }
     }
 
+    // rstyle-allow(mutation_per_target): recursive observation shares one budgeted observer
     fn composite(&mut self, ty: &'a Type, depth: usize) -> Result<TypeTree, Failure> {
         let mode = ty.mode.as_deref();
         match ty.kind {
@@ -282,7 +290,7 @@ impl<'a> Capture<'_, '_, 'a> {
                 if mode == Some("exclusive")
                     && depth == 0
                     && self.supports("rust.mutable-scalar-formals")
-                    && self.is_usize(ty.target.as_deref()) =>
+                    && self.context.reader.integer(ty.target.as_deref(), "usize") =>
             {
                 Ok(TypeTree::MutableScalar("usize".into()))
             }
@@ -309,6 +317,7 @@ impl<'a> Capture<'_, '_, 'a> {
         }
     }
 
+    // rstyle-allow(mutation_per_target): recursive observation shares one budgeted observer
     fn storage(&mut self, ty: &'a Type, depth: usize) -> Result<TypeTree, Failure> {
         if let Some(carrier) = self.carrier(ty, depth)? {
             return Ok(carrier);
@@ -348,6 +357,7 @@ impl<'a> Capture<'_, '_, 'a> {
         }
     }
 
+    // rstyle-allow(mutation_per_target): recursive observation shares one budgeted observer
     /// A local struct with its declaration as written and its fields' types.
     fn structure(&mut self, ty: &'a Type, depth: usize) -> Result<TypeTree, Failure> {
         if let Some(captured) = self.scalar_product_instance(ty, depth)? {
@@ -411,6 +421,7 @@ impl<'a> Capture<'_, '_, 'a> {
                 "Concrete struct exceeds field budget".into(),
             ));
         }
+
         Ok((definition, fields))
     }
 
@@ -446,15 +457,27 @@ impl<'a> Capture<'_, '_, 'a> {
         declarations: Vec<(String, String)>,
         depth: usize,
     ) -> Result<Vec<Field>, Failure> {
+        let disagreement = "Resolved field identity disagrees with original declaration";
+        self.declared_fields((fields, declarations), depth, disagreement)
+    }
+
+    /// Fields observed in declaration order, each checked against its written name.
+    fn declared_fields(
+        &mut self,
+        (fields, declarations): (
+            &'a [rstyle_core::cpg::model::TypeField],
+            Vec<(String, String)>,
+        ),
+        depth: usize,
+        disagreement: &str,
+    ) -> Result<Vec<Field>, Failure> {
         fields
             .iter()
             .zip(declarations)
             .enumerate()
             .map(|(position, (field, (name, declaration)))| {
                 if field.name != name {
-                    return Err(unsupported(
-                        "Resolved field identity disagrees with original declaration",
-                    ));
+                    return Err(unsupported(disagreement));
                 }
                 Ok(Field {
                     position,
@@ -493,6 +516,7 @@ impl<'a> Capture<'_, '_, 'a> {
             false => None,
         };
         let missing = || unsupported("Missing Cargo package identity");
+
         Ok(Nominal {
             source_identity,
             package_name: text("name").ok_or_else(missing)?,
@@ -528,6 +552,7 @@ impl<'a> Capture<'_, '_, 'a> {
                 .as_deref()
                 .and_then(|target| self.ty(target).ok())
                 .is_some_and(scalar);
+
         (scalar(payload_type) || shared_scalar).then_some(payload.as_str())
     }
 
@@ -561,6 +586,7 @@ impl<'a> Capture<'_, '_, 'a> {
                                 element.kind == TypeKind::Integer && element.spelling == "u8"
                             })
                 });
+
         (product || borrowed_bytes).then_some(payload.as_str())
     }
 
@@ -569,11 +595,6 @@ impl<'a> Capture<'_, '_, 'a> {
             return None;
         };
         Some((ok.as_str(), err.as_str()))
-    }
-
-    fn is_usize(&self, id: Option<&str>) -> bool {
-        id.and_then(|id| self.ty(id).ok())
-            .is_some_and(|ty| ty.kind == TypeKind::Integer && ty.spelling == "usize")
     }
 }
 
@@ -604,6 +625,7 @@ fn call_tokens(node: &mut HirNode) {
         })
         .collect();
     dispatch.operand_tys = operands;
+
     if let Some(token) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) {
         token.clone_into(&mut dispatch.result_ty);
     }

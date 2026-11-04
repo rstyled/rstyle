@@ -27,6 +27,7 @@ impl<'a> Capture<'_, '_, 'a> {
             return Err(unsupported("Generated tuple field inventory disagrees"));
         };
         only.declaration = field;
+
         Ok(TypeTree::GeneratedStruct {
             nominal,
             template,
@@ -65,6 +66,7 @@ impl<'a> Capture<'_, '_, 'a> {
                 "Generated declaration has no unique original local bang root",
             ));
         }
+
         Ok((template, field))
     }
 
@@ -79,6 +81,7 @@ impl<'a> Capture<'_, '_, 'a> {
                 "Generated declaration exceeds source budget".into(),
             ));
         }
+
         Ok(source)
     }
 }

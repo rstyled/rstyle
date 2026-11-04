@@ -83,7 +83,7 @@ impl<'tcx> Unit<'tcx> {
         (span, levels)
     }
 
-    // rstyle-allow(mutation_per_target): the unit interns referenced records as it builds them
+    // rstyle-allow(mutated_targets, mutation_per_target): the unit interns referenced records as it builds them
     /// The definition ID of `def_id`, recording the definition on first use.
     pub fn definition(&mut self, def_id: DefId) -> String {
         let mut stable = ids::def_id_str(self.tcx, def_id);
@@ -139,6 +139,7 @@ impl<'tcx> Unit<'tcx> {
         };
         let owner = self.definition(tcx.parent(variant));
         let definition = constructed.then(|| self.definition(variant));
+
         Some((owner, tcx.item_name(variant).to_string(), definition))
     }
 
@@ -201,6 +202,7 @@ impl<'tcx> Unit<'tcx> {
             .map(|ty| self.ty(ty))
             .collect();
         let generated = body.value.span.from_expansion();
+
         Some(
             json!({"callee": self.definition(function), "arguments": arguments, "generated": generated}),
         )
@@ -242,6 +244,7 @@ impl<'tcx> Unit<'tcx> {
         {
             record["root"] = json!(root);
         }
+
         Some(record)
     }
 
@@ -442,6 +445,7 @@ impl<'tcx> Unit<'tcx> {
         record
     }
 
+    // rstyle-allow(mutation_per_target): the unit interns referenced records as it builds them
     /// A struct, enum or union with its type arguments; `Box` is an owned pointer.
     fn nominal(
         &mut self,
@@ -510,6 +514,7 @@ impl<'tcx> Unit<'tcx> {
         if ty.needs_drop(self.tcx, environment) {
             traits.push("rust:needs-drop");
         }
+
         traits
     }
 
@@ -628,23 +633,11 @@ impl<'tcx> Unit<'tcx> {
         )
     }
 
+    // rstyle-allow(mutation_per_target): the unit interns referenced records as it builds them
     /// A local, nongeneric constant's evaluated scalar value.
     fn constant_value(&mut self, def_id: DefId, id: &str) {
         let tcx = self.tcx;
-        // A library constant of a primitive's own implementation, as `u32::MAX` is.
-        let primitive = || {
-            tcx.def_kind(def_id) == DefKind::AssocConst
-                && matches!(
-                    tcx.def_kind(tcx.parent(def_id)),
-                    DefKind::Impl { of_trait: false }
-                )
-                && tcx
-                    .type_of(tcx.parent(def_id))
-                    .instantiate_identity()
-                    .skip_norm_wip()
-                    .is_primitive()
-        };
-        if !(def_id.is_local() || primitive())
+        if !(def_id.is_local() || primitive_constant(tcx, def_id))
             || !matches!(tcx.def_kind(def_id), DefKind::Const | DefKind::AssocConst)
             || tcx.generics_of(def_id).count() != 0
         {
@@ -662,32 +655,57 @@ impl<'tcx> Unit<'tcx> {
         let Ok(evaluated) = tcx.const_eval_poly(def_id) else {
             return;
         };
-        let literal = match ty.kind() {
-            ty::Bool => evaluated
-                .try_to_bool()
-                .map(|value| json!({"kind": "bool", "value": value.to_string()})),
-            ty::Tuple(items) if items.is_empty() => Some(json!({"kind": "unit", "value": "()"})),
-            ty::Int(_) => evaluated.try_to_scalar_int().map(|value| {
-                json!({"kind": "integer", "value": value.to_int(value.size()).to_string()})
-            }),
-            ty::Uint(_) => evaluated.try_to_scalar_int().map(|value| {
-                json!({"kind": "integer", "value": value.to_bits(value.size()).to_string()})
-            }),
-            ty::Array(element, length) if element.is_bool() => {
-                bool_array(tcx, def_id, ty, length.try_to_target_usize(tcx))
-            }
-            // A float's exact value is its IEEE bits, in hexadecimal at the float's width.
-            ty::Float(_) => evaluated.try_to_scalar_int().map(|value| {
-                let bits = value.to_bits(value.size());
-                let digits = value.size().bytes_usize() * 2;
-                json!({"kind": "float", "value": format!("0x{bits:0digits$x}")})
-            }),
-            _ => None,
-        };
+        let literal = literal(tcx, def_id, ty, evaluated);
+
         if let Some(literal) = literal {
             let record = json!({"definition": id, "type": self.ty(ty), "value": literal});
             self.values.insert(id.to_owned(), record);
         }
+    }
+}
+
+/// A library constant of a primitive's own implementation, as `u32::MAX` is.
+fn primitive_constant(tcx: TyCtxt<'_>, def_id: DefId) -> bool {
+    tcx.def_kind(def_id) == DefKind::AssocConst
+        && matches!(
+            tcx.def_kind(tcx.parent(def_id)),
+            DefKind::Impl { of_trait: false }
+        )
+        && tcx
+            .type_of(tcx.parent(def_id))
+            .instantiate_identity()
+            .skip_norm_wip()
+            .is_primitive()
+}
+
+/// A constant's evaluated value as an exact literal, for the types the unit records.
+fn literal<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    def_id: DefId,
+    ty: Ty<'tcx>,
+    evaluated: rustc_middle::mir::ConstValue,
+) -> Option<Value> {
+    match ty.kind() {
+        ty::Bool => evaluated
+            .try_to_bool()
+            .map(|value| json!({"kind": "bool", "value": value.to_string()})),
+        ty::Tuple(items) if items.is_empty() => Some(json!({"kind": "unit", "value": "()"})),
+        ty::Int(_) => evaluated.try_to_scalar_int().map(
+            |value| json!({"kind": "integer", "value": value.to_int(value.size()).to_string()}),
+        ),
+        ty::Uint(_) => evaluated.try_to_scalar_int().map(
+            |value| json!({"kind": "integer", "value": value.to_bits(value.size()).to_string()}),
+        ),
+        ty::Array(element, length) if element.is_bool() => {
+            bool_array(tcx, def_id, ty, length.try_to_target_usize(tcx))
+        }
+        // A float's exact value is its IEEE bits, in hexadecimal at the float's width.
+        ty::Float(_) => evaluated.try_to_scalar_int().map(|value| {
+            let bits = value.to_bits(value.size());
+            let digits = value.size().bytes_usize() * 2;
+            json!({"kind": "float", "value": format!("0x{bits:0digits$x}")})
+        }),
+        _ => None,
     }
 }
 
@@ -728,6 +746,7 @@ fn bool_array<'tcx>(
             _ => None,
         })
         .collect();
+
     Some(json!({"kind": "array", "items": items?}))
 }
 
@@ -847,6 +866,7 @@ fn compiler_facts(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> Vec<(&'stati
     .collect()
 }
 
+// rstyle-allow(mutation_per_target): builds one identity record key by key
 /// The compiler's own identity of a definition, as the frontend's facts print it:
 /// its `DefId`, `DefKind`, `DefPathHash`, crate name and, for another crate, its hash.
 fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> serde_json::Map<String, Value> {
@@ -886,6 +906,7 @@ fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> serde_json::M
     if let Some(generics) = generics(tcx, def_id, kind) {
         identity.insert("generics".into(), generics);
     }
+
     identity
 }
 

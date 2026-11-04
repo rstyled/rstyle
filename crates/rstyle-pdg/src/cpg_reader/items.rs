@@ -1,7 +1,7 @@
 //! Local items a body declares, and library and local constants the data profile
 //! observes by their evaluated values: bool tables, native sizes and `u32::MAX`.
 
-use super::Context;
+use super::{Context, identity};
 use crate::bool_constants::{self, BoolArray, ConstFunction};
 use crate::data_types::TypeToken;
 use crate::frontend::{HirNode, PathRes};
@@ -92,6 +92,7 @@ impl<'a> Context<'_, 'a> {
             })
             .collect::<Option<Vec<_>>>()?;
         let initializer = self.array_initializer(definition)?;
+
         PathRes::observation(
             bool_constants::RESOLUTION,
             &BoolArray {
@@ -122,6 +123,7 @@ impl<'a> Context<'_, 'a> {
         {
             return None;
         }
+
         Some(callee.name.clone())
     }
 
@@ -156,6 +158,7 @@ impl<'a> Context<'_, 'a> {
             initializer: self.library_record(callee)?,
             argument: "usize".into(),
         };
+
         Some(PathRes {
             kind: crate::size_constants::RESOLUTION.into(),
             target: None,
@@ -188,6 +191,7 @@ impl<'a> Context<'_, 'a> {
             member: "MAX".into(),
             value: value.value.value.clone()?,
         };
+
         Some(PathRes {
             kind: crate::primitive_constants::RESOLUTION.into(),
             target: None,
@@ -234,12 +238,4 @@ fn bool_array(
     }
     .text()
     .ok()
-}
-
-fn identity<'d>(definition: &'d Definition, key: &str) -> Option<&'d str> {
-    definition
-        .extensions
-        .get("rust:compiler-identity")?
-        .get(key)?
-        .as_str()
 }

@@ -91,6 +91,7 @@ impl<'a> Context<'_, 'a> {
             inclusive,
         }
         .text();
+
         Ok(Some(HirNode {
             lit: Some(lit),
             children: constants,
@@ -144,11 +145,7 @@ impl<'a> Context<'_, 'a> {
 
     /// The local scalar constant a pattern's path names.
     fn pattern_constant(&self, path: &Node) -> Option<PathRes> {
-        let target = self.body.reference(&path.id)?.target.as_ref()?;
-        if target.kind != TargetKind::Definition {
-            return None;
-        }
-        let definition = self.reader.tables.definition(target.id.as_deref()?).ok()?;
+        let definition = self.target_definition(path, TargetKind::Definition)?;
         self.constant_resolution(definition)
     }
 }

@@ -3,7 +3,7 @@
 
 use super::{Context, hir_ref};
 use crate::frontend::{HirNode, PathRes};
-use rstyle_core::cpg::model::{Definition, Node, NodeKind, Origin, TypeKind};
+use rstyle_core::cpg::model::{Definition, Node, NodeKind, Origin};
 
 type Built = Result<Option<HirNode>, String>;
 
@@ -29,6 +29,7 @@ impl<'a> Context<'_, 'a> {
             return Ok(None);
         }
         let base = self.node(node, "expr_for")?;
+
         Ok(Some(HirNode {
             ty: self.ty(node)?,
             res: Some(PathRes {
@@ -57,7 +58,7 @@ impl<'a> Context<'_, 'a> {
             || children.len() != 2
             || !children
                 .iter()
-                .all(|child| self.is_u32(child.ty.as_deref()))
+                .all(|child| self.reader.integer(child.ty.as_deref(), "u32"))
         {
             return Ok(None);
         }
@@ -65,6 +66,7 @@ impl<'a> Context<'_, 'a> {
             return Ok(None);
         };
         resolution.kind = "resolved_u32_range_type".into();
+
         Ok(Some(HirNode {
             ty: self.ty(head)?,
             res: Some(resolution),
@@ -90,18 +92,13 @@ impl<'a> Context<'_, 'a> {
             .get("rust:compiler-identity")
             .and_then(|identity| identity.get("crate_name")?.as_str())
             == Some("core");
-        let argument =
-            matches!(ty.arguments.as_deref(), Some([argument]) if self.is_u32(Some(argument)));
+        let argument = matches!(ty.arguments.as_deref(), Some([argument]) if self.reader.integer(Some(argument), "u32"));
+
         (matches!(
             definition.name.as_str(),
             "core::ops::Range" | "std::ops::Range"
         ) && core
             && argument)
             .then_some(definition)
-    }
-
-    fn is_u32(&self, ty: Option<&str>) -> bool {
-        ty.and_then(|ty| self.reader.ty(ty).ok())
-            .is_some_and(|ty| ty.kind == TypeKind::Integer && ty.spelling == "u32")
     }
 }

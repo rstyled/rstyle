@@ -72,6 +72,7 @@ impl<'a> Capture<'_, '_, 'a> {
                 ));
             }
         }
+
         Ok(TypeTree::FieldlessEnum {
             nominal: self.nominal(&definition.name, &source)?,
             source,
@@ -175,34 +176,28 @@ impl<'a> Capture<'_, '_, 'a> {
                     && written.len() == declared.len()
                     && shape(variant) == "record" =>
             {
-                let fields = declared
-                    .iter()
-                    .zip(written)
-                    .enumerate()
-                    .map(|(position, (field, (name, declaration)))| {
-                        if field.name != name {
-                            return Err(unsupported(
-                                "Named enum compiler/source field identity disagrees",
-                            ));
-                        }
-                        let ty = self.tree(&field.ty, depth + 1)?;
-                        Ok((
-                            name.clone(),
-                            Field {
-                                position,
-                                name,
-                                declaration: declaration.into(),
-                                ty,
-                            },
-                        ))
-                    })
-                    .collect::<Result<_, Failure>>()?;
+                let fields = self.named_fields(declared, written, depth)?;
                 Ok(VariantShape::Named { fields })
             }
             _ => Err(unsupported(
                 "Mixed enum loses its compiler unit/single tuple constructor shape",
             )),
         }
+    }
+
+    /// A record variant's fields, observed in declaration order.
+    fn named_fields(
+        &mut self,
+        declared: &'a [rstyle_core::cpg::model::TypeField],
+        written: Vec<(String, String)>,
+        depth: usize,
+    ) -> Result<Vec<(String, Field)>, Failure> {
+        let disagreement = "Named enum compiler/source field identity disagrees";
+        let fields = self.declared_fields((declared, written), depth, disagreement)?;
+        Ok(fields
+            .into_iter()
+            .map(|field| (field.name.clone(), field))
+            .collect())
     }
 
     fn scalar_enum(
@@ -232,6 +227,7 @@ impl<'a> Capture<'_, '_, 'a> {
                 self.scalar_variant((position, variant), written, depth)
             })
             .collect::<Result<Vec<_>, Failure>>()?;
+
         Ok(TypeTree::Enum {
             nominal: self.nominal(&definition.name, &source)?,
             source,
@@ -269,6 +265,7 @@ impl<'a> Capture<'_, '_, 'a> {
             declaration: declaration.into(),
             ty,
         };
+
         Ok(Variant {
             position,
             name,

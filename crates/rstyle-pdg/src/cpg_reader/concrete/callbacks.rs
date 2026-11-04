@@ -37,6 +37,7 @@ impl<'a> Capture<'_, '_, 'a> {
                 (USIZE_READER_KIND, USIZE_READER_IDENTITY),
             )?;
         }
+
         Ok(())
     }
 
@@ -105,6 +106,7 @@ impl<'a> Capture<'_, '_, 'a> {
         if captures.len() > MAX_FIELDS {
             return Err("Callback environment exceeds concrete field budget".into());
         }
+
         Ok((ty, environment, captures))
     }
 
@@ -133,6 +135,7 @@ impl<'a> Capture<'_, '_, 'a> {
             stored_type,
             shared_formal,
         };
+
         Ok(PathRes {
             kind: records::ENVIRONMENT_KIND.into(),
             target: None,
@@ -165,6 +168,7 @@ impl<'a> Capture<'_, '_, 'a> {
         if supported || shared_formal {
             return Ok(self.observe(environment)?.0);
         }
+
         Ok(Observation::Unsupported {
             reason: "Callback environment is not exactly one shared primitive byte".into(),
         })
@@ -205,6 +209,7 @@ impl<'a> Capture<'_, '_, 'a> {
             ty.kind == TypeKind::Tuple
                 && matches!(ty.items.as_deref(), Some([item]) if item == root)
         });
+
         place.mode == "shared"
             && self.immutable_formal(symbol)
             && root_type.kind == TypeKind::Reference
@@ -252,13 +257,30 @@ impl<'a> Capture<'_, '_, 'a> {
             before: root_type.clone(),
             after: self.observe(&place.path[0].ty)?.0,
         };
+        let uses = self.shared_uses(node, &root)?;
+
+        Ok(Some(records::SharedCapture {
+            closure: node.hir.clone(),
+            root_type,
+            projections: vec![projected],
+            uses,
+        }))
+    }
+
+    // rstyle-allow(mutation_per_target): each observed type shares one budgeted observer
+    /// Each use of a captured root in a callback, with its observed type.
+    fn shared_uses(
+        &mut self,
+        node: &HirNode,
+        root: &HirRef,
+    ) -> Result<Vec<records::SharedUse>, String> {
         let mut paths = Vec::new();
         crate::frontend::collect_kind(node, "expr_path", &mut paths);
-        let uses = paths
+        paths
             .into_iter()
             .filter(|path| {
                 path.res.as_ref().is_some_and(|resolution| {
-                    resolution.kind == "local" && resolution.target.as_ref() == Some(&root)
+                    resolution.kind == "local" && resolution.target.as_ref() == Some(root)
                 })
             })
             .map(|path| {
@@ -270,13 +292,7 @@ impl<'a> Capture<'_, '_, 'a> {
                     ty: self.observe(ty)?.0,
                 })
             })
-            .collect::<Result<_, String>>()?;
-        Ok(Some(records::SharedCapture {
-            closure: node.hir.clone(),
-            root_type,
-            projections: vec![projected],
-            uses,
-        }))
+            .collect()
     }
 
     /// A `Result` callback's environment, captures and signature, as the reader
@@ -287,17 +303,7 @@ impl<'a> Capture<'_, '_, 'a> {
         identity: &str,
     ) -> Result<reader_records::Environment, String> {
         let (ty, environment, captures) = self.environment_parts(closure)?;
-        let definition = self.context.reader.tables.definition(
-            ty.definition
-                .as_deref()
-                .ok_or("Missing closure definition")?,
-        )?;
-        let definition_identity = definition
-            .extensions
-            .get("rust:compiler-identity")
-            .and_then(|identity| identity.get("def_path_hash")?.as_str())
-            .ok_or("Missing closure definition identity")?
-            .to_owned();
+        let definition_identity = self.closure_identity(ty)?;
         let body = self
             .context
             .body
@@ -310,16 +316,8 @@ impl<'a> Capture<'_, '_, 'a> {
             .map(|place| self.reader_capture(place))
             .collect::<Result<_, String>>()?;
         let stored_type = self.observe(environment)?.0;
-        let signature_inputs = ty
-            .parameters
-            .as_deref()
-            .unwrap_or_default()
-            .iter()
-            .map(|parameter| Ok(self.observe(parameter)?.0))
-            .collect::<Result<_, String>>()?;
-        let signature_output = self
-            .observe(ty.result.as_deref().ok_or("Missing closure result")?)?
-            .0;
+        let (signature_inputs, signature_output) = self.closure_signature(ty)?;
+
         Ok(reader_records::Environment {
             identity: identity.into(),
             closure: super::super::hir_ref(&closure.id),
@@ -332,6 +330,39 @@ impl<'a> Capture<'_, '_, 'a> {
             signature_inputs,
             signature_output,
         })
+    }
+
+    /// The compiler identity of the closure a closure type is the type of.
+    fn closure_identity(&self, ty: &Type) -> Result<String, String> {
+        let definition = self.context.reader.tables.definition(
+            ty.definition
+                .as_deref()
+                .ok_or("Missing closure definition")?,
+        )?;
+        let identity = definition
+            .extensions
+            .get("rust:compiler-identity")
+            .and_then(|identity| identity.get("def_path_hash")?.as_str())
+            .ok_or("Missing closure definition identity")?;
+        Ok(identity.to_owned())
+    }
+
+    /// A closure's tupled parameter types and its result type, observed.
+    fn closure_signature(
+        &mut self,
+        ty: &'a Type,
+    ) -> Result<(Vec<Observation>, Observation), String> {
+        let signature_inputs = ty
+            .parameters
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .map(|parameter| Ok(self.observe(parameter)?.0))
+            .collect::<Result<_, String>>()?;
+        let signature_output = self
+            .observe(ty.result.as_deref().ok_or("Missing closure result")?)?
+            .0;
+        Ok((signature_inputs, signature_output))
     }
 
     fn reader_capture(&mut self, place: &'a Captured) -> Result<reader_records::Capture, String> {
@@ -352,6 +383,7 @@ impl<'a> Capture<'_, '_, 'a> {
             });
             before = &step.ty;
         }
+
         Ok(reader_records::Capture {
             root: super::super::hir_ref(&place.symbol),
             mode: mode(place),
@@ -386,6 +418,7 @@ fn immediate_map_or_callback(node: &HirNode) -> Option<HirRef> {
     {
         return None;
     }
+
     node.children.last().map(|callback| callback.hir.clone())
 }
 
@@ -421,6 +454,7 @@ fn shared_helper_body(node: &HirNode, root: &HirRef) -> bool {
     let [receiver, payload] = body.children.as_slice() else {
         return false;
     };
+
     capture_path(receiver, root) && capture_path(payload, &binding.hir)
 }
 

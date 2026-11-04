@@ -120,6 +120,7 @@ fn closing_bracket(bytes: &[u8], open: usize) -> Option<usize> {
         }
         index += 1;
     }
+
     None
 }
 
@@ -212,6 +213,7 @@ impl<'ast> Visit<'ast> for Owned<'_> {
         visit::visit_type(self, ty);
     }
 
+    // rstyle-allow(mutation_per_target): the scan visitor records ownership as it walks
     fn visit_local(&mut self, local: &'ast syn::Local) {
         if self.special_local(local) {
             return;
@@ -283,6 +285,7 @@ impl<'ast> Visit<'ast> for Owned<'_> {
         }
     }
 
+    // rstyle-allow(mutation_per_target): the scan visitor records ownership as it walks
     fn visit_expr(&mut self, expression: &'ast syn::Expr) {
         if self.conditional_let(expression) {
             return;
@@ -294,6 +297,7 @@ impl<'ast> Visit<'ast> for Owned<'_> {
             self.literal_message = Some(offsets(self.positions, span));
         }
         self.expression(expression);
+
         self.literal_message = previous;
     }
 }
@@ -325,6 +329,7 @@ impl Owned<'_> {
         false
     }
 
+    // rstyle-allow(mutation_per_target): the scan visitor records ownership as it walks
     fn expression(&mut self, expression: &syn::Expr) {
         let span = expression.span();
         if let Some((capability, construct)) = deferred(expression)
@@ -346,6 +351,7 @@ impl Owned<'_> {
         visit::visit_expr(self, expression);
     }
 
+    // rstyle-allow(mutation_per_target): the scan visitor records ownership as it walks
     fn conditional_let(&mut self, expression: &syn::Expr) -> bool {
         if !self.supports("rust.scalar-option-if-let") {
             return false;
@@ -357,6 +363,7 @@ impl Owned<'_> {
         self.visit_pat(&condition.pat);
         self.match_pattern = previous;
         self.visit_expr(&condition.expr);
+
         true
     }
 }
@@ -524,6 +531,7 @@ fn validator_message(expression: &syn::Expr, profile: ExtractionProfile) -> Opti
     let [_, message] = call.args.iter().collect::<Vec<_>>()[..] else {
         return None;
     };
+
     // The compiler's string literal kinds, raw or not, regardless of a suffix.
     matches!(message, syn::Expr::Lit(lit) if matches!(lit.lit, syn::Lit::Str(_)))
         .then(|| message.span())
@@ -563,6 +571,7 @@ fn lossless_message(expression: &syn::Expr, profile: ExtractionProfile) -> Optio
         .map(|segment| segment.ident.to_string())
         .collect();
     let names: Vec<&str> = names.iter().map(String::as_str).collect();
+
     ["u64", "usize"]
         .into_iter()
         .any(|target| {

@@ -1,7 +1,7 @@
 //! The data profile's Option and local enum variant observations, on expressions and
 //! patterns, as the frontend records them.
 
-use super::Context;
+use super::{Context, identity};
 use crate::extraction_profile::ExtractionProfile;
 use crate::frontend::{HirNode, PathRes};
 use rstyle_core::cpg::model::{Definition, Node, TargetKind, Type, TypeKind};
@@ -64,6 +64,7 @@ impl<'a> Context<'_, 'a> {
         {
             return None;
         }
+
         self.variant_record(constructor, "resolved_result_variant")
     }
 
@@ -102,6 +103,7 @@ impl<'a> Context<'_, 'a> {
         }
         let mut resolution = self.library_callee(variant)?;
         resolution.kind = "resolved_fieldless_variant".into();
+
         Some(resolution)
     }
 
@@ -146,6 +148,7 @@ impl<'a> Context<'_, 'a> {
             ty,
             value: value.value.value.clone()?,
         };
+
         Some(PathRes {
             kind: crate::scalar_constants::RESOLUTION.into(),
             target: None,
@@ -181,6 +184,7 @@ impl<'a> Context<'_, 'a> {
             }) => *expr,
             expression => expression,
         };
+
         matches!(
             expression,
             syn::Expr::Lit(syn::ExprLit {
@@ -275,6 +279,7 @@ impl<'a> Context<'_, 'a> {
             .iter()
             .map(|child| self.pattern(child))
             .collect::<Result<_, _>>()?;
+
         self.observed(pattern, "pat_local_variant", (Some(resolution), children))
             .map(Some)
     }
@@ -295,11 +300,7 @@ impl<'a> Context<'_, 'a> {
 
     /// The constructor a path names.
     fn constructor(&self, path: &Node) -> Option<&'a Definition> {
-        let target = self.body.reference(&path.id)?.target.as_ref()?;
-        if target.kind != TargetKind::Constructor {
-            return None;
-        }
-        self.reader.tables.definition(target.id.as_deref()?).ok()
+        self.target_definition(path, TargetKind::Constructor)
     }
 
     /// The Option variant `expected` a path names, as a library variant record.
@@ -316,19 +317,12 @@ impl<'a> Context<'_, 'a> {
         {
             return None;
         }
+
         self.variant_record(definition, "resolved_option_variant")
     }
 
     fn option_argument(&self, ty: &Type) -> Option<&'a Type> {
-        let definition = self
-            .reader
-            .tables
-            .definition(ty.definition.as_deref()?)
-            .ok()?;
-        if identity(definition, "diagnostic") != Some("Option") {
-            return None;
-        }
-        let [payload] = ty.arguments.as_deref()? else {
+        let [payload] = self.reader.diagnostic_arguments(ty, "Option")? else {
             return None;
         };
         self.reader.ty(payload).ok()
@@ -378,12 +372,4 @@ pub(super) fn rest(context: &Context<'_, '_>, pattern: &Node) -> bool {
     inner
         .split(',')
         .any(|part| part.trim().trim_end_matches(')').trim() == "..")
-}
-
-fn identity<'d>(definition: &'d Definition, key: &str) -> Option<&'d str> {
-    definition
-        .extensions
-        .get("rust:compiler-identity")?
-        .get(key)?
-        .as_str()
 }

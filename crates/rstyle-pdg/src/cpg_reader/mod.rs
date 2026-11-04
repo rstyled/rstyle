@@ -163,6 +163,21 @@ impl<'a> Reader<'a> {
         SourceText::from_snapshot(SourceSnapshot::from(content), range)
     }
 
+    /// The type arguments of a type the compiler names by diagnostic item `name`.
+    fn diagnostic_arguments(&self, ty: &Type, name: &str) -> Option<&'a [String]> {
+        let definition = self.tables.definition(ty.definition.as_deref()?).ok()?;
+        (identity(definition, "diagnostic") == Some(name)).then_some(())?;
+        // The type table outlives the type a caller holds.
+        let own = self.tables.ty(&ty.id).ok()?;
+        own.arguments.as_deref()
+    }
+
+    /// Whether a type is the integer type `spelling` names.
+    fn integer(&self, ty: Option<&str>, spelling: &str) -> bool {
+        ty.and_then(|ty| self.ty(ty).ok())
+            .is_some_and(|ty| ty.kind == TypeKind::Integer && ty.spelling == spelling)
+    }
+
     fn file(&self, id: &str) -> Result<&'a File, String> {
         self.files
             .get(id)
@@ -239,6 +254,19 @@ struct Context<'r, 'a> {
 }
 
 impl<'a> Context<'_, 'a> {
+    /// The definition a node's reference targets, when the target is of `kind`.
+    fn target_definition(
+        &self,
+        node: &Node,
+        kind: rstyle_core::cpg::model::TargetKind,
+    ) -> Option<&'a rstyle_core::cpg::model::Definition> {
+        let target = self.body.reference(&node.id)?.target.as_ref()?;
+        if target.kind != kind {
+            return None;
+        }
+        self.reader.tables.definition(target.id.as_deref()?).ok()
+    }
+
     /// A file span relative to the function's bytes.
     /// A macro-generated function locates what its macro writes at the call site.
     fn span(&self, span: &FileSpan) -> ByteSpan {
@@ -353,6 +381,7 @@ impl<'a> Context<'_, 'a> {
             return Ok(node);
         }
         let record = self.body.symbol(symbol)?;
+
         Ok(HirNode {
             binding: Some(symbol_name(symbol)),
             binding_mut: Some(record.mutable),
@@ -467,11 +496,21 @@ impl Context<'_, '_> {
             })
             .collect();
         declared.sort_by_key(|(position, _)| *position);
+
         declared.into_iter().map(|(_, generic)| generic).collect()
     }
 }
 
 /// The HIR identity a node or symbol ID carries: `f<owner>.<local>` or `sf<owner>.<local>`.
+/// A key of a definition's `rust:compiler-identity` extension.
+fn identity<'d>(definition: &'d rstyle_core::cpg::model::Definition, key: &str) -> Option<&'d str> {
+    definition
+        .extensions
+        .get("rust:compiler-identity")?
+        .get(key)?
+        .as_str()
+}
+
 /// Where the frontend locates a function: where it is written, or for a function a
 /// macro generates, the macro's outermost call site.
 fn located(function: &Function) -> &FileSpan {
