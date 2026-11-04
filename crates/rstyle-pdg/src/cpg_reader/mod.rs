@@ -4,6 +4,7 @@
 //! A channel the document does not yet carry is reported by [`compare`] against the
 //! driver's own capture, never filled with a default that hides the difference.
 
+mod advisory;
 mod assertions;
 mod body;
 mod callbacks;
@@ -46,7 +47,8 @@ pub fn read(
     passes: Passes,
 ) -> Result<Vec<Read>, String> {
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
-    let reader = Reader::new((unit, &document.producer), (profile, passes))?;
+    let mut reader = Reader::new((unit, &document.producer), (profile, passes))?;
+    reader.advisory = advisory::derive(document)?;
     let functions = unit.functions.as_deref().unwrap_or_default();
 
     Ok(functions
@@ -64,6 +66,8 @@ struct Reader<'a> {
     tables: Tables<'a>,
     files: BTreeMap<&'a str, &'a File>,
     profile: ExtractionProfile,
+    /// Each function's core facts, when the advisory run records them.
+    advisory: Option<Vec<rstyle_core::facts::FnFacts>>,
 }
 
 impl<'a> Reader<'a> {
@@ -80,6 +84,7 @@ impl<'a> Reader<'a> {
             unit,
             scans: Default::default(),
             producer,
+            advisory: None,
             tables: Tables::new(unit)?,
             files,
             profile,
@@ -315,6 +320,7 @@ impl<'a> Context<'_, 'a> {
     /// The frontend's passes after its walk, in its order.
     fn after_walk(&self, mut facts: HirFnFacts, passes: Passes) -> Result<HirFnFacts, String> {
         self.concrete_types(&mut facts, passes)?;
+        self.reader.advisory(self.body.function, &mut facts)?;
         if passes == Passes::Complete {
             self.inherent_definition(&mut facts)?;
             crate::field_locations::capture(&mut facts)?;

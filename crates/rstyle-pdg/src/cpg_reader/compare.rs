@@ -90,6 +90,7 @@ impl Differences {
         }
     }
 
+    // rstyle-allow(mutation_per_target): collects every channel difference into one list
     /// The frontend option families the reader rebuilds, each as its own channel.
     fn options(&mut self, reference: &HirFnFacts, derived: &HirFnFacts) {
         use crate::concrete_types::InterfaceObservations;
@@ -116,8 +117,51 @@ impl Differences {
             if key == crate::concrete_types::KEY {
                 continue;
             }
+            if key == rstyle_core::advisory::generated_effects::CONNECTED_KEY {
+                let events = |value: Option<&serde_json::Value>| value.map(multisets);
+                let channel = format!("option.{key}");
+                self.field(
+                    (&channel, ""),
+                    &events(reference.get(key)),
+                    &events(derived.get(key)),
+                );
+                continue;
+            }
+            if key == rstyle_core::advisory::KEY {
+                self.advisory((reference.get(key), derived.get(key)));
+                continue;
+            }
             let channel = format!("option.{key}");
             self.field((&channel, ""), &reference.get(key), &derived.get(key));
+        }
+    }
+
+    /// Advisory observations, whose facts' event lists are multisets, as the core's
+    /// equivalence of rule facts compares them.
+    fn advisory(
+        &mut self,
+        (reference, derived): (Option<&serde_json::Value>, Option<&serde_json::Value>),
+    ) {
+        use rstyle_core::advisory::Observation;
+        let channel = ("option.rstyle.compiler-advisory/1", "");
+        let read = |value: Option<&serde_json::Value>| value.map(Observation::read);
+        match (read(reference), read(derived)) {
+            (
+                Some(Ok(Observation::Known {
+                    facts: reference, ..
+                })),
+                Some(Ok(Observation::Known { facts: derived, .. })),
+            ) => {
+                let comparison = rstyle_core::cpg::compare::compare(&[*reference], &[*derived]);
+                for difference in comparison.differences {
+                    self.push(
+                        (channel.0, difference.field),
+                        difference.reference,
+                        difference.derived,
+                    );
+                }
+            }
+            _ => self.field(channel, &reference, &derived),
         }
     }
 
@@ -248,4 +292,25 @@ fn modifiers(signature: &SignatureFacts) -> [bool; 5] {
 fn kinds(nodes: &[HirNode]) -> String {
     let kinds: Vec<&str> = nodes.iter().map(|node| node.kind.as_str()).collect();
     kinds.join(",")
+}
+
+/// A generated function's observation with its event lists in a canonical order:
+/// the rules read them as multisets.
+fn multisets(value: &serde_json::Value) -> serde_json::Value {
+    let mut value = value.clone();
+    let sort = |list: Option<&mut serde_json::Value>| {
+        if let Some(serde_json::Value::Array(items)) = list {
+            items.sort_by_key(ToString::to_string);
+        }
+    };
+    for key in ["mutations", "calls", "intrinsic_effects"] {
+        sort(value.get_mut(key));
+    }
+    sort(
+        value
+            .get_mut("connections")
+            .and_then(|connections| connections.get_mut("edges")),
+    );
+
+    value
 }
