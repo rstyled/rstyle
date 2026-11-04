@@ -275,13 +275,116 @@ impl<'a> Context<'_, 'a> {
         let nongeneric = generics_count(definition) == Some(0)
             && generics_count(implementation) == Some(0)
             && !self.source_lifetime_arguments(implementation);
-        if !nongeneric {
+        if !nongeneric
+            && !(profile.supports("rust.borrowed-mixed-owners")
+                && self.lifetime_owner(definition, implementation))
+        {
             return None;
         }
         Some(crate::inherent_calls::CallOwner {
             identity: crate::inherent_calls::IDENTITY.into(),
             implementation_identity: identity(implementation, "def_path_hash")?.to_owned(),
         })
+    }
+
+    /// A method of an implementation generic only over lifetimes, written as its own
+    /// self type's lifetime arguments, that reads its receiver through a shared borrow;
+    /// or an associated function, where the profile follows product results.
+    fn lifetime_owner(&self, method: &Definition, implementation: &Definition) -> bool {
+        let generics = |definition: &Definition| {
+            definition
+                .extensions
+                .get("rust:compiler-identity")
+                .and_then(|identity| identity.get("generics"))
+                .cloned()
+        };
+        let (Some(method_generics), Some(owner)) = (generics(method), generics(implementation))
+        else {
+            return false;
+        };
+        let own = |generics: &serde_json::Value| {
+            generics
+                .get("own")
+                .and_then(serde_json::Value::as_array)
+                .cloned()
+                .unwrap_or_default()
+        };
+        let parameters = own(&owner);
+        let lifetimes = !parameters.is_empty()
+            && parameters.len() <= crate::concrete_types::MAX_FIELDS
+            && parameters.iter().all(|kind| kind == "lifetime");
+        if !own(&method_generics).is_empty()
+            || owner.get("parented") != Some(&serde_json::Value::Bool(false))
+            || !lifetimes
+            || !self.source_lifetime_implementation(implementation)
+        {
+            return false;
+        }
+        match method
+            .callable
+            .as_ref()
+            .and_then(|callable| callable.receiver.as_deref())
+        {
+            Some(receiver) => self.reader.ty(receiver).is_ok_and(|receiver| {
+                receiver.kind == rstyle_core::cpg::model::TypeKind::Reference
+                    && receiver.mode.as_deref() == Some("shared")
+            }),
+            None => self
+                .reader
+                .profile
+                .supports("rust.linear-product-result-flow"),
+        }
+    }
+
+    /// Whether an implementation declares only plain lifetimes, without bounds or a
+    /// where clause, and names exactly them, in order, as its self type's arguments.
+    fn source_lifetime_implementation(&self, implementation: &Definition) -> bool {
+        let Some(item) = self.implementation_item(implementation) else {
+            return false;
+        };
+        let generics = &item.generics;
+        let parameters: Option<Vec<&syn::Lifetime>> = generics
+            .params
+            .iter()
+            .map(|parameter| match parameter {
+                syn::GenericParam::Lifetime(parameter)
+                    if parameter.attrs.is_empty()
+                        && parameter.bounds.is_empty()
+                        && parameter.colon_token.is_none()
+                        && parameter.lifetime.ident != "_" =>
+                {
+                    Some(&parameter.lifetime)
+                }
+                _ => None,
+            })
+            .collect();
+        let Some(parameters) = parameters else {
+            return false;
+        };
+        let syn::Type::Path(path) = &*item.self_ty else {
+            return false;
+        };
+        let segments: Vec<&syn::PathSegment> = path.path.segments.iter().collect();
+        let Some((last, parents)) = segments.split_last() else {
+            return false;
+        };
+        let syn::PathArguments::AngleBracketed(arguments) = &last.arguments else {
+            return false;
+        };
+        generics.where_clause.is_none()
+            && path.qself.is_none()
+            && parents
+                .iter()
+                .all(|segment| segment.arguments.is_none())
+            && arguments.args.len() == parameters.len()
+            && arguments.args.iter().zip(&parameters).all(|(argument, parameter)| {
+                matches!(argument, syn::GenericArgument::Lifetime(lifetime) if lifetime == *parameter)
+            })
+    }
+
+    fn implementation_item(&self, implementation: &Definition) -> Option<syn::ItemImpl> {
+        let source = self.reader.source(implementation.span.as_ref()?).ok()?;
+        syn::parse_str::<syn::ItemImpl>(source.as_str()).ok()
     }
 
     /// Whether an implementation's self type is written with lifetime arguments.
