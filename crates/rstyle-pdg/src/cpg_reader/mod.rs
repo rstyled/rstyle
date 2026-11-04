@@ -4,6 +4,7 @@
 //! A channel the document does not yet carry is reported by [`compare`] against the
 //! driver's own capture, never filled with a default that hides the difference.
 
+mod assertions;
 mod body;
 mod callees;
 mod concrete;

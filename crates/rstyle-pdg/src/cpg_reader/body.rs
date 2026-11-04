@@ -12,7 +12,10 @@ impl<'a> Context<'_, 'a> {
         self.expression(node)
     }
 
-    fn expression(&self, node: &'a Node) -> Built {
+    pub(super) fn expression(&self, node: &'a Node) -> Built {
+        if let Some(assertion) = self.assertion(node)? {
+            return Ok(assertion);
+        }
         let tag = self.tag(node);
         let ty = match tag {
             "expr_ret" => Some(
@@ -313,7 +316,7 @@ impl<'a> Context<'_, 'a> {
 
     /// The record every construct starts from: identity, tag, written span and source.
     /// A construct a macro or desugaring generated is located at its outermost call site.
-    fn node(&self, node: &'a Node, tag: &str) -> Built {
+    pub(super) fn node(&self, node: &'a Node, tag: &str) -> Built {
         let written = self.written(node);
         let expansion = self.expansion(node, written);
         let span = expansion.as_ref().map_or(written, |site| site.callsite);
@@ -338,7 +341,7 @@ impl<'a> Context<'_, 'a> {
     }
 
     /// The node's span as written, with the parentheses the document's span excludes.
-    fn written(&self, node: &Node) -> ByteSpan {
+    pub(super) fn written(&self, node: &Node) -> ByteSpan {
         let Some(span) = node.span.as_ref() else {
             return ByteSpan { start: 0, end: 0 };
         };
@@ -365,7 +368,7 @@ impl<'a> Context<'_, 'a> {
         span
     }
 
-    fn ty(&self, node: &Node) -> Result<Option<ResolvedTy>, String> {
+    pub(super) fn ty(&self, node: &Node) -> Result<Option<ResolvedTy>, String> {
         node.ty
             .as_deref()
             .map(|ty| self.reader.resolved(ty, String::new()))
