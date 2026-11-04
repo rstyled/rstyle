@@ -180,9 +180,21 @@ fn dependency_namespaces(
     Ok(())
 }
 
+/// Installs all of the unit's evidence on its functions' facts: its sources, its
+/// generated-source capture, its core libraries and its inherent owners.
+pub fn evidence(
+    documents: &Documents,
+    profile: ExtractionProfile,
+    facts: &mut [HirFnFacts],
+) -> Result<(), String> {
+    sources(documents, profile, facts)?;
+    super::generated_sources::capture(documents, profile, facts)?;
+    capture(profile, facts)
+}
+
 /// Installs the unit's source evidence on its functions' facts: its census and its
 /// dependency namespaces.
-pub fn sources(
+fn sources(
     documents: &Documents,
     profile: ExtractionProfile,
     facts: &mut [HirFnFacts],
@@ -213,7 +225,7 @@ pub fn file_census(documents: &Documents, facts: &mut [HirFnFacts]) -> Result<()
 }
 
 /// Installs `census` on each function's facts, within its budget.
-pub fn retain(census: Census, facts: &mut [HirFnFacts]) -> Result<(), String> {
+fn retain(census: Census, facts: &mut [HirFnFacts]) -> Result<(), String> {
     census::check_budget(&census)?;
     let census = Arc::new(census);
     for function in facts {
@@ -224,8 +236,8 @@ pub fn retain(census: Census, facts: &mut [HirFnFacts]) -> Result<(), String> {
     Ok(())
 }
 
-/// Installs the unit's evidence on each of its functions' facts.
-pub fn capture(profile: ExtractionProfile, facts: &mut [HirFnFacts]) -> Result<(), String> {
+/// Installs the unit's core libraries and inherent owners on its functions' facts.
+fn capture(profile: ExtractionProfile, facts: &mut [HirFnFacts]) -> Result<(), String> {
     if profile.is_data() {
         libraries(facts)?;
     }
@@ -278,7 +290,7 @@ fn collect(
 }
 
 /// Const initializers are dependencies, not runtime calls in the captured body.
-pub fn product_dependency(
+fn product_dependency(
     node: &HirNode,
     libraries: &mut BTreeMap<String, data_library::Library>,
 ) -> Result<(), String> {

@@ -2,11 +2,7 @@
 
 mod source_generics;
 
-use super::Options;
-use rstyle_pdg::{
-    HirFnFacts,
-    inherent_calls::{CallOwner, Definition},
-};
+use rstyle_pdg::inherent_calls::CallOwner;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::{self, TyCtxt};
 
@@ -62,50 +58,4 @@ pub fn call_owner(tcx: TyCtxt<'_>, owner: DefId) -> CallOwner {
         identity: rstyle_pdg::inherent_calls::IDENTITY.into(),
         implementation_identity: format!("{:?}", tcx.def_path_hash(owner)),
     }
-}
-
-pub fn capture_unit(facts: &mut [HirFnFacts], options: &Options<'_>) -> Result<(), String> {
-    if !options
-        .selected()
-        .supports("rust.verified-inherent-helper-calls")
-    {
-        return Ok(());
-    }
-
-    let mut definitions = facts
-        .iter()
-        .filter_map(|function| {
-            function
-                .build
-                .frontend_options
-                .get(rstyle_pdg::inherent_calls::KEY)
-        })
-        .map(|value| {
-            serde_json::from_value::<Definition>(value.clone()).map_err(|error| error.to_string())
-        })
-        .map(|record| record.map(rstyle_pdg::inherent_calls::Association::from))
-        .collect::<Result<Vec<_>, _>>()?;
-    definitions.sort_by(|left, right| left.definition_identity.cmp(&right.definition_identity));
-    let inventory = rstyle_pdg::inherent_calls::UnitDefinitions {
-        identity: rstyle_pdg::inherent_calls::UNIT_IDENTITY.into(),
-        definitions,
-    };
-    inventory.validate()?;
-
-    install_unit(facts, inventory)
-}
-
-fn install_unit(
-    facts: &mut [HirFnFacts],
-    inventory: rstyle_pdg::inherent_calls::UnitDefinitions,
-) -> Result<(), String> {
-    let mut shared = rstyle_pdg::FrontendOptions::default();
-    shared.insert_data(std::sync::Arc::new(inventory));
-    for function in facts {
-        function
-            .build
-            .frontend_options
-            .share_inherent_inventory(&shared)?;
-    }
-    Ok(())
 }

@@ -192,7 +192,7 @@ fn unit_capture(
 }
 
 /// The expansions the unit's generated declarations come from.
-pub fn declaration_roots(facts: &[HirFnFacts]) -> Result<BTreeSet<String>, String> {
+fn declaration_roots(facts: &[HirFnFacts]) -> Result<BTreeSet<String>, String> {
     let mut roots = BTreeSet::new();
     for facts in facts {
         let options = &facts.build.frontend_options;
