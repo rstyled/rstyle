@@ -26,17 +26,20 @@ pub(super) fn check(
     };
     // A failure to read the documents is the comparison's finding, never the capture's.
     let package = options.unit_context.map(|context| &context.package);
-    let derived =
-        derived(tcx, (&root, package), (options.selected(), passes)).unwrap_or_else(|error| {
-            let mut unread = BTreeMap::new();
-            for reference in facts {
-                unread.insert(
-                    (reference.name.clone(), reference.fn_span.start),
-                    Err(error.clone()),
-                );
-            }
-            unread
-        });
+    let session = json!({"invocation": options.invocation,
+                         "profile_selection": options.profile.map(|profile| profile.token()),
+                         "selected_unit": options.unit_context});
+    let origin = (root.as_path(), package, session);
+    let derived = derived(tcx, origin, (options.selected(), passes)).unwrap_or_else(|error| {
+        let mut unread = BTreeMap::new();
+        for reference in facts {
+            unread.insert(
+                (reference.name.clone(), reference.fn_span.start),
+                Err(error.clone()),
+            );
+        }
+        unread
+    });
 
     let profile = options.selected().token();
     let lines = facts.iter().map(|reference| {
@@ -104,9 +107,10 @@ type Derived = BTreeMap<(String, u32), Result<HirFnFacts, String>>;
 
 fn derived(
     tcx: TyCtxt<'_>,
-    origin: (
+    (root, package, session): (
         &std::path::Path,
         Option<&rstyle_pdg::nominal_binding::PackageContext>,
+        serde_json::Value,
     ),
     (profile, passes): (
         rstyle_pdg::extraction_profile::ExtractionProfile,
@@ -114,7 +118,7 @@ fn derived(
     ),
 ) -> Result<Derived, String> {
     let mut derived = BTreeMap::new();
-    for (document, _) in crate::cpg::documents(tcx, origin) {
+    for (document, _) in crate::cpg::documents_in(tcx, (root, package), Some(session.clone())) {
         let document = rstyle_core::cpg::layout::bundle(vec![document])?;
         for read in cpg_reader::read(&document, profile, passes)? {
             derived.insert((read.name, read.fn_span.start), read.facts);

@@ -139,7 +139,7 @@ impl<'a> Reader<'a> {
             signature,
             bindings,
             body: tree,
-            build: self.build(),
+            build: self.function_build(function),
             source_diagnostics,
             source_scan_complete,
         };
@@ -195,8 +195,43 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn build(&self) -> crate::frontend::BuildFacts {
-        build::facts(self.unit, self.producer)
+    /// The unit's build facts, with the options the frontend records for a function.
+    fn function_build(&self, function: &Function) -> crate::frontend::BuildFacts {
+        let mut build = build::facts(self.unit, self.producer);
+        let session = self
+            .unit
+            .extensions
+            .as_ref()
+            .and_then(|extensions| extensions.get("rust:compiler-session"));
+        build::session_options(self.unit, session, &mut build.frontend_options);
+        let definition = self.tables.definition(&function.definition).ok();
+        let options = &mut build.frontend_options;
+        let file = session
+            .and_then(|session| session.get("files")?.get(&located(function).file)?.as_str());
+        if let Some(file) = file {
+            options.insert("source_file".into(), serde_json::json!(file));
+        }
+        let name = definition
+            .and_then(|definition| {
+                definition
+                    .extensions
+                    .get("rust:compiler-identity")?
+                    .get("ident_span")
+                    .cloned()
+            })
+            .and_then(|span| serde_json::from_value::<FileSpan>(span).ok())
+            .and_then(|span| self.source(&span).ok())
+            .map(|name| {
+                name.as_str()
+                    .strip_prefix("r#")
+                    .unwrap_or(name.as_str())
+                    .to_owned()
+            });
+        options.insert("source_identifier".into(), serde_json::json!(name));
+        if let Some(definition) = definition {
+            build::identity_options(self.profile, definition, options);
+        }
+        build
     }
 
     /// The unit type as the driver records it.

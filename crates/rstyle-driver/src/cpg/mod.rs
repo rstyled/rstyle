@@ -80,12 +80,23 @@ pub fn runtime_bounds(
 /// selected, if any.
 pub fn documents<'tcx, 'r>(
     tcx: TyCtxt<'tcx>,
+    origin: (&'r Path, Option<&'r PackageContext>),
+) -> impl Iterator<Item = (Value, Vec<(LocalDefId, String)>)> + use<'tcx, 'r> {
+    documents_in(tcx, origin, None)
+}
+
+/// The crate's function documents, each recording the capture `session` when given:
+/// the compiler invocation, the selected profile and unit, and each file's path.
+pub fn documents_in<'tcx, 'r>(
+    tcx: TyCtxt<'tcx>,
     (root, package): (&'r Path, Option<&'r PackageContext>),
+    session: Option<Value>,
 ) -> impl Iterator<Item = (Value, Vec<(LocalDefId, String)>)> + use<'tcx, 'r> {
     let package = cargo_package(package);
-    batches(tcx)
-        .into_iter()
-        .map(move |batch| batch_document(tcx, (root, package.clone()), &batch))
+    batches(tcx).into_iter().map(move |batch| {
+        let origin = (root, package.clone(), session.clone());
+        batch_document(tcx, origin, &batch)
+    })
 }
 
 /// The package a unit belongs to, as Cargo names it: the selected package of a
@@ -131,7 +142,7 @@ fn batches(tcx: TyCtxt<'_>) -> Vec<Vec<LocalDefId>> {
 // rstyle-allow(mutated_targets): assembles one document from the builder that accumulates it
 fn batch_document(
     tcx: TyCtxt<'_>,
-    (root, package): (&Path, Option<Value>),
+    (root, package, session): (&Path, Option<Value>, Option<Value>),
     owners: &[LocalDefId],
 ) -> (Value, Vec<(LocalDefId, String)>) {
     let mut unit = unit::Unit::new(tcx, root.to_path_buf());
@@ -144,9 +155,14 @@ fn batch_document(
         }
     }
 
+    let paths = unit.local_paths();
     let mut document = document(tcx, unit, recorded, &unit_name(tcx));
     if let Some(package) = package {
         document["unit"]["extensions"]["rust:cargo-package"] = package;
+    }
+    if let Some(mut session) = session {
+        session["files"] = json!(paths);
+        document["unit"]["extensions"]["rust:compiler-session"] = session;
     }
     (document, unrecorded)
 }

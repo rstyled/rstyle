@@ -141,11 +141,15 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         }
     }
 
-    /// A restored source construct: source provenance at the construct's call site.
+    /// A restored construct, located where it is written: the site its desugaring
+    /// expands, with that site's own provenance, so a construct a macro writes is
+    /// macro-generated.
     fn construct(&mut self, hir_id: HirId, span: Span, shape: Shape) -> String {
-        let id = self.node(hir_id, span.source_callsite(), shape);
+        let site = written_site(span);
+        let provenance = self.provenance(site);
+        let id = self.node(hir_id, site, shape);
         let record = self.nodes.last_mut().unwrap();
-        record["provenance"] = json!({"origin": "source"});
+        record["provenance"] = provenance;
         id
     }
 
@@ -536,7 +540,7 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             arms.iter().filter_map(|arm| b.arm(arm)).collect::<Vec<_>>()
         }));
         let mut shape = shape("propagate", children);
-        let span = expr.span.source_callsite();
+        let span = written_site(expr.span);
         if let Some(token) = self
             .unit
             .span(span.with_lo(span.hi() - rustc_span::BytePos(1)))
@@ -1212,5 +1216,13 @@ fn unary(op: UnOp) -> &'static str {
         UnOp::Deref => "deref",
         UnOp::Not => "not",
         UnOp::Neg => "neg",
+    }
+}
+
+/// Where a restored construct is written: the site its desugaring expands.
+fn written_site(span: Span) -> Span {
+    match span.ctxt().outer_expn_data().kind {
+        ExpnKind::Desugaring(_) => span.ctxt().outer_expn_data().call_site,
+        _ => span,
     }
 }

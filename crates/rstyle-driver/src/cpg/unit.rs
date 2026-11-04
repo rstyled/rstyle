@@ -15,6 +15,8 @@ pub struct Unit<'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub root: PathBuf,
     files: BTreeMap<String, Value>,
+    /// Each file's path as the compiler opened it, made absolute.
+    local_paths: BTreeMap<String, String>,
     definitions: BTreeMap<String, Value>,
     types: BTreeMap<String, Value>,
     /// The compile-time values of local constants the unit references, by definition.
@@ -27,10 +29,16 @@ impl<'tcx> Unit<'tcx> {
             tcx,
             root,
             files: BTreeMap::new(),
+            local_paths: BTreeMap::new(),
             definitions: BTreeMap::new(),
             types: BTreeMap::new(),
             values: BTreeMap::new(),
         }
+    }
+
+    /// Each recorded file's absolute path, as the compiler opened it.
+    pub fn local_paths(&self) -> BTreeMap<String, String> {
+        self.local_paths.clone()
     }
 
     /// A span of a workspace source file, as file-relative byte offsets.
@@ -55,6 +63,14 @@ impl<'tcx> Unit<'tcx> {
             let record = json!({"id": id, "path": path, "digest": format!("sha256:{digest}"),
                                 "origin": "source", "content": content});
             self.files.insert(id.clone(), record);
+            if let FileName::Real(real) = &lo.sf.name
+                && let Some(local) = real.local_path()
+                && let Ok(directory) = std::env::current_dir()
+            {
+                let absolute = directory.join(local);
+                self.local_paths
+                    .insert(id.clone(), absolute.to_string_lossy().into_owned());
+            }
         }
         let start = lo.sf.original_relative_byte_pos(span.lo()).0;
         let end = hi.sf.original_relative_byte_pos(span.hi()).0;
@@ -103,6 +119,16 @@ impl<'tcx> Unit<'tcx> {
                 record["extensions"]["rust:generated-declaration"] = generated;
             }
             // An inherent method names its implementation, recorded as a definition too.
+            // A local function's name as written, where its identifier is.
+            if matches!(self.tcx.def_kind(def_id), DefKind::Fn | DefKind::AssocFn)
+                && def_id.is_local()
+                && let Some(name) = self
+                    .tcx
+                    .def_ident_span(def_id)
+                    .and_then(|span| self.span(span.source_callsite()))
+            {
+                record["extensions"]["rust:compiler-identity"]["ident_span"] = name;
+            }
             if let Some(implementation) = self.inherent_implementation(def_id) {
                 record["extensions"]["rust:compiler-identity"]["inherent_impl"] =
                     json!(implementation);

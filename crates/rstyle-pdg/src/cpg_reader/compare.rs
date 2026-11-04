@@ -108,6 +108,16 @@ impl Differences {
             &observed(reference),
             &observed(derived),
         );
+        // Every other option family, each by its key, as the frontend records it.
+        let keys: std::collections::BTreeSet<&str> =
+            reference.keys().chain(derived.keys()).collect();
+        for key in keys {
+            if key == crate::concrete_types::KEY {
+                continue;
+            }
+            let channel = format!("option.{key}");
+            self.field((&channel, ""), &reference.get(key), &derived.get(key));
+        }
     }
 
     // rstyle-allow(mutation_per_target): collects every channel difference into one list
