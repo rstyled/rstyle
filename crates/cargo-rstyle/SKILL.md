@@ -168,9 +168,7 @@ runs the same style rules over `compat.cpg` documents from a non-Rust frontend
 Core derives statement counts, complexity, calls, edges, effects and mutations from
 the documents; no compiler runs and only an explicit `--config` applies. Exit codes
 are as for the default command; invalid or mismatched documents return 2.
-`cargo rstyle cpg emit --out DIR` writes such documents for a Rust workspace, and
-`cargo rstyle cpg compare DIR` checks the derived facts against the driver's own
-(exit 1 on any difference).
+`cargo rstyle cpg emit --out DIR` writes such documents for a Rust workspace.
 
 ## Requirements
 

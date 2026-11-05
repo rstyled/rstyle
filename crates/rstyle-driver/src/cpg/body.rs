@@ -262,7 +262,7 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             ExprKind::Loop(block, label, LoopSource::While, _) => {
                 self.while_loop(expr, block, label)
             }
-            ExprKind::Block(block, None) if crate::extract::destructuring_assignment(block) => {
+            ExprKind::Block(block, None) if destructuring_assignment(block) => {
                 Some(self.destructuring(expr, block))
             }
             _ => None,
@@ -1331,4 +1331,14 @@ fn written_site(span: Span) -> Span {
         ExpnKind::Desugaring(_) => span.ctxt().outer_expn_data().call_site,
         _ => span,
     }
+}
+
+/// The block rustc lowers a destructuring assignment `(a, b) = value` to:
+/// `{ let (lhs, lhs) = value; a = lhs; b = lhs; }`. Nothing marks it as a desugaring.
+fn destructuring_assignment(block: &rustc_hir::Block<'_>) -> bool {
+    matches!(
+        block.stmts.first().map(|stmt| &stmt.kind),
+        Some(rustc_hir::StmtKind::Let(local))
+            if matches!(local.source, rustc_hir::LocalSource::AssignDesugar)
+    )
 }

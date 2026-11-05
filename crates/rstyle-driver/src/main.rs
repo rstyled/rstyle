@@ -14,17 +14,12 @@ extern crate rustc_lint;
 extern crate rustc_middle;
 extern crate rustc_span;
 
-mod args;
 mod cpg;
-mod driver_complexity;
 mod driver_options;
-mod effects;
-mod extract;
 mod hir_extraction;
 mod ids;
 mod mutations;
-mod pdg;
-mod sig;
+mod paths;
 mod spans;
 
 use rstyle_core::cli_args::flag_value;
@@ -82,7 +77,6 @@ fn run(invocation: driver_options::Invocation) -> ExitCode {
         let mut callbacks = CpgEmit {
             dir: PathBuf::from(dir),
             root: PathBuf::from(root),
-            complexity: Default::default(),
         };
         return rustc_driver::catch_with_exit_code(|| {
             rustc_driver::run_compiler(&args, &mut callbacks)
@@ -98,21 +92,15 @@ fn run(invocation: driver_options::Invocation) -> ExitCode {
 struct NoOp;
 impl Callbacks for NoOp {}
 
-/// Writes `compat.cpg` documents beside the driver's own FnFacts.
+/// Writes the crate's `compat.cpg` document.
 struct CpgEmit {
     dir: PathBuf,
     root: PathBuf,
-    complexity: driver_complexity::Functions,
 }
 
 impl Callbacks for CpgEmit {
-    fn after_expansion<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
-        self.complexity = driver_complexity::collect(tcx);
-        Compilation::Continue
-    }
-
     fn after_analysis<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
-        if let Err(error) = cpg::emit(tcx, &self.complexity, &self.root, &self.dir) {
+        if let Err(error) = cpg::emit(tcx, &self.root, &self.dir) {
             tcx.dcx().fatal(format!(
                 "rstyle-driver: compat.cpg emission failed: {error}"
             ));

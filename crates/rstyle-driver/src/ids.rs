@@ -25,7 +25,7 @@ pub fn in_workspace(tcx: TyCtxt<'_>, def_id: DefId, root: &Path) -> bool {
     let source_map = tcx.sess.source_map();
     let span = tcx.def_span(def_id);
     let file = source_map.lookup_source_file(span.source_callsite().lo());
-    crate::extract::source_path(tcx, &file, root).is_some()
+    crate::paths::source_path(tcx, &file, root).is_some()
 }
 
 /// Reuse rustc's instance selection in the captured owner's compilation context.
@@ -39,13 +39,4 @@ pub(crate) fn selected_instance<'tcx>(
     ty::Instance::try_resolve(tcx, environment, callee, args)
         .ok()
         .flatten()
-}
-
-/// Dependence graphs classify external calls by the original definition file.
-pub fn graph_source_in_workspace(tcx: TyCtxt<'_>, def_id: DefId, root: &Path) -> bool {
-    let file = tcx
-        .sess
-        .source_map()
-        .lookup_source_file(tcx.def_span(def_id).lo());
-    crate::extract::display_path(&file, root).is_some()
 }

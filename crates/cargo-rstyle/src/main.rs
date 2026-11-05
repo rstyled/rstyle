@@ -158,17 +158,11 @@ enum CpgCommand {
         #[arg(required = true)]
         documents: Vec<PathBuf>,
     },
-    /// Write compat.cpg documents for the workspace from the rustc frontend, beside
-    /// the facts it derives itself.
+    /// Write compat.cpg documents for the workspace from the rustc frontend.
     Emit {
         /// Output directory; its `target` subdirectory holds the private build.
         #[arg(long)]
         out: PathBuf,
-    },
-    /// Check documents written by `emit` against the frontend's own facts.
-    Compare {
-        /// Directory written by `cargo rstyle cpg emit`.
-        dir: PathBuf,
     },
 }
 
@@ -362,7 +356,6 @@ fn cpg_command(cli: &Cli, command: CpgCommand) -> Result<(String, u8), String> {
             };
             cpg::emit(&selection, &out)
         }
-        CpgCommand::Compare { dir } => cpg::compare(&dir, cli.config.as_deref(), cli.format),
     }
 }
 

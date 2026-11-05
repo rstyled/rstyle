@@ -1,6 +1,5 @@
-//! `compat.cpg` documents from rustc. Each compilation writes one bundled unit
-//! document, and beside it the FnFacts the driver derives itself, so core's
-//! derivation from the document can be checked against the driver's own.
+//! `compat.cpg` documents from rustc. `cargo rstyle cpg emit` writes one bundled
+//! unit document per compilation; captures write the crate in batches.
 
 mod body;
 mod compiler;
@@ -9,8 +8,8 @@ mod places;
 pub(crate) mod sysroot;
 mod unit;
 
-use crate::extract;
 use rstyle_pdg::nominal_binding::PackageContext;
+use rustc_hir::def::DefKind;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::LOCAL_CRATE;
@@ -22,22 +21,12 @@ pub const DIR_ENV: &str = "RSTYLE_CPG_DIR";
 /// Workspace root that file paths are relative to.
 pub const ROOT_ENV: &str = "RSTYLE_CPG_ROOT";
 
-pub fn emit(
-    tcx: TyCtxt<'_>,
-    complexity: &crate::driver_complexity::Functions,
-    root: &Path,
-    dir: &Path,
-) -> Result<(), String> {
-    let options = extract::Options {
-        root,
-        with_pdg: true,
-        complexity: Some(complexity),
-    };
+pub fn emit(tcx: TyCtxt<'_>, root: &Path, dir: &Path) -> Result<(), String> {
     let mut unit = unit::Unit::new(tcx, root.to_path_buf());
-    let captured = crate::hir_extraction::function_owners(tcx)
-        .map(|id| capture(&mut unit, id, &options))
+    let functions = crate::hir_extraction::function_owners(tcx)
+        .filter(|&id| emitted(tcx, id, root))
+        .map(|id| function(&mut unit, id))
         .collect::<Result<Vec<_>, String>>()?;
-    let (functions, reference): (Vec<_>, Vec<_>) = captured.into_iter().flatten().unzip();
     if functions.is_empty() {
         return Ok(());
     }
@@ -45,11 +34,26 @@ pub fn emit(
     let name = unit_name(tcx);
     unit.record_local_files();
     let document = document(tcx, (unit, true), functions, &name);
-    write(&dir.join(format!("{name}.cpg.json")), &document)?;
-    write(
-        &dir.join(format!("{name}.facts.json")),
-        &serde_json::to_value(reference).map_err(|e| e.to_string())?,
-    )
+    write(&dir.join(format!("{name}.cpg.json")), &document)
+}
+
+/// A function written in a workspace source file, with a body: what an emit records.
+fn emitted(tcx: TyCtxt<'_>, id: LocalDefId, root: &Path) -> bool {
+    if !matches!(tcx.def_kind(id), DefKind::Fn | DefKind::AssocFn) {
+        return false;
+    }
+    let node = tcx.hir_node_by_def_id(id);
+    let (Some(sig), Some(body)) = (node.fn_sig(), node.body_id()) else {
+        return false;
+    };
+    let source_map = tcx.sess.source_map();
+    let file = source_map.lookup_char_pos(sig.span.lo()).file;
+
+    !sig.span.from_expansion()
+        && crate::paths::source_path(tcx, &file, root).is_some()
+        && source_map
+            .span_to_snippet(sig.span.to(tcx.hir_body(body).value.span))
+            .is_ok()
 }
 
 /// A frontend's own observations of a function, recorded as its extensions.
@@ -183,19 +187,6 @@ fn unit_name(tcx: TyCtxt<'_>) -> String {
     )
 }
 
-/// One function's document record and reference facts.
-fn capture(
-    unit: &mut unit::Unit<'_>,
-    id: LocalDefId,
-    options: &extract::Options<'_>,
-) -> Result<Option<(Value, rstyle_core::facts::FnFacts)>, String> {
-    let Some(facts) = extract::function_facts(unit.tcx, id, options) else {
-        return Ok(None);
-    };
-
-    Ok(Some((function(unit, id)?, facts)))
-}
-
 fn write(path: &PathBuf, value: &Value) -> Result<(), String> {
     let bytes = serde_json::to_vec(value).map_err(|error| error.to_string())?;
     std::fs::write(path, bytes).map_err(|error| format!("{}: {error}", path.display()))
@@ -214,7 +205,7 @@ fn root_file(tcx: TyCtxt<'_>, root: &Path) -> Option<String> {
         .sess
         .source_map()
         .get_source_file(&rustc_span::FileName::Real(path))?;
-    crate::extract::source_path(tcx, &file, root).map(|path| format!("file:{path}"))
+    crate::paths::source_path(tcx, &file, root).map(|path| format!("file:{path}"))
 }
 
 /// A unit document of `functions`; a `whole` one, which has recorded every file of the

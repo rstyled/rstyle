@@ -3,6 +3,7 @@
 //! continues at `next`, and returns its entry node.
 
 mod calls;
+mod canonical;
 mod chains;
 mod control;
 mod dispatch;
@@ -15,6 +16,7 @@ mod primitive;
 use super::model::{Node, NodeKind};
 use crate::advisory::runtime_bounds::{Input, MAX_NODES, MAX_VARIABLES};
 use crate::runtime_bounds::{Action, Arithmetic, Flow, Program, Value, Variable};
+pub use canonical::canonical_bounds;
 use facts::Facts;
 use std::collections::BTreeMap;
 

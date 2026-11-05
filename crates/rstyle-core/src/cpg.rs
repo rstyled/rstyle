@@ -5,7 +5,6 @@
 //! signature shapes, mutated types and dependence graphs the pattern analyses read.
 
 pub mod bounds;
-pub mod compare;
 mod dependence;
 mod events;
 mod facts;

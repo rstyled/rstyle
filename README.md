@@ -381,17 +381,16 @@ do not match their unit's digest are rejected with exit code 2. Core also derive
 the dependence graphs the pattern miner reads, but `rstyle patterns` does not run
 over documents yet.
 
-The Rust frontend emits the same documents, which checks the derivation against
-the facts rustc gives rstyle directly:
+The Rust frontend emits the same documents:
 
 ```
 cargo rstyle cpg emit --out cpg/     # a fresh check of the workspace with the driver
-cargo rstyle cpg compare cpg/        # derived facts and rule diagnostics against the driver's
 ```
 
-`compare` exits 1 when any function's facts or rule diagnostics differ. Every fact is
-derived and compared: rule facts, parameter lists, signature shapes, mutated types
-and dependence graphs. On rstyle's own workspace it reports no differences.
+Every rule fact (statement counts, complexity, calls, edges, effects, mutations,
+parameter lists, signature shapes, mutated types and dependence graphs) was proven
+equal to the facts the driver once extracted from rustc directly, over rstyle's own
+workspace; those facts are frozen as a snapshot over the lowering fixture.
 
 ## Configuration
 

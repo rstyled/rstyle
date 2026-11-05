@@ -136,7 +136,7 @@ impl<'tcx> Unit<'tcx> {
         if lo.sf.start_pos != hi.sf.start_pos || !matches!(lo.sf.name, FileName::Real(_)) {
             return None;
         }
-        let path = crate::extract::document_path(self.tcx, &lo.sf, &self.root)?;
+        let path = crate::paths::document_path(self.tcx, &lo.sf, &self.root)?;
         let id = format!("file:{path}");
         // A file is recorded as written: its original bytes, and offsets into them.
         if !self.files.contains_key(&id) {

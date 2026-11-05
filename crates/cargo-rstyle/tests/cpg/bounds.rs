@@ -45,7 +45,7 @@ fn the_cpg_lowering_keeps_the_frozen_runtime_bound_programs() {
         .iter()
         .map(|(function, input)| {
             let input = serde_json::to_value(input).unwrap();
-            let canonical = rstyle_core::cpg::compare::canonical_bounds(&input);
+            let canonical = rstyle_core::cpg::bounds::canonical_bounds(&input);
             format!("{function} {}", canonical.replace(&compilation, "<crate>"))
         })
         .collect();
