@@ -751,9 +751,18 @@ impl<'tcx> Unit<'tcx> {
             .iter()
             .map(|field| {
                 let declared = tcx.type_of(field.did).instantiate(tcx, args);
-                let ty = tcx
-                    .try_normalize_erasing_regions(ty::TypingEnv::fully_monomorphized(), declared)
-                    .unwrap_or_else(|_| declared.skip_norm_wip());
+                let written = declared.skip_norm_wip();
+                // With parameters left, normalizing needs the bounds of an owner this type
+                // has none of here, and the solver panics looking up a const parameter's.
+                let ty = match written.has_non_region_param() {
+                    true => written,
+                    false => tcx
+                        .try_normalize_erasing_regions(
+                            ty::TypingEnv::fully_monomorphized(),
+                            declared,
+                        )
+                        .unwrap_or(written),
+                };
                 json!({"name": field.name.as_str(), "type": self.ty(ty)})
             })
             .collect()
