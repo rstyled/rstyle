@@ -55,24 +55,82 @@ fn write(
     validate: bool,
     emit: impl FnOnce(&mut dyn Write) -> io::Result<()>,
 ) -> Result<SealedDocument, String> {
-    let (temporary, seal) = stage(path, encoding, emit)?;
-    if validate {
-        validate_object(temporary.path(), encoding)?;
-    }
-    persist(temporary, path)?;
-    Ok(seal)
+    Emission(emit)
+        .stage(path, encoding)?
+        .publish(path, validate)
 }
 
-fn stage(
-    path: &Path,
-    encoding: Encoding,
-    emit: impl FnOnce(&mut dyn Write) -> io::Result<()>,
-) -> Result<(tempfile::NamedTempFile, SealedDocument), String> {
+struct Staged {
+    temporary: tempfile::NamedTempFile,
+    seal: SealedDocument,
+}
+
+impl Staged {
+    fn publish(self, path: &Path, validate: bool) -> Result<SealedDocument, String> {
+        if validate {
+            validate_object(self.temporary.path(), self.seal.encoding)?;
+        }
+        persist(self.temporary, path)?;
+        Ok(self.seal)
+    }
+}
+
+/// A serializer callback is consumed once, whether writing plain or compressed JSON.
+struct Emission<F>(F);
+
+impl<F: FnOnce(&mut dyn Write) -> io::Result<()>> Emission<F> {
+    fn stage(self, path: &Path, encoding: Encoding) -> Result<Staged, String> {
+        self.staged(path, encoding, temporary(path)?)
+    }
+
+    fn staged(
+        self,
+        path: &Path,
+        encoding: Encoding,
+        mut temporary: tempfile::NamedTempFile,
+    ) -> Result<Staged, String> {
+        let (stored, decoded) = self
+            .encode(temporary.as_file_mut(), encoding)
+            .map_err(|e| e.to_string())?;
+        Ok(Staged {
+            temporary,
+            seal: sealed(path, encoding, stored, decoded)?,
+        })
+    }
+
+    fn encode(self, file: impl Write, encoding: Encoding) -> io::Result<(Observed, Observed)> {
+        let mut stored = Counted::new(BufWriter::new(file));
+        let decoded = self.decoded(&mut stored, encoding)?;
+        stored.finished(decoded)
+    }
+
+    fn decoded(self, writer: &mut impl Write, encoding: Encoding) -> io::Result<Observed> {
+        match encoding {
+            Encoding::Json => emitted(writer, self.0),
+            Encoding::Zstd => self.compressed(writer),
+        }
+    }
+
+    fn compressed(self, writer: impl Write) -> io::Result<Observed> {
+        let mut encoder = zstd::stream::write::Encoder::new(writer, 3)?;
+        encoder.include_checksum(true)?;
+
+        let decoded = emitted(&mut encoder, self.0)?;
+        encoder.finish()?;
+        Ok(decoded)
+    }
+}
+
+impl<W: Write> Counted<W> {
+    fn finished(mut self, decoded: Observed) -> io::Result<(Observed, Observed)> {
+        self.flush()?;
+        Ok((self.observed, decoded))
+    }
+}
+
+fn temporary(path: &Path) -> Result<tempfile::NamedTempFile, String> {
     let parent = path.parent().ok_or("Document has no output directory")?;
-    let mut temporary = tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
-    let (stored, decoded) =
-        encode(temporary.as_file_mut(), encoding, emit).map_err(|e| e.to_string())?;
-    Ok((temporary, sealed(path, encoding, stored, decoded)?))
+    tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())
 }
 
 fn sealed(
@@ -101,31 +159,6 @@ fn persist(temporary: tempfile::NamedTempFile, path: &Path) -> Result<(), String
         .persist_noclobber(path)
         .map_err(|error| format!("Cannot publish {}: {error}", path.display()))?;
     Ok(())
-}
-
-fn encode(
-    file: impl Write,
-    encoding: Encoding,
-    emit: impl FnOnce(&mut dyn Write) -> io::Result<()>,
-) -> io::Result<(Observed, Observed)> {
-    let mut stored = Counted::new(BufWriter::new(file));
-    let decoded = match encoding {
-        Encoding::Json => emitted(&mut stored, emit)?,
-        Encoding::Zstd => compressed(&mut stored, emit)?,
-    };
-    stored.flush()?;
-    Ok((stored.observed, decoded))
-}
-
-fn compressed(
-    writer: impl Write,
-    emit: impl FnOnce(&mut dyn Write) -> io::Result<()>,
-) -> io::Result<Observed> {
-    let mut encoder = zstd::stream::write::Encoder::new(writer, 3)?;
-    encoder.include_checksum(true)?;
-    let decoded = emitted(&mut encoder, emit)?;
-    encoder.finish()?;
-    Ok(decoded)
 }
 
 fn emitted(

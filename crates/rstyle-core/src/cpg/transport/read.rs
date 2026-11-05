@@ -110,13 +110,18 @@ fn read<T: DeserializeOwned>(
     encoding: Encoding,
     seal: Option<&SealedDocument>,
 ) -> Result<T, String> {
-    let mut stored = stored(path, seal)?;
-    let value = decoded(&mut stored, encoding, seal)
-        .map_err(|error| format!("{}: {error}", path.display()))?;
-    if let Some(seal) = seal {
-        seal.verify_stored(&stored.observed)?;
+    Source {
+        path,
+        encoding,
+        seal,
     }
-    Ok(value)
+    .read()
+}
+
+struct Source<'a> {
+    path: &'a Path,
+    encoding: Encoding,
+    seal: Option<&'a SealedDocument>,
 }
 
 fn open(path: &Path) -> Result<File, String> {
@@ -128,36 +133,57 @@ fn open(path: &Path) -> Result<File, String> {
     })
 }
 
-fn stored(path: &Path, seal: Option<&SealedDocument>) -> Result<Counted<File>, String> {
-    let mut stored = Counted {
-        inner: open(path)?,
-        observed: Observed::default(),
-        limit: seal.map(|s| s.bytes),
-    };
-    if let Some(seal) = seal {
-        stored.verify_and_rewind(seal)?;
+impl Source<'_> {
+    fn read<T: DeserializeOwned>(&self) -> Result<T, String> {
+        let mut stored = self.stored()?;
+        let value = self.decoded(&mut stored).map_err(|e| self.context(e))?;
+        self.verify(&stored.observed)?;
+        Ok(value)
     }
-    Ok(stored)
+
+    fn stored(&self) -> Result<Counted<File>, String> {
+        let mut stored = Counted::new(open(self.path)?, self.seal.map(|s| s.bytes));
+        if let Some(seal) = self.seal {
+            stored.verify_and_rewind(seal)?;
+        }
+        Ok(stored)
+    }
+
+    fn decoded<T: DeserializeOwned>(&self, stored: &mut Counted<File>) -> Result<T, String> {
+        match self.encoding {
+            Encoding::Json => parsed(BufReader::new(stored), self.seal),
+            Encoding::Zstd => parsed(decoder(stored)?, self.seal),
+        }
+    }
+
+    fn verify(&self, observed: &Observed) -> Result<(), String> {
+        self.seal
+            .map_or(Ok(()), |seal| seal.verify_stored(observed))
+    }
+
+    fn context(&self, error: String) -> String {
+        format!("{}: {error}", self.path.display())
+    }
+}
+
+impl<R> Counted<R> {
+    fn new(inner: R, limit: Option<u64>) -> Self {
+        Self {
+            inner,
+            observed: Observed::default(),
+            limit,
+        }
+    }
 }
 
 impl Counted<File> {
     fn verify_and_rewind(&mut self, seal: &SealedDocument) -> Result<(), String> {
         io::copy(self, &mut io::sink()).map_err(|error| error.to_string())?;
         seal.verify_stored(&self.observed)?;
+
         self.inner.rewind().map_err(|error| error.to_string())?;
         self.observed = Observed::default();
         Ok(())
-    }
-}
-
-fn decoded<T: DeserializeOwned>(
-    stored: &mut Counted<File>,
-    encoding: Encoding,
-    seal: Option<&SealedDocument>,
-) -> Result<T, String> {
-    match encoding {
-        Encoding::Json => parsed(BufReader::new(stored), seal),
-        Encoding::Zstd => parsed(decoder(stored)?, seal),
     }
 }
 
