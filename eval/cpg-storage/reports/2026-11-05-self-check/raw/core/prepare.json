@@ -1,0 +1,410 @@
+{
+  "archive_digest": "cbfd5e4afbf8729fd2a661780abc5c4ed5f07f97dc06fd19d89196333cb439f9",
+  "archive_version": 1,
+  "edges": 6856831,
+  "inputs": [
+    {
+      "bytes": 4566334,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000000.cpg.json",
+      "sha256": "24b78309ec15717cb1d789a252e0522d929e47e03fad37a9543440356edacc27"
+    },
+    {
+      "bytes": 1141089,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000001.cpg.json",
+      "sha256": "86acb35d660ef3527c438f495d192f9e5dee46db1b8096a291fd05a1a2fc78bc"
+    },
+    {
+      "bytes": 2372088,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000002.cpg.json",
+      "sha256": "55aa5a3a26f813de82bdc6c91e518d94f6f921286768d792e4da94c4e37c8a9f"
+    },
+    {
+      "bytes": 1646296,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000003.cpg.json",
+      "sha256": "dbb114c39f2362be3fb9a1926cb93bd4b05dc1da9586b8c7572eb40def197a37"
+    },
+    {
+      "bytes": 2455423,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000004.cpg.json",
+      "sha256": "33077312eba9dfd85316922fe5ecaebc9739ec53dc02b118a461a6695082e89e"
+    },
+    {
+      "bytes": 662103,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000005.cpg.json",
+      "sha256": "31790b50fffd7ee3b70a9a05bcf50c2547e923bf9be30328003cef887803852b"
+    },
+    {
+      "bytes": 4837703,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000006.cpg.json",
+      "sha256": "f733e41edcbc9233abcdda09f4202f6bcbeea364e1d6263541de2dcc35778337"
+    },
+    {
+      "bytes": 104087,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000007.cpg.json",
+      "sha256": "49835a7af5c3c9d734a4b0049017521a249920ed2d70e6c2e8706b8f7a4d7c0a"
+    },
+    {
+      "bytes": 79940,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000008.cpg.json",
+      "sha256": "2eed71d865f75321198ba633dccdf115f550bc93e340761458e917c6af16c9c4"
+    },
+    {
+      "bytes": 2826392,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000009.cpg.json",
+      "sha256": "37e242783f17edbc015baceeca0e780e6ccb7c1d7ab9293977c44df89f5cbc92"
+    },
+    {
+      "bytes": 3617194,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000010.cpg.json",
+      "sha256": "760e228cd0c7097edc463494c69a15d950f2f62a980771140a93d628e165d39b"
+    },
+    {
+      "bytes": 782211,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000011.cpg.json",
+      "sha256": "887ec554378c885ad832f84ea2e81bcad0fe85cb2e714303965bba705c00897d"
+    },
+    {
+      "bytes": 7010457,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000012.cpg.json",
+      "sha256": "090eb0bbf4af57b1729f3ca2309b94cb6098b6aef9df363a058c58701598a022"
+    },
+    {
+      "bytes": 1330182,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000013.cpg.json",
+      "sha256": "5c50db28f6f39322ee0186babc34447fc0b808752c30f8605e742f6943fbd26a"
+    },
+    {
+      "bytes": 168426,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000014.cpg.json",
+      "sha256": "d27493177566696fe4da8d27fea685eb7d56d1f28077e0719a1a907c94ce7722"
+    },
+    {
+      "bytes": 2615912,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000015.cpg.json",
+      "sha256": "c3069d6eba0e9a793f0f99d99d3607ac7dded008601d250957722a0a22b880b1"
+    },
+    {
+      "bytes": 2349022,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000016.cpg.json",
+      "sha256": "195cdff642b0eacd3cc29c0ad581d20529d32a284397e8295e6ccb6c5e1d9763"
+    },
+    {
+      "bytes": 609726,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000017.cpg.json",
+      "sha256": "1f279ed46f5da829ef80230cdf0f4239c52ccbe434d6746fa51ad0ff64d380d1"
+    },
+    {
+      "bytes": 1243351,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000018.cpg.json",
+      "sha256": "75c6e9e4a731230e3a38b07b672fd679265ab942421933a3cc20f5976d32c710"
+    },
+    {
+      "bytes": 1034528,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000019.cpg.json",
+      "sha256": "5153f3f24f82b1f7e8f43910c18b042e27e2f1b99277a82e5ccbc59ee523c81e"
+    },
+    {
+      "bytes": 2994198,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000020.cpg.json",
+      "sha256": "299d4d69343e20dba48229862adab2d11a9bff7ead9494c253a1deedb0042dbb"
+    },
+    {
+      "bytes": 1348653,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000021.cpg.json",
+      "sha256": "c6e489577245c2218e541c1ebaf62657d556fd4965f420366b795134c0c47b68"
+    },
+    {
+      "bytes": 1244106,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000022.cpg.json",
+      "sha256": "bb1195fe83f602912a259088ad1353b72f5f34c28bce134cd55916f5569af1eb"
+    },
+    {
+      "bytes": 1673977,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000023.cpg.json",
+      "sha256": "2bacd1371a61e9e5d90776c016733a90b0c5811a6852949c1b607129ddca664c"
+    },
+    {
+      "bytes": 5635619,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000024.cpg.json",
+      "sha256": "0ce72f0e4e9b0c0363e6df24c90149006a34b6097b48e69de7394f93034d5443"
+    },
+    {
+      "bytes": 2622360,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000025.cpg.json",
+      "sha256": "79689987a677acf683369ddb459337d3dd7c0da648a810b6ec940c8d6c7ae527"
+    },
+    {
+      "bytes": 1349521,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000026.cpg.json",
+      "sha256": "826f621a996a6229a7c66510c3e6e7ccd571a8084cdc129829f53bdaa3c4130e"
+    },
+    {
+      "bytes": 1654346,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000027.cpg.json",
+      "sha256": "396f559663e4e410fb7e1bae77e7aa9dd1537dd593d2a0180363ed8da87befe0"
+    },
+    {
+      "bytes": 1858854,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000028.cpg.json",
+      "sha256": "ba085af25381cff526711054b7a2d633e60e353574ecad82faf4284ef67ae87f"
+    },
+    {
+      "bytes": 14181128,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000029.cpg.json",
+      "sha256": "83186e4dde30eb1fb4bb4f93c673ad824e7fcc2a841c3b2c0f8051e7a606ee19"
+    },
+    {
+      "bytes": 22685205,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000030.cpg.json",
+      "sha256": "eb7c0cbccb61a28f19312421d20e93b642eff20de2638866250a0bfecd4d911d"
+    },
+    {
+      "bytes": 11726432,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000031.cpg.json",
+      "sha256": "a71fb8b2a6cb1ec64fd7957ad30481a0059043f3ee0ddc6e2fb15a6dfcdff187"
+    },
+    {
+      "bytes": 1909949,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000032.cpg.json",
+      "sha256": "159fcad3c442580b0d6b8ade13f62589ab7243d5c496b9c9c558b05d5c885590"
+    },
+    {
+      "bytes": 1910284,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000033.cpg.json",
+      "sha256": "fe6c1b06297946d996124019a19ea0e9fde0936306dd297cdfbd934438d2c6bf"
+    },
+    {
+      "bytes": 726655,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000034.cpg.json",
+      "sha256": "887b60f32868955b130c7497fdd3027ca671a76c6e9c119b9902f8ccc661e00a"
+    },
+    {
+      "bytes": 1328779,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000035.cpg.json",
+      "sha256": "0f653c49a7c9ab439a8b8e0aedf71a0bbd4ed5b31e5029a44e7644af10dad92a"
+    },
+    {
+      "bytes": 935528,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000036.cpg.json",
+      "sha256": "4535f4f2076dfe05b6f04f37ba30f3a325e0a5dbfcbba8509f6cf2b1018a14cb"
+    },
+    {
+      "bytes": 589560,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000037.cpg.json",
+      "sha256": "c0433e7385c11fcc0bac9101b56e9fb9339301a3b19bc3f226c697d94308cb5f"
+    },
+    {
+      "bytes": 193921,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000038.cpg.json",
+      "sha256": "b32b703416bf6c3814e4e286f7ae5a98609cb4a3ce18941ef2f380dea2b1c7ca"
+    },
+    {
+      "bytes": 13184649,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000039.cpg.json",
+      "sha256": "e7b8a3b4a84c1eada8f432fbf032746873769d0da6e6644a81c99d9f991eee2f"
+    },
+    {
+      "bytes": 1411198,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000040.cpg.json",
+      "sha256": "0fe9d36e6f93a05d9e0a789e5e2a7061b7836ca80a190676ca2c046c4dfe11c6"
+    },
+    {
+      "bytes": 1250114,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000041.cpg.json",
+      "sha256": "e91efe062bcee812fc7c78e25aad6d8abe39316340551a183a734c2ad47b0c69"
+    },
+    {
+      "bytes": 1378241,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000042.cpg.json",
+      "sha256": "8c9dcbddc82cb65c245f7639e310a4a452f058499194b1413d7a6fe0aeb9936d"
+    },
+    {
+      "bytes": 941431,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000043.cpg.json",
+      "sha256": "a0c71c5bb23d8d509b22b67da9d5bda02937e9be2f4e1de42a977c63d6a28110"
+    },
+    {
+      "bytes": 1348871,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000044.cpg.json",
+      "sha256": "ee404f8c1ba1c0a1a00013f93124d2e1c7fb7de96cd722f7a351c66142d9743a"
+    },
+    {
+      "bytes": 2420569,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000045.cpg.json",
+      "sha256": "dd041406daa3c2379f3ce7639eebec2925d740091cb454a1153add3176bd7c1b"
+    },
+    {
+      "bytes": 165002,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000046.cpg.json",
+      "sha256": "fa0559f81c697599b3713054a698bb8230704c73bd0544a55f2c14cc8c2e7538"
+    },
+    {
+      "bytes": 484624,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000047.cpg.json",
+      "sha256": "2918e9fd543b0d1408e4f5f72d0b586b2b91325c21bf7aaa5e6c49efe5e3d6d3"
+    },
+    {
+      "bytes": 3735225,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000048.cpg.json",
+      "sha256": "1eebb31599075597e0e4857f83106588fb9989a5237429d98c888e8f5a218f1f"
+    },
+    {
+      "bytes": 91755,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000049.cpg.json",
+      "sha256": "7c73a8ccb60f65a4cf200168518178e68a9bd4f8682a9a6a57b4e36662a10ee1"
+    },
+    {
+      "bytes": 2159034,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000050.cpg.json",
+      "sha256": "36fec51352d213c42742bb3fccb6f0bf47b66215a29f62d31f2a71a165ca53f0"
+    },
+    {
+      "bytes": 217436,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000051.cpg.json",
+      "sha256": "8398c854476183bd3d0f548ee179417209f390d76e4451ef421a0eae347ba74d"
+    },
+    {
+      "bytes": 619569,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000052.cpg.json",
+      "sha256": "ca894d2e8a72745f2f719c8db0b22f15c43948782cb4154a78358f7b05097b56"
+    },
+    {
+      "bytes": 3092646,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000053.cpg.json",
+      "sha256": "0d8413d64f3bf9fcee441f42aeece3e122dd8f5a8081724cb83f10c2cd96a02e"
+    },
+    {
+      "bytes": 1323487,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000054.cpg.json",
+      "sha256": "1f7aed39adc3831c3b2c241e3bc1aa53f848a853489929fd4aafc731fd316435"
+    },
+    {
+      "bytes": 2131140,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000055.cpg.json",
+      "sha256": "89679a91e823e36e830fc8f82ab5c54e45e8e73038f962f9b5903950ae3612e1"
+    },
+    {
+      "bytes": 570227,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000056.cpg.json",
+      "sha256": "625af282a0007356d0c68fcf4c2dfeea3dc4f818c9c45a425723196b64bfafed"
+    },
+    {
+      "bytes": 1307672,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000057.cpg.json",
+      "sha256": "f56af082cd5bba8ef696ac3d2cd33d85a939e8174f4b2a6adb9b9b873a6e6b07"
+    },
+    {
+      "bytes": 5769516,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000058.cpg.json",
+      "sha256": "a49aad855f8e3d762ce0f69bce0fbc0f169f5851c6682f8f57809e5e3c0f53d8"
+    },
+    {
+      "bytes": 4077794,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000059.cpg.json",
+      "sha256": "8b9236434c487d0ff276bcb3f12af70803dc24805b56d956967d91387f1ba1fb"
+    },
+    {
+      "bytes": 3073051,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000060.cpg.json",
+      "sha256": "b7f421b9e8926c5de78d21fbd449ef2c7e15b5c11f0df041f8cac8808558b60c"
+    },
+    {
+      "bytes": 10758737,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000061.cpg.json",
+      "sha256": "134d7775c082a802317046afcd4a03ac0ee366a2fe450a5d42a0fd821f4d79ea"
+    },
+    {
+      "bytes": 6555397,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000062.cpg.json",
+      "sha256": "6c7af2658fb63722b697cc44337e61aa7476d773a5428fd193b8235f30943cff"
+    },
+    {
+      "bytes": 2851832,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000063.cpg.json",
+      "sha256": "8f0bbfffe9348353aea41335cb5a33136cad32bf52d633dcf18faa6169c1cec0"
+    },
+    {
+      "bytes": 148238,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000064.cpg.json",
+      "sha256": "23440d534a3f97da6ad76dab8790fc331d5e480f76f9bb169ddbe44d2c5ab0b8"
+    },
+    {
+      "bytes": 1233010,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000065.cpg.json",
+      "sha256": "ee4206d6c687a0066d8435c0818f44522da11c6cfd00917eafa3725f73d8b163"
+    },
+    {
+      "bytes": 1191025,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000066.cpg.json",
+      "sha256": "f8b30cc594a573db9d5fe99954d9e8b4d287945423f526ecb56537a334f111dc"
+    },
+    {
+      "bytes": 28907,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000067.cpg.json",
+      "sha256": "9c75dab191c14f4cd390de43161ef6a8b8ed702d2d4020001e677a7ab70d5c14"
+    },
+    {
+      "bytes": 1290392,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000068.cpg.json",
+      "sha256": "82508321956ce14d8c3334a9ea7840afd7dc83c6a24c2954ba90299112d2aae1"
+    },
+    {
+      "bytes": 281103,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000069.cpg.json",
+      "sha256": "41dee05abe5c69905534b22bf7165c5c05193eb11e65bfb4be88667acb6124c3"
+    },
+    {
+      "bytes": 136995,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000070.cpg.json",
+      "sha256": "d94bb247bb6bd5f4072987223f5bc1dd7e071f1806a62571f4a04e66c7250a21"
+    },
+    {
+      "bytes": 1288165,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000071.cpg.json",
+      "sha256": "764e74d1a9c3478e710ec6bdb3c9d453184754a2056295ed378d7324c4439ea6"
+    },
+    {
+      "bytes": 2478667,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000072.cpg.json",
+      "sha256": "b828e048e1cf1f8199a0d446f6dd6b98440a6cf769ceb226fccf5c57c47f619a"
+    },
+    {
+      "bytes": 1297584,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000073.cpg.json",
+      "sha256": "7ae0676edcd02dca5db70c8fe6471b1113ffd87285cb4dfdf9fa9031977163e9"
+    }
+  ],
+  "json_write_seconds": 0.167353568,
+  "lossless_reconstruction": true,
+  "model_json_bytes": 67614429,
+  "normalization_seconds": 3.110221948,
+  "process_peak_rss_bytes": 549761024,
+  "stats": {
+    "input_string_bytes": 156122126,
+    "input_strings": 10441892,
+    "input_values": 7384955,
+    "source_bytes": 198314842,
+    "source_documents": 74,
+    "source_functions": 3225,
+    "source_nodes": 187729,
+    "table_occurrences": {
+      "definitions": 29149,
+      "files": 489,
+      "imports": 855,
+      "namespaces": 331,
+      "types": 39757,
+      "values": 40
+    },
+    "table_unique_records": {
+      "definitions": 11637,
+      "files": 72,
+      "imports": 855,
+      "namespaces": 331,
+      "types": 19087,
+      "values": 26
+    },
+    "unique_string_bytes": 13321204,
+    "unique_strings": 326387,
+    "unique_values": 1067617
+  }
+}

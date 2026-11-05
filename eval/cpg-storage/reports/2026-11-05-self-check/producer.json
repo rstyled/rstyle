@@ -1,0 +1,70 @@
+{
+  "branch": "feat/cpg-document-routes",
+  "head": "88adc9968b7f29d9699a7dec1274dc684c74ac25",
+  "source_status_before": "?? PLAN.md",
+  "source_root": "/home/dev/src/rstyle-main/rstyle",
+  "captured_utc": "2026-11-05T08:19:28.999431+00:00",
+  "source_tree_sha256": "6f7c30b792a9c20d172c1e8e321142afe72d17d162d5cba3e4c47cc355ddebbe",
+  "route": "default style self-check",
+  "binaries": {
+    "cargo-rstyle": {
+      "source": "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+      "frozen": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/input-tools/cargo-rstyle",
+      "sha256": "abd3072aac718b0ac2456a47659935719bcd5e82467887510d52009079555d10"
+    },
+    "rstyle-driver": {
+      "source": "/home/dev/src/rstyle-main/rstyle/target/debug/rstyle-driver",
+      "frozen": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/input-tools/rstyle-driver",
+      "sha256": "0ab6c7d92fc4694cf7a59a6a08c44bf0642043c93c1f014982e16c3649045e30"
+    }
+  },
+  "command": [
+    "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/input-tools/cargo-rstyle",
+    "rstyle",
+    "--manifest-path",
+    "/home/dev/src/rstyle-main/rstyle/Cargo.toml",
+    "--format",
+    "json"
+  ],
+  "environment": {
+    "RSTYLE_DRIVER": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/input-tools/rstyle-driver",
+    "CARGO_BUILD_JOBS": "2"
+  },
+  "capture_seconds": 173.65776002896018,
+  "capture_exit_code": 0,
+  "source_status_after": "?? PLAN.md",
+  "original_run_directory": "/home/dev/src/rstyle-main/rstyle/target/rstyle/clones/run-JJHCxn",
+  "frozen_run_directory": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run",
+  "input_description": "Input is a fresh default style self-check of the full rstyle workspace (no --all-targets), run with frozen binaries from feat/cpg-document-routes at 88adc996. The core dataset includes every batched document from the rstyle-core compilation; workspace includes all 1,228 saved documents across six compilation units. These are real capture files, with no synthetic repetition. The earlier cpg emit study uses a different source snapshot and route and remains separately reported. PLAN.md was the only untracked file; tracked source files were clean before and after capture.",
+  "style_summary": {
+    "functions": 11013,
+    "violations": 0,
+    "complexity_measured": 11013,
+    "complexity_unavailable": 0,
+    "mean_density_milli": 92,
+    "max_density_milli": 15000,
+    "effect_counts": {
+      "io": 297,
+      "mutation": 2486,
+      "panic": 56,
+      "time": 68,
+      "unknown": 183
+    }
+  },
+  "style_summary_complete": true,
+  "tracked_source_unchanged_after_capture": true,
+  "reader_model_sha256": "db44a3d351a283edca7792bc61632d94c6e294f0ba5b86cc135d11f6446a0174",
+  "build_command": [
+    "cargo",
+    "build",
+    "--locked",
+    "-p",
+    "cargo-rstyle",
+    "-p",
+    "rstyle-driver",
+    "--bins",
+    "-j",
+    "2"
+  ],
+  "benchmark_binary_sha256": "0bd6bea36635194a469835d4a2d20c8f6f0b340dc958472cd35b4a29a316ec0c"
+}

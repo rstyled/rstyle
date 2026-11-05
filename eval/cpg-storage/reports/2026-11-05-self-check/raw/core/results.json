@@ -1,0 +1,2286 @@
+{
+  "end_cgroup": {
+    "cpu.max": "800000 100000\n",
+    "cpu.stat": "usage_usec 1061715467790\nuser_usec 795912095288\nsystem_usec 265803372502\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 14131650\nnr_throttled 149781\nthrottled_usec 28904267620\nnr_bursts 0\nburst_usec 0\n",
+    "memory.current": "16165748736\n",
+    "memory.events": "low 0\nhigh 0\nmax 6212384\noom 1\noom_kill 1\noom_group_kill 0\n",
+    "memory.max": "17179869184\n",
+    "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=1511570801\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=1506186426\n"
+  },
+  "environment": {
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "binary": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/cpg-storage-bench",
+    "binary_sha256": "0bd6bea36635194a469835d4a2d20c8f6f0b340dc958472cd35b4a29a316ec0c",
+    "cgroup": {
+      "cpu.max": "800000 100000\n",
+      "cpu.stat": "usage_usec 1061608245863\nuser_usec 795820350579\nsystem_usec 265787895283\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 14130631\nnr_throttled 149781\nthrottled_usec 28904267620\nnr_bursts 0\nburst_usec 0\n",
+      "memory.current": "15683637248\n",
+      "memory.events": "low 0\nhigh 0\nmax 6212384\noom 1\noom_kill 1\noom_group_kill 0\n",
+      "memory.max": "17179869184\n",
+      "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=1511570801\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=1506186426\n"
+    },
+    "cpu_count": 20,
+    "cpu_pin": 19,
+    "lscpu": "Architecture:                            aarch64\nCPU op-mode(s):                          64-bit\nByte Order:                              Little Endian\nCPU(s):                                  20\nOn-line CPU(s) list:                     0-19\nVendor ID:                               ARM\nModel name:                              Cortex-X925\nModel:                                   1\nThread(s) per core:                      1\nCore(s) per socket:                      10\nSocket(s):                               1\nStepping:                                r0p1\nFrequency boost:                         disabled\nCPU(s) scaling MHz:                      100%\nCPU max MHz:                             3900.0000\nCPU min MHz:                             1378.0000\nBogoMIPS:                                2000.00\nFlags:                                   fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 sm3 sm4 asimddp sha512 sve asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp sve2 sveaes svepmull svebitperm svesha3 svesm4 flagm2 frint svei8mm svebf16 i8mm bf16 dgh bti ecv afp wfxt\nModel name:                              Cortex-A725\nModel:                                   1\nThread(s) per core:                      1\nCore(s) per socket:                      10\nSocket(s):                               1\nStepping:                                r0p1\nCPU(s) scaling MHz:                      100%\nCPU max MHz:                             2808.0000\nCPU min MHz:                             338.0000\nBogoMIPS:                                2000.00\nFlags:                                   fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 sm3 sm4 asimddp sha512 sve asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp sve2 sveaes svepmull svebitperm svesha3 svesm4 flagm2 frint svei8mm svebf16 i8mm bf16 dgh bti ecv afp wfxt\nL1d cache:                               1.3 MiB (20 instances)\nL1i cache:                               1.3 MiB (20 instances)\nL2 cache:                                25 MiB (20 instances)\nL3 cache:                                24 MiB (2 instances)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-19\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; CSV2, BHB\nVulnerability Srbds:                     Not affected\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Not affected",
+    "machine": "aarch64",
+    "platform": "Linux-6.17.0-1014-nvidia-aarch64-with-glibc2.41",
+    "repetitions": 7,
+    "rustc": "rustc 1.101.0-nightly (5c543b0b8 2026-09-29)\nbinary: rustc\ncommit-hash: 5c543b0b8c73c7b72bc8284ced4fb22ead15734d\ncommit-date: 2026-09-29\nhost: aarch64-unknown-linux-gnu\nrelease: 1.101.0-nightly\nLLVM version: 23.1.1",
+    "seed": 20261105,
+    "selection_rule": "lowest sum of median encode and fully materialized decode seconds among uncompressed binary codecs",
+    "utc": "2026-11-05T08:27:37.330864+00:00",
+    "warmups": 1,
+    "zstd_level": 3
+  },
+  "fastest_binary": "flatbuffers",
+  "prepare": {
+    "archive_digest": "cbfd5e4afbf8729fd2a661780abc5c4ed5f07f97dc06fd19d89196333cb439f9",
+    "archive_version": 1,
+    "edges": 6856831,
+    "inputs": [
+      {
+        "bytes": 4566334,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000000.cpg.json",
+        "sha256": "24b78309ec15717cb1d789a252e0522d929e47e03fad37a9543440356edacc27"
+      },
+      {
+        "bytes": 1141089,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000001.cpg.json",
+        "sha256": "86acb35d660ef3527c438f495d192f9e5dee46db1b8096a291fd05a1a2fc78bc"
+      },
+      {
+        "bytes": 2372088,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000002.cpg.json",
+        "sha256": "55aa5a3a26f813de82bdc6c91e518d94f6f921286768d792e4da94c4e37c8a9f"
+      },
+      {
+        "bytes": 1646296,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000003.cpg.json",
+        "sha256": "dbb114c39f2362be3fb9a1926cb93bd4b05dc1da9586b8c7572eb40def197a37"
+      },
+      {
+        "bytes": 2455423,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000004.cpg.json",
+        "sha256": "33077312eba9dfd85316922fe5ecaebc9739ec53dc02b118a461a6695082e89e"
+      },
+      {
+        "bytes": 662103,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000005.cpg.json",
+        "sha256": "31790b50fffd7ee3b70a9a05bcf50c2547e923bf9be30328003cef887803852b"
+      },
+      {
+        "bytes": 4837703,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000006.cpg.json",
+        "sha256": "f733e41edcbc9233abcdda09f4202f6bcbeea364e1d6263541de2dcc35778337"
+      },
+      {
+        "bytes": 104087,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000007.cpg.json",
+        "sha256": "49835a7af5c3c9d734a4b0049017521a249920ed2d70e6c2e8706b8f7a4d7c0a"
+      },
+      {
+        "bytes": 79940,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000008.cpg.json",
+        "sha256": "2eed71d865f75321198ba633dccdf115f550bc93e340761458e917c6af16c9c4"
+      },
+      {
+        "bytes": 2826392,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000009.cpg.json",
+        "sha256": "37e242783f17edbc015baceeca0e780e6ccb7c1d7ab9293977c44df89f5cbc92"
+      },
+      {
+        "bytes": 3617194,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000010.cpg.json",
+        "sha256": "760e228cd0c7097edc463494c69a15d950f2f62a980771140a93d628e165d39b"
+      },
+      {
+        "bytes": 782211,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000011.cpg.json",
+        "sha256": "887ec554378c885ad832f84ea2e81bcad0fe85cb2e714303965bba705c00897d"
+      },
+      {
+        "bytes": 7010457,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000012.cpg.json",
+        "sha256": "090eb0bbf4af57b1729f3ca2309b94cb6098b6aef9df363a058c58701598a022"
+      },
+      {
+        "bytes": 1330182,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000013.cpg.json",
+        "sha256": "5c50db28f6f39322ee0186babc34447fc0b808752c30f8605e742f6943fbd26a"
+      },
+      {
+        "bytes": 168426,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000014.cpg.json",
+        "sha256": "d27493177566696fe4da8d27fea685eb7d56d1f28077e0719a1a907c94ce7722"
+      },
+      {
+        "bytes": 2615912,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000015.cpg.json",
+        "sha256": "c3069d6eba0e9a793f0f99d99d3607ac7dded008601d250957722a0a22b880b1"
+      },
+      {
+        "bytes": 2349022,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000016.cpg.json",
+        "sha256": "195cdff642b0eacd3cc29c0ad581d20529d32a284397e8295e6ccb6c5e1d9763"
+      },
+      {
+        "bytes": 609726,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000017.cpg.json",
+        "sha256": "1f279ed46f5da829ef80230cdf0f4239c52ccbe434d6746fa51ad0ff64d380d1"
+      },
+      {
+        "bytes": 1243351,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000018.cpg.json",
+        "sha256": "75c6e9e4a731230e3a38b07b672fd679265ab942421933a3cc20f5976d32c710"
+      },
+      {
+        "bytes": 1034528,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000019.cpg.json",
+        "sha256": "5153f3f24f82b1f7e8f43910c18b042e27e2f1b99277a82e5ccbc59ee523c81e"
+      },
+      {
+        "bytes": 2994198,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000020.cpg.json",
+        "sha256": "299d4d69343e20dba48229862adab2d11a9bff7ead9494c253a1deedb0042dbb"
+      },
+      {
+        "bytes": 1348653,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000021.cpg.json",
+        "sha256": "c6e489577245c2218e541c1ebaf62657d556fd4965f420366b795134c0c47b68"
+      },
+      {
+        "bytes": 1244106,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000022.cpg.json",
+        "sha256": "bb1195fe83f602912a259088ad1353b72f5f34c28bce134cd55916f5569af1eb"
+      },
+      {
+        "bytes": 1673977,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000023.cpg.json",
+        "sha256": "2bacd1371a61e9e5d90776c016733a90b0c5811a6852949c1b607129ddca664c"
+      },
+      {
+        "bytes": 5635619,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000024.cpg.json",
+        "sha256": "0ce72f0e4e9b0c0363e6df24c90149006a34b6097b48e69de7394f93034d5443"
+      },
+      {
+        "bytes": 2622360,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000025.cpg.json",
+        "sha256": "79689987a677acf683369ddb459337d3dd7c0da648a810b6ec940c8d6c7ae527"
+      },
+      {
+        "bytes": 1349521,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000026.cpg.json",
+        "sha256": "826f621a996a6229a7c66510c3e6e7ccd571a8084cdc129829f53bdaa3c4130e"
+      },
+      {
+        "bytes": 1654346,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000027.cpg.json",
+        "sha256": "396f559663e4e410fb7e1bae77e7aa9dd1537dd593d2a0180363ed8da87befe0"
+      },
+      {
+        "bytes": 1858854,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000028.cpg.json",
+        "sha256": "ba085af25381cff526711054b7a2d633e60e353574ecad82faf4284ef67ae87f"
+      },
+      {
+        "bytes": 14181128,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000029.cpg.json",
+        "sha256": "83186e4dde30eb1fb4bb4f93c673ad824e7fcc2a841c3b2c0f8051e7a606ee19"
+      },
+      {
+        "bytes": 22685205,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000030.cpg.json",
+        "sha256": "eb7c0cbccb61a28f19312421d20e93b642eff20de2638866250a0bfecd4d911d"
+      },
+      {
+        "bytes": 11726432,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000031.cpg.json",
+        "sha256": "a71fb8b2a6cb1ec64fd7957ad30481a0059043f3ee0ddc6e2fb15a6dfcdff187"
+      },
+      {
+        "bytes": 1909949,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000032.cpg.json",
+        "sha256": "159fcad3c442580b0d6b8ade13f62589ab7243d5c496b9c9c558b05d5c885590"
+      },
+      {
+        "bytes": 1910284,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000033.cpg.json",
+        "sha256": "fe6c1b06297946d996124019a19ea0e9fde0936306dd297cdfbd934438d2c6bf"
+      },
+      {
+        "bytes": 726655,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000034.cpg.json",
+        "sha256": "887b60f32868955b130c7497fdd3027ca671a76c6e9c119b9902f8ccc661e00a"
+      },
+      {
+        "bytes": 1328779,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000035.cpg.json",
+        "sha256": "0f653c49a7c9ab439a8b8e0aedf71a0bbd4ed5b31e5029a44e7644af10dad92a"
+      },
+      {
+        "bytes": 935528,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000036.cpg.json",
+        "sha256": "4535f4f2076dfe05b6f04f37ba30f3a325e0a5dbfcbba8509f6cf2b1018a14cb"
+      },
+      {
+        "bytes": 589560,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000037.cpg.json",
+        "sha256": "c0433e7385c11fcc0bac9101b56e9fb9339301a3b19bc3f226c697d94308cb5f"
+      },
+      {
+        "bytes": 193921,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000038.cpg.json",
+        "sha256": "b32b703416bf6c3814e4e286f7ae5a98609cb4a3ce18941ef2f380dea2b1c7ca"
+      },
+      {
+        "bytes": 13184649,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000039.cpg.json",
+        "sha256": "e7b8a3b4a84c1eada8f432fbf032746873769d0da6e6644a81c99d9f991eee2f"
+      },
+      {
+        "bytes": 1411198,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000040.cpg.json",
+        "sha256": "0fe9d36e6f93a05d9e0a789e5e2a7061b7836ca80a190676ca2c046c4dfe11c6"
+      },
+      {
+        "bytes": 1250114,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000041.cpg.json",
+        "sha256": "e91efe062bcee812fc7c78e25aad6d8abe39316340551a183a734c2ad47b0c69"
+      },
+      {
+        "bytes": 1378241,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000042.cpg.json",
+        "sha256": "8c9dcbddc82cb65c245f7639e310a4a452f058499194b1413d7a6fe0aeb9936d"
+      },
+      {
+        "bytes": 941431,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000043.cpg.json",
+        "sha256": "a0c71c5bb23d8d509b22b67da9d5bda02937e9be2f4e1de42a977c63d6a28110"
+      },
+      {
+        "bytes": 1348871,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000044.cpg.json",
+        "sha256": "ee404f8c1ba1c0a1a00013f93124d2e1c7fb7de96cd722f7a351c66142d9743a"
+      },
+      {
+        "bytes": 2420569,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000045.cpg.json",
+        "sha256": "dd041406daa3c2379f3ce7639eebec2925d740091cb454a1153add3176bd7c1b"
+      },
+      {
+        "bytes": 165002,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000046.cpg.json",
+        "sha256": "fa0559f81c697599b3713054a698bb8230704c73bd0544a55f2c14cc8c2e7538"
+      },
+      {
+        "bytes": 484624,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000047.cpg.json",
+        "sha256": "2918e9fd543b0d1408e4f5f72d0b586b2b91325c21bf7aaa5e6c49efe5e3d6d3"
+      },
+      {
+        "bytes": 3735225,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000048.cpg.json",
+        "sha256": "1eebb31599075597e0e4857f83106588fb9989a5237429d98c888e8f5a218f1f"
+      },
+      {
+        "bytes": 91755,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000049.cpg.json",
+        "sha256": "7c73a8ccb60f65a4cf200168518178e68a9bd4f8682a9a6a57b4e36662a10ee1"
+      },
+      {
+        "bytes": 2159034,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000050.cpg.json",
+        "sha256": "36fec51352d213c42742bb3fccb6f0bf47b66215a29f62d31f2a71a165ca53f0"
+      },
+      {
+        "bytes": 217436,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000051.cpg.json",
+        "sha256": "8398c854476183bd3d0f548ee179417209f390d76e4451ef421a0eae347ba74d"
+      },
+      {
+        "bytes": 619569,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000052.cpg.json",
+        "sha256": "ca894d2e8a72745f2f719c8db0b22f15c43948782cb4154a78358f7b05097b56"
+      },
+      {
+        "bytes": 3092646,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000053.cpg.json",
+        "sha256": "0d8413d64f3bf9fcee441f42aeece3e122dd8f5a8081724cb83f10c2cd96a02e"
+      },
+      {
+        "bytes": 1323487,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000054.cpg.json",
+        "sha256": "1f7aed39adc3831c3b2c241e3bc1aa53f848a853489929fd4aafc731fd316435"
+      },
+      {
+        "bytes": 2131140,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000055.cpg.json",
+        "sha256": "89679a91e823e36e830fc8f82ab5c54e45e8e73038f962f9b5903950ae3612e1"
+      },
+      {
+        "bytes": 570227,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000056.cpg.json",
+        "sha256": "625af282a0007356d0c68fcf4c2dfeea3dc4f818c9c45a425723196b64bfafed"
+      },
+      {
+        "bytes": 1307672,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000057.cpg.json",
+        "sha256": "f56af082cd5bba8ef696ac3d2cd33d85a939e8174f4b2a6adb9b9b873a6e6b07"
+      },
+      {
+        "bytes": 5769516,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000058.cpg.json",
+        "sha256": "a49aad855f8e3d762ce0f69bce0fbc0f169f5851c6682f8f57809e5e3c0f53d8"
+      },
+      {
+        "bytes": 4077794,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000059.cpg.json",
+        "sha256": "8b9236434c487d0ff276bcb3f12af70803dc24805b56d956967d91387f1ba1fb"
+      },
+      {
+        "bytes": 3073051,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000060.cpg.json",
+        "sha256": "b7f421b9e8926c5de78d21fbd449ef2c7e15b5c11f0df041f8cac8808558b60c"
+      },
+      {
+        "bytes": 10758737,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000061.cpg.json",
+        "sha256": "134d7775c082a802317046afcd4a03ac0ee366a2fe450a5d42a0fd821f4d79ea"
+      },
+      {
+        "bytes": 6555397,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000062.cpg.json",
+        "sha256": "6c7af2658fb63722b697cc44337e61aa7476d773a5428fd193b8235f30943cff"
+      },
+      {
+        "bytes": 2851832,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000063.cpg.json",
+        "sha256": "8f0bbfffe9348353aea41335cb5a33136cad32bf52d633dcf18faa6169c1cec0"
+      },
+      {
+        "bytes": 148238,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000064.cpg.json",
+        "sha256": "23440d534a3f97da6ad76dab8790fc331d5e480f76f9bb169ddbe44d2c5ab0b8"
+      },
+      {
+        "bytes": 1233010,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000065.cpg.json",
+        "sha256": "ee4206d6c687a0066d8435c0818f44522da11c6cfd00917eafa3725f73d8b163"
+      },
+      {
+        "bytes": 1191025,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000066.cpg.json",
+        "sha256": "f8b30cc594a573db9d5fe99954d9e8b4d287945423f526ecb56537a334f111dc"
+      },
+      {
+        "bytes": 28907,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000067.cpg.json",
+        "sha256": "9c75dab191c14f4cd390de43161ef6a8b8ed702d2d4020001e677a7ab70d5c14"
+      },
+      {
+        "bytes": 1290392,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000068.cpg.json",
+        "sha256": "82508321956ce14d8c3334a9ea7840afd7dc83c6a24c2954ba90299112d2aae1"
+      },
+      {
+        "bytes": 281103,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000069.cpg.json",
+        "sha256": "41dee05abe5c69905534b22bf7165c5c05193eb11e65bfb4be88667acb6124c3"
+      },
+      {
+        "bytes": 136995,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000070.cpg.json",
+        "sha256": "d94bb247bb6bd5f4072987223f5bc1dd7e071f1806a62571f4a04e66c7250a21"
+      },
+      {
+        "bytes": 1288165,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000071.cpg.json",
+        "sha256": "764e74d1a9c3478e710ec6bdb3c9d453184754a2056295ed378d7324c4439ea6"
+      },
+      {
+        "bytes": 2478667,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000072.cpg.json",
+        "sha256": "b828e048e1cf1f8199a0d446f6dd6b98440a6cf769ceb226fccf5c57c47f619a"
+      },
+      {
+        "bytes": 1297584,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000073.cpg.json",
+        "sha256": "7ae0676edcd02dca5db70c8fe6471b1113ffd87285cb4dfdf9fa9031977163e9"
+      }
+    ],
+    "json_write_seconds": 0.167353568,
+    "lossless_reconstruction": true,
+    "model_json_bytes": 67614429,
+    "normalization_seconds": 3.110221948,
+    "process_peak_rss_bytes": 549761024,
+    "stats": {
+      "input_string_bytes": 156122126,
+      "input_strings": 10441892,
+      "input_values": 7384955,
+      "source_bytes": 198314842,
+      "source_documents": 74,
+      "source_functions": 3225,
+      "source_nodes": 187729,
+      "table_occurrences": {
+        "definitions": 29149,
+        "files": 489,
+        "imports": 855,
+        "namespaces": 331,
+        "types": 39757,
+        "values": 40
+      },
+      "table_unique_records": {
+        "definitions": 11637,
+        "files": 72,
+        "imports": 855,
+        "namespaces": 331,
+        "types": 19087,
+        "values": 26
+      },
+      "unique_string_bytes": 13321204,
+      "unique_strings": 326387,
+      "unique_values": 1067617
+    }
+  },
+  "results": {
+    "flatbuffers": {
+      "codec": "flatbuffers",
+      "decode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 72871936,
+          "median": 72871936,
+          "min": 72863744,
+          "samples": [
+            72867840,
+            72871936,
+            72871936,
+            72871936,
+            72863744,
+            72871936,
+            72871936
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.00231079,
+          "max": 0.035603054,
+          "median": 0.029781871,
+          "min": 0.027471081,
+          "samples": [
+            0.029657935,
+            0.033549545,
+            0.029781871,
+            0.027471081,
+            0.035081581,
+            0.035603054,
+            0.029519582
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.0006766900000000006,
+          "max": 0.022633404,
+          "median": 0.020020789,
+          "min": 0.017680943,
+          "samples": [
+            0.01975282,
+            0.020020789,
+            0.017680943,
+            0.019344099,
+            0.022633404,
+            0.022415676,
+            0.020305206
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 153763840,
+          "median": 153763840,
+          "min": 153755648,
+          "samples": [
+            153759744,
+            153763840,
+            153763840,
+            153763840,
+            153755648,
+            153763840,
+            153763840
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0034982790239155293,
+          "max": 0.3261826380621642,
+          "median": 0.31794344796799123,
+          "min": 0.3096881308592856,
+          "samples": [
+            0.3170652410481125,
+            0.32013329514302313,
+            0.3144451689440757,
+            0.3096881308592856,
+            0.3254567328840494,
+            0.3261826380621642,
+            0.31794344796799123
+          ]
+        },
+        "seconds": {
+          "mad": 0.0023108380000000026,
+          "max": 0.03560315,
+          "median": 0.029782175,
+          "min": 0.027471337,
+          "samples": [
+            0.029658079,
+            0.033549721,
+            0.029782175,
+            0.027471337,
+            0.035081677,
+            0.03560315,
+            0.02951995
+          ]
+        }
+      },
+      "decode_time_rank": 1,
+      "encode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 84004864,
+          "median": 84004864,
+          "min": 83984384,
+          "samples": [
+            83984384,
+            83992576,
+            84004864,
+            84004864,
+            83988480,
+            84004864,
+            84004864
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0022110139999999973,
+          "max": 0.053346158,
+          "median": 0.049360003,
+          "min": 0.044790854,
+          "samples": [
+            0.048902098,
+            0.053346158,
+            0.052628699,
+            0.047148989,
+            0.051055287,
+            0.049360003,
+            0.044790854
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.001476243000000002,
+          "max": 0.055151026,
+          "median": 0.040585452,
+          "min": 0.031952037,
+          "samples": [
+            0.040585452,
+            0.039274712,
+            0.031952037,
+            0.055151026,
+            0.042892482,
+            0.042061695,
+            0.039269656
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 219492352,
+          "median": 219492352,
+          "min": 219471872,
+          "samples": [
+            219471872,
+            219480064,
+            219492352,
+            219492352,
+            219475968,
+            219492352,
+            219492352
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.002187092090025544,
+          "max": 0.5900705850217491,
+          "median": 0.5830233520828187,
+          "min": 0.566921193851158,
+          "samples": [
+            0.5808362599927932,
+            0.587903477018699,
+            0.5830233520828187,
+            0.5900705850217491,
+            0.5845732581801713,
+            0.5813593761995435,
+            0.566921193851158
+          ]
+        },
+        "seconds": {
+          "mad": 0.0022110139999999973,
+          "max": 0.05334643,
+          "median": 0.049360243,
+          "min": 0.044790998,
+          "samples": [
+            0.048902578,
+            0.05334643,
+            0.052628971,
+            0.047149229,
+            0.051055559,
+            0.049360243,
+            0.044790998
+          ]
+        }
+      },
+      "encode_plus_decode_seconds": 0.07914241799999999,
+      "encode_time_rank": 1,
+      "representation": "shared-arena",
+      "time_rank": 1,
+      "wire_bytes": 69882824,
+      "wire_sha256": "17e3974752ab0485f12b45d9e81b3b379e7b992ac124fbe61d592d70bc59398a",
+      "zstd_level": null
+    },
+    "flatbuffers-zstd": {
+      "codec": "flatbuffers",
+      "decode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 14479360,
+          "median": 14479360,
+          "min": 14458880,
+          "samples": [
+            14458880,
+            14479360,
+            14479360,
+            14479360,
+            14479360,
+            14479360,
+            14479360
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.00022732899999999834,
+          "max": 0.035297598,
+          "median": 0.034606075,
+          "min": 0.026931799,
+          "samples": [
+            0.035297598,
+            0.034833404,
+            0.026931799,
+            0.030236256,
+            0.034606075,
+            0.034733324,
+            0.034570363
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.00032777600000000184,
+          "max": 0.051816633,
+          "median": 0.051456792,
+          "min": 0.044265461,
+          "samples": [
+            0.051784568,
+            0.051816633,
+            0.044265461,
+            0.045918602,
+            0.051309016,
+            0.051768713,
+            0.051456792
+          ]
+        },
+        "io_seconds": {
+          "mad": 2.652799999999962e-05,
+          "max": 0.003692922,
+          "median": 0.003634233,
+          "min": 0.00242143,
+          "samples": [
+            0.003642762,
+            0.003619082,
+            0.00242143,
+            0.002801127,
+            0.003660761,
+            0.003634233,
+            0.003692922
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 165564416,
+          "median": 165564416,
+          "min": 165543936,
+          "samples": [
+            165543936,
+            165564416,
+            165564416,
+            165564416,
+            165564416,
+            165564416,
+            165564416
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0036317850463092327,
+          "max": 0.2592544120270759,
+          "median": 0.25562262698076665,
+          "min": 0.2420285427942872,
+          "samples": [
+            0.2592544120270759,
+            0.25830261781811714,
+            0.2420285427942872,
+            0.2462368260603398,
+            0.25562262698076665,
+            0.25864813895896077,
+            0.25120595889166
+          ]
+        },
+        "seconds": {
+          "mad": 0.0006229300000000076,
+          "max": 0.08708231,
+          "median": 0.086027283,
+          "min": 0.071197468,
+          "samples": [
+            0.08708231,
+            0.086650213,
+            0.071197468,
+            0.076154938,
+            0.085915283,
+            0.086502389,
+            0.086027283
+          ]
+        }
+      },
+      "decode_time_rank": 3,
+      "encode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 83972096,
+          "median": 83972096,
+          "min": 83963904,
+          "samples": [
+            83963904,
+            83972096,
+            83972096,
+            83972096,
+            83968000,
+            83972096,
+            83972096
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.000763314000000001,
+          "max": 0.05206929,
+          "median": 0.049320994,
+          "min": 0.045693369,
+          "samples": [
+            0.045693369,
+            0.05206929,
+            0.049836772,
+            0.04855768,
+            0.049320994,
+            0.048907505,
+            0.050210181
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0007608189999999959,
+          "max": 0.108954368,
+          "median": 0.108163469,
+          "min": 0.106884058,
+          "samples": [
+            0.108163469,
+            0.107244731,
+            0.106884058,
+            0.108954368,
+            0.108721871,
+            0.108924288,
+            0.108032109
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.00032001700000000013,
+          "max": 0.004289915,
+          "median": 0.003832026,
+          "min": 0.003084104,
+          "samples": [
+            0.004289915,
+            0.003832026,
+            0.003853482,
+            0.004152043,
+            0.003536105,
+            0.003345961,
+            0.003084104
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 234131456,
+          "median": 234131456,
+          "min": 234123264,
+          "samples": [
+            234123264,
+            234131456,
+            234131456,
+            234131456,
+            234127360,
+            234131456,
+            234131456
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0018620849587023258,
+          "max": 0.5535582141019404,
+          "median": 0.5480774790048599,
+          "min": 0.544901629909873,
+          "samples": [
+            0.5463258901145309,
+            0.5535582141019404,
+            0.5499395639635623,
+            0.5480774790048599,
+            0.5511568789370358,
+            0.544901629909873,
+            0.5474542931187898
+          ]
+        },
+        "seconds": {
+          "mad": 0.0004104969999999819,
+          "max": 0.159314277,
+          "median": 0.157832097,
+          "min": 0.15385711,
+          "samples": [
+            0.15385711,
+            0.159314277,
+            0.15672107,
+            0.157512384,
+            0.158043409,
+            0.157832097,
+            0.158242594
+          ]
+        }
+      },
+      "encode_plus_decode_seconds": 0.24385938000000001,
+      "encode_time_rank": 6,
+      "representation": "shared-arena",
+      "time_rank": 4,
+      "wire_bytes": 11489662,
+      "wire_sha256": "e2d2a4dde36c5e134baed5d0c81383235b60f26cfb6d2efcd5983c3da92e0725",
+      "zstd_level": 3
+    },
+    "flexbuffers": {
+      "codec": "flexbuffers",
+      "decode": {
+        "baseline_rss_bytes": {
+          "mad": 4096,
+          "max": 67678208,
+          "median": 67665920,
+          "min": 67657728,
+          "samples": [
+            67670016,
+            67661824,
+            67661824,
+            67657728,
+            67678208,
+            67665920,
+            67678208
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0013837949999999932,
+          "max": 0.127557233,
+          "median": 0.124416105,
+          "min": 0.1212644,
+          "samples": [
+            0.127320466,
+            0.124416105,
+            0.12303231,
+            0.124961723,
+            0.127557233,
+            0.124217576,
+            0.1212644
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.0009322740000000003,
+          "max": 0.020611751,
+          "median": 0.018474641,
+          "min": 0.016306043,
+          "samples": [
+            0.019406915,
+            0.017916592,
+            0.018370096,
+            0.020611751,
+            0.02059647,
+            0.018474641,
+            0.016306043
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 4096,
+          "max": 148570112,
+          "median": 148557824,
+          "min": 148549632,
+          "samples": [
+            148561920,
+            148553728,
+            148553728,
+            148549632,
+            148570112,
+            148557824,
+            148570112
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0038785887882113457,
+          "max": 0.4064193300437182,
+          "median": 0.40001941192895174,
+          "min": 0.39470920292660594,
+          "samples": [
+            0.4049344011582434,
+            0.40001941192895174,
+            0.3978679010178894,
+            0.40243234601803124,
+            0.4064193300437182,
+            0.3961408231407404,
+            0.39470920292660594
+          ]
+        },
+        "seconds": {
+          "mad": 0.0013838750000000066,
+          "max": 0.127557329,
+          "median": 0.124416329,
+          "min": 0.121264464,
+          "samples": [
+            0.127320626,
+            0.124416329,
+            0.123032454,
+            0.124962091,
+            0.127557329,
+            0.124217704,
+            0.121264464
+          ]
+        }
+      },
+      "decode_time_rank": 5,
+      "encode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 84004864,
+          "median": 84004864,
+          "min": 83996672,
+          "samples": [
+            84004864,
+            84004864,
+            84000768,
+            83996672,
+            84004864,
+            83996672,
+            84004864
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0013680349999999897,
+          "max": 0.155581436,
+          "median": 0.150382543,
+          "min": 0.144622079,
+          "samples": [
+            0.150382543,
+            0.155581436,
+            0.151750578,
+            0.147073829,
+            0.149127546,
+            0.144622079,
+            0.151125135
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.0014956039999999976,
+          "max": 0.041030284,
+          "median": 0.038353269,
+          "min": 0.033671769,
+          "samples": [
+            0.03683005,
+            0.041030284,
+            0.038094501,
+            0.039848873,
+            0.039273528,
+            0.038353269,
+            0.033671769
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 258322432,
+          "median": 258322432,
+          "min": 258314240,
+          "samples": [
+            258322432,
+            258322432,
+            258318336,
+            258314240,
+            258322432,
+            258314240,
+            258322432
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0022237361408770084,
+          "max": 0.6692539171781391,
+          "median": 0.6577427329029888,
+          "min": 0.655245668021962,
+          "samples": [
+            0.6599664690438658,
+            0.6692539171781391,
+            0.6656004511751235,
+            0.6577427329029888,
+            0.655245668021962,
+            0.6565731749869883,
+            0.6571956239640713
+          ]
+        },
+        "seconds": {
+          "mad": 0.001368115000000003,
+          "max": 0.155581692,
+          "median": 0.150382831,
+          "min": 0.144622367,
+          "samples": [
+            0.150382831,
+            0.155581692,
+            0.151750946,
+            0.147074149,
+            0.149127834,
+            0.144622367,
+            0.151125215
+          ]
+        }
+      },
+      "encode_plus_decode_seconds": 0.27479916,
+      "encode_time_rank": 5,
+      "representation": "shared-arena",
+      "time_rank": 5,
+      "wire_bytes": 64691520,
+      "wire_sha256": "e34ac0c121f40dded47daf90110961e42ea1091b019b024aeb8f16ccfeb71182",
+      "zstd_level": null
+    },
+    "json": {
+      "codec": "json",
+      "decode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 70602752,
+          "median": 70602752,
+          "min": 70594560,
+          "samples": [
+            70602752,
+            70602752,
+            70594560,
+            70598656,
+            70602752,
+            70602752,
+            70602752
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0010163369999999922,
+          "max": 0.11703751,
+          "median": 0.115175042,
+          "min": 0.108834255,
+          "samples": [
+            0.115175042,
+            0.11703751,
+            0.110155012,
+            0.116191379,
+            0.114669167,
+            0.115234336,
+            0.108834255
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.0002882569999999966,
+          "max": 0.021833626,
+          "median": 0.021545369,
+          "min": 0.016240491,
+          "samples": [
+            0.021573385,
+            0.016914829,
+            0.016240491,
+            0.021545369,
+            0.021770778,
+            0.021833626,
+            0.016529579
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 151646208,
+          "median": 151646208,
+          "min": 151638016,
+          "samples": [
+            151646208,
+            151646208,
+            151638016,
+            151642112,
+            151646208,
+            151646208,
+            151646208
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.002580150030553341,
+          "max": 0.40131000499241054,
+          "median": 0.3987298549618572,
+          "min": 0.38558610691688955,
+          "samples": [
+            0.3956404570490122,
+            0.39917305717244744,
+            0.3892523900140077,
+            0.40131000499241054,
+            0.3987298549618572,
+            0.39920571097172797,
+            0.38558610691688955
+          ]
+        },
+        "seconds": {
+          "mad": 0.0010163210000000006,
+          "max": 0.117037718,
+          "median": 0.115175202,
+          "min": 0.108834447,
+          "samples": [
+            0.115175202,
+            0.117037718,
+            0.110155236,
+            0.116191523,
+            0.114669311,
+            0.115234528,
+            0.108834447
+          ]
+        }
+      },
+      "decode_time_rank": 4,
+      "encode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 83972096,
+          "median": 83972096,
+          "min": 83951616,
+          "samples": [
+            83951616,
+            83972096,
+            83972096,
+            83972096,
+            83972096,
+            83972096,
+            83972096
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0014358919999999942,
+          "max": 0.065102124,
+          "median": 0.059564478,
+          "min": 0.058128586,
+          "samples": [
+            0.058128586,
+            0.062172037,
+            0.058605419,
+            0.058301802,
+            0.059564478,
+            0.064485787,
+            0.065102124
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.0014508670000000015,
+          "max": 0.038829207,
+          "median": 0.036485376,
+          "min": 0.034296395,
+          "samples": [
+            0.038374246,
+            0.037642724,
+            0.035491422,
+            0.034296395,
+            0.036485376,
+            0.038829207,
+            0.035034509
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 151666688,
+          "median": 151666688,
+          "min": 151646208,
+          "samples": [
+            151646208,
+            151666688,
+            151666688,
+            151666688,
+            151666688,
+            151666688,
+            151666688
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0037704240530729294,
+          "max": 0.586253501009196,
+          "median": 0.5725711500272155,
+          "min": 0.5649056390393525,
+          "samples": [
+            0.5725711500272155,
+            0.5763415740802884,
+            0.5718802018091083,
+            0.5649056390393525,
+            0.5709144368302077,
+            0.5811876319348812,
+            0.586253501009196
+          ]
+        },
+        "seconds": {
+          "mad": 0.001435732000000002,
+          "max": 0.065102396,
+          "median": 0.05956475,
+          "min": 0.058129018,
+          "samples": [
+            0.058129018,
+            0.062172261,
+            0.058605483,
+            0.058302138,
+            0.05956475,
+            0.064486075,
+            0.065102396
+          ]
+        }
+      },
+      "encode_plus_decode_seconds": 0.174739952,
+      "encode_time_rank": 3,
+      "representation": "shared-arena",
+      "time_rank": 3,
+      "wire_bytes": 67614429,
+      "wire_sha256": "965102fd6a65f14a53a3fb1d77c1e51b34cfa0c06e4d96a27318d0917794461f",
+      "zstd_level": null
+    },
+    "json-zstd": {
+      "codec": "json",
+      "decode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 16293888,
+          "median": 16293888,
+          "min": 16273408,
+          "samples": [
+            16285696,
+            16273408,
+            16293888,
+            16293888,
+            16293888,
+            16293888,
+            16285696
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0034478499999999884,
+          "max": 0.121465234,
+          "median": 0.113301036,
+          "min": 0.109370913,
+          "samples": [
+            0.113301036,
+            0.113253308,
+            0.121465234,
+            0.109370913,
+            0.115992979,
+            0.120195294,
+            0.109853186
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0011974760000000029,
+          "max": 0.066624801,
+          "median": 0.065427325,
+          "min": 0.059868734,
+          "samples": [
+            0.066317264,
+            0.066624801,
+            0.065529437,
+            0.059868734,
+            0.065427325,
+            0.06339516,
+            0.060627488
+          ]
+        },
+        "io_seconds": {
+          "mad": 5.923299999999968e-05,
+          "max": 0.004234092,
+          "median": 0.004174859,
+          "min": 0.003364584,
+          "samples": [
+            0.004174859,
+            0.004213115,
+            0.004234092,
+            0.003364584,
+            0.004227579,
+            0.003872666,
+            0.00368713
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 167174144,
+          "median": 167174144,
+          "min": 167153664,
+          "samples": [
+            167165952,
+            167153664,
+            167174144,
+            167174144,
+            167174144,
+            167174144,
+            167165952
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.00183747592382133,
+          "max": 0.3595561981201172,
+          "median": 0.3563186877872795,
+          "min": 0.33920824085362256,
+          "samples": [
+            0.35448121186345816,
+            0.3563186877872795,
+            0.35669569694437087,
+            0.33920824085362256,
+            0.3566342871636152,
+            0.3595561981201172,
+            0.3472865328658372
+          ]
+        },
+        "seconds": {
+          "mad": 0.0037123289999999864,
+          "max": 0.186994863,
+          "median": 0.179878221,
+          "min": 0.169239999,
+          "samples": [
+            0.179618364,
+            0.179878221,
+            0.186994863,
+            0.169239999,
+            0.181420448,
+            0.18359055,
+            0.17048125
+          ]
+        }
+      },
+      "decode_time_rank": 6,
+      "encode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 83972096,
+          "median": 83972096,
+          "min": 83963904,
+          "samples": [
+            83972096,
+            83972096,
+            83972096,
+            83963904,
+            83968000,
+            83972096,
+            83972096
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0011718270000000003,
+          "max": 0.063605288,
+          "median": 0.059596558,
+          "min": 0.058090074,
+          "samples": [
+            0.058090074,
+            0.058432619,
+            0.0633578,
+            0.060257983,
+            0.063605288,
+            0.058424731,
+            0.059596558
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0008806100000000039,
+          "max": 0.15484457,
+          "median": 0.152167539,
+          "min": 0.151286929,
+          "samples": [
+            0.151286929,
+            0.15484457,
+            0.153399558,
+            0.152167539,
+            0.153345061,
+            0.151898017,
+            0.151611376
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.00047920099999999985,
+          "max": 0.013644916,
+          "median": 0.004017483,
+          "min": 0.00350161,
+          "samples": [
+            0.003538282,
+            0.004556108,
+            0.004167883,
+            0.004017483,
+            0.003934699,
+            0.00350161,
+            0.013644916
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 168243200,
+          "median": 168243200,
+          "min": 168230912,
+          "samples": [
+            168243200,
+            168243200,
+            168243200,
+            168230912,
+            168239104,
+            168239104,
+            168243200
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.006768571212887764,
+          "max": 0.6161483188625425,
+          "median": 0.603964971145615,
+          "min": 0.5969046191312373,
+          "samples": [
+            0.5971963999327272,
+            0.6051138429902494,
+            0.6161483188625425,
+            0.5969046191312373,
+            0.6113980000372976,
+            0.6035814031492919,
+            0.603964971145615
+          ]
+        },
+        "seconds": {
+          "mad": 0.0021030300000000057,
+          "max": 0.216950637,
+          "median": 0.212426178,
+          "min": 0.209377339,
+          "samples": [
+            0.209377339,
+            0.213277333,
+            0.216757566,
+            0.212426178,
+            0.216950637,
+            0.210323148,
+            0.211208254
+          ]
+        }
+      },
+      "encode_plus_decode_seconds": 0.392304399,
+      "encode_time_rank": 7,
+      "representation": "shared-arena",
+      "time_rank": 6,
+      "wire_bytes": 13307324,
+      "wire_sha256": "10af28931e2f9464be36477bf437e6e7b67d3196e9294ecaa27ccf720a0997a6",
+      "zstd_level": 3
+    },
+    "original-json": {
+      "codec": "json",
+      "decode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 120500224,
+          "median": 120500224,
+          "min": 120487936,
+          "samples": [
+            120487936,
+            120500224,
+            120500224,
+            120500224,
+            120500224,
+            120492032,
+            120500224
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0007366939999999267,
+          "max": 0.354054183,
+          "median": 0.345960263,
+          "min": 0.34191024299999995,
+          "samples": [
+            0.34522356900000006,
+            0.354054183,
+            0.345960263,
+            0.35238306000000014,
+            0.34624278899999983,
+            0.34535645000000004,
+            0.34191024299999995
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.00010423800000002037,
+          "max": 0.024210572000000014,
+          "median": 0.024106333999999993,
+          "min": 0.022807897999999997,
+          "samples": [
+            0.023812124999999993,
+            0.024106703000000007,
+            0.022807897999999997,
+            0.024210572000000014,
+            0.024106333999999993,
+            0.02414095599999999,
+            0.023919687999999995
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 120500224,
+          "median": 120500224,
+          "min": 120487936,
+          "samples": [
+            120487936,
+            120500224,
+            120500224,
+            120500224,
+            120500224,
+            120492032,
+            120500224
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0033283678349107504,
+          "max": 2.0363688820507377,
+          "median": 2.0322352261282504,
+          "min": 2.026403547031805,
+          "samples": [
+            2.026403547031805,
+            2.0363688820507377,
+            2.0265244690235704,
+            2.035563593963161,
+            2.033538609975949,
+            2.0322352261282504,
+            2.032157927984372
+          ]
+        },
+        "seconds": {
+          "mad": 0.0007379580000003161,
+          "max": 0.35406147900000007,
+          "median": 0.3459685190000001,
+          "min": 0.3419171550000002,
+          "samples": [
+            0.34523056099999977,
+            0.35406147900000007,
+            0.3459685190000001,
+            0.35239059599999994,
+            0.34624982900000006,
+            0.3453632019999999,
+            0.3419171550000002
+          ]
+        }
+      },
+      "decode_time_rank": 7,
+      "encode": {
+        "baseline_rss_bytes": {
+          "mad": 4096,
+          "max": 201670656,
+          "median": 201666560,
+          "min": 201654272,
+          "samples": [
+            201666560,
+            201654272,
+            201670656,
+            201670656,
+            201662464,
+            201654272,
+            201670656
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.00028173299999997847,
+          "max": 0.14968291,
+          "median": 0.149388831,
+          "min": 0.1487632,
+          "samples": [
+            0.14915096699999997,
+            0.1487632,
+            0.14899394300000007,
+            0.14968291,
+            0.149388831,
+            0.14959916399999995,
+            0.14967056399999998
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.0018006809999999845,
+          "max": 0.06883073799999999,
+          "median": 0.067030057,
+          "min": 0.060368433000000006,
+          "samples": [
+            0.061720646000000025,
+            0.06134307099999999,
+            0.060368433000000006,
+            0.067030057,
+            0.06883073799999999,
+            0.068454468,
+            0.067522676
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 4096,
+          "max": 224346112,
+          "median": 224342016,
+          "min": 224329728,
+          "samples": [
+            224342016,
+            224329728,
+            224346112,
+            224346112,
+            224337920,
+            224329728,
+            224346112
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0010056637693196535,
+          "max": 1.794402230065316,
+          "median": 1.7864926769398153,
+          "min": 1.7797192397993058,
+          "samples": [
+            1.786517488071695,
+            1.7837135579902679,
+            1.7797192397993058,
+            1.7854870131704956,
+            1.7864926769398153,
+            1.794402230065316,
+            1.7870602728798985
+          ]
+        },
+        "seconds": {
+          "mad": 0.00028472500000001344,
+          "max": 0.14969033399999998,
+          "median": 0.14939486300000002,
+          "min": 0.14876923200000006,
+          "samples": [
+            0.1491570470000001,
+            0.14876923200000006,
+            0.14900256699999997,
+            0.14969033399999998,
+            0.14939486300000002,
+            0.1496073400000001,
+            0.14967958800000003
+          ]
+        }
+      },
+      "encode_plus_decode_seconds": 0.4953633820000001,
+      "encode_time_rank": 4,
+      "representation": "original-cpg-document",
+      "time_rank": 7,
+      "wire_bytes": 198314842,
+      "wire_sha256": "2abf3920b9a5287fdf4b701065ecdde27ed1d4f1c655f38cb8df159ce75f5b09",
+      "zstd_level": null
+    },
+    "original-json-zstd": {
+      "codec": "json",
+      "decode": {
+        "baseline_rss_bytes": {
+          "mad": 4096,
+          "max": 124858368,
+          "median": 124854272,
+          "min": 124841984,
+          "samples": [
+            124858368,
+            124841984,
+            124854272,
+            124846080,
+            124841984,
+            124858368,
+            124858368
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0020969920000001863,
+          "max": 0.35154480200000005,
+          "median": 0.34944780999999986,
+          "min": 0.3411208709999998,
+          "samples": [
+            0.34292063200000006,
+            0.34988649299999997,
+            0.34262762499999994,
+            0.350839966,
+            0.35154480200000005,
+            0.34944780999999986,
+            0.3411208709999998
+          ]
+        },
+        "compression_seconds": {
+          "mad": 9.985400000001032e-05,
+          "max": 0.065124774,
+          "median": 0.064308889,
+          "min": 0.06381723300000001,
+          "samples": [
+            0.06420903499999998,
+            0.06442246100000001,
+            0.06421786799999998,
+            0.06381723300000001,
+            0.065124774,
+            0.064308889,
+            0.06435152899999998
+          ]
+        },
+        "io_seconds": {
+          "mad": 3.5148000000000904e-05,
+          "max": 0.0075584740000000025,
+          "median": 0.0028029170000000007,
+          "min": 0.002767769,
+          "samples": [
+            0.002869929,
+            0.0027898450000000017,
+            0.007490453999999995,
+            0.0028029170000000007,
+            0.0075584740000000025,
+            0.002776085999999999,
+            0.002767769
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 4096,
+          "max": 124858368,
+          "median": 124854272,
+          "min": 124841984,
+          "samples": [
+            124858368,
+            124841984,
+            124854272,
+            124846080,
+            124841984,
+            124858368,
+            124858368
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.004009309923276305,
+          "max": 1.756869207834825,
+          "median": 1.747438410995528,
+          "min": 1.7434291010722518,
+          "samples": [
+            1.7434291010722518,
+            1.7461038718465716,
+            1.7524694539606571,
+            1.756869207834825,
+            1.754312430974096,
+            1.747438410995528,
+            1.7450133769307286
+          ]
+        },
+        "seconds": {
+          "mad": 0.0029130209999999046,
+          "max": 0.41667631199999994,
+          "median": 0.41376329100000003,
+          "min": 0.40547859200000025,
+          "samples": [
+            0.40713616299999994,
+            0.41431551400000005,
+            0.406851573,
+            0.4146631190000001,
+            0.41667631199999994,
+            0.41376329100000003,
+            0.40547859200000025
+          ]
+        }
+      },
+      "decode_time_rank": 8,
+      "encode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 201920512,
+          "median": 201920512,
+          "min": 201895936,
+          "samples": [
+            201916416,
+            201900032,
+            201920512,
+            201920512,
+            201920512,
+            201895936,
+            201920512
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.00028831099999998555,
+          "max": 0.1491853049999999,
+          "median": 0.14837552800000003,
+          "min": 0.147685949,
+          "samples": [
+            0.1491853049999999,
+            0.14828063200000002,
+            0.14866383900000002,
+            0.14832551100000005,
+            0.14837552800000003,
+            0.147685949,
+            0.148737209
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.00019164700000004475,
+          "max": 0.133067185,
+          "median": 0.13248191999999995,
+          "min": 0.13216486199999997,
+          "samples": [
+            0.133067185,
+            0.13248191999999995,
+            0.13216486199999997,
+            0.13245682999999997,
+            0.132551903,
+            0.132205065,
+            0.132673567
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.0009240049999999986,
+          "max": 0.013556028000000003,
+          "median": 0.012243041000000003,
+          "min": 0.008216761000000001,
+          "samples": [
+            0.008216761000000001,
+            0.008506920000000005,
+            0.011788574,
+            0.012243041000000003,
+            0.012714591,
+            0.013167046000000002,
+            0.013556028000000003
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 224595968,
+          "median": 224595968,
+          "min": 224571392,
+          "samples": [
+            224591872,
+            224575488,
+            224595968,
+            224595968,
+            224595968,
+            224571392,
+            224595968
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0037668230943381786,
+          "max": 1.547946069855243,
+          "median": 1.5441736071370542,
+          "min": 1.537724717054516,
+          "samples": [
+            1.547946069855243,
+            1.540406784042716,
+            1.5441736071370542,
+            1.5475888629443944,
+            1.54764474905096,
+            1.5377258248627186,
+            1.537724717054516
+          ]
+        },
+        "seconds": {
+          "mad": 0.00010140199999991717,
+          "max": 0.28225951399999993,
+          "median": 0.28083486100000005,
+          "min": 0.279899366,
+          "samples": [
+            0.28225951399999993,
+            0.28076898400000005,
+            0.28083486100000005,
+            0.28079128499999995,
+            0.28093626299999996,
+            0.279899366,
+            0.2814178479999999
+          ]
+        }
+      },
+      "encode_plus_decode_seconds": 0.6945981520000001,
+      "encode_time_rank": 8,
+      "representation": "original-cpg-document",
+      "time_rank": 8,
+      "wire_bytes": 11783737,
+      "wire_sha256": "3e6392178169d08932bd525d7239a5b52889cc5165f65b2256478b9cb3c1c8fa",
+      "zstd_level": 3
+    },
+    "protobuf": {
+      "codec": "protobuf",
+      "decode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 42332160,
+          "median": 42332160,
+          "min": 42319872,
+          "samples": [
+            42332160,
+            42332160,
+            42332160,
+            42332160,
+            42332160,
+            42319872,
+            42332160
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0005613129999999938,
+          "max": 0.063263511,
+          "median": 0.062702198,
+          "min": 0.057505241,
+          "samples": [
+            0.05767692,
+            0.059470013,
+            0.057505241,
+            0.063263511,
+            0.063136519,
+            0.063153415,
+            0.062702198
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.00011908700000000036,
+          "max": 0.012658305,
+          "median": 0.012508402,
+          "min": 0.009816442,
+          "samples": [
+            0.009816442,
+            0.012508402,
+            0.012658305,
+            0.012460785,
+            0.012205185,
+            0.012627489,
+            0.012622001
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 123355136,
+          "median": 123355136,
+          "min": 123342848,
+          "samples": [
+            123355136,
+            123355136,
+            123355136,
+            123355136,
+            123355136,
+            123342848,
+            123355136
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.003264441154897213,
+          "max": 0.28728557587601244,
+          "median": 0.28203293681144714,
+          "min": 0.2772969431243837,
+          "samples": [
+            0.2772969431243837,
+            0.28142682602629066,
+            0.2800622289068997,
+            0.28728557587601244,
+            0.28529737796634436,
+            0.2870982631575316,
+            0.28203293681144714
+          ]
+        },
+        "seconds": {
+          "mad": 0.0005615370000000008,
+          "max": 0.063263895,
+          "median": 0.062702358,
+          "min": 0.057505609,
+          "samples": [
+            0.057677096,
+            0.059470237,
+            0.057505609,
+            0.063263895,
+            0.063136775,
+            0.063153527,
+            0.062702358
+          ]
+        }
+      },
+      "decode_time_rank": 2,
+      "encode": {
+        "baseline_rss_bytes": {
+          "mad": 8192,
+          "max": 84000768,
+          "median": 83992576,
+          "min": 83984384,
+          "samples": [
+            83988480,
+            83984384,
+            84000768,
+            83992576,
+            84000768,
+            83992576,
+            84000768
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.00010825600000000102,
+          "max": 0.057121879,
+          "median": 0.056954663,
+          "min": 0.056530293,
+          "samples": [
+            0.057121879,
+            0.056530293,
+            0.056582453,
+            0.056954663,
+            0.056846407,
+            0.056964614,
+            0.056961911
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.0013006279999999999,
+          "max": 0.02717996,
+          "median": 0.016075611,
+          "min": 0.014774983,
+          "samples": [
+            0.015400601,
+            0.016075611,
+            0.014774983,
+            0.027157832,
+            0.015179,
+            0.02717996,
+            0.025629124
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 8192,
+          "max": 123412480,
+          "median": 123404288,
+          "min": 123396096,
+          "samples": [
+            123400192,
+            123396096,
+            123412480,
+            123404288,
+            123412480,
+            123404288,
+            123412480
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0034930140245705843,
+          "max": 0.5158011389430612,
+          "median": 0.5028618599753827,
+          "min": 0.4912429950200021,
+          "samples": [
+            0.5028618599753827,
+            0.5012582091148943,
+            0.4995461218059063,
+            0.5071492770221084,
+            0.4912429950200021,
+            0.5063548739999533,
+            0.5158011389430612
+          ]
+        },
+        "seconds": {
+          "mad": 0.00010766399999999343,
+          "max": 0.057121943,
+          "median": 0.056954727,
+          "min": 0.056530517,
+          "samples": [
+            0.057121943,
+            0.056530517,
+            0.056582661,
+            0.056954727,
+            0.056847063,
+            0.056964854,
+            0.056961959
+          ]
+        }
+      },
+      "encode_plus_decode_seconds": 0.119657085,
+      "encode_time_rank": 2,
+      "representation": "shared-arena",
+      "time_rank": 2,
+      "wire_bytes": 39343182,
+      "wire_sha256": "4a969f71ffac3b0a2a12cecec5cb6ee72937c704dbc0406d14dbb204651888fe",
+      "zstd_level": null
+    }
+  },
+  "schema": "cpg-storage-benchmark/1"
+}

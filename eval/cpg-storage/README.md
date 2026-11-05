@@ -18,6 +18,14 @@ results for a fresh rstyle-core emit and a full workspace emit. The
 selection, charts, and tables. PNG/SVG charts, CSV measurements, and raw trial
 records sit alongside it.
 
+The [fresh self-check comparison](reports/2026-11-05-self-check/comparison.md)
+uses the latest committed document route at `88adc996`: all 1,228 saved batch
+documents and an actual rstyle-core subset. Its
+[interactive report](reports/2026-11-05-self-check/comparison.html) and saved
+capture inventory explain the larger disk footprint. The two studies use
+different source snapshots and capture routes; they are not a controlled
+before/after comparison.
+
 ## Build and check
 
 Run from the repository root with its pinned Rust toolchain:
@@ -64,6 +72,33 @@ top-level `*.cpg.json` files are benchmark payloads. They must remain unchanged
 throughout the study. The recorded study froze both producer executables, saved
 their hashes, the source revision, a source inventory hash, local-change inventory,
 patch, and untracked-source archive before emitting.
+
+### Capture the default self-check route
+
+The larger study uses the actual default style route, which records compiler
+observations and batches owners by source file (up to 256 owners per batch). It
+therefore has different content and boundaries from `cpg emit`. Run without a
+subcommand and retain the reported `run_directory`:
+
+```sh
+CARGO_BUILD_JOBS=2 RSTYLE_DRIVER="$source_root/target/debug/rstyle-driver" \
+  "$source_root/target/debug/cargo-rstyle" rstyle \
+  --manifest-path "$source_root/Cargo.toml" --format json > "$study_root/self-check.json"
+# Copy the completed run into the study before using it as immutable input.
+python3 eval/cpg-storage/inventory.py "$study_root/captured-run" \
+  --out "$study_root/capture-inventory.json"
+```
+
+`inventory.py` requires the system `libxxhash` library. It checks every CPG file
+against the document manifests, retains SHA256 values and actual saved file
+sizes, and estimates compact-JSON field and exact repeated-record bytes one
+document at a time. These estimates describe existing content; they do not
+measure a proposed production layout. The full capture includes generated owners
+and observations beyond the authored functions counted by the style summary.
+
+Pass every `*.cpg.json` recursively from the saved capture to `run.py`.
+Keep compilation-unit directories when copying: basenames are reused between
+units. The compression control also assigns globally unique output filenames.
 
 ## Run matched trials
 
@@ -123,13 +158,21 @@ uv pip install --python "$study_root/report-venv/bin/python" \
   "$study_root/core" "$study_root/workspace"
 ```
 
+For a self-check report, also pass `--capture-inventory "$study_root/capture-inventory.json"`
+to `report.py` and set `input_description` in `producer.json` to describe the
+route and dataset selection.
+
 `producer.json` records source and binary provenance for the capture. Its required
 fields are `branch`, `head`, and `source_tree_sha256`; the retained example includes
 the dirty file inventory and frozen producer binary hashes as well. The original
 JSON control writes one independent Zstandard frame per input document and checks
 its decompressed SHA256. It is a **size control**, excluded from timing rankings.
 The original-JSON timing rows use the Rust harness and are included in those ranks;
-the Python control remains an independent check on compressed size.
+the Python control remains an independent check on compressed size. A second
+size-only control uses one Zstandard frame over an array of all unchanged input
+JSON documents, with a SHA256 check of the decompressed array. This separates
+compression-boundary effects from explicit interning; no solid-array reader is
+timed or included in the rankings.
 
 ## Shared representation and scope
 

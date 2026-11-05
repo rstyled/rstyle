@@ -1,0 +1,688 @@
+{
+  "zstd_level": 3,
+  "zstandard_python": "0.25.0",
+  "zstd_version": [
+    1,
+    5,
+    7
+  ],
+  "original_bytes": 198314842,
+  "compressed_bytes": 11783737,
+  "solid_json_array": {
+    "compressed_bytes": 10764366,
+    "uncompressed_bytes": 198314917,
+    "compressed_sha256": "d7692b700d72693b48b6c9ca1984a45cb9f12cc5c0e02abeea4b532b5e633b4c",
+    "reconstructed_sha256": "ae511219c77ca546a8b0f5d470a60098ac9bb0be86d66e7c89df2ec6245a3739",
+    "lossless": true,
+    "scope": "One Zstandard frame over an array of the unchanged original JSON documents; size only, no timed reader"
+  },
+  "scope": "One independent frame per original document; size control only, excluded from timed codec ranking",
+  "inputs": [
+    {
+      "bytes": 4566334,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000000.cpg.json",
+      "sha256": "24b78309ec15717cb1d789a252e0522d929e47e03fad37a9543440356edacc27",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000000.json.zst",
+      "compressed_bytes": 418463,
+      "compressed_sha256": "d6751c3ee916b3949d1b06181aec832192f00d062d3f3d26bbef9388879bf96c",
+      "lossless": true
+    },
+    {
+      "bytes": 1141089,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000001.cpg.json",
+      "sha256": "86acb35d660ef3527c438f495d192f9e5dee46db1b8096a291fd05a1a2fc78bc",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000001.json.zst",
+      "compressed_bytes": 80377,
+      "compressed_sha256": "5374198e904b2a45936fbc238d2338e9e26cf93af3160f862d3faf2f7725bb3e",
+      "lossless": true
+    },
+    {
+      "bytes": 2372088,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000002.cpg.json",
+      "sha256": "55aa5a3a26f813de82bdc6c91e518d94f6f921286768d792e4da94c4e37c8a9f",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000002.json.zst",
+      "compressed_bytes": 117121,
+      "compressed_sha256": "64f3174890f4edbe50b4cd1d53bd7ac0b1b24598b545962c9692539a6b4855de",
+      "lossless": true
+    },
+    {
+      "bytes": 1646296,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000003.cpg.json",
+      "sha256": "dbb114c39f2362be3fb9a1926cb93bd4b05dc1da9586b8c7572eb40def197a37",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000003.json.zst",
+      "compressed_bytes": 108075,
+      "compressed_sha256": "d69fd9c498545fc4baeced9583e999fb7dc9694822869d04984f83be66ef824c",
+      "lossless": true
+    },
+    {
+      "bytes": 2455423,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000004.cpg.json",
+      "sha256": "33077312eba9dfd85316922fe5ecaebc9739ec53dc02b118a461a6695082e89e",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000004.json.zst",
+      "compressed_bytes": 193164,
+      "compressed_sha256": "b72e6d1585e65ab0313a6838fe49ce41c88ca95170aaede1e168c2ff651a1c43",
+      "lossless": true
+    },
+    {
+      "bytes": 662103,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000005.cpg.json",
+      "sha256": "31790b50fffd7ee3b70a9a05bcf50c2547e923bf9be30328003cef887803852b",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000005.json.zst",
+      "compressed_bytes": 77272,
+      "compressed_sha256": "afe163524981100b0906c25270a2e4397b93047794a556f61e399ed3f179a476",
+      "lossless": true
+    },
+    {
+      "bytes": 4837703,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000006.cpg.json",
+      "sha256": "f733e41edcbc9233abcdda09f4202f6bcbeea364e1d6263541de2dcc35778337",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000006.json.zst",
+      "compressed_bytes": 346934,
+      "compressed_sha256": "a5efc06e7bbacb72797ed189a3e12b489bb27ef44ed1f7094726df0f5a35f4f6",
+      "lossless": true
+    },
+    {
+      "bytes": 104087,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000007.cpg.json",
+      "sha256": "49835a7af5c3c9d734a4b0049017521a249920ed2d70e6c2e8706b8f7a4d7c0a",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000007.json.zst",
+      "compressed_bytes": 13218,
+      "compressed_sha256": "8c7c098d0ed09c74f9c510ea36ee8168dbc11b9a5ac47d021a9ba4dfbe249f86",
+      "lossless": true
+    },
+    {
+      "bytes": 79940,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000008.cpg.json",
+      "sha256": "2eed71d865f75321198ba633dccdf115f550bc93e340761458e917c6af16c9c4",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000008.json.zst",
+      "compressed_bytes": 11001,
+      "compressed_sha256": "db0e4fe33af5b57fe35a5b71b2a2a77937cb85eb41eadd33b565ee52f424db86",
+      "lossless": true
+    },
+    {
+      "bytes": 2826392,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000009.cpg.json",
+      "sha256": "37e242783f17edbc015baceeca0e780e6ccb7c1d7ab9293977c44df89f5cbc92",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000009.json.zst",
+      "compressed_bytes": 208182,
+      "compressed_sha256": "d03c1353ac62be404e9491daa09f9ced8d7fdea258d1f54c21cd6de302bd1be1",
+      "lossless": true
+    },
+    {
+      "bytes": 3617194,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000010.cpg.json",
+      "sha256": "760e228cd0c7097edc463494c69a15d950f2f62a980771140a93d628e165d39b",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000010.json.zst",
+      "compressed_bytes": 167073,
+      "compressed_sha256": "94c063d96872b0e8657e76c9a4e63b22d0913b7a5195642ebd9ffd078600a3d2",
+      "lossless": true
+    },
+    {
+      "bytes": 782211,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000011.cpg.json",
+      "sha256": "887ec554378c885ad832f84ea2e81bcad0fe85cb2e714303965bba705c00897d",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000011.json.zst",
+      "compressed_bytes": 69916,
+      "compressed_sha256": "c0da0494791b2fc9e078e2b7199d841691aec2e301c415bc9a51f1949a478a95",
+      "lossless": true
+    },
+    {
+      "bytes": 7010457,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000012.cpg.json",
+      "sha256": "090eb0bbf4af57b1729f3ca2309b94cb6098b6aef9df363a058c58701598a022",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000012.json.zst",
+      "compressed_bytes": 326885,
+      "compressed_sha256": "eee49696bc9291b17e5a232b387cc25d9a9472b728ac3da64d07b0a0d38bbaf6",
+      "lossless": true
+    },
+    {
+      "bytes": 1330182,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000013.cpg.json",
+      "sha256": "5c50db28f6f39322ee0186babc34447fc0b808752c30f8605e742f6943fbd26a",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000013.json.zst",
+      "compressed_bytes": 121458,
+      "compressed_sha256": "c753ef9c9706a2709b06e744bcc3e60b9df822056f26f79b0a1012a4e55ef530",
+      "lossless": true
+    },
+    {
+      "bytes": 168426,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000014.cpg.json",
+      "sha256": "d27493177566696fe4da8d27fea685eb7d56d1f28077e0719a1a907c94ce7722",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000014.json.zst",
+      "compressed_bytes": 18712,
+      "compressed_sha256": "bfc6047ed57f4bbda31dff01152d9a5acd42904fb6c06e12adfc396fde8955b6",
+      "lossless": true
+    },
+    {
+      "bytes": 2615912,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000015.cpg.json",
+      "sha256": "c3069d6eba0e9a793f0f99d99d3607ac7dded008601d250957722a0a22b880b1",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000015.json.zst",
+      "compressed_bytes": 206151,
+      "compressed_sha256": "c2980a9e74bbb04438587730be29182da9c748868d1204c5a468488a8ab25d17",
+      "lossless": true
+    },
+    {
+      "bytes": 2349022,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000016.cpg.json",
+      "sha256": "195cdff642b0eacd3cc29c0ad581d20529d32a284397e8295e6ccb6c5e1d9763",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000016.json.zst",
+      "compressed_bytes": 180389,
+      "compressed_sha256": "4e9a32559b37e4bc05697fc84a6e3366e086320ce94a03b77b0496faba2bd348",
+      "lossless": true
+    },
+    {
+      "bytes": 609726,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000017.cpg.json",
+      "sha256": "1f279ed46f5da829ef80230cdf0f4239c52ccbe434d6746fa51ad0ff64d380d1",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000017.json.zst",
+      "compressed_bytes": 63630,
+      "compressed_sha256": "cd6270d42fe27132ded434866289b1f4b241447edf223371000537a47c222038",
+      "lossless": true
+    },
+    {
+      "bytes": 1243351,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000018.cpg.json",
+      "sha256": "75c6e9e4a731230e3a38b07b672fd679265ab942421933a3cc20f5976d32c710",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000018.json.zst",
+      "compressed_bytes": 115705,
+      "compressed_sha256": "e3d76d88d6e6b388391cd022cf37879695541482bdc7a42b573951a29ca06ab0",
+      "lossless": true
+    },
+    {
+      "bytes": 1034528,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000019.cpg.json",
+      "sha256": "5153f3f24f82b1f7e8f43910c18b042e27e2f1b99277a82e5ccbc59ee523c81e",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000019.json.zst",
+      "compressed_bytes": 89937,
+      "compressed_sha256": "1b7e3cd19c360591cfac5fbf2aa0382104ecd8a44794fe40f1360e4badd54c58",
+      "lossless": true
+    },
+    {
+      "bytes": 2994198,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000020.cpg.json",
+      "sha256": "299d4d69343e20dba48229862adab2d11a9bff7ead9494c253a1deedb0042dbb",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000020.json.zst",
+      "compressed_bytes": 221312,
+      "compressed_sha256": "14b989839424dafba0d723540e3d456b16712d0cf69ca3f4be2f834dc3c5df3e",
+      "lossless": true
+    },
+    {
+      "bytes": 1348653,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000021.cpg.json",
+      "sha256": "c6e489577245c2218e541c1ebaf62657d556fd4965f420366b795134c0c47b68",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000021.json.zst",
+      "compressed_bytes": 115268,
+      "compressed_sha256": "016e29c5e215bc539a3638d15c1c56f3a3700dcf30d8b36c3f17fc12701b7600",
+      "lossless": true
+    },
+    {
+      "bytes": 1244106,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000022.cpg.json",
+      "sha256": "bb1195fe83f602912a259088ad1353b72f5f34c28bce134cd55916f5569af1eb",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000022.json.zst",
+      "compressed_bytes": 111784,
+      "compressed_sha256": "bab202c7286a3b79ec0611640f333c0cf67c67698a62594e1c75b82347862ca0",
+      "lossless": true
+    },
+    {
+      "bytes": 1673977,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000023.cpg.json",
+      "sha256": "2bacd1371a61e9e5d90776c016733a90b0c5811a6852949c1b607129ddca664c",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000023.json.zst",
+      "compressed_bytes": 146999,
+      "compressed_sha256": "d89634be05832f50e81e069a93b0ab1eebb1bc2c1ea23df7779907fa63c3bd61",
+      "lossless": true
+    },
+    {
+      "bytes": 5635619,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000024.cpg.json",
+      "sha256": "0ce72f0e4e9b0c0363e6df24c90149006a34b6097b48e69de7394f93034d5443",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000024.json.zst",
+      "compressed_bytes": 347830,
+      "compressed_sha256": "4ec0c115619e8297c0fdefb4f4b87d4d3754ecb70d67ad938566bc956f1a55f1",
+      "lossless": true
+    },
+    {
+      "bytes": 2622360,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000025.cpg.json",
+      "sha256": "79689987a677acf683369ddb459337d3dd7c0da648a810b6ec940c8d6c7ae527",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000025.json.zst",
+      "compressed_bytes": 190974,
+      "compressed_sha256": "eb60dde4d9fced068370c55612c01f987f204a717a2b29fc7d9efb1824745220",
+      "lossless": true
+    },
+    {
+      "bytes": 1349521,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000026.cpg.json",
+      "sha256": "826f621a996a6229a7c66510c3e6e7ccd571a8084cdc129829f53bdaa3c4130e",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000026.json.zst",
+      "compressed_bytes": 124534,
+      "compressed_sha256": "bf27a2312a53bb404c1a3cf23fbad42a5a32f423b218b5bd34423e7790619136",
+      "lossless": true
+    },
+    {
+      "bytes": 1654346,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000027.cpg.json",
+      "sha256": "396f559663e4e410fb7e1bae77e7aa9dd1537dd593d2a0180363ed8da87befe0",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000027.json.zst",
+      "compressed_bytes": 118048,
+      "compressed_sha256": "9aba9e773fd375bfb4a02a8adb1a6f55946679d48e932a1e2b988a1a17a96d47",
+      "lossless": true
+    },
+    {
+      "bytes": 1858854,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000028.cpg.json",
+      "sha256": "ba085af25381cff526711054b7a2d633e60e353574ecad82faf4284ef67ae87f",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000028.json.zst",
+      "compressed_bytes": 120682,
+      "compressed_sha256": "dc5df2bdda5c6be65f6c5c32b0a736659a182a7a07d245454e45961a11b52fcf",
+      "lossless": true
+    },
+    {
+      "bytes": 14181128,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000029.cpg.json",
+      "sha256": "83186e4dde30eb1fb4bb4f93c673ad824e7fcc2a841c3b2c0f8051e7a606ee19",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000029.json.zst",
+      "compressed_bytes": 570910,
+      "compressed_sha256": "f09ccfd28f700123aef21ffadb538e539928f1cc34b56f9fa4ab3bb23954414d",
+      "lossless": true
+    },
+    {
+      "bytes": 22685205,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000030.cpg.json",
+      "sha256": "eb7c0cbccb61a28f19312421d20e93b642eff20de2638866250a0bfecd4d911d",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000030.json.zst",
+      "compressed_bytes": 840019,
+      "compressed_sha256": "b0e7d8dbbe4ef0623df759cdcd3e3e07cc3d2674b4b7da0eb6effa6570a650bb",
+      "lossless": true
+    },
+    {
+      "bytes": 11726432,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000031.cpg.json",
+      "sha256": "a71fb8b2a6cb1ec64fd7957ad30481a0059043f3ee0ddc6e2fb15a6dfcdff187",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000031.json.zst",
+      "compressed_bytes": 468553,
+      "compressed_sha256": "1fd3ceda968deeb500c7346edacc643ab7aed7d738b12dfea8478aef254366f5",
+      "lossless": true
+    },
+    {
+      "bytes": 1909949,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000032.cpg.json",
+      "sha256": "159fcad3c442580b0d6b8ade13f62589ab7243d5c496b9c9c558b05d5c885590",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000032.json.zst",
+      "compressed_bytes": 150504,
+      "compressed_sha256": "7aabd31b6588a1962a8aebaec3da93659db4e8fd5be1ee56db20d563d697edf2",
+      "lossless": true
+    },
+    {
+      "bytes": 1910284,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000033.cpg.json",
+      "sha256": "fe6c1b06297946d996124019a19ea0e9fde0936306dd297cdfbd934438d2c6bf",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000033.json.zst",
+      "compressed_bytes": 140339,
+      "compressed_sha256": "adc114e6ca94d2cb1830be3a7994565cae3de0924489809b62784d7c592a7695",
+      "lossless": true
+    },
+    {
+      "bytes": 726655,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000034.cpg.json",
+      "sha256": "887b60f32868955b130c7497fdd3027ca671a76c6e9c119b9902f8ccc661e00a",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000034.json.zst",
+      "compressed_bytes": 68262,
+      "compressed_sha256": "7389cf0ecdfa69ff40356de6ac1123b3dc3fb010bdfbb6e397cb87b1a5e39d45",
+      "lossless": true
+    },
+    {
+      "bytes": 1328779,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000035.cpg.json",
+      "sha256": "0f653c49a7c9ab439a8b8e0aedf71a0bbd4ed5b31e5029a44e7644af10dad92a",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000035.json.zst",
+      "compressed_bytes": 102677,
+      "compressed_sha256": "3767e122e02c9e5568442625bda4d3c371bd0935e22e5bf5638df8823d7e8fd8",
+      "lossless": true
+    },
+    {
+      "bytes": 935528,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000036.cpg.json",
+      "sha256": "4535f4f2076dfe05b6f04f37ba30f3a325e0a5dbfcbba8509f6cf2b1018a14cb",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000036.json.zst",
+      "compressed_bytes": 99178,
+      "compressed_sha256": "8e72bbcab0af2f9d1ceed4ad03d724342d2dbf5da9771472837ece8df2d149ac",
+      "lossless": true
+    },
+    {
+      "bytes": 589560,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000037.cpg.json",
+      "sha256": "c0433e7385c11fcc0bac9101b56e9fb9339301a3b19bc3f226c697d94308cb5f",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000037.json.zst",
+      "compressed_bytes": 60739,
+      "compressed_sha256": "28bf7bb38048c67a1b264927d450e0c9cabc248da7edab7481da17329b32d96f",
+      "lossless": true
+    },
+    {
+      "bytes": 193921,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000038.cpg.json",
+      "sha256": "b32b703416bf6c3814e4e286f7ae5a98609cb4a3ce18941ef2f380dea2b1c7ca",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000038.json.zst",
+      "compressed_bytes": 25371,
+      "compressed_sha256": "6ea0ef552c6a89bef86b6dfb7a0ca0fe0500e94f9d5983a246facd0a22df69d5",
+      "lossless": true
+    },
+    {
+      "bytes": 13184649,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000039.cpg.json",
+      "sha256": "e7b8a3b4a84c1eada8f432fbf032746873769d0da6e6644a81c99d9f991eee2f",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000039.json.zst",
+      "compressed_bytes": 563092,
+      "compressed_sha256": "88e4caca2d419f924a6516b9112d591193adcc0a1a95c19ccd368a2c0c69a99f",
+      "lossless": true
+    },
+    {
+      "bytes": 1411198,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000040.cpg.json",
+      "sha256": "0fe9d36e6f93a05d9e0a789e5e2a7061b7836ca80a190676ca2c046c4dfe11c6",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000040.json.zst",
+      "compressed_bytes": 78983,
+      "compressed_sha256": "118b72468231e7b995fdc511658067b2f82f25faece8bcb0d8a1c3f0e26e8298",
+      "lossless": true
+    },
+    {
+      "bytes": 1250114,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000041.cpg.json",
+      "sha256": "e91efe062bcee812fc7c78e25aad6d8abe39316340551a183a734c2ad47b0c69",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000041.json.zst",
+      "compressed_bytes": 112494,
+      "compressed_sha256": "1fe603e781a470245e645b854ee0b803bb31eee72cb0a67b9be2415ba03366e4",
+      "lossless": true
+    },
+    {
+      "bytes": 1378241,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000042.cpg.json",
+      "sha256": "8c9dcbddc82cb65c245f7639e310a4a452f058499194b1413d7a6fe0aeb9936d",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000042.json.zst",
+      "compressed_bytes": 134774,
+      "compressed_sha256": "9acf4db08dba0c48c37e3ab53e7fba375d52d8c9a468c00e584d88d1010146aa",
+      "lossless": true
+    },
+    {
+      "bytes": 941431,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000043.cpg.json",
+      "sha256": "a0c71c5bb23d8d509b22b67da9d5bda02937e9be2f4e1de42a977c63d6a28110",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000043.json.zst",
+      "compressed_bytes": 88123,
+      "compressed_sha256": "e84a890e709a628c2149d7526228541e845f0bbf7c71590be748dbfb4b94b5bd",
+      "lossless": true
+    },
+    {
+      "bytes": 1348871,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000044.cpg.json",
+      "sha256": "ee404f8c1ba1c0a1a00013f93124d2e1c7fb7de96cd722f7a351c66142d9743a",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000044.json.zst",
+      "compressed_bytes": 126415,
+      "compressed_sha256": "f5feaed0183d09c942c1bb809f881ca6995a2931ec3efc3c174f72e3fec68603",
+      "lossless": true
+    },
+    {
+      "bytes": 2420569,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000045.cpg.json",
+      "sha256": "dd041406daa3c2379f3ce7639eebec2925d740091cb454a1153add3176bd7c1b",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000045.json.zst",
+      "compressed_bytes": 162506,
+      "compressed_sha256": "1e9b7dce048a7dba3d4b0cbac312ad9b9cc6a56e9851d4339239d62fc52a468a",
+      "lossless": true
+    },
+    {
+      "bytes": 165002,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000046.cpg.json",
+      "sha256": "fa0559f81c697599b3713054a698bb8230704c73bd0544a55f2c14cc8c2e7538",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000046.json.zst",
+      "compressed_bytes": 18827,
+      "compressed_sha256": "3eebb325a4d5864e73931f0c0759d66d0068e3153e569fa9c31eb5508bda7ae2",
+      "lossless": true
+    },
+    {
+      "bytes": 484624,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000047.cpg.json",
+      "sha256": "2918e9fd543b0d1408e4f5f72d0b586b2b91325c21bf7aaa5e6c49efe5e3d6d3",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000047.json.zst",
+      "compressed_bytes": 47955,
+      "compressed_sha256": "f2da6eb89d6c16e831b61fbefab5c411229c846d72e1ad7f53dcad7bf8d7b2a8",
+      "lossless": true
+    },
+    {
+      "bytes": 3735225,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000048.cpg.json",
+      "sha256": "1eebb31599075597e0e4857f83106588fb9989a5237429d98c888e8f5a218f1f",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000048.json.zst",
+      "compressed_bytes": 254527,
+      "compressed_sha256": "45e0a305d8c3577e5c5abb051b81efc1aed19fd5ba945a57c969bf3d4e77cd98",
+      "lossless": true
+    },
+    {
+      "bytes": 91755,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000049.cpg.json",
+      "sha256": "7c73a8ccb60f65a4cf200168518178e68a9bd4f8682a9a6a57b4e36662a10ee1",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000049.json.zst",
+      "compressed_bytes": 11668,
+      "compressed_sha256": "eee81b232ea9c33b9a26276a1d02f9cee5d55ef4c28d035073481f145912a186",
+      "lossless": true
+    },
+    {
+      "bytes": 2159034,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000050.cpg.json",
+      "sha256": "36fec51352d213c42742bb3fccb6f0bf47b66215a29f62d31f2a71a165ca53f0",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000050.json.zst",
+      "compressed_bytes": 182833,
+      "compressed_sha256": "38d72c44623b50e0a9fa334b656fe6f00cc427840fb3aef6bb48b538ec4bdab1",
+      "lossless": true
+    },
+    {
+      "bytes": 217436,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000051.cpg.json",
+      "sha256": "8398c854476183bd3d0f548ee179417209f390d76e4451ef421a0eae347ba74d",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000051.json.zst",
+      "compressed_bytes": 26533,
+      "compressed_sha256": "dd33b6873fa08e691804aa7b19ce1ee4f639bb1c9ef390029636ba3e395682b1",
+      "lossless": true
+    },
+    {
+      "bytes": 619569,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000052.cpg.json",
+      "sha256": "ca894d2e8a72745f2f719c8db0b22f15c43948782cb4154a78358f7b05097b56",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000052.json.zst",
+      "compressed_bytes": 64939,
+      "compressed_sha256": "876846b3a3b98aee69c91d2df728fc6c1a2a5444e9b1f0145a92fb25c849374d",
+      "lossless": true
+    },
+    {
+      "bytes": 3092646,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000053.cpg.json",
+      "sha256": "0d8413d64f3bf9fcee441f42aeece3e122dd8f5a8081724cb83f10c2cd96a02e",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000053.json.zst",
+      "compressed_bytes": 175634,
+      "compressed_sha256": "e88c10d41f86bf896bd21b5cc749b32d6a8065c5df0c0a82ad072e718f3d50bb",
+      "lossless": true
+    },
+    {
+      "bytes": 1323487,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000054.cpg.json",
+      "sha256": "1f7aed39adc3831c3b2c241e3bc1aa53f848a853489929fd4aafc731fd316435",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000054.json.zst",
+      "compressed_bytes": 115680,
+      "compressed_sha256": "67e8c76fe1ee91fe255c90ee16cc4ffeb556fce2117f52279842c868e7f9b984",
+      "lossless": true
+    },
+    {
+      "bytes": 2131140,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000055.cpg.json",
+      "sha256": "89679a91e823e36e830fc8f82ab5c54e45e8e73038f962f9b5903950ae3612e1",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000055.json.zst",
+      "compressed_bytes": 156962,
+      "compressed_sha256": "ed6a2a5fa97c42223c3371d10f544d18ce86faace5aecdf46557a397886e201d",
+      "lossless": true
+    },
+    {
+      "bytes": 570227,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000056.cpg.json",
+      "sha256": "625af282a0007356d0c68fcf4c2dfeea3dc4f818c9c45a425723196b64bfafed",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000056.json.zst",
+      "compressed_bytes": 57757,
+      "compressed_sha256": "09dd38a22a6fef0884c67de90aa9130ac726fff5efb6837227da3f333d2f1768",
+      "lossless": true
+    },
+    {
+      "bytes": 1307672,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000057.cpg.json",
+      "sha256": "f56af082cd5bba8ef696ac3d2cd33d85a939e8174f4b2a6adb9b9b873a6e6b07",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000057.json.zst",
+      "compressed_bytes": 109645,
+      "compressed_sha256": "34326c489fa6c9f1ace25f40dfe7ead6bfa02cc3875204fb54eaf8474a5b9eff",
+      "lossless": true
+    },
+    {
+      "bytes": 5769516,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000058.cpg.json",
+      "sha256": "a49aad855f8e3d762ce0f69bce0fbc0f169f5851c6682f8f57809e5e3c0f53d8",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000058.json.zst",
+      "compressed_bytes": 303761,
+      "compressed_sha256": "1c8a714bf2d310bc4a59d7fd6bfea433c5e72be8e7eb09258e1cc64f0aaea13c",
+      "lossless": true
+    },
+    {
+      "bytes": 4077794,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000059.cpg.json",
+      "sha256": "8b9236434c487d0ff276bcb3f12af70803dc24805b56d956967d91387f1ba1fb",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000059.json.zst",
+      "compressed_bytes": 178280,
+      "compressed_sha256": "efbfc3bb01718f728105418c042df2c943362d40f0afc4746fa6dc5da4e38198",
+      "lossless": true
+    },
+    {
+      "bytes": 3073051,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000060.cpg.json",
+      "sha256": "b7f421b9e8926c5de78d21fbd449ef2c7e15b5c11f0df041f8cac8808558b60c",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000060.json.zst",
+      "compressed_bytes": 162327,
+      "compressed_sha256": "4126adacf0ab840a58756f5d4fdc4ac611e52ed46e9fdbc75261553efe2366ed",
+      "lossless": true
+    },
+    {
+      "bytes": 10758737,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000061.cpg.json",
+      "sha256": "134d7775c082a802317046afcd4a03ac0ee366a2fe450a5d42a0fd821f4d79ea",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000061.json.zst",
+      "compressed_bytes": 453902,
+      "compressed_sha256": "3208a2cb1ec9b79c43c3ac73d55a161a34a3dba1c5f3e16b86c547e9801110d0",
+      "lossless": true
+    },
+    {
+      "bytes": 6555397,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000062.cpg.json",
+      "sha256": "6c7af2658fb63722b697cc44337e61aa7476d773a5428fd193b8235f30943cff",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000062.json.zst",
+      "compressed_bytes": 292703,
+      "compressed_sha256": "91fd4c7a9c9d540c2183b5fcc240e85af7138c697b9ca92bdb4a35ab4279ee9e",
+      "lossless": true
+    },
+    {
+      "bytes": 2851832,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000063.cpg.json",
+      "sha256": "8f0bbfffe9348353aea41335cb5a33136cad32bf52d633dcf18faa6169c1cec0",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000063.json.zst",
+      "compressed_bytes": 154222,
+      "compressed_sha256": "a998341bb2cb69da5a22b15d84a4df13c5479c197e11120545c2783bdbb742a1",
+      "lossless": true
+    },
+    {
+      "bytes": 148238,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000064.cpg.json",
+      "sha256": "23440d534a3f97da6ad76dab8790fc331d5e480f76f9bb169ddbe44d2c5ab0b8",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000064.json.zst",
+      "compressed_bytes": 22334,
+      "compressed_sha256": "25fe0ee56f46cd0524b719c48014acb6fb29a57dd6ae7df7d90211ef353faf1d",
+      "lossless": true
+    },
+    {
+      "bytes": 1233010,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000065.cpg.json",
+      "sha256": "ee4206d6c687a0066d8435c0818f44522da11c6cfd00917eafa3725f73d8b163",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000065.json.zst",
+      "compressed_bytes": 96222,
+      "compressed_sha256": "30e49a38e1582eda5f066c9b36ab5804326f57629d8546dd2c49a1a13746524c",
+      "lossless": true
+    },
+    {
+      "bytes": 1191025,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000066.cpg.json",
+      "sha256": "f8b30cc594a573db9d5fe99954d9e8b4d287945423f526ecb56537a334f111dc",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000066.json.zst",
+      "compressed_bytes": 93007,
+      "compressed_sha256": "8319ecf908d27a2bf46ea2c227d5346ba08a9e66293cf45060d43630f523e4e4",
+      "lossless": true
+    },
+    {
+      "bytes": 28907,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000067.cpg.json",
+      "sha256": "9c75dab191c14f4cd390de43161ef6a8b8ed702d2d4020001e677a7ab70d5c14",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000067.json.zst",
+      "compressed_bytes": 7094,
+      "compressed_sha256": "a652e8e8fa6cf26019b7969ab479a53c74f84595c8c82bb24a519955041edbb5",
+      "lossless": true
+    },
+    {
+      "bytes": 1290392,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000068.cpg.json",
+      "sha256": "82508321956ce14d8c3334a9ea7840afd7dc83c6a24c2954ba90299112d2aae1",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000068.json.zst",
+      "compressed_bytes": 117377,
+      "compressed_sha256": "20f849ea08fd83540bf465dc13eaf5bd5db217d32b5d5c60ef9289c6fa9fb6b0",
+      "lossless": true
+    },
+    {
+      "bytes": 281103,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000069.cpg.json",
+      "sha256": "41dee05abe5c69905534b22bf7165c5c05193eb11e65bfb4be88667acb6124c3",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000069.json.zst",
+      "compressed_bytes": 26510,
+      "compressed_sha256": "240a7dcb90d36426ab4333133c9d74805a2361ab65e1c84ddce226b19fa42019",
+      "lossless": true
+    },
+    {
+      "bytes": 136995,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000070.cpg.json",
+      "sha256": "d94bb247bb6bd5f4072987223f5bc1dd7e071f1806a62571f4a04e66c7250a21",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000070.json.zst",
+      "compressed_bytes": 20810,
+      "compressed_sha256": "f08c78605942c46635148199d78f44387aa77e68bf6237da99baf98051405054",
+      "lossless": true
+    },
+    {
+      "bytes": 1288165,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000071.cpg.json",
+      "sha256": "764e74d1a9c3478e710ec6bdb3c9d453184754a2056295ed378d7324c4439ea6",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000071.json.zst",
+      "compressed_bytes": 115392,
+      "compressed_sha256": "f86ac1b9290bc49e91b95c6c63cdf8855d1b728616f03acb12bf624c223f8b02",
+      "lossless": true
+    },
+    {
+      "bytes": 2478667,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000072.cpg.json",
+      "sha256": "b828e048e1cf1f8199a0d446f6dd6b98440a6cf769ceb226fccf5c57c47f619a",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000072.json.zst",
+      "compressed_bytes": 162422,
+      "compressed_sha256": "82e76826a8f16848800202b7d6e794b75a9bfd4d0ea1b46334a474fab6655389",
+      "lossless": true
+    },
+    {
+      "bytes": 1297584,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-self-check-20261105/captured-run/invocation-379Get/document-000073.cpg.json",
+      "sha256": "7ae0676edcd02dca5db70c8fe6471b1113ffd87285cb4dfdf9fa9031977163e9",
+      "compressed_file": "target/cpg-storage-self-check-20261105/core/original-json-zstd/document-000073.json.zst",
+      "compressed_bytes": 130381,
+      "compressed_sha256": "589efa1c49c6cfae79dbf1b195477805c5b3a937be97d6c2fc0304c8289a09fd",
+      "lossless": true
+    }
+  ]
+}
