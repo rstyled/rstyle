@@ -145,8 +145,12 @@ impl<'tcx> Unit<'tcx> {
                 .iter()
                 .map(|b| format!("{b:02x}"))
                 .collect();
-            let record = json!({"id": id, "path": path, "digest": format!("sha256:{digest}"),
-                                "origin": "source", "content": content});
+            let mut record = json!({"id": id, "path": path, "digest": format!("sha256:{digest}"),
+                                    "origin": "source", "content": content});
+            if crate::paths::build_output(self.tcx, &lo.sf) {
+                record["origin"] = json!("generated");
+                record["generated_by"] = json!("build script");
+            }
             self.files.insert(id.clone(), record);
             if let FileName::Real(real) = &lo.sf.name
                 && let Some(local) = real.local_path()

@@ -26,6 +26,10 @@ pub struct Observation {
     pub intrinsic_effects: Vec<EffectEvent>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub connections: Option<Connections>,
+    /// The build wrote the file it is in, so path exclusions, which select original
+    /// source, do not apply to it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub generated_file: bool,
 }
 
 impl Observation {

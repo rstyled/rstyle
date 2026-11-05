@@ -4,13 +4,14 @@
 use super::model::{FileSpan, Unit};
 use super::tree::lookup;
 use crate::lines::preceding_comment_line;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Lines above a signature that are searched for its comment, as the rustc frontend does.
 const LOOKBACK_LINES: usize = 40;
 
 pub struct Sources<'a> {
     files: BTreeMap<&'a str, (&'a str, &'a str)>,
+    generated: BTreeSet<&'a str>,
 }
 
 impl<'a> Sources<'a> {
@@ -31,7 +32,18 @@ impl<'a> Sources<'a> {
                 return Err(format!("Duplicate file ID {}", file.id));
             }
         }
-        Ok(Self { files })
+        let generated = unit
+            .files
+            .iter()
+            .filter(|file| file.origin == "generated")
+            .map(|file| file.id.as_str())
+            .collect();
+        Ok(Self { files, generated })
+    }
+
+    /// Whether the build, rather than an author, wrote the file a span lies in.
+    pub fn generated(&self, span: &FileSpan) -> bool {
+        self.generated.contains(span.file.as_str())
     }
 
     fn file(&self, id: &str) -> Result<(&'a str, &'a str), String> {

@@ -392,7 +392,9 @@ its provenance; what each analysis does with it is core's to decide, on every ro
 function a macro writes gets no rule findings or pattern candidates, since nothing
 original was written to change, but its effects reach its callers and runtime bounds
 compose through it. Report a macro's own tokens as generated even when they carry the
-span of one of its inputs, as `quote_spanned!` writes them.
+span of one of its inputs, as `quote_spanned!` writes them. A file the build writes has
+`origin: "generated"`, and its functions are treated the same way; the Rust frontend
+marks what a build script writes to `OUT_DIR`.
 
 The Rust frontend emits the same documents:
 
@@ -428,7 +430,7 @@ Drop an `rstyle.toml` in the project root (see the one in this repo for every ke
 | `mutation_budget.max_mutations_per_target` | 3 | Writes / `&mut` borrows of one root |
 | `mutation_budget.max_mutated_targets` | 3 | Distinct roots mutated in one fn |
 | `side_effects.max_density_milli` | 500 | `1000 * sum(effect weights) / statements` |
-| `exclude` | `["target/**"]` | Globs skipped entirely |
+| `exclude` | `["target/**"]` | Globs of original source skipped entirely; a callee they remove keeps its callers' effects incomplete. A build script's output is generated code, which they do not select |
 
 Callee classification (`[side_effects.paths]`) and effect weights (`[side_effects.weights]`) are configurable. Changing config never triggers a recompile.
 

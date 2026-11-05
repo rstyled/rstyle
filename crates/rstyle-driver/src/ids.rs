@@ -15,15 +15,16 @@ pub fn def_id_str(tcx: TyCtxt<'_>, def_id: DefId) -> String {
     )
 }
 
-/// True when the definition's source lives under the workspace root
-/// (a member crate, not a registry or std dependency).
+/// True when the definition belongs to a member crate rather than a registry or std
+/// dependency, which its crate's root file tells: a build script's output lies wherever the
+/// target directory does, so a function's own file says nothing about whose it is.
 pub fn in_workspace(tcx: TyCtxt<'_>, def_id: DefId, root: &Path) -> bool {
     if def_id.is_local() {
         return true;
     }
 
     let source_map = tcx.sess.source_map();
-    let span = tcx.def_span(def_id);
+    let span = tcx.def_span(def_id.krate.as_def_id());
     let file = source_map.lookup_source_file(span.source_callsite().lo());
     crate::paths::source_path(tcx, &file, root).is_some()
 }

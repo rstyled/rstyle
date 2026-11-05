@@ -100,7 +100,9 @@ fn selected_rows<'a>(
             });
             authored.chain(generated)
         })
-        .filter(|row| !excluded.is_excluded(std::path::Path::new(row.path())))
+        .filter(|row| {
+            row.generated_file() || !excluded.is_excluded(std::path::Path::new(row.path()))
+        })
         .collect())
 }
 

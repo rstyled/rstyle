@@ -325,6 +325,71 @@ fn an_excluded_macro_function_gives_its_callers_nothing() {
     assert!(io_labels(&inputs, "example::top").is_empty());
 }
 
+/// Points every span in `value` at `file`.
+fn moved_to(value: &mut Value, file: &str) {
+    match value {
+        Value::Object(fields) => {
+            if fields.contains_key("start") && fields.contains_key("end") {
+                fields.insert("file".into(), json!(file));
+            }
+            fields.values_mut().for_each(|field| moved_to(field, file));
+        }
+        Value::Array(items) => items.iter_mut().for_each(|item| moved_to(item, file)),
+        _ => {}
+    }
+}
+
+/// The example with `larger`, which calls into the file system, in a file the build wrote.
+fn build_writing_io(path: &str) -> Value {
+    let mut document = example();
+    for definition in document["unit"]["definitions"].as_array_mut().unwrap() {
+        if definition["id"] == "def:Ord.max" {
+            definition["stable_identity"] = json!("std::fs::write");
+            definition["name"] = json!("std::fs::write");
+        }
+    }
+    let files = document["unit"]["files"].as_array_mut().unwrap();
+    let mut generated = files[0].clone();
+    generated["id"] = json!("file:generated");
+    generated["path"] = json!(path);
+    generated["origin"] = json!("generated");
+    generated["generated_by"] = json!("build script");
+    files.push(generated);
+    let function = document["unit"]["functions"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|function| function["id"] == "fn:larger")
+        .unwrap();
+    moved_to(function, "file:generated");
+    document
+}
+
+#[test]
+fn what_the_build_writes_reaches_its_callers_and_is_not_reported() {
+    for path in ["target/out/generated.rs", "../elsewhere/out/generated.rs"] {
+        let records = run_records(vec![build_writing_io(path)], Demand::default()).unwrap();
+        let larger = records
+            .iter()
+            .find(|record| record.identity == "example::larger")
+            .unwrap();
+        let super::records::Measured::Generated(observation) = &larger.measured else {
+            panic!("{path}: a function the build wrote is not generated");
+        };
+        assert!(observation.generated_file);
+
+        // The default exclusion matches `target/**`, and selects original source only.
+        let inputs = super::run_inputs(records, &crate::config::Config::default()).unwrap();
+
+        assert!(inputs.facts.iter().all(|fact| fact.id != "example::larger"));
+        assert_eq!(
+            io_labels(&inputs, "example::top"),
+            ["std::fs::write"],
+            "{path}"
+        );
+    }
+}
+
 #[test]
 fn documents_outside_the_profile_are_rejected() {
     let mut newer = example();

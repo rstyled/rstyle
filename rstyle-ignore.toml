@@ -172,6 +172,14 @@ fns = [
   "rstyle_pdg::cpg_reader::concrete::callbacks::immediate_map_or_callback",
 ]
 
+[ignore.58fb7142d7b5]
+kind = "parameterize"
+reason = "Both are a one-line membership test on an unrelated type's own set; a shared helper would add nothing"
+fns = [
+  "cargo_rstyle::clones::review::compiler_diagnostics::demand::Demand::includes",
+  "rstyle_core::cpg::source::Sources::generated",
+]
+
 [ignore.60e8af5f467a]
 kind = "parameterize"
 reason = "map/collect/join with a different separator over different types; not worth a helper (#11)"

@@ -59,6 +59,9 @@ impl Measurement {
     pub(super) fn path(&self) -> &str {
         &self.path
     }
+    pub(super) fn generated_file(&self) -> bool {
+        self.observation.generated_file
+    }
     pub(super) fn owner(&self) -> rstyle_core::graph::EffectOwner<'_> {
         rstyle_core::graph::EffectOwner {
             name: &self.observation.name,

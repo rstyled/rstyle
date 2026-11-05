@@ -150,15 +150,16 @@ pub fn located(function: &Function) -> &FileSpan {
         .unwrap_or(&function.span)
 }
 
-/// What can be measured of a function, given the facts derived for it: a macro-written
-/// function has no original source, so only its own events are read.
+/// What can be measured of a function, given the facts derived for it: a function a
+/// macro or the build writes has no original source, so only its own events are read.
 pub fn measure(
     function: &Function,
     facts: Option<FnFacts>,
     sources: &Sources<'_>,
 ) -> Result<Measured, String> {
     let at = located(function);
-    let generated = !std::ptr::eq(at, &function.span);
+    let generated_file = sources.generated(&function.span);
+    let generated = generated_file || !std::ptr::eq(at, &function.span);
     match facts {
         Some(facts) if generated => {
             let (line, column) = sources.location(at)?;
@@ -176,6 +177,7 @@ pub fn measure(
                         implements: facts.implements,
                         edges: facts.edges,
                     }),
+                    generated_file,
                 },
             )))
         }

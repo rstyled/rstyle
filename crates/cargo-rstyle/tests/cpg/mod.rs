@@ -461,6 +461,7 @@ fn emit_selects_packages_and_targets() {
 }
 
 mod bounds;
+mod build_outputs;
 mod facts;
 
 fn parsed(documents: &[String]) -> Vec<Value> {

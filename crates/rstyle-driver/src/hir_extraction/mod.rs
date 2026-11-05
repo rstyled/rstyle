@@ -425,7 +425,10 @@ fn source_scan(
     let sig = tcx.hir_node_by_def_id(id).fn_sig()?;
     let (ctx, _) = function_context(tcx, id, options)?;
     let scan = options.scan(ctx.function_span, body_source_span(tcx, id));
-    let findings = source_findings(&ctx, scan, sig.span);
+    let file = tcx.sess.source_map().lookup_source_file(sig.span.lo());
+    // What a build script writes has no original source, as what a macro writes has none.
+    let generated = sig.span.from_expansion() || crate::paths::build_output(tcx, &file);
+    let findings = source_findings(&ctx, scan, sig.span, generated);
     let complete = scan.is_some_and(|scan| !scan.conditional_source);
 
     Some(serde_json::json!({"findings": findings, "complete": complete}))
@@ -435,8 +438,9 @@ fn source_findings(
     ctx: &hir::Context<'_>,
     scan: Option<&source::Function>,
     signature_span: rustc_span::Span,
+    generated: bool,
 ) -> Vec<HirDiagnostic> {
-    if signature_span.from_expansion() {
+    if generated {
         return vec![HirDiagnostic {
             capability: "rust.macros".to_string(),
             construct: "macro_generated_function".to_string(),

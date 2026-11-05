@@ -79,7 +79,9 @@ pub fn run_inputs(records: Vec<Record>, config: &Config) -> Result<RunInputs, St
     for record in records {
         match record.measured {
             Measured::Generated(observation) => {
-                if !excluded.is_excluded(std::path::Path::new(&record.path)) {
+                if observation.generated_file
+                    || !excluded.is_excluded(std::path::Path::new(&record.path))
+                {
                     generated.entry(record.identity).or_insert(observation);
                 }
             }

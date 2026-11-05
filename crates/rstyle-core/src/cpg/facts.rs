@@ -59,11 +59,13 @@ pub(super) fn derive(document: &Document, graphs: bool) -> Result<Vec<FnFacts>, 
     let measured = complexity_available(&document.coverage);
     let roles = graphs.then(|| Roles::of(&document.producer.namespace));
     let functions = unit.functions.as_deref().unwrap_or_default();
-    // A function whose file lies outside the workspace root has no workspace facts.
+    // A function whose file lies outside the workspace root has no workspace facts,
+    // unless the build wrote it there, as it does when the target directory is elsewhere.
     let inside = |function: &&Function| {
-        sources
-            .path(&function.signature.span)
-            .is_ok_and(|path| !path.starts_with("../"))
+        sources.generated(&function.signature.span)
+            || sources
+                .path(&function.signature.span)
+                .is_ok_and(|path| !path.starts_with("../"))
     };
     functions
         .iter()
