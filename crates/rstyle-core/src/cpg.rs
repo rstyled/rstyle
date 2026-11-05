@@ -15,6 +15,7 @@ pub mod records;
 mod run;
 mod shapes;
 pub mod source;
+pub mod transport;
 pub mod tree;
 
 pub use facts::{CAPABILITIES, LAYERS, all_facts, derivable_facts, rule_facts};

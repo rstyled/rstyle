@@ -178,7 +178,7 @@ fn documents_in(directory: &Path) -> Vec<String> {
     let mut documents: Vec<String> = std::fs::read_dir(directory)
         .unwrap()
         .map(|entry| entry.unwrap().path())
-        .filter(|path| path.to_string_lossy().ends_with(".cpg.json"))
+        .filter(|path| path.to_string_lossy().ends_with(".cpg.json.zst"))
         .map(|path| path.display().to_string())
         .collect();
     documents.sort();
@@ -383,7 +383,7 @@ fn emitted() -> (TempDir, PathBuf) {
 fn derived(out: &Path) -> Vec<rstyle_core::facts::FnFacts> {
     let documents: Vec<Value> = documents_in(out)
         .iter()
-        .map(|path| serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap())
+        .map(|path| rstyle_core::cpg::transport::read_json(Path::new(path)).unwrap())
         .collect();
     let demand = rstyle_core::cpg::records::Demand {
         graphs: true,
@@ -463,11 +463,12 @@ fn emit_selects_packages_and_targets() {
 mod bounds;
 mod build_outputs;
 mod facts;
+mod transport;
 
 fn parsed(documents: &[String]) -> Vec<Value> {
     documents
         .iter()
-        .map(|path| serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap())
+        .map(|path| rstyle_core::cpg::transport::read_json(Path::new(path)).unwrap())
         .collect()
 }
 

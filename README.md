@@ -398,6 +398,10 @@ span of one of its inputs, as `quote_spanned!` writes them. A file the build wri
 `origin: "generated"`, and its functions are treated the same way; the Rust frontend
 marks what a build script writes to `OUT_DIR`.
 
+Saved Rust CPG documents use streaming JSON + Zstandard by default. See the
+[storage contract](docs/cpg-transport.md) for plain JSON compatibility, seals,
+and frontend interoperability.
+
 The Rust frontend emits the same documents:
 
 ```

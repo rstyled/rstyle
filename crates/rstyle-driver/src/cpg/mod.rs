@@ -13,7 +13,7 @@ use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::LOCAL_CRATE;
 use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Directory the documents are written to; setting it selects this mode.
 pub const DIR_ENV: &str = "RSTYLE_CPG_DIR";
@@ -24,13 +24,15 @@ pub const ROOT_ENV: &str = "RSTYLE_CPG_ROOT";
 /// included, as a capture records them. What a consumer reads of them is core's to decide.
 pub fn emit(tcx: TyCtxt<'_>, root: &Path, dir: &Path) -> Result<(), String> {
     let name = unit_name(tcx);
+    let encoding = rstyle_core::cpg::transport::Encoding::from_environment()?;
     let documents = documents_in(tcx, (root, None), Capture::default());
 
     for (index, (document, unrecorded)) in documents.enumerate() {
         if let Some((id, reason)) = unrecorded.first() {
             return Err(format!("{}: {reason}", tcx.def_path_str(id.to_def_id())));
         }
-        write(&dir.join(format!("{name}.{index:06}.cpg.json")), &document)?;
+        let path = dir.join(format!("{name}.{index:06}{}", encoding.suffix()));
+        rstyle_core::cpg::transport::write_json(&path, encoding, &document)?;
     }
     Ok(())
 }
@@ -164,11 +166,6 @@ fn unit_name(tcx: TyCtxt<'_>) -> String {
         tcx.crate_name(LOCAL_CRATE),
         tcx.stable_crate_id(LOCAL_CRATE).as_u64()
     )
-}
-
-fn write(path: &PathBuf, value: &Value) -> Result<(), String> {
-    let bytes = serde_json::to_vec(value).map_err(|error| error.to_string())?;
-    std::fs::write(path, bytes).map_err(|error| format!("{}: {error}", path.display()))
 }
 
 /// The compiler's version, without the tool's name `rustc --version` begins with.

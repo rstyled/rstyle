@@ -71,11 +71,7 @@ pub(super) fn documents(report: &Value) -> Vec<Document> {
     manifest
         .documents
         .iter()
-        .map(|sealed| {
-            let bytes = std::fs::read(directory.join(&sealed.file)).unwrap();
-            sealed.verify(&bytes).unwrap();
-            rstyle_core::cpg::layout::read(&bytes).unwrap()
-        })
+        .map(|sealed| rstyle_core::cpg::transport::read_sealed(directory, sealed).unwrap())
         .collect()
 }
 

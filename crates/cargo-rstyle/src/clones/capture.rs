@@ -33,6 +33,8 @@ pub struct Target {
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Plan {
+    #[serde(default)]
+    pub document_encoding: rstyle_core::cpg::transport::Encoding,
     /// Original Cargo selection covers every workspace package and all targets.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_all_targets: Option<bool>,
@@ -116,6 +118,7 @@ pub struct Capture {
 pub fn prepare(cli: &Cli, args: &Args) -> Result<Capture, String> {
     let (metadata, raw) = selected_workspace(cli)?;
     let mut capture = initial_capture(metadata, args.extraction_profile)?;
+    capture.plan.document_encoding = cli.cpg_compression;
     capture.plan.workspace_all_targets = Some(cli.packages.is_empty() && cli.all_targets);
     capture.plan.targets = selected_targets(&raw, cli, args.extraction_profile)?;
     capture.plan = capture.plan.with_advisory(args);
@@ -181,6 +184,7 @@ fn plan(
     environment: CaptureEnvironment,
 ) -> Plan {
     Plan {
+        document_encoding: Default::default(),
         workspace_all_targets: None,
         compiler_advisory_only: false,
         style_inputs_only: false,
@@ -680,6 +684,7 @@ fn driver_command(
             .envs(driver_flags(plan))
             .env(rstyle_core::advisory::SOURCE_ROOT_ENV, &plan.root);
     }
+    command.env("RSTYLE_CPG_COMPRESSION", plan.document_encoding.cli_name());
     command.args(arguments);
     Ok(command)
 }

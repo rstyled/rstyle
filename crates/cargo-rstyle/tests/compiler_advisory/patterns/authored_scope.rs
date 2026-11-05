@@ -562,10 +562,7 @@ fn resealed(original: &Value, edit: impl FnOnce(&mut Vec<Value>)) {
     let mut documents: Vec<Value> = manifest
         .documents
         .iter()
-        .map(|sealed| {
-            let bytes = std::fs::read(directory.join(&sealed.file)).unwrap();
-            serde_json::from_slice(&bytes).unwrap()
-        })
+        .map(|sealed| rstyle_core::cpg::transport::read_sealed(directory, sealed).unwrap())
         .collect();
     edit(&mut documents);
     let mut sealed = Vec::new();
@@ -645,7 +642,11 @@ fn a_changed_document_or_manifest_fails_the_replay() {
         .as_str()
         .unwrap();
     let manifest = Path::new(manifest);
-    let document = manifest.with_file_name("document-000000.cpg.json");
+    let seal = rstyle_pdg::unit_store::DocumentManifest::read(&std::fs::read(manifest).unwrap())
+        .unwrap()
+        .documents
+        .remove(0);
+    let document = manifest.with_file_name(&seal.file);
     let refused = |expected: &str| {
         let (output, report) = saved(directory.path(), &original, AUTHORED);
         checked(&output, 2);
@@ -663,7 +664,7 @@ fn a_changed_document_or_manifest_fails_the_replay() {
     refused("disagrees with its manifest");
 
     std::fs::remove_file(&document).unwrap();
-    refused("missing captured artifact document-000000.cpg.json");
+    refused("missing captured artifact document-000000.cpg.json.zst");
     std::fs::write(&document, &document_bytes).unwrap();
 
     let mut changed = manifest_bytes.clone();

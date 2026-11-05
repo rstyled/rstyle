@@ -26,6 +26,9 @@ struct Cli {
     /// Only analyze these packages (default: the whole workspace).
     #[arg(short, long = "package", global = true)]
     packages: Vec<String>,
+    /// Saved CPG document compression: zstd or none.
+    #[arg(long, global = true, default_value = "zstd")]
+    cpg_compression: rstyle_core::cpg::transport::Encoding,
     /// Include tests, examples and benches.
     #[arg(long, global = true)]
     all_targets: bool,
@@ -372,6 +375,7 @@ fn cpg_command(cli: &Cli, command: CpgCommand) -> Result<(String, u8), String> {
         CpgCommand::Emit { out } => {
             let selection = cpg::Selection {
                 packages: &cli.packages,
+                encoding: cli.cpg_compression,
                 all_targets: cli.all_targets,
                 manifest: cli.manifest_path.as_deref(),
             };

@@ -69,6 +69,7 @@ fn control_environment(key: &OsStr) -> bool {
                     | "RSTYLE_COMPILER_SOURCE_ROOT"
                     | "RSTYLE_CPG_DIR"
                     | "RSTYLE_CPG_ROOT"
+                    | "RSTYLE_CPG_COMPRESSION"
                     | "RSTYLE_DRIVER"
                     | "RSTYLE_HIR_DOCUMENT_DIR"
                     | "RSTYLE_HIR_FACTS_FILE"

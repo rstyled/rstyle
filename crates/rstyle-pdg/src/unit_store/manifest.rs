@@ -4,10 +4,7 @@ use std::io::{self, Write};
 use xxhash_rust::xxh3::{Xxh3, xxh3_64};
 
 const SCHEMA: &str = "rstyle.shared-unit.manifest/2";
-const DOCUMENTS_SCHEMA: &str = "rstyle.cpg-documents.manifest/1";
-
-/// The file sealing a compilation's `compat.cpg` documents, in its unit directory.
-pub const DOCUMENTS_MANIFEST: &str = "documents.manifest.json";
+pub use rstyle_core::cpg::transport::{DOCUMENTS_MANIFEST, DocumentManifest, SealedDocument};
 
 /// Nonadversarial byte-consistency checksum, never evidence authorization.
 pub fn transport_checksum(bytes: &[u8]) -> String {
@@ -51,70 +48,6 @@ impl BundleManifest {
         if self.schema != SCHEMA || self.bytes != len || self.checksum != transport_checksum(bytes)
         {
             return Err("Shared unit transport bytes disagree with driver manifest".into());
-        }
-        Ok(())
-    }
-}
-
-/// One written document of a compilation.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SealedDocument {
-    pub file: String,
-    pub checksum: String,
-    pub bytes: u64,
-}
-
-/// A compilation's `compat.cpg` documents, in document order, as its frontend wrote
-/// them. This establishes byte consistency only, as a bundle's seal does.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct DocumentManifest {
-    pub schema: String,
-    pub documents: Vec<SealedDocument>,
-}
-
-impl DocumentManifest {
-    /// The manifest of a compilation's documents, as they were sealed.
-    pub fn of(documents: Vec<SealedDocument>) -> Self {
-        let schema = DOCUMENTS_SCHEMA.to_owned();
-        Self { schema, documents }
-    }
-
-    /// Reads a published manifest, refusing another schema or a path outside its directory.
-    pub fn read(bytes: &[u8]) -> Result<Self, String> {
-        let manifest: Self = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
-        if manifest.schema != DOCUMENTS_SCHEMA {
-            return Err("Unsupported compat.cpg document manifest".into());
-        }
-
-        let nested = |document: &SealedDocument| {
-            std::path::Path::new(&document.file).components().count() != 1
-        };
-        if manifest.documents.iter().any(nested) {
-            return Err("A document manifest names a file outside its directory".into());
-        }
-        Ok(manifest)
-    }
-}
-
-impl SealedDocument {
-    /// The seal of a compilation's document at `position`, over the bytes it wrote.
-    pub fn new(position: usize, bytes: &[u8]) -> Self {
-        Self {
-            file: format!("document-{position:06}.cpg.json"),
-            checksum: transport_checksum(bytes),
-            bytes: bytes.len() as u64,
-        }
-    }
-
-    /// Checks a document's bytes against what was written.
-    pub fn verify(&self, bytes: &[u8]) -> Result<(), String> {
-        if self.bytes != bytes.len() as u64 || self.checksum != transport_checksum(bytes) {
-            return Err(format!(
-                "Captured document {} disagrees with its manifest",
-                self.file
-            ));
         }
         Ok(())
     }

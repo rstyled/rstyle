@@ -173,7 +173,7 @@ fn paired(mut function: Value, unit: &Value, unit_ref: &Value) -> Result<Value, 
     body.ok_or_else(|| format!("Function document {name} has no function"))
 }
 
-fn identity(document: &Document) -> Result<(), String> {
+pub fn identity(document: &Document) -> Result<(), String> {
     let profile = &document.profile;
     if document.schema_version != VERSION || profile.id != PROFILE || profile.version != VERSION {
         return Err(format!(

@@ -73,11 +73,8 @@ fn captured(directory: &Path, file: &str) -> Result<Vec<u8>, String> {
 pub(super) fn read(unit: &capture::Unit, demand: Demand) -> Result<Vec<DocumentFunction>, String> {
     let manifest = manifest(unit)?;
     let read = parallel(&manifest.documents, |sealed| {
-        let bytes = captured(&unit.directory, &sealed.file)?;
-        sealed.verify(&bytes)?;
-        let document = cpg::layout::read(&bytes)?;
-        // A document's bytes are its size again; only its typed form is read from here on.
-        drop(bytes);
+        let document: Document = cpg::transport::read_sealed(&unit.directory, sealed)?;
+        cpg::layout::identity(&document)?;
 
         functions(&document, demand)
     })?;

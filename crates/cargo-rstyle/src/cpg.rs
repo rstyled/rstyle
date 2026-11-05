@@ -99,9 +99,20 @@ fn mined(
 
 // rstyle-allow(side_effect_density): IO boundary: reads one input document
 fn read(path: &Path) -> Result<serde_json::Value, String> {
-    let text =
-        std::fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?;
-    serde_json::from_str(&text).map_err(|error| format!("{}: {error}", path.display()))
+    let directory = path.parent().unwrap_or_else(|| Path::new("."));
+    let manifest = directory.join(cpg::transport::DOCUMENTS_MANIFEST);
+    if manifest.exists() {
+        let bytes = std::fs::read(&manifest).map_err(|e| e.to_string())?;
+        let manifest = cpg::transport::DocumentManifest::read(&bytes)?;
+        let seal = manifest
+            .documents
+            .iter()
+            .find(|seal| Some(std::ffi::OsStr::new(&seal.file)) == path.file_name())
+            .ok_or_else(|| format!("{} is not listed in its document manifest", path.display()))?;
+        cpg::transport::read_sealed(directory, seal)
+    } else {
+        cpg::transport::read_json(path)
+    }
 }
 
 /// Documents name no Cargo workspace, so only an explicit `--config` applies.
@@ -118,6 +129,7 @@ fn load_config(path: Option<&Path>) -> Result<Config, String> {
 /// What `emit` compiles: the workspace or selected packages, optionally all targets.
 pub struct Selection<'a> {
     pub packages: &'a [String],
+    pub encoding: cpg::transport::Encoding,
     pub all_targets: bool,
     pub manifest: Option<&'a Path>,
 }
@@ -159,7 +171,8 @@ pub fn emit(selection: &Selection<'_>, out: &Path) -> Result<(String, u8), Strin
         .env("CARGO_INCREMENTAL", "0")
         .env("RUSTC_WORKSPACE_WRAPPER", crate::run::driver_path()?)
         .env("RSTYLE_CPG_DIR", &out)
-        .env("RSTYLE_CPG_ROOT", &root);
+        .env("RSTYLE_CPG_ROOT", &root)
+        .env("RSTYLE_CPG_COMPRESSION", selection.encoding.cli_name());
     status(check, "cargo check")?;
     let written = documents(&out)?.len();
 
@@ -219,7 +232,9 @@ fn documents(dir: &Path) -> Result<Vec<PathBuf>, String> {
     let mut documents = Vec::new();
     for entry in entries {
         let path = entry.map_err(|error| error.to_string())?.path();
-        if path.to_string_lossy().ends_with(".cpg.json") {
+        if path.to_string_lossy().ends_with(".cpg.json")
+            || path.to_string_lossy().ends_with(".cpg.json.zst")
+        {
             documents.push(path);
         }
     }

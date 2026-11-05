@@ -3,7 +3,7 @@
 use rstyle_core::advisory::runtime_bounds::{CAPTURE_ENV, Input, KEY, Observation};
 use rstyle_pdg::HirFnFacts;
 use rstyle_pdg::cpg_reader::{self, unit::Documents};
-use rstyle_pdg::unit_store::{DOCUMENTS_MANIFEST, DocumentManifest, SealedDocument};
+use rstyle_pdg::unit_store::{DOCUMENTS_MANIFEST, DocumentManifest};
 use rustc_middle::ty::TyCtxt;
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -124,15 +124,15 @@ pub(super) fn publish(
     };
 
     std::fs::create_dir_all(directory).map_err(|error| error.to_string())?;
+    let encoding = rstyle_core::cpg::transport::Encoding::from_environment()?;
     let mut sealed = Vec::new();
     for (document, unrecorded) in crate::cpg::documents_in(tcx, (root.as_path(), package), capture)
     {
         if let Some((id, reason)) = unrecorded.first() {
             return Err(format!("{}: {reason}", tcx.def_path_str(id.to_def_id())));
         }
-        let text = document.to_string();
-        let seal = SealedDocument::new(sealed.len(), text.as_bytes());
-        std::fs::write(directory.join(&seal.file), text).map_err(|error| error.to_string())?;
+        let path = directory.join(format!("document-{:06}{}", sealed.len(), encoding.suffix()));
+        let seal = rstyle_core::cpg::transport::write_json(&path, encoding, &document)?;
         sealed.push(seal);
     }
 
