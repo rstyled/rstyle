@@ -454,10 +454,16 @@ fn emit_selects_packages_and_targets() {
     let first = units();
     assert_eq!(first.0, 2, "{}", stdout(&output));
 
-    // A second run replaces the first run's documents.
+    // A second run also clears stale seals and documents in either encoding.
+    std::fs::write(out.join("documents.manifest.json"), b"stale manifest").unwrap();
+    std::fs::write(out.join("stale.cpg.json"), b"stale JSON").unwrap();
+    std::fs::write(out.join("stale.cpg.json.zst"), b"stale Zstd").unwrap();
     let output = rstyle(dir.path(), &args);
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     assert_eq!(units(), first);
+    assert!(!out.join("documents.manifest.json").exists());
+    assert!(!out.join("stale.cpg.json").exists());
+    assert!(!out.join("stale.cpg.json.zst").exists());
 }
 
 mod bounds;

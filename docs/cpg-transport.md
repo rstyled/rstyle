@@ -56,6 +56,11 @@ Standalone unsealed document files remain valid inputs. When `cpg check` or
 listed and both seals must match. Compiler capture also checks the manifest
 against its existing compilation-unit ledger.
 
+`cpg emit --out DIRECTORY` refreshes standalone exports: it removes previous
+`.cpg.json` / `.cpg.json.zst` files and any previous `documents.manifest.json`
+before compilation. It writes unsealed document files; successful compiler
+captures, native Go emission, and helper ingestion publish sealed manifests.
+
 ## Memory
 
 Rust serialization writes into the compressor without an intermediate whole-JSON

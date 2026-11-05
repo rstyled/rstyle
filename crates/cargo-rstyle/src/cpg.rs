@@ -245,6 +245,14 @@ fn documents(dir: &Path) -> Result<Vec<PathBuf>, String> {
 
 // rstyle-allow(side_effect_density): IO boundary: removes documents of an earlier run
 fn remove_documents(dir: &Path) -> Result<(), String> {
+    // Standalone exports have no manifest. Remove a prior sealed capture's
+    // manifest before refreshing its documents so readers cannot use stale seals.
+    let manifest = dir.join(cpg::transport::DOCUMENTS_MANIFEST);
+    match std::fs::remove_file(&manifest) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(format!("{}: {error}", manifest.display())),
+    }
     for path in documents(dir)? {
         std::fs::remove_file(&path).map_err(|error| format!("{}: {error}", path.display()))?;
     }
