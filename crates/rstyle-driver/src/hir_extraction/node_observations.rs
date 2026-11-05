@@ -4,7 +4,7 @@
 
 use super::hir::Context;
 use rustc_hir::intravisit::{self, Visitor};
-use rustc_hir::{Expr, ExprKind, LetStmt};
+use rustc_hir::{Expr, ExprKind, LetStmt, Pat, PatKind};
 use rustc_middle::hir::nested_filter::OnlyBodies;
 use rustc_middle::ty::TyCtxt;
 use serde_json::{Map, Value, json};
@@ -98,6 +98,33 @@ impl<'tcx> Visitor<'tcx> for Scan<'_, 'tcx> {
         }
 
         intravisit::walk_expr(self, expression);
+    }
+
+    /// A struct pattern's fields, each with its own identity and span, which a slice
+    /// pattern's capture records though the document's tree holds only the field patterns.
+    fn visit_pat(&mut self, pattern: &'tcx Pat<'tcx>) {
+        let context = self.context;
+        let slices = context
+            .profile
+            .supports(rstyle_pdg::slice_patterns::CAPABILITY);
+        match pattern.kind {
+            PatKind::Struct(_, fields, _) if slices => {
+                let fields: Vec<Value> = fields
+                    .iter()
+                    .map(|field| json!({"local": field.hir_id.local_id.as_u32(), "span": context.span(field.span)}))
+                    .collect();
+                self.record(pattern.hir_id, "struct_fields", json!(fields));
+            }
+            // A literal or path pattern's own expression, which a slice pattern's capture
+            // records as the pattern's bound.
+            PatKind::Expr(bound) if slices => {
+                let literal = matches!(bound.kind, rustc_hir::PatExprKind::Lit { .. });
+                let identity = json!({"local": bound.hir_id.local_id.as_u32(), "literal": literal});
+                self.record(pattern.hir_id, "pattern_bound", identity);
+            }
+            _ => {}
+        }
+        intravisit::walk_pat(self, pattern);
     }
 
     fn visit_local(&mut self, local: &'tcx LetStmt<'tcx>) {

@@ -1,6 +1,5 @@
 //! Observations for immediate Result reader callbacks; no callable or effect authority.
 use super::hir::Context;
-use rstyle_pdg::HirNode;
 use rustc_hir::intravisit::{self, Visitor};
 use rustc_hir::{self as hir, Expr};
 use rustc_middle::ty;
@@ -54,10 +53,6 @@ impl<'tcx> Context<'tcx> {
         matches!(arguments.type_at(0).kind(), ty::Tuple(fields)
             if fields.len() == 2 && fields[0] == self.tcx.types.usize
                 && fields[1] == self.tcx.types.usize)
-    }
-
-    pub(super) fn usize_reader_children(&self, expression: &Expr<'tcx>) -> Option<Vec<HirNode>> {
-        self.closure_children(expression, |pattern| self.local_pattern(pattern))
     }
 }
 

@@ -9,14 +9,12 @@ mod places;
 pub(crate) mod sysroot;
 mod unit;
 
-use crate::{extract, ids};
-use rstyle_core::advisory::runtime_bounds::Input;
+use crate::extract;
 use rstyle_pdg::nominal_binding::PackageContext;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::LOCAL_CRATE;
 use serde_json::{Value, json};
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 /// Directory the documents are written to; setting it selects this mode.
@@ -52,39 +50,6 @@ pub fn emit(
         &dir.join(format!("{name}.facts.json")),
         &serde_json::to_value(reference).map_err(|e| e.to_string())?,
     )
-}
-
-/// Each function's runtime-bound program by owner identity, as the core lowers it
-/// from the crate's documents. An owner the document cannot record keeps its reason.
-pub fn runtime_bounds(
-    tcx: TyCtxt<'_>,
-    origin: (&Path, Option<&PackageContext>),
-) -> Result<BTreeMap<String, Input>, String> {
-    let mut programs = BTreeMap::new();
-    for (document, unrecorded) in documents(tcx, origin) {
-        let unavailable = unrecorded.into_iter().map(|(id, reason)| {
-            (
-                ids::def_id_str(tcx, id.to_def_id()),
-                Input::Unavailable { reason },
-            )
-        });
-        programs.extend(unavailable);
-        programs.extend(rstyle_core::cpg::run_bounds(vec![document])?);
-    }
-    Ok(programs)
-}
-
-/// The crate's function documents, each with the owners it could not record and why.
-/// Each function reads from its own body and the tables it references, so a batch of
-/// functions per document bounds memory by the batch rather than the crate; a batch
-/// keeps to one source file, which each document then carries once.
-/// `origin` is the workspace root paths are relative to, and the package the capture
-/// selected, if any.
-pub fn documents<'tcx, 'r>(
-    tcx: TyCtxt<'tcx>,
-    origin: (&'r Path, Option<&'r PackageContext>),
-) -> impl Iterator<Item = (Value, Vec<(LocalDefId, String)>)> + use<'tcx, 'r> {
-    documents_in(tcx, origin, Capture::default())
 }
 
 /// A frontend's own observations of a function, recorded as its extensions.

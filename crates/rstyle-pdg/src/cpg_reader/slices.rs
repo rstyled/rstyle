@@ -11,6 +11,13 @@ use rstyle_core::cpg::model::{Node, Origin, TypeKind};
 
 type Built = Result<Option<HirNode>, String>;
 
+/// A literal or path pattern's own expression, as the frontend identifies it.
+#[derive(serde::Deserialize)]
+struct PatternBound {
+    local: u32,
+    literal: bool,
+}
+
 impl<'a> Context<'_, 'a> {
     pub(super) fn slice_prefix_pattern(&self, pattern: &'a Node) -> Built {
         if !self.reader.profile.supports(CAPABILITY) || pattern.original_kind != "pat_slice" {
@@ -61,6 +68,13 @@ impl<'a> Context<'_, 'a> {
                 .into_iter()
                 .map(|bound| self.slice_bound(bound))
                 .collect(),
+            "pat_struct" => self.slice_fields(pattern, children),
+            "pat_literal" | "pat_path" => {
+                let identity = self
+                    .node_observation(pattern, "pattern_bound")
+                    .ok_or("The literal or path pattern records no bound")?;
+                Ok(vec![self.slice_bound_as(pattern, Some(identity))?])
+            }
             "pat_guard" => children
                 .into_iter()
                 .enumerate()
@@ -71,6 +85,50 @@ impl<'a> Context<'_, 'a> {
                 .collect(),
             _ => Ok(Vec::new()),
         }
+    }
+
+    /// A struct pattern's fields, outside the modeled subset, each holding its pattern.
+    fn slice_fields(
+        &self,
+        pattern: &'a Node,
+        children: Vec<&'a Node>,
+    ) -> Result<Vec<HirNode>, String> {
+        #[derive(serde::Deserialize)]
+        struct Field {
+            local: u32,
+            span: crate::ByteSpan,
+        }
+        let fields: Vec<Field> = self
+            .node_observation(pattern, "struct_fields")
+            .ok_or("The struct pattern records no fields")?;
+        let owner = hir_ref(&pattern.id).owner;
+
+        fields
+            .into_iter()
+            .zip(children)
+            .map(|(field, child)| {
+                Ok(HirNode {
+                    hir: crate::frontend::HirRef {
+                        krate: 0,
+                        owner,
+                        local: field.local,
+                    },
+                    kind: "pat_slice_field_unsupported".into(),
+                    span: field.span,
+                    snippet: self.snippet(field.span),
+                    ty: None,
+                    res: None,
+                    dispatch: None,
+                    expansion: None,
+                    binding: None,
+                    binding_mut: None,
+                    lit: None,
+                    param_index: None,
+                    is_unsafe_block: false,
+                    children: vec![self.slice_pattern(child, false)?],
+                })
+            })
+            .collect()
     }
 
     fn slice_observation(
@@ -360,43 +418,72 @@ impl<'a> Context<'_, 'a> {
     }
 
     fn slice_bound(&self, bound: &'a Node) -> Result<HirNode, String> {
-        let mut node = self.node(bound, "pat_slice_bound")?;
-        node.ty = self.ty(bound)?;
-        node.expansion = self.expansion(bound, node.span);
-        let (details, status) = match bound.original_kind.as_str() {
-            "pat_expr_lit" => match self.byte_literal(bound) {
-                Some((value, negated)) => (
-                    Details::ByteLiteral { value, negated },
-                    CaptureStatus::Captured,
-                ),
-                None => unsupported_bound("Non-byte literal"),
-            },
-            _ => (
-                Details::Path {
-                    resolution: self.bound_path(bound),
-                },
-                unsupported("Path range endpoint"),
-            ),
-        };
-        let status = if node.ty.is_none() {
+        self.slice_bound_as(bound, None)
+    }
+
+    /// A pattern bound: a range bound's own node, or the literal or path pattern whose
+    /// own expression `identity` names.
+    fn slice_bound_as(
+        &self,
+        bound: &'a Node,
+        identity: Option<PatternBound>,
+    ) -> Result<HirNode, String> {
+        let base = self.node(bound, "pat_slice_bound")?;
+        let mut hir = base.hir.clone();
+        if let Some(identity) = &identity {
+            hir.local = identity.local;
+        }
+        let ty = self.ty(bound)?;
+        let expansion = self.expansion(bound, base.span);
+        let literal = identity
+            .as_ref()
+            .map_or(bound.original_kind == "pat_expr_lit", |identity| {
+                identity.literal
+            });
+        let (details, status) = self.bound_details(bound, literal);
+        let status = if ty.is_none() {
             CaptureStatus::Unknown("Missing compiler range endpoint type".into())
-        } else if node.expansion.is_some() {
+        } else if expansion.is_some() {
             unsupported("Expanded range endpoint")
         } else {
             status
         };
         let observation = Observation {
             identity: IDENTITY.into(),
-            hir: hir_ref(&bound.id),
-            span: node.span,
+            hir: hir.clone(),
+            span: base.span,
             ty: self.shape(bound.ty.as_deref()),
             adjustments: Vec::new(),
             details,
             status,
         };
-        node.res = observation.resolution().ok();
 
-        Ok(node)
+        Ok(HirNode {
+            hir,
+            ty,
+            expansion,
+            res: observation.resolution().ok(),
+            ..base
+        })
+    }
+
+    /// A bound's literal byte or path, and whether the capture supports it.
+    fn bound_details(&self, bound: &Node, literal: bool) -> (Details, CaptureStatus) {
+        match literal {
+            true => match self.byte_literal(bound) {
+                Some((value, negated)) => (
+                    Details::ByteLiteral { value, negated },
+                    CaptureStatus::Captured,
+                ),
+                None => unsupported_bound("Non-byte literal"),
+            },
+            false => (
+                Details::Path {
+                    resolution: self.bound_path(bound),
+                },
+                unsupported("Path range endpoint"),
+            ),
+        }
     }
 
     /// A range bound path, as the frontend records the resolution it does not support.

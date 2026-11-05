@@ -25,8 +25,6 @@ pub(crate) mod hir_tags {
     pub(crate) use super::hir::kind;
 }
 mod document_facts;
-pub(crate) mod runtime_bounds;
-mod style_check;
 /// The requested instance diagnostics, over the facts read for the crate.
 pub(crate) fn capture_instance_diagnostics(
     tcx: TyCtxt<'_>,
@@ -62,14 +60,12 @@ mod variant_patterns;
 
 use rstyle_pdg::extraction_profile::ExtractionProfile;
 use rstyle_pdg::frontend::*;
-use rustc_hir::{self as rhir, def::DefKind, def_id::LocalDefId};
+use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_middle::ty::TyCtxt;
 
 pub struct Options<'a> {
-    pub complexity: &'a crate::driver_complexity::Functions,
     pub source_root: Option<&'a std::path::Path>,
     pub(super) sources: sources::Sources,
-    pub(super) runtime_bounds: runtime_bounds::Programs,
     /// The crate's pre-expansion source scan, and its index, built once when first read.
     pub scanned: &'a [source::Function],
     pub(super) scans: std::cell::OnceCell<source_scans::SourceScans<'a>>,
@@ -153,7 +149,6 @@ pub fn advisory_crate_facts(
 /// read from the crate's documents, each body kept as its root's identity.
 pub fn style_crate_facts(
     tcx: TyCtxt<'_>,
-    scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<Vec<StyleFnFacts>, String> {
     let (facts, _) = collect_crate_facts(tcx, options, FunctionEvidence::Style)?;
@@ -171,31 +166,7 @@ pub fn style_crate_facts(
             source_scan_complete: facts.source_scan_complete,
         })
         .collect();
-    style_check::compare(tcx, &facts, || style_reference(tcx, scanned, options))?;
-
     Ok(facts)
-}
-
-/// The style inputs as the compiler capture the documents replace collects them.
-fn style_reference(
-    tcx: TyCtxt<'_>,
-    scanned: &[source::Function],
-    options: &Options<'_>,
-) -> Result<Vec<StyleFnFacts>, String> {
-    collect_source_functions(tcx, scanned, options, |sources, id| {
-        let (mut facts, ctx) = sources
-            .function_source_with(id, |_, body, _| {
-                (hir::reference(body.value.hir_id), Uncaptured::NotRequested)
-            })
-            .ok_or_else(|| {
-                format!(
-                    "Required style owner metadata unavailable for {}",
-                    tcx.def_path_str(id.to_def_id())
-                )
-            })?;
-        advisory::capture(&ctx, id, &mut facts, options)?;
-        Ok(facts)
-    })
 }
 
 enum FunctionEvidence {
@@ -220,89 +191,9 @@ fn collect_crate_facts(
     document_facts::capture(tcx, (options, passes))
 }
 
-fn collect_source_functions<T>(
-    tcx: TyCtxt<'_>,
-    scanned: &[source::Function],
-    options: &Options<'_>,
-    mut collect: impl FnMut(&FunctionSources<'_, '_, '_>, LocalDefId) -> Result<T, String>,
-) -> Result<Vec<T>, String> {
-    let sources = FunctionSources::new(tcx, scanned, options);
-    collect_functions(tcx, |id| collect(&sources, id))
-}
-
-fn collect_functions<T>(
-    tcx: TyCtxt<'_>,
-    collect: impl FnMut(LocalDefId) -> Result<T, String>,
-) -> Result<Vec<T>, String> {
-    function_owners(tcx).map(collect).collect()
-}
-
 pub(crate) fn function_owners(tcx: TyCtxt<'_>) -> impl Iterator<Item = LocalDefId> {
     tcx.hir_body_owners()
         .filter(move |id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
-}
-
-impl<'tcx> FunctionSources<'_, 'tcx, '_> {}
-
-struct FunctionSources<'a, 'tcx, 'options> {
-    tcx: TyCtxt<'tcx>,
-    scanned: source_scans::SourceScans<'a>,
-    options: &'a Options<'options>,
-}
-
-impl<'a, 'tcx, 'options> FunctionSources<'a, 'tcx, 'options> {
-    fn new(
-        tcx: TyCtxt<'tcx>,
-        scanned: &'a [source::Function],
-        options: &'a Options<'options>,
-    ) -> Self {
-        Self {
-            tcx,
-            scanned: source_scans::SourceScans::new(scanned),
-            options,
-        }
-    }
-}
-
-impl<'tcx> FunctionSources<'_, 'tcx, '_> {
-    fn function_source_with<B, S>(
-        &self,
-        id: LocalDefId,
-        contents: impl FnOnce(&hir::Context<'tcx>, &rhir::Body<'tcx>, &[ParamFact]) -> (B, S),
-    ) -> Option<(HirFnFacts<B, S>, hir::Context<'tcx>)> {
-        let tcx = self.tcx;
-        let options = self.options;
-        let node = tcx.hir_node_by_def_id(id);
-        let sig = node.fn_sig()?;
-        let body = tcx.hir_body(node.body_id()?);
-        let (ctx, fn_span) = function_context(tcx, id, options)?;
-        let (function_span, source_bytes) = (ctx.function_span, ctx.source_bytes.clone());
-        let params = parameters(&ctx, sig, body);
-        let (body, bindings) = contents(&ctx, body, &params);
-        let scan = self.scanned.find(
-            ctx.function_span,
-            body_source_span(tcx, id),
-            ctx.profile
-                .supports("rust.conditional-source-correspondence"),
-        );
-        let source_diagnostics = source_findings(&ctx, scan, sig.span);
-
-        let facts = HirFnFacts {
-            name: tcx.def_path_str(id.to_def_id()),
-            fn_span,
-            source: SourceFacts {
-                digest: evidence::source_identity(&source_bytes, options.selected()),
-                bytes: source_bytes,
-            },
-            signature: signature(&ctx, sig, params, id),
-            bindings,
-            body,
-            build: function_build(tcx, id, function_span, options)?,
-            source_diagnostics,
-            source_scan_complete: scan.is_some_and(|scan| !scan.conditional_source),
-        };
-        Some((facts, ctx))
-    }
 }
 
 /// A function's facts as read from the crate's documents, with its capture context.
@@ -540,79 +431,6 @@ fn definition_identity(
             serde_json::json!(format!("{:?}", tcx.def_path_hash(id.to_def_id()))),
         )
     })
-}
-
-fn parameters<'tcx>(
-    ctx: &hir::Context<'tcx>,
-    sig: &rhir::FnSig<'tcx>,
-    body: &rhir::Body<'tcx>,
-) -> Vec<ParamFact> {
-    sig.decl
-        .inputs
-        .iter()
-        .zip(body.params)
-        .enumerate()
-        .map(|(position, (ty, param))| {
-            let pat = HirNode {
-                param_index: Some(position as u32),
-                ..ctx.pattern(param.pat)
-            };
-            let resolved = ctx.typeck.node_type(param.pat.hir_id);
-            ParamFact {
-                symbol: pat.binding.clone().unwrap_or_default(),
-                position: position as u32,
-                name_span: pat.span,
-                ty_span: ctx.span(ty.span),
-                ty: hir::resolved(resolved, ctx.snippet(ty.span)),
-                pat,
-            }
-        })
-        .collect()
-}
-
-fn signature<'tcx>(
-    ctx: &hir::Context<'tcx>,
-    sig: &rhir::FnSig<'tcx>,
-    params: Vec<ParamFact>,
-    id: LocalDefId,
-) -> SignatureFacts {
-    let (return_span, spelling) = match sig.decl.output {
-        rhir::FnRetTy::Return(ty) => (ty.span, ctx.snippet(ty.span)),
-        rhir::FnRetTy::DefaultReturn(span) => (span, "()".to_string()),
-    };
-    let has_self = sig.decl.implicit_self().has_implicit_self();
-    let receiver = has_self.then(|| ReceiverFact {
-        span: params[0].name_span,
-        snippet: params[0].pat.snippet.clone(),
-    });
-    let generics = ctx
-        .tcx
-        .hir_get_generics(id)
-        .map(|g| {
-            g.params
-                .iter()
-                .map(|p| GenericFact {
-                    name: p.name.ident().to_string(),
-                    span: ctx.span(p.span),
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-
-    SignatureFacts {
-        sig_span: ctx.span(sig.span),
-        params,
-        receiver,
-        return_ty: hir::resolved(ctx.result, spelling),
-        return_ty_span: ctx.span(return_span),
-        has_self,
-        abi: known_str(sig.header.abi.to_string().trim_matches('"')),
-        generics,
-        is_variadic: sig.decl.c_variadic(),
-        is_async: sig.header.is_async(),
-        is_unsafe: sig.header.is_unsafe(),
-        is_const: matches!(sig.header.constness, rhir::Constness::Const { .. }),
-    }
 }
 
 /// A function's pre-expansion source scan, as the `rust:source-scan` extension: the
