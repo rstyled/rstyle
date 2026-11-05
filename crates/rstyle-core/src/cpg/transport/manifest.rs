@@ -83,6 +83,7 @@ impl DocumentManifest {
 
     pub fn read(bytes: &[u8]) -> Result<Self, String> {
         let manifest: Self = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
+
         if manifest.schema != SCHEMA && manifest.schema != LEGACY {
             return Err("Unsupported compat.cpg document manifest".into());
         }

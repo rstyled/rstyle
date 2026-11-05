@@ -9,6 +9,15 @@ struct Counted<W> {
     inner: W,
     observed: Observed,
 }
+impl<W> Counted<W> {
+    fn new(inner: W) -> Self {
+        Self {
+            inner,
+            observed: Observed::default(),
+        }
+    }
+}
+
 impl<W: Write> Write for Counted<W> {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
         let len = self.inner.write(bytes)?;
@@ -46,30 +55,52 @@ fn write(
     validate: bool,
     emit: impl FnOnce(&mut dyn Write) -> io::Result<()>,
 ) -> Result<SealedDocument, String> {
+    let (temporary, seal) = stage(path, encoding, emit)?;
+    if validate {
+        validate_object(temporary.path(), encoding)?;
+    }
+    persist(temporary, path)?;
+    Ok(seal)
+}
+
+fn stage(
+    path: &Path,
+    encoding: Encoding,
+    emit: impl FnOnce(&mut dyn Write) -> io::Result<()>,
+) -> Result<(tempfile::NamedTempFile, SealedDocument), String> {
     let parent = path.parent().ok_or("Document has no output directory")?;
     let mut temporary = tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
     let (stored, decoded) =
         encode(temporary.as_file_mut(), encoding, emit).map_err(|e| e.to_string())?;
-    if validate {
-        validate_object(temporary.path(), encoding)?;
-    }
+    Ok((temporary, sealed(path, encoding, stored, decoded)?))
+}
+
+fn sealed(
+    path: &Path,
+    encoding: Encoding,
+    stored: Observed,
+    decoded: Observed,
+) -> Result<SealedDocument, String> {
     let file = path
         .file_name()
         .and_then(|s| s.to_str())
         .ok_or("Document filename is not UTF-8")?
         .to_owned();
-    let seal = SealedDocument {
+    Ok(SealedDocument {
         file,
         bytes: stored.bytes,
         checksum: stored.checksum(),
         encoding,
         decoded_bytes: Some(decoded.bytes),
         decoded_checksum: Some(decoded.checksum()),
-    };
+    })
+}
+
+fn persist(temporary: tempfile::NamedTempFile, path: &Path) -> Result<(), String> {
     temporary
         .persist_noclobber(path)
         .map_err(|error| format!("Cannot publish {}: {error}", path.display()))?;
-    Ok(seal)
+    Ok(())
 }
 
 fn encode(
@@ -77,40 +108,43 @@ fn encode(
     encoding: Encoding,
     emit: impl FnOnce(&mut dyn Write) -> io::Result<()>,
 ) -> io::Result<(Observed, Observed)> {
-    let mut stored = Counted {
-        inner: BufWriter::new(file),
-        observed: Observed::default(),
-    };
+    let mut stored = Counted::new(BufWriter::new(file));
     let decoded = match encoding {
         Encoding::Json => emitted(&mut stored, emit)?,
-        Encoding::Zstd => {
-            let mut encoder = zstd::stream::write::Encoder::new(&mut stored, 3)?;
-            encoder.include_checksum(true)?;
-            let decoded = emitted(&mut encoder, emit)?;
-            encoder.finish()?;
-            decoded
-        }
+        Encoding::Zstd => compressed(&mut stored, emit)?,
     };
     stored.flush()?;
     Ok((stored.observed, decoded))
+}
+
+fn compressed(
+    writer: impl Write,
+    emit: impl FnOnce(&mut dyn Write) -> io::Result<()>,
+) -> io::Result<Observed> {
+    let mut encoder = zstd::stream::write::Encoder::new(writer, 3)?;
+    encoder.include_checksum(true)?;
+    let decoded = emitted(&mut encoder, emit)?;
+    encoder.finish()?;
+    Ok(decoded)
 }
 
 fn emitted(
     writer: impl Write,
     emit: impl FnOnce(&mut dyn Write) -> io::Result<()>,
 ) -> io::Result<Observed> {
-    let mut decoded = Counted {
-        inner: writer,
-        observed: Observed::default(),
-    };
+    let mut decoded = Counted::new(writer);
+    buffered(&mut decoded, emit)?;
+    Ok(decoded.observed)
+}
+
+fn buffered(
+    writer: impl Write,
+    emit: impl FnOnce(&mut dyn Write) -> io::Result<()>,
+) -> io::Result<()> {
     // JSON serializers write punctuation and short keys separately. Coalesce
     // those calls before hashing and entering the compressor, without retaining
     // the document's serialized representation.
-    {
-        let mut buffered = BufWriter::with_capacity(64 * 1024, &mut decoded);
-        emit(&mut buffered)?;
-        buffered.flush()?;
-    }
-    decoded.flush()?;
-    Ok(decoded.observed)
+    let mut buffered = BufWriter::with_capacity(64 * 1024, writer);
+    emit(&mut buffered)?;
+    buffered.flush()
 }

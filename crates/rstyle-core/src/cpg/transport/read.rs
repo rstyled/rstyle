@@ -19,24 +19,9 @@ struct Utf8<R> {
 }
 
 impl<R> Utf8<R> {
-    fn check(&mut self, mut bytes: &[u8]) -> io::Result<()> {
-        if self.len > 0 {
-            let width = match self.pending[0] {
-                0..=0xdf => 2,
-                0xe0..=0xef => 3,
-                _ => 4,
-            };
-            let count = (width - self.len).min(bytes.len());
-            self.pending[self.len..self.len + count].copy_from_slice(&bytes[..count]);
-            self.len += count;
-            if self.len < width {
-                return Ok(());
-            }
-            std::str::from_utf8(&self.pending[..width])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-            self.len = 0;
-            bytes = &bytes[count..];
-        }
+    fn check(&mut self, bytes: &[u8]) -> io::Result<()> {
+        let bytes = self.complete_pending(bytes)?;
+
         if let Err(error) = std::str::from_utf8(bytes) {
             if error.error_len().is_some() {
                 return Err(io::Error::new(io::ErrorKind::InvalidData, error));
@@ -47,6 +32,37 @@ impl<R> Utf8<R> {
         }
         Ok(())
     }
+
+    fn complete_pending<'a>(&mut self, bytes: &'a [u8]) -> io::Result<&'a [u8]> {
+        if self.len > 0 {
+            let width = match self.pending[0] {
+                0..=0xdf => 2,
+                0xe0..=0xef => 3,
+                _ => 4,
+            };
+            let count = (width - self.len).min(bytes.len());
+            self.pending[self.len..self.len + count].copy_from_slice(&bytes[..count]);
+            self.len += count;
+            if self.len < width {
+                return Ok(&[]);
+            }
+            std::str::from_utf8(&self.pending[..width])
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            self.len = 0;
+            return Ok(&bytes[count..]);
+        }
+        Ok(bytes)
+    }
+
+    fn complete_read(&self, len: usize) -> io::Result<usize> {
+        if len == 0 && self.len > 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Incomplete UTF-8 in CPG JSON",
+            ));
+        }
+        Ok(len)
+    }
 }
 
 impl<R: Read> Read for Utf8<R> {
@@ -54,15 +70,10 @@ impl<R: Read> Read for Utf8<R> {
         if bytes.is_empty() {
             return Ok(0);
         }
+
         let len = self.inner.read(bytes)?;
-        if len == 0 && self.len > 0 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "Incomplete UTF-8 in CPG JSON",
-            ));
-        }
         self.check(&bytes[..len])?;
-        Ok(len)
+        self.complete_read(len)
     }
 }
 
@@ -99,39 +110,66 @@ fn read<T: DeserializeOwned>(
     encoding: Encoding,
     seal: Option<&SealedDocument>,
 ) -> Result<T, String> {
-    let file = File::open(path).map_err(|error| {
-        format!(
-            "missing captured artifact {}: {error}",
-            path.file_name().unwrap_or_default().to_string_lossy()
-        )
-    })?;
-    let mut stored = Counted {
-        inner: file,
-        observed: Observed::default(),
-        limit: seal.map(|s| s.bytes),
-    };
-    if let Some(seal) = seal {
-        io::copy(&mut stored, &mut io::sink()).map_err(|error| error.to_string())?;
-        seal.verify_stored(&stored.observed)?;
-        stored.inner.rewind().map_err(|error| error.to_string())?;
-        stored.observed = Observed::default();
-    }
-    let value = match encoding {
-        Encoding::Json => parsed(BufReader::new(&mut stored), seal),
-        Encoding::Zstd => {
-            let mut decoder =
-                zstd::stream::read::Decoder::new(&mut stored).map_err(|error| error.to_string())?;
-            decoder
-                .window_log_max(27)
-                .map_err(|error| error.to_string())?;
-            parsed(decoder, seal)
-        }
-    }
-    .map_err(|error| format!("{}: {error}", path.display()))?;
+    let mut stored = stored(path, seal)?;
+    let value = decoded(&mut stored, encoding, seal)
+        .map_err(|error| format!("{}: {error}", path.display()))?;
     if let Some(seal) = seal {
         seal.verify_stored(&stored.observed)?;
     }
     Ok(value)
+}
+
+fn open(path: &Path) -> Result<File, String> {
+    File::open(path).map_err(|error| {
+        format!(
+            "missing captured artifact {}: {error}",
+            path.file_name().unwrap_or_default().to_string_lossy()
+        )
+    })
+}
+
+fn stored(path: &Path, seal: Option<&SealedDocument>) -> Result<Counted<File>, String> {
+    let mut stored = Counted {
+        inner: open(path)?,
+        observed: Observed::default(),
+        limit: seal.map(|s| s.bytes),
+    };
+    if let Some(seal) = seal {
+        stored.verify_and_rewind(seal)?;
+    }
+    Ok(stored)
+}
+
+impl Counted<File> {
+    fn verify_and_rewind(&mut self, seal: &SealedDocument) -> Result<(), String> {
+        io::copy(self, &mut io::sink()).map_err(|error| error.to_string())?;
+        seal.verify_stored(&self.observed)?;
+        self.inner.rewind().map_err(|error| error.to_string())?;
+        self.observed = Observed::default();
+        Ok(())
+    }
+}
+
+fn decoded<T: DeserializeOwned>(
+    stored: &mut Counted<File>,
+    encoding: Encoding,
+    seal: Option<&SealedDocument>,
+) -> Result<T, String> {
+    match encoding {
+        Encoding::Json => parsed(BufReader::new(stored), seal),
+        Encoding::Zstd => parsed(decoder(stored)?, seal),
+    }
+}
+
+fn decoder<R: Read>(
+    reader: R,
+) -> Result<zstd::stream::read::Decoder<'static, BufReader<R>>, String> {
+    let mut decoder =
+        zstd::stream::read::Decoder::new(reader).map_err(|error| error.to_string())?;
+    decoder
+        .window_log_max(27)
+        .map_err(|error| error.to_string())?;
+    Ok(decoder)
 }
 
 fn parsed<T: DeserializeOwned>(
@@ -143,6 +181,7 @@ fn parsed<T: DeserializeOwned>(
         observed: Observed::default(),
         limit: seal.and_then(|s| s.decoded_bytes),
     };
+
     let utf8 = Utf8 {
         inner: &mut decoded,
         pending: [0; 4],

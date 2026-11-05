@@ -118,10 +118,12 @@ pub struct Capture {
 pub fn prepare(cli: &Cli, args: &Args) -> Result<Capture, String> {
     let (metadata, raw) = selected_workspace(cli)?;
     let mut capture = initial_capture(metadata, args.extraction_profile)?;
-    capture.plan.document_encoding = cli.cpg_compression;
-    capture.plan.workspace_all_targets = Some(cli.packages.is_empty() && cli.all_targets);
-    capture.plan.targets = selected_targets(&raw, cli, args.extraction_profile)?;
-    capture.plan = capture.plan.with_advisory(args);
+    capture.plan = Plan {
+        document_encoding: cli.cpg_compression,
+        workspace_all_targets: Some(cli.packages.is_empty() && cli.all_targets),
+        targets: selected_targets(&raw, cli, args.extraction_profile)?,
+        ..capture.plan.with_advisory(args)
+    };
 
     publish_plan(capture)
 }
@@ -684,8 +686,9 @@ fn driver_command(
             .envs(driver_flags(plan))
             .env(rstyle_core::advisory::SOURCE_ROOT_ENV, &plan.root);
     }
-    command.env("RSTYLE_CPG_COMPRESSION", plan.document_encoding.cli_name());
-    command.args(arguments);
+    command
+        .env("RSTYLE_CPG_COMPRESSION", plan.document_encoding.cli_name())
+        .args(arguments);
     Ok(command)
 }
 
