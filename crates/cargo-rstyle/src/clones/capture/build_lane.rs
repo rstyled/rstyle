@@ -1,6 +1,13 @@
 //! Serialize advisory build reuse and selected-package recapture.
 use super::{Args, Capture};
-use std::{collections::BTreeSet, fs::File, path::PathBuf, process::Command};
+use std::{
+    collections::BTreeSet,
+    fs::{File, TryLockError},
+    path::{Path, PathBuf},
+    process::Command,
+};
+
+const LOCK_FILE: &str = "advisory-build.lock";
 
 pub(super) fn shared(capture: &Capture, args: &Args) -> bool {
     capture.plan.compiler_advisory_only && args.capture_dependencies.is_empty()
@@ -19,7 +26,20 @@ pub(super) fn acquire(capture: &Capture, args: &Args) -> Result<Option<File>, St
     if !shared(capture, args) {
         return Ok(None);
     }
-    lock_file(capture.directory.with_file_name("advisory-build.lock")).map(Some)
+    lock_file(capture.directory.with_file_name(LOCK_FILE)).map(Some)
+}
+
+/// The lane under `parent`, unless a shared build is holding it.
+pub(super) fn try_acquire(parent: &Path) -> Result<Option<File>, String> {
+    try_lock(open_lock(parent.join(LOCK_FILE))?)
+}
+
+pub(super) fn try_lock(lock: File) -> Result<Option<File>, String> {
+    match lock.try_lock() {
+        Ok(()) => Ok(Some(lock)),
+        Err(TryLockError::WouldBlock) => Ok(None),
+        Err(TryLockError::Error(error)) => Err(format!("Cannot take lock: {error}")),
+    }
 }
 
 fn lock_file(path: PathBuf) -> Result<File, String> {
@@ -29,13 +49,13 @@ fn lock_file(path: PathBuf) -> Result<File, String> {
         .map_err(|error| format!("Cannot lock advisory builds: {error}"))
 }
 
-fn open_lock(path: PathBuf) -> Result<File, String> {
+pub(super) fn open_lock(path: PathBuf) -> Result<File, String> {
     File::options()
         .create(true)
         .truncate(false)
         .write(true)
-        .open(path)
-        .map_err(|error| format!("Cannot open advisory build lock: {error}"))
+        .open(&path)
+        .map_err(|error| format!("Cannot open lock {}: {error}", path.display()))
 }
 
 pub(super) fn refresh_selected(capture: &Capture, args: &Args) -> Result<(), String> {

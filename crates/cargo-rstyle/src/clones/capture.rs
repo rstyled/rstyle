@@ -4,7 +4,9 @@ mod build_lane;
 mod dependencies;
 pub(super) mod ledger;
 mod owner_reuse;
+mod retention;
 mod saved;
+pub(in crate::clones) use retention::{LIMIT_VARIABLE, hold};
 pub(in crate::clones) use saved::load_saved;
 
 use super::{Args, read_json, write_json};
@@ -163,14 +165,13 @@ fn new_capture(directory: PathBuf, plan: Plan) -> Capture {
 }
 
 fn run_directory(target: &Path) -> Result<PathBuf, String> {
+    let limit = retention::limit()?;
     let parent = target.join("rstyle/clones");
     std::fs::create_dir_all(&parent).map_err(|e| e.to_string())?;
+    let directory = retention::new_run(&parent)?;
 
-    Ok(tempfile::Builder::new()
-        .prefix("run-")
-        .tempdir_in(parent)
-        .map_err(|e| e.to_string())?
-        .keep())
+    retention::prune(&parent, limit);
+    Ok(directory)
 }
 
 fn plan(

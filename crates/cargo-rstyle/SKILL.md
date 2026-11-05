@@ -28,6 +28,8 @@ status while metrics and fix groups retain the full captured scope. Invalid
 suppressions remain visible. Unobserved selected paths and missing required
 inputs remain incomplete (exit 2), even when no findings are selected. Add
 `--replay-run PATH` to reevaluate an explicit saved run without compiler tools.
+A new capture removes all but a workspace's 5 most recently used runs; set
+`RSTYLE_KEEP_RUNS` to another count, or to `all`, to keep more.
 
 Use `--write-baseline baseline.json` to export a complete
 whole-scope inventory to a new file; ordinary findings still return 1 after export.

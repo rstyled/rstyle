@@ -1,14 +1,18 @@
 //! Completed raw observations, reused only with the current Cargo freshness decision.
-use super::{Args, Capture, Plan, Unit, build_lane, read_json, write_json};
+use super::{Args, Capture, Plan, Unit, build_lane, read_json, retention, write_json};
 use crate::Cli;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
+    collections::BTreeSet,
+    ffi::OsString,
     io::Write,
     path::{Path, PathBuf},
     process::Output,
     time::SystemTime,
 };
+
+const INDEX_FILE: &str = "advisory-owners.json";
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct Index {
@@ -32,7 +36,22 @@ struct Entry {
 }
 
 fn index_path(capture: &Capture) -> PathBuf {
-    capture.directory.with_file_name("advisory-owners.json")
+    capture.directory.with_file_name(INDEX_FILE)
+}
+
+// rstyle-allow(side_effect_density): IO boundary: reads the owner index
+/// The runs the next shared build may reuse units from.
+pub(super) fn indexed_runs(parent: &Path) -> BTreeSet<OsString> {
+    let Ok(index) = read_json::<Index>(&parent.join(INDEX_FILE)) else {
+        return BTreeSet::new();
+    };
+
+    index
+        .entries
+        .iter()
+        .filter_map(|entry| entry.unit.directory.parent()?.file_name())
+        .map(OsString::from)
+        .collect()
 }
 
 pub(super) fn take(capture: &Capture, args: &Args) -> Result<Option<Index>, String> {
@@ -223,11 +242,7 @@ fn copy_snapshot(original: &Unit, unit: &Unit) -> Result<(), String> {
 // rstyle-allow(side_effect_density): Capture restart boundary creates a fresh directory and republishes the existing plan.
 fn restart(capture: &mut Capture) -> Result<(), String> {
     let parent = capture.directory.parent().ok_or("Missing capture parent")?;
-    capture.directory = tempfile::Builder::new()
-        .prefix("run-")
-        .tempdir_in(parent)
-        .map_err(|e| e.to_string())?
-        .keep();
+    capture.directory = retention::new_run(parent)?;
 
     capture.units.clear();
     capture.failures.clear();

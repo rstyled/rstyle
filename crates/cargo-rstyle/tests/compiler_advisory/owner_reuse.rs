@@ -272,3 +272,85 @@ fn saved_reused_run_replays_without_original_run_sources_or_shared_builds() {
     assert_eq!(replay["capture_complete"], true);
     assert_eq!(reused["compiler_advisory"], replay["compiler_advisory"]);
 }
+
+fn limited(directory: &Path, keep: &str, extra: &[&str]) -> Output {
+    diagnostic_process::output(
+        Command::new(cargo_bin("cargo-rstyle"))
+            .args(["clones", "--format", "json"])
+            .args(["--extraction-profile", "hir-data-v3", "--compiler-advisory"])
+            .args(extra)
+            .current_dir(directory)
+            .env("RSTYLE_DRIVER", driver())
+            .env("RSTYLE_KEEP_RUNS", keep)
+            .env_remove("CARGO_TARGET_DIR"),
+    )
+    .unwrap()
+}
+
+fn limited_report(directory: &Path, keep: &str, extra: &[&str]) -> Value {
+    let output = limited(directory, keep, extra);
+    checked(&output, 0);
+    serde_json::from_slice(&output.stdout).unwrap()
+}
+
+#[test]
+fn runs_beyond_the_limit_are_removed_and_a_replay_of_one_says_why() {
+    let directory = clone_workspace();
+    let only = ["--compiler-advisory-only"];
+    let first = limited_report(directory.path(), "2", &only);
+    let second = limited_report(directory.path(), "2", &only);
+    let third = limited_report(directory.path(), "2", &only);
+
+    assert!(!run(&first).exists());
+    assert!(run(&second).is_dir());
+    assert!(run(&third).is_dir());
+    let (output, replay) = super::reviews::replay(directory.path(), &second, &only);
+    checked(&output, 0);
+    assert_eq!(second["compiler_advisory"], replay["compiler_advisory"]);
+
+    let gone = first["run_directory"].as_str().unwrap();
+    let output = rstyle(directory.path(), &["clones", "--replay-run", gone]);
+    assert_ne!(output.status.code(), Some(0));
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(error.contains("RSTYLE_KEEP_RUNS"), "{error}");
+}
+
+#[test]
+fn the_run_shared_builds_reuse_outlives_the_limit() {
+    let directory = clone_workspace();
+    let only = ["--compiler-advisory-only"];
+    let shared = limited_report(directory.path(), "1", &only);
+    let separate = limited_report(directory.path(), "1", &[]);
+    assert!(run(&shared).is_dir(), "the owner index names this run");
+
+    let reused = limited_report(directory.path(), "1", &only);
+
+    assert!(run(&shared).is_dir());
+    assert!(!run(&separate).exists());
+    fresh(&reused, "clone_fixture", true);
+    owned(&reused, true);
+}
+
+#[test]
+fn every_run_stays_when_the_limit_is_all() {
+    let directory = clone_workspace();
+    let first = limited_report(directory.path(), "all", &[]);
+    let second = limited_report(directory.path(), "all", &[]);
+
+    assert!(run(&first).is_dir());
+    assert_eq!(runs(&second), 2);
+}
+
+#[test]
+fn an_invalid_limit_is_refused_before_anything_is_removed() {
+    let directory = clone_workspace();
+    let first = limited_report(directory.path(), "1", &[]);
+
+    let output = limited(directory.path(), "0", &[]);
+
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(error.contains("RSTYLE_KEEP_RUNS"), "{error}");
+    assert!(run(&first).is_dir());
+    assert_eq!(runs(&first), 1);
+}

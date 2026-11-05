@@ -253,6 +253,8 @@ Each candidate has a `kind` (`trait_method`, `capability_set`, `enum_dispatch`, 
 
 Compiler patterns captures graph observations under `target/rstyle/clones/`. Use `--replay-run PATH` to reevaluate an explicit saved run without source files or compiler tools. Style and patterns both consume saved compiler unit snapshots.
 
+A new capture removes all but a workspace's 5 most recently used runs, since one run can hold gigabytes. It never removes a run another command is using, or the run the next build reuses compiled crates from. Set `RSTYLE_KEEP_RUNS` to another count, or to `all` to keep every run; to keep a run you are working through, set it before capturing again.
+
 Add `--complexity` to search for runtime growth alongside abstraction candidates:
 
 ```sh
