@@ -1,6 +1,6 @@
 //! Observations only: selected generic calls do not certify instantiated bodies.
 use super::hir::{Context, reference};
-use rstyle_pdg::{HirFnFacts, extraction_profile::ExtractionProfile};
+use rstyle_pdg::extraction_profile::ExtractionProfile;
 use rustc_hir::{
     self as hir, Expr, ExprKind,
     def_id::DefId,
@@ -22,20 +22,37 @@ mod provenance;
 pub(super) mod publication;
 pub(super) mod reference_diagnostic;
 mod reference_owners;
-mod slice_projection;
-pub(super) use publication::capture as capture_projections;
+pub(super) mod scalar_record;
+pub(super) mod slice_projection;
+
+/// A candidate's instance projection observations, as its `rust:instance-projection`
+/// extension: its scalar and its shared-slice records; none for another function.
+pub(super) fn projection_record(
+    tcx: TyCtxt<'_>,
+    id: hir::def_id::LocalDefId,
+    options: &super::Options<'_>,
+) -> Option<serde_json::Value> {
+    let mut record = serde_json::Map::new();
+    if let Some(scalar) = scalar_record::record(tcx, id, options) {
+        record.insert("scalar".into(), scalar);
+    }
+    if let Some(slice) = slice_projection::record::record(tcx, id, options) {
+        record.insert("slice".into(), slice);
+    }
+
+    (!record.is_empty()).then_some(serde_json::Value::Object(record))
+}
 pub(in crate::hir_extraction) mod types;
 mod usize_reader_conversions;
 
-const KEY: &str = "rstyle.rust.call-instances";
-
-pub(super) fn capture(
+/// The function's generic and trait call instances, where the data profile observes
+/// them.
+pub(super) fn inventory(
     context: &Context<'_>,
     owner: hir::def_id::LocalDefId,
-    mut facts: HirFnFacts,
-) -> Result<HirFnFacts, String> {
+) -> Result<Option<serde_json::Value>, String> {
     if context.profile != ExtractionProfile::DataV3 {
-        return Ok(facts);
+        return Ok(None);
     }
     let node = context.tcx.hir_node_by_def_id(owner);
     let body = context
@@ -57,9 +74,9 @@ pub(super) fn capture(
         calls: scan.calls,
         callbacks: scan.callbacks,
     };
-    let value = serde_json::to_value(inventory).map_err(|error| error.to_string())?;
-    facts.build.frontend_options.insert(KEY.into(), value);
-    Ok(facts)
+    serde_json::to_value(inventory)
+        .map(Some)
+        .map_err(|error| error.to_string())
 }
 
 #[derive(Serialize)]

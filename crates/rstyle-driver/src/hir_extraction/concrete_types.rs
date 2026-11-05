@@ -1,19 +1,17 @@
 //! Observational type capture for the unavailable data tier. No eligibility flag.
 
-mod callbacks;
 mod copy;
 mod fieldless_enums;
 mod generated_declarations;
 mod mixed_enums;
 mod nonzero_values;
 mod range_values;
-mod receivers;
 mod reuse;
 mod scalar_enums;
 mod scalar_product_instances;
 
 use super::hir::Context;
-use rstyle_pdg::{HirFnFacts, concrete_types::*};
+use rstyle_pdg::concrete_types::*;
 use rustc_hir::{Mutability, Node, def_id::DefId};
 use rustc_middle::ty::{self, Ty, consts::ConstExt};
 
@@ -43,51 +41,29 @@ struct Capture<'a, 'tcx> {
     reuse: reuse::Completed<'tcx>,
 }
 
-pub fn capture(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
-    capture_with(ctx, facts, Enrichment::Body)
-}
-
-/// Retain the same observed interface and normalized signature without body enrichment.
-pub fn capture_signature(ctx: &Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
-    capture_with(ctx, facts, Enrichment::Signature)
-}
-
-enum Enrichment {
-    Signature,
-    Body,
-}
-
-fn capture_with(
-    ctx: &Context<'_>,
-    facts: &mut HirFnFacts,
-    enrichment: Enrichment,
-) -> Result<(), String> {
-    if !has_data_interface(facts, ctx.profile) {
-        return Ok(());
+/// A path's nominal product constant, as the data profile observes it: its
+/// resolution, and the use it selects; none for any other path.
+pub(in crate::hir_extraction) fn product_constant<'tcx>(
+    ctx: &Context<'tcx>,
+    expression: &rustc_hir::Expr<'tcx>,
+) -> Result<Option<serde_json::Value>, String> {
+    if !ctx.profile.supports("rust.nominal-product-constants")
+        || !matches!(expression.kind, rustc_hir::ExprKind::Path(_))
+    {
+        return Ok(None);
+    }
+    // A path's node is its own, without children.
+    let mut node = ctx.node(expression.hir_id, expression.span, "expr_path");
+    if super::nominal_constants::selected(ctx, &node).is_none() {
+        return Ok(None);
     }
     let mut capture = Capture::new(ctx);
-    let observations = capture.interface(facts)?;
-    match enrichment {
-        Enrichment::Body => capture.install_interface(facts, &observations)?,
-        Enrichment::Signature => capture.install_signature(facts, &observations)?,
-    }
-    facts.build.frontend_options.insert_data(observations);
+    capture.product_constant(&mut node)?;
+    let selection = capture.product_selections.pop();
 
-    Ok(())
-}
-
-fn has_data_interface(
-    facts: &HirFnFacts,
-    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
-) -> bool {
-    profile.supports("rust.concrete-read-only-data")
-        || profile.supports("rust.verified-helper-calls")
-            && (facts.signature.return_ty.normalized.is_none()
-                || facts
-                    .signature
-                    .params
-                    .iter()
-                    .any(|parameter| parameter.ty.normalized.is_none()))
+    Ok(Some(
+        serde_json::json!({"res": node.res, "selection": selection}),
+    ))
 }
 
 impl<'a, 'tcx> Capture<'a, 'tcx> {
@@ -101,171 +77,6 @@ impl<'a, 'tcx> Capture<'a, 'tcx> {
             product_selections: Vec::new(),
             reuse: reuse::Completed::default(),
         }
-    }
-
-    fn interface(&mut self, facts: &HirFnFacts) -> Result<InterfaceObservations, String> {
-        let parameters = facts
-            .signature
-            .params
-            .iter()
-            .map(|parameter| {
-                let id = rustc_hir::HirId {
-                    owner: rustc_hir::OwnerId {
-                        def_id: rustc_hir::def_id::LocalDefId {
-                            local_def_index: rustc_hir::def_id::DefIndex::from_u32(
-                                parameter.pat.hir.owner,
-                            ),
-                        },
-                    },
-                    local_id: rustc_hir::ItemLocalId::from_u32(parameter.pat.hir.local),
-                };
-                let ty = self
-                    .ctx
-                    .typeck
-                    .node_type_opt(id)
-                    .ok_or("Missing concrete parameter type")?;
-                self.observe(ty)
-            })
-            .collect::<Result<Vec<_>, String>>()?;
-        let observations = InterfaceObservations {
-            identity: IDENTITY.into(),
-            parameters,
-            result: self.observe(self.ctx.result)?,
-        };
-        observations.validate()?;
-
-        Ok(observations)
-    }
-
-    fn install_interface(
-        mut self,
-        facts: &mut HirFnFacts,
-        interface: &InterfaceObservations,
-    ) -> Result<(), String> {
-        self.install_data(facts, interface)?;
-        self.install_product_selections(facts)?;
-        self.install_origins(interface, facts)
-    }
-
-    fn install_data(
-        &mut self,
-        facts: &mut HirFnFacts,
-        interface: &InterfaceObservations,
-    ) -> Result<(), String> {
-        if self.ctx.profile.supports("rust.concrete-read-only-data") {
-            self.install_tokens(facts, interface)?;
-            self.install_receivers(facts)?;
-            self.install_callback_environments(facts)?;
-        }
-        Ok(())
-    }
-
-    fn install_callback_environments(&mut self, facts: &mut HirFnFacts) -> Result<(), String> {
-        if self.ctx.profile.supports("rust.immediate-option-callbacks") {
-            self.callback_environments(&mut facts.body)?;
-        }
-        let ctx = self.ctx;
-        ctx.capture_id_error_maps(&mut facts.body, &mut |ty| self.observe(ty))?;
-
-        ctx.capture_usize_reader_callbacks(&mut facts.body, &mut |ty| self.observe(ty))
-    }
-
-    // rstyle-allow(side_effect_density): Signature installation updates observed parameter and binding tokens together without enriching the body.
-    fn install_signature(
-        &mut self,
-        facts: &mut HirFnFacts,
-        interface: &InterfaceObservations,
-    ) -> Result<(), String> {
-        if self.ctx.profile.supports("rust.concrete-read-only-data") {
-            interface_tokens(&mut facts.signature, interface)?;
-            // Local consumers join the signature to its original binding.
-            // Reuse this capture's completed types without enriching the body.
-            self.binding_tokens(&mut facts.bindings, true)?;
-        }
-        Ok(())
-    }
-
-    fn install_tokens(
-        &mut self,
-        facts: &mut HirFnFacts,
-        interface: &InterfaceObservations,
-    ) -> Result<(), String> {
-        interface_tokens(&mut facts.signature, interface)?;
-        self.node_tokens(&mut facts.body, false)?;
-        self.binding_tokens(&mut facts.bindings, false)
-    }
-
-    fn binding_tokens(
-        &mut self,
-        bindings: &mut [rstyle_pdg::BindingFact],
-        formals_only: bool,
-    ) -> Result<(), String> {
-        for binding in bindings {
-            if (!formals_only || binding.is_param) && binding.ty.normalized.is_none() {
-                binding.ty.normalized = self.hir_token(&binding.hir, false)?;
-            }
-        }
-        Ok(())
-    }
-
-    fn hir_token(
-        &mut self,
-        reference: &rstyle_pdg::HirRef,
-        returning: bool,
-    ) -> Result<Option<String>, String> {
-        let id = rustc_hir::HirId {
-            owner: rustc_hir::OwnerId {
-                def_id: rustc_hir::def_id::LocalDefId {
-                    local_def_index: rustc_hir::def_id::DefIndex::from_u32(reference.owner),
-                },
-            },
-            local_id: rustc_hir::ItemLocalId::from_u32(reference.local),
-        };
-        let ty = if returning {
-            Some(self.ctx.result)
-        } else {
-            self.ctx.typeck.node_type_opt(id)
-        };
-        let Some(ty) = ty else { return Ok(None) };
-        self.type_token(ty)
-    }
-
-    fn node_tokens(
-        &mut self,
-        node: &mut rstyle_pdg::HirNode,
-        index_bound: bool,
-    ) -> Result<(), String> {
-        self.value_token(node, index_bound)?;
-
-        self.child_tokens(&mut node.children, node.kind == "expr_index")?;
-        if matches!(node.kind.as_str(), "expr_method_call" | "expr_call")
-            || node.kind == "expr_cast" && self.ctx.profile.supports("rust.fieldless-enum-values")
-        {
-            install_call_tokens(node);
-        }
-        Ok(())
-    }
-
-    fn value_token(
-        &mut self,
-        node: &mut rstyle_pdg::HirNode,
-        index_bound: bool,
-    ) -> Result<(), String> {
-        self.product_constant(node)?;
-        // Only index bounds retain the dedicated subslice proof grammar.
-        // Standalone range receivers still need consistent concrete observations.
-        let range_syntax = index_bound
-            && node.kind == "expr_struct"
-            && node
-                .res
-                .as_ref()
-                .is_some_and(|resolution| resolution.kind == "resolved_range_type");
-        if !range_syntax && node.ty.as_ref().is_some_and(|ty| ty.normalized.is_none()) {
-            let token = self.hir_token(&node.hir, node.kind == "expr_ret")?;
-            node.ty.as_mut().expect("present type").normalized = token;
-        }
-
-        Ok(())
     }
 
     fn product_constant(&mut self, node: &mut rstyle_pdg::HirNode) -> Result<(), String> {
@@ -303,56 +114,6 @@ impl<'a, 'tcx> Capture<'a, 'tcx> {
                 super::nominal_constants::unsupported_resolution(reason)
             }
         });
-
-        Ok(())
-    }
-
-    fn install_product_selections(&mut self, facts: &mut HirFnFacts) -> Result<(), String> {
-        if self.product_selections.is_empty() {
-            return Ok(());
-        }
-        let observations = rstyle_pdg::product_constant_values::Selections {
-            identity: rstyle_pdg::product_constant_values::IDENTITY.into(),
-            uses: std::mem::take(&mut self.product_selections),
-        };
-        observations.validate()?;
-
-        facts.build.frontend_options.insert(
-            rstyle_pdg::product_constant_values::KEY.into(),
-            serde_json::to_value(observations).map_err(|error| error.to_string())?,
-        );
-        Ok(())
-    }
-
-    fn child_tokens(
-        &mut self,
-        nodes: &mut [rstyle_pdg::HirNode],
-        indexing: bool,
-    ) -> Result<(), String> {
-        let bound = nodes
-            .get(1)
-            .filter(|_| indexing)
-            .map(|node| node.hir.clone());
-        for node in nodes {
-            self.node_tokens(node, bound.as_ref() == Some(&node.hir))?;
-        }
-        Ok(())
-    }
-
-    fn install_origins(
-        self,
-        observations: &InterfaceObservations,
-        facts: &mut HirFnFacts,
-    ) -> Result<(), String> {
-        let mut origins = rstyle_pdg::declaration_origins::Origins {
-            identity: rstyle_pdg::declaration_origins::IDENTITY.into(),
-            declarations: self.origins.into_values().collect(),
-            generated: self.generated_origins.into_values().collect(),
-        };
-        let context = rstyle_pdg::declaration_origins::context(facts, observations, &origins)?;
-        origins.retain_context(&context)?;
-        rstyle_pdg::declaration_origins::verify(&context, &origins)?;
-        facts.build.frontend_options.insert_data(origins);
 
         Ok(())
     }
@@ -990,111 +751,6 @@ fn nominal(
         definition_path,
         declaration_digest: source.checksum().to_owned(),
     })
-}
-
-pub(super) fn static_owner(
-    ctx: &Context<'_>,
-    implementation: DefId,
-) -> Result<Option<Nominal>, String> {
-    let ty = ctx
-        .tcx
-        .type_of(implementation)
-        .instantiate_identity()
-        .skip_norm_wip();
-
-    let ty::Adt(definition, _) = ty.kind() else {
-        return Ok(None);
-    };
-    if !definition.is_struct() || !definition.did().is_local() {
-        return Ok(None);
-    }
-    let Node::Item(item) = ctx.tcx.hir_node_by_def_id(definition.did().expect_local()) else {
-        return Ok(None);
-    };
-    if item.span.from_expansion() {
-        return Ok(None);
-    }
-
-    let Some((source, _)) = ctx.sources.range(ctx.tcx, item.span) else {
-        return Ok(None);
-    };
-    if source.len() > MAX_SOURCE_BYTES {
-        return Err("Static owner declaration exceeds source budget".into());
-    }
-    match nominal(ctx, ctx.tcx.def_path_str(definition.did()), &source) {
-        Ok(owner) => Ok(Some(owner)),
-        Err(Failure::Unsupported(_)) => Ok(None),
-        Err(Failure::Budget(reason)) => Err(reason),
-    }
-}
-
-// rstyle-allow(side_effect_density): Signature installation keeps normalized parameter, pattern and result types consistent.
-fn interface_tokens(
-    signature: &mut rstyle_pdg::SignatureFacts,
-    interface: &InterfaceObservations,
-) -> Result<(), String> {
-    for (parameter, observation) in signature.params.iter_mut().zip(&interface.parameters) {
-        if let Observation::Captured { ty } = observation {
-            parameter.ty.normalized = Some(rstyle_pdg::data_types::token(ty)?);
-            parameter.pat.ty = Some(parameter.ty.clone());
-        }
-    }
-
-    if let Observation::Captured { ty } = &interface.result {
-        signature.return_ty.normalized = Some(rstyle_pdg::data_types::token(ty)?);
-    }
-    Ok(())
-}
-
-fn install_call_tokens(node: &mut rstyle_pdg::HirNode) {
-    let complete = node.ty.as_ref().is_some_and(|ty| ty.normalized.is_some())
-        && node
-            .children
-            .iter()
-            .all(|child| child.ty.as_ref().is_some_and(|ty| ty.normalized.is_some()));
-    if !complete && !original_free_call(node) {
-        // Specialized methods and generated propagation keep their observed
-        // dispatch vocabulary unless the complete structural roster is known.
-        return;
-    }
-    let Some(dispatch) = &mut node.dispatch else {
-        return;
-    };
-
-    dispatch.operand_tys = refreshed_operands(&dispatch.operand_tys, &node.children);
-    if let Some(token) = node.ty.as_ref().and_then(|ty| ty.normalized.as_deref()) {
-        token.clone_into(&mut dispatch.result_ty);
-    }
-}
-
-fn refreshed_operands(current: &[String], children: &[rstyle_pdg::HirNode]) -> Vec<String> {
-    // Retain the original roster, including unsupported observations and any
-    // length mismatch that independent dispatch validation must still reject.
-    current
-        .iter()
-        .enumerate()
-        .map(|(position, declared)| {
-            children
-                .get(position)
-                .and_then(|child| child.ty.as_ref())
-                .and_then(|ty| ty.normalized.as_ref())
-                .unwrap_or(declared)
-                .clone()
-        })
-        .collect()
-}
-
-fn original_free_call(node: &rstyle_pdg::HirNode) -> bool {
-    node.kind == "expr_call"
-        && node.expansion.is_none()
-        && node
-            .dispatch
-            .as_ref()
-            .is_some_and(|dispatch| dispatch.kind == "resolved_direct")
-        && node
-            .res
-            .as_ref()
-            .is_some_and(|resolution| resolution.kind == "resolved_direct_callee")
 }
 
 pub(super) use scalar_product_instances::scalar_argument;

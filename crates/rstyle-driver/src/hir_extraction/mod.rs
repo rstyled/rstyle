@@ -5,8 +5,6 @@ mod assertions;
 mod bool_constants;
 mod callbacks;
 mod concrete_types;
-mod consumer_control_types;
-mod consumer_formal_types;
 mod crate_association;
 mod dependency_namespaces;
 pub mod diagnostics;
@@ -15,25 +13,31 @@ mod evidence;
 mod external_imports;
 mod float_scalars;
 mod for_loops;
-mod generated_sources;
+pub(crate) mod generated_sources;
 mod hir;
 mod id_error_maps;
 mod id_reader_constants;
 mod inherent;
 mod instances;
-mod runtime_bounds;
+pub(crate) use evidence::cfgs;
+pub(crate) use sources::recover as recover_source;
+pub(crate) mod hir_tags {
+    pub(crate) use super::hir::kind;
+}
+mod document_facts;
+/// The requested instance diagnostics, over the facts read for the crate.
 pub(crate) fn capture_instance_diagnostics(
     tcx: TyCtxt<'_>,
-    scanned: &[source::Function],
+    read: &[HirFnFacts],
     options: &Options<'_>,
 ) -> Result<(), String> {
-    instances::diagnostic::capture(tcx, scanned, options)?;
-    instances::reference_diagnostic::capture(tcx, scanned, options)?;
-    instances::product_diagnostic::capture(tcx, scanned, options)
+    instances::diagnostic::capture(tcx, read, options)?;
+    instances::reference_diagnostic::capture(tcx, read, options)?;
+    instances::product_diagnostic::capture(tcx, read, options)
 }
 mod library_resolution;
 mod module_expansions;
-mod mutable_scalar_formals;
+mod node_observations;
 mod nominal_census;
 mod nominal_constants;
 mod option_propagation;
@@ -47,7 +51,7 @@ mod scalar_product_constructors;
 mod size_calls;
 mod slice_patterns;
 pub mod source;
-mod source_scans;
+pub(crate) mod source_scans;
 mod sources;
 mod trait_members;
 mod tuple_assignment;
@@ -56,19 +60,36 @@ mod variant_patterns;
 
 use rstyle_pdg::extraction_profile::ExtractionProfile;
 use rstyle_pdg::frontend::*;
-use rustc_hir::{self as rhir, def::DefKind, def_id::LocalDefId};
+use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_middle::ty::TyCtxt;
 
 pub struct Options<'a> {
-    pub complexity: &'a crate::driver_complexity::Functions,
     pub source_root: Option<&'a std::path::Path>,
     pub(super) sources: sources::Sources,
+    /// The crate's pre-expansion source scan, and its index, built once when first read.
+    pub scanned: &'a [source::Function],
+    pub(super) scans: std::cell::OnceCell<source_scans::SourceScans<'a>>,
     pub profile: Option<ExtractionProfile>,
     pub invocation: &'a [String],
     pub unit_context: Option<&'a rstyle_pdg::nominal_boundary::UnitContext>,
 }
 
-impl Options<'_> {
+impl<'a> Options<'a> {
+    /// The scanned function a captured function corresponds to, as the frontend finds it.
+    pub(super) fn scan(
+        &self,
+        signature: rustc_span::Span,
+        body: rustc_span::Span,
+    ) -> Option<&'a source::Function> {
+        let scans = self
+            .scans
+            .get_or_init(|| source_scans::SourceScans::new(self.scanned));
+        let conditional = self
+            .selected()
+            .supports("rust.conditional-source-correspondence");
+        scans.find(signature, body, conditional)
+    }
+
     pub fn selected(&self) -> ExtractionProfile {
         self.profile.unwrap_or_default()
     }
@@ -91,18 +112,18 @@ pub fn crate_facts(
 /// Owned compiler facts before ordinary-library helper certification.
 pub fn raw_crate_facts(
     tcx: TyCtxt<'_>,
-    scanned: &[source::Function],
+    _scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<Vec<HirFnFacts>, String> {
-    let mut facts = collect_crate_facts(tcx, scanned, options, FunctionEvidence::All)?;
-    capture_unit_evidence(tcx, options, &mut facts)
+    let (mut facts, documents) = collect_crate_facts(tcx, options, FunctionEvidence::All)?;
+    rstyle_pdg::cpg_reader::unit::evidence(&documents, options.selected(), &mut facts)
         .map_err(|error| format!("Unit source evidence: {error}"))?;
 
     let sources = rstyle_pdg::unit_store::SourceAnalyses::default();
     for function in &mut facts {
         capture_correspondence(function, options.selected(), &sources);
     }
-    instances::capture_projections(tcx, scanned, options, &mut facts)
+    rstyle_pdg::cpg_reader::projections::capture(&documents, options.selected(), &mut facts)
         .map_err(|error| format!("Instance projections: {error}"))?;
     Ok(facts)
 }
@@ -111,284 +132,189 @@ pub fn raw_crate_facts(
 /// correspondence, call instances, projections or strict unit metadata.
 pub fn advisory_crate_facts(
     tcx: TyCtxt<'_>,
-    scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<Vec<HirFnFacts>, String> {
     let evidence = FunctionEvidence::Advisory {
         mutations: rstyle_pdg::diagnostics::switch("RSTYLE_LOCAL_MUTATION_FACTS"),
     };
-    let mut facts = collect_crate_facts(tcx, scanned, options, evidence)?;
+    let (mut facts, documents) = collect_crate_facts(tcx, options, evidence)?;
     if rstyle_pdg::diagnostics::switch("RSTYLE_LOCAL_SOURCE_FACTS") {
-        nominal_census::capture_files(tcx, options, &mut facts)?;
+        rstyle_pdg::cpg_reader::unit::file_census(&documents, &mut facts)?;
     }
     Ok(facts)
 }
 
-/// Numeric style inputs retain original owner metadata without materializing a
-/// source-facing body tree or a binding inventory that no requested consumer uses.
+/// Numeric style inputs retain original owner metadata without a source-facing body
+/// tree or a binding inventory that no requested consumer uses: the advisory facts
+/// read from the crate's documents, each body kept as its root's identity.
 pub fn style_crate_facts(
     tcx: TyCtxt<'_>,
-    scanned: &[source::Function],
     options: &Options<'_>,
 ) -> Result<Vec<StyleFnFacts>, String> {
-    collect_source_functions(tcx, scanned, options, |sources, id| {
-        let (mut facts, ctx) = sources
-            .function_source_with(id, |_, body, _| {
-                (hir::reference(body.value.hir_id), Uncaptured::NotRequested)
-            })
-            .ok_or_else(|| {
-                format!(
-                    "Required style owner metadata unavailable for {}",
-                    tcx.def_path_str(id.to_def_id())
-                )
-            })?;
-        advisory::capture(&ctx, id, &mut facts, options)?;
-        Ok(facts)
-    })
+    let (facts, _) = collect_crate_facts(tcx, options, FunctionEvidence::Style)?;
+    let facts: Vec<StyleFnFacts> = facts
+        .into_iter()
+        .map(|facts| HirFnFacts {
+            body: facts.body.hir,
+            bindings: Uncaptured::NotRequested,
+            name: facts.name,
+            fn_span: facts.fn_span,
+            source: facts.source,
+            signature: facts.signature,
+            build: facts.build,
+            source_diagnostics: facts.source_diagnostics,
+            source_scan_complete: facts.source_scan_complete,
+        })
+        .collect();
+    Ok(facts)
 }
 
 enum FunctionEvidence {
+    Style,
     Advisory { mutations: bool },
     All,
 }
 
-struct FunctionCollector {
-    evidence: FunctionEvidence,
-}
-
 fn collect_crate_facts(
     tcx: TyCtxt<'_>,
-    scanned: &[source::Function],
     options: &Options<'_>,
     evidence: FunctionEvidence,
-) -> Result<Vec<HirFnFacts>, String> {
-    let collector = FunctionCollector { evidence };
-    collect_source_functions(tcx, scanned, options, |sources, id| {
-        collector.function(id, sources).map_err(|error| format!("{}: {error}", tcx.def_path_str(id.to_def_id()))).and_then(|facts| facts.ok_or_else(|| format!(
-            "Required source/signature evidence unavailable for {}; R0 extraction failed without a certified remainder", tcx.def_path_str(id.to_def_id())
-        )))
-    })
+) -> Result<(Vec<HirFnFacts>, rstyle_pdg::cpg_reader::unit::Documents), String> {
+    let passes = match evidence {
+        FunctionEvidence::Style => rstyle_pdg::cpg_reader::Passes::Style,
+        FunctionEvidence::Advisory { mutations: false } => rstyle_pdg::cpg_reader::Passes::Advisory,
+        FunctionEvidence::Advisory { mutations: true } => {
+            rstyle_pdg::cpg_reader::Passes::AdvisoryMutations
+        }
+        FunctionEvidence::All => rstyle_pdg::cpg_reader::Passes::Complete,
+    };
+    document_facts::capture(tcx, (options, passes))
 }
 
-fn collect_source_functions<T>(
-    tcx: TyCtxt<'_>,
-    scanned: &[source::Function],
-    options: &Options<'_>,
-    mut collect: impl FnMut(&FunctionSources<'_, '_, '_>, LocalDefId) -> Result<T, String>,
-) -> Result<Vec<T>, String> {
-    let sources = FunctionSources::new(tcx, scanned, options);
-    collect_functions(tcx, |id| collect(&sources, id))
-}
-
-fn collect_functions<T>(
-    tcx: TyCtxt<'_>,
-    collect: impl FnMut(LocalDefId) -> Result<T, String>,
-) -> Result<Vec<T>, String> {
-    function_owners(tcx).map(collect).collect()
-}
-
-pub(super) fn function_owners(tcx: TyCtxt<'_>) -> impl Iterator<Item = LocalDefId> {
+pub(crate) fn function_owners(tcx: TyCtxt<'_>) -> impl Iterator<Item = LocalDefId> {
     tcx.hir_body_owners()
         .filter(move |id| matches!(tcx.def_kind(*id), DefKind::Fn | DefKind::AssocFn))
 }
 
-fn capture_unit_evidence(
-    tcx: TyCtxt<'_>,
-    options: &Options<'_>,
-    facts: &mut [HirFnFacts],
-) -> Result<(), String> {
-    capture_source_evidence(tcx, options, facts)?;
-    library_resolution::capture(tcx, options, facts)?;
-    inherent::capture_unit(facts, options)
-}
-
-fn capture_source_evidence(
-    tcx: TyCtxt<'_>,
-    options: &Options<'_>,
-    facts: &mut [HirFnFacts],
-) -> Result<(), String> {
-    nominal_census::capture(tcx, options, facts)?;
-    nominal_census::namespaces(tcx, options, facts)?;
-    generated_sources::capture(tcx, options, facts)
-}
-
-impl FunctionCollector {
-    fn function(
-        &self,
-        id: LocalDefId,
-        sources: &FunctionSources<'_, '_, '_>,
-    ) -> Result<Option<HirFnFacts>, String> {
-        let options = sources.options;
-        let Some((facts, ctx)) = sources.function(id) else {
-            return Ok(None);
-        };
-
-        let mut facts = match self.evidence {
-            FunctionEvidence::Advisory { .. } => {
-                capture_advisory_function(&ctx, id, facts, options)
-            }
-            FunctionEvidence::All => capture_complete_function(&ctx, id, facts, options),
-        }?;
-        if matches!(
-            self.evidence,
-            FunctionEvidence::Advisory { mutations: true }
-        ) && ctx.profile == ExtractionProfile::DataV3
-        {
-            capture_mutation_types(&ctx, &mut facts)?;
-        }
-        Ok(Some(facts))
-    }
-}
-
-fn capture_advisory_function(
-    ctx: &hir::Context<'_>,
-    id: LocalDefId,
-    mut facts: HirFnFacts,
-    options: &Options<'_>,
-) -> Result<HirFnFacts, String> {
-    concrete_types::capture_signature(ctx, &mut facts)?;
-    advisory::capture(ctx, id, &mut facts, options)?;
-
-    Ok(facts)
-}
-
-fn capture_complete_function(
-    ctx: &hir::Context<'_>,
-    id: LocalDefId,
-    mut facts: HirFnFacts,
-    options: &Options<'_>,
-) -> Result<HirFnFacts, String> {
-    concrete_types::capture(ctx, &mut facts)?;
-    capture_callable_owner(ctx, id, &mut facts, options)?;
-    capture_locations(ctx, &mut facts)?;
-
-    instances::capture(ctx, id, facts)
-}
-
-fn capture_callable_owner(
-    ctx: &hir::Context<'_>,
-    id: LocalDefId,
-    facts: &mut HirFnFacts,
-    options: &Options<'_>,
-) -> Result<(), String> {
-    advisory::capture(ctx, id, facts, options)?;
-    inherent::capture(ctx, id, facts)?;
-    trait_members::capture(ctx, id, facts)
-}
-
-fn capture_locations(ctx: &hir::Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
-    rstyle_pdg::field_locations::capture(facts)?;
-    if ctx.profile == ExtractionProfile::DataV3 {
-        capture_mutation_types(ctx, facts)?;
-        mutable_scalar_formals::capture(ctx, facts)?;
-    }
-
-    Ok(())
-}
-
-fn capture_mutation_types(ctx: &hir::Context<'_>, facts: &mut HirFnFacts) -> Result<(), String> {
-    consumer_formal_types::capture(ctx, facts)?;
-    consumer_control_types::capture(ctx, facts)
-}
-
-fn function_source<'tcx>(
+/// A function's facts as read from the crate's documents, with its capture context.
+pub(super) fn read_function<'tcx>(
     tcx: TyCtxt<'tcx>,
     id: LocalDefId,
-    scanned: &[source::Function],
+    read: &[HirFnFacts],
     options: &Options<'_>,
 ) -> Option<(HirFnFacts, hir::Context<'tcx>)> {
-    FunctionSources {
-        tcx,
-        scanned: source_scans::SourceScans::linear(scanned),
-        options,
-    }
-    .function(id)
+    let context = source_context(tcx, id, options)?;
+    let owner = id.local_def_index.as_u32();
+    let facts = read.iter().find(|facts| facts.body.hir.owner == owner)?;
+
+    Some((facts.clone(), context))
 }
 
-impl<'tcx> FunctionSources<'_, 'tcx, '_> {
-    fn function(&self, id: LocalDefId) -> Option<(HirFnFacts, hir::Context<'tcx>)> {
-        self.function_source_with(id, |ctx, original, params| {
-            let body = ctx.expression(original.value);
-            let scope = format!("scope:source:fn:0:{}", ctx.source_bytes.len());
-            let bindings = params
-                .iter()
-                .flat_map(|p| hir::bindings(&p.pat, &scope))
-                .chain(hir::bindings(&body, &scope))
-                .collect();
-            (body, bindings)
-        })
-    }
-}
-
-struct FunctionSources<'a, 'tcx, 'options> {
+/// A function's capture context, when its source and build evidence are available, as
+/// they are for a function whose facts are captured.
+pub(super) fn source_context<'tcx>(
     tcx: TyCtxt<'tcx>,
-    scanned: source_scans::SourceScans<'a>,
-    options: &'a Options<'options>,
+    id: LocalDefId,
+    options: &Options<'_>,
+) -> Option<hir::Context<'tcx>> {
+    let node = tcx.hir_node_by_def_id(id);
+    node.fn_sig()?;
+    node.body_id()?;
+    let (ctx, _) = function_context(tcx, id, options)?;
+    function_build(tcx, id, ctx.function_span, options)?;
+
+    Some(ctx)
 }
 
-impl<'a, 'tcx, 'options> FunctionSources<'a, 'tcx, 'options> {
-    fn new(
-        tcx: TyCtxt<'tcx>,
-        scanned: &'a [source::Function],
-        options: &'a Options<'options>,
-    ) -> Self {
-        Self {
-            tcx,
-            scanned: source_scans::SourceScans::new(scanned),
-            options,
+/// A function's capture context: its typeck results, source bytes and profile.
+fn function_context<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    id: LocalDefId,
+    options: &Options<'_>,
+) -> Option<(hir::Context<'tcx>, rstyle_pdg::ByteSpan)> {
+    let node = tcx.hir_node_by_def_id(id);
+    let sig = node.fn_sig()?;
+    let body = tcx.hir_body(node.body_id()?);
+    let function_span = sig.span.to(body.value.span).source_callsite();
+    let result = tcx.fn_sig(id).instantiate_identity().skip_binder().output();
+    let (source_bytes, fn_span) = options.sources.range(tcx, function_span)?;
+    let ctx = hir::Context {
+        tcx,
+        typeck: tcx.typeck(id),
+        function_span,
+        source_bytes,
+        sources: options.sources.clone(),
+        result,
+        unit_context: options.unit_context.cloned(),
+        profile: options.selected(),
+    };
+
+    Some((ctx, fn_span))
+}
+
+// rstyle-allow(mutation_per_target): records each observation family as one extension
+/// The frontend observations a function's document records as its extensions.
+pub(super) fn function_observations(
+    tcx: TyCtxt<'_>,
+    options: &Options<'_>,
+    id: LocalDefId,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut extensions = serde_json::Map::new();
+    if let Some(scan) = source_scan(tcx, id, options) {
+        extensions.insert("rust:source-scan".into(), scan);
+    }
+    if let Some(generated) = generated_sources::observe::function(tcx, options, id) {
+        let name = rstyle_pdg::cpg_reader::generated_sources::FUNCTION_EXTENSION;
+        extensions.insert(name.into(), generated);
+    }
+    if let Some(projection) = instances::projection_record(tcx, id, options) {
+        let name = rstyle_pdg::cpg_reader::projections::EXTENSION;
+        extensions.insert(name.into(), projection);
+    }
+    let Some((ctx, _)) = function_context(tcx, id, options) else {
+        return extensions;
+    };
+    let inventory = match instances::inventory(&ctx, id) {
+        Ok(inventory) => inventory,
+        Err(reason) => Some(serde_json::json!({"error": reason})),
+    };
+    if let Some(inventory) = inventory {
+        extensions.insert("rust:call-instances".into(), inventory);
+    }
+
+    let node = tcx.hir_node_by_def_id(id);
+    if let Some(body) = node.body_id().map(|body| tcx.hir_body(body)) {
+        let nodes = node_observations::observe(&ctx, body);
+        if !nodes.is_empty() {
+            extensions.insert(
+                "rust:node-observations".into(),
+                serde_json::Value::Object(nodes),
+            );
         }
     }
+
+    let observations = trait_member_observations(&ctx, id);
+    if !observations.is_empty() {
+        extensions.insert(
+            "rust:trait-members".into(),
+            serde_json::Value::Object(observations),
+        );
+    }
+    extensions
 }
 
-impl<'tcx> FunctionSources<'_, 'tcx, '_> {
-    fn function_source_with<B, S>(
-        &self,
-        id: LocalDefId,
-        contents: impl FnOnce(&hir::Context<'tcx>, &rhir::Body<'tcx>, &[ParamFact]) -> (B, S),
-    ) -> Option<(HirFnFacts<B, S>, hir::Context<'tcx>)> {
-        let tcx = self.tcx;
-        let options = self.options;
-        let node = tcx.hir_node_by_def_id(id);
-        let sig = node.fn_sig()?;
-        let body = tcx.hir_body(node.body_id()?);
-        let function_span = sig.span.to(body.value.span).source_callsite();
-        let result = tcx.fn_sig(id).instantiate_identity().skip_binder().output();
-        let (source_bytes, fn_span) = options.sources.range(tcx, function_span)?;
-        let ctx = hir::Context {
-            tcx,
-            typeck: tcx.typeck(id),
-            function_span,
-            source_bytes: source_bytes.clone(),
-            sources: options.sources.clone(),
-            result,
-            unit_context: options.unit_context.cloned(),
-            profile: options.selected(),
-        };
-        let params = parameters(&ctx, sig, body);
-        let (body, bindings) = contents(&ctx, body, &params);
-        let scan = self.scanned.find(
-            ctx.function_span,
-            body_source_span(tcx, id),
-            ctx.profile
-                .supports("rust.conditional-source-correspondence"),
-        );
-        let source_diagnostics = source_findings(&ctx, scan, sig.span);
-
-        let facts = HirFnFacts {
-            name: tcx.def_path_str(id.to_def_id()),
-            fn_span,
-            source: SourceFacts {
-                digest: evidence::source_identity(&source_bytes, options.selected()),
-                bytes: source_bytes,
-            },
-            signature: signature(&ctx, sig, params, id),
-            bindings,
-            body,
-            build: function_build(tcx, id, function_span, options)?,
-            source_diagnostics,
-            source_scan_complete: scan.is_some_and(|scan| !scan.conditional_source),
-        };
-        Some((facts, ctx))
+/// The selections a trait member's own body makes, which its facts record.
+fn trait_member_observations(
+    ctx: &hir::Context<'_>,
+    id: LocalDefId,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut options = rstyle_pdg::FrontendOptions::default();
+    match trait_members::capture(ctx, id, &mut options) {
+        Ok(()) => options
+            .keys()
+            .filter_map(|key| Some((key.to_owned(), options.get(key)?.clone())))
+            .collect(),
+        Err(reason) => serde_json::Map::from_iter([("error".into(), serde_json::json!(reason))]),
     }
 }
 
@@ -507,77 +433,20 @@ fn definition_identity(
     })
 }
 
-fn parameters<'tcx>(
-    ctx: &hir::Context<'tcx>,
-    sig: &rhir::FnSig<'tcx>,
-    body: &rhir::Body<'tcx>,
-) -> Vec<ParamFact> {
-    sig.decl
-        .inputs
-        .iter()
-        .zip(body.params)
-        .enumerate()
-        .map(|(position, (ty, param))| {
-            let pat = HirNode {
-                param_index: Some(position as u32),
-                ..ctx.pattern(param.pat)
-            };
-            let resolved = ctx.typeck.node_type(param.pat.hir_id);
-            ParamFact {
-                symbol: pat.binding.clone().unwrap_or_default(),
-                position: position as u32,
-                name_span: pat.span,
-                ty_span: ctx.span(ty.span),
-                ty: hir::resolved(resolved, ctx.snippet(ty.span)),
-                pat,
-            }
-        })
-        .collect()
-}
-
-fn signature<'tcx>(
-    ctx: &hir::Context<'tcx>,
-    sig: &rhir::FnSig<'tcx>,
-    params: Vec<ParamFact>,
+/// A function's pre-expansion source scan, as the `rust:source-scan` extension: the
+/// findings on its own source, and whether all of it was scanned.
+fn source_scan(
+    tcx: TyCtxt<'_>,
     id: LocalDefId,
-) -> SignatureFacts {
-    let (return_span, spelling) = match sig.decl.output {
-        rhir::FnRetTy::Return(ty) => (ty.span, ctx.snippet(ty.span)),
-        rhir::FnRetTy::DefaultReturn(span) => (span, "()".to_string()),
-    };
-    let has_self = sig.decl.implicit_self().has_implicit_self();
-    let receiver = has_self.then(|| ReceiverFact {
-        span: params[0].name_span,
-        snippet: params[0].pat.snippet.clone(),
-    });
-    let generics = ctx
-        .tcx
-        .hir_get_generics(id)
-        .map(|g| {
-            g.params
-                .iter()
-                .map(|p| GenericFact {
-                    name: p.name.ident().to_string(),
-                    span: ctx.span(p.span),
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    options: &Options<'_>,
+) -> Option<serde_json::Value> {
+    let sig = tcx.hir_node_by_def_id(id).fn_sig()?;
+    let (ctx, _) = function_context(tcx, id, options)?;
+    let scan = options.scan(ctx.function_span, body_source_span(tcx, id));
+    let findings = source_findings(&ctx, scan, sig.span);
+    let complete = scan.is_some_and(|scan| !scan.conditional_source);
 
-    SignatureFacts {
-        sig_span: ctx.span(sig.span),
-        params,
-        receiver,
-        return_ty: hir::resolved(ctx.result, spelling),
-        return_ty_span: ctx.span(return_span),
-        has_self,
-        abi: known_str(sig.header.abi.to_string().trim_matches('"')),
-        generics,
-        is_variadic: sig.decl.c_variadic(),
-        is_async: sig.header.is_async(),
-        is_unsafe: sig.header.is_unsafe(),
-        is_const: matches!(sig.header.constness, rhir::Constness::Const { .. }),
-    }
+    Some(serde_json::json!({"findings": findings, "complete": complete}))
 }
 
 fn source_findings(

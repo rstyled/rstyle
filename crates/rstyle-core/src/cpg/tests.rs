@@ -887,39 +887,6 @@ fn generated_code_counts_once_at_its_outermost_node() {
     );
 }
 
-// Comparison with a frontend's own facts.
-
-#[test]
-fn comparison_ignores_event_order_but_not_values() {
-    use super::compare::compare;
-    let reference = facts_of(example());
-    assert!(compare(&reference, &reference).differences.is_empty());
-
-    let mut reordered = reference.clone();
-    reordered[2].calls.reverse();
-    assert!(compare(&reference, &reordered).differences.is_empty());
-
-    let mut changed = reference.clone();
-    changed[2].statements += 1;
-    let comparison = compare(&reference, &changed);
-    let fields: Vec<_> = comparison
-        .differences
-        .iter()
-        .map(|d| (d.function.as_str(), d.field))
-        .collect();
-    assert_eq!(fields, [("example::count", "statements")]);
-    assert_eq!(comparison.by_field()["statements"], 1);
-}
-
-#[test]
-fn comparison_reports_functions_missing_from_the_document() {
-    let reference = facts_of(example());
-    let comparison = super::compare::compare(&reference, &reference[..2]);
-    assert_eq!(comparison.functions, 3);
-    assert_eq!(comparison.differences[0].field, "function");
-    assert_eq!(comparison.differences[0].derived, "absent");
-}
-
 // Malformed documents the derivation relies on being well formed.
 
 fn with_node(change: impl FnOnce(&mut Value)) -> String {

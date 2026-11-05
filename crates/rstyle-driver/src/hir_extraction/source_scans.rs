@@ -3,7 +3,7 @@ use super::source;
 use rustc_span::Span;
 use std::collections::HashMap;
 
-pub(super) struct SourceScans<'a> {
+pub(crate) struct SourceScans<'a> {
     functions: &'a [source::Function],
     indexed: Option<Indexed>,
 }
@@ -31,7 +31,9 @@ impl<'a> SourceScans<'a> {
         }
     }
 
-    pub(super) fn linear(functions: &'a [source::Function]) -> Self {
+    /// The unindexed lookup the index must agree with.
+    #[cfg(test)]
+    fn linear(functions: &'a [source::Function]) -> Self {
         Self {
             functions,
             indexed: None,

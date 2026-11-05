@@ -38,11 +38,16 @@ pub fn digest(value: &Value) -> String {
 }
 
 /// The bundled unit document of a run: one bundled document, or a split set.
-pub fn bundle(documents: Vec<Value>) -> Result<Document, String> {
-    let bundled = match documents.as_slice() {
-        [single] if single["layout"].as_str() == Some("bundled") => single.clone(),
-        _ => merge(documents)?,
+pub fn bundle(mut documents: Vec<Value>) -> Result<Document, String> {
+    let single = documents.len() == 1 && documents[0]["layout"].as_str() == Some("bundled");
+    let bundled = match documents.pop() {
+        Some(document) if single => document,
+        last => {
+            documents.extend(last);
+            merge(documents)?
+        }
     };
+
     let document: Document = serde_json::from_value(bundled)
         .map_err(|error| format!("Invalid compat.cpg document: {error}"))?;
     identity(&document)?;

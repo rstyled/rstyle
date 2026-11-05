@@ -94,6 +94,8 @@ pub struct UnitRef {
 #[serde(deny_unknown_fields)]
 pub struct Unit {
     pub id: Id,
+    /// The file the compilation starts from, which the frontend parses before expansion.
+    pub root_file: Option<Id>,
     pub language: Named,
     pub toolchain: Toolchain,
     pub target: Target,
@@ -219,6 +221,24 @@ pub struct Definition {
     pub modifiers: Vec<String>,
     pub span: Option<FileSpan>,
     pub callable: Option<Callable>,
+    /// Identity of the compilation that defines the item.
+    pub compilation: Option<String>,
+    /// Defined in the language's standard library.
+    #[serde(default)]
+    pub standard: bool,
+    /// A type whose values run a destructor when dropped.
+    #[serde(default)]
+    pub destructor: bool,
+    /// The interface member an implementation member implements.
+    pub implements: Option<Id>,
+    /// The library operation key of a standard-library function or method.
+    pub operation: Option<String>,
+    /// A member of the language's standard iteration interface.
+    #[serde(default)]
+    pub iteration: bool,
+    /// Registered frontend facts with no neutral home, by namespaced key.
+    #[serde(default)]
+    pub extensions: BTreeMap<String, serde_json::Value>,
 }
 
 /// The interface a call to a function or method sees.
@@ -255,6 +275,7 @@ pub enum TypeKind {
     Bottom,
     Parameter,
     Interface,
+    Closure,
     Opaque,
 }
 
@@ -283,8 +304,14 @@ pub struct Type {
     pub variants: Option<Vec<Variant>>,
     pub parameters: Option<Vec<Id>>,
     pub result: Option<Id>,
+    /// A closure type's captured environment, as the language stores it.
+    pub environment: Option<Id>,
+    /// The type an alias type normalizes to, where it needs no bounds of an owner.
+    pub normalized: Option<Id>,
     pub index: Option<u32>,
     pub bounds: Option<Vec<Id>>,
+    #[serde(default)]
+    pub modifiers: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -301,6 +328,10 @@ pub struct Variant {
     pub name: String,
     pub definition: Option<Id>,
     pub fields: Option<Vec<TypeField>>,
+    /// How the variant is constructed: `unit`, `tuple` or `record`.
+    pub shape: Option<String>,
+    /// The variant's discriminant value.
+    pub discriminant: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -376,8 +407,16 @@ pub struct Signature {
     pub parameters: Vec<Parameter>,
     pub receiver: Option<Receiver>,
     pub result: Id,
+    /// Where the result type is written; empty at its position when it is implicit.
+    pub result_span: Option<FileSpan>,
+    /// The result type is not written, as a function returning unit leaves it.
+    #[serde(default)]
+    pub implicit_result: bool,
     pub owner_type: Option<Id>,
     pub generics: Vec<Generic>,
+    /// Constant parameters the function itself declares.
+    #[serde(default)]
+    pub constants: Vec<ConstantParameter>,
     pub lifetimes: Vec<Lifetime>,
     pub outlives: Vec<Outlives>,
     pub modifiers: Vec<String>,
@@ -393,6 +432,11 @@ pub struct Parameter {
     pub span: Option<FileSpan>,
     pub annotation: Option<FileSpan>,
     pub bindings: Option<Vec<Id>>,
+    /// The parameter's pattern, identified and tagged as the frontend's facts are.
+    pub pattern: Option<Id>,
+    pub original_kind: Option<String>,
+    /// Where the parameter is declared, when a macro expansion or a desugaring writes it.
+    pub provenance: Option<Provenance>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -401,6 +445,9 @@ pub struct Receiver {
     pub symbol: Id,
     #[serde(rename = "type")]
     pub ty: Id,
+    pub annotation: Option<FileSpan>,
+    /// Where the receiver is declared, when a macro expansion or a desugaring writes it.
+    pub provenance: Option<Provenance>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -409,6 +456,21 @@ pub struct Generic {
     pub name: String,
     pub definition: Id,
     pub bounds: Vec<Id>,
+    /// Position among the function's own generic parameters, in declaration order.
+    pub position: Option<u32>,
+    pub span: Option<FileSpan>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConstantParameter {
+    pub name: String,
+    pub definition: Id,
+    #[serde(rename = "type")]
+    pub ty: Id,
+    /// Position among the function's own generic parameters, in declaration order.
+    pub position: Option<u32>,
+    pub span: Option<FileSpan>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -416,6 +478,12 @@ pub struct Generic {
 pub struct Lifetime {
     pub id: Id,
     pub name: String,
+    /// Position among the function's own generic parameters, in declaration order.
+    pub position: Option<u32>,
+    pub span: Option<FileSpan>,
+    /// Introduced by elision rather than declared.
+    #[serde(default)]
+    pub elided: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -481,12 +549,19 @@ pub struct Node {
     pub kind: NodeKind,
     pub original_kind: String,
     pub span: Option<FileSpan>,
+    /// Pairs of parentheses the expression is written in, which its span excludes.
+    pub parentheses: Option<u32>,
     pub children: Vec<Id>,
     #[serde(rename = "type")]
     pub ty: Option<Id>,
     pub literal: Option<String>,
     pub value: Option<Literal>,
     pub member: Option<String>,
+    pub member_index: Option<u32>,
+    pub members: Option<Vec<String>>,
+    pub adjustments: Option<Vec<Adjustment>>,
+    pub binding_mode: Option<String>,
+    pub captures: Option<Vec<Capture>>,
     pub operator: Option<String>,
     pub token: Option<FileSpan>,
     pub label: Option<String>,
@@ -628,9 +703,24 @@ pub struct Ref {
     pub via: Option<Id>,
     pub bounds: Option<Vec<Id>>,
     pub instance_arguments: Option<Vec<Id>>,
+    /// The selected implementation's own type arguments.
+    pub selected_arguments: Option<Vec<Id>>,
+    /// The callee's parameter and result types as the call instantiates them.
+    pub signature: Option<InstanceSignature>,
     pub instance: Option<Id>,
     pub calls_back: Option<CallsBack>,
     pub reason: Option<String>,
+    /// The item type of the receiver, for a call to an iteration member.
+    pub item: Option<Id>,
+}
+
+/// A callee's parameter and result types at one call, each absent where the frontend
+/// cannot normalize it.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InstanceSignature {
+    pub parameters: Vec<Option<Id>>,
+    pub result: Option<Id>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -704,4 +794,29 @@ pub struct DerefStep {
 pub struct Adjustment {
     pub kind: String,
     pub mode: Option<String>,
+    /// The type the adjustment produces (for a pattern, the type it applies to).
+    pub target: Option<Id>,
+}
+
+/// A place a closure captures, by its root binding.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Capture {
+    pub symbol: Id,
+    pub mode: String,
+    #[serde(rename = "type")]
+    pub ty: Id,
+    /// The projections from the root binding to the captured place.
+    #[serde(default)]
+    pub path: Vec<CaptureStep>,
+}
+
+/// One projection of a captured place, with the type it reaches.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CaptureStep {
+    pub kind: String,
+    #[serde(rename = "type")]
+    pub ty: Id,
+    pub member_index: Option<u32>,
 }

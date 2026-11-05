@@ -1,6 +1,6 @@
 use super::*;
 
-const SOURCE: &str = r#"
+pub(crate) const SOURCE: &str = r#"
 #![feature(guard_patterns)]
 pub fn accumulator(n: usize) -> u8 { let mut i = 0; let mut total = 0u8; while i < n { total += 1; i += 1; } total }
 pub fn practical_vec(xs: &[u8]) -> Vec<u8> { let mut out = Vec::new(); for x in xs { out.push(*x); } out }
@@ -317,14 +317,14 @@ fn assert_library(rows: &[Value]) {
     let own = composition(lookups);
     assert_eq!(
         own.library_steps.to_string(),
-        "len(keys)#4 * log(len(index.names))"
+        "len(keys)#1 * log(len(index.names))"
     );
     assert!(own.library_factors.is_empty(), "{own:?}");
 
     let caller = composition(named_row(rows, "lookup_caller"));
     assert_eq!(
         caller.library_steps.to_string(),
-        "len(keys)#4 * log(len(index.names))"
+        "len(keys)#1 * log(len(index.names))"
     );
     assert_eq!(caller.library_steps.order().logarithmic, 1);
 
@@ -499,6 +499,32 @@ fn assert_default_off(directory: &Path, original: &Value) {
         off["compiler_advisory"]["units"][0]
             .get("runtime_bounds")
             .is_none()
+    );
+}
+
+/// A derive macro shares its path with the trait it implements; the derived body,
+/// recorded first, must not turn the trait into the macro and hide its implementations.
+#[test]
+fn derive_macros_keep_their_traits_implementations_selectable() {
+    let directory = clone_workspace();
+    let source = "#[derive(Default)] pub struct Settings { pub limit: usize }\n\
+                  pub fn settings() -> Settings { Settings { ..Default::default() } }\n";
+    std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
+    let output = rstyle(
+        directory.path(),
+        &["patterns", "--format", "json", "--complexity"],
+    );
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(output.status.success(), "{}", stdout(&output));
+    let rows = runtime(&report)["rows"].as_array().unwrap();
+    let composed = &named_row(rows, "settings")["composed"]["Proven"];
+    let callees = composed["resolved_callees"].as_array().unwrap();
+    assert!(
+        callees.iter().any(|callee| callee
+            .as_str()
+            .unwrap()
+            .ends_with("clone_fixture::{impl#0}::default")),
+        "{composed:#}"
     );
 }
 

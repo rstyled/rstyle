@@ -1189,6 +1189,7 @@ version = "0.1.0"
 dependencies = [
  "jsonschema",
  "proc-macro2",
+ "rstyle-core",
  "serde",
  "serde_json",
  "sha2",

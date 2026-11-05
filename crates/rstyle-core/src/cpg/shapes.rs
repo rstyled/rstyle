@@ -47,7 +47,7 @@ pub fn shape(tables: &Tables<'_>, id: &str) -> Result<TyShape, String> {
         TypeKind::Function if ty.definition.is_some() => Ok(TyShape::Other),
         TypeKind::Function => Ok(TyShape::FnPtr),
         TypeKind::Interface => Ok(TyShape::Dyn(match ty.definition.as_deref() {
-            Some(principal) => tables.definition(principal)?.stable_identity.clone(),
+            Some(principal) => type_identity(tables.definition(principal)?),
             None => String::new(),
         })),
         TypeKind::Opaque if ty.bounds.as_ref().is_some_and(|bounds| !bounds.is_empty()) => {
@@ -66,10 +66,23 @@ fn nominal(tables: &Tables<'_>, ty: &Type) -> Result<Option<(String, Vec<TyShape
     let Some(definition) = ty.definition.as_deref().filter(|_| is_nominal(ty)) else {
         return Ok(None);
     };
-    let identity = tables.definition(definition)?.stable_identity.clone();
+    let identity = type_identity(tables.definition(definition)?);
     let arguments = shapes(tables, ty.arguments.as_deref().unwrap_or_default())?;
     Ok(Some((identity, arguments)))
 }
+
+/// A type's identity: its definition's stable identity, without the marker that tells a
+/// type apart from a value item of the same path, since a type is always a type.
+fn type_identity(definition: &super::model::Definition) -> String {
+    let identity = &definition.stable_identity;
+    identity
+        .strip_suffix(TYPE_NAMESPACE)
+        .unwrap_or(identity)
+        .to_owned()
+}
+
+/// The marker a stable identity carries when a type shares a value item's path.
+const TYPE_NAMESPACE: &str = "#type";
 
 fn is_nominal(ty: &Type) -> bool {
     matches!(ty.kind, TypeKind::Record | TypeKind::Sum) || is_owned_pointer(ty)
@@ -269,7 +282,7 @@ pub fn mutated_types<'a>(
         };
         let definition = tables.definition(definition)?;
         if matches!(definition.scope, Scope::Unit | Scope::Workspace) {
-            types.insert(definition.stable_identity.clone());
+            types.insert(type_identity(definition));
         }
     }
     Ok(types.into_iter().collect())

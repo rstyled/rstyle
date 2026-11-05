@@ -6,6 +6,7 @@
 //! destructuring assignment is one `assignment` whose target is rebuilt from the
 //! lowering's pattern; the lowering's temporaries are left out.
 
+use super::compiler;
 use super::unit::Unit;
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::LocalDefId;
@@ -13,6 +14,7 @@ use rustc_hir::{
     self as hir, Arm, BinOpKind, Block, BlockCheckMode, Expr, ExprKind, HirId, LoopSource,
     MatchSource, Pat, PatKind, QPath, Stmt, StmtKind, UnOp, UnsafeSource,
 };
+use rustc_middle::hir::place::ProjectionKind;
 use rustc_middle::ty::{self, TyCtxt, TypeVisitableExt, TypeckResults};
 use rustc_span::Span;
 use rustc_span::hygiene::{DesugaringKind, ExpnKind};
@@ -87,17 +89,25 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             .unit
             .span(span)
             .or_else(|| self.unit.span(span.source_callsite()));
-        // HIR gives a parenthesized expression the parentheses' span; a tuple's own syntax has them.
-        let own = match shape.kind {
-            "tuple" | "pattern_tuple" => own,
-            _ => own.map(|own| self.unit.without_parentheses(own)),
+        // HIR gives a parenthesized expression the parentheses' span; a tuple's own syntax has
+        // them. The span is the expression's own; `parentheses` counts the pairs around it.
+        let (own, parentheses) = match (shape.kind, own) {
+            ("tuple" | "pattern_tuple", own) | (_, own @ None) => (own, 0),
+            (_, Some(own)) => {
+                let (own, levels) = self.unit.without_parentheses(own);
+                (Some(own), levels)
+            }
         };
-        let mut record = json!({"id": id, "kind": shape.kind, "original_kind": shape.kind,
+        let original = super::compiler::original_kind(self.tcx, hir_id);
+        let mut record = json!({"id": id, "kind": shape.kind, "original_kind": original,
                                 "children": shape.children, "provenance": provenance});
         record.as_object_mut().unwrap().extend(shape.fields);
         match own {
             Some(own) => record["span"] = own,
             None => record["synthetic"] = json!(true),
+        }
+        if parentheses > 0 {
+            record["parentheses"] = json!(parentheses);
         }
         if self.lowering.is_some() {
             record["synthetic"] = json!(true);
@@ -105,27 +115,53 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         if let Some(ty) = self.typeck.node_type_opt(hir_id) {
             record["type"] = json!(self.unit.ty(ty));
         }
+        self.compiler_facts(hir_id, &mut record);
         self.emitted.insert(hir_id);
         self.nodes.push(record);
 
         id
     }
 
-    /// A restored source construct: source provenance at the construct's call site.
+    /// What rustc decided about the node that the source does not show: implicit
+    /// adjustments, and for a binding pattern how it binds.
+    fn compiler_facts(&mut self, hir_id: HirId, record: &mut Value) {
+        let typeck = self.typeck;
+        if let Some(adjustments) = typeck.adjustments().get(hir_id).filter(|a| !a.is_empty()) {
+            record["adjustments"] = compiler::adjustments(self.unit, adjustments);
+        }
+        if let Some(adjustments) = typeck
+            .pat_adjustments()
+            .get(hir_id)
+            .filter(|a| !a.is_empty())
+        {
+            record["adjustments"] = compiler::pattern_adjustments(self.unit, adjustments);
+        }
+        if let Some(mode) = typeck.pat_binding_modes().get(hir_id) {
+            record["binding_mode"] = json!(compiler::binding_mode(*mode));
+        }
+    }
+
+    /// A restored construct, located where it is written: the site its desugaring
+    /// expands, with that site's own provenance, so a construct a macro writes is
+    /// macro-generated.
     fn construct(&mut self, hir_id: HirId, span: Span, shape: Shape) -> String {
-        let id = self.node(hir_id, span.source_callsite(), shape);
+        let site = written_site(span);
+        let provenance = self.provenance(site);
+        let id = self.node(hir_id, site, shape);
         let record = self.nodes.last_mut().unwrap();
-        record["provenance"] = json!({"origin": "source"});
+        record["provenance"] = provenance;
+
         id
     }
 
-    fn provenance(&mut self, span: Span) -> Value {
+    pub(super) fn provenance(&mut self, span: Span) -> Value {
         let call_site = self.unit.span(span.source_callsite());
-        if let Some(construct) = self.lowering {
-            return json!({"origin": "desugaring", "construct": construct, "call_site": call_site});
-        }
+        // A lowering's own node is synthetic; its provenance is where its span comes from.
         if !span.from_expansion() {
             return json!({"origin": "source"});
+        }
+        if let Some(construct) = self.lowering {
+            return json!({"origin": "desugaring", "construct": construct, "call_site": call_site});
         }
 
         let expansion = span.ctxt().outer_expn_data();
@@ -184,9 +220,19 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             // A constant block's value is a body of its own, walked in place and
             // marked `const`.
             ExprKind::ConstBlock(constant) => {
-                let id = self.expr(self.tcx.hir_body(constant.body).value)?;
-                if let Some(node) = self.nodes.iter_mut().rev().find(|node| node["id"] == id) {
+                let block = self.expr(self.tcx.hir_body(constant.body).value)?;
+                let whole = self.unit.span(expr.span);
+                // The construct is the whole `const { .. }`, identified as the frontend's
+                // facts identify it, not only its block.
+                let id = self.id(expr.hir_id);
+                let original = super::compiler::original_kind(self.tcx, expr.hir_id);
+                if let Some(node) = self.nodes.iter_mut().rev().find(|node| node["id"] == block) {
                     node["modifiers"] = json!(["const"]);
+                    node["id"] = json!(id);
+                    node["original_kind"] = json!(original);
+                    if let Some(whole) = whole {
+                        node["span"] = whole;
+                    }
                 }
                 return Some(id);
             }
@@ -216,7 +262,7 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             ExprKind::Loop(block, label, LoopSource::While, _) => {
                 self.while_loop(expr, block, label)
             }
-            ExprKind::Block(block, None) if crate::extract::destructuring_assignment(block) => {
+            ExprKind::Block(block, None) if destructuring_assignment(block) => {
                 Some(self.destructuring(expr, block))
             }
             _ => None,
@@ -260,10 +306,25 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 shape
                     .fields
                     .insert("member".into(), json!(member.name.as_str()));
+                let position = self.typeck.field_index(expr.hir_id).as_u32();
+                shape.fields.insert("member_index".into(), json!(position));
                 shape
             }
             ExprKind::Index(base, index, _) => shape("index_access", self.exprs([base, index])),
-            ExprKind::AddrOf(_, _, inner) => shape("reference", self.exprs([inner])),
+            ExprKind::AddrOf(kind, mutability, inner) => {
+                let mut shape = shape("reference", self.exprs([inner]));
+                let modifiers: Vec<&str> = [
+                    (mutability.is_mut(), "mutable"),
+                    (kind == hir::BorrowKind::Raw, "raw"),
+                ]
+                .into_iter()
+                .filter_map(|(present, modifier)| present.then_some(modifier))
+                .collect();
+                if !modifiers.is_empty() {
+                    shape.fields.insert("modifiers".into(), json!(modifiers));
+                }
+                shape
+            }
             ExprKind::Cast(inner, _) | ExprKind::Type(inner, _) => {
                 shape("cast", self.exprs([inner]))
             }
@@ -296,10 +357,18 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             ExprKind::Loop(block, label, _, _) => {
                 jump("loop", label, vec![self.block(block, None)])
             }
-            ExprKind::Match(scrutinee, arms, _) => {
+            ExprKind::Match(scrutinee, arms, source) => {
                 let mut children = self.exprs([scrutinee]);
                 children.extend(arms.iter().filter_map(|arm| self.arm(arm)));
-                shape("match", children)
+                let mut shape = shape("match", children);
+                // An `.await` lowers to a match the compiler spans as the written expression.
+                if source == MatchSource::AwaitDesugar {
+                    let call_site = self.unit.span(expr.span.source_callsite());
+                    let provenance = json!({"origin": "desugaring", "construct": "rust:await",
+                                            "call_site": call_site});
+                    shape.fields.insert("provenance".into(), provenance);
+                }
+                shape
             }
             ExprKind::Closure(closure) => self.closure(closure),
             ExprKind::Break(destination, value) => {
@@ -333,16 +402,22 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                     hir::StructTailExpr::Base(base) => Some(base),
                     _ => None,
                 };
-                shape(
+                let mut shape = shape(
                     "record_construction",
                     self.exprs(fields.iter().map(|f| f.expr).chain(base)),
-                )
+                );
+                let members: Vec<&str> = fields.iter().map(|f| f.ident.name.as_str()).collect();
+                shape.fields.insert("members".into(), json!(members));
+                shape
             }
             _ => {
+                let reason = match expr.kind {
+                    ExprKind::InlineAsm(_) => "Inline assembly is not modeled",
+                    ExprKind::UnsafeBinderCast(..) => "Unsafe binder casts are not modeled",
+                    _ => "Expression kind is not modeled",
+                };
                 let mut shape = shape("unsupported", vec![]);
-                shape
-                    .fields
-                    .insert("reason".into(), json!("Expression kind is not modeled"));
+                shape.fields.insert("reason".into(), json!(reason));
                 shape
             }
         }
@@ -370,7 +445,56 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             .filter_map(|param| self.pat(param.pat))
             .collect();
         children.extend(self.expr(body.value));
-        shape("closure", children)
+        let mut shape = shape("closure", children);
+        if !matches!(closure.kind, hir::ClosureKind::Closure) {
+            shape
+                .fields
+                .insert("modifiers".into(), json!(["coroutine"]));
+        }
+        shape
+            .fields
+            .insert("captures".into(), json!(self.captures(closure)));
+
+        shape
+    }
+
+    /// The places a closure captures, by root binding, with how it holds each.
+    fn captures(&mut self, closure: &'tcx hir::Closure<'tcx>) -> Vec<Value> {
+        self.tcx
+            .closure_captures(closure.def_id)
+            .iter()
+            .map(|capture| {
+                let mode = match capture.info.capture_kind {
+                    ty::UpvarCapture::ByValue => "value",
+                    ty::UpvarCapture::ByUse => "use",
+                    ty::UpvarCapture::ByRef(ty::BorrowKind::Immutable) => "shared",
+                    ty::UpvarCapture::ByRef(ty::BorrowKind::Mutable) => "exclusive",
+                    ty::UpvarCapture::ByRef(ty::BorrowKind::UniqueImmutable) => "unique",
+                };
+                let path: Vec<Value> = capture
+                    .place
+                    .projections
+                    .iter()
+                    .map(|projection| {
+                        let mut step = json!({"type": self.unit.ty(projection.ty)});
+                        step["kind"] = json!(match projection.kind {
+                            ProjectionKind::Deref => "deref",
+                            ProjectionKind::Field(..) => "field",
+                            ProjectionKind::Index => "index",
+                            ProjectionKind::Subslice => "rust:subslice",
+                            ProjectionKind::OpaqueCast => "rust:opaque-cast",
+                            ProjectionKind::UnwrapUnsafeBinder => "rust:unsafe-binder",
+                        });
+                        if let ProjectionKind::Field(field, _) = projection.kind {
+                            step["member_index"] = json!(field.as_u32());
+                        }
+                        step
+                    })
+                    .collect();
+                json!({"symbol": self.symbol_id(capture.get_root_variable()), "mode": mode,
+                       "type": self.unit.ty(capture.place.ty()), "path": path})
+            })
+            .collect()
     }
 
     // Restored constructs.
@@ -425,7 +549,7 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             arms.iter().filter_map(|arm| b.arm(arm)).collect::<Vec<_>>()
         }));
         let mut shape = shape("propagate", children);
-        let span = expr.span.source_callsite();
+        let span = written_site(expr.span);
         if let Some(token) = self
             .unit
             .span(span.with_lo(span.hi() - rustc_span::BytePos(1)))
@@ -474,9 +598,49 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         };
         let target = self.target(pattern, &places);
         let value = value.and_then(|value| self.expr(value));
-        let children = [target, value].into_iter().flatten().collect();
+        let lowering = self.lowered("rust:destructuring", |builder| {
+            builder.destructuring_lowering(block)
+        });
+        let children = [target, value]
+            .into_iter()
+            .flatten()
+            .chain(lowering)
+            .collect();
 
         self.node(expr.hir_id, expr.span, shape("assignment", children))
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// A destructuring assignment's lowering, as synthetic nodes: the `let` of its
+    /// temporaries, then each statement assigning one temporary to its place.
+    fn destructuring_lowering(&mut self, block: &'tcx Block<'tcx>) -> Vec<String> {
+        let StmtKind::Let(local) = block.stmts[0].kind else {
+            return Vec::new();
+        };
+        // The temporaries, left to right; the target already records the pattern's shape.
+        let temporaries = self.each(binding_patterns(local.pat), Self::pat);
+        let mut lowering = vec![self.node(
+            local.hir_id,
+            local.span,
+            shape("local_declaration", temporaries),
+        )];
+        for stmt in &block.stmts[1..] {
+            let (StmtKind::Semi(assign) | StmtKind::Expr(assign)) = stmt.kind else {
+                continue;
+            };
+            let ExprKind::Assign(_, value, _) = assign.kind else {
+                continue;
+            };
+            let read = self.expr(value).into_iter().collect();
+            let assignment = self.node(assign.hir_id, assign.span, shape("assignment", read));
+            lowering.push(self.node(
+                stmt.hir_id,
+                stmt.span,
+                shape("expression_statement", vec![assignment]),
+            ));
+        }
+
+        lowering
     }
 
     // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
@@ -539,8 +703,16 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         children.extend(block.expr.and_then(|tail| self.expr(tail)));
         let mut shape = shape("block", children);
         labeled(&mut shape, label);
-        if block.rules == BlockCheckMode::UnsafeBlock(UnsafeSource::UserProvided) {
-            shape.fields.insert("modifiers".into(), json!(["unsafe"]));
+        match block.rules {
+            BlockCheckMode::UnsafeBlock(UnsafeSource::UserProvided) => {
+                shape.fields.insert("modifiers".into(), json!(["unsafe"]));
+            }
+            BlockCheckMode::UnsafeBlock(UnsafeSource::CompilerGenerated) => {
+                shape
+                    .fields
+                    .insert("modifiers".into(), json!(["rust:compiler-unsafe"]));
+            }
+            BlockCheckMode::DefaultBlock => {}
         }
 
         shape
@@ -563,7 +735,12 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 shape("expression_statement", self.exprs([expr]))
             }
         };
-        Some(self.node(stmt.hir_id, stmt.span, shape))
+        // A declaration is the `let` itself, as the frontend's facts identify it.
+        let (id, span) = match stmt.kind {
+            StmtKind::Let(local) => (local.hir_id, local.span),
+            _ => (stmt.hir_id, stmt.span),
+        };
+        Some(self.node(id, span, shape))
     }
 
     // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
@@ -599,11 +776,12 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             PatKind::Binding(mode, hir_id, ident, sub) => {
                 let children = sub.and_then(|sub| self.pat(sub)).into_iter().collect();
                 self.binding(hir_id, ident, mode.1.is_mut());
+                self.rebinding(pat.hir_id, hir_id);
                 shape("pattern_binding", children)
             }
             PatKind::Wild => shape("pattern_wildcard", vec![]),
             PatKind::Expr(_) => shape("pattern_literal", vec![]),
-            PatKind::Range(..) => shape("pattern_range", vec![]),
+            PatKind::Range(start, end, ending) => self.range_pattern((start, end), ending),
             PatKind::Or(pats) => shape("pattern_or", self.each(pats, Self::pat)),
             PatKind::Tuple(pats, _) => shape("pattern_tuple", self.each(pats, Self::pat)),
             PatKind::TupleStruct(_, pats, _) => {
@@ -613,11 +791,8 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 "pattern_constructor",
                 self.each(fields.iter().map(|field| field.pat), Self::pat),
             ),
-            PatKind::Slice(before, middle, after) => shape(
-                "pattern_sequence",
-                self.each(before.iter().chain(middle).chain(after), Self::pat),
-            ),
-            PatKind::Ref(inner, ..) | PatKind::Deref(inner) => {
+            PatKind::Slice(before, middle, after) => self.sequence_pattern(before, middle, after),
+            PatKind::Ref(inner, ..) => {
                 let mut shape = shape("extension", self.each([inner], Self::pat));
                 shape
                     .fields
@@ -625,14 +800,111 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 shape
             }
             _ => {
-                let mut shape = shape("unsupported", vec![]);
-                shape
-                    .fields
-                    .insert("reason".into(), json!("Pattern kind is not modeled"));
+                let (reason, children) = match pat.kind {
+                    // The guarded pattern and its guard stay, so their statements still count.
+                    PatKind::Guard(inner, guard) => {
+                        let children = self.pat(inner).into_iter().chain(self.expr(guard));
+                        ("Pattern guards are not modeled", children.collect())
+                    }
+                    PatKind::Deref(_) => ("Dereference patterns are not modeled", vec![]),
+                    _ => ("Pattern kind is not modeled", vec![]),
+                };
+                let mut shape = shape("unsupported", children);
+                shape.fields.insert("reason".into(), json!(reason));
                 shape
             }
         };
-        Some(self.node(pat.hir_id, pat.span, shape))
+        let id = self.node(pat.hir_id, pat.span, shape);
+        self.pattern_reference(pat, &id);
+
+        Some(id)
+    }
+
+    /// A range pattern: its present bounds, and whether its end is included.
+    fn range_pattern(
+        &mut self,
+        (start, end): (
+            Option<&'tcx rustc_hir::PatExpr<'tcx>>,
+            Option<&'tcx rustc_hir::PatExpr<'tcx>>,
+        ),
+        ending: rustc_hir::RangeEnd,
+    ) -> Shape {
+        let bounds = start.into_iter().chain(end);
+        let children = bounds.map(|bound| self.range_bound(bound)).collect();
+        let mut shape = shape("pattern_range", children);
+        if end.is_some() && matches!(ending, rustc_hir::RangeEnd::Included) {
+            shape
+                .fields
+                .insert("modifiers".into(), json!(["inclusive"]));
+        }
+
+        shape
+    }
+
+    /// A slice pattern, with the element matching the rest of the sequence marked.
+    fn sequence_pattern(
+        &mut self,
+        before: &'tcx [Pat<'tcx>],
+        middle: Option<&'tcx Pat<'tcx>>,
+        after: &'tcx [Pat<'tcx>],
+    ) -> Shape {
+        let children = self.each(before.iter().chain(middle).chain(after), Self::pat);
+        if let Some(middle) = middle {
+            let id = self.id(middle.hir_id);
+            let record = self
+                .nodes
+                .iter_mut()
+                .rev()
+                .find(|record| record["id"] == id);
+            if let Some(record) = record {
+                record["modifiers"] = json!(["rest"]);
+            }
+        }
+        shape("pattern_sequence", children)
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// A range pattern's bound: a literal, or a path with what it resolves to.
+    fn range_bound(&mut self, bound: &'tcx rustc_hir::PatExpr<'tcx>) -> String {
+        let id = self.node(bound.hir_id, bound.span, shape("pattern_literal", vec![]));
+        if let rustc_hir::PatExprKind::Path(ref qpath) = bound.kind
+            && let Some(mut record) =
+                self.path_reference(self.typeck.qpath_res(qpath, bound.hir_id))
+        {
+            record["node"] = json!(id);
+            self.refs.push(record);
+        }
+        id
+    }
+
+    /// What a constructor, struct or path pattern's path resolves to.
+    fn pattern_reference(&mut self, pat: &'tcx Pat<'tcx>, id: &str) {
+        // A path pattern's type-relative resolution is the path expression's own.
+        let (qpath, id_of_path) = match pat.kind {
+            PatKind::TupleStruct(ref qpath, ..) | PatKind::Struct(ref qpath, ..) => {
+                (qpath, pat.hir_id)
+            }
+            PatKind::Expr(expr) => match expr.kind {
+                rustc_hir::PatExprKind::Path(ref qpath) => (qpath, expr.hir_id),
+                rustc_hir::PatExprKind::Lit { .. } => return,
+            },
+            _ => return,
+        };
+        let res = self.typeck.qpath_res(qpath, id_of_path);
+        if let Some(mut record) = self.path_reference(res) {
+            record["node"] = json!(id);
+            self.refs.push(record);
+        }
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// A later alternative of an or-pattern refers to the symbol its first declares.
+    fn rebinding(&mut self, pattern: HirId, binding: HirId) {
+        if pattern != binding {
+            let target = json!({"kind": "symbol", "id": self.symbol_id(binding)});
+            self.refs
+                .push(json!({"node": self.id(pattern), "status": "resolved", "target": target}));
+        }
     }
 
     // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
@@ -673,7 +945,9 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             let ty = self.unit.ty(self.typeck.node_type(hir_id));
             let mut symbol = json!({"id": self.symbol_id(hir_id), "name": ident.name.as_str(), "kind": kind,
                                     "scope": self.prefix, "mutable": mode.1.is_mut(), "type": ty});
-            if let Some(declared) = self.unit.span(ident.span) {
+            // A parameter a library macro declares is declared where the macro is invoked.
+            let declared = self.unit.span(ident.span).or_else(|| self.unit.span(ident.span.source_callsite()));
+            if let Some(declared) = declared {
                 symbol["declared"] = declared;
             }
             self.symbols.push(symbol);
@@ -708,6 +982,14 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 Some(self.call_reference(callee))
             }
             ExprKind::MethodCall(_, receiver, _, _) => Some(self.method_reference(expr, receiver)),
+            ExprKind::Binary(..)
+            | ExprKind::Unary(..)
+            | ExprKind::Index(..)
+            | ExprKind::AssignOp(..) => {
+                let operator = self.typeck.type_dependent_def_id(expr.hir_id);
+                let args = self.typeck.node_args(expr.hir_id);
+                operator.map(|method| self.selected_call(method, args, "overloaded"))
+            }
             _ => None,
         };
         if let Some(mut record) = record {
@@ -768,15 +1050,55 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         let Some(def_id) = self.typeck.type_dependent_def_id(expr.hir_id) else {
             return json!({"status": "unresolved", "reason": "No method resolution"});
         };
+
         let receiver_ty = self.typeck.expr_ty_adjusted(receiver).peel_refs();
         let dispatch = if matches!(receiver_ty.kind(), ty::Dynamic(..)) {
             "dynamic"
         } else {
             "method"
         };
-        self.selected_call(def_id, self.typeck.node_args(expr.hir_id), dispatch)
+        let args = self.typeck.node_args(expr.hir_id);
+        let mut record = self.selected_call(def_id, args, dispatch);
+        record["signature"] = self.instance_signature(def_id, args);
+        if compiler::iterator_member(self.tcx, def_id) {
+            let receiver = self.typeck.expr_ty_adjusted(receiver);
+            if let Some(item) = compiler::iterator_item(self.tcx, self.owner, receiver) {
+                record["item"] = json!(self.unit.ty(item));
+            }
+        }
+        record
     }
 
+    /// The callee's parameter and result types as the call instantiates them, each
+    /// normalized as the body's own types are, or null where it cannot be.
+    fn instance_signature(
+        &mut self,
+        callee: hir::def_id::DefId,
+        args: ty::GenericArgsRef<'tcx>,
+    ) -> Value {
+        let signature = self
+            .tcx
+            .fn_sig(callee)
+            .instantiate(self.tcx, args)
+            .skip_binder();
+        let environment = ty::TypingEnv::post_typeck_until_borrowck(self.tcx, self.owner);
+        let mut normalized = |ty: ty::Ty<'tcx>| {
+            self.tcx
+                .try_normalize_erasing_regions(environment, ty::Unnormalized::new_wip(ty))
+                .ok()
+                .map(|ty| self.unit.ty(ty))
+        };
+        let parameters: Vec<Option<String>> = signature
+            .inputs()
+            .iter()
+            .map(|ty| normalized(*ty))
+            .collect();
+        let result = normalized(signature.output());
+
+        json!({"parameters": parameters, "result": result})
+    }
+
+    // rstyle-allow(mutation_per_target): assembles one reference record field by field
     /// A call's declared callee, and the implementation rustc selects for it when known.
     fn selected_call(
         &mut self,
@@ -789,24 +1111,64 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             .tcx
             .opt_associated_item(callee)
             .and_then(|item| item.trait_container(self.tcx));
-        if trait_item.is_some()
+        let types: Vec<String> = args.types().map(|ty| self.unit.ty(ty)).collect();
+        let mut record = if trait_item.is_some()
             && (args.has_non_region_param() || args.has_infer() || args.has_escaping_bound_vars())
         {
-            return json!({"status": "dependent", "dispatch": dispatch, "via": declared, "bounds": []});
+            json!({"status": "dependent", "dispatch": dispatch, "via": declared, "bounds": []})
+        } else {
+            json!({"status": "resolved", "dispatch": dispatch,
+                   "target": {"kind": "definition", "id": declared}})
+        };
+        if !types.is_empty() {
+            record["instance_arguments"] = json!(types);
         }
-        let mut record = json!({"status": "resolved", "dispatch": dispatch,
-                                "target": {"kind": "definition", "id": declared}});
-        if trait_item.is_some()
-            && let Some(instance) =
-                crate::ids::selected_instance(self.tcx, self.owner, callee, args)
-            && matches!(instance.def, ty::InstanceKind::Item(_))
-            && instance.def_id() != callee
-        {
-            let selected = self.unit.definition(instance.def_id());
-            record["selected"] = json!({"kind": "definition", "id": selected});
+        if record["status"] == "dependent" {
+            return record;
+        }
+        // An interface member runs the implementation static selection finds, if any.
+        let (runs, runs_args) = match trait_item {
+            Some(_) => match self.selection(callee, args) {
+                Some(instance) => {
+                    let selected = self.unit.definition(instance.def_id());
+                    record["selected"] = json!({"kind": "definition", "id": selected});
+                    if let Some(types) = self.selected_arguments(instance.args) {
+                        record["selected_arguments"] = json!(types);
+                    }
+                    (instance.def_id(), instance.args)
+                }
+                None => return record,
+            },
+            None => (callee, args),
+        };
+        if compiler::standard(self.tcx, runs) {
+            let value = super::sysroot::calls_back(self.tcx, runs, runs_args);
+            record["calls_back"] = json!({"value": value,
+                "reason": "callable arguments, or bounds on types outside the standard library"});
         }
 
         record
+    }
+
+    /// The selected implementation's own arguments, when there are any and all are types.
+    fn selected_arguments(&mut self, args: ty::GenericArgsRef<'tcx>) -> Option<Vec<String>> {
+        let types: Option<Vec<String>> = args
+            .iter()
+            .map(|argument| argument.as_type().map(|ty| self.unit.ty(ty)))
+            .collect();
+        types.filter(|types| !types.is_empty())
+    }
+
+    /// The implementation static selection finds for an interface member with concrete
+    /// arguments; none when the arguments do not instantiate the member fully.
+    fn selection(
+        &self,
+        callee: hir::def_id::DefId,
+        args: ty::GenericArgsRef<'tcx>,
+    ) -> Option<ty::Instance<'tcx>> {
+        (args.len() == self.tcx.generics_of(callee).count()).then_some(())?;
+        crate::ids::selected_instance(self.tcx, self.owner, callee, args)
+            .filter(|instance| matches!(instance.def, ty::InstanceKind::Item(_)))
     }
 
     /// The emitted node of `hir_id`, or of its nearest emitted enclosing expression.
@@ -861,6 +1223,18 @@ fn for_parts<'tcx>(
     Some((head, pattern, some.body))
 }
 
+/// A destructuring pattern's binding temporaries, left to right through its nesting.
+fn binding_patterns<'tcx>(pat: &'tcx Pat<'tcx>) -> Vec<&'tcx Pat<'tcx>> {
+    let parts: Vec<&'tcx Pat<'tcx>> = match pat.kind {
+        PatKind::Binding(..) => return vec![pat],
+        PatKind::Tuple(pats, _) | PatKind::TupleStruct(_, pats, _) => pats.iter().collect(),
+        PatKind::Slice(before, middle, after) => before.iter().chain(middle).chain(after).collect(),
+        PatKind::Struct(_, fields, _) => fields.iter().map(|field| field.pat).collect(),
+        _ => return Vec::new(),
+    };
+    parts.into_iter().flat_map(binding_patterns).collect()
+}
+
 /// The binding a destructuring assignment's statement reads, and the place it writes.
 fn assigned_place<'tcx>(stmt: &'tcx Stmt<'tcx>) -> Option<(HirId, &'tcx Expr<'tcx>)> {
     let (StmtKind::Semi(assign) | StmtKind::Expr(assign)) = stmt.kind else {
@@ -899,6 +1273,7 @@ fn construct_name(kind: DesugaringKind) -> &'static str {
         DesugaringKind::QuestionMark => "propagate",
         DesugaringKind::WhileLoop => "while",
         DesugaringKind::Await => "rust:await",
+        DesugaringKind::RangeExpr => "rust:range",
         _ => "rust:desugaring",
     }
 }
@@ -948,4 +1323,22 @@ fn unary(op: UnOp) -> &'static str {
         UnOp::Not => "not",
         UnOp::Neg => "neg",
     }
+}
+
+/// Where a restored construct is written: the site its desugaring expands.
+fn written_site(span: Span) -> Span {
+    match span.ctxt().outer_expn_data().kind {
+        ExpnKind::Desugaring(_) => span.ctxt().outer_expn_data().call_site,
+        _ => span,
+    }
+}
+
+/// The block rustc lowers a destructuring assignment `(a, b) = value` to:
+/// `{ let (lhs, lhs) = value; a = lhs; b = lhs; }`. Nothing marks it as a desugaring.
+fn destructuring_assignment(block: &rustc_hir::Block<'_>) -> bool {
+    matches!(
+        block.stmts.first().map(|stmt| &stmt.kind),
+        Some(rustc_hir::StmtKind::Let(local))
+            if matches!(local.source, rustc_hir::LocalSource::AssignDesugar)
+    )
 }

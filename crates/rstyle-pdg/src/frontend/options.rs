@@ -238,6 +238,11 @@ impl FrontendOptions {
             })
     }
 
+    /// The keys of the recorded options, in order.
+    pub fn keys(&self) -> impl Iterator<Item = &str> {
+        self.0.keys().map(String::as_str)
+    }
+
     pub fn get(&self, key: &str) -> Option<&Value> {
         self.0.get(key).map(Entry::json)
     }

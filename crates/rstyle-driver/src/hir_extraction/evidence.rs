@@ -17,18 +17,6 @@ pub(super) fn compiled_crate(
     }
 }
 
-pub(super) fn source_identity(
-    source: &rstyle_pdg::SourceText,
-    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
-) -> String {
-    if profile == rstyle_pdg::extraction_profile::ExtractionProfile::DataV3 {
-        source.checksum().to_owned()
-    } else {
-        // Historical function-source conformance, including pinned r0, remains SHA.
-        source.identity().to_owned()
-    }
-}
-
 pub fn digest(bytes: &[u8]) -> String {
     rstyle_pdg::source_identity::checksum(bytes)
 }

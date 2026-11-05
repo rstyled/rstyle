@@ -14,17 +14,13 @@ extern crate rustc_lint;
 extern crate rustc_middle;
 extern crate rustc_span;
 
-mod args;
 mod cpg;
-mod driver_complexity;
 mod driver_options;
-mod effects;
-mod extract;
 mod hir_extraction;
 mod ids;
 mod mutations;
-mod pdg;
-mod sig;
+mod paths;
+mod spans;
 
 use rstyle_core::cli_args::flag_value;
 use rustc_driver::{Callbacks, Compilation};
@@ -72,7 +68,6 @@ fn run(invocation: driver_options::Invocation) -> ExitCode {
         profile: invocation.profile,
         unit_context: invocation.unit_context,
         source_root: std::env::var_os(rstyle_core::advisory::SOURCE_ROOT_ENV).map(PathBuf::from),
-        complexity: Default::default(),
     });
 
     if let (Some(dir), Some(root)) = (
@@ -82,7 +77,6 @@ fn run(invocation: driver_options::Invocation) -> ExitCode {
         let mut callbacks = CpgEmit {
             dir: PathBuf::from(dir),
             root: PathBuf::from(root),
-            complexity: Default::default(),
         };
         return rustc_driver::catch_with_exit_code(|| {
             rustc_driver::run_compiler(&args, &mut callbacks)
@@ -98,21 +92,15 @@ fn run(invocation: driver_options::Invocation) -> ExitCode {
 struct NoOp;
 impl Callbacks for NoOp {}
 
-/// Writes `compat.cpg` documents beside the driver's own FnFacts.
+/// Writes the crate's `compat.cpg` document.
 struct CpgEmit {
     dir: PathBuf,
     root: PathBuf,
-    complexity: driver_complexity::Functions,
 }
 
 impl Callbacks for CpgEmit {
-    fn after_expansion<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
-        self.complexity = driver_complexity::collect(tcx);
-        Compilation::Continue
-    }
-
     fn after_analysis<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
-        if let Err(error) = cpg::emit(tcx, &self.complexity, &self.root, &self.dir) {
+        if let Err(error) = cpg::emit(tcx, &self.root, &self.dir) {
             tcx.dcx().fatal(format!(
                 "rstyle-driver: compat.cpg emission failed: {error}"
             ));
@@ -128,17 +116,9 @@ struct HirExtract {
     profile: Option<rstyle_pdg::extraction_profile::ExtractionProfile>,
     unit_context: Option<rstyle_pdg::nominal_boundary::UnitContext>,
     source_root: Option<PathBuf>,
-    complexity: driver_complexity::Functions,
 }
 
 impl Callbacks for HirExtract {
-    fn after_expansion<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
-        if rstyle_pdg::diagnostics::switch(rstyle_core::advisory::CAPTURE_ENV) {
-            self.complexity = driver_complexity::collect(tcx);
-        }
-        Compilation::Continue
-    }
-
     fn after_crate_root_parsing(
         &mut self,
         _: &Compiler,
@@ -151,8 +131,9 @@ impl Callbacks for HirExtract {
     fn after_analysis<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
         let options = hir_extraction::Options {
             source_root: self.source_root.as_deref(),
-            complexity: &self.complexity,
             sources: Default::default(),
+            scanned: &self.scanned,
+            scans: Default::default(),
             profile: self.profile,
             invocation: &self.invocation,
             unit_context: self.unit_context.as_ref(),
@@ -175,7 +156,7 @@ impl HirExtract {
     fn capture_diagnostic(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
         let facts = hir_extraction::raw_crate_facts(tcx, &self.scanned, options)
             .expect("capture diagnostic raw facts");
-        hir_extraction::capture_instance_diagnostics(tcx, &self.scanned, options)
+        hir_extraction::capture_instance_diagnostics(tcx, &facts, options)
             .expect("capture requested instance diagnostics");
         Self::retain_diagnostic(&facts);
     }
@@ -193,7 +174,7 @@ impl HirExtract {
             self.capture_style(tcx, options);
             return;
         }
-        let facts = hir_extraction::advisory_crate_facts(tcx, &self.scanned, options)
+        let facts = hir_extraction::advisory_crate_facts(tcx, options)
             .expect("capture compiler advisory facts");
         let inventory = self.inventory(tcx, options, &facts);
         self.output
@@ -202,8 +183,8 @@ impl HirExtract {
     }
 
     fn capture_style(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
-        let facts = hir_extraction::style_crate_facts(tcx, &self.scanned, options)
-            .expect("capture compiler style inputs");
+        let facts =
+            hir_extraction::style_crate_facts(tcx, options).expect("capture compiler style inputs");
         let inventory = self.inventory(tcx, options, &facts);
         self.output
             .write_style_capture(&facts, inventory.as_ref())

@@ -232,14 +232,6 @@ impl<'a> Graph<'_, 'a> {
         }
         Ok(())
     }
-
-    fn child(&self, node: &Node, index: usize) -> Result<&'a Node, String> {
-        let id = node
-            .children
-            .get(index)
-            .ok_or_else(|| format!("Node {} has no child {index}", node.id))?;
-        self.body.node(id)
-    }
 }
 
 impl<'a> Graph<'_, 'a> {
@@ -267,16 +259,16 @@ impl<'a> Graph<'_, 'a> {
             NodeKind::Literal => Some(self.literal(node)?),
             NodeKind::Call => self.call(node)?,
             NodeKind::FieldAccess => Some(self.field(node)?),
-            NodeKind::Reference => self.expr(self.child(node, 0)?)?,
+            NodeKind::Reference => self.expr(self.body.child(node, 0)?)?,
             NodeKind::Operator if node.operator.as_deref() == Some("deref") => {
-                self.expr(self.child(node, 0)?)?
+                self.expr(self.body.child(node, 0)?)?
             }
             NodeKind::Block if node.modifiers.iter().any(|m| m == "const") => {
                 Some(self.graph.add(self.generic_node(node)?))
             }
             NodeKind::Block => self.block(node)?,
             NodeKind::Closure => Some(self.graph.add(self.typed(Kind::Closure, node)?)),
-            NodeKind::Assignment if self.destructures(node)? => {
+            NodeKind::Assignment if self.body.destructures(node)? => {
                 self.destructuring(node)?;
                 None
             }
@@ -291,7 +283,7 @@ impl<'a> Graph<'_, 'a> {
             NodeKind::If => Some(self.branch(node)?),
             NodeKind::Match => Some(self.matcher(node)?),
             NodeKind::Loop => {
-                let body = self.child(node, 0)?;
+                let body = self.body.child(node, 0)?;
                 Some(self.looped((node, "loop"), |walk| walk.expr(body).map(drop))?)
             }
             NodeKind::While => Some(self.while_loop(node)?),
@@ -312,7 +304,7 @@ impl<'a> Graph<'_, 'a> {
             ..self.typed(Kind::Field, node)?
         };
         let index = self.graph.add(entry);
-        let value = self.expr(self.child(node, 0)?)?;
+        let value = self.expr(self.body.child(node, 0)?)?;
 
         self.graph.link(value, index, 0);
         Ok(index)
@@ -509,9 +501,9 @@ impl<'a> Graph<'_, 'a> {
     /// `for pattern in head { body }`: the iteration binds the pattern to each item.
     // rstyle-allow(mutation_per_target): the graph accumulates nodes and edges in self by design
     fn iterate(&mut self, node: &'a Node) -> Result<usize, String> {
-        let pattern = self.child(node, 0)?;
-        let head = self.wrapped(self.child(node, 1)?)?;
-        let body = self.child(node, 2)?;
+        let pattern = self.body.child(node, 0)?;
+        let head = self.wrapped(self.body.child(node, 1)?)?;
+        let body = self.body.child(node, 2)?;
         let entry = PdgNode {
             ty: Some(self.shape_of(pattern)?),
             ..self.typed(Kind::Iterate, node)?
@@ -540,7 +532,7 @@ impl<'a> Graph<'_, 'a> {
 
     fn propagated(&mut self, node: &'a Node) -> Result<usize, String> {
         let index = self.graph.add(self.typed(Kind::Try, node)?);
-        let operand = self.wrapped(self.child(node, 0)?)?;
+        let operand = self.wrapped(self.body.child(node, 0)?)?;
         let value = self.expr(operand)?;
         self.graph.link(value, index, 0);
 
@@ -584,7 +576,7 @@ impl<'a> Graph<'_, 'a> {
             match child.kind {
                 NodeKind::LocalDeclaration => self.local(child)?,
                 NodeKind::ExpressionStatement => {
-                    self.expr(self.child(child, 0)?)?;
+                    self.expr(self.body.child(child, 0)?)?;
                 }
                 NodeKind::ItemDeclaration => {}
                 _ => value = self.expr(child)?,
@@ -634,9 +626,9 @@ impl<'a> Graph<'_, 'a> {
     // rstyle-allow(mutation_per_target): the graph accumulates nodes and edges in self by design
     fn let_expr(&mut self, node: &'a Node) -> Result<usize, String> {
         let index = self.graph.add(self.typed(Kind::Let, node)?);
-        let value = self.expr(self.child(node, 1)?)?;
+        let value = self.expr(self.body.child(node, 1)?)?;
         self.graph.link(value, index, 0);
-        self.bind(self.child(node, 0)?, index)?;
+        self.bind(self.body.child(node, 0)?, index)?;
 
         Ok(index)
     }
@@ -644,12 +636,12 @@ impl<'a> Graph<'_, 'a> {
     // rstyle-allow(mutation_per_target): the graph accumulates nodes and edges in self by design
     fn branch(&mut self, node: &'a Node) -> Result<usize, String> {
         let index = self.graph.add(self.typed(Kind::Branch, node)?);
-        let value = self.expr(self.child(node, 0)?)?;
+        let value = self.expr(self.body.child(node, 0)?)?;
         self.graph.link(value, index, 0);
-        let then = self.child(node, 1)?;
+        let then = self.body.child(node, 1)?;
         self.under(index, 0, |walk| walk.expr(then))?;
         if node.children.len() > 2 {
-            let otherwise = self.child(node, 2)?;
+            let otherwise = self.body.child(node, 2)?;
             self.under(index, 1, |walk| walk.expr(otherwise))?;
         }
 
@@ -675,7 +667,7 @@ impl<'a> Graph<'_, 'a> {
                 for part in rest {
                     match part.kind {
                         NodeKind::MatchGuard => {
-                            walk.expr(walk.child(part, 0)?)?;
+                            walk.expr(walk.body.child(part, 0)?)?;
                         }
                         _ => {
                             walk.expr(part)?;
@@ -707,8 +699,8 @@ impl<'a> Graph<'_, 'a> {
 
     /// `while condition { body }`: a loop whose body branches on the condition.
     fn while_loop(&mut self, node: &'a Node) -> Result<usize, String> {
-        let condition = self.child(node, 0)?;
-        let body = self.child(node, 1)?;
+        let condition = self.body.child(node, 0)?;
+        let body = self.body.child(node, 1)?;
         self.looped((node, "while"), |walk| {
             let branch = walk.graph.add(walk.typed(Kind::Branch, node)?);
             let value = walk.expr(condition)?;
@@ -727,24 +719,12 @@ impl<'a> Graph<'_, 'a> {
         Ok(None)
     }
 
-    /// An assignment whose target a destructuring rebuilt from its pattern.
-    fn destructures(&self, node: &Node) -> Result<bool, String> {
-        let target = self.child(node, 0)?;
-        Ok(matches!(
-            target.kind,
-            NodeKind::Tuple
-                | NodeKind::Array
-                | NodeKind::RecordConstruction
-                | NodeKind::PatternWildcard
-        ))
-    }
-
     /// `target = value` with a destructuring target: a `Let` of the value, then one
     /// assignment from it per place the target names.
     // rstyle-allow(mutation_per_target): the graph accumulates nodes and edges in self by design
     fn destructuring(&mut self, node: &'a Node) -> Result<(), String> {
-        let target = self.child(node, 0)?;
-        let value = self.expr(self.child(node, 1)?)?;
+        let target = self.body.child(node, 0)?;
+        let value = self.expr(self.body.child(node, 1)?)?;
         let entry = PdgNode {
             ty: Some(self.shape_of(target)?),
             line: self.line(node)?,
@@ -752,9 +732,7 @@ impl<'a> Graph<'_, 'a> {
         };
         let binding = self.graph.add(entry);
         self.graph.link(value, binding, 0);
-        let mut places = Vec::new();
-        self.places(target, &mut places)?;
-        for place in places {
+        for place in self.body.places(target)? {
             let assignment = PdgNode {
                 detail: "=".into(),
                 ty: Some(TyShape::Tuple(vec![])),
@@ -767,20 +745,6 @@ impl<'a> Graph<'_, 'a> {
             self.graph.link(written, index, 1);
         }
 
-        Ok(())
-    }
-
-    /// The places a destructuring target names, left to right.
-    fn places(&self, target: &'a Node, found: &mut Vec<&'a Node>) -> Result<(), String> {
-        match target.kind {
-            NodeKind::Tuple | NodeKind::Array | NodeKind::RecordConstruction => {
-                for part in self.body.children(target)? {
-                    self.places(part, found)?;
-                }
-            }
-            NodeKind::PatternWildcard => {}
-            _ => found.push(target),
-        }
         Ok(())
     }
 

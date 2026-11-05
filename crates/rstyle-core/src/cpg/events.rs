@@ -420,7 +420,7 @@ fn mutation<'a>(
         )
     };
     let escapes = place.escapes.ok_or_else(unknown)?;
-    if !escapes && declared_by_macro(walk, symbol.node.as_deref())? {
+    if !escapes && declared_by_macro(walk, symbol)? {
         return Ok(None);
     }
     let delegated = escapes && borrow && !write && reborrows_workspace_object(walk, place)?;
@@ -469,11 +469,39 @@ fn reborrows_workspace_object(walk: &Walk<'_>, place: &Place) -> Result<bool, St
 }
 
 /// A binding a library macro declares is that macro's working state, not the developer's.
-fn declared_by_macro(walk: &Walk<'_>, node: Option<&str>) -> Result<bool, String> {
-    let Some(node) = node else {
-        return Ok(false);
+/// A body binding is declared by its node; a parameter or receiver, by its own record.
+fn declared_by_macro(walk: &Walk<'_>, symbol: &Symbol) -> Result<bool, String> {
+    let provenance = match symbol.node.as_deref() {
+        Some(node) => &walk.body.node(node)?.provenance,
+        None => {
+            let signature = &walk.body.function.signature;
+            let declared = signature
+                .parameters
+                .iter()
+                .filter(|parameter| {
+                    parameter.symbol == symbol.id
+                        || parameter
+                            .bindings
+                            .iter()
+                            .flatten()
+                            .any(|binding| *binding == symbol.id)
+                })
+                .map(|parameter| parameter.provenance.as_ref())
+                .chain(
+                    signature
+                        .receiver
+                        .iter()
+                        .filter(|receiver| receiver.symbol == symbol.id)
+                        .map(|receiver| receiver.provenance.as_ref()),
+                )
+                .next()
+                .flatten();
+            let Some(provenance) = declared else {
+                return Ok(false);
+            };
+            provenance
+        }
     };
-    let provenance = &walk.body.node(node)?.provenance;
     match (provenance.origin, provenance.macro_definition.as_deref()) {
         (Origin::MacroExpansion, Some(definition)) => {
             Ok(walk.tables.definition(definition)?.scope == Scope::Library)

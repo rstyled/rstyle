@@ -22,6 +22,8 @@ fn count(body: &Body<'_>, node: &Node, inside: bool) -> Result<usize, String> {
         })
     };
     let mut total = match node.kind {
+        // A block a lowering adds holds the lowering's operands, not statements.
+        NodeKind::Block if node.provenance.origin == Origin::Desugaring => 0,
         NodeKind::Block => body.children(node)?.into_iter().map(counts).sum(),
         NodeKind::MatchArm => match body.source_children(node)?.last() {
             Some(arm_body) if arm_body.kind != NodeKind::Block => counts(arm_body),

@@ -109,6 +109,46 @@ impl<'a> Body<'a> {
         node.children.iter().map(|child| self.node(child)).collect()
     }
 
+    pub fn child(&self, node: &Node, index: usize) -> Result<&'a Node, String> {
+        let id = node
+            .children
+            .get(index)
+            .ok_or_else(|| format!("Node {} has no child {index}", node.id))?;
+        self.node(id)
+    }
+
+    /// An assignment whose target a destructuring rebuilt from its pattern.
+    pub fn destructures(&self, assignment: &Node) -> Result<bool, String> {
+        let target = self.child(assignment, 0)?;
+        Ok(matches!(
+            target.kind,
+            NodeKind::Tuple
+                | NodeKind::Array
+                | NodeKind::RecordConstruction
+                | NodeKind::PatternWildcard
+        ))
+    }
+
+    /// The places a destructuring target names, left to right.
+    pub fn places(&self, target: &'a Node) -> Result<Vec<&'a Node>, String> {
+        let mut found = Vec::new();
+        self.collect_places(target, &mut found)?;
+        Ok(found)
+    }
+
+    fn collect_places(&self, target: &'a Node, found: &mut Vec<&'a Node>) -> Result<(), String> {
+        match target.kind {
+            NodeKind::Tuple | NodeKind::Array | NodeKind::RecordConstruction => {
+                for part in self.children(target)? {
+                    self.collect_places(part, found)?;
+                }
+            }
+            NodeKind::PatternWildcard => {}
+            _ => found.push(target),
+        }
+        Ok(())
+    }
+
     /// Children that are source nodes or synthetic wrappers of one (the profile's child order).
     pub fn source_children(&self, node: &Node) -> Result<Vec<&'a Node>, String> {
         let mut sources = Vec::new();

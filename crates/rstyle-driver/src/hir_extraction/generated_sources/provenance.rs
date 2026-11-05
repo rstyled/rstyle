@@ -21,10 +21,6 @@ impl<'a, 'tcx> Provenance<'a, 'tcx> {
         }
     }
 
-    pub fn finish(self) -> Vec<Expansion> {
-        self.expansions.into_values().collect()
-    }
-
     pub fn origin(&mut self, span: Span) -> Result<Origin, String> {
         if span.is_dummy() {
             return Err("Generated provenance contains a dummy raw span".into());

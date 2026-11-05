@@ -5,7 +5,6 @@ use std::collections::HashMap;
 #[derive(Default)]
 pub(super) struct Completed<'tcx> {
     observations: HashMap<Ty<'tcx>, Observation>,
-    tokens: HashMap<Ty<'tcx>, Option<String>>,
 }
 
 impl<'tcx> Capture<'_, 'tcx> {
@@ -28,18 +27,5 @@ impl<'tcx> Capture<'_, 'tcx> {
         // or budget failure becomes unsupported or reusable.
         self.reuse.observations.insert(ty, observation.clone());
         Ok(observation)
-    }
-
-    pub(super) fn type_token(&mut self, ty: Ty<'tcx>) -> Result<Option<String>, String> {
-        if let Some(token) = self.reuse.tokens.get(&ty) {
-            return Ok(token.clone());
-        }
-
-        let token = match self.observe(ty)? {
-            Observation::Captured { ty } => Some(rstyle_pdg::data_types::token(&ty)?),
-            Observation::Unsupported { .. } => None,
-        };
-        self.reuse.tokens.insert(ty, token.clone());
-        Ok(token)
     }
 }
