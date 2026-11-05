@@ -103,7 +103,14 @@ fn emitted(
         inner: writer,
         observed: Observed::default(),
     };
-    emit(&mut decoded)?;
+    // JSON serializers write punctuation and short keys separately. Coalesce
+    // those calls before hashing and entering the compressor, without retaining
+    // the document's serialized representation.
+    {
+        let mut buffered = BufWriter::with_capacity(64 * 1024, &mut decoded);
+        emit(&mut buffered)?;
+        buffered.flush()?;
+    }
     decoded.flush()?;
     Ok(decoded.observed)
 }
