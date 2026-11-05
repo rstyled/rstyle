@@ -60,10 +60,14 @@ fn completed(out: &Path, documents: usize) -> (String, u8) {
 }
 
 fn require_new(out: &Path) -> Result<(), String> {
-    if std::fs::symlink_metadata(out).is_ok() {
-        return Err("CPG output must be a new directory".into());
+    match std::fs::symlink_metadata(out) {
+        Ok(_) => Err("CPG output must be a new directory".into()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!(
+            "Cannot inspect CPG output {}: {error}",
+            out.display()
+        )),
     }
-    Ok(())
 }
 
 fn stage(out: &Path) -> Result<tempfile::TempDir, String> {
@@ -81,10 +85,10 @@ fn parent(out: &Path) -> &Path {
 }
 
 fn manifest(seals: Seals) -> Result<DocumentManifest, String> {
-    if seals.is_empty() {
-        return Err("A capture must contain at least one document".into());
+    match seals.len() {
+        0 => Err("A capture must contain at least one document".into()),
+        _ => Ok(DocumentManifest::of(seals)),
     }
-    Ok(DocumentManifest::of(seals))
 }
 
 fn receive(
