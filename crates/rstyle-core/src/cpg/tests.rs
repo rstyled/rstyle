@@ -1,5 +1,6 @@
 use super::layout::{self, digest, split};
-use super::run_facts;
+use super::records::Demand;
+use super::{run_facts, run_records};
 use crate::complexity::Kind;
 use crate::facts::{
     ArgSource, CallEvent, Edge, EffectEvent, EffectKind, FnFacts, MutationEvent, MutationOrigin,
@@ -261,6 +262,67 @@ fn a_function_a_macro_writes_is_outside_a_runs_rule_facts() {
         .unwrap();
     root["provenance"] = json!({"origin": "macro_expansion", "call_site": span});
     assert_eq!(facts_of(document).len(), measured - 1);
+}
+
+/// The example with `larger` written by a macro and calling into the file system.
+fn macro_writing_io() -> Value {
+    let mut document = example();
+    for definition in document["unit"]["definitions"].as_array_mut().unwrap() {
+        if definition["id"] == "def:Ord.max" {
+            definition["stable_identity"] = json!("std::fs::write");
+            definition["name"] = json!("std::fs::write");
+        }
+    }
+    let function = document["unit"]["functions"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|function| function["id"] == "fn:larger")
+        .unwrap();
+    let root = function["root"].as_str().unwrap().to_owned();
+    let span = function["span"].clone();
+    let root = function["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|node| node["id"] == root.as_str())
+        .unwrap();
+    root["provenance"] = json!({"origin": "macro_expansion", "call_site": span});
+    document
+}
+
+fn io_labels(inputs: &super::RunInputs, id: &str) -> Vec<String> {
+    inputs.effects[id]
+        .iter()
+        .filter(|effect| matches!(effect.kind, crate::facts::EffectKind::Io))
+        .map(|effect| effect.label.clone())
+        .collect()
+}
+
+#[test]
+fn what_a_macro_writes_reaches_its_callers_and_is_not_reported() {
+    let records = run_records(vec![macro_writing_io()], Demand::default()).unwrap();
+
+    let inputs = super::run_inputs(records, &crate::config::Config::default()).unwrap();
+
+    assert!(inputs.facts.iter().all(|fact| fact.id != "example::larger"));
+    assert!(!inputs.effects.contains_key("example::larger"));
+    assert_eq!(io_labels(&inputs, "example::top"), ["std::fs::write"]);
+}
+
+#[test]
+fn an_excluded_macro_function_gives_its_callers_nothing() {
+    let mut records = run_records(vec![macro_writing_io()], Demand::default()).unwrap();
+    let generated = records
+        .iter_mut()
+        .find(|record| record.identity == "example::larger")
+        .unwrap();
+    generated.path = "generated/larger.rs".into();
+    let config = crate::config::Config::parse("exclude = [\"generated/**\"]\n").unwrap();
+
+    let inputs = super::run_inputs(records, &config).unwrap();
+
+    assert!(io_labels(&inputs, "example::top").is_empty());
 }
 
 #[test]

@@ -92,7 +92,7 @@ fn run(invocation: driver_options::Invocation) -> ExitCode {
 struct NoOp;
 impl Callbacks for NoOp {}
 
-/// Writes the crate's `compat.cpg` document.
+/// Writes the crate's `compat.cpg` documents.
 struct CpgEmit {
     dir: PathBuf,
     root: PathBuf,

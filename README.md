@@ -385,9 +385,14 @@ complexity constructs, calls, call edges, effects and mutations. No compiler run
 and only an explicit `--config` applies. Documents from another profile version,
 with undeclared coverage, without file content, or whose split function documents
 do not match their unit's digest are rejected with exit code 2, as is a function read
-twice. A function a macro writes is outside the rule facts and pattern search, as it
-is on the Rust routes. `cpg patterns` exits 1 with `--fail-on-candidates` when a
-candidate is left.
+twice. `cpg patterns` exits 1 with `--fail-on-candidates` when a candidate is left.
+
+A frontend records every function the compiler holds and marks what a macro writes by
+its provenance; what each analysis does with it is core's to decide, on every route. A
+function a macro writes gets no rule findings or pattern candidates, since nothing
+original was written to change, but its effects reach its callers and runtime bounds
+compose through it. Report a macro's own tokens as generated even when they carry the
+span of one of its inputs, as `quote_spanned!` writes them.
 
 The Rust frontend emits the same documents:
 

@@ -19,9 +19,17 @@ pub fn check(
         .iter()
         .map(|path| read(path))
         .collect::<Result<Vec<_>, _>>()?;
-    let facts = rstyle_core::cpg::run_facts(values)?;
+    let config = load_config(config)?;
+    let records = cpg::run_records(values, Demand::default())?;
+    let inputs = cpg::run_inputs(records, &config)?;
 
-    let report = rstyle_core::evaluate(facts, &load_config(config)?)?;
+    let report = rstyle_core::evaluate_with_effects(
+        inputs.facts,
+        &config,
+        rstyle_core::Retention::Report,
+        inputs.effects,
+    )?
+    .report;
     let output = match format {
         Format::Text => report::text(&report),
         Format::Json => report::json(&report).map_err(|error| error.to_string())?,
@@ -72,8 +80,8 @@ fn mined(
     args: &CpgPatternsArgs,
     config: &Config,
 ) -> Result<patterns_report::PatternsReport, String> {
-    let facts = records.into_iter().filter_map(cpg::authored).collect();
-    let observed = rstyle_core::effect_observations(facts, config, None)?;
+    let inputs = cpg::run_inputs(records, config)?;
+    let observed = rstyle_core::effect_observations(inputs.facts, config, Some(inputs.effects))?;
     let options = patterns_report::Options {
         min_score_milli: args.display.min_score_milli(),
         top: args.display.top,
@@ -114,8 +122,8 @@ pub struct Selection<'a> {
     pub manifest: Option<&'a Path>,
 }
 
-/// Writes one `compat.cpg` document per compiled workspace target, by checking the
-/// workspace afresh.
+/// Writes the `compat.cpg` documents of every compiled workspace target, by checking the
+/// workspace afresh. They hold every function the compiler does, as a capture's do.
 // rstyle-allow(side_effect_density): process boundary: runs cargo with the driver
 pub fn emit(selection: &Selection<'_>, out: &Path) -> Result<(String, u8), String> {
     let metadata: crate::workspace::Metadata = crate::workspace::load_with_toolchain(

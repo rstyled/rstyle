@@ -165,6 +165,15 @@ impl<'tcx> Unit<'tcx> {
 
     /// `span` without parentheses that enclose all of it, and the whitespace inside them,
     /// with how many pairs enclosed it.
+    /// The text a recorded span covers.
+    pub fn text(&self, span: &Value) -> Option<&str> {
+        let content = self.files.get(span["file"].as_str()?)?["content"].as_str()?;
+        let start = usize::try_from(span["start"].as_u64()?).ok()?;
+        let end = usize::try_from(span["end"].as_u64()?).ok()?;
+
+        content.get(start..end)
+    }
+
     pub fn without_parentheses(&self, mut span: Value) -> (Value, usize) {
         let Some(content) = self
             .files

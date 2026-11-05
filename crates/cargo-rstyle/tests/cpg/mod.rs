@@ -372,23 +372,28 @@ fn emitted() -> (TempDir, PathBuf) {
     );
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     assert!(
-        stdout(&output).starts_with("1 compat.cpg documents written"),
+        stdout(&output).contains(" compat.cpg documents written"),
         "{}",
         stdout(&output)
     );
     (dir, out)
 }
 
-/// The rule facts core derives from the documents in `out`.
+/// The rule facts core derives from the documents in `out`, graphs included.
 fn derived(out: &Path) -> Vec<rstyle_core::facts::FnFacts> {
-    let documents = std::fs::read_dir(out)
-        .unwrap()
-        .map(|entry| entry.unwrap().path())
-        .filter(|path| path.to_string_lossy().ends_with(".cpg.json"))
+    let documents: Vec<Value> = documents_in(out)
+        .iter()
         .map(|path| serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap())
         .collect();
-    let bundled = rstyle_core::cpg::layout::bundle(documents).unwrap();
-    rstyle_core::cpg::all_facts(&bundled).unwrap()
+    let demand = rstyle_core::cpg::records::Demand {
+        graphs: true,
+        bounds: false,
+    };
+    rstyle_core::cpg::run_records(documents, demand)
+        .unwrap()
+        .into_iter()
+        .filter_map(rstyle_core::cpg::authored)
+        .collect()
 }
 
 #[test]
@@ -438,20 +443,222 @@ fn emit_selects_packages_and_targets() {
     let output = rstyle(dir.path(), &args);
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     // The library and its test harness are two compilations.
-    assert!(
-        stdout(&output).starts_with("2 compat.cpg documents written"),
-        "{}",
-        stdout(&output)
-    );
+    let units = || {
+        let documents = parsed(&documents_in(&out));
+        let units: std::collections::BTreeSet<String> = documents
+            .iter()
+            .map(|document| document["unit"]["id"].as_str().unwrap().to_owned())
+            .collect();
+        (units.len(), documents.len())
+    };
+    let first = units();
+    assert_eq!(first.0, 2, "{}", stdout(&output));
 
     // A second run replaces the first run's documents.
     let output = rstyle(dir.path(), &args);
-    assert!(
-        stdout(&output).starts_with("2 compat.cpg documents written"),
-        "{}",
-        stdout(&output)
-    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(units(), first);
 }
 
 mod bounds;
 mod facts;
+
+fn parsed(documents: &[String]) -> Vec<Value> {
+    documents
+        .iter()
+        .map(|path| serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap())
+        .collect()
+}
+
+/// The documents a capture of `root` wrote, and those `cpg emit` writes.
+fn captured_and_emitted(root: &Path) -> (Value, Vec<String>, Vec<String>) {
+    let route = rstyle(root, &["--format", "json"]);
+    assert_eq!(route.status.code(), Some(0), "{route:?}");
+    let route: Value = serde_json::from_slice(&route.stdout).unwrap();
+    let mut captured = Vec::new();
+    for entry in std::fs::read_dir(route["run_directory"].as_str().unwrap()).unwrap() {
+        let path = entry.unwrap().path();
+        if path.join("documents.manifest.json").exists() {
+            captured.extend(documents_in(&path));
+        }
+    }
+    let out = root.join("cpg");
+    let emit = rstyle(root, &["cpg", "emit", "--out", out.to_str().unwrap()]);
+    assert_eq!(emit.status.code(), Some(0), "{emit:?}");
+
+    (route, captured, documents_in(&out))
+}
+
+fn function_names(documents: &[String]) -> std::collections::BTreeSet<String> {
+    parsed(documents)
+        .iter()
+        .flat_map(|document| document["unit"]["functions"].as_array().unwrap().clone())
+        .map(|function| function["name"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+fn check_summary(root: &Path, documents: &[String]) -> Value {
+    let mut args = vec!["cpg", "check", "--format", "json"];
+    args.extend(documents.iter().map(String::as_str));
+    let check = rstyle(root, &args);
+    assert_eq!(check.status.code(), Some(0), "{check:?}");
+    serde_json::from_slice::<Value>(&check.stdout).unwrap()["summary"].clone()
+}
+
+#[test]
+fn an_emit_records_every_function_a_capture_does() {
+    let dir = fixture("generated");
+    let (_, captured, emitted) = captured_and_emitted(dir.path());
+
+    let names = function_names(&emitted);
+    assert_eq!(names, function_names(&captured));
+    for generated in [
+        "macro_writes_a_file",
+        "Written::generated",
+        "<Written as std::clone::Clone>::clone",
+    ] {
+        assert!(names.contains(generated), "{generated}: {names:?}");
+    }
+}
+
+#[test]
+fn an_emit_records_a_function_a_build_script_writes() {
+    let dir = fixture("generated");
+    let app = dir.path().join("app");
+    std::fs::write(
+        app.join("build.rs"),
+        "fn main() {\n    let out = std::env::var(\"OUT_DIR\").unwrap();\n    \
+         std::fs::write(format!(\"{out}/included.rs\"), \"pub fn included() {}\").unwrap();\n}\n",
+    )
+    .unwrap();
+    let source = std::fs::read_to_string(app.join("src/lib.rs")).unwrap();
+    std::fs::write(
+        app.join("src/lib.rs"),
+        format!("include!(concat!(env!(\"OUT_DIR\"), \"/included.rs\"));\n{source}"),
+    )
+    .unwrap();
+    let out = dir.path().join("cpg");
+
+    let emit = rstyle(dir.path(), &["cpg", "emit", "--out", out.to_str().unwrap()]);
+
+    assert_eq!(emit.status.code(), Some(0), "{emit:?}");
+    assert!(function_names(&documents_in(&out)).contains("included"));
+}
+
+#[test]
+fn a_macro_writes_no_finding_but_its_effects_reach_its_callers_on_every_route() {
+    let dir = fixture("generated");
+    let (route, captured, emitted) = captured_and_emitted(dir.path());
+
+    assert_eq!(route["summary_complete"], true);
+    assert_eq!(route["summary"]["effect_counts"]["io"], 1, "{route}");
+    assert_eq!(check_summary(dir.path(), &captured), route["summary"]);
+    assert_eq!(check_summary(dir.path(), &emitted), route["summary"]);
+}
+
+#[test]
+fn bounds_compose_through_what_a_derive_writes_over_emitted_documents() {
+    let dir = fixture("generated");
+    let (_, _, emitted) = captured_and_emitted(dir.path());
+    let mut args = vec!["cpg", "patterns", "--complexity", "--format", "json"];
+    args.extend(emitted.iter().map(String::as_str));
+
+    let mined = rstyle(dir.path(), &args);
+
+    assert_eq!(mined.status.code(), Some(0), "{mined:?}");
+    let mined: Value = serde_json::from_slice(&mined.stdout).unwrap();
+    let rows = mined["runtime_bounds"]["rows"].as_array().unwrap();
+    let caller = rows
+        .iter()
+        .find(|row| row["name"] == "calls_what_a_derive_wrote")
+        .unwrap();
+    let resolved = caller["composed"]["Proven"]["resolved_callees"]
+        .as_array()
+        .unwrap();
+    assert_eq!(resolved.len(), 1, "{caller}");
+    assert!(
+        resolved[0]
+            .as_str()
+            .unwrap()
+            .ends_with("app::{impl#0}::clone"),
+        "{caller}"
+    );
+}
+
+/// A function's nodes, and the name of the symbol each node refers to.
+fn named_nodes(function: &Value) -> Vec<(&Value, Option<&str>)> {
+    let symbols = function["symbols"].as_array().unwrap();
+    let refs = function["refs"].as_array().unwrap();
+    function["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|node| {
+            let symbol = refs
+                .iter()
+                .find(|reference| {
+                    reference["node"] == node["id"] && reference["target"]["kind"] == "symbol"
+                })
+                .and_then(|reference| {
+                    symbols
+                        .iter()
+                        .find(|symbol| symbol["id"] == reference["target"]["id"])
+                });
+            (node, symbol.and_then(|symbol| symbol["name"].as_str()))
+        })
+        .collect()
+}
+
+fn function<'a>(documents: &'a [Value], name: &str) -> &'a Value {
+    documents
+        .iter()
+        .flat_map(|document| document["unit"]["functions"].as_array().unwrap())
+        .find(|function| function["name"] == name)
+        .unwrap_or_else(|| panic!("no function {name}"))
+}
+
+#[test]
+fn a_macro_writing_at_its_inputs_tokens_is_recorded_as_generated() {
+    let dir = fixture("generated");
+    let (_, _, emitted) = captured_and_emitted(dir.path());
+    let documents = parsed(&emitted);
+    let written = function(&documents, "Written::generated");
+
+    let identifier = named_nodes(written)
+        .into_iter()
+        .find(|(node, name)| node["kind"] == "identifier" && *name == Some("spanned"))
+        .unwrap()
+        .0;
+    assert_eq!(identifier["provenance"]["origin"], "macro_expansion");
+    assert_eq!(identifier["provenance"]["macro"], "Spanning");
+    let binding = written["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|node| node["kind"] == "pattern_binding")
+        .unwrap();
+    assert_eq!(binding["provenance"]["origin"], "macro_expansion");
+    let operator = written["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|node| node["kind"] == "operator")
+        .unwrap();
+    assert!(operator.get("token").is_none(), "{operator}");
+}
+
+#[test]
+fn what_a_macro_passes_through_and_a_raw_name_stay_source() {
+    let dir = fixture("generated");
+    let (_, _, emitted) = captured_and_emitted(dir.path());
+    let documents = parsed(&emitted);
+
+    for (function_name, name) in [("passed_through", "given"), ("raw", "match")] {
+        let found = named_nodes(function(&documents, function_name))
+            .into_iter()
+            .find(|(node, symbol)| node["kind"] == "identifier" && *symbol == Some(name))
+            .unwrap()
+            .0;
+        assert_eq!(found["provenance"]["origin"], "source", "{found}");
+    }
+}

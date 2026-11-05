@@ -60,6 +60,8 @@ pub struct Record {
     /// The body's root node, which tells functions of one name and source apart.
     pub root: String,
     pub located: FileSpan,
+    /// The path of the file it is located in.
+    pub path: String,
     pub source: String,
     pub signature: DeclaredSignature,
     pub measured: Measured,
@@ -127,6 +129,7 @@ fn record(
         compilation,
         root: function.root.clone(),
         located: at.clone(),
+        path: sources.path(at)?.to_owned(),
         source: source.to_owned(),
         signature: signature(function, tables, source)?,
         measured,

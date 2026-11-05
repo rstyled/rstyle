@@ -9,7 +9,6 @@ pub(crate) mod sysroot;
 mod unit;
 
 use rstyle_pdg::nominal_binding::PackageContext;
-use rustc_hir::def::DefKind;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::LOCAL_CRATE;
@@ -21,39 +20,19 @@ pub const DIR_ENV: &str = "RSTYLE_CPG_DIR";
 /// Workspace root that file paths are relative to.
 pub const ROOT_ENV: &str = "RSTYLE_CPG_ROOT";
 
+/// Writes the crate's documents into `dir`: every function the compiler holds, a macro's
+/// included, as a capture records them. What a consumer reads of them is core's to decide.
 pub fn emit(tcx: TyCtxt<'_>, root: &Path, dir: &Path) -> Result<(), String> {
-    let mut unit = unit::Unit::new(tcx, root.to_path_buf());
-    let functions = crate::hir_extraction::function_owners(tcx)
-        .filter(|&id| emitted(tcx, id, root))
-        .map(|id| function(&mut unit, id))
-        .collect::<Result<Vec<_>, String>>()?;
-    if functions.is_empty() {
-        return Ok(());
-    }
-
     let name = unit_name(tcx);
-    unit.record_local_files();
-    let document = document(tcx, (unit, true), functions, &name);
-    write(&dir.join(format!("{name}.cpg.json")), &document)
-}
+    let documents = documents_in(tcx, (root, None), Capture::default());
 
-/// A function written in a workspace source file, with a body: what an emit records.
-fn emitted(tcx: TyCtxt<'_>, id: LocalDefId, root: &Path) -> bool {
-    if !matches!(tcx.def_kind(id), DefKind::Fn | DefKind::AssocFn) {
-        return false;
+    for (index, (document, unrecorded)) in documents.enumerate() {
+        if let Some((id, reason)) = unrecorded.first() {
+            return Err(format!("{}: {reason}", tcx.def_path_str(id.to_def_id())));
+        }
+        write(&dir.join(format!("{name}.{index:06}.cpg.json")), &document)?;
     }
-    let node = tcx.hir_node_by_def_id(id);
-    let (Some(sig), Some(body)) = (node.fn_sig(), node.body_id()) else {
-        return false;
-    };
-    let source_map = tcx.sess.source_map();
-    let file = source_map.lookup_char_pos(sig.span.lo()).file;
-
-    !sig.span.from_expansion()
-        && crate::paths::source_path(tcx, &file, root).is_some()
-        && source_map
-            .span_to_snippet(sig.span.to(tcx.hir_body(body).value.span))
-            .is_ok()
+    Ok(())
 }
 
 /// A frontend's own observations of a function, recorded as its extensions.

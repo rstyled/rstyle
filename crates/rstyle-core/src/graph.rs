@@ -83,11 +83,21 @@ impl Graph {
 }
 
 pub fn build(facts: &[FnFacts]) -> Graph {
+    build_identified(facts, |f| (f.id.as_str(), f.implements.as_deref()))
+}
+
+/// A graph over any owners, resolving a callee by each one's identity and the trait
+/// function it implements.
+pub fn build_identified<'a, F: EffectInput>(
+    facts: &'a [F],
+    identity: impl Fn(&'a F) -> (&'a str, Option<&'a str>),
+) -> Graph {
     let mut by_id: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     for (index, f) in facts.iter().enumerate() {
-        by_id.entry(f.id.as_str()).or_default().push(index);
-        if let Some(trait_fn) = &f.implements {
-            by_id.entry(trait_fn.as_str()).or_default().push(index);
+        let (id, implements) = identity(f);
+        by_id.entry(id).or_default().push(index);
+        if let Some(trait_fn) = implements {
+            by_id.entry(trait_fn).or_default().push(index);
         }
     }
     build_resolved(facts, |_, edge| {
