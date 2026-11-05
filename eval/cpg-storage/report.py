@@ -17,6 +17,7 @@ import numpy as np
 
 MIB = 1024 * 1024
 LABELS = {"json": "Shared JSON", "json-zstd": "Shared JSON + Zstd",
+          "original-json": "Original JSON", "original-json-zstd": "Original JSON + Zstd",
           "flatbuffers": "FlatBuffers", "flexbuffers": "FlexBuffers", "protobuf": "Protobuf",
           "flatbuffers-zstd": "FlatBuffers + Zstd", "flexbuffers-zstd": "FlexBuffers + Zstd",
           "protobuf-zstd": "Protobuf + Zstd"}
@@ -36,7 +37,7 @@ def metric(row, operation, field="seconds", statistic="median"):
 
 def ordered(data):
     rows = data["results"]
-    return [label for label in ["json", "json-zstd", "flatbuffers", "flexbuffers", "protobuf",
+    return [label for label in ["original-json", "original-json-zstd", "json", "json-zstd", "flatbuffers", "flexbuffers", "protobuf",
                                data["fastest_binary"] + "-zstd"] if label in rows]
 
 
@@ -44,14 +45,12 @@ def plot_case(name, data, control, out):
     labels = ordered(data)
     rows = data["results"]
     names = [LABELS[label] for label in labels]
-    colors = ["#718096", "#3468b3", "#167e8a", "#b46d26", "#8053a6", "#277f43"]
+    colors = ["#b3b3b3", "#929292", "#718096", "#3468b3", "#167e8a", "#b46d26", "#8053a6", "#277f43"]
     plt.rcParams.update({"font.size": 9, "axes.spines.top": False, "axes.spines.right": False,
                          "svg.fonttype": "none", "font.family": "DejaVu Sans"})
     fig, axes = plt.subplots(2, 2, figsize=(13, 8.4), constrained_layout=True)
-    size_names = ["Original JSON", "Original JSON + Zstd", *names]
-    sizes = [data["prepare"]["stats"]["source_bytes"] / MIB, control["compressed_bytes"] / MIB,
-             *[rows[label]["wire_bytes"] / MIB for label in labels]]
-    bars = axes[0, 0].barh(size_names, sizes, color=["#b3b3b3", "#929292", *colors])
+    sizes = [rows[label]["wire_bytes"] / MIB for label in labels]
+    bars = axes[0, 0].barh(names, sizes, color=colors)
     axes[0, 0].invert_yaxis()
     axes[0, 0].bar_label(bars, fmt="%.2f", padding=3, fontsize=8)
     axes[0, 0].set(xlabel="Stored payload (MiB)", title="Disk footprint")
@@ -64,7 +63,7 @@ def plot_case(name, data, control, out):
         axes[0, 1].barh(y + offset, values, .32, xerr=[lo, hi], color=color, label=operation.capitalize(),
                        error_kw={"elinewidth": .8, "capsize": 2})
     axes[0, 1].set(yticks=y, yticklabels=names, xlabel="Median time (ms); whiskers show min to max",
-                   title="Complete encode and owned decode")
+                   title="Native encode and owned decode")
     axes[0, 1].invert_yaxis()
     axes[0, 1].legend()
     for operation, offset, color in [("encode", -.18, "#3468b3"), ("decode", .18, "#e69a38")]:
@@ -78,14 +77,14 @@ def plot_case(name, data, control, out):
     bars = axes[1, 1].barh(names, totals, color=colors)
     axes[1, 1].bar_label(bars, fmt="%.1f", padding=3, fontsize=8)
     axes[1, 1].invert_yaxis()
-    axes[1, 1].set(xlabel="Sum of median encode and decode time (ms)", title="Selection objective")
+    axes[1, 1].set(xlabel="Sum of median encode and decode time (ms)", title="Native codec timing comparison")
     axes[1, 1].set_xlim(0, max(totals) * 1.15)
     stats = data["prepare"]["stats"]
     environment = data["environment"]
     fig.suptitle(f"CPG storage: {name} — {stats['source_documents']} documents, "
                  f"{stats['source_functions']:,} functions, {stats['source_bytes']/MIB:.2f} MiB original JSON\n"
                  f"{environment['repetitions']} measured trials after {environment['warmups']} warmup(s) "
-                 f"• CPU {environment['cpu_pin']} • Zstandard level {environment['zstd_level']} • shared lossless arena",
+                 f"• CPU {environment['cpu_pin']} • Zstandard level {environment['zstd_level']} • native representations",
                  fontsize=12)
     fig.savefig(out / f"{name}.png", dpi=180)
     fig.savefig(out / f"{name}.svg")
@@ -100,7 +99,7 @@ def markdown_case(name, data, control):
     rows = data["results"]
     fastest = data["fastest_binary"]
     compressed = rows[fastest + "-zstd"]
-    smallest = min(rows, key=lambda label: rows[label]["wire_bytes"])
+    smallest = min((label for label in rows if not label.startswith("original-json")), key=lambda label: rows[label]["wire_bytes"])
     lines = [f"## {name.capitalize()} results", "",
              f"The {stats['source_documents']} input document(s) contain **{stats['source_functions']:,} functions** "
              f"and **{stats['source_nodes']:,} syntax nodes**. Their original JSON occupies "
@@ -110,19 +109,22 @@ def markdown_case(name, data, control):
              f"{100*(1-compressed['wire_bytes']/original):.1f}% below the original JSON payload. "
              f"The smallest tested shared representation is {LABELS[smallest]} at "
              f"{rows[smallest]['wire_bytes']/MIB:.2f} MiB.", "",
-             "| Representation | Payload MiB | Encode ms | Decode ms | Encode plus decode ms | Encode peak MiB | Decode peak MiB |",
-             "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
-             f"| Original JSON size control | {original/MIB:.2f} | — | — | — | — | — |",
-             f"| Original JSON + Zstd size control | {control['compressed_bytes']/MIB:.2f} | — | — | — | — | — |"]
-    for label in ordered(data):
+             "| Time rank | Representation | Payload MiB | Encode ms | Decode ms | Encode plus decode ms | Encode peak MiB | Decode peak MiB |",
+             "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |"]
+    for label in sorted(ordered(data), key=lambda label: rows[label]["time_rank"]):
         row = rows[label]
-        lines.append(f"| {LABELS[label]} | {row['wire_bytes']/MIB:.2f} | "
+        lines.append(f"| {row['time_rank']} | {LABELS[label]} | {row['wire_bytes']/MIB:.2f} | "
                      f"{metric(row,'encode')*1000:.2f} | {metric(row,'decode')*1000:.2f} | "
                      f"{row['encode_plus_decode_seconds']*1000:.2f} | "
                      f"{metric(row,'encode','peak_rss_bytes')/MIB:.2f} | {metric(row,'decode','peak_rss_bytes')/MIB:.2f} |")
     lines.extend(["", "Times and memory values are medians. The JSON records retain every sample, "
-                  "minimum, maximum, and median absolute deviation. Original JSON controls are size-only "
-                  "and are excluded from the timing ranking.", "", f"![{name.capitalize()} comparisons]({name}.png)", "",
+                  "minimum, maximum, and median absolute deviation. Original JSON encodes the producer's "
+                  "JSON trees and decodes into the existing typed CPG Document model, one document at a time. "
+                  "Shared variants encode and decode an interned arena. These ranks compare native representations "
+                  "of the same content; normalization and conversion into analysis types are excluded.", "",
+                  f"**Original JSON ranks {rows['original-json']['time_rank']} of {len(rows)} by encode plus decode; "
+                  f"original JSON + Zstandard ranks {rows['original-json-zstd']['time_rank']} of {len(rows)}.**", "",
+                  f"![{name.capitalize()} comparisons]({name}.png)", "",
                   f"The normalization step, including input I/O, hashing, statistics, and exact reconstruction checks, "
                   f"took {data['prepare']['normalization_seconds']:.3f} s and reached "
                   f"{data['prepare']['process_peak_rss_bytes']/MIB:.2f} MiB process peak RSS. "
@@ -137,7 +139,7 @@ def markdown_case(name, data, control):
                   "| --- | ---: | ---: |"])
     for key, count in sorted(stats["table_occurrences"].items()):
         lines.append(f"| {key} | {count:,} | {stats['table_unique_records'][key]:,} |")
-    ratio = compressed["wire_bytes"] / control["compressed_bytes"]
+    ratio = compressed["wire_bytes"] / rows["original-json-zstd"]["wire_bytes"]
     lines.extend(["", f"Compared with direct compression of the original JSON, {LABELS[fastest]} + Zstandard "
                   f"uses {ratio:.3f} times the storage. This control matters: shared records and binary encoding "
                   "do not guarantee a smaller compressed file than repetitive JSON.", ""])
@@ -150,7 +152,7 @@ def render_html(cases, out):
         rows = []
         for label in ordered(data):
             row = data["results"][label]
-            rows.append({"name": LABELS[label], "mib": row["wire_bytes"]/MIB,
+            rows.append({"name": LABELS[label], "rank": row["time_rank"], "mib": row["wire_bytes"]/MIB,
                          "encode": metric(row,"encode")*1000, "decode": metric(row,"decode")*1000,
                          "total": row["encode_plus_decode_seconds"]*1000,
                          "encode_peak": metric(row,"encode","peak_rss_bytes")/MIB,
@@ -170,22 +172,22 @@ def render_html(cases, out):
 *{box-sizing:border-box}body{margin:0;line-height:1.5}h1{font-size:21px;margin:0 0 10px}h2{font-size:17px;margin:18px 0 8px}
 p{margin:8px 0;font-size:13px}select{font:inherit;padding:5px 9px;border-radius:var(--radius,6px);border:1px solid var(--border,#888)}
 .scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:8px 6px;border-bottom:1px solid var(--border,#9995);text-align:right;white-space:nowrap}
-th:first-child,td:first-child{text-align:left}img{width:100%;height:auto;display:block;background:white;border-radius:var(--radius,6px)}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}img{width:100%;height:auto;display:block;background:white;border-radius:var(--radius,6px)}
 svg{display:block;width:100%;height:auto}svg text{fill:var(--foreground,CanvasText);font-family:var(--font-sans,system-ui,sans-serif);font-size:12px}
 small,.muted{font-size:11px;color:var(--muted-foreground,#777)}a{color:var(--primary,#537fce)}li{font-size:13px;margin:5px 0}</style></head><body>
 <h1>CPG storage benchmark comparison</h1>
 <label for="dataset">Dataset </label><select id="dataset">OPTIONS</select><p id="context"></p>
 <p><strong id="winner"></strong> has the lowest sum of median encode and fully materialized decode time among the uncompressed binary candidates.</p>
 <h2>Stored payload</h2><svg id="sizeChart" role="img" aria-label="Stored payload in MiB"></svg>
-<h2>Encode and owned decode</h2><p class="muted">Encode followed by decode. Labels show their sum in milliseconds.</p><svg id="timeChart" role="img" aria-label="Encode and owned decode time in milliseconds"></svg>
-<div class="scroll"><table><thead><tr><th>Representation</th><th>MiB</th><th>Encode ms</th><th>Decode ms</th><th>Total ms</th><th>Encode RSS MiB</th><th>Decode RSS MiB</th></tr></thead><tbody id="rows"></tbody></table></div>
+<h2>Native codec time ranking</h2><p class="muted">Encode followed by decode. Labels show their sum in milliseconds. Original JSON uses the existing typed CPG reader; shared formats use the interned arena.</p><svg id="timeChart" role="img" aria-label="Native encode and owned decode time ranking in milliseconds"></svg>
+<div class="scroll"><table><thead><tr><th>Rank</th><th>Representation</th><th>MiB</th><th>Encode ms</th><th>Decode ms</th><th>Total ms</th><th>Encode RSS MiB</th><th>Decode RSS MiB</th></tr></thead><tbody id="rows"></tbody></table></div>
 <p id="control"></p>
 <p><a id="chartfile">Open the exported chart with memory peaks and timing ranges</a></p>
 <h2>How to interpret the measurements</h2>
-<ul><li>All codecs serialize the same lossless shared JSON-value arena. Exact strings and substructures are interned; compiler identities and compilation contexts remain intact.</li>
+<ul><li>Shared codecs serialize the same lossless interned arena. Original JSON encodes the producer's JSON trees and decodes into the real CPG Document model. This ranking includes representation differences, with the same original content preserved.</li>
 <li>Seven measured trials follow one warmup, in randomized format order. Each operation uses a fresh Rust process pinned to CPU 19. The host is shared.</li>
 <li>Codec timings exclude file I/O, input loading, normalization, and validation. Compressed variants include compression or decompression at Zstandard level 3, using one thread.</li>
-<li>Decoding reconstructs the entire owned arena. Native zero-copy queries and direct borrowed traversal are outside this benchmark.</li>
+<li>Original JSON processes documents individually; its times sum codec work and its RSS is the maximum document-stage peak. Shared formats process one whole archive. Data destruction is outside timings. Native zero-copy access and analysis integration are not measured.</li>
 <li>Stage peak RSS includes the input model or wire buffer. Linux high-water RSS is reset after loading; normalization memory is reported separately.</li>
 <li>The fresh input came from cpg emit on feat/cpg-document-routes with its recorded local changes. Private Cargo build files are excluded from payload sizes.</li></ul>
 <p>See <a href="comparison.md">the detailed report</a>, <a href="measurements.csv">the measurement table</a>, and <a href="raw/">the retained raw records</a>.</p>
@@ -194,10 +196,11 @@ function bars(id,items,unit){const s=document.getElementById(id),left=177,right=
 s.innerHTML=items.map((i,n)=>{const y=n*step+5,a=i.a/max*(width-left-right),b=(i.b||0)/max*(width-left-right);return '<text x="0" y="'+(y+13)+'">'+i.name+'</text><rect x="'+left+'" y="'+y+'" width="'+a+'" height="18" rx="2" fill="'+(i.color||'var(--chart-1,#5277c3)')+'"/>'+(b?'<rect x="'+(left+a)+'" y="'+y+'" width="'+b+'" height="18" fill="var(--chart-2,#d89632)"/>':'')+'<text x="'+(left+a+b+7)+'" y="'+(y+13)+'">'+(i.a+(i.b||0)).toFixed(2)+' '+unit+'</text>'}).join('');}
 function show(){const d=cases[select.value];document.getElementById('context').textContent=d.context;
 document.getElementById('winner').textContent=d.winner;document.getElementById('chartfile').href=d.chartfile;
-bars('sizeChart',[{name:'Original JSON',a:d.original_mib,color:'var(--muted-foreground,#999)'},{name:'Original JSON + Zstd',a:d.original_zstd,color:'var(--muted-foreground,#999)'},...d.rows.map(r=>({name:r.name,a:r.mib}))],'MiB');
-bars('timeChart',d.rows.map(r=>({name:r.name,a:r.encode,b:r.decode})),'ms');
-document.getElementById('rows').innerHTML=d.rows.map(r=>'<tr><td>'+r.name+'</td>'+[r.mib,r.encode,r.decode,r.total,r.encode_peak,r.decode_peak].map(n=>'<td>'+n.toFixed(2)+'</td>').join('')+'</tr>').join('');
-document.getElementById('control').textContent='Original JSON compressed directly occupies '+d.original_zstd.toFixed(2)+' MiB. That is a size-only control, excluded from timed rankings.';}
+bars('sizeChart',d.rows.map(r=>({name:r.name,a:r.mib})),'MiB');
+const ranked=[...d.rows].sort((a,b)=>a.rank-b.rank);
+bars('timeChart',ranked.map(r=>({name:r.rank+'. '+r.name,a:r.encode,b:r.decode})),'ms');
+document.getElementById('rows').innerHTML=ranked.map(r=>'<tr><td>'+r.rank+'</td><td>'+r.name+'</td>'+[r.mib,r.encode,r.decode,r.total,r.encode_peak,r.decode_peak].map(n=>'<td>'+n.toFixed(2)+'</td>').join('')+'</tr>').join('');
+document.getElementById('control').textContent='Both original-JSON rows now have measured encode and decode timings. The separate original-JSON compression size check is retained in the raw records.';}
 select.addEventListener('change',show);show();</script></body></html>'''
     (out / "comparison.html").write_text(template.replace("OPTIONS",options).replace("DATA",json.dumps(contents).replace("</","<\\/")))
 
@@ -215,8 +218,10 @@ def main():
     paths = [source / name for name in ["Cargo.toml", "Cargo.lock", "run.py", "controls.py", "report.py"]]
     paths.extend(sorted((source / "src").glob("*.rs")))
     paths.extend(sorted((source / "schema").glob("*")))
-    write(out / "benchmark-source.json", {str(path.relative_to(source)): hashlib.sha256(path.read_bytes()).hexdigest()
-                                         for path in paths})
+    sources = {str(path.relative_to(source)): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
+    reader = source.parent.parent / "crates/rstyle-core/src/cpg/model.rs"
+    sources["../../crates/rstyle-core/src/cpg/model.rs"] = hashlib.sha256(reader.read_bytes()).hexdigest()
+    write(out / "benchmark-source.json", sources)
     cases = []
     for directory in args.directories:
         data = read(directory / "results.json")
@@ -224,7 +229,7 @@ def main():
         cases.append((directory.name,data,control))
         raw = out / "raw" / directory.name
         raw.mkdir(parents=True,exist_ok=True)
-        for name in ["results.json","prepare.json","environment.json","selection.json","original-json-zstd.json"]:
+        for name in ["results.json","prepare.json","environment.json","selection.json","original-json-zstd.json","original-inventory.json"]:
             shutil.copy2(directory/name,raw/name)
         with (raw/"trials.jsonl").open("w") as stream:
             for path in sorted((directory/"trials").glob("*.json")):
@@ -236,7 +241,7 @@ def main():
         speed_finding = f"{LABELS[next(iter(winners))]} is fastest for encode plus full owned decoding in every measured dataset."
     else:
         speed_finding = "The fastest binary format varies between the measured datasets."
-    direct_compression_wins = all(control['compressed_bytes'] < min(row['wire_bytes'] for row in data['results'].values())
+    direct_compression_wins = all(data['results']['original-json-zstd']['wire_bytes'] <= min(row['wire_bytes'] for row in data['results'].values())
                                   for _,data,control in cases)
     if direct_compression_wins:
         size_finding = ("Direct Zstandard compression of the original JSON gives the smallest payloads.** "
@@ -251,7 +256,9 @@ def main():
     header = "\n".join(["# CPG storage benchmark comparison", "",
         "This study compares a lossless shared-table representation of fresh rstyle CPG output in JSON, "
         "FlatBuffers, FlexBuffers, and Protobuf. JSON and the fastest uncompressed binary codec are also "
-        "tested with Zstandard level 3. The production CPG writer and readers are unchanged.", "",
+        "tested with Zstandard level 3. Original JSON is now timed both plain and compressed, using the producer's "
+        "JSON-tree encoder and the existing typed CPG reader model. All variants appear in the native timing rank. "
+        "The production CPG writer and readers are unchanged.", "",
         "**"+speed_finding+" "+size_finding, "",
         "## Input and source provenance", "",
         f"The producer was built from `{producer['branch']}` at `{producer['head']}` with local changes. "
@@ -263,22 +270,33 @@ def main():
         "Neither dataset is synthetic or duplicated to manufacture scale. Private Cargo build artifacts "
         "are excluded. These inputs do not establish a byte breakdown for the previously estimated 3.1 GB capture.", ""])
     methods = "\n".join(["## Method and practical limits", "",
-        "- Every codec receives identical strings, scalar values, child references, and document roots. "
+        "- Every shared-arena codec receives identical strings, scalar values, child references, and document roots. "
         "The prototype interns exact strings and JSON substructures into a shared arena. "
         "It does not merge compiler entities by display name or discard observations, provenance, source text, or unknown fields.",
+        "- Original JSON uses serde_json::Value serialization as the actual producer does, and deserializes with "
+        "the existing rstyle-core CPG Document model imported directly from its source file, whose hash is recorded. "
+        "It processes one document at a time and sums codec time across documents. Its peak RSS is the maximum "
+        "document-stage peak. Typed documents are kept alive through the timing boundary and destroyed afterward. "
+        "The strict typed decoder must succeed. A separate generic parse checks canonical wire-document "
+        "SHA256 outside timing after the typed output is dropped; it is not part of the reported decode time.",
         "- Preparation reconstructs every original JSON document and checks semantic JSON equality. "
-        "Every decoded result is validated outside the timing interval and compared using a SHA256 over every materialized arena field "
-        "with the prepared model. Original document SHA256 values and deterministic wire hashes are retained.",
+        "Shared results are checked with a SHA256 over every materialized arena field against the prepared model. "
+        "Original JSON results are checked against a separately computed canonical document inventory. "
+        "Original document SHA256 values and deterministic wire hashes are retained.",
         "- Seven measured repetitions follow one warmup. Format order is randomized with seed 20261105. "
         "Each encode and decode runs in a separate optimized Rust process pinned to CPU 19. "
         "The host is shared; cgroup CPU and memory counters are retained. Whiskers show the observed range, not a confidence interval.",
         "- Fastest means the lowest sum of median encode time and median full owned-decode time among "
         "FlatBuffers, FlexBuffers, and Protobuf. The winning codec is then measured with compression in additional trials. "
         "Read-heavy workloads can choose a different weighting.",
-        "- Timings cover encoding to an owned wire buffer and decoding to the same fully owned shared arena. "
+        "- Timings cover encoding to owned wire buffers and decoding to each representation's fully owned output. "
         "File I/O, loading the common model, normalization, digest calculation, validation, and buffer destruction "
         "are outside those intervals. Compressed variants include the compression/decompression stage. "
         "This is not an end-to-end compiler or rstyle-analysis benchmark.",
+        "- The overall rank compares native representations of the same CPG information: original typed documents "
+        "versus an interned shared arena. It includes representation and codec effects. "
+        "Preparation is excluded for both; no claim is made that the existing analysis can consume the arena "
+        "without additional integration. The separate binary winner selection remains restricted to the three uncompressed binary codecs.",
         "- All compression uses Zstandard level 3 with one thread. Rust codecs use zstd 0.14.3 with "
         "libzstd 1.5.7. The original-JSON size control uses python-zstandard 0.25.0 with the same libzstd version, "
         "one independent frame per original document, and verified byte-for-byte reconstruction.",
@@ -289,7 +307,7 @@ def main():
         "buffer without an added full-buffer copy. Protobuf uses prost messages with packed child IDs. "
         "FlexBuffers uses its Rust Serde serializer with default key sharing. JSON uses compact value tuples. "
         "No binary codec wraps JSON bytes. Pinned versions and schemas accompany the harness.",
-        "- Results apply to this common lossless arena and Rust implementations. A domain-specific typed CPG "
+        "- Shared-format results apply to this common lossless arena and Rust implementations. A domain-specific typed binary CPG "
         "schema, native zero-copy access, independently compressed function chunks, other languages, "
         "different compression levels, and on-disk query indexes are not measured here. "
         "The current archive is monolithic; production chunking and bounded-memory normalization need a separate design.", "",
@@ -301,7 +319,7 @@ def main():
         "The HTML report works offline, and PNG/SVG charts are included for sharing.", ""])
     (out/"comparison.md").write_text(header+"\n"+"\n".join(markdown_case(*case) for case in cases)+"\n"+methods)
     with (out/"measurements.csv").open("w",newline="") as stream:
-        fields=["dataset","format","operation","payload_bytes","median_seconds","min_seconds","max_seconds",
+        fields=["dataset","format","representation","time_rank","operation","payload_bytes","median_seconds","min_seconds","max_seconds",
                 "mad_seconds","median_peak_rss_bytes","median_baseline_rss_bytes","median_io_seconds"]
         writer=csv.DictWriter(stream,fieldnames=fields,lineterminator="\n");writer.writeheader()
         for name,data,_ in cases:
@@ -309,7 +327,7 @@ def main():
                 row=data["results"][label]
                 for operation in ["encode","decode"]:
                     t=row[operation]["seconds"]
-                    writer.writerow(dict(dataset=name,format=label,operation=operation,payload_bytes=row["wire_bytes"],
+                    writer.writerow(dict(dataset=name,format=label,representation=row["representation"],time_rank=row["time_rank"],operation=operation,payload_bytes=row["wire_bytes"],
                         median_seconds=t["median"],min_seconds=t["min"],max_seconds=t["max"],mad_seconds=t["mad"],
                         median_peak_rss_bytes=metric(row,operation,"peak_rss_bytes"),
                         median_baseline_rss_bytes=metric(row,operation,"baseline_rss_bytes"),

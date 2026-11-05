@@ -1,8 +1,8 @@
 {
   "candidates": {
-    "flatbuffers": 0.32120613099999995,
-    "flexbuffers": 1.3514026879999999,
-    "protobuf": 0.483395665
+    "flatbuffers": 0.364471243,
+    "flexbuffers": 1.174235103,
+    "protobuf": 0.492402391
   },
   "fastest_binary": "flatbuffers",
   "rule": "lowest sum of median encode and fully materialized decode seconds among uncompressed binary codecs"

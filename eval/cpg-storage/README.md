@@ -5,6 +5,13 @@ FlexBuffers, and Protobuf on real `compat.cpg` documents. JSON and the fastest
 uncompressed binary codec are also measured with Zstandard. It does not change the
 production CPG writer, schema, readers, dependencies, or build profiles.
 
+Original JSON is timed plain and with Zstandard as well. Its encode path uses
+`serde_json::Value`, as the producer does; its decode path imports the actual
+`rstyle-core` CPG `Document` model directly. Timing ranks include all eight variants.
+Original JSON retains its document boundaries and shared formats use one interned
+archive, so the overall rank includes representation differences as well as codec
+cost. It is not an end-to-end analysis speedup measurement.
+
 The [2026 November 5 comparison](reports/2026-11-05/comparison.md) contains measured
 results for a fresh rstyle-core emit and a full workspace emit. The
 [offline interactive report](reports/2026-11-05/comparison.html) includes dataset
@@ -81,6 +88,14 @@ the lowest **median encode time plus median full owned-decode time**, then measu
 that codec with Zstandard in additional trials. Encode and decode are also
 reported separately. Compression uses one thread.
 
+The original-JSON rows join the randomized trials. They process documents
+individually, sum the codec times across them, and report the maximum stage RSS.
+The typed reader output remains alive through the timing boundary and is dropped
+afterward. Canonical full-document SHA256 validation runs outside timing, after
+dropping the typed output. Separate content digests validate the original document
+set and the shared arena. The raw records retain the native representation and
+encode, decode, and combined timing ranks.
+
 Preparation time, validation time, file I/O, and full process wall time are retained
 separately from codec timings. Linux stage RSS includes the input model or wire
 buffer; resetting `/proc/self/clear_refs` to 5 excludes earlier loading peaks.
@@ -113,10 +128,12 @@ fields are `branch`, `head`, and `source_tree_sha256`; the retained example incl
 the dirty file inventory and frozen producer binary hashes as well. The original
 JSON control writes one independent Zstandard frame per input document and checks
 its decompressed SHA256. It is a **size control**, excluded from timing rankings.
+The original-JSON timing rows use the Rust harness and are included in those ranks;
+the Python control remains an independent check on compressed size.
 
 ## Shared representation and scope
 
-Every codec serializes the same typed arena:
+Every shared-format codec serializes the same typed arena:
 
 - `strings`: unique original strings, object keys, source contents, and input paths.
 - `values`: records containing a kind, scalar payload, child start, and child count.
@@ -133,7 +150,7 @@ assert that two source entities have the same semantic identity.
 This is an explicit **generic shared JSON-value arena**, more aggressive than just
 moving unit tables out of function chunks. No binary format contains embedded JSON
 blobs. A dedicated typed CPG schema can produce different size and performance
-results. The prototypes use monolithic archives and full owned decoding; they do
+results. Shared prototypes use monolithic archives and full owned decoding; they do
 not measure native zero-copy queries, mmap traversal, independently compressed
 function chunks, or conversion back into the production reader's types. A
 production implementation also needs bounded-memory normalization and chunking.

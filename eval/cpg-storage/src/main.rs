@@ -1,6 +1,13 @@
 mod codecs;
 mod model;
 mod normalize;
+mod original;
+
+// Use the real reader's types without importing the analysis engine.
+#[allow(dead_code)]
+#[rustfmt::skip]
+#[path = "../../../crates/rstyle-core/src/cpg/model.rs"]
+mod cpg_model;
 
 #[allow(warnings)]
 #[rustfmt::skip]
@@ -25,6 +32,28 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Hash the canonical content of each original document before timed trials.
+    OriginalInventory {
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(required = true)]
+        inputs: Vec<PathBuf>,
+    },
+    /// Encode or fully decode original JSON documents without the shared arena.
+    OriginalTrial {
+        #[arg(long, value_enum)]
+        operation: Operation,
+        #[arg(long)]
+        wire: PathBuf,
+        #[arg(long)]
+        result: PathBuf,
+        #[arg(long)]
+        zstd_level: Option<i32>,
+        #[arg(long)]
+        generic_json: bool,
+        #[arg(required = true)]
+        inputs: Vec<PathBuf>,
+    },
     /// Normalize documents, prove lossless reconstruction, and freeze a shared model.
     Prepare {
         #[arg(long)]
@@ -58,6 +87,7 @@ enum Operation {
 
 #[derive(Serialize)]
 struct Trial {
+    representation: &'static str,
     codec: Codec,
     operation: Operation,
     zstd_level: Option<i32>,
@@ -77,6 +107,25 @@ struct Trial {
 
 fn main() -> Result<(), String> {
     match Cli::parse().command {
+        Command::OriginalInventory { out, inputs } => {
+            write_json(&out, &original::inventory(&inputs)?)
+        }
+        Command::OriginalTrial {
+            operation,
+            wire,
+            result,
+            zstd_level,
+            generic_json,
+            inputs,
+        } => {
+            let model = if generic_json {
+                original::ReadModel::Json
+            } else {
+                original::ReadModel::Cpg
+            };
+            let trial = original::trial(operation, &inputs, (&wire, model), zstd_level)?;
+            write_json(&result, &trial)
+        }
         Command::Prepare { out, inputs } => prepare(&out, &inputs),
         Command::Trial {
             codec,
@@ -184,6 +233,7 @@ fn encode_trial(
     let digest = archive.digest();
     let hash = format!("{:x}", Sha256::digest(&bytes));
     Ok(Trial {
+        representation: "shared-arena",
         codec,
         operation: Operation::Encode,
         zstd_level: level,
@@ -233,6 +283,7 @@ fn decode_trial(codec: Codec, wire: &Path, level: Option<i32>) -> Result<Trial, 
     let digest = archive.digest();
     let hash = format!("{:x}", Sha256::digest(&bytes));
     Ok(Trial {
+        representation: "shared-arena",
         codec,
         operation: Operation::Decode,
         zstd_level: level,

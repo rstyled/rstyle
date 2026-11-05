@@ -119,3 +119,90 @@ fn truncated_binary_inputs_are_rejected() {
         );
     }
 }
+
+#[test]
+fn original_json_trials_preserve_pretty_inputs_and_document_boundaries() {
+    let inputs = Inputs::new();
+    let first = inputs.0.join("pretty.json");
+    std::fs::write(
+        &first,
+        "{\n  \"unicode\": \"λ🦀\", \"nested\": [null, -1, true]\n}\n",
+    )
+    .unwrap();
+    let second = inputs.add(
+        "second.json",
+        &json!({"max":u64::MAX,"float":-0.0,"unknown":{"x":42}}),
+    );
+    let paths = vec![first, second];
+    let inventory = original::inventory(&paths).unwrap();
+    for level in [None, Some(3)] {
+        let wire = inputs.0.join(if level.is_some() {
+            "compressed"
+        } else {
+            "plain"
+        });
+        let encoded = original::trial(
+            Operation::Encode,
+            &paths,
+            (&wire, original::ReadModel::Json),
+            level,
+        )
+        .unwrap();
+        let decoded = original::trial(
+            Operation::Decode,
+            &paths,
+            (&wire, original::ReadModel::Json),
+            level,
+        )
+        .unwrap();
+        assert_eq!(encoded.archive_digest, inventory.original_digest);
+        assert_eq!(decoded.archive_digest, inventory.original_digest);
+        assert_eq!(encoded.wire_sha256, decoded.wire_sha256);
+        assert_eq!(encoded.wire_bytes, decoded.wire_bytes);
+        assert_eq!(encoded.uncompressed_bytes, decoded.uncompressed_bytes);
+        assert_eq!(decoded.representation, "original-json-dom");
+        assert!(wire.join("document-000001.bin").is_file());
+    }
+}
+
+#[test]
+fn original_document_digest_detects_changes_in_later_documents() {
+    let inputs = Inputs::new();
+    let first = inputs.add("first.json", &json!({"same":1}));
+    let second = inputs.add("second.json", &json!({"changed":1}));
+    let paths = vec![first, second.clone()];
+    let before = original::inventory(&paths).unwrap().original_digest;
+    std::fs::write(second, br#"{"changed":2}"#).unwrap();
+    let after = original::inventory(&paths).unwrap().original_digest;
+    assert_ne!(before, after);
+}
+
+#[test]
+fn original_cpg_trials_use_the_real_reader_model() {
+    let inputs = Inputs::new();
+    let value = serde_json::from_str(include_str!(
+        "../../../crates/rstyle-core/src/cpg/testdata/example.cpg.json"
+    ))
+    .unwrap();
+    let paths = vec![inputs.add("cpg.json", &value)];
+    let expected = original::inventory(&paths).unwrap().original_digest;
+    for level in [None, Some(3)] {
+        let wire = inputs.0.join(if level.is_some() { "zstd" } else { "json" });
+        original::trial(
+            Operation::Encode,
+            &paths,
+            (&wire, original::ReadModel::Cpg),
+            level,
+        )
+        .unwrap();
+        let decoded = original::trial(
+            Operation::Decode,
+            &paths,
+            (&wire, original::ReadModel::Cpg),
+            level,
+        )
+        .unwrap();
+        assert_eq!(decoded.archive_digest, expected);
+        assert_eq!(decoded.representation, "original-cpg-document");
+    }
+}

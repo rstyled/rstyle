@@ -66,15 +66,21 @@ def execute(command, cpu=None):
     return time.monotonic() - start
 
 
-def trial(binary, directory, codec, operation, phase, number, level, expected_digest, cpu):
+def trial(binary, directory, codec, operation, phase, number, level, expected_digest, cpu, inputs):
     label = codec + ("-zstd" if level is not None else "")
     result_path = directory / "trials" / f"{phase}-{number:02d}-{label}-{operation}.json"
     wire = directory / "wire" / label
-    command = [str(binary), "trial", "--codec", codec, "--operation", operation,
-               "--model", str(directory / "model.json"), "--wire", str(wire),
-               "--result", str(result_path)]
+    if codec == "original-json":
+        command = [str(binary), "original-trial", "--operation", operation,
+                   "--wire", str(wire), "--result", str(result_path)]
+    else:
+        command = [str(binary), "trial", "--codec", codec, "--operation", operation,
+                   "--model", str(directory / "model.json"), "--wire", str(wire),
+                   "--result", str(result_path)]
     if level is not None:
         command.extend(["--zstd-level", str(level)])
+    if codec == "original-json":
+        command.extend(map(str,inputs))
     elapsed = execute(command, cpu)
     result = read_json(result_path)
     if result["archive_digest"] != expected_digest:
@@ -94,6 +100,7 @@ def summarize(trials):
     rows = {}
     for (label, operation), values in grouped.items():
         row = rows.setdefault(label, {"wire_bytes": values[0]["wire_bytes"], "codec": values[0]["codec"],
+                                     "representation": values[0].get("representation", "shared-arena"),
                                      "zstd_level": values[0]["zstd_level"]})
         hashes = {value["wire_sha256"] for value in values}
         if len(hashes) != 1:
@@ -110,6 +117,11 @@ def summarize(trials):
         row[operation]["peak_rss_reset"] = all(v["peak_rss_reset"] for v in values)
     for row in rows.values():
         row["encode_plus_decode_seconds"] = row["encode"]["seconds"]["median"] + row["decode"]["seconds"]["median"]
+    for rank, (label, row) in enumerate(sorted(rows.items(), key=lambda item: item[1]["encode_plus_decode_seconds"]), 1):
+        row["time_rank"] = rank
+    for operation in ["encode", "decode"]:
+        for rank, (_, row) in enumerate(sorted(rows.items(), key=lambda item: item[1][operation]["seconds"]["median"]), 1):
+            row[operation + "_time_rank"] = rank
     return rows
 
 
@@ -139,9 +151,13 @@ def benchmark(args):
                        warmups=args.warmups, zstd_level=args.zstd_level,
                        selection_rule="lowest sum of median encode and fully materialized decode seconds among uncompressed binary codecs")
     write_json(directory / "environment.json", environment)
+    execute([str(binary), "original-inventory", "--out", str(directory / "original-inventory.json"),
+             *map(str,inputs)], args.cpu)
+    original_digest = read_json(directory / "original-inventory.json")["original_digest"]
     rng = random.Random(args.seed)
     trials = []
-    baseline_variants = [(codec, None) for codec in CODECS] + [("json", args.zstd_level)]
+    baseline_variants = ([(codec, None) for codec in CODECS] + [("json", args.zstd_level)]
+                         + [("original-json", None), ("original-json", args.zstd_level)])
 
     def run(variants):
         for phase, count in [("warmup", args.warmups), ("measured", args.repetitions)]:
@@ -151,7 +167,8 @@ def benchmark(args):
                 for codec, level in order:
                     for operation in ["encode", "decode"]:
                         trials.append(trial(binary, directory, codec, operation, phase, number,
-                                            level, prepare["archive_digest"], args.cpu))
+                                            level, original_digest if codec == "original-json" else prepare["archive_digest"],
+                                            args.cpu, inputs))
 
     run(baseline_variants)
     baseline_rows = summarize(trials)
