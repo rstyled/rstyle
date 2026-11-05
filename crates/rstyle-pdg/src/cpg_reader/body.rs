@@ -311,14 +311,14 @@ impl<'a> Context<'_, 'a> {
         };
         let symbol = self.declared(node);
         let mut base = self.node(node, tag)?;
-        // A plain binding is located at its identifier, without `mut`.
-        // A binding a macro declares stays at the macro's call site.
+        // A plain binding is located at its identifier, without `mut`, at the identifier's
+        // own position. A binding a macro declares stays at the macro's call site.
         if tag == "pat_binding"
             && node.provenance.origin == Origin::Source
             && let Some(declared) =
                 symbol.and_then(|(symbol, _)| self.body.symbol(symbol).ok()?.declared.as_ref())
         {
-            base.span = self.span(declared);
+            base.span = self.source_span(declared);
             base.snippet = self.snippet(base.span);
         }
 

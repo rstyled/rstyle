@@ -54,11 +54,41 @@ impl<'tcx> Unit<'tcx> {
             self.tcx.def_kind(def_id),
             DefKind::Struct | DefKind::Enum | DefKind::Union | DefKind::TyAlias | DefKind::Trait
         );
-        if type_namespace && def_id.is_local() && self.value_paths().contains(&stable) {
+        let namesake = match def_id.is_local() {
+            true => self.value_paths().contains(&stable),
+            false => self.foreign_value_namesake(def_id),
+        };
+        if type_namespace && namesake {
             stable.push_str("#type");
         }
 
         stable
+    }
+
+    /// Whether another crate's item shares its name with a function, constant or static
+    /// of its module, as `syn::token::Or` does with the function `Token![|]` calls.
+    fn foreign_value_namesake(&self, def_id: DefId) -> bool {
+        let tcx = self.tcx;
+        let Some(parent) = tcx.opt_parent(def_id) else {
+            return false;
+        };
+        if tcx.def_kind(parent) != DefKind::Mod {
+            return false;
+        }
+        let Some(name) = tcx.opt_item_name(def_id) else {
+            return false;
+        };
+
+        tcx.module_children(parent).iter().any(|child| {
+            child.ident.name == name
+                && matches!(
+                    child.res,
+                    rustc_hir::def::Res::Def(
+                        DefKind::Fn | DefKind::Const | DefKind::Static { .. },
+                        _
+                    )
+                )
+        })
     }
 
     /// The paths of the unit's own value items: functions, constants and statics.
