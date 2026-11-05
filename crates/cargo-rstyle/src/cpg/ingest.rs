@@ -63,10 +63,7 @@ fn require_new(out: &Path) -> Result<(), String> {
     match std::fs::symlink_metadata(out) {
         Ok(_) => Err("CPG output must be a new directory".into()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(format!(
-            "Cannot inspect CPG output {}: {error}",
-            out.display()
-        )),
+        Err(error) => Err(format!("{}: {error}", out.display())),
     }
 }
 
