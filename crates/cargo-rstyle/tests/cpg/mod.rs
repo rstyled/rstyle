@@ -649,12 +649,55 @@ fn a_macro_writing_at_its_inputs_tokens_is_recorded_as_generated() {
 }
 
 #[test]
+fn a_raw_name_is_recorded_as_written() {
+    let dir = fixture("generated");
+    let (_, _, emitted) = captured_and_emitted(dir.path());
+    let documents = parsed(&emitted);
+    let raw = function(&documents, "raw");
+    let content = documents
+        .iter()
+        .flat_map(|document| document["unit"]["files"].as_array().unwrap())
+        .find(|file| file["id"] == raw["span"]["file"])
+        .unwrap()["content"]
+        .as_str()
+        .unwrap();
+    let text = |span: &Value| {
+        let (start, end) = (
+            span["start"].as_u64().unwrap(),
+            span["end"].as_u64().unwrap(),
+        );
+        content[start as usize..end as usize].to_owned()
+    };
+
+    for (node, name) in named_nodes(raw) {
+        if let Some(name) = name.filter(|_| node["kind"] == "identifier") {
+            assert_eq!(text(&node["span"]), name, "{node}");
+        }
+    }
+    let names: Vec<&str> = raw["symbols"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|symbol| symbol["name"].as_str().unwrap())
+        .collect();
+    assert!(
+        names.contains(&"r#type") && names.contains(&"r#match"),
+        "{names:?}"
+    );
+    for symbol in raw["symbols"].as_array().unwrap() {
+        if let Some(declared) = symbol.get("declared") {
+            assert_eq!(text(declared), symbol["name"].as_str().unwrap(), "{symbol}");
+        }
+    }
+}
+
+#[test]
 fn what_a_macro_passes_through_and_a_raw_name_stay_source() {
     let dir = fixture("generated");
     let (_, _, emitted) = captured_and_emitted(dir.path());
     let documents = parsed(&emitted);
 
-    for (function_name, name) in [("passed_through", "given"), ("raw", "match")] {
+    for (function_name, name) in [("passed_through", "given"), ("raw", "r#match")] {
         let found = named_nodes(function(&documents, function_name))
             .into_iter()
             .find(|(node, symbol)| node["kind"] == "identifier" && *symbol == Some(name))

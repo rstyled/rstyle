@@ -178,6 +178,18 @@ impl<'tcx> Unit<'tcx> {
         content.get(start..end)
     }
 
+    /// A binding's name as it is written, so that a raw identifier keeps its `r#`.
+    pub fn written_name(&mut self, ident: rustc_span::Ident) -> String {
+        let written = self.span(ident.span);
+        let name = ident.name.as_str();
+        written
+            .as_ref()
+            .and_then(|span| self.text(span))
+            .filter(|text| text.strip_prefix("r#") == Some(name))
+            .unwrap_or(name)
+            .to_owned()
+    }
+
     pub fn without_parentheses(&self, mut span: Value) -> (Value, usize) {
         let Some(content) = self
             .files

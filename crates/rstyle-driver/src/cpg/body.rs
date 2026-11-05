@@ -931,7 +931,8 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             _ => "local",
         };
         let ty = self.unit.ty(self.typeck.node_type(hir_id));
-        let mut symbol = json!({"id": self.symbol_id(hir_id), "name": ident.name.as_str(), "kind": kind,
+        let name = self.unit.written_name(ident);
+        let mut symbol = json!({"id": self.symbol_id(hir_id), "name": name, "kind": kind,
                                 "scope": self.prefix, "mutable": mutable, "node": self.id(hir_id), "type": ty});
         if let Some(declared) = self.unit.span(ident.span) {
             symbol["declared"] = declared;
@@ -949,12 +950,20 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             if !self.bound.insert(hir_id) {
                 return;
             }
-            let kind = if ident.name == rustc_span::symbol::kw::SelfLower { "receiver" } else { "parameter" };
+            let kind = if ident.name == rustc_span::symbol::kw::SelfLower {
+                "receiver"
+            } else {
+                "parameter"
+            };
             let ty = self.unit.ty(self.typeck.node_type(hir_id));
-            let mut symbol = json!({"id": self.symbol_id(hir_id), "name": ident.name.as_str(), "kind": kind,
+            let name = self.unit.written_name(ident);
+            let mut symbol = json!({"id": self.symbol_id(hir_id), "name": name, "kind": kind,
                                     "scope": self.prefix, "mutable": mode.1.is_mut(), "type": ty});
             // A parameter a library macro declares is declared where the macro is invoked.
-            let declared = self.unit.span(ident.span).or_else(|| self.unit.span(ident.span.source_callsite()));
+            let declared = self
+                .unit
+                .span(ident.span)
+                .or_else(|| self.unit.span(ident.span.source_callsite()));
             if let Some(declared) = declared {
                 symbol["declared"] = declared;
             }
