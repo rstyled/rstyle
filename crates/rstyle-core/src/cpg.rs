@@ -15,11 +15,13 @@ pub mod records;
 mod run;
 mod shapes;
 pub mod source;
+mod stream;
 pub mod transport;
 pub mod tree;
 
 pub use facts::{CAPABILITIES, LAYERS, all_facts, derivable_facts, rule_facts};
 pub use run::{RunInputs, run_inputs};
+pub use stream::{read_records, visit_records};
 
 use crate::facts::FnFacts;
 
@@ -85,12 +87,7 @@ pub fn run_records(
     documents: Vec<serde_json::Value>,
     demand: records::Demand,
 ) -> Result<Vec<records::Record>, String> {
-    let units = layout::units(documents)?;
-    let read = units
-        .iter()
-        .map(|document| records::records(document, demand))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(read.into_iter().flatten().collect())
+    read_records(documents.into_iter().map(Ok), demand)
 }
 
 /// A record's measured facts, with its graph, when its function is authored.

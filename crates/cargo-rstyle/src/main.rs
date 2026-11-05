@@ -160,13 +160,14 @@ enum CpgCommand {
         #[arg(long)]
         out: PathBuf,
     },
-    /// Run the style rules over a run's documents.
-    Check {
-        /// compat.cpg documents: any number of bundled unit documents, and split unit
-        /// documents with their function documents.
-        #[arg(required = true)]
-        documents: Vec<PathBuf>,
+    /// Verify a completed capture and return its acceptance receipt.
+    Receive {
+        /// Directory containing documents.manifest.json and its sealed documents.
+        #[arg(long)]
+        capture: PathBuf,
     },
+    /// Run the style rules over a run's documents.
+    Check(CpgInputArgs),
     /// Mine a run's documents for latent shared abstractions.
     Patterns(CpgPatternsArgs),
     /// Write compat.cpg documents for the workspace from the rustc frontend.
@@ -178,11 +179,19 @@ enum CpgCommand {
 }
 
 #[derive(Args)]
-struct CpgPatternsArgs {
-    /// compat.cpg documents: any number of bundled unit documents, and split unit
-    /// documents with their function documents.
-    #[arg(required = true)]
+struct CpgInputArgs {
+    /// compat.cpg bundled or split documents, supplied explicitly.
+    #[arg(required_unless_present = "capture")]
     documents: Vec<PathBuf>,
+    /// Read all documents listed by a completed capture's manifest.
+    #[arg(long, conflicts_with = "documents")]
+    capture: Option<PathBuf>,
+}
+
+#[derive(Args)]
+struct CpgPatternsArgs {
+    #[command(flatten)]
+    input: CpgInputArgs,
     /// Include symbolic loop-body entry and call invocation upper bounds.
     #[arg(long)]
     complexity: bool,
@@ -375,9 +384,8 @@ fn status_text(mut statuses: Vec<ledger::status::EntryStatus>, filter: Option<&s
 fn cpg_command(cli: &Cli, command: CpgCommand) -> Result<(String, u8), String> {
     match command {
         CpgCommand::Ingest { out } => cpg::ingest(&out, cli.cpg_compression),
-        CpgCommand::Check { documents } => {
-            cpg::check(&documents, cli.config.as_deref(), cli.format)
-        }
+        CpgCommand::Receive { capture } => cpg::receive(&capture, cli.format),
+        CpgCommand::Check(input) => cpg::check(&input, cli.config.as_deref(), cli.format),
         CpgCommand::Patterns(args) => cpg::patterns(cli, &args),
         CpgCommand::Emit { out } => {
             let selection = cpg::Selection {

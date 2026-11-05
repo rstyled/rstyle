@@ -61,6 +61,82 @@ against its existing compilation-unit ledger.
 before compilation. It writes unsealed document files; successful compiler
 captures, native Go emission, and helper ingestion publish sealed manifests.
 
+## Receiving a completed capture
+
+Pass the capture directory to the Rust consumer after the producer exits
+successfully or the complete directory has been transferred:
+
+```sh
+cargo-rstyle rstyle cpg receive --capture ./capture --format json
+cargo-rstyle rstyle cpg check --capture ./capture --format json
+cargo-rstyle rstyle cpg patterns --capture ./capture --complexity --format json
+```
+
+`--capture` reads every document listed by `documents.manifest.json`, in manifest
+order. It requires a nonempty, supported manifest, reads it once, and verifies
+each document's stored and decoded seals. Missing or corrupt listed files reject
+the capture. Unlisted files are outside that manifest snapshot. The existing
+explicit document arguments remain available; they cannot be mixed with
+`--capture` in one invocation. Standalone `cpg emit` exports have no manifest and
+continue to use explicit document arguments.
+Compiler saved-run roots continue to use `--replay-run`; `--capture` names one
+manifest-bearing document directory, rather than recursively opening a run root.
+
+`cpg receive` checks CPG profile/layout, unit facts, split-document pairing, and
+duplicate function ownership without running style evaluation or pattern mining.
+It discards derived records after each bundled unit. Its JSON result is a receipt:
+
+```json
+{
+  "schema": "rstyle.cpg-receipt/1",
+  "status": "accepted",
+  "capture": "./capture",
+  "validation": {
+    "profile": "compat.cpg",
+    "version": "0.1.0",
+    "graphs": false,
+    "runtime_bounds": false
+  },
+  "transport": {
+    "manifest_schema": "rstyle.cpg-documents.manifest/2",
+    "manifest_checksum": "sha256:<64 lowercase hex digits>",
+    "expected_documents": 2,
+    "verified_documents": 2,
+    "stored_bytes": 272,
+    "decoded_bytes": 2000
+  },
+  "failures": []
+}
+```
+
+The manifest checksum covers its exact bytes at open time. Transport totals count
+only successfully decoded and seal-verified documents. They do not claim that the
+CPG contents of those documents passed semantic validation: a document with a
+valid checksum and unsupported profile still produces a rejected receipt.
+Validation fails on the first error; its message is retained in `failures`.
+`transport` is null when the manifest could not be opened or accepted.
+
+Acceptance is reported only after the entire input and requested CPG validation
+succeed. `receive` exits 0 for acceptance and 2 for rejection. `check` and
+`patterns` include the receipt under `capture_receipt` in a successful JSON
+analysis report; its validation fields reflect whether graphs and runtime bounds
+were requested. Rule findings or candidate findings can produce exit 1 while the
+capture remains accepted. Capture-input rejection returns a standalone rejected
+receipt and exit 2, with no analysis report. Other command/configuration errors
+retain the ordinary CLI error behavior.
+
+Acceptance describes the listed documents and the requested input validation.
+Compiler selection/coverage guarantees continue to come from the compiler
+capture's ledger. The receipt is a verification result, not a signature or an
+authorization token.
+
+Rust library consumers can use `cpg::transport::CaptureReader`. Iteration reads
+generic JSON values; `next_document::<T>()` supports typed callers. `progress()`
+reports verified totals, and `complete()` refuses a partially consumed or failed
+capture. Callers still validate CPG contents before accepting it. `cpg::visit_records`
+derives records incrementally and supports consumers that discard each batch.
+Its callbacks are provisional until the whole call succeeds.
+
 ## Memory
 
 Rust serialization writes into the compressor without an intermediate whole-JSON
@@ -68,6 +144,27 @@ byte buffer. Reading decompresses into the JSON parser without materializing the
 entire decoded byte stream. The owned document/analysis output still occupies
 memory. Stored seals are verified before decompression and checked again while
 reading, and decoded size/checksum are checked as parsing completes.
+
+Document-based `check` and `patterns` derive each bundled unit's records before
+reading the next document. They release the raw JSON and typed unit at that point;
+they retain function records, source snippets, requested graphs/bounds, and the
+identities needed for cross-unit analysis and duplicate detection. `receive`
+discards each derived bundled batch while retaining duplicate-detection identities.
+Thus ingestion does not retain the whole capture's bundled JSON trees, but its
+memory still depends on the largest unit and the analysis data it must retain.
+
+Split-layout documents can arrive in arbitrary order. They are currently retained
+until EOF so their unit references and canonical digests can be paired; each
+completed split group is then derived separately. This first implementation does
+not bound the aggregate raw-JSON memory of split-layout captures. The native Rust
+and Go writers produce bundled documents.
+
+For a reproducible Linux receive-memory smoke check, run
+`python3 scripts/measure_cpg_receive.py --binary target/debug/cargo-rstyle
+--output NEW_DIRECTORY`. It grows the count of bundled documents while fixing
+per-document source padding and measures the `receive` and `check` processes.
+This isolates document retention; it is not a representative graph benchmark or
+a bound on end-to-end frontend/analysis memory.
 
 Go's native writer emits the envelope and unit arrays incrementally, using its
 standard JSON encoder for each array record. Its serialization buffer is bounded

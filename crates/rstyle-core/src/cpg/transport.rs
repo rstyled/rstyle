@@ -1,8 +1,10 @@
 //! Language-neutral storage of unchanged JSON documents. See docs/cpg-transport.md.
+mod capture;
 mod manifest;
 mod read;
 mod write;
 
+pub use capture::{CaptureProgress, CaptureReader};
 pub use manifest::{DOCUMENTS_MANIFEST, DocumentManifest, SealedDocument};
 pub use read::{read_json, read_sealed, validate_object};
 pub use write::{publish, write_json};

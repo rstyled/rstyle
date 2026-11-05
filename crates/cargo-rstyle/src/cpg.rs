@@ -2,6 +2,8 @@
 //! from any language frontend, without compiling anything.
 
 mod ingest;
+mod input;
+mod receipt;
 
 use rstyle_core::config::Config;
 use rstyle_core::cpg::records::{Demand, Record};
@@ -9,21 +11,20 @@ use rstyle_core::{cpg, patterns_report, report};
 use serde_json::json;
 use std::path::{Path, PathBuf};
 
-use crate::{Cli, CpgPatternsArgs, Format};
+use crate::{Cli, CpgInputArgs, CpgPatternsArgs, Format};
 
 /// Style report of a run over any number of units, and its exit code.
 pub fn check(
-    documents: &[PathBuf],
+    args: &CpgInputArgs,
     config: Option<&Path>,
     format: Format,
 ) -> Result<(String, u8), String> {
-    let values = documents
-        .iter()
-        .map(|path| read(path))
-        .collect::<Result<Vec<_>, _>>()?;
+    let received = match input::read(args, Demand::default()) {
+        Ok(received) => received,
+        Err(error) => return error.output(format),
+    };
     let config = load_config(config)?;
-    let records = cpg::run_records(values, Demand::default())?;
-    let inputs = cpg::run_inputs(records, &config)?;
+    let inputs = cpg::run_inputs(received.records, &config)?;
 
     let report = rstyle_core::evaluate_with_effects(
         inputs.facts,
@@ -33,8 +34,8 @@ pub fn check(
     )?
     .report;
     let output = match format {
-        Format::Text => report::text(&report),
-        Format::Json => report::json(&report).map_err(|error| error.to_string())?,
+        Format::Text => receipt::text(report::text(&report), &received.receipt),
+        Format::Json => receipt::json(&report, &received.receipt)?,
     };
     Ok((output, report.exit_code()))
 }
@@ -42,17 +43,15 @@ pub fn check(
 /// Abstraction candidates of a run, with effects propagated across all of its units
 /// and, when asked for, each function's runtime bounds.
 pub fn patterns(cli: &Cli, args: &CpgPatternsArgs) -> Result<(String, u8), String> {
-    let values = args
-        .documents
-        .iter()
-        .map(|path| read(path))
-        .collect::<Result<Vec<_>, _>>()?;
-
     let demand = Demand {
         graphs: true,
         bounds: args.complexity,
     };
-    let records = cpg::run_records(values, demand)?;
+    let received = match input::read(&args.input, demand) {
+        Ok(received) => received,
+        Err(error) => return error.output(cli.format),
+    };
+    let records = received.records;
     let bounds = args
         .complexity
         .then(|| crate::clones::document_bounds(&records, args.display.top));
@@ -63,15 +62,16 @@ pub fn patterns(cli: &Cli, args: &CpgPatternsArgs) -> Result<(String, u8), Strin
         Format::Text => {
             let bounds = bounds.as_ref().map(|report| report.text());
             let mined = patterns_report::text(&evaluation);
-            [mined]
+            let text = [mined]
                 .into_iter()
                 .chain(bounds)
                 .collect::<Vec<_>>()
-                .join("\n")
+                .join("\n");
+            receipt::text(text, &received.receipt)
         }
         Format::Json => {
             let report = json!({"evaluation": evaluation, "runtime_bounds": bounds});
-            serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?
+            receipt::json(&report, &received.receipt)?
         }
     };
     Ok((output, code))
@@ -264,4 +264,9 @@ fn remove_documents(dir: &Path) -> Result<(), String> {
 /// Store a frontend's streaming JSON text sequence as a sealed capture.
 pub fn ingest(out: &Path, encoding: cpg::transport::Encoding) -> Result<(String, u8), String> {
     ingest::run(&mut std::io::stdin().lock(), out, encoding)
+}
+
+/// Verify all documents of a completed capture and return a structured receipt.
+pub fn receive(directory: &Path, format: Format) -> Result<(String, u8), String> {
+    input::receive(directory, format)
 }

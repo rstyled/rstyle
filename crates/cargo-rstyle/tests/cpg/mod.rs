@@ -468,6 +468,7 @@ fn emit_selects_packages_and_targets() {
 
 mod bounds;
 mod build_outputs;
+mod capture;
 mod facts;
 mod transport;
 

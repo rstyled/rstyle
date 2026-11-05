@@ -79,23 +79,38 @@ pub fn units(documents: Vec<Value>) -> Result<Vec<Document>, String> {
 /// A run may read one unit from several documents, as a frontend batches a large one,
 /// but a function read twice would count twice.
 fn distinct(units: &[Document]) -> Result<(), String> {
-    let mut seen = std::collections::BTreeSet::new();
-    for unit in units.iter().filter_map(|document| document.unit.as_ref()) {
+    let mut seen = FunctionIds::default();
+    for unit in units {
+        seen.include(unit)?;
+    }
+    Ok(())
+}
+
+#[derive(Default)]
+pub(super) struct FunctionIds(
+    std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
+);
+
+impl FunctionIds {
+    pub(super) fn include(&mut self, document: &Document) -> Result<(), String> {
+        let unit = document.unit.as_ref().ok_or("The document has no unit")?;
+        let seen = self.0.entry(unit.id.clone()).or_default();
+
         for function in unit.functions.iter().flatten() {
-            if !seen.insert((unit.id.as_str(), function.id.as_str())) {
+            if !seen.insert(function.id.clone()) {
                 return Err(format!(
                     "Function {} of unit {} appears more than once in a run",
                     function.id, unit.id
                 ));
             }
         }
+        Ok(())
     }
-    Ok(())
 }
 
 /// Split documents by the unit document each belongs to, so that each set merges alone;
 /// a function document naming none stays with the first set, which rejects it.
-fn split_runs(documents: Vec<Value>) -> Vec<Vec<Value>> {
+pub(super) fn split_runs(documents: Vec<Value>) -> Vec<Vec<Value>> {
     let (units, functions): (Vec<_>, Vec<_>) = documents
         .into_iter()
         .partition(|document| document["document"].as_str() == Some("unit"));

@@ -374,6 +374,9 @@ reimplemented per language:
 ```
 cargo rstyle cpg check DOC.json... [--config rstyle.toml] [--format text|json]
 cargo rstyle cpg patterns DOC.json... [--complexity] [--config rstyle.toml] [--format text|json]
+cargo rstyle cpg receive --capture CAPTURE_DIR --format json
+cargo rstyle cpg check --capture CAPTURE_DIR [--format text|json]
+cargo rstyle cpg patterns --capture CAPTURE_DIR [--complexity] [--format text|json]
 ```
 
 A run is any number of units: bundled unit documents, and split unit documents with
@@ -401,6 +404,12 @@ marks what a build script writes to `OUT_DIR`.
 Saved Rust CPG documents use streaming JSON + Zstandard by default. See the
 [storage contract](docs/cpg-transport.md) for plain JSON compatibility, seals,
 and frontend interoperability.
+
+Completed captures from native Go or the streaming helper carry a manifest.
+`cpg receive` verifies all listed files and CPG inputs and returns an acceptance or
+rejection receipt. Directory-based check and pattern reports include that receipt;
+they release each bundled unit's raw JSON after deriving its records. Analysis
+records remain in memory, and split-layout inputs are retained until EOF.
 
 The Rust frontend emits the same documents:
 
