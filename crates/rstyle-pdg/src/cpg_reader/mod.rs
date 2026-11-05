@@ -441,6 +441,19 @@ impl<'a> Context<'_, 'a> {
         }
     }
 
+    /// A span at its own position in the function's file, as the compiler reports a
+    /// source span or an outermost call site; one in another file is located as
+    /// [`Self::span`] locates it.
+    fn source_span(&self, span: &FileSpan) -> ByteSpan {
+        if span.file != located(self.body.function).file {
+            return self.span(span);
+        }
+        ByteSpan {
+            start: span.start.saturating_sub(self.origin) as u32,
+            end: span.end.saturating_sub(self.origin) as u32,
+        }
+    }
+
     fn snippet(&self, span: ByteSpan) -> String {
         self.source
             .get(span.start as usize..span.end as usize)

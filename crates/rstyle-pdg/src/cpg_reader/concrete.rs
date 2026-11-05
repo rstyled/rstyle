@@ -377,6 +377,10 @@ impl<'a> Capture<'_, '_, 'a> {
             TypeKind::Record => self.structure(ty, depth),
             TypeKind::Sum if !self.supports("rust.scalar-enum-values") => self.structure(ty, depth),
             TypeKind::Sum => self.enumeration(ty, depth),
+            // An owned box is a library struct to the frontend.
+            TypeKind::Pointer if ty.mode.as_deref() == Some("owned") && ty.definition.is_some() => {
+                self.structure(ty, depth)
+            }
             _ => Err(unsupported(
                 "Outside the concrete drop-free/shared type observation grammar",
             )),

@@ -380,7 +380,12 @@ impl<'a> Context<'_, 'a> {
         let Some(span) = node.span.as_ref() else {
             return ByteSpan { start: 0, end: 0 };
         };
-        let mut span = self.span(span);
+        // A source node keeps its own position, even outside a generated function's call
+        // site; a generated node is located at its call site.
+        let mut span = match node.provenance.origin {
+            Origin::Source => self.source_span(span),
+            _ => self.span(span),
+        };
         let bytes = self.source.as_bytes();
         // A span outside the function's own bytes has no parentheses of its own to restore.
         if span.end as usize > bytes.len() {
@@ -436,11 +441,12 @@ impl<'a> Context<'_, 'a> {
         if node.provenance.origin == Origin::Source && !restored {
             return None;
         }
+        // The recorded call site is the outermost one, at its own position.
         let callsite = node
             .provenance
             .call_site
             .as_ref()
-            .map_or(span, |site| self.span(site));
+            .map_or(span, |site| self.source_span(site));
         Some(ExpansionSite {
             callsite,
             snippet: self.snippet(callsite),
