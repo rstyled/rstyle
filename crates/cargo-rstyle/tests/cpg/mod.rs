@@ -703,6 +703,26 @@ fn a_function_an_attribute_wraps_is_measured_and_located_as_written() {
 }
 
 #[test]
+fn a_function_whose_signature_a_macro_rewrites_stays_its_authors() {
+    let dir = fixture("generated");
+    let (_, captured, _) = captured_and_emitted(dir.path());
+    let documents = parsed(&captured);
+    let rewritten = function(&documents, "rewritten_by_an_attribute");
+    assert_eq!(
+        rewritten["signature"]["provenance"]["origin"],
+        "macro_expansion"
+    );
+
+    let (route, _) = routes_over(dir.path(), &["--complexity"]);
+
+    assert!(
+        route_bounds(&route).contains_key("rewritten_by_an_attribute"),
+        "{:?}",
+        route_bounds(&route).keys()
+    );
+}
+
+#[test]
 fn complexity_counts_what_the_author_writes_and_not_what_a_macro_does() {
     let dir = fixture("generated");
     let (_, _, emitted) = captured_and_emitted(dir.path());

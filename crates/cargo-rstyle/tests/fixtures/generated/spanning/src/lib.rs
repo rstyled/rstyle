@@ -52,6 +52,19 @@ pub fn wrapping(_arguments: TokenStream, item: TokenStream) -> TokenStream {
     tokens.into_iter().collect()
 }
 
+/// Writes a function's signature itself and keeps its body as written, as `#[async_trait]`
+/// does.
+#[proc_macro_attribute]
+pub fn rewriting(_arguments: TokenStream, item: TokenStream) -> TokenStream {
+    let mut tokens: Vec<TokenTree> = item.into_iter().collect();
+    let body = tokens.pop().expect("the rewritten function's body");
+    let signature = tokens.into_iter().collect();
+    respanned(signature, Span::call_site())
+        .into_iter()
+        .chain([body])
+        .collect()
+}
+
 /// Every token of `stream` at `span`, as `quote_spanned!` writes them.
 fn respanned(stream: TokenStream, span: Span) -> TokenStream {
     stream
