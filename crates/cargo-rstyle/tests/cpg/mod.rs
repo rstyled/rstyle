@@ -187,8 +187,11 @@ fn documents_in(directory: &Path) -> Vec<String> {
 
 /// The fixture's route, and the documents that same run wrote read with no compiler.
 fn both_routes(fixture_name: &str, extra: &[&str]) -> (Value, Value) {
-    let dir = fixture(fixture_name);
-    let root = dir.path();
+    routes_over(fixture(fixture_name).path(), extra)
+}
+
+/// A workspace's pattern route, and the documents that same run wrote read with no compiler.
+fn routes_over(root: &Path, extra: &[&str]) -> (Value, Value) {
     let route = rstyle(
         root,
         &[&["patterns", "--format", "json", "--no-ignore"], extra].concat(),
@@ -233,29 +236,37 @@ fn cpg_patterns_finds_what_the_compiler_route_finds() {
     );
 }
 
+/// Each function's bounds in a report's rows, by name.
+fn bound_rows(report: &Value) -> std::collections::BTreeMap<String, Value> {
+    report["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| {
+            let evidence = json!({"result": row["result"], "composed": row["composed"],
+                                  "status": row["capture_status"]});
+            (row["name"].as_str().unwrap().to_owned(), evidence)
+        })
+        .collect()
+}
+
+/// The bounds of every unit of a compiler route, by function name.
+fn route_bounds(route: &Value) -> std::collections::BTreeMap<String, Value> {
+    route["compiler_advisory"]["units"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|unit| unit["runtime_bounds"].is_object())
+        .flat_map(|unit| bound_rows(&unit["runtime_bounds"]))
+        .collect()
+}
+
 #[test]
 fn cpg_patterns_bounds_match_the_compiler_route() {
     let (route, documents) = both_routes("lowered", &["--complexity"]);
-    let units = route["compiler_advisory"]["units"].as_array().unwrap();
-    let unit = units
-        .iter()
-        .find(|unit| unit["runtime_bounds"].is_object())
-        .unwrap();
-    let rows = |report: &Value| -> std::collections::BTreeMap<String, Value> {
-        report["rows"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|row| {
-                let evidence = json!({"result": row["result"], "composed": row["composed"],
-                                      "status": row["capture_status"]});
-                (row["name"].as_str().unwrap().to_owned(), evidence)
-            })
-            .collect()
-    };
-    let compiled = rows(&unit["runtime_bounds"]);
+    let compiled = route_bounds(&route);
     assert!(!compiled.is_empty());
-    assert_eq!(compiled, rows(&documents["runtime_bounds"]));
+    assert_eq!(compiled, bound_rows(&documents["runtime_bounds"]));
 }
 
 /// A workspace whose effect reaches a function only through another crate.
@@ -276,7 +287,7 @@ fn crossing_workspace() -> TempDir {
     );
     write(
         "io/src/lib.rs",
-        "pub fn load() -> String {\n    std::fs::read_to_string(\"x\").unwrap_or_default()\n}\n",
+        "pub fn load() -> String {\n    std::fs::read_to_string(\"x\").unwrap_or_default()\n}\n\npub fn spin(items: &[u32]) -> u32 {\n    let mut total = 0;\n    for item in items {\n        total += *item;\n    }\n    total\n}\n",
     );
     write(
         "caller/Cargo.toml",
@@ -284,7 +295,7 @@ fn crossing_workspace() -> TempDir {
     );
     write(
         "caller/src/lib.rs",
-        "pub fn report() -> usize {\n    io::load().len()\n}\n",
+        "pub fn report() -> usize {\n    io::load().len()\n}\n\npub fn twice(items: &[u32]) -> u32 {\n    io::spin(items) + io::spin(items)\n}\n",
     );
     dir
 }
@@ -322,6 +333,33 @@ fn a_joint_run_propagates_effects_across_units_as_the_compiler_route_does() {
         .filter_map(|document| counts(document)["io"].as_u64())
         .sum();
     assert!(joint["summary"]["effect_counts"]["io"].as_u64().unwrap() > alone);
+}
+
+#[test]
+fn bounds_compose_through_a_callee_in_another_unit() {
+    let dir = crossing_workspace();
+    let (route, documents) = routes_over(dir.path(), &["--complexity"]);
+    let compiled = route_bounds(&route);
+    assert_eq!(compiled, bound_rows(&documents["runtime_bounds"]));
+    let composed = &compiled["twice"]["composed"]["Proven"];
+    assert_eq!(
+        composed["resolved_callees"].as_array().unwrap().len(),
+        1,
+        "{composed}"
+    );
+    assert!(
+        composed["resolved_callees"][0]
+            .as_str()
+            .unwrap()
+            .ends_with("/io::spin"),
+        "{composed}"
+    );
+    // Two calls of a loop over the input: its entries count, though no loop is written here.
+    assert_ne!(
+        composed["loop_body_entries"],
+        json!({"Const": 0}),
+        "{composed}"
+    );
 }
 
 /// `cpg emit` over the lowering fixture: its directory and output.

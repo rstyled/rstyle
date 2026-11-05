@@ -149,7 +149,7 @@ impl<B: BodyOwner, L> Owned for HirFnFacts<B, L> {
     type Owner = (u32, u32);
 
     fn located(&self) -> bool {
-        self.build.frontend_options.contains_key("source_file")
+        super::FactView::from(self).source_file.is_some()
     }
 
     fn owned_by(&self) -> Self::Owner {

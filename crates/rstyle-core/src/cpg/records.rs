@@ -72,10 +72,9 @@ pub fn records(document: &Document, demand: Demand) -> Result<Vec<Record>, Strin
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let sources = Sources::new(unit)?;
     let tables = Tables::new(unit)?;
-    let derived = super::facts::derive(document, demand.graphs)?;
-    let measured: BTreeMap<&str, &FnFacts> = derived
-        .iter()
-        .map(|facts| (facts.id.as_str(), facts))
+    let mut measured: BTreeMap<String, FnFacts> = super::facts::derive(document, demand.graphs)?
+        .into_iter()
+        .map(|facts| (facts.id.clone(), facts))
         .collect();
     let functions = unit.functions.as_deref().unwrap_or_default();
     let mut bounds = match demand.bounds {
@@ -92,9 +91,7 @@ pub fn records(document: &Document, demand: Demand) -> Result<Vec<Record>, Strin
         .map(|(function, bounds)| {
             let definition = tables.definition(&function.definition)?;
             let identity = definition.stable_identity.clone();
-            let facts = measured
-                .get(identity.as_str())
-                .map(|facts| (*facts).clone());
+            let facts = measured.remove(&identity);
             let compilation = definition
                 .compilation
                 .clone()

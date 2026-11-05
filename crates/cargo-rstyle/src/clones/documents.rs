@@ -75,7 +75,11 @@ pub(super) fn read(unit: &capture::Unit, demand: Demand) -> Result<Vec<DocumentF
     let read = parallel(&manifest.documents, |sealed| {
         let bytes = captured(&unit.directory, &sealed.file)?;
         sealed.verify(&bytes)?;
-        functions(&cpg::layout::read(&bytes)?, demand)
+        let document = cpg::layout::read(&bytes)?;
+        // A document's bytes are its size again; only its typed form is read from here on.
+        drop(bytes);
+
+        functions(&document, demand)
     })?;
     Ok(read.into_iter().flatten().collect())
 }
