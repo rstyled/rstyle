@@ -1,11 +1,12 @@
 //! RFC 7464 JSON text sequence: object records, then a terminal null record.
-use rstyle_core::cpg::transport::{self, DocumentManifest, Encoding};
+use rstyle_core::cpg::transport::{self, DocumentManifest, Encoding, SealedDocument};
 use std::{
     io::{self, BufRead, Read},
     path::Path,
 };
 
 const RS: u8 = 0x1e;
+type Seals = Vec<SealedDocument>;
 
 /// One process receives the capture. EOF before the terminal null is failure.
 pub(super) fn run(
@@ -13,67 +14,150 @@ pub(super) fn run(
     out: &Path,
     encoding: Encoding,
 ) -> Result<(String, u8), String> {
+    StagedCapture::receive(input, out, encoding)?.publish(out)
+}
+
+struct StagedCapture {
+    directory: tempfile::TempDir,
+    documents: usize,
+}
+
+impl StagedCapture {
+    fn receive(input: &mut impl BufRead, out: &Path, encoding: Encoding) -> Result<Self, String> {
+        let directory = stage(out)?;
+        let manifest = manifest(receive(input, directory.path(), encoding)?)?;
+        Self::seal(directory, manifest)
+    }
+
+    fn seal(directory: tempfile::TempDir, manifest: DocumentManifest) -> Result<Self, String> {
+        transport::write_json(
+            &directory.path().join(transport::DOCUMENTS_MANIFEST),
+            Encoding::Json,
+            &manifest,
+        )?;
+        Ok(Self {
+            directory,
+            documents: manifest.documents.len(),
+        })
+    }
+
+    fn publish(self, out: &Path) -> Result<(String, u8), String> {
+        require_new(out)?;
+        std::fs::rename(self.directory.path(), out)
+            .map_err(|e| format!("Cannot publish capture: {e}"))?;
+        Ok(completed(out, self.documents))
+    }
+}
+
+fn completed(out: &Path, documents: usize) -> (String, u8) {
+    (
+        format!(
+            "{documents} compat.cpg documents written to {}",
+            out.display()
+        ),
+        0,
+    )
+}
+
+fn require_new(out: &Path) -> Result<(), String> {
     if std::fs::symlink_metadata(out).is_ok() {
         return Err("CPG output must be a new directory".into());
     }
-    let parent = out
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    let stage = tempfile::Builder::new()
+    Ok(())
+}
+
+fn stage(out: &Path) -> Result<tempfile::TempDir, String> {
+    require_new(out)?;
+    tempfile::Builder::new()
         .prefix(".cpg-ingest-")
-        .tempdir_in(parent)
-        .map_err(|e| e.to_string())?;
-    let seals = receive(input, stage.path(), encoding)?;
+        .tempdir_in(parent(out))
+        .map_err(|e| e.to_string())
+}
+
+fn parent(out: &Path) -> &Path {
+    out.parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."))
+}
+
+fn manifest(seals: Seals) -> Result<DocumentManifest, String> {
     if seals.is_empty() {
         return Err("A capture must contain at least one document".into());
     }
-    let count = seals.len();
-    transport::write_json(
-        &stage.path().join(transport::DOCUMENTS_MANIFEST),
-        Encoding::Json,
-        &DocumentManifest::of(seals),
-    )?;
-    if std::fs::symlink_metadata(out).is_ok() {
-        return Err("CPG output must be a new directory".into());
-    }
-    std::fs::rename(stage.path(), out).map_err(|e| format!("Cannot publish capture: {e}"))?;
-    Ok((
-        format!("{count} compat.cpg documents written to {}", out.display()),
-        0,
-    ))
+    Ok(DocumentManifest::of(seals))
 }
 
 fn receive(
     input: &mut impl BufRead,
     directory: &Path,
     encoding: Encoding,
-) -> Result<Vec<transport::SealedDocument>, String> {
-    separator(input)?;
-    let mut seals = Vec::new();
-    loop {
-        match input.fill_buf().map_err(|e| e.to_string())?.first() {
-            Some(b'n') => {
-                end(input)?;
-                break;
-            }
-            Some(b'{') => {}
-            _ => {
-                return Err(
-                    "Each capture record must start with a JSON object; finish with RS null LF"
-                        .into(),
-                );
-            }
-        }
-        let path = directory.join(format!("document-{:06}{}", seals.len(), encoding.suffix()));
-        let seal = transport::publish(&path, encoding, |writer| {
-            io::copy(&mut Record { input: &mut *input }, writer)?;
-            Ok(())
-        })?;
-        seals.push(seal);
-        separator(input)?;
+) -> Result<Seals, String> {
+    Receiver {
+        input,
+        directory,
+        encoding,
     }
-    Ok(seals)
+    .receive()
+}
+
+struct Receiver<'a, R> {
+    input: &'a mut R,
+    directory: &'a Path,
+    encoding: Encoding,
+}
+
+impl<R: BufRead> Receiver<'_, R> {
+    fn receive(mut self) -> Result<Seals, String> {
+        let mut seals = Vec::new();
+        while next(self.input)? {
+            seals.push(self.document(seals.len())?);
+        }
+        Ok(seals)
+    }
+
+    fn document(&mut self, position: usize) -> Result<SealedDocument, String> {
+        document(self.input, self.directory, self.encoding, position)
+    }
+}
+
+fn document(
+    input: &mut impl BufRead,
+    directory: &Path,
+    encoding: Encoding,
+    position: usize,
+) -> Result<transport::SealedDocument, String> {
+    transport::publish(
+        &directory.join(format!("document-{position:06}{}", encoding.suffix())),
+        encoding,
+        |writer| Record { input }.copy_to(writer),
+    )
+}
+
+fn next(input: &mut impl BufRead) -> Result<bool, String> {
+    match start_record(input)? {
+        true => Ok(true),
+        false => end(input).map(|()| false),
+    }
+}
+
+fn start_record(input: &mut impl BufRead) -> Result<bool, String> {
+    separator(input)?;
+    let first = input
+        .fill_buf()
+        .map_err(|e| e.to_string())?
+        .first()
+        .copied();
+    is_document(first)
+}
+
+fn is_document(first: Option<u8>) -> Result<bool, String> {
+    match first {
+        Some(b'n') => Ok(false),
+        Some(b'{') => Ok(true),
+        _ => {
+            Err("Each capture record must start with a JSON object; finish with RS null LF".into())
+        }
+    }
 }
 
 fn separator(input: &mut impl Read) -> Result<(), String> {
@@ -81,7 +165,11 @@ fn separator(input: &mut impl Read) -> Result<(), String> {
     input
         .read_exact(&mut byte)
         .map_err(|_| "Capture stream ended before its terminal null record")?;
-    if byte[0] != RS {
+    expect_separator(byte[0])
+}
+
+fn expect_separator(byte: u8) -> Result<(), String> {
+    if byte != RS {
         return Err("Expected a JSON text sequence record separator (0x1e)".into());
     }
     Ok(())
@@ -93,7 +181,11 @@ fn end(input: &mut impl Read) -> Result<(), String> {
         .take(64)
         .read_to_end(&mut bytes)
         .map_err(|e| e.to_string())?;
-    if bytes.len() >= 64 || std::str::from_utf8(&bytes).map(str::trim).ok() != Some("null") {
+    terminal(&bytes)
+}
+
+fn terminal(bytes: &[u8]) -> Result<(), String> {
+    if bytes.len() >= 64 || std::str::from_utf8(bytes).map(str::trim).ok() != Some("null") {
         return Err("The terminal null record must be followed only by whitespace and EOF".into());
     }
     Ok(())
@@ -103,18 +195,30 @@ fn end(input: &mut impl Read) -> Result<(), String> {
 struct Record<'a, R> {
     input: &'a mut R,
 }
+impl<R: BufRead> Record<'_, R> {
+    fn copy_to(&mut self, writer: &mut dyn io::Write) -> io::Result<()> {
+        io::copy(self, writer)?;
+        Ok(())
+    }
+}
+
 impl<R: BufRead> Read for Record<'_, R> {
     fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
         let bytes = self.input.fill_buf()?;
-        let end = bytes
-            .iter()
-            .position(|b| *b == RS)
-            .unwrap_or(bytes.len())
-            .min(out.len());
+
+        let end = record_length(bytes, out.len());
         out[..end].copy_from_slice(&bytes[..end]);
         self.input.consume(end);
         Ok(end)
     }
+}
+
+fn record_length(bytes: &[u8], capacity: usize) -> usize {
+    bytes
+        .iter()
+        .position(|b| *b == RS)
+        .unwrap_or(bytes.len())
+        .min(capacity)
 }
 
 #[cfg(test)]
