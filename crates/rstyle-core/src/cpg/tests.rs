@@ -25,6 +25,26 @@ fn error_of(documents: Vec<Value>) -> String {
     run_facts(documents).unwrap_err()
 }
 
+/// Marks a function as a macro writes it: its signature and its body's root.
+pub(super) fn written_by_a_macro(function: &mut Value) {
+    wrapped_by_a_macro(function);
+    let provenance = json!({"origin": "macro_expansion", "call_site": function["span"].clone()});
+    function["signature"]["provenance"] = provenance;
+}
+
+/// Marks a function as a macro wraps it: its body's root only.
+fn wrapped_by_a_macro(function: &mut Value) {
+    let root = function["root"].as_str().unwrap().to_owned();
+    let span = function["span"].clone();
+    let root = function["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|node| node["id"] == root.as_str())
+        .unwrap();
+    root["provenance"] = json!({"origin": "macro_expansion", "call_site": span});
+}
+
 fn kinds(facts: &FnFacts) -> Vec<Kind> {
     let measured = facts.complexity.as_ref().unwrap();
     measured
@@ -251,16 +271,7 @@ fn a_run_reads_a_function_once() {
 fn a_function_a_macro_writes_is_outside_a_runs_rule_facts() {
     let mut document = example();
     let measured = facts_of(document.clone()).len();
-    let function = &mut document["unit"]["functions"][0];
-    let root = function["root"].as_str().unwrap().to_owned();
-    let span = function["span"].clone();
-    let root = function["nodes"]
-        .as_array_mut()
-        .unwrap()
-        .iter_mut()
-        .find(|node| node["id"] == root.as_str())
-        .unwrap();
-    root["provenance"] = json!({"origin": "macro_expansion", "call_site": span});
+    written_by_a_macro(&mut document["unit"]["functions"][0]);
     assert_eq!(facts_of(document).len(), measured - 1);
 }
 
@@ -279,15 +290,7 @@ fn macro_writing_io() -> Value {
         .iter_mut()
         .find(|function| function["id"] == "fn:larger")
         .unwrap();
-    let root = function["root"].as_str().unwrap().to_owned();
-    let span = function["span"].clone();
-    let root = function["nodes"]
-        .as_array_mut()
-        .unwrap()
-        .iter_mut()
-        .find(|node| node["id"] == root.as_str())
-        .unwrap();
-    root["provenance"] = json!({"origin": "macro_expansion", "call_site": span});
+    written_by_a_macro(function);
     document
 }
 
@@ -386,6 +389,54 @@ fn what_the_build_writes_reaches_its_callers_and_is_not_reported() {
             io_labels(&inputs, "example::top"),
             ["std::fs::write"],
             "{path}"
+        );
+    }
+}
+
+#[test]
+fn a_function_a_macro_only_wraps_stays_its_authors() {
+    let mut document = example();
+    let measured = facts_of(document.clone()).len();
+
+    wrapped_by_a_macro(&mut document["unit"]["functions"][0]);
+
+    assert_eq!(facts_of(document).len(), measured);
+}
+
+/// The example with its first function's span running backwards from its signature.
+fn with_an_unreadable_function() -> Value {
+    let mut document = example();
+    let function = &mut document["unit"]["functions"][0];
+    function["span"]["end"] = json!(function["signature"]["span"]["start"].as_u64().unwrap() - 1);
+    document
+}
+
+#[test]
+fn a_run_refuses_a_function_it_cannot_read() {
+    let error = error_of(vec![with_an_unreadable_function()]);
+
+    assert!(error.contains("not a character range"), "{error}");
+}
+
+#[test]
+fn a_capture_reports_a_function_it_cannot_read_and_keeps_the_rest() {
+    let document = layout::bundle(vec![with_an_unreadable_function()]).unwrap();
+
+    let records = super::records::records_with_gaps(&document, Demand::default()).unwrap();
+
+    let [first, rest @ ..] = records.as_slice() else {
+        panic!("no records");
+    };
+    let super::records::Measured::Unavailable(reason) = &first.measured else {
+        panic!("the unreadable function was measured");
+    };
+    assert!(reason.contains("not a character range"), "{reason}");
+    assert!(!rest.is_empty());
+    for record in rest {
+        assert!(
+            matches!(record.measured, super::records::Measured::Known(_)),
+            "{}",
+            record.name
         );
     }
 }

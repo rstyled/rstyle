@@ -988,7 +988,10 @@ fn document_observation(
                 facts,
             })
         }
-        _ => Ok(Observation::Unavailable {
+        Measured::Unavailable(reason) => Ok(Observation::Unavailable {
+            reason: reason.clone(),
+        }),
+        Measured::Generated(_) => Ok(Observation::Unavailable {
             reason: UNMEASURED.into(),
         }),
     }

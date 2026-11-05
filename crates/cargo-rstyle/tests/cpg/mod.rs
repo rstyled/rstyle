@@ -649,6 +649,52 @@ fn a_macro_writing_at_its_inputs_tokens_is_recorded_as_generated() {
 }
 
 #[test]
+fn a_function_an_attribute_wraps_is_measured_and_located_as_written() {
+    let dir = fixture("generated");
+    let (route, captured, _) = captured_and_emitted(dir.path());
+
+    assert_eq!(
+        route["summary_complete"], true,
+        "{}",
+        route["handoff_failures"]
+    );
+    let observed = route["compiler_advisory"]["units"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|unit| unit["observations"].as_array().unwrap())
+        .find(|observation| observation["name"] == "wrapped_by_an_attribute")
+        .unwrap();
+    assert_eq!(observed["statements"], 2, "{observed}");
+
+    let documents = parsed(&captured);
+    let wrapped = function(&documents, "wrapped_by_an_attribute");
+    let root = wrapped["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|node| node["id"] == wrapped["root"])
+        .unwrap();
+    assert_eq!(root["provenance"]["origin"], "macro_expansion");
+    assert!(
+        wrapped["signature"].get("provenance").is_none(),
+        "{wrapped}"
+    );
+    let content = documents
+        .iter()
+        .flat_map(|document| document["unit"]["files"].as_array().unwrap())
+        .find(|file| file["id"] == wrapped["span"]["file"])
+        .unwrap()["content"]
+        .as_str()
+        .unwrap();
+    let written = |field: &str| wrapped["span"][field].as_u64().unwrap() as usize;
+    assert_eq!(
+        &content[written("start")..written("end")],
+        "pub fn wrapped_by_an_attribute(value: u32) -> u32 {\n    let doubled = value * 2;\n    doubled + 1\n}"
+    );
+}
+
+#[test]
 fn a_raw_name_is_recorded_as_written() {
     let dir = fixture("generated");
     let (_, _, emitted) = captured_and_emitted(dir.path());

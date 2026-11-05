@@ -276,6 +276,7 @@ fn function(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Result<Value, String> 
     signature["span"] = signature_span;
 
     let root = builder.expr(body.value).ok_or_else(missing)?;
+    let span = written_span(span, &signature["span"], (sig, body), &builder.nodes);
     let places = places::places(tcx, id, &mut builder);
     let implements = tcx
         .opt_associated_item(id.to_def_id())
@@ -295,6 +296,34 @@ fn function(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Result<Value, String> 
     Ok(function)
 }
 
+/// Where a function is written. A macro that wraps a function keeps its author's signature
+/// and body under its own root, whose span is the macro's: the function then runs from
+/// its signature to the last code its author wrote.
+fn written_span(
+    span: Value,
+    signature: &Value,
+    (sig, body): (&rustc_hir::FnSig<'_>, &rustc_hir::Body<'_>),
+    nodes: &[Value],
+) -> Value {
+    if sig.span.from_expansion() || !body.value.span.from_expansion() {
+        return span;
+    }
+    let authored = nodes
+        .iter()
+        .filter(|node| node["provenance"]["origin"] == "source" && node.get("synthetic").is_none())
+        .map(|node| &node["span"])
+        .filter(|written| {
+            written["file"] == signature["file"]
+                && written["start"].as_u64() >= signature["start"].as_u64()
+        })
+        .filter_map(|written| written["end"].as_u64());
+    let end = authored.chain(signature["end"].as_u64()).max();
+
+    let mut written = signature.clone();
+    written["end"] = json!(end);
+    written
+}
+
 // rstyle-allow(mutated_targets, mutation_per_target): assembles one document from the builder that accumulates it
 /// Parameters in order, the receiver apart, with their symbols and types.
 fn signature<'tcx>(
@@ -311,6 +340,9 @@ fn signature<'tcx>(
                                "generics": generics(builder.unit, id), "lifetimes": lifetimes(builder.unit, id),
                                "constants": constants(builder.unit, id),
                                "outlives": [], "modifiers": fn_modifiers(sig.header)});
+    if let Some(provenance) = declared_provenance(builder, sig.span) {
+        signature["provenance"] = provenance;
+    }
     result(builder.unit, sig, &mut signature);
     if let Some(receiver) = receiver {
         signature["receiver"] = receiver;

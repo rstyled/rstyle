@@ -2,7 +2,7 @@
 //! it declares, its rule facts or, for a function a macro writes, its own events, and
 //! on demand its dependence graph and runtime-bound program.
 
-use super::model::{Document, FileSpan, Function, Generic, Origin, Type, TypeKind};
+use super::model::{Document, FileSpan, Function, Generic, Node, Origin, Type, TypeKind};
 use super::source::Sources;
 use super::tree::Tables;
 use crate::advisory::generated_effects::{self, CONNECTED_KEY, Connections};
@@ -47,12 +47,15 @@ pub enum Measured {
     Known(Box<FnFacts>),
     /// A macro writes it: its own events, located at the macro's call site.
     Generated(Box<generated_effects::Observation>),
-    Unavailable,
+    /// Nothing could be measured, and why.
+    Unavailable(String),
 }
 
 /// One function of a document, as the reports read it.
 #[derive(Clone, Debug)]
 pub struct Record {
+    /// The function's document id.
+    pub function: String,
     pub name: String,
     pub identity: String,
     /// The compilation that owns the function: a path alone can name one in several.
@@ -69,15 +72,49 @@ pub struct Record {
     pub bounds: Option<Input>,
 }
 
-/// Every function of a bundled document, in document order.
+/// Every function of a bundled document, in document order. A document that cannot be
+/// read in full is refused, as a run from another frontend must be.
 pub fn records(document: &Document, demand: Demand) -> Result<Vec<Record>, String> {
+    let (records, failed) = read(document, demand)?;
+    match failed.into_values().next() {
+        Some(reason) => Err(reason),
+        None => Ok(records),
+    }
+}
+
+/// Every function of a frontend's own capture, in document order: one whose facts cannot
+/// be derived is recorded as unavailable, with why, so its unit is still reported.
+pub fn records_with_gaps(document: &Document, demand: Demand) -> Result<Vec<Record>, String> {
+    let (mut records, failed) = read(document, demand)?;
+    for record in &mut records {
+        if let Some(reason) = failed.get(record.function.as_str()) {
+            record.measured = Measured::Unavailable(reason.clone());
+        }
+    }
+    Ok(records)
+}
+
+/// The records of a document, and why each function's facts that failed could not be derived.
+fn read(
+    document: &Document,
+    demand: Demand,
+) -> Result<(Vec<Record>, BTreeMap<String, String>), String> {
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let sources = Sources::new(unit)?;
     let tables = Tables::new(unit)?;
-    let mut measured: BTreeMap<String, FnFacts> = super::facts::derive(document, demand.graphs)?
-        .into_iter()
-        .map(|facts| (facts.id.clone(), facts))
-        .collect();
+    let derived = super::facts::derive_each(document, demand.graphs)?;
+    let mut failed = BTreeMap::new();
+    let mut measured: BTreeMap<String, FnFacts> = BTreeMap::new();
+    for (function, facts) in derived {
+        match facts {
+            Ok(facts) => {
+                measured.insert(facts.id.clone(), facts);
+            }
+            Err(reason) => {
+                failed.insert(function.id.clone(), reason);
+            }
+        }
+    }
     let functions = unit.functions.as_deref().unwrap_or_default();
     let mut bounds = match demand.bounds {
         true => super::lowered(document)?
@@ -87,7 +124,7 @@ pub fn records(document: &Document, demand: Demand) -> Result<Vec<Record>, Strin
         false => vec![None; functions.len()],
     };
 
-    functions
+    let records = functions
         .iter()
         .zip(bounds.drain(..))
         .map(|(function, bounds)| {
@@ -106,7 +143,8 @@ pub fn records(document: &Document, demand: Demand) -> Result<Vec<Record>, Strin
             )
             .map_err(|reason| format!("{}: {reason}", function.name))
         })
-        .collect()
+        .collect::<Result<Vec<_>, String>>()?;
+    Ok((records, failed))
 }
 
 fn record(
@@ -124,6 +162,7 @@ fn record(
     };
 
     Ok(Record {
+        function: function.id.clone(),
         name: function.name.clone(),
         identity,
         compilation,
@@ -138,14 +177,25 @@ fn record(
     })
 }
 
+/// The body's root, when a macro writes the whole function: its signature and its root.
+/// A macro that wraps a function, or rewrites its signature, leaves it its author's.
+fn macro_written_root(function: &Function) -> Option<&Node> {
+    let signature = function.signature.provenance.as_ref()?;
+    (signature.origin == Origin::MacroExpansion)
+        .then(|| function.nodes.iter().find(|node| node.id == function.root))
+        .flatten()
+        .filter(|root| root.provenance.origin == Origin::MacroExpansion)
+}
+
+/// Whether a macro writes the whole function.
+pub fn written_by_macro(function: &Function) -> bool {
+    macro_written_root(function).is_some()
+}
+
 /// Where a function is located: where it is written, or for a function a macro
 /// generates, the macro's outermost call site.
 pub fn located(function: &Function) -> &FileSpan {
-    function
-        .nodes
-        .iter()
-        .find(|node| node.id == function.root)
-        .filter(|root| root.provenance.origin == Origin::MacroExpansion)
+    macro_written_root(function)
         .and_then(|root| root.provenance.call_site.as_ref())
         .unwrap_or(&function.span)
 }
@@ -159,7 +209,7 @@ pub fn measure(
 ) -> Result<Measured, String> {
     let at = located(function);
     let generated_file = sources.generated(&function.span);
-    let generated = generated_file || !std::ptr::eq(at, &function.span);
+    let generated = generated_file || written_by_macro(function);
     match facts {
         Some(facts) if generated => {
             let (line, column) = sources.location(at)?;
@@ -182,7 +232,7 @@ pub fn measure(
             )))
         }
         Some(facts) => Ok(Measured::Known(Box::new(facts))),
-        None => Ok(Measured::Unavailable),
+        None => Ok(Measured::Unavailable(UNMEASURED.to_owned())),
     }
 }
 
@@ -346,12 +396,14 @@ mod tests {
         let function = &mut document["unit"]["functions"][0];
         let root = function["root"].as_str().unwrap().to_owned();
         let span = function["span"].clone();
+        let provenance = serde_json::json!({"origin": "macro_expansion", "call_site": span});
+        function["signature"]["provenance"] = provenance.clone();
         let nodes = function["nodes"].as_array_mut().unwrap();
         let root = nodes
             .iter_mut()
             .find(|node| node["id"] == root.as_str())
             .unwrap();
-        root["provenance"] = serde_json::json!({"origin": "macro_expansion", "call_site": span});
+        root["provenance"] = provenance;
         let record = &read(
             document,
             Demand {

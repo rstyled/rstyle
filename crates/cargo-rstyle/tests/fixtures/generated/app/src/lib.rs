@@ -35,3 +35,9 @@ pub fn raw(r#type: u32) -> u32 {
     let r#match = r#type + 1;
     r#match
 }
+
+#[spanning::wrapping]
+pub fn wrapped_by_an_attribute(value: u32) -> u32 {
+    let doubled = value * 2;
+    doubled + 1
+}

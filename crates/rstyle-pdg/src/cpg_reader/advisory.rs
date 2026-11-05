@@ -14,11 +14,8 @@ pub(super) fn derive(document: &Document) -> Result<Option<Vec<FnFacts>>, String
     if !requested(advisory::CAPTURE_ENV) {
         return Ok(None);
     }
-    let facts = match requested(patterns::CAPTURE_ENV) {
-        true => rstyle_core::cpg::all_facts(document)?,
-        false => rstyle_core::cpg::rule_facts(document)?,
-    };
-    Ok(Some(facts))
+    let graphs = requested(patterns::CAPTURE_ENV);
+    rstyle_core::cpg::derivable_facts(document, graphs).map(Some)
 }
 
 fn requested(variable: &str) -> bool {
@@ -63,7 +60,7 @@ impl Reader<'_> {
                 options.insert(CONNECTED_KEY.into(), value);
                 unmeasured()
             }
-            Measured::Unavailable => unmeasured(),
+            Measured::Unavailable(_) => unmeasured(),
         };
 
         let value = serde_json::to_value(observation).map_err(|error| error.to_string())?;

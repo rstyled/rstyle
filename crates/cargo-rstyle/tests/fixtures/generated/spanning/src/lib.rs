@@ -23,6 +23,29 @@ pub fn spanning(input: TokenStream) -> TokenStream {
     substitute(generated, &local, &TokenTree::from(operator))
 }
 
+/// Wraps a function's body under a root of its own, keeping its signature and its body's
+/// tokens as written, as `#[tracing::instrument]` does for an async method.
+#[proc_macro_attribute]
+pub fn wrapping(_arguments: TokenStream, item: TokenStream) -> TokenStream {
+    let mut tokens: Vec<TokenTree> = item.into_iter().collect();
+    let body = tokens.pop().expect("the wrapped function's body");
+    let wrapper: TokenStream = "let __wrapped = __BODY__; __wrapped"
+        .parse()
+        .expect("the wrapper");
+    let wrapper = wrapper
+        .into_iter()
+        .map(|token| match &token {
+            TokenTree::Ident(ident) if ident.to_string() == "__BODY__" => body.clone(),
+            _ => token,
+        })
+        .collect();
+    let mut root = proc_macro::Group::new(proc_macro::Delimiter::Brace, wrapper);
+    root.set_span(Span::call_site());
+    tokens.push(TokenTree::from(root));
+
+    tokens.into_iter().collect()
+}
+
 fn substitute(stream: TokenStream, local: &TokenTree, operator: &TokenTree) -> TokenStream {
     stream
         .into_iter()

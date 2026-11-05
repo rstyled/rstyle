@@ -114,6 +114,14 @@ fns = [
   "rstyle_pdg::cpg_reader::Context::scalar_formals",
 ]
 
+[ignore.260d64cc8894]
+kind = "parameterize"
+reason = "Both are a one-line is_some over an unrelated lookup; a shared helper would add nothing"
+fns = [
+  "rstyle_core::cpg::records::written_by_macro",
+  "rstyle_pdg::concrete_results::scalar_errors::shape::success",
+]
+
 [ignore.28ac5efc1baa]
 kind = "parameterize"
 reason = "filter(seen.insert) over different iterator types; two lines each (#11)"
