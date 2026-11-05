@@ -151,19 +151,39 @@ struct CpgArgs {
 
 #[derive(Subcommand)]
 enum CpgCommand {
-    /// Run the style rules over one bundled document or a split run's documents.
+    /// Run the style rules over a run's documents.
     Check {
-        /// compat.cpg documents: one bundled unit document, or a split unit document
-        /// and its function documents.
+        /// compat.cpg documents: any number of bundled unit documents, and split unit
+        /// documents with their function documents.
         #[arg(required = true)]
         documents: Vec<PathBuf>,
     },
+    /// Mine a run's documents for latent shared abstractions.
+    Patterns(CpgPatternsArgs),
     /// Write compat.cpg documents for the workspace from the rustc frontend.
     Emit {
         /// Output directory; its `target` subdirectory holds the private build.
         #[arg(long)]
         out: PathBuf,
     },
+}
+
+#[derive(Args)]
+struct CpgPatternsArgs {
+    /// compat.cpg documents: any number of bundled unit documents, and split unit
+    /// documents with their function documents.
+    #[arg(required = true)]
+    documents: Vec<PathBuf>,
+    /// Include symbolic loop-body entry and call invocation upper bounds.
+    #[arg(long)]
+    complexity: bool,
+    #[command(flatten)]
+    display: PatternDisplayArgs,
+    /// Exit 1 when any candidate is left (for CI).
+    #[arg(long)]
+    fail_on_candidates: bool,
+    #[command(flatten)]
+    mine: MineArgs,
 }
 
 #[derive(Args)]
@@ -348,6 +368,7 @@ fn cpg_command(cli: &Cli, command: CpgCommand) -> Result<(String, u8), String> {
         CpgCommand::Check { documents } => {
             cpg::check(&documents, cli.config.as_deref(), cli.format)
         }
+        CpgCommand::Patterns(args) => cpg::patterns(cli, &args),
         CpgCommand::Emit { out } => {
             let selection = cpg::Selection {
                 packages: &cli.packages,

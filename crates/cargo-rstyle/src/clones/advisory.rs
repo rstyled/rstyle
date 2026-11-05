@@ -8,7 +8,7 @@ mod planning;
 pub(super) mod propagation;
 mod ranking;
 mod repository_session;
-mod runtime_bounds;
+pub(super) mod runtime_bounds;
 mod selection;
 mod source_scope;
 pub(super) mod style;

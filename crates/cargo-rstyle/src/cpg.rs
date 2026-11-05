@@ -1,13 +1,15 @@
-//! `cargo rstyle cpg check`: the style rules over `compat.cpg` documents from any
-//! language frontend, without compiling anything.
+//! `cargo rstyle cpg`: the style rules and the pattern miner over `compat.cpg` documents
+//! from any language frontend, without compiling anything.
 
 use rstyle_core::config::Config;
-use rstyle_core::report;
+use rstyle_core::cpg::records::{Demand, Record};
+use rstyle_core::{cpg, patterns_report, report};
+use serde_json::json;
 use std::path::{Path, PathBuf};
 
-use crate::Format;
+use crate::{Cli, CpgPatternsArgs, Format};
 
-/// Style report of one bundled document or a split run, and its exit code.
+/// Style report of a run over any number of units, and its exit code.
 pub fn check(
     documents: &[PathBuf],
     config: Option<&Path>,
@@ -25,6 +27,66 @@ pub fn check(
         Format::Json => report::json(&report).map_err(|error| error.to_string())?,
     };
     Ok((output, report.exit_code()))
+}
+
+/// Abstraction candidates of a run, with effects propagated across all of its units
+/// and, when asked for, each function's runtime bounds.
+pub fn patterns(cli: &Cli, args: &CpgPatternsArgs) -> Result<(String, u8), String> {
+    let values = args
+        .documents
+        .iter()
+        .map(|path| read(path))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let demand = Demand {
+        graphs: true,
+        bounds: args.complexity,
+    };
+    let records = cpg::run_records(values, demand)?;
+    let bounds = args
+        .complexity
+        .then(|| crate::clones::document_bounds(&records, args.display.top));
+    let evaluation = mined(records, args, &load_config(cli.config.as_deref())?)?;
+    let code = u8::from(args.fail_on_candidates && !evaluation.candidates.is_empty());
+
+    let output = match cli.format {
+        Format::Text => {
+            let bounds = bounds.as_ref().map(|report| report.text());
+            let mined = patterns_report::text(&evaluation);
+            [mined]
+                .into_iter()
+                .chain(bounds)
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
+        Format::Json => {
+            let report = json!({"evaluation": evaluation, "runtime_bounds": bounds});
+            serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?
+        }
+    };
+    Ok((output, code))
+}
+
+fn mined(
+    records: Vec<Record>,
+    args: &CpgPatternsArgs,
+    config: &Config,
+) -> Result<patterns_report::PatternsReport, String> {
+    let facts = records.into_iter().filter_map(cpg::authored).collect();
+    let observed = rstyle_core::effect_observations(facts, config, None)?;
+    let options = patterns_report::Options {
+        min_score_milli: args.display.min_score_milli(),
+        top: args.display.top,
+        ..crate::mine_options(&args.mine)
+    };
+
+    let (mut evaluation, _) =
+        patterns_report::run_distinct_owned_and_retain(observed.facts, &options);
+    rstyle_core::candidates::annotate_completed_effects(
+        &mut evaluation.candidates,
+        &observed.effects,
+    )?;
+    Ok(evaluation)
 }
 
 // rstyle-allow(side_effect_density): IO boundary: reads one input document

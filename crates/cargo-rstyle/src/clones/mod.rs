@@ -6,6 +6,7 @@ mod analysis;
 pub mod capture;
 mod diagnostic_selection;
 mod documents;
+pub(crate) use advisory::runtime_bounds::from_records as document_bounds;
 mod identity;
 mod linking;
 pub(crate) mod patterns_route;

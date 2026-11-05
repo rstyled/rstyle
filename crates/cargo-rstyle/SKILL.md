@@ -160,14 +160,18 @@ Reviewed and rejected candidates: every candidate has an `id`. Only when the use
 
 Defaults (WL similarity 600, alignment coverage 600, 3 holes max for `parameterize`) are the evaluated setting. Opt-in experiments, not recommended unless asked: `--normalize all|ctor,pred,case,exit,counter,cmp,try` (canonicalize graphs; on CodeNet it removes about one unmatched node per pair and did not change what gets flagged, `case` does nearly all the work), `--pair-coverage N`, `--max-holes N`, `--single-call-guard`, `--threshold N`, `--min-coverage N` (more recall of strangers' spellings at the price of more false positives; `--pair-coverage 650 --max-holes 4` on CodeNet: about 20 extra cross-problem flags per 350k pairs).
 
-## Other languages (`cpg check`)
+## Other languages (`cpg`)
 
 `cargo rstyle cpg check DOC.json [MORE.json ...] [--config rstyle.toml] [--format json]`
-runs the same style rules over `compat.cpg` documents from a non-Rust frontend
-(one bundled unit document, or a split unit document and its function documents).
-Core derives statement counts, complexity, calls, edges, effects and mutations from
-the documents; no compiler runs and only an explicit `--config` applies. Exit codes
-are as for the default command; invalid or mismatched documents return 2.
+runs the same style rules over `compat.cpg` documents from a non-Rust frontend, and
+`cargo rstyle cpg patterns DOC.json [MORE.json ...] [--complexity] [--fail-on-candidates]`
+mines them for the same abstraction candidates and runtime bounds. A run is any number
+of units: bundled unit documents, and split unit documents with their function
+documents; name them together so effects propagate across units. Core derives
+statement counts, complexity, calls, edges, effects, mutations, dependence graphs and
+runtime-bound programs from the documents; no compiler runs and only an explicit
+`--config` applies. Exit codes are as for the default command; invalid or mismatched
+documents, or a function read twice, return 2.
 `cargo rstyle cpg emit --out DIR` writes such documents for a Rust workspace.
 
 ## Requirements

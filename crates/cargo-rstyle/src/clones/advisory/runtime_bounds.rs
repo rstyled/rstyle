@@ -3,6 +3,7 @@ use super::{Context, UnitId};
 use crate::clones::FunctionKey;
 use rstyle_core::{
     advisory::runtime_bounds::{Input, KEY, Observation},
+    cpg::records::{Measured, Record},
     runtime_bounds::{
         self, Limits, Outcome,
         compose::{Analyzed, Composed, Composer},
@@ -82,6 +83,115 @@ pub(super) fn evaluate(ctx: &Context<'_>, unit: UnitId) -> Option<Report> {
             .collect(),
         rows,
     })
+}
+
+/// A function's bounds, as a run over documents reports them.
+#[derive(Serialize)]
+struct DocumentRow {
+    name: String,
+    path: String,
+    #[serde(flatten)]
+    evidence: Evidence,
+}
+
+/// Bounds of a run over documents, which names functions by path alone.
+#[derive(Serialize)]
+pub(crate) struct DocumentReport {
+    schema: &'static str,
+    input_complete: bool,
+    limitations: &'static [&'static str],
+    rows: Vec<DocumentRow>,
+}
+
+/// The bounds of every authored function of a run, highest degree first, with callees
+/// resolved across all of its units.
+pub(crate) fn from_records(records: &[Record], top: Option<usize>) -> DocumentReport {
+    let mut index: HashMap<String, Option<&Record>> = HashMap::new();
+    for record in records {
+        index
+            .entry(record_key(record))
+            .and_modify(|entry| *entry = None)
+            .or_insert(Some(record));
+    }
+    let lookup = |id: &str| record_analyzed(index.get(id).copied().flatten()?);
+    let mut composer = Composer::new(lookup, Limits::default());
+    let mut rows: Vec<_> = records
+        .iter()
+        .filter_map(|record| {
+            let Measured::Known(facts) = &record.measured else {
+                return None;
+            };
+            Some(DocumentRow {
+                name: record.name.clone(),
+                path: facts.path.clone(),
+                evidence: record_evidence(record, &mut composer),
+            })
+        })
+        .collect();
+    rows.sort_by_key(|row| std::cmp::Reverse(degree(&row.evidence)));
+    rows.truncate(top.unwrap_or(usize::MAX));
+
+    DocumentReport {
+        schema: "rstyle.cpg-runtime-bounds-report/1",
+        input_complete: rows.iter().all(|row| row.evidence.missing.is_none()),
+        limitations: LIMITATIONS,
+        rows,
+    }
+}
+
+impl DocumentReport {
+    pub(crate) fn text(&self) -> String {
+        let rows: String = self
+            .rows
+            .iter()
+            .map(|row| {
+                format!(
+                    "\n{}: {}: {}",
+                    row.path,
+                    row.name,
+                    render_result(&row.evidence)
+                )
+            })
+            .collect();
+        format!(
+            "Runtime upper bounds (loop-body entries and modeled call-site invocations; input complete={}):{rows}\nUpper bounds do not establish tightness or repeated scans.\n",
+            self.input_complete
+        )
+    }
+}
+
+fn record_key(record: &Record) -> String {
+    format!("{}/{}", record.compilation, record.identity)
+}
+
+fn record_analyzed(record: &Record) -> Option<Analyzed> {
+    let Some(Input::Captured { program }) = record.bounds.clone() else {
+        return None;
+    };
+    Some(Analyzed {
+        outcome: runtime_bounds::analyze(&program),
+        program,
+    })
+}
+
+fn record_evidence<F: FnMut(&str) -> Option<Analyzed>>(
+    record: &Record,
+    composer: &mut Composer<F>,
+) -> Evidence {
+    let observation = Observation {
+        schema: KEY.into(),
+        owner: record.identity.clone(),
+        krate: record.compilation.clone(),
+        input: record.bounds.clone().unwrap_or(Input::Unavailable {
+            reason: "Runtime bounds were not requested".into(),
+        }),
+    };
+    let composed = matches!(observation.input, Input::Captured { .. })
+        .then(|| composer.composed(&record_key(record)));
+    Evidence {
+        composed,
+        ..evidence(Ok(observation))
+    }
 }
 
 // Owners across every unit, keyed by compilation and path so callees in other

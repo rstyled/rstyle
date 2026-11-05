@@ -10,7 +10,7 @@ Rust style checker built on rustc HIR (resolved names and types, not just syntax
 | Crate | Role |
 | --- | --- |
 | `rstyle-core` | Pure rules, config, suppression, reporting. No IO, no compiler types. |
-| `rstyle-driver` | rustc driver (`rustc_private`). Extracts per-function facts to JSON. |
+| `rstyle-driver` | rustc driver (`rustc_private`). The Rust frontend: writes each crate's `compat.cpg` documents. |
 | `cargo-rstyle` | `cargo rstyle` CLI. Runs `cargo check` with the driver as workspace wrapper, then evaluates. |
 
 See [`SIDE_EFFECTS.md`](SIDE_EFFECTS.md) for the rule spec.
@@ -362,30 +362,45 @@ Inspiration: comparing functions by approximate matching of their program depend
 
 Known limits: function-level only; closure bodies are opaque (except `for_each`); a cluster mixing already-trait and inherent impls is reported as a candidate rather than as "implement the existing trait"; the size floor is 4 nodes and 1 call, so small functions never cluster (on competitive-programming code that is more than half of edited-copy pairs), and the defaults were picked on a few real crates and a labeled example set, not tuned on a large corpus.
 
-## Other languages (`cpg check`)
+## Other languages (`cpg`)
 
 Frontends for other languages emit `compat.cpg`
-documents, a code property graph with declared coverage, and core derives the
-style rules' inputs from them, so no rule is reimplemented per language:
+documents, a code property graph with declared coverage, and core derives every
+rule fact, dependence graph and runtime-bound program from them, so no analysis is
+reimplemented per language:
 
 ```
-cargo rstyle cpg check unit.json [--config rstyle.toml] [--format text|json]
-cargo rstyle cpg check unit.json fn-*.json    # a split run: one unit document and its function documents
+cargo rstyle cpg check DOC.json... [--config rstyle.toml] [--format text|json]
+cargo rstyle cpg patterns DOC.json... [--complexity] [--config rstyle.toml] [--format text|json]
 ```
+
+A run is any number of units: bundled unit documents, and split unit documents with
+their function documents. Read together, effects propagate across units as they do
+across a Rust workspace's crates; read one at a time, a unit sees only its own calls.
 
 The profile's *Rule facts* section defines each derivation: statement counts,
 complexity constructs, calls, call edges, effects and mutations. No compiler runs,
 and only an explicit `--config` applies. Documents from another profile version,
 with undeclared coverage, without file content, or whose split function documents
-do not match their unit's digest are rejected with exit code 2. Core also derives
-the dependence graphs the pattern miner reads, but `rstyle patterns` does not run
-over documents yet.
+do not match their unit's digest are rejected with exit code 2, as is a function read
+twice. A function a macro writes is outside the rule facts and pattern search, as it
+is on the Rust routes. `cpg patterns` exits 1 with `--fail-on-candidates` when a
+candidate is left.
 
 The Rust frontend emits the same documents:
 
 ```
 cargo rstyle cpg emit --out cpg/     # a fresh check of the workspace with the driver
 ```
+
+`cargo rstyle` and `cargo rstyle patterns` read Rust this way too: the driver writes
+each crate's documents and a manifest sealing them into its unit directory, and
+everything the report needs is derived from those documents afterwards, in core. A
+saved run therefore replays without a compiler or the sources, and its documents
+answer any of these routes: replaying a style run with `patterns` needs no recapture.
+The strict `clones` route and the source-level analyses on it (source rules, guards,
+mutation rules, enum dispatch, capability proposals) still read function bodies from
+the driver's own unit evidence.
 
 Every rule fact (statement counts, complexity, calls, edges, effects, mutations,
 parameter lists, signature shapes, mutated types and dependence graphs) was proven
