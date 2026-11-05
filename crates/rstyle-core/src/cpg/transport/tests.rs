@@ -59,7 +59,13 @@ fn streamed_input_is_not_reformatted_and_failed_writes_leave_no_document() {
     let reconstructed = zstd::stream::decode_all(fs::read(&path).unwrap().as_slice()).unwrap();
     assert_eq!(reconstructed, bytes);
     assert_eq!(seal.decoded_bytes, Some(bytes.len() as u64));
-    for input in [b"{\"unfinished\":".as_slice(), b"{} {}", b"[]", b"null"] {
+    for input in [
+        b"{\"unfinished\":".as_slice(),
+        b"{} {}",
+        b"[]",
+        b"null",
+        b"{\"x\":\"\xff\"}",
+    ] {
         let failed = directory.path().join("failed.cpg.json.zst");
         assert!(publish(&failed, Encoding::Zstd, |writer| writer.write_all(input)).is_err());
         assert!(!failed.exists());

@@ -10,6 +10,62 @@ use std::{
     path::Path,
 };
 
+/// IgnoredAny skips string decoding, so syntax-only ingestion also validates UTF-8
+/// across read boundaries without retaining long source-content strings.
+struct Utf8<R> {
+    inner: R,
+    pending: [u8; 4],
+    len: usize,
+}
+
+impl<R> Utf8<R> {
+    fn check(&mut self, mut bytes: &[u8]) -> io::Result<()> {
+        if self.len > 0 {
+            let width = match self.pending[0] {
+                0..=0xdf => 2,
+                0xe0..=0xef => 3,
+                _ => 4,
+            };
+            let count = (width - self.len).min(bytes.len());
+            self.pending[self.len..self.len + count].copy_from_slice(&bytes[..count]);
+            self.len += count;
+            if self.len < width {
+                return Ok(());
+            }
+            std::str::from_utf8(&self.pending[..width])
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            self.len = 0;
+            bytes = &bytes[count..];
+        }
+        if let Err(error) = std::str::from_utf8(bytes) {
+            if error.error_len().is_some() {
+                return Err(io::Error::new(io::ErrorKind::InvalidData, error));
+            }
+            let suffix = &bytes[error.valid_up_to()..];
+            self.pending[..suffix.len()].copy_from_slice(suffix);
+            self.len = suffix.len();
+        }
+        Ok(())
+    }
+}
+
+impl<R: Read> Read for Utf8<R> {
+    fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+        if bytes.is_empty() {
+            return Ok(0);
+        }
+        let len = self.inner.read(bytes)?;
+        if len == 0 && self.len > 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Incomplete UTF-8 in CPG JSON",
+            ));
+        }
+        self.check(&bytes[..len])?;
+        Ok(len)
+    }
+}
+
 struct Counted<R> {
     inner: R,
     observed: Observed,
@@ -87,7 +143,12 @@ fn parsed<T: DeserializeOwned>(
         observed: Observed::default(),
         limit: seal.and_then(|s| s.decoded_bytes),
     };
-    let mut json = serde_json::Deserializer::from_reader(BufReader::new(&mut decoded));
+    let utf8 = Utf8 {
+        inner: &mut decoded,
+        pending: [0; 4],
+        len: 0,
+    };
+    let mut json = serde_json::Deserializer::from_reader(BufReader::new(utf8));
     let value = T::deserialize(&mut json).map_err(|error| error.to_string())?;
     json.end().map_err(|error| error.to_string())?;
     if let Some(seal) = seal {
@@ -117,5 +178,33 @@ impl<'de> Deserialize<'de> for Object {
             }
         }
         deserializer.deserialize_map(ObjectVisitor)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn utf8_validation_crosses_buffer_boundaries_without_a_string_buffer() {
+        use std::io::Read;
+        for text in ["λ🦀", "hello λ world", "🦀"].map(str::as_bytes) {
+            let mut reader = Utf8 {
+                inner: text,
+                pending: [0; 4],
+                len: 0,
+            };
+            let mut byte = [0];
+            let mut actual = Vec::new();
+            while reader.read(&mut byte).unwrap() != 0 {
+                actual.extend_from_slice(&byte);
+            }
+            assert_eq!(actual, text);
+        }
+        let mut reader = Utf8 {
+            inner: b"\xf0\x9f".as_slice(),
+            pending: [0; 4],
+            len: 0,
+        };
+        assert!(reader.read_to_end(&mut Vec::new()).is_err());
     }
 }
