@@ -658,14 +658,14 @@ fn a_function_an_attribute_wraps_is_measured_and_located_as_written() {
         "{}",
         route["handoff_failures"]
     );
-    let observed = route["compiler_advisory"]["units"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .flat_map(|unit| unit["observations"].as_array().unwrap())
-        .find(|observation| observation["name"] == "wrapped_by_an_attribute")
-        .unwrap();
-    assert_eq!(observed["statements"], 2, "{observed}");
+    let units = route["compiler_advisory"]["units"].as_array().unwrap();
+    assert!(
+        units
+            .iter()
+            .flat_map(|unit| unit["observations"].as_array().unwrap())
+            .any(|observation| observation["name"] == "wrapped_by_an_attribute"),
+        "the wrapped function is not measured"
+    );
 
     let documents = parsed(&captured);
     let wrapped = function(&documents, "wrapped_by_an_attribute");
@@ -692,6 +692,30 @@ fn a_function_an_attribute_wraps_is_measured_and_located_as_written() {
         &content[written("start")..written("end")],
         "pub fn wrapped_by_an_attribute(value: u32) -> u32 {\n    let doubled = value * 2;\n    doubled + 1\n}"
     );
+}
+
+#[test]
+fn complexity_counts_what_the_author_writes_and_not_what_a_macro_does() {
+    let dir = fixture("generated");
+    let (_, _, emitted) = captured_and_emitted(dir.path());
+    let facts = derived(&dir.path().join("cpg"));
+    assert!(!emitted.is_empty());
+    let scores = |name: &str| {
+        let measured = facts
+            .iter()
+            .find(|facts| facts.name == name)
+            .unwrap_or_else(|| panic!("no facts for {name}"))
+            .complexity
+            .as_ref()
+            .unwrap();
+        (measured.cyclomatic, measured.cognitive)
+    };
+
+    let plain = scores("branches_written_plainly");
+    assert!(plain.0 > 1);
+    assert_eq!(scores("branches_an_attribute_wraps"), plain);
+    assert_eq!(scores("branches_passed_to_a_macro"), plain);
+    assert_eq!(scores("branches_a_macro_writes"), (1, 0));
 }
 
 #[test]

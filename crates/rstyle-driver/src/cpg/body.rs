@@ -251,7 +251,9 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             return Some(id);
         }
         let shape = self.expr_shape(expr);
+        let kind = shape.kind;
         let id = self.node(expr.hir_id, expr.span, shape);
+        self.check_written_keyword(expr.hir_id, kind);
         self.reference(expr, &id);
 
         Some(id)
@@ -1050,15 +1052,46 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             return;
         }
 
+        self.nodes[index]["provenance"] = self.enclosing_expansion(hir_id, written);
+    }
+
+    /// The provenance of the expansion around a node that says it is source but is not,
+    /// or of the node itself when no expansion encloses it.
+    fn enclosing_expansion(&mut self, hir_id: HirId, written: Value) -> Value {
         let enclosing = self
             .tcx
             .hir_parent_id_iter(hir_id)
             .map(|parent| self.tcx.hir_span(parent))
             .find(|span| matches!(span.ctxt().outer_expn_data().kind, ExpnKind::Macro(..)));
-        self.nodes[index]["provenance"] = match enclosing {
+        match enclosing {
             Some(span) => self.provenance(span),
             None => json!({"origin": "macro_expansion", "call_site": written}),
+        }
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// A construct written in source begins with its keyword, so one whose span holds other
+    /// text is a macro's own, written at one of its input's tokens as `quote_spanned!` does.
+    fn check_written_keyword(&mut self, hir_id: HirId, kind: &str) {
+        let Some(keyword) = construct_keyword(kind) else {
+            return;
         };
+        let id = self.id(hir_id);
+        let Some(index) = self.nodes.iter().rposition(|node| node["id"] == id) else {
+            return;
+        };
+
+        let record = &self.nodes[index];
+        let source =
+            record["provenance"]["origin"] == "source" && record.get("synthetic").is_none();
+        let written = record["span"].clone();
+        let elsewhere = self
+            .unit
+            .text(&written)
+            .is_some_and(|text| !begins_with_keyword(text, keyword));
+        if source && elsewhere {
+            self.nodes[index]["provenance"] = self.enclosing_expansion(hir_id, written);
+        }
     }
 
     // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
@@ -1386,6 +1419,21 @@ fn unary(op: UnOp) -> &'static str {
         UnOp::Not => "not",
         UnOp::Neg => "neg",
     }
+}
+
+/// The keyword a construct's source text begins with, for those that have one.
+fn construct_keyword(kind: &str) -> Option<&'static str> {
+    match kind {
+        "if" => Some("if"),
+        "match" => Some("match"),
+        "loop" => Some("loop"),
+        _ => None,
+    }
+}
+
+/// A construct's text, past a loop label or an attribute written before it.
+fn begins_with_keyword(text: &str, keyword: &str) -> bool {
+    text.starts_with(keyword) || text.starts_with('\'') || text.starts_with('#')
 }
 
 /// Whether a recorded token lies inside a recorded span.

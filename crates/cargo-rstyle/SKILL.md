@@ -86,7 +86,8 @@ findings and fix groups. Clean functions are omitted from both formats.
 The summary reports `complexity_measured` and `complexity_unavailable`.
 Missing scores are unavailable, never zero; the command exits 2 on missing
 measurements and retains other findings. Closures contribute to their owner;
-compiler lowering and opaque macro expansions do not add hidden branches.
+compiler lowering and a macro's own code add no branches, while code you pass to a macro
+or that a macro wraps counts like any other.
 
 [complexity] settings `max_cyclomatic` and `max_cognitive` both default to 12.
 Scores strictly above their limit produce `cyclomatic_complexity` or
