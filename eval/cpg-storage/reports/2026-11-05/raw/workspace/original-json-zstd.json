@@ -1,0 +1,70 @@
+{
+  "zstd_level": 3,
+  "zstandard_python": "0.25.0",
+  "zstd_version": [
+    1,
+    5,
+    7
+  ],
+  "original_bytes": 530305917,
+  "compressed_bytes": 39674228,
+  "scope": "One independent frame per original document; size control only, excluded from timed codec ranking",
+  "inputs": [
+    {
+      "bytes": 207822,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/build_script_build-8a46fdb1ca9000e7.cpg.json",
+      "sha256": "61379d154c8cd2d24cf603a7ff2b6b9da3dd170af64843077c322918327781c4",
+      "compressed_bytes": 19929,
+      "compressed_sha256": "04a097e11c0087a745b27e30769c8a6426dff99e46f6e0ad97db1427867767c9",
+      "lossless": true
+    },
+    {
+      "bytes": 62920288,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/cargo_rstyle-dfbdcd40e1f6731b.cpg.json",
+      "sha256": "ecd92c498d173a1fae594116397d6553cc2536acf7835297753f8b801c78a613",
+      "compressed_bytes": 4865965,
+      "compressed_sha256": "b67a966b48a739d87b429afad3d4cd4df363616ff2e0cd871778776a32cbb538",
+      "lossless": true
+    },
+    {
+      "bytes": 7975273,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/rstyle_ccgraph-26ef91afe528c75b.cpg.json",
+      "sha256": "a7bbb3905187ffcd108de817e06d1e86574e2a65581260ea831d39d4bc42822a",
+      "compressed_bytes": 635625,
+      "compressed_sha256": "ef15be49914fdbe92b8509740f32540f01d2adc641732bdace4833f2e0f12d1c",
+      "lossless": true
+    },
+    {
+      "bytes": 38499607,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/rstyle_core-aea2719351d60376.cpg.json",
+      "sha256": "0499c5e711551ce235f151ccb3a8adec738fdb344a2bcd0bd19dbc66a21b33db",
+      "compressed_bytes": 3123548,
+      "compressed_sha256": "c91871bdb27d4e42138c5e47226706200739c8abb6e73395e6283ad0c214db4b",
+      "lossless": true
+    },
+    {
+      "bytes": 43838629,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/rstyle_driver-80442895f8a69205.cpg.json",
+      "sha256": "7e66337d996cacd6e9d93e19526e17fbb70328b80bb60be34d436ec8fb28172d",
+      "compressed_bytes": 3187238,
+      "compressed_sha256": "a645f937eeab12d30995f50895d446d7050d8f9f5891056d4c6481bc02920f11",
+      "lossless": true
+    },
+    {
+      "bytes": 1322348,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/rstyle_extraction_fixtures-171f1a0e168485d7.cpg.json",
+      "sha256": "e733b9f5fd8a6c569b6668caef02c5b844b30d632436cd1ff831937f0b63d939",
+      "compressed_bytes": 102776,
+      "compressed_sha256": "daec4f5e173519e933578a2da3225591d0b951293483f050f548ef218d60112a",
+      "lossless": true
+    },
+    {
+      "bytes": 375541950,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/rstyle_pdg-5854fe371dc0448c.cpg.json",
+      "sha256": "3df8a1ac61afabd18f5a5aec2cfa5b49d92df41ea5be96251ab3958f6c906a6e",
+      "compressed_bytes": 27739147,
+      "compressed_sha256": "7ab394288b429f22c06b5f57a27469209b7397ec7cb16f379fb5d062feddde49",
+      "lossless": true
+    }
+  ]
+}

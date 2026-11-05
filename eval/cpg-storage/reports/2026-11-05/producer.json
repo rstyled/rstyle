@@ -1,0 +1,20 @@
+{
+  "created_utc": "2026-11-05T07:11:09.916052+00:00",
+  "source_root": "/home/dev/src/rstyle-main/rstyle",
+  "branch": "feat/cpg-document-routes",
+  "head": "c0aaaedf30c32ece4e7b52ecca7ba7d4cace4a12",
+  "status": " M README.md\n M crates/cargo-rstyle/SKILL.md\n M crates/cargo-rstyle/src/clones/advisory.rs\n M crates/cargo-rstyle/src/clones/advisory/generated_effects.rs\n M crates/cargo-rstyle/src/clones/advisory/patterns.rs\n M crates/cargo-rstyle/src/clones/advisory/patterns/workspace.rs\n M crates/cargo-rstyle/src/clones/advisory/runtime_bounds.rs\n M crates/cargo-rstyle/src/clones/advisory_only.rs\n M crates/cargo-rstyle/src/clones/analysis/capability_reports.rs\n M crates/cargo-rstyle/src/clones/analysis/mod.rs\n M crates/cargo-rstyle/src/clones/analysis/mutation_reports.rs\n M crates/cargo-rstyle/src/clones/analysis/source_exclusions.rs\n M crates/cargo-rstyle/src/clones/capture.rs\n M crates/cargo-rstyle/src/clones/capture/owner_reuse.rs\n M crates/cargo-rstyle/src/clones/identity.rs\n M crates/cargo-rstyle/src/clones/linking.rs\n M crates/cargo-rstyle/src/clones/mod.rs\n M crates/cargo-rstyle/src/clones/planning/parameters/uses.rs\n M crates/cargo-rstyle/src/clones/report/functions.rs\n M crates/cargo-rstyle/src/clones/review/compiler_diagnostics/observed.rs\n M crates/cargo-rstyle/src/clones/review/compiler_owners.rs\n M crates/cargo-rstyle/src/clones/review/compiler_patterns/observed.rs\n M crates/cargo-rstyle/src/clones/review/local_adapter.rs\n M crates/cargo-rstyle/src/cpg.rs\n M crates/cargo-rstyle/src/main.rs\n M crates/cargo-rstyle/src/run.rs\n M crates/cargo-rstyle/tests/compiler_advisory/patterns/authored_scope.rs\n M crates/cargo-rstyle/tests/compiler_advisory/patterns/metadata_payload.rs\n M crates/cargo-rstyle/tests/compiler_advisory/style_payload.rs\n M crates/cargo-rstyle/tests/cpg/mod.rs\n M crates/rstyle-core/src/advisory.rs\n M crates/rstyle-core/src/advisory/generated_effects.rs\n M crates/rstyle-core/src/cpg.rs\n M crates/rstyle-core/src/cpg/facts.rs\n M crates/rstyle-core/src/cpg/layout.rs\n M crates/rstyle-core/src/cpg/tests.rs\n M crates/rstyle-driver/src/hir_extraction/document_facts.rs\n M crates/rstyle-driver/src/hir_extraction/mod.rs\n M crates/rstyle-driver/src/hir_extraction/output.rs\n M crates/rstyle-driver/src/main.rs\n M crates/rstyle-pdg/src/cpg_reader/advisory.rs\n M crates/rstyle-pdg/src/cpg_reader/concrete.rs\n M crates/rstyle-pdg/src/cpg_reader/mod.rs\n M crates/rstyle-pdg/src/extraction_profile.rs\n M crates/rstyle-pdg/src/frontend.rs\n M crates/rstyle-pdg/src/lib.rs\n M crates/rstyle-pdg/src/unit_store.rs\n M crates/rstyle-pdg/src/unit_store/bundle.rs\n M crates/rstyle-pdg/src/unit_store/bundle/diagnostic.rs\n M crates/rstyle-pdg/src/unit_store/bundle/diagnostic/build_settings.rs\nD  crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style.rs\nD  crates/rstyle-pdg/src/unit_store/bundle/diagnostic/style/tests.rs\n M crates/rstyle-pdg/src/unit_store/manifest.rs\n?? PLAN.md\n?? crates/cargo-rstyle/src/clones/documents.rs\n?? crates/rstyle-core/src/cpg/records.rs\n",
+  "binaries": {
+    "cargo-rstyle": {
+      "source": "/home/dev/src/rstyle-main/rstyle/target/debug/cargo-rstyle",
+      "frozen": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/input-tools/cargo-rstyle",
+      "sha256": "596e85e43a3eebdbe9d7b62a3b6638c8abac6b264bcdcebb46a70a414ef6e96c"
+    },
+    "rstyle-driver": {
+      "source": "/home/dev/src/rstyle-main/rstyle/target/debug/rstyle-driver",
+      "frozen": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/input-tools/rstyle-driver",
+      "sha256": "b1befe71728642187c6aebc26d96f297768ac0f8802ba5a7421f8eea8ce73afc"
+    }
+  },
+  "source_tree_sha256": "a461076a209ebb34780410e40ff8283c3149fd22ca00dc9efeeca3572169f968"
+}

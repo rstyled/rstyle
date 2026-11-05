@@ -1,0 +1,45 @@
+{
+  "archive_digest": "1a446e38a3253a69f53b307edc35d69f2c61b042d26a78fa9336024aff5cdd30",
+  "archive_version": 1,
+  "edges": 2266905,
+  "inputs": [
+    {
+      "bytes": 38499607,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/rstyle_core-aea2719351d60376.cpg.json",
+      "sha256": "0499c5e711551ce235f151ccb3a8adec738fdb344a2bcd0bd19dbc66a21b33db"
+    }
+  ],
+  "json_write_seconds": 0.11420135,
+  "lossless_reconstruction": true,
+  "model_json_bytes": 23016486,
+  "normalization_seconds": 1.909700935,
+  "process_peak_rss_bytes": 726966272,
+  "stats": {
+    "input_string_bytes": 29404304,
+    "input_strings": 2284407,
+    "input_values": 1626053,
+    "source_bytes": 38499607,
+    "source_documents": 1,
+    "source_functions": 923,
+    "source_nodes": 59923,
+    "table_occurrences": {
+      "definitions": 3935,
+      "files": 72,
+      "imports": 855,
+      "namespaces": 331,
+      "types": 8531,
+      "values": 26
+    },
+    "table_unique_records": {
+      "definitions": 3935,
+      "files": 72,
+      "imports": 855,
+      "namespaces": 331,
+      "types": 8531,
+      "values": 26
+    },
+    "unique_string_bytes": 4215472,
+    "unique_strings": 112761,
+    "unique_values": 387008
+  }
+}

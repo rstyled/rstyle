@@ -1,0 +1,23 @@
+syntax = "proto3";
+package cpg.storage;
+
+// Mirrors the prost definitions in src/model.rs. No JSON payload blobs.
+message Value {
+  uint32 kind = 1;
+  uint64 payload = 2;
+  uint32 start = 3;
+  uint32 length = 4;
+}
+
+message Document {
+  uint32 path = 1;
+  uint32 root = 2;
+}
+
+message Archive {
+  uint32 version = 1;
+  repeated string strings = 2;
+  repeated Value values = 3;
+  repeated uint32 edges = 4 [packed = true];
+  repeated Document documents = 5;
+}

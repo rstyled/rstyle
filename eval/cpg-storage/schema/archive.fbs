@@ -1,0 +1,26 @@
+namespace cpg.storage;
+
+// All formats encode this same arena. JSON strings/keys are interned; arrays
+// contain value IDs; objects contain alternating string IDs and value IDs.
+struct Value {
+  payload:ulong;
+  start:uint;
+  length:uint;
+  kind:uint;
+}
+
+struct Document {
+  path:uint;
+  root:uint;
+}
+
+table Archive {
+  version:uint;
+  strings:[string] (required);
+  values:[Value] (required);
+  edges:[uint] (required);
+  documents:[Document] (required);
+}
+
+root_type Archive;
+file_identifier "CPGB";

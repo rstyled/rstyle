@@ -1,0 +1,22 @@
+{
+  "zstd_level": 3,
+  "zstandard_python": "0.25.0",
+  "zstd_version": [
+    1,
+    5,
+    7
+  ],
+  "original_bytes": 38499607,
+  "compressed_bytes": 3123548,
+  "scope": "One independent frame per original document; size control only, excluded from timed codec ranking",
+  "inputs": [
+    {
+      "bytes": 38499607,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/rstyle_core-aea2719351d60376.cpg.json",
+      "sha256": "0499c5e711551ce235f151ccb3a8adec738fdb344a2bcd0bd19dbc66a21b33db",
+      "compressed_bytes": 3123548,
+      "compressed_sha256": "c91871bdb27d4e42138c5e47226706200739c8abb6e73395e6283ad0c214db4b",
+      "lossless": true
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+matplotlib==3.10.8
+zstandard==0.25.0

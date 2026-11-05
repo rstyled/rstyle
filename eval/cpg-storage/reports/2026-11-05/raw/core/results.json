@@ -1,0 +1,1443 @@
+{
+  "end_cgroup": {
+    "cpu.max": "800000 100000\n",
+    "cpu.stat": "usage_usec 1054980508268\nuser_usec 790510441629\nsystem_usec 264470066639\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 14095989\nnr_throttled 146597\nthrottled_usec 27291583809\nnr_bursts 0\nburst_usec 0\n",
+    "memory.current": "13634224128\n",
+    "memory.events": "low 0\nhigh 0\nmax 6197911\noom 1\noom_kill 1\noom_group_kill 0\n",
+    "memory.max": "17179869184\n",
+    "memory.pressure": "some avg10=0.00 avg60=0.31 avg300=0.44 total=1506875911\nfull avg10=0.00 avg60=0.23 avg300=0.37 total=1501534965\n"
+  },
+  "environment": {
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "binary": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/final/cpg-storage-bench",
+    "binary_sha256": "2babf71c5a3b08400b2418007b78aa14590e80eb1a86f7be4276b87f4d542d94",
+    "cgroup": {
+      "cpu.max": "800000 100000\n",
+      "cpu.stat": "usage_usec 1054747138461\nuser_usec 790335922907\nsystem_usec 264411215553\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 14095695\nnr_throttled 146307\nthrottled_usec 27092245472\nnr_bursts 0\nburst_usec 0\n",
+      "memory.current": "13800574976\n",
+      "memory.events": "low 0\nhigh 0\nmax 6197911\noom 1\noom_kill 1\noom_group_kill 0\n",
+      "memory.max": "17179869184\n",
+      "memory.pressure": "some avg10=0.00 avg60=0.50 avg300=0.49 total=1506845252\nfull avg10=0.00 avg60=0.37 avg300=0.41 total=1501516898\n"
+    },
+    "cpu_count": 20,
+    "cpu_pin": 19,
+    "lscpu": "Architecture:                            aarch64\nCPU op-mode(s):                          64-bit\nByte Order:                              Little Endian\nCPU(s):                                  20\nOn-line CPU(s) list:                     0-19\nVendor ID:                               ARM\nModel name:                              Cortex-X925\nModel:                                   1\nThread(s) per core:                      1\nCore(s) per socket:                      10\nSocket(s):                               1\nStepping:                                r0p1\nFrequency boost:                         disabled\nCPU(s) scaling MHz:                      100%\nCPU max MHz:                             3900.0000\nCPU min MHz:                             1378.0000\nBogoMIPS:                                2000.00\nFlags:                                   fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 sm3 sm4 asimddp sha512 sve asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp sve2 sveaes svepmull svebitperm svesha3 svesm4 flagm2 frint svei8mm svebf16 i8mm bf16 dgh bti ecv afp wfxt\nModel name:                              Cortex-A725\nModel:                                   1\nThread(s) per core:                      1\nCore(s) per socket:                      10\nSocket(s):                               1\nStepping:                                r0p1\nCPU(s) scaling MHz:                      100%\nCPU max MHz:                             2808.0000\nCPU min MHz:                             338.0000\nBogoMIPS:                                2000.00\nFlags:                                   fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 sm3 sm4 asimddp sha512 sve asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp sve2 sveaes svepmull svebitperm svesha3 svesm4 flagm2 frint svei8mm svebf16 i8mm bf16 dgh bti ecv afp wfxt\nL1d cache:                               1.3 MiB (20 instances)\nL1i cache:                               1.3 MiB (20 instances)\nL2 cache:                                25 MiB (20 instances)\nL3 cache:                                24 MiB (2 instances)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-19\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; CSV2, BHB\nVulnerability Srbds:                     Not affected\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Not affected",
+    "machine": "aarch64",
+    "platform": "Linux-6.17.0-1014-nvidia-aarch64-with-glibc2.41",
+    "repetitions": 7,
+    "rustc": "rustc 1.101.0-nightly (5c543b0b8 2026-09-29)\nbinary: rustc\ncommit-hash: 5c543b0b8c73c7b72bc8284ced4fb22ead15734d\ncommit-date: 2026-09-29\nhost: aarch64-unknown-linux-gnu\nrelease: 1.101.0-nightly\nLLVM version: 23.1.1",
+    "seed": 20261105,
+    "selection_rule": "lowest sum of median encode and fully materialized decode seconds among uncompressed binary codecs",
+    "utc": "2026-11-05T07:29:23.686093+00:00",
+    "warmups": 1,
+    "zstd_level": 3
+  },
+  "fastest_binary": "flatbuffers",
+  "prepare": {
+    "archive_digest": "1a446e38a3253a69f53b307edc35d69f2c61b042d26a78fa9336024aff5cdd30",
+    "archive_version": 1,
+    "edges": 2266905,
+    "inputs": [
+      {
+        "bytes": 38499607,
+        "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/rstyle_core-aea2719351d60376.cpg.json",
+        "sha256": "0499c5e711551ce235f151ccb3a8adec738fdb344a2bcd0bd19dbc66a21b33db"
+      }
+    ],
+    "json_write_seconds": 0.11420135,
+    "lossless_reconstruction": true,
+    "model_json_bytes": 23016486,
+    "normalization_seconds": 1.909700935,
+    "process_peak_rss_bytes": 726966272,
+    "stats": {
+      "input_string_bytes": 29404304,
+      "input_strings": 2284407,
+      "input_values": 1626053,
+      "source_bytes": 38499607,
+      "source_documents": 1,
+      "source_functions": 923,
+      "source_nodes": 59923,
+      "table_occurrences": {
+        "definitions": 3935,
+        "files": 72,
+        "imports": 855,
+        "namespaces": 331,
+        "types": 8531,
+        "values": 26
+      },
+      "table_unique_records": {
+        "definitions": 3935,
+        "files": 72,
+        "imports": 855,
+        "namespaces": 331,
+        "types": 8531,
+        "values": 26
+      },
+      "unique_string_bytes": 4215472,
+      "unique_strings": 112761,
+      "unique_values": 387008
+    }
+  },
+  "results": {
+    "flatbuffers": {
+      "codec": "flatbuffers",
+      "decode": {
+        "baseline_rss_bytes": {
+          "mad": 12288,
+          "max": 26423296,
+          "median": 26411008,
+          "min": 26398720,
+          "samples": [
+            26423296,
+            26406912,
+            26411008,
+            26423296,
+            26398720,
+            26419200,
+            26398720
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0003117759999999997,
+          "max": 0.057797253,
+          "median": 0.012899218,
+          "min": 0.012466881,
+          "samples": [
+            0.057797253,
+            0.012587442,
+            0.012619649,
+            0.057528178,
+            0.012466881,
+            0.013117923,
+            0.012899218
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.0003930410000000002,
+          "max": 0.008677458,
+          "median": 0.006530506,
+          "min": 0.006137465,
+          "samples": [
+            0.008136881,
+            0.006530506,
+            0.006137465,
+            0.006526281,
+            0.007735327,
+            0.006368664,
+            0.008677458
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 12288,
+          "max": 54018048,
+          "median": 54005760,
+          "min": 53993472,
+          "samples": [
+            54018048,
+            54001664,
+            54005760,
+            54018048,
+            53993472,
+            54013952,
+            53993472
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0020324040669947863,
+          "max": 0.21407317090779543,
+          "median": 0.2065245269332081,
+          "min": 0.20348420296795666,
+          "samples": [
+            0.2052526050247252,
+            0.2065245269332081,
+            0.20362198585644364,
+            0.20818843506276608,
+            0.2085569310002029,
+            0.20348420296795666,
+            0.21407317090779543
+          ]
+        },
+        "seconds": {
+          "mad": 0.00031164799999999944,
+          "max": 0.057797461,
+          "median": 0.012899474,
+          "min": 0.012467009,
+          "samples": [
+            0.057797461,
+            0.012587826,
+            0.012619953,
+            0.057528306,
+            0.012467009,
+            0.013118083,
+            0.012899474
+          ]
+        }
+      },
+      "encode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 30351360,
+          "median": 30351360,
+          "min": 30334976,
+          "samples": [
+            30347264,
+            30334976,
+            30351360,
+            30351360,
+            30351360,
+            30351360,
+            30351360
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.00044969700000000064,
+          "max": 0.06262975,
+          "median": 0.013735861,
+          "min": 0.012497377,
+          "samples": [
+            0.014771882,
+            0.012497377,
+            0.013382549,
+            0.013286164,
+            0.06262975,
+            0.014112311,
+            0.013735861
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.0003762409999999994,
+          "max": 0.013270212,
+          "median": 0.009906887,
+          "min": 0.009216837,
+          "samples": [
+            0.010397417,
+            0.009216837,
+            0.00975575,
+            0.009906887,
+            0.010155976,
+            0.013270212,
+            0.009530646
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 64266240,
+          "median": 64266240,
+          "min": 64249856,
+          "samples": [
+            64262144,
+            64249856,
+            64266240,
+            64266240,
+            64266240,
+            64266240,
+            64266240
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0034040571190416813,
+          "max": 0.38858129596337676,
+          "median": 0.3818808849900961,
+          "min": 0.335705793928355,
+          "samples": [
+            0.335705793928355,
+            0.3818808849900961,
+            0.3852849421091378,
+            0.3363609560765326,
+            0.38345409790053964,
+            0.38858129596337676,
+            0.3815643379930407
+          ]
+        },
+        "seconds": {
+          "mad": 0.0004496969999999989,
+          "max": 0.062629878,
+          "median": 0.013736037,
+          "min": 0.012497809,
+          "samples": [
+            0.014772042,
+            0.012497809,
+            0.013382725,
+            0.01328634,
+            0.062629878,
+            0.014112487,
+            0.013736037
+          ]
+        }
+      },
+      "encode_plus_decode_seconds": 0.026635511,
+      "wire_bytes": 23792352,
+      "wire_sha256": "82ad7a0c0f61378dfe63a79d9608d5128f3e759de6af73fe54695a67d740fe8e",
+      "zstd_level": null
+    },
+    "flatbuffers-zstd": {
+      "codec": "flatbuffers",
+      "decode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 7065600,
+          "median": 7065600,
+          "min": 7045120,
+          "samples": [
+            7065600,
+            7065600,
+            7053312,
+            7065600,
+            7065600,
+            7061504,
+            7045120
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0004588020000000012,
+          "max": 0.013368196,
+          "median": 0.012586337,
+          "min": 0.011889182,
+          "samples": [
+            0.013045139,
+            0.012961138,
+            0.013368196,
+            0.012586337,
+            0.012576993,
+            0.011946079,
+            0.011889182
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0015392070000000008,
+          "max": 0.067794712,
+          "median": 0.02096357,
+          "min": 0.019424363,
+          "samples": [
+            0.06728407,
+            0.02096357,
+            0.067794712,
+            0.019424363,
+            0.061916368,
+            0.019721532,
+            0.019687757
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.00012772900000000004,
+          "max": 0.001626438,
+          "median": 0.001417909,
+          "min": 0.001119908,
+          "samples": [
+            0.001626438,
+            0.001602998,
+            0.001545638,
+            0.001119908,
+            0.001417909,
+            0.001377461,
+            0.001393637
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 58716160,
+          "median": 58716160,
+          "min": 58695680,
+          "samples": [
+            58716160,
+            58716160,
+            58703872,
+            58716160,
+            58716160,
+            58712064,
+            58695680
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0014489339664578438,
+          "max": 0.18907919991761446,
+          "median": 0.18763026595115662,
+          "min": 0.09327783505432308,
+          "samples": [
+            0.18893014383502305,
+            0.1887778548989445,
+            0.18763026595115662,
+            0.18907919991761446,
+            0.1363142430782318,
+            0.093284698901698,
+            0.09327783505432308
+          ]
+        },
+        "seconds": {
+          "mad": 0.002347656999999996,
+          "max": 0.081163148,
+          "median": 0.033924772,
+          "min": 0.031577115,
+          "samples": [
+            0.080329433,
+            0.033924772,
+            0.081163148,
+            0.032010892,
+            0.074493617,
+            0.031667899,
+            0.031577115
+          ]
+        }
+      },
+      "encode": {
+        "baseline_rss_bytes": {
+          "mad": 4096,
+          "max": 30351360,
+          "median": 30347264,
+          "min": 30334976,
+          "samples": [
+            30351360,
+            30334976,
+            30347264,
+            30351360,
+            30351360,
+            30347264,
+            30339072
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.001173780000000001,
+          "max": 0.062207922,
+          "median": 0.013868102,
+          "min": 0.01059457,
+          "samples": [
+            0.015889614,
+            0.013868102,
+            0.012778241,
+            0.062207922,
+            0.014201256,
+            0.01059457,
+            0.012694322
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0028937880000000082,
+          "max": 0.094245598,
+          "median": 0.090532657,
+          "min": 0.042584837,
+          "samples": [
+            0.087638869,
+            0.090532657,
+            0.091043571,
+            0.091470692,
+            0.094245598,
+            0.04536872,
+            0.042584837
+          ]
+        },
+        "io_seconds": {
+          "mad": 5.4143999999999894e-05,
+          "max": 0.002170072,
+          "median": 0.002115928,
+          "min": 0.001092053,
+          "samples": [
+            0.002163785,
+            0.002131289,
+            0.002170072,
+            0.002115928,
+            0.001982776,
+            0.001596663,
+            0.001092053
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 4096,
+          "max": 72441856,
+          "median": 72437760,
+          "min": 72425472,
+          "samples": [
+            72441856,
+            72425472,
+            72437760,
+            72441856,
+            72441856,
+            72437760,
+            72429568
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.04740714514628053,
+          "max": 0.38974588504061103,
+          "median": 0.3349921200424433,
+          "min": 0.19192164298146963,
+          "samples": [
+            0.33941370714455843,
+            0.3823992651887238,
+            0.3349921200424433,
+            0.38974588504061103,
+            0.33475191006436944,
+            0.19469616492278874,
+            0.19192164298146963
+          ]
+        },
+        "seconds": {
+          "mad": 0.00462485,
+          "max": 0.153678966,
+          "median": 0.103822132,
+          "min": 0.055279559,
+          "samples": [
+            0.103528691,
+            0.104400871,
+            0.103822132,
+            0.153678966,
+            0.108446982,
+            0.055963514,
+            0.055279559
+          ]
+        }
+      },
+      "encode_plus_decode_seconds": 0.137746904,
+      "wire_bytes": 4434204,
+      "wire_sha256": "099e9c5e819a0d549c45c429fd3440010ea8d890c041fcc2f077efb97def9326",
+      "zstd_level": 3
+    },
+    "flexbuffers": {
+      "codec": "flexbuffers",
+      "decode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 24072192,
+          "median": 24072192,
+          "min": 24055808,
+          "samples": [
+            24072192,
+            24055808,
+            24072192,
+            24072192,
+            24072192,
+            24059904,
+            24072192
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.001852516999999998,
+          "max": 0.109347838,
+          "median": 0.105168267,
+          "min": 0.102106707,
+          "samples": [
+            0.103296505,
+            0.102106707,
+            0.10669487,
+            0.109347838,
+            0.10331575,
+            0.105168267,
+            0.106394639
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.0015801169999999998,
+          "max": 0.055753194,
+          "median": 0.007191484,
+          "min": 0.005208709,
+          "samples": [
+            0.005611367,
+            0.006977451,
+            0.007191484,
+            0.005208709,
+            0.007350925,
+            0.014439464,
+            0.055753194
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 51666944,
+          "median": 51666944,
+          "min": 51650560,
+          "samples": [
+            51666944,
+            51650560,
+            51666944,
+            51666944,
+            51666944,
+            51654656,
+            51666944
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0016784211620688438,
+          "max": 0.30486057000234723,
+          "median": 0.29685395606793463,
+          "min": 0.29484850307926536,
+          "samples": [
+            0.2963070629630238,
+            0.2951755349058658,
+            0.29685395606793463,
+            0.29484850307926536,
+            0.29718938982114196,
+            0.30486057000234723,
+            0.3018236430361867
+          ]
+        },
+        "seconds": {
+          "mad": 0.0018525490000000089,
+          "max": 0.109348014,
+          "median": 0.105168411,
+          "min": 0.102106947,
+          "samples": [
+            0.103296761,
+            0.102106947,
+            0.106695062,
+            0.109348014,
+            0.103315862,
+            0.105168411,
+            0.106394751
+          ]
+        }
+      },
+      "encode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 30351360,
+          "median": 30351360,
+          "min": 30334976,
+          "samples": [
+            30351360,
+            30347264,
+            30334976,
+            30351360,
+            30351360,
+            30343168,
+            30351360
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0009815729999999995,
+          "max": 0.104245815,
+          "median": 0.102349217,
+          "min": 0.099555175,
+          "samples": [
+            0.101012673,
+            0.102416117,
+            0.101769986,
+            0.099555175,
+            0.10333079,
+            0.102349217,
+            0.104245815
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 3.1247999999999346e-05,
+          "max": 0.058137763,
+          "median": 0.009348277,
+          "min": 0.009100051,
+          "samples": [
+            0.009380981,
+            0.009325029,
+            0.009379525,
+            0.009320837,
+            0.009348277,
+            0.009100051,
+            0.058137763
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 87859200,
+          "median": 87859200,
+          "min": 87842816,
+          "samples": [
+            87859200,
+            87855104,
+            87842816,
+            87859200,
+            87859200,
+            87851008,
+            87859200
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0035232719965279102,
+          "max": 0.46794100501574576,
+          "median": 0.42099647992290556,
+          "min": 0.41747320792637765,
+          "samples": [
+            0.4203643552027643,
+            0.4201865089125931,
+            0.467034436063841,
+            0.41747320792637765,
+            0.46794100501574576,
+            0.42099647992290556,
+            0.4305592661257833
+          ]
+        },
+        "seconds": {
+          "mad": 0.0009816049999999965,
+          "max": 0.104245975,
+          "median": 0.102349409,
+          "min": 0.099555239,
+          "samples": [
+            0.101012753,
+            0.102416357,
+            0.101770082,
+            0.099555239,
+            0.103331014,
+            0.102349409,
+            0.104245975
+          ]
+        }
+      },
+      "encode_plus_decode_seconds": 0.20751782000000002,
+      "wire_bytes": 21441696,
+      "wire_sha256": "3316caa443e0f88413f2d30ef2c1d92f2213d67bdc29e987c1efe848b0009116",
+      "zstd_level": null
+    },
+    "json": {
+      "codec": "json",
+      "decode": {
+        "baseline_rss_bytes": {
+          "mad": 4096,
+          "max": 25649152,
+          "median": 25645056,
+          "min": 25624576,
+          "samples": [
+            25628672,
+            25649152,
+            25645056,
+            25640960,
+            25649152,
+            25649152,
+            25624576
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.006085226999999999,
+          "max": 0.094404722,
+          "median": 0.087082679,
+          "min": 0.041219201,
+          "samples": [
+            0.093167906,
+            0.043080795,
+            0.086972903,
+            0.087082679,
+            0.089477182,
+            0.094404722,
+            0.041219201
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.001160244999999999,
+          "max": 0.052216159,
+          "median": 0.008138,
+          "min": 0.006977755,
+          "samples": [
+            0.014713627,
+            0.052216159,
+            0.007116924,
+            0.006977755,
+            0.007839598,
+            0.010555161,
+            0.008138
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 4096,
+          "max": 53424128,
+          "median": 53420032,
+          "min": 53399552,
+          "samples": [
+            53403648,
+            53424128,
+            53420032,
+            53415936,
+            53424128,
+            53424128,
+            53399552
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0039296699687838554,
+          "max": 0.34438573382794857,
+          "median": 0.2817460959777236,
+          "min": 0.23048249911516905,
+          "samples": [
+            0.34438573382794857,
+            0.2813772901427001,
+            0.28567576594650745,
+            0.2803678070195019,
+            0.2817460959777236,
+            0.30552618904039264,
+            0.23048249911516905
+          ]
+        },
+        "seconds": {
+          "mad": 0.006085226999999999,
+          "max": 0.09440493,
+          "median": 0.087082887,
+          "min": 0.041219361,
+          "samples": [
+            0.093168114,
+            0.043080955,
+            0.086973095,
+            0.087082887,
+            0.089477278,
+            0.09440493,
+            0.041219361
+          ]
+        }
+      },
+      "encode": {
+        "baseline_rss_bytes": {
+          "mad": 4096,
+          "max": 30351360,
+          "median": 30347264,
+          "min": 30334976,
+          "samples": [
+            30351360,
+            30351360,
+            30347264,
+            30351360,
+            30334976,
+            30347264,
+            30334976
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0036503179999999996,
+          "max": 0.073339087,
+          "median": 0.068257486,
+          "min": 0.023125755,
+          "samples": [
+            0.069603812,
+            0.068257486,
+            0.071907804,
+            0.02343814,
+            0.023125755,
+            0.073339087,
+            0.067029654
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.0001372330000000005,
+          "max": 0.058833432,
+          "median": 0.009841031,
+          "min": 0.009007443,
+          "samples": [
+            0.009841031,
+            0.009733814,
+            0.009978264,
+            0.058833432,
+            0.009007443,
+            0.009468742,
+            0.009891366
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 4096,
+          "max": 53448704,
+          "median": 53444608,
+          "min": 53432320,
+          "samples": [
+            53448704,
+            53448704,
+            53444608,
+            53448704,
+            53432320,
+            53444608,
+            53432320
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.00464089005254209,
+          "max": 0.4077951859217137,
+          "median": 0.39196710498072207,
+          "min": 0.3355631520971656,
+          "samples": [
+            0.4077951859217137,
+            0.3355631520971656,
+            0.39415307505987585,
+            0.38835058407858014,
+            0.39196710498072207,
+            0.39674683497287333,
+            0.38732621492818
+          ]
+        },
+        "seconds": {
+          "mad": 0.003650397999999999,
+          "max": 0.073339215,
+          "median": 0.068257598,
+          "min": 0.023125947,
+          "samples": [
+            0.069603908,
+            0.068257598,
+            0.071907996,
+            0.02343822,
+            0.023125947,
+            0.073339215,
+            0.067029734
+          ]
+        }
+      },
+      "encode_plus_decode_seconds": 0.155340485,
+      "wire_bytes": 23016486,
+      "wire_sha256": "5b5de6bec8c521221891d0823e802067fe8a2af80b950af10023e56827b154bf",
+      "zstd_level": null
+    },
+    "json-zstd": {
+      "codec": "json",
+      "decode": {
+        "baseline_rss_bytes": {
+          "mad": 4096,
+          "max": 7630848,
+          "median": 7626752,
+          "min": 7614464,
+          "samples": [
+            7630848,
+            7626752,
+            7630848,
+            7626752,
+            7626752,
+            7614464,
+            7618560
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0013781320000000041,
+          "max": 0.089432142,
+          "median": 0.08805401,
+          "min": 0.040475343,
+          "samples": [
+            0.041550949,
+            0.088657951,
+            0.088578029,
+            0.041178401,
+            0.08805401,
+            0.040475343,
+            0.089432142
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0018114469999999938,
+          "max": 0.072947951,
+          "median": 0.069533891,
+          "min": 0.023927838,
+          "samples": [
+            0.071345338,
+            0.069533891,
+            0.023927838,
+            0.072947951,
+            0.02408451,
+            0.069334591,
+            0.070950645
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.000284753,
+          "max": 0.004376657,
+          "median": 0.001662071,
+          "min": 0.001355605,
+          "samples": [
+            0.001403077,
+            0.004376657,
+            0.001662071,
+            0.003114701,
+            0.001671639,
+            0.001355605,
+            0.001377318
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 4096,
+          "max": 60649472,
+          "median": 60645376,
+          "min": 60633088,
+          "samples": [
+            60649472,
+            60645376,
+            60649472,
+            60645376,
+            60645376,
+            60633088,
+            60637184
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.002067745663225651,
+          "max": 0.2749873148277402,
+          "median": 0.27291956916451454,
+          "min": 0.21836549788713455,
+          "samples": [
+            0.2732289391569793,
+            0.27427519694902003,
+            0.22261940594762564,
+            0.27291956916451454,
+            0.21836549788713455,
+            0.27068373188376427,
+            0.2749873148277402
+          ]
+        },
+        "seconds": {
+          "mad": 0.0012300649999999885,
+          "max": 0.160383123,
+          "median": 0.112896511,
+          "min": 0.10981027,
+          "samples": [
+            0.112896511,
+            0.15819205,
+            0.112506059,
+            0.114126576,
+            0.112138696,
+            0.10981027,
+            0.160383123
+          ]
+        }
+      },
+      "encode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 30351360,
+          "median": 30351360,
+          "min": 30334976,
+          "samples": [
+            30343168,
+            30351360,
+            30351360,
+            30351360,
+            30351360,
+            30334976,
+            30351360
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0019454799999999994,
+          "max": 0.077153102,
+          "median": 0.07026015,
+          "min": 0.021759638,
+          "samples": [
+            0.07026015,
+            0.06831467,
+            0.022856394,
+            0.071405641,
+            0.071089063,
+            0.077153102,
+            0.021759638
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0016518849999999918,
+          "max": 0.158376672,
+          "median": 0.106920936,
+          "min": 0.105269051,
+          "samples": [
+            0.106920936,
+            0.105718659,
+            0.158376672,
+            0.108765564,
+            0.108752075,
+            0.106667426,
+            0.105269051
+          ]
+        },
+        "io_seconds": {
+          "mad": 3.4639999999999845e-05,
+          "max": 0.005169957,
+          "median": 0.002284921,
+          "min": 0.002193705,
+          "samples": [
+            0.002193705,
+            0.002284921,
+            0.005169957,
+            0.002226505,
+            0.002290473,
+            0.002319561,
+            0.002264825
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 61874176,
+          "median": 61874176,
+          "min": 61808640,
+          "samples": [
+            61865984,
+            61874176,
+            61874176,
+            61874176,
+            61874176,
+            61857792,
+            61808640
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.0024641251657158136,
+          "max": 0.42350189900025725,
+          "median": 0.4097001359332353,
+          "min": 0.3995483771432191,
+          "samples": [
+            0.40888787689618766,
+            0.40827156719751656,
+            0.41805787198245525,
+            0.4121642610989511,
+            0.4097001359332353,
+            0.42350189900025725,
+            0.3995483771432191
+          ]
+        },
+        "seconds": {
+          "mad": 0.00265992399999998,
+          "max": 0.183820752,
+          "median": 0.179841442,
+          "min": 0.127028977,
+          "samples": [
+            0.177181518,
+            0.174033537,
+            0.181233306,
+            0.180171541,
+            0.179841442,
+            0.183820752,
+            0.127028977
+          ]
+        }
+      },
+      "encode_plus_decode_seconds": 0.292737953,
+      "wire_bytes": 5000962,
+      "wire_sha256": "d4efcd5645d19d531b2ff6a4eb93de3980f1f094ab9ea80f8f21fd9dc27b396c",
+      "zstd_level": 3
+    },
+    "protobuf": {
+      "codec": "protobuf",
+      "decode": {
+        "baseline_rss_bytes": {
+          "mad": 0,
+          "max": 16224256,
+          "median": 16224256,
+          "min": 16211968,
+          "samples": [
+            16224256,
+            16224256,
+            16211968,
+            16224256,
+            16224256,
+            16220160,
+            16216064
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0021934499999999996,
+          "max": 0.072974958,
+          "median": 0.022791546,
+          "min": 0.020598096,
+          "samples": [
+            0.022689018,
+            0.022590761,
+            0.069036672,
+            0.022791546,
+            0.072974958,
+            0.068671548,
+            0.020598096
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.0001849439999999994,
+          "max": 0.011013916,
+          "median": 0.004674642,
+          "min": 0.003775631,
+          "samples": [
+            0.004489698,
+            0.004566546,
+            0.011013916,
+            0.004674642,
+            0.003775631,
+            0.004757362,
+            0.00710782
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 0,
+          "max": 43917312,
+          "median": 43917312,
+          "min": 43905024,
+          "samples": [
+            43917312,
+            43917312,
+            43905024,
+            43917312,
+            43917312,
+            43913216,
+            43909120
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.002040544990450144,
+          "max": 0.2018135350663215,
+          "median": 0.19810126000083983,
+          "min": 0.149302989942953,
+          "samples": [
+            0.2018135350663215,
+            0.149302989942953,
+            0.1993816348258406,
+            0.19810126000083983,
+            0.19751037401147187,
+            0.19410894997417927,
+            0.20014180499128997
+          ]
+        },
+        "seconds": {
+          "mad": 0.0021932900000000005,
+          "max": 0.072975262,
+          "median": 0.022791738,
+          "min": 0.020598448,
+          "samples": [
+            0.022689322,
+            0.022590985,
+            0.069036816,
+            0.022791738,
+            0.072975262,
+            0.068671868,
+            0.020598448
+          ]
+        }
+      },
+      "encode": {
+        "baseline_rss_bytes": {
+          "mad": 4096,
+          "max": 30351360,
+          "median": 30347264,
+          "min": 30334976,
+          "samples": [
+            30351360,
+            30351360,
+            30347264,
+            30347264,
+            30351360,
+            30347264,
+            30334976
+          ]
+        },
+        "codec_seconds": {
+          "mad": 0.0002968170000000013,
+          "max": 0.067329079,
+          "median": 0.020764626,
+          "min": 0.020267776,
+          "samples": [
+            0.020375425,
+            0.020764626,
+            0.020467809,
+            0.020899682,
+            0.020267776,
+            0.067329079,
+            0.020844593
+          ]
+        },
+        "compression_seconds": {
+          "mad": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "samples": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "io_seconds": {
+          "mad": 0.00040797000000000055,
+          "max": 0.058024499,
+          "median": 0.005947512,
+          "min": 0.004925844,
+          "samples": [
+            0.005682071,
+            0.004925844,
+            0.05467868,
+            0.005947512,
+            0.058024499,
+            0.005539542,
+            0.005955767
+          ]
+        },
+        "peak_rss_bytes": {
+          "mad": 4096,
+          "max": 44011520,
+          "median": 44007424,
+          "min": 43995136,
+          "samples": [
+            44011520,
+            44011520,
+            44007424,
+            44007424,
+            44011520,
+            44007424,
+            43995136
+          ]
+        },
+        "peak_rss_reset": true,
+        "process_wall_seconds": {
+          "mad": 0.006344706984236836,
+          "max": 0.3720293079968542,
+          "median": 0.3251494839787483,
+          "min": 0.3188047769945115,
+          "samples": [
+            0.36504426202736795,
+            0.3224355468992144,
+            0.3188047769945115,
+            0.36918937391601503,
+            0.3251494839787483,
+            0.3197383389342576,
+            0.3720293079968542
+          ]
+        },
+        "seconds": {
+          "mad": 0.00029652900000000024,
+          "max": 0.067329303,
+          "median": 0.020764722,
+          "min": 0.020268032,
+          "samples": [
+            0.020375489,
+            0.020764722,
+            0.020468193,
+            0.020899922,
+            0.020268032,
+            0.067329303,
+            0.020844657
+          ]
+        }
+      },
+      "encode_plus_decode_seconds": 0.04355646,
+      "wire_bytes": 13593477,
+      "wire_sha256": "b1dda26ddce26dc36e3c4a3e2f41524ac1fbfa816f9aa9f9c43d4460bc91dda4",
+      "zstd_level": null
+    }
+  },
+  "schema": "cpg-storage-benchmark/1"
+}

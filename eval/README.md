@@ -8,6 +8,7 @@ compiler path. Rust regression tests own their fixtures independently under
 | --- | --- |
 | [`clones-capability/`](clones-capability/README.md) | Evaluate saved compiler reports against independent labels for findings, density, complexity, parameter plans and abstraction proposals. |
 | [`hir-coverage/`](hir-coverage/README.md) | Reproduce the fixed extraction-support inventory, preserving source provenance, compilation contexts and missing-data distinctions. |
+| [`cpg-storage/`](cpg-storage/README.md) | Compare lossless shared-table CPG storage with JSON, FlatBuffers, FlexBuffers, Protobuf, and Zstandard. |
 | `codenet/` (gitignored) | Locally generated CodeNet samples and evaluation outputs. See [`scripts/`](../scripts/README.md). |
 
 Completed CCGraph studies, old threshold/normalization/alignment results,

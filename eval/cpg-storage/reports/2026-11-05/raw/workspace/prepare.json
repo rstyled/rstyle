@@ -1,0 +1,75 @@
+{
+  "archive_digest": "3fd9268649f26d327f2db3ec08161566321c589a9e8221e250455fc47f0d6128",
+  "archive_version": 1,
+  "edges": 29145194,
+  "inputs": [
+    {
+      "bytes": 207822,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/build_script_build-8a46fdb1ca9000e7.cpg.json",
+      "sha256": "61379d154c8cd2d24cf603a7ff2b6b9da3dd170af64843077c322918327781c4"
+    },
+    {
+      "bytes": 62920288,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/cargo_rstyle-dfbdcd40e1f6731b.cpg.json",
+      "sha256": "ecd92c498d173a1fae594116397d6553cc2536acf7835297753f8b801c78a613"
+    },
+    {
+      "bytes": 7975273,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/rstyle_ccgraph-26ef91afe528c75b.cpg.json",
+      "sha256": "a7bbb3905187ffcd108de817e06d1e86574e2a65581260ea831d39d4bc42822a"
+    },
+    {
+      "bytes": 38499607,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/rstyle_core-aea2719351d60376.cpg.json",
+      "sha256": "0499c5e711551ce235f151ccb3a8adec738fdb344a2bcd0bd19dbc66a21b33db"
+    },
+    {
+      "bytes": 43838629,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/rstyle_driver-80442895f8a69205.cpg.json",
+      "sha256": "7e66337d996cacd6e9d93e19526e17fbb70328b80bb60be34d436ec8fb28172d"
+    },
+    {
+      "bytes": 1322348,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/rstyle_extraction_fixtures-171f1a0e168485d7.cpg.json",
+      "sha256": "e733b9f5fd8a6c569b6668caef02c5b844b30d632436cd1ff831937f0b63d939"
+    },
+    {
+      "bytes": 375541950,
+      "path": "/home/dev/src/rstyle-main/rstyle-cpg-storage-bench/target/cpg-storage-20261105/emitted-workspace/rstyle_pdg-5854fe371dc0448c.cpg.json",
+      "sha256": "3df8a1ac61afabd18f5a5aec2cfa5b49d92df41ea5be96251ab3958f6c906a6e"
+    }
+  ],
+  "json_write_seconds": 0.988316943,
+  "lossless_reconstruction": true,
+  "model_json_bytes": 282134152,
+  "normalization_seconds": 11.038684206,
+  "process_peak_rss_bytes": 7189540864,
+  "stats": {
+    "input_string_bytes": 410212768,
+    "input_strings": 30083842,
+    "input_values": 21492755,
+    "source_bytes": 530305917,
+    "source_documents": 7,
+    "source_functions": 11016,
+    "source_nodes": 827278,
+    "table_occurrences": {
+      "definitions": 35953,
+      "files": 1264,
+      "imports": 9682,
+      "namespaces": 2976,
+      "types": 78910,
+      "values": 94
+    },
+    "table_unique_records": {
+      "definitions": 33653,
+      "files": 1264,
+      "imports": 9682,
+      "namespaces": 2976,
+      "types": 73614,
+      "values": 92
+    },
+    "unique_string_bytes": 49811530,
+    "unique_strings": 1284322,
+    "unique_values": 4524680
+  }
+}
