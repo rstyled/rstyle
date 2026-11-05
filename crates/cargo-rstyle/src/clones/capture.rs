@@ -117,15 +117,24 @@ pub struct Capture {
 
 pub fn prepare(cli: &Cli, args: &Args) -> Result<Capture, String> {
     let (metadata, raw) = selected_workspace(cli)?;
-    let mut capture = initial_capture(metadata, args.extraction_profile)?;
+    let capture = initial_capture(metadata, args.extraction_profile)?;
+    publish_plan(with_selection(capture, cli, args, &raw)?)
+}
+
+fn with_selection(
+    mut capture: Capture,
+    cli: &Cli,
+    args: &Args,
+    raw: &Value,
+) -> Result<Capture, String> {
     capture.plan = Plan {
         document_encoding: cli.cpg_compression,
         workspace_all_targets: Some(cli.packages.is_empty() && cli.all_targets),
-        targets: selected_targets(&raw, cli, args.extraction_profile)?,
+        targets: selected_targets(raw, cli, args.extraction_profile)?,
         ..capture.plan.with_advisory(args)
     };
 
-    publish_plan(capture)
+    Ok(capture)
 }
 
 fn initial_capture(
