@@ -44,7 +44,7 @@ pub struct CaptureReader {
 
 impl CaptureReader {
     pub fn open(directory: &Path) -> Result<Self, String> {
-        Self::from_manifest(directory, manifest_bytes(directory)?)
+        Self::from_manifest(directory, read_manifest_bytes(directory)?)
     }
 
     fn from_manifest(directory: &Path, bytes: Vec<u8>) -> Result<Self, String> {
@@ -114,9 +114,15 @@ impl Iterator for CaptureReader {
     }
 }
 
-fn manifest_bytes(directory: &Path) -> Result<Vec<u8>, String> {
+/// Exact manifest bytes, available before an external compiler ledger seal is checked.
+pub fn read_manifest_bytes(directory: &Path) -> Result<Vec<u8>, String> {
     let path = directory.join(DOCUMENTS_MANIFEST);
-    std::fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))
+    std::fs::read(&path).map_err(|error| {
+        format!(
+            "missing captured artifact {DOCUMENTS_MANIFEST} ({}): {error}",
+            path.display()
+        )
+    })
 }
 
 fn checksum(bytes: &[u8]) -> Result<String, String> {

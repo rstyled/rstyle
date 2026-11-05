@@ -10,12 +10,9 @@ use rstyle_pdg::{
     BuildFacts, cpg_reader,
     unit_store::{DOCUMENTS_MANIFEST, DocumentManifest, transport_checksum},
 };
-use std::{
-    path::Path,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
 };
 
 /// Documents of one compilation read at once: each is bounded by its source file.
@@ -48,7 +45,7 @@ impl DocumentFunction {
 // rstyle-allow(side_effect_density): IO boundary: reads one sealed file of a unit
 /// The published manifest of a unit, checked against the seal its ledger recorded.
 pub(super) fn manifest(unit: &capture::Unit) -> Result<DocumentManifest, String> {
-    let bytes = captured(&unit.directory, DOCUMENTS_MANIFEST)?;
+    let bytes = cpg::transport::read_manifest_bytes(&unit.directory)?;
     let seal = unit
         .artifacts
         .iter()
@@ -61,12 +58,6 @@ pub(super) fn manifest(unit: &capture::Unit) -> Result<DocumentManifest, String>
     }
 
     DocumentManifest::read(&bytes)
-}
-
-// rstyle-allow(side_effect_density): IO boundary: reads one captured file
-fn captured(directory: &Path, file: &str) -> Result<Vec<u8>, String> {
-    std::fs::read(directory.join(file))
-        .map_err(|error| format!("missing captured artifact {file}: {error}"))
 }
 
 /// Every function of a unit, in document order.

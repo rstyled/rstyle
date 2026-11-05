@@ -50,16 +50,38 @@ pub(super) fn receive(directory: &Path, format: Format) -> Result<(String, u8), 
 }
 
 fn capture(directory: &Path, demand: Demand, retain: bool) -> Outcome {
-    let receipt = Receipt::new(directory, demand);
-    match CaptureReader::open(directory) {
-        Ok(reader) => Session {
-            reader,
-            receipt,
-            demand,
-            retain,
+    CaptureRequest {
+        directory,
+        demand,
+        retain,
+    }
+    .receive()
+}
+
+struct CaptureRequest<'a> {
+    directory: &'a Path,
+    demand: Demand,
+    retain: bool,
+}
+
+impl CaptureRequest<'_> {
+    fn receive(self) -> Outcome {
+        let receipt = Receipt::new(self.directory, self.demand);
+        let reader = CaptureReader::open(self.directory);
+        self.opened(receipt, reader)
+    }
+
+    fn opened(self, receipt: Receipt, reader: Result<CaptureReader, String>) -> Outcome {
+        match reader {
+            Ok(reader) => Session {
+                reader,
+                receipt,
+                demand: self.demand,
+                retain: self.retain,
+            }
+            .run(),
+            Err(error) => Outcome::finished(receipt, None, Err(error)),
         }
-        .run(),
-        Err(error) => Outcome::finished(receipt, None, Err(error)),
     }
 }
 
