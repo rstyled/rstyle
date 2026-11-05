@@ -1,4 +1,4 @@
-//! Borrow captured owners and reuse core propagation across unique direct Cargo edges.
+//! Borrow captured owners and reuse core propagation across unique Cargo dependencies.
 #[cfg(test)]
 mod invocation_tests;
 mod owners;
@@ -397,20 +397,41 @@ pub(super) fn routes(ctx: &Context<'_>) -> Routes {
             let [owner] = owners.as_slice() else {
                 return None;
             };
-            let dependencies = units[*index]["dependencies"].as_array()?;
-            let targets = dependencies
-                .iter()
-                .filter_map(|edge| {
-                    let index = usize::try_from(edge["index"].as_u64()?).ok()?;
-                    match observed.get(&index)?.as_slice() {
-                        [target] => Some(*target),
-                        _ => None,
-                    }
+            let targets = dependency_closure(units, *index)
+                .into_iter()
+                .filter_map(|index| match observed.get(&index)?.as_slice() {
+                    [target] => Some(*target),
+                    _ => None,
                 })
                 .collect();
             Some((*owner, targets))
         })
         .collect()
+}
+
+/// Every unit a unit depends on, directly or through another: a crate can call what a
+/// dependency re-exports from its own dependency, as `grep` re-exports `grep_cli`.
+fn dependency_closure(units: &[Value], from: usize) -> BTreeSet<usize> {
+    let mut reached = BTreeSet::new();
+    let mut pending = vec![from];
+
+    while let Some(index) = pending.pop() {
+        let edges = units
+            .get(index)
+            .and_then(|unit| unit["dependencies"].as_array());
+        let dependencies = edges
+            .into_iter()
+            .flatten()
+            .filter_map(|edge| usize::try_from(edge["index"].as_u64()?).ok());
+
+        for dependency in dependencies {
+            if reached.insert(dependency) {
+                pending.push(dependency);
+            }
+        }
+    }
+    reached.remove(&from);
+    reached
 }
 
 fn matches(candidate: &Value, unit: &capture::Unit) -> bool {

@@ -611,7 +611,8 @@ plan source labels require an independently reviewed `unsuppressed: true`;
 captured-but-excluded owners remain unavailable. No extra runtime scans are added.
 
 When the caller and dependency workspace packages are selected, compiler effects follow
-unique captured direct Cargo edges to known free functions. The report's
+unique captured Cargo dependencies, direct or through a crate that re-exports them, to
+known free functions. The report's
 `resolved_dependency_callees` maps compiler IDs to report-local unit IDs.
 Core propagation borrows captured owners and completed effects move into rule
 evaluation, with no extra hash, artifact scan, source proof or body/graph copy.

@@ -425,7 +425,7 @@ pub(super) fn evaluate(
             .sum(),
         limitations: &[
             "Advisory compiler observations and existing core policy; no strict clone or purity authority.",
-            "Core effect propagation follows unique captured direct Cargo dependencies; missing or ambiguous units remain unresolved.",
+            "Core effect propagation follows unique captured Cargo dependencies, direct or through another crate; missing or ambiguous units remain unresolved.",
             "Missing functions make requested coverage incomplete; unresolved workspace callees keep requested numeric and effect coverage incomplete, independently of complexity ranking. No zero facts are substituted.",
             "Core metrics count mutable borrows and use bounded effect propagation; they differ from strict mutation-effect metrics.",
             "Compiler patterns use approximate advisory graphs and bounded core discovery; input completeness is not exhaustive proposal coverage or refactoring safety.",
