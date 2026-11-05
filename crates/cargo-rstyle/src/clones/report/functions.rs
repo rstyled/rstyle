@@ -49,7 +49,7 @@ impl<'a> Compact<'a> {
             reasons: &function.reasons,
             name: function.facts.view().name,
             fn_span: function.facts.view().fn_span,
-            source_digest: &function.facts.view().source.digest,
+            source_digest: function.facts.view().digest,
             nominal_unit_binding: &function.nominal_unit_binding,
         }
     }

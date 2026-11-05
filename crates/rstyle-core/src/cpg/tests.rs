@@ -176,19 +176,91 @@ fn split_documents_must_belong_to_their_unit() {
         "Function fn:top differs from its unit in coverage"
     );
 
+    // A second copy of a unit document adds no function, so nothing counts twice.
     let mut documents = split(&example());
     documents.push(documents[0].clone());
-    assert_eq!(
-        error_of(documents),
-        "A split run needs exactly one unit document, found 2"
-    );
+    assert_eq!(run_facts(documents).unwrap(), facts_of(example()));
 
     let mut documents = split(&example());
     documents[0]["layout"] = json!("bundled");
     assert_eq!(
         error_of(documents),
-        "A run is one bundled document or a set of split documents"
+        "The bundled unit document has no function bodies"
     );
+
+    let mut documents = split(&example());
+    documents[0]["layout"] = json!("neither");
+    assert_eq!(
+        error_of(documents),
+        "Every document of a run must be bundled or split"
+    );
+}
+
+/// The example, as another compilation of the same source.
+fn another_unit() -> Value {
+    let mut other = example();
+    other["unit"]["id"] = json!("unit:other");
+    other
+}
+
+#[test]
+fn a_run_reads_several_units_in_either_layout() {
+    let (first, second) = (facts_of(example()), facts_of(another_unit()));
+    let joined: Vec<_> = first.iter().chain(&second).cloned().collect();
+    let bundled = run_facts(vec![example(), another_unit()]).unwrap();
+    assert_eq!(bundled, joined);
+
+    let mut documents = split(&example());
+    documents.extend(split(&another_unit()));
+    assert_eq!(run_facts(documents).unwrap(), joined);
+
+    // A bundled unit reads first, whichever order the documents are named in.
+    let mut documents = split(&another_unit());
+    documents.push(example());
+    assert_eq!(run_facts(documents).unwrap(), joined);
+}
+
+#[test]
+fn a_run_reads_one_unit_from_several_documents() {
+    let bundled = example();
+    let mut batches = [bundled.clone(), bundled.clone()];
+    let functions = bundled["unit"]["functions"].as_array().unwrap();
+    let (first, rest) = functions.split_at(1);
+    batches[0]["unit"]["functions"] = json!(first);
+    batches[1]["unit"]["functions"] = json!(rest);
+
+    let mut read = run_facts(batches.to_vec()).unwrap();
+    let mut whole = facts_of(bundled);
+    read.sort_by(|a, b| a.id.cmp(&b.id));
+    whole.sort_by(|a, b| a.id.cmp(&b.id));
+    assert_eq!(read, whole);
+}
+
+#[test]
+fn a_run_reads_a_function_once() {
+    let documents = vec![example(), example()];
+    assert!(error_of(documents).contains("appears more than once"));
+
+    let mut documents = split(&example());
+    documents.push(example());
+    assert!(error_of(documents).contains("appears more than once"));
+}
+
+#[test]
+fn a_function_a_macro_writes_is_outside_a_runs_rule_facts() {
+    let mut document = example();
+    let measured = facts_of(document.clone()).len();
+    let function = &mut document["unit"]["functions"][0];
+    let root = function["root"].as_str().unwrap().to_owned();
+    let span = function["span"].clone();
+    let root = function["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|node| node["id"] == root.as_str())
+        .unwrap();
+    root["provenance"] = json!({"origin": "macro_expansion", "call_site": span});
+    assert_eq!(facts_of(document).len(), measured - 1);
 }
 
 #[test]

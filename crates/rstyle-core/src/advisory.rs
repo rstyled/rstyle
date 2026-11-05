@@ -32,7 +32,7 @@ pub fn metric_version(value: &str) -> Option<&'static str> {
 }
 
 /// Absence of this record means not captured, rather than an empty body.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Observation {
     Known {

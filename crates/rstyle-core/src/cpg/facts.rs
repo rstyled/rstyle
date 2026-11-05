@@ -50,7 +50,7 @@ pub fn all_facts(document: &Document) -> Result<Vec<FnFacts>, String> {
     derive(document, true)
 }
 
-fn derive(document: &Document, graphs: bool) -> Result<Vec<FnFacts>, String> {
+pub(super) fn derive(document: &Document, graphs: bool) -> Result<Vec<FnFacts>, String> {
     declared(&document.coverage)?;
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let sources = Sources::new(unit)?;

@@ -1,4 +1,4 @@
-use super::super::style_payload::snapshot;
+use super::super::style_payload::{documents, snapshot};
 use super::default_discovery::{dismiss, json, raw, saved};
 use super::mining_options::{checked, remove_sources};
 use super::*;
@@ -42,7 +42,7 @@ const FULL: &[&str] = &[
     "compact",
 ];
 
-fn metadata_contract(report: &Value, wire: &Value) {
+fn metadata_contract(report: &Value, documents: &[rstyle_core::cpg::model::Document]) {
     assert_eq!(report["matching_execution"], "not_requested");
     assert_eq!(report["strict_assessment_execution"], "not_requested");
     assert_eq!(proposals(report)["source_scope"]["kind"], "authored");
@@ -50,39 +50,45 @@ fn metadata_contract(report: &Value, wire: &Value) {
     let plan: Value = serde_json::from_slice(&std::fs::read(plan).unwrap()).unwrap();
     assert_eq!(plan["compiler_patterns"], true);
     assert_eq!(plan["style_inputs_only"], true);
-    assert_eq!(wire["schema"], "rstyle.diagnostic.style-facts/2");
-    assert_eq!(wire["phase"], "compiler-style-inputs");
-    let facts = wire["facts"].as_array().unwrap();
-    assert_eq!(facts.len(), 10);
-    for fact in facts {
-        let body: rstyle_pdg::HirRef = serde_json::from_value(fact["body"].clone()).unwrap();
-        assert_eq!(body.krate, 0);
-        assert!(body.local > 0);
-        assert!(fact["body"].get("children").is_none());
-        assert_eq!(fact["bindings"], "not_requested");
-    }
+    let functions = documents.iter().flat_map(|document| {
+        document
+            .unit
+            .as_ref()
+            .unwrap()
+            .functions
+            .as_deref()
+            .unwrap()
+    });
+    assert_eq!(functions.count(), 10);
 }
 
-fn original_graphs(metadata: &Value, full: &Value) {
-    let headers = rstyle_pdg::unit_store::read_style_snapshot_phase(
-        &serde_json::to_vec(metadata).unwrap(),
-        "compiler-style-inputs",
-    )
-    .unwrap();
+/// The graph the core derives from the documents is the one a full capture records.
+fn original_graphs(documents: &[rstyle_core::cpg::model::Document], full: &Value) {
+    use rstyle_core::cpg::records::{Demand, records};
     let bodies = rstyle_pdg::unit_store::read_diagnostic_snapshot_phase(
         &serde_json::to_vec(full).unwrap(),
         "compiler-advisory-only",
     )
     .unwrap();
-    assert_eq!(headers.len(), bodies.len());
-    for header in &headers {
-        let original = bodies.iter().find(|fact| fact.name == header.name).unwrap();
+    let demand = Demand {
+        graphs: true,
+        bounds: false,
+    };
+    let read: Vec<_> = documents
+        .iter()
+        .flat_map(|document| records(document, demand).unwrap())
+        .collect();
+    assert_eq!(read.len(), bodies.len());
+    for record in &read {
+        let original = bodies.iter().find(|fact| fact.name == record.name).unwrap();
         let key = rstyle_core::advisory::patterns::KEY;
-        let graph = header.build.frontend_options.get(key).unwrap();
-        assert!(!graph["graph"]["nodes"].as_array().unwrap().is_empty());
-        assert_eq!(graph, original.build.frontend_options.get(key).unwrap());
-        assert_eq!(header.fn_span, original.fn_span);
-        assert_eq!(header.source, original.source);
+        let recorded = original.build.frontend_options.get(key).unwrap();
+        let graph = serde_json::to_value(record.graph.as_ref().unwrap()).unwrap();
+        assert!(!graph["nodes"].as_array().unwrap().is_empty());
+        assert_eq!(graph, recorded["graph"]);
+        assert_eq!(record.source, original.source.bytes.as_str());
+        assert_eq!(record.located.start as u32, original.fn_span.start);
+        assert_eq!(record.located.end as u32, original.fn_span.end);
     }
 }
 
@@ -179,14 +185,14 @@ fn default_pattern_metadata_preserves_original_graphs_proposals_and_offline_revi
     let output = raw(directory.path(), &[]);
     checked(&output, 0);
     let metadata = json(&output);
-    let wire = snapshot(&metadata);
-    metadata_contract(&metadata, &wire);
+    let documents = documents(&metadata);
+    metadata_contract(&metadata, &documents);
     let (output, full) = clones(directory.path(), FULL);
     checked(&output, 0);
     let full_wire = snapshot(&full);
     assert_eq!(full_wire["schema"], "rstyle.diagnostic.raw-facts/5");
     proposal_parity(&metadata, &full);
-    original_graphs(&wire, &full_wire);
+    original_graphs(&documents, &full_wire);
     remove_sources(directory.path());
     offline_reviews(directory.path(), &metadata, &full);
     body_consumers_unavailable(directory.path(), &metadata);

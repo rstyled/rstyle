@@ -144,11 +144,13 @@ fn reusable(index: &Index, capture: &Capture, tools: &[Tool]) -> bool {
         && index.plan == capture.plan
         && index.tools == tools
         && !index.entries.is_empty()
-        && index.entries.iter().all(|entry| {
-            super::artifact_files(entry.unit.extraction_profile)
-                .iter()
-                .all(|file| entry.unit.directory.join(file).is_file())
-        })
+        && index.entries.iter().all(|entry| stored(&entry.unit))
+}
+
+// rstyle-allow(side_effect_density): IO boundary: checks a unit's files are still there
+fn stored(unit: &Unit) -> bool {
+    super::stored_files(unit)
+        .is_ok_and(|files| files.iter().all(|file| unit.directory.join(file).is_file()))
 }
 
 fn same_artifact(previous: &Value, current: &Value) -> bool {
@@ -208,8 +210,11 @@ fn reused_unit(capture: &Capture, original: &Unit) -> Result<Unit, String> {
 }
 
 fn copy_snapshot(original: &Unit, unit: &Unit) -> Result<(), String> {
-    for file in super::artifact_files(unit.extraction_profile) {
-        std::fs::copy(original.directory.join(&file), unit.directory.join(&file))
+    for file in super::stored_files(original)? {
+        let (from, to) = (original.directory.join(&file), unit.directory.join(&file));
+        // Published artifacts never change, so a run shares them instead of copying them.
+        std::fs::hard_link(&from, &to)
+            .or_else(|_| std::fs::copy(&from, &to).map(|_| ()))
             .map_err(|e| format!("Cannot materialize completed advisory owner: {e}"))?;
     }
     Ok(())

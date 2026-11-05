@@ -31,16 +31,7 @@ pub(in crate::clones) fn originals<'a>(
         .assessed
         .iter()
         .filter(|record| record.key.unit() == unit)
-        .filter_map(|record| {
-            record
-                .facts
-                .view()
-                .build
-                .frontend_options
-                .get(rstyle_core::advisory::KEY)?["facts"]["id"]
-                .as_str()
-                .map(|id| (id, record))
-        })
+        .filter_map(|record| record.facts.compiled_id().map(|id| (id, record)))
         .collect()
 }
 
@@ -81,6 +72,16 @@ pub(super) fn collect_names<'a>(facts: impl IntoIterator<Item = &'a FnFacts>) ->
 }
 
 pub(super) fn signature(
+    declared: crate::clones::Declared<'_>,
+    method: Option<rstyle_core::facts::SigFacts>,
+) -> Signature {
+    match declared {
+        crate::clones::Declared::Facts(sig) => recorded_signature(sig, method),
+        crate::clones::Declared::Document(sig) => document_signature(sig, method),
+    }
+}
+
+fn recorded_signature(
     sig: &rstyle_pdg::SignatureFacts,
     method: Option<rstyle_core::facts::SigFacts>,
 ) -> Signature {
@@ -99,6 +100,37 @@ pub(super) fn signature(
         is_async: sig.is_async,
         is_unsafe: sig.is_unsafe,
         is_const: sig.is_const,
+    }
+}
+
+/// What a document declares, read as its capture records it: a foreign ABI is the
+/// only one the frontend tells apart.
+fn document_signature(
+    sig: &rstyle_core::cpg::records::DeclaredSignature,
+    method: Option<rstyle_core::facts::SigFacts>,
+) -> Signature {
+    let resolved = |ty: &rstyle_core::cpg::records::DeclaredType| ResolvedTy {
+        normalized: ty.normalized.clone(),
+        observed: ty.observed.clone(),
+        spelling: ty.spelling.clone(),
+    };
+    let has = |modifier: &str| sig.modifiers.iter().any(|name| name == modifier);
+    let abi = if has("rust:foreign-abi") { "C" } else { "Rust" };
+    Signature {
+        parameters: sig.parameters.iter().map(resolved).collect(),
+        result: resolved(&sig.result),
+        method,
+        abi: StringFact {
+            status: rstyle_pdg::FactStatus::Known,
+            value: Some(abi.into()),
+            reason: None,
+        },
+        generics: sig.generics.clone(),
+        has_self: sig.has_self,
+        is_variadic: has("variadic"),
+        is_async: has("async"),
+        is_unsafe: has("unsafe"),
+        is_const: has("const"),
     }
 }
 

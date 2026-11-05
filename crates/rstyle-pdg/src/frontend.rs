@@ -337,15 +337,6 @@ impl<Options> BuildFacts<Options> {
 }
 
 /// A payload deliberately omitted by the selected consumer.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Uncaptured {
-    NotRequested,
-}
-
-/// Numeric compiler inputs retain the actual body identity without a binding inventory.
-pub type StyleFnFacts = HirFnFacts<HirRef, Uncaptured>;
-
 /// One assessed function's frontend evidence; the default retains its complete body.
 /// Numeric readers may retain only the validated original body identity.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

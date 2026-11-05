@@ -170,8 +170,8 @@ impl HirExtract {
     }
 
     fn capture_advisory(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
-        if rstyle_pdg::diagnostics::switch("RSTYLE_STYLE_INPUTS_ONLY") {
-            self.capture_style(tcx, options);
+        if rstyle_pdg::diagnostics::switch("RSTYLE_DOCUMENTS_ONLY") {
+            self.capture_documents(tcx, options);
             return;
         }
         let facts = hir_extraction::advisory_crate_facts(tcx, options)
@@ -182,13 +182,15 @@ impl HirExtract {
             .expect("write compiler advisory facts");
     }
 
-    fn capture_style(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
-        let facts =
-            hir_extraction::style_crate_facts(tcx, options).expect("capture compiler style inputs");
-        let inventory = self.inventory(tcx, options, &facts);
-        self.output
-            .write_style_capture(&facts, inventory.as_ref())
-            .expect("write compiler style inputs");
+    /// Publishes the crate's documents; everything the run derives comes from them.
+    fn capture_documents(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
+        let directory = self
+            .output
+            .document_directory
+            .as_deref()
+            .expect("document capture names its unit directory");
+        hir_extraction::publish_documents(tcx, options, directory)
+            .expect("publish compat.cpg documents");
     }
 
     fn capture_complete(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {

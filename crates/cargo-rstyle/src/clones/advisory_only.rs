@@ -5,12 +5,12 @@ use super::*;
 pub(super) fn consume(request: &UnitRequest<'_>, result: &mut Handoff) -> Result<(), String> {
     let unit = request.unit;
     check_mode(unit, &request.capture.plan)?;
+    if unit.style_inputs_only {
+        return consume_documents(request, result);
+    }
 
     let snapshot = Stage::new("cli.advisory.load_inventory", &unit.target.package, None)
         .observe(|| capture::load_inventory(unit))?;
-    if unit.style_inputs_only {
-        return consume_style(request, &snapshot, result);
-    }
     let stage = Stage::new(
         "cli.advisory.decode",
         &unit.target.package,
@@ -63,30 +63,58 @@ fn check_mode(unit: &capture::Unit, plan: &capture::Plan) -> Result<(), String> 
     Ok(())
 }
 
-fn consume_style(
-    request: &UnitRequest<'_>,
-    snapshot: &capture::Snapshot,
-    result: &mut Handoff,
-) -> Result<(), String> {
-    if request.args.compiler_patterns && !request.capture.plan.compiler_patterns {
-        return Err("Root style inputs did not request compiler pattern graphs; use a compiler-pattern capture".into());
-    }
+// rstyle-allow(side_effect_density): Capture handoff boundary reads one unit's documents and retains their functions.
+/// A unit published as documents: its functions come from the core, its settings are
+/// checked once per document rather than once per function.
+fn consume_documents(request: &UnitRequest<'_>, result: &mut Handoff) -> Result<(), String> {
     if !header_only(request.args) {
         return Err("Metadata-only inputs did not request original HIR bodies or bindings; requested consumers require a full body capture".into());
     }
-    let facts = rstyle_pdg::unit_store::read_style_snapshot_phase(
-        snapshot.bundle.bytes(),
-        "compiler-style-inputs",
-    )?;
-    consume_facts(
-        Decoded {
-            facts,
-            owner: FactOwner::Style,
-        },
+    let unit = request.unit;
+    let demand = rstyle_core::cpg::records::Demand {
+        graphs: request.args.compiler_patterns,
+        bounds: request.args.compiler_runtime_bounds,
+    };
+    let functions = Stage::new("cli.documents.read", &unit.target.package, None)
+        .observe(|| documents::read(unit, demand))?;
+    let context = Stage::new("cli.documents.context", &unit.target.package, None).enter();
+    let builds = document_builds(&functions, request)?;
+    result.build_contexts.push(UnitBuildContexts {
+        unit_bundle: unit
+            .directory
+            .join(rstyle_pdg::unit_store::DOCUMENTS_MANIFEST),
+        builds,
+    });
+    context.finish(Ok::<_, String>(()))?;
+    let keys = identity::functions(request.id, &functions)?;
+
+    retain(
+        FactOwner::Document(Arc::new(functions)),
+        keys,
         request,
-        snapshot,
         result,
     )
+}
+
+/// Each document's recorded settings, checked against this run and interned.
+fn document_builds(
+    functions: &[documents::DocumentFunction],
+    request: &UnitRequest<'_>,
+) -> Result<rstyle_pdg::nominal_binding::BuildContexts, String> {
+    let selected = selected_context::SelectedContext::new(request.unit)?;
+    let mut builds = rstyle_pdg::nominal_binding::BuildContexts::default();
+    let mut previous = None;
+    for function in functions {
+        // Every function of a document shares its settings.
+        if previous.is_some_and(|build| std::ptr::eq(build, Arc::as_ptr(&function.build))) {
+            continue;
+        }
+        previous = Some(Arc::as_ptr(&function.build));
+
+        verify_frontend_build(&function.build, request.unit, request.capture, &selected)?;
+        builds.intern(&function.build)?;
+    }
+    Ok(builds)
 }
 
 fn header_only(args: &Args) -> bool {

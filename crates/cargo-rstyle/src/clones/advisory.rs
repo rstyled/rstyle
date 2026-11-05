@@ -715,12 +715,7 @@ impl Collected {
         if (ctx.args.compiler_pattern_scope == super::CompilerSourceScope::Authored
             || ctx.args.compiler_complexity_scope == super::CompilerSourceScope::Authored
             || ctx.args.compiler_diagnostic_scope == super::CompilerSourceScope::Authored)
-            && function
-                .facts
-                .view()
-                .source_diagnostics
-                .iter()
-                .any(|finding| finding.construct == "macro_generated_function")
+            && function.facts.view().generated
         {
             self.generated_functions.push(function.key);
         }
@@ -946,23 +941,25 @@ impl Unit {
 }
 
 fn observation(function: &super::Function, root: &std::path::Path) -> Result<Observation, String> {
-    let Some(raw) = function.facts.view().build.frontend_options.get(KEY) else {
+    if let Some(document) = function.facts.document() {
+        return document_observation(function, document, root);
+    }
+    let Some(raw) = function.facts.recorded(KEY) else {
         return Ok(Observation::Unavailable {
             reason: "Compiler advisory observations were not captured".into(),
         });
     };
+
     let mut observation = Observation::read(raw)?;
     if let Observation::Known { facts, metrics } = &mut observation {
-        if facts.name != function.facts.view().name
-            || facts.source != function.facts.view().source.bytes.as_str()
+        if facts.name != function.facts.view().name || facts.source != function.facts.view().source
         {
             return Err(
                 "Compiler advisory metrics or source owner disagree with captured function".into(),
             );
         }
         facts.path = source_path(function, root, normalized_source_paths(metrics))?;
-        if facts.params + usize::from(facts.has_self)
-            != function.facts.view().signature.params.len()
+        if facts.params + usize::from(facts.has_self) != function.facts.view().parameters
             || facts.param_list.len() != facts.params
             || facts.pdg.is_some()
         {
@@ -972,6 +969,29 @@ fn observation(function: &super::Function, root: &std::path::Path) -> Result<Obs
         }
     }
     Ok(observation)
+}
+
+/// A function's observation as its document records it; the core derived it, so it
+/// cannot disagree with the function it came from.
+fn document_observation(
+    function: &super::Function,
+    document: &super::documents::DocumentFunction,
+    root: &std::path::Path,
+) -> Result<Observation, String> {
+    use rstyle_core::cpg::records::{Measured, UNMEASURED};
+    match &document.record.measured {
+        Measured::Known(facts) => {
+            let mut facts = facts.clone();
+            facts.path = source_path(function, root, normalized_source_paths(METRICS))?;
+            Ok(Observation::Known {
+                metrics: METRICS.into(),
+                facts,
+            })
+        }
+        _ => Ok(Observation::Unavailable {
+            reason: UNMEASURED.into(),
+        }),
+    }
 }
 
 fn measurement(key: super::FunctionKey, facts: &FnFacts) -> Measurement {
@@ -1019,13 +1039,9 @@ fn source_path(
     root: &std::path::Path,
     normalize: bool,
 ) -> Result<String, String> {
-    let source = function
-        .facts
-        .view()
-        .build
-        .frontend_options
-        .get("source_file")
-        .and_then(serde_json::Value::as_str)
+    let view = function.facts.view();
+    let source = view
+        .source_file
         .ok_or("Missing compiler advisory source location")?;
     let original = std::path::Path::new(source);
     let normalized = normalize

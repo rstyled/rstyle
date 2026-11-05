@@ -3,6 +3,7 @@
 use rstyle_core::advisory::runtime_bounds::{CAPTURE_ENV, Input, KEY, Observation};
 use rstyle_pdg::HirFnFacts;
 use rstyle_pdg::cpg_reader::{self, unit::Documents};
+use rstyle_pdg::unit_store::{DOCUMENTS_MANIFEST, DocumentManifest, SealedDocument};
 use rustc_middle::ty::TyCtxt;
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -89,12 +90,55 @@ fn read_documents(
 ) -> Result<Read, String> {
     let root = document_root(tcx, options);
     let package = options.unit_context.map(|context| &context.package);
-    let session = json!({"invocation": options.invocation,
-                         "profile_selection": options.profile.map(|profile| profile.token()),
-                         "selected_unit": options.unit_context});
     let root = root.ok_or_else(|| "The crate has no root source file".to_owned())?;
 
-    derived(tcx, (root.as_path(), package, session), (options, passes))
+    derived(
+        tcx,
+        (root.as_path(), package, session(options)),
+        (options, passes),
+    )
+}
+
+/// What a capture's documents record of the compiler session that wrote them.
+fn session(options: &super::Options<'_>) -> serde_json::Value {
+    json!({"invocation": options.invocation,
+           "profile_selection": options.profile.map(|profile| profile.token()),
+           "selected_unit": options.unit_context})
+}
+
+// rstyle-allow(side_effect_density): IO boundary: writes each document, then the seal over them
+/// Writes the crate's documents into `directory`, then the manifest that seals them.
+pub(super) fn publish(
+    tcx: TyCtxt<'_>,
+    options: &super::Options<'_>,
+    directory: &std::path::Path,
+) -> Result<(), String> {
+    let root = document_root(tcx, options)
+        .ok_or_else(|| "The crate has no root source file".to_owned())?;
+    let package = options.unit_context.map(|context| &context.package);
+    let observe = |id| super::function_observations(tcx, options, id);
+    let capture = crate::cpg::Capture {
+        session: Some(session(options)),
+        observe: Some(&observe),
+        unit: unit_observations(tcx, options),
+    };
+
+    std::fs::create_dir_all(directory).map_err(|error| error.to_string())?;
+    let mut sealed = Vec::new();
+    for (document, unrecorded) in crate::cpg::documents_in(tcx, (root.as_path(), package), capture)
+    {
+        if let Some((id, reason)) = unrecorded.first() {
+            return Err(format!("{}: {reason}", tcx.def_path_str(id.to_def_id())));
+        }
+        let text = document.to_string();
+        let seal = SealedDocument::new(sealed.len(), text.as_bytes());
+        std::fs::write(directory.join(&seal.file), text).map_err(|error| error.to_string())?;
+        sealed.push(seal);
+    }
+
+    let bytes =
+        serde_json::to_vec(&DocumentManifest::of(sealed)).map_err(|error| error.to_string())?;
+    std::fs::write(directory.join(DOCUMENTS_MANIFEST), bytes).map_err(|error| error.to_string())
 }
 
 /// The root a capture's paths are relative to, as its advisory facts locate them: the

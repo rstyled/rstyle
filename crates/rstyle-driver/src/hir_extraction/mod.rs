@@ -144,33 +144,16 @@ pub fn advisory_crate_facts(
     Ok(facts)
 }
 
-/// Numeric style inputs retain original owner metadata without a source-facing body
-/// tree or a binding inventory that no requested consumer uses: the advisory facts
-/// read from the crate's documents, each body kept as its root's identity.
-pub fn style_crate_facts(
+/// Writes the crate's `compat.cpg` documents and their seal into its unit directory.
+pub fn publish_documents(
     tcx: TyCtxt<'_>,
     options: &Options<'_>,
-) -> Result<Vec<StyleFnFacts>, String> {
-    let (facts, _) = collect_crate_facts(tcx, options, FunctionEvidence::Style)?;
-    let facts: Vec<StyleFnFacts> = facts
-        .into_iter()
-        .map(|facts| HirFnFacts {
-            body: facts.body.hir,
-            bindings: Uncaptured::NotRequested,
-            name: facts.name,
-            fn_span: facts.fn_span,
-            source: facts.source,
-            signature: facts.signature,
-            build: facts.build,
-            source_diagnostics: facts.source_diagnostics,
-            source_scan_complete: facts.source_scan_complete,
-        })
-        .collect();
-    Ok(facts)
+    directory: &std::path::Path,
+) -> Result<(), String> {
+    document_facts::publish(tcx, options, directory)
 }
 
 enum FunctionEvidence {
-    Style,
     Advisory { mutations: bool },
     All,
 }
@@ -181,7 +164,6 @@ fn collect_crate_facts(
     evidence: FunctionEvidence,
 ) -> Result<(Vec<HirFnFacts>, rstyle_pdg::cpg_reader::unit::Documents), String> {
     let passes = match evidence {
-        FunctionEvidence::Style => rstyle_pdg::cpg_reader::Passes::Style,
         FunctionEvidence::Advisory { mutations: false } => rstyle_pdg::cpg_reader::Passes::Advisory,
         FunctionEvidence::Advisory { mutations: true } => {
             rstyle_pdg::cpg_reader::Passes::AdvisoryMutations

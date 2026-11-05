@@ -121,16 +121,6 @@ fn validate_raw_phase(schema: &str, phase: &str, expected: Option<&str>) -> Resu
     Ok(())
 }
 
-fn restore_snapshot<B: function_sources::BodyImport, Bindings>(
-    wire: Import<B, Bindings>,
-    flat_bodies: bool,
-) -> Result<Vec<HirFnFacts<B::Output, Bindings>>, String> {
-    if wire.build_settings.present() {
-        return Err("Build settings references require raw diagnostic transport".into());
-    }
-    restore_with(wire, flat_bodies, Ok)
-}
-
 fn restore_with<B: function_sources::BodyImport, Bindings, Build>(
     wire: Import<B, Bindings, Build>,
     flat_bodies: bool,
@@ -174,9 +164,6 @@ fn restore_raw<B: function_sources::BodyImport>(
 }
 
 mod build_settings;
-
-mod style;
-pub use style::{STYLE_FACTS_SCHEMA, read_style_snapshot_phase, write_sealed_style_snapshot};
 
 #[cfg(test)]
 mod tests;

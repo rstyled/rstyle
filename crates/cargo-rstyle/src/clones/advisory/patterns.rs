@@ -127,7 +127,13 @@ pub(super) fn attach(
     facts: &mut FnFacts,
     missing: &mut Vec<Missing>,
 ) -> Result<(), String> {
-    let Some(raw) = function.facts.view().build.frontend_options.get(KEY) else {
+    if let Some(document) = function.facts.document()
+        && document.record.graph.is_some()
+    {
+        facts.pdg.clone_from(&document.record.graph);
+        return Ok(());
+    }
+    let Some(raw) = function.facts.recorded(KEY) else {
         missing.push(Missing {
             key: function.key,
             reason: "Compiler pattern graph was not captured".into(),

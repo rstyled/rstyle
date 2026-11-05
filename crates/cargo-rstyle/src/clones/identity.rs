@@ -136,23 +136,50 @@ impl BodyOwner for rstyle_pdg::HirRef {
     }
 }
 
-pub(super) fn functions<B: BodyOwner, L>(
-    unit: UnitId,
-    facts: &[HirFnFacts<B, L>],
-) -> Result<Vec<FunctionKey>, String> {
+/// A function record of one unit, as its key depends on it.
+pub(super) trait Owned {
+    type Owner: Ord;
+    /// Whether the record locates the function's source file.
+    fn located(&self) -> bool;
+    /// What tells the function apart within its unit, whatever its name or call site.
+    fn owned_by(&self) -> Self::Owner;
+}
+
+impl<B: BodyOwner, L> Owned for HirFnFacts<B, L> {
+    type Owner = (u32, u32);
+
+    fn located(&self) -> bool {
+        self.build.frontend_options.contains_key("source_file")
+    }
+
+    fn owned_by(&self) -> Self::Owner {
+        let owner = self.body.owner();
+        (owner.krate, owner.owner)
+    }
+}
+
+impl Owned for super::documents::DocumentFunction {
+    type Owner = String;
+
+    fn located(&self) -> bool {
+        self.source_file.is_some()
+    }
+
+    fn owned_by(&self) -> Self::Owner {
+        self.record.root.clone()
+    }
+}
+
+pub(super) fn functions<F: Owned>(unit: UnitId, facts: &[F]) -> Result<Vec<FunctionKey>, String> {
     let mut seen = BTreeSet::new();
     facts
         .iter()
         .enumerate()
         .map(|(index, function)| {
-            function
-                .build
-                .frontend_options
-                .get("source_file")
-                .and_then(serde_json::Value::as_str)
-                .ok_or("missing captured source-file navigation")?;
-            let owner = function.body.owner();
-            if !seen.insert((owner.krate, owner.owner)) {
+            if !function.located() {
+                return Err("missing captured source-file navigation".to_owned());
+            }
+            if !seen.insert(function.owned_by()) {
                 return Err("Duplicate compiler function owner in one compilation unit".into());
             }
             FunctionKey::new(unit, index)

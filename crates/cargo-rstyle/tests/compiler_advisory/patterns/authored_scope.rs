@@ -4,6 +4,17 @@ use super::*;
 const DERIVED: &str = "#[derive(Debug)] pub struct Generated(pub u32);";
 const HELPERS: &str = "pub fn first(a:u128)->u128 {std::hint::black_box(a.wrapping_add(7)).wrapping_mul(3)} pub fn second(a:u128)->u128 {std::hint::black_box(a.wrapping_add(8)).wrapping_mul(3)}";
 const AUTHORED: &[&str] = &["--compiler-pattern-scope", "authored"];
+/// A capture that records its observations, unlike documents, which the core reads anew.
+const RECORDED: &[&str] = &[
+    "--extraction-profile",
+    "hir-data-v3",
+    "--compiler-advisory-only",
+    "--compiler-patterns",
+    "--compiler-pattern-scope",
+    "authored",
+    "--report-detail",
+    "compact",
+];
 
 fn fixture(source: &str) -> TempDir {
     let directory = clone_workspace();
@@ -506,9 +517,8 @@ fn missing_graph_selection(directory: &Path, original: &Value, current: &Value) 
 #[test]
 fn authored_scope_never_hides_missing_authored_graphs_observations_or_unknown_origins() {
     let directory = fixture(&format!("{DERIVED} pub fn original() {{}}"));
-    let output = raw(directory.path(), AUTHORED);
+    let (output, original) = clones(directory.path(), RECORDED);
     checked(&output, 0);
-    let original = json(&output);
     let wire = raw_wire(&original);
     let ledger = super::super::only::ledger_path(&original);
     for damage in ["observation", "graph", "unknown_origin", "historical"] {
@@ -536,4 +546,132 @@ fn authored_scope_never_hides_missing_authored_graphs_observations_or_unknown_or
         }
     }
     super::super::only::reseal_raw(&original, &ledger, &wire);
+}
+
+/// A saved run's documents, with its manifest and ledger sealed over `edit`'s result.
+fn resealed(original: &Value, edit: impl FnOnce(&mut Vec<Value>)) {
+    use rstyle_pdg::unit_store::{
+        DOCUMENTS_MANIFEST, DocumentManifest, SealedDocument, transport_checksum,
+    };
+    let path = original["functions"][0]["unit_evidence"]["bundle"]
+        .as_str()
+        .unwrap();
+    let path = Path::new(path);
+    let directory = path.parent().unwrap();
+    let manifest = DocumentManifest::read(&std::fs::read(path).unwrap()).unwrap();
+    let mut documents: Vec<Value> = manifest
+        .documents
+        .iter()
+        .map(|sealed| {
+            let bytes = std::fs::read(directory.join(&sealed.file)).unwrap();
+            serde_json::from_slice(&bytes).unwrap()
+        })
+        .collect();
+    edit(&mut documents);
+    let mut sealed = Vec::new();
+    for document in &documents {
+        let bytes = serde_json::to_vec(document).unwrap();
+        let seal = SealedDocument::new(sealed.len(), &bytes);
+        std::fs::write(directory.join(&seal.file), bytes).unwrap();
+        sealed.push(seal);
+    }
+    let bytes = serde_json::to_vec(&DocumentManifest::of(sealed)).unwrap();
+    std::fs::write(path, &bytes).unwrap();
+    let ledger = super::super::only::ledger_path(original);
+    let mut unit: Value = serde_json::from_slice(&std::fs::read(&ledger).unwrap()).unwrap();
+    for artifact in unit["artifacts"].as_array_mut().unwrap() {
+        if artifact["file"] == DOCUMENTS_MANIFEST {
+            artifact["checksum"] = transport_checksum(&bytes).into();
+        }
+    }
+    std::fs::write(ledger, serde_json::to_vec(&unit).unwrap()).unwrap();
+}
+
+/// Moves a function's signature to a file outside the workspace root, so that the core
+/// has no facts for it though no macro wrote it.
+fn outside_the_root(documents: &mut [Value], name: &str) {
+    let document = documents
+        .iter_mut()
+        .find(|document| {
+            document["unit"]["functions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|function| function["name"] == name)
+        })
+        .unwrap();
+    let mut file = document["unit"]["files"][0].clone();
+    file["id"] = "file:outside".into();
+    file["path"] = "../outside.rs".into();
+    document["unit"]["files"].as_array_mut().unwrap().push(file);
+    let functions = document["unit"]["functions"].as_array_mut().unwrap();
+    let function = functions
+        .iter_mut()
+        .find(|function| function["name"] == name)
+        .unwrap();
+    function["signature"]["span"]["file"] = "file:outside".into();
+}
+
+#[test]
+fn documents_never_hide_a_function_the_core_cannot_measure() {
+    let directory = fixture(&format!("{DERIVED} pub fn original() {{}}"));
+    let output = raw(directory.path(), AUTHORED);
+    checked(&output, 0);
+    let original = json(&output);
+    let (_, complete) = saved(directory.path(), &original, AUTHORED);
+    assert_eq!(proposals(&complete)["input_complete"], true);
+    assert_eq!(outside(&complete).len(), 1);
+
+    resealed(&original, |documents| {
+        outside_the_root(documents, "original")
+    });
+    let (output, report) = saved(directory.path(), &original, AUTHORED);
+    checked(&output, 2);
+    assert_eq!(report["capture_failures"], serde_json::json!([]));
+    assert_eq!(report["handoff_failures"], serde_json::json!([]));
+    assert_eq!(proposals(&report)["input_complete"], false);
+    // It stays unavailable rather than joining the generated functions out of scope.
+    assert_eq!(proposals(&report)["unavailable_functions"], 1);
+    assert_eq!(outside(&report).len(), 1);
+}
+
+#[test]
+fn a_changed_document_or_manifest_fails_the_replay() {
+    let directory = fixture(&format!("{DERIVED} pub fn original() {{}}"));
+    let output = raw(directory.path(), AUTHORED);
+    checked(&output, 0);
+    let original = json(&output);
+    let manifest = original["functions"][0]["unit_evidence"]["bundle"]
+        .as_str()
+        .unwrap();
+    let manifest = Path::new(manifest);
+    let document = manifest.with_file_name("document-000000.cpg.json");
+    let refused = |expected: &str| {
+        let (output, report) = saved(directory.path(), &original, AUTHORED);
+        checked(&output, 2);
+        let failures = report["handoff_failures"].to_string();
+        assert!(failures.contains(expected), "{failures}");
+    };
+    let (document_bytes, manifest_bytes) = (
+        std::fs::read(&document).unwrap(),
+        std::fs::read(manifest).unwrap(),
+    );
+
+    let mut changed = document_bytes.clone();
+    changed[0] = b' ';
+    std::fs::write(&document, &changed).unwrap();
+    refused("disagrees with its manifest");
+
+    std::fs::remove_file(&document).unwrap();
+    refused("missing captured artifact document-000000.cpg.json");
+    std::fs::write(&document, &document_bytes).unwrap();
+
+    let mut changed = manifest_bytes.clone();
+    changed.push(b' ');
+    std::fs::write(manifest, &changed).unwrap();
+    refused("captured artifact checksum mismatch: documents.manifest.json");
+    std::fs::write(manifest, &manifest_bytes).unwrap();
+
+    let (output, _) = saved(directory.path(), &original, AUTHORED);
+    checked(&output, 0);
 }

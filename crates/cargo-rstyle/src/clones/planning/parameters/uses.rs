@@ -187,7 +187,7 @@ impl<'a> Context<'a> {
         record: &Function,
         remaining_rows: &mut usize,
     ) -> Result<FunctionUses, String> {
-        let retained = reserve_formals(record.facts.view().signature.params.len(), remaining_rows);
+        let retained = reserve_formals(record.facts.view().parameters, remaining_rows);
         let Some(observations) = self.session.observations(record.facts.index) else {
             return Ok(FunctionUses::unavailable(record, retained));
         };
@@ -206,8 +206,8 @@ impl<'a> Context<'a> {
         let complete = matches!(inventory.availability, Availability::Known(()))
             && inventory.coverage == mutations::Coverage::Complete
             && inventory.execution == mutations::Execution::Completed
-            && inventory.formals.len() == record.facts.view().signature.params.len()
-            && retained == record.facts.view().signature.params.len();
+            && inventory.formals.len() == record.facts.view().parameters
+            && retained == record.facts.view().parameters;
         let mut occurrences = self.occurrences(record, observations)?;
         let declarations: BTreeMap<_, _> = observations
             .uses
@@ -321,13 +321,13 @@ impl FunctionUses {
                 Coverage::Incomplete
             },
             execution: if inventory.execution == mutations::Execution::BudgetExhausted
-                || formals.len() < record.facts.view().signature.params.len()
+                || formals.len() < record.facts.view().parameters
             {
                 Execution::BudgetExhausted
             } else {
                 Execution::Completed
             },
-            expected_formals: record.facts.view().signature.params.len(),
+            expected_formals: record.facts.view().parameters,
             assessed_formals: inventory.formals.len(),
             formals,
             boundaries: inventory
@@ -345,7 +345,7 @@ impl FunctionUses {
     }
 
     fn unavailable(record: &Function, retained: usize) -> Self {
-        let expected = record.facts.view().signature.params.len();
+        let expected = record.facts.view().parameters;
         Self {
             function: record.key.to_string(),
             availability: Availability::Unknown {

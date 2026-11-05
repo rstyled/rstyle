@@ -170,7 +170,7 @@ impl Resolver<'_, '_> {
             .clone();
         let captured = &self.ctx.capture.units[unit.observed_unit];
         let identity =
-            local_adapter::Identity::new(original.build, captured, &self.ctx.capture.plan)?;
+            local_adapter::Identity::viewed(&original, captured, &self.ctx.capture.plan)?;
         let kind = if facts.sig.is_some() {
             "compiler-method"
         } else {

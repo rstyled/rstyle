@@ -11,6 +11,7 @@ mod facts;
 pub mod layout;
 mod metrics;
 pub mod model;
+pub mod records;
 mod shapes;
 pub mod source;
 pub mod tree;
@@ -23,7 +24,13 @@ use crate::facts::FnFacts;
 pub fn run_bounds(
     documents: Vec<serde_json::Value>,
 ) -> Result<Vec<(String, crate::advisory::runtime_bounds::Input)>, String> {
-    let document = layout::bundle(documents)?;
+    lowered(&layout::bundle(documents)?)
+}
+
+/// The runtime-bound program of every function of a document, in document order.
+fn lowered(
+    document: &model::Document,
+) -> Result<Vec<(String, crate::advisory::runtime_bounds::Input)>, String> {
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let sources = source::Sources::new(unit)?;
     let tables = tree::Tables::new(unit)?;
@@ -62,10 +69,36 @@ pub fn run_bounds(
         .collect()
 }
 
-/// Rule facts of a run: one bundled document, or a split unit document and its
-/// function documents.
+/// Rule facts of a run's authored functions, from any number of its units.
 pub fn run_facts(documents: Vec<serde_json::Value>) -> Result<Vec<FnFacts>, String> {
-    rule_facts(&layout::bundle(documents)?)
+    Ok(run_records(documents, records::Demand::default())?
+        .into_iter()
+        .filter_map(authored)
+        .collect())
+}
+
+/// Every function of a run, from any number of its units, in document order.
+pub fn run_records(
+    documents: Vec<serde_json::Value>,
+    demand: records::Demand,
+) -> Result<Vec<records::Record>, String> {
+    let units = layout::units(documents)?;
+    let read = units
+        .iter()
+        .map(|document| records::records(document, demand))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(read.into_iter().flatten().collect())
+}
+
+/// A record's measured facts, with its graph, when its function is authored.
+pub fn authored(record: records::Record) -> Option<FnFacts> {
+    match record.measured {
+        records::Measured::Known(mut facts) => {
+            facts.pdg = record.graph;
+            Some(*facts)
+        }
+        _ => None,
+    }
 }
 
 #[cfg(test)]

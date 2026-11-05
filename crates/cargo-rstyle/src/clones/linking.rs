@@ -64,7 +64,8 @@ pub(super) fn load_capture(directory: &Path, args: &Args) -> Result<capture::Cap
 }
 
 fn check_replay_capabilities(plan: &capture::Plan, args: &Args) -> Result<(), String> {
-    if args.compiler_runtime_bounds && !plan.compiler_runtime_bounds {
+    // Documents hold what every derivation needs; other captures hold what they asked for.
+    if args.compiler_runtime_bounds && !plan.compiler_runtime_bounds && !plan.style_inputs_only {
         return Err("Saved run is missing compiler runtime-bound capture capability".into());
     }
     if plan.extraction_profile != args.extraction_profile {

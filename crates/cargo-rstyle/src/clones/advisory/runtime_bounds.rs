@@ -42,6 +42,16 @@ struct Evidence {
     missing: Option<String>,
 }
 
+const LIMITATIONS: &[&str] = &[
+    "Bounds count loop-body entries and modeled call-site invocations; whole runtime remains unknown.",
+    "Compiler-resolved collection length and traversal adapters are abstracted, excluded from modeled call counts.",
+    "Resolved standard iterator chains over stable extents or primitive ranges are synthetic scans; callbacks are inlined and counted at most once per pulled item.",
+    "Partial results are sound bounds relative to opaque factors: ?loop(site) is the number of header executions of an unproven loop per entry of its enclosing loop, ?call and ?invocations the work and calls of an unsummarized callee; whole-owner failures stay unknown.",
+    "Composed results add resolved workspace callee summaries; standard-library bodies are outside that cost unit, and recursive, unresolved or unmappable callees contribute opaque ?call or ?input factors.",
+    "Library steps sum data contracts for keyed standard operations, such as log(len(map)) per B-tree lookup, up to each contract's constant factor; uncontracted operations contribute ?library factors and never change the composed verdict.",
+    "An upper bound does not establish tightness; high polynomial degree alone is not repeated-scan evidence.",
+];
+
 pub(super) fn evaluate(ctx: &Context<'_>, unit: UnitId) -> Option<Report> {
     if !ctx.args.compiler_runtime_bounds {
         return None;
@@ -57,28 +67,15 @@ pub(super) fn evaluate(ctx: &Context<'_>, unit: UnitId) -> Option<Report> {
         .filter(|function| function.key.unit() == unit)
         .filter(|function| {
             ctx.args.compiler_pattern_scope != crate::clones::CompilerSourceScope::Authored
-                || !function
-                    .facts
-                    .view()
-                    .source_diagnostics
-                    .iter()
-                    .any(|finding| finding.construct == "macro_generated_function")
+                || !function.facts.view().generated
         })
         .map(|function| row(function, &ctx.capture.plan.root, &mut composer))
         .collect();
-    rows.sort_by_key(|row| (std::cmp::Reverse(degree(row)), row.key));
+    rows.sort_by_key(|row| (std::cmp::Reverse(degree(&row.evidence)), row.key));
     Some(Report {
         schema: "rstyle.compiler-runtime-bounds-report/2",
         input_complete: rows.iter().all(|row| row.evidence.missing.is_none()),
-        limitations: &[
-            "Bounds count loop-body entries and modeled call-site invocations; whole runtime remains unknown.",
-            "Compiler-resolved collection length and traversal adapters are abstracted, excluded from modeled call counts.",
-            "Resolved standard iterator chains over stable extents or primitive ranges are synthetic scans; callbacks are inlined and counted at most once per pulled item.",
-            "Partial results are sound bounds relative to opaque factors: ?loop(site) is the number of header executions of an unproven loop per entry of its enclosing loop, ?call and ?invocations the work and calls of an unsummarized callee; whole-owner failures stay unknown.",
-            "Composed results add resolved workspace callee summaries; standard-library bodies are outside that cost unit, and recursive, unresolved or unmappable callees contribute opaque ?call or ?input factors.",
-            "Library steps sum data contracts for keyed standard operations, such as log(len(map)) per B-tree lookup, up to each contract's constant factor; uncontracted operations contribute ?library factors and never change the composed verdict.",
-            "An upper bound does not establish tightness; high polynomial degree alone is not repeated-scan evidence.",
-        ],
+        limitations: LIMITATIONS,
         selected: (0..rows
             .len()
             .min(ctx.args.compiler_runtime_top.unwrap_or(usize::MAX)))
@@ -103,8 +100,13 @@ fn owners<'a>(ctx: &'a Context<'_>) -> HashMap<String, Option<&'a crate::clones:
 }
 
 fn key(function: &crate::clones::Function) -> Option<String> {
-    let raw = function.facts.view().build.frontend_options.get(KEY)?;
-    let krate = raw["krate"].as_str()?;
+    let krate = match function.facts.document() {
+        Some(document) => {
+            document.record.bounds.as_ref()?;
+            document.record.compilation.as_str()
+        }
+        None => function.facts.recorded(KEY)?["krate"].as_str()?,
+    };
     Some(format!("{krate}/{}", owner(function).ok()?))
 }
 
@@ -179,14 +181,24 @@ fn evidence(input: Result<Observation, String>) -> Evidence {
 }
 
 fn read(function: &crate::clones::Function) -> Result<Observation, String> {
-    let raw = function
-        .facts
-        .view()
-        .build
-        .frontend_options
-        .get(KEY)
-        .ok_or("Runtime-bound observations were not captured")?;
-    let observation = Observation::read(raw)?;
+    let observation = match function.facts.document() {
+        Some(document) => Observation {
+            schema: KEY.into(),
+            owner: document.record.identity.clone(),
+            krate: document.record.compilation.clone(),
+            input: document
+                .record
+                .bounds
+                .clone()
+                .ok_or("Runtime-bound observations were not captured")?,
+        },
+        None => Observation::read(
+            function
+                .facts
+                .recorded(KEY)
+                .ok_or("Runtime-bound observations were not captured")?,
+        )?,
+    };
     if observation.owner != owner(function)? {
         return Err("Runtime-bound observation disagrees with captured compiler owner".into());
     }
@@ -200,7 +212,12 @@ impl Report {
             .iter()
             .map(|index| {
                 let row = &self.rows[*index];
-                format!("\n{}: {}: {}", row.path, row.name, render_result(row))
+                format!(
+                    "\n{}: {}: {}",
+                    row.path,
+                    row.name,
+                    render_result(&row.evidence)
+                )
             })
             .collect();
         format!(
@@ -212,9 +229,8 @@ impl Report {
 }
 
 // Order is a search heuristic, not an ordering over multivariate runtimes.
-fn degree(row: &Row) -> (bool, runtime_bounds::Order) {
-    let Some(Outcome::Proven(assessment) | Outcome::Partial(assessment)) = &row.evidence.result
-    else {
+fn degree(evidence: &Evidence) -> (bool, runtime_bounds::Order) {
+    let Some(Outcome::Proven(assessment) | Outcome::Partial(assessment)) = &evidence.result else {
         return (false, runtime_bounds::Order::default());
     };
     (true, assessment.loop_body_entries.order())
@@ -223,28 +239,23 @@ fn degree(row: &Row) -> (bool, runtime_bounds::Order) {
 // collect_inputs validated compiler observations before this report is evaluated.
 // Project only the owner identity here rather than rebuilding the entire facts graph.
 fn owner(function: &crate::clones::Function) -> Result<String, String> {
-    use rstyle_core::advisory::{self, generated_effects};
-    let options = &function.facts.view().build.frontend_options;
-    if let Some(id) = options
-        .get(advisory::KEY)
-        .and_then(|raw| raw["facts"]["id"].as_str())
-        .filter(|id| !id.is_empty())
-    {
+    use rstyle_core::advisory::generated_effects;
+    if let Some(document) = function.facts.document() {
+        return document
+            .compiled_id()
+            .map(str::to_owned)
+            .ok_or_else(|| "Runtime-bound owner identity is unavailable".into());
+    }
+    if let Some(id) = function.facts.compiled_id().filter(|id| !id.is_empty()) {
         return Ok(id.to_owned());
     }
-    let raw = options
-        .get(generated_effects::CONNECTED_KEY)
+    let raw = function
+        .facts
+        .recorded(generated_effects::CONNECTED_KEY)
         .ok_or("Runtime-bound owner identity is unavailable")?;
     let observation = generated_effects::Observation::read(raw)?;
 
-    if observation.name != function.facts.view().name
-        || !function
-            .facts
-            .view()
-            .source_diagnostics
-            .iter()
-            .any(|finding| finding.construct == "macro_generated_function")
-    {
+    if observation.name != function.facts.view().name || !function.facts.view().generated {
         return Err("Runtime-bound generated owner identity disagrees with capture".into());
     }
     observation
@@ -253,18 +264,24 @@ fn owner(function: &crate::clones::Function) -> Result<String, String> {
         .ok_or("Runtime-bound generated owner identity is unavailable".into())
 }
 
-fn render_result(row: &Row) -> String {
-    match (&row.evidence.result, &row.evidence.missing) {
+fn render_result(evidence: &Evidence) -> String {
+    match (&evidence.result, &evidence.missing) {
         (_, Some(reason)) => format!("missing: {reason}"),
         (Some(Outcome::Unknown { reason }), _) => format!("unknown: {reason}"),
         (Some(Outcome::BudgetExceeded { reason }), _) => format!("budget exhausted: {reason}"),
-        (Some(Outcome::Proven(assessment)), _) => render_assessment(row, assessment, ""),
-        (Some(Outcome::Partial(assessment)), _) => render_assessment(row, assessment, "partial: "),
+        (Some(Outcome::Proven(assessment)), _) => render_assessment(evidence, assessment, ""),
+        (Some(Outcome::Partial(assessment)), _) => {
+            render_assessment(evidence, assessment, "partial: ")
+        }
         _ => "missing result".into(),
     }
 }
 
-fn render_assessment(row: &Row, assessment: &runtime_bounds::Assessment, label: &str) -> String {
+fn render_assessment(
+    evidence: &Evidence,
+    assessment: &runtime_bounds::Assessment,
+    label: &str,
+) -> String {
     let loops: String = assessment.loops.iter().map(render_loop).collect();
     let calls: String = assessment
         .calls
@@ -281,7 +298,7 @@ fn render_assessment(row: &Row, assessment: &runtime_bounds::Assessment, label: 
         "{label}loop body entries <= {}; whole runtime {}{loops}{calls}{}",
         expression(&assessment.loop_body_entries),
         assessment.whole_runtime,
-        render_composed(row.evidence.composed.as_ref())
+        render_composed(evidence.composed.as_ref())
     )
 }
 
@@ -405,15 +422,24 @@ mod tests {
     fn unavailable_budget_and_missing_inputs_keep_their_status() {
         let missing = evidence(Err("not captured".into()));
         assert_eq!(missing.capture_status, "missing");
-        assert_eq!(render_result(&row(missing)), "missing: not captured");
+        assert_eq!(
+            render_result(&row(missing).evidence),
+            "missing: not captured"
+        );
 
         let reason = "recorded".to_string();
         let unavailable = evidence(Ok(observation(Input::Unavailable {
             reason: reason.clone(),
         })));
-        assert_eq!(render_result(&row(unavailable)), "unknown: recorded");
+        assert_eq!(
+            render_result(&row(unavailable).evidence),
+            "unknown: recorded"
+        );
         let budget = evidence(Ok(observation(Input::BudgetExhausted { reason })));
-        assert_eq!(render_result(&row(budget)), "budget exhausted: recorded");
+        assert_eq!(
+            render_result(&row(budget).evidence),
+            "budget exhausted: recorded"
+        );
     }
 
     #[test]
@@ -434,9 +460,10 @@ mod tests {
             composed: Some(composer.composed("w::poll")),
             ..captured
         });
-        assert_eq!(degree(&partial), (true, runtime_bounds::Order::default()));
+        let order = degree(&partial.evidence);
+        assert_eq!(order, (true, runtime_bounds::Order::default()));
 
-        let text = render_result(&partial);
+        let text = render_result(&partial.evidence);
         assert!(
             text.starts_with("partial: loop body entries <= ?loop(src/lib.rs:3:5#0)"),
             "{text}"
@@ -455,9 +482,9 @@ mod tests {
         );
 
         partial.evidence.composed = Some(Composed::Unknown { reason: "x".into() });
-        assert!(render_result(&partial).ends_with("composed: unknown: x"));
+        assert!(render_result(&partial.evidence).ends_with("composed: unknown: x"));
         partial.evidence.composed = Some(Composed::BudgetExceeded { reason: "y".into() });
-        assert!(render_result(&partial).ends_with("composed: budget exhausted: y"));
+        assert!(render_result(&partial.evidence).ends_with("composed: budget exhausted: y"));
 
         let report = Report {
             schema: "test",

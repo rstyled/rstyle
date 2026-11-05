@@ -486,7 +486,7 @@ fn assess<'a>(
         name: function.facts.view().name,
         source_file: source_file(function),
         fn_span: function.facts.view().fn_span,
-        source_digest: &function.facts.view().source.digest,
+        source_digest: function.facts.view().digest,
         changed_file: None,
         signature: match facts.signature {
             Availability::Known(signature) => Some(signature),
@@ -537,14 +537,7 @@ fn source_assessments(
     facts: &LocalFacts<'_>,
     root: &std::path::Path,
 ) -> SourceAssessments {
-    if matches!(facts.source, Availability::Unsupported { .. })
-        && function
-            .facts
-            .view()
-            .source_diagnostics
-            .iter()
-            .any(|finding| finding.construct == "macro_generated_function")
-    {
+    if matches!(facts.source, Availability::Unsupported { .. }) && function.facts.view().generated {
         return SourceAssessments {
             rules: source_rules::not_applicable(
                 &policy.rules,
@@ -586,7 +579,7 @@ fn inputs(function: &Function, exhausted: bool, statements: bool) -> (Execution,
             unavailable("Analysis function budget exhausted"),
         );
     }
-    let source = function.facts.view().source.bytes.as_str();
+    let source = function.facts.view().source;
     let statements = statements
         && (!rstyle_core::lines::has_blank_line(source)
             || rstyle_pdg::consumer_facts::within_source_budget(source));
@@ -822,11 +815,5 @@ impl Report<'_> {
 }
 
 pub(super) fn source_file(function: &Function) -> Option<&str> {
-    function
-        .facts
-        .view()
-        .build
-        .frontend_options
-        .get("source_file")
-        .and_then(serde_json::Value::as_str)
+    function.facts.view().source_file
 }

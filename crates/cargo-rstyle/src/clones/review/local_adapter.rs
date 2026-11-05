@@ -146,6 +146,28 @@ impl<'a> Identity<'a> {
         unit: &'a capture::Unit,
         plan: &capture::Plan,
     ) -> Result<Self, String> {
+        let path = build
+            .frontend_options
+            .get("source_file")
+            .and_then(serde_json::Value::as_str);
+        Self::located(build, path, unit, plan)
+    }
+
+    /// The identity of a function viewed through any of its inputs.
+    pub(super) fn viewed(
+        view: &crate::clones::FactView<'a>,
+        unit: &'a capture::Unit,
+        plan: &capture::Plan,
+    ) -> Result<Self, String> {
+        Self::located(view.build, view.source_file, unit, plan)
+    }
+
+    fn located(
+        build: &'a rstyle_pdg::BuildFacts,
+        path: Option<&str>,
+        unit: &'a capture::Unit,
+        plan: &capture::Plan,
+    ) -> Result<Self, String> {
         let package = unit
             .target
             .package_context
@@ -157,11 +179,7 @@ impl<'a> Identity<'a> {
         {
             return Err("Review package or extraction context is contradictory".into());
         }
-        let path = build
-            .frontend_options
-            .get("source_file")
-            .and_then(serde_json::Value::as_str)
-            .ok_or("Review source file is unavailable")?;
+        let path = path.ok_or("Review source file is unavailable")?;
         Ok(Self {
             build,
             unit,

@@ -59,10 +59,6 @@ impl<'de> Deserialize<'de> for Table {
 }
 
 impl Table {
-    pub fn present(&self) -> bool {
-        self.0.is_some()
-    }
-
     pub fn import(self) -> Result<Importer, String> {
         Importer::new(self.0.ok_or("Raw snapshot build settings are missing")?)
     }
