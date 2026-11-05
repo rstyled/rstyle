@@ -79,3 +79,57 @@ Large source strings or individual function records can still buffer.
 Both implementations propagate encoder, finalization, flush, and close failures.
 Compatibility tests compare decoded document content and the exact bytes covered
 by each seal, rather than expecting identical compressed output.
+
+## Streaming helper for any frontend
+
+`cargo-rstyle rstyle cpg ingest --out NEW_DIRECTORY` reads a JSON text sequence
+from stdin and produces the same sealed capture as a native writer. It needs no
+compiler driver. Use the installed executable as a subprocess; a frontend does
+not need a Rust toolchain or language-specific FFI bindings. The global
+`--cpg-compression none` option selects plain output for debugging.
+
+The sequence follows RFC 7464 framing with an application-level terminal record:
+
+1. Write byte `0x1e` (RS), then one JSON object beginning with `{`, then LF.
+2. Repeat for each document. Stream each object's bytes in arbitrary chunks.
+3. Write `0x1e`, `null`, LF, and close stdin to commit the run.
+4. Wait for exit status zero. A failed producer closes stdin without the terminal
+   record and waits for the helper to clean up before reporting failure.
+
+Every input document must be an object; the terminal null is not a document.
+The bytes between separators, including whitespace/LF, are preserved exactly.
+A record's first byte is `{`; leading whitespace before it is not accepted.
+Raw RS cannot occur in a valid JSON string. After terminal null only whitespace
+and EOF are permitted. Empty runs are rejected. This is a syntax/UTF-8 transport
+check; the ordinary CPG reader still validates the profile, schema and facts.
+
+The helper stages the whole output directory beside its destination. It publishes
+that directory and its complete manifest only after the terminal record and EOF.
+Invalid JSON, UTF-8, missing completion, write errors, and existing destinations
+fail without replacing a completed run. Abrupt termination of the helper itself
+can leave its hidden staging directory; normal input failures clean it up.
+
+The input protocol has bounded byte buffers: it does not assemble a document or
+require its size in advance. Manifest entries grow with document count. The syntax
+validator discards values and validates raw UTF-8 incrementally, including inside
+large source strings. This does not bound memory that a frontend uses to build its
+own graph or to call a whole-document serializer.
+
+See the [TypeScript adapter](../examples/cpg-helper/typescript/capture.ts) and
+[Swift adapter](../examples/cpg-helper/swift/Capture.swift). They stream input and
+wait for helper completion. The TypeScript adapter accepts async iterables of
+UTF-8 byte chunks for each document; the Swift adapter exposes
+`beginDocument`, `write`, and `endDocument` inside `withCPGCapture`. Both leave
+compression and manifest details in the helper. Callers must generate JSON
+incrementally to avoid a whole-graph `JSON.stringify` or `JSONEncoder.encode`.
+
+Run the Node adapter tests with Node's TypeScript stripping support:
+
+```sh
+RSTYLE_CPG_BIN="$PWD/target/debug/cargo-rstyle" node --test examples/cpg-helper/typescript/capture.test.mjs
+```
+
+The independent Go writer and helper share the same consumer checks. In the Go
+repository, run `make cpg-transport-check RSTYLE_CPG=/path/to/cargo-rstyle
+NATIVE_OUT=NEW_DIRECTORY` against the compression-aware CLI. The Go repository's
+pinned legacy facts consumers remain separate from this cross-language check.

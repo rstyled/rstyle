@@ -154,6 +154,12 @@ struct CpgArgs {
 
 #[derive(Subcommand)]
 enum CpgCommand {
+    /// Store frontend JSON text sequence records from stdin; finish with a null record.
+    Ingest {
+        /// New output directory, published after the complete stream succeeds.
+        #[arg(long)]
+        out: PathBuf,
+    },
     /// Run the style rules over a run's documents.
     Check {
         /// compat.cpg documents: any number of bundled unit documents, and split unit
@@ -368,6 +374,7 @@ fn status_text(mut statuses: Vec<ledger::status::EntryStatus>, filter: Option<&s
 
 fn cpg_command(cli: &Cli, command: CpgCommand) -> Result<(String, u8), String> {
     match command {
+        CpgCommand::Ingest { out } => cpg::ingest(&out, cli.cpg_compression),
         CpgCommand::Check { documents } => {
             cpg::check(&documents, cli.config.as_deref(), cli.format)
         }

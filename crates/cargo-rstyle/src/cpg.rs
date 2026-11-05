@@ -1,6 +1,8 @@
 //! `cargo rstyle cpg`: the style rules and the pattern miner over `compat.cpg` documents
 //! from any language frontend, without compiling anything.
 
+mod ingest;
+
 use rstyle_core::config::Config;
 use rstyle_core::cpg::records::{Demand, Record};
 use rstyle_core::{cpg, patterns_report, report};
@@ -257,4 +259,9 @@ fn remove_documents(dir: &Path) -> Result<(), String> {
         std::fs::remove_file(&path).map_err(|error| format!("{}: {error}", path.display()))?;
     }
     Ok(())
+}
+
+/// Store a frontend's streaming JSON text sequence as a sealed capture.
+pub fn ingest(out: &Path, encoding: cpg::transport::Encoding) -> Result<(String, u8), String> {
+    ingest::run(&mut std::io::stdin().lock(), out, encoding)
 }
