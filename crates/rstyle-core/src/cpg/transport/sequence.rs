@@ -119,6 +119,17 @@ impl<R: BufRead> SequenceReader<R> {
         Ok(())
     }
 
+    /// The next record's bytes, unparsed, so another thread can parse them.
+    pub fn next_bytes(&mut self) -> Result<Option<Vec<u8>>, String> {
+        self.next_with(|record| {
+            let mut bytes = Vec::new();
+            record
+                .read_to_end(&mut bytes)
+                .map_err(|error| error.to_string())?;
+            Ok(bytes)
+        })
+    }
+
     /// Success requires the terminal record and EOF, not merely a valid prefix.
     pub fn complete(&self) -> Result<(), String> {
         match self.state {

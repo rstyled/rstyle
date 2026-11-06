@@ -76,6 +76,24 @@ pub struct Record {
     pub flow: Option<Derived>,
 }
 
+/// Records in an order independent of how their documents arrived. Runtime bounds compose
+/// in record order, so without this a run's bounds would depend on it.
+pub fn canonical_order(records: &mut [Record]) {
+    records.sort_by(|a, b| a.canonical_key().cmp(&b.canonical_key()));
+}
+
+impl Record {
+    /// Where this record sorts in a run, whatever order its documents arrived in.
+    pub fn canonical_key(&self) -> (&str, &str, &str, &str) {
+        (
+            &self.compilation,
+            &self.identity,
+            &self.function,
+            &self.root,
+        )
+    }
+}
+
 /// Every function of a bundled document, in document order. A document that cannot be
 /// read in full is refused, as a run from another frontend must be.
 pub fn records(document: &Document, demand: Demand) -> Result<Vec<Record>, String> {

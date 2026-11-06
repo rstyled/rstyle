@@ -61,7 +61,7 @@ pub(super) fn evaluate(ctx: &Context<'_>, unit: UnitId) -> Option<Report> {
     let lookup = |id: &str| analyzed(index.get(id).copied().flatten()?);
     let mut composer = Composer::new(lookup, Limits::default());
 
-    let mut rows: Vec<_> = ctx
+    let mut assessed: Vec<_> = ctx
         .handoff
         .assessed
         .iter()
@@ -70,6 +70,12 @@ pub(super) fn evaluate(ctx: &Context<'_>, unit: UnitId) -> Option<Report> {
             ctx.args.compiler_pattern_scope != crate::compiler::CompilerSourceScope::Authored
                 || !function.facts.view().generated
         })
+        .collect();
+    // Composing shares what it has worked out, so visit functions as a run over documents does.
+    assessed.sort_by_key(|function| function.facts.document().record.canonical_key());
+
+    let mut rows: Vec<_> = assessed
+        .into_iter()
         .map(|function| row(function, &ctx.capture.plan.root, &mut composer))
         .collect();
     rows.sort_by_key(|row| (std::cmp::Reverse(degree(&row.evidence)), row.key));

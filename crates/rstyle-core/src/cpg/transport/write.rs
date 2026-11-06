@@ -49,6 +49,15 @@ pub fn publish(
     write(path, encoding, true, emit)
 }
 
+/// Stores a record whose syntax the caller has already verified, unchanged.
+pub fn publish_parsed(
+    path: &Path,
+    encoding: Encoding,
+    bytes: &[u8],
+) -> Result<SealedDocument, String> {
+    write(path, encoding, false, |writer| writer.write_all(bytes))
+}
+
 fn write(
     path: &Path,
     encoding: Encoding,

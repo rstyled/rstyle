@@ -467,6 +467,7 @@ fn emit_selects_packages_and_targets() {
     assert!(!out.join("stale.cpg.json.zst").exists());
 }
 
+mod analyze;
 mod bounds;
 mod build_outputs;
 mod capture;
@@ -474,6 +475,8 @@ mod capture;
 mod descriptor;
 mod facts;
 mod flow;
+#[cfg(unix)]
+mod runner;
 mod stdin;
 mod transport;
 

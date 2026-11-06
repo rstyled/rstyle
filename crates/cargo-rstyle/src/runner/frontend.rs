@@ -1,0 +1,396 @@
+//! A language frontend outside this binary: finding it, installing it, and asking it for
+//! documents and for its own analyses.
+use super::pipe;
+use crate::cpg::analyze::FrontendResult;
+use crate::cpg::input::{self, STREAM_BUFFER, Store, Stream};
+use rstyle_core::cpg::records::{Demand, Record};
+use rstyle_core::cpg::transport::{Encoding, SequenceReader};
+use rstyle_core::filter::valid_name;
+use rstyle_core::sarif;
+use serde::Deserialize;
+use std::ffi::OsStr;
+use std::io::{BufReader, PipeWriter};
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, ExitStatus, Stdio};
+use std::sync::Mutex;
+
+const SCHEMA: &str = "rstyle.frontend-description/1";
+const GO_PACKAGE: &str = "github.com/rstyled/rstyle-go/cmd/rstyle-go@latest";
+
+pub(super) struct Frontend {
+    language: &'static str,
+    program: PathBuf,
+    pub(super) analyses: Vec<String>,
+}
+
+/// What a frontend says of itself, so a stale one fails with a reason instead of partway in.
+#[derive(Deserialize)]
+struct Description {
+    schema: String,
+    language: String,
+    #[serde(default)]
+    analyses: Vec<Described>,
+}
+
+#[derive(Deserialize)]
+struct Described {
+    name: String,
+}
+
+/// A frontend's complete stream, with what was received.
+pub(super) struct Streamed {
+    pub records: Vec<Record>,
+    pub documents: usize,
+}
+
+/// Where a stream's documents are kept, and how.
+pub(super) struct Saving<'a> {
+    pub directory: &'a Path,
+    pub encoding: Encoding,
+}
+
+impl Frontend {
+    /// `$RSTYLE_GO`, or `rstyle-go` where Go installs it or on `PATH`, or else installed.
+    pub(super) fn go() -> Result<Self, String> {
+        let program = locate_go()?;
+        let analyses = describe(&program, "go")?;
+        Ok(Self {
+            language: "go",
+            program,
+            analyses,
+        })
+    }
+
+    fn name(&self) -> std::path::Display<'_> {
+        self.program.display()
+    }
+
+    /// Reads a run from the frontend over its own pipe, keeping the documents as they arrive.
+    /// The run counts only if the stream is complete and the frontend exited cleanly.
+    // rstyle-allow(side_effect_density): process boundary: runs the frontend and reads its pipe
+    pub(super) fn stream(
+        &self,
+        source: &Path,
+        demand: Demand,
+        saving: &Saving<'_>,
+    ) -> Result<Streamed, String> {
+        let (reader, writer) =
+            std::io::pipe().map_err(|error| format!("Cannot create a pipe: {error}"))?;
+        let child = self.spawn_stream(source, &writer)?;
+        // The frontend must hold the only write end, or EOF would never arrive.
+        drop(writer);
+
+        let child = Mutex::new(child);
+        let stop = || stop_child(&child);
+        let mut sequence = SequenceReader::new(BufReader::with_capacity(STREAM_BUFFER, reader));
+        let stream = Stream {
+            demand,
+            on_failure: &stop,
+            store: Some(Store {
+                directory: saving.directory,
+                encoding: saving.encoding,
+            }),
+        };
+        let records = input::stream_records(&mut sequence, &stream);
+        let documents = sequence.progress().received_documents;
+        let status = wait(child)?;
+        self.outcome(records, status)
+            .map(|records| Streamed { records, documents })
+    }
+
+    fn spawn_stream(&self, source: &Path, writer: &PipeWriter) -> Result<Child, String> {
+        let mut command = self.command(&["cpg".as_ref(), "--source".as_ref(), source.as_os_str()]);
+        let number = pipe::inherit(&mut command, writer)?;
+        command
+            .args(["--output-fd", &number])
+            .spawn()
+            .map_err(|error| format!("Cannot run {}: {error}", self.name()))
+    }
+
+    fn outcome(
+        &self,
+        records: Result<Vec<Record>, String>,
+        status: ExitStatus,
+    ) -> Result<Vec<Record>, String> {
+        match (records, status.success()) {
+            (Ok(records), true) => Ok(records),
+            (Ok(_), false) => Err(format!(
+                "{} sent a complete stream, then failed with {status}; the run is incomplete",
+                self.name()
+            )),
+            // An exit code means it stopped on its own; a stop from this side has none on Unix.
+            (Err(error), false) if status.code().is_some() => {
+                Err(format!("{error} ({} failed with {status})", self.name()))
+            }
+            (Err(error), _) => Err(error),
+        }
+    }
+
+    /// Runs each analysis in turn. One failing doesn't discard the others or the run.
+    // rstyle-allow(side_effect_density): process boundary: runs the frontend's analyses
+    pub(super) fn run_analyses(
+        &self,
+        names: &[String],
+        source: &Path,
+        directory: &Path,
+    ) -> Vec<FrontendResult> {
+        names
+            .iter()
+            .map(|name| {
+                let analysis = format!("{}:{name}", self.language);
+                match self.run_analysis(name, source, directory) {
+                    Ok(file) => FrontendResult {
+                        analysis,
+                        status: "pending",
+                        file: Some(file),
+                        error: None,
+                    },
+                    Err(error) => FrontendResult {
+                        analysis,
+                        status: "failed",
+                        file: None,
+                        error: Some(error),
+                    },
+                }
+            })
+            .collect()
+    }
+
+    /// A file is published only if the analysis succeeded and wrote valid SARIF. The returned
+    /// path is relative to the run, so reports stay comparable between runs.
+    // rstyle-allow(side_effect_density): process boundary: runs one analysis and publishes its file
+    fn run_analysis(&self, name: &str, source: &Path, directory: &Path) -> Result<PathBuf, String> {
+        let staged = directory.join(format!(".{name}.staged"));
+        let status = self
+            .command(&[
+                "analyze".as_ref(),
+                name.as_ref(),
+                "--source".as_ref(),
+                source.as_os_str(),
+                "--out".as_ref(),
+                staged.as_os_str(),
+            ])
+            .status()
+            .map_err(|error| format!("Cannot run {}: {error}", self.name()))?;
+
+        let result = published(status, &staged, &directory.join(format!("{name}.sarif")));
+        let _ = std::fs::remove_file(&staged);
+        result?;
+        Ok(Path::new("frontend").join(format!("{name}.sarif")))
+    }
+
+    /// A frontend's stdout goes to our stderr, so it can't mix with a report on our stdout.
+    fn command(&self, args: &[&OsStr]) -> Command {
+        let mut command = Command::new(&self.program);
+        command
+            .args(args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::from(std::io::stderr()));
+        command
+    }
+}
+
+fn stop_child(child: &Mutex<Child>) {
+    if let Ok(mut child) = child.lock() {
+        let _ = child.kill();
+    }
+}
+
+fn wait(child: Mutex<Child>) -> Result<ExitStatus, String> {
+    child
+        .into_inner()
+        .map_err(|error| error.to_string())?
+        .wait()
+        .map_err(|error| format!("Cannot wait for the frontend: {error}"))
+}
+
+fn published(status: ExitStatus, staged: &Path, file: &Path) -> Result<(), String> {
+    if !status.success() {
+        return Err(format!("the analysis failed with {status}"));
+    }
+
+    let bytes = std::fs::read(staged).map_err(|error| format!("no results file: {error}"))?;
+    let log = serde_json::from_slice(&bytes).map_err(|error| format!("invalid JSON: {error}"))?;
+    sarif::validate(&log)?;
+    std::fs::rename(staged, file).map_err(|error| format!("{}: {error}", file.display()))
+}
+
+// rstyle-allow(side_effect_density): process boundary: asks the frontend what it offers
+fn describe(program: &Path, language: &str) -> Result<Vec<String>, String> {
+    let output = Command::new(program)
+        .arg("describe")
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|error| format!("Cannot run {}: {error}", program.display()))?;
+    if !output.status.success() {
+        return Err(format!(
+            "`{} describe` failed with {}, so it may be too old; update it with `go install {GO_PACKAGE}`:\n{}",
+            program.display(),
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    let description: Description = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("`{} describe`: {error}", program.display()))?;
+    described(description, language)
+        .map_err(|error| format!("`{} describe`: {error}", program.display()))
+}
+
+fn described(description: Description, language: &str) -> Result<Vec<String>, String> {
+    if description.schema != SCHEMA {
+        return Err(format!(
+            "speaks {}, and this rstyle needs {SCHEMA}",
+            description.schema
+        ));
+    }
+    if description.language != language {
+        return Err(format!(
+            "is a {} frontend, not {language}",
+            description.language
+        ));
+    }
+    description
+        .analyses
+        .into_iter()
+        .map(|analysis| match valid_name(&analysis.name) {
+            true => Ok(analysis.name),
+            false => Err(format!("names an invalid analysis `{}`", analysis.name)),
+        })
+        .collect()
+}
+
+// rstyle-allow(side_effect_density): process boundary: finds the frontend, or installs it
+fn locate_go() -> Result<PathBuf, String> {
+    if let Some(path) = std::env::var_os("RSTYLE_GO") {
+        let path = PathBuf::from(path);
+        return match path.is_file() {
+            true => Ok(path),
+            false => Err(format!(
+                "RSTYLE_GO names {}, which isn't a file",
+                path.display()
+            )),
+        };
+    }
+    if let Some(found) = installed_go() {
+        return Ok(found);
+    }
+    install_go()?;
+    installed_go().ok_or_else(|| {
+        format!("`go install {GO_PACKAGE}` succeeded, but rstyle-go isn't in Go's bin directory or on PATH")
+    })
+}
+
+fn installed_go() -> Option<PathBuf> {
+    let name = format!("rstyle-go{}", std::env::consts::EXE_SUFFIX);
+    go_bin_directories()
+        .into_iter()
+        .map(|directory| directory.join(&name))
+        .find(|path| path.is_file())
+        .or_else(|| on_path(&name))
+}
+
+fn on_path(name: &str) -> Option<PathBuf> {
+    std::env::split_paths(&std::env::var_os("PATH")?)
+        .map(|directory| directory.join(name))
+        .find(|path| path.is_file())
+}
+
+/// Where `go install` puts binaries, by asking Go, or its documented default without it.
+fn go_bin_directories() -> Vec<PathBuf> {
+    match go_environment() {
+        Some(directories) => directories,
+        None => home_directory()
+            .map(|home| home.join("go/bin"))
+            .into_iter()
+            .collect(),
+    }
+}
+
+fn go_environment() -> Option<Vec<PathBuf>> {
+    let output = Command::new("go")
+        .args(["env", "GOBIN", "GOPATH"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let text = String::from_utf8(output.stdout).ok()?;
+    let mut lines = text.lines();
+    let bin = lines
+        .next()
+        .filter(|line| !line.is_empty())
+        .map(PathBuf::from);
+    let paths = lines.next().unwrap_or_default();
+    let from_path = std::env::split_paths(OsStr::new(paths))
+        .filter(|path| !path.as_os_str().is_empty())
+        .map(|path| path.join("bin"));
+    Some(bin.into_iter().chain(from_path).collect())
+}
+
+fn home_directory() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+}
+
+// rstyle-allow(side_effect_density): process boundary: runs `go install`
+fn install_go() -> Result<(), String> {
+    eprintln!("rstyle: rstyle-go not found; running `go install {GO_PACKAGE}`");
+    let status = Command::new("go")
+        .args(["install", GO_PACKAGE])
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(std::io::stderr()))
+        .status()
+        .map_err(|error| {
+            format!("rstyle-go isn't installed, and installing it needs Go on PATH: {error}")
+        })?;
+    match status.success() {
+        true => Ok(()),
+        false => Err(format!(
+            "`go install {GO_PACKAGE}` failed with {status}. While rstyle-go is private, set \
+             GOPRIVATE=github.com/rstyled, or point RSTYLE_GO at a local build"
+        )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn description(schema: &str, language: &str, analyses: &[&str]) -> Description {
+        Description {
+            schema: schema.into(),
+            language: language.into(),
+            analyses: analyses
+                .iter()
+                .map(|name| Described {
+                    name: (*name).into(),
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn a_description_lists_the_analyses_on_offer() {
+        let analyses = described(description(SCHEMA, "go", &["calls"]), "go").unwrap();
+        assert_eq!(analyses, ["calls"]);
+    }
+
+    #[test]
+    fn a_stale_or_wrong_frontend_says_why() {
+        let stale = described(
+            description("rstyle.frontend-description/0", "go", &[]),
+            "go",
+        );
+        assert!(stale.unwrap_err().contains("this rstyle needs"));
+        let wrong = described(description(SCHEMA, "rust", &[]), "go");
+        assert!(wrong.unwrap_err().contains("is a rust frontend"));
+    }
+
+    #[test]
+    fn an_analysis_name_cannot_climb_out_of_its_folder() {
+        let error = described(description(SCHEMA, "go", &["../x"]), "go").unwrap_err();
+        assert!(error.contains("invalid analysis"), "{error}");
+    }
+}

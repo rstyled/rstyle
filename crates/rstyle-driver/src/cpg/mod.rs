@@ -27,7 +27,12 @@ pub const ROOT_ENV: &str = "RSTYLE_CPG_ROOT";
 
 /// Writes the crate's documents into `dir`: every function the compiler holds, a macro's
 /// included, as a capture records them. What a consumer reads of them is core's to decide.
+/// As in a capture, a build script itself gets none: it runs to build the workspace and isn't
+/// part of what the workspace compiles, though what it writes is.
 pub fn emit(tcx: TyCtxt<'_>, root: &Path, dir: &Path) -> Result<(), String> {
+    if tcx.crate_name(LOCAL_CRATE).as_str() == "build_script_build" {
+        return Ok(());
+    }
     let name = unit_name(tcx);
     let encoding = rstyle_core::cpg::transport::Encoding::from_environment()?;
     let documents = documents_in(tcx, (root, None), None);

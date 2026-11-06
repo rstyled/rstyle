@@ -165,6 +165,15 @@ Reviewed and rejected candidates: every candidate has an `id`. Only when the use
 
 Defaults (WL similarity 600, alignment coverage 600, 3 holes max for `parameterize`) are the evaluated setting. Opt-in experiments, not recommended unless asked: `--normalize all|ctor,pred,case,exit,counter,cmp,try` (canonicalize graphs; on CodeNet it removes about one unmatched node per pair and did not change what gets flagged, `case` does nearly all the work), `--pair-coverage N`, `--max-holes N`, `--single-call-guard`, `--threshold N`, `--min-coverage N` (more recall of strangers' spellings at the price of more false positives; `--pair-coverage 650 --max-holes 4` on CodeNet: about 20 extra cross-problem flags per 350k pairs).
 
+## Any language (`rstyle go`, `rstyle rust`)
+
+`rstyle go` and `rstyle rust` find the frontend, run it and analyze what it produces. `--check`,
+`--patterns` or `--filter check,patterns,bounds,flow` select analyses; the default is everything.
+Each run is saved whole, in `.rstyle/runs/` for Go and `target/rstyle/runs/` for Rust, with
+`report.json.zst`, `check.sarif` and `patterns.sarif`. `--format json` prints plain JSON with `run`
+naming that folder. `--from DIR` reads a saved run back. Exit 0 is clean, 1 is findings, and 2 is a
+tool error. `RSTYLE_GO` points at a local `rstyle-go`.
+
 ## Other languages (`cpg`)
 
 `cargo rstyle cpg check DOC.json [MORE.json ...] [--config rstyle.toml] [--format json]`
@@ -177,6 +186,9 @@ statement counts, complexity, calls, edges, effects, mutations, dependence graph
 runtime-bound programs from the documents; no compiler runs and only an explicit
 `--config` applies. Exit codes are as for the default command; invalid or mismatched
 documents, or a function read twice, return 2.
+`cargo rstyle cpg analyze DOC.json [MORE.json ...] [--filter check,patterns,bounds,flow] [--sarif-dir DIR]`
+runs them in one pass.
+
 `cargo rstyle cpg emit --out DIR` writes such documents for a Rust workspace.
 
 `cargo rstyle cpg flow DOC.json [MORE.json ...] [--function NAME] --format json` reports,
