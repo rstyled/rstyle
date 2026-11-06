@@ -27,11 +27,16 @@ pub(super) fn load_capture(directory: &Path, args: &Args) -> Result<capture::Cap
     {
         return Err("Saved-run replay uses its original build options".into());
     }
-    let directory = &directory
-        .canonicalize()
-        .map_err(|error| error.to_string())?;
+    let directory = &directory.canonicalize().map_err(|error| {
+        format!(
+            "Cannot read saved run {}: {error}. Only a workspace's latest runs are kept; set {} to keep more",
+            directory.display(),
+            capture::LIMIT_VARIABLE
+        )
+    })?;
     let plan: capture::Plan = read_json(&directory.join("plan.json"))?;
     check_replay_capabilities(&plan, args)?;
+    capture::hold(directory)?;
     if plan.dependency_units.is_empty() || plan.compiler_advisory_only {
         return capture::load_saved(directory, plan);
     }
@@ -64,7 +69,8 @@ pub(super) fn load_capture(directory: &Path, args: &Args) -> Result<capture::Cap
 }
 
 fn check_replay_capabilities(plan: &capture::Plan, args: &Args) -> Result<(), String> {
-    if args.compiler_runtime_bounds && !plan.compiler_runtime_bounds {
+    // Documents hold what every derivation needs; other captures hold what they asked for.
+    if args.compiler_runtime_bounds && !plan.compiler_runtime_bounds && !plan.style_inputs_only {
         return Err("Saved run is missing compiler runtime-bound capture capability".into());
     }
     if plan.extraction_profile != args.extraction_profile {

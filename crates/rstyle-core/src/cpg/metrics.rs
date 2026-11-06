@@ -86,12 +86,14 @@ impl Constructs<'_> {
     }
 
     fn visit(&self, node: &Node) -> Result<Vec<Construct>, String> {
-        // Macro-expanded code is not the developer's; a desugared node is looked
-        // through, so only the source constructs below it count.
-        match node.provenance.origin {
-            Origin::MacroExpansion => return Ok(vec![]),
-            Origin::Desugaring => return self.within(node),
-            _ => {}
+        // Macro-expanded and desugared nodes are not the developer's, so they are looked
+        // through: the source constructs below them count, as code passed to a macro or
+        // wrapped by one is written like any other.
+        if matches!(
+            node.provenance.origin,
+            Origin::MacroExpansion | Origin::Desugaring
+        ) {
+            return self.within(node);
         }
         let span = || own_span(node);
         match node.kind {
@@ -214,7 +216,7 @@ impl Constructs<'_> {
     /// One sequence for a chain of `and` and `or`, each operator at its token.
     fn boolean_parts(&self, node: &Node) -> Result<Vec<Construct>, String> {
         if node.provenance.origin == Origin::MacroExpansion {
-            return Ok(vec![]);
+            return self.within(node);
         }
         let Some(kind) = logical(node) else {
             return self.visit(node);

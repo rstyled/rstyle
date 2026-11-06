@@ -37,6 +37,26 @@ pub(crate) fn document_path(tcx: TyCtxt<'_>, file: &SourceFile, root: &Path) -> 
     Some(parts.join("/"))
 }
 
+/// Whether a build script wrote a file: it lies in the output directory Cargo gives one.
+pub(crate) fn build_output(tcx: TyCtxt<'_>, file: &SourceFile) -> bool {
+    let FileName::Real(real) = &file.name else {
+        return false;
+    };
+    let Some(output) = std::env::var_os("OUT_DIR") else {
+        return false;
+    };
+    let absolute = real
+        .local_path()
+        .zip(tcx.sess.source_map().working_dir().local_path())
+        .map(|(path, directory)| directory.join(path));
+    let normalized = |path: &Path| rstyle_pdg::nominal_binding::absolute_path(path).ok();
+
+    absolute
+        .and_then(|path| normalized(&path))
+        .zip(normalized(Path::new(&output)))
+        .is_some_and(|(path, output)| path.starts_with(output))
+}
+
 pub(crate) fn source_path(tcx: TyCtxt<'_>, file: &SourceFile, root: &Path) -> Option<String> {
     let FileName::Real(real) = &file.name else {
         return None;

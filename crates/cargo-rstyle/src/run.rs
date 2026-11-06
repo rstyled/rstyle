@@ -63,12 +63,13 @@ fn control_environment(key: &OsStr) -> bool {
                 "RSTYLE_CAPTURE_PLAN"
                     | "RSTYLE_COMPILER_ADVISORY"
                     | "RSTYLE_COMPILER_ADVISORY_ONLY"
-                    | "RSTYLE_STYLE_INPUTS_ONLY"
+                    | "RSTYLE_DOCUMENTS_ONLY"
                     | "RSTYLE_COMPILER_PATTERNS"
                     | "RSTYLE_COMPILER_RUNTIME_BOUNDS"
                     | "RSTYLE_COMPILER_SOURCE_ROOT"
                     | "RSTYLE_CPG_DIR"
                     | "RSTYLE_CPG_ROOT"
+                    | "RSTYLE_CPG_COMPRESSION"
                     | "RSTYLE_DRIVER"
                     | "RSTYLE_HIR_DOCUMENT_DIR"
                     | "RSTYLE_HIR_FACTS_FILE"
@@ -115,7 +116,7 @@ mod tests {
             "RSTYLE_CAPTURE_PLAN",
             "RSTYLE_HIR_FACTS_FILE",
             "RSTYLE_COMPILER_ADVISORY_ONLY",
-            "RSTYLE_STYLE_INPUTS_ONLY",
+            "RSTYLE_DOCUMENTS_ONLY",
             "RSTYLE_COMPILER_RUNTIME_BOUNDS",
             "RSTYLE_DIAGNOSTIC_CAPTURE_ONLY",
         ] {

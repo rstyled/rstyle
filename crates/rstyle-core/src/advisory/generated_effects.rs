@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 pub const KEY: &str = "rstyle.compiler-generated-effects/1";
 pub const CONNECTED_KEY: &str = "rstyle.compiler-generated-effects/2";
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Connections {
     pub id: String,
@@ -14,7 +14,7 @@ pub struct Connections {
 }
 
 /// Raw collector events and optional connections; no authored size or purity claim.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Observation {
     pub metrics: String,
@@ -26,6 +26,10 @@ pub struct Observation {
     pub intrinsic_effects: Vec<EffectEvent>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub connections: Option<Connections>,
+    /// The build wrote the file it is in, so path exclusions, which select original
+    /// source, do not apply to it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub generated_file: bool,
 }
 
 impl Observation {

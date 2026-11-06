@@ -54,12 +54,92 @@ pub fn bundle(mut documents: Vec<Value>) -> Result<Document, String> {
     Ok(document)
 }
 
+/// One bundled document, read from the bytes its frontend wrote.
+pub fn read(bytes: &[u8]) -> Result<Document, String> {
+    let document: Document = serde_json::from_slice(bytes)
+        .map_err(|error| format!("Invalid compat.cpg document: {error}"))?;
+    identity(&document)?;
+    Ok(document)
+}
+
+/// Every bundled unit document of a run: its bundled documents, and each split unit
+/// document merged with the function documents that name it.
+pub fn units(documents: Vec<Value>) -> Result<Vec<Document>, String> {
+    let (bundled, split): (Vec<_>, Vec<_>) = documents
+        .into_iter()
+        .partition(|document| document["layout"].as_str() == Some("bundled"));
+    let single = bundled.into_iter().map(|document| bundle(vec![document]));
+    let merged = split_runs(split).into_iter().map(bundle);
+    let units = single.chain(merged).collect::<Result<Vec<_>, _>>()?;
+    distinct(&units)?;
+
+    Ok(units)
+}
+
+/// A run may read one unit from several documents, as a frontend batches a large one,
+/// but a function read twice would count twice.
+fn distinct(units: &[Document]) -> Result<(), String> {
+    let mut seen = FunctionIds::default();
+    for unit in units {
+        seen.include(unit)?;
+    }
+    Ok(())
+}
+
+#[derive(Default)]
+pub(super) struct FunctionIds(
+    std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
+);
+
+impl FunctionIds {
+    pub(super) fn include(&mut self, document: &Document) -> Result<(), String> {
+        let unit = document.unit.as_ref().ok_or("The document has no unit")?;
+        let seen = self.0.entry(unit.id.clone()).or_default();
+
+        for function in unit.functions.iter().flatten() {
+            if !seen.insert(function.id.clone()) {
+                return Err(format!(
+                    "Function {} of unit {} appears more than once in a run",
+                    function.id, unit.id
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Split documents by the unit document each belongs to, so that each set merges alone;
+/// a function document naming none stays with the first set, which rejects it.
+pub(super) fn split_runs(documents: Vec<Value>) -> Vec<Vec<Value>> {
+    let (units, functions): (Vec<_>, Vec<_>) = documents
+        .into_iter()
+        .partition(|document| document["document"].as_str() == Some("unit"));
+    let references: Vec<Value> = units.iter().map(reference).collect();
+    let mut runs: Vec<Vec<Value>> = units.into_iter().map(|unit| vec![unit]).collect();
+    if runs.is_empty() && !functions.is_empty() {
+        runs.push(Vec::new());
+    }
+    for function in functions {
+        let owner = references
+            .iter()
+            .position(|reference| function["unit_ref"] == *reference)
+            .unwrap_or(0);
+        runs[owner].push(function);
+    }
+
+    runs
+}
+
+fn reference(unit: &Value) -> Value {
+    serde_json::json!({ "id": unit["unit"]["id"], "digest": digest(unit) })
+}
+
 fn merge(documents: Vec<Value>) -> Result<Value, String> {
     if documents
         .iter()
         .any(|document| document["layout"].as_str() != Some("split"))
     {
-        return Err("A run is one bundled document or a set of split documents".into());
+        return Err("Every document of a run must be bundled or split".into());
     }
     let (units, functions): (Vec<_>, Vec<_>) = documents
         .into_iter()
@@ -70,7 +150,7 @@ fn merge(documents: Vec<Value>) -> Result<Value, String> {
             units.len()
         )
     })?;
-    let unit_ref = serde_json::json!({ "id": unit["unit"]["id"], "digest": digest(&unit) });
+    let unit_ref = reference(&unit);
 
     let bodies = functions
         .into_iter()
@@ -108,7 +188,7 @@ fn paired(mut function: Value, unit: &Value, unit_ref: &Value) -> Result<Value, 
     body.ok_or_else(|| format!("Function document {name} has no function"))
 }
 
-fn identity(document: &Document) -> Result<(), String> {
+pub fn identity(document: &Document) -> Result<(), String> {
     let profile = &document.profile;
     if document.schema_version != VERSION || profile.id != PROFILE || profile.version != VERSION {
         return Err(format!(

@@ -9,51 +9,32 @@ pub(crate) mod sysroot;
 mod unit;
 
 use rstyle_pdg::nominal_binding::PackageContext;
-use rustc_hir::def::DefKind;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::LOCAL_CRATE;
 use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Directory the documents are written to; setting it selects this mode.
 pub const DIR_ENV: &str = "RSTYLE_CPG_DIR";
 /// Workspace root that file paths are relative to.
 pub const ROOT_ENV: &str = "RSTYLE_CPG_ROOT";
 
+/// Writes the crate's documents into `dir`: every function the compiler holds, a macro's
+/// included, as a capture records them. What a consumer reads of them is core's to decide.
 pub fn emit(tcx: TyCtxt<'_>, root: &Path, dir: &Path) -> Result<(), String> {
-    let mut unit = unit::Unit::new(tcx, root.to_path_buf());
-    let functions = crate::hir_extraction::function_owners(tcx)
-        .filter(|&id| emitted(tcx, id, root))
-        .map(|id| function(&mut unit, id))
-        .collect::<Result<Vec<_>, String>>()?;
-    if functions.is_empty() {
-        return Ok(());
-    }
-
     let name = unit_name(tcx);
-    unit.record_local_files();
-    let document = document(tcx, (unit, true), functions, &name);
-    write(&dir.join(format!("{name}.cpg.json")), &document)
-}
+    let encoding = rstyle_core::cpg::transport::Encoding::from_environment()?;
+    let documents = documents_in(tcx, (root, None), Capture::default());
 
-/// A function written in a workspace source file, with a body: what an emit records.
-fn emitted(tcx: TyCtxt<'_>, id: LocalDefId, root: &Path) -> bool {
-    if !matches!(tcx.def_kind(id), DefKind::Fn | DefKind::AssocFn) {
-        return false;
+    for (index, (document, unrecorded)) in documents.enumerate() {
+        if let Some((id, reason)) = unrecorded.first() {
+            return Err(format!("{}: {reason}", tcx.def_path_str(id.to_def_id())));
+        }
+        let path = dir.join(format!("{name}.{index:06}{}", encoding.suffix()));
+        rstyle_core::cpg::transport::write_json(&path, encoding, &document)?;
     }
-    let node = tcx.hir_node_by_def_id(id);
-    let (Some(sig), Some(body)) = (node.fn_sig(), node.body_id()) else {
-        return false;
-    };
-    let source_map = tcx.sess.source_map();
-    let file = source_map.lookup_char_pos(sig.span.lo()).file;
-
-    !sig.span.from_expansion()
-        && crate::paths::source_path(tcx, &file, root).is_some()
-        && source_map
-            .span_to_snippet(sig.span.to(tcx.hir_body(body).value.span))
-            .is_ok()
+    Ok(())
 }
 
 /// A frontend's own observations of a function, recorded as its extensions.
@@ -187,11 +168,6 @@ fn unit_name(tcx: TyCtxt<'_>) -> String {
     )
 }
 
-fn write(path: &PathBuf, value: &Value) -> Result<(), String> {
-    let bytes = serde_json::to_vec(value).map_err(|error| error.to_string())?;
-    std::fs::write(path, bytes).map_err(|error| format!("{}: {error}", path.display()))
-}
-
 /// The compiler's version, without the tool's name `rustc --version` begins with.
 fn toolchain_version() -> &'static str {
     let version = env!("RSTYLE_RUSTC_VERSION");
@@ -297,6 +273,7 @@ fn function(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Result<Value, String> 
     signature["span"] = signature_span;
 
     let root = builder.expr(body.value).ok_or_else(missing)?;
+    let span = written_span(span, &signature["span"], (sig, body), &builder.nodes);
     let places = places::places(tcx, id, &mut builder);
     let implements = tcx
         .opt_associated_item(id.to_def_id())
@@ -316,6 +293,34 @@ fn function(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Result<Value, String> 
     Ok(function)
 }
 
+/// Where a function is written. A macro that wraps a function keeps its author's signature
+/// and body under its own root, whose span is the macro's: the function then runs from
+/// its signature to the last code its author wrote.
+fn written_span(
+    span: Value,
+    signature: &Value,
+    (sig, body): (&rustc_hir::FnSig<'_>, &rustc_hir::Body<'_>),
+    nodes: &[Value],
+) -> Value {
+    if sig.span.from_expansion() || !body.value.span.from_expansion() {
+        return span;
+    }
+    let authored = nodes
+        .iter()
+        .filter(|node| node["provenance"]["origin"] == "source" && node.get("synthetic").is_none())
+        .map(|node| &node["span"])
+        .filter(|written| {
+            written["file"] == signature["file"]
+                && written["start"].as_u64() >= signature["start"].as_u64()
+        })
+        .filter_map(|written| written["end"].as_u64());
+    let end = authored.chain(signature["end"].as_u64()).max();
+
+    let mut written = signature.clone();
+    written["end"] = json!(end);
+    written
+}
+
 // rstyle-allow(mutated_targets, mutation_per_target): assembles one document from the builder that accumulates it
 /// Parameters in order, the receiver apart, with their symbols and types.
 fn signature<'tcx>(
@@ -332,6 +337,9 @@ fn signature<'tcx>(
                                "generics": generics(builder.unit, id), "lifetimes": lifetimes(builder.unit, id),
                                "constants": constants(builder.unit, id),
                                "outlives": [], "modifiers": fn_modifiers(sig.header)});
+    if let Some(provenance) = declared_provenance(builder, sig.span) {
+        signature["provenance"] = provenance;
+    }
     result(builder.unit, sig, &mut signature);
     if let Some(receiver) = receiver {
         signature["receiver"] = receiver;

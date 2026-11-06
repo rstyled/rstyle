@@ -3,10 +3,9 @@ mod bundle;
 pub use bundle::BUNDLE_SCHEMA;
 pub use bundle::{
     ProductConstructorReplay, RAW_FACTS_SCHEMA, ReferenceConstructorReplay,
-    ReferenceForwarderReplay, STYLE_FACTS_SCHEMA, ScalarInstanceReplay, read_diagnostic_snapshot,
+    ReferenceForwarderReplay, ScalarInstanceReplay, read_diagnostic_snapshot,
     read_diagnostic_snapshot_headers_phase, read_diagnostic_snapshot_phase,
-    read_style_snapshot_phase, write_diagnostic_snapshot, write_sealed_diagnostic_snapshot,
-    write_sealed_style_snapshot,
+    write_diagnostic_snapshot, write_sealed_diagnostic_snapshot,
 };
 mod dependency_closure;
 mod dependency_namespaces;
@@ -25,7 +24,10 @@ pub use dependency_closure::DependencyClosure;
 mod manifest;
 mod namespace;
 mod source_analysis;
-pub use manifest::{BundleManifest, VerifiedBundle, transport_checksum};
+pub use manifest::{
+    BundleManifest, DOCUMENTS_MANIFEST, DocumentManifest, SealedDocument, VerifiedBundle,
+    transport_checksum,
+};
 pub use namespace::UnitNamespace;
 pub use source_analysis::{SourceAnalyses, SourceAnalysis};
 

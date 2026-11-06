@@ -41,6 +41,13 @@ impl<'a> Row<'a> {
             Owner::Generated(facts) => facts.path(),
         }
     }
+    /// Path exclusions select original source, which the build's own output is not.
+    pub fn generated_file(&self) -> bool {
+        match self.owner {
+            Owner::Authored(_) => false,
+            Owner::Generated(facts) => facts.generated_file(),
+        }
+    }
     pub fn authored(&self) -> Option<&'a FnFacts> {
         match self.owner {
             Owner::Authored(facts) => Some(facts),

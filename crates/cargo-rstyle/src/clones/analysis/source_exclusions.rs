@@ -32,14 +32,7 @@ pub(super) fn evaluate_source(
     if let Some(reason) = unavailable_source(source) {
         return Report::Unavailable { reason };
     }
-    let path = function
-        .facts
-        .view()
-        .build
-        .frontend_options
-        .get("source_file")
-        .and_then(serde_json::Value::as_str);
-    match path {
+    match function.facts.view().source_file {
         Some(path) => report_for_path(path, root, matcher),
         None => Report::Unavailable {
             reason: "Original source path was not captured".into(),

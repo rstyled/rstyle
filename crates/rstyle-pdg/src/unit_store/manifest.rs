@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use xxhash_rust::xxh3::{Xxh3, xxh3_64};
 
 const SCHEMA: &str = "rstyle.shared-unit.manifest/2";
+pub use rstyle_core::cpg::transport::{DOCUMENTS_MANIFEST, DocumentManifest, SealedDocument};
 
 /// Nonadversarial byte-consistency checksum, never evidence authorization.
 pub fn transport_checksum(bytes: &[u8]) -> String {

@@ -404,6 +404,8 @@ pub struct Function {
 #[serde(deny_unknown_fields)]
 pub struct Signature {
     pub span: FileSpan,
+    /// Who wrote it, when a macro expansion or a desugaring does.
+    pub provenance: Option<Provenance>,
     pub parameters: Vec<Parameter>,
     pub receiver: Option<Receiver>,
     pub result: Id,

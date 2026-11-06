@@ -270,7 +270,7 @@ impl Resolver<'_, '_> {
             .as_ref()
             .map_err(Clone::clone)?;
         let identity =
-            local_adapter::Identity::new(original.build, self.captured, &self.ctx.capture.plan)?;
+            local_adapter::Identity::viewed(&original, self.captured, &self.ctx.capture.plan)?;
         let kind = if facts.sig.is_some() {
             "compiler-method"
         } else {

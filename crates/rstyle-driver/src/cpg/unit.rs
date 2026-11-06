@@ -145,8 +145,12 @@ impl<'tcx> Unit<'tcx> {
                 .iter()
                 .map(|b| format!("{b:02x}"))
                 .collect();
-            let record = json!({"id": id, "path": path, "digest": format!("sha256:{digest}"),
-                                "origin": "source", "content": content});
+            let mut record = json!({"id": id, "path": path, "digest": format!("sha256:{digest}"),
+                                    "origin": "source", "content": content});
+            if crate::paths::build_output(self.tcx, &lo.sf) {
+                record["origin"] = json!("generated");
+                record["generated_by"] = json!("build script");
+            }
             self.files.insert(id.clone(), record);
             if let FileName::Real(real) = &lo.sf.name
                 && let Some(local) = real.local_path()
@@ -165,6 +169,27 @@ impl<'tcx> Unit<'tcx> {
 
     /// `span` without parentheses that enclose all of it, and the whitespace inside them,
     /// with how many pairs enclosed it.
+    /// The text a recorded span covers.
+    pub fn text(&self, span: &Value) -> Option<&str> {
+        let content = self.files.get(span["file"].as_str()?)?["content"].as_str()?;
+        let start = usize::try_from(span["start"].as_u64()?).ok()?;
+        let end = usize::try_from(span["end"].as_u64()?).ok()?;
+
+        content.get(start..end)
+    }
+
+    /// A binding's name as it is written, so that a raw identifier keeps its `r#`.
+    pub fn written_name(&mut self, ident: rustc_span::Ident) -> String {
+        let written = self.span(ident.span);
+        let name = ident.name.as_str();
+        written
+            .as_ref()
+            .and_then(|span| self.text(span))
+            .filter(|text| text.strip_prefix("r#") == Some(name))
+            .unwrap_or(name)
+            .to_owned()
+    }
+
     pub fn without_parentheses(&self, mut span: Value) -> (Value, usize) {
         let Some(content) = self
             .files

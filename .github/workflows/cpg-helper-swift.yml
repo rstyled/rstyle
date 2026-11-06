@@ -1,0 +1,14 @@
+name: CPG helper Swift adapter
+on:
+  pull_request:
+    paths:
+      - 'examples/cpg-helper/swift/**'
+      - '.github/workflows/cpg-helper-swift.yml'
+jobs:
+  typecheck:
+    permissions:
+      contents: read
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: swiftc -typecheck examples/cpg-helper/swift/Capture.swift

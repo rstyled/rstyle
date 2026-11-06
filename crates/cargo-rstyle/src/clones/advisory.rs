@@ -8,7 +8,7 @@ mod planning;
 pub(super) mod propagation;
 mod ranking;
 mod repository_session;
-mod runtime_bounds;
+pub(super) mod runtime_bounds;
 mod selection;
 mod source_scope;
 pub(super) mod style;
@@ -425,7 +425,7 @@ pub(super) fn evaluate(
             .sum(),
         limitations: &[
             "Advisory compiler observations and existing core policy; no strict clone or purity authority.",
-            "Core effect propagation follows unique captured direct Cargo dependencies; missing or ambiguous units remain unresolved.",
+            "Core effect propagation follows unique captured Cargo dependencies, direct or through another crate; missing or ambiguous units remain unresolved.",
             "Missing functions make requested coverage incomplete; unresolved workspace callees keep requested numeric and effect coverage incomplete, independently of complexity ranking. No zero facts are substituted.",
             "Core metrics count mutable borrows and use bounded effect propagation; they differ from strict mutation-effect metrics.",
             "Compiler patterns use approximate advisory graphs and bounded core discovery; input completeness is not exhaustive proposal coverage or refactoring safety.",
@@ -715,12 +715,7 @@ impl Collected {
         if (ctx.args.compiler_pattern_scope == super::CompilerSourceScope::Authored
             || ctx.args.compiler_complexity_scope == super::CompilerSourceScope::Authored
             || ctx.args.compiler_diagnostic_scope == super::CompilerSourceScope::Authored)
-            && function
-                .facts
-                .view()
-                .source_diagnostics
-                .iter()
-                .any(|finding| finding.construct == "macro_generated_function")
+            && function.facts.view().generated
         {
             self.generated_functions.push(function.key);
         }
@@ -946,23 +941,25 @@ impl Unit {
 }
 
 fn observation(function: &super::Function, root: &std::path::Path) -> Result<Observation, String> {
-    let Some(raw) = function.facts.view().build.frontend_options.get(KEY) else {
+    if let Some(document) = function.facts.document() {
+        return document_observation(function, document, root);
+    }
+    let Some(raw) = function.facts.recorded(KEY) else {
         return Ok(Observation::Unavailable {
             reason: "Compiler advisory observations were not captured".into(),
         });
     };
+
     let mut observation = Observation::read(raw)?;
     if let Observation::Known { facts, metrics } = &mut observation {
-        if facts.name != function.facts.view().name
-            || facts.source != function.facts.view().source.bytes.as_str()
+        if facts.name != function.facts.view().name || facts.source != function.facts.view().source
         {
             return Err(
                 "Compiler advisory metrics or source owner disagree with captured function".into(),
             );
         }
         facts.path = source_path(function, root, normalized_source_paths(metrics))?;
-        if facts.params + usize::from(facts.has_self)
-            != function.facts.view().signature.params.len()
+        if facts.params + usize::from(facts.has_self) != function.facts.view().parameters
             || facts.param_list.len() != facts.params
             || facts.pdg.is_some()
         {
@@ -972,6 +969,32 @@ fn observation(function: &super::Function, root: &std::path::Path) -> Result<Obs
         }
     }
     Ok(observation)
+}
+
+/// A function's observation as its document records it; the core derived it, so it
+/// cannot disagree with the function it came from.
+fn document_observation(
+    function: &super::Function,
+    document: &super::documents::DocumentFunction,
+    root: &std::path::Path,
+) -> Result<Observation, String> {
+    use rstyle_core::cpg::records::{Measured, UNMEASURED};
+    match &document.record.measured {
+        Measured::Known(facts) => {
+            let mut facts = facts.clone();
+            facts.path = source_path(function, root, normalized_source_paths(METRICS))?;
+            Ok(Observation::Known {
+                metrics: METRICS.into(),
+                facts,
+            })
+        }
+        Measured::Unavailable(reason) => Ok(Observation::Unavailable {
+            reason: reason.clone(),
+        }),
+        Measured::Generated(_) => Ok(Observation::Unavailable {
+            reason: UNMEASURED.into(),
+        }),
+    }
 }
 
 fn measurement(key: super::FunctionKey, facts: &FnFacts) -> Measurement {
@@ -1019,13 +1042,9 @@ fn source_path(
     root: &std::path::Path,
     normalize: bool,
 ) -> Result<String, String> {
-    let source = function
-        .facts
-        .view()
-        .build
-        .frontend_options
-        .get("source_file")
-        .and_then(serde_json::Value::as_str)
+    let view = function.facts.view();
+    let source = view
+        .source_file
         .ok_or("Missing compiler advisory source location")?;
     let original = std::path::Path::new(source);
     let normalized = normalize

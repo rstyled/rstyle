@@ -53,6 +53,9 @@ pub fn read(
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let mut reader = Reader::new((unit, &document.producer), (profile, passes))?;
     reader.advisory = advisory::derive(document)?;
+    if reader.advisory.is_some() {
+        reader.sources = Some(rstyle_core::cpg::source::Sources::new(unit)?);
+    }
     let functions = unit.functions.as_deref().unwrap_or_default();
 
     Ok(functions
@@ -72,6 +75,8 @@ struct Reader<'a> {
     snapshots: std::cell::RefCell<BTreeMap<&'a str, SourceSnapshot>>,
     /// Each function's core facts, when the advisory run records them.
     advisory: Option<Vec<rstyle_core::facts::FnFacts>>,
+    /// The unit's source text, where those facts are read.
+    sources: Option<rstyle_core::cpg::source::Sources<'a>>,
 }
 
 impl<'a> Reader<'a> {
@@ -88,6 +93,7 @@ impl<'a> Reader<'a> {
             unit,
             producer,
             advisory: None,
+            sources: None,
             snapshots: Default::default(),
             tables: Tables::new(unit)?,
             files,
@@ -207,13 +213,7 @@ impl<'a> Reader<'a> {
 
     /// A file's absolute path, as the capture session records it.
     fn session_file(&self, file: &str) -> Option<&'a str> {
-        self.unit
-            .extensions
-            .as_ref()?
-            .get("rust:compiler-session")?
-            .get("files")?
-            .get(file)?
-            .as_str()
+        session_path(self.unit, file)
     }
 
     /// Whether a type is the integer type `spelling` names.
@@ -294,22 +294,56 @@ impl<'a> Reader<'a> {
     /// A type as the driver records it: the scalar token, its observed spelling and
     /// the source spelling of an annotation.
     fn resolved(&self, id: &str, spelling: String) -> Result<ResolvedTy, String> {
-        let ty = self.ty(id)?;
-        let normalized = match ty.kind {
-            TypeKind::Integer | TypeKind::Bool | TypeKind::Char => Some(ty.spelling.clone()),
-            TypeKind::Float if matches!(ty.bits, Some(32 | 64)) => Some(ty.spelling.clone()),
-            TypeKind::Unit => Some("unit".to_owned()),
-            _ => None,
-        };
+        let declared = rstyle_core::cpg::records::declared_type(self.ty(id)?, spelling);
         Ok(ResolvedTy {
-            normalized,
-            observed: ty.spelling.clone(),
-            spelling,
+            normalized: declared.normalized,
+            observed: declared.observed,
+            spelling: declared.spelling,
         })
     }
 }
 
 mod build;
+
+/// The build settings a document records of its unit, with the options its capture
+/// session selects; a function's own observations are not among them.
+pub fn unit_build(document: &Document) -> Result<crate::frontend::BuildFacts, String> {
+    let unit = document.unit.as_ref().ok_or("The document has no unit")?;
+    let mut facts = build::facts(unit, &document.producer);
+    let session = unit
+        .extensions
+        .as_ref()
+        .and_then(|extensions| extensions.get("rust:compiler-session"));
+    build::session_options(unit, session, &mut facts.frontend_options);
+
+    Ok(facts)
+}
+
+/// Whether a macro writes a function's signature, as its source scan records.
+pub fn generated_signature(function: &Function) -> bool {
+    let scan = function
+        .extensions
+        .as_ref()
+        .and_then(|extensions| extensions.get(findings::EXTENSION));
+    let findings = scan
+        .and_then(|scan| scan.get("findings"))
+        .and_then(serde_json::Value::as_array);
+    findings.is_some_and(|findings| {
+        findings
+            .iter()
+            .any(|finding| finding["construct"] == "macro_generated_function")
+    })
+}
+
+/// The absolute path a unit's capture session records of a file.
+pub fn session_path<'u>(unit: &'u Unit, file: &str) -> Option<&'u str> {
+    let extensions = unit.extensions.as_ref()?;
+    extensions
+        .get("rust:compiler-session")?
+        .get("files")?
+        .get(file)?
+        .as_str()
+}
 
 /// A signature parameter's records, the receiver included.
 struct Parameter<'p> {
@@ -337,9 +371,7 @@ impl<'a> Context<'_, 'a> {
     // rstyle-allow(mutation_per_target): each pass installs its own records on the facts in turn
     /// The frontend's passes after its walk, in its order.
     fn after_walk(&self, mut facts: HirFnFacts, passes: Passes) -> Result<HirFnFacts, String> {
-        if passes != Passes::Style {
-            self.concrete_types(&mut facts, passes)?;
-        }
+        self.concrete_types(&mut facts, passes)?;
         self.reader.advisory(self.body.function, &mut facts)?;
         if passes == Passes::Complete {
             self.inherent_definition(&mut facts)?;
@@ -681,17 +713,7 @@ fn identity<'d>(definition: &'d rstyle_core::cpg::model::Definition, key: &str) 
         .as_str()
 }
 
-/// Where the frontend locates a function: where it is written, or for a function a
-/// macro generates, the macro's outermost call site.
-fn located(function: &Function) -> &FileSpan {
-    function
-        .nodes
-        .iter()
-        .find(|node| node.id == function.root)
-        .filter(|root| root.provenance.origin == rstyle_core::cpg::model::Origin::MacroExpansion)
-        .and_then(|root| root.provenance.call_site.as_ref())
-        .unwrap_or(&function.span)
-}
+use rstyle_core::cpg::records::located;
 
 fn hir_ref(id: &str) -> HirRef {
     let id = id.strip_prefix('s').unwrap_or(id);

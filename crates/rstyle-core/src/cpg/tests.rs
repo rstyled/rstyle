@@ -1,5 +1,6 @@
 use super::layout::{self, digest, split};
-use super::run_facts;
+use super::records::Demand;
+use super::{run_facts, run_records};
 use crate::complexity::Kind;
 use crate::facts::{
     ArgSource, CallEvent, Edge, EffectEvent, EffectKind, FnFacts, MutationEvent, MutationOrigin,
@@ -22,6 +23,26 @@ fn facts_of(document: Value) -> Vec<FnFacts> {
 
 fn error_of(documents: Vec<Value>) -> String {
     run_facts(documents).unwrap_err()
+}
+
+/// Marks a function as a macro writes it: its signature and its body's root.
+pub(super) fn written_by_a_macro(function: &mut Value) {
+    wrapped_by_a_macro(function);
+    let provenance = json!({"origin": "macro_expansion", "call_site": function["span"].clone()});
+    function["signature"]["provenance"] = provenance;
+}
+
+/// Marks a function as a macro wraps it: its body's root only.
+fn wrapped_by_a_macro(function: &mut Value) {
+    let root = function["root"].as_str().unwrap().to_owned();
+    let span = function["span"].clone();
+    let root = function["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|node| node["id"] == root.as_str())
+        .unwrap();
+    root["provenance"] = json!({"origin": "macro_expansion", "call_site": span});
 }
 
 fn kinds(facts: &FnFacts) -> Vec<Kind> {
@@ -176,19 +197,248 @@ fn split_documents_must_belong_to_their_unit() {
         "Function fn:top differs from its unit in coverage"
     );
 
+    // A second copy of a unit document adds no function, so nothing counts twice.
     let mut documents = split(&example());
     documents.push(documents[0].clone());
-    assert_eq!(
-        error_of(documents),
-        "A split run needs exactly one unit document, found 2"
-    );
+    assert_eq!(run_facts(documents).unwrap(), facts_of(example()));
 
     let mut documents = split(&example());
     documents[0]["layout"] = json!("bundled");
     assert_eq!(
         error_of(documents),
-        "A run is one bundled document or a set of split documents"
+        "The bundled unit document has no function bodies"
     );
+
+    let mut documents = split(&example());
+    documents[0]["layout"] = json!("neither");
+    assert_eq!(
+        error_of(documents),
+        "Every document of a run must be bundled or split"
+    );
+}
+
+/// The example, as another compilation of the same source.
+fn another_unit() -> Value {
+    let mut other = example();
+    other["unit"]["id"] = json!("unit:other");
+    other
+}
+
+#[test]
+fn a_run_reads_several_units_in_either_layout() {
+    let (first, second) = (facts_of(example()), facts_of(another_unit()));
+    let joined: Vec<_> = first.iter().chain(&second).cloned().collect();
+    let bundled = run_facts(vec![example(), another_unit()]).unwrap();
+    assert_eq!(bundled, joined);
+
+    let mut documents = split(&example());
+    documents.extend(split(&another_unit()));
+    assert_eq!(run_facts(documents).unwrap(), joined);
+
+    // A bundled unit reads first, whichever order the documents are named in.
+    let mut documents = split(&another_unit());
+    documents.push(example());
+    assert_eq!(run_facts(documents).unwrap(), joined);
+}
+
+#[test]
+fn a_run_reads_one_unit_from_several_documents() {
+    let bundled = example();
+    let mut batches = [bundled.clone(), bundled.clone()];
+    let functions = bundled["unit"]["functions"].as_array().unwrap();
+    let (first, rest) = functions.split_at(1);
+    batches[0]["unit"]["functions"] = json!(first);
+    batches[1]["unit"]["functions"] = json!(rest);
+
+    let mut read = run_facts(batches.to_vec()).unwrap();
+    let mut whole = facts_of(bundled);
+    read.sort_by(|a, b| a.id.cmp(&b.id));
+    whole.sort_by(|a, b| a.id.cmp(&b.id));
+    assert_eq!(read, whole);
+}
+
+#[test]
+fn a_run_reads_a_function_once() {
+    let documents = vec![example(), example()];
+    assert!(error_of(documents).contains("appears more than once"));
+
+    let mut documents = split(&example());
+    documents.push(example());
+    assert!(error_of(documents).contains("appears more than once"));
+}
+
+#[test]
+fn a_function_a_macro_writes_is_outside_a_runs_rule_facts() {
+    let mut document = example();
+    let measured = facts_of(document.clone()).len();
+    written_by_a_macro(&mut document["unit"]["functions"][0]);
+    assert_eq!(facts_of(document).len(), measured - 1);
+}
+
+/// The example with `larger` written by a macro and calling into the file system.
+fn macro_writing_io() -> Value {
+    let mut document = example();
+    for definition in document["unit"]["definitions"].as_array_mut().unwrap() {
+        if definition["id"] == "def:Ord.max" {
+            definition["stable_identity"] = json!("std::fs::write");
+            definition["name"] = json!("std::fs::write");
+        }
+    }
+    let function = document["unit"]["functions"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|function| function["id"] == "fn:larger")
+        .unwrap();
+    written_by_a_macro(function);
+    document
+}
+
+fn io_labels(inputs: &super::RunInputs, id: &str) -> Vec<String> {
+    inputs.effects[id]
+        .iter()
+        .filter(|effect| matches!(effect.kind, crate::facts::EffectKind::Io))
+        .map(|effect| effect.label.clone())
+        .collect()
+}
+
+#[test]
+fn what_a_macro_writes_reaches_its_callers_and_is_not_reported() {
+    let records = run_records(vec![macro_writing_io()], Demand::default()).unwrap();
+
+    let inputs = super::run_inputs(records, &crate::config::Config::default()).unwrap();
+
+    assert!(inputs.facts.iter().all(|fact| fact.id != "example::larger"));
+    assert!(!inputs.effects.contains_key("example::larger"));
+    assert_eq!(io_labels(&inputs, "example::top"), ["std::fs::write"]);
+}
+
+#[test]
+fn an_excluded_macro_function_gives_its_callers_nothing() {
+    let mut records = run_records(vec![macro_writing_io()], Demand::default()).unwrap();
+    let generated = records
+        .iter_mut()
+        .find(|record| record.identity == "example::larger")
+        .unwrap();
+    generated.path = "generated/larger.rs".into();
+    let config = crate::config::Config::parse("exclude = [\"generated/**\"]\n").unwrap();
+
+    let inputs = super::run_inputs(records, &config).unwrap();
+
+    assert!(io_labels(&inputs, "example::top").is_empty());
+}
+
+/// Points every span in `value` at `file`.
+fn moved_to(value: &mut Value, file: &str) {
+    match value {
+        Value::Object(fields) => {
+            if fields.contains_key("start") && fields.contains_key("end") {
+                fields.insert("file".into(), json!(file));
+            }
+            fields.values_mut().for_each(|field| moved_to(field, file));
+        }
+        Value::Array(items) => items.iter_mut().for_each(|item| moved_to(item, file)),
+        _ => {}
+    }
+}
+
+/// The example with `larger`, which calls into the file system, in a file the build wrote.
+fn build_writing_io(path: &str) -> Value {
+    let mut document = example();
+    for definition in document["unit"]["definitions"].as_array_mut().unwrap() {
+        if definition["id"] == "def:Ord.max" {
+            definition["stable_identity"] = json!("std::fs::write");
+            definition["name"] = json!("std::fs::write");
+        }
+    }
+    let files = document["unit"]["files"].as_array_mut().unwrap();
+    let mut generated = files[0].clone();
+    generated["id"] = json!("file:generated");
+    generated["path"] = json!(path);
+    generated["origin"] = json!("generated");
+    generated["generated_by"] = json!("build script");
+    files.push(generated);
+    let function = document["unit"]["functions"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|function| function["id"] == "fn:larger")
+        .unwrap();
+    moved_to(function, "file:generated");
+    document
+}
+
+#[test]
+fn what_the_build_writes_reaches_its_callers_and_is_not_reported() {
+    for path in ["target/out/generated.rs", "../elsewhere/out/generated.rs"] {
+        let records = run_records(vec![build_writing_io(path)], Demand::default()).unwrap();
+        let larger = records
+            .iter()
+            .find(|record| record.identity == "example::larger")
+            .unwrap();
+        let super::records::Measured::Generated(observation) = &larger.measured else {
+            panic!("{path}: a function the build wrote is not generated");
+        };
+        assert!(observation.generated_file);
+
+        // The default exclusion matches `target/**`, and selects original source only.
+        let inputs = super::run_inputs(records, &crate::config::Config::default()).unwrap();
+
+        assert!(inputs.facts.iter().all(|fact| fact.id != "example::larger"));
+        assert_eq!(
+            io_labels(&inputs, "example::top"),
+            ["std::fs::write"],
+            "{path}"
+        );
+    }
+}
+
+#[test]
+fn a_function_a_macro_only_wraps_stays_its_authors() {
+    let mut document = example();
+    let measured = facts_of(document.clone()).len();
+
+    wrapped_by_a_macro(&mut document["unit"]["functions"][0]);
+
+    assert_eq!(facts_of(document).len(), measured);
+}
+
+/// The example with its first function's span running backwards from its signature.
+fn with_an_unreadable_function() -> Value {
+    let mut document = example();
+    let function = &mut document["unit"]["functions"][0];
+    function["span"]["end"] = json!(function["signature"]["span"]["start"].as_u64().unwrap() - 1);
+    document
+}
+
+#[test]
+fn a_run_refuses_a_function_it_cannot_read() {
+    let error = error_of(vec![with_an_unreadable_function()]);
+
+    assert!(error.contains("not a character range"), "{error}");
+}
+
+#[test]
+fn a_capture_reports_a_function_it_cannot_read_and_keeps_the_rest() {
+    let document = layout::bundle(vec![with_an_unreadable_function()]).unwrap();
+
+    let records = super::records::records_with_gaps(&document, Demand::default()).unwrap();
+
+    let [first, rest @ ..] = records.as_slice() else {
+        panic!("no records");
+    };
+    let super::records::Measured::Unavailable(reason) = &first.measured else {
+        panic!("the unreadable function was measured");
+    };
+    assert!(reason.contains("not a character range"), "{reason}");
+    assert!(!rest.is_empty());
+    for record in rest {
+        assert!(
+            matches!(record.measured, super::records::Measured::Known(_)),
+            "{}",
+            record.name
+        );
+    }
 }
 
 #[test]

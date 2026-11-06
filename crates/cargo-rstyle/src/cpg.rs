@@ -1,37 +1,120 @@
-//! `cargo rstyle cpg check`: the style rules over `compat.cpg` documents from any
-//! language frontend, without compiling anything.
+//! `cargo rstyle cpg`: the style rules and the pattern miner over `compat.cpg` documents
+//! from any language frontend, without compiling anything.
+
+mod ingest;
+mod input;
+mod receipt;
 
 use rstyle_core::config::Config;
-use rstyle_core::report;
+use rstyle_core::cpg::records::{Demand, Record};
+use rstyle_core::{cpg, patterns_report, report};
+use serde_json::json;
 use std::path::{Path, PathBuf};
 
-use crate::Format;
+use crate::{Cli, CpgInputArgs, CpgPatternsArgs, Format};
 
-/// Style report of one bundled document or a split run, and its exit code.
+/// Style report of a run over any number of units, and its exit code.
 pub fn check(
-    documents: &[PathBuf],
+    args: &CpgInputArgs,
     config: Option<&Path>,
     format: Format,
 ) -> Result<(String, u8), String> {
-    let values = documents
-        .iter()
-        .map(|path| read(path))
-        .collect::<Result<Vec<_>, _>>()?;
-    let facts = rstyle_core::cpg::run_facts(values)?;
+    let received = match input::read(args, Demand::default()) {
+        Ok(received) => received,
+        Err(error) => return error.output(format),
+    };
+    let config = load_config(config)?;
+    let inputs = cpg::run_inputs(received.records, &config)?;
 
-    let report = rstyle_core::evaluate(facts, &load_config(config)?)?;
+    let report = rstyle_core::evaluate_with_effects(
+        inputs.facts,
+        &config,
+        rstyle_core::Retention::Report,
+        inputs.effects,
+    )?
+    .report;
     let output = match format {
-        Format::Text => report::text(&report),
-        Format::Json => report::json(&report).map_err(|error| error.to_string())?,
+        Format::Text => receipt::text(report::text(&report), &received.receipt),
+        Format::Json => receipt::json(&report, &received.receipt)?,
     };
     Ok((output, report.exit_code()))
 }
 
+/// Abstraction candidates of a run, with effects propagated across all of its units
+/// and, when asked for, each function's runtime bounds.
+pub fn patterns(cli: &Cli, args: &CpgPatternsArgs) -> Result<(String, u8), String> {
+    let demand = Demand {
+        graphs: true,
+        bounds: args.complexity,
+    };
+    let received = match input::read(&args.input, demand) {
+        Ok(received) => received,
+        Err(error) => return error.output(cli.format),
+    };
+    let records = received.records;
+    let bounds = args
+        .complexity
+        .then(|| crate::clones::document_bounds(&records, args.display.top));
+    let evaluation = mined(records, args, &load_config(cli.config.as_deref())?)?;
+    let code = u8::from(args.fail_on_candidates && !evaluation.candidates.is_empty());
+
+    let output = match cli.format {
+        Format::Text => {
+            let bounds = bounds.as_ref().map(|report| report.text());
+            let mined = patterns_report::text(&evaluation);
+            let text = [mined]
+                .into_iter()
+                .chain(bounds)
+                .collect::<Vec<_>>()
+                .join("\n");
+            receipt::text(text, &received.receipt)
+        }
+        Format::Json => {
+            let report = json!({"evaluation": evaluation, "runtime_bounds": bounds});
+            receipt::json(&report, &received.receipt)?
+        }
+    };
+    Ok((output, code))
+}
+
+fn mined(
+    records: Vec<Record>,
+    args: &CpgPatternsArgs,
+    config: &Config,
+) -> Result<patterns_report::PatternsReport, String> {
+    let inputs = cpg::run_inputs(records, config)?;
+    let observed = rstyle_core::effect_observations(inputs.facts, config, Some(inputs.effects))?;
+    let options = patterns_report::Options {
+        min_score_milli: args.display.min_score_milli(),
+        top: args.display.top,
+        ..crate::mine_options(&args.mine)
+    };
+
+    let (mut evaluation, _) =
+        patterns_report::run_distinct_owned_and_retain(observed.facts, &options);
+    rstyle_core::candidates::annotate_completed_effects(
+        &mut evaluation.candidates,
+        &observed.effects,
+    )?;
+    Ok(evaluation)
+}
+
 // rstyle-allow(side_effect_density): IO boundary: reads one input document
 fn read(path: &Path) -> Result<serde_json::Value, String> {
-    let text =
-        std::fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?;
-    serde_json::from_str(&text).map_err(|error| format!("{}: {error}", path.display()))
+    let directory = path.parent().unwrap_or_else(|| Path::new("."));
+    let manifest = directory.join(cpg::transport::DOCUMENTS_MANIFEST);
+    if manifest.exists() {
+        let bytes = std::fs::read(&manifest).map_err(|e| e.to_string())?;
+        let manifest = cpg::transport::DocumentManifest::read(&bytes)?;
+        let seal = manifest
+            .documents
+            .iter()
+            .find(|seal| Some(std::ffi::OsStr::new(&seal.file)) == path.file_name())
+            .ok_or_else(|| format!("{} is not listed in its document manifest", path.display()))?;
+        cpg::transport::read_sealed(directory, seal)
+    } else {
+        cpg::transport::read_json(path)
+    }
 }
 
 /// Documents name no Cargo workspace, so only an explicit `--config` applies.
@@ -48,12 +131,13 @@ fn load_config(path: Option<&Path>) -> Result<Config, String> {
 /// What `emit` compiles: the workspace or selected packages, optionally all targets.
 pub struct Selection<'a> {
     pub packages: &'a [String],
+    pub encoding: cpg::transport::Encoding,
     pub all_targets: bool,
     pub manifest: Option<&'a Path>,
 }
 
-/// Writes one `compat.cpg` document per compiled workspace target, by checking the
-/// workspace afresh.
+/// Writes the `compat.cpg` documents of every compiled workspace target, by checking the
+/// workspace afresh. They hold every function the compiler does, as a capture's do.
 // rstyle-allow(side_effect_density): process boundary: runs cargo with the driver
 pub fn emit(selection: &Selection<'_>, out: &Path) -> Result<(String, u8), String> {
     let metadata: crate::workspace::Metadata = crate::workspace::load_with_toolchain(
@@ -89,7 +173,8 @@ pub fn emit(selection: &Selection<'_>, out: &Path) -> Result<(String, u8), Strin
         .env("CARGO_INCREMENTAL", "0")
         .env("RUSTC_WORKSPACE_WRAPPER", crate::run::driver_path()?)
         .env("RSTYLE_CPG_DIR", &out)
-        .env("RSTYLE_CPG_ROOT", &root);
+        .env("RSTYLE_CPG_ROOT", &root)
+        .env("RSTYLE_CPG_COMPRESSION", selection.encoding.cli_name());
     status(check, "cargo check")?;
     let written = documents(&out)?.len();
 
@@ -149,7 +234,9 @@ fn documents(dir: &Path) -> Result<Vec<PathBuf>, String> {
     let mut documents = Vec::new();
     for entry in entries {
         let path = entry.map_err(|error| error.to_string())?.path();
-        if path.to_string_lossy().ends_with(".cpg.json") {
+        if path.to_string_lossy().ends_with(".cpg.json")
+            || path.to_string_lossy().ends_with(".cpg.json.zst")
+        {
             documents.push(path);
         }
     }
@@ -160,8 +247,26 @@ fn documents(dir: &Path) -> Result<Vec<PathBuf>, String> {
 
 // rstyle-allow(side_effect_density): IO boundary: removes documents of an earlier run
 fn remove_documents(dir: &Path) -> Result<(), String> {
+    // Standalone exports have no manifest. Remove a prior sealed capture's
+    // manifest before refreshing its documents so readers cannot use stale seals.
+    let manifest = dir.join(cpg::transport::DOCUMENTS_MANIFEST);
+    match std::fs::remove_file(&manifest) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(format!("{}: {error}", manifest.display())),
+    }
     for path in documents(dir)? {
         std::fs::remove_file(&path).map_err(|error| format!("{}: {error}", path.display()))?;
     }
     Ok(())
+}
+
+/// Store a frontend's streaming JSON text sequence as a sealed capture.
+pub fn ingest(out: &Path, encoding: cpg::transport::Encoding) -> Result<(String, u8), String> {
+    ingest::run(&mut std::io::stdin().lock(), out, encoding)
+}
+
+/// Verify all documents of a completed capture and return a structured receipt.
+pub fn receive(directory: &Path, format: Format) -> Result<(String, u8), String> {
+    input::receive(directory, format)
 }

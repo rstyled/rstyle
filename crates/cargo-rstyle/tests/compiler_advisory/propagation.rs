@@ -432,3 +432,69 @@ fn omitted_dependency_effect_inputs_cannot_retire_a_retained_density_finding() {
     );
     assert_eq!(std::fs::read(path).unwrap(), bytes);
 }
+
+/// `caller` reaches `leaf::leaf` only through `facade`, which re-exports it.
+fn facade_workspace() -> TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let write = |path: &str, text: &str| {
+        let path = dir.path().join(path);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    write(
+        "Cargo.toml",
+        "[workspace]\nmembers = [\"caller\", \"facade\", \"leaf\"]\nresolver = \"2\"\n",
+    );
+    let package = |name: &str, dependency: &str| {
+        format!(
+            "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n{dependency}"
+        )
+    };
+    write("leaf/Cargo.toml", &package("leaf", ""));
+    write(
+        "leaf/src/lib.rs",
+        "pub fn leaf() {\n    std::fs::write(\"/unused\", b\"x\").ok();\n}\n",
+    );
+    write(
+        "facade/Cargo.toml",
+        &package("facade", "leaf = { path = \"../leaf\" }\n"),
+    );
+    write("facade/src/lib.rs", "pub use leaf::leaf;\n");
+    write(
+        "caller/Cargo.toml",
+        &package("caller", "facade = { path = \"../facade\" }\n"),
+    );
+    write(
+        "caller/src/lib.rs",
+        "pub fn caller() {\n    facade::leaf();\n}\n",
+    );
+    dir
+}
+
+#[test]
+fn effects_reach_a_caller_through_a_crate_that_re_exports_the_callee() {
+    let directory = facade_workspace();
+
+    let (output, report) = capture(directory.path(), &[]);
+
+    checked(&output, 0);
+    let caller = unit(&report, "caller");
+    assert_eq!(io(caller), 1, "{caller}");
+    assert_eq!(caller["unresolved_callees"], serde_json::json!([]));
+    assert_eq!(report["compiler_advisory"]["complete"], true);
+}
+
+#[test]
+fn a_re_exported_callee_stays_unresolved_when_its_crate_is_not_captured() {
+    let directory = facade_workspace();
+
+    let (output, report) = capture(directory.path(), &["-p", "caller", "-p", "facade"]);
+
+    checked(&output, 2);
+    let caller = unit(&report, "caller");
+    assert_eq!(io(caller), 0);
+    assert_eq!(
+        caller["unresolved_callees"],
+        serde_json::json!(["leaf::leaf"])
+    );
+}

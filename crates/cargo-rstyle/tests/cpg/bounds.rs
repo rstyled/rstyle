@@ -28,9 +28,9 @@ fn the_cpg_lowering_keeps_the_frozen_runtime_bound_programs() {
     let document = std::fs::read_dir(&out)
         .unwrap()
         .map(|entry| entry.unwrap().path())
-        .find(|path| path.to_string_lossy().ends_with(".cpg.json"))
+        .find(|path| path.to_string_lossy().ends_with(".cpg.json.zst"))
         .unwrap();
-    let document: Value = serde_json::from_slice(&std::fs::read(document).unwrap()).unwrap();
+    let document: Value = rstyle_core::cpg::transport::read_json(&document).unwrap();
     // The crate's stable id names its definitions and depends on where it was built.
     let compilation = document["unit"]["definitions"]
         .as_array()

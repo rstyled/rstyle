@@ -104,13 +104,7 @@ fn inspect<'a>(
             Ok(FunctionReport {
                 key: function.key,
                 name: function.facts.view().name,
-                source_file: function
-                    .facts
-                    .view()
-                    .build
-                    .frontend_options
-                    .get("source_file")
-                    .and_then(serde_json::Value::as_str),
+                source_file: function.facts.view().source_file,
                 fn_span: function.facts.view().fn_span,
                 execution: if evidence.budget_exhausted {
                     Execution::BudgetExhausted

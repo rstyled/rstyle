@@ -26,6 +26,9 @@ struct Cli {
     /// Only analyze these packages (default: the whole workspace).
     #[arg(short, long = "package", global = true)]
     packages: Vec<String>,
+    /// Saved CPG document compression: zstd or none.
+    #[arg(long, global = true, default_value = "zstd")]
+    cpg_compression: rstyle_core::cpg::transport::Encoding,
     /// Include tests, examples and benches.
     #[arg(long, global = true)]
     all_targets: bool,
@@ -151,19 +154,54 @@ struct CpgArgs {
 
 #[derive(Subcommand)]
 enum CpgCommand {
-    /// Run the style rules over one bundled document or a split run's documents.
-    Check {
-        /// compat.cpg documents: one bundled unit document, or a split unit document
-        /// and its function documents.
-        #[arg(required = true)]
-        documents: Vec<PathBuf>,
+    /// Store frontend JSON text sequence records from stdin; finish with a null record.
+    Ingest {
+        /// New output directory, published after the complete stream succeeds.
+        #[arg(long)]
+        out: PathBuf,
     },
+    /// Verify a completed capture and return its acceptance receipt.
+    Receive {
+        /// Directory containing documents.manifest.json and its sealed documents.
+        #[arg(long)]
+        capture: PathBuf,
+    },
+    /// Run the style rules over a run's documents.
+    Check(CpgInputArgs),
+    /// Mine a run's documents for latent shared abstractions.
+    Patterns(CpgPatternsArgs),
     /// Write compat.cpg documents for the workspace from the rustc frontend.
     Emit {
         /// Output directory; its `target` subdirectory holds the private build.
         #[arg(long)]
         out: PathBuf,
     },
+}
+
+#[derive(Args)]
+struct CpgInputArgs {
+    /// compat.cpg bundled or split documents, supplied explicitly.
+    #[arg(required_unless_present = "capture")]
+    documents: Vec<PathBuf>,
+    /// Read all documents listed by a completed capture's manifest.
+    #[arg(long, conflicts_with = "documents")]
+    capture: Option<PathBuf>,
+}
+
+#[derive(Args)]
+struct CpgPatternsArgs {
+    #[command(flatten)]
+    input: CpgInputArgs,
+    /// Include symbolic loop-body entry and call invocation upper bounds.
+    #[arg(long)]
+    complexity: bool,
+    #[command(flatten)]
+    display: PatternDisplayArgs,
+    /// Exit 1 when any candidate is left (for CI).
+    #[arg(long)]
+    fail_on_candidates: bool,
+    #[command(flatten)]
+    mine: MineArgs,
 }
 
 #[derive(Args)]
@@ -345,12 +383,14 @@ fn status_text(mut statuses: Vec<ledger::status::EntryStatus>, filter: Option<&s
 
 fn cpg_command(cli: &Cli, command: CpgCommand) -> Result<(String, u8), String> {
     match command {
-        CpgCommand::Check { documents } => {
-            cpg::check(&documents, cli.config.as_deref(), cli.format)
-        }
+        CpgCommand::Ingest { out } => cpg::ingest(&out, cli.cpg_compression),
+        CpgCommand::Receive { capture } => cpg::receive(&capture, cli.format),
+        CpgCommand::Check(input) => cpg::check(&input, cli.config.as_deref(), cli.format),
+        CpgCommand::Patterns(args) => cpg::patterns(cli, &args),
         CpgCommand::Emit { out } => {
             let selection = cpg::Selection {
                 packages: &cli.packages,
+                encoding: cli.cpg_compression,
                 all_targets: cli.all_targets,
                 manifest: cli.manifest_path.as_deref(),
             };

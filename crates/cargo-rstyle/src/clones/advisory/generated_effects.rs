@@ -59,6 +59,9 @@ impl Measurement {
     pub(super) fn path(&self) -> &str {
         &self.path
     }
+    pub(super) fn generated_file(&self) -> bool {
+        self.observation.generated_file
+    }
     pub(super) fn owner(&self) -> rstyle_core::graph::EffectOwner<'_> {
         rstyle_core::graph::EffectOwner {
             name: &self.observation.name,
@@ -84,24 +87,31 @@ pub(super) fn render(rows: &[Measurement]) -> String {
     }).collect()
 }
 
+/// A function's own events, as its document or its recorded observations give them.
+fn observed(function: &crate::clones::Function) -> Result<Option<Observation>, String> {
+    use rstyle_core::cpg::records::Measured;
+    if let Some(document) = function.facts.document() {
+        return Ok(match &document.record.measured {
+            Measured::Generated(observation) => Some((**observation).clone()),
+            _ => None,
+        });
+    }
+    let raw = function
+        .facts
+        .recorded(CONNECTED_KEY)
+        .or_else(|| function.facts.recorded(KEY));
+    raw.map(Observation::read).transpose()
+}
+
 pub(super) fn read(
     function: &crate::clones::Function,
     config: &Config,
     root: &std::path::Path,
 ) -> Result<Option<Measurement>, String> {
-    let options = &function.facts.view().build.frontend_options;
-    let Some(raw) = options.get(CONNECTED_KEY).or_else(|| options.get(KEY)) else {
+    let Some(observation) = observed(function)? else {
         return Ok(None);
     };
-    let observation = Observation::read(raw)?;
-    if observation.name != function.facts.view().name
-        || !function
-            .facts
-            .view()
-            .source_diagnostics
-            .iter()
-            .any(|finding| finding.construct == "macro_generated_function")
-    {
+    if observation.name != function.facts.view().name || !function.facts.view().generated {
         return Err("Generated effects disagree with captured expanded owner".into());
     }
 

@@ -1,0 +1,3 @@
+[workspace]
+members = ["app", "spanning"]
+resolver = "2"

@@ -50,7 +50,18 @@ pub fn all_facts(document: &Document) -> Result<Vec<FnFacts>, String> {
     derive(document, true)
 }
 
-fn derive(document: &Document, graphs: bool) -> Result<Vec<FnFacts>, String> {
+pub(super) fn derive(document: &Document, graphs: bool) -> Result<Vec<FnFacts>, String> {
+    derive_each(document, graphs)?
+        .into_iter()
+        .map(|(_, facts)| facts)
+        .collect()
+}
+
+/// Each function's facts, or why they could not be derived.
+type EachFunction<'d> = Vec<(&'d Function, Result<FnFacts, String>)>;
+
+/// Each function's facts, or why they could not be derived, in document order.
+pub(super) fn derive_each(document: &Document, graphs: bool) -> Result<EachFunction<'_>, String> {
     declared(&document.coverage)?;
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let sources = Sources::new(unit)?;
@@ -59,17 +70,31 @@ fn derive(document: &Document, graphs: bool) -> Result<Vec<FnFacts>, String> {
     let measured = complexity_available(&document.coverage);
     let roles = graphs.then(|| Roles::of(&document.producer.namespace));
     let functions = unit.functions.as_deref().unwrap_or_default();
-    // A function whose file lies outside the workspace root has no workspace facts.
+    // A function whose file lies outside the workspace root has no workspace facts,
+    // unless the build wrote it there, as it does when the target directory is elsewhere.
     let inside = |function: &&Function| {
-        sources
-            .path(&function.signature.span)
-            .is_ok_and(|path| !path.starts_with("../"))
+        sources.generated(&function.signature.span)
+            || sources
+                .path(&function.signature.span)
+                .is_ok_and(|path| !path.starts_with("../"))
     };
-    functions
+    Ok(functions
         .iter()
         .filter(inside)
-        .map(|function| function_facts(function, (&tables, &sources, roles), measured))
-        .collect()
+        .map(|function| {
+            let facts = function_facts(function, (&tables, &sources, roles), measured);
+            (function, facts)
+        })
+        .collect())
+}
+
+/// Every function's rule facts that can be derived, for a frontend's own capture: one
+/// function that cannot be read is a gap in the report, not a lost unit.
+pub fn derivable_facts(document: &Document, graphs: bool) -> Result<Vec<FnFacts>, String> {
+    Ok(derive_each(document, graphs)?
+        .into_iter()
+        .filter_map(|(_, facts)| facts.ok())
+        .collect())
 }
 
 fn declared(coverage: &Coverage) -> Result<(), String> {
@@ -140,20 +165,11 @@ fn function_facts(
         mutated_types: mutated_types(tables, mutated)?,
         sig: signature_shape(&body, tables)?,
         // Patterns are searched in source functions; a macro-written one has no graph.
-        pdg: match roles.filter(|_| !written_by_macro(function)) {
+        pdg: match roles.filter(|_| !super::records::written_by_macro(function)) {
             Some(roles) => Some(dependence_graph(&body, tables, sources, roles)?),
             None => None,
         },
     })
-}
-
-/// Whether a macro expansion writes the function, as its body's root records.
-fn written_by_macro(function: &Function) -> bool {
-    function
-        .nodes
-        .iter()
-        .find(|node| node.id == function.root)
-        .is_some_and(|root| root.provenance.origin == super::model::Origin::MacroExpansion)
 }
 
 fn measure(body: &Body<'_>, sources: &Sources<'_>, events: &Events) -> Result<Measurement, String> {

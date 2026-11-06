@@ -16,8 +16,8 @@ use rustc_hir::{
 };
 use rustc_middle::hir::place::ProjectionKind;
 use rustc_middle::ty::{self, TyCtxt, TypeVisitableExt, TypeckResults};
-use rustc_span::Span;
 use rustc_span::hygiene::{DesugaringKind, ExpnKind};
+use rustc_span::{Span, Symbol};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
@@ -105,6 +105,13 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         match own {
             Some(own) => record["span"] = own,
             None => record["synthetic"] = json!(true),
+        }
+        // A macro can write an operator at one of its input's tokens, away from the node.
+        if record
+            .get("token")
+            .is_some_and(|token| !within(token, &record["span"]))
+        {
+            record.as_object_mut().unwrap().remove("token");
         }
         if parentheses > 0 {
             record["parentheses"] = json!(parentheses);
@@ -244,7 +251,9 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             return Some(id);
         }
         let shape = self.expr_shape(expr);
+        let kind = shape.kind;
         let id = self.node(expr.hir_id, expr.span, shape);
+        self.check_written_keyword(expr.hir_id, kind);
         self.reference(expr, &id);
 
         Some(id)
@@ -815,6 +824,7 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             }
         };
         let id = self.node(pat.hir_id, pat.span, shape);
+        self.check_bound_name(pat);
         self.pattern_reference(pat, &id);
 
         Some(id)
@@ -923,7 +933,8 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             _ => "local",
         };
         let ty = self.unit.ty(self.typeck.node_type(hir_id));
-        let mut symbol = json!({"id": self.symbol_id(hir_id), "name": ident.name.as_str(), "kind": kind,
+        let name = self.unit.written_name(ident);
+        let mut symbol = json!({"id": self.symbol_id(hir_id), "name": name, "kind": kind,
                                 "scope": self.prefix, "mutable": mutable, "node": self.id(hir_id), "type": ty});
         if let Some(declared) = self.unit.span(ident.span) {
             symbol["declared"] = declared;
@@ -941,12 +952,20 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             if !self.bound.insert(hir_id) {
                 return;
             }
-            let kind = if ident.name == rustc_span::symbol::kw::SelfLower { "receiver" } else { "parameter" };
+            let kind = if ident.name == rustc_span::symbol::kw::SelfLower {
+                "receiver"
+            } else {
+                "parameter"
+            };
             let ty = self.unit.ty(self.typeck.node_type(hir_id));
-            let mut symbol = json!({"id": self.symbol_id(hir_id), "name": ident.name.as_str(), "kind": kind,
+            let name = self.unit.written_name(ident);
+            let mut symbol = json!({"id": self.symbol_id(hir_id), "name": name, "kind": kind,
                                     "scope": self.prefix, "mutable": mode.1.is_mut(), "type": ty});
             // A parameter a library macro declares is declared where the macro is invoked.
-            let declared = self.unit.span(ident.span).or_else(|| self.unit.span(ident.span.source_callsite()));
+            let declared = self
+                .unit
+                .span(ident.span)
+                .or_else(|| self.unit.span(ident.span.source_callsite()));
             if let Some(declared) = declared {
                 symbol["declared"] = declared;
             }
@@ -975,7 +994,12 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
     fn reference(&mut self, expr: &'tcx Expr<'tcx>, id: &str) {
         let record = match expr.kind {
             ExprKind::Path(ref qpath) => {
-                self.path_reference(self.typeck.qpath_res(qpath, expr.hir_id))
+                let res = self.typeck.qpath_res(qpath, expr.hir_id);
+                if let Res::Local(binding) = res {
+                    let name = self.tcx.hir_name(binding);
+                    self.check_written_name(expr.hir_id, None, name);
+                }
+                self.path_reference(res)
             }
             ExprKind::Call(callee, _) => {
                 self.type_callee(callee);
@@ -995,6 +1019,78 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         if let Some(mut record) = record {
             record["node"] = json!(id);
             self.refs.push(record);
+        }
+    }
+
+    fn check_bound_name(&mut self, pat: &'tcx Pat<'tcx>) {
+        if let PatKind::Binding(_, _, ident, _) = pat.kind {
+            // The pattern's own span can hold `mut`; its name is the identifier's.
+            let written = self.unit.span(ident.span);
+            self.check_written_name(pat.hir_id, written, ident.name);
+        }
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// A source identifier spans its name. A proc macro can write its own at one of its
+    /// input's tokens, as `quote_spanned!` does, and that span carries no expansion mark:
+    /// what the text cannot be is source, so the expansion around it is its origin.
+    fn check_written_name(&mut self, hir_id: HirId, written: Option<Value>, name: Symbol) {
+        let id = self.id(hir_id);
+        let Some(index) = self.nodes.iter().rposition(|node| node["id"] == id) else {
+            return;
+        };
+
+        let record = &self.nodes[index];
+        let source =
+            record["provenance"]["origin"] == "source" && record.get("synthetic").is_none();
+        let written = written.unwrap_or_else(|| record["span"].clone());
+        let elsewhere = self
+            .unit
+            .text(&written)
+            .is_some_and(|text| text.strip_prefix("r#").unwrap_or(text) != name.as_str());
+        if !source || !elsewhere {
+            return;
+        }
+
+        self.nodes[index]["provenance"] = self.enclosing_expansion(hir_id, written);
+    }
+
+    /// The provenance of the expansion around a node that says it is source but is not,
+    /// or of the node itself when no expansion encloses it.
+    fn enclosing_expansion(&mut self, hir_id: HirId, written: Value) -> Value {
+        let enclosing = self
+            .tcx
+            .hir_parent_id_iter(hir_id)
+            .map(|parent| self.tcx.hir_span(parent))
+            .find(|span| matches!(span.ctxt().outer_expn_data().kind, ExpnKind::Macro(..)));
+        match enclosing {
+            Some(span) => self.provenance(span),
+            None => json!({"origin": "macro_expansion", "call_site": written}),
+        }
+    }
+
+    // rstyle-allow(mutation_per_target): the builder accumulates nodes, symbols and references in self by design
+    /// A construct written in source begins with its keyword, so one whose span holds other
+    /// text is a macro's own, written at one of its input's tokens as `quote_spanned!` does.
+    fn check_written_keyword(&mut self, hir_id: HirId, kind: &str) {
+        let Some(keyword) = construct_keyword(kind) else {
+            return;
+        };
+        let id = self.id(hir_id);
+        let Some(index) = self.nodes.iter().rposition(|node| node["id"] == id) else {
+            return;
+        };
+
+        let record = &self.nodes[index];
+        let source =
+            record["provenance"]["origin"] == "source" && record.get("synthetic").is_none();
+        let written = record["span"].clone();
+        let elsewhere = self
+            .unit
+            .text(&written)
+            .is_some_and(|text| !begins_with_keyword(text, keyword));
+        if source && elsewhere {
+            self.nodes[index]["provenance"] = self.enclosing_expansion(hir_id, written);
         }
     }
 
@@ -1323,6 +1419,30 @@ fn unary(op: UnOp) -> &'static str {
         UnOp::Not => "not",
         UnOp::Neg => "neg",
     }
+}
+
+/// The keyword a construct's source text begins with, for those that have one.
+fn construct_keyword(kind: &str) -> Option<&'static str> {
+    match kind {
+        "if" => Some("if"),
+        "match" => Some("match"),
+        "loop" => Some("loop"),
+        _ => None,
+    }
+}
+
+/// A construct's text, past a loop label or an attribute written before it.
+fn begins_with_keyword(text: &str, keyword: &str) -> bool {
+    text.starts_with(keyword) || text.starts_with('\'') || text.starts_with('#')
+}
+
+/// Whether a recorded token lies inside a recorded span.
+fn within(token: &Value, span: &Value) -> bool {
+    let offset = |value: &Value, field: &str| value[field].as_u64();
+    token["file"] == span["file"]
+        && offset(span, "start") <= offset(token, "start")
+        && offset(token, "end") <= offset(span, "end")
+        && offset(span, "end").is_some()
 }
 
 /// Where a restored construct is written: the site its desugaring expands.

@@ -4,7 +4,9 @@ mod build_lane;
 mod dependencies;
 pub(super) mod ledger;
 mod owner_reuse;
+mod retention;
 mod saved;
+pub(in crate::clones) use retention::{LIMIT_VARIABLE, hold};
 pub(in crate::clones) use saved::load_saved;
 
 use super::{Args, read_json, write_json};
@@ -31,6 +33,8 @@ pub struct Target {
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Plan {
+    #[serde(default)]
+    pub document_encoding: rstyle_core::cpg::transport::Encoding,
     /// Original Cargo selection covers every workspace package and all targets.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_all_targets: Option<bool>,
@@ -113,12 +117,24 @@ pub struct Capture {
 
 pub fn prepare(cli: &Cli, args: &Args) -> Result<Capture, String> {
     let (metadata, raw) = selected_workspace(cli)?;
-    let mut capture = initial_capture(metadata, args.extraction_profile)?;
-    capture.plan.workspace_all_targets = Some(cli.packages.is_empty() && cli.all_targets);
-    capture.plan.targets = selected_targets(&raw, cli, args.extraction_profile)?;
-    capture.plan = capture.plan.with_advisory(args);
+    let capture = initial_capture(metadata, args.extraction_profile)?;
+    publish_plan(with_selection(capture, cli, args, &raw)?)
+}
 
-    publish_plan(capture)
+fn with_selection(
+    mut capture: Capture,
+    cli: &Cli,
+    args: &Args,
+    raw: &Value,
+) -> Result<Capture, String> {
+    capture.plan = Plan {
+        document_encoding: cli.cpg_compression,
+        workspace_all_targets: Some(cli.packages.is_empty() && cli.all_targets),
+        targets: selected_targets(raw, cli, args.extraction_profile)?,
+        ..capture.plan.with_advisory(args)
+    };
+
+    Ok(capture)
 }
 
 fn initial_capture(
@@ -163,14 +179,13 @@ fn new_capture(directory: PathBuf, plan: Plan) -> Capture {
 }
 
 fn run_directory(target: &Path) -> Result<PathBuf, String> {
+    let limit = retention::limit()?;
     let parent = target.join("rstyle/clones");
     std::fs::create_dir_all(&parent).map_err(|e| e.to_string())?;
+    let directory = retention::new_run(&parent)?;
 
-    Ok(tempfile::Builder::new()
-        .prefix("run-")
-        .tempdir_in(parent)
-        .map_err(|e| e.to_string())?
-        .keep())
+    retention::prune(&parent, limit);
+    Ok(directory)
 }
 
 fn plan(
@@ -180,6 +195,7 @@ fn plan(
     environment: CaptureEnvironment,
 ) -> Plan {
     Plan {
+        document_encoding: Default::default(),
         workspace_all_targets: None,
         compiler_advisory_only: false,
         style_inputs_only: false,
@@ -675,28 +691,42 @@ fn driver_command(
     run::clear_rstyle_environment(&mut command);
 
     if (plan.compiler_advisory || plan.compiler_advisory_only) && target.is_some() {
-        let flags = [
-            plan.compiler_advisory
-                .then_some((rstyle_core::advisory::CAPTURE_ENV, "1")),
-            plan.compiler_advisory_only
-                .then_some(("RSTYLE_COMPILER_ADVISORY_ONLY", "1")),
-            plan.style_inputs_only
-                .then_some(("RSTYLE_STYLE_INPUTS_ONLY", "1")),
-            plan.compiler_runtime_bounds
-                .then_some((rstyle_core::advisory::runtime_bounds::CAPTURE_ENV, "1")),
-            plan.compiler_patterns
-                .then_some((rstyle_core::advisory::patterns::CAPTURE_ENV, "1")),
-            plan.local_source_facts
-                .then_some(("RSTYLE_LOCAL_SOURCE_FACTS", "1")),
-            plan.local_mutation_facts
-                .then_some(("RSTYLE_LOCAL_MUTATION_FACTS", "1")),
-        ];
         command
-            .envs(flags.into_iter().flatten())
+            .envs(driver_flags(plan))
             .env(rstyle_core::advisory::SOURCE_ROOT_ENV, &plan.root);
     }
-    command.args(arguments);
+    command
+        .env("RSTYLE_CPG_COMPRESSION", plan.document_encoding.cli_name())
+        .args(arguments);
     Ok(command)
+}
+
+/// What a capture asks of the driver. A frontend records one document, whatever the
+/// run goes on to derive from it; other captures name what to rebuild in the compiler.
+fn driver_flags(plan: &Plan) -> Vec<(&'static str, &'static str)> {
+    if plan.style_inputs_only {
+        return vec![
+            ("RSTYLE_COMPILER_ADVISORY_ONLY", "1"),
+            ("RSTYLE_DOCUMENTS_ONLY", "1"),
+        ];
+    }
+    [
+        plan.compiler_advisory
+            .then_some((rstyle_core::advisory::CAPTURE_ENV, "1")),
+        plan.compiler_advisory_only
+            .then_some(("RSTYLE_COMPILER_ADVISORY_ONLY", "1")),
+        plan.compiler_runtime_bounds
+            .then_some((rstyle_core::advisory::runtime_bounds::CAPTURE_ENV, "1")),
+        plan.compiler_patterns
+            .then_some((rstyle_core::advisory::patterns::CAPTURE_ENV, "1")),
+        plan.local_source_facts
+            .then_some(("RSTYLE_LOCAL_SOURCE_FACTS", "1")),
+        plan.local_mutation_facts
+            .then_some(("RSTYLE_LOCAL_MUTATION_FACTS", "1")),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
 }
 
 fn driver_arguments(
@@ -829,8 +859,29 @@ fn invoke_unit(unit: &Unit, command: &mut Command) -> Result<std::process::ExitS
 }
 
 fn publish_unit(plan: &Plan, root: &Path, mut unit: Unit) -> Result<(), String> {
-    unit.artifacts = artifact_inventory(&unit.directory, unit.extraction_profile)?;
+    unit.artifacts = unit_artifacts(&unit)?;
     publish_ledger(plan, root, &unit)
+}
+
+/// What a unit's ledger seals: its documents' manifest, or its evidence and inventory.
+fn unit_artifacts(unit: &Unit) -> Result<Vec<Artifact>, String> {
+    if !unit.style_inputs_only {
+        return artifact_inventory(&unit.directory, unit.extraction_profile);
+    }
+    let manifest = rstyle_pdg::unit_store::DOCUMENTS_MANIFEST.to_owned();
+    Ok(vec![read_artifact(&unit.directory, manifest)?])
+}
+
+/// Everything a completed unit keeps in its directory.
+fn stored_files(unit: &Unit) -> Result<Vec<String>, String> {
+    if !unit.style_inputs_only {
+        return Ok(artifact_files(unit.extraction_profile));
+    }
+
+    let mut files = vec![rstyle_pdg::unit_store::DOCUMENTS_MANIFEST.to_owned()];
+    let documents = super::documents::manifest(unit)?.documents;
+    files.extend(documents.into_iter().map(|document| document.file));
+    Ok(files)
 }
 
 fn publish_ledger(plan: &Plan, root: &Path, unit: &Unit) -> Result<(), String> {

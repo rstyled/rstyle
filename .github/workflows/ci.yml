@@ -83,6 +83,18 @@ jobs:
         if: matrix.runner == 'ubuntu-24.04'
         run: cargo build --locked -p cargo-rstyle -p rstyle-driver
 
+      - name: Node for CPG helper adapter
+        if: matrix.runner == 'ubuntu-24.04'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: CPG helper TypeScript adapter
+        if: matrix.runner == 'ubuntu-24.04'
+        env:
+          RSTYLE_CPG_BIN: ${{ github.workspace }}/target/debug/cargo-rstyle
+        run: node --test examples/cpg-helper/typescript/capture.test.mjs
+
       - name: Annotate test failures
         if: failure()
         run: python3 scripts/ci-test-failures.py target/nextest/ci/junit.xml

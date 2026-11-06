@@ -1,5 +1,6 @@
 use super::propagation::checked;
 use super::*;
+use rstyle_core::cpg::model::Document;
 
 const SOURCE: &str = "pub fn wide(a:u32,b:u32)->u32 { let total=a+b; total }\npub fn caller(value:u32)->u32 { wide(value,1) }\n";
 const OPTIONS: &[&str] = &[
@@ -51,114 +52,125 @@ pub(super) fn snapshot(report: &Value) -> Value {
     serde_json::from_slice(&std::fs::read(bundle).unwrap()).unwrap()
 }
 
-fn style_snapshot(wire: &Value) {
-    assert_eq!(wire["schema"], "rstyle.diagnostic.style-facts/2");
-    assert_eq!(wire["phase"], "compiler-style-inputs");
-    let facts = wire["facts"].as_array().unwrap();
-    assert_eq!(facts.len(), 2);
-    for function in facts {
-        let body: rstyle_pdg::HirRef = serde_json::from_value(function["body"].clone()).unwrap();
-        assert_eq!(body.krate, 0);
-        assert!(body.local > 0);
-        assert!(function["body"].get("children").is_none());
-        assert_eq!(function["bindings"], "not_requested");
-    }
+/// The documents a root capture published, read as the core reads them.
+pub(super) fn documents(report: &Value) -> Vec<Document> {
+    let archive = Path::new(report["run_directory"].as_str().unwrap()).join("report.json");
+    let archive: Value = serde_json::from_slice(&std::fs::read(archive).unwrap()).unwrap();
+    let evidence = &archive["functions"][0]["unit_evidence"];
+    assert_eq!(evidence["artifact_kind"], "compat-cpg-documents");
+    let manifest = Path::new(evidence["bundle"].as_str().unwrap());
+    assert_eq!(
+        manifest.file_name().unwrap(),
+        rstyle_pdg::unit_store::DOCUMENTS_MANIFEST
+    );
+    let directory = manifest.parent().unwrap();
+    assert!(!directory.join("unit.evidence.json").exists());
+    assert!(!directory.join("source-inventory.json").exists());
+    let manifest =
+        rstyle_pdg::unit_store::DocumentManifest::read(&std::fs::read(manifest).unwrap()).unwrap();
+    manifest
+        .documents
+        .iter()
+        .map(|sealed| rstyle_core::cpg::transport::read_sealed(directory, sealed).unwrap())
+        .collect()
 }
 
-fn complete_snapshot(style: &Value, full: &Value) {
+fn style_documents(documents: &[Document]) {
+    let functions = documents.iter().flat_map(|document| {
+        document
+            .unit
+            .as_ref()
+            .unwrap()
+            .functions
+            .as_deref()
+            .unwrap()
+    });
+    assert_eq!(functions.count(), 2);
+}
+
+fn declared(ty: &rstyle_core::cpg::records::DeclaredType, facts: &rstyle_pdg::ResolvedTy) {
+    assert_eq!(ty.normalized, facts.normalized);
+    assert_eq!(ty.observed, facts.observed);
+    assert_eq!(ty.spelling, facts.spelling);
+}
+
+/// What the documents record of each function and its build is what a full capture
+/// reads of them, so reviews and baselines identify the same owners on either route.
+fn complete_documents(documents: &[Document], full: &Value) {
     let bytes = serde_json::to_vec(full).unwrap();
-    let restored = rstyle_pdg::unit_store::read_diagnostic_snapshot_headers_phase(
+    let complete = rstyle_pdg::unit_store::read_diagnostic_snapshot_headers_phase(
         &bytes,
         "compiler-advisory-only",
     )
     .unwrap();
-    shared_unit_options(style, full, &restored);
+    shared_unit_options(full, &complete);
     assert_eq!(full["schema"], "rstyle.diagnostic.raw-facts/5");
     assert_eq!(full["phase"], "compiler-advisory-only");
-    assert_eq!(style["sources"], full["sources"]);
     assert_eq!(full["build_settings"].as_array().unwrap().len(), 1);
-    for function in full["facts"].as_array().unwrap() {
-        assert_eq!(function["build"]["settings"], 0);
-        let header = style["facts"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|header| header["name"] == function["name"])
-            .unwrap();
-        assert!(!function["body"]["children"].as_array().unwrap().is_empty());
-        assert!(!function["bindings"].as_array().unwrap().is_empty());
-        assert_eq!(header["body"], function["body"]["hir"]);
-        for field in ["name", "source", "fn_span"] {
-            assert_eq!(header[field], function[field], "{field}");
-        }
-        signature_identity(&header["signature"], &function["signature"]);
-        let canonical = restored
-            .iter()
-            .find(|fact| fact.name == function["name"].as_str().unwrap())
-            .unwrap();
-        let build = serde_json::to_value(&canonical.build).unwrap();
-        for (field, value) in header["build"].as_object().unwrap() {
-            if field != "frontend_options" {
-                assert_eq!(value, &build[field], "{field}");
+    for document in documents {
+        let build = rstyle_pdg::cpg_reader::unit_build(document).unwrap();
+        for record in rstyle_core::cpg::records::records(document, Default::default()).unwrap() {
+            let facts = complete
+                .iter()
+                .find(|fact| fact.name == record.name)
+                .unwrap();
+            assert_eq!(record.source, facts.source.bytes.as_str());
+            assert_eq!(
+                rstyle_pdg::unit_store::transport_checksum(record.source.as_bytes()),
+                facts.source.digest
+            );
+            assert_eq!(record.located.start as u32, facts.fn_span.start);
+            assert_eq!(record.located.end as u32, facts.fn_span.end);
+            assert_eq!(
+                record.root,
+                format!("f{}.{}", facts.body.owner, facts.body.local)
+            );
+            let signature = &facts.signature;
+            assert_eq!(record.signature.parameters.len(), signature.params.len());
+            for (ty, param) in record.signature.parameters.iter().zip(&signature.params) {
+                // This fixture explicitly annotates every parameter as u32.
+                assert_eq!(ty.spelling, "u32");
+                declared(ty, &param.ty);
             }
+            declared(&record.signature.result, &signature.return_ty);
+            assert_eq!(record.signature.has_self, signature.has_self);
+            let names: Vec<_> = signature
+                .generics
+                .iter()
+                .map(|generic| &generic.name)
+                .collect();
+            assert_eq!(record.signature.generics.iter().collect::<Vec<_>>(), names);
+            assert_build(&build, &facts.build);
         }
     }
 }
 
-fn shared_unit_options(
-    style: &Value,
-    full: &Value,
-    complete: &[rstyle_pdg::HirFnFacts<rstyle_pdg::HirRef>],
-) {
-    let bytes = serde_json::to_vec(style).unwrap();
-    let restored =
-        rstyle_pdg::unit_store::read_style_snapshot_phase(&bytes, "compiler-style-inputs").unwrap();
+/// A document's unit settings are the settings a full capture records of each function.
+fn assert_build(document: &rstyle_pdg::BuildFacts, facts: &rstyle_pdg::BuildFacts) {
+    let mut contexts = rstyle_pdg::nominal_binding::BuildContexts::default();
+    let first = contexts.intern(document).unwrap();
+    assert_eq!(contexts.intern(facts).unwrap(), first);
+}
+
+fn shared_unit_options(full: &Value, complete: &[rstyle_pdg::HirFnFacts<rstyle_pdg::HirRef>]) {
     for key in ["invocation", rstyle_pdg::nominal_boundary::CONTEXT_KEY] {
-        let first = restored[0].build.frontend_options.get(key).unwrap();
-        for fact in &restored {
+        let first = complete[0].build.frontend_options.get(key).unwrap();
+        for fact in complete {
             assert!(std::ptr::eq(
                 first,
                 fact.build.frontend_options.get(key).unwrap()
             ));
-            let original = complete
-                .iter()
-                .find(|original| original.name == fact.name)
-                .unwrap();
-            let original_option = original.build.frontend_options.get(key).unwrap();
-            assert_eq!(first, original_option);
-            assert!(std::ptr::eq(
-                complete[0].build.frontend_options.get(key).unwrap(),
-                original_option
-            ));
         }
     }
-    for wire in [style, full] {
-        assert!(wire["facts"][0]["build"]["frontend_options"]["invocation"]["value"].is_array());
-        assert_eq!(
-            wire["facts"][0]["build"]["frontend_options"]["invocation"]["kind"],
-            "inline"
-        );
-        assert_eq!(
-            wire["facts"][1]["build"]["frontend_options"]["invocation"]["kind"],
-            "shared_reference"
-        );
-    }
-}
-
-fn signature_identity(style: &Value, full: &Value) {
-    let mut enriched = style.clone();
-    let raw_params = enriched["params"].as_array_mut().unwrap();
-    let full_params = full["params"].as_array().unwrap();
-    assert_eq!(raw_params.len(), full_params.len());
-    for (raw, full) in raw_params.iter_mut().zip(full_params) {
-        // This fixture explicitly annotates every parameter as u32. Numeric
-        // capture leaves pattern spelling empty; concrete capture copies it.
-        assert_eq!(raw["ty"]["spelling"], "u32");
-        assert_eq!(raw["pat"]["ty"]["spelling"], "");
-        assert_eq!(full["pat"]["ty"]["spelling"], full["ty"]["spelling"]);
-        raw["pat"]["ty"]["spelling"] = full["pat"]["ty"]["spelling"].clone();
-    }
-    assert_eq!(&enriched, full);
+    assert!(full["facts"][0]["build"]["frontend_options"]["invocation"]["value"].is_array());
+    assert_eq!(
+        full["facts"][0]["build"]["frontend_options"]["invocation"]["kind"],
+        "inline"
+    );
+    assert_eq!(
+        full["facts"][1]["build"]["frontend_options"]["invocation"]["kind"],
+        "shared_reference"
+    );
 }
 
 fn offline(directory: &Path, report: &Value, extra: &[&str]) -> Output {
@@ -248,12 +260,37 @@ fn projected_numeric(root: &Value, replay: &Value) {
     assert_eq!(root["compiler_advisory"], replay["compiler_advisory"]);
 }
 
+/// A root capture's documents hold every derivation over them, so a later run asks
+/// for graphs and bounds without capturing again.
+fn derived_from_the_documents(directory: &Path, original: &Value) {
+    let output = offline(
+        directory,
+        original,
+        &["--compiler-patterns", "--compiler-runtime-bounds"],
+    );
+    checked(&output, 1);
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["capture_failures"], serde_json::json!([]));
+    assert_eq!(report["handoff_failures"], serde_json::json!([]));
+    let unit = &report["compiler_advisory"]["units"][0];
+    assert_eq!(unit["patterns"]["input_complete"], true);
+    assert_eq!(unit["patterns"]["observed_graphs"], 2);
+    assert_eq!(unit["runtime_bounds"]["input_complete"], true);
+    let rows = unit["runtime_bounds"]["rows"].as_array().unwrap();
+    assert_eq!(rows.len(), 2);
+    assert!(rows.iter().all(|row| row["capture_status"] == "captured"));
+
+    let output = replay(directory, original, &["patterns", "--format", "json"], &[]);
+    checked(&output, 0);
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(
+        unit["patterns"]["evaluation"],
+        report["compiler_advisory"]["units"][0]["patterns"]["evaluation"]
+    );
+}
+
 fn unavailable_body_consumers(directory: &Path, original: &Value) {
-    for extra in [
-        &["--report-detail", "full"][..],
-        &["--source-rules"][..],
-        &["--compiler-patterns"][..],
-    ] {
+    for extra in [&["--report-detail", "full"][..], &["--source-rules"][..]] {
         let output = offline(directory, original, extra);
         checked(&output, 2);
         let text = format!(
@@ -358,15 +395,14 @@ fn numeric_reviews(directory: &Path, numeric: &Value, full: &Value) {
 fn root_numeric_payload_is_distinct_from_full_clones_and_replays_without_sources_or_tools() {
     let directory = fixture();
     let first = root_capture(directory.path());
-    let first_wire = snapshot(&first);
-    style_snapshot(&first_wire);
+    let first_documents = documents(&first);
+    style_documents(&first_documents);
     let (output, full) = clones(directory.path(), OPTIONS);
     checked(&output, 1);
-    let full_wire = snapshot(&full);
-    complete_snapshot(&first_wire, &full_wire);
+    complete_documents(&first_documents, &snapshot(&full));
     projected_numeric(&first, &full);
     let repeated = root_capture(directory.path());
-    style_snapshot(&snapshot(&repeated));
+    style_documents(&documents(&repeated));
     assert_ne!(first["run_directory"], repeated["run_directory"]);
     for field in ["diagnostics", "summary", "functions", "fix_groups"] {
         assert_eq!(first[field], repeated[field], "{field}");
@@ -380,5 +416,6 @@ fn root_numeric_payload_is_distinct_from_full_clones_and_replays_without_sources
     root_replay(directory.path(), &repeated);
     numeric_baselines(directory.path(), &repeated, &full);
     numeric_reviews(directory.path(), &repeated, &full);
+    derived_from_the_documents(directory.path(), &repeated);
     unavailable_body_consumers(directory.path(), &repeated);
 }

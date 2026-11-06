@@ -60,16 +60,7 @@ pub(in crate::clones::advisory) fn finish(
 fn unit_sources(ctx: &Context<'_>, index: usize) -> BTreeSet<String> {
     crate::clones::review::compiler_owners::originals(ctx, ctx.handoff.unit_contexts[index].id)
         .values()
-        .filter_map(|record| {
-            record
-                .facts
-                .view()
-                .build
-                .frontend_options
-                .get(rstyle_core::advisory::KEY)?["facts"]["path"]
-                .as_str()
-                .map(str::to_owned)
-        })
+        .filter_map(|record| record.facts.compiled_path().map(str::to_owned))
         .collect()
 }
 

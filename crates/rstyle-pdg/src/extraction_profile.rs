@@ -133,7 +133,12 @@ impl ExtractionProfile {
     }
 
     pub fn from_facts<B, Bindings>(facts: &HirFnFacts<B, Bindings>) -> Result<Self, String> {
-        match facts.build.frontend_options.get(SELECTION_KEY) {
+        Self::from_build(&facts.build)
+    }
+
+    /// The extraction selection a unit's build settings record.
+    pub fn from_build(build: &crate::BuildFacts) -> Result<Self, String> {
+        match build.frontend_options.get(SELECTION_KEY) {
             None => Ok(Self::R0),
             Some(value) => value
                 .as_str()

@@ -1,14 +1,18 @@
 //! Completed raw observations, reused only with the current Cargo freshness decision.
-use super::{Args, Capture, Plan, Unit, build_lane, read_json, write_json};
+use super::{Args, Capture, Plan, Unit, build_lane, read_json, retention, write_json};
 use crate::Cli;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
+    collections::BTreeSet,
+    ffi::OsString,
     io::Write,
     path::{Path, PathBuf},
     process::Output,
     time::SystemTime,
 };
+
+const INDEX_FILE: &str = "advisory-owners.json";
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct Index {
@@ -32,7 +36,22 @@ struct Entry {
 }
 
 fn index_path(capture: &Capture) -> PathBuf {
-    capture.directory.with_file_name("advisory-owners.json")
+    capture.directory.with_file_name(INDEX_FILE)
+}
+
+// rstyle-allow(side_effect_density): IO boundary: reads the owner index
+/// The runs the next shared build may reuse units from.
+pub(super) fn indexed_runs(parent: &Path) -> BTreeSet<OsString> {
+    let Ok(index) = read_json::<Index>(&parent.join(INDEX_FILE)) else {
+        return BTreeSet::new();
+    };
+
+    index
+        .entries
+        .iter()
+        .filter_map(|entry| entry.unit.directory.parent()?.file_name())
+        .map(OsString::from)
+        .collect()
 }
 
 pub(super) fn take(capture: &Capture, args: &Args) -> Result<Option<Index>, String> {
@@ -144,11 +163,13 @@ fn reusable(index: &Index, capture: &Capture, tools: &[Tool]) -> bool {
         && index.plan == capture.plan
         && index.tools == tools
         && !index.entries.is_empty()
-        && index.entries.iter().all(|entry| {
-            super::artifact_files(entry.unit.extraction_profile)
-                .iter()
-                .all(|file| entry.unit.directory.join(file).is_file())
-        })
+        && index.entries.iter().all(|entry| stored(&entry.unit))
+}
+
+// rstyle-allow(side_effect_density): IO boundary: checks a unit's files are still there
+fn stored(unit: &Unit) -> bool {
+    super::stored_files(unit)
+        .is_ok_and(|files| files.iter().all(|file| unit.directory.join(file).is_file()))
 }
 
 fn same_artifact(previous: &Value, current: &Value) -> bool {
@@ -208,8 +229,11 @@ fn reused_unit(capture: &Capture, original: &Unit) -> Result<Unit, String> {
 }
 
 fn copy_snapshot(original: &Unit, unit: &Unit) -> Result<(), String> {
-    for file in super::artifact_files(unit.extraction_profile) {
-        std::fs::copy(original.directory.join(&file), unit.directory.join(&file))
+    for file in super::stored_files(original)? {
+        let (from, to) = (original.directory.join(&file), unit.directory.join(&file));
+        // Published artifacts never change, so a run shares them instead of copying them.
+        std::fs::hard_link(&from, &to)
+            .or_else(|_| std::fs::copy(&from, &to).map(|_| ()))
             .map_err(|e| format!("Cannot materialize completed advisory owner: {e}"))?;
     }
     Ok(())
@@ -218,11 +242,7 @@ fn copy_snapshot(original: &Unit, unit: &Unit) -> Result<(), String> {
 // rstyle-allow(side_effect_density): Capture restart boundary creates a fresh directory and republishes the existing plan.
 fn restart(capture: &mut Capture) -> Result<(), String> {
     let parent = capture.directory.parent().ok_or("Missing capture parent")?;
-    capture.directory = tempfile::Builder::new()
-        .prefix("run-")
-        .tempdir_in(parent)
-        .map_err(|e| e.to_string())?
-        .keep();
+    capture.directory = retention::new_run(parent)?;
 
     capture.units.clear();
     capture.failures.clear();

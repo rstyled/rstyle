@@ -10,7 +10,7 @@ Rust style checker built on rustc HIR (resolved names and types, not just syntax
 | Crate | Role |
 | --- | --- |
 | `rstyle-core` | Pure rules, config, suppression, reporting. No IO, no compiler types. |
-| `rstyle-driver` | rustc driver (`rustc_private`). Extracts per-function facts to JSON. |
+| `rstyle-driver` | rustc driver (`rustc_private`). The Rust frontend: writes each crate's `compat.cpg` documents. |
 | `cargo-rstyle` | `cargo rstyle` CLI. Runs `cargo check` with the driver as workspace wrapper, then evaluates. |
 
 See [`SIDE_EFFECTS.md`](SIDE_EFFECTS.md) for the rule spec.
@@ -253,6 +253,8 @@ Each candidate has a `kind` (`trait_method`, `capability_set`, `enum_dispatch`, 
 
 Compiler patterns captures graph observations under `target/rstyle/clones/`. Use `--replay-run PATH` to reevaluate an explicit saved run without source files or compiler tools. Style and patterns both consume saved compiler unit snapshots.
 
+A new capture removes all but a workspace's 5 most recently used runs, since one run can hold gigabytes. It never removes a run another command is using, or the run the next build reuses compiled crates from. Set `RSTYLE_KEEP_RUNS` to another count, or to `all` to keep every run; to keep a run you are working through, set it before capturing again.
+
 Add `--complexity` to search for runtime growth alongside abstraction candidates:
 
 ```sh
@@ -362,30 +364,67 @@ Inspiration: comparing functions by approximate matching of their program depend
 
 Known limits: function-level only; closure bodies are opaque (except `for_each`); a cluster mixing already-trait and inherent impls is reported as a candidate rather than as "implement the existing trait"; the size floor is 4 nodes and 1 call, so small functions never cluster (on competitive-programming code that is more than half of edited-copy pairs), and the defaults were picked on a few real crates and a labeled example set, not tuned on a large corpus.
 
-## Other languages (`cpg check`)
+## Other languages (`cpg`)
 
 Frontends for other languages emit `compat.cpg`
-documents, a code property graph with declared coverage, and core derives the
-style rules' inputs from them, so no rule is reimplemented per language:
+documents, a code property graph with declared coverage, and core derives every
+rule fact, dependence graph and runtime-bound program from them, so no analysis is
+reimplemented per language:
 
 ```
-cargo rstyle cpg check unit.json [--config rstyle.toml] [--format text|json]
-cargo rstyle cpg check unit.json fn-*.json    # a split run: one unit document and its function documents
+cargo rstyle cpg check DOC.json... [--config rstyle.toml] [--format text|json]
+cargo rstyle cpg patterns DOC.json... [--complexity] [--config rstyle.toml] [--format text|json]
+cargo rstyle cpg receive --capture CAPTURE_DIR --format json
+cargo rstyle cpg check --capture CAPTURE_DIR [--format text|json]
+cargo rstyle cpg patterns --capture CAPTURE_DIR [--complexity] [--format text|json]
 ```
+
+A run is any number of units: bundled unit documents, and split unit documents with
+their function documents. Read together, effects propagate across units as they do
+across a Rust workspace's crates; read one at a time, a unit sees only its own calls.
 
 The profile's *Rule facts* section defines each derivation: statement counts,
 complexity constructs, calls, call edges, effects and mutations. No compiler runs,
 and only an explicit `--config` applies. Documents from another profile version,
 with undeclared coverage, without file content, or whose split function documents
-do not match their unit's digest are rejected with exit code 2. Core also derives
-the dependence graphs the pattern miner reads, but `rstyle patterns` does not run
-over documents yet.
+do not match their unit's digest are rejected with exit code 2, as is a function read
+twice. `cpg patterns` exits 1 with `--fail-on-candidates` when a candidate is left.
+
+A frontend records every function the compiler holds and marks what a macro writes by
+its provenance; what each analysis does with it is core's to decide, on every route. A
+macro writes a function when it writes both its signature and its body's root: a macro
+that only wraps a function, as `#[instrument]` does, or rewrites its signature, as
+`#[async_trait]` does, leaves it the author's. A function a macro writes gets no rule
+findings or pattern candidates, since nothing original was written to change, but its
+effects reach its callers and runtime bounds compose through it. Report a macro's own tokens as generated even when they carry the
+span of one of its inputs, as `quote_spanned!` writes them. A file the build writes has
+`origin: "generated"`, and its functions are treated the same way; the Rust frontend
+marks what a build script writes to `OUT_DIR`.
+
+Saved Rust CPG documents use streaming JSON + Zstandard by default. See the
+[storage contract](docs/cpg-transport.md) for plain JSON compatibility, seals,
+and frontend interoperability.
+
+Completed captures from native Go or the streaming helper carry a manifest.
+`cpg receive` verifies all listed files and CPG inputs and returns an acceptance or
+rejection receipt. Directory-based check and pattern reports include that receipt;
+they release each bundled unit's raw JSON after deriving its records. Analysis
+records remain in memory, and split-layout inputs are retained until EOF.
 
 The Rust frontend emits the same documents:
 
 ```
 cargo rstyle cpg emit --out cpg/     # a fresh check of the workspace with the driver
 ```
+
+`cargo rstyle` and `cargo rstyle patterns` read Rust this way too: the driver writes
+each crate's documents and a manifest sealing them into its unit directory, and
+everything the report needs is derived from those documents afterwards, in core. A
+saved run therefore replays without a compiler or the sources, and its documents
+answer any of these routes: replaying a style run with `patterns` needs no recapture.
+The strict `clones` route and the source-level analyses on it (source rules, guards,
+mutation rules, enum dispatch, capability proposals) still read function bodies from
+the driver's own unit evidence.
 
 Every rule fact (statement counts, complexity, calls, edges, effects, mutations,
 parameter lists, signature shapes, mutated types and dependence graphs) was proven
@@ -406,7 +445,7 @@ Drop an `rstyle.toml` in the project root (see the one in this repo for every ke
 | `mutation_budget.max_mutations_per_target` | 3 | Writes / `&mut` borrows of one root |
 | `mutation_budget.max_mutated_targets` | 3 | Distinct roots mutated in one fn |
 | `side_effects.max_density_milli` | 500 | `1000 * sum(effect weights) / statements` |
-| `exclude` | `["target/**"]` | Globs skipped entirely |
+| `exclude` | `["target/**"]` | Globs of original source skipped entirely; a callee they remove keeps its callers' effects incomplete. A build script's output is generated code, which they do not select |
 
 Callee classification (`[side_effects.paths]`) and effect weights (`[side_effects.weights]`) are configurable. Changing config never triggers a recompile.
 

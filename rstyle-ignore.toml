@@ -114,6 +114,14 @@ fns = [
   "rstyle_pdg::cpg_reader::Context::scalar_formals",
 ]
 
+[ignore.260d64cc8894]
+kind = "parameterize"
+reason = "Both are a one-line is_some over an unrelated lookup; a shared helper would add nothing"
+fns = [
+  "rstyle_core::cpg::records::written_by_macro",
+  "rstyle_pdg::concrete_results::scalar_errors::shape::success",
+]
+
 [ignore.28ac5efc1baa]
 kind = "parameterize"
 reason = "filter(seen.insert) over different iterator types; two lines each (#11)"
@@ -170,6 +178,14 @@ reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the
 fns = [
   "rstyle_driver::hir_extraction::concrete_types::callbacks::immediate_map_or_callback",
   "rstyle_pdg::cpg_reader::concrete::callbacks::immediate_map_or_callback",
+]
+
+[ignore.58fb7142d7b5]
+kind = "parameterize"
+reason = "Both are a one-line membership test on an unrelated type's own set; a shared helper would add nothing"
+fns = [
+  "cargo_rstyle::clones::review::compiler_diagnostics::demand::Demand::includes",
+  "rstyle_core::cpg::source::Sources::generated",
 ]
 
 [ignore.60e8af5f467a]

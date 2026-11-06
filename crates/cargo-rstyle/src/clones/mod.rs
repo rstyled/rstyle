@@ -5,6 +5,8 @@ mod advisory_only;
 mod analysis;
 pub mod capture;
 mod diagnostic_selection;
+mod documents;
+pub(crate) use advisory::runtime_bounds::from_records as document_bounds;
 mod identity;
 mod linking;
 pub(crate) mod patterns_route;
@@ -464,17 +466,30 @@ enum FactOwner {
     Strict(Arc<rstyle_pdg::unit_store::UnitStore>),
     Advisory(Arc<Vec<HirFnFacts>>),
     Numeric(Arc<Vec<HirFnFacts<rstyle_pdg::HirRef>>>),
-    Style(Arc<Vec<rstyle_pdg::StyleFnFacts>>),
+    Document(Arc<Vec<documents::DocumentFunction>>),
 }
 
-/// Borrowed navigation and compiler observations shared by full and numeric inputs.
+/// What a function declares, as the facts or the document that carry it record it.
+#[derive(Clone, Copy)]
+enum Declared<'a> {
+    Facts(&'a rstyle_pdg::SignatureFacts),
+    Document(&'a rstyle_core::cpg::records::DeclaredSignature),
+}
+
+/// Borrowed navigation and compiler observations shared by full, numeric and document
+/// inputs.
 struct FactView<'a> {
     name: &'a str,
     fn_span: rstyle_pdg::ByteSpan,
-    source: &'a rstyle_pdg::SourceFacts,
-    signature: &'a rstyle_pdg::SignatureFacts,
+    source: &'a str,
+    digest: &'a str,
+    /// The declared parameters, the receiver among them.
+    parameters: usize,
+    signature: Declared<'a>,
     build: &'a rstyle_pdg::BuildFacts,
-    source_diagnostics: &'a [rstyle_pdg::HirDiagnostic],
+    source_file: Option<&'a str>,
+    /// A macro writes the signature.
+    generated: bool,
 }
 
 impl<'a, B, L> From<&'a HirFnFacts<B, L>> for FactView<'a> {
@@ -482,10 +497,40 @@ impl<'a, B, L> From<&'a HirFnFacts<B, L>> for FactView<'a> {
         Self {
             name: &facts.name,
             fn_span: facts.fn_span,
-            source: &facts.source,
-            signature: &facts.signature,
+            source: facts.source.bytes.as_str(),
+            digest: &facts.source.digest,
+            parameters: facts.signature.params.len(),
+            signature: Declared::Facts(&facts.signature),
             build: &facts.build,
-            source_diagnostics: &facts.source_diagnostics,
+            source_file: facts
+                .build
+                .frontend_options
+                .get("source_file")
+                .and_then(Value::as_str),
+            generated: facts
+                .source_diagnostics
+                .iter()
+                .any(|finding| finding.construct == "macro_generated_function"),
+        }
+    }
+}
+
+impl<'a> From<&'a documents::DocumentFunction> for FactView<'a> {
+    fn from(function: &'a documents::DocumentFunction) -> Self {
+        let record = &function.record;
+        Self {
+            name: &record.name,
+            fn_span: rstyle_pdg::ByteSpan {
+                start: record.located.start as u32,
+                end: record.located.end as u32,
+            },
+            source: &record.source,
+            digest: &function.digest,
+            parameters: record.signature.parameters.len(),
+            signature: Declared::Document(&record.signature),
+            build: &function.build,
+            source_file: function.source_file.as_deref(),
+            generated: function.generated,
         }
     }
 }
@@ -495,7 +540,7 @@ impl ReportFacts {
         match &self.owner {
             FactOwner::Strict(store) => Ok(store.functions()),
             FactOwner::Advisory(facts) => Ok(facts),
-            FactOwner::Numeric(_) | FactOwner::Style(_) => {
+            FactOwner::Numeric(_) | FactOwner::Document(_) => {
                 Err("Original HIR bodies were not requested".into())
             }
         }
@@ -510,14 +555,51 @@ impl ReportFacts {
             FactOwner::Strict(store) => (&store.functions()[self.index]).into(),
             FactOwner::Advisory(facts) => (&facts[self.index]).into(),
             FactOwner::Numeric(facts) => (&facts[self.index]).into(),
-            FactOwner::Style(facts) => (&facts[self.index]).into(),
+            FactOwner::Document(functions) => (&functions[self.index]).into(),
+        }
+    }
+
+    /// The function as its document records it, on a route over documents.
+    fn document(&self) -> Option<&documents::DocumentFunction> {
+        match &self.owner {
+            FactOwner::Document(functions) => Some(&functions[self.index]),
+            _ => None,
+        }
+    }
+
+    /// An observation the frontend records for the function, on other routes.
+    fn recorded(&self, key: &str) -> Option<&Value> {
+        self.view().build.frontend_options.get(key)
+    }
+
+    /// The identity of the function's measured facts, where it has any.
+    fn compiled_id(&self) -> Option<&str> {
+        self.compiled(|facts| &facts.id, "id")
+    }
+
+    /// The path the function's measured facts name, where it has any.
+    fn compiled_path(&self) -> Option<&str> {
+        self.compiled(|facts| &facts.path, "path")
+    }
+
+    /// A text field of the function's measured facts, however they were recorded.
+    fn compiled(
+        &self,
+        known: fn(&rstyle_core::facts::FnFacts) -> &str,
+        field: &str,
+    ) -> Option<&str> {
+        use rstyle_core::cpg::records::Measured;
+        match self.document().map(|function| &function.record.measured) {
+            Some(Measured::Known(facts)) => Some(known(facts)),
+            Some(_) => None,
+            None => self.recorded(rstyle_core::advisory::KEY)?["facts"][field].as_str(),
         }
     }
 
     fn namespace(&self) -> Option<rstyle_pdg::unit_store::UnitNamespace> {
         match &self.owner {
             FactOwner::Strict(store) => Some(*store.namespace()),
-            FactOwner::Advisory(_) | FactOwner::Numeric(_) | FactOwner::Style(_) => None,
+            FactOwner::Advisory(_) | FactOwner::Numeric(_) | FactOwner::Document(_) => None,
         }
     }
 }
@@ -1105,11 +1187,16 @@ fn function_record(
         unit_evidence: UnitEvidence {
             report_unit: key.unit(),
             namespace: function.namespace(),
-            artifact_kind: function
-                .namespace()
-                .is_none()
-                .then_some("advisory-raw-facts"),
-            bundle: unit.directory.join("unit.evidence.json"),
+            artifact_kind: match (function.document().is_some(), function.namespace()) {
+                (true, _) => Some("compat-cpg-documents"),
+                (false, None) => Some("advisory-raw-facts"),
+                (false, Some(_)) => None,
+            },
+            bundle: unit.directory.join(if function.document().is_some() {
+                rstyle_pdg::unit_store::DOCUMENTS_MANIFEST
+            } else {
+                "unit.evidence.json"
+            }),
             dependency_closure: None,
             function: u32::try_from(index).expect("checked unit function table"),
         },
@@ -1128,32 +1215,40 @@ fn verify_frontend_invocation<B, L>(
     capture: &capture::Capture,
     selected_context: &selected_context::SelectedContext,
 ) -> Result<(), String> {
-    if rstyle_pdg::extraction_profile::ExtractionProfile::from_facts(facts)?
+    verify_frontend_build(&facts.build, unit, capture, selected_context)
+}
+
+/// A unit's recorded settings came from the invocation and compiler this run planned.
+fn verify_frontend_build(
+    build: &rstyle_pdg::BuildFacts,
+    unit: &capture::Unit,
+    capture: &capture::Capture,
+    selected_context: &selected_context::SelectedContext,
+) -> Result<(), String> {
+    if rstyle_pdg::extraction_profile::ExtractionProfile::from_build(build)?
         != capture.plan.extraction_profile
     {
         return Err("frontend extraction selection disagrees with run".into());
     }
-    let value = facts
-        .build
+    let value = build
         .frontend_options
         .get("invocation")
         .ok_or("missing captured invocation")?;
 
     selected_context::invocation(value, &unit.invocation)?;
-    if facts.build.rustc_version.known_value() != capture.plan.compiler_identity.lines().next() {
+    if build.rustc_version.known_value() != capture.plan.compiler_identity.lines().next() {
         return Err("frontend invocation or pinned compiler identity disagrees with run".into());
     }
     selected_context.check(
-        facts
-            .build
+        build
             .frontend_options
             .get(rstyle_pdg::nominal_boundary::CONTEXT_KEY),
     )?;
-    verify_data_compiler_commit(facts, capture)
+    verify_data_compiler_commit(build, capture)
 }
 
-fn verify_data_compiler_commit<B, L>(
-    facts: &HirFnFacts<B, L>,
+fn verify_data_compiler_commit(
+    build: &rstyle_pdg::BuildFacts,
     capture: &capture::Capture,
 ) -> Result<(), String> {
     if !capture.plan.extraction_profile.is_data() {
@@ -1165,7 +1260,7 @@ fn verify_data_compiler_commit<B, L>(
         .lines()
         .find_map(|line| line.strip_prefix("commit-hash: "))
         .ok_or("Missing planned compiler commit identity")?;
-    if facts.build.rustc_commit.known_value() != Some(expected) {
+    if build.rustc_commit.known_value() != Some(expected) {
         return Err("Data compiler commit disagrees with frozen compiler identity".into());
     }
     Ok(())

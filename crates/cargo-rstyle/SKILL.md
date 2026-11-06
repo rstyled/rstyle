@@ -28,6 +28,10 @@ status while metrics and fix groups retain the full captured scope. Invalid
 suppressions remain visible. Unobserved selected paths and missing required
 inputs remain incomplete (exit 2), even when no findings are selected. Add
 `--replay-run PATH` to reevaluate an explicit saved run without compiler tools.
+A new capture removes all but a workspace's 5 most recently used runs; set
+`RSTYLE_KEEP_RUNS` to another count, or to `all`, to keep more. A function a build
+script writes to `OUT_DIR` is generated code: it gets no findings, and its effects reach
+its callers, wherever the target directory is.
 
 Use `--write-baseline baseline.json` to export a complete
 whole-scope inventory to a new file; ordinary findings still return 1 after export.
@@ -82,7 +86,8 @@ findings and fix groups. Clean functions are omitted from both formats.
 The summary reports `complexity_measured` and `complexity_unavailable`.
 Missing scores are unavailable, never zero; the command exits 2 on missing
 measurements and retains other findings. Closures contribute to their owner;
-compiler lowering and opaque macro expansions do not add hidden branches.
+compiler lowering and a macro's own code add no branches, while code you pass to a macro
+or that a macro wraps counts like any other.
 
 [complexity] settings `max_cyclomatic` and `max_cognitive` both default to 12.
 Scores strictly above their limit produce `cyclomatic_complexity` or
@@ -160,14 +165,18 @@ Reviewed and rejected candidates: every candidate has an `id`. Only when the use
 
 Defaults (WL similarity 600, alignment coverage 600, 3 holes max for `parameterize`) are the evaluated setting. Opt-in experiments, not recommended unless asked: `--normalize all|ctor,pred,case,exit,counter,cmp,try` (canonicalize graphs; on CodeNet it removes about one unmatched node per pair and did not change what gets flagged, `case` does nearly all the work), `--pair-coverage N`, `--max-holes N`, `--single-call-guard`, `--threshold N`, `--min-coverage N` (more recall of strangers' spellings at the price of more false positives; `--pair-coverage 650 --max-holes 4` on CodeNet: about 20 extra cross-problem flags per 350k pairs).
 
-## Other languages (`cpg check`)
+## Other languages (`cpg`)
 
 `cargo rstyle cpg check DOC.json [MORE.json ...] [--config rstyle.toml] [--format json]`
-runs the same style rules over `compat.cpg` documents from a non-Rust frontend
-(one bundled unit document, or a split unit document and its function documents).
-Core derives statement counts, complexity, calls, edges, effects and mutations from
-the documents; no compiler runs and only an explicit `--config` applies. Exit codes
-are as for the default command; invalid or mismatched documents return 2.
+runs the same style rules over `compat.cpg` documents from a non-Rust frontend, and
+`cargo rstyle cpg patterns DOC.json [MORE.json ...] [--complexity] [--fail-on-candidates]`
+mines them for the same abstraction candidates and runtime bounds. A run is any number
+of units: bundled unit documents, and split unit documents with their function
+documents; name them together so effects propagate across units. Core derives
+statement counts, complexity, calls, edges, effects, mutations, dependence graphs and
+runtime-bound programs from the documents; no compiler runs and only an explicit
+`--config` applies. Exit codes are as for the default command; invalid or mismatched
+documents, or a function read twice, return 2.
 `cargo rstyle cpg emit --out DIR` writes such documents for a Rust workspace.
 
 ## Requirements
@@ -603,7 +612,8 @@ plan source labels require an independently reviewed `unsuppressed: true`;
 captured-but-excluded owners remain unavailable. No extra runtime scans are added.
 
 When the caller and dependency workspace packages are selected, compiler effects follow
-unique captured direct Cargo edges to known free functions. The report's
+unique captured Cargo dependencies, direct or through a crate that re-exports them, to
+known free functions. The report's
 `resolved_dependency_callees` maps compiler IDs to report-local unit IDs.
 Core propagation borrows captured owners and completed effects move into rule
 evaluation, with no extra hash, artifact scan, source proof or body/graph copy.
