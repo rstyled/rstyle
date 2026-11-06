@@ -1,14 +1,13 @@
 //! A compilation's `compat.cpg` documents, as its frontend published them, read through
 //! the core. Nothing here needs a compiler, so a saved run reads them the same way.
+use super::build::{self, BuildFacts};
 use super::capture;
+use rstyle_capture::checksum as transport_checksum;
+use rstyle_core::cpg::transport::{DOCUMENTS_MANIFEST, DocumentManifest};
 use rstyle_core::cpg::{
     self,
     model::Document,
     records::{Demand, Measured, Record, records_with_gaps},
-};
-use rstyle_pdg::{
-    BuildFacts, cpg_reader,
-    unit_store::{DOCUMENTS_MANIFEST, DocumentManifest, transport_checksum},
 };
 use std::sync::{
     Arc,
@@ -73,7 +72,7 @@ pub(super) fn read(unit: &capture::Unit, demand: Demand) -> Result<Vec<DocumentF
 }
 
 fn functions(document: &Document, demand: Demand) -> Result<Vec<DocumentFunction>, String> {
-    let build = Arc::new(cpg_reader::unit_build(document)?);
+    let build = Arc::new(build::unit_build(document)?);
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let bodies = unit.functions.as_deref().unwrap_or_default();
 
@@ -83,12 +82,19 @@ fn functions(document: &Document, demand: Demand) -> Result<Vec<DocumentFunction
         .map(|(record, body)| DocumentFunction {
             digest: transport_checksum(record.source.as_bytes()),
             build: Arc::clone(&build),
-            source_file: cpg_reader::session_path(unit, &record.located.file).map(str::to_owned),
+            source_file: build::session_path(unit, &record.located.file).map(str::to_owned),
             generated: match record.measured {
                 Measured::Known(_) => false,
                 Measured::Generated(_) => true,
-                // Nothing was classified, so only the signature's own scan is left to say.
-                Measured::Unavailable(_) => cpg_reader::generated_signature(body),
+                // Nothing was classified, so only the signature's own provenance is left to say.
+                Measured::Unavailable(_) => {
+                    body.signature
+                        .provenance
+                        .as_ref()
+                        .is_some_and(|provenance| {
+                            provenance.origin == rstyle_core::cpg::model::Origin::MacroExpansion
+                        })
+                }
             },
             record,
         })

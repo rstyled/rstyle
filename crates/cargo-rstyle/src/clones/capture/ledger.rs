@@ -60,22 +60,15 @@ mod tests {
         Plan {
             document_encoding: Default::default(),
             workspace_all_targets: None,
-            compiler_advisory_only: false,
-            style_inputs_only: false,
-            compiler_advisory: false,
             compiler_patterns: false,
             compiler_runtime_bounds: false,
-            local_source_facts: false,
-            local_mutation_facts: false,
             ledger_schema: SCHEMA.into(),
-            extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile::R0,
             root: "/run".into(),
             driver: "/driver".into(),
             targets,
             compiler_identity: "compiler".into(),
             cargo_identity: "cargo".into(),
             primary_units: Vec::new(),
-            dependency_units: Vec::new(),
         }
     }
 

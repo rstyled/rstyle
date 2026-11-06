@@ -144,7 +144,7 @@ pub fn original_kind(tcx: TyCtxt<'_>, id: rustc_hir::HirId) -> &'static str {
             ExprKind::Loop(_, Some(_), _, _) => "expr_labelled_loop",
             ExprKind::Loop(_, None, LoopSource::While, _) => "expr_while",
             ExprKind::Loop(_, None, LoopSource::ForLoop, _) => "expr_for",
-            ref kind => crate::hir_extraction::hir_tags::kind(kind),
+            ref expression => kind(expression),
         },
         Node::Stmt(stmt) => match stmt.kind {
             StmtKind::Let(_) => "stmt_let",
@@ -184,5 +184,38 @@ pub fn original_kind(tcx: TyCtxt<'_>, id: rustc_hir::HirId) -> &'static str {
             PatKind::Missing | PatKind::Err(_) => "pat_unsupported",
         },
         _ => "other",
+    }
+}
+
+fn kind(kind: &rustc_hir::ExprKind<'_>) -> &'static str {
+    match kind {
+        rustc_hir::ExprKind::Block(..) => "expr_block",
+        rustc_hir::ExprKind::Binary(..) => "expr_binary",
+        rustc_hir::ExprKind::Unary(..) => "expr_unary",
+        rustc_hir::ExprKind::Lit(..) => "expr_lit",
+        rustc_hir::ExprKind::Path(..) => "expr_path",
+        rustc_hir::ExprKind::Tup(..) => "expr_tup",
+        rustc_hir::ExprKind::If(..) => "expr_if",
+        rustc_hir::ExprKind::Ret(..) => "expr_ret",
+        rustc_hir::ExprKind::Assign(..) => "expr_assign",
+        rustc_hir::ExprKind::AssignOp(..) => "expr_assign_op",
+        rustc_hir::ExprKind::Call(..) => "expr_call",
+        rustc_hir::ExprKind::MethodCall(..) => "expr_method_call",
+        rustc_hir::ExprKind::Closure(..) => "expr_closure",
+        rustc_hir::ExprKind::ConstBlock(..) => "expr_const_block",
+        rustc_hir::ExprKind::AddrOf(..) => "expr_addr_of",
+        rustc_hir::ExprKind::Field(..) => "expr_field",
+        rustc_hir::ExprKind::Index(..) => "expr_index",
+        rustc_hir::ExprKind::Loop(..) => "expr_loop",
+        rustc_hir::ExprKind::Match(..) => "expr_match",
+        rustc_hir::ExprKind::Cast(..) => "expr_cast",
+        rustc_hir::ExprKind::Break(..) => "expr_break",
+        rustc_hir::ExprKind::Continue(..) => "expr_continue",
+        rustc_hir::ExprKind::Let(..) => "expr_let",
+        rustc_hir::ExprKind::Yield(..) => "expr_yield",
+        rustc_hir::ExprKind::Array(..) => "expr_array",
+        rustc_hir::ExprKind::Repeat(..) => "expr_repeat",
+        rustc_hir::ExprKind::Struct(..) => "expr_struct",
+        _ => "expr_unsupported",
     }
 }

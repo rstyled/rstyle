@@ -422,9 +422,8 @@ fn authored_changed_scope_covers_expanded_only_files_but_not_unknown_paths() {
 
 /// A saved run's documents, with its manifest and ledger sealed over `edit`'s result.
 fn resealed(original: &Value, edit: impl FnOnce(&mut Vec<Value>)) {
-    use rstyle_pdg::unit_store::{
-        DOCUMENTS_MANIFEST, DocumentManifest, SealedDocument, transport_checksum,
-    };
+    use rstyle_capture::checksum as transport_checksum;
+    use rstyle_core::cpg::transport::{DOCUMENTS_MANIFEST, DocumentManifest, SealedDocument};
     let path = original["functions"][0]["unit_evidence"]["bundle"]
         .as_str()
         .unwrap();
@@ -514,10 +513,11 @@ fn a_changed_document_or_manifest_fails_the_replay() {
         .as_str()
         .unwrap();
     let manifest = Path::new(manifest);
-    let seal = rstyle_pdg::unit_store::DocumentManifest::read(&std::fs::read(manifest).unwrap())
-        .unwrap()
-        .documents
-        .remove(0);
+    let seal =
+        rstyle_core::cpg::transport::DocumentManifest::read(&std::fs::read(manifest).unwrap())
+            .unwrap()
+            .documents
+            .remove(0);
     let document = manifest.with_file_name(&seal.file);
     let refused = |expected: &str| {
         let (output, report) = saved(directory.path(), &original, AUTHORED);

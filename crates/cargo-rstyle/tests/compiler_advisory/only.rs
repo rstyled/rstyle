@@ -11,20 +11,6 @@ fn not_requested(report: &Value) {
     }
 }
 
-fn strict_import_rejects(report: &Value) {
-    let path = report["functions"][0]["unit_evidence"]["bundle"]
-        .as_str()
-        .unwrap();
-    let bytes = std::fs::read(path).unwrap();
-    assert!(rstyle_pdg::unit_store::UnitStore::from_bundle(&bytes).is_err());
-    assert!(
-        rstyle_pdg::verification_policy::generated(|| {
-            rstyle_pdg::unit_store::UnitStore::from_bundle(&bytes)
-        })
-        .is_err()
-    );
-}
-
 #[test]
 fn advisory_only_preserves_completed_collectors_and_plans_without_strict_admission() {
     let (directory, output, ordinary) =
@@ -33,7 +19,6 @@ fn advisory_only_preserves_completed_collectors_and_plans_without_strict_admissi
     let (output, raw) = super::propagation::capture(directory.path(), OPTIONS);
     checked(&output, 0);
     not_requested(&raw);
-    strict_import_rejects(&raw);
     assert_eq!(raw["compiler_advisory"], ordinary["compiler_advisory"]);
     let evaluation = &raw["compiler_advisory"]["units"][0]["evaluation"];
     assert_eq!(evaluation["summary"]["effect_counts"]["io"], 2);
@@ -189,12 +174,10 @@ fn advisory_only_replay_rejects_saved_unit_mode_and_test_context_changes() {
     let path = ledger_path(&original);
     let bytes = std::fs::read(&path).unwrap();
     let unit: Value = serde_json::from_slice(&bytes).unwrap();
-    for (field, value) in [("compiler_advisory_only", false), ("test", true)] {
-        let mut changed = unit.clone();
-        changed[field] = value.into();
-        std::fs::write(&path, serde_json::to_vec(&changed).unwrap()).unwrap();
-        rejected_raw(directory.path(), &original, "ledger");
-    }
+    let mut changed = unit.clone();
+    changed["test"] = true.into();
+    std::fs::write(&path, serde_json::to_vec(&changed).unwrap()).unwrap();
+    rejected_raw(directory.path(), &original, "ledger");
     std::fs::write(path, bytes).unwrap();
     let (output, replayed) = replay(directory.path(), &original);
     checked(&output, 0);

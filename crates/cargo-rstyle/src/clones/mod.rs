@@ -3,6 +3,7 @@
 mod advisory;
 mod advisory_only;
 mod analysis;
+mod build;
 pub mod capture;
 mod diagnostic_selection;
 mod documents;
@@ -17,7 +18,7 @@ pub(crate) mod style_route;
 use crate::Cli;
 use clap::Args as ClapArgs;
 use identity::FunctionKey;
-use rstyle_pdg::diagnostics::Stage;
+use rstyle_capture::diagnostics::Stage;
 use serde::{Serialize, de::DeserializeOwned};
 #[cfg(test)]
 use sha2::{Digest, Sha256};
@@ -285,10 +286,10 @@ struct ReportFacts {
 /// Borrowed navigation and compiler observations of one document function.
 struct FactView<'a> {
     name: &'a str,
-    fn_span: rstyle_pdg::ByteSpan,
+    fn_span: crate::clones::build::ByteSpan,
     digest: &'a str,
     signature: &'a rstyle_core::cpg::records::DeclaredSignature,
-    build: &'a rstyle_pdg::BuildFacts,
+    build: &'a crate::clones::build::BuildFacts,
     source_file: Option<&'a str>,
     /// A macro writes the signature.
     generated: bool,
@@ -299,7 +300,7 @@ impl<'a> From<&'a documents::DocumentFunction> for FactView<'a> {
         let record = &function.record;
         Self {
             name: &record.name,
-            fn_span: rstyle_pdg::ByteSpan {
+            fn_span: crate::clones::build::ByteSpan {
                 start: record.located.start as u32,
                 end: record.located.end as u32,
             },
@@ -344,7 +345,7 @@ impl ReportFacts {
 #[derive(Serialize)]
 struct UnitBuildContexts {
     unit_bundle: PathBuf,
-    builds: rstyle_pdg::nominal_binding::BuildContexts,
+    builds: crate::clones::build::BuildContexts,
 }
 
 struct Handoff {
@@ -389,26 +390,12 @@ impl Handoff {
         self.assessed.sort_by_key(|function| function.key);
         self
     }
-
-    fn capture(capture: &capture::Capture, args: &Args) -> Result<Self, String> {
-        Stage::new("cli.handoff", "run", None).observe(|| Ok(handoff(capture, args)))
-    }
 }
 
 pub fn run(cli: &Cli, args: &Args) -> Result<(String, u8), String> {
-    with_capture_verification(args.replay_run.is_some(), || {
-        let config = configuration(cli, args)?;
-        let capture = capture_input(cli, args)?;
-        run_captured(cli, args, config, capture)
-    })
-}
-
-fn with_capture_verification<T>(replay: bool, execute: impl FnOnce() -> T) -> T {
-    if replay {
-        rstyle_pdg::verification_policy::strict(execute)
-    } else {
-        rstyle_pdg::verification_policy::generated(execute)
-    }
+    let config = configuration(cli, args)?;
+    let capture = capture_input(cli, args)?;
+    run_captured(cli, args, config, capture)
 }
 
 fn run_captured(
@@ -434,7 +421,9 @@ fn run_captured_with<T>(
     publish: impl FnOnce(report::Report<'_>) -> Result<T, String>,
 ) -> Result<(T, u8), String> {
     let CapturedRun { config, capture } = captured;
-    let handoff = Handoff::capture(&capture, args)?;
+    let handoff = rstyle_capture::diagnostics::run_stage("cli.handoff", || {
+        Ok::<_, String>(handoff(&capture, args))
+    })?;
     let complete = capture.failures.is_empty() && handoff.failures.is_empty();
     let context = report::Context {
         cli,
@@ -527,12 +516,8 @@ fn capture_input(cli: &Cli, args: &Args) -> Result<capture::Capture, String> {
 }
 
 fn capture_fresh(cli: &Cli, args: &Args) -> Result<capture::Capture, String> {
-    let capture = prepare_capture(cli, args)?;
+    let capture = capture::prepare(cli, args)?;
     Ok(compile_capture(capture, cli, args))
-}
-
-fn prepare_capture(cli: &Cli, args: &Args) -> Result<capture::Capture, String> {
-    Stage::new("cli.prepare", "run", None).observe(|| capture::prepare(cli, args))
 }
 
 fn compile_capture(mut capture: capture::Capture, cli: &Cli, args: &Args) -> capture::Capture {
@@ -543,7 +528,7 @@ fn compile_capture(mut capture: capture::Capture, cli: &Cli, args: &Args) -> cap
 }
 
 fn verify_frontend_build(
-    build: &rstyle_pdg::BuildFacts,
+    build: &crate::clones::build::BuildFacts,
     unit: &capture::Unit,
     capture: &capture::Capture,
     selected_context: &selected_context::SelectedContext,
@@ -557,11 +542,7 @@ fn verify_frontend_build(
     if build.rustc_version.known_value() != capture.plan.compiler_identity.lines().next() {
         return Err("frontend invocation or pinned compiler identity disagrees with run".into());
     }
-    selected_context.check(
-        build
-            .frontend_options
-            .get(rstyle_pdg::nominal_boundary::CONTEXT_KEY),
-    )?;
+    selected_context.check(build.frontend_options.get(rstyle_capture::CONTEXT_KEY))?;
     let expected = capture
         .plan
         .compiler_identity
@@ -580,6 +561,7 @@ fn handoff(capture: &capture::Capture, args: &Args) -> Handoff {
     if !capture.failures.is_empty() {
         return result;
     }
+
     let assignments = match assignments {
         Ok(assignments) => assignments,
         Err(error) => {

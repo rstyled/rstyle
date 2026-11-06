@@ -44,14 +44,7 @@ fn check_completion(cargo: &[u8]) -> Result<Vec<Value>, String> {
 }
 
 fn check_plan(plan: &Plan, graph: &Value) -> Result<(), String> {
-    if plan.ledger_schema != ledger::SCHEMA
-        || (!plan.compiler_advisory_only && !plan.dependency_units.is_empty())
-        || (plan.style_inputs_only
-            && (!plan.compiler_advisory_only
-                || !plan.compiler_advisory
-                || plan.local_source_facts
-                || plan.local_mutation_facts))
-    {
+    if plan.ledger_schema != ledger::SCHEMA {
         return Err("Standalone replay requires a current standalone capture plan".into());
     }
     if graph["version"] != 1 {
@@ -73,14 +66,6 @@ fn check_plan(plan: &Plan, graph: &Value) -> Result<(), String> {
     // Distinct Cargo root indices can have identical metadata for check/test
     // units. Their actual compiler modes remain distinct in the unit ledgers.
     check_targets(plan)?;
-    for unit in &plan.dependency_units {
-        if !graph["units"]
-            .as_array()
-            .is_some_and(|units| units.contains(unit))
-        {
-            return Err("Saved selected dependency is absent from Cargo unit graph".into());
-        }
-    }
     for unit in plan.planned_units() {
         check_root(plan, unit)?;
     }
@@ -169,10 +154,7 @@ fn check_units(capture: &Capture) -> Result<(), String> {
         let path = ledger::path(&capture.plan, &capture.directory, &unit.target, unit.test)?;
         if !ledgers.insert(path)
             || !directories.insert(&unit.directory)
-            || unit.compiler_advisory_only != capture.plan.compiler_advisory_only
             || unit.compiler_runtime_bounds != capture.plan.compiler_runtime_bounds
-            || unit.style_inputs_only != capture.plan.style_inputs_only
-            || unit.extraction_profile != capture.plan.extraction_profile
             || unit.test != unit.invocation.iter().any(|argument| argument == "--test")
             || !intended_invocation(&capture.plan, &unit.target, &unit.invocation)
         {

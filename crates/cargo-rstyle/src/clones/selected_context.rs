@@ -1,6 +1,6 @@
 //! Exact per-function association with one checked, immutable selected unit.
 use super::capture;
-use rstyle_pdg::nominal_boundary::UnitContext;
+use rstyle_capture::UnitContext;
 use serde::Deserialize;
 
 pub(super) struct SelectedContext {
@@ -10,12 +10,8 @@ pub(super) struct SelectedContext {
 
 impl SelectedContext {
     pub fn new(unit: &capture::Unit) -> Result<Self, String> {
-        let expected = unit
-            .extraction_profile
-            .is_data()
-            .then(|| capture::selected_unit_context(&unit.target, &unit.invocation))
-            .transpose()?;
-        Self::checked(expected)
+        let expected = capture::selected_unit_context(&unit.target, &unit.invocation)?;
+        Self::checked(Some(expected))
     }
 
     fn checked(expected: Option<UnitContext>) -> Result<Self, String> {
@@ -83,10 +79,7 @@ pub(super) fn invocation(value: &serde_json::Value, expected: &[String]) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rstyle_pdg::{
-        concrete_types::digest,
-        nominal_binding::{PACKAGE_IDENTITY, PackageContext},
-    };
+    use rstyle_capture::{PACKAGE_IDENTITY, PackageContext, checksum};
     use serde_json::json;
 
     fn context() -> UnitContext {
@@ -97,8 +90,7 @@ mod tests {
                 name: "sample".into(),
                 version: "1.0.0".into(),
                 manifest_path: "/sample/Cargo.toml".into(),
-                manifest_bytes: "[package]".into(),
-                manifest_digest: digest(b"[package]"),
+                manifest_digest: checksum(b"[package]"),
             },
             root_source: "/sample/src/lib.rs".into(),
             crate_name: "sample".into(),
@@ -114,14 +106,7 @@ mod tests {
         assert!(checked.check(Some(&value)).is_ok());
         assert!(checked.check(None).is_err());
 
-        original.package.manifest_bytes = format!("{}x", original.package.manifest_bytes).into();
-        assert!(SelectedContext::checked(Some(original.clone())).is_err());
-        assert!(
-            checked
-                .check(Some(&serde_json::to_value(&original).unwrap()))
-                .is_err()
-        );
-        original.package.manifest_digest = digest(original.package.manifest_bytes.as_bytes());
+        original.package.manifest_digest = checksum(b"[package]x");
         assert!(SelectedContext::checked(Some(original.clone())).is_ok());
         assert!(
             checked

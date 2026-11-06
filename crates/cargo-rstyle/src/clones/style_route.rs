@@ -1,5 +1,5 @@
 //! Default style routing through the existing authored compiler diagnostic workflow.
-use super::{Args, CapturedRun, compile_capture, prepare_capture, run_captured_with};
+use super::{Args, CapturedRun, compile_capture, run_captured_with};
 use crate::Cli;
 use clap::{Args as _, FromArgMatches};
 
@@ -7,18 +7,16 @@ pub(crate) fn run(mut cli: Cli) -> Result<(String, u8), String> {
     let mut args = apply_inputs(&mut cli, compiler_args()?);
     let replay = args.replay_run.is_some();
 
-    super::with_capture_verification(replay, || {
-        let Prepared { config, capture } = prepare(&mut cli, &mut args)?;
-        let capture = if replay {
-            capture
-        } else {
-            compile_capture(capture, &cli, &args)
-        };
-        run_captured_with(&cli, &args, CapturedRun { config, capture }, |report| {
-            Ok((report.publish_style(cli.format)?, report.style_complete()?))
-        })
-        .map(summary_exit)
+    let Prepared { config, capture } = prepare(&mut cli, &mut args)?;
+    let capture = if replay {
+        capture
+    } else {
+        compile_capture(capture, &cli, &args)
+    };
+    run_captured_with(&cli, &args, CapturedRun { config, capture }, |report| {
+        Ok((report.publish_style(cli.format)?, report.style_complete()?))
     })
+    .map(summary_exit)
 }
 
 /// Findings decide 0 or 1 only over a complete summary. Without one, such as a
@@ -56,7 +54,7 @@ fn prepare(cli: &mut Cli, args: &mut Args) -> Result<Prepared, String> {
     let capture = if args.replay_run.is_some() {
         super::capture_input(cli, args)?
     } else {
-        prepare_capture(cli, args)?
+        super::capture::prepare(cli, args)?
     };
     let config = configure(cli, args, &capture.plan.root)?;
     Ok(Prepared { config, capture })

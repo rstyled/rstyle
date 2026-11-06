@@ -29,22 +29,15 @@ impl Fixture {
         let plan = Plan {
             document_encoding: Default::default(),
             workspace_all_targets: None,
-            compiler_advisory_only: false,
-            style_inputs_only: false,
-            compiler_advisory: false,
             compiler_patterns: false,
             compiler_runtime_bounds: false,
-            local_source_facts: false,
-            local_mutation_facts: false,
             ledger_schema: ledger::SCHEMA.into(),
-            extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile::DataV3,
             root: "/sample".into(),
             driver: "/unavailable/driver".into(),
             compiler_identity: "saved rustc".into(),
             cargo_identity: "saved cargo".into(),
             targets: vec![target],
             primary_units: vec![root.clone()],
-            dependency_units: vec![],
         };
         let artifact = json!({"reason":"compiler-artifact", "package_id": root["pkg_id"],
             "target": root["target"], "features": [], "filenames":["/saved/libsample.rmeta"],
@@ -81,10 +74,7 @@ impl Fixture {
             invocation.push("--test".into());
         }
         let unit = Unit {
-            compiler_advisory_only: false,
-            style_inputs_only: false,
             compiler_runtime_bounds: false,
-            extraction_profile: self.plan.extraction_profile,
             target: self.plan.targets[0].clone(),
             test,
             invocation,
@@ -176,15 +166,8 @@ fn saved_graph_roots_are_exact_unique_nonempty_and_in_bounds() {
 }
 
 #[test]
-fn dependencies_old_schema_and_unexplained_or_duplicate_targets_fail() {
+fn old_schema_and_unexplained_or_duplicate_targets_fail() {
     let mut fixture = Fixture::new();
-    fixture
-        .plan
-        .dependency_units
-        .push(fixture.plan.primary_units[0].clone());
-    assert!(fixture.load().is_err());
-    fixture.plan.dependency_units.clear();
-
     fixture.plan.ledger_schema = "old".into();
     assert!(fixture.load().is_err());
     fixture.plan.ledger_schema = ledger::SCHEMA.into();

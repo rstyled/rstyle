@@ -17,7 +17,7 @@ pub(super) fn consume(request: &UnitRequest<'_>, result: &mut Handoff) -> Result
     result.build_contexts.push(UnitBuildContexts {
         unit_bundle: unit
             .directory
-            .join(rstyle_pdg::unit_store::DOCUMENTS_MANIFEST),
+            .join(rstyle_core::cpg::transport::DOCUMENTS_MANIFEST),
         builds,
     });
     context.finish(Ok::<_, String>(()))?;
@@ -30,9 +30,9 @@ pub(super) fn consume(request: &UnitRequest<'_>, result: &mut Handoff) -> Result
 fn document_builds(
     functions: &[documents::DocumentFunction],
     request: &UnitRequest<'_>,
-) -> Result<rstyle_pdg::nominal_binding::BuildContexts, String> {
+) -> Result<crate::clones::build::BuildContexts, String> {
     let selected = selected_context::SelectedContext::new(request.unit)?;
-    let mut builds = rstyle_pdg::nominal_binding::BuildContexts::default();
+    let mut builds = crate::clones::build::BuildContexts::default();
     let mut previous = None;
     for function in functions {
         // Every function of a document shares its settings.
@@ -42,7 +42,7 @@ fn document_builds(
         previous = Some(Arc::as_ptr(&function.build));
 
         verify_frontend_build(&function.build, request.unit, request.capture, &selected)?;
-        builds.intern(&function.build)?;
+        builds.intern(&function.build);
     }
     Ok(builds)
 }
@@ -75,7 +75,7 @@ fn retain(
                 report_unit: key.unit(),
                 bundle: unit
                     .directory
-                    .join(rstyle_pdg::unit_store::DOCUMENTS_MANIFEST),
+                    .join(rstyle_core::cpg::transport::DOCUMENTS_MANIFEST),
                 function: u32::try_from(index).expect("checked unit function table"),
             },
             facts: ReportFacts {

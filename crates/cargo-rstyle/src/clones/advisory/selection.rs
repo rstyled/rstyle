@@ -118,7 +118,7 @@ fn source_path<'a>(original: &'a str, root: &Path, metrics: &str) -> Option<Cow<
     if !super::normalized_source_paths(metrics) {
         return None;
     }
-    let normalized = rstyle_pdg::nominal_binding::absolute_path(Path::new(original)).ok()?;
+    let normalized = rstyle_capture::absolute_path(Path::new(original)).ok()?;
     checked_path(normalized.to_str()?, root).map(|path| Cow::Owned(path.to_owned()))
 }
 

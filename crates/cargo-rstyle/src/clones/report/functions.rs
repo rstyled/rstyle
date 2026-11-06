@@ -28,7 +28,7 @@ struct Navigation<'a> {
     compilation_unit: &'a str,
     unit_evidence: &'a super::super::UnitEvidence,
     name: &'a str,
-    fn_span: rstyle_pdg::ByteSpan,
+    fn_span: crate::clones::build::ByteSpan,
     source_digest: &'a str,
 }
 

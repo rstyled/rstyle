@@ -142,12 +142,13 @@ impl Report<'_> {
         render: impl FnOnce() -> Result<String, String>,
     ) -> Result<String, String> {
         self.publish_archive()?;
-        rstyle_pdg::diagnostics::Stage::new("cli.report_render", "run", None).observe(render)
+        rstyle_capture::diagnostics::run_stage("cli.report_render", render)
     }
 
     fn publish_archive(&self) -> Result<(), String> {
-        rstyle_pdg::diagnostics::Stage::new("cli.report_write", "run", None)
-            .observe(|| write(&self.run_directory.join("report.json"), self))
+        rstyle_capture::diagnostics::run_stage("cli.report_write", || {
+            write(&self.run_directory.join("report.json"), self)
+        })
     }
 
     fn render_published(&self, format: Format) -> Result<String, String> {

@@ -19,7 +19,7 @@ pub(crate) fn document_path(tcx: TyCtxt<'_>, file: &SourceFile, root: &Path) -> 
         .working_dir()
         .local_path()?
         .join(real.local_path()?);
-    let normalized = rstyle_pdg::nominal_binding::absolute_path(&absolute).ok()?;
+    let normalized = rstyle_capture::absolute_path(&absolute).ok()?;
     let common = root
         .components()
         .zip(normalized.components())
@@ -49,7 +49,7 @@ pub(crate) fn build_output(tcx: TyCtxt<'_>, file: &SourceFile) -> bool {
         .local_path()
         .zip(tcx.sess.source_map().working_dir().local_path())
         .map(|(path, directory)| directory.join(path));
-    let normalized = |path: &Path| rstyle_pdg::nominal_binding::absolute_path(path).ok();
+    let normalized = |path: &Path| rstyle_capture::absolute_path(path).ok();
 
     absolute
         .and_then(|path| normalized(&path))
@@ -64,7 +64,7 @@ pub(crate) fn source_path(tcx: TyCtxt<'_>, file: &SourceFile, root: &Path) -> Op
 
     let path = real.local_path()?;
     let absolute = tcx.sess.source_map().working_dir().local_path()?.join(path);
-    let normalized = rstyle_pdg::nominal_binding::absolute_path(&absolute).ok()?;
+    let normalized = rstyle_capture::absolute_path(&absolute).ok()?;
     let relative = normalized.strip_prefix(root).ok()?;
     Some(relative.to_string_lossy().replace('\\', "/"))
 }

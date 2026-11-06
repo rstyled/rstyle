@@ -23,7 +23,7 @@ pub struct Target {
     pub package: String,
     pub manifest_dir: PathBuf,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub package_context: Option<rstyle_pdg::nominal_binding::PackageContext>,
+    pub package_context: Option<rstyle_capture::PackageContext>,
     pub source: PathBuf,
     pub name: String,
     pub kind: Vec<String>,
@@ -38,47 +38,29 @@ pub struct Plan {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_all_targets: Option<bool>,
     #[serde(default)]
-    pub compiler_advisory_only: bool,
-    #[serde(default)]
-    pub style_inputs_only: bool,
-    #[serde(default)]
-    pub compiler_advisory: bool,
-    #[serde(default)]
     pub compiler_patterns: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub compiler_runtime_bounds: bool,
-    #[serde(default)]
-    pub local_source_facts: bool,
-    #[serde(default)]
-    pub local_mutation_facts: bool,
     pub ledger_schema: String,
-    pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     pub root: PathBuf,
     pub driver: PathBuf,
     pub targets: Vec<Target>,
     pub compiler_identity: String,
     pub cargo_identity: String,
     pub primary_units: Vec<Value>,
-    #[serde(default)]
-    pub dependency_units: Vec<Value>,
 }
 
 impl Plan {
     fn with_advisory(self, args: &Args) -> Self {
         Self {
-            compiler_advisory_only: true,
-            style_inputs_only: true,
-            compiler_advisory: args.compiler_inputs_requested(),
             compiler_patterns: args.compiler_patterns,
             compiler_runtime_bounds: args.compiler_runtime_bounds,
-            local_source_facts: false,
-            local_mutation_facts: false,
             ..self
         }
     }
 
     fn planned_units(&self) -> impl Iterator<Item = &Value> {
-        self.primary_units.iter().chain(&self.dependency_units)
+        self.primary_units.iter()
     }
 }
 
@@ -86,11 +68,6 @@ impl Plan {
 pub struct Unit {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub compiler_runtime_bounds: bool,
-    #[serde(default)]
-    pub compiler_advisory_only: bool,
-    #[serde(default)]
-    pub style_inputs_only: bool,
-    pub extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
     pub target: Target,
     pub test: bool,
     pub invocation: Vec<String>,
@@ -112,14 +89,12 @@ pub struct Capture {
     pub expected_unit_graph: Value,
 }
 
-/// The profile documents are captured under.
-const PROFILE: rstyle_pdg::extraction_profile::ExtractionProfile =
-    rstyle_pdg::extraction_profile::ExtractionProfile::DataV3;
-
 pub fn prepare(cli: &Cli, args: &Args) -> Result<Capture, String> {
-    let (metadata, raw) = selected_workspace(cli)?;
-    let capture = initial_capture(metadata, PROFILE)?;
-    publish_plan(with_selection(capture, cli, args, &raw)?)
+    rstyle_capture::diagnostics::run_stage("cli.prepare", || {
+        let (metadata, raw) = selected_workspace(cli)?;
+        let capture = initial_capture(metadata)?;
+        publish_plan(with_selection(capture, cli, args, &raw)?)
+    })
 }
 
 fn with_selection(
@@ -131,20 +106,17 @@ fn with_selection(
     capture.plan = Plan {
         document_encoding: cli.cpg_compression,
         workspace_all_targets: Some(cli.packages.is_empty() && cli.all_targets),
-        targets: selected_targets(raw, cli, PROFILE)?,
+        targets: selected_targets(raw, cli)?,
         ..capture.plan.with_advisory(args)
     };
 
     Ok(capture)
 }
 
-fn initial_capture(
-    metadata: crate::workspace::Metadata,
-    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
-) -> Result<Capture, String> {
+fn initial_capture(metadata: crate::workspace::Metadata) -> Result<Capture, String> {
     let directory = run_directory(&metadata.target_directory)?;
     let environment = capture_environment()?;
-    let plan = plan(metadata.workspace_root, profile, Vec::new(), environment);
+    let plan = plan(metadata.workspace_root, Vec::new(), environment);
 
     Ok(new_capture(directory, plan))
 }
@@ -189,31 +161,19 @@ fn run_directory(target: &Path) -> Result<PathBuf, String> {
     Ok(directory)
 }
 
-fn plan(
-    root: PathBuf,
-    extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile,
-    targets: Vec<Target>,
-    environment: CaptureEnvironment,
-) -> Plan {
+fn plan(root: PathBuf, targets: Vec<Target>, environment: CaptureEnvironment) -> Plan {
     Plan {
         document_encoding: Default::default(),
         workspace_all_targets: None,
-        compiler_advisory_only: false,
-        style_inputs_only: false,
-        compiler_advisory: false,
         compiler_patterns: false,
         compiler_runtime_bounds: false,
-        local_source_facts: false,
-        local_mutation_facts: false,
         ledger_schema: ledger::SCHEMA.into(),
-        extraction_profile,
         root,
         compiler_identity: environment.compiler_identity,
         cargo_identity: environment.cargo_identity,
         driver: environment.driver,
         targets,
         primary_units: Vec::new(),
-        dependency_units: Vec::new(),
     }
 }
 
@@ -247,18 +207,14 @@ fn tool_identity(tool: &str, argument: &str) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
 
-fn selected_targets(
-    metadata: &Value,
-    cli: &Cli,
-    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
-) -> Result<Vec<Target>, String> {
+fn selected_targets(metadata: &Value, cli: &Cli) -> Result<Vec<Target>, String> {
     let mut result = Vec::new();
     for package in metadata["packages"].as_array().ok_or("missing packages")? {
         let name = package["name"].as_str().ok_or("missing package name")?;
         if !cli.packages.is_empty() && !cli.packages.iter().any(|p| p == name) {
             continue;
         }
-        let context = package_context(package, profile)?;
+        let context = package_context(package)?;
         for target in package["targets"].as_array().ok_or("missing targets")? {
             if !wanted_target(target, cli.all_targets) {
                 continue;
@@ -272,23 +228,14 @@ fn selected_targets(
     Ok(result)
 }
 
-fn package_context(
-    package: &Value,
-    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
-) -> Result<Option<rstyle_pdg::nominal_binding::PackageContext>, String> {
-    use rstyle_pdg::{
-        nominal_binding::{PACKAGE_IDENTITY, PackageContext},
-        source_identity::checksum,
-    };
-    if !profile.supports("rust.verified-helper-calls") {
-        return Ok(None);
-    }
+fn package_context(package: &Value) -> Result<Option<rstyle_capture::PackageContext>, String> {
+    use rstyle_capture::{PACKAGE_IDENTITY, PackageContext, checksum};
     let manifest_path = PathBuf::from(
         package["manifest_path"]
             .as_str()
             .ok_or("Missing package manifest path")?,
     );
-    let manifest_bytes = std::fs::read_to_string(&manifest_path).map_err(|e| e.to_string())?;
+    let manifest_bytes = std::fs::read(&manifest_path).map_err(|e| e.to_string())?;
     let context = PackageContext {
         identity: PACKAGE_IDENTITY.into(),
         package_id: package["id"]
@@ -304,8 +251,7 @@ fn package_context(
             .ok_or("Missing resolved package version")?
             .into(),
         manifest_path,
-        manifest_digest: checksum(manifest_bytes.as_bytes()),
-        manifest_bytes: manifest_bytes.into(),
+        manifest_digest: checksum(&manifest_bytes),
     };
     context.validate()?;
 
@@ -326,7 +272,7 @@ fn wanted_target(target: &Value, all: bool) -> bool {
 fn target_record(
     package: &Value,
     target: &Value,
-    package_context: Option<rstyle_pdg::nominal_binding::PackageContext>,
+    package_context: Option<rstyle_capture::PackageContext>,
 ) -> Result<Target, String> {
     let manifest = PathBuf::from(
         package["manifest_path"]
@@ -486,7 +432,7 @@ fn compile_output(
     args: &Args,
 ) -> Result<std::process::Output, String> {
     let observation =
-        rstyle_pdg::diagnostics::Stage::new("capture.compile", "cargo check", None).enter();
+        rstyle_capture::diagnostics::Stage::new("capture.compile", "cargo check", None).enter();
     observation.finish(run_compile(capture, cli, args))
 }
 
@@ -554,9 +500,7 @@ fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
         let unit_path = ledger::path(&capture.plan, &capture.directory, target, test)?;
         let unit: Unit = read_json(&unit_path)?;
         if &unit.target != target
-            || unit.compiler_advisory_only != capture.plan.compiler_advisory_only
             || unit.compiler_runtime_bounds != capture.plan.compiler_runtime_bounds
-            || unit.style_inputs_only != capture.plan.style_inputs_only
             || unit.test != test
             || unit.directory.parent() != Some(capture.directory.as_path())
         {
@@ -669,14 +613,12 @@ fn driver_command(
     invocation: &[String],
     target: Option<&Target>,
 ) -> Result<Command, String> {
-    let arguments = driver_arguments(plan, invocation, target)?;
+    let arguments = driver_arguments(invocation, target)?;
     let mut command = Command::new(&plan.driver);
     run::clear_rstyle_environment(&mut command);
 
-    if (plan.compiler_advisory || plan.compiler_advisory_only) && target.is_some() {
-        command
-            .envs(driver_flags(plan))
-            .env(rstyle_core::advisory::SOURCE_ROOT_ENV, &plan.root);
+    if target.is_some() {
+        command.env(rstyle_core::advisory::SOURCE_ROOT_ENV, &plan.root);
     }
     command
         .env("RSTYLE_CPG_COMPRESSION", plan.document_encoding.cli_name())
@@ -684,51 +626,13 @@ fn driver_command(
     Ok(command)
 }
 
-/// What a capture asks of the driver. A frontend records one document, whatever the
-/// run goes on to derive from it; other captures name what to rebuild in the compiler.
-fn driver_flags(plan: &Plan) -> Vec<(&'static str, &'static str)> {
-    if plan.style_inputs_only {
-        return vec![
-            ("RSTYLE_COMPILER_ADVISORY_ONLY", "1"),
-            ("RSTYLE_DOCUMENTS_ONLY", "1"),
-        ];
-    }
-    [
-        plan.compiler_advisory
-            .then_some((rstyle_core::advisory::CAPTURE_ENV, "1")),
-        plan.compiler_advisory_only
-            .then_some(("RSTYLE_COMPILER_ADVISORY_ONLY", "1")),
-        plan.compiler_runtime_bounds
-            .then_some((rstyle_core::advisory::runtime_bounds::CAPTURE_ENV, "1")),
-        plan.compiler_patterns
-            .then_some((rstyle_core::advisory::patterns::CAPTURE_ENV, "1")),
-        plan.local_source_facts
-            .then_some(("RSTYLE_LOCAL_SOURCE_FACTS", "1")),
-        plan.local_mutation_facts
-            .then_some(("RSTYLE_LOCAL_MUTATION_FACTS", "1")),
-    ]
-    .into_iter()
-    .flatten()
-    .collect()
-}
-
-fn driver_arguments(
-    plan: &Plan,
-    invocation: &[String],
-    target: Option<&Target>,
-) -> Result<Vec<String>, String> {
-    let mut arguments = vec![format!(
-        "{}={}",
-        rstyle_pdg::extraction_profile::DRIVER_SELECTION_FLAG,
-        plan.extraction_profile.token()
-    )];
-    if plan.extraction_profile.is_data()
-        && let Some(target) = target
-    {
+fn driver_arguments(invocation: &[String], target: Option<&Target>) -> Result<Vec<String>, String> {
+    let mut arguments = Vec::new();
+    if let Some(target) = target {
         let context = selected_unit_context(target, invocation)?;
         arguments.push(format!(
             "{}={}",
-            rstyle_pdg::nominal_boundary::CONTEXT_FLAG,
+            rstyle_capture::CONTEXT_FLAG,
             context.transport()?
         ));
     }
@@ -740,8 +644,8 @@ fn driver_arguments(
 pub fn selected_unit_context(
     target: &Target,
     invocation: &[String],
-) -> Result<rstyle_pdg::nominal_boundary::UnitContext, String> {
-    Ok(rstyle_pdg::nominal_boundary::UnitContext {
+) -> Result<rstyle_capture::UnitContext, String> {
+    Ok(rstyle_capture::UnitContext {
         package: target
             .package_context
             .clone()
@@ -815,10 +719,7 @@ fn capture_unit(
         .keep();
     let test = invocation.iter().any(|a| a == "--test");
     let unit = Unit {
-        compiler_advisory_only: selected_plan.compiler_advisory_only,
-        style_inputs_only: selected_plan.style_inputs_only,
         compiler_runtime_bounds: selected_plan.compiler_runtime_bounds,
-        extraction_profile: selected_plan.extraction_profile,
         target,
         test,
         invocation,
@@ -836,7 +737,7 @@ fn capture_unit(
 
 fn invoke_unit(unit: &Unit, command: &mut Command) -> Result<std::process::ExitStatus, String> {
     write_json(&unit.directory.join("started.json"), unit)?;
-    command.env("RSTYLE_HIR_DOCUMENT_DIR", &unit.directory);
+    command.env("RSTYLE_DOCUMENT_DIR", &unit.directory);
 
     command.status().map_err(|e| e.to_string())
 }
@@ -846,22 +747,15 @@ fn publish_unit(plan: &Plan, root: &Path, mut unit: Unit) -> Result<(), String> 
     publish_ledger(plan, root, &unit)
 }
 
-/// What a unit's ledger seals: its documents' manifest, or its evidence and inventory.
+/// What a unit's ledger seals: its documents' manifest.
 fn unit_artifacts(unit: &Unit) -> Result<Vec<Artifact>, String> {
-    if !unit.style_inputs_only {
-        return artifact_inventory(&unit.directory, unit.extraction_profile);
-    }
-    let manifest = rstyle_pdg::unit_store::DOCUMENTS_MANIFEST.to_owned();
+    let manifest = rstyle_core::cpg::transport::DOCUMENTS_MANIFEST.to_owned();
     Ok(vec![read_artifact(&unit.directory, manifest)?])
 }
 
 /// Everything a completed unit keeps in its directory.
 fn stored_files(unit: &Unit) -> Result<Vec<String>, String> {
-    if !unit.style_inputs_only {
-        return Ok(artifact_files(unit.extraction_profile));
-    }
-
-    let mut files = vec![rstyle_pdg::unit_store::DOCUMENTS_MANIFEST.to_owned()];
+    let mut files = vec![rstyle_core::cpg::transport::DOCUMENTS_MANIFEST.to_owned()];
     let documents = super::documents::manifest(unit)?.documents;
     files.extend(documents.into_iter().map(|document| document.file));
     Ok(files)
@@ -883,43 +777,11 @@ fn reserve_ledger(path: &Path) -> Result<std::fs::File, String> {
         .map_err(|e| format!("duplicate or missing unit ledger: {e}"))
 }
 
-fn artifact_files(profile: rstyle_pdg::extraction_profile::ExtractionProfile) -> Vec<String> {
-    let mut files = vec![
-        "unit.evidence.json".into(),
-        "unit.evidence.manifest.json".into(),
-    ];
-    if profile.supports("rust.conditional-source-correspondence") {
-        files.push("source-inventory.json".into());
-    }
-    files
-}
-
-fn artifact_inventory(
-    directory: &Path,
-    profile: rstyle_pdg::extraction_profile::ExtractionProfile,
-) -> Result<Vec<Artifact>, String> {
-    artifact_files(profile)
-        .into_iter()
-        .map(|file| read_artifact(directory, file))
-        .collect()
-}
-
-// rstyle-allow(side_effect_density): Artifact read boundary reuses the published bundle checksum or reads the requested small artifact.
 fn read_artifact(directory: &Path, file: String) -> Result<Artifact, String> {
-    if file == "unit.evidence.json" {
-        let bytes = std::fs::read(directory.join("unit.evidence.manifest.json"))
-            .map_err(|error| error.to_string())?;
-        let manifest: rstyle_pdg::unit_store::BundleManifest =
-            serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-        return Ok(Artifact {
-            file,
-            checksum: manifest.checksum,
-        });
-    }
     let bytes = std::fs::read(directory.join(&file)).map_err(|error| error.to_string())?;
     Ok(Artifact {
         file,
-        checksum: rstyle_pdg::unit_store::transport_checksum(&bytes),
+        checksum: rstyle_capture::checksum(&bytes),
     })
 }
 

@@ -112,6 +112,7 @@ fn evaluate(
         super::compiler_patterns::apply(inputs, ctx, store.as_deref_mut())?;
     let (diagnostics, diagnostic_records) = super::compiler_diagnostics::apply(inputs, ctx, store)?;
     let compiler = CompilerReviews::new(inputs, ctx, patterns, diagnostics)?;
+
     let status = ctx.args.review_status_requested().then(|| {
         status::Report::new(
             pattern_records

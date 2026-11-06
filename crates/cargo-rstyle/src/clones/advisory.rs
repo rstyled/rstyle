@@ -1039,7 +1039,7 @@ fn source_path(
         .ok_or("Missing compiler advisory source location")?;
     let original = std::path::Path::new(source);
     let normalized = normalize
-        .then(|| rstyle_pdg::nominal_binding::absolute_path(original))
+        .then(|| rstyle_capture::absolute_path(original))
         .transpose()?;
     let path = normalized.as_deref().unwrap_or(original);
 

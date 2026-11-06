@@ -1,7 +1,7 @@
 //! Durable review snapshots reuse completed local declaration witnesses.
 use super::{CompilationTarget, Locator, Package, Versions, local};
+use crate::clones::build::StringFact;
 use crate::clones::capture;
-use rstyle_pdg::StringFact;
 use std::path::{Component, Path};
 
 pub(super) fn versions(detector: &str) -> Versions {
@@ -49,7 +49,6 @@ impl Identity {
             .ok_or("Review package context is missing")?;
         if package.package_id != unit.target.package
             || package.manifest_path.parent() != Some(unit.target.manifest_dir.as_path())
-            || unit.extraction_profile != plan.extraction_profile
         {
             return Err("Review package or extraction context is contradictory".into());
         }
@@ -76,16 +75,15 @@ impl Identity {
 }
 
 pub(super) fn context(
-    build: &rstyle_pdg::BuildFacts,
+    build: &crate::clones::build::BuildFacts,
     unit: &capture::Unit,
 ) -> Result<local::BuildContext, String> {
-    let width = (build.pointer_width.status == rstyle_pdg::FactStatus::Known)
+    let width = (build.pointer_width.status == crate::clones::build::FactStatus::Known)
         .then_some(build.pointer_width.value)
         .flatten()
         .and_then(|width| u16::try_from(width).ok())
         .filter(|width| *width != 0)
         .ok_or("Review target pointer width is unavailable")?;
-    let extraction = unit.extraction_profile.policy();
     Ok(local::BuildContext {
         compiler_commit: text(&build.rustc_commit, "compiler commit")?,
         edition: text(&build.edition, "edition")?,
@@ -103,13 +101,13 @@ pub(super) fn context(
         debug_assertions: boolean(&build.debug_assertions, "debug assertions")?,
         overflow_checks: boolean(&build.overflow_checks, "overflow checks")?,
         panic_strategy: text(&build.panic_strategy, "panic strategy")?,
-        extraction_policy: format!("{}/{}", extraction.id, extraction.version),
+        extraction_policy: "compat.cpg/1".into(),
     })
 }
 
 fn relative(path: &Path, root: &Path) -> Result<String, String> {
-    let path = rstyle_pdg::nominal_binding::absolute_path(path)?;
-    let root = rstyle_pdg::nominal_binding::absolute_path(root)?;
+    let path = rstyle_capture::absolute_path(path)?;
+    let root = rstyle_capture::absolute_path(root)?;
 
     let suffix = path
         .strip_prefix(&root)
@@ -134,8 +132,8 @@ fn text(fact: &StringFact, label: &str) -> Result<String, String> {
     }
 }
 
-fn boolean(fact: &rstyle_pdg::BoolFact, label: &str) -> Result<bool, String> {
-    (fact.status == rstyle_pdg::FactStatus::Known)
+fn boolean(fact: &crate::clones::build::BoolFact, label: &str) -> Result<bool, String> {
+    (fact.status == crate::clones::build::FactStatus::Known)
         .then_some(fact.value)
         .flatten()
         .ok_or_else(|| format!("Review {label} is unavailable"))

@@ -387,7 +387,6 @@ pub(super) fn routes(ctx: &Context<'_>) -> Routes {
                     .plan
                     .primary_units
                     .iter()
-                    .chain(&ctx.capture.plan.dependency_units)
                     .any(|planned| planned == *candidate)
                     && matches(candidate, captured)
             })

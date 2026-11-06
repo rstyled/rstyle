@@ -55,11 +55,8 @@ struct Execution<'a> {
 
 impl Execution<'_> {
     fn run(mut self) -> Result<(String, u8), String> {
-        let replay = self.routed.options.replay_run.is_some();
-        super::with_capture_verification(replay, || {
-            let (captured, options) = prepare(&mut self.cli, self.routed)?;
-            session::publish(&self.cli, self.review, captured, options)
-        })
+        let (captured, options) = prepare(&mut self.cli, self.routed)?;
+        session::publish(&self.cli, self.review, captured, options)
     }
 }
 

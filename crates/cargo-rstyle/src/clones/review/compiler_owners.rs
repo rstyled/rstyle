@@ -1,10 +1,10 @@
 //! Reuse captured compiler declarations for advisory review identities.
+use crate::clones::build::{ResolvedTy, StringFact};
 use crate::clones::{identity::UnitId, report as compiler_report};
 use rstyle_core::{
     facts::{FnFacts, SigFacts},
     locator,
 };
-use rstyle_pdg::{ResolvedTy, StringFact};
 use serde::{Deserialize, Serialize, de::Error};
 use std::collections::BTreeMap;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -96,7 +96,7 @@ fn document_signature(
         result: resolved(&sig.result),
         method,
         abi: StringFact {
-            status: rstyle_pdg::FactStatus::Known,
+            status: crate::clones::build::FactStatus::Known,
             value: Some(abi.into()),
             reason: None,
         },

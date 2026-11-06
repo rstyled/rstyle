@@ -140,7 +140,7 @@ impl<'tcx> Unit<'tcx> {
         let id = format!("file:{path}");
         // A file is recorded as written: its original bytes, and offsets into them.
         if !self.files.contains_key(&id) {
-            let content = crate::hir_extraction::recover_source(&lo.sf)?;
+            let content = super::source::recover(&lo.sf)?;
             let digest: String = Sha256::digest(content.as_bytes())
                 .iter()
                 .map(|b| format!("{b:02x}"))
@@ -437,9 +437,7 @@ impl<'tcx> Unit<'tcx> {
             })
             .collect();
         record["marks"] = json!(marks);
-        if let Some(root) =
-            crate::hir_extraction::generated_sources::generated_root(self.tcx, local)
-        {
+        if let Some(root) = super::generated_root::generated_root(self.tcx, local) {
             record["root"] = json!(root);
         }
 
