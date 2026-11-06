@@ -294,6 +294,26 @@ fn a_declaration_that_writes_an_extent_source_is_unsupported() {
 }
 
 #[test]
+fn a_value_a_pattern_compares_is_not_a_write() {
+    let mut document = example_declaring_over("count.total");
+    let function = count_function(&mut document);
+    let literal = count_part(
+        function,
+        "count.compared",
+        "pattern_literal",
+        json!(["count.reused"]),
+    );
+    function["nodes"].as_array_mut().unwrap().push(literal);
+    count_node(function, "count.names")["children"][0] = json!("count.compared");
+    let program = count_program(document);
+    assert_eq!(
+        program.matches("Assign").count(),
+        count_program(example()).matches("Assign").count(),
+        "{program}"
+    );
+}
+
+#[test]
 fn a_declaration_that_reuses_anything_else_changes_nothing() {
     let plain = count_program(example());
     let program = count_program(example_declaring_over("count.iter"));
