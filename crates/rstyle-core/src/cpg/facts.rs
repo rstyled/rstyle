@@ -1,6 +1,7 @@
 //! FnFacts for the style rules, derived from one bundled unit document.
 
 use super::dependence::{Roles, dependence_graph};
+use super::effects::EffectClasses;
 use super::events::{Events, Walk, mutations};
 use super::metrics::{Constructs, statements, top_statements};
 use super::model::{Coverage, Document, Function, Status};
@@ -69,6 +70,7 @@ pub(super) fn derive_each(document: &Document, graphs: bool) -> Result<EachFunct
 
     let measured = complexity_available(&document.coverage);
     let roles = graphs.then(|| Roles::of(&document.producer.namespace));
+    let classes = EffectClasses::of(&document.producer.namespace);
     let functions = unit.functions.as_deref().unwrap_or_default();
     // A function whose file lies outside the workspace root has no workspace facts,
     // unless the build wrote it there, as it does when the target directory is elsewhere.
@@ -82,7 +84,7 @@ pub(super) fn derive_each(document: &Document, graphs: bool) -> Result<EachFunct
         .iter()
         .filter(inside)
         .map(|function| {
-            let facts = function_facts(function, (&tables, &sources, roles), measured);
+            let facts = function_facts(function, (&tables, &sources, roles, classes), measured);
             (function, facts)
         })
         .collect())
@@ -124,11 +126,11 @@ fn complexity_available(coverage: &Coverage) -> bool {
 
 fn function_facts(
     function: &Function,
-    (tables, sources, roles): (&Tables<'_>, &Sources<'_>, Option<&Roles>),
+    (tables, sources, roles, classes): (&Tables<'_>, &Sources<'_>, Option<&Roles>, &EffectClasses),
     measured: bool,
 ) -> Result<FnFacts, String> {
     let body = Body::new(function)?;
-    let walk = Walk::new(&body, tables, sources);
+    let walk = Walk::new(&body, tables, sources, classes);
     let events = walk.events()?;
     let (mutations, mutated): (Vec<_>, Vec<_>) = mutations(&walk)?.into_iter().unzip();
     let complexity = match measured {

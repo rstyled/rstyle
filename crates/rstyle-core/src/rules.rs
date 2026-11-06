@@ -1,7 +1,7 @@
 //! Pure rules over `FnFacts`. No IO, no compiler types.
 
 use crate::config::{Config, Granularity, MutationBudgetConfig};
-use crate::facts::{CallEvent, EffectEvent, EffectKind, FnFacts, MutationEvent};
+use crate::facts::{CallEvent, EffectEvent, EffectKind, FnFacts, LibraryClass, MutationEvent};
 use crate::lines::code_lines;
 use crate::report::{Detail, Diagnostic};
 use std::collections::BTreeMap;
@@ -227,8 +227,7 @@ pub fn effects_from_events(events: EffectEvents<'_>, cfg: &Config) -> Vec<Effect
             via: None,
         });
     let calls = events.calls.iter().filter_map(|c| {
-        let classified = cfg.side_effects.paths.classify(&c.callee);
-        let kind = classified.or(c.dynamic.then_some(EffectKind::Unknown))?;
+        let kind = call_effect(c, cfg)?;
         Some(Effect {
             kind,
             label: c.callee.clone(),
@@ -244,6 +243,19 @@ pub fn effects_from_events(events: EffectEvents<'_>, cfg: &Config) -> Vec<Effect
     });
 
     mutations.chain(calls).chain(intrinsic).collect()
+}
+
+/// A call's effect: the config's say first, as the user's own, then the library contract's.
+/// A call neither classifies is an unknown effect only when its target is unknown.
+fn call_effect(call: &CallEvent, cfg: &Config) -> Option<EffectKind> {
+    if let Some(kind) = cfg.side_effects.paths.classify(&call.callee) {
+        return Some(kind);
+    }
+    match call.library {
+        Some(LibraryClass::Pure) => None,
+        Some(LibraryClass::Effect(kind)) => Some(kind),
+        None => call.dynamic.then_some(EffectKind::Unknown),
+    }
 }
 
 /// Weighted effect sum per statement, in thousandths (integer math only).
@@ -363,6 +375,7 @@ mod tests {
                 callee: "<fn pointer>".into(),
                 line: 8,
                 dynamic: true,
+                library: None,
             },
             call("unclassified::ordinary"),
             CallEvent {
@@ -538,6 +551,7 @@ mod tests {
             callee: callee.into(),
             line: 1,
             dynamic: false,
+            library: None,
         }
     }
 
@@ -554,6 +568,39 @@ mod tests {
         f.calls[0].callee = "std::io::Write::write".into();
         let effects = effects_of(&f, &Config::default());
         assert_eq!(effects[0].kind, EffectKind::Io);
+    }
+
+    #[test]
+    fn a_library_class_decides_a_call_unless_the_config_names_it() {
+        let classified = |library| CallEvent {
+            dynamic: true,
+            library,
+            ..call("example.com/lib.Do")
+        };
+        let mut f = sample("f");
+        let mut config = Config::default();
+
+        f.calls = vec![classified(Some(LibraryClass::Effect(EffectKind::Io)))];
+        let effects = effects_of(&f, &config);
+        assert_eq!(effects.len(), 1, "a class is one effect, not one more");
+        assert_eq!(effects[0].kind, EffectKind::Io);
+
+        f.calls = vec![classified(Some(LibraryClass::Pure))];
+        assert!(
+            effects_of(&f, &config).is_empty(),
+            "pure wins over a dynamic target"
+        );
+
+        config.side_effects.paths.network = vec!["example.com/lib.".into()];
+        for class in [
+            LibraryClass::Pure,
+            LibraryClass::Effect(EffectKind::Unknown),
+        ] {
+            f.calls = vec![classified(Some(class))];
+            let effects = effects_of(&f, &config);
+            assert_eq!(effects.len(), 1, "the config replaces the class");
+            assert_eq!(effects[0].kind, EffectKind::Network);
+        }
     }
 
     #[test]

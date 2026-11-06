@@ -3,7 +3,8 @@ use super::records::Demand;
 use super::{run_bounds, run_facts, run_records};
 use crate::complexity::Kind;
 use crate::facts::{
-    ArgSource, CallEvent, Edge, EffectEvent, EffectKind, FnFacts, MutationEvent, MutationOrigin,
+    ArgSource, CallEvent, Edge, EffectEvent, EffectKind, FnFacts, LibraryClass, MutationEvent,
+    MutationOrigin,
 };
 use serde_json::{Value, json};
 
@@ -59,6 +60,7 @@ fn call(callee: &str, line: usize, dynamic: bool) -> CallEvent {
         callee: callee.into(),
         line,
         dynamic,
+        library: None,
     }
 }
 
@@ -1107,6 +1109,135 @@ fn calls_through_values_are_dynamic_unless_they_invoke_a_local_closure() {
     assert_eq!(facts.calls, expected);
     assert!(kinds(facts).is_empty(), "a closure nests but adds no score");
     assert_eq!(facts.mutations.len(), 1);
+}
+
+const LIBRARY: &str = "fn library(buffer: B, file: F) {
+    os.WriteFile();
+    fmt.Fprintf(buffer);
+    fmt.Fprintf(file);
+    strings.ToUpper();
+    example.com/lib.Do();
+    workspace_call();
+}
+";
+
+/// Statement `index`: a call of `definition`, with these argument nodes after its callee.
+fn library_call(
+    fx: &mut Fixture,
+    index: usize,
+    (text, definition): (&str, &str),
+    arguments: &[&str],
+) {
+    let (statement, call, callee) = (
+        format!("s{index}"),
+        format!("c{index}"),
+        format!("n{index}"),
+    );
+    let mut children = vec![callee.as_str()];
+    children.extend(arguments);
+    fx.node((&statement, "expression_statement"), (text, ""), &[&call]);
+    fx.node((&call, "call"), (text, ""), &children);
+    fx.node((&callee, "identifier"), (text, ""), &[]);
+    fx.reference(
+        &call,
+        ("definition", definition),
+        json!({"dispatch": "static"}),
+    );
+}
+
+fn library_definition(fx: &mut Fixture, id: &str, key: &str) {
+    fx.definitions
+        .push(json!({"id": id, "kind": "function", "name": key,
+        "stable_identity": format!("go::{key}"), "scope": "library", "standard": true,
+        "operation": format!("go:{key}")}));
+}
+
+/// A Go document's calls: one per library class, and one outside the library.
+fn library_calls() -> Value {
+    let mut fx = Fixture::new(LIBRARY);
+    let statements = ["s0", "s1", "s2", "s3", "s4", "s5"];
+    fx.node(("root", "block"), ("{\n    os", ""), &statements)["span"]["end"] =
+        json!(LIBRARY.trim_end().len());
+    library_call(&mut fx, 0, ("os.WriteFile", "def:write"), &[]);
+    library_call(
+        &mut fx,
+        1,
+        ("fmt.Fprintf(buffer)", "def:fprintf"),
+        &["to_buffer"],
+    );
+    library_call(
+        &mut fx,
+        2,
+        ("fmt.Fprintf(file)", "def:fprintf"),
+        &["to_file"],
+    );
+    library_call(&mut fx, 3, ("strings.ToUpper", "def:upper"), &[]);
+    library_call(&mut fx, 4, ("example.com/lib.Do", "def:do"), &[]);
+    library_call(&mut fx, 5, ("workspace_call", "def:near"), &[]);
+
+    fx.node(("to_buffer", "identifier"), ("buffer", "Fprintf"), &[])["type"] = json!("type:buffer");
+    fx.node(("to_file", "identifier"), ("file", "Fprintf(file"), &[])["type"] = json!("type:file");
+    fx.types
+        .push(json!({"id": "type:buffer", "kind": "opaque", "spelling": "*bytes.Buffer"}));
+    fx.types
+        .push(json!({"id": "type:file", "kind": "opaque", "spelling": "*os.File"}));
+
+    library_definition(&mut fx, "def:write", "os.WriteFile");
+    library_definition(&mut fx, "def:fprintf", "fmt.Fprintf");
+    library_definition(&mut fx, "def:upper", "strings.ToUpper");
+    library_definition(&mut fx, "def:do", "example.com/lib.Do");
+    fx.definition(
+        ("def:near", "function"),
+        ("example::near", "workspace"),
+        &[],
+    );
+
+    let mut document = fx.document("fn library(buffer: B, file: F)");
+    document["producer"]["namespace"] = json!("go");
+    document
+}
+
+#[test]
+fn library_calls_carry_the_class_their_namespace_gives_them() {
+    let facts = &facts_of(library_calls())[0];
+    let io = Some(LibraryClass::Effect(EffectKind::Io));
+    let unknown = Some(LibraryClass::Effect(EffectKind::Unknown));
+    let classes: Vec<_> = facts
+        .calls
+        .iter()
+        .map(|call| (call.line, call.library))
+        .collect();
+    let expected = [
+        (2, io),
+        (3, Some(LibraryClass::Pure)),
+        (4, io),
+        (5, Some(LibraryClass::Pure)),
+        (6, unknown),
+        (7, None),
+    ];
+    assert_eq!(classes, expected);
+}
+
+#[test]
+fn a_namespace_without_classes_leaves_library_calls_unclassified() {
+    let mut document = library_calls();
+    document["producer"]["namespace"] = json!("rust");
+    let facts = &facts_of(document)[0];
+    assert!(facts.calls.iter().all(|call| call.library.is_none()));
+}
+
+#[test]
+fn a_library_call_without_a_key_takes_the_unlisted_class() {
+    let mut document = library_calls();
+    let definitions = document["unit"]["definitions"].as_array_mut().unwrap();
+    for definition in definitions.iter_mut() {
+        if definition["id"] == "def:write" {
+            definition.as_object_mut().unwrap().remove("operation");
+        }
+    }
+    let facts = &facts_of(document)[0];
+    let unknown = Some(LibraryClass::Effect(EffectKind::Unknown));
+    assert_eq!(facts.calls[0].library, unknown);
 }
 
 const DELEGATE: &str = "fn delegate(&mut self, other: &mut Data) {

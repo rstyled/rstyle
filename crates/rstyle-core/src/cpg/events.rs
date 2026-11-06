@@ -1,6 +1,7 @@
 //! Calls, call edges, effects and mutations of one function, as the profile's Rule
 //! facts define them.
 
+use super::effects::EffectClasses;
 use super::model::{
     Definition, DefinitionKind, Dispatch, Node, NodeKind, Origin, Place, PlaceMode, Ref, RefStatus,
     RefTarget, Scope, Step, Symbol, TargetKind, TypeKind,
@@ -9,7 +10,8 @@ use super::source::Sources;
 use super::tree::{Body, Tables, anchor, generated, is_kind, line};
 use crate::complexity::{Kind, Node as Construct};
 use crate::facts::{
-    ArgSource, CallEvent, Edge, EffectEvent, EffectKind, MutationEvent, MutationOrigin,
+    ArgSource, CallEvent, Edge, EffectEvent, EffectKind, LibraryClass, MutationEvent,
+    MutationOrigin,
 };
 use crate::paths::strip_generics;
 use std::collections::BTreeMap;
@@ -29,6 +31,7 @@ pub struct Walk<'a> {
     pub sources: &'a Sources<'a>,
     owner: &'a str,
     params: BTreeMap<&'a str, usize>,
+    classes: &'a EffectClasses,
 }
 
 /// A node being walked, and whether a user-written `unsafe` block encloses it.
@@ -57,7 +60,12 @@ fn user_unsafe(node: &Node) -> bool {
 }
 
 impl<'a> Walk<'a> {
-    pub fn new(body: &'a Body<'a>, tables: &'a Tables<'a>, sources: &'a Sources<'a>) -> Self {
+    pub fn new(
+        body: &'a Body<'a>,
+        tables: &'a Tables<'a>,
+        sources: &'a Sources<'a>,
+        classes: &'a EffectClasses,
+    ) -> Self {
         let signature = &body.function.signature;
         let params = signature
             .parameters
@@ -70,6 +78,7 @@ impl<'a> Walk<'a> {
             sources,
             owner: &body.function.definition,
             params,
+            classes,
         }
     }
 
@@ -149,6 +158,7 @@ impl<'a> Walk<'a> {
                     callee: what.into(),
                     line,
                     dynamic: true,
+                    library: None,
                 });
                 Ok(())
             }
@@ -252,12 +262,48 @@ impl<'a> Walk<'a> {
                 .push(self.effect(EffectKind::Unsafe, detail, site.node)?);
         }
         let line = self.line(site.node)?;
+        let library = self.library_class(site.node, declared)?;
         out.calls.push(CallEvent {
             callee: name,
             line,
             dynamic,
+            library,
         });
         Ok(())
+    }
+
+    /// What the namespace's contract says this call does.
+    fn library_class(
+        &self,
+        node: &'a Node,
+        declared: &Definition,
+    ) -> Result<Option<LibraryClass>, String> {
+        if declared.scope != Scope::Library {
+            return Ok(None);
+        }
+        let Some(operation) = declared.operation.as_deref() else {
+            return Ok(self.classes.unlisted());
+        };
+        if self.writes_to_memory(node, operation)? {
+            return Ok(Some(LibraryClass::Pure));
+        }
+        Ok(self.classes.class(operation))
+    }
+
+    /// Whether the contract keeps this call's effect in a buffer, by an argument's type.
+    fn writes_to_memory(&self, node: &'a Node, operation: &str) -> Result<bool, String> {
+        let Some(rule) = self.classes.memory_write(operation) else {
+            return Ok(false);
+        };
+
+        let children = self.body.source_children(node)?;
+        let argument = children.get(1 + rule.argument);
+        let Some(ty) = argument.and_then(|argument| argument.ty.as_deref()) else {
+            return Ok(false);
+        };
+
+        let spelling = &self.tables.ty(ty)?.spelling;
+        Ok(rule.types.iter().any(|name| name == spelling))
     }
 
     /// Workspace calls, same unit included, form the call graph.
