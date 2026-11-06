@@ -1,6 +1,6 @@
 use super::layout::{self, digest, split};
 use super::records::Demand;
-use super::{run_facts, run_records};
+use super::{run_bounds, run_facts, run_records};
 use crate::complexity::Kind;
 use crate::facts::{
     ArgSource, CallEvent, Edge, EffectEvent, EffectKind, FnFacts, MutationEvent, MutationOrigin,
@@ -160,6 +160,149 @@ fn example_mutations_separate_source_writes_from_the_lowered_iterator() {
 fn example_passes_the_default_rules() {
     let report = crate::evaluate(facts_of(example()), &crate::config::Config::default()).unwrap();
     assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
+}
+
+// Patterns in runtime bounds.
+
+/// The program of the example's `count`, whose loop iterates its `items` parameter.
+fn count_program(document: Value) -> String {
+    let programs = run_bounds(vec![document]).unwrap();
+    let (_, input) = programs.iter().find(|(f, _)| f.ends_with("count")).unwrap();
+    serde_json::to_string(input).unwrap()
+}
+
+fn count_function(document: &mut Value) -> &mut Value {
+    document["unit"]["functions"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|function| function["id"] == "fn:count")
+        .unwrap()
+}
+
+fn count_node<'a>(function: &'a mut Value, id: &str) -> &'a mut Value {
+    function["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|node| node["id"] == id)
+        .unwrap()
+}
+
+/// A node of `count` at its span of `count.let`, of no type.
+fn count_part(function: &Value, id: &str, kind: &str, children: Value) -> Value {
+    let mut part = function["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|node| node["id"] == "count.total_pat")
+        .unwrap()
+        .clone();
+    part["id"] = json!(id);
+    part["kind"] = json!(kind);
+    part["children"] = children;
+    part
+}
+
+/// An identifier in `count` that names `symbol`, as a pattern that reuses it does.
+fn add_write(function: &mut Value, id: &str, symbol: &str) {
+    let mut place = count_part(function, id, "identifier", json!([]));
+    place["original_kind"] = json!("expr_path");
+    function["nodes"].as_array_mut().unwrap().push(place);
+    let refs = function["refs"].as_array_mut().unwrap();
+    refs.push(
+        json!({"node": id, "status": "resolved", "target": {"kind": "symbol", "id": symbol}}),
+    );
+}
+
+/// `count` with a statement before its loop: `(symbol, _) = 0`, written as a declaration.
+fn example_declaring_over(symbol: &str) -> Value {
+    let mut document = example();
+    let function = count_function(&mut document);
+    add_write(function, "count.reused", symbol);
+    let wildcard = count_part(function, "count.new", "pattern_wildcard", json!([]));
+    let pattern = count_part(
+        function,
+        "count.names",
+        "pattern_tuple",
+        json!(["count.reused", "count.new"]),
+    );
+    let mut value = count_node(function, "count.zero").clone();
+    value["id"] = json!("count.value");
+    let mut declaration = count_node(function, "count.let").clone();
+    declaration["id"] = json!("count.reuse");
+    declaration["children"] = json!(["count.names", "count.value"]);
+    let nodes = function["nodes"].as_array_mut().unwrap();
+    nodes.extend([wildcard, pattern, value, declaration]);
+    let block = count_node(function, "count.block");
+    let children = block["children"].as_array_mut().unwrap();
+    children.insert(1, json!("count.reuse"));
+    document
+}
+
+#[test]
+fn a_for_pattern_of_new_bindings_keeps_its_bound() {
+    let mut document = example();
+    let function = count_function(&mut document);
+    let wildcard = count_part(function, "count.index", "pattern_wildcard", json!([]));
+    let pair = count_part(
+        function,
+        "count.pair",
+        "pattern_tuple",
+        json!(["count.index", "count.item_pat"]),
+    );
+    function["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .extend([wildcard, pair]);
+    count_node(function, "count.for")["children"][0] = json!("count.pair");
+    let program = count_program(document);
+    assert!(program.contains("for-index"), "{program}");
+    assert!(!program.contains("Unsupported"), "{program}");
+}
+
+#[test]
+fn a_for_pattern_that_writes_a_place_is_unsupported() {
+    let mut document = example();
+    let function = count_function(&mut document);
+    add_write(function, "count.write", "count.total");
+    count_node(function, "count.for")["children"][0] = json!("count.write");
+    let program = count_program(document);
+    assert!(
+        program.contains("Iterator pattern holds more than new bindings"),
+        "{program}"
+    );
+}
+
+#[test]
+fn a_declaration_that_reuses_a_counter_assigns_it() {
+    let program = count_program(example_declaring_over("count.total"));
+    assert!(
+        program.contains(r#"{"Assign":{"variable":"#) && program.contains(r#""value":"Unknown"}"#),
+        "{program}"
+    );
+    assert!(!program.contains("Unsupported"), "{program}");
+}
+
+#[test]
+fn a_declaration_that_writes_an_extent_source_is_unsupported() {
+    let program = count_program(example_declaring_over("count.items"));
+    assert!(
+        program.contains("Declaration writes an extent source"),
+        "{program}"
+    );
+}
+
+#[test]
+fn a_declaration_that_reuses_anything_else_changes_nothing() {
+    let plain = count_program(example());
+    let program = count_program(example_declaring_over("count.iter"));
+    assert!(!program.contains("Unsupported"), "{program}");
+    assert_eq!(
+        program.matches("Assign").count(),
+        plain.matches("Assign").count(),
+        "{program}"
+    );
 }
 
 // Layouts.

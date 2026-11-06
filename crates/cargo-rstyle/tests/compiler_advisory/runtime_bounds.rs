@@ -559,6 +559,64 @@ fn old_capture_cannot_silently_supply_runtime_bounds() {
     );
 }
 
+/// Loops whose patterns are more than one immutable binding. Kept apart from `SOURCE`,
+/// whose programs the CPG lowering's snapshot freezes.
+const FOR_PATTERN_SOURCE: &str = r#"
+pub struct Point { pub x: u8, pub y: u8 }
+pub fn pairs(xs: &[(u8, u8)]) { for (_a, _b) in xs {} }
+pub fn nested_pairs(xs: &[(u8, (u8, u8))]) { for (_a, (_b, _c)) in xs {} }
+pub fn wildcard_part(xs: &[(u8, u8)]) { for (_, _b) in xs {} }
+pub fn record(xs: &[Point]) { for Point { x: _x, y: _y } in xs {} }
+#[allow(unused_mut)]
+pub fn unused_mut(xs: &[u8]) { for mut _x in xs {} }
+#[allow(unused_mut)]
+pub fn unused_mut_range(n: u64) { for mut _i in 0..n {} }
+pub fn assigned_binding(n: u64) { for mut i in 0..n { i = 0; let _ = i; } }
+pub fn stepped_binding(n: u64) { for mut i in 0..n { i += 1; let _ = i; } }
+pub fn binding_as_limit(n: u64) { for mut i in 0..n { i += 1; for _ in 0..i {} } }
+pub fn pair_as_limit(xs: &[(u64, u8)]) { for (n, _) in xs { for _ in 0..*n {} } }
+pub fn reference_pattern(xs: &[u8]) { for &_x in xs {} }
+pub fn mutable_item(xs: &mut [(u8, u8)]) { for (a, _) in xs { *a = 0; } }
+"#;
+
+#[test]
+fn a_for_pattern_of_new_bindings_keeps_its_bound() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), FOR_PATTERN_SOURCE).unwrap();
+    let output = rstyle(
+        directory.path(),
+        &["patterns", "--format", "json", "--complexity"],
+    );
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(output.status.success(), "{}", stdout(&output));
+    let rows = runtime(&report)["rows"].as_array().unwrap();
+    for (name, input) in [
+        ("pairs", "xs"),
+        ("nested_pairs", "xs"),
+        ("wildcard_part", "xs"),
+        ("record", "xs"),
+        ("unused_mut", "xs"),
+    ] {
+        let bound = entries(rows, name, "result", "Proven");
+        assert!(
+            bound.starts_with(&format!("len({input})")),
+            "{name}: {bound}"
+        );
+    }
+    assert_eq!(entries(rows, "unused_mut_range", "result", "Proven"), "n");
+    for name in [
+        "assigned_binding",
+        "stepped_binding",
+        "binding_as_limit",
+        "pair_as_limit",
+        "reference_pattern",
+        "mutable_item",
+    ] {
+        let row = named_row(rows, name);
+        assert!(row["result"].get("Proven").is_none(), "{name}: {row}");
+    }
+}
+
 /// The programs of issue 35, with what signed counters must not get wrong. Kept apart
 /// from `SOURCE`, whose programs the CPG lowering's snapshot freezes.
 const SIGNED_SOURCE: &str = r#"

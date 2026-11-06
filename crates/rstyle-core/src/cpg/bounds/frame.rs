@@ -711,7 +711,7 @@ fn iteration_member(facts: &Facts<'_, '_>, call: &Node) -> bool {
         .is_some_and(|declared| declared.iteration && declared.operation.is_some())
 }
 
-fn is_pattern(kind: NodeKind) -> bool {
+pub(super) fn is_pattern(kind: NodeKind) -> bool {
     matches!(
         kind,
         NodeKind::PatternBinding
