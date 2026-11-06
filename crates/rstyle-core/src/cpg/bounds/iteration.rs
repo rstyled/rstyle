@@ -51,15 +51,10 @@ impl<'a> Collector<'_, '_, 'a> {
         &mut self,
         parts: &Parts<'a>,
     ) -> Result<Result<(Value, Value, u8), &'static str>, String> {
-        let immutable_binding = self
-            .by_value_binding(parts.pattern)
-            .map(|symbol| self.facts.body.symbol(symbol).map(|s| !s.mutable))
-            .transpose()?
-            == Some(true);
-        if !immutable_binding && parts.pattern.kind != NodeKind::PatternWildcard {
-            return Ok(Err(
-                "Mutable or destructuring iterator binding is unmodeled",
-            ));
+        // A pass binds its item, so a pattern of new bindings cannot change how often the
+        // loop runs. One holding anything else might write a place a bound relies on.
+        if !self.written_places(parts.pattern)?.is_empty() {
+            return Ok(Err("Iterator pattern holds more than new bindings"));
         }
         Ok(self
             .iteration_values(parts.head)?
@@ -80,7 +75,9 @@ impl<'a> Collector<'_, '_, 'a> {
             Value::Unknown,
             Integer::unsigned(bits),
         );
+        // A binding that can be reassigned is not the index: a write to it is no reset.
         if let Some(symbol) = self.by_value_binding(parts.pattern)
+            && !self.facts.body.symbol(symbol)?.mutable
             && self.facts.unsigned_bits(self.facts.ty(parts.pattern)) == Some(bits)
         {
             self.locals.insert(symbol, index);

@@ -274,9 +274,58 @@ impl<'a> Collector<'_, '_, 'a> {
         }
     }
 
+    /// What a pattern holds besides new bindings: the places it writes, in a language
+    /// whose patterns can reuse a binding.
+    pub(super) fn written_places(&self, pattern: &'a Node) -> Result<Vec<&'a Node>, String> {
+        let mut pending = vec![pattern];
+        let mut places = Vec::new();
+        while let Some(part) = pending.pop() {
+            match part.kind {
+                // These hold values they compare, and write nothing.
+                NodeKind::PatternLiteral | NodeKind::PatternRange => {}
+                kind if frame::is_pattern(kind) => {
+                    pending.extend(self.facts.body.children(part)?);
+                }
+                _ => places.push(part),
+            }
+        }
+        Ok(places)
+    }
+
+    // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
+    /// What a declaration's pattern writes, once its value is computed. Only a counter or
+    /// an extent source can change a bound, so a write to anything else is no event.
+    fn declaration_writes(&mut self, pattern: &'a Node, next: u32) -> Result<u32, String> {
+        let mut entry = next;
+        for place in self.written_places(pattern)? {
+            entry = match self.local_id(place) {
+                Some(variable) => {
+                    let action = Action::Assign {
+                        variable,
+                        value: Value::Unknown,
+                    };
+                    self.node(action, Flow::Goto(entry), place)
+                }
+                None if self.is_extent_source(place) => {
+                    self.unsupported(place, entry, "Declaration writes an extent source")
+                }
+                None => entry,
+            };
+        }
+        Ok(entry)
+    }
+
+    fn is_extent_source(&self, place: &Node) -> bool {
+        self.facts.local(place).is_some_and(|symbol| {
+            let root = format!("{symbol}:");
+            self.extents.keys().any(|key| key.starts_with(&root))
+        })
+    }
+
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
     fn local(&mut self, local: &'a Node, next: u32) -> Result<u32, String> {
         let parts = self.local_parts(local)?;
+        let next = self.declaration_writes(parts.pattern, next)?;
         // Immutable local closures run only where they are directly invoked.
         if let Some(symbol) = self.binding_symbol(parts.pattern)
             && self.closures.contains_key(symbol)
