@@ -251,7 +251,8 @@ mod tests {
     #[test]
     fn sarif_comes_only_from_the_analyses_that_make_it() {
         let names = |analyses: &Analyses| -> Vec<&str> {
-            let logs = analyses.sarif(Path::new("/w")).unwrap();
+            let root = Path::new(if cfg!(windows) { r"C:\w" } else { "/w" });
+            let logs = analyses.sarif(root).unwrap();
             logs.into_iter().map(|(name, _)| name).collect()
         };
         assert_eq!(names(&run(&[])), ["check.sarif", "patterns.sarif"]);
