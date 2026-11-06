@@ -11,7 +11,7 @@ use rstyle_core::{cpg, patterns_report, report};
 use serde_json::json;
 use std::path::{Path, PathBuf};
 
-use crate::{Cli, CpgInputArgs, CpgPatternsArgs, Format};
+use crate::{Cli, CpgInputArgs, CpgPatternsArgs, CpgReceiveArgs, Format};
 
 /// Style report of a run over any number of units, and its exit code.
 pub fn check(
@@ -266,7 +266,7 @@ pub fn ingest(out: &Path, encoding: cpg::transport::Encoding) -> Result<(String,
     ingest::run(&mut std::io::stdin().lock(), out, encoding)
 }
 
-/// Verify all documents of a completed capture and return a structured receipt.
-pub fn receive(directory: &Path, format: Format) -> Result<(String, u8), String> {
-    input::receive(directory, format)
+/// Verify a completed capture or stdin stream and return a structured receipt.
+pub fn receive(args: &CpgReceiveArgs, format: Format) -> Result<(String, u8), String> {
+    input::receive(args, format)
 }

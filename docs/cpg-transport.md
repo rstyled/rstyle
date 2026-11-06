@@ -137,6 +137,98 @@ capture. Callers still validate CPG contents before accepting it. `cpg::visit_re
 derives records incrementally and supports consumers that discard each batch.
 Its callbacks are provisional until the whole call succeeds.
 
+## Receiving a local pipe
+
+Use an uncompressed stdin pipe when a frontend and the analyzer run on the same
+machine. This skips capture files, manifests, and both Zstandard operations:
+
+```sh
+cargo-rstyle rstyle cpg receive --stdin --format json
+cargo-rstyle rstyle cpg check --stdin --format json
+cargo-rstyle rstyle cpg patterns --stdin --complexity --format json
+```
+
+These commands read the same JSON text sequence as `cpg ingest`:
+
+1. Write byte `0x1e` (RS), then a JSON object beginning with `{`, then LF.
+2. Repeat for every document, writing each object's UTF-8 bytes in arbitrary chunks.
+3. Only after generation succeeds, write RS, `null`, LF, and close stdin.
+4. Read the result from stdout and wait for the receiver's exit status. Diagnostics
+   use stderr. Style findings can return exit 1 with an accepted stream receipt.
+
+An ordinary single JSON document, concatenated JSON objects, and compressed bytes
+are not this protocol. `--stdin` must be explicit and cannot be mixed with
+`--capture` or document paths. The global `--cpg-compression` option controls saved
+output; it does not change stdin's uncompressed encoding. Logs belong on stderr,
+not in the document stream. Pipes provide backpressure when the receiver falls
+behind; producers should honor blocked writes rather than queue the whole capture.
+
+The [Python example](../examples/cpg-helper/pipe.py) streams existing plain files
+with bounded copying buffers. From the repository root, this is a runnable smoke
+test; a frontend can instead write its JSON directly to the same pipe:
+
+```sh
+set -o pipefail
+python3 examples/cpg-helper/pipe.py \
+  crates/rstyle-core/src/cpg/testdata/example.cpg.json \
+  | cargo-rstyle rstyle cpg check --stdin --format json
+```
+
+No byte lengths or checksums need to be calculated before sending. Objects may
+contain escaped `\u001e`; a raw RS inside JSON is invalid. Each object ends at the
+next RS or EOF, so a producer must send the next separator for the receiver to
+finish that record. Empty streams, missing completion markers, read errors,
+malformed JSON/UTF-8, trailing non-whitespace after terminal null, and invalid CPG
+contents reject the run. The receiver never accepts a valid prefix. A producer
+failure closes stdin without the terminal record. Frontends must also check their
+own generation result; a terminal record is their declaration of successful
+completion, not evidence of compiler coverage.
+
+Standalone `receive` results use a separate schema, `rstyle.cpg-stream-receipt/1`:
+
+```json
+{
+  "schema": "rstyle.cpg-stream-receipt/1",
+  "status": "accepted",
+  "source": "stdin",
+  "validation": {
+    "profile": "compat.cpg",
+    "version": "0.1.0",
+    "graphs": false,
+    "runtime_bounds": false
+  },
+  "transport": {
+    "framing": "rfc7464",
+    "encoding": "json",
+    "received_documents": 2,
+    "received_bytes": 2009,
+    "complete": true
+  },
+  "failures": []
+}
+```
+
+The byte count includes consumed separators and whitespace, including the terminal
+record. The document count includes only records that were fully read and parsed;
+their CPG validation can still fail. On early rejection these are consumed-prefix
+totals, not the total bytes the producer attempted to send. `complete` means the
+transport reached terminal null and EOF; acceptance additionally requires CPG
+validation, including deferred split-document validation. There are no manifest
+seals or independently verified expected totals. File receipt schema
+`rstyle.cpg-receipt/1` remains unchanged.
+
+As with directory input, `check` and `patterns` embed the receipt under
+`capture_receipt`, and an input rejection returns only a rejected receipt with
+exit 2. `receive` validates style inputs without evaluating style rules or mining
+patterns. All results are final only after the full stream and requested CPG
+validation succeed.
+
+Rust embedders can use `cpg::transport::SequenceReader::new(bufread)` and pass it
+to `cpg::visit_records`. `next_document::<T>()` supports typed parsing, and
+`next_with` supports consumers such as the storage helper that copy bytes directly
+into an encoder. Call `complete()` after iteration; callbacks and derived batches
+remain provisional until the complete stream and CPG validation succeed.
+
 ## Memory
 
 Rust serialization writes into the compressor without an intermediate whole-JSON
@@ -152,6 +244,13 @@ identities needed for cross-unit analysis and duplicate detection. `receive`
 discards each derived bundled batch while retaining duplicate-detection identities.
 Thus ingestion does not retain the whole capture's bundled JSON trees, but its
 memory still depends on the largest unit and the analysis data it must retain.
+
+`--stdin` uses the same incremental derivation without staging any capture files.
+Transport buffers have bounded size, but each parsed document still occupies
+memory. Bundled units release their raw JSON before the next document is read;
+`receive` discards their derived batches, whereas analysis retains required facts
+and graphs. Split-layout documents remain buffered until EOF. Streaming the pipe
+does not bound a frontend's own graph construction or whole-document serialization.
 
 Split-layout documents can arrive in arbitrary order. They are currently retained
 until EOF so their unit references and canonical digests can be paired; each

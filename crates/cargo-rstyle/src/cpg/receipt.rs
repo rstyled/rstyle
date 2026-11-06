@@ -1,6 +1,10 @@
 //! A receipt records transport verification separately from requested CPG validation.
 use crate::Format;
-use rstyle_core::cpg::{layout, records::Demand, transport::CaptureProgress};
+use rstyle_core::cpg::{
+    layout,
+    records::Demand,
+    transport::{CaptureProgress, SequenceProgress},
+};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -25,21 +29,43 @@ struct Failure {
 }
 
 #[derive(Serialize)]
+#[serde(untagged)]
+pub(super) enum TransportProgress {
+    Capture(CaptureProgress),
+    Stream(SequenceProgress),
+}
+
+#[derive(Serialize)]
 pub(super) struct Receipt {
     schema: &'static str,
     status: Status,
-    capture: PathBuf,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    capture: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source: Option<&'static str>,
     validation: Validation,
-    transport: Option<CaptureProgress>,
+    transport: Option<TransportProgress>,
     failures: Vec<Failure>,
 }
 
 impl Receipt {
     pub(super) fn new(capture: &Path, demand: Demand) -> Self {
+        Self::request(Some(capture), demand)
+    }
+
+    pub(super) fn stdin(demand: Demand) -> Self {
+        Self::request(None, demand)
+    }
+
+    fn request(capture: Option<&Path>, demand: Demand) -> Self {
         Self {
-            schema: "rstyle.cpg-receipt/1",
+            schema: match capture {
+                Some(_) => "rstyle.cpg-receipt/1",
+                None => "rstyle.cpg-stream-receipt/1",
+            },
             status: Status::Rejected,
-            capture: capture.into(),
+            capture: capture.map(PathBuf::from),
+            source: capture.is_none().then_some("stdin"),
             validation: Validation {
                 profile: layout::PROFILE,
                 version: layout::VERSION,
@@ -53,7 +79,7 @@ impl Receipt {
 
     pub(super) fn finished(
         self,
-        transport: Option<CaptureProgress>,
+        transport: Option<TransportProgress>,
         error: Option<String>,
     ) -> Self {
         let status = if error.is_some() {
@@ -90,16 +116,28 @@ impl Receipt {
 
     fn text(&self) -> String {
         match self.error() {
-            Some(error) => format!("CPG capture rejected: {error}"),
+            Some(error) => format!("CPG {} rejected: {error}", self.kind()),
             None => self.accepted_text(),
+        }
+    }
+
+    fn kind(&self) -> &str {
+        if self.source.is_some() {
+            "stream"
+        } else {
+            "capture"
         }
     }
 
     fn accepted_text(&self) -> String {
         match &self.transport {
-            Some(progress) => format!(
+            Some(TransportProgress::Capture(progress)) => format!(
                 "CPG capture accepted: {} documents; {} stored bytes, {} decoded bytes verified",
                 progress.verified_documents, progress.stored_bytes, progress.decoded_bytes
+            ),
+            Some(TransportProgress::Stream(progress)) => format!(
+                "CPG stream accepted: {} documents; {} uncompressed bytes received",
+                progress.received_documents, progress.received_bytes
             ),
             None => "CPG capture has no transport verification".into(),
         }

@@ -470,6 +470,7 @@ mod bounds;
 mod build_outputs;
 mod capture;
 mod facts;
+mod stdin;
 mod transport;
 
 fn parsed(documents: &[String]) -> Vec<Value> {

@@ -1,11 +1,12 @@
 //! RFC 7464 JSON text sequence: object records, then a terminal null record.
-use rstyle_core::cpg::transport::{self, DocumentManifest, Encoding, SealedDocument};
+use rstyle_core::cpg::transport::{
+    self, DocumentManifest, Encoding, SealedDocument, SequenceReader,
+};
 use std::{
-    io::{self, BufRead, Read},
+    io::{self, BufRead, Read, Write},
     path::Path,
 };
 
-const RS: u8 = 0x1e;
 type Seals = Vec<SealedDocument>;
 
 /// One process receives the capture. EOF before the terminal null is failure.
@@ -108,118 +109,33 @@ struct Receiver<'a, R> {
 }
 
 impl<R: BufRead> Receiver<'_, R> {
-    fn receive(mut self) -> Result<Seals, String> {
+    fn receive(self) -> Result<Seals, String> {
+        let mut reader = SequenceReader::new(self.input);
         let mut seals = Vec::new();
-        while next(self.input)? {
-            seals.push(self.document(seals.len())?);
-        }
-        Ok(seals)
-    }
 
-    fn document(&mut self, position: usize) -> Result<SealedDocument, String> {
-        document(self.input, self.directory, self.encoding, position)
+        while let Some(seal) = reader.next_with(|record| {
+            stored_document(record, self.directory, self.encoding, seals.len())
+        })? {
+            seals.push(seal);
+        }
+        reader.complete()?;
+        Ok(seals)
     }
 }
 
-fn document(
-    input: &mut impl BufRead,
+fn stored_document(
+    input: &mut dyn Read,
     directory: &Path,
     encoding: Encoding,
     position: usize,
-) -> Result<transport::SealedDocument, String> {
-    transport::publish(
-        &directory.join(format!("document-{position:06}{}", encoding.suffix())),
-        encoding,
-        |writer| Record { input }.copy_to(writer),
-    )
+) -> Result<SealedDocument, String> {
+    let path = directory.join(format!("document-{position:06}{}", encoding.suffix()));
+    transport::publish(&path, encoding, |writer| copy_record(input, writer))
 }
 
-fn next(input: &mut impl BufRead) -> Result<bool, String> {
-    match start_record(input)? {
-        true => Ok(true),
-        false => end(input).map(|()| false),
-    }
-}
-
-fn start_record(input: &mut impl BufRead) -> Result<bool, String> {
-    separator(input)?;
-    let first = input
-        .fill_buf()
-        .map_err(|e| e.to_string())?
-        .first()
-        .copied();
-    is_document(first)
-}
-
-fn is_document(first: Option<u8>) -> Result<bool, String> {
-    match first {
-        Some(b'n') => Ok(false),
-        Some(b'{') => Ok(true),
-        _ => {
-            Err("Each capture record must start with a JSON object; finish with RS null LF".into())
-        }
-    }
-}
-
-fn separator(input: &mut impl Read) -> Result<(), String> {
-    let mut byte = [0];
-    input
-        .read_exact(&mut byte)
-        .map_err(|_| "Capture stream ended before its terminal null record")?;
-    expect_separator(byte[0])
-}
-
-fn expect_separator(byte: u8) -> Result<(), String> {
-    if byte != RS {
-        return Err("Expected a JSON text sequence record separator (0x1e)".into());
-    }
+fn copy_record(input: &mut dyn Read, writer: &mut dyn Write) -> io::Result<()> {
+    io::copy(input, writer)?;
     Ok(())
-}
-
-fn end(input: &mut impl Read) -> Result<(), String> {
-    let mut bytes = Vec::new();
-    input
-        .take(64)
-        .read_to_end(&mut bytes)
-        .map_err(|e| e.to_string())?;
-    terminal(&bytes)
-}
-
-fn terminal(bytes: &[u8]) -> Result<(), String> {
-    if bytes.len() >= 64 || std::str::from_utf8(bytes).map(str::trim).ok() != Some("null") {
-        return Err("The terminal null record must be followed only by whitespace and EOF".into());
-    }
-    Ok(())
-}
-
-/// Stops before the next RS without retaining a JSON document in memory.
-struct Record<'a, R> {
-    input: &'a mut R,
-}
-impl<R: BufRead> Record<'_, R> {
-    fn copy_to(&mut self, writer: &mut dyn io::Write) -> io::Result<()> {
-        io::copy(self, writer)?;
-        Ok(())
-    }
-}
-
-impl<R: BufRead> Read for Record<'_, R> {
-    fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
-        let bytes = self.input.fill_buf()?;
-
-        let end = record_length(bytes, out.len());
-        out[..end].copy_from_slice(&bytes[..end]);
-        self.input.consume(end);
-        Ok(end)
-    }
-}
-
-fn record_length(bytes: &[u8], capacity: usize) -> usize {
-    bytes
-        .iter()
-        .position(|b| *b == RS)
-        .unwrap_or(bytes.len())
-        .min(capacity)
 }
 
 #[cfg(test)]
