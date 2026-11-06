@@ -646,14 +646,16 @@ fn usable(status: Option<Status>) -> bool {
     matches!(status, Some(Status::Supported | Status::Approximated))
 }
 
-/// Symbols something other than their name can change: borrowed exclusively or captured
-/// to be changed. Their data edges say what the names do, not everything that happens.
+/// Symbols something other than their name can change: borrowed exclusively, reached by a
+/// raw pointer, or captured to be changed. Their data edges say what the names do, not
+/// everything that happens.
 /// What a lowering borrows to run the construct it stands for is not in the flow.
 fn aliased<'f>(function: &'f Function, flow: &Flow<'f>) -> BTreeSet<&'f str> {
     let borrowed = function
         .places
         .iter()
-        .filter(|place| place.mode == PlaceMode::Exclusive && flow.vertex(&place.node).is_some())
+        .filter(|place| matches!(place.mode, PlaceMode::Exclusive | PlaceMode::Raw))
+        .filter(|place| flow.vertex(&place.node).is_some())
         .filter_map(|place| place.root.symbol.as_deref());
     let captured = function
         .nodes

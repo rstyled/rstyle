@@ -450,6 +450,43 @@ fn flow_without_accesses_keeps_control_and_says_data_is_unknown() {
 }
 
 #[test]
+fn a_binding_a_raw_pointer_reaches_can_change_through_it() {
+    let shape = Shape {
+        edges: LINE,
+        accesses: &[
+            ("first", "x", "write"),
+            ("second", "x", "read_write"),
+            ("use", "x", "read"),
+        ],
+        parameters: &[],
+        compound: &[],
+    };
+    let with_place = |mode: &str| {
+        let mut function = shape.function();
+        function.places = vec![
+            serde_json::from_value(json!({
+                "id": "p", "node": "second", "root": {"symbol": "x"}, "path": [],
+                "access": "read", "mode": mode,
+            }))
+            .unwrap(),
+        ];
+        derive(&coverage("supported", "supported"), &function)
+    };
+
+    let shared = with_place("shared");
+    assert_eq!(shared.standing, Standing::Known, "{:?}", shared.reasons);
+
+    let raw = with_place("raw");
+    assert_eq!(raw.standing, Standing::Approximated);
+    assert!(
+        raw.reasons
+            .iter()
+            .any(|reason| reason.contains("borrow or capture"))
+    );
+    assert!(raw.data.unwrap().iter().all(|edge| edge.approximate));
+}
+
+#[test]
 fn what_a_frontend_cannot_say_about_aliasing_is_recorded_and_unwinding_assumed_away() {
     let function = bare(DIAMOND);
     let known = derive(&coverage("supported", "supported"), &function);
