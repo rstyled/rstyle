@@ -15,7 +15,6 @@ pub const V3_METRICS: &str = "rstyle.compiler-style-metrics/3";
 pub const V2_METRICS: &str = "rstyle.compiler-style-metrics/2";
 pub const LEGACY_METRICS: &str = "rstyle.compiler-style-metrics/1";
 pub const SOURCE_ROOT_ENV: &str = "RSTYLE_COMPILER_SOURCE_ROOT";
-pub const CAPTURE_ENV: &str = "RSTYLE_COMPILER_ADVISORY";
 
 /// Historical observations keep their measured semantics on replay.
 pub fn metric_version(value: &str) -> Option<&'static str> {
@@ -42,82 +41,6 @@ pub enum Observation {
     Unavailable {
         reason: String,
     },
-}
-
-impl Observation {
-    /// Read this metric version without accepting historical serde zero defaults.
-    pub fn read(raw: &serde_json::Value) -> Result<Self, String> {
-        if raw["status"] == "known" {
-            require_fields(
-                &raw["facts"],
-                &[
-                    "id",
-                    "implements",
-                    "param_list",
-                    "top_statements",
-                    "edges",
-                    "mutated_types",
-                    "sig",
-                    "pdg",
-                ],
-            )?;
-            for (roster, fields) in [
-                ("param_list", &["uses"][..]),
-                ("mutations", &["delegated"][..]),
-                ("calls", &["dynamic"][..]),
-                ("edges", &["dynamic", "args"][..]),
-            ] {
-                for entry in raw["facts"][roster]
-                    .as_array()
-                    .ok_or("Missing compiler advisory roster")?
-                {
-                    require_fields(entry, fields)?;
-                    if roster == "mutations"
-                        && raw["metrics"].as_str().is_some_and(|metrics| {
-                            metrics != LEGACY_METRICS && metric_version(metrics).is_some()
-                        })
-                    {
-                        require_fields(entry, &["origin"])?;
-                    }
-                }
-            }
-            require_signature(&raw["facts"]["sig"])?;
-            if has_complexity(raw["metrics"].as_str().unwrap_or_default()) {
-                require_fields(&raw["facts"], &["complexity"])?;
-            } else if !raw["facts"]["complexity"].is_null() {
-                return Err(
-                    "Historical compiler metric cannot claim complexity measurements".into(),
-                );
-            }
-        }
-        let observation = Self::deserialize(raw).map_err(|error| error.to_string())?;
-        observation.validate()?;
-        Ok(observation)
-    }
-
-    fn validate(&self) -> Result<(), String> {
-        match self {
-            Self::Known { metrics, .. } if metric_version(metrics).is_none() => {
-                return Err("Unknown compiler advisory metric version".into());
-            }
-            Self::Known { metrics, facts }
-                if metrics == LEGACY_METRICS
-                    && facts
-                        .mutations
-                        .iter()
-                        .any(|event| event.origin != crate::facts::MutationOrigin::Source) =>
-            {
-                return Err(
-                    "Legacy compiler metric cannot claim desugared mutation origins".into(),
-                );
-            }
-            Self::Unavailable { reason } if reason.is_empty() => {
-                return Err("Missing compiler advisory unavailability reason".into());
-            }
-            _ => {}
-        }
-        Ok(())
-    }
 }
 
 /// Versions that retained measured complexity independently of source availability.
@@ -155,6 +78,3 @@ fn require_fields(raw: &serde_json::Value, required: &[&str]) -> Result<(), Stri
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

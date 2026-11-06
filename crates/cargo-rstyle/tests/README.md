@@ -2,10 +2,7 @@
 
 `cli.rs` is the integration-test entry point. Its modules are named for current
 features; the former `migration_*` suites are ordinary regression coverage.
-Shared algorithms also have focused unit tests in `rstyle-core` and `rstyle-pdg`.
-Shared source selections, oracles and advisory cases live under
-[`tests/fixtures/`](../../../tests/fixtures/README.md); current manual evaluation
-tools live under `eval/`.
+Shared algorithms also have focused unit tests in `rstyle-core`.
 
 | Modules | Coverage |
 | --- | --- |

@@ -46,7 +46,7 @@ pub fn driver_path() -> Result<PathBuf, String> {
 /// metadata. Resolve RSTYLE_DRIVER before calling this helper.
 pub fn clear_rstyle_environment(command: &mut Command) {
     for (key, value) in std::env::vars_os() {
-        if diagnostic_environment(&key, &value) {
+        if key == "RSTYLE_PERF" && value == "1" {
             continue;
         }
         if control_environment(&key) {
@@ -57,44 +57,18 @@ pub fn clear_rstyle_environment(command: &mut Command) {
 
 fn control_environment(key: &OsStr) -> bool {
     key.to_str().is_some_and(|key| {
-        key.starts_with("RSTYLE_DIAGNOSTIC_")
-            || matches!(
-                key,
-                "RSTYLE_CAPTURE_PLAN"
-                    | "RSTYLE_COMPILER_ADVISORY"
-                    | "RSTYLE_COMPILER_ADVISORY_ONLY"
-                    | "RSTYLE_DOCUMENTS_ONLY"
-                    | "RSTYLE_COMPILER_PATTERNS"
-                    | "RSTYLE_COMPILER_RUNTIME_BOUNDS"
-                    | "RSTYLE_COMPILER_SOURCE_ROOT"
-                    | "RSTYLE_CPG_DIR"
-                    | "RSTYLE_CPG_ROOT"
-                    | "RSTYLE_CPG_COMPRESSION"
-                    | "RSTYLE_DRIVER"
-                    | "RSTYLE_HIR_DOCUMENT_DIR"
-                    | "RSTYLE_HIR_FACTS_FILE"
-                    | "RSTYLE_HIR_EXTRACTION_PROFILE"
-                    | "RSTYLE_LOCAL_MUTATION_FACTS"
-                    | "RSTYLE_LOCAL_SOURCE_FACTS"
-                    | "RSTYLE_OUT_DIR"
-                    | "RSTYLE_PDG"
-                    | "RSTYLE_PERF"
-                    | "RSTYLE_ROOT"
-            )
+        matches!(
+            key,
+            "RSTYLE_CAPTURE_PLAN"
+                | "RSTYLE_COMPILER_SOURCE_ROOT"
+                | "RSTYLE_CPG_DIR"
+                | "RSTYLE_CPG_ROOT"
+                | "RSTYLE_CPG_COMPRESSION"
+                | "RSTYLE_DOCUMENT_DIR"
+                | "RSTYLE_DRIVER"
+                | "RSTYLE_PERF"
+        )
     })
-}
-
-fn diagnostic_environment(key: &OsStr, value: &OsStr) -> bool {
-    key == "RSTYLE_DIAGNOSTIC_FACTS_DIR"
-        || (key == "RSTYLE_PERF"
-            || key == "RSTYLE_DIAGNOSTIC_CAPTURE_ONLY"
-            || key == "RSTYLE_DIAGNOSTIC_GENERATED_SOURCES")
-            && value == "1"
-        || (key == "RSTYLE_DIAGNOSTIC_REFERENCE_INSTANCE_REQUESTS"
-            || key == "RSTYLE_DIAGNOSTIC_PRODUCT_INSTANCE_REQUESTS"
-            || key == "RSTYLE_DIAGNOSTIC_SHARED_SOURCES" && value == "1")
-            && std::env::var_os("RSTYLE_DIAGNOSTIC_CAPTURE_ONLY").as_deref()
-                == Some(OsStr::new("1"))
 }
 
 #[cfg(test)]
@@ -114,11 +88,9 @@ mod tests {
         }
         for name in [
             "RSTYLE_CAPTURE_PLAN",
-            "RSTYLE_HIR_FACTS_FILE",
-            "RSTYLE_COMPILER_ADVISORY_ONLY",
-            "RSTYLE_DOCUMENTS_ONLY",
-            "RSTYLE_COMPILER_RUNTIME_BOUNDS",
-            "RSTYLE_DIAGNOSTIC_CAPTURE_ONLY",
+            "RSTYLE_DOCUMENT_DIR",
+            "RSTYLE_CPG_DIR",
+            "RSTYLE_PERF",
         ] {
             assert!(control_environment(OsStr::new(name)), "{name}");
         }

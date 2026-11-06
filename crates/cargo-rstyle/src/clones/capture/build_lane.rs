@@ -9,24 +9,13 @@ use std::{
 
 const LOCK_FILE: &str = "advisory-build.lock";
 
-pub(super) fn shared(_capture: &Capture, _args: &Args) -> bool {
-    true
+/// Runs are immediate children of the workspace's private runs directory.
+pub(super) fn directory(capture: &Capture) -> PathBuf {
+    capture.directory.with_file_name("advisory-build")
 }
 
-pub(super) fn directory(capture: &Capture, args: &Args) -> PathBuf {
-    if shared(capture, args) {
-        // Runs are immediate children of the workspace's private rstyle/clones directory.
-        capture.directory.with_file_name("advisory-build")
-    } else {
-        capture.directory.join("build")
-    }
-}
-
-pub(super) fn acquire(capture: &Capture, args: &Args) -> Result<Option<File>, String> {
-    if !shared(capture, args) {
-        return Ok(None);
-    }
-    lock_file(capture.directory.with_file_name(LOCK_FILE)).map(Some)
+pub(super) fn acquire(capture: &Capture) -> Result<File, String> {
+    lock_file(capture.directory.with_file_name(LOCK_FILE))
 }
 
 /// The lane under `parent`, unless a shared build is holding it.
@@ -59,9 +48,6 @@ pub(super) fn open_lock(path: PathBuf) -> Result<File, String> {
 }
 
 pub(super) fn refresh_selected(capture: &Capture, args: &Args) -> Result<(), String> {
-    if !shared(capture, args) {
-        return Ok(());
-    }
     let mut command = clean_command(capture, args);
     perform_clean(capture, &mut command, "cargo-clean.stderr")?;
 
@@ -107,7 +93,7 @@ fn clean_command(capture: &Capture, args: &Args) -> Command {
         .args(["clean", "--manifest-path"])
         .arg(capture.plan.root.join("Cargo.toml"))
         .arg("--target-dir")
-        .arg(directory(capture, args));
+        .arg(directory(capture));
     for (enabled, flag) in [(args.locked, "--locked"), (args.offline, "--offline")] {
         if enabled {
             command.arg(flag);

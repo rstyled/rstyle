@@ -57,13 +57,12 @@ Validate static claims against real functions and measured call counts where pra
 
 ## Repository map
 
-- Compiler collector: `crates/rstyle-driver/src/hir_extraction/runtime_bounds.rs`; sibling `runtime_bounds/{frame,extent,control,branches,iteration,primitive,values}.rs` handle framing, extents, CFG, and expression lowering.
+- Lowering from documents: `crates/rstyle-core/src/cpg/bounds/`.
 - Pure engine: `crates/rstyle-core/src/runtime_bounds/{ir,symbolic,analysis,tests}.rs` and `analysis/{loops,values}.rs`.
 - Observation schema and capture limits: `crates/rstyle-core/src/advisory/runtime_bounds.rs`.
 - CLI results and routing: `crates/cargo-rstyle/src/clones/advisory/runtime_bounds.rs` and `crates/cargo-rstyle/src/clones/patterns_route.rs`.
 - Batched compiler integration fixture: `crates/cargo-rstyle/tests/compiler_advisory/runtime_bounds.rs`.
 - Pattern clustering and similarity: `crates/rstyle-core/src/cluster.rs` and `wl.rs`.
-- Separate clones matching path: `crates/rstyle-ccgraph/src/pipeline.rs` and `wl.rs`. `patterns --complexity` uses compiler-advisory-only capture and core clustering; do not conflate these routes or their similarly named functions.
 
 ## Execution and review constraints
 

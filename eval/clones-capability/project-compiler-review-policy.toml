@@ -1,3 +1,0 @@
-# Explicit compiler metric study policy; production defaults are unchanged.
-[mutation_budget]
-max_mutated_targets = 1

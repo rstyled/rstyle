@@ -54,10 +54,7 @@ pub(super) fn indexed_runs(parent: &Path) -> BTreeSet<OsString> {
         .collect()
 }
 
-pub(super) fn take(capture: &Capture, args: &Args) -> Result<Option<Index>, String> {
-    if !build_lane::shared(capture, args) {
-        return Ok(None);
-    }
+pub(super) fn take(capture: &Capture) -> Result<Option<Index>, String> {
     let path = index_path(capture);
     let previous = read_json(&path).ok();
     Ok(if remove_index(&path)? { previous } else { None })
@@ -92,13 +89,6 @@ struct Prepared {
 
 impl Compile<'_> {
     fn run(&self, capture: &mut Capture, previous: Option<Index>) -> Result<(), String> {
-        if !build_lane::shared(capture, self.args) {
-            return super::perform_compile(capture, self.cli, self.args);
-        }
-        self.compile_shared(capture, previous)
-    }
-
-    fn compile_shared(&self, capture: &mut Capture, previous: Option<Index>) -> Result<(), String> {
         let prepared = self.prepare(capture, previous)?;
         let output = self.cached(capture, prepared.previous.as_ref())?;
 

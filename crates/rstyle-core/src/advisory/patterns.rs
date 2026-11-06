@@ -3,7 +3,6 @@ use crate::facts::Pdg;
 use serde::{Deserialize, Serialize};
 
 pub const KEY: &str = "rstyle.compiler-pattern-graph/1";
-pub const CAPTURE_ENV: &str = "RSTYLE_COMPILER_PATTERNS";
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -11,19 +10,6 @@ pub struct Observation {
     pub schema: String,
     pub owner: String,
     pub graph: Pdg,
-}
-
-impl Observation {
-    pub fn read(raw: &serde_json::Value) -> Result<Self, String> {
-        require_graph(&raw["graph"])?;
-        let observation = Self::deserialize(raw).map_err(|error| error.to_string())?;
-        if observation.schema != KEY || observation.owner.is_empty() {
-            return Err("Unknown compiler pattern schema or missing owner".into());
-        }
-
-        check_edges(&observation.graph)?;
-        Ok(observation)
-    }
 }
 
 /// Shared field-preserving codec for advisory graphs, including saved review values.

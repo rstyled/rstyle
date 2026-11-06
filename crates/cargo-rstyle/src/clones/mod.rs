@@ -49,7 +49,7 @@ impl CompilerSourceScope {
 #[command(
     group(clap::ArgGroup::new("compiler_presentation").args(["min_score", "top"]).requires("compiler_patterns").multiple(true)),
     group(clap::ArgGroup::new("compiler_mining").args(["hide_implements", "threshold", "min_coverage", "pair_coverage", "normalize", "single_call_guard", "max_holes"]).requires("compiler_patterns").multiple(true)),
-    group(clap::ArgGroup::new("compiler_inputs").args(["compiler_advisory", "compiler_patterns", "compiler_complexity_top", "compiler_runtime_bounds"]).multiple(true)),
+    group(clap::ArgGroup::new("compiler_inputs").args(["compiler_advisory", "compiler_patterns", "compiler_complexity_top"]).multiple(true)),
     group(clap::ArgGroup::new("advisory_inputs").args(["compiler_advisory", "compiler_patterns"]).multiple(true)),
     group(clap::ArgGroup::new("review_analysis").args(["compiler_advisory", "compiler_patterns"]).multiple(true)),
     group(clap::ArgGroup::new("changed_analysis").args(["compiler_advisory", "compiler_patterns"]).multiple(true)),
@@ -81,11 +81,11 @@ pub struct Args {
     #[serde(skip_serializing_if = "CompilerSourceScope::is_default")]
     compiler_diagnostic_scope: CompilerSourceScope,
     /// Analyze symbolic loop-body entry and call invocation upper bounds.
-    #[arg(long, requires = "compiler_advisory")]
+    #[arg(skip)]
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     compiler_runtime_bounds: bool,
     /// Maximum runtime-bound rows displayed per compilation unit.
-    #[arg(long, requires = "compiler_runtime_bounds")]
+    #[arg(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
     compiler_runtime_top: Option<usize>,
     /// Rank up to N compiler functions per unit by existing COG then CC scores, including clean functions.

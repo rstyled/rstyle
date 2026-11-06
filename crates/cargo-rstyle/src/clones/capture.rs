@@ -311,7 +311,7 @@ fn command(capture: &Capture, cli: &Cli, args: &Args) -> Result<Command, String>
     let mut command = cargo_command();
     command
         .args(["check", "--message-format=json"])
-        .env("CARGO_TARGET_DIR", build_lane::directory(capture, args))
+        .env("CARGO_TARGET_DIR", build_lane::directory(capture))
         .env("CARGO_INCREMENTAL", "0")
         .env("RSTYLE_CAPTURE_PLAN", capture.directory.join("plan.json"));
     command
@@ -375,8 +375,8 @@ fn build_args(args: &Args) -> Vec<std::ffi::OsString> {
 }
 
 pub fn compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
-    let _lane = build_lane::acquire(capture, args)?;
-    let previous = owner_reuse::take(capture, args)?;
+    let _lane = build_lane::acquire(capture)?;
+    let previous = owner_reuse::take(capture)?;
     compile_in_lane(capture, cli, args, previous)
 }
 
@@ -418,12 +418,6 @@ fn primary_units(graph: &Value) -> Result<Vec<Value>, String> {
                 .ok_or_else(|| "Cargo root index outside unit inventory".into())
         })
         .collect()
-}
-
-fn perform_compile(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
-    let output = compile_output(capture, cli, args)?;
-    compilation_result(capture, &output);
-    Ok(())
 }
 
 fn compile_output(

@@ -4,122 +4,12 @@
 
 version = 1
 
-[ignore.0cdd2c857234]
-kind = "generic_fn"
-reason = "distinct type predicates (a shared character, a shared byte slice, the bottom type) that share only the type lookup idiom"
-fns = [
-  "rstyle_pdg::cpg_reader::Context::byte_slice",
-  "rstyle_pdg::cpg_reader::Context::never",
-  "rstyle_pdg::cpg_reader::concrete::Capture::shared_character",
-]
-
-[ignore.3d01b396fee9]
-kind = "generic_fn"
-reason = "residual one-line wrappers around shared well_formed helper; nothing left to merge"
-fns = [
-  "rstyle_pdg::model::BoolFact::shape_ok",
-  "rstyle_pdg::model::StringFact::shape_ok",
-]
-
-[ignore.44e24279b736]
-kind = "generic_fn"
-reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
-fns = [
-  "rstyle_driver::hir_extraction::concrete_types::Capture::shared_capture_uses",
-  "rstyle_pdg::cpg_reader::concrete::Capture::shared_uses",
-]
-
-[ignore.97f955358ef9]
-kind = "generic_fn"
-allow_growth = true
-reason = "distinct type predicates (shared character, mutable scalar reference, shared byte slice, bottom) that share only the type lookup idiom"
-sites = [
-  "rstyle_pdg::cpg_reader::Context::byte_slice@288f8b59270e60d1",
-  "rstyle_pdg::cpg_reader::Context::mutable_reference_to@e39f9c7a491c1a99",
-  "rstyle_pdg::cpg_reader::Context::never@288f8b59270e60d1",
-  "rstyle_pdg::cpg_reader::concrete::Capture::shared_character@58368fa842578867",
-]
-
-[ignore.99265b04daac]
-kind = "generic_fn"
-reason = "unrelated predicates (a standard definition lookup and an integer type check) that share only the type-table lookup idiom"
-fns = [
-  "rstyle_core::cpg::bounds::facts::Facts::standard_definition",
-  "rstyle_pdg::cpg_reader::Reader::integer",
-]
-
-[ignore.b4fde1f557ee]
-kind = "generic_fn"
-reason = "residual delegations to well_formed; a generic trait would add more code than it removes"
-fns = [
-  "rstyle_pdg::model::BoolFact::shape_ok",
-  "rstyle_pdg::model::StringFact::shape_ok",
-]
-
-[ignore.fc9b070d78be]
-kind = "generic_fn"
-reason = "residual one-line delegations to shared well_formed helper; a trait would add more code than it removes"
-fns = [
-  "rstyle_pdg::model::BoolFact::shape_ok",
-  "rstyle_pdg::model::CountFact::shape_ok",
-  "rstyle_pdg::model::StringFact::shape_ok",
-]
-
-[ignore.014f958d24e7]
-kind = "parameterize"
-reason = "unrelated lookups (a file position and an observation match) that share only the frontend-option read idiom used across rstyle-pdg"
-fns = [
-  "rstyle_pdg::consumer_facts::planning::file_index",
-  "rstyle_pdg::nominal_boundary::resolution::has_transport_observation",
-]
-
-[ignore.0ee0a828b288]
-kind = "parameterize"
-reason = "BFS successor scan over ProjectedGraph vs CfgDocument in different crates; a shared generic would couple ccgraph to pdg internals for 8 lines"
-fns = [
-  "rstyle_ccgraph::wl::fresh_targets",
-  "rstyle_pdg::cfg::fresh_successors",
-]
-
 [ignore.114994040aee]
 kind = "parameterize"
 reason = "thin mirrored wrappers over one shared helper after #10 (#11)"
 fns = [
   "rstyle_core::align::evidence",
   "rstyle_core::align::reverse_conflicts",
-]
-
-[ignore.1393a99a2769]
-kind = "parameterize"
-reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
-fns = [
-  "rstyle_driver::hir_extraction::concrete_types::Capture::install_origins",
-  "rstyle_pdg::cpg_reader::concrete::Capture::install_origins",
-]
-
-[ignore.1a2db6420b6e]
-kind = "parameterize"
-reason = "one-line flat_map-collect validators over distinct check domains; merging saves nothing"
-fns = [
-  "rstyle_pdg::validate::check_node_requirements",
-  "rstyle_pdg::validate::check_source_digests",
-  "rstyle_pdg::validate::check_source_identities",
-]
-
-[ignore.22c27d75a139]
-kind = "parameterize"
-reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
-fns = [
-  "rstyle_driver::hir_extraction::mutable_scalar_formals::capture",
-  "rstyle_pdg::cpg_reader::Context::scalar_formals",
-]
-
-[ignore.260d64cc8894]
-kind = "parameterize"
-reason = "Both are a one-line is_some over an unrelated lookup; a shared helper would add nothing"
-fns = [
-  "rstyle_core::cpg::records::written_by_macro",
-  "rstyle_pdg::concrete_results::scalar_errors::shape::success",
 ]
 
 [ignore.28ac5efc1baa]
@@ -130,164 +20,12 @@ fns = [
   "rstyle_core::normalize::dedup",
 ]
 
-[ignore.3648312ee5d9]
-kind = "parameterize"
-reason = "one-line flat_map-collect shape over distinct validation domains; merging saves nothing"
-fns = [
-  "rstyle_pdg::validate::check_node_requirements",
-  "rstyle_pdg::validate::check_source_identities",
-]
-
-[ignore.3fff85bb6c1b]
-kind = "parameterize"
-reason = "iterator one-liners (map/filter + collect) over unrelated types; coincidental shape (#11)"
-fns = [
-  "rstyle_core::graph::boundaries",
-  "rstyle_core::ledger::status::current",
-  "rstyle_driver::effects::Walker::sources",
-]
-
-[ignore.440013106447]
-kind = "parameterize"
-reason = "stateful dup/index checks vs stateless key filter; shapes differ genuinely"
-fns = [
-  "rstyle_pdg::validate::dup_issues",
-  "rstyle_pdg::validate::key_issues",
-  "rstyle_pdg::validate::position_issues",
-]
-
-[ignore.c1a835ec4db7]
-kind = "parameterize"
-reason = "different reference checks (mutable integer versus shared scalar) in unrelated modules; a shared helper would need both modes and both referent tests"
-fns = [
-  "rstyle_core::cpg::bounds::frame::Inspect::mutable_integer_reference",
-  "rstyle_pdg::cpg_reader::Context::shared_scalar",
-]
-
-[ignore.4f48d2ce7fc8]
-kind = "parameterize"
-reason = "cross-domain coincidence between core prep and pdg access validation; shapes differ genuinely"
-fns = [
-  "rstyle_core::prep::impls",
-  "rstyle_pdg::validate::access_issues",
-]
-
-[ignore.571675a6c738]
-kind = "parameterize"
-reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
-fns = [
-  "rstyle_driver::hir_extraction::concrete_types::callbacks::immediate_map_or_callback",
-  "rstyle_pdg::cpg_reader::concrete::callbacks::immediate_map_or_callback",
-]
-
 [ignore.58fb7142d7b5]
 kind = "parameterize"
 reason = "Both are a one-line membership test on an unrelated type's own set; a shared helper would add nothing"
 fns = [
   "cargo_rstyle::clones::review::compiler_diagnostics::demand::Demand::includes",
   "rstyle_core::cpg::source::Sources::generated",
-]
-
-[ignore.60e8af5f467a]
-kind = "parameterize"
-reason = "map/collect/join with a different separator over different types; not worth a helper (#11)"
-fns = [
-  "rstyle_core::candidates::columns_text_of",
-  "rstyle_core::shape::Namer::list",
-]
-
-[ignore.62b9c6488877]
-kind = "parameterize"
-reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
-fns = [
-  "rstyle_driver::hir_extraction::concrete_types::callbacks::shared_helper_body",
-  "rstyle_pdg::cpg_reader::concrete::callbacks::shared_helper_body",
-]
-
-[ignore.6b880033132d]
-kind = "parameterize"
-reason = "generic one-line ID collectors across core/driver/pdg; no shared abstraction without cross-crate coupling"
-fns = [
-  "rstyle_core::graph::boundaries",
-  "rstyle_core::ledger::status::current",
-  "rstyle_driver::effects::Walker::sources",
-  "rstyle_pdg::cfg::id_set",
-]
-
-[ignore.76534998402b]
-kind = "parameterize"
-reason = "map/collect one-liners over unrelated types (id sets, triple lists, boundaries); merging across domains saves nothing"
-fns = [
-  "rstyle_core::graph::boundaries",
-  "rstyle_core::ledger::status::current",
-  "rstyle_driver::effects::Walker::sources",
-  "rstyle_pdg::cfg::id_set",
-  "rstyle_pdg::cfg::sorted_triples",
-]
-
-[ignore.84ee5353360e]
-kind = "parameterize"
-reason = "two lookups of one HIR-identity type map, one inside the budgeted observer and one for its local observations; a shared owner would couple the passes"
-fns = [
-  "rstyle_pdg::cpg_reader::concrete::Capture::hir_type",
-  "rstyle_pdg::cpg_reader::locals::Types::of",
-]
-
-[ignore.8758139492e7]
-kind = "parameterize"
-reason = "lists of passes (function composition), not duplicated logic (#11)"
-fns = [
-  "rstyle_core::normalize::counter_loops",
-  "rstyle_core::normalize::unify_case",
-]
-
-[ignore.885b7a4e6179]
-kind = "parameterize"
-reason = "definition-links vs node-links validators over different reference domains; merging saves nothing"
-fns = [
-  "rstyle_pdg::validate::check_definition_links",
-  "rstyle_pdg::validate::check_node_links",
-]
-
-[ignore.8b71309a4c31]
-kind = "parameterize"
-reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
-fns = [
-  "rstyle_driver::cpg::unit::bool_array",
-  "rstyle_driver::hir_extraction::hir::Context::bool_array_value",
-]
-
-[ignore.8c495a7ebe17]
-kind = "parameterize"
-reason = "single-field Option-to-issue mappers differing in predicate and diagnostic; a shared helper would just take the differing parts"
-fns = [
-  "rstyle_pdg::validate::evidence_issue",
-  "rstyle_pdg::validate::subkind_issue",
-]
-
-[ignore.91cb54929099]
-kind = "parameterize"
-reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
-fns = [
-  "rstyle_driver::hir_extraction::concrete_types::interface_tokens",
-  "rstyle_pdg::cpg_reader::concrete::interface_tokens",
-]
-
-[ignore.9cfdfc96cdf0]
-kind = "parameterize"
-reason = "cross-crate BFS frontier over distinct edge types; shared generic would couple pdg/ccgraph for 8 lines"
-fns = [
-  "rstyle_ccgraph::wl::fresh_targets",
-  "rstyle_pdg::cfg::fresh_successors",
-]
-
-[ignore.a59c863eac67]
-kind = "parameterize"
-reason = "thin one-line wrappers already sharing repeat_issues; nothing left to extract"
-fns = [
-  "rstyle_pdg::cfg::repeated_operation_issues",
-  "rstyle_pdg::cfg::repeated_pdg_issues",
-  "rstyle_pdg::cfg::repeated_triple_issues",
 ]
 
 [ignore.a6512f630b9a]
@@ -299,22 +37,6 @@ fns = [
   "rstyle_core::normalize::data_producers",
 ]
 
-[ignore.ab05fa190fbc]
-kind = "parameterize"
-reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
-fns = [
-  "rstyle_driver::hir_extraction::inherent::owner_nominal",
-  "rstyle_pdg::cpg_reader::inherent::owner_nominal",
-]
-
-[ignore.b960b3d08c82]
-kind = "parameterize"
-reason = "two distinct type predicates (a shared byte slice and the bottom type) that share only the type lookup idiom"
-fns = [
-  "rstyle_pdg::cpg_reader::Context::byte_slice",
-  "rstyle_pdg::cpg_reader::Context::never",
-]
-
 [ignore.bd6ed2f06436]
 kind = "parameterize"
 reason = "recursive all() checks with different leaf rules; a shared helper would just take the predicate (#11)"
@@ -323,124 +45,10 @@ fns = [
   "rstyle_core::normalize::predicate_tree",
 ]
 
-[ignore.c25dffd72cb4]
-kind = "parameterize"
-reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
-fns = [
-  "rstyle_driver::hir_extraction::concrete_types::has_data_interface",
-  "rstyle_pdg::cpg_reader::concrete::has_data_interface",
-]
-
-[ignore.c26dbf1aa399]
-kind = "parameterize"
-reason = "cross-domain coincidence between core prep and pdg access validation"
-fns = [
-  "rstyle_core::prep::impls",
-  "rstyle_pdg::validate::access_issues",
-]
-
-[ignore.c2d0658d42db]
-kind = "parameterize"
-reason = "new-contract weights vs parked legacy miner weights; miner parked, no retrofit merging"
-fns = [
-  "rstyle_ccgraph::wl::weights",
-  "rstyle_core::wl::weights",
-]
-
-[ignore.c44264ef5861]
-kind = "parameterize"
-reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
-fns = [
-  "rstyle_driver::hir_extraction::concrete_types::Capture::install_product_selections",
-  "rstyle_pdg::cpg_reader::concrete::Capture::install_product_selections",
-]
-
-[ignore.c58a592ee111]
-kind = "parameterize"
-reason = "unrelated lookups (a document file and a PDG node) that share only the map get-or-error idiom"
-fns = [
-  "rstyle_pdg::cpg_reader::Reader::file",
-  "rstyle_pdg::data_documents::widening_readers::operations::Operations::get",
-]
-
-[ignore.c5f442ffa59a]
-kind = "parameterize"
-reason = "distinct exact rational operations; merging add/mul/div/compare would obscure overflow-critical arithmetic"
-fns = [
-  "rstyle_ccgraph::frac::Frac::checked_add",
-  "rstyle_ccgraph::frac::Frac::checked_div",
-  "rstyle_ccgraph::frac::Frac::checked_mul",
-  "rstyle_ccgraph::frac::Frac::ge",
-]
-
-[ignore.c9a521034072]
-kind = "parameterize"
-reason = "symbol extraction vs policy check; different shapes sharing only filter_map, coincidental"
-fns = [
-  "rstyle_ccgraph::admission::read_symbols",
-  "rstyle_pdg::validate::edge_provenance_issues",
-]
-
-[ignore.cba1cd35260a]
-kind = "parameterize"
-reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
-fns = [
-  "rstyle_driver::hir_extraction::evidence::source_identity",
-  "rstyle_pdg::cpg_reader::Reader::digest",
-]
-
-[ignore.f2ecf33beb12]
-kind = "parameterize"
-reason = "two one-line accessors of different variant fields; a parameterized accessor would not remove code"
-fns = [
-  "rstyle_pdg::cpg_reader::concrete::enums::fields",
-  "rstyle_pdg::cpg_reader::concrete::enums::shape",
-]
-
 [ignore.fdb66ce83259]
 kind = "parameterize"
 reason = "different finder logic (closures) around a shared tail, already extracted (#11)"
 fns = [
   "rstyle_core::normalize::loop_guards",
   "rstyle_core::normalize::manual_counters",
-]
-
-[ignore.4e4412834992]
-kind = "trait_method"
-reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
-fns = [
-  "rstyle_driver::hir_extraction::concrete_types::Capture::callback_environment",
-  "rstyle_driver::hir_extraction::concrete_types::Capture::callback_environments_in",
-  "rstyle_pdg::cpg_reader::concrete::Capture::option_environment",
-  "rstyle_pdg::cpg_reader::concrete::Capture::option_environments",
-]
-
-[ignore.650993688493]
-kind = "trait_method"
-reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
-fns = [
-  "rstyle_driver::hir_extraction::hir::Context::propagation_arm",
-  "rstyle_driver::hir_extraction::hir::Context::propagation_arms",
-  "rstyle_pdg::cpg_reader::Context::propagation_arm",
-  "rstyle_pdg::cpg_reader::Context::propagation_arms",
-]
-
-[ignore.7c579a40f714]
-kind = "trait_method"
-reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
-fns = [
-  "rstyle_driver::hir_extraction::concrete_types::Capture::install_receivers",
-  "rstyle_driver::hir_extraction::concrete_types::Capture::receiver_records",
-  "rstyle_pdg::cpg_reader::concrete::Capture::install_receivers",
-  "rstyle_pdg::cpg_reader::concrete::Capture::receiver_records",
-]
-
-[ignore.896e0a5c17f0]
-kind = "trait_method"
-reason = "the CPG reader rebuilds the driver's capture to prove equivalence; the driver copy is deleted when phase 6 removes the direct capture"
-fns = [
-  "rstyle_driver::hir_extraction::concrete_types::Capture::binding_tokens",
-  "rstyle_driver::hir_extraction::concrete_types::Capture::hir_token",
-  "rstyle_pdg::cpg_reader::concrete::Capture::binding_tokens",
-  "rstyle_pdg::cpg_reader::concrete::Capture::token",
 ]
