@@ -171,7 +171,8 @@ jobs:
             ${{ runner.os }}-${{ runner.arch }}-cargo-
 
       - name: Core modules
-        run: cargo test --locked -p rstyle-core --lib -- sarif:: filter:: cpg::pool
+        run: |
+          cargo test --locked -p rstyle-core --lib -- sarif:: filter:: cpg::pool
 
       - name: Runner pipe and inherited handles
         run: cargo test --locked -p cargo-rstyle --test frontend_pipe
