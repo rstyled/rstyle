@@ -269,9 +269,13 @@ an inner scan can give `n + n * m` body entries; a persistent cursor can give
 `n + m`. These counts do not establish a tight runtime bound or the cost of a
 called function. Whole-function runtime remains explicitly unknown.
 
-The initial model supports primitive unsigned increasing counters, primitive
-exclusive ranges and traversal of shared slices and standard `Vec` values,
-including fields reached through shared references. Resolved collection length
+The initial model supports primitive increasing counters, unsigned exclusive ranges
+and traversal of shared slices and standard `Vec` values, including fields reached
+through shared references. A signed counter needs a `<` guard, a unit increment and a
+constant start of at least zero; any other start makes that loop opaque. A signed input
+counts as its positive part, so `while i < n` over an `i64` gives `max(n, 0)`, and
+that floor survives composition with a caller's argument. A conversion between signed
+and unsigned stays unknown. Resolved collection length
 queries and traversal adapters are abstracted and excluded from call counts. Ordinary body
 calls can have unknown cost while preserving a bound on a private scalar counter.
 A loop that cannot be proven, such as one with a mutable limit, an unproved

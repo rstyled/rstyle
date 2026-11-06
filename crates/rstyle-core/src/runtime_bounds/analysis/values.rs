@@ -4,16 +4,22 @@ pub(super) struct Values<'a> {
     program: &'a Program,
     graph: &'a Graph,
     point: usize,
-    bits: u8,
+    /// The type a resolved value has to fit, when it is compared against a counter.
+    within: Option<Integer>,
 }
 
 impl<'a> Values<'a> {
-    pub(super) fn new(program: &'a Program, graph: &'a Graph, point: usize, bits: u8) -> Self {
+    pub(super) fn new(
+        program: &'a Program,
+        graph: &'a Graph,
+        point: usize,
+        within: Option<Integer>,
+    ) -> Self {
         Self {
             program,
             graph,
             point,
-            bits,
+            within,
         }
     }
 
@@ -23,7 +29,9 @@ impl<'a> Values<'a> {
 
     fn resolve(&self, value: &Value, seen: &mut BTreeSet<u32>) -> Checked<Bound> {
         match value {
-            Value::Const(n) if self.bits == 64 || *n < (1u64 << self.bits) => Ok(Bound::Const(*n)),
+            Value::Const(n) if self.within.is_none_or(|within| within.holds(*n)) => {
+                Ok(Bound::Const(*n))
+            }
             Value::Input(name) if self.program.inputs.contains(name) => self.input(name),
             Value::Variable(id) if seen.insert(*id) => self.variable(*id, seen),
             _ => Err(unknown("Unknown, cyclic or out-of-range input value")),
@@ -36,8 +44,8 @@ impl<'a> Values<'a> {
             .variables
             .get(id as usize)
             .ok_or_else(|| unknown("Missing variable"))?;
-        if variable.bits > self.bits {
-            return Err(unknown("Limit exceeds the captured counter width"));
+        if !self.fits(variable.integer()) {
+            return Err(unknown("Limit does not fit the captured counter type"));
         }
         let (initial, point) = self.initial(id)?;
         let snapshot = Self { point, ..*self };
@@ -46,20 +54,28 @@ impl<'a> Values<'a> {
     }
 
     fn input(&self, name: &str) -> Checked<Bound> {
-        let widths: BTreeSet<_> = self
+        let integers: BTreeSet<_> = self
             .program
             .variables
             .iter()
             .filter(|variable| variable.initial == Value::Input(name.into()))
-            .map(|variable| variable.bits)
+            .map(Variable::integer)
             .collect();
-        if widths.len() != 1 || widths.first().is_none_or(|width| *width > self.bits) {
-            return Err(unknown(
-                "Input lacks one consistent captured unsigned width",
-            ));
-        }
+        let integer = integers
+            .first()
+            .filter(|integer| integers.len() == 1 && self.fits(**integer))
+            .ok_or_else(|| unknown("Input lacks one consistent captured integer type"))?;
+        let input = Bound::Input(name.into());
 
-        Ok(Bound::Input(name.into()))
+        Ok(if integer.signed {
+            Bound::floored(input)
+        } else {
+            input
+        })
+    }
+
+    fn fits(&self, integer: Integer) -> bool {
+        self.within.is_none_or(|within| within.contains(integer))
     }
 
     fn initial(&self, variable: u32) -> Checked<(&'a Value, usize)> {

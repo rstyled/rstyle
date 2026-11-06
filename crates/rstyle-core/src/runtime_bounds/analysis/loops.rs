@@ -149,7 +149,7 @@ fn describe(
         else_node,
     } = &node.flow
     else {
-        return Err(unknown("Loop requires an unsigned less-than guard"));
+        return Err(unknown("Loop requires an integer less-than guard"));
     };
     if node.action != Action::Nop
         || !members.contains(&(*then_node as usize))
@@ -267,7 +267,9 @@ fn validate_loop(program: &Program, graph: &Graph, item: &Loop) -> Checked<()> {
     if program.arithmetic == Arithmetic::Unknown {
         return Err(unknown("Missing integer arithmetic semantics"));
     }
-    values::Values::new(program, graph, item.header, variable.bits).bound(&item.limit)?;
+    non_negative_start(program, graph, item)?;
+    values::Values::new(program, graph, item.header, Some(variable.integer()))
+        .bound(&item.limit)?;
     for (index, node) in program
         .nodes
         .iter()
@@ -291,6 +293,38 @@ fn validate_loop(program: &Program, graph: &Graph, item: &Loop) -> Checked<()> {
     Ok(())
 }
 
+/// A counter from `start` enters its body `limit - start` times, which `limit` bounds only
+/// from a `start` of at least zero. An unsigned type guarantees that. A signed counter
+/// needs a constant: every assignment writes one, and one runs before the guard.
+fn non_negative_start(program: &Program, graph: &Graph, item: &Loop) -> Checked<()> {
+    let counter = &program.variables[item.counter as usize];
+    if !counter.signed {
+        return Ok(());
+    }
+    let starts: Vec<_> = program
+        .nodes
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| graph.reachable[*index])
+        .filter_map(|(index, node)| match &node.action {
+            Action::Assign { variable, value } if *variable == item.counter => Some((index, value)),
+            _ => None,
+        })
+        .collect();
+    let constant = |&(index, value): &(usize, &Value)| {
+        matches!(
+            values::Values::new(program, graph, index, Some(counter.integer())).bound(value),
+            Ok(Bound::Const(_))
+        )
+    };
+    let dominating = |&(index, _): &(usize, &Value)| graph.dominators[item.header][index];
+    if starts.iter().all(constant) && starts.iter().any(dominating) {
+        return Ok(());
+    }
+
+    Err(unknown("Signed counter may start below zero"))
+}
+
 fn written(action: &Action) -> Option<u32> {
     match action {
         Action::Assign { variable, .. } | Action::Increment { variable } => Some(*variable),
@@ -309,7 +343,7 @@ fn validate_reset(program: &Program, graph: &Graph, item: &Loop, index: usize) -
         program,
         graph,
         index,
-        program.variables[item.counter as usize].bits,
+        Some(program.variables[item.counter as usize].integer()),
     )
     .bound(value)?;
 
@@ -397,8 +431,8 @@ struct ResetBounds<'a> {
 
 impl ResetBounds<'_> {
     fn modeled(&self, item: &Loop) -> Checked<Bound> {
-        let bits = self.program.variables[item.counter as usize].bits;
-        let at_header = values::Values::new(self.program, self.graph, item.header, bits);
+        let counter = self.program.variables[item.counter as usize].integer();
+        let at_header = values::Values::new(self.program, self.graph, item.header, Some(counter));
         let local = at_header.bound(&item.limit)?;
 
         Ok(Bound::mul(self.count(item)?, local))

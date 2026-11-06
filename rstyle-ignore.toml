@@ -156,11 +156,11 @@ fns = [
   "rstyle_pdg::validate::position_issues",
 ]
 
-[ignore.4b4cc746bb6c]
+[ignore.c1a835ec4db7]
 kind = "parameterize"
-reason = "different reference checks (mutable unsigned versus shared scalar) in unrelated modules; a shared helper would need both modes and both referent tests"
+reason = "different reference checks (mutable integer versus shared scalar) in unrelated modules; a shared helper would need both modes and both referent tests"
 fns = [
-  "rstyle_core::cpg::bounds::frame::Inspect::mutable_uint_reference",
+  "rstyle_core::cpg::bounds::frame::Inspect::mutable_integer_reference",
   "rstyle_pdg::cpg_reader::Context::shared_scalar",
 ]
 

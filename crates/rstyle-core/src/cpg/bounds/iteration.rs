@@ -4,7 +4,7 @@ use super::super::model::{Node, NodeKind};
 use super::Collector;
 use super::extent::iteration_receiver;
 use super::facts::Facts;
-use crate::runtime_bounds::{Action, Condition, Flow, Value};
+use crate::runtime_bounds::{Action, Condition, Flow, Integer, Value};
 
 type Lowered = Result<u32, String>;
 
@@ -75,13 +75,21 @@ impl<'a> Collector<'_, '_, 'a> {
         next: u32,
     ) -> Lowered {
         let owner = self.node_number(expression);
-        let index = self.variable(format!("for-index-{owner}"), Value::Unknown, bits);
+        let index = self.variable(
+            format!("for-index-{owner}"),
+            Value::Unknown,
+            Integer::unsigned(bits),
+        );
         if let Some(symbol) = self.by_value_binding(parts.pattern)
-            && self.facts.bits(self.facts.ty(parts.pattern)) == Some(bits)
+            && self.facts.unsigned_bits(self.facts.ty(parts.pattern)) == Some(bits)
         {
             self.locals.insert(symbol, index);
         }
-        let limit_variable = self.variable(format!("for-limit-{owner}"), Value::Unknown, bits);
+        let limit_variable = self.variable(
+            format!("for-limit-{owner}"),
+            Value::Unknown,
+            Integer::unsigned(bits),
+        );
 
         let scan = Scan {
             index,
@@ -181,7 +189,7 @@ impl<'a> Collector<'_, '_, 'a> {
         let Some(argument) = ty.arguments.as_ref().and_then(|a| a.first()) else {
             return Ok(None);
         };
-        let Some(bits) = self.facts.bits(self.facts.type_of(argument)) else {
+        let Some(bits) = self.facts.unsigned_bits(self.facts.type_of(argument)) else {
             return Ok(None);
         };
         if start.ty.as_ref() != Some(argument) || end.ty.as_ref() != Some(argument) {

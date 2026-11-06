@@ -162,7 +162,7 @@ impl<'a> Collector<'_, '_, 'a> {
         let same = left.ty.is_some() && left.ty == right.ty;
 
         match self.local_id(left) {
-            Some(variable) if same && self.facts.bits(self.facts.ty(left)).is_some() => {
+            Some(variable) if same && self.facts.integer(self.facts.ty(left)).is_some() => {
                 Ok(Condition::Less {
                     variable,
                     limit: self.value(right),

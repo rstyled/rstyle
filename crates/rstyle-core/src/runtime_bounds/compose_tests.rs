@@ -65,6 +65,7 @@ struct Shape {
     extents: Vec<Extent>,
     limit: Option<&'static str>,
     calls: Vec<Action>,
+    signed: bool,
 }
 
 impl Shape {
@@ -75,6 +76,7 @@ impl Shape {
             extents: Vec::new(),
             limit: None,
             calls: Vec::new(),
+            signed: false,
         }
     }
 
@@ -89,6 +91,12 @@ impl Shape {
                 },
             })
             .collect();
+        self
+    }
+
+    /// Every input and the counter are signed.
+    fn signed(mut self) -> Self {
+        self.signed = true;
         self
     }
 
@@ -151,11 +159,13 @@ impl Shape {
             name: (*name).into(),
             initial: Value::Input((*name).into()),
             bits: 64,
+            signed: self.signed,
         });
         let counter = Variable {
             name: "i".into(),
             initial: Value::Unknown,
             bits: 64,
+            signed: self.signed,
         };
         inputs.chain(std::iter::once(counter)).collect()
     }
@@ -727,5 +737,51 @@ fn injected_contracts_replace_the_embedded_table() {
     assert_eq!(
         composition.library_steps.to_string(),
         "n * len(map) * len(map) + n * n"
+    );
+}
+
+fn signed_callee() -> Program {
+    Shape::new(&["k"]).scalars().signed().scan("k").program()
+}
+
+fn signed_caller(argument: Value) -> Program {
+    Shape::new(&["m"])
+        .scalars()
+        .signed()
+        .calls(vec![call("w::f", vec![Argument::Scalar(argument)])])
+        .program()
+}
+
+#[test]
+fn a_signed_callee_stays_floored_at_its_callers_argument() {
+    let composed = |caller| {
+        let owners = vec![("w::f", signed_callee()), ("w::c", caller)];
+        compose(owners, "w::c")
+    };
+    let input = proven(composed(signed_caller(Value::Input("m".into()))));
+    assert_eq!(input.loop_body_entries.to_string(), "max(m, 0)");
+
+    let constant = proven(composed(signed_caller(Value::Const(7))));
+    assert_eq!(constant.loop_body_entries, Bound::Const(7));
+
+    // A negative argument lowers to an unknown value, which is opaque and not `k`.
+    let negative = partial(composed(signed_caller(Value::Unknown)));
+    assert_eq!(opaque(&negative, OpaqueKind::Input).0, "w::f::k");
+}
+
+#[test]
+fn a_signed_counter_argument_is_floored_at_the_callers_limit() {
+    let caller = Shape::new(&["m"]).scalars().signed().scan("m");
+    let counter = Value::Variable(caller.counter());
+    let caller = caller
+        .calls(vec![call("w::f", vec![Argument::Scalar(counter)])])
+        .program();
+    let result = proven(compose(
+        vec![("w::f", signed_callee()), ("w::c", caller)],
+        "w::c",
+    ));
+    assert_eq!(
+        result.loop_body_entries.to_string(),
+        "max(m, 0) + max(m, 0) * max(m, 0)"
     );
 }

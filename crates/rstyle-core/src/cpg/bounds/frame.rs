@@ -107,7 +107,7 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
                 .ty
                 .as_deref()
                 .and_then(|ty| self.facts.type_of(ty));
-            if ty.is_some_and(|ty| self.mutable_uint_reference(ty)) {
+            if ty.is_some_and(|ty| self.mutable_integer_reference(ty)) {
                 self.reason = Some("Mutable numeric-reference binding is unmodeled".into());
             }
         }
@@ -420,7 +420,7 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
         if self
             .facts
             .ty(pattern)
-            .is_some_and(|ty| self.mutable_uint_reference(ty))
+            .is_some_and(|ty| self.mutable_integer_reference(ty))
         {
             return Some("Mutable numeric-reference binding is unmodeled");
         }
@@ -428,24 +428,24 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
         None
     }
 
-    fn mutable_uint_reference(&self, ty: &super::super::model::Type) -> bool {
+    fn mutable_integer_reference(&self, ty: &super::super::model::Type) -> bool {
         ty.kind == TypeKind::Reference
             && ty.mode.as_deref() == Some("exclusive")
             && ty
                 .target
                 .as_deref()
                 .and_then(|id| self.facts.type_of(id))
-                .is_some_and(|inner| self.uint_reference(inner))
+                .is_some_and(|inner| self.integer_reference(inner))
     }
 
-    fn uint_reference(&self, mut ty: &'a super::super::model::Type) -> bool {
+    fn integer_reference(&self, mut ty: &'a super::super::model::Type) -> bool {
         while ty.kind == TypeKind::Reference {
             match ty.target.as_deref().and_then(|id| self.facts.type_of(id)) {
                 Some(inner) => ty = inner,
                 None => return false,
             }
         }
-        ty.kind == TypeKind::Integer && ty.signed == Some(false)
+        ty.kind == TypeKind::Integer
     }
 
     // Callbacks are admitted only where lowering can resolve every invocation.
@@ -493,7 +493,7 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
                     let numeric = self
                         .facts
                         .type_of(&capture.ty)
-                        .is_some_and(|ty| self.uint_reference(ty));
+                        .is_some_and(|ty| self.integer_reference(ty));
                     let selected = self
                         .selected
                         .iter()
@@ -595,7 +595,7 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
         if self
             .facts
             .ty(expression)
-            .is_some_and(|ty| self.uint_reference(ty))
+            .is_some_and(|ty| self.integer_reference(ty))
         {
             return Ok(true);
         }
