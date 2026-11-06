@@ -2,6 +2,7 @@
 
 use std::process::{Command, ExitCode};
 
+// rstyle-allow(side_effect_density): process boundary: forwards to the binary that does the work
 fn main() -> ExitCode {
     let mut command = match sibling() {
         Ok(program) => Command::new(program),
