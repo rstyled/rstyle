@@ -499,7 +499,8 @@ fn a_re_exported_callee_stays_unresolved_when_its_crate_is_not_captured() {
     );
 }
 
-/// `caller` calls a default body it overrides, and a default body it does not.
+/// `caller` calls a required method nothing implements, a default body it overrides, and a
+/// default body it does not.
 fn trait_workspace() -> TempDir {
     let dir = tempfile::tempdir().unwrap();
     let write = |path: &str, text: &str| {
@@ -517,7 +518,8 @@ fn trait_workspace() -> TempDir {
     );
     write(
         "traits/src/lib.rs",
-        "pub trait Hook {\n    fn overridden(&self) {\n        std::fs::write(\"/unused\", b\"x\").ok();\n    }\n\n    \
+        "pub trait Source {\n    fn read(&self) -> u32;\n}\n\n\
+         pub trait Hook {\n    fn overridden(&self) {\n        std::fs::write(\"/unused\", b\"x\").ok();\n    }\n\n    \
          fn inherited(&self) {\n        std::fs::write(\"/unused\", b\"y\").ok();\n    }\n}\n",
     );
     write(
@@ -527,12 +529,33 @@ fn trait_workspace() -> TempDir {
     );
     write(
         "caller/src/lib.rs",
-        "use traits::Hook;\n\n\
+        "use traits::{Hook, Source};\n\n\
          pub struct Mine;\n\nimpl Hook for Mine {\n    fn overridden(&self) {\n        std::fs::write(\"/unused\", b\"z\").ok();\n    }\n}\n\n\
+         pub fn reads<T: Source>(source: &T) -> u32 {\n    source.read()\n}\n\n\
          pub fn overrides<T: Hook>(hook: &T) {\n    hook.overridden();\n}\n\n\
          pub fn inherits<T: Hook>(hook: &T) {\n    hook.inherited();\n}\n",
     );
     dir
+}
+
+#[test]
+fn a_required_method_nothing_implements_is_unknown_and_leaves_the_report_complete() {
+    let directory = trait_workspace();
+
+    let (output, report) = capture(directory.path(), &[]);
+
+    checked(&output, 0);
+    let caller = unit(&report, "caller");
+    assert_eq!(caller["unresolved_callees"], serde_json::json!([]));
+    assert_eq!(
+        caller["unknown_callees"],
+        serde_json::json!(["traits::Source::read"])
+    );
+    assert_eq!(
+        caller["evaluation"]["summary"]["effect_counts"]["unknown"], 1,
+        "{caller}"
+    );
+    assert_eq!(report["compiler_advisory"]["complete"], true);
 }
 
 #[test]
@@ -565,5 +588,9 @@ fn a_default_body_stays_unresolved_when_its_crate_is_not_captured() {
     assert_eq!(
         caller["unresolved_callees"],
         serde_json::json!(["traits::Hook::inherited"])
+    );
+    assert_eq!(
+        caller["unknown_callees"],
+        serde_json::json!(["traits::Source::read"])
     );
 }

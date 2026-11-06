@@ -162,6 +162,7 @@ fn freshly_computed_retained_effects_follow_configured_propagation_depth() {
             callee: "krate::leaf".into(),
             line: 9,
             dynamic: false,
+            required: false,
             args: vec![],
         });
         let evaluated = evaluate_retaining_effects(

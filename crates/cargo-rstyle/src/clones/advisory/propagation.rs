@@ -14,6 +14,7 @@ pub(super) struct Completed {
     pub values: Option<BTreeMap<String, Vec<Effect>>>,
     pub resolved: BTreeMap<String, UnitId>,
     pub unresolved: BTreeSet<String>,
+    pub unknown: BTreeSet<String>,
     pub complete: bool,
     pub generated: BTreeMap<String, Vec<Effect>>,
     pub local: BTreeSet<String>,
@@ -106,31 +107,30 @@ fn selected_rows<'a>(
         .collect())
 }
 
-impl Completed {
-    pub(super) fn unresolved_callees(
-        &mut self,
-        facts: &[FnFacts],
-    ) -> Result<BTreeSet<String>, String> {
-        unresolved(
-            facts,
-            std::mem::take(&mut self.unresolved),
-            &self.resolved,
-            &self.local,
-        )
-    }
+/// Calls a unit makes that no captured function answers.
+pub(super) struct Unanswered {
+    pub unresolved: BTreeSet<String>,
+    /// Required trait methods, read as `Unknown` effects.
+    pub unknown: BTreeSet<String>,
 }
 
-fn unresolved(
-    facts: &[FnFacts],
-    missing: BTreeSet<String>,
-    resolved: &BTreeMap<String, UnitId>,
-    local: &BTreeSet<String>,
-) -> Result<BTreeSet<String>, String> {
-    Ok(super::unresolved(facts)?
-        .into_iter()
-        .chain(missing)
-        .filter(|callee| !resolved.contains_key(callee) && !local.contains(callee))
-        .collect())
+impl Completed {
+    pub(super) fn unanswered(&mut self, facts: &[FnFacts]) -> Result<Unanswered, String> {
+        let unresolved = std::mem::take(&mut self.unresolved);
+        let unknown = std::mem::take(&mut self.unknown);
+        Ok(Unanswered {
+            unresolved: self.unreached(super::unresolved(facts)?, unresolved),
+            unknown: self.unreached(super::unknown(facts)?, unknown),
+        })
+    }
+
+    fn unreached(&self, found: BTreeSet<String>, missing: BTreeSet<String>) -> BTreeSet<String> {
+        found
+            .into_iter()
+            .chain(missing)
+            .filter(|callee| !self.resolved.contains_key(callee) && !self.local.contains(callee))
+            .collect()
+    }
 }
 
 fn local(units: usize) -> Evaluation {
@@ -300,11 +300,12 @@ impl Targets<'_> {
             let targets = self.resolve(caller, &edge.callee);
             let unit = self.rows[caller].unit;
             if targets.is_empty() {
-                completed
-                    .get_mut(&unit)
-                    .expect("Captured propagation unit")
-                    .unresolved
-                    .insert(edge.callee.clone());
+                let unit = completed.get_mut(&unit).expect("Captured propagation unit");
+                let unanswered = match edge.required {
+                    true => &mut unit.unknown,
+                    false => &mut unit.unresolved,
+                };
+                unanswered.insert(edge.callee.clone());
             }
             if let Some(target) = targets
                 .iter()

@@ -142,7 +142,9 @@ pub fn all_effects<F: EffectSource>(
     graph: &graph::Graph,
     cfg: &Config,
 ) -> Vec<Vec<rules::Effect>> {
-    let direct: Vec<_> = facts.iter().map(|f| f.direct_effects(cfg)).collect();
+    let mut direct: Vec<_> = facts.iter().map(|f| f.direct_effects(cfg)).collect();
+    graph.add_open_calls(&mut direct);
+
     let boundary: Vec<_> = facts.iter().map(EffectSource::effect_boundary).collect();
     let inputs = graph::Inputs {
         facts,

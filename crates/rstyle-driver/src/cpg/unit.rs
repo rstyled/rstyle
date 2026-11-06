@@ -1052,15 +1052,20 @@ fn definition_kind(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> &'static st
 
 fn modifiers(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> Vec<&'static str> {
     match kind {
-        DefKind::Fn | DefKind::AssocFn
-            if tcx
+        DefKind::Fn | DefKind::AssocFn => {
+            let unsafe_call = tcx
                 .fn_sig(def_id)
                 .skip_binder()
                 .skip_binder()
                 .safety()
-                .is_unsafe() =>
-        {
-            vec!["unsafe"]
+                .is_unsafe();
+            let without_body = kind == DefKind::AssocFn
+                && tcx.trait_of_assoc(def_id).is_some()
+                && !tcx.associated_item(def_id).defaultness(tcx).has_value();
+            [(unsafe_call, "unsafe"), (without_body, "abstract")]
+                .into_iter()
+                .filter_map(|(holds, modifier)| holds.then_some(modifier))
+                .collect()
         }
         DefKind::Static { mutability, .. } if mutability.is_mut() => vec!["mutable"],
         _ => vec![],

@@ -354,6 +354,7 @@ mod tests {
             callee: format!("krate::{to}"),
             line,
             dynamic: false,
+            required: false,
             args,
         });
     }
@@ -411,6 +412,7 @@ mod tests {
         };
         let graph = Graph {
             callees: vec![vec![], vec![call(0)], vec![call(0)]],
+            ..Graph::default()
         };
         let mut plans = plans_planning(&[vec![0]], &rules(&[(0, RULE)]), &owners, &graph);
         let plan = plans.remove(0).unwrap();

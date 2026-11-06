@@ -100,12 +100,10 @@ impl Captured {
         let captured =
             ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty() && !ready.is_empty();
         let call_graph_complete =
-            captured && ready.iter().all(|ready| ready.unit.propagation_complete);
-        let input_complete = captured
+            captured && ready.iter().all(|ready| ready.unit.call_graph_complete());
+        let input_complete = call_graph_complete
             && ready.iter().all(|ready| {
-                ready.unit.inputs_complete()
-                    && ready.unit.full_diagnostics_complete()
-                    && ready.unit.propagation_complete
+                ready.unit.inputs_complete() && ready.unit.full_diagnostics_complete()
             });
         let required_edits_complete = input_complete
             || (captured
@@ -127,6 +125,7 @@ impl Captured {
                 "Advisory core edit footprints and parameter suggestions over captured compiler facts; no rewrite or refactoring-safety authority.",
                 "Only captured resolved calls are enumerated; callers outside the selected Cargo scope remain unenumerated even when input_complete is true.",
                 "Missing or ambiguous targets are not independent or no-call evidence; counts describe the known graph only.",
+                "A unit's unknown_callees keep input_complete and call_graph_complete false, because the callers behind them cannot be enumerated.",
                 "Generated owners retain known caller topology but have no authored edit coordinates or parameter facts; required missing edits are listed by owner, without fabricated steps or forwarding suggestions.",
                 "required_edits_complete describes requested edit worklists only; missing caller graphs and optional hints remain outside that status. Parameter plans still require caller inputs.",
                 "Core bundle names and types are heuristic display keys, not cross-unit semantic type equivalence.",

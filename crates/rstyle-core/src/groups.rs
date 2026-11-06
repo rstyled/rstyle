@@ -442,6 +442,7 @@ mod tests {
                 callee: format!("krate::{c}"),
                 line: line + 1,
                 dynamic: false,
+                required: false,
                 args: vec![],
             })
             .collect();
@@ -485,6 +486,7 @@ mod tests {
                         .collect()
                 })
                 .collect(),
+            ..Graph::default()
         }
     }
 

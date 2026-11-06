@@ -135,19 +135,19 @@ pub fn dynamic(value:&dyn renamed::Action) { value.act(); }
 "#;
     let directory = fixture(LEAF, callers);
     let (output, report) = capture(directory.path(), &["--compiler-plans"]);
-    checked(&output, 2);
+    checked(&output, 0);
     let caller = unit(&report, "caller");
     assert_eq!(io(caller), 0);
+    assert_eq!(caller["unresolved_callees"], serde_json::json!([]));
     assert_eq!(
-        caller["unresolved_callees"],
+        caller["unknown_callees"],
         serde_json::json!(["leaf::Action::act"])
     );
     assert!(caller.get("resolved_dependency_callees").is_none());
-    assert_eq!(report["compiler_advisory"]["complete"], false);
-    assert_eq!(
-        report["compiler_advisory"]["planning"]["input_complete"],
-        false
-    );
+    assert_eq!(report["compiler_advisory"]["complete"], true);
+    let planning = &report["compiler_advisory"]["planning"];
+    assert_eq!(planning["input_complete"], false);
+    assert_eq!(planning["call_graph_complete"], false);
 }
 
 #[test]

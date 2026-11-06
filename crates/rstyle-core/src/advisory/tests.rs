@@ -25,6 +25,7 @@ fn original() -> serde_json::Value {
         callee: "local".into(),
         line: 1,
         dynamic: false,
+        required: false,
         args: vec![ArgSource::Param(0)],
     });
 

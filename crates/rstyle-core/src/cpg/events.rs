@@ -283,6 +283,7 @@ impl<'a> Walk<'a> {
             callee: callee_id,
             line,
             dynamic: callee.dynamic,
+            required: has_modifier(callee.selected, "abstract"),
             args,
         });
         Ok(())

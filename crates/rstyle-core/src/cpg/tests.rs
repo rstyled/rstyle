@@ -99,6 +99,7 @@ fn example_calls_name_declared_library_callees_and_workspace_edges() {
         callee: "example::larger".into(),
         line: 8,
         dynamic: false,
+        required: false,
         args: vec![ArgSource::Param(0), ArgSource::Param(1)],
     };
     assert_eq!(facts[1].edges, [edge]);
@@ -792,6 +793,7 @@ fn recursive_calls_are_edges_with_argument_sources() {
         callee: "example::f".into(),
         line: 8,
         dynamic: false,
+        required: false,
         args: vec![ArgSource::Const, ArgSource::Param(1)],
     };
     assert_eq!(facts.edges, [edge]);
@@ -1023,6 +1025,7 @@ fn workspace_reborrows_are_delegated_and_field_writes_escape() {
         callee: "example::Data::helper".into(),
         line: 2,
         dynamic: false,
+        required: false,
         args: vec![],
     };
     assert_eq!(facts.edges, [edge]);
