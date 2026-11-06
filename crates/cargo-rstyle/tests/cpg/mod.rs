@@ -744,16 +744,44 @@ impl<const N: usize, A: Work> Work for Choice<[A; N]> {
 }
 "#;
 
-#[test]
-fn a_signature_projecting_through_a_const_parameter_is_captured() {
+/// A package holding one library file.
+fn one_crate(source: &str) -> TempDir {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("src")).unwrap();
     std::fs::write(
         dir.path().join("Cargo.toml"),
-        "[package]\nname = \"choice\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        "[package]\nname = \"single\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
     )
     .unwrap();
-    std::fs::write(dir.path().join("src/lib.rs"), PROJECTS_THROUGH_A_CONST).unwrap();
+    std::fs::write(dir.path().join("src/lib.rs"), source).unwrap();
+    dir
+}
+
+#[test]
+fn a_method_a_trait_declares_without_a_body_is_marked_abstract() {
+    let dir = one_crate(
+        "pub trait Shape {\n    fn area(&self) -> u32;\n    fn twice(&self) -> u32 {\n        \
+         self.area() * 2\n    }\n}\n",
+    );
+
+    let (_, captured, _) = captured_and_emitted(dir.path());
+
+    let documents = parsed(&captured);
+    let modifiers = |identity: &str| {
+        documents
+            .iter()
+            .flat_map(|document| document["unit"]["definitions"].as_array().unwrap())
+            .find(|definition| definition["stable_identity"] == identity)
+            .unwrap_or_else(|| panic!("no definition {identity}"))["modifiers"]
+            .clone()
+    };
+    assert_eq!(modifiers("single::Shape::area"), json!(["abstract"]));
+    assert_eq!(modifiers("single::Shape::twice"), json!([]));
+}
+
+#[test]
+fn a_signature_projecting_through_a_const_parameter_is_captured() {
+    let dir = one_crate(PROJECTS_THROUGH_A_CONST);
 
     let (route, captured, _) = captured_and_emitted(dir.path());
 

@@ -3210,12 +3210,14 @@ expression: facts
         "callee": "lowered::shapes::Shape::area",
         "line": 57,
         "dynamic": true,
+        "required": true,
         "args": []
       },
       {
         "callee": "lowered::shapes::Shape::area",
         "line": 57,
         "dynamic": false,
+        "required": true,
         "args": []
       },
       {

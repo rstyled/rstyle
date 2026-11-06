@@ -63,10 +63,19 @@ pub struct Callee {
     pub args: Vec<ArgSource>,
 }
 
+/// A call to a method a trait declares without a body, with no implementation to go to.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct OpenCall {
+    pub line: usize,
+    pub callee: String,
+}
+
 /// `callees[i]` are the resolved calls out of `facts[i]`, sorted by (line, target).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Graph {
     pub callees: Vec<Vec<Callee>>,
+    /// `open[i]` are the calls out of `facts[i]` that no implementation can answer, sorted.
+    pub open: Vec<Vec<OpenCall>>,
 }
 
 impl Graph {
@@ -79,6 +88,23 @@ impl Graph {
             }
         }
         out.into_iter().map(|s| s.into_iter().collect()).collect()
+    }
+
+    /// What runs at an open call is unknown to its caller, once per callee, unless the
+    /// caller's own events already account for it.
+    pub fn add_open_calls(&self, direct: &mut [Vec<Effect>]) {
+        for (effects, open) in direct.iter_mut().zip(&self.open) {
+            for call in open {
+                if effects.iter().all(|effect| effect.label != call.callee) {
+                    effects.push(Effect {
+                        kind: EffectKind::Unknown,
+                        label: call.callee.clone(),
+                        line: call.line,
+                        via: None,
+                    });
+                }
+            }
+        }
     }
 }
 
@@ -114,30 +140,31 @@ pub fn build_resolved<F: EffectInput, T: IntoIterator<Item = usize>>(
     facts: &[F],
     mut targets: impl FnMut(usize, &crate::facts::Edge) -> T,
 ) -> Graph {
-    let callees = facts
-        .iter()
-        .enumerate()
-        .map(|(caller, fact)| {
-            let resolved: BTreeSet<Callee> = fact
-                .effect_owner()
-                .edges
-                .iter()
-                .filter_map(|edge| {
-                    let targets: BTreeSet<_> = targets(caller, edge)
-                        .into_iter()
-                        .filter(|target| *target != caller)
-                        .collect();
-                    (!targets.is_empty()).then(|| Callee {
-                        line: edge.line,
-                        targets: targets.into_iter().collect(),
-                        args: edge.args.clone(),
-                    })
-                })
-                .collect();
-            resolved.into_iter().collect()
-        })
-        .collect();
-    Graph { callees }
+    let mut graph = Graph::default();
+    for (caller, fact) in facts.iter().enumerate() {
+        let mut resolved = BTreeSet::new();
+        let mut open = BTreeSet::new();
+        for edge in fact.effect_owner().edges {
+            let mut targets: BTreeSet<_> = targets(caller, edge).into_iter().collect();
+            if targets.is_empty() && edge.required {
+                open.insert(OpenCall {
+                    line: edge.line,
+                    callee: edge.callee.clone(),
+                });
+            }
+            targets.remove(&caller);
+            if !targets.is_empty() {
+                resolved.insert(Callee {
+                    line: edge.line,
+                    targets: targets.into_iter().collect(),
+                    args: edge.args.clone(),
+                });
+            }
+        }
+        graph.callees.push(resolved.into_iter().collect());
+        graph.open.push(open.into_iter().collect());
+    }
+    graph
 }
 
 /// True for functions that declared themselves a side-effect boundary.
@@ -307,8 +334,85 @@ mod tests {
             callee: callee.into(),
             line,
             dynamic: false,
+            required: false,
             args: vec![],
         }
+    }
+
+    fn required(callee: &str, line: usize) -> Edge {
+        Edge {
+            required: true,
+            ..edge(callee, line)
+        }
+    }
+
+    fn unknown(label: &str) -> Effect {
+        Effect {
+            kind: EffectKind::Unknown,
+            label: label.into(),
+            line: 5,
+            via: None,
+        }
+    }
+
+    #[test]
+    fn a_required_call_with_no_implementation_is_unknown_once_per_callee() {
+        let mut caller = sample("caller");
+        caller.edges = vec![
+            required("krate::Read::read", 5),
+            required("krate::Read::read", 9),
+        ];
+        let graph = build(&[caller]);
+        let mut direct = vec![vec![]];
+
+        graph.add_open_calls(&mut direct);
+
+        assert_eq!(direct, [vec![unknown("krate::Read::read")]]);
+    }
+
+    #[test]
+    fn a_required_call_with_an_implementation_is_not_open() {
+        let mut caller = sample("caller");
+        caller.edges = vec![required("krate::Read::read", 5)];
+        let mut implementation = sample("implementation");
+        implementation.implements = Some("krate::Read::read".into());
+
+        let graph = build(&[caller, implementation]);
+
+        assert_eq!(graph.open, [vec![], vec![]]);
+        assert_eq!(graph.callees[0][0].targets, [1]);
+    }
+
+    #[test]
+    fn a_required_call_that_only_reaches_its_caller_is_not_open() {
+        let mut implementation = sample("implementation");
+        implementation.implements = Some("krate::Read::read".into());
+        implementation.edges = vec![required("krate::Read::read", 5)];
+
+        let graph = build(&[implementation]);
+
+        assert_eq!(graph.open, [vec![]]);
+        assert_eq!(graph.callees, [vec![]]);
+    }
+
+    #[test]
+    fn an_open_call_the_callers_own_events_name_adds_nothing() {
+        let mut caller = sample("caller");
+        caller.edges = vec![required("krate::Read::read", 5)];
+        let graph = build(&[caller]);
+        let mut direct = vec![vec![unknown("krate::Read::read")]];
+
+        graph.add_open_calls(&mut direct);
+
+        assert_eq!(direct, [vec![unknown("krate::Read::read")]]);
+    }
+
+    #[test]
+    fn an_ordinary_call_with_no_target_is_not_open() {
+        let mut caller = sample("caller");
+        caller.edges = vec![edge("krate::missing", 5)];
+
+        assert_eq!(build(&[caller]).open, [vec![]]);
     }
 
     fn io(line: usize) -> Effect {

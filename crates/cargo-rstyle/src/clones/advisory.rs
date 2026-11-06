@@ -63,6 +63,9 @@ struct Unit {
     unavailable: Vec<Missing>,
     unavailable_complexity: Vec<Missing>,
     unresolved_callees: BTreeSet<String>,
+    /// Required trait methods called here with no implementation in reach: `Unknown` effects.
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
+    unimplemented_callees: BTreeSet<String>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     resolved_dependency_callees: BTreeMap<String, UnitId>,
     #[serde(skip)]
@@ -427,6 +430,7 @@ pub(super) fn evaluate(
             "Advisory compiler observations and existing core policy; no strict clone or purity authority.",
             "Core effect propagation follows unique captured Cargo dependencies, direct or through another crate; missing or ambiguous units remain unresolved.",
             "Missing functions make requested coverage incomplete; unresolved workspace callees keep requested numeric and effect coverage incomplete, independently of complexity ranking. No zero facts are substituted.",
+            "A required trait method with no implementation in reach is an Unknown effect on its caller, listed in unimplemented_callees; it does not make coverage incomplete, so a complete report can still hold these calls.",
             "Core metrics count mutable borrows and use bounded effect propagation; they differ from strict mutation-effect metrics.",
             "Compiler patterns use approximate advisory graphs and bounded core discovery; input completeness is not exhaustive proposal coverage or refactoring safety.",
         ],
@@ -513,6 +517,7 @@ fn evaluate_unit(
     let DiagnosticPhase {
         prepared: Prepared { inputs, effects },
         unresolved: unresolved_callees,
+        unimplemented: unimplemented_callees,
         ranking,
         completed,
     } = prepared.evaluate_diagnostics(ctx, unit, demand)?;
@@ -528,6 +533,7 @@ fn evaluate_unit(
         unavailable: inputs.unavailable,
         unavailable_complexity: inputs.unavailable_complexity,
         unresolved_callees,
+        unimplemented_callees,
         resolved_dependency_callees: effects.resolved,
         propagation_complete: effects.complete,
         evaluation: completed.evaluation,
@@ -557,6 +563,7 @@ fn evaluate_unit(
 struct DiagnosticPhase {
     prepared: Prepared,
     unresolved: BTreeSet<String>,
+    unimplemented: BTreeSet<String>,
     ranking: Option<ranking::Captured>,
     completed: diagnostics::Completed,
 }
@@ -573,6 +580,7 @@ impl Prepared {
             mut effects,
         } = self;
         let unresolved = effects.unresolved_callees(&inputs.facts)?;
+        let unimplemented = effects.unimplemented_callees(&inputs.facts)?;
         let ranking = ranking::Captured::new(ctx.args, &inputs);
 
         inputs.retain_propagated(&mut effects.generated);
@@ -585,6 +593,7 @@ impl Prepared {
         Ok(DiagnosticPhase {
             prepared: Prepared { inputs, effects },
             unresolved,
+            unimplemented,
             ranking,
             completed,
         })
@@ -1007,7 +1016,20 @@ fn measurement(key: super::FunctionKey, facts: &FnFacts) -> Measurement {
     }
 }
 
+/// Callees no function here answers, other than required trait methods.
 fn unresolved(facts: &[FnFacts]) -> Result<BTreeSet<String>, String> {
+    unanswered(facts, |edge| !edge.required)
+}
+
+/// Required trait methods no function here implements.
+fn unimplemented(facts: &[FnFacts]) -> Result<BTreeSet<String>, String> {
+    unanswered(facts, |edge| edge.required)
+}
+
+fn unanswered(
+    facts: &[FnFacts],
+    selected: impl Fn(&rstyle_core::facts::Edge) -> bool,
+) -> Result<BTreeSet<String>, String> {
     let mut ids = BTreeSet::new();
     for function in facts {
         if function.id.is_empty() || !ids.insert(function.id.as_str()) {
@@ -1025,7 +1047,7 @@ fn unresolved(facts: &[FnFacts]) -> Result<BTreeSet<String>, String> {
     Ok(facts
         .iter()
         .flat_map(|function| &function.edges)
-        .filter(|edge| !ids.contains(edge.callee.as_str()))
+        .filter(|edge| selected(edge) && !ids.contains(edge.callee.as_str()))
         .map(|edge| edge.callee.clone())
         .collect())
 }

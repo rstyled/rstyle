@@ -118,6 +118,9 @@ pub struct Edge {
     /// Dispatched through `dyn`: the concrete impl is unknown.
     #[serde(default)]
     pub dynamic: bool,
+    /// A trait declares the callee without a body, so only an implementation can run.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub required: bool,
     /// One entry per callee parameter (`self` excluded), in order.
     #[serde(default)]
     pub args: Vec<ArgSource>,

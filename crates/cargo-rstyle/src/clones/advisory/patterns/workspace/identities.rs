@@ -258,6 +258,7 @@ mod tests {
             callee: implementation.id.clone(),
             line: 1,
             dynamic: false,
+            required: false,
             args: Vec::new(),
         });
         [caller, implementation]
@@ -343,6 +344,7 @@ mod tests {
             callee: "shared::read".into(),
             line: 1,
             dynamic: false,
+            required: false,
             args: Vec::new(),
         });
         facts
