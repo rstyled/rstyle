@@ -167,6 +167,8 @@ enum CpgCommand {
     Check(CpgInputArgs),
     /// Mine a run's documents for latent shared abstractions.
     Patterns(CpgPatternsArgs),
+    /// Derive each function's dominators, post-dominators and dependence graph.
+    Flow(CpgFlowArgs),
     /// Write compat.cpg documents for the workspace from the rustc frontend.
     Emit {
         /// Output directory; its `target` subdirectory holds the private build.
@@ -218,6 +220,15 @@ struct CpgPatternsArgs {
     fail_on_candidates: bool,
     #[command(flatten)]
     mine: MineArgs,
+}
+
+#[derive(Args)]
+struct CpgFlowArgs {
+    #[command(flatten)]
+    input: CpgInputArgs,
+    /// Only functions whose name contains this.
+    #[arg(long)]
+    function: Option<String>,
 }
 
 #[derive(Args)]
@@ -403,6 +414,7 @@ fn cpg_command(cli: &Cli, command: CpgCommand) -> Result<(String, u8), String> {
         CpgCommand::Receive(input) => cpg::receive(&input, cli.format),
         CpgCommand::Check(input) => cpg::check(&input, cli.config.as_deref(), cli.format),
         CpgCommand::Patterns(args) => cpg::patterns(cli, &args),
+        CpgCommand::Flow(args) => cpg::flow(&args, cli.format),
         CpgCommand::Emit { out } => {
             let selection = cpg::Selection {
                 packages: &cli.packages,

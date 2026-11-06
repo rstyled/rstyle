@@ -31,6 +31,7 @@ fn split_functions_can_arrive_before_their_unit() {
         Demand {
             graphs: true,
             bounds: true,
+            flow: false,
         },
     )
     .unwrap();

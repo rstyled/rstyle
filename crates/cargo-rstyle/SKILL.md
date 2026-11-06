@@ -179,6 +179,15 @@ runtime-bound programs from the documents; no compiler runs and only an explicit
 documents, or a function read twice, return 2.
 `cargo rstyle cpg emit --out DIR` writes such documents for a Rust workspace.
 
+`cargo rstyle cpg flow DOC.json [MORE.json ...] [--function NAME] --format json` reports,
+for each function, immediate dominators and post-dominators, loops, and a dependence
+graph: `data` (a write that can reach a read), `control` (a branch and what runs because
+of it; `termination` marks an edge that holds only because a loop might never finish) and
+`execution` (the nearest operation that always runs first). Read `standing` before relying
+on them: `known`, `approximated` with `reasons`, or `unknown` where the frontend emits no
+flow. An `approximate` data edge is of a binding that can also change through a borrow or
+capture. Closure bodies are opaque, and unwinding is not a transfer.
+
 ## Requirements
 
 Needs the pinned nightly from the project's `rust-toolchain.toml` (installed by rustup automatically) and `rstyle-driver` installed next to the `cargo-rstyle` binary.

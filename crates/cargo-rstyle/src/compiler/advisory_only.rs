@@ -9,6 +9,7 @@ pub(super) fn consume(request: &UnitRequest<'_>, result: &mut Handoff) -> Result
     let demand = rstyle_core::cpg::records::Demand {
         graphs: request.args.compiler_patterns,
         bounds: request.args.compiler_runtime_bounds,
+        flow: false,
     };
     let functions = Stage::new("cli.documents.read", &unit.target.package, None)
         .observe(|| documents::read(unit, demand))?;

@@ -388,6 +388,7 @@ pub(crate) fn derived(out: &Path) -> Vec<rstyle_core::facts::FnFacts> {
     let demand = rstyle_core::cpg::records::Demand {
         graphs: true,
         bounds: false,
+        flow: false,
     };
     rstyle_core::cpg::run_records(documents, demand)
         .unwrap()
@@ -472,6 +473,7 @@ mod capture;
 #[cfg(unix)]
 mod descriptor;
 mod facts;
+mod flow;
 mod stdin;
 mod transport;
 

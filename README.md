@@ -362,6 +362,7 @@ reimplemented per language:
 ```
 cargo rstyle cpg check DOC.json... [--config rstyle.toml] [--format text|json]
 cargo rstyle cpg patterns DOC.json... [--complexity] [--config rstyle.toml] [--format text|json]
+cargo rstyle cpg flow DOC.json... [--function NAME] [--format text|json]
 cargo rstyle cpg receive --capture CAPTURE_DIR --format json
 cargo rstyle cpg check --capture CAPTURE_DIR [--format text|json]
 cargo rstyle cpg patterns --capture CAPTURE_DIR [--complexity] [--format text|json]
@@ -428,6 +429,16 @@ everything the report needs is derived from those documents afterwards, in core.
 saved run therefore replays without a compiler or the sources, and its documents
 answer any of these routes: replaying a style run with `patterns` needs no recapture.
 The driver writes nothing else, and no route reads rustc directly.
+
+`cpg flow` reports what each function's control flow establishes, from any frontend that
+emits one: immediate dominators and post-dominators, each loop's back edges, and a
+dependence graph of data, control and execution edges. A data edge is a write that can
+reach a read; a control edge marked `termination` holds only because a loop before its
+target might never finish. Each function says how far this can be relied on: `known`,
+`approximated` with its reasons, such as a binding that can also change through a borrow,
+or `unknown` where the frontend emits no flow. A closure's body is opaque and has no
+flow of its own; a coroutine's, which is all of an `async fn`, runs in place. Unwinding is
+not a transfer.
 
 The strict `clones` route, `rstyle-pdg` and `rstyle-ccgraph` were retired in
 [#46](https://github.com/rstyled/rstyle/issues/46), which records the commit they can

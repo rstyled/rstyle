@@ -115,6 +115,7 @@ fn saved_facts(report: &Value) -> Vec<Value> {
     let demand = rstyle_core::cpg::records::Demand {
         graphs: true,
         bounds: false,
+        flow: false,
     };
     rstyle_core::cpg::run_records(found, demand)
         .unwrap()
