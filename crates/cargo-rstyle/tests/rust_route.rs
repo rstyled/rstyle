@@ -82,9 +82,10 @@ fn a_rust_run_reads_a_workspace_through_the_driver() {
     );
     assert!(!source.contains("%3F"), "no verbatim prefix in {source}");
 
-    let paths = unified["check"]["functions"].as_array().unwrap();
-    for function in paths {
-        let path = function["path"].as_str().unwrap();
+    let rows = unified["runtime_bounds"]["rows"].as_array().unwrap();
+    assert_eq!(rows.len(), 2);
+    for row in rows {
+        let path = row["path"].as_str().unwrap();
         assert!(
             path.ends_with("lib.rs") && !Path::new(path).is_absolute(),
             "{path}"
@@ -148,4 +149,100 @@ fn the_default_route_reads_what_a_run_reads_and_shares_its_own_capture() {
         .filter(|row| row["reason"] == "compiler-artifact")
         .any(|row| row["fresh"] == false);
     assert!(!compiled, "patterns compiled again: {cargo}");
+}
+
+/// Whether the newest capture compiled any of the workspace's own crates.
+fn compiled_the_workspace(root: &Path) -> bool {
+    let mut runs: Vec<_> = std::fs::read_dir(root.join("target/rstyle/runs"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.join("cargo.jsonl").is_file())
+        .collect();
+    runs.sort_by_key(|run| {
+        std::fs::metadata(run.join("cargo.jsonl"))
+            .unwrap()
+            .modified()
+            .unwrap()
+    });
+    let cargo = std::fs::read_to_string(runs.last().unwrap().join("cargo.jsonl")).unwrap();
+    cargo
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap())
+        .filter(|row| row["reason"] == "compiler-artifact")
+        .filter(|row| row["target"]["name"] == "app")
+        .any(|row| row["fresh"] == false)
+}
+
+#[test]
+fn a_run_compiles_only_what_changed() {
+    let directory = workspace();
+    let root = directory.path();
+    let first = report(&run(
+        "rstyle",
+        root,
+        &["rust", "--check", "--format", "json"],
+    ));
+    assert!(compiled_the_workspace(root));
+    assert_eq!(first["check"]["summary"]["functions"], 2);
+
+    let second = report(&run(
+        "rstyle",
+        root,
+        &["rust", "--check", "--format", "json"],
+    ));
+    assert!(
+        !compiled_the_workspace(root),
+        "the same source compiled again"
+    );
+    assert_eq!(second["check"], first["check"]);
+
+    let default = report(&run("cargo-rstyle", root, &["--format", "json"]));
+    assert!(
+        !compiled_the_workspace(root),
+        "`cargo rstyle` compiled again"
+    );
+    assert_eq!(default["summary"], first["check"]["summary"]);
+
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "pub fn only() -> u32 {\n    1\n}\n",
+    )
+    .unwrap();
+    let edited = report(&run(
+        "rstyle",
+        root,
+        &["rust", "--check", "--format", "json"],
+    ));
+    assert!(compiled_the_workspace(root), "an edit didn't compile");
+    assert_eq!(edited["check"]["summary"]["functions"], 1);
+}
+
+#[test]
+fn a_compile_error_reaches_the_user_and_publishes_nothing() {
+    let directory = workspace();
+    let root = directory.path();
+    std::fs::write(root.join("src/lib.rs"), "pub fn broken( {\n").unwrap();
+    let output = run("rstyle", root, &["rust", "--check"]);
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Cargo compilation failed"), "{stderr}");
+    assert!(
+        stderr.contains("lib.rs"),
+        "the compiler's own error: {stderr}"
+    );
+    let runs = root.join(".rstyle/runs");
+    let published = std::fs::read_dir(&runs).map_or(0, Iterator::count);
+    assert_eq!(published, 0, "{}", runs.display());
+}
+
+#[test]
+fn all_targets_reads_a_function_once_however_many_compilations_hold_it() {
+    let directory = workspace();
+    let root = directory.path();
+    let mut source = std::fs::read_to_string(root.join("src/lib.rs")).unwrap();
+    source.push_str("\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn adds() {\n        assert_eq!(super::add(1, 1), 2);\n    }\n}\n");
+    std::fs::write(root.join("src/lib.rs"), source).unwrap();
+    let args = ["rust", "--all-targets", "--format", "json"];
+    let unified = report(&run("rstyle", root, &args));
+    assert_eq!(unified["check"]["summary"]["functions"], 3, "{unified}");
 }

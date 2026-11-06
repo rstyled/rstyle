@@ -712,7 +712,8 @@ fn a_rust_run_saves_beside_go_runs_and_matches_the_compiler_route() {
             .unwrap()
             .ends_with("Z-rust")
     );
-    assert!(root.join("target/rstyle/build").is_dir());
+    assert!(root.join("target/rstyle/runs/advisory-build").is_dir());
+    assert!(run.join("documents/documents.manifest.json").is_file());
     assert_eq!(
         std::fs::read_to_string(root.join(".rstyle/.gitignore")).unwrap(),
         "*\n"
@@ -728,13 +729,15 @@ fn a_rust_run_saves_beside_go_runs_and_matches_the_compiler_route() {
 
     assert_reads_back(&root, &run, &unified);
 
+    let expected = unified.clone();
     let second = rust_run(&root, &["--format", "json", "--no-ignore"]);
     assert_eq!(
         without_run(report(&second)),
         without_run(unified),
-        "the shared build changes nothing"
+        "reusing the capture changes nothing"
     );
     assert_cargo_clean_leaves_the_run(&root, &run);
+    assert_reads_back(&root, &run, &expected);
 }
 
 fn assert_reads_back(root: &Path, run: &Path, unified: &Value) {
@@ -763,7 +766,7 @@ fn assert_cargo_clean_leaves_the_run(root: &Path, run: &Path) {
     assert!(cleaned.success());
     assert!(
         !root.join("target").exists(),
-        "`cargo clean` clears the build"
+        "`cargo clean` clears the capture"
     );
     assert!(run.join("report.json.zst").is_file(), "but not a saved run");
 }
@@ -793,7 +796,7 @@ fn a_rust_run_missing_a_document_cannot_read_as_a_cleaner_one() {
     std::fs::remove_file(&documents[0]).unwrap();
     let again = rust_run(&root, &["--check", "--from", run.to_str().unwrap()]);
     assert_eq!(again.status.code(), Some(2), "{again:?}");
-    assert!(stderr(&again).contains("recorded"), "{again:?}");
+    assert!(stderr(&again).contains(".cpg.json"), "{again:?}");
 }
 
 #[test]

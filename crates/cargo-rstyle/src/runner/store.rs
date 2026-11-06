@@ -1,6 +1,8 @@
 //! A run is staged beside where it will live and published whole once it's accepted, so a
 //! rejected or failed run leaves nothing a later reader could mistake for a result. Every
 //! language's runs live in the project's `.rstyle/runs`, and each keeps its newest few.
+use crate::compiler::SealedUnit;
+use rstyle_core::cpg::transport::{self, DocumentManifest, Encoding, SealedDocument};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -109,6 +111,34 @@ fn require_new(out: &Path) -> Result<(), String> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(format!("{}: {error}", out.display())),
     }
+}
+
+/// Keeps a capture's documents with a run, sealed so `--from` can verify them. A published
+/// document never changes, so the run shares the file where it can, and it outlives the capture.
+// rstyle-allow(side_effect_density): IO boundary: links documents into the run
+pub(super) fn keep_documents(units: &[SealedUnit], directory: &Path) -> Result<usize, String> {
+    let mut seals = Vec::new();
+    for unit in units {
+        for seal in &unit.documents {
+            let file = format!("document-{:06}{}", seals.len(), seal.encoding.suffix());
+            let (from, to) = (unit.directory.join(&seal.file), directory.join(&file));
+            std::fs::hard_link(&from, &to)
+                .or_else(|_| std::fs::copy(&from, &to).map(|_| ()))
+                .map_err(|error| format!("{}: {error}", from.display()))?;
+            seals.push(SealedDocument {
+                file,
+                ..seal.clone()
+            });
+        }
+    }
+
+    let kept = seals.len();
+    transport::write_json(
+        &directory.join(transport::DOCUMENTS_MANIFEST),
+        Encoding::Json,
+        &DocumentManifest::of(seals),
+    )?;
+    Ok(kept)
 }
 
 /// Two runs can finish within a second, so a taken name gets a counter.
