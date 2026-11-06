@@ -169,6 +169,8 @@ enum CpgCommand {
     Patterns(CpgPatternsArgs),
     /// Derive each function's dominators, post-dominators and dependence graph.
     Flow(CpgFlowArgs),
+    /// Run the selected analyses over a run's documents in one pass.
+    Analyze(CpgAnalyzeArgs),
     /// Write compat.cpg documents for the workspace from the rustc frontend.
     Emit {
         /// Output directory; its `target` subdirectory holds the private build.
@@ -176,6 +178,14 @@ enum CpgCommand {
         out: PathBuf,
     },
 }
+
+/// The largest number that can name an inherited descriptor, or a handle on Windows, whose
+/// values have 32 significant bits.
+const MAX_DESCRIPTOR: i64 = if cfg!(windows) {
+    u32::MAX as i64
+} else {
+    i32::MAX as i64
+};
 
 #[derive(Args)]
 struct CpgInputArgs {
@@ -188,9 +198,9 @@ struct CpgInputArgs {
     /// Read an uncompressed JSON text sequence from stdin; finish with RS null LF and EOF.
     #[arg(long, conflicts_with = "documents")]
     stdin: bool,
-    /// Read the uncompressed JSON sequence from an inherited descriptor (Unix).
-    #[arg(long, value_parser = clap::value_parser!(i32).range(0..), conflicts_with_all = ["documents", "capture", "stdin"])]
-    input_fd: Option<i32>,
+    /// Read the uncompressed JSON sequence from an inherited descriptor (a handle on Windows).
+    #[arg(long, value_parser = clap::value_parser!(i64).range(0..=MAX_DESCRIPTOR), conflicts_with_all = ["documents", "capture", "stdin"])]
+    input_fd: Option<i64>,
 }
 
 #[derive(Args)]
@@ -201,9 +211,9 @@ struct CpgReceiveArgs {
     /// Read an uncompressed JSON text sequence from stdin; finish with RS null LF and EOF.
     #[arg(long)]
     stdin: bool,
-    /// Read the uncompressed JSON sequence from an inherited descriptor (Unix).
-    #[arg(long, value_parser = clap::value_parser!(i32).range(0..), conflicts_with_all = ["capture", "stdin"])]
-    input_fd: Option<i32>,
+    /// Read the uncompressed JSON sequence from an inherited descriptor (a handle on Windows).
+    #[arg(long, value_parser = clap::value_parser!(i64).range(0..=MAX_DESCRIPTOR), conflicts_with_all = ["capture", "stdin"])]
+    input_fd: Option<i64>,
 }
 
 #[derive(Args)]
@@ -229,6 +239,26 @@ struct CpgFlowArgs {
     /// Only functions whose name contains this.
     #[arg(long)]
     function: Option<String>,
+}
+
+#[derive(Args)]
+struct CpgAnalyzeArgs {
+    #[command(flatten)]
+    input: CpgInputArgs,
+    /// What to run: check, patterns, bounds, flow. Comma-separated or repeated
+    /// [default: everything].
+    #[arg(long, value_delimiter = ',')]
+    filter: Vec<String>,
+    /// Write check.sarif and patterns.sarif here, for the analyses that ran.
+    #[arg(long)]
+    sarif_dir: Option<PathBuf>,
+    #[command(flatten)]
+    display: PatternDisplayArgs,
+    /// Exit 1 when any candidate is left (for CI).
+    #[arg(long)]
+    fail_on_candidates: bool,
+    #[command(flatten)]
+    mine: MineArgs,
 }
 
 #[derive(Args)]
@@ -408,6 +438,7 @@ fn status_text(mut statuses: Vec<ledger::status::EntryStatus>, filter: Option<&s
     ledger::status::text(&statuses)
 }
 
+// rstyle-allow(side_effect_density): process boundary: dispatches to commands that read and write
 fn cpg_command(cli: &Cli, command: CpgCommand) -> Result<(String, u8), String> {
     match command {
         CpgCommand::Ingest { out } => cpg::ingest(&out, cli.cpg_compression),
@@ -415,6 +446,7 @@ fn cpg_command(cli: &Cli, command: CpgCommand) -> Result<(String, u8), String> {
         CpgCommand::Check(input) => cpg::check(&input, cli.config.as_deref(), cli.format),
         CpgCommand::Patterns(args) => cpg::patterns(cli, &args),
         CpgCommand::Flow(args) => cpg::flow(&args, cli.format),
+        CpgCommand::Analyze(args) => cpg::analyze(cli, &args),
         CpgCommand::Emit { out } => {
             let selection = cpg::Selection {
                 packages: &cli.packages,
@@ -441,11 +473,16 @@ fn exit_with(result: Result<(String, u8), String>) -> ExitCode {
     }
 }
 
+/// Cargo hands a wrapper the compiler as its first argument, `rustc.exe` on Windows.
+fn names_rustc(argument: &str) -> bool {
+    argument.ends_with("rustc") || argument.ends_with("rustc.exe")
+}
+
 // rstyle-allow(side_effect_density): process boundary: prints the report and sets the exit code
 fn main() -> ExitCode {
     if let Some(plan) = std::env::var_os("RSTYLE_CAPTURE_PLAN") {
         let args: Vec<String> = std::env::args().skip(1).collect();
-        if args.first().is_some_and(|a| a.ends_with("rustc")) {
+        if args.first().is_some_and(|a| names_rustc(a)) {
             return match compiler::capture::wrapper(Path::new(&plan), args) {
                 Ok(code) => ExitCode::from(code),
                 Err(error) => {

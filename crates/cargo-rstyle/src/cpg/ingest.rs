@@ -76,7 +76,8 @@ fn stage(out: &Path) -> Result<tempfile::TempDir, String> {
         .map_err(|e| e.to_string())
 }
 
-fn parent(out: &Path) -> &Path {
+/// The directory a new output is staged in, so publishing it is a rename.
+pub(crate) fn parent(out: &Path) -> &Path {
     out.parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."))

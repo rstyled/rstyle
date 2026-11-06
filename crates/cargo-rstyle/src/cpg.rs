@@ -1,18 +1,22 @@
 //! `cargo rstyle cpg`: the style rules and the pattern miner over `compat.cpg` documents
 //! from any language frontend, without compiling anything.
 
+pub(crate) mod analyze;
 mod descriptor;
-mod ingest;
-mod input;
+pub(crate) mod ingest;
+pub(crate) mod input;
 mod receipt;
 
 use rstyle_core::config::Config;
-use rstyle_core::cpg::records::{Demand, Record};
+use rstyle_core::cpg::records::{self, Demand, Record};
+use rstyle_core::filter::{Analysis, Filter};
 use rstyle_core::{cpg, patterns_report, report};
 use serde_json::json;
 use std::path::{Path, PathBuf};
 
-use crate::{Cli, CpgFlowArgs, CpgInputArgs, CpgPatternsArgs, CpgReceiveArgs, Format};
+use crate::{
+    Cli, CpgAnalyzeArgs, CpgFlowArgs, CpgInputArgs, CpgPatternsArgs, CpgReceiveArgs, Format,
+};
 
 /// Style report of a run over any number of units, and its exit code.
 pub fn check(
@@ -53,7 +57,8 @@ pub fn patterns(cli: &Cli, args: &CpgPatternsArgs) -> Result<(String, u8), Strin
         Ok(received) => received,
         Err(error) => return error.output(cli.format),
     };
-    let records = received.records;
+    let mut records = received.records;
+    records::canonical_order(&mut records);
     let bounds = args
         .complexity
         .then(|| crate::compiler::document_bounds(&records, args.display.top));
@@ -89,44 +94,87 @@ pub fn flow(args: &CpgFlowArgs, format: Format) -> Result<(String, u8), String> 
         Ok(received) => received,
         Err(error) => return error.output(format),
     };
-    let selected = |record: &Record| {
-        args.function
-            .as_ref()
-            .is_none_or(|name| record.name.contains(name.as_str()))
-    };
 
-    let functions: Vec<_> = received
-        .records
-        .iter()
-        .filter(|record| selected(record))
-        .filter_map(|record| Some((record, record.flow.as_ref()?)))
-        .collect();
+    let mut records = received.records;
+    let functions = analyze::FlowReport {
+        functions: analyze::take_flow(&mut records, args.function.as_deref()),
+    };
     let output = match format {
-        Format::Text => receipt::text(flow_text(&functions), &received.receipt),
-        Format::Json => {
-            let rows: Vec<_> = functions
-                .iter()
-                .map(|(record, flow)| {
-                    json!({"function": record.function, "name": record.name,
-                           "path": record.path, "flow": flow})
-                })
-                .collect();
-            receipt::json(&json!({"functions": rows}), &received.receipt)?
-        }
+        Format::Text => receipt::text(flow_text(&functions.functions), &received.receipt),
+        Format::Json => receipt::json(&functions, &received.receipt)?,
     };
     Ok((output, 0))
 }
 
-fn flow_text(functions: &[(&Record, &cpg::flow::Derived)]) -> String {
+fn flow_text(functions: &[analyze::FlowRow]) -> String {
     let mut lines: Vec<String> = functions
         .iter()
-        .map(|(record, flow)| {
-            let reasons = flow.reasons.join("; ");
-            format!("{:?}  {}  {}", flow.standing, record.name, reasons)
+        .map(|row| {
+            let reasons = row.flow.reasons.join("; ");
+            format!("{:?}  {}  {}", row.flow.standing, row.name, reasons)
         })
         .collect();
     lines.push(format!("{} functions", functions.len()));
     lines.join("\n")
+}
+
+/// The selected analyses of a run in one pass, one report and any SARIF they make.
+pub fn analyze(cli: &Cli, args: &CpgAnalyzeArgs) -> Result<(String, u8), String> {
+    let filter = Filter::parse(&args.filter)?;
+    validate_analyze(&filter, args)?;
+
+    let received = match input::read_pooled(&args.input, filter.demand()) {
+        Ok(received) => received,
+        Err(error) => return error.output(cli.format),
+    };
+    let config = load_config(cli.config.as_deref())?;
+    let options = patterns_report::Options {
+        min_score_milli: args.display.min_score_milli(),
+        top: args.display.top,
+        ..crate::mine_options(&args.mine)
+    };
+    let unified = analyze::analyze(
+        received.records,
+        &analyze::Request {
+            filter: &filter,
+            config: &config,
+            options: &options,
+            top: args.display.top,
+        },
+    )?;
+    if let Some(directory) = &args.sarif_dir {
+        write_sarif(&unified, directory)?;
+    }
+
+    let output = match cli.format {
+        Format::Text => receipt::text(unified.text(), &received.receipt),
+        Format::Json => receipt::json(&unified, &received.receipt)?,
+    };
+    Ok((output, unified.exit_code(args.fail_on_candidates)))
+}
+
+fn validate_analyze(filter: &Filter, args: &CpgAnalyzeArgs) -> Result<(), String> {
+    analyze::validate(filter, args.fail_on_candidates)?;
+    if let Some(named) = filter.named_frontend_analyses().first() {
+        return Err(format!(
+            "`cpg analyze` reads documents and has no frontend to run `{named}`; use `rstyle {}`",
+            named.frontend
+        ));
+    }
+    if args.sarif_dir.is_some()
+        && !(filter.core(Analysis::Check) || filter.core(Analysis::Patterns))
+    {
+        return Err("--sarif-dir needs check or patterns, the analyses that make SARIF".into());
+    }
+    Ok(())
+}
+
+// rstyle-allow(side_effect_density): IO boundary: writes the SARIF files
+fn write_sarif(unified: &analyze::Unified, directory: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(directory)
+        .map_err(|error| format!("{}: {error}", directory.display()))?;
+    let root = std::env::current_dir().map_err(|error| error.to_string())?;
+    unified.write_sarif(directory, &root)
 }
 
 fn mined(
@@ -171,7 +219,7 @@ fn read(path: &Path) -> Result<serde_json::Value, String> {
 
 /// Documents name no Cargo workspace, so only an explicit `--config` applies.
 // rstyle-allow(side_effect_density): IO boundary: reads the explicit config file
-fn load_config(path: Option<&Path>) -> Result<Config, String> {
+pub(crate) fn load_config(path: Option<&Path>) -> Result<Config, String> {
     let Some(path) = path else {
         return Ok(Config::default());
     };
@@ -190,45 +238,11 @@ pub struct Selection<'a> {
 
 /// Writes the `compat.cpg` documents of every compiled workspace target, by checking the
 /// workspace afresh. They hold every function the compiler does, as a capture's do.
-// rstyle-allow(side_effect_density): process boundary: runs cargo with the driver
+// rstyle-allow(side_effect_density): IO boundary: creates the output directory, then emits
 pub fn emit(selection: &Selection<'_>, out: &Path) -> Result<(String, u8), String> {
-    let metadata: crate::workspace::Metadata = crate::workspace::load_with_toolchain(
-        selection.manifest,
-        Some(&crate::run::pinned_toolchain()),
-    )?;
     std::fs::create_dir_all(out).map_err(|error| format!("{}: {error}", out.display()))?;
     let out = out.canonicalize().map_err(|error| error.to_string())?;
-    // rustc resolves source paths against its working directory, which the OS
-    // reports with symlinks resolved; a root reached through a symlink (e.g.
-    // `--manifest-path` under macOS's `/var`) would match no source file.
-    let root = metadata
-        .workspace_root
-        .canonicalize()
-        .map_err(|error| format!("{}: {error}", metadata.workspace_root.display()))?;
-    remove_documents(&out)?;
-    let target = out.join("target");
-
-    let members: Vec<&str> = metadata
-        .packages
-        .iter()
-        .map(|package| package.name.as_str())
-        .collect();
-    let mut clean = cargo("clean", selection.manifest);
-    clean.arg("--target-dir").arg(&target);
-    clean.args(members.iter().flat_map(|name| ["-p", name]));
-    status(clean, "cargo clean")?;
-
-    let mut check = cargo("check", selection.manifest);
-    check.arg("--target-dir").arg(&target);
-    check.args(packages(selection));
-    check
-        .env("CARGO_INCREMENTAL", "0")
-        .env("RUSTC_WORKSPACE_WRAPPER", crate::run::driver_path()?)
-        .env("RSTYLE_CPG_DIR", &out)
-        .env("RSTYLE_CPG_ROOT", &root)
-        .env("RSTYLE_CPG_COMPRESSION", selection.encoding.cli_name());
-    status(check, "cargo check")?;
-    let written = documents(&out)?.len();
+    let written = emit_documents(selection, &out, &out.join("target"))?;
 
     Ok((
         format!(
@@ -237,6 +251,51 @@ pub fn emit(selection: &Selection<'_>, out: &Path) -> Result<(String, u8), Strin
         ),
         0,
     ))
+}
+
+/// Compiles afresh into `target`, whose dependencies a later run can reuse, and writes the
+/// workspace's documents to the existing directory `out`. Returns how many it wrote.
+// rstyle-allow(side_effect_density): process boundary: runs cargo with the driver
+pub(crate) fn emit_documents(
+    selection: &Selection<'_>,
+    out: &Path,
+    target: &Path,
+) -> Result<usize, String> {
+    let metadata: crate::workspace::Metadata = crate::workspace::load_with_toolchain(
+        selection.manifest,
+        Some(&crate::run::pinned_toolchain()),
+    )?;
+    // rustc resolves source paths against its working directory, which the OS
+    // reports with symlinks resolved; a root reached through a symlink (e.g.
+    // `--manifest-path` under macOS's `/var`) would match no source file.
+    let root = metadata
+        .workspace_root
+        .canonicalize()
+        .map_err(|error| format!("{}: {error}", metadata.workspace_root.display()))?;
+    remove_documents(out)?;
+
+    let members: Vec<&str> = metadata
+        .packages
+        .iter()
+        .map(|package| package.name.as_str())
+        .collect();
+    let mut clean = cargo("clean", selection.manifest);
+    clean.arg("--target-dir").arg(target);
+    clean.args(members.iter().flat_map(|name| ["-p", name]));
+    status(clean, "cargo clean")?;
+
+    let mut check = cargo("check", selection.manifest);
+    check.arg("--target-dir").arg(target);
+    check.args(packages(selection));
+    check
+        .env("CARGO_INCREMENTAL", "0")
+        .env("RUSTC_WORKSPACE_WRAPPER", crate::run::driver_path()?)
+        .env("RSTYLE_CPG_DIR", out)
+        .env("RSTYLE_CPG_ROOT", &root)
+        .env("RSTYLE_CPG_COMPRESSION", selection.encoding.cli_name());
+    status(check, "cargo check")?;
+
+    Ok(documents(out)?.len())
 }
 
 fn cargo(subcommand: &str, manifest: Option<&Path>) -> std::process::Command {
@@ -281,7 +340,7 @@ fn status(mut command: std::process::Command, what: &str) -> Result<(), String> 
 
 /// The documents an emit wrote to `dir`, in name order.
 // rstyle-allow(side_effect_density): IO boundary: lists the output directory
-fn documents(dir: &Path) -> Result<Vec<PathBuf>, String> {
+pub(crate) fn documents(dir: &Path) -> Result<Vec<PathBuf>, String> {
     let entries = std::fs::read_dir(dir).map_err(|error| format!("{}: {error}", dir.display()))?;
     let mut documents = Vec::new();
     for entry in entries {

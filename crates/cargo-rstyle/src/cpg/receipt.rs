@@ -44,7 +44,7 @@ pub(super) struct Receipt {
     #[serde(skip_serializing_if = "Option::is_none")]
     source: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    input_fd: Option<i32>,
+    input_fd: Option<i64>,
     validation: Validation,
     transport: Option<TransportProgress>,
     failures: Vec<Failure>,
@@ -59,7 +59,7 @@ impl Receipt {
         Self::request(None, demand)
     }
 
-    pub(super) fn descriptor(number: i32, demand: Demand) -> Self {
+    pub(super) fn descriptor(number: i64, demand: Demand) -> Self {
         Self {
             source: Some("fd"),
             input_fd: Some(number),

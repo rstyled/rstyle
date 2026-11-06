@@ -31,7 +31,7 @@ pub fn driver_path() -> Result<PathBuf, String> {
         return Ok(PathBuf::from(path));
     }
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let driver = exe.with_file_name("rstyle-driver");
+    let driver = exe.with_file_name(format!("rstyle-driver{}", std::env::consts::EXE_SUFFIX));
     driver.exists().then_some(driver.clone()).ok_or_else(|| {
         format!(
             "rstyle-driver not found at {} (build it with `cargo build -p rstyle-driver`, \
