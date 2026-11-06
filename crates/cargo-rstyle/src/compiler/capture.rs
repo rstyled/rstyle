@@ -59,6 +59,20 @@ impl Plan {
         }
     }
 
+    /// Whether another capture's documents serve this one. What each route then reads of them
+    /// doesn't matter: the driver writes the same documents for every route.
+    fn same_capture(&self, other: &Self) -> bool {
+        self.captured() == other.captured()
+    }
+
+    fn captured(&self) -> Self {
+        Self {
+            compiler_patterns: false,
+            compiler_runtime_bounds: false,
+            ..self.clone()
+        }
+    }
+
     fn planned_units(&self) -> impl Iterator<Item = &Value> {
         self.primary_units.iter()
     }

@@ -233,7 +233,7 @@ Two layers:
 
 Each candidate has a `kind` (`trait_method`, `capability_set`, `enum_dispatch`, `generic_fn`, `parameterize`), a score with its parts (`support`, `lift`, `holes`, `coverage`), an observation, an inference, a possible refactor sketch, every site with `path:line`, the functions that fill the holes, and counter-evidence (effect mismatch, common signature). Patterns whose implementations all already implement one trait method are listed under `suppressed`, not proposed. Output is deterministic.
 
-Compiler patterns captures graph observations under `target/rstyle/runs/`. Use `--replay-run PATH` to reevaluate an explicit saved run without source files or compiler tools. Style and patterns both consume saved compiler unit snapshots.
+Compiler patterns captures graph observations under `target/rstyle/runs/`. `cargo rstyle`, `cargo rstyle patterns` and `--complexity` read the same capture, so switching between them recompiles nothing that hasn't changed. Use `--replay-run PATH` to reevaluate an explicit saved run without source files or compiler tools. Style and patterns both consume saved compiler unit snapshots.
 
 A new capture removes all but a workspace's 5 most recently used runs, since one run can hold gigabytes. It never removes a run another command is using, or the run the next build reuses compiled crates from. Set `RSTYLE_KEEP_RUNS` to another count, or to `all` to keep every run; to keep a run you are working through, set it before capturing again.
 
