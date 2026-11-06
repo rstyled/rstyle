@@ -1,0 +1,265 @@
+//! SARIF 2.1.0: one log and one run per analysis, so the results of different analyses
+//! never interleave. Merging logs later only means appending to `runs`.
+//!
+//! Findings and candidates are what SARIF carries. The JSON report stays the complete one:
+//! runtime bounds, signature groups and fix groups aren't findings.
+
+use crate::candidates::Candidate;
+use crate::patterns_report::PatternsReport;
+use crate::report::{Diagnostic, Report};
+use serde::Serialize;
+use serde_json::Value;
+use std::collections::BTreeMap;
+use std::path::{MAIN_SEPARATOR, Path};
+
+const SCHEMA: &str =
+    "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json";
+const VERSION: &str = "2.1.0";
+const SOURCE_ROOT: &str = "%SRCROOT%";
+const CANDIDATE_FINGERPRINT: &str = "rstyle/candidate/v1";
+/// Categories keep the two analyses apart once a consumer holds both.
+pub const CHECK: &str = "rstyle/check/";
+pub const PATTERNS: &str = "rstyle/patterns/";
+
+#[derive(Debug, Serialize)]
+pub struct Log {
+    #[serde(rename = "$schema")]
+    schema: &'static str,
+    version: &'static str,
+    runs: Vec<Run>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Run {
+    tool: Tool,
+    automation_details: Automation,
+    original_uri_base_ids: BTreeMap<&'static str, Artifact>,
+    results: Vec<Finding>,
+}
+
+#[derive(Debug, Serialize)]
+struct Tool {
+    driver: Driver,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Driver {
+    name: &'static str,
+    information_uri: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct Automation {
+    id: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Finding {
+    rule_id: String,
+    level: &'static str,
+    message: Message,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    locations: Vec<Location>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    related_locations: Vec<Location>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    fingerprints: BTreeMap<&'static str, String>,
+}
+
+#[derive(Debug, Serialize)]
+struct Message {
+    text: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Location {
+    physical_location: PhysicalLocation,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PhysicalLocation {
+    artifact_location: Artifact,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    region: Option<Region>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Artifact {
+    uri: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    uri_base_id: Option<&'static str>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Region {
+    start_line: usize,
+}
+
+/// One warning per diagnostic, with its rule id and message. `root` is what relative paths
+/// resolve against. Columns are left out: SARIF counts them in other units than a frontend.
+pub fn check(report: &Report, root: &Path) -> Result<Log, String> {
+    log(
+        report.diagnostics.iter().map(diagnostic).collect(),
+        CHECK,
+        root,
+    )
+}
+
+/// One warning per candidate left in the report, with its kind as the rule id.
+pub fn patterns(report: &PatternsReport, root: &Path) -> Result<Log, String> {
+    log(
+        report.candidates.iter().map(candidate).collect(),
+        PATTERNS,
+        root,
+    )
+}
+
+/// Whether a frontend's file is a log a report can later hold: right version, and every run
+/// names its tool. The contents remain the frontend's to answer for.
+pub fn validate(log: &Value) -> Result<(), String> {
+    if log["version"] != VERSION {
+        return Err(format!("SARIF version must be {VERSION}"));
+    }
+    let runs = log["runs"]
+        .as_array()
+        .filter(|runs| !runs.is_empty())
+        .ok_or("A SARIF log needs at least one run")?;
+    runs.iter().try_for_each(valid_run)
+}
+
+fn valid_run(run: &Value) -> Result<(), String> {
+    if !run["tool"]["driver"]["name"].is_string() {
+        return Err("Every SARIF run must name its tool".into());
+    }
+    if !(run["results"].is_null() || run["results"].is_array()) {
+        return Err("SARIF results must be an array".into());
+    }
+    Ok(())
+}
+
+fn log(results: Vec<Finding>, category: &'static str, root: &Path) -> Result<Log, String> {
+    Ok(Log {
+        schema: SCHEMA,
+        version: VERSION,
+        runs: vec![Run {
+            tool: Tool {
+                driver: Driver {
+                    name: "rstyle",
+                    information_uri: "https://github.com/rstyled/rstyle",
+                },
+            },
+            automation_details: Automation { id: category },
+            original_uri_base_ids: BTreeMap::from([(SOURCE_ROOT, root_artifact(root)?)]),
+            results,
+        }],
+    })
+}
+
+fn root_artifact(root: &Path) -> Result<Artifact, String> {
+    let path = root
+        .to_str()
+        .ok_or_else(|| format!("{} is not valid UTF-8", root.display()))?;
+    if !root.is_absolute() {
+        return Err(format!("The SARIF source root {path} must be absolute"));
+    }
+    Ok(Artifact {
+        uri: format!("{}/", file_uri(path).trim_end_matches('/')),
+        uri_base_id: None,
+    })
+}
+
+fn diagnostic(diagnostic: &Diagnostic) -> Finding {
+    Finding {
+        rule_id: diagnostic.rule_id.clone(),
+        level: "warning",
+        message: Message {
+            text: diagnostic.message.clone(),
+        },
+        locations: location(&diagnostic.path, diagnostic.line)
+            .into_iter()
+            .collect(),
+        related_locations: Vec::new(),
+        fingerprints: BTreeMap::new(),
+    }
+}
+
+/// The first site is primary because code scanning shows only one; the id is what
+/// `cargo rstyle ignore` takes.
+fn candidate(candidate: &Candidate) -> Finding {
+    let mut sites = candidate
+        .sites
+        .iter()
+        .filter_map(|site| location(&site.path, site.line));
+    let locations = sites.next().into_iter().collect();
+    Finding {
+        rule_id: candidate.kind.name().to_string(),
+        level: "warning",
+        message: Message {
+            text: [
+                candidate.observation.as_str(),
+                candidate.inference.as_str(),
+                candidate.possible_refactor.as_str(),
+            ]
+            .join("\n"),
+        },
+        locations,
+        related_locations: sites.collect(),
+        fingerprints: BTreeMap::from([(CANDIDATE_FINGERPRINT, candidate.id.clone())]),
+    }
+}
+
+/// A path says where a finding is; an unknown line is left out instead of invented.
+fn location(path: &str, line: usize) -> Option<Location> {
+    (!path.is_empty()).then(|| Location {
+        physical_location: PhysicalLocation {
+            artifact_location: artifact(path),
+            region: (line > 0).then_some(Region { start_line: line }),
+        },
+    })
+}
+
+fn artifact(path: &str) -> Artifact {
+    match Path::new(path).is_absolute() {
+        true => Artifact {
+            uri: file_uri(path),
+            uri_base_id: None,
+        },
+        false => Artifact {
+            uri: encoded(path),
+            uri_base_id: Some(SOURCE_ROOT),
+        },
+    }
+}
+
+fn file_uri(path: &str) -> String {
+    // A canonical Windows path carries a verbatim prefix no URI consumer expects.
+    let encoded = encoded(path.strip_prefix(r"\\?\").unwrap_or(path));
+    match encoded.starts_with('/') {
+        true => format!("file://{encoded}"),
+        false => format!("file:///{encoded}"),
+    }
+}
+
+/// Percent-encoded with `/` separators, so no segment can read as a URI scheme.
+fn encoded(path: &str) -> String {
+    let mut uri = String::with_capacity(path.len());
+    for byte in path.replace(MAIN_SEPARATOR, "/").bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' => {
+                uri.push(char::from(byte));
+            }
+            _ => uri.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    uri
+}
+
+#[cfg(test)]
+mod tests;

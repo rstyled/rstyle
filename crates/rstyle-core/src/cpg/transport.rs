@@ -9,7 +9,7 @@ pub use capture::{CaptureProgress, CaptureReader, read_manifest_bytes};
 pub use manifest::{DOCUMENTS_MANIFEST, DocumentManifest, SealedDocument};
 pub use read::{read_json, read_sealed, validate_object};
 pub use sequence::{SequenceProgress, SequenceReader};
-pub use write::{publish, write_json};
+pub use write::{publish, publish_parsed, write_json};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
