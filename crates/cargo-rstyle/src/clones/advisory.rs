@@ -516,8 +516,7 @@ fn evaluate_unit(
     let root = &ctx.capture.units[unit.observed_unit].target.manifest_dir;
     let DiagnosticPhase {
         prepared: Prepared { inputs, effects },
-        unresolved: unresolved_callees,
-        unknown: unknown_callees,
+        unanswered,
         ranking,
         completed,
     } = prepared.evaluate_diagnostics(ctx, unit, demand)?;
@@ -532,8 +531,8 @@ fn evaluate_unit(
         generated_effects: inputs.generated_effects,
         unavailable: inputs.unavailable,
         unavailable_complexity: inputs.unavailable_complexity,
-        unresolved_callees,
-        unknown_callees,
+        unresolved_callees: unanswered.unresolved,
+        unknown_callees: unanswered.unknown,
         resolved_dependency_callees: effects.resolved,
         propagation_complete: effects.complete,
         evaluation: completed.evaluation,
@@ -562,8 +561,7 @@ fn evaluate_unit(
 
 struct DiagnosticPhase {
     prepared: Prepared,
-    unresolved: BTreeSet<String>,
-    unknown: BTreeSet<String>,
+    unanswered: propagation::Unanswered,
     ranking: Option<ranking::Captured>,
     completed: diagnostics::Completed,
 }
@@ -579,8 +577,7 @@ impl Prepared {
             mut inputs,
             mut effects,
         } = self;
-        let unresolved = effects.unresolved_callees(&inputs.facts)?;
-        let unknown = effects.unknown_callees(&inputs.facts)?;
+        let unanswered = effects.unanswered(&inputs.facts)?;
         let ranking = ranking::Captured::new(ctx.args, &inputs);
 
         inputs.retain_propagated(&mut effects.generated);
@@ -592,8 +589,7 @@ impl Prepared {
         )?;
         Ok(DiagnosticPhase {
             prepared: Prepared { inputs, effects },
-            unresolved,
-            unknown,
+            unanswered,
             ranking,
             completed,
         })
@@ -902,6 +898,11 @@ impl Unit {
                 .patterns
                 .as_ref()
                 .is_none_or(|report| report.input_complete)
+    }
+
+    /// A call labelled unknown has no edge to what it runs, so a worklist can miss its callers.
+    fn call_graph_complete(&self) -> bool {
+        self.propagation_complete && self.unknown_callees.is_empty()
     }
 
     fn effect_inputs_complete(&self) -> bool {

@@ -107,21 +107,21 @@ fn selected_rows<'a>(
         .collect())
 }
 
-impl Completed {
-    pub(super) fn unresolved_callees(
-        &mut self,
-        facts: &[FnFacts],
-    ) -> Result<BTreeSet<String>, String> {
-        let missing = std::mem::take(&mut self.unresolved);
-        Ok(self.unreached(super::unresolved(facts)?, missing))
-    }
+/// Calls a unit makes that no captured function answers.
+pub(super) struct Unanswered {
+    pub unresolved: BTreeSet<String>,
+    /// Required trait methods, read as `Unknown` effects.
+    pub unknown: BTreeSet<String>,
+}
 
-    pub(super) fn unknown_callees(
-        &mut self,
-        facts: &[FnFacts],
-    ) -> Result<BTreeSet<String>, String> {
-        let missing = std::mem::take(&mut self.unknown);
-        Ok(self.unreached(super::unknown(facts)?, missing))
+impl Completed {
+    pub(super) fn unanswered(&mut self, facts: &[FnFacts]) -> Result<Unanswered, String> {
+        let unresolved = std::mem::take(&mut self.unresolved);
+        let unknown = std::mem::take(&mut self.unknown);
+        Ok(Unanswered {
+            unresolved: self.unreached(super::unresolved(facts)?, unresolved),
+            unknown: self.unreached(super::unknown(facts)?, unknown),
+        })
     }
 
     fn unreached(&self, found: BTreeSet<String>, missing: BTreeSet<String>) -> BTreeSet<String> {

@@ -99,11 +99,8 @@ impl Captured {
 
         let captured =
             ctx.capture.failures.is_empty() && ctx.handoff.failures.is_empty() && !ready.is_empty();
-        // A call labelled unknown has no edge to what it runs, so a worklist can miss its callers.
-        let call_graph_complete = captured
-            && ready.iter().all(|ready| {
-                ready.unit.propagation_complete && ready.unit.unknown_callees.is_empty()
-            });
+        let call_graph_complete =
+            captured && ready.iter().all(|ready| ready.unit.call_graph_complete());
         let input_complete = call_graph_complete
             && ready.iter().all(|ready| {
                 ready.unit.inputs_complete() && ready.unit.full_diagnostics_complete()

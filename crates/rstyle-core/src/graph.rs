@@ -142,29 +142,39 @@ pub fn build_resolved<F: EffectInput, T: IntoIterator<Item = usize>>(
 ) -> Graph {
     let mut graph = Graph::default();
     for (caller, fact) in facts.iter().enumerate() {
-        let mut resolved = BTreeSet::new();
-        let mut open = BTreeSet::new();
-        for edge in fact.effect_owner().edges {
-            let mut targets: BTreeSet<_> = targets(caller, edge).into_iter().collect();
-            if targets.is_empty() && edge.required {
-                open.insert(OpenCall {
-                    line: edge.line,
-                    callee: edge.callee.clone(),
-                });
-            }
-            targets.remove(&caller);
-            if !targets.is_empty() {
-                resolved.insert(Callee {
-                    line: edge.line,
-                    targets: targets.into_iter().collect(),
-                    args: edge.args.clone(),
-                });
-            }
-        }
-        graph.callees.push(resolved.into_iter().collect());
-        graph.open.push(open.into_iter().collect());
+        let (resolved, open) = caller_calls(caller, fact.effect_owner().edges, &mut targets);
+        graph.callees.push(resolved);
+        graph.open.push(open);
     }
     graph
+}
+
+/// One caller's calls with a target, and those with none that only an implementation can answer.
+fn caller_calls<T: IntoIterator<Item = usize>>(
+    caller: usize,
+    edges: &[crate::facts::Edge],
+    targets: &mut impl FnMut(usize, &crate::facts::Edge) -> T,
+) -> (Vec<Callee>, Vec<OpenCall>) {
+    let mut resolved = BTreeSet::new();
+    let mut open = BTreeSet::new();
+    for edge in edges {
+        let mut targets: BTreeSet<_> = targets(caller, edge).into_iter().collect();
+        if targets.is_empty() && edge.required {
+            open.insert(OpenCall {
+                line: edge.line,
+                callee: edge.callee.clone(),
+            });
+        }
+        targets.remove(&caller);
+        if !targets.is_empty() {
+            resolved.insert(Callee {
+                line: edge.line,
+                targets: targets.into_iter().collect(),
+                args: edge.args.clone(),
+            });
+        }
+    }
+    (resolved.into_iter().collect(), open.into_iter().collect())
 }
 
 /// True for functions that declared themselves a side-effect boundary.
