@@ -617,8 +617,10 @@ known free functions. The report's
 `resolved_dependency_callees` maps compiler IDs to report-local unit IDs.
 Core propagation borrows captured owners and completed effects move into rule
 evaluation, with no extra hash, artifact scan, source proof or body/graph copy.
-Hop limits and suppression boundaries are unchanged. Missing, generated, excluded,
-ambiguous and associated-method targets remain unresolved; indistinguishable
+Hop limits and suppression boundaries are unchanged. A trait's default body in a
+dependency and the overrides of it in the caller's crate are all targets. Missing,
+generated, excluded, ambiguous and associated-method targets remain unresolved;
+indistinguishable
 check/test graph descriptors never share inputs. Cross-unit plans require the
 explicit flag below; proposal mining remains per unit. Strict clone admission
 and pair budgets remain independent.

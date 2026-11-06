@@ -498,3 +498,72 @@ fn a_re_exported_callee_stays_unresolved_when_its_crate_is_not_captured() {
         serde_json::json!(["leaf::leaf"])
     );
 }
+
+/// `caller` calls a default body it overrides, and a default body it does not.
+fn trait_workspace() -> TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let write = |path: &str, text: &str| {
+        let path = dir.path().join(path);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    write(
+        "Cargo.toml",
+        "[workspace]\nmembers = [\"caller\", \"traits\"]\nresolver = \"2\"\n",
+    );
+    write(
+        "traits/Cargo.toml",
+        "[package]\nname = \"traits\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(
+        "traits/src/lib.rs",
+        "pub trait Hook {\n    fn overridden(&self) {\n        std::fs::write(\"/unused\", b\"x\").ok();\n    }\n\n    \
+         fn inherited(&self) {\n        std::fs::write(\"/unused\", b\"y\").ok();\n    }\n}\n",
+    );
+    write(
+        "caller/Cargo.toml",
+        "[package]\nname = \"caller\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n\
+         [dependencies]\ntraits = { path = \"../traits\" }\n",
+    );
+    write(
+        "caller/src/lib.rs",
+        "use traits::Hook;\n\n\
+         pub struct Mine;\n\nimpl Hook for Mine {\n    fn overridden(&self) {\n        std::fs::write(\"/unused\", b\"z\").ok();\n    }\n}\n\n\
+         pub fn overrides<T: Hook>(hook: &T) {\n    hook.overridden();\n}\n\n\
+         pub fn inherits<T: Hook>(hook: &T) {\n    hook.inherited();\n}\n",
+    );
+    dir
+}
+
+#[test]
+fn a_default_body_and_the_overrides_of_it_here_are_both_targets() {
+    let directory = trait_workspace();
+
+    let (output, report) = capture(directory.path(), &[]);
+
+    checked(&output, 0);
+    let caller = unit(&report, "caller");
+    let resolved = &caller["resolved_dependency_callees"];
+    assert!(
+        resolved.get("traits::Hook::overridden").is_some(),
+        "{caller}"
+    );
+    assert!(
+        resolved.get("traits::Hook::inherited").is_some(),
+        "{caller}"
+    );
+}
+
+#[test]
+fn a_default_body_stays_unresolved_when_its_crate_is_not_captured() {
+    let directory = trait_workspace();
+
+    let (output, report) = capture(directory.path(), &["-p", "caller"]);
+
+    checked(&output, 2);
+    let caller = unit(&report, "caller");
+    assert_eq!(
+        caller["unresolved_callees"],
+        serde_json::json!(["traits::Hook::inherited"])
+    );
+}
