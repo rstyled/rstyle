@@ -151,6 +151,11 @@ fn new_capture(directory: PathBuf, plan: Plan) -> Capture {
     }
 }
 
+/// How many saved runs to keep of each kind, on every route.
+pub(crate) fn saved_run_limit() -> Result<Option<usize>, String> {
+    retention::limit()
+}
+
 fn run_directory(target: &Path) -> Result<PathBuf, String> {
     let limit = retention::limit()?;
     let parent = target.join("rstyle/runs");

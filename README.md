@@ -384,12 +384,12 @@ An unknown name fails before anything runs, as does `--fail-on-candidates` witho
 
 **Saved runs.** A finished run is published whole, so a rejected one leaves nothing behind:
 
-| | Default location | Cleared by |
-|---|---|---|
-| Go | `.rstyle/runs/<UTC timestamp>/` in the module, which ignores itself in Git | Deleting it |
-| Rust | `target/rstyle/runs/<UTC timestamp>/` | `cargo clean` |
+Every language saves to `.rstyle/runs/<UTC timestamp>-<language>/` in the project root (the Go
+module or Cargo workspace), a folder that ignores itself in Git. Each language keeps its newest 5
+runs; `RSTYLE_KEEP_RUNS` sets another count, or `all`. `cargo clean` doesn't touch them, though it
+clears the build a Rust run reuses, in `target/rstyle/build/`. Deleting `.rstyle/` is always safe.
 
-Nothing prunes older runs yet. `--out DIR` saves to a new directory instead. Each run holds:
+`--out DIR` saves to a new directory instead, which is never pruned. Each run holds:
 
 ```
 documents/                 what the frontend produced

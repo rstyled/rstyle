@@ -130,7 +130,7 @@ fn a_go_run_saves_everything_in_one_timestamped_folder() {
     assert_eq!(run.parent().unwrap(), project.root().join(".rstyle/runs"));
     let name = run.file_name().unwrap().to_str().unwrap();
     assert!(
-        name.len() == 16 && name.ends_with('Z') && name.as_bytes()[8] == b'T',
+        name.len() == 19 && name.ends_with("Z-go") && name.as_bytes()[8] == b'T',
         "{name}"
     );
     for file in [
@@ -313,6 +313,73 @@ fn a_run_saved_from_a_saved_run_holds_no_documents_of_its_own() {
     let empty = project.go(&["--from", copy.to_str().unwrap()]);
     assert_eq!(empty.status.code(), Some(2), "{empty:?}");
     assert!(stderr(&empty).contains("holds no documents"), "{empty:?}");
+}
+
+#[test]
+fn a_language_keeps_its_newest_runs_and_leaves_the_others_alone() {
+    let project = Project::new();
+    let runs = project.root().join(".rstyle/runs");
+    for name in [
+        "20200101T000000Z-go",
+        "20200102T000000Z-go",
+        "20200101T000000Z-rust",
+    ] {
+        std::fs::create_dir_all(runs.join(name)).unwrap();
+    }
+    let output = project
+        .command(NO_ANALYSES, &["go", "--check", "--format", "json"])
+        .env("RSTYLE_KEEP_RUNS", "2")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let run = saved_run(&output);
+    let mut left: Vec<_> = project
+        .run_folders()
+        .into_iter()
+        .map(|path| path.file_name().unwrap().to_str().unwrap().to_string())
+        .collect();
+    left.sort();
+    let published = run.file_name().unwrap().to_str().unwrap();
+    assert_eq!(
+        left,
+        ["20200101T000000Z-rust", "20200102T000000Z-go", published]
+    );
+}
+
+#[test]
+fn a_bad_limit_fails_before_anything_runs() {
+    let project = Project::new();
+    let output = project
+        .command(NO_ANALYSES, &["go"])
+        .env("RSTYLE_KEEP_RUNS", "none")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("RSTYLE_KEEP_RUNS"), "{output:?}");
+    assert!(project.run_folders().is_empty());
+}
+
+#[test]
+fn an_explicit_folder_is_never_pruned() {
+    let project = Project::new();
+    let out = project.root().join("kept");
+    let args = ["go", "--check", "--out", out.to_str().unwrap()];
+    let output = project
+        .command(NO_ANALYSES, &args)
+        .env("RSTYLE_KEEP_RUNS", "1")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    for _ in 0..2 {
+        let output = project
+            .command(NO_ANALYSES, &["go", "--check"])
+            .env("RSTYLE_KEEP_RUNS", "1")
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
+    }
+    assert!(out.join("report.json.zst").is_file());
+    assert_eq!(project.run_folders().len(), 1);
 }
 
 #[test]
@@ -553,7 +620,7 @@ fn rust_run(root: &Path, args: &[&str]) -> Output {
 }
 
 #[test]
-fn a_rust_run_lives_under_target_and_matches_the_compiler_route() {
+fn a_rust_run_saves_beside_go_runs_and_matches_the_compiler_route() {
     let directory = fixture("animals");
     let root = directory.path().canonicalize().unwrap();
     let output = rust_run(&root, &["--format", "json", "--no-ignore"]);
@@ -563,9 +630,19 @@ fn a_rust_run_lives_under_target_and_matches_the_compiler_route() {
     );
     let unified = report(&output);
     let run = saved_run(&output);
-    assert_eq!(run.parent().unwrap(), root.join("target/rstyle/runs"));
+    assert_eq!(run.parent().unwrap(), root.join(".rstyle/runs"));
+    assert!(
+        run.file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with("Z-rust")
+    );
     assert!(root.join("target/rstyle/build").is_dir());
-    assert!(!root.join(".rstyle").exists());
+    assert_eq!(
+        std::fs::read_to_string(root.join(".rstyle/.gitignore")).unwrap(),
+        "*\n"
+    );
 
     let (_, documents) = routes_over(&root, &[]);
     assert_eq!(
@@ -575,8 +652,20 @@ fn a_rust_run_lives_under_target_and_matches_the_compiler_route() {
     assert!(!documents_in(&run.join("documents")).is_empty());
     assert_locations_resolve(&root, &run);
 
+    assert_reads_back(&root, &run, &unified);
+
+    let second = rust_run(&root, &["--format", "json", "--no-ignore"]);
+    assert_eq!(
+        without_run(report(&second)),
+        without_run(unified),
+        "the shared build changes nothing"
+    );
+    assert_cargo_clean_leaves_the_run(&root, &run);
+}
+
+fn assert_reads_back(root: &Path, run: &Path, unified: &Value) {
     let again = rust_run(
-        &root,
+        root,
         &[
             "--format",
             "json",
@@ -586,14 +675,9 @@ fn a_rust_run_lives_under_target_and_matches_the_compiler_route() {
         ],
     );
     assert_eq!(report(&again), without_run(unified.clone()), "{again:?}");
+}
 
-    let second = rust_run(&root, &["--format", "json", "--no-ignore"]);
-    assert_eq!(
-        without_run(report(&second)),
-        without_run(unified),
-        "the shared build changes nothing"
-    );
-
+fn assert_cargo_clean_leaves_the_run(root: &Path, run: &Path) {
     // An inherited CARGO_TARGET_DIR would make this clean the build running the test.
     let cleaned = Command::new("cargo")
         .args(["clean", "--quiet", "--manifest-path"])
@@ -605,8 +689,9 @@ fn a_rust_run_lives_under_target_and_matches_the_compiler_route() {
     assert!(cleaned.success());
     assert!(
         !root.join("target").exists(),
-        "`cargo clean` clears every run"
+        "`cargo clean` clears the build"
     );
+    assert!(run.join("report.json.zst").is_file(), "but not a saved run");
 }
 
 fn assert_locations_resolve(root: &Path, run: &Path) {

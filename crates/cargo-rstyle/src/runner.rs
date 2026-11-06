@@ -81,13 +81,10 @@ impl RunArgs {
         Ok(filter)
     }
 
-    fn destination(
-        &self,
-        runs: impl FnOnce() -> Result<PathBuf, String>,
-    ) -> Result<Destination, String> {
+    fn destination(&self, project: &Path, language: &'static str) -> Result<Destination, String> {
         match &self.out {
             Some(out) => Ok(Destination::Exact(out.clone())),
-            None => runs().map(Destination::Runs),
+            None => store::project_runs(project, language).map(Destination::Runs),
         }
     }
 }
@@ -126,7 +123,7 @@ pub(crate) fn go(cli: &Cli, args: &GoArgs) -> Result<(String, u8), String> {
 
     let frontend = Frontend::go()?;
     let local = filter.frontend_analyses("go", &frontend.analyses)?;
-    let staged = Staged::new(args.run.destination(|| store::project_runs(&project))?)?;
+    let staged = Staged::new(args.run.destination(&project, "go")?)?;
     let plan = Plan {
         cli,
         args: &args.run,
@@ -181,9 +178,7 @@ pub(crate) fn rust(cli: &Cli, args: &RunArgs) -> Result<(String, u8), String> {
         .workspace_root
         .canonicalize()
         .map_err(|error| format!("{}: {error}", metadata.workspace_root.display()))?;
-    // Everything stays under `target/`, so `cargo clean` clears it.
-    let rstyle = metadata.target_directory.join("rstyle");
-    let staged = Staged::new(args.destination(|| Ok(rstyle.join("runs")))?)?;
+    let staged = Staged::new(args.destination(&root, "rust")?)?;
     let plan = Plan {
         cli,
         args,
@@ -193,7 +188,8 @@ pub(crate) fn rust(cli: &Cli, args: &RunArgs) -> Result<(String, u8), String> {
         project: root,
     };
 
-    let (records, documents) = rust_records(&plan, &staged, &rstyle.join("build"))?;
+    let build = metadata.target_directory.join("rstyle/build");
+    let (records, documents) = rust_records(&plan, &staged, &build)?;
     let unified = plan.analyzed(records)?;
     let run = plan.save(&unified, staged, documents)?;
     plan.output(&unified, Some(&run))
