@@ -142,8 +142,8 @@ jobs:
             ${{ env.RSTYLE_CI_OUTPUT }}/results/status.json
           if-no-files-found: warn
 
-  # Only what runs without the compiler driver: the runner's pipe, inherited handles and the
-  # new core modules. The Rust route on Windows comes with its own tests.
+  # The runner's pipe and inherited handles, and the Rust route through the real driver. The
+  # rest of the compiler tests are Unix-only.
   windows:
     permissions:
       contents: read
@@ -176,6 +176,9 @@ jobs:
 
       - name: Runner pipe and inherited handles
         run: cargo test --locked -p cargo-rstyle --test frontend_pipe
+
+      - name: Rust route through the driver
+        run: cargo test --locked -p cargo-rstyle --test rust_route
 
   coverage:
     needs: check

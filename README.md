@@ -430,7 +430,8 @@ own child processes, or rstyle never sees end of file. The runner keeps what it 
 frontend needs no compression or storage code of its own. Documents are derived on a worker pool
 as they arrive, and records are put in a canonical order, so arrival order can't change a result.
 
-Windows support has been type-checked and has a CI job, but hasn't been run outside CI.
+CI runs both routes on Windows: the pipe a frontend inherits, and `rstyle rust` and `cargo rstyle`
+through the driver. The rest of the compiler tests are Unix-only.
 
 ## Other languages (`cpg`)
 

@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 use std::ffi::OsStr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const TOOLCHAIN_FILE: &str = include_str!("../../../rust-toolchain.toml");
@@ -39,6 +39,22 @@ pub fn driver_path() -> Result<PathBuf, String> {
             driver.display()
         )
     })
+}
+
+/// The path with symlinks resolved, spelled as the compiler spells paths. Windows canonicalizes
+/// to a verbatim path (`\\?\C:\...`), which the compiler never writes, so no root would match
+/// a source file and consumers can't read it as a URI.
+pub fn canonical(path: &Path) -> std::io::Result<PathBuf> {
+    path.canonicalize().map(without_verbatim_prefix)
+}
+
+fn without_verbatim_prefix(path: PathBuf) -> PathBuf {
+    let plain = path
+        .to_str()
+        .and_then(|text| text.strip_prefix(r"\\?\"))
+        .filter(|rest| !rest.starts_with("UNC\\"))
+        .map(PathBuf::from);
+    plain.unwrap_or(path)
 }
 
 /// Commands select their own extraction mode; inherited control settings cannot
@@ -94,6 +110,17 @@ mod tests {
         ] {
             assert!(control_environment(OsStr::new(name)), "{name}");
         }
+    }
+
+    #[test]
+    fn a_verbatim_drive_path_loses_its_prefix_and_a_share_keeps_it() {
+        let plain = |path: &str| without_verbatim_prefix(PathBuf::from(path));
+        assert_eq!(plain(r"\\?\C:\work\app"), PathBuf::from(r"C:\work\app"));
+        assert_eq!(
+            plain(r"\\?\UNC\server\share"),
+            PathBuf::from(r"\\?\UNC\server\share")
+        );
+        assert_eq!(plain("/work/app"), PathBuf::from("/work/app"));
     }
 
     #[test]

@@ -67,7 +67,7 @@ impl Cli {
         if let Some(resolved) = self
             .manifest_path
             .as_deref()
-            .and_then(|path| path.canonicalize().ok())
+            .and_then(|path| run::canonical(path).ok())
         {
             self.manifest_path = Some(resolved);
         }

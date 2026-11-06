@@ -174,9 +174,7 @@ pub(crate) fn rust(cli: &Cli, args: &RunArgs) -> Result<(String, u8), String> {
         cli.manifest_path.as_deref(),
         Some(&crate::run::pinned_toolchain()),
     )?;
-    let root = metadata
-        .workspace_root
-        .canonicalize()
+    let root = crate::run::canonical(&metadata.workspace_root)
         .map_err(|error| format!("{}: {error}", metadata.workspace_root.display()))?;
     let staged = Staged::new(args.destination(&root, "rust")?)?;
     let plan = Plan {
@@ -214,8 +212,7 @@ fn rust_records(
         all_targets: plan.cli.all_targets,
         manifest: plan.cli.manifest_path.as_deref(),
     };
-    let directory = directory
-        .canonicalize()
+    let directory = crate::run::canonical(&directory)
         .map_err(|error| format!("{}: {error}", directory.display()))?;
     cpg::emit_documents(&selection, &directory, target)?;
     let paths = cpg::documents(&directory)?;
@@ -414,9 +411,9 @@ fn reject_rust_flags(cli: &Cli) -> Result<(), String> {
 // rstyle-allow(side_effect_density): IO boundary: resolves the source directory
 fn go_source(explicit: Option<&Path>) -> Result<PathBuf, String> {
     match explicit {
-        Some(source) => source
-            .canonicalize()
-            .map_err(|error| format!("{}: {error}", source.display())),
+        Some(source) => {
+            crate::run::canonical(source).map_err(|error| format!("{}: {error}", source.display()))
+        }
         None => {
             let current = std::env::current_dir().map_err(|error| error.to_string())?;
             Ok(module_root(&current).unwrap_or(current))

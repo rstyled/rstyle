@@ -204,9 +204,7 @@ struct CaptureEnvironment {
 
 fn capture_environment() -> Result<CaptureEnvironment, String> {
     Ok(CaptureEnvironment {
-        driver: run::driver_path()?
-            .canonicalize()
-            .map_err(|e| e.to_string())?,
+        driver: run::canonical(&run::driver_path()?).map_err(|e| e.to_string())?,
         compiler_identity: tool_identity("rustc", "-vV")?,
         cargo_identity: tool_identity("cargo", "--version")?,
     })

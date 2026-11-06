@@ -240,7 +240,7 @@ pub struct Selection<'a> {
 // rstyle-allow(side_effect_density): IO boundary: creates the output directory, then emits
 pub fn emit(selection: &Selection<'_>, out: &Path) -> Result<(String, u8), String> {
     std::fs::create_dir_all(out).map_err(|error| format!("{}: {error}", out.display()))?;
-    let out = out.canonicalize().map_err(|error| error.to_string())?;
+    let out = crate::run::canonical(out).map_err(|error| error.to_string())?;
     let written = emit_documents(selection, &out, &out.join("target"))?;
 
     Ok((
@@ -267,9 +267,7 @@ pub(crate) fn emit_documents(
     // rustc resolves source paths against its working directory, which the OS
     // reports with symlinks resolved; a root reached through a symlink (e.g.
     // `--manifest-path` under macOS's `/var`) would match no source file.
-    let root = metadata
-        .workspace_root
-        .canonicalize()
+    let root = crate::run::canonical(&metadata.workspace_root)
         .map_err(|error| format!("{}: {error}", metadata.workspace_root.display()))?;
     remove_documents(out)?;
 
