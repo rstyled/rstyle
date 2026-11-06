@@ -1,105 +1,43 @@
 # rstyle
 
-Style, patterns and review commands now use the compiler pipeline exclusively.
-The pre-removal implementation is preserved on the `legacy` branch.
+rstyle finds the code worth refactoring. It works from what the compiler knows, resolved names and
+types rather than just syntax, and it analyzes Rust and Go.
 
-Rust style checker built on rustc HIR (resolved names and types, not just syntax). It flags functions that are too long, take too many params, mutate too much, or have a high side-effect density.
+- **Style checks** flag functions that are too long, too complex, take too many parameters, mutate
+  too much, or have a high density of side effects.
+- **Fix groups** tell you which of those findings can be fixed independently, and which must land
+  together.
+- **Pattern mining** finds code written as parallel copies that could be one trait, generic function
+  or parameter.
+- **Runtime bounds** give symbolic upper bounds on how often loops and calls run, such as
+  `len(xs) * len(ys)`.
+- **Control flow** reports dominators and data and control dependence for each function.
 
-## Layout
+> rstyle is in alpha and is installed from source. It depends on rustc internals, so it needs a
+> specific nightly toolchain, which the installer sets up for you.
 
-| Crate | Role |
-| --- | --- |
-| `rstyle-core` | Pure rules, config, suppression, reporting. No IO, no compiler types. |
-| `rstyle-driver` | rustc driver (`rustc_private`). The Rust frontend: writes each crate's `compat.cpg` documents. |
-| `cargo-rstyle` | `cargo rstyle` and `rstyle` CLI. Runs `cargo check` with the driver as workspace wrapper, then evaluates, and runs other languages' frontends. |
+## Install
 
-See [`SIDE_EFFECTS.md`](SIDE_EFFECTS.md) for the rule spec.
-
-Normal style checks use the compiler path by default:
-`cargo rstyle --format json`. It reads workspace
-`rstyle.toml` (or `--config`), checks all authored rules and returns 1 for findings.
-The compiler path reuses private builds and completed owner observations when Cargo
-reports the exact artifacts fresh; reports retain separate compilation contexts.
-Root JSON exposes diagnostics, summary, fix groups and complexity rows, with
-explicit scope and planning completeness. Every run saves its documents for replay.
-Text diagnostics and complexity rows carry compiler unit labels, followed by a
-table of package, target, test mode and source for each unit. Library and test
-builds of the same source remain distinguishable on saved-run replay.
-Add `--changed-files changes.json` to compiler style to select findings for CI;
-use `{"schema":"rstyle.changed-files/1","paths":["src/lib.rs"]}` with paths
-relative to the workspace root. Metrics and fix groups retain the full captured
-scope. Invalid suppressions remain visible, and unobserved selected paths or
-missing required inputs still return 2. This selection also works with an explicit
-`--replay-run PATH`.
-Compiler style also supports `--write-baseline baseline.json` to export a complete
-inventory to a new file, and `--baseline baseline.json --fail-on-new` to fail CI
-only for new/changed selected findings or policy/build-context drift. Raw findings
-remain visible, and incomplete analysis still exits 2. Export retains the normal
-finding exit status. Both workflows support explicit saved-run replay.
-Density findings remain blocking, just like other violations. Dismiss individual
-reviewed findings with the existing `rstyle-allow(side_effect_density)` source
-comment and a reason, or use the existing separate review file without changing
-source:
-
-```sh
-cargo rstyle --format json
-cargo rstyle --replay-run RUN --review-file rstyle-reviews.json \
-  --dismiss-compiler-diagnostic UNIT DIAGNOSTIC_INDEX --review-reason "Reviewed IO boundary"
-cargo rstyle --review-file rstyle-reviews.json --format json
-```
-
-Use the `run_directory` and parallel `diagnostic_units`/`diagnostic_indices`
-entries from the report (also shown in text). Reviews hide only the exact finding;
-changed values, policy or build context can make it visible again. Raw per-unit
-findings remain available. `--review-status` inspects the file without writing.
-The review file is explicit and independent of the pattern ignore ledger.
-
-Default `cargo rstyle patterns` saves the same documents. Pattern and review replay
-need no source or compiler tools.
-
-Other top-level folders:
-
-| Folder | What it is |
-| --- | --- |
-| [`scripts/`](scripts/README.md) | Build, test, profiling and evaluation scripts; also `style.sh`. |
-| `rust_refactoring_examples/` | Labeled example crates (`labels.csv`) the miner is scored against. |
-| `.plans/` | Local planning notes and LLM logs. Gitignored, not part of the repo. |
-
-## Requirements
-
-- `rustup` and a native build toolchain (for example, Xcode Command Line Tools on macOS).
-- When working in a checkout, the pinned nightly (`nightly-2026-09-30`, with `rustc-dev`, `llvm-tools-preview`, `rust-src`, `clippy`, `rustfmt`) installs automatically from `rust-toolchain.toml`. For installation directly from GitHub, install the toolchain explicitly as shown below.
-- The toolchain is pinned because rustc-internal APIs change between nightlies. Bump deliberately and re-run the tests.
-
-## Install from GitHub (alpha)
-
-No manual clone or existing local checkout is needed. With `rustup` and a native
-build toolchain installed, download and run the [installer](scripts/install.sh)
-from any directory:
+You need [`rustup`](https://rustup.rs) and a native build toolchain, such as Xcode Command Line Tools
+on macOS. Then run:
 
 ```sh
 curl --proto '=https' --tlsv1.2 -fsSL \
   https://raw.githubusercontent.com/rstyled/rstyle/HEAD/scripts/install.sh | sh
 ```
 
-This executes the downloaded script directly, so only use it with a repository
-you trust. To inspect it first, download the script instead of piping it to `sh`.
-The installer installs the pinned nightly and the binaries; it does not install
-`rustup`, use `sudo`, or change your shell configuration.
+This installs the pinned nightly, then compiles `rstyle`, `cargo-rstyle` and `rstyle-driver` into
+Cargo's binary directory (normally `~/.cargo/bin`, which must be on your `PATH`). Compiling takes a
+while. The installer doesn't install `rustup`, use `sudo` or change your shell configuration.
+To read [the script](scripts/install.sh) first, download it instead of piping it to `sh`.
 
-To replace an existing installation:
+To update, run the same command with `sh -s -- --force` in place of the final `sh`.
 
-```sh
-curl --proto '=https' --tlsv1.2 -fsSL \
-  https://raw.githubusercontent.com/rstyled/rstyle/HEAD/scripts/install.sh | sh -s -- --force
-```
+Keep the three binaries in the same directory, and keep the nightly installed: the driver links
+against its compiler libraries.
 
-From an existing checkout, use `sh scripts/install.sh`. The installer always
-installs from GitHub, not from local source changes. Add `--force` to replace an
-existing installation, or use `--help` for details. `CARGO_INSTALL_ROOT` and
-`CARGO_HOME` are respected when choosing the installation directory.
-
-Alternatively, install manually:
+<details>
+<summary>Install without the script</summary>
 
 ```sh
 rustup toolchain install nightly-2026-09-30 --profile minimal \
@@ -113,468 +51,200 @@ cargo +nightly-2026-09-30 install \
   cargo-rstyle rstyle-driver
 ```
 
-Cargo automatically downloads the repository into its Git cache (normally under
-`~/.cargo/git`), resolves dependencies, compiles both binaries on your machine,
-and installs them side by side in Cargo's binary directory (normally
-`~/.cargo/bin`). It does not create a project checkout in your current directory.
-This is a source-based installation, not a prebuilt binary download; it needs
-network access, disk space, and time to compile.
+Add `--force` to replace an existing installation. `CARGO_INSTALL_ROOT` and `CARGO_HOME` choose the
+install directory, for the script too.
 
-Ensure Cargo's binary directory is on `PATH`, then run from the Rust project you
-want to analyze:
+</details>
+
+## Quick start
+
+From the Rust project you want to analyze:
 
 ```sh
 cargo rstyle
 ```
 
-Both binaries are required. The driver links against the pinned toolchain's
-compiler libraries, so keep that toolchain installed after installation. Building
-locally lets the driver's runtime library path point to your own toolchain; no
-release-library repackaging is needed for this installation method.
-
-The command installs the repository's default branch. For a published alpha tag,
-add `--tag TAG` to the `cargo install` command, replacing `TAG` with the actual
-release tag, and use the nightly pinned by that revision. To update, rerun the
-installation commands; add `--force` to `cargo install` if you need to replace an
-existing installation.
-
-## Fix groups
-
-`cargo rstyle` also tells you which violations can be fixed independently:
-
-```
-fix groups: 693 (92 stacked, 601 independent)
-  group 4 (2 functions; land together or stack in this order):
-    src/a.rs:10 a::callee [fn_params]
-    src/b.rs:42 b::caller [fn_length]
+```text
+src/lib.rs:5:1: fn_params: function `total` has too many parameters (actual 5, limit 4) [diagnostic 0] [compiler unit 0]
+src/lib.rs:9:1: fn_spacing: function `checkout` has no blank line between its phases (actual 5, limit 4) [diagnostic 1] [compiler unit 0]
+src/lib.rs:9:1: mutation_per_target: function `checkout` mutates one target too many times (actual 4, limit 3) [diagnostic 2] [compiler unit 0]
+fix groups: 1 (1 stacked, 0 independent)
+  group 1 (2 functions; land together or stack in this order):
+    src/lib.rs:5 total [fn_params]
+    src/lib.rs:9 checkout [fn_spacing, mutation_per_target]
+      1. signature total (src/lib.rs:5; 1 incoming, 0 outgoing sites)
+      2. call sites checkout (src/lib.rs:9; 0 incoming, 1 outgoing sites)
+...
+rstyle: 3 functions, 3 violations, mean density 66, max density 200, complexity 3 measured, 0 unavailable
 ```
 
-- A group is a set of violations whose fixes overlap. Put them in one PR, or stack the PRs in the listed order (callees first). Different groups never conflict, so they can go in parallel.
-- The overlap model: a fix edits the function itself, and for `grouping.caller_rules` (default `fn_params`) also its callers, up to `grouping.caller_hops` (default 1). The call graph resolves trait-method calls to every impl.
-- `--format json` has the full `fix_groups` array. Groups carry soft `hints` (`shared_type`, `shared_caller`): other groups that touch the same mutated type or the same caller. They are not reasons to stack. Regroup after each merge; fixes change the graph.
-- Why not widen the footprint? On rust-lang/cargo, counting density callers and mutated types turned 519 of 908 violating functions into one group. `fn_params`-only gives 693 groups, largest 89.
-
-### Parameter refactor plans
-
-Groups with a `fn_params` member carry a `plan` (JSON `fix_groups[].plan`, and under the group in text output):
-
-```
-  group 172 (...)
-      1. signature Dependency::from_toml (src/.../dependency.rs:224; 5 incoming, 0 outgoing sites)
-      2. call sites find_workspace_dep (src/.../mod.rs:1372; 3 incoming, 1 outgoing sites; pass-through: unstable_features)
-      bundle (1 sites): key: &str, unstable_features: &Features
-```
-
-- Steps: re-signed functions callee-first, then the callers whose call sites must follow. `incoming` = call sites into the function, `outgoing` = its call sites into re-signed functions.
-- `pass-through`: parameters whose every mention is a forward into a re-signed function. The caller doesn't need them; fix in the callee or an upper layer and drop them from the caller.
-- `bundle`: parameters forwarded together (same callee `name: type`, 2+) at N call sites: a params-struct candidate. Only closed sets are reported (a subset with the same support as a superset is dropped).
-- Argument provenance (`param(i)`, `const`, `field`, `other`) and each parameter's name/type/use count are in the facts files (`param_list`, `edges[].args`).
+Fix one group at a time, callees first, then run it again, since fixes change the call graph.
 
 ## Usage
 
-Run on this workspace:
+| Command | What it does |
+| --- | --- |
+| `cargo rstyle` | Style findings, fix groups and complexity scores for a Rust workspace |
+| `cargo rstyle patterns` | Candidates for a shared trait, generic function or parameter |
+| `cargo rstyle patterns --complexity` | The same, plus runtime bounds |
+| `cargo rstyle ignore <id>` | Dismiss a pattern candidate you reviewed |
+| `rstyle rust` | Every analysis over a Rust workspace, saved with SARIF reports |
+| `rstyle go` | Every analysis over a Go module, saved with SARIF reports |
 
-```sh
-scripts/style.sh            # builds driver + CLI, then runs rstyle
-cargo style                 # alias; needs `cargo build --workspace` once first
-```
+`rstyle` and `cargo rstyle` are the same program, so either name works for any command. `rstyle go`
+and `rstyle rust` also take `--check` or `--patterns` to run just that analysis.
 
-The same command reports style findings, fix groups, and cyclomatic (CC) and
-cognitive (COG) complexity for functions with findings:
+Common options:
 
-```sh
-cargo style
-cargo style --format json
-```
+| Option | Meaning |
+| --- | --- |
+| `--format json` | Machine-readable output on stdout |
+| `-p PKG` | Only analyze this package |
+| `--all-targets` | Include tests, examples and benches |
+| `--config PATH` | Use this file instead of `<workspace root>/rstyle.toml` |
+| `--manifest-path PATH` | Analyze the workspace of this `Cargo.toml` |
 
-Both complexity limits default to 12; scores above either limit are findings.
-Clean functions are omitted. Text ranks reported functions by COG, then CC. JSON
-includes source evidence, all findings, and counts for every analyzed function.
-
-Run on another project:
-
-```sh
-cargo install --path crates/cargo-rstyle
-cargo install --path crates/rstyle-driver   # driver must sit next to the CLI binary
-cd your-project && cargo rstyle
-```
-
-Options:
-
-```
-cargo rstyle [-p PKG] [--all-targets] [--format text|json]
-             [--config PATH] [--manifest-path PATH] [--skill]
-```
-
-`--skill` prints an agent skill (`SKILL.md`: how to run, read JSON, fix by group, suppress) and exits 0 without analyzing. Install it for Cursor:
+To teach a coding agent how to use rstyle, `--skill` prints a `SKILL.md` for it. For Cursor:
 
 ```sh
 mkdir -p .cursor/skills/rstyle && cargo rstyle --skill > .cursor/skills/rstyle/SKILL.md
 ```
 
-Exit codes: `0` clean, `1` violations, `2` tool error or incomplete analysis,
-including a run with no completed compiler evaluation (`summary unavailable`).
-
-## Abstraction mining (`patterns`)
-
-`cargo rstyle patterns` looks for *latent shared abstractions*: code that is written as parallel copies but would be one trait, generic fn or parameter.
-
-```
-cargo rstyle patterns [--format text|json] [--all-targets] [--min-score N] [--top N]
-                      [--hide-implements TEXT]...
-```
-
-The default uses compiler observations across the selected workspace and reuses the core proposer. Authored functions are selected by default; generated signatures remain visible in coverage. Reports retain compilation contexts, unavailable inputs and the explicit saved run directory; incomplete input exits 2. Strict clone matching is independent of these advisory proposals.
-
-Two layers:
-
-1. **Signature groups.** Methods of different types with the same normalized signature (`fn(&Self) -> String`). Rare signatures score high, common getters score near zero. This is a blocking key, not a finding.
-2. **Dependence-graph candidates.** The driver records a dependence graph per function (data, control and operand-position edges; `for`, `?` and macros are single nodes; call nodes are labeled by the callee's signature class, not its name). A Weisfeiler-Lehman kernel clusters functions with the same structure, an alignment step produces the *holes* (`T0 = Dog | Cat`, `M0 = Dog::bark | Cat::meow`), and method holes are joined back to the signature groups. `for` loops and `Iterator::for_each` closures are the same iteration; a `match` whose arms call analogous methods is reported as `enum_dispatch`.
-
-Each candidate has a `kind` (`trait_method`, `capability_set`, `enum_dispatch`, `generic_fn`, `parameterize`), a score with its parts (`support`, `lift`, `holes`, `coverage`), an observation, an inference, a possible refactor sketch, every site with `path:line`, the functions that fill the holes, and counter-evidence (effect mismatch, common signature). Patterns whose implementations all already implement one trait method are listed under `suppressed`, not proposed. Output is deterministic.
-
-Compiler patterns captures graph observations under `target/rstyle/runs/`. `cargo rstyle`, `cargo rstyle patterns` and `--complexity` read the same capture, so switching between them recompiles nothing that hasn't changed. Use `--replay-run PATH` to reevaluate an explicit saved run without source files or compiler tools. Style and patterns both consume saved compiler unit snapshots.
-
-A new capture removes all but a workspace's 5 most recently used runs, since one run can hold gigabytes. It never removes a run another command is using, or the run the next build reuses compiled crates from. Set `RSTYLE_KEEP_RUNS` to another count, or to `all` to keep every run; to keep a run you are working through, set it before capturing again.
-
-Add `--complexity` to search for runtime growth alongside abstraction candidates:
-
-```sh
-cargo rstyle patterns --complexity --top 20
-cargo rstyle patterns --complexity --replay-run RUN --format json
-```
-
-This opt-in analysis lowers typed HIR into a compact control-flow graph in the
-same compiler capture. It reports upper bounds on loop-body entries and modeled
-call-site invocations, with input measures and loop locations. For example, restarting
-an inner scan can give `n + n * m` body entries; a persistent cursor can give
-`n + m`. These counts do not establish a tight runtime bound or the cost of a
-called function. Whole-function runtime remains explicitly unknown.
-
-The initial model supports primitive increasing counters, unsigned exclusive ranges
-and traversal of shared slices and standard `Vec` values, including fields reached
-through shared references. A `for` pattern may declare any new bindings, since they
-cannot change how often the loop runs; one holding anything else is unsupported, as is
-a declaration that writes what a loop's length is measured from. A signed counter needs a `<` guard, a unit increment and a
-constant start of at least zero; any other start makes that loop opaque. A signed input
-counts as its positive part, so `while i < n` over an `i64` gives `max(n, 0)`, and
-that floor survives composition with a caller's argument. A conversion between signed
-and unsigned stays unknown. Resolved collection length
-queries and traversal adapters are abstracted and excluded from call counts. Ordinary body
-calls can have unknown cost while preserving a bound on a private scalar counter.
-A loop that cannot be proven, such as one with a mutable limit, an unproved
-increment or an unrecognized guard, does not discard the rest of the function: the
-result is `Partial`, and that loop contributes an explicit opaque `?loop(site)`
-factor: the number of times its header runs per entry of its enclosing loop, which
-bounds its body and everything nested in it. `n * ?loop(src/lib.rs:12:5#4)` still
-shows the proven nesting; the `#4` names the header, so inlined copies stay distinct. Hazards that affect the whole body (unsupported control flow,
-escaped or aliased counters, unsafe code) produce an explicit unknown result.
-Exhausting an analysis budget is reported separately.
-
-Compiler-resolved standard `Iterator` chains over those sources become synthetic
-scans. Closure callbacks, and immutable local closures that are only called
-directly, are inlined at each invocation, so the callback calls in
-`xs.iter().map(|x| ys.iter().filter(|y| p(x, y)).count()).sum::<usize>()` are
-bounded by `len(xs) * len(ys)`. Filters, skips, takes and searches may
-exit early; `flat_map` rescans per outer item. Unresolved or escaping callbacks,
-user iterators, mutable captures of a measured value, and chains that dispatch
-to workspace `Clone`, `Ord`, `Sum` or `FromIterator` impls stay unknown.
-
-Each row also has a `composed` result that adds resolved workspace callee
-summaries: a call contributes its count times the callee's bound, with callee
-inputs replaced by per-invocation upper bounds of the caller's arguments.
-Lengths follow shared places and field paths, so passing `&g.edges` into a
-slice scan contributes `len(g.edges)`. A recursive, dynamically or generically
-dispatched, or missing callee contributes opaque `?call(name)` (its loop work) and
-`?invocations(name)` (its own calls) factors per invocation, and a callee size with
-no caller-side bound an opaque `?input(...)` factor; such composed results are `Partial` and list why each factor is opaque.
-Standard-library bodies are outside this cost unit only when they cannot call back
-into workspace code through a callable argument or a trait bound on a workspace
-type; other standard calls are opaque. Workspace `Drop` glue and overloaded
-auto-deref into workspace impls make the owner unknown.
-Identities include the compilation, so lib, bin and test builds never share a
-summary. The report lists its assumptions. Results retain
-each compilation context, and `--top` selects rows independently of abstraction
-scores.
-
-Composed results also report `library_steps`: element operations in standard
-calls, from data contracts in
-[`runtime_bounds/contracts/`](crates/rstyle-core/src/runtime_bounds/contracts/rust.toml)
-rather than engine code. The frontend keys each standard call by its resolved self
-type and member, such as `rust:BTreeMap.get`, and a contract bounds its steps over
-argument sizes up to a constant factor: `log(len(map))` per B-tree lookup, so a
-lookup per key gives `len(keys) * log(len(index.names))`. `log(x)` is the bit
-length of `x`. A key without a contract, or a size without a stable caller-side
-bound such as a locally built map, gives an opaque `?library` or `?input` factor
-listed in `library_factors`; these never change the composed verdict. Another
-language's frontend supplies its own contract file and keys.
-The same files declare iteration roles, so frontends carry no method tables: a
-`[[stage]]` or `[[consumer]]` gives an operation such as `rust:Iterator.map` one of
-a closed set of per-item effects (`Pass`, `Map`, `Filter`, `Skip`, `Take`,
-`TakeWhile`, `FlatMap`; `Drain`, `Each`, `Search`), its arity, the callback
-argument run once per item, and the type arguments whose trait impls it may run,
-which must be standard. `[[extent]]` marks members that read a stable length
-(`Length`) or traverse each entry once (`Traversal`). A frontend lowers effects,
-never method names; an operation without a role keeps ordinary call lowering.
-Rows rank by polynomial degree, then logarithmic factors. This is a search
-heuristic, not a comparison of runtimes across independent input sizes. JSON retains the full result roster and the
-selected row indices. Existing abstraction gates and reviews retain their scope.
-
-Saved replay needs a capture made with `--complexity`; older graph-only captures
-require recapture. The default command does not collect the additional graph.
-
-`--hide-implements TEXT` forgets trait links whose trait method id contains `TEXT` (`*` hides all). Evaluation oracle: hide a trait that has several impls and check the miner proposes it back.
-
-Opt a function out of mining with `// rstyle-allow(abstraction): reason` on the line above it.
-
-**Reviewed candidates (the ignore ledger).** Every candidate prints an `id`. After you review one and decide not to merge it, dismiss it:
-
-```
-cargo rstyle ignore <id> [--allow-growth] [--reason TEXT]   # writes rstyle-ignore.toml
-cargo rstyle patterns --show-ignored                        # list what the ledger hid
-cargo rstyle patterns --no-ignore                           # one-off full view
-cargo rstyle patterns --fail-on-candidates                  # CI gate: exit 1 if any candidate is left
-cargo rstyle ignore --status [<id>]                         # where each entry's functions are now
-cargo rstyle ignore --all-targets --prune [--dry-run]       # drop entries that match nothing
-```
-
-`rstyle-ignore.toml` (workspace root, or `--ignore-file`) is meant to be committed, like a lockfile. It is a final filter on the reported candidates; mining never reads it, and `--top` / `--min-score` apply after it. Delete the file, or an entry, to re-review. Comments directly above an entry, or inside it, are kept when `ignore` rewrites the file (other comments are dropped), so notes like "discussed in PR 12" survive; `--reason` is the structured version.
-
-Listing and `ignore` share compiler discovery and mining options. Pruning requires complete full-workspace inputs captured with `--all-targets`; saved replay uses that recorded selection. Status reports absent members as unobserved within each compilation population rather than assuming deletion.
-
-A dismissal holds while the candidate is the same: same kind, same functions, same dependence-graph shape of each site. Moving a function (new line numbers) or adding an impl block above it does not matter; editing its structure does. Growth resurfaces it by default: if two more functions join a dismissed candidate, it is a new candidate. `--allow-growth` records the members instead, and the candidate stays hidden as long as they are all still in it. Pruning is manual; stale entries are harmless, they just never match. Pass the same clustering flags to `ignore` as to `patterns`, since they decide which candidates (and ids) exist. Limits: shape comes from the dependence graph, so edits inside closures or that only swap one callee for another of the same signature are not seen.
-
-**Reading the score.** `score = (ln(support) + lift) * coverage`, divided by `holes / 3` when there are more than 3 holes, halved on effect mismatch (natural-log units; a ranking, not a probability). `support` is the number of functions in the cluster, `lift` is how rare the shared signature is (`ln(methods in the workspace / methods sharing it)`; about 0 for getters, with up to +50% when the types share the method name), `coverage` is the mean share of each body that aligns, `holes` is the number of differing columns. `generic_fn` is halved and `parameterize` divided by 3 and both have lift 0, so compare scores within a kind. For the trait kinds a score under about 0.7, or the counter-evidence "signature is common in this codebase", is noise. These cutoffs come from the formula and from reading output, they are not calibrated on labeled data.
-
-**Experiments (off by default).** `--normalize all|ctor,pred,case,exit,counter,cmp,try` canonicalizes graphs before comparing, `--pair-coverage N` clusters pairs by alignment coverage even below the WL threshold, `--max-holes N` raises the `parameterize` hole cap, `--single-call-guard` admits single-call bodies that do more than forward parameters, `--threshold N` and `--min-coverage N` move the clustering thresholds (defaults 600 and 600).
-
-Inspiration: comparing functions by approximate matching of their program dependence graphs (PDGs), as in [CCGraph: A PDG-based Code Clone Detector with Approximate Graph Matching](https://yinxingxue.github.io/papers/ase2020_CCGraph%20A%20PDG%20based%20Code%20Clone%20Detector%20With%20Approximate%20Graph%20Matching.pdf) (ASE 2020), with a Weisfeiler-Lehman (WL) graph kernel for the similarity. This is not a reimplementation.
-
-Known limits: function-level only; closure bodies are opaque (except `for_each`); a cluster mixing already-trait and inherent impls is reported as a candidate rather than as "implement the existing trait"; the size floor is 4 nodes and 1 call, so small functions never cluster (on competitive-programming code that is more than half of edited-copy pairs), and the defaults were picked on a few real crates and a labeled example set, not tuned on a large corpus.
-
-## Run any language (`rstyle go`, `rstyle rust`)
-
-`rstyle` is the runner for every language frontend. It finds the frontend, reads the
-`compat.cpg` documents it produces, runs the selected analyses once in core, and saves the run:
-
-```
-rstyle go                  rstyle rust
-rstyle go --check          rstyle rust --check
-rstyle go --patterns       rstyle rust --patterns
-```
-
-`cargo rstyle go` and `cargo rstyle rust` are the same commands.
-
-- **Go:** rstyle uses `$RSTYLE_GO` if set, then `rstyle-go` where Go installs binaries or on
-  `PATH`, and otherwise runs `go install`. While `rstyle-go` is private, set
-  `GOPRIVATE=github.com/rstyled` or point `$RSTYLE_GO` at a local build. `--source DIR` picks
-  the directory; by default it's the module holding the current directory.
-- **Rust:** the frontend is the bundled driver. `--manifest-path`, `-p` and `--all-targets`
-  apply. It reads the same capture as `cargo rstyle` and `patterns`, so only what changed compiles.
-
-**Selecting analyses.** With no filter you get everything. `--filter` takes names,
-comma-separated or repeated, and `--check` and `--patterns` are shorthand for two of them:
-
-| Name | Runs |
-|---|---|
-| `check`, `patterns`, `bounds`, `flow` | Core's analyses |
-| `go:<name>`, `rust:<name>` | An analysis local to that frontend; none exist yet |
-
-An unknown name fails before anything runs, as does `--fail-on-candidates` without patterns.
-
-**Saved runs.** A finished run is published whole, so a rejected one leaves nothing behind:
-
-Every language saves to `.rstyle/runs/<UTC timestamp>-<language>/` in the project root (the Go
-module or Cargo workspace), a folder that ignores itself in Git. Each language keeps its newest 5
-runs; `RSTYLE_KEEP_RUNS` sets another count, or `all`. `cargo clean` doesn't touch them, though it
-clears the capture a Rust run reuses, in `target/rstyle/runs/`. Deleting `.rstyle/` is always safe.
-
-`--out DIR` saves to a new directory instead, which is never pruned. Each run holds:
-
-```
-documents/                 what the frontend produced
-report.json.zst            the complete report
-report.sarif               SARIF 2.1.0: every run below in one log
-check.sarif                SARIF 2.1.0, category rstyle/check/
-patterns.sarif             SARIF 2.1.0, category rstyle/patterns/
-frontend/<analysis>.sarif  a frontend analysis's results, as it wrote them
-run.json                   the language, source root and document count
-```
-
-`--from DIR` analyzes a saved run without its frontend, and saves only with `--out`.
-`--format json` prints plain JSON to stdout, with `run` naming where the run was saved. Two runs
-over the same source give byte-identical reports and SARIF.
-
-SARIF carries findings and candidates, one run per analysis, so nothing interleaves. A frontend
-analysis's runs also join `report.sarif` and the JSON report's `frontend` list, with a category
-such as `go/calls/` and a source root if they have none. Its results don't change the exit code. Runtime bounds,
-signature groups and control flow stay in the report, which remains the complete one. `flow` is
-what `cpg flow` derives for each function, and it's most of a report's size: on gstyle, 126 MB of
-the 176 MB printed and 6.2 MB of the 7.5 MB saved, for about 2 s more. `--filter
-check,patterns,bounds` leaves it out.
-
-**Exit codes.** The worst result of what ran: 0 clean, 1 findings (including candidates left
-with `--fail-on-candidates`), and 2 for a tool error, missing analysis or failed frontend analysis.
-
-**Writing a frontend.** A frontend is a program with up to three commands:
-
-| Command | Does |
-|---|---|
-| `describe` | Prints `{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"calls"}]}` |
-| `cpg --source DIR --output-fd N` | Writes an RFC 7464 JSON text sequence to the inherited descriptor, then `RS null LF` only if generation succeeded |
-| `analyze NAME --source DIR --out FILE` | Writes SARIF 2.1.0 to `FILE`, for each name it describes |
-
-`N` is a descriptor on Unix and an inherited handle's value on Windows. A non-zero exit means the
-run is incomplete. A frontend's stdout goes to rstyle's stderr. Its descriptor must not reach its
-own child processes, or rstyle never sees end of file. The runner keeps what it receives, so a
-frontend needs no compression or storage code of its own. Documents are derived on a worker pool
-as they arrive, and records are put in a canonical order, so arrival order can't change a result.
-
-CI runs both routes on Windows: the pipe a frontend inherits, and `rstyle rust` and `cargo rstyle`
-through the driver. The rest of the compiler tests are Unix-only.
-
-## Other languages (`cpg`)
-
-Frontends for other languages emit `compat.cpg`
-documents, a code property graph with declared coverage, and core derives every
-rule fact, dependence graph and runtime-bound program from them, so no analysis is
-reimplemented per language:
-
-```
-cargo rstyle cpg check DOC.json... [--config rstyle.toml] [--format text|json]
-cargo rstyle cpg patterns DOC.json... [--complexity] [--config rstyle.toml] [--format text|json]
-cargo rstyle cpg flow DOC.json... [--function NAME] [--format text|json]
-cargo rstyle cpg receive --capture CAPTURE_DIR --format json
-cargo rstyle cpg check --capture CAPTURE_DIR [--format text|json]
-cargo rstyle cpg patterns --capture CAPTURE_DIR [--complexity] [--format text|json]
-cargo rstyle cpg receive --stdin --format json
-cargo rstyle cpg check --stdin [--format text|json]
-cargo rstyle cpg patterns --stdin [--complexity] [--format text|json]
-cargo rstyle cpg analyze DOC.json... [--filter check,patterns,bounds,flow] [--sarif-dir DIR]
-cargo rstyle cpg analyze --stdin [--filter check,patterns,bounds,flow] [--sarif-dir DIR]
-```
-
-A run is any number of units: bundled unit documents, and split unit documents with
-their function documents. Read together, effects propagate across units as they do
-across a Rust workspace's crates; read one at a time, a unit sees only its own calls.
-
-The profile's *Rule facts* section defines each derivation: statement counts,
-complexity constructs, calls, call edges, effects and mutations. No compiler runs,
-and only an explicit `--config` applies. Documents from another profile version,
-with undeclared coverage, without file content, or whose split function documents
-do not match their unit's digest are rejected with exit code 2, as is a function read
-twice. `cpg patterns` exits 1 with `--fail-on-candidates` when a candidate is left.
-
-`cpg analyze` runs the selected analyses in one pass, so their results are what `cpg check`,
-`cpg patterns --complexity` and `cpg flow` report separately. With no `--filter` it runs them all, and
-`--sarif-dir` writes `check.sarif`, `patterns.sarif` and `report.sarif`. It reads the same inputs, deriving
-documents on a worker pool. The `rstyle` commands above use it and add the frontend and saved run.
-
-A frontend records every function the compiler holds and marks what a macro writes by
-its provenance; what each analysis does with it is core's to decide, on every route. A
-macro writes a function when it writes both its signature and its body's root: a macro
-that only wraps a function, as `#[instrument]` does, or rewrites its signature, as
-`#[async_trait]` does, leaves it the author's. A function a macro writes gets no rule
-findings or pattern candidates, since nothing original was written to change, but its
-effects reach its callers and runtime bounds compose through it. Report a macro's own tokens as generated even when they carry the
-span of one of its inputs, as `quote_spanned!` writes them. A file the build writes has
-`origin: "generated"`, and its functions are treated the same way; the Rust frontend
-marks what a build script writes to `OUT_DIR`.
-
-Saved Rust CPG documents use streaming JSON + Zstandard by default. See the
-[storage contract](docs/cpg-transport.md) for plain JSON compatibility, seals,
-and frontend interoperability.
-
-Completed captures from native Go or the streaming helper carry a manifest.
-`cpg receive` verifies all listed files and CPG inputs and returns an acceptance or
-rejection receipt. Directory-based check and pattern reports include that receipt;
-they release each bundled unit's raw JSON after deriving its records. Analysis
-records remain in memory, and split-layout inputs are retained until EOF.
-
-For a local pipe, frontends can send the helper's uncompressed JSON text sequence
-directly to `--stdin`: RS (`0x1e`), one JSON object, LF, repeated per document,
-then RS `null` LF and EOF after successful generation. No capture directory,
-manifest, or compression is involved. The receiver requires the completion marker,
-EOF, and all CPG validation before accepting; interrupted input returns a rejected
-stream receipt and exit 2. Analysis reports include this as `capture_receipt`.
-See the [pipe example and receipt contract](docs/cpg-transport.md#receiving-a-local-pipe)
-for a runnable producer and frontend integration details.
-
-On Unix, `--input-fd N` selects a caller-supplied inherited descriptor instead of
-stdin. All three receiver commands support it and identify the descriptor in
-their stream receipt. The receiver duplicates it for reading and keeps the
-original descriptor open.
-
-The Rust frontend emits the same documents:
-
-```
-cargo rstyle cpg emit --out cpg/     # a fresh check of the workspace with the driver
-```
-
-`cargo rstyle` and `cargo rstyle patterns` read Rust this way too: the driver writes
-each crate's documents and a manifest sealing them into its unit directory, and
-everything the report needs is derived from those documents afterwards, in core. A
-saved run therefore replays without a compiler or the sources, and its documents
-answer any of these routes: replaying a style run with `patterns` needs no recapture.
-The driver writes nothing else, and no route reads rustc directly.
-
-`cpg flow` reports what each function's control flow establishes, from any frontend that
-emits one: immediate dominators and post-dominators, each loop's back edges, and a
-dependence graph of data, control and execution edges. A data edge is a write that can
-reach a read; a control edge marked `termination` holds only because a loop before its
-target might never finish. Each function says how far this can be relied on: `known`,
-`approximated` with its reasons, such as a binding that can also change through a borrow,
-or `unknown` where the frontend emits no flow. A closure's body is opaque and has no
-flow of its own; a coroutine's, which is all of an `async fn`, runs in place. Unwinding is
-not a transfer.
-
-The strict `clones` route, `rstyle-pdg` and `rstyle-ccgraph` were retired in
-[#46](https://github.com/rstyled/rstyle/issues/46), which records the commit they can
-be read at and what they did.
-
-Every rule fact (statement counts, complexity, calls, edges, effects, mutations,
-parameter lists, signature shapes, mutated types and dependence graphs) was proven
-equal to the facts the driver once extracted from rustc directly, over rstyle's own
-workspace; those facts are frozen as a snapshot over the lowering fixture.
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Clean |
+| `1` | Findings |
+| `2` | Tool error or incomplete analysis |
+
+### Go
+
+`rstyle go` uses `$RSTYLE_GO` if set, then `rstyle-go` from Go's binary directory or your `PATH`, and
+otherwise runs `go install`. `rstyle-go` is private for now, so set `GOPRIVATE=github.com/rstyled` if
+you have access to it, or point `$RSTYLE_GO` at a local build.
+
+## Rules
+
+| Rule | Flags | Setting | Default |
+| --- | --- | --- | --- |
+| `fn_length` | Code lines in a function, not counting blanks and comments | `fn_length.max_lines` | 50 |
+| `fn_params` | Parameters, not counting `self` | `fn_params.max_params` | 4 |
+| `fn_spacing` | A body of this many statements with no blank line | `fn_spacing.min_statements` | 5 |
+| `cyclomatic_complexity` | Cyclomatic score | `complexity.max_cyclomatic` | 12 |
+| `cognitive_complexity` | Cognitive score, which also charges nesting | `complexity.max_cognitive` | 12 |
+| `mutation_per_target` | Writes or `&mut` borrows of one root | `mutation_budget.max_mutations_per_target` | 3 |
+| `mutated_targets` | Distinct roots mutated in one function | `mutation_budget.max_mutated_targets` | 3 |
+| `side_effect_density` | Weighted effects per statement, times 1000 | `side_effects.max_density_milli` | 500 |
+
+[Style checks](docs/style-checks.md) describes each rule and every setting.
 
 ## Configuration
 
-Drop an `rstyle.toml` in the project root (see the one in this repo for every key). All keys are optional, unknown keys are errors.
+Put an `rstyle.toml` in the project root. Every key is optional, and an unknown key is an error, so a
+typo can't silently turn a rule off.
 
-| Rule | Default | Meaning |
-| --- | --- | --- |
-| `fn_length.max_lines` | 50 | Code lines per fn (blank and comment lines excluded) |
-| `fn_params.max_params` | 4 | Params per fn (`self` not counted by default) |
-| `complexity.max_cyclomatic` | 12 | Cyclomatic score; report values above this limit |
-| `complexity.max_cognitive` | 12 | Cognitive score; report values above this limit |
-| `fn_spacing.min_statements` | 5 | Bodies with this many top-level statements need a blank line somewhere (0 disables) |
-| `mutation_budget.max_mutations_per_target` | 3 | Writes / `&mut` borrows of one root |
-| `mutation_budget.max_mutated_targets` | 3 | Distinct roots mutated in one fn |
-| `side_effects.max_density_milli` | 500 | `1000 * sum(effect weights) / statements` |
-| `exclude` | `["target/**"]` | Globs of original source skipped entirely; a callee they remove keeps its callers' effects incomplete. A build script's output is generated code, which they do not select |
+```toml
+exclude = ["target/**", "src/generated/**"]
 
-Callee classification (`[side_effects.paths]`) and effect weights (`[side_effects.weights]`) are configurable. Changing config never triggers a recompile.
+[fn_length]
+max_lines = 80
 
-## Suppression
+[complexity]
+max_cognitive = 20
+```
 
-On the line directly above the function, with a mandatory reason:
+## Suppressing a finding
+
+Put a comment on the line directly above the function. The reason is required:
 
 ```rust
 // rstyle-allow(fn_params, fn_length): FFI shim mirrors the C signature
 fn shim(a: u32, b: u32, c: u32, d: u32, e: u32) { /* ... */ }
 ```
 
-`abstraction` (for `patterns`) is also a valid rule id. A missing reason or unknown rule id is reported as `invalid_suppression`.
+A missing reason or an unknown rule id is itself reported, as `invalid_suppression`. Use the rule id
+`abstraction` to keep a function out of pattern mining.
+
+## Using it in CI
+
+To adopt rstyle on an existing codebase, record today's findings once and commit the file. That run
+exits 1 if there are findings, and the baseline is still written.
+
+```sh
+cargo rstyle --write-baseline rstyle-baseline.json
+```
+
+Then fail only on what's new:
+
+```sh
+cargo rstyle --baseline rstyle-baseline.json --fail-on-new
+```
+
+To gate on pattern candidates too, fix each one or dismiss it into `rstyle-ignore.toml`, and commit
+that file:
+
+```sh
+cargo rstyle patterns --fail-on-candidates
+```
+
+For code scanning tools, `rstyle rust` and `rstyle go` write SARIF 2.1.0 to the run's `report.sarif`
+under `.rstyle/runs/`. [Style checks](docs/style-checks.md#using-it-in-ci) also covers checking only
+the files a change touches.
+
+## Documentation
+
+| Guide | Covers |
+| --- | --- |
+| [Style checks](docs/style-checks.md) | Rules, every setting, fix groups, parameter refactor plans, baselines and reviews |
+| [Pattern mining](docs/patterns.md) | How candidates are found and scored, and the ignore ledger |
+| [Runtime bounds](docs/runtime-bounds.md) | What `--complexity` models, and how to read its results |
+| [Runner and frontends](docs/frontends.md) | `rstyle go` and `rstyle rust`, saved runs, the `cpg` commands, and writing a frontend for another language |
+| [CPG storage and transport](docs/cpg-transport.md) | Document storage, sealed captures and the local pipe protocol |
+| [Scripts](scripts/README.md) | Build, test, profiling and evaluation scripts |
+
+## How it works
+
+Each language has a frontend that writes `compat.cpg` documents, a code property graph with declared
+coverage. Everything else happens in one place: `rstyle-core` derives rule facts, dependence graphs
+and runtime-bound programs from those documents, so no analysis is written per language and a saved
+run can be analyzed again without a compiler or the sources.
+
+| Crate | Role |
+| --- | --- |
+| [`rstyle-core`](crates/rstyle-core) | Rules, analyses, config, suppression and reporting. No compiler types. |
+| [`rstyle-driver`](crates/rstyle-driver) | The Rust frontend: a rustc driver that writes each crate's documents. |
+| [`cargo-rstyle`](crates/cargo-rstyle) | The `cargo rstyle` and `rstyle` commands, which run frontends and report results. |
+| [`rstyle-capture`](crates/rstyle-capture) | What the CLI and the driver agree on about one captured unit. |
+
+## Platforms
+
+CI runs the full suite on Linux (x86-64 and arm64) and macOS. On Windows it runs a subset: some
+`rstyle-core` modules, the pipe a frontend inherits, and `rstyle rust` and `cargo rstyle` through the
+driver.
 
 ## Development
 
+In a checkout, `rust-toolchain.toml` installs the pinned nightly automatically. It's pinned because
+rustc's internal APIs change between nightlies, so bump it deliberately and re-run the tests.
+
 ```sh
-cargo test --workspace      # core + CLI unit tests, e2e fixtures, self-check
-./scripts/test.sh --nextest # CI runner: four parallel tests, then all doctests
-scripts/style.sh            # dog-food: must report 0 violations
-python3 scripts/test_codenet.py   # tests of the evaluation scripts (fake CodeNet package, needs cargo)
+scripts/install-hooks.sh     # once per clone: fmt, clippy and rstyle before each commit
+scripts/style.sh             # build, then run rstyle on this workspace; must report 0 violations
+scripts/test.sh              # cargo test
+scripts/test.sh --nextest    # what CI runs; needs cargo-nextest
 ```
 
-Evaluation scaffolding (all deterministic, dependency-free Python, outputs under gitignored `eval/codenet/`): see [`scripts/README.md`](scripts/README.md) for the scripts and the dev / test / holdout protocol, and [`eval/README.md`](eval/README.md) for the current evaluation tools and inputs.
+Once `cargo build --workspace` has run, `cargo style` is a shorthand for the second command. The
+install script always builds from GitHub, even when run from a checkout, so to try local changes on
+another project, use:
 
-Fixtures live in `crates/cargo-rstyle/tests/fixtures/{clean,violations,broken}`. Golden output uses `insta`.
+```sh
+cargo install --locked --path crates/cargo-rstyle
+cargo install --locked --path crates/rstyle-driver
+```
+
+Test fixtures live in [`crates/cargo-rstyle/tests/fixtures`](crates/cargo-rstyle/tests/fixtures), and
+the tests have [their own guide](crates/cargo-rstyle/tests/README.md).
+[`rust_refactoring_examples`](rust_refactoring_examples) holds the labeled crates the pattern miner is
+scored against.
