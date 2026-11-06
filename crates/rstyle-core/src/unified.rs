@@ -4,7 +4,7 @@
 use crate::config::Config;
 use crate::cpg::bounds::report::{DocumentReport, from_records};
 use crate::cpg::flow::{Derived, Standing};
-use crate::cpg::records::{self, Record};
+use crate::cpg::records::{self, Measured, Record};
 use crate::cpg::{self, RunInputs};
 use crate::filter::{Analysis, Filter};
 use crate::patterns_report::{self, PatternsReport};
@@ -88,6 +88,7 @@ pub fn analyze(
     config: &Config,
     options: &patterns_report::Options,
 ) -> Result<Analyses, String> {
+    reject_a_run_outside_its_root(&records)?;
     records::canonical_order(&mut records);
     let runtime_bounds = filter
         .core(Analysis::Bounds)
@@ -103,6 +104,25 @@ pub fn analyze(
         runtime_bounds,
         flow,
     })
+}
+
+/// Analyses read only what's under the source root. If nothing is, the root and the frontend
+/// disagree about where the files are, and a report would read as clean having read nothing.
+fn reject_a_run_outside_its_root(records: &[Record]) -> Result<(), String> {
+    // What a build wrote legitimately lies outside the root when the target directory does.
+    let outside = |record: &Record| {
+        record.path.starts_with("../")
+            && !matches!(&record.measured, Measured::Generated(observation) if observation.generated_file)
+    };
+    match records.first() {
+        Some(first) if records.iter().all(outside) => Err(format!(
+            "None of this run's {} functions are under its source root, such as `{}`. Nothing \
+             would be analyzed, so this isn't reported as a clean run.",
+            records.len(),
+            first.path
+        )),
+        _ => Ok(()),
+    }
 }
 
 impl Analyses {
@@ -258,6 +278,30 @@ mod tests {
         assert_eq!(names(&run(&[])), ["check.sarif", "patterns.sarif"]);
         assert_eq!(names(&run(&["patterns"])), ["patterns.sarif"]);
         assert!(names(&run(&["bounds", "flow"])).is_empty());
+    }
+
+    #[test]
+    fn a_run_with_nothing_under_its_root_is_an_error_not_a_clean_report() {
+        let mut document: Value =
+            serde_json::from_str(include_str!("cpg/testdata/example.cpg.json")).unwrap();
+        for file in document["unit"]["files"].as_array_mut().unwrap() {
+            file["path"] = format!("../elsewhere/{}", file["path"].as_str().unwrap()).into();
+        }
+        let filter = Filter::Everything;
+        let records = read_records([Ok(document)], filter.demand()).unwrap();
+        let options = patterns_report::Options::default();
+        let result = analyze(records, &filter, &Config::default(), &options);
+        let error = result.err().expect("no error");
+        assert!(error.contains("None of this run's 3 functions"), "{error}");
+        assert!(error.contains("../elsewhere/"), "{error}");
+    }
+
+    #[test]
+    fn a_run_with_no_functions_at_all_is_still_clean() {
+        let filter = Filter::Everything;
+        let options = patterns_report::Options::default();
+        let analyses = analyze(Vec::new(), &filter, &Config::default(), &options).unwrap();
+        assert_eq!(analyses.exit_code(true), 0);
     }
 
     #[test]

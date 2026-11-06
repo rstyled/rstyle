@@ -383,6 +383,27 @@ fn an_explicit_folder_is_never_pruned() {
 }
 
 #[test]
+fn a_run_with_nothing_under_its_root_fails_and_publishes_nothing() {
+    let project = Project::new();
+    let mut document = example();
+    for file in document["unit"]["files"].as_array_mut().unwrap() {
+        file["path"] = format!("../elsewhere/{}", file["path"].as_str().unwrap()).into();
+    }
+    std::fs::write(
+        project.root().join("document.json"),
+        serde_json::to_vec(&document).unwrap(),
+    )
+    .unwrap();
+    let output = project.go(&["--format", "json"]);
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(
+        stderr(&output).contains("under its source root"),
+        "{output:?}"
+    );
+    assert!(project.run_folders().is_empty());
+}
+
+#[test]
 fn a_saved_run_missing_a_document_is_refused() {
     let project = Project::new();
     let run = saved_run(&project.go(&["--format", "json"]));

@@ -270,18 +270,24 @@ pub(crate) fn emit_documents(
     let root = crate::run::canonical(&metadata.workspace_root)
         .map_err(|error| format!("{}: {error}", metadata.workspace_root.display()))?;
     remove_documents(out)?;
+    // The compiler sees paths as Cargo spells them, which follows the manifest. Naming it the way
+    // `root` is spelled keeps every source file under the root, however the working directory
+    // happens to be written, such as a short 8.3 name on Windows.
+    let manifest = selection
+        .manifest
+        .map_or_else(|| root.join("Cargo.toml"), Path::to_path_buf);
 
     let members: Vec<&str> = metadata
         .packages
         .iter()
         .map(|package| package.name.as_str())
         .collect();
-    let mut clean = cargo("clean", selection.manifest);
+    let mut clean = cargo("clean", Some(&manifest));
     clean.arg("--target-dir").arg(target);
     clean.args(members.iter().flat_map(|name| ["-p", name]));
     status(clean, "cargo clean")?;
 
-    let mut check = cargo("check", selection.manifest);
+    let mut check = cargo("check", Some(&manifest));
     check.arg("--target-dir").arg(target);
     check.args(packages(selection));
     check
