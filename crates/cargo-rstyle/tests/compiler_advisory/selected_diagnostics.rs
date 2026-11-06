@@ -5,9 +5,6 @@ const DERIVED: &str = "#[derive(Debug)] pub struct Generated(pub u32);\n";
 const SOURCE: &str = "pub fn mixed(a:u128,b:u128)->u128 {\nlet mut x=a;\nlet mut y=b;\nx+=1;\nx+=2;\ny+=3;\nif a>0 {if b>0 {x+=1;}}\nstd::fs::write(\"/unused\",b\"x\").ok();\nx+y\n}\n";
 const POLICY: &str = "[fn_length]\nmax_lines=2\n[fn_params]\nmax_params=1\n[fn_spacing]\nmin_statements=2\n[complexity]\nmax_cyclomatic=1\nmax_cognitive=0\n[mutation_budget]\nmax_mutations_per_target=1\nmax_mutated_targets=1\n[side_effects]\nmax_density_milli=1\nmin_statements=0\nmin_lines=0\n";
 const BASE: &[&str] = &[
-    "--extraction-profile",
-    "hir-data-v3",
-    "--compiler-advisory-only",
     "--compiler-advisory",
     "--compiler-advisory-config",
     "policy.toml",
@@ -26,14 +23,14 @@ fn fixture(source: &str) -> TempDir {
 fn capture(directory: &Path, extra: &[&str]) -> (Output, Value) {
     let mut flags = BASE.to_vec();
     flags.extend_from_slice(extra);
-    clones(directory, &flags)
+    advisory(directory, &flags)
 }
 
 fn replay(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) {
     let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
     command
         .current_dir(directory)
-        .arg("clones")
+        .arg("advisory")
         .args(BASE)
         .args([
             "--format",
@@ -176,77 +173,6 @@ fn authored_requested_diagnostics_complete_without_erasing_generated_missing_own
     let (output, saved) = replay(directory.path(), &original, &[AUTHORED, PARAMS].concat());
     checked(&output, 0);
     assert_eq!(saved["compiler_advisory"], authored["compiler_advisory"]);
-}
-
-fn raw_wire(report: &Value) -> Value {
-    let path = report["functions"][0]["unit_evidence"]["bundle"]
-        .as_str()
-        .unwrap();
-    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
-}
-
-fn damage(wire: &Value, kind: &str) -> Value {
-    let mut changed = wire.clone();
-    for fact in changed["facts"].as_array_mut().unwrap() {
-        if fact["name"] == "mixed" {
-            let options = fact["build"]["frontend_options"].as_object_mut().unwrap();
-            if kind == "score" {
-                options[rstyle_core::advisory::KEY]["facts"]["complexity"] = Value::Null;
-            }
-            if kind == "observation" {
-                options.remove(rstyle_core::advisory::KEY);
-            }
-        } else if kind == "origin" {
-            fact["source_diagnostics"]
-                .as_array_mut()
-                .unwrap()
-                .retain(|row| row["construct"] != "macro_generated_function");
-            let options = fact["build"]["frontend_options"].as_object_mut().unwrap();
-            options.remove(rstyle_core::advisory::generated_effects::KEY);
-            options.remove(rstyle_core::advisory::generated_effects::CONNECTED_KEY);
-        }
-    }
-    changed
-}
-
-#[test]
-fn requested_rules_require_only_their_measurements_and_never_hide_unknown_authored_inputs() {
-    let directory = fixture(&format!("{DERIVED}{SOURCE}"));
-    let (output, original) = capture(directory.path(), &[AUTHORED, PARAMS].concat());
-    checked(&output, 0);
-    let wire = raw_wire(&original);
-    let ledger = only::ledger_path(&original);
-    for kind in ["score", "observation", "origin"] {
-        only::reseal_raw(&original, &ledger, &damage(&wire, kind));
-        let (output, report) = replay(directory.path(), &original, &[AUTHORED, PARAMS].concat());
-        checked(&output, if kind == "score" { 0 } else { 2 });
-        assert_eq!(scope(&report)["input_complete"], kind == "score");
-        if kind == "score" {
-            let (output, complexity) = replay(
-                directory.path(),
-                &original,
-                &[
-                    AUTHORED,
-                    &["--compiler-diagnostic-rules", "cyclomatic_complexity"],
-                ]
-                .concat(),
-            );
-            checked(&output, 2);
-            assert_eq!(scope(&complexity)["unavailable_measurements"], 1);
-            assert_eq!(scope(&complexity)["input_complete"], false);
-        } else {
-            assert_eq!(scope(&report)["unavailable_owners"], 1);
-            if kind == "origin" {
-                assert!(
-                    scope(&report)["source_scope"]["outside_scope_functions"]
-                        .as_array()
-                        .unwrap()
-                        .is_empty()
-                );
-            }
-        }
-    }
-    only::reseal_raw(&original, &ledger, &wire);
 }
 
 #[test]
@@ -416,7 +342,7 @@ fn diagnostic_selection_flags_require_numeric_advice_and_known_rule_names_before
         let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
         command
             .current_dir(directory.path())
-            .arg("clones")
+            .arg("advisory")
             .args(&flags)
             .env("PATH", directory.path().join("no-tools"))
             .env("CARGO", directory.path().join("no-cargo"));

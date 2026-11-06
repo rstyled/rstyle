@@ -98,7 +98,6 @@ fn direct_density_negative_retires_only_its_review_while_generated_source_is_mis
     checked(&output, 2);
     assert_eq!(pruned["review_prune"]["removed_entries"], 1);
     assert_eq!(pruned["compiler_advisory"]["complete"], false);
-    assert_eq!(pruned["matching"], clean["matching"]);
     let store: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     assert!(store.get("compiler_diagnostic_entries").is_none());
 }
@@ -136,11 +135,9 @@ fn direct_density_baseline_resolves_completed_owner_but_cannot_export_missing_sc
     let output = rstyle(
         directory.path(),
         &[
-            "clones",
+            "advisory",
             "--format",
             "json",
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--replay-run",
             clean["run_directory"].as_str().unwrap(),

@@ -10,9 +10,6 @@ make!();
 pub fn authored_chain() {generated_middle();}
 "#;
 const BASE: &[&str] = &[
-    "--extraction-profile",
-    "hir-data-v3",
-    "--compiler-advisory-only",
     "--compiler-advisory",
     "--compiler-plans",
     "--compiler-advisory-config",
@@ -35,7 +32,7 @@ fn fixture() -> (TempDir, Value) {
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), CHAIN).unwrap();
     policy(directory.path(), 1, "");
-    let (output, report) = clones(directory.path(), BASE);
+    let (output, report) = advisory(directory.path(), BASE);
     checked(&output, 2);
     (directory, report)
 }
@@ -44,7 +41,7 @@ fn replay(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value)
     let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
     command
         .current_dir(directory)
-        .arg("clones")
+        .arg("advisory")
         .args(BASE)
         .args([
             "--format",
@@ -161,7 +158,7 @@ fn signature_plan_still_needs_generated_callsite_census_with_zero_grouping_hops(
     )
     .unwrap();
     policy(directory.path(), 1, "[grouping]\ncaller_hops=0\n");
-    let (output, report) = clones(
+    let (output, report) = advisory(
         directory.path(),
         &[
             BASE,
@@ -189,75 +186,4 @@ fn signature_plan_still_needs_generated_callsite_census_with_zero_grouping_hops(
             .iter()
             .any(|step| step["signature"] == true)
     );
-}
-
-fn raw_wire(report: &Value) -> Value {
-    let path = report["functions"][0]["unit_evidence"]["bundle"]
-        .as_str()
-        .unwrap();
-    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
-}
-
-fn damaged(wire: &Value, kind: &str) -> Value {
-    let mut changed = wire.clone();
-    let target = if kind == "measurement" {
-        "authored_chain"
-    } else {
-        "generated_leaf"
-    };
-    let fact = changed["facts"]
-        .as_array_mut()
-        .unwrap()
-        .iter_mut()
-        .find(|fact| fact["name"] == target)
-        .unwrap();
-    let options = fact["build"]["frontend_options"].as_object_mut().unwrap();
-    let key = if kind == "measurement" {
-        rstyle_core::advisory::KEY
-    } else {
-        rstyle_core::advisory::generated_effects::CONNECTED_KEY
-    };
-    assert!(options.remove(key).is_some());
-    changed
-}
-
-#[test]
-fn required_edits_remain_incomplete_when_selected_measurements_or_effect_routes_are_missing() {
-    let (directory, original) = fixture();
-    let wire = raw_wire(&original);
-    let ledger = only::ledger_path(&original);
-    for kind in ["measurement", "effects"] {
-        only::reseal_raw(&original, &ledger, &damaged(&wire, kind));
-        let (output, incomplete) = replay(directory.path(), &original, DENSITY);
-        checked(&output, 2);
-        assert_eq!(
-            planning(&incomplete)["required_edits_complete"],
-            false,
-            "{kind}"
-        );
-        assert_eq!(
-            unit(&incomplete)["diagnostic_scope"]["input_complete"],
-            false
-        );
-    }
-    only::reseal_raw(&original, &ledger, &wire);
-    let (output, restored) = replay(directory.path(), &original, DENSITY);
-    checked(&output, 0);
-    required(&restored, true);
-}
-
-#[test]
-fn empty_selected_worklist_completes_only_with_complete_selected_diagnostics() {
-    let (directory, original) = fixture();
-    policy(directory.path(), 3000, "");
-    let (output, clean) = replay(directory.path(), &original, DENSITY);
-    checked(&output, 0);
-    required(&clean, true);
-    assert_eq!(planning(&clean)["groups"], serde_json::json!([]));
-    let wire = damaged(&raw_wire(&original), "effects");
-    only::reseal_raw(&original, &only::ledger_path(&original), &wire);
-    let (output, missing) = replay(directory.path(), &original, DENSITY);
-    checked(&output, 2);
-    required(&missing, false);
-    assert_eq!(planning(&missing)["groups"], serde_json::json!([]));
 }

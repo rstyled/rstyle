@@ -17,7 +17,7 @@ mod tests;
 use super::review::compiler_diagnostics::demand::Demand;
 use super::{analysis::Completion, identity::UnitId, report::Context};
 use rstyle_core::{
-    advisory::{KEY, METRICS, Observation, metric_version},
+    advisory::{METRICS, Observation, metric_version},
     config::Config,
     facts::FnFacts,
 };
@@ -483,11 +483,6 @@ fn evaluate_units(
 }
 
 pub(super) fn configuration(args: &super::Args) -> Result<Option<Config>, String> {
-    if (args.compiler_inputs_requested() || args.compiler_advisory_only)
-        && args.extraction_profile != rstyle_pdg::extraction_profile::ExtractionProfile::DataV3
-    {
-        return Err("Compiler advisory requires --extraction-profile hir-data-v3".into());
-    }
     if !args.compiler_inputs_requested() {
         return Ok(None);
     }
@@ -951,34 +946,7 @@ impl Unit {
 }
 
 fn observation(function: &super::Function, root: &std::path::Path) -> Result<Observation, String> {
-    if let Some(document) = function.facts.document() {
-        return document_observation(function, document, root);
-    }
-    let Some(raw) = function.facts.recorded(KEY) else {
-        return Ok(Observation::Unavailable {
-            reason: "Compiler advisory observations were not captured".into(),
-        });
-    };
-
-    let mut observation = Observation::read(raw)?;
-    if let Observation::Known { facts, metrics } = &mut observation {
-        if facts.name != function.facts.view().name || facts.source != function.facts.view().source
-        {
-            return Err(
-                "Compiler advisory metrics or source owner disagree with captured function".into(),
-            );
-        }
-        facts.path = source_path(function, root, normalized_source_paths(metrics))?;
-        if facts.params + usize::from(facts.has_self) != function.facts.view().parameters
-            || facts.param_list.len() != facts.params
-            || facts.pdg.is_some()
-        {
-            return Err(
-                "Compiler advisory signature or graph differs from declared capture".into(),
-            );
-        }
-    }
-    Ok(observation)
+    document_observation(function, function.facts.document(), root)
 }
 
 /// A function's observation as its document records it; the core derived it, so it

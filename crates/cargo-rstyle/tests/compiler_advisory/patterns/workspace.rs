@@ -40,14 +40,9 @@ fn fixture() -> TempDir {
 }
 
 fn run(directory: &Path, extra: &[&str]) -> (Output, Value) {
-    let mut args = vec![
-        "--extraction-profile",
-        "hir-data-v3",
-        "--compiler-patterns",
-        "--compiler-advisory-only",
-    ];
+    let mut args = vec!["--compiler-patterns"];
     args.extend_from_slice(extra);
-    clones(directory, &args)
+    advisory(directory, &args)
 }
 
 fn populations(report: &Value) -> Vec<&Value> {
@@ -64,8 +59,6 @@ fn checked(output: &Output, code: i32) {
 }
 
 fn only_patterns(report: &Value) {
-    assert_eq!(report["matching_execution"], "not_requested");
-    assert_eq!(report["strict_assessment_execution"], "not_requested");
     assert_eq!(
         report["compiler_advisory"]["diagnostic_execution"],
         "not_requested"
@@ -160,13 +153,10 @@ fn saved(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) 
     command
         .current_dir(directory)
         .args([
-            "clones",
+            "advisory",
             "--format",
             "json",
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-patterns",
-            "--compiler-advisory-only",
             "--replay-run",
             original["run_directory"].as_str().unwrap(),
         ])

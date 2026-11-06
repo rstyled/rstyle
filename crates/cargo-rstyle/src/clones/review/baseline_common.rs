@@ -37,7 +37,7 @@ pub(super) fn contexts(ctx: &report::Context<'_>) -> Result<Vec<local::BuildCont
 
 pub(super) fn baseline_state(state: status::State, reason: String) -> (&'static str, String) {
     match state {
-        status::State::HiddenExact | status::State::HiddenGrowth => (
+        status::State::HiddenExact => (
             "existing",
             "Exact baseline finding remains current; raw findings are retained".into(),
         ),

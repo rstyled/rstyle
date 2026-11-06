@@ -14,7 +14,7 @@ pub(crate) fn run(mut cli: Cli) -> Result<(String, u8), String> {
         } else {
             compile_capture(capture, &cli, &args)
         };
-        run_captured_with(&cli, &args, CapturedRun { config, capture }, |report, _| {
+        run_captured_with(&cli, &args, CapturedRun { config, capture }, |report| {
             Ok((report.publish_style(cli.format)?, report.style_complete()?))
         })
         .map(summary_exit)
@@ -77,21 +77,14 @@ fn compiler_args() -> Result<Args, String> {
     let matches = Args::augment_args(clap::Command::new("style"))
         .try_get_matches_from([
             "style",
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-advisory-only",
             "--compiler-advisory",
             "--compiler-diagnostic-scope",
             "authored",
             "--compiler-plans",
             "--fail-on-findings",
-            "--report-detail",
-            "compact",
         ])
         .map_err(|error| error.to_string())?;
-    let mut args = Args::from_arg_matches(&matches).map_err(|error| error.to_string())?;
-    args.style_inputs_only = true;
-    Ok(args)
+    Args::from_arg_matches(&matches).map_err(|error| error.to_string())
 }
 
 #[cfg(test)]

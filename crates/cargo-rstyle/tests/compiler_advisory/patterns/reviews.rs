@@ -49,7 +49,6 @@ fn exact_compiler_reviews_cover_all_five_core_proposal_families() {
             assert!(decisions(&reviewed).iter().any(
                 |row| row["candidate_id"] == candidate["id"] && row["state"] == "hidden_exact"
             ));
-            assert_eq!(reviewed["matching"], original["matching"]);
             assert_eq!(
                 proposals(&reviewed)["evaluation"],
                 proposals(&original)["evaluation"]
@@ -116,11 +115,9 @@ fn check_source_free_compiler_review(directory: &Path, original: &Value) {
             .replace("a.wrapping_add", "renamed.wrapping_add")
     );
     std::fs::write(directory.join("src/lib.rs"), moved).unwrap();
-    let (output, current) = clones(
+    let (output, current) = advisory(
         directory,
         &[
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--compiler-patterns",
             "--review-file",
@@ -152,7 +149,6 @@ fn check_source_free_compiler_review(directory: &Path, original: &Value) {
         saved["review_status"]["records"][0]["state"],
         "hidden_exact"
     );
-    assert_eq!(saved["matching"], current["matching"]);
 }
 
 fn changed_compiler_graphs_stale_reviews_and_failed_selection_is_atomic(
@@ -172,11 +168,9 @@ fn changed_compiler_graphs_stale_reviews_and_failed_selection_is_atomic(
         HELPERS.replace("wrapping_add(8)", "wrapping_add(9)"),
     )
     .unwrap();
-    let (_output, current) = clones(
+    let (_output, current) = advisory(
         directory,
         &[
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--compiler-patterns",
             "--review-file",
@@ -193,9 +187,7 @@ fn check_failed_compiler_review_selection(directory: &Path, current: &Value, byt
     let output = rstyle(
         directory,
         &[
-            "clones",
-            "--extraction-profile",
-            "hir-data-v3",
+            "advisory",
             "--compiler-advisory",
             "--compiler-patterns",
             "--replay-run",
@@ -223,11 +215,9 @@ fn compiler_reviews_keep_check_test_contexts_separate(directory: &Path, original
         &proposals(original)["evaluation"]["candidates"][0],
         0,
     );
-    let (_output, report) = clones(
+    let (_output, report) = advisory(
         directory,
         &[
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--compiler-patterns",
             "--all-targets",
@@ -293,11 +283,9 @@ fn compiler_trait_reviews_survive_impl_renumbering_and_definition_body_edits() {
     );
     assert!(changed.contains("{}: a different sound"));
     std::fs::write(directory.path().join("src/lib.rs"), changed).unwrap();
-    let (_output, current) = clones(
+    let (_output, current) = advisory(
         directory.path(),
         &[
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--compiler-patterns",
             "--review-file",
@@ -333,14 +321,12 @@ fn compiler_review_status_retains_omitted_families_and_lookup_never_creates_file
         0,
     );
     let bytes = std::fs::read(&path).unwrap();
-    let (output, status) = clones(
+    let (output, status) = advisory(
         directory,
         &[
-            "--extraction-profile",
-            "hir-data-v3",
             "--replay-run",
             original["run_directory"].as_str().unwrap(),
-            "--source-rules",
+            "--compiler-advisory",
             "--review-file",
             "reviews.json",
             "--review-status",

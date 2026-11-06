@@ -2,7 +2,6 @@ use super::propagation::checked;
 use super::*;
 
 const BASE: &[&str] = &[
-    "--compiler-advisory-only",
     "--compiler-plans",
     "--compiler-advisory-config",
     "policy.toml",
@@ -102,11 +101,9 @@ fn replay(directory: &Path, original: &Value, rule: &str) -> Value {
     command
         .current_dir(directory)
         .args([
-            "clones",
+            "advisory",
             "--format",
             "json",
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--replay-run",
             original["run_directory"].as_str().unwrap(),

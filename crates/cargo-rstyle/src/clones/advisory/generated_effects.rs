@@ -1,6 +1,6 @@
 //! Partial expanded-body observations never stand in for authored function facts.
 use rstyle_core::{
-    advisory::generated_effects::{CONNECTED_KEY, Connections, KEY, Observation},
+    advisory::generated_effects::{Connections, Observation},
     config::Config,
     rules::{Effect, EffectEvents, effects_from_events},
 };
@@ -90,17 +90,10 @@ pub(super) fn render(rows: &[Measurement]) -> String {
 /// A function's own events, as its document or its recorded observations give them.
 fn observed(function: &crate::clones::Function) -> Result<Option<Observation>, String> {
     use rstyle_core::cpg::records::Measured;
-    if let Some(document) = function.facts.document() {
-        return Ok(match &document.record.measured {
-            Measured::Generated(observation) => Some((**observation).clone()),
-            _ => None,
-        });
-    }
-    let raw = function
-        .facts
-        .recorded(CONNECTED_KEY)
-        .or_else(|| function.facts.recorded(KEY));
-    raw.map(Observation::read).transpose()
+    Ok(match &function.facts.document().record.measured {
+        Measured::Generated(observation) => Some((**observation).clone()),
+        _ => None,
+    })
 }
 
 pub(super) fn read(

@@ -2,7 +2,7 @@ use super::propagation::{capture, checked, workspace};
 use super::*;
 
 fn live(directory: &Path, extra: &[&str], code: i32) -> Value {
-    let mut args = vec!["--compiler-advisory-only"];
+    let mut args = vec![];
     args.extend_from_slice(extra);
     let (output, report) = capture(directory, &args);
     checked(&output, code);
@@ -157,45 +157,10 @@ fn advisory_saved_replay_survives_removal_of_shared_builds_and_sources() {
     std::fs::remove_dir_all(directory.path().join("target/rstyle/clones/advisory-build")).unwrap();
     std::fs::remove_dir_all(directory.path().join("src")).unwrap();
     std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
-    let (output, replay) =
-        super::reviews::replay(directory.path(), &original, &["--compiler-advisory-only"]);
+    let (output, replay) = super::reviews::replay(directory.path(), &original, &[]);
     checked(&output, 0);
     assert_eq!(replay["compiler_advisory"], original["compiler_advisory"]);
     assert_eq!(replay["capture_complete"], true);
-}
-
-#[test]
-fn strict_capture_keeps_its_private_build_after_advisory_reuse() {
-    let directory = clone_workspace();
-    let advisory = live(directory.path(), &[], 0);
-    let (output, strict) = capture(directory.path(), &[]);
-    checked(&output, 0);
-    let run = Path::new(strict["run_directory"].as_str().unwrap());
-    assert!(run.join("build").is_dir());
-    assert!(!run.join("cargo-clean.stderr").exists());
-    assert_ne!(strict["strict_assessment_execution"], "not_requested");
-    assert_eq!(advisory["compiler_advisory"], strict["compiler_advisory"]);
-}
-
-#[test]
-fn advisory_dependency_capture_keeps_its_private_build() {
-    let directory = workspace("pub fn leaf() {}\n");
-    let report = live(
-        directory.path(),
-        &["-p", "caller", "--capture-dependency", "leaf"],
-        0,
-    );
-    let run = Path::new(report["run_directory"].as_str().unwrap());
-    assert!(run.join("build").is_dir());
-    assert!(!run.join("cargo-clean.stderr").exists());
-    assert_eq!(
-        report["compiler_advisory"]["units"]
-            .as_array()
-            .unwrap()
-            .len(),
-        2
-    );
-    assert_eq!(report["strict_assessment_execution"], "not_requested");
 }
 
 #[test]

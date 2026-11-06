@@ -1,62 +1,10 @@
 //! Shared lifecycle for numeric reviews over independently completed observations.
 use super::{
-    ReviewStore, exact_rules, owner_observations,
+    exact_rules, owner_observations,
     owner_population::{self, Domain, Population},
-    status, summary, workflow,
+    status, summary,
 };
 use crate::clones::report;
-
-pub(super) trait Lifecycle: Sized {
-    type Decision;
-    type Report;
-
-    fn enabled(ctx: &report::Context<'_>) -> bool;
-    fn collect(inputs: &workflow::Inputs<'_, '_>, ctx: &report::Context<'_>) -> Self;
-    fn dismiss(&self, store: &mut ReviewStore, ctx: &report::Context<'_>) -> Result<(), String>;
-    fn decisions(&self, store: &ReviewStore) -> Result<Vec<Self::Decision>, String>;
-    fn records(&self, store: &ReviewStore, ctx: &report::Context<'_>) -> Vec<status::Record>;
-    fn retained(store: &ReviewStore) -> usize;
-    fn scope(&self) -> summary::Scope;
-    fn summarize(
-        decisions: Vec<Self::Decision>,
-        retained: usize,
-        scope: summary::Scope,
-    ) -> Self::Report;
-}
-
-pub(super) fn apply<L: Lifecycle>(
-    inputs: &workflow::Inputs<'_, '_>,
-    ctx: &report::Context<'_>,
-    store: Option<&mut ReviewStore>,
-) -> Result<(L::Report, Vec<status::Record>), String> {
-    let observations = store
-        .as_ref()
-        .filter(|_| L::enabled(ctx))
-        .map(|_| L::collect(inputs, ctx));
-    apply_observed(observations.as_ref(), ctx, store)
-}
-
-pub(super) fn apply_observed<L: Lifecycle>(
-    observations: Option<&L>,
-    ctx: &report::Context<'_>,
-    store: Option<&mut ReviewStore>,
-) -> Result<(L::Report, Vec<status::Record>), String> {
-    let Some((observations, store)) = observations.zip(store.filter(|_| L::enabled(ctx))) else {
-        let scope = summary::Scope {
-            requested: false,
-            complete: false,
-        };
-        return Ok((L::summarize(Vec::new(), 0, scope), Vec::new()));
-    };
-
-    observations.dismiss(store, ctx)?;
-    let decisions = observations.decisions(store)?;
-    let records = observations.records(store, ctx);
-    Ok((
-        L::summarize(decisions, L::retained(store), observations.scope()),
-        records,
-    ))
-}
 
 /// Each numeric family supplies its own current evidence assessment.
 pub(super) trait Retained: owner_population::Owner {

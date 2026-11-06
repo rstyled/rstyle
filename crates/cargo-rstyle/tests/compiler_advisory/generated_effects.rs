@@ -83,9 +83,8 @@ fn generated_owner_locations(report: &Value) {
 
 #[test]
 fn generated_direct_effects_reuse_collectors_without_inventing_source_measurements() {
-    let (_directory, output, report) = capture(GENERATED, &["--compiler-advisory-only"]);
+    let (_directory, output, report) = capture(GENERATED, &[]);
     checked(&output, 2);
-    assert_eq!(report["matching_execution"], "not_requested");
     unavailable(&report, 5);
     generated_owner_locations(&report);
     let empty = generated(&report, "generated_empty");
@@ -136,7 +135,7 @@ fn authored_functions_and_generated_local_calls_keep_separate_direct_effects() {
         macro_rules! make {()=>{pub fn generated_caller() {original();}}}
         make!();
     "#;
-    let (_directory, output, report) = capture(source, &["--compiler-advisory-only"]);
+    let (_directory, output, report) = capture(source, &[]);
     checked(&output, 2);
     unavailable(&report, 1);
     let rows = unit(&report)["generated_effects"].as_array().unwrap();
@@ -147,96 +146,4 @@ fn authored_functions_and_generated_local_calls_keep_separate_direct_effects() {
         unit(&report)["evaluation"]["summary"]["effect_counts"]["io"],
         1
     );
-}
-
-fn replay(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) {
-    let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
-    command.current_dir(directory).args([
-        "clones",
-        "--format",
-        "json",
-        "--extraction-profile",
-        "hir-data-v3",
-        "--compiler-advisory",
-        "--compiler-advisory-only",
-        "--replay-run",
-        original["run_directory"].as_str().unwrap(),
-    ]);
-    command
-        .args(extra)
-        .env("PATH", directory.join("no-tools"))
-        .env("CARGO", directory.join("no-cargo"))
-        .env("RUSTC", directory.join("no-rustc"))
-        .env("RSTYLE_DRIVER", directory.join("no-driver"));
-    let output = diagnostic_process::output(&mut command).unwrap();
-    let report = serde_json::from_slice(&output.stdout).unwrap();
-    (output, report)
-}
-
-#[test]
-fn generated_effects_replay_retained_calls_with_changed_classification_without_tools() {
-    let (directory, output, original) = capture(GENERATED, &["--compiler-advisory-only"]);
-    checked(&output, 2);
-    std::fs::remove_dir_all(directory.path().join("src")).unwrap();
-    std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
-    for detail in ["full", "compact"] {
-        let (output, saved) = replay(directory.path(), &original, &["--report-detail", detail]);
-        checked(&output, 2);
-        assert_eq!(saved["compiler_advisory"], original["compiler_advisory"]);
-    }
-    std::fs::write(
-        directory.path().join("effects.toml"),
-        "[side_effects.paths]\nnetwork=['std::fs::read']\n",
-    )
-    .unwrap();
-    let (output, changed) = replay(
-        directory.path(),
-        &original,
-        &["--compiler-advisory-config", "effects.toml"],
-    );
-    checked(&output, 2);
-    unavailable(&changed, 5);
-    let before = generated(&original, "generated_io");
-    let after = generated(&changed, "generated_io");
-    for field in [
-        "key",
-        "name",
-        "path",
-        "line",
-        "column",
-        "metrics",
-        "mutations",
-        "calls",
-        "intrinsic_effects",
-    ] {
-        assert_eq!(before[field], after[field], "{field}");
-    }
-    assert_eq!(kinds(before, "direct_effects"), ["io"]);
-    assert_eq!(kinds(after, "direct_effects"), ["network"]);
-}
-
-#[test]
-fn captures_without_generated_observations_never_invent_known_empty_effects() {
-    let directory = clone_workspace();
-    std::fs::write(directory.path().join("src/lib.rs"), GENERATED).unwrap();
-    let (_, original) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
-    let (output, report) = clones(
-        directory.path(),
-        &[
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-advisory",
-            "--replay-run",
-            original["run_directory"].as_str().unwrap(),
-        ],
-    );
-    checked(&output, 2);
-    assert!(
-        unit(&report)["generated_effects"]
-            .as_array()
-            .unwrap()
-            .is_empty()
-    );
-    assert_eq!(report["compiler_advisory"]["complete"], false);
-    assert_eq!(unit(&report)["unavailable"].as_array().unwrap().len(), 6);
 }

@@ -72,35 +72,10 @@ pub(super) fn collect_names<'a>(facts: impl IntoIterator<Item = &'a FnFacts>) ->
 }
 
 pub(super) fn signature(
-    declared: crate::clones::Declared<'_>,
+    declared: &rstyle_core::cpg::records::DeclaredSignature,
     method: Option<rstyle_core::facts::SigFacts>,
 ) -> Signature {
-    match declared {
-        crate::clones::Declared::Facts(sig) => recorded_signature(sig, method),
-        crate::clones::Declared::Document(sig) => document_signature(sig, method),
-    }
-}
-
-fn recorded_signature(
-    sig: &rstyle_pdg::SignatureFacts,
-    method: Option<rstyle_core::facts::SigFacts>,
-) -> Signature {
-    Signature {
-        parameters: sig.params.iter().map(|param| param.ty.clone()).collect(),
-        result: sig.return_ty.clone(),
-        method,
-        abi: sig.abi.clone(),
-        generics: sig
-            .generics
-            .iter()
-            .map(|param| param.name.clone())
-            .collect(),
-        has_self: sig.has_self,
-        is_variadic: sig.is_variadic,
-        is_async: sig.is_async,
-        is_unsafe: sig.is_unsafe,
-        is_const: sig.is_const,
-    }
+    document_signature(declared, method)
 }
 
 /// What a document declares, read as its capture records it: a foreign ABI is the

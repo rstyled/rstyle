@@ -2,7 +2,7 @@ use super::propagation::{capture, checked, workspace};
 use super::*;
 
 fn live(directory: &Path, extra: &[&str], code: i32) -> Value {
-    let mut args = vec!["--compiler-advisory-only"];
+    let mut args = vec![];
     args.extend_from_slice(extra);
     let (output, report) = capture(directory, &args);
     checked(&output, code);
@@ -141,29 +141,6 @@ fn missing_corrupt_and_incomplete_owner_indexes_force_recapture() {
 }
 
 #[test]
-fn missing_completed_snapshot_and_changed_tool_stamp_force_recapture() {
-    let directory = clone_workspace();
-    let first = live(directory.path(), &[], 0);
-    let path = index(&first);
-    let mut saved: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-    let snapshot = Path::new(saved["entries"][0]["unit"]["directory"].as_str().unwrap());
-    std::fs::remove_file(snapshot.join("unit.evidence.json")).unwrap();
-    let restored = live(directory.path(), &[], 0);
-    fresh(&restored, "clone_fixture", false);
-    assert_eq!(first["compiler_advisory"], restored["compiler_advisory"]);
-    saved = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-    let length = saved["tools"][0]["len"].as_u64().unwrap();
-    saved["tools"][0]["len"] = (length + 1).into();
-    std::fs::write(&path, serde_json::to_vec(&saved).unwrap()).unwrap();
-    let restamped = live(directory.path(), &[], 0);
-    fresh(&restamped, "clone_fixture", false);
-    assert_eq!(
-        restored["compiler_advisory"],
-        restamped["compiler_advisory"]
-    );
-}
-
-#[test]
 fn collector_changes_invalidate_completed_owner_reuse() {
     let directory = clone_workspace();
     let first = live(directory.path(), &[], 0);
@@ -190,7 +167,7 @@ fn partial_failed_build_discards_old_owner_index_before_successful_sibling_compi
         "pub fn broken() { this_does_not_exist(); }\n",
     )
     .unwrap();
-    let (output, failed) = capture(directory.path(), &["--compiler-advisory-only"]);
+    let (output, failed) = capture(directory.path(), &[]);
     checked(&output, 2);
     assert_eq!(failed["capture_complete"], false);
     fresh(&failed, "leaf", false);
@@ -266,8 +243,7 @@ fn saved_reused_run_replays_without_original_run_sources_or_shared_builds() {
     }
     std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
     std::fs::remove_file(index(&reused)).unwrap();
-    let (output, replay) =
-        super::reviews::replay(directory.path(), &reused, &["--compiler-advisory-only"]);
+    let (output, replay) = super::reviews::replay(directory.path(), &reused, &[]);
     checked(&output, 0);
     assert_eq!(replay["capture_complete"], true);
     assert_eq!(reused["compiler_advisory"], replay["compiler_advisory"]);
@@ -276,8 +252,8 @@ fn saved_reused_run_replays_without_original_run_sources_or_shared_builds() {
 fn limited(directory: &Path, keep: &str, extra: &[&str]) -> Output {
     diagnostic_process::output(
         Command::new(cargo_bin("cargo-rstyle"))
-            .args(["clones", "--format", "json"])
-            .args(["--extraction-profile", "hir-data-v3", "--compiler-advisory"])
+            .args(["advisory", "--format", "json"])
+            .args(["--compiler-advisory"])
             .args(extra)
             .current_dir(directory)
             .env("RSTYLE_DRIVER", driver())
@@ -296,7 +272,7 @@ fn limited_report(directory: &Path, keep: &str, extra: &[&str]) -> Value {
 #[test]
 fn runs_beyond_the_limit_are_removed_and_a_replay_of_one_says_why() {
     let directory = clone_workspace();
-    let only = ["--compiler-advisory-only"];
+    let only = [];
     let first = limited_report(directory.path(), "2", &only);
     let second = limited_report(directory.path(), "2", &only);
     let third = limited_report(directory.path(), "2", &only);
@@ -309,26 +285,10 @@ fn runs_beyond_the_limit_are_removed_and_a_replay_of_one_says_why() {
     assert_eq!(second["compiler_advisory"], replay["compiler_advisory"]);
 
     let gone = first["run_directory"].as_str().unwrap();
-    let output = rstyle(directory.path(), &["clones", "--replay-run", gone]);
+    let output = rstyle(directory.path(), &["advisory", "--replay-run", gone]);
     assert_ne!(output.status.code(), Some(0));
     let error = String::from_utf8_lossy(&output.stderr);
     assert!(error.contains("RSTYLE_KEEP_RUNS"), "{error}");
-}
-
-#[test]
-fn the_run_shared_builds_reuse_outlives_the_limit() {
-    let directory = clone_workspace();
-    let only = ["--compiler-advisory-only"];
-    let shared = limited_report(directory.path(), "1", &only);
-    let separate = limited_report(directory.path(), "1", &[]);
-    assert!(run(&shared).is_dir(), "the owner index names this run");
-
-    let reused = limited_report(directory.path(), "1", &only);
-
-    assert!(run(&shared).is_dir());
-    assert!(!run(&separate).exists());
-    fresh(&reused, "clone_fixture", true);
-    owned(&reused, true);
 }
 
 #[test]

@@ -9,8 +9,8 @@ use std::{
 
 const LOCK_FILE: &str = "advisory-build.lock";
 
-pub(super) fn shared(capture: &Capture, args: &Args) -> bool {
-    capture.plan.compiler_advisory_only && args.capture_dependencies.is_empty()
+pub(super) fn shared(_capture: &Capture, _args: &Args) -> bool {
+    true
 }
 
 pub(super) fn directory(capture: &Capture, args: &Args) -> PathBuf {

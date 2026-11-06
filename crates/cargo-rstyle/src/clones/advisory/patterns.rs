@@ -4,11 +4,7 @@ mod session;
 pub(super) mod workspace;
 use super::{Missing, source_scope::SourceScope};
 use crate::clones::review::compiler_patterns::observed;
-use rstyle_core::{
-    advisory::patterns::{KEY, Observation},
-    facts::FnFacts,
-    patterns_report,
-};
+use rstyle_core::{facts::FnFacts, patterns_report};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -127,25 +123,14 @@ pub(super) fn attach(
     facts: &mut FnFacts,
     missing: &mut Vec<Missing>,
 ) -> Result<(), String> {
-    if let Some(document) = function.facts.document()
-        && document.record.graph.is_some()
-    {
-        facts.pdg.clone_from(&document.record.graph);
-        return Ok(());
-    }
-    let Some(raw) = function.facts.recorded(KEY) else {
+    let graph = &function.facts.document().record.graph;
+    if graph.is_none() {
         missing.push(Missing {
             key: function.key,
             reason: "Compiler pattern graph was not captured".into(),
         });
-        return Ok(());
-    };
-    let observation = Observation::read(raw)?;
-    if observation.owner != facts.id {
-        return Err("Compiler pattern graph belongs to another function".into());
     }
-
-    facts.pdg = Some(observation.graph);
+    facts.pdg.clone_from(graph);
     Ok(())
 }
 

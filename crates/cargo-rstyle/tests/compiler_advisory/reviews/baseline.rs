@@ -48,11 +48,9 @@ fn raw_replay(directory: &Path, original: &Value, extra: &[&str]) -> Output {
     command
         .current_dir(directory)
         .args([
-            "clones",
+            "advisory",
             "--format",
             "json",
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--replay-run",
             original["run_directory"].as_str().unwrap(),
@@ -102,16 +100,14 @@ fn six_family_baseline_replays_without_sources_and_preserves_raw_findings_scenar
     for absent in ["sha256", "fingerprint", "diagnostic_index", "graph", "body"] {
         assert!(!wire.contains(absent), "{absent}");
     }
-    for detail in ["full", "compact"] {
+    {
         let mut args = COMPARE.to_vec();
-        args.extend(["--report-detail", detail]);
         let output = raw_replay(directory.path(), original, &args);
         checked(&output, 0);
         let report: Value = serde_json::from_slice(&output.stdout).unwrap();
         assert_eq!(baseline(&report)["existing_findings"], 6);
         assert_eq!(baseline(&report)["new_findings"], 0);
         assert_eq!(baseline(&report)["coverage"], "complete");
-        assert_eq!(report["matching"], original["matching"]);
         assert_eq!(
             report["compiler_advisory"]["units"],
             original["compiler_advisory"]["units"]
@@ -193,9 +189,9 @@ fn compiler_baseline_movement_preserves_equality_and_new_measurements_fail_scena
 }
 
 pub(super) fn capture_in(directory: &Path, extra: &[&str]) -> (Output, Value) {
-    let mut args = vec!["--extraction-profile", "hir-data-v3", "--compiler-advisory"];
+    let mut args = vec!["--compiler-advisory"];
     args.extend_from_slice(extra);
-    clones(directory, &args)
+    advisory(directory, &args)
 }
 
 #[test]

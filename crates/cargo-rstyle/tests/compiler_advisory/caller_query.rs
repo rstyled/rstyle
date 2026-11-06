@@ -92,7 +92,6 @@ fn clean_cross_unit_callers_follow_saved_graph_reach_without_changing_findings()
             .unwrap()
             .remove("caller_query");
         assert_eq!(advisory, original["compiler_advisory"]);
-        assert_eq!(report["matching"], original["matching"]);
     }
 }
 
@@ -123,16 +122,9 @@ fn generated_callers_retain_topology_without_fabricating_authored_facts() {
 #[test]
 fn missing_dependency_targets_do_not_turn_a_known_query_into_complete_scope() {
     let directory = workspace("pub fn leaf(){}");
-    let (output, original) = clones(
+    let (output, original) = advisory(
         directory.path(),
-        &[
-            "-p",
-            "caller",
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-advisory",
-            "--compiler-plans",
-        ],
+        &["-p", "caller", "--compiler-advisory", "--compiler-plans"],
     );
     checked(&output, 2);
     let seed = key(&original, "caller", "caller");
@@ -162,7 +154,7 @@ fn caller_query_rejects_missing_scope_and_malformed_report_ids() {
             "--compiler-advisory",
         ],
     ] {
-        let output = rstyle(directory.path(), &[&["clones"][..], &args].concat());
+        let output = rstyle(directory.path(), &[&["advisory"][..], &args].concat());
         checked(&output, 2);
     }
     for seed in [
@@ -172,7 +164,7 @@ fn caller_query_rejects_missing_scope_and_malformed_report_ids() {
         "function:u0:f4294967296",
         "function:u0:f0:extra",
     ] {
-        let output = rstyle(directory.path(), &["clones", "--compiler-callers", seed]);
+        let output = rstyle(directory.path(), &["advisory", "--compiler-callers", seed]);
         checked(&output, 2);
         assert!(
             String::from_utf8_lossy(&output.stderr).contains("Expected a saved-report function ID")
@@ -186,11 +178,9 @@ fn out_of_scope_seed_is_an_error_instead_of_an_empty_result() {
     let output = rstyle(
         directory.path(),
         &[
-            "clones",
+            "advisory",
             "--replay-run",
             original["run_directory"].as_str().unwrap(),
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--compiler-plans",
             "--compiler-callers",
@@ -211,13 +201,9 @@ fn caller_query_replays_compact_and_text_without_sources_or_compiler_tools() {
         let output = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap())
             .current_dir(directory.path())
             .args([
-                "clones",
+                "advisory",
                 "--format",
                 format,
-                "--report-detail",
-                "compact",
-                "--extraction-profile",
-                "hir-data-v3",
                 "--compiler-advisory",
                 "--compiler-plans",
                 "--replay-run",

@@ -136,8 +136,9 @@ struct StyleReviewArgs {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Capture HIR R0 evidence and evaluate exhaustive strict similarity pairs.
-    Clones(Box<clones::Args>),
+    /// Evaluate compiler reports with every report option, over this capture or a saved run.
+    #[command(hide = true)]
+    Advisory(Box<clones::Args>),
     /// Mine the workspace for latent shared abstractions (signature groups).
     Patterns(PatternsArgs),
     /// Dismiss a merge candidate you reviewed, list the ledger, or prune dead entries.
@@ -459,7 +460,7 @@ fn main() -> ExitCode {
     cli.resolve_manifest_path();
 
     match cli.command.take() {
-        Some(Command::Clones(args)) => return exit_with(clones::run(&cli, &args)),
+        Some(Command::Advisory(args)) => return exit_with(clones::run(&cli, &args)),
         Some(Command::Patterns(args)) => return exit_with(clones::patterns_route::run(cli, args)),
         Some(Command::Ignore(args)) => {
             return exit_with(clones::patterns_route::ignore(cli, args));

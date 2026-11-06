@@ -31,7 +31,6 @@ pub(in crate::clones::review) fn observations<'a>(
         // Omitted payloads remain unknown through unavailable_scope.
         truncated: false,
         unavailable_scope: truncated || !advisory.advisory_inputs_complete(),
-        complete: !truncated && advisory.advisory_inputs_complete(),
     }
 }
 

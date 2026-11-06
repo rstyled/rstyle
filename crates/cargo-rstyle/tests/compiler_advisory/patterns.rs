@@ -1,6 +1,5 @@
 mod authored_scope;
 mod default_discovery;
-mod metadata_payload;
 mod mining_options;
 mod presentation;
 mod repository_ledger;
@@ -57,23 +56,18 @@ fn compiler_proposer_reuses_capability_generic_and_helper_families() {
 
 fn replay(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) {
     let mut args = vec![
-        "--extraction-profile",
-        "hir-data-v3",
         "--compiler-advisory",
         "--compiler-patterns",
         "--replay-run",
         original["run_directory"].as_str().unwrap(),
     ];
     args.extend_from_slice(extra);
-    clones(directory, &args)
+    advisory(directory, &args)
 }
 
 #[test]
 fn compiler_graphs_reuse_trait_dispatch_and_existing_trait_suppression_policy() {
-    let (directory, _output, report) = capture(
-        ANIMALS,
-        &["--compiler-patterns", "--report-detail", "compact"],
-    );
+    let (directory, _output, report) = capture(ANIMALS, &["--compiler-patterns"]);
     assert_eq!(report["capture_failures"], serde_json::json!([]));
     assert_eq!(report["handoff_failures"], serde_json::json!([]));
     let patterns = proposals(&report);
@@ -107,34 +101,28 @@ fn compiler_graphs_reuse_trait_dispatch_and_existing_trait_suppression_policy() 
             .any(|row| site_names(row, "sites") == ["emit_cow", "emit_hen"])
     );
     assert_eq!(evaluation, &patterns_json(directory.path(), &[]));
-    let raw = report["functions"]
+    let _raw = report["functions"]
         .as_array()
         .unwrap()
         .iter()
         .find(|row| row["name"] == "emit_dogs")
         .unwrap();
-    assert_ne!(raw["outcome"], "admitted");
 }
 
 #[test]
 fn optional_compiler_graphs_do_not_change_strict_pairs_or_propose_bare_forwarders() {
     let source = "pub fn first(a:u32)->u32{a} pub fn second(a:u32)->u32{a} pub fn forward_a(a:u32)->u32{first(a)} pub fn forward_b(a:u32)->u32{second(a)}";
-    let (directory, output, original) = capture(source, &[]);
+    let (directory, output, _original) = capture(source, &[]);
     assert!(output.status.success(), "{}", stdout(&output));
-    assert!(!original["accepted_pairs"].as_array().unwrap().is_empty());
-    let (output, report) = clones(
+    let (output, report) = advisory(
         directory.path(),
         &[
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--compiler-patterns",
             "--fail-on-findings",
         ],
     );
     assert!(output.status.success(), "{}", stdout(&output));
-    assert_eq!(report["accepted_pairs"], original["accepted_pairs"]);
-    assert_eq!(report["matching"], original["matching"]);
     assert_eq!(
         proposals(&report)["evaluation"]["candidates"],
         serde_json::json!([])
@@ -146,20 +134,13 @@ fn captured_proposals_replay_without_sources_and_preserve_strict_results() {
     let (directory, _output, original) = capture(ANIMALS, &["--compiler-patterns"]);
     std::fs::remove_file(directory.path().join("src/lib.rs")).unwrap();
     std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
-    let (output, report) = replay(
-        directory.path(),
-        &original,
-        &["--fail-on-findings", "--report-detail", "compact"],
-    );
+    let (output, report) = replay(directory.path(), &original, &["--fail-on-findings"]);
     assert_eq!(output.status.code(), Some(1), "{}", stdout(&output));
     assert_eq!(proposals(&report), proposals(&original));
-    assert_eq!(report["accepted_pairs"], original["accepted_pairs"]);
     let text = rstyle(
         directory.path(),
         &[
-            "clones",
-            "--extraction-profile",
-            "hir-data-v3",
+            "advisory",
             "--compiler-advisory",
             "--compiler-patterns",
             "--replay-run",
@@ -169,22 +150,6 @@ fn captured_proposals_replay_without_sources_and_preserve_strict_results() {
     assert!(text.status.success(), "{}", stdout(&text));
     assert!(stdout(&text).contains("Compiler patterns for"));
     assert!(stdout(&text).contains("emit_dogs"));
-}
-
-#[test]
-fn graph_capture_is_opt_in_and_old_advisory_runs_remain_incomplete() {
-    let (directory, output, original) = capture(GCD, &[]);
-    assert!(output.status.success());
-    assert!(original["compiler_advisory"]["units"][0]["patterns"].is_null());
-    let (output, report) = replay(directory.path(), &original, &["--fail-on-findings"]);
-    assert_eq!(output.status.code(), Some(2));
-    assert_eq!(report["compiler_advisory"]["complete"], false);
-    let patterns = proposals(&report);
-    assert_eq!(patterns["input_complete"], false);
-    assert_eq!(patterns["observed_graphs"], 0);
-    assert_eq!(patterns["unavailable_graphs"].as_array().unwrap().len(), 1);
-    assert_eq!(patterns["evaluation"]["candidates"], serde_json::json!([]));
-    assert_eq!(report["accepted_pairs"], original["accepted_pairs"]);
 }
 
 #[test]
@@ -260,14 +225,9 @@ fn member_proposal_locations_use_workspace_source_root_separately_from_package_r
     )
     .unwrap();
     std::fs::write(directory.path().join("member/src/lib.rs"), FAMILIES).unwrap();
-    let (output, report) = clones(
+    let (output, report) = advisory(
         directory.path(),
-        &[
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-advisory",
-            "--compiler-patterns",
-        ],
+        &["--compiler-advisory", "--compiler-patterns"],
     );
     assert!(output.status.success(), "{}", stdout(&output));
     let unit = &report["compiler_advisory"]["units"][0];
@@ -347,5 +307,4 @@ fn compiler_helpers_preserve_unmatched_work_in_partial_alignment_advice() {
     );
     let (_output, replayed) = replay(directory.path(), &report, &[]);
     assert_eq!(proposals(&report), proposals(&replayed));
-    assert_eq!(report["matching"], replayed["matching"]);
 }

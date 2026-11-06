@@ -37,8 +37,6 @@ fn distinct_forwarded_stages_do_not_propose_a_helper_and_replay_without_sources(
     let (output, saved) = replay(directory.path(), &original, &[]);
     assert!(output.status.success(), "{}", stdout(&output));
     assert_eq!(patterns, proposals(&saved));
-    assert_eq!(original["matching"], saved["matching"]);
-    assert_eq!(original["accepted_pairs"], saved["accepted_pairs"]);
 }
 
 #[test]
@@ -121,7 +119,6 @@ fn previous_proposal_policy_reviews_are_readable_but_stale_and_baselines_unsuppo
     assert_eq!(decision["state"], "stale");
     assert!(decision["reason"].as_str().unwrap().contains("Versions"));
     assert_eq!(std::fs::read(&path).unwrap(), bytes);
-    assert_eq!(stale["matching"], original["matching"]);
     old_baseline_is_unsupported(directory.path(), &original);
 }
 
@@ -144,11 +141,9 @@ fn old_baseline_is_unsupported(directory: &Path, original: &Value) {
     let output = rstyle(
         directory,
         &[
-            "clones",
+            "advisory",
             "--format",
             "json",
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--compiler-patterns",
             "--replay-run",

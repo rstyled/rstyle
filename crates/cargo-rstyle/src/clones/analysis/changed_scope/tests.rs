@@ -149,7 +149,6 @@ fn unmatched_requested_paths_remain_explicitly_unobserved_and_incomplete() {
     assert_eq!(report.paths[0].status, Status::Unobserved);
     assert_eq!(report.paths[0].matched_functions, 0);
     assert_eq!(report.paths[0].coverage, Coverage::Incomplete);
-    assert!(report.render().contains("Unobserved"));
     let json = serde_json::to_value(&report).unwrap();
     assert_eq!(json["paths"][0]["status"], "unobserved");
     assert_eq!(json["coverage"], "incomplete");

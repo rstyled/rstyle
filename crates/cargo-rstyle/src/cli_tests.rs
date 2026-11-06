@@ -56,7 +56,7 @@ fn root_inputs_remain_independent_of_subcommands() {
         Some(Path::new("changes.json"))
     );
     assert!(root.validate_style_route().is_ok());
-    for command in ["patterns", "clones"] {
+    for command in ["patterns", "advisory"] {
         let cli = Cli::try_parse_from(["cargo-rstyle", command, "--replay-run", "saved"]).unwrap();
         assert!(!cli.style_inputs.requested());
         assert!(cli.validate_style_route().is_ok());
@@ -67,7 +67,7 @@ fn root_inputs_remain_independent_of_subcommands() {
     }
     let cli = Cli::try_parse_from([
         "cargo-rstyle",
-        "clones",
+        "advisory",
         "--compiler-advisory",
         "--compiler-baseline",
         "baseline.json",

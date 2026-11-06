@@ -114,14 +114,7 @@ fn check_roots(advisory: &Value) {
 
 fn check_custom_iterators(report: &Value) {
     for name in ["custom", "borrowed_custom", "reborrowed_custom"] {
-        let function = report["functions"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|function| function["facts"]["name"] == name)
-            .unwrap();
-        let observed =
-            &function["facts"]["build"]["frontend_options"][rstyle_core::advisory::KEY]["facts"];
+        let observed = &saved_fact(report, name);
         assert!(
             observed["mutated_types"]
                 .as_array()
@@ -169,11 +162,9 @@ fn lowered_for_iterators_are_not_source_targets_but_explicit_bindings_are() {
     check_roots(&report["compiler_advisory"]);
     check_custom_iterators(&report);
     std::fs::remove_file(directory.path().join("src/lib.rs")).unwrap();
-    let (output, replay) = clones(
+    let (output, replay) = advisory(
         directory.path(),
         &[
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--compiler-plans",
             "--compiler-advisory-config",

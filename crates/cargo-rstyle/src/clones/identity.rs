@@ -1,6 +1,5 @@
 //! Report-local function labels, separate from evidence and matching authority.
 use super::capture;
-use rstyle_pdg::HirFnFacts;
 use serde::Serialize;
 use std::{collections::BTreeSet, fmt, path::Path};
 
@@ -118,24 +117,6 @@ fn order(unit: &capture::Unit) -> (&str, &Path, &str, &[String], bool, &[String]
     )
 }
 
-/// HIR owners distinguish definitions within this unit, including expansions.
-/// Display paths and callsite spans are navigation only, not definition identity.
-pub(super) trait BodyOwner {
-    fn owner(&self) -> &rstyle_pdg::HirRef;
-}
-
-impl BodyOwner for rstyle_pdg::HirNode {
-    fn owner(&self) -> &rstyle_pdg::HirRef {
-        &self.hir
-    }
-}
-
-impl BodyOwner for rstyle_pdg::HirRef {
-    fn owner(&self) -> &rstyle_pdg::HirRef {
-        self
-    }
-}
-
 /// A function record of one unit, as its key depends on it.
 pub(super) trait Owned {
     type Owner: Ord;
@@ -143,19 +124,6 @@ pub(super) trait Owned {
     fn located(&self) -> bool;
     /// What tells the function apart within its unit, whatever its name or call site.
     fn owned_by(&self) -> Self::Owner;
-}
-
-impl<B: BodyOwner, L> Owned for HirFnFacts<B, L> {
-    type Owner = (u32, u32);
-
-    fn located(&self) -> bool {
-        super::FactView::from(self).source_file.is_some()
-    }
-
-    fn owned_by(&self) -> Self::Owner {
-        let owner = self.body.owner();
-        (owner.krate, owner.owner)
-    }
 }
 
 impl Owned for super::documents::DocumentFunction {

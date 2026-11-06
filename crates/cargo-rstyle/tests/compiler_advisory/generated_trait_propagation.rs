@@ -37,8 +37,7 @@ implement!();
 pub fn caller(value:&dyn Action) {{ value.act(); }}
 "#,
         );
-        let (_directory, output, report) =
-            capture(&source, &["--compiler-advisory-only", "--compiler-plans"]);
+        let (_directory, output, report) = capture(&source, &["--compiler-plans"]);
         propagation::checked(&output, 2);
         partial(&report, 2, expected);
         let generated = report["compiler_advisory"]["units"][0]["generated_effects"]
@@ -68,8 +67,7 @@ define!();
 impl Action for Reader {}
 pub fn caller() { Reader.fallback(); }
 "#;
-    let (_directory, output, report) =
-        capture(source, &["--compiler-advisory-only", "--compiler-plans"]);
+    let (_directory, output, report) = capture(source, &["--compiler-plans"]);
     propagation::checked(&output, 2);
     partial(&report, 1, 1);
     let owner = &report["compiler_advisory"]["units"][0]["generated_effects"][0];

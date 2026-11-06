@@ -1,119 +1,8 @@
 //! Durable review snapshots reuse completed local declaration witnesses.
-use super::adapter::{boolean, relative, sorted, text};
 use super::{CompilationTarget, Locator, Package, Versions, local};
 use crate::clones::capture;
-use rstyle_pdg::{HirFnFacts, consumer_facts::dispatch};
-use std::path::Path;
-
-pub(in crate::clones) struct Endpoint {
-    member: local::Member,
-    selections: [local::Selection; 2],
-}
-
-pub(in crate::clones) struct Input<'a> {
-    pub facts: &'a HirFnFacts,
-    pub unit: &'a capture::Unit,
-    pub plan: &'a capture::Plan,
-    pub index: &'a dispatch::Index,
-}
-
-pub(in crate::clones) fn dispatch(
-    input: Input<'_>,
-    candidate: &dispatch::Candidate,
-) -> Result<local::Snapshot, String> {
-    let Input {
-        facts,
-        unit,
-        plan,
-        index,
-    } = input;
-    let source = index.review_dispatch(facts, candidate)?;
-    let identity = Identity::new(&facts.build, unit, plan)?;
-    let member = identity.member(source.caller)?;
-    let enumeration = identity.declaration(source.enumeration);
-    let arms = source
-        .arms
-        .into_iter()
-        .map(|(variant, selected)| local::DispatchArm {
-            variant,
-            selection: identity.selection(selected),
-        })
-        .collect();
-
-    Ok(local::Snapshot {
-        versions: versions("local-enum-dispatch"),
-        members: vec![member],
-        proposal: local::Proposal::EnumDispatch { enumeration, arms },
-    })
-}
-
-/// Observe only the checked original locator and build context for status lookup.
-pub(super) fn member_key(input: Input<'_>) -> Result<(Locator, local::BuildContext), String> {
-    let identity = Identity::new(&input.facts.build, input.unit, input.plan)?;
-    let (qualified_name, declaration_kind) = input.index.review_location(input.facts)?;
-    Ok((
-        Locator {
-            package: identity.package,
-            source: identity.source,
-            qualified_name,
-            declaration_kind: declaration_kind.into(),
-            discriminator: "unique-declaration".into(),
-        },
-        context(&input.facts.build, input.unit)?,
-    ))
-}
-
-/// Build once per wrapper endpoint, then borrow across proposal pairs.
-pub(in crate::clones) fn capability_member(
-    input: Input<'_>,
-    wrapper: &dispatch::capabilities::Wrapper,
-) -> Result<Endpoint, String> {
-    let Input {
-        facts,
-        unit,
-        plan,
-        index,
-    } = input;
-    let source = index.review_capability(facts, wrapper)?;
-    let identity = Identity::new(&facts.build, unit, plan)?;
-    let member = identity.member(source.caller)?;
-    let selections = source
-        .selections
-        .into_iter()
-        .map(|selected| identity.selection(selected))
-        .collect::<Vec<_>>()
-        .try_into()
-        .map_err(|_| "Review requires two ordered wrapper roles")?;
-
-    Ok(Endpoint { member, selections })
-}
-
-pub(in crate::clones) fn capability(
-    left: &Endpoint,
-    right: &Endpoint,
-) -> Result<local::Snapshot, String> {
-    let (left, right) = if left.member.locator < right.member.locator {
-        (left, right)
-    } else if right.member.locator < left.member.locator {
-        (right, left)
-    } else {
-        return Err("Review capability endpoints have ambiguous durable locators".into());
-    };
-    let roles = left
-        .selections
-        .iter()
-        .zip(&right.selections)
-        .map(|(left, right)| local::CapabilityRole {
-            left: left.clone(),
-            right: right.clone(),
-        })
-        .collect();
-    Ok(local::Snapshot {
-        versions: versions("ordered-local-capability"),
-        members: vec![left.member.clone(), right.member.clone()],
-        proposal: local::Proposal::OrderedCapability { roles },
-    })
-}
+use rstyle_pdg::StringFact;
+use std::path::{Component, Path};
 
 pub(super) fn versions(detector: &str) -> Versions {
     Versions {
@@ -133,39 +22,24 @@ pub(super) fn versions(detector: &str) -> Versions {
     }
 }
 
-pub(super) struct Identity<'a> {
-    build: &'a rstyle_pdg::BuildFacts,
-    unit: &'a capture::Unit,
+pub(super) struct Identity {
     package: Package,
     source: String,
 }
 
-impl<'a> Identity<'a> {
-    pub(super) fn new(
-        build: &'a rstyle_pdg::BuildFacts,
-        unit: &'a capture::Unit,
-        plan: &capture::Plan,
-    ) -> Result<Self, String> {
-        let path = build
-            .frontend_options
-            .get("source_file")
-            .and_then(serde_json::Value::as_str);
-        Self::located(build, path, unit, plan)
-    }
-
+impl Identity {
     /// The identity of a function viewed through any of its inputs.
     pub(super) fn viewed(
-        view: &crate::clones::FactView<'a>,
-        unit: &'a capture::Unit,
+        view: &crate::clones::FactView<'_>,
+        unit: &capture::Unit,
         plan: &capture::Plan,
     ) -> Result<Self, String> {
-        Self::located(view.build, view.source_file, unit, plan)
+        Self::located(view.source_file, unit, plan)
     }
 
     fn located(
-        build: &'a rstyle_pdg::BuildFacts,
         path: Option<&str>,
-        unit: &'a capture::Unit,
+        unit: &capture::Unit,
         plan: &capture::Plan,
     ) -> Result<Self, String> {
         let package = unit
@@ -181,8 +55,6 @@ impl<'a> Identity<'a> {
         }
         let path = path.ok_or("Review source file is unavailable")?;
         Ok(Self {
-            build,
-            unit,
             package: Package {
                 identity: relative(&package.manifest_path, &plan.root)?,
                 name: package.name.clone(),
@@ -192,22 +64,6 @@ impl<'a> Identity<'a> {
         })
     }
 
-    fn member(&self, declaration: dispatch::review::Declaration) -> Result<local::Member, String> {
-        let declaration = self.declaration(declaration);
-        Ok(local::Member {
-            locator: declaration.locator,
-            context: context(self.build, self.unit)?,
-            source: declaration.source,
-        })
-    }
-
-    fn declaration(&self, declaration: dispatch::review::Declaration) -> local::Declaration {
-        local::Declaration {
-            locator: self.locator(declaration.qualified_name, declaration.kind),
-            source: declaration.source,
-        }
-    }
-
     pub(super) fn locator(&self, qualified_name: String, kind: &str) -> Locator {
         Locator {
             package: self.package.clone(),
@@ -215,21 +71,6 @@ impl<'a> Identity<'a> {
             qualified_name,
             declaration_kind: kind.into(),
             discriminator: "unique-declaration".into(),
-        }
-    }
-
-    fn selection(&self, selected: dispatch::review::Selection) -> local::Selection {
-        local::Selection {
-            owner: self.declaration(selected.owner),
-            method: self.declaration(selected.method),
-            origin: selected
-                .origin
-                .map_or(local::Origin::Inherent, |(declaration, member)| {
-                    local::Origin::LocalTrait {
-                        declaration: Box::new(self.declaration(declaration)),
-                        member,
-                    }
-                }),
         }
     }
 }
@@ -264,4 +105,45 @@ pub(super) fn context(
         panic_strategy: text(&build.panic_strategy, "panic strategy")?,
         extraction_policy: format!("{}/{}", extraction.id, extraction.version),
     })
+}
+
+fn relative(path: &Path, root: &Path) -> Result<String, String> {
+    let path = rstyle_pdg::nominal_binding::absolute_path(path)?;
+    let root = rstyle_pdg::nominal_binding::absolute_path(root)?;
+
+    let suffix = path
+        .strip_prefix(&root)
+        .map_err(|_| "Review locator lies outside its declared root")?;
+    let components = suffix
+        .components()
+        .map(|component| match component {
+            Component::Normal(value) => value.to_str().ok_or("Review locator is not UTF-8"),
+            _ => Err("Review locator contains an ambiguous path component"),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if components.is_empty() {
+        return Err("Review locator is empty".into());
+    }
+    Ok(components.join("/"))
+}
+
+fn text(fact: &StringFact, label: &str) -> Result<String, String> {
+    match fact.known_value() {
+        Some(value) if !value.is_empty() => Ok(value.into()),
+        _ => Err(format!("Review {label} is unavailable")),
+    }
+}
+
+fn boolean(fact: &rstyle_pdg::BoolFact, label: &str) -> Result<bool, String> {
+    (fact.status == rstyle_pdg::FactStatus::Known)
+        .then_some(fact.value)
+        .flatten()
+        .ok_or_else(|| format!("Review {label} is unavailable"))
+}
+
+fn sorted(values: &[String]) -> Vec<String> {
+    let mut values = values.to_vec();
+    values.sort();
+    values.dedup();
+    values
 }

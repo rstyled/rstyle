@@ -6,25 +6,14 @@ use serde::Serialize;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(in crate::clones) enum Family {
-    Helper,
-    EnumDispatch,
-    CapabilitySet,
-    Parameter,
-    Length,
-    Spacing,
-    MutationPerTarget,
-    MutatedTargets,
-    SideEffectDensity,
     CompilerPattern,
     CompilerDiagnostic,
-    GuardClause,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(in crate::clones) enum State {
     HiddenExact,
-    HiddenGrowth,
     Stale,
     ContextChanged,
     NoFinding,
@@ -37,11 +26,7 @@ impl State {
     fn assessed(self) -> bool {
         matches!(
             self,
-            Self::HiddenExact
-                | Self::HiddenGrowth
-                | Self::Stale
-                | Self::ContextChanged
-                | Self::NoFinding
+            Self::HiddenExact | Self::Stale | Self::ContextChanged | Self::NoFinding
         )
     }
 }

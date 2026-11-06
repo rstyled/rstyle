@@ -30,7 +30,7 @@ fn methods() -> TempDir {
 #[test]
 fn exact_inherent_static_receiver_and_generic_targets_propagate_observable_effects() {
     let directory = methods();
-    let (output, report) = capture(directory.path(), &["--compiler-plans", "--max-pairs", "0"]);
+    let (output, report) = capture(directory.path(), &["--compiler-plans"]);
     checked(&output, 0);
     let caller = unit(&report, "caller");
     let leaf = unit(&report, "leaf");
@@ -47,22 +47,14 @@ fn exact_inherent_static_receiver_and_generic_targets_propagate_observable_effec
         report["compiler_advisory"]["planning"]["input_complete"],
         true
     );
-    assert!(report["accepted_pairs"].as_array().unwrap().is_empty());
 }
 
 #[test]
 fn missing_and_excluded_inherent_owners_keep_their_callers_incomplete() {
     let directory = methods();
-    let (output, missing) = clones(
+    let (output, missing) = advisory(
         directory.path(),
-        &[
-            "-p",
-            "caller",
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-advisory",
-            "--compiler-plans",
-        ],
+        &["-p", "caller", "--compiler-advisory", "--compiler-plans"],
     );
     checked(&output, 2);
     std::fs::write(
@@ -127,13 +119,10 @@ fn inherent_receiver_plans_preserve_argument_positions_and_replay_without_source
             "--compiler-plans",
             "--replay-run",
             original["run_directory"].as_str().unwrap(),
-            "--max-pairs",
-            "0",
         ],
     );
     checked(&output, 0);
     assert_eq!(original["compiler_advisory"], replayed["compiler_advisory"]);
-    assert_eq!(original["matching"], replayed["matching"]);
 }
 
 #[test]

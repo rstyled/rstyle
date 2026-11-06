@@ -64,21 +64,12 @@ impl Execution<'_> {
 }
 
 fn compiler_args(patterns: PatternsArgs) -> Result<Routed, String> {
-    // Use the same clap defaults, including explicit nonzero budgets, as the clones entry.
-    let matches = Args::augment_args(clap::Command::new("clones"))
-        .try_get_matches_from([
-            "clones",
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-patterns",
-            "--compiler-advisory-only",
-            "--report-detail",
-            "compact",
-        ])
+    // Use the same clap defaults, including explicit nonzero budgets, as the advisory entry.
+    let matches = Args::augment_args(clap::Command::new("advisory"))
+        .try_get_matches_from(["advisory", "--compiler-patterns"])
         .map_err(|error| error.to_string())?;
 
     let options = Args {
-        style_inputs_only: true,
         compiler_runtime_bounds: patterns.complexity,
         compiler_runtime_top: patterns
             .complexity

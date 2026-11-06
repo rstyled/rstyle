@@ -66,7 +66,7 @@ pub(super) fn evaluate(
         cli,
         &options,
         super::super::CapturedRun { config, capture },
-        |report, _| {
+        |report| {
             let advisory = report
                 .compiler_advisory
                 .ok_or("Compiler proposals were not evaluated")?;

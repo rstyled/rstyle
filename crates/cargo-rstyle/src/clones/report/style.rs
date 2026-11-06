@@ -16,8 +16,6 @@ struct Style<'a, 'e> {
     cargo_identity: &'a str,
     #[serde(flatten)]
     capture_status: &'a CaptureStatus<'e>,
-    #[serde(flatten)]
-    strict_execution: &'a StrictExecution,
 }
 
 impl Report<'_> {
@@ -44,7 +42,6 @@ impl Report<'_> {
                 compiler_identity: self.compiler_identity,
                 cargo_identity: self.cargo_identity,
                 capture_status: &self.capture_status,
-                strict_execution: &self.strict_execution,
             })
             .map_err(|error| error.to_string()),
             Format::Text => Ok(format!(

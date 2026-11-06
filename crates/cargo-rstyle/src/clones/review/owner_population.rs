@@ -10,27 +10,18 @@ pub(super) trait Owner {
 
 #[derive(Clone, Copy)]
 pub(super) enum Domain {
-    Source,
-    Mutation,
-    Density,
     Compiler,
 }
 
 impl Domain {
     fn label(self) -> &'static str {
         match self {
-            Self::Source => "Source",
-            Self::Mutation => "Mutation",
-            Self::Density => "Density",
             Self::Compiler => "Compiler diagnostic",
         }
     }
 
     fn retained_label(self) -> &'static str {
         match self {
-            Self::Source => "source",
-            Self::Mutation => "mutation",
-            Self::Density => "density",
             Self::Compiler => "compiler diagnostic",
         }
     }

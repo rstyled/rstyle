@@ -33,12 +33,9 @@ impl Fixture {
         diagnostic_process::output(
             Command::new(cargo_bin("cargo-rstyle"))
                 .args([
-                    "clones",
+                    "advisory",
                     "--format",
                     "json",
-                    "--extraction-profile",
-                    "hir-data-v3",
-                    "--compiler-advisory-only",
                     "--compiler-advisory",
                     "--compiler-diagnostic-scope",
                     "authored",

@@ -58,7 +58,7 @@ impl Visibility for Decision {
 }
 
 pub(super) fn apply(
-    inputs: &workflow::Inputs<'_, '_>,
+    inputs: &workflow::Inputs<'_>,
     ctx: &report::Context<'_>,
     store: Option<&mut ReviewStore>,
 ) -> Result<(Report, Vec<status::Record>), String> {
@@ -107,7 +107,7 @@ pub(super) fn apply(
 }
 
 fn retained_records(
-    inputs: &workflow::Inputs<'_, '_>,
+    inputs: &workflow::Inputs<'_>,
     ctx: &report::Context<'_>,
     store: &ReviewStore,
     fallback: Vec<status::Record>,

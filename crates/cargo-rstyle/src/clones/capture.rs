@@ -1,7 +1,6 @@
 //! Isolated Cargo compilation and an explicit compiler-unit ledger.
 pub(super) mod associations;
 mod build_lane;
-mod dependencies;
 pub(super) mod ledger;
 mod owner_reuse;
 mod retention;
@@ -66,16 +65,14 @@ pub struct Plan {
 
 impl Plan {
     fn with_advisory(self, args: &Args) -> Self {
-        let mutations = args.mutation_rules || args.mutation_effects || args.effect_density;
         Self {
-            compiler_advisory_only: args.compiler_advisory_only,
-            style_inputs_only: args.style_inputs_only,
+            compiler_advisory_only: true,
+            style_inputs_only: true,
             compiler_advisory: args.compiler_inputs_requested(),
             compiler_patterns: args.compiler_patterns,
             compiler_runtime_bounds: args.compiler_runtime_bounds,
-            local_source_facts: args.compiler_advisory_only
-                && (args.source_rules || args.guard_clauses || mutations),
-            local_mutation_facts: args.compiler_advisory_only && mutations,
+            local_source_facts: false,
+            local_mutation_facts: false,
             ..self
         }
     }
@@ -115,9 +112,13 @@ pub struct Capture {
     pub expected_unit_graph: Value,
 }
 
+/// The profile documents are captured under.
+const PROFILE: rstyle_pdg::extraction_profile::ExtractionProfile =
+    rstyle_pdg::extraction_profile::ExtractionProfile::DataV3;
+
 pub fn prepare(cli: &Cli, args: &Args) -> Result<Capture, String> {
     let (metadata, raw) = selected_workspace(cli)?;
-    let capture = initial_capture(metadata, args.extraction_profile)?;
+    let capture = initial_capture(metadata, PROFILE)?;
     publish_plan(with_selection(capture, cli, args, &raw)?)
 }
 
@@ -130,7 +131,7 @@ fn with_selection(
     capture.plan = Plan {
         document_encoding: cli.cpg_compression,
         workspace_all_targets: Some(cli.packages.is_empty() && cli.all_targets),
-        targets: selected_targets(raw, cli, args.extraction_profile)?,
+        targets: selected_targets(raw, cli, PROFILE)?,
         ..capture.plan.with_advisory(args)
     };
 
@@ -367,13 +368,11 @@ fn command(capture: &Capture, cli: &Cli, args: &Args) -> Result<Command, String>
         .env("CARGO_TARGET_DIR", build_lane::directory(capture, args))
         .env("CARGO_INCREMENTAL", "0")
         .env("RSTYLE_CAPTURE_PLAN", capture.directory.join("plan.json"));
-    let wrapper = if args.capture_dependencies.is_empty() {
-        "RUSTC_WORKSPACE_WRAPPER"
-    } else {
-        "RUSTC_WRAPPER"
-    };
     command
-        .env(wrapper, std::env::current_exe().map_err(|e| e.to_string())?)
+        .env(
+            "RUSTC_WORKSPACE_WRAPPER",
+            std::env::current_exe().map_err(|e| e.to_string())?,
+        )
         .args(selection_args(cli))
         .args(build_args(args));
 
@@ -447,29 +446,13 @@ fn compile_in_lane(
 
 fn configure_capture(capture: &mut Capture, cli: &Cli, args: &Args) -> Result<(), String> {
     let graph = expected_units(capture, cli, args)?;
-    let selected = dependencies::from_cargo(&graph, cli, args)?;
-    capture.plan = configured_plan(&capture.plan, &graph, selected)?;
+    capture.plan = Plan {
+        primary_units: primary_units(&graph)?,
+        ..capture.plan.clone()
+    };
     capture.expected_unit_graph = graph;
 
     write_json(&capture.directory.join("plan.json"), &capture.plan)
-}
-
-fn configured_plan(
-    plan: &Plan,
-    graph: &Value,
-    selected: Vec<dependencies::Selected>,
-) -> Result<Plan, String> {
-    let (units, targets): (Vec<_>, Vec<_>) = selected
-        .into_iter()
-        .map(|dependency| (dependency.unit, dependency.target))
-        .unzip();
-
-    Ok(Plan {
-        primary_units: primary_units(graph)?,
-        dependency_units: units,
-        targets: plan.targets.iter().cloned().chain(targets).collect(),
-        ..plan.clone()
-    })
 }
 
 fn primary_units(graph: &Value) -> Result<Vec<Value>, String> {
@@ -940,78 +923,6 @@ fn read_artifact(directory: &Path, file: String) -> Result<Artifact, String> {
     })
 }
 
-pub struct Snapshot {
-    pub bundle: rstyle_pdg::unit_store::VerifiedBundle,
-    files: std::collections::BTreeMap<String, Vec<u8>>,
-}
-
-impl Snapshot {
-    pub fn bytes(&self, file: &str) -> Result<&[u8], String> {
-        if file == "unit.evidence.json" {
-            return Ok(self.bundle.bytes());
-        }
-        self.files
-            .get(file)
-            .map(Vec::as_slice)
-            .ok_or_else(|| format!("Missing captured artifact {file}"))
-    }
-
-    pub fn json<T: serde::de::DeserializeOwned>(&self, file: &str) -> Result<T, String> {
-        serde_json::from_slice(self.bytes(file)?).map_err(|error| format!("{file}: {error}"))
-    }
-}
-
-pub fn load_inventory(unit: &Unit) -> Result<Snapshot, String> {
-    let mut files = std::collections::BTreeMap::new();
-    for artifact in &unit.artifacts {
-        if files.contains_key(&artifact.file) || Path::new(&artifact.file).components().count() != 1
-        {
-            return Err("ambiguous artifact inventory".into());
-        }
-        let bytes = std::fs::read(unit.directory.join(&artifact.file))
-            .map_err(|error| format!("missing captured artifact {}: {error}", artifact.file))?;
-        if artifact.file != "unit.evidence.json"
-            && rstyle_pdg::unit_store::transport_checksum(&bytes) != artifact.checksum
-        {
-            return Err(format!(
-                "captured artifact checksum mismatch: {}",
-                artifact.file
-            ));
-        }
-        files.insert(artifact.file.clone(), bytes);
-    }
-
-    let actual: std::collections::BTreeSet<_> = files.keys().cloned().collect();
-    if actual
-        != artifact_files(unit.extraction_profile)
-            .into_iter()
-            .collect()
-    {
-        return Err("incomplete captured artifact inventory".into());
-    }
-    sealed_snapshot(unit, files)
-}
-
-fn sealed_snapshot(
-    unit: &Unit,
-    mut files: std::collections::BTreeMap<String, Vec<u8>>,
-) -> Result<Snapshot, String> {
-    let manifest: rstyle_pdg::unit_store::BundleManifest =
-        serde_json::from_slice(&files["unit.evidence.manifest.json"])
-            .map_err(|error| error.to_string())?;
-    let artifact = unit
-        .artifacts
-        .iter()
-        .find(|artifact| artifact.file == "unit.evidence.json")
-        .ok_or("Missing bundle inventory entry")?;
-
-    if manifest.checksum != artifact.checksum {
-        return Err("Bundle inventory disagrees with publication seal".into());
-    }
-    let bundle = manifest.verify_owned(files.remove("unit.evidence.json").unwrap())?;
-    Ok(Snapshot { bundle, files })
-}
-
 fn intended_artifact(capture: &Capture, artifact: &Value, target: &Target) -> bool {
     let linked = artifact["filenames"].as_array().is_some_and(|files| {
         files.iter().any(|file| {
@@ -1092,94 +1003,5 @@ mod digest_tests {
             super::super::digest(&std::fs::read(&file).unwrap()),
             "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"
         );
-    }
-}
-
-#[cfg(test)]
-mod snapshot_tests {
-    use super::*;
-
-    #[test]
-    fn bundle_inventory_reuses_publication_checksum_without_reading_bundle() {
-        let directory = tempfile::tempdir().unwrap();
-        let store = rstyle_pdg::unit_store::UnitStore::capture(Vec::new()).unwrap();
-        let manifest = store.write_sealed_bundle(Vec::new()).unwrap();
-        super::write_json(
-            &directory.path().join("unit.evidence.manifest.json"),
-            &manifest,
-        )
-        .unwrap();
-        // No bundle file exists: publication inventory consumes the streaming seal.
-        let artifacts = artifact_inventory(
-            directory.path(),
-            rstyle_pdg::extraction_profile::ExtractionProfile::R0,
-        )
-        .unwrap();
-        let bundle = artifacts
-            .iter()
-            .find(|artifact| artifact.file == "unit.evidence.json")
-            .unwrap();
-        assert_eq!(bundle.checksum, manifest.checksum);
-    }
-
-    fn snapshot_unit(directory: &Path) -> Unit {
-        Unit {
-            compiler_advisory_only: false,
-            style_inputs_only: false,
-            compiler_runtime_bounds: false,
-            extraction_profile: rstyle_pdg::extraction_profile::ExtractionProfile::R0,
-            target: Target {
-                package: "snapshot".into(),
-                manifest_dir: directory.into(),
-                package_context: None,
-                source: directory.join("lib.rs"),
-                name: "snapshot".into(),
-                kind: vec!["lib".into()],
-                test: false,
-            },
-            test: false,
-            invocation: Vec::new(),
-            directory: directory.into(),
-            artifacts: artifact_inventory(
-                directory,
-                rstyle_pdg::extraction_profile::ExtractionProfile::R0,
-            )
-            .unwrap(),
-        }
-    }
-
-    #[test]
-    fn verified_snapshot_survives_file_edits_without_rereading() {
-        let directory = tempfile::tempdir().unwrap();
-        let store = rstyle_pdg::unit_store::UnitStore::capture(Vec::new()).unwrap();
-        let mut bytes = Vec::new();
-        let manifest = store.write_sealed_bundle(&mut bytes).unwrap();
-        std::fs::write(directory.path().join("unit.evidence.json"), &bytes).unwrap();
-        super::write_json(
-            &directory.path().join("unit.evidence.manifest.json"),
-            &manifest,
-        )
-        .unwrap();
-        let mut unit = snapshot_unit(directory.path());
-        let snapshot = load_inventory(&unit).unwrap();
-        let original = unit.artifacts[0].checksum.clone();
-        unit.artifacts[0].checksum = rstyle_pdg::unit_store::transport_checksum(b"different seal");
-        assert!(load_inventory(&unit).is_err());
-        unit.artifacts[0].checksum = original;
-        let manifest_path = directory.path().join("unit.evidence.manifest.json");
-        let original_manifest = std::fs::read(&manifest_path).unwrap();
-        let mut changed_manifest = original_manifest.clone();
-        changed_manifest[0] ^= 1;
-        std::fs::write(&manifest_path, changed_manifest).unwrap();
-        assert!(load_inventory(&unit).is_err());
-        std::fs::write(&manifest_path, original_manifest).unwrap();
-        std::fs::write(
-            directory.path().join("unit.evidence.json"),
-            b"corrupt replacement",
-        )
-        .unwrap();
-        rstyle_pdg::unit_store::UnitStore::from_verified_current_run(&snapshot.bundle, |_| Ok(()))
-            .unwrap();
-        assert!(load_inventory(&unit).is_err());
     }
 }

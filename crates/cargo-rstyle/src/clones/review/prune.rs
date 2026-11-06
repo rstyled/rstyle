@@ -1,5 +1,5 @@
 //! Prune only independently completed negative assessments of retained reviews.
-use super::{Locator, ReviewStore, exact_rules, local, status};
+use super::{Locator, ReviewStore, status};
 use crate::clones::analysis::{Coverage, Execution};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -34,16 +34,8 @@ impl Report {
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Ordinal {
-    Helper(usize),
-    Source(usize),
-    Parameter(usize),
-    Length(usize),
-    Spacing(usize),
-    Mutation(usize),
-    Density(usize),
     CompilerPattern(usize),
     CompilerDiagnostic(usize),
-    Guard(usize),
 }
 
 pub(super) fn apply(
@@ -55,8 +47,7 @@ pub(super) fn apply(
     let plan = selection_plan(store, status)?;
 
     if !dry_run {
-        retain_structural(store, &plan.states);
-        retain_numeric(store, &plan.states);
+        retain_compiler(store, &plan.states);
     }
     Ok(Report {
         schema: "rstyle.review-prune/1",
@@ -71,12 +62,6 @@ pub(super) fn apply(
 struct SelectionPlan {
     states: BTreeMap<Ordinal, bool>,
     selections: Vec<Selection>,
-}
-
-fn retain_structural(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
-    retain(&mut store.entries, states, Ordinal::Helper);
-    retain(&mut store.source_entries, states, Ordinal::Source);
-    retain(&mut store.guard_entries, states, Ordinal::Guard);
 }
 
 fn selection_plan(store: &ReviewStore, status: &status::Report) -> Result<SelectionPlan, String> {
@@ -99,17 +84,6 @@ fn selection_plan(store: &ReviewStore, status: &status::Report) -> Result<Select
     Ok(SelectionPlan { states, selections })
 }
 
-fn retain_numeric(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
-    retain_source_rules(store, states);
-    retain_effects_and_patterns(store, states);
-}
-
-fn retain_effects_and_patterns(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
-    retain_compiler(store, states);
-    retain(&mut store.mutation_entries, states, Ordinal::Mutation);
-    retain(&mut store.density_entries, states, Ordinal::Density);
-}
-
 fn retain_compiler(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
     retain(
         &mut store.compiler_pattern_entries,
@@ -121,12 +95,6 @@ fn retain_compiler(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
         states,
         Ordinal::CompilerDiagnostic,
     );
-}
-
-fn retain_source_rules(store: &mut ReviewStore, states: &BTreeMap<Ordinal, bool>) {
-    retain(&mut store.parameter_entries, states, Ordinal::Parameter);
-    retain(&mut store.length_entries, states, Ordinal::Length);
-    retain(&mut store.spacing_entries, states, Ordinal::Spacing);
 }
 
 fn retain<T>(
@@ -178,49 +146,7 @@ fn validate_summary(store: &ReviewStore, report: &status::Report) -> Result<(), 
 }
 
 fn validate_record(store: &ReviewStore, record: &status::Record) -> Result<Ordinal, String> {
-    match record.family {
-        status::Family::Helper => {
-            let entry = store
-                .entries
-                .get(record.entry_index)
-                .ok_or_else(invalid_record)?;
-            validate_identity(
-                record,
-                &entry.reason,
-                entry
-                    .finding
-                    .members
-                    .iter()
-                    .map(|member| &member.key.locator),
-            )?;
-            Ok(Ordinal::Helper(record.entry_index))
-        }
-        status::Family::Parameter => {
-            validate_numeric_record(&store.parameter_entries, record, Ordinal::Parameter)
-        }
-        status::Family::Length => {
-            validate_numeric_record(&store.length_entries, record, Ordinal::Length)
-        }
-        status::Family::Spacing => {
-            validate_numeric_record(&store.spacing_entries, record, Ordinal::Spacing)
-        }
-        status::Family::GuardClause => {
-            if record.state == status::State::NoFinding {
-                return Err("Guard review discovery does not establish completed negatives".into());
-            }
-            validate_numeric_record(&store.guard_entries, record, Ordinal::Guard)
-        }
-        status::Family::MutationPerTarget | status::Family::MutatedTargets => {
-            validate_mutation_record(store, record)
-        }
-        status::Family::SideEffectDensity => {
-            validate_numeric_record(&store.density_entries, record, Ordinal::Density)
-        }
-        status::Family::CompilerDiagnostic | status::Family::CompilerPattern => {
-            validate_compiler_record(store, record)
-        }
-        _ => validate_source_record(store, record),
-    }
+    validate_compiler_record(store, record)
 }
 
 fn validate_compiler_record(
@@ -251,63 +177,7 @@ fn validate_compiler_record(
             }
             Ok(Ordinal::CompilerPattern(record.entry_index))
         }
-        _ => Err(invalid_record()),
     }
-}
-
-fn validate_mutation_record(
-    store: &ReviewStore,
-    record: &status::Record,
-) -> Result<Ordinal, String> {
-    let entry = store
-        .mutation_entries
-        .get(record.entry_index)
-        .ok_or_else(invalid_record)?;
-    let expected = match entry.finding.policy {
-        super::mutation_rules::Policy::MutationPerTarget { .. } => {
-            status::Family::MutationPerTarget
-        }
-        super::mutation_rules::Policy::MutatedTargets { .. } => status::Family::MutatedTargets,
-    };
-    if record.family != expected {
-        return Err(invalid_record());
-    }
-    validate_numeric_record(&store.mutation_entries, record, Ordinal::Mutation)
-}
-
-fn validate_numeric_record<S: exact_rules::ReviewSnapshot>(
-    entries: &[exact_rules::Entry<S>],
-    record: &status::Record,
-    ordinal: fn(usize) -> Ordinal,
-) -> Result<Ordinal, String> {
-    let entry = entries.get(record.entry_index).ok_or_else(invalid_record)?;
-    validate_identity(
-        record,
-        &entry.reason,
-        std::iter::once(entry.finding.identity().0),
-    )?;
-    Ok(ordinal(record.entry_index))
-}
-
-fn validate_source_record(store: &ReviewStore, record: &status::Record) -> Result<Ordinal, String> {
-    let entry = store
-        .source_entries
-        .get(record.entry_index)
-        .ok_or_else(invalid_record)?;
-    let expected = match entry.finding.proposal {
-        local::Proposal::EnumDispatch { .. } => status::Family::EnumDispatch,
-        local::Proposal::OrderedCapability { .. } => status::Family::CapabilitySet,
-    };
-    if record.family != expected {
-        return Err(invalid_record());
-    }
-
-    validate_identity(
-        record,
-        &entry.reason,
-        entry.finding.members.iter().map(|member| &member.locator),
-    )?;
-    Ok(Ordinal::Source(record.entry_index))
 }
 
 fn validate_identity<'a>(
@@ -324,6 +194,3 @@ fn validate_identity<'a>(
 fn invalid_record() -> String {
     "Retained review status does not identify the original stored entry".into()
 }
-
-#[cfg(test)]
-mod tests;

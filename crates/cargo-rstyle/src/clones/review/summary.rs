@@ -80,14 +80,6 @@ impl Summary {
     pub fn requested(&self) -> bool {
         self.execution != Execution::NotRequested
     }
-
-    pub fn visible_or(&self, visible: usize, unfiltered: usize) -> usize {
-        if self.requested() {
-            visible
-        } else {
-            unfiltered
-        }
-    }
 }
 
 impl crate::clones::analysis::Completion for Summary {

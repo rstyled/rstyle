@@ -2,26 +2,12 @@ use super::propagation::checked;
 use super::*;
 
 const SOURCE: &str = "fn leaf(a:u128,b:u128,c:u128,d:u128,e:u128){std::fs::write(\"/unused\",b\"x\").ok();}\npub fn caller(a:u128,b:u128,c:u128,d:u128,e:u128){leaf(a,b,c,d,e);}";
-const OPTIONS: &[&str] = &[
-    "--compiler-advisory-only",
-    "--compiler-patterns",
-    "--compiler-plans",
-];
+const OPTIONS: &[&str] = &["--compiler-patterns", "--compiler-plans"];
 
 fn not_requested(report: &Value) {
-    assert_eq!(report["matching_execution"], "not_requested");
-    assert_eq!(report["strict_assessment_execution"], "not_requested");
     assert!(report.get("matching").is_none());
-    assert_eq!(report["pair_evaluation_complete"], false);
-    assert_eq!(report["pair_enumeration_complete"], false);
-    assert_eq!(report["accepted_pairs"], serde_json::json!([]));
     for function in report["functions"].as_array().unwrap() {
-        assert_eq!(function["outcome"], "not_requested");
         assert!(function["unit_evidence"].get("namespace").is_none());
-        assert_eq!(
-            function["unit_evidence"]["artifact_kind"],
-            "advisory-raw-facts"
-        );
     }
 }
 
@@ -60,16 +46,13 @@ fn advisory_only_preserves_completed_collectors_and_plans_without_strict_admissi
     );
 }
 
-fn replay(directory: &Path, original: &Value, detail: &str) -> (Output, Value) {
+fn replay(directory: &Path, original: &Value) -> (Output, Value) {
     super::reviews::replay(
         directory,
         original,
         &[
-            "--compiler-advisory-only",
             "--compiler-patterns",
             "--compiler-plans",
-            "--report-detail",
-            detail,
             "--fail-on-findings",
         ],
     )
@@ -81,8 +64,8 @@ fn advisory_only_source_free_replay_preserves_findings_in_full_compact_and_text_
     checked(&output, 0);
     std::fs::remove_dir_all(directory.path().join("src")).unwrap();
     std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
-    for detail in ["full", "compact"] {
-        let (output, report) = replay(directory.path(), &original, detail);
+    {
+        let (output, report) = replay(directory.path(), &original);
         checked(&output, 1);
         not_requested(&report);
         assert_eq!(report["compiler_advisory"], original["compiler_advisory"]);
@@ -92,43 +75,14 @@ fn advisory_only_source_free_replay_preserves_findings_in_full_compact_and_text_
     let output = rstyle(
         directory.path(),
         &[
-            "clones",
-            "--extraction-profile",
-            "hir-data-v3",
+            "advisory",
             "--compiler-advisory",
-            "--compiler-advisory-only",
             "--replay-run",
             original["run_directory"].as_str().unwrap(),
         ],
     );
     checked(&output, 0);
-    assert!(stdout(&output).contains("Strict assessment and matching: not_requested"));
-}
-
-fn rejects_replay_mode(directory: &Path, report: &Value, extra: &[&str]) {
-    let mut args = vec![
-        "clones",
-        "--extraction-profile",
-        "hir-data-v3",
-        "--compiler-advisory",
-        "--replay-run",
-        report["run_directory"].as_str().unwrap(),
-    ];
-    args.extend_from_slice(extra);
-    let output = rstyle(directory, &args);
-    checked(&output, 2);
-    assert!(String::from_utf8_lossy(&output.stderr).contains("mode"));
-}
-
-#[test]
-fn advisory_only_and_strict_saved_runs_cannot_change_capture_mode_on_replay() {
-    let (directory, output, ordinary) = capture("pub fn original(){}", &[]);
-    checked(&output, 0);
-    rejects_replay_mode(directory.path(), &ordinary, &["--compiler-advisory-only"]);
-    let (output, raw) =
-        super::propagation::capture(directory.path(), &["--compiler-advisory-only"]);
-    checked(&output, 0);
-    rejects_replay_mode(directory.path(), &raw, &[]);
+    assert!(stdout(&output).contains("Compiler reports: 1 units"));
 }
 
 #[test]
@@ -139,7 +93,6 @@ fn advisory_only_reviews_use_completed_diagnostics_without_changing_raw_findings
         directory.path(),
         &original,
         &[
-            "--compiler-advisory-only",
             "--review-file",
             "reviews.json",
             "--dismiss-compiler-diagnostic",
@@ -166,15 +119,8 @@ fn advisory_only_reviews_use_completed_diagnostics_without_changing_raw_findings
 fn advisory_only_missing_and_generated_dependency_owners_remain_incomplete() {
     let leaf = "pub fn leaf(){std::fs::write(\"/unused\",b\"x\").ok();}";
     let directory = super::propagation::workspace(leaf);
-    let (output, omitted) = super::propagation::capture(
-        directory.path(),
-        &[
-            "--compiler-advisory-only",
-            "--compiler-plans",
-            "-p",
-            "caller",
-        ],
-    );
+    let (output, omitted) =
+        super::propagation::capture(directory.path(), &["--compiler-plans", "-p", "caller"]);
     checked(&output, 2);
     not_requested(&omitted);
     assert_eq!(omitted["compiler_advisory"]["complete"], false);
@@ -200,36 +146,6 @@ fn advisory_only_missing_and_generated_dependency_owners_remain_incomplete() {
     );
 }
 
-#[test]
-fn advisory_only_requires_compiler_inputs_and_rejects_graph_consumers() {
-    let directory = clone_workspace();
-    let output = rstyle(directory.path(), &["clones", "--compiler-advisory-only"]);
-    checked(&output, 2);
-    assert!(String::from_utf8_lossy(&output.stderr).contains("--compiler-advisory"));
-    for flag in [
-        "--fail-on-accepted-pairs",
-        "--explain-pairs",
-        "--helper-proposals",
-        "--enum-dispatch",
-        "--capability-proposals",
-    ] {
-        let output = rstyle(
-            directory.path(),
-            &[
-                "clones",
-                "--compiler-advisory",
-                "--compiler-advisory-only",
-                flag,
-            ],
-        );
-        checked(&output, 2);
-        assert!(
-            String::from_utf8_lossy(&output.stderr).contains(flag),
-            "{flag}"
-        );
-    }
-}
-
 pub(in super::super) fn ledger_path(report: &Value) -> PathBuf {
     std::fs::read_dir(report["run_directory"].as_str().unwrap())
         .unwrap()
@@ -246,48 +162,14 @@ pub(in super::super) fn ledger_path(report: &Value) -> PathBuf {
         .unwrap()
 }
 
-pub(in super::super) fn reseal_raw(report: &Value, ledger: &Path, wire: &Value) {
-    reseal_raw_bytes(report, ledger, &serde_json::to_vec(wire).unwrap());
-}
-
-pub(in super::super) fn reseal_raw_bytes(report: &Value, ledger: &Path, bytes: &[u8]) {
-    let bundle = Path::new(
-        report["functions"][0]["unit_evidence"]["bundle"]
-            .as_str()
-            .unwrap(),
-    );
-    let manifest = rstyle_pdg::unit_store::BundleManifest {
-        schema: "rstyle.shared-unit.manifest/2".into(),
-        checksum: rstyle_pdg::unit_store::transport_checksum(bytes),
-        bytes: bytes.len() as u64,
-    };
-    let seal = serde_json::to_vec(&manifest).unwrap();
-    std::fs::write(bundle, bytes).unwrap();
-    std::fs::write(bundle.with_file_name("unit.evidence.manifest.json"), &seal).unwrap();
-    let mut unit: Value = serde_json::from_slice(&std::fs::read(ledger).unwrap()).unwrap();
-    for artifact in unit["artifacts"].as_array_mut().unwrap() {
-        match artifact["file"].as_str().unwrap() {
-            "unit.evidence.json" => artifact["checksum"] = manifest.checksum.clone().into(),
-            "unit.evidence.manifest.json" => {
-                artifact["checksum"] = rstyle_pdg::unit_store::transport_checksum(&seal).into();
-            }
-            _ => {}
-        }
-    }
-    std::fs::write(ledger, serde_json::to_vec(&unit).unwrap()).unwrap();
-}
-
 fn rejected_raw(directory: &Path, original: &Value, expected: &str) {
     let output = rstyle(
         directory,
         &[
-            "clones",
+            "advisory",
             "--format",
             "json",
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
-            "--compiler-advisory-only",
             "--replay-run",
             original["run_directory"].as_str().unwrap(),
         ],
@@ -298,32 +180,6 @@ fn rejected_raw(directory: &Path, original: &Value, expected: &str) {
         Err(_) => String::from_utf8_lossy(&output.stderr).into_owned(),
     };
     assert!(evidence.contains(expected), "{evidence}");
-}
-
-#[test]
-fn advisory_only_replay_rejects_resealed_wrong_phase_and_compiler_context() {
-    let (directory, output, original) = capture("pub fn original(){}", OPTIONS);
-    checked(&output, 0);
-    let ledger = ledger_path(&original);
-    let bundle = original["functions"][0]["unit_evidence"]["bundle"]
-        .as_str()
-        .unwrap();
-    let wire: Value = serde_json::from_slice(&std::fs::read(bundle).unwrap()).unwrap();
-    let mut changed = wire.clone();
-    changed["phase"] = "pre-helper-certification".into();
-    reseal_raw(&original, &ledger, &changed);
-    rejected_raw(directory.path(), &original, "publication phase");
-    let mut changed = wire.clone();
-    changed["facts"][0]["build"]["frontend_options"]["invocation"]["value"]
-        .as_array_mut()
-        .unwrap()
-        .push("--cfg=independent_changed_context".into());
-    reseal_raw(&original, &ledger, &changed);
-    rejected_raw(directory.path(), &original, "invocation");
-    reseal_raw(&original, &ledger, &wire);
-    let (output, replayed) = replay(directory.path(), &original, "compact");
-    checked(&output, 0);
-    assert_eq!(replayed["compiler_advisory"], original["compiler_advisory"]);
 }
 
 #[test]
@@ -340,43 +196,9 @@ fn advisory_only_replay_rejects_saved_unit_mode_and_test_context_changes() {
         rejected_raw(directory.path(), &original, "ledger");
     }
     std::fs::write(path, bytes).unwrap();
-    let (output, replayed) = replay(directory.path(), &original, "compact");
+    let (output, replayed) = replay(directory.path(), &original);
     checked(&output, 0);
     not_requested(&replayed);
-}
-
-#[test]
-fn advisory_only_selected_dependency_replays_shared_effects_and_parameter_plans() {
-    let leaf =
-        "pub fn leaf(a:u128,b:u128,c:u128,d:u128,e:u128){std::fs::write(\"/unused\",b\"x\").ok();}";
-    let directory = super::propagation::workspace(leaf);
-    std::fs::write(
-        directory.path().join("caller/src/lib.rs"),
-        "pub fn caller(a:u128,b:u128,c:u128,d:u128,e:u128){renamed::leaf(a,b,c,d,e);}",
-    )
-    .unwrap();
-    let mut options = OPTIONS.to_vec();
-    options.extend(["-p", "caller", "--capture-dependency", "leaf"]);
-    let (output, original) = super::propagation::capture(directory.path(), &options);
-    checked(&output, 0);
-    not_requested(&original);
-    let caller = super::propagation::unit(&original, "caller");
-    assert_eq!(caller["evaluation"]["summary"]["effect_counts"]["io"], 1);
-    let groups = original["compiler_advisory"]["planning"]["groups"]
-        .as_array()
-        .unwrap();
-    assert_eq!(groups.len(), 1);
-    assert_eq!(groups[0]["step_owners"].as_array().unwrap().len(), 2);
-    let run = Path::new(original["run_directory"].as_str().unwrap());
-    assert!(!run.join("dependency-closure.json").exists());
-    for source in ["caller", "leaf"] {
-        std::fs::remove_dir_all(directory.path().join(source)).unwrap();
-    }
-    std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
-    let (output, replayed) = replay(directory.path(), &original, "compact");
-    checked(&output, 1);
-    not_requested(&replayed);
-    assert_eq!(replayed["compiler_advisory"], original["compiler_advisory"]);
 }
 
 #[test]
@@ -417,7 +239,7 @@ fn advisory_only_check_and_test_owners_remain_separate_on_source_free_replay() {
     );
     std::fs::remove_dir_all(directory.path().join("src")).unwrap();
     std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
-    let (output, replayed) = replay(directory.path(), &original, "compact");
+    let (output, replayed) = replay(directory.path(), &original);
     checked(&output, 2);
     not_requested(&replayed);
     assert_eq!(replayed["observed_units"], original["observed_units"]);

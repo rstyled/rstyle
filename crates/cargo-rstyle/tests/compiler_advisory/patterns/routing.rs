@@ -49,8 +49,6 @@ fn saved_output(directory: &Path, original: &Value, extra: &[&str]) -> Output {
 }
 
 fn only_patterns(value: &Value) {
-    assert_eq!(value["matching_execution"], "not_requested");
-    assert_eq!(value["strict_assessment_execution"], "not_requested");
     assert_eq!(
         value["compiler_advisory"]["diagnostic_execution"],
         "not_requested"
@@ -113,17 +111,12 @@ fn compiler_route_reuses_shared_capture_options_and_source_free_replay() {
 }
 
 fn direct_entry_agrees(directory: &Path, original: &Value) {
-    let (output, explicit) = clones(
+    let (output, explicit) = advisory(
         directory,
         &[
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-patterns",
             "--pattern-ledger",
             "rstyle-ignore.toml",
-            "--compiler-advisory-only",
-            "--report-detail",
-            "compact",
             "--compiler-pattern-scope",
             "authored",
             "--replay-run",

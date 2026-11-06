@@ -194,7 +194,6 @@ dependencies = [
  "clap",
  "insta",
  "libc",
- "rstyle-ccgraph",
  "rstyle-core",
  "rstyle-pdg",
  "serde",

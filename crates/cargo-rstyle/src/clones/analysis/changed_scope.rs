@@ -1,5 +1,5 @@
 //! Changed files select consumer presentation; they never grant source evidence.
-use super::{Coverage, Execution};
+use super::Coverage;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, fs::File, io::Read, path::Path};
 
@@ -194,18 +194,6 @@ fn include_owners<'a>(
     unclassified
 }
 
-/// Selected presentation cannot establish completion for an incomplete consumer.
-pub(super) fn permits_success(
-    execution: Execution,
-    coverage: Coverage,
-    selection: Option<&Report<'_>>,
-) -> bool {
-    execution == Execution::NotRequested
-        || (execution == Execution::Completed
-            && coverage == Coverage::Complete
-            && selection.is_none_or(Report::permits_success))
-}
-
 impl Report<'_> {
     pub(in crate::clones) fn include_findings<'a>(&mut self, paths: impl Iterator<Item = &'a str>) {
         for path in paths {
@@ -242,10 +230,6 @@ impl Report<'_> {
 
     pub fn permits_success(&self) -> bool {
         self.coverage == Coverage::Complete
-    }
-
-    pub fn render(&self) -> String {
-        self.render_for("source rules")
     }
 
     pub(in crate::clones) fn render_for(&self, consumer: &str) -> String {

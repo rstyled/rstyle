@@ -2,7 +2,7 @@ use super::*;
 
 fn record(state: State) -> Record {
     Record {
-        family: Family::Helper,
+        family: Family::CompilerPattern,
         entry_index: 0,
         state,
         detail: "Independently assessed retained endpoints".into(),
@@ -25,7 +25,7 @@ fn record(state: State) -> Record {
 fn exact_growth_stale_context_and_completed_negative_are_assessed() {
     let states = [
         State::HiddenExact,
-        State::HiddenGrowth,
+        State::HiddenExact,
         State::Stale,
         State::ContextChanged,
         State::NoFinding,
@@ -51,14 +51,14 @@ fn omitted_unrequested_and_unavailable_each_make_status_incomplete() {
 
 #[test]
 fn mixed_families_keep_individual_omissions_and_original_reasons() {
-    let helper = record(State::HiddenGrowth);
+    let helper = record(State::HiddenExact);
     let dispatch = Record {
-        family: Family::EnumDispatch,
+        family: Family::CompilerDiagnostic,
         entry_index: 0,
         ..record(State::NoFinding)
     };
     let capability = Record {
-        family: Family::CapabilitySet,
+        family: Family::CompilerDiagnostic,
         entry_index: 1,
         ..record(State::NotRequested)
     };
@@ -87,7 +87,7 @@ fn serialization_and_text_expose_status_without_rewriting_stored_choice() {
     let report = Report::new(vec![record(State::ContextChanged)], true);
     let value = serde_json::to_value(&report).unwrap();
     assert_eq!(value["schema"], "rstyle.review-status/1");
-    assert_eq!(value["records"][0]["family"], "helper");
+    assert_eq!(value["records"][0]["family"], "compiler_pattern");
     assert_eq!(value["records"][0]["state"], "context_changed");
     assert_eq!(value["records"][0]["members"][0]["source"], "src/lib.rs");
     let text = report.render();

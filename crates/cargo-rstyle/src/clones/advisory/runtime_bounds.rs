@@ -210,14 +210,13 @@ fn owners<'a>(ctx: &'a Context<'_>) -> HashMap<String, Option<&'a crate::clones:
 }
 
 fn key(function: &crate::clones::Function) -> Option<String> {
-    let krate = match function.facts.document() {
-        Some(document) => {
-            document.record.bounds.as_ref()?;
-            document.record.compilation.as_str()
-        }
-        None => function.facts.recorded(KEY)?["krate"].as_str()?,
-    };
-    Some(format!("{krate}/{}", owner(function).ok()?))
+    let document = function.facts.document();
+    document.record.bounds.as_ref()?;
+    Some(format!(
+        "{}/{}",
+        document.record.compilation,
+        owner(function).ok()?
+    ))
 }
 
 fn analyzed(function: &crate::clones::Function) -> Option<Analyzed> {
@@ -291,23 +290,16 @@ fn evidence(input: Result<Observation, String>) -> Evidence {
 }
 
 fn read(function: &crate::clones::Function) -> Result<Observation, String> {
-    let observation = match function.facts.document() {
-        Some(document) => Observation {
-            schema: KEY.into(),
-            owner: document.record.identity.clone(),
-            krate: document.record.compilation.clone(),
-            input: document
-                .record
-                .bounds
-                .clone()
-                .ok_or("Runtime-bound observations were not captured")?,
-        },
-        None => Observation::read(
-            function
-                .facts
-                .recorded(KEY)
-                .ok_or("Runtime-bound observations were not captured")?,
-        )?,
+    let document = function.facts.document();
+    let observation = Observation {
+        schema: KEY.into(),
+        owner: document.record.identity.clone(),
+        krate: document.record.compilation.clone(),
+        input: document
+            .record
+            .bounds
+            .clone()
+            .ok_or("Runtime-bound observations were not captured")?,
     };
     if observation.owner != owner(function)? {
         return Err("Runtime-bound observation disagrees with captured compiler owner".into());
@@ -349,29 +341,12 @@ fn degree(evidence: &Evidence) -> (bool, runtime_bounds::Order) {
 // collect_inputs validated compiler observations before this report is evaluated.
 // Project only the owner identity here rather than rebuilding the entire facts graph.
 fn owner(function: &crate::clones::Function) -> Result<String, String> {
-    use rstyle_core::advisory::generated_effects;
-    if let Some(document) = function.facts.document() {
-        return document
-            .compiled_id()
-            .map(str::to_owned)
-            .ok_or_else(|| "Runtime-bound owner identity is unavailable".into());
-    }
-    if let Some(id) = function.facts.compiled_id().filter(|id| !id.is_empty()) {
-        return Ok(id.to_owned());
-    }
-    let raw = function
+    function
         .facts
-        .recorded(generated_effects::CONNECTED_KEY)
-        .ok_or("Runtime-bound owner identity is unavailable")?;
-    let observation = generated_effects::Observation::read(raw)?;
-
-    if observation.name != function.facts.view().name || !function.facts.view().generated {
-        return Err("Runtime-bound generated owner identity disagrees with capture".into());
-    }
-    observation
-        .connections
-        .map(|connections| connections.id)
-        .ok_or("Runtime-bound generated owner identity is unavailable".into())
+        .document()
+        .compiled_id()
+        .map(str::to_owned)
+        .ok_or_else(|| "Runtime-bound owner identity is unavailable".into())
 }
 
 fn render_result(evidence: &Evidence) -> String {
