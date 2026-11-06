@@ -8,8 +8,10 @@ pub(crate) mod input;
 mod receipt;
 
 use rstyle_core::config::Config;
+use rstyle_core::cpg::bounds::report::from_records;
 use rstyle_core::cpg::records::{self, Demand, Record};
 use rstyle_core::filter::{Analysis, Filter};
+use rstyle_core::unified::{self, FlowReport, FlowRow, take_flow};
 use rstyle_core::{cpg, patterns_report, report};
 use serde_json::json;
 use std::path::{Path, PathBuf};
@@ -61,7 +63,7 @@ pub fn patterns(cli: &Cli, args: &CpgPatternsArgs) -> Result<(String, u8), Strin
     records::canonical_order(&mut records);
     let bounds = args
         .complexity
-        .then(|| crate::compiler::document_bounds(&records, args.display.top));
+        .then(|| from_records(&records, args.display.top));
     let evaluation = mined(records, args, &load_config(cli.config.as_deref())?)?;
     let code = u8::from(args.fail_on_candidates && !evaluation.candidates.is_empty());
 
@@ -96,8 +98,8 @@ pub fn flow(args: &CpgFlowArgs, format: Format) -> Result<(String, u8), String> 
     };
 
     let mut records = received.records;
-    let functions = analyze::FlowReport {
-        functions: analyze::take_flow(&mut records, args.function.as_deref()),
+    let functions = FlowReport {
+        functions: take_flow(&mut records, args.function.as_deref()),
     };
     let output = match format {
         Format::Text => receipt::text(flow_text(&functions.functions), &received.receipt),
@@ -106,7 +108,7 @@ pub fn flow(args: &CpgFlowArgs, format: Format) -> Result<(String, u8), String> 
     Ok((output, 0))
 }
 
-fn flow_text(functions: &[analyze::FlowRow]) -> String {
+fn flow_text(functions: &[FlowRow]) -> String {
     let mut lines: Vec<String> = functions
         .iter()
         .map(|row| {
@@ -133,15 +135,12 @@ pub fn analyze(cli: &Cli, args: &CpgAnalyzeArgs) -> Result<(String, u8), String>
         top: args.display.top,
         ..crate::mine_options(&args.mine)
     };
-    let unified = analyze::analyze(
+    let unified = analyze::Unified::from(unified::analyze(
         received.records,
-        &analyze::Request {
-            filter: &filter,
-            config: &config,
-            options: &options,
-            top: args.display.top,
-        },
-    )?;
+        &filter,
+        &config,
+        &options,
+    )?);
     if let Some(directory) = &args.sarif_dir {
         write_sarif(&unified, directory)?;
     }
@@ -241,7 +240,7 @@ pub struct Selection<'a> {
 // rstyle-allow(side_effect_density): IO boundary: creates the output directory, then emits
 pub fn emit(selection: &Selection<'_>, out: &Path) -> Result<(String, u8), String> {
     std::fs::create_dir_all(out).map_err(|error| format!("{}: {error}", out.display()))?;
-    let out = out.canonicalize().map_err(|error| error.to_string())?;
+    let out = crate::run::canonical(out).map_err(|error| error.to_string())?;
     let written = emit_documents(selection, &out, &out.join("target"))?;
 
     Ok((
@@ -268,23 +267,27 @@ pub(crate) fn emit_documents(
     // rustc resolves source paths against its working directory, which the OS
     // reports with symlinks resolved; a root reached through a symlink (e.g.
     // `--manifest-path` under macOS's `/var`) would match no source file.
-    let root = metadata
-        .workspace_root
-        .canonicalize()
+    let root = crate::run::canonical(&metadata.workspace_root)
         .map_err(|error| format!("{}: {error}", metadata.workspace_root.display()))?;
     remove_documents(out)?;
+    // The compiler sees paths as Cargo spells them, which follows the manifest. Naming it the way
+    // `root` is spelled keeps every source file under the root, however the working directory
+    // happens to be written, such as a short 8.3 name on Windows.
+    let manifest = selection
+        .manifest
+        .map_or_else(|| root.join("Cargo.toml"), Path::to_path_buf);
 
     let members: Vec<&str> = metadata
         .packages
         .iter()
         .map(|package| package.name.as_str())
         .collect();
-    let mut clean = cargo("clean", selection.manifest);
+    let mut clean = cargo("clean", Some(&manifest));
     clean.arg("--target-dir").arg(target);
     clean.args(members.iter().flat_map(|name| ["-p", name]));
     status(clean, "cargo clean")?;
 
-    let mut check = cargo("check", selection.manifest);
+    let mut check = cargo("check", Some(&manifest));
     check.arg("--target-dir").arg(target);
     check.args(packages(selection));
     check

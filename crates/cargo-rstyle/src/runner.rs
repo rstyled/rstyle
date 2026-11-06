@@ -13,7 +13,7 @@ use frontend::{Frontend, Saving};
 use rstyle_core::cpg::records::{Demand, Record};
 use rstyle_core::cpg::transport::{self, DOCUMENTS_MANIFEST, Encoding};
 use rstyle_core::filter::{Analysis, Filter};
-use rstyle_core::patterns_report;
+use rstyle_core::{patterns_report, unified};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use store::{Destination, Staged};
@@ -81,13 +81,10 @@ impl RunArgs {
         Ok(filter)
     }
 
-    fn destination(
-        &self,
-        runs: impl FnOnce() -> Result<PathBuf, String>,
-    ) -> Result<Destination, String> {
+    fn destination(&self, project: &Path, language: &'static str) -> Result<Destination, String> {
         match &self.out {
             Some(out) => Ok(Destination::Exact(out.clone())),
-            None => runs().map(Destination::Runs),
+            None => store::project_runs(project, language).map(Destination::Runs),
         }
     }
 }
@@ -126,7 +123,7 @@ pub(crate) fn go(cli: &Cli, args: &GoArgs) -> Result<(String, u8), String> {
 
     let frontend = Frontend::go()?;
     let local = filter.frontend_analyses("go", &frontend.analyses)?;
-    let staged = Staged::new(args.run.destination(|| store::project_runs(&project))?)?;
+    let staged = Staged::new(args.run.destination(&project, "go")?)?;
     let plan = Plan {
         cli,
         args: &args.run,
@@ -177,13 +174,9 @@ pub(crate) fn rust(cli: &Cli, args: &RunArgs) -> Result<(String, u8), String> {
         cli.manifest_path.as_deref(),
         Some(&crate::run::pinned_toolchain()),
     )?;
-    let root = metadata
-        .workspace_root
-        .canonicalize()
+    let root = crate::run::canonical(&metadata.workspace_root)
         .map_err(|error| format!("{}: {error}", metadata.workspace_root.display()))?;
-    // Everything stays under `target/`, so `cargo clean` clears it.
-    let rstyle = metadata.target_directory.join("rstyle");
-    let staged = Staged::new(args.destination(|| Ok(rstyle.join("runs")))?)?;
+    let staged = Staged::new(args.destination(&root, "rust")?)?;
     let plan = Plan {
         cli,
         args,
@@ -193,7 +186,8 @@ pub(crate) fn rust(cli: &Cli, args: &RunArgs) -> Result<(String, u8), String> {
         project: root,
     };
 
-    let (records, documents) = rust_records(&plan, &staged, &rstyle.join("build"))?;
+    let build = metadata.target_directory.join("rstyle/build");
+    let (records, documents) = rust_records(&plan, &staged, &build)?;
     let unified = plan.analyzed(records)?;
     let run = plan.save(&unified, staged, documents)?;
     plan.output(&unified, Some(&run))
@@ -218,8 +212,7 @@ fn rust_records(
         all_targets: plan.cli.all_targets,
         manifest: plan.cli.manifest_path.as_deref(),
     };
-    let directory = directory
-        .canonicalize()
+    let directory = crate::run::canonical(&directory)
         .map_err(|error| format!("{}: {error}", directory.display()))?;
     cpg::emit_documents(&selection, &directory, target)?;
     let paths = cpg::documents(&directory)?;
@@ -335,15 +328,7 @@ impl Plan<'_> {
             crate::config_path(self.cli.config.clone(), &self.project).as_deref(),
         )?;
         let options = self.pattern_options()?;
-        analyze::analyze(
-            records,
-            &analyze::Request {
-                filter: &self.filter,
-                config: &config,
-                options: &options,
-                top: self.args.display.top,
-            },
-        )
+        unified::analyze(records, &self.filter, &config, &options).map(Unified::from)
     }
 
     fn pattern_options(&self) -> Result<patterns_report::Options, String> {
@@ -426,9 +411,9 @@ fn reject_rust_flags(cli: &Cli) -> Result<(), String> {
 // rstyle-allow(side_effect_density): IO boundary: resolves the source directory
 fn go_source(explicit: Option<&Path>) -> Result<PathBuf, String> {
     match explicit {
-        Some(source) => source
-            .canonicalize()
-            .map_err(|error| format!("{}: {error}", source.display())),
+        Some(source) => {
+            crate::run::canonical(source).map_err(|error| format!("{}: {error}", source.display()))
+        }
         None => {
             let current = std::env::current_dir().map_err(|error| error.to_string())?;
             Ok(module_root(&current).unwrap_or(current))

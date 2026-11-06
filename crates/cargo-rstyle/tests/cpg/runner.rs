@@ -33,7 +33,7 @@ analyze)
     broken) exit 3 ;;
     invalid) echo '{"version":"1.0"}' > "$6" ;;
     silent) ;;
-    *) echo '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"fake"}},"results":[]}]}' > "$6" ;;
+    *) echo '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"fake"}},"results":[{"message":{"text":"found"}}]}]}' > "$6" ;;
     esac
     ;;
 *) exit 64 ;;
@@ -62,8 +62,9 @@ impl Project {
         Self { directory }
     }
 
-    fn root(&self) -> &Path {
-        self.directory.path()
+    fn root(&self) -> PathBuf {
+        // As the frontend's process sees it: a temporary directory can sit behind a symlink.
+        self.directory.path().canonicalize().unwrap()
     }
 
     fn command(&self, description: &str, args: &[&str]) -> Command {
@@ -129,7 +130,7 @@ fn a_go_run_saves_everything_in_one_timestamped_folder() {
     assert_eq!(run.parent().unwrap(), project.root().join(".rstyle/runs"));
     let name = run.file_name().unwrap().to_str().unwrap();
     assert!(
-        name.len() == 16 && name.ends_with('Z') && name.as_bytes()[8] == b'T',
+        name.len() == 19 && name.ends_with("Z-go") && name.as_bytes()[8] == b'T',
         "{name}"
     );
     for file in [
@@ -315,6 +316,94 @@ fn a_run_saved_from_a_saved_run_holds_no_documents_of_its_own() {
 }
 
 #[test]
+fn a_language_keeps_its_newest_runs_and_leaves_the_others_alone() {
+    let project = Project::new();
+    let runs = project.root().join(".rstyle/runs");
+    for name in [
+        "20200101T000000Z-go",
+        "20200102T000000Z-go",
+        "20200101T000000Z-rust",
+    ] {
+        std::fs::create_dir_all(runs.join(name)).unwrap();
+    }
+    let output = project
+        .command(NO_ANALYSES, &["go", "--check", "--format", "json"])
+        .env("RSTYLE_KEEP_RUNS", "2")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let run = saved_run(&output);
+    let mut left: Vec<_> = project
+        .run_folders()
+        .into_iter()
+        .map(|path| path.file_name().unwrap().to_str().unwrap().to_string())
+        .collect();
+    left.sort();
+    let published = run.file_name().unwrap().to_str().unwrap();
+    assert_eq!(
+        left,
+        ["20200101T000000Z-rust", "20200102T000000Z-go", published]
+    );
+}
+
+#[test]
+fn a_bad_limit_fails_before_anything_runs() {
+    let project = Project::new();
+    let output = project
+        .command(NO_ANALYSES, &["go"])
+        .env("RSTYLE_KEEP_RUNS", "none")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("RSTYLE_KEEP_RUNS"), "{output:?}");
+    assert!(project.run_folders().is_empty());
+}
+
+#[test]
+fn an_explicit_folder_is_never_pruned() {
+    let project = Project::new();
+    let out = project.root().join("kept");
+    let args = ["go", "--check", "--out", out.to_str().unwrap()];
+    let output = project
+        .command(NO_ANALYSES, &args)
+        .env("RSTYLE_KEEP_RUNS", "1")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    for _ in 0..2 {
+        let output = project
+            .command(NO_ANALYSES, &["go", "--check"])
+            .env("RSTYLE_KEEP_RUNS", "1")
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
+    }
+    assert!(out.join("report.json.zst").is_file());
+    assert_eq!(project.run_folders().len(), 1);
+}
+
+#[test]
+fn a_run_with_nothing_under_its_root_fails_and_publishes_nothing() {
+    let project = Project::new();
+    let mut document = example();
+    for file in document["unit"]["files"].as_array_mut().unwrap() {
+        file["path"] = format!("../elsewhere/{}", file["path"].as_str().unwrap()).into();
+    }
+    std::fs::write(
+        project.root().join("document.json"),
+        serde_json::to_vec(&document).unwrap(),
+    )
+    .unwrap();
+    let output = project.go(&["--format", "json"]);
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(
+        stderr(&output).contains("under its source root"),
+        "{output:?}"
+    );
+    assert!(project.run_folders().is_empty());
+}
+
+#[test]
 fn a_saved_run_missing_a_document_is_refused() {
     let project = Project::new();
     let run = saved_run(&project.go(&["--format", "json"]));
@@ -338,7 +427,7 @@ fn out_must_be_new() {
 }
 
 #[test]
-fn frontend_analyses_stay_in_their_own_pending_files() {
+fn a_frontend_analysis_keeps_its_file_and_joins_the_final_report() {
     let project = Project::new();
     let output = project
         .command(
@@ -351,14 +440,67 @@ fn frontend_analyses_stay_in_their_own_pending_files() {
         .unwrap();
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     let unified = report(&output);
-    assert_eq!(
-        unified["frontend"],
-        json!([{"analysis": "go:calls", "status": "pending", "file": "frontend/calls.sarif"}])
-    );
+    let frontend = &unified["frontend"][0];
+    assert_eq!(frontend["analysis"], "go:calls");
+    assert_eq!(frontend["status"], "complete");
+    assert_eq!(frontend["file"], "frontend/calls.sarif");
+    assert_eq!(frontend["runs"][0]["automationDetails"]["id"], "go/calls/");
     assert!(unified.get("check").is_none());
     let run = saved_run(&output);
     assert!(run.join("frontend/calls.sarif").is_file());
     assert!(!run.join("documents").exists() && !run.join("check.sarif").exists());
+    let log: Value =
+        serde_json::from_slice(&std::fs::read(run.join("report.sarif")).unwrap()).unwrap();
+    assert_eq!(log["runs"], frontend["runs"]);
+}
+
+#[test]
+fn the_final_report_holds_core_and_frontend_runs_in_order() {
+    let project = Project::new();
+    let output = project
+        .command(
+            ANALYSES,
+            &[
+                "go",
+                "--filter",
+                "check,patterns,go:calls",
+                "--format",
+                "json",
+            ],
+        )
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let run = saved_run(&output);
+    let log: Value =
+        serde_json::from_slice(&std::fs::read(run.join("report.sarif")).unwrap()).unwrap();
+    let categories: Vec<_> = log["runs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|run| run["automationDetails"]["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        categories,
+        ["rstyle/check/", "rstyle/patterns/", "go/calls/"]
+    );
+    assert_eq!(log["version"], "2.1.0");
+}
+
+#[test]
+fn text_output_says_what_a_frontend_analysis_found() {
+    let project = Project::new();
+    let output = project
+        .command(ANALYSES, &["go", "--filter", "go:calls"])
+        .env_remove("FAKE_DOCUMENT")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let text = stdout(&output);
+    assert!(
+        text.contains("go:calls: 1 result, in frontend/calls.sarif"),
+        "{text}"
+    );
 }
 
 #[test]
@@ -376,7 +518,7 @@ fn no_filter_runs_every_analysis_and_a_failure_is_the_worst_result() {
         .iter()
         .map(|result| result["status"].as_str().unwrap())
         .collect();
-    assert_eq!(statuses, ["pending", "failed", "failed", "failed"]);
+    assert_eq!(statuses, ["complete", "failed", "failed", "failed"]);
     let run = saved_run(&output);
     assert!(run.join("frontend/calls.sarif").is_file());
     let files: Vec<_> = std::fs::read_dir(run.join("frontend")).unwrap().collect();
@@ -552,7 +694,7 @@ fn rust_run(root: &Path, args: &[&str]) -> Output {
 }
 
 #[test]
-fn a_rust_run_lives_under_target_and_matches_the_compiler_route() {
+fn a_rust_run_saves_beside_go_runs_and_matches_the_compiler_route() {
     let directory = fixture("animals");
     let root = directory.path().canonicalize().unwrap();
     let output = rust_run(&root, &["--format", "json", "--no-ignore"]);
@@ -562,9 +704,19 @@ fn a_rust_run_lives_under_target_and_matches_the_compiler_route() {
     );
     let unified = report(&output);
     let run = saved_run(&output);
-    assert_eq!(run.parent().unwrap(), root.join("target/rstyle/runs"));
+    assert_eq!(run.parent().unwrap(), root.join(".rstyle/runs"));
+    assert!(
+        run.file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with("Z-rust")
+    );
     assert!(root.join("target/rstyle/build").is_dir());
-    assert!(!root.join(".rstyle").exists());
+    assert_eq!(
+        std::fs::read_to_string(root.join(".rstyle/.gitignore")).unwrap(),
+        "*\n"
+    );
 
     let (_, documents) = routes_over(&root, &[]);
     assert_eq!(
@@ -574,8 +726,20 @@ fn a_rust_run_lives_under_target_and_matches_the_compiler_route() {
     assert!(!documents_in(&run.join("documents")).is_empty());
     assert_locations_resolve(&root, &run);
 
+    assert_reads_back(&root, &run, &unified);
+
+    let second = rust_run(&root, &["--format", "json", "--no-ignore"]);
+    assert_eq!(
+        without_run(report(&second)),
+        without_run(unified),
+        "the shared build changes nothing"
+    );
+    assert_cargo_clean_leaves_the_run(&root, &run);
+}
+
+fn assert_reads_back(root: &Path, run: &Path, unified: &Value) {
     let again = rust_run(
-        &root,
+        root,
         &[
             "--format",
             "json",
@@ -585,14 +749,9 @@ fn a_rust_run_lives_under_target_and_matches_the_compiler_route() {
         ],
     );
     assert_eq!(report(&again), without_run(unified.clone()), "{again:?}");
+}
 
-    let second = rust_run(&root, &["--format", "json", "--no-ignore"]);
-    assert_eq!(
-        without_run(report(&second)),
-        without_run(unified),
-        "the shared build changes nothing"
-    );
-
+fn assert_cargo_clean_leaves_the_run(root: &Path, run: &Path) {
     // An inherited CARGO_TARGET_DIR would make this clean the build running the test.
     let cleaned = Command::new("cargo")
         .args(["clean", "--quiet", "--manifest-path"])
@@ -604,8 +763,9 @@ fn a_rust_run_lives_under_target_and_matches_the_compiler_route() {
     assert!(cleaned.success());
     assert!(
         !root.join("target").exists(),
-        "`cargo clean` clears every run"
+        "`cargo clean` clears the build"
     );
+    assert!(run.join("report.json.zst").is_file(), "but not a saved run");
 }
 
 fn assert_locations_resolve(root: &Path, run: &Path) {

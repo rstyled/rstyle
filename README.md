@@ -233,7 +233,7 @@ Two layers:
 
 Each candidate has a `kind` (`trait_method`, `capability_set`, `enum_dispatch`, `generic_fn`, `parameterize`), a score with its parts (`support`, `lift`, `holes`, `coverage`), an observation, an inference, a possible refactor sketch, every site with `path:line`, the functions that fill the holes, and counter-evidence (effect mismatch, common signature). Patterns whose implementations all already implement one trait method are listed under `suppressed`, not proposed. Output is deterministic.
 
-Compiler patterns captures graph observations under `target/rstyle/runs/`. Use `--replay-run PATH` to reevaluate an explicit saved run without source files or compiler tools. Style and patterns both consume saved compiler unit snapshots.
+Compiler patterns captures graph observations under `target/rstyle/runs/`. `cargo rstyle`, `cargo rstyle patterns` and `--complexity` read the same capture, so switching between them recompiles nothing that hasn't changed. Use `--replay-run PATH` to reevaluate an explicit saved run without source files or compiler tools. Style and patterns both consume saved compiler unit snapshots.
 
 A new capture removes all but a workspace's 5 most recently used runs, since one run can hold gigabytes. It never removes a run another command is using, or the run the next build reuses compiled crates from. Set `RSTYLE_KEEP_RUNS` to another count, or to `all` to keep every run; to keep a run you are working through, set it before capturing again.
 
@@ -384,19 +384,20 @@ An unknown name fails before anything runs, as does `--fail-on-candidates` witho
 
 **Saved runs.** A finished run is published whole, so a rejected one leaves nothing behind:
 
-| | Default location | Cleared by |
-|---|---|---|
-| Go | `.rstyle/runs/<UTC timestamp>/` in the module, which ignores itself in Git | Deleting it |
-| Rust | `target/rstyle/runs/<UTC timestamp>/` | `cargo clean` |
+Every language saves to `.rstyle/runs/<UTC timestamp>-<language>/` in the project root (the Go
+module or Cargo workspace), a folder that ignores itself in Git. Each language keeps its newest 5
+runs; `RSTYLE_KEEP_RUNS` sets another count, or `all`. `cargo clean` doesn't touch them, though it
+clears the build a Rust run reuses, in `target/rstyle/build/`. Deleting `.rstyle/` is always safe.
 
-Nothing prunes older runs yet. `--out DIR` saves to a new directory instead. Each run holds:
+`--out DIR` saves to a new directory instead, which is never pruned. Each run holds:
 
 ```
 documents/                 what the frontend produced
 report.json.zst            the complete report
+report.sarif               SARIF 2.1.0: every run below in one log
 check.sarif                SARIF 2.1.0, category rstyle/check/
 patterns.sarif             SARIF 2.1.0, category rstyle/patterns/
-frontend/<analysis>.sarif  a frontend analysis's results, listed as pending in the report
+frontend/<analysis>.sarif  a frontend analysis's results, as it wrote them
 run.json                   the language, source root and document count
 ```
 
@@ -404,7 +405,9 @@ run.json                   the language, source root and document count
 `--format json` prints plain JSON to stdout, with `run` naming where the run was saved. Two runs
 over the same source give byte-identical reports and SARIF.
 
-SARIF carries findings and candidates, one run per file, so nothing interleaves. Runtime bounds,
+SARIF carries findings and candidates, one run per analysis, so nothing interleaves. A frontend
+analysis's runs also join `report.sarif` and the JSON report's `frontend` list, with a category
+such as `go/calls/` and a source root if they have none. Its results don't change the exit code. Runtime bounds,
 signature groups and control flow stay in the report, which remains the complete one. `flow` is
 what `cpg flow` derives for each function, and it's most of a report's size: on gstyle, 126 MB of
 the 176 MB printed and 6.2 MB of the 7.5 MB saved, for about 2 s more. `--filter
@@ -427,7 +430,8 @@ own child processes, or rstyle never sees end of file. The runner keeps what it 
 frontend needs no compression or storage code of its own. Documents are derived on a worker pool
 as they arrive, and records are put in a canonical order, so arrival order can't change a result.
 
-Windows support has been type-checked and has a CI job, but hasn't been run outside CI.
+CI runs both routes on Windows: the pipe a frontend inherits, and `rstyle rust` and `cargo rstyle`
+through the driver. The rest of the compiler tests are Unix-only.
 
 ## Other languages (`cpg`)
 
@@ -463,7 +467,7 @@ twice. `cpg patterns` exits 1 with `--fail-on-candidates` when a candidate is le
 
 `cpg analyze` runs the selected analyses in one pass, so their results are what `cpg check`,
 `cpg patterns --complexity` and `cpg flow` report separately. With no `--filter` it runs them all, and
-`--sarif-dir` writes `check.sarif` and `patterns.sarif`. It reads the same inputs, deriving
+`--sarif-dir` writes `check.sarif`, `patterns.sarif` and `report.sarif`. It reads the same inputs, deriving
 documents on a worker pool. The `rstyle` commands above use it and add the frontend and saved run.
 
 A frontend records every function the compiler holds and marks what a macro writes by

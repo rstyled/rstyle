@@ -101,6 +101,108 @@ fn reused_advisory_owners_reevaluate_consumer_thresholds_without_compilation() {
     );
 }
 
+/// Every saved run of a workspace, newest last.
+fn saved_runs(directory: &Path) -> Vec<std::path::PathBuf> {
+    let parent = directory.join("target/rstyle/runs");
+    let mut runs: Vec<_> = std::fs::read_dir(parent)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| {
+            let name = path.file_name().unwrap().to_str().unwrap();
+            name.starts_with("run-")
+        })
+        .collect();
+    runs.sort_by_key(|run| {
+        std::fs::metadata(run.join("plan.json"))
+            .unwrap()
+            .modified()
+            .unwrap()
+    });
+    runs
+}
+
+/// Whether the newest run compiled anything of the workspace itself.
+fn compiled_the_workspace(directory: &Path) -> bool {
+    let newest = saved_runs(directory).pop().unwrap();
+    let text = std::fs::read_to_string(newest.join("cargo.jsonl")).unwrap();
+    text.lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap())
+        .filter(|row| row["reason"] == "compiler-artifact")
+        .filter(|row| row["package_id"].as_str().unwrap().starts_with("path+file"))
+        .any(|row| row["fresh"] == false)
+}
+
+#[test]
+fn every_route_shares_one_capture() {
+    let directory = clone_workspace();
+    let root = directory.path();
+    let style = rstyle(root, &["--format", "json"]);
+    assert!(compiled_the_workspace(root), "{style:?}");
+
+    let patterns = rstyle(root, &["patterns", "--format", "json", "--no-ignore"]);
+    assert_eq!(patterns.status.code(), Some(0), "{patterns:?}");
+    assert!(!compiled_the_workspace(root), "patterns compiled again");
+
+    let bounds = rstyle(
+        root,
+        &[
+            "patterns",
+            "--complexity",
+            "--format",
+            "json",
+            "--no-ignore",
+        ],
+    );
+    assert_eq!(bounds.status.code(), Some(0), "{bounds:?}");
+    assert!(!compiled_the_workspace(root), "--complexity compiled again");
+
+    let again = rstyle(root, &["--format", "json"]);
+    assert!(!compiled_the_workspace(root), "style compiled again");
+    assert_eq!(
+        serde_json::from_slice::<Value>(&style.stdout).unwrap()["diagnostics"],
+        serde_json::from_slice::<Value>(&again.stdout).unwrap()["diagnostics"]
+    );
+
+    // A fresh capture of the same source reports what the reused one does.
+    let fresh = clone_workspace();
+    let compiled = rstyle(
+        fresh.path(),
+        &[
+            "patterns",
+            "--complexity",
+            "--format",
+            "json",
+            "--no-ignore",
+        ],
+    );
+    let reports = [&bounds, &compiled].map(|output| {
+        let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+        report["compiler_advisory"]["units"].clone()
+    });
+    assert_eq!(rows(&reports[0]), rows(&reports[1]));
+}
+
+/// Each function's bounds and the candidates, by what doesn't depend on where the run is.
+fn rows(units: &Value) -> Vec<Value> {
+    units
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|unit| {
+            let bounds = unit["runtime_bounds"]["rows"].as_array().cloned();
+            let candidates = unit["patterns"]["evaluation"]["candidates"]
+                .as_array()
+                .cloned();
+            bounds.into_iter().chain(candidates).flatten()
+        })
+        .map(|mut row| {
+            let fields = row.as_object_mut().unwrap();
+            fields.remove("key");
+            row
+        })
+        .collect()
+}
+
 #[test]
 fn source_edits_replace_completed_advisory_owner_observations() {
     let directory = clone_workspace();
@@ -141,15 +243,13 @@ fn missing_corrupt_and_incomplete_owner_indexes_force_recapture() {
 }
 
 #[test]
-fn collector_changes_invalidate_completed_owner_reuse() {
+fn another_report_reuses_the_capture_it_reads() {
     let directory = clone_workspace();
     let first = live(directory.path(), &[], 0);
     let patterns = live(directory.path(), &["--compiler-patterns"], 0);
-    fresh(&patterns, "clone_fixture", false);
-    let patterns_again = live(directory.path(), &["--compiler-patterns"], 0);
-    fresh(&patterns_again, "clone_fixture", true);
+    fresh(&patterns, "clone_fixture", true);
     let ordinary = live(directory.path(), &[], 0);
-    fresh(&ordinary, "clone_fixture", false);
+    fresh(&ordinary, "clone_fixture", true);
     assert_eq!(first["compiler_advisory"], ordinary["compiler_advisory"]);
 }
 

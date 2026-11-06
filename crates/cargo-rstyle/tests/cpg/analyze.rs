@@ -179,6 +179,9 @@ fn sarif_is_one_file_per_selected_analysis() {
         "rstyle/patterns/"
     );
     assert_eq!(patterns["runs"].as_array().unwrap().len(), 1);
+    let report: Value =
+        serde_json::from_slice(&std::fs::read(sarif.join("report.sarif")).unwrap()).unwrap();
+    assert_eq!(report["runs"].as_array().unwrap().len(), 2);
 
     let only = dir.path().join("only");
     let output = with_documents(

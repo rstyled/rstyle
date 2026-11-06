@@ -59,6 +59,20 @@ impl Plan {
         }
     }
 
+    /// Whether another capture's documents serve this one. What each route then reads of them
+    /// doesn't matter: the driver writes the same documents for every route.
+    fn same_capture(&self, other: &Self) -> bool {
+        self.captured() == other.captured()
+    }
+
+    fn captured(&self) -> Self {
+        Self {
+            compiler_patterns: false,
+            compiler_runtime_bounds: false,
+            ..self.clone()
+        }
+    }
+
     fn planned_units(&self) -> impl Iterator<Item = &Value> {
         self.primary_units.iter()
     }
@@ -151,6 +165,11 @@ fn new_capture(directory: PathBuf, plan: Plan) -> Capture {
     }
 }
 
+/// How many saved runs to keep of each kind, on every route.
+pub(crate) fn saved_run_limit() -> Result<Option<usize>, String> {
+    retention::limit()
+}
+
 fn run_directory(target: &Path) -> Result<PathBuf, String> {
     let limit = retention::limit()?;
     let parent = target.join("rstyle/runs");
@@ -185,9 +204,7 @@ struct CaptureEnvironment {
 
 fn capture_environment() -> Result<CaptureEnvironment, String> {
     Ok(CaptureEnvironment {
-        driver: run::driver_path()?
-            .canonicalize()
-            .map_err(|e| e.to_string())?,
+        driver: run::canonical(&run::driver_path()?).map_err(|e| e.to_string())?,
         compiler_identity: tool_identity("rustc", "-vV")?,
         cargo_identity: tool_identity("cargo", "--version")?,
     })

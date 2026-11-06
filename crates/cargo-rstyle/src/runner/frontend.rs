@@ -37,6 +37,12 @@ struct Described {
     name: String,
 }
 
+/// An analysis that finished: its own file, and its runs as the final report holds them.
+struct FinishedAnalysis {
+    file: PathBuf,
+    runs: Vec<serde_json::Value>,
+}
+
 /// A frontend's complete stream, with what was received.
 pub(super) struct Streamed {
     pub records: Vec<Record>,
@@ -139,16 +145,18 @@ impl Frontend {
             .map(|name| {
                 let analysis = format!("{}:{name}", self.language);
                 match self.run_analysis(name, source, directory) {
-                    Ok(file) => FrontendResult {
+                    Ok(finished) => FrontendResult {
                         analysis,
-                        status: "pending",
-                        file: Some(file),
+                        status: "complete",
+                        file: Some(finished.file),
+                        runs: finished.runs,
                         error: None,
                     },
                     Err(error) => FrontendResult {
                         analysis,
                         status: "failed",
                         file: None,
+                        runs: Vec::new(),
                         error: Some(error),
                     },
                 }
@@ -156,10 +164,15 @@ impl Frontend {
             .collect()
     }
 
-    /// A file is published only if the analysis succeeded and wrote valid SARIF. The returned
-    /// path is relative to the run, so reports stay comparable between runs.
+    /// A file is published only if the analysis succeeded and wrote valid SARIF. The path is
+    /// relative to the run, so reports stay comparable between runs.
     // rstyle-allow(side_effect_density): process boundary: runs one analysis and publishes its file
-    fn run_analysis(&self, name: &str, source: &Path, directory: &Path) -> Result<PathBuf, String> {
+    fn run_analysis(
+        &self,
+        name: &str,
+        source: &Path,
+        directory: &Path,
+    ) -> Result<FinishedAnalysis, String> {
         let staged = directory.join(format!(".{name}.staged"));
         let status = self
             .command(&[
@@ -175,8 +188,11 @@ impl Frontend {
 
         let result = published(status, &staged, &directory.join(format!("{name}.sarif")));
         let _ = std::fs::remove_file(&staged);
-        result?;
-        Ok(Path::new("frontend").join(format!("{name}.sarif")))
+        let category = format!("{}/{name}/", self.language);
+        Ok(FinishedAnalysis {
+            runs: sarif::labeled_runs(&result?, &category, source)?,
+            file: Path::new("frontend").join(format!("{name}.sarif")),
+        })
     }
 
     /// A frontend's stdout goes to our stderr, so it can't mix with a report on our stdout.
@@ -204,7 +220,8 @@ fn wait(child: Mutex<Child>) -> Result<ExitStatus, String> {
         .map_err(|error| format!("Cannot wait for the frontend: {error}"))
 }
 
-fn published(status: ExitStatus, staged: &Path, file: &Path) -> Result<(), String> {
+// rstyle-allow(side_effect_density): IO boundary: reads a frontend's file and publishes it
+fn published(status: ExitStatus, staged: &Path, file: &Path) -> Result<serde_json::Value, String> {
     if !status.success() {
         return Err(format!("the analysis failed with {status}"));
     }
@@ -212,7 +229,8 @@ fn published(status: ExitStatus, staged: &Path, file: &Path) -> Result<(), Strin
     let bytes = std::fs::read(staged).map_err(|error| format!("no results file: {error}"))?;
     let log = serde_json::from_slice(&bytes).map_err(|error| format!("invalid JSON: {error}"))?;
     sarif::validate(&log)?;
-    std::fs::rename(staged, file).map_err(|error| format!("{}: {error}", file.display()))
+    std::fs::rename(staged, file).map_err(|error| format!("{}: {error}", file.display()))?;
+    Ok(log)
 }
 
 // rstyle-allow(side_effect_density): process boundary: asks the frontend what it offers

@@ -13,7 +13,8 @@ const RUN_PREFIX: &str = "run-";
 const REMOVING_PREFIX: &str = "pruning-";
 const LOCK_FILE: &str = "run.lock";
 
-pub(super) fn limit() -> Result<Option<usize>, String> {
+/// How many saved runs to keep, from `RSTYLE_KEEP_RUNS`; `None` keeps them all.
+pub(in crate::compiler) fn limit() -> Result<Option<usize>, String> {
     let value = std::env::var_os(LIMIT_VARIABLE);
     parsed_limit(
         value

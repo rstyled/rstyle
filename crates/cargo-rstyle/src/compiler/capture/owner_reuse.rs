@@ -150,7 +150,7 @@ fn tool(path: PathBuf) -> Result<Tool, String> {
 
 fn reusable(index: &Index, capture: &Capture, tools: &[Tool]) -> bool {
     index.schema == 1
-        && index.plan == capture.plan
+        && index.plan.same_capture(&capture.plan)
         && index.tools == tools
         && !index.entries.is_empty()
         && index.entries.iter().all(|entry| stored(&entry.unit))
@@ -210,6 +210,8 @@ fn materialize(capture: &Capture, original: &Unit) -> Result<(), String> {
 
 fn reused_unit(capture: &Capture, original: &Unit) -> Result<Unit, String> {
     let mut unit = original.clone();
+    // The documents don't depend on it, and the ledger answers to this run's plan.
+    unit.compiler_runtime_bounds = capture.plan.compiler_runtime_bounds;
     unit.directory = tempfile::Builder::new()
         .prefix("invocation-reused-")
         .tempdir_in(&capture.directory)
