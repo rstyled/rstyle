@@ -256,7 +256,8 @@ fn function(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Result<Value, String> 
         .and_then(|item| item.trait_item_def_id())
         .map(|trait_fn| builder.unit.definition(trait_fn));
     let definition = builder.unit.definition(id.to_def_id());
-    let (cfg, accesses) = control_flow(&builder, &root, &places);
+    let written = places::coroutine_places(tcx, id, &mut builder);
+    let (cfg, accesses) = control_flow(&builder, &root, (&places, &written));
 
     let mut function = json!({
         "id": format!("fn:{}", crate::ids::def_id_str(tcx, id.to_def_id())), "definition": definition,
@@ -274,7 +275,7 @@ fn function(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Result<Value, String> 
 fn control_flow(
     builder: &body::Builder<'_, '_>,
     root: &str,
-    places: &[Value],
+    (places, coroutines): (&[Value], &[Value]),
 ) -> (Value, Vec<Value>) {
     let cfg = flow::cfg(
         &builder.nodes,
@@ -288,7 +289,7 @@ fn control_flow(
         nodes: &builder.nodes,
         symbols: &builder.symbols,
         refs: &builder.refs,
-        places,
+        places: &[places, coroutines].concat(),
     });
 
     (cfg, accesses)

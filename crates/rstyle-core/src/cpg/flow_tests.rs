@@ -455,7 +455,8 @@ fn a_binding_a_raw_pointer_reaches_can_change_through_it() {
         edges: LINE,
         accesses: &[
             ("first", "x", "write"),
-            ("second", "x", "read_write"),
+            // Taking an address reads the binding; a read and write would say more than that.
+            ("second", "x", "read"),
             ("use", "x", "read"),
         ],
         parameters: &[],
@@ -481,7 +482,7 @@ fn a_binding_a_raw_pointer_reaches_can_change_through_it() {
     assert!(
         raw.reasons
             .iter()
-            .any(|reason| reason.contains("borrow or capture"))
+            .any(|reason| reason.contains("a borrow, a capture"))
     );
     assert!(raw.data.unwrap().iter().all(|edge| edge.approximate));
 }
