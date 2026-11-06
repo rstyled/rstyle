@@ -7,7 +7,9 @@ fn main() -> ExitCode {
         Ok(program) => Command::new(program),
         Err(error) => return failed(&error),
     };
-    command.args(std::env::args_os().skip(1));
+    command
+        .args(std::env::args_os().skip(1))
+        .env("RSTYLE_RUNNER_NAME", "rstyle");
     run(command)
 }
 

@@ -84,6 +84,20 @@ fn a_frontend_streams_a_run_over_the_pipe_it_inherits() {
 }
 
 #[test]
+fn help_names_the_command_that_was_typed() {
+    let help = |program: &str, args: &[&str]| {
+        let output = Command::new(cargo_bin(program))
+            .args(args)
+            .output()
+            .unwrap();
+        String::from_utf8(output.stdout).unwrap()
+    };
+    assert!(help("rstyle", &["--help"]).contains("Usage: rstyle"));
+    assert!(help("rstyle", &["go", "--help"]).contains("Usage: rstyle go"));
+    assert!(help("cargo-rstyle", &["--help"]).contains("Usage: cargo rstyle"));
+}
+
+#[test]
 fn a_saved_run_reads_back_without_its_frontend() {
     let project = tempfile::tempdir().unwrap();
     let output = run_go(project.path(), &["--check", "--format", "json"]);

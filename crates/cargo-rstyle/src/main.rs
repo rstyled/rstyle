@@ -12,7 +12,7 @@ mod run;
 mod runner;
 mod workspace;
 
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
 use rstyle_core::ledger;
 use rstyle_core::normalize::Rules;
 use rstyle_core::{cluster, patterns_report};
@@ -402,6 +402,9 @@ impl MineArgs {
     }
 }
 
+/// Set by the `rstyle` binary, which forwards to this one.
+const RUNNER_NAME_ENV: &str = "RSTYLE_RUNNER_NAME";
+
 /// Agent-facing usage doc, embedded so it always matches the binary.
 const SKILL: &str = include_str!("../SKILL.md");
 
@@ -478,6 +481,15 @@ fn exit_with(result: Result<(String, u8), String>) -> ExitCode {
     }
 }
 
+/// Help and usage errors name the command that was typed: the `rstyle` binary says so.
+fn parsed_cli(args: impl Iterator<Item = String>) -> Cli {
+    let command = match std::env::var_os(RUNNER_NAME_ENV) {
+        Some(_) => Cli::command().name("rstyle").bin_name("rstyle"),
+        None => Cli::command(),
+    };
+    Cli::from_arg_matches(&command.get_matches_from(args)).unwrap_or_else(|error| error.exit())
+}
+
 /// Cargo hands a wrapper the compiler as its first argument, `rustc.exe` on Windows.
 fn names_rustc(argument: &str) -> bool {
     argument.ends_with("rustc") || argument.ends_with("rustc.exe")
@@ -502,7 +514,7 @@ fn main() -> ExitCode {
     let args = std::env::args()
         .enumerate()
         .filter(|(i, a)| !(*i == 1 && a == "rstyle"));
-    let mut cli = Cli::parse_from(args.map(|(_, a)| a));
+    let mut cli = parsed_cli(args.map(|(_, a)| a));
     if cli.skill {
         print!("{SKILL}");
         return ExitCode::SUCCESS;
