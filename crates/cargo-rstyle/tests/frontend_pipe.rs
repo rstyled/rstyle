@@ -57,7 +57,11 @@ fn a_frontend_streams_a_run_over_the_pipe_it_inherits() {
     assert!(report["patterns"].is_object() && report["runtime_bounds"].is_object());
 
     let run = Path::new(report["run"].as_str().unwrap());
-    assert!(run.starts_with(project.path().canonicalize().unwrap().join(".rstyle/runs")));
+    let runs = project.path().join(".rstyle").join("runs");
+    assert_eq!(
+        run.parent().unwrap().canonicalize().unwrap(),
+        runs.canonicalize().unwrap()
+    );
     for file in [
         "check.sarif",
         "patterns.sarif",
