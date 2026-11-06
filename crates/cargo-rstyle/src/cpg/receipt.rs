@@ -43,6 +43,8 @@ pub(super) struct Receipt {
     capture: Option<PathBuf>,
     #[serde(skip_serializing_if = "Option::is_none")]
     source: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    input_fd: Option<i32>,
     validation: Validation,
     transport: Option<TransportProgress>,
     failures: Vec<Failure>,
@@ -57,6 +59,14 @@ impl Receipt {
         Self::request(None, demand)
     }
 
+    pub(super) fn descriptor(number: i32, demand: Demand) -> Self {
+        Self {
+            source: Some("fd"),
+            input_fd: Some(number),
+            ..Self::stdin(demand)
+        }
+    }
+
     fn request(capture: Option<&Path>, demand: Demand) -> Self {
         Self {
             schema: match capture {
@@ -66,6 +76,7 @@ impl Receipt {
             status: Status::Rejected,
             capture: capture.map(PathBuf::from),
             source: capture.is_none().then_some("stdin"),
+            input_fd: None,
             validation: Validation {
                 profile: layout::PROFILE,
                 version: layout::VERSION,

@@ -1,4 +1,4 @@
-//! Files, captures, and stdin share incremental derivation and receipt handling.
+//! Files, captures, and pipes share incremental derivation and receipt handling.
 use super::receipt::{Receipt, TransportProgress};
 use crate::{CpgInputArgs, CpgReceiveArgs, Format};
 use rstyle_core::cpg::{
@@ -6,7 +6,7 @@ use rstyle_core::cpg::{
     records::{Demand, Record},
     transport::{CaptureReader, SequenceReader},
 };
-use std::io::BufRead;
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 pub(super) struct Received {
@@ -29,8 +29,8 @@ impl InputError {
 }
 
 pub(super) fn read(args: &CpgInputArgs, demand: Demand) -> Result<Received, InputError> {
-    if args.stdin || args.capture.is_some() {
-        return Request::new(args.capture.as_deref(), demand, true)
+    if args.stdin || args.input_fd.is_some() || args.capture.is_some() {
+        return Request::new(args.capture.as_deref(), args.input_fd, demand, true)
             .receive()
             .into_received();
     }
@@ -47,20 +47,33 @@ fn files(paths: &[std::path::PathBuf], demand: Demand) -> Result<Received, Input
 }
 
 pub(super) fn receive(args: &CpgReceiveArgs, format: Format) -> Result<(String, u8), String> {
-    let outcome = Request::new(args.capture.as_deref(), Demand::default(), false).receive();
+    let outcome = Request::new(
+        args.capture.as_deref(),
+        args.input_fd,
+        Demand::default(),
+        false,
+    )
+    .receive();
     outcome.receipt.output(format)
 }
 
 struct Request<'a> {
     directory: Option<&'a Path>,
+    input_fd: Option<i32>,
     demand: Demand,
     retain: bool,
 }
 
 impl<'a> Request<'a> {
-    fn new(directory: Option<&'a Path>, demand: Demand, retain: bool) -> Self {
+    fn new(
+        directory: Option<&'a Path>,
+        input_fd: Option<i32>,
+        demand: Demand,
+        retain: bool,
+    ) -> Self {
         Self {
             directory,
+            input_fd,
             demand,
             retain,
         }
@@ -74,8 +87,28 @@ impl<'a> Request<'a> {
     }
 
     fn stream(self) -> Outcome {
+        match self.input_fd {
+            Some(number) => self.descriptor(number),
+            None => self.stdin(),
+        }
+    }
+
+    fn stdin(self) -> Outcome {
         let reader = SequenceReader::new(std::io::stdin().lock());
         let receipt = Receipt::stdin(self.demand);
+        Session::new(reader, receipt, self.demand, self.retain).run()
+    }
+
+    fn descriptor(self, number: i32) -> Outcome {
+        let receipt = Receipt::descriptor(number, self.demand);
+        match super::descriptor::open(number) {
+            Ok(file) => self.descriptor_session(file, receipt),
+            Err(error) => Outcome::finished(receipt, None, Err(error)),
+        }
+    }
+
+    fn descriptor_session(self, file: std::fs::File, receipt: Receipt) -> Outcome {
+        let reader = SequenceReader::new(BufReader::new(file));
         Session::new(reader, receipt, self.demand, self.retain).run()
     }
 

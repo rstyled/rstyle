@@ -160,7 +160,7 @@ enum CpgCommand {
         #[arg(long)]
         out: PathBuf,
     },
-    /// Verify a completed capture or stdin stream and return its acceptance receipt.
+    /// Verify a completed capture or input stream and return its acceptance receipt.
     Receive(CpgReceiveArgs),
     /// Run the style rules over a run's documents.
     Check(CpgInputArgs),
@@ -177,7 +177,7 @@ enum CpgCommand {
 #[derive(Args)]
 struct CpgInputArgs {
     /// compat.cpg bundled or split documents, supplied explicitly.
-    #[arg(required_unless_present_any = ["capture", "stdin"])]
+    #[arg(required_unless_present_any = ["capture", "stdin", "input_fd"])]
     documents: Vec<PathBuf>,
     /// Read all documents listed by a completed capture's manifest.
     #[arg(long, conflicts_with_all = ["documents", "stdin"])]
@@ -185,16 +185,22 @@ struct CpgInputArgs {
     /// Read an uncompressed JSON text sequence from stdin; finish with RS null LF and EOF.
     #[arg(long, conflicts_with = "documents")]
     stdin: bool,
+    /// Read the uncompressed JSON sequence from an inherited descriptor (Unix).
+    #[arg(long, value_parser = clap::value_parser!(i32).range(0..), conflicts_with_all = ["documents", "capture", "stdin"])]
+    input_fd: Option<i32>,
 }
 
 #[derive(Args)]
 struct CpgReceiveArgs {
     /// Directory containing documents.manifest.json and its sealed documents.
-    #[arg(long, required_unless_present = "stdin", conflicts_with = "stdin")]
+    #[arg(long, required_unless_present_any = ["stdin", "input_fd"], conflicts_with = "stdin")]
     capture: Option<PathBuf>,
     /// Read an uncompressed JSON text sequence from stdin; finish with RS null LF and EOF.
     #[arg(long)]
     stdin: bool,
+    /// Read the uncompressed JSON sequence from an inherited descriptor (Unix).
+    #[arg(long, value_parser = clap::value_parser!(i32).range(0..), conflicts_with_all = ["capture", "stdin"])]
+    input_fd: Option<i32>,
 }
 
 #[derive(Args)]

@@ -423,6 +423,11 @@ stream receipt and exit 2. Analysis reports include this as `capture_receipt`.
 See the [pipe example and receipt contract](docs/cpg-transport.md#receiving-a-local-pipe)
 for a runnable producer and frontend integration details.
 
+On Unix, `--input-fd N` selects a caller-supplied inherited descriptor instead of
+stdin. All three receiver commands support it and identify the descriptor in
+their stream receipt. The receiver duplicates it for reading and keeps the
+original descriptor open.
+
 The Rust frontend emits the same documents:
 
 ```

@@ -12,7 +12,7 @@ fn sequence(documents: &[Value]) -> Vec<u8> {
     bytes
 }
 
-fn command(route: &str, bytes: &[u8], extra: &[&str]) -> Output {
+pub(super) fn command(route: &str, bytes: &[u8], extra: &[&str]) -> Output {
     let directory = tempfile::tempdir().unwrap();
     let mut child = Command::new(cargo_bin("cargo-rstyle"))
         .args(["rstyle", "cpg", route, "--stdin"])
@@ -213,6 +213,11 @@ fn stdin_is_explicit_and_exclusive_with_disk_inputs() {
             vec![],
             vec!["--stdin", "--capture", "capture"],
             vec!["--stdin", "document.json"],
+            vec!["--input-fd", "0", "--stdin"],
+            vec!["--input-fd", "0", "--capture", "capture"],
+            vec!["--input-fd", "0", "document.json"],
+            vec!["--input-fd=-1"],
+            vec!["--input-fd", "2147483648"],
         ] {
             let output = Command::new(cargo_bin("cargo-rstyle"))
                 .args(["rstyle", "cpg", route])

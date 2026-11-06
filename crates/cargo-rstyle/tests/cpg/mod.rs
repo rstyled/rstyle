@@ -469,6 +469,8 @@ fn emit_selects_packages_and_targets() {
 mod bounds;
 mod build_outputs;
 mod capture;
+#[cfg(unix)]
+mod descriptor;
 mod facts;
 mod stdin;
 mod transport;

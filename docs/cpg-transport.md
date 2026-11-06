@@ -157,8 +157,8 @@ These commands read the same JSON text sequence as `cpg ingest`:
    use stderr. Style findings can return exit 1 with an accepted stream receipt.
 
 An ordinary single JSON document, concatenated JSON objects, and compressed bytes
-are not this protocol. `--stdin` must be explicit and cannot be mixed with
-`--capture` or document paths. The global `--cpg-compression` option controls saved
+are not this protocol. Select exactly one input source: `--stdin`, `--input-fd N`,
+`--capture`, or explicit document paths. The global `--cpg-compression` option controls saved
 output; it does not change stdin's uncompressed encoding. Logs belong on stderr,
 not in the document stream. Pipes provide backpressure when the receiver falls
 behind; producers should honor blocked writes rather than queue the whole capture.
@@ -229,6 +229,45 @@ to `cpg::visit_records`. `next_document::<T>()` supports typed parsing, and
 into an encoder. Call `complete()` after iteration; callbacks and derived batches
 remain provisional until the complete stream and CPG validation succeed.
 
+### Choosing an inherited descriptor
+
+On Unix, `--input-fd N` reads the same uncompressed sequence from an already-open,
+readable descriptor inherited from the launcher. It is available on `receive`,
+`check`, and `patterns`. This leaves stdin available for a different purpose;
+stdout still carries the receiver's receipt or analysis report, and stderr carries
+diagnostics. `--stdin` remains the portable choice across platforms.
+
+For example, Bash can hand a pipe to fd 3 and reset stdin to `/dev/null`. Redirection
+order matters: duplicate the pipe before replacing stdin.
+
+```sh
+set -o pipefail
+python3 examples/cpg-helper/pipe.py \
+  crates/rstyle-core/src/cpg/testdata/example.cpg.json \
+  | cargo-rstyle rstyle cpg check --input-fd 3 --format json 3<&0 </dev/null
+```
+
+The receiver creates a close-on-exec duplicate and owns only that copy. It keeps
+the supplied descriptor open; both descriptors refer to the same stream position.
+Use a blocking descriptor and give the stream to one consumer. `--input-fd 0` is
+also supported. A closed descriptor or a read failure returns a rejected receipt
+with exit 2. Descriptor receipts retain `rstyle.cpg-stream-receipt/1` and identify
+the input with `"source": "fd"` and `"input_fd": N`; transport is null if the
+descriptor could not be duplicated. Stdin and saved-capture receipt shapes stay
+unchanged. Negative or out-of-range numbers and conflicting input flags are CLI
+argument errors.
+
+Choosing an fd number does not create or transfer the pipe. A Rust supervisor
+launching Go creates the pipe and arranges inheritance of its write end at the
+frontend's chosen descriptor. Rust reads the other end directly with
+`SequenceReader`; the descriptor numbers in the two processes need not match.
+Close unused pipe ends in both processes so EOF reaches the reader.
+Go can wrap its inherited write descriptor with `os.NewFile` and stream JSON to
+it, keeping stdout for other output. The supervisor consumes the stream while Go
+runs and requires both successful stream/CPG validation and a successful Go exit
+before accepting the overall run. The receiver CLI alone does not observe the
+producer's exit status.
+
 ## Memory
 
 Rust serialization writes into the compressor without an intermediate whole-JSON
@@ -245,7 +284,7 @@ discards each derived bundled batch while retaining duplicate-detection identiti
 Thus ingestion does not retain the whole capture's bundled JSON trees, but its
 memory still depends on the largest unit and the analysis data it must retain.
 
-`--stdin` uses the same incremental derivation without staging any capture files.
+`--stdin` and `--input-fd` use the same incremental derivation without staging any capture files.
 Transport buffers have bounded size, but each parsed document still occupies
 memory. Bundled units release their raw JSON before the next document is read;
 `receive` discards their derived batches, whereas analysis retains required facts

@@ -1,6 +1,7 @@
 //! `cargo rstyle cpg`: the style rules and the pattern miner over `compat.cpg` documents
 //! from any language frontend, without compiling anything.
 
+mod descriptor;
 mod ingest;
 mod input;
 mod receipt;
