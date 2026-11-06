@@ -381,6 +381,9 @@ cargo rstyle cpg patterns DOC.json... [--complexity] [--config rstyle.toml] [--f
 cargo rstyle cpg receive --capture CAPTURE_DIR --format json
 cargo rstyle cpg check --capture CAPTURE_DIR [--format text|json]
 cargo rstyle cpg patterns --capture CAPTURE_DIR [--complexity] [--format text|json]
+cargo rstyle cpg receive --stdin --format json
+cargo rstyle cpg check --stdin [--format text|json]
+cargo rstyle cpg patterns --stdin [--complexity] [--format text|json]
 ```
 
 A run is any number of units: bundled unit documents, and split unit documents with
@@ -414,6 +417,20 @@ Completed captures from native Go or the streaming helper carry a manifest.
 rejection receipt. Directory-based check and pattern reports include that receipt;
 they release each bundled unit's raw JSON after deriving its records. Analysis
 records remain in memory, and split-layout inputs are retained until EOF.
+
+For a local pipe, frontends can send the helper's uncompressed JSON text sequence
+directly to `--stdin`: RS (`0x1e`), one JSON object, LF, repeated per document,
+then RS `null` LF and EOF after successful generation. No capture directory,
+manifest, or compression is involved. The receiver requires the completion marker,
+EOF, and all CPG validation before accepting; interrupted input returns a rejected
+stream receipt and exit 2. Analysis reports include this as `capture_receipt`.
+See the [pipe example and receipt contract](docs/cpg-transport.md#receiving-a-local-pipe)
+for a runnable producer and frontend integration details.
+
+On Unix, `--input-fd N` selects a caller-supplied inherited descriptor instead of
+stdin. All three receiver commands support it and identify the descriptor in
+their stream receipt. The receiver duplicates it for reading and keeps the
+original descriptor open.
 
 The Rust frontend emits the same documents:
 

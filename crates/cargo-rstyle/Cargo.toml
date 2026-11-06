@@ -15,6 +15,9 @@ serde_json = "1"
 toml = "0.9"
 syn = { version = "2", features = ["full", "visit"] }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 # SHA-2 0.10 only enables its runtime-detected ARM SHA-256 backend with `asm`.
 # Preserve the software fallback and the original dev/test build profile.
 [target.'cfg(target_arch = "aarch64")'.dependencies]

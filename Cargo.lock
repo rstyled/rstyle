@@ -193,6 +193,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "insta",
+ "libc",
  "rstyle-ccgraph",
  "rstyle-core",
  "rstyle-pdg",

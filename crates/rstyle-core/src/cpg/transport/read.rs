@@ -12,13 +12,21 @@ use std::{
 
 /// IgnoredAny skips string decoding, so syntax-only ingestion also validates UTF-8
 /// across read boundaries without retaining long source-content strings.
-struct Utf8<R> {
+pub(super) struct Utf8<R> {
     inner: R,
     pending: [u8; 4],
     len: usize,
 }
 
 impl<R> Utf8<R> {
+    pub(super) fn new(inner: R) -> Self {
+        Self {
+            inner,
+            pending: [0; 4],
+            len: 0,
+        }
+    }
+
     fn check(&mut self, bytes: &[u8]) -> io::Result<()> {
         let bytes = self.complete_pending(bytes)?;
 
@@ -208,11 +216,7 @@ fn parsed<T: DeserializeOwned>(
         limit: seal.and_then(|s| s.decoded_bytes),
     };
 
-    let utf8 = Utf8 {
-        inner: &mut decoded,
-        pending: [0; 4],
-        len: 0,
-    };
+    let utf8 = Utf8::new(&mut decoded);
     let mut json = serde_json::Deserializer::from_reader(BufReader::new(utf8));
     let value = T::deserialize(&mut json).map_err(|error| error.to_string())?;
     json.end().map_err(|error| error.to_string())?;
