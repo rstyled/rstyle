@@ -9,6 +9,9 @@ export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rst
 if [ "${1:-}" = "--nextest" ]; then
     shift
     cargo test --workspace --locked --no-run
+    # No test target depends on the driver's binary, so without this a restored
+    # cache leaves an older driver beside the new CLI.
+    cargo build --locked -p rstyle-driver
     export RSTYLE_TEST_DRIVER="$(cd "$CARGO_TARGET_DIR/debug" && pwd)/rstyle-driver"
     test -x "$RSTYLE_TEST_DRIVER" || { echo "missing prebuilt driver: $RSTYLE_TEST_DRIVER" >&2; exit 1; }
     cargo nextest run --workspace --locked --profile ci "$@"
