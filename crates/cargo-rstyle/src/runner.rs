@@ -13,7 +13,7 @@ use frontend::{Frontend, Saving};
 use rstyle_core::cpg::records::{Demand, Record};
 use rstyle_core::cpg::transport::{self, DOCUMENTS_MANIFEST, Encoding};
 use rstyle_core::filter::{Analysis, Filter};
-use rstyle_core::patterns_report;
+use rstyle_core::{patterns_report, unified};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use store::{Destination, Staged};
@@ -335,15 +335,7 @@ impl Plan<'_> {
             crate::config_path(self.cli.config.clone(), &self.project).as_deref(),
         )?;
         let options = self.pattern_options()?;
-        analyze::analyze(
-            records,
-            &analyze::Request {
-                filter: &self.filter,
-                config: &config,
-                options: &options,
-                top: self.args.display.top,
-            },
-        )
+        unified::analyze(records, &self.filter, &config, &options).map(Unified::from)
     }
 
     fn pattern_options(&self) -> Result<patterns_report::Options, String> {

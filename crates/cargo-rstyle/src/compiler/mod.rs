@@ -7,7 +7,6 @@ mod build;
 pub mod capture;
 mod diagnostic_selection;
 mod documents;
-pub(crate) use advisory::runtime_bounds::{DocumentReport, from_records as document_bounds};
 mod identity;
 pub(crate) mod patterns_route;
 mod replay;

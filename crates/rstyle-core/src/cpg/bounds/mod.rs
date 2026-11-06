@@ -12,6 +12,7 @@ pub mod facts;
 mod frame;
 mod iteration;
 mod primitive;
+pub mod report;
 
 use super::model::{Node, NodeKind};
 use crate::advisory::runtime_bounds::{Input, MAX_NODES, MAX_VARIABLES};
