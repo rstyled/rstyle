@@ -15,7 +15,7 @@ mod primitive;
 
 use super::model::{Node, NodeKind};
 use crate::advisory::runtime_bounds::{Input, MAX_NODES, MAX_VARIABLES};
-use crate::runtime_bounds::{Action, Arithmetic, Flow, Program, Value, Variable};
+use crate::runtime_bounds::{Action, Arithmetic, Flow, Integer, Program, Value, Variable};
 pub use canonical::canonical_bounds;
 use facts::Facts;
 use std::collections::BTreeMap;
@@ -119,11 +119,12 @@ impl<'a> Collector<'_, '_, 'a> {
         self.numbers.get(symbol).copied().unwrap_or(u32::MAX)
     }
 
-    fn variable(&mut self, name: String, initial: Value, bits: u8) -> u32 {
+    fn variable(&mut self, name: String, initial: Value, integer: Integer) -> u32 {
         let variable = Variable {
             name,
             initial,
-            bits,
+            bits: integer.bits,
+            signed: integer.signed,
         };
         bounded_push(
             &mut self.program.variables,
@@ -205,10 +206,10 @@ impl<'a> Collector<'_, '_, 'a> {
     fn register_local(&mut self, local: &'a Node) -> Result<(), String> {
         let pattern = self.facts.body.child(local, 0)?;
         if let Some(symbol) = self.by_value_binding(pattern)
-            && let Some(bits) = self.facts.bits(self.facts.ty(pattern))
+            && let Some(integer) = self.facts.integer(self.facts.ty(pattern))
         {
             let name = self.facts.body.symbol(symbol)?.name.clone();
-            let variable = self.variable(name, Value::Unknown, bits);
+            let variable = self.variable(name, Value::Unknown, integer);
             self.locals.insert(symbol, variable);
         }
         Ok(())

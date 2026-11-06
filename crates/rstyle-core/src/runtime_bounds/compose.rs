@@ -605,7 +605,7 @@ fn simplified(bound: Bound) -> Bound {
                 .reduce(Bound::mul)
                 .unwrap_or(Bound::Const(1))
         }
-        Bound::Max(items) => Bound::Max(items.into_iter().map(simplified).collect()),
+        Bound::Max(items) => Bound::max(items.into_iter().map(simplified).collect()),
         Bound::Log(value) => Bound::log(simplified(*value)),
         leaf => leaf,
     }

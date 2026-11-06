@@ -579,7 +579,7 @@ mod tests {
             "{text}"
         );
         assert!(
-            text.contains("(opaque: Loop requires an unsigned less-than guard)"),
+            text.contains("(opaque: Loop requires an integer less-than guard)"),
             "{text}"
         );
         assert!(

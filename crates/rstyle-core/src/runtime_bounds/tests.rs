@@ -54,21 +54,25 @@ fn scan() -> Program {
                 name: "n".into(),
                 initial: Value::Input("n".into()),
                 bits: 32,
+                signed: false,
             },
             Variable {
                 name: "m".into(),
                 initial: Value::Input("m".into()),
                 bits: 32,
+                signed: false,
             },
             Variable {
                 name: "i".into(),
                 initial: Value::Unknown,
                 bits: 32,
+                signed: false,
             },
             Variable {
                 name: "j".into(),
                 initial: Value::Unknown,
                 bits: 32,
+                signed: false,
             },
         ],
         nodes: vec![
@@ -328,6 +332,7 @@ fn saved_limit_never_reads_a_later_assignment_as_its_entry_snapshot() {
         name: "saved".into(),
         initial: Value::Unknown,
         bits: 32,
+        signed: false,
     });
     program.nodes = vec![
         assign(2, 1),
@@ -389,6 +394,7 @@ fn initializer_assignments_can_supply_an_immutable_limit() {
         name: "length".into(),
         initial: Value::Unknown,
         bits: 32,
+        signed: false,
     });
     program.nodes.push(node(
         Action::Assign {
@@ -409,6 +415,7 @@ fn saved_end_after_completed_counter_loop_is_not_its_zero_initializer() {
         name: "end".into(),
         initial: Value::Unknown,
         bits: 32,
+        signed: false,
     });
     program.nodes[4] = node(
         Action::Assign {
@@ -434,6 +441,7 @@ fn unrelated_accumulator_increments_do_not_change_private_scan_bounds() {
         name: "total".into(),
         initial: Value::Const(0),
         bits: 8,
+        signed: false,
     });
     program.nodes[2] = increment(4, 3);
     assert_eq!(proven(&program).loop_body_entries, Bound::Input("n".into()));
@@ -650,6 +658,7 @@ fn reset_under_middle(early_exit: bool) -> Program {
         name: "b".into(),
         initial: Value::Unknown,
         bits: 32,
+        signed: false,
     });
     let skip = node(
         Action::Nop,
@@ -734,4 +743,197 @@ fn opaque_loops_under_a_zero_trip_parent_still_make_the_owner_partial() {
         panic!("a zero bound must not hide the opaque loop");
     };
     assert_eq!(composed.opaque_factors[0].kind, OpaqueKind::Loop);
+}
+
+/// `i = start; while i < n { i += 1 }` over signed 64-bit `n` and `i`.
+fn signed_scan(start: Value) -> Program {
+    Program {
+        inputs: vec!["n".into()],
+        variables: vec![
+            signed("n", Value::Input("n".into())),
+            signed("i", Value::Unknown),
+        ],
+        nodes: vec![
+            node(
+                Action::Assign {
+                    variable: 1,
+                    value: start,
+                },
+                Flow::Goto(1),
+            ),
+            guard(1, 0, 2, 3),
+            increment(1, 1),
+            node(Action::Nop, Flow::Return),
+        ],
+        entry: 0,
+        loop_headers: vec![1],
+        arithmetic: Arithmetic::Checked,
+        formals: Vec::new(),
+        extents: Vec::new(),
+    }
+}
+
+fn signed(name: &str, initial: Value) -> Variable {
+    Variable {
+        name: name.into(),
+        initial,
+        bits: 64,
+        signed: true,
+    }
+}
+
+/// Body entries of a `signed_scan` that really runs with a possibly negative `n`.
+fn signed_entries(program: &Program, n: i64) -> u64 {
+    let mut values = [n, 0];
+    let mut position = program.entry;
+    let mut entries = 0;
+    loop {
+        let current = &program.nodes[position as usize];
+        match current.action {
+            Action::Assign {
+                variable,
+                value: Value::Const(value),
+            } => values[variable as usize] = value as i64,
+            Action::Increment { variable } => values[variable as usize] += 1,
+            _ => {}
+        }
+        position = match &current.flow {
+            Flow::Goto(next) => *next,
+            Flow::Return => return entries,
+            Flow::Branch { then_node, .. } if values[1] < values[0] => {
+                entries += 1;
+                *then_node
+            }
+            Flow::Branch { else_node, .. } => *else_node,
+        };
+    }
+}
+
+/// A bound's value when its only input is the possibly negative `n`.
+fn signed_value(bound: &Bound, n: i64) -> i64 {
+    match bound {
+        Bound::Const(value) => *value as i64,
+        Bound::Input(_) => n,
+        Bound::Max(items) => items
+            .iter()
+            .map(|item| signed_value(item, n))
+            .max()
+            .unwrap(),
+        other => panic!("unexpected {other}"),
+    }
+}
+
+fn opaque_reason(program: &Program) -> String {
+    let Outcome::Partial(result) = analyze(program) else {
+        panic!("{:?}", analyze(program));
+    };
+    result.loops[0].opaque.as_ref().unwrap().reason.clone()
+}
+
+#[test]
+fn signed_limit_is_floored_and_never_understates_the_entries() {
+    let program = signed_scan(Value::Const(0));
+    let bound = proven(&program).loop_body_entries;
+    assert_eq!(bound.to_string(), "max(n, 0)");
+    for n in -5..=5 {
+        let entries = signed_entries(&program, n);
+        assert_eq!(signed_value(&bound, n), entries as i64, "n = {n}");
+    }
+    assert_eq!(signed_entries(&program, -3), 0);
+}
+
+#[test]
+fn signed_constant_start_above_zero_keeps_an_upper_bound() {
+    let program = signed_scan(Value::Const(2));
+    let bound = proven(&program).loop_body_entries;
+    for n in -5..=5 {
+        assert!(signed_entries(&program, n) as i64 <= signed_value(&bound, n));
+    }
+}
+
+#[test]
+fn signed_start_that_may_be_negative_is_never_bounded_by_the_limit() {
+    const BELOW_ZERO: &str = "Signed counter may start below zero";
+    // `-5` lowers to an unknown value, since a constant is never negative.
+    assert_eq!(opaque_reason(&signed_scan(Value::Unknown)), BELOW_ZERO);
+    // A signed input may be negative, directly or through a local.
+    assert_eq!(opaque_reason(&signed_scan(Value::Variable(0))), BELOW_ZERO);
+    let input = signed_scan(Value::Input("n".into()));
+    assert_eq!(opaque_reason(&input), BELOW_ZERO);
+
+    // A counter that is a parameter starts wherever the caller says.
+    let mut parameter = signed_scan(Value::Const(0));
+    parameter.variables[1].initial = Value::Input("i".into());
+    parameter.inputs.push("i".into());
+    parameter.nodes[0].action = Action::Nop;
+    assert_eq!(opaque_reason(&parameter), BELOW_ZERO);
+
+    // A constant on one path leaves the parameter's value on the other.
+    let mut conditional = signed_scan(Value::Const(0));
+    conditional.variables[1].initial = Value::Input("i".into());
+    conditional.inputs.push("i".into());
+    conditional.nodes.push(conditional.nodes[0].clone());
+    conditional.nodes[0] = node(
+        Action::Nop,
+        Flow::Branch {
+            condition: Condition::Unknown,
+            then_node: 4,
+            else_node: 1,
+        },
+    );
+    assert_eq!(opaque_reason(&conditional), BELOW_ZERO);
+
+    // An unknown reset before the guard also reaches it.
+    let mut reset = signed_scan(Value::Const(0));
+    reset.nodes[0].flow = Flow::Goto(4);
+    reset.nodes.push(node(
+        Action::Assign {
+            variable: 1,
+            value: Value::Unknown,
+        },
+        Flow::Goto(1),
+    ));
+    assert_eq!(opaque_reason(&reset), BELOW_ZERO);
+}
+
+#[test]
+fn a_limit_of_the_other_sign_stays_unproven() {
+    const OTHER_TYPE: &str = "Limit does not fit the captured counter type";
+    let mut signed_counter = signed_scan(Value::Const(0));
+    signed_counter.variables[0].signed = false;
+    assert_eq!(opaque_reason(&signed_counter), OTHER_TYPE);
+
+    let mut unsigned_counter = signed_scan(Value::Const(0));
+    unsigned_counter.variables[1].signed = false;
+    assert_eq!(opaque_reason(&unsigned_counter), OTHER_TYPE);
+}
+
+#[test]
+fn a_signed_type_holds_only_half_of_its_unsigned_constants() {
+    let limited = |limit: u64| {
+        let mut program = signed_scan(Value::Const(0));
+        program.variables[1].bits = 8;
+        program.nodes[1].flow = Flow::Branch {
+            condition: Condition::Less {
+                variable: 1,
+                limit: Value::Const(limit),
+            },
+            then_node: 2,
+            else_node: 3,
+        };
+        program
+    };
+    assert_eq!(proven(&limited(127)).loop_body_entries, Bound::Const(127));
+    assert_eq!(
+        opaque_reason(&limited(128)),
+        "Unknown, cyclic or out-of-range input value"
+    );
+}
+
+#[test]
+fn writing_a_signed_local_outside_a_counter_does_not_end_the_analysis() {
+    let mut program = signed_scan(Value::Variable(0));
+    program.nodes[1] = increment(1, 3);
+    program.loop_headers.clear();
+    assert_eq!(proven(&program).loop_body_entries, Bound::Const(0));
 }

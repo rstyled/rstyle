@@ -5,7 +5,7 @@ use super::super::model::{Definition, Node, RefStatus, Type, TypeKind};
 use super::Collector;
 use super::extent::Place;
 use super::facts::is_shared_reference;
-use crate::runtime_bounds::{Argument, Callee, Extent, Formal, Measure, Root, Value};
+use crate::runtime_bounds::{Argument, Callee, Extent, Formal, Integer, Measure, Root, Value};
 
 /// A call's target and, for a standard-library body, its operation key.
 pub(super) type Resolution = (Callee, Option<String>);
@@ -67,9 +67,9 @@ impl<'a> Collector<'_, '_, 'a> {
         let binding = self.facts.body.symbol(symbol)?;
         let ty = binding.ty.as_deref().and_then(|ty| self.facts.type_of(ty));
         let label = parameter.name.to_string();
-        let measure = match self.facts.bits(ty) {
-            Some(bits) => {
-                let variable = self.variable(label.clone(), Value::Input(label.clone()), bits);
+        let measure = match self.facts.integer(ty) {
+            Some(integer) => {
+                let variable = self.variable(label.clone(), Value::Input(label.clone()), integer);
                 self.program.inputs.push(label.clone());
                 self.locals.insert(symbol, variable);
                 Measure::Scalar {
@@ -110,8 +110,12 @@ impl<'a> Collector<'_, '_, 'a> {
     ) -> Result<(), String> {
         self.formal_positions(parameters);
         for place in places {
-            let bits = self.facts.pointer_bits;
-            self.variable(place.label.clone(), Value::Input(place.label.clone()), bits);
+            let length = Integer::unsigned(self.facts.pointer_bits);
+            self.variable(
+                place.label.clone(),
+                Value::Input(place.label.clone()),
+                length,
+            );
             self.program.inputs.push(place.label.clone());
             self.program.extents.push(self.provenance(&place));
             self.extents.insert(place.key(), place.label);
@@ -243,7 +247,7 @@ impl<'a> Collector<'_, '_, 'a> {
 
     /// Scalars keep their captured value; shared places keep their root and field path.
     pub(super) fn argument(&self, argument: &'a Node) -> Result<Argument, String> {
-        if self.facts.bits(self.facts.adjusted(argument)).is_some() {
+        if self.facts.integer(self.facts.adjusted(argument)).is_some() {
             return Ok(Argument::Scalar(self.value(argument)));
         }
         Ok(match self.place(argument)? {

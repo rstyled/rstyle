@@ -23,7 +23,7 @@ pub struct Formal {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Measure {
-    /// An unsigned parameter whose entry value is the named input.
+    /// An integer parameter whose entry value is the named input.
     Scalar {
         input: String,
     },
@@ -80,6 +80,44 @@ pub struct Variable {
     pub name: String,
     pub initial: Value,
     pub bits: u8,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub signed: bool,
+}
+
+impl Variable {
+    pub fn integer(&self) -> Integer {
+        Integer {
+            bits: self.bits,
+            signed: self.signed,
+        }
+    }
+}
+
+/// A primitive integer type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Integer {
+    pub bits: u8,
+    pub signed: bool,
+}
+
+impl Integer {
+    pub fn unsigned(bits: u8) -> Self {
+        Self {
+            bits,
+            signed: false,
+        }
+    }
+
+    /// Whether every value of `other` is a value of this type without a conversion.
+    pub(super) fn contains(self, other: Self) -> bool {
+        self.signed == other.signed && other.bits <= self.bits
+    }
+
+    /// Whether the type represents the non-negative `value`.
+    pub(super) fn holds(self, value: u64) -> bool {
+        let magnitude = self.bits - u8::from(self.signed);
+        magnitude >= 64 || value < 1 << magnitude
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

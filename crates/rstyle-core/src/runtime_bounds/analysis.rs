@@ -106,7 +106,7 @@ fn validate(program: &Program, limits: Limits) -> Checked<()> {
         .any(|v| !(1..=64).contains(&v.bits))
     {
         return Err(unknown(
-            "Only captured unsigned widths from 1 to 64 are supported",
+            "Only captured integer widths from 1 to 64 are supported",
         ));
     }
 
@@ -284,11 +284,12 @@ impl Site<'_> {
                     && item.members.contains(&index)
             })
         {
-            let bits = self.program.variables.get(*id as usize)?.bits;
-            let at_header = values::Values::new(self.program, self.graph, item.header, bits);
+            let counter = self.program.variables.get(*id as usize)?.integer();
+            let at_header =
+                values::Values::new(self.program, self.graph, item.header, Some(counter));
             return at_header.bound(&item.limit).ok();
         }
-        values::Values::new(self.program, self.graph, index, 64)
+        values::Values::new(self.program, self.graph, index, None)
             .bound(value)
             .ok()
     }

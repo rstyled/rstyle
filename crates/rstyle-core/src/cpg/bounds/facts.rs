@@ -6,7 +6,7 @@ use super::super::model::{
 };
 use super::super::source::Sources;
 use super::super::tree::{Body, Tables, anchor};
-use crate::runtime_bounds::Source;
+use crate::runtime_bounds::{Integer, Source};
 use std::collections::BTreeMap;
 
 pub struct Facts<'b, 'a> {
@@ -49,19 +49,28 @@ impl<'a> Facts<'_, 'a> {
             .is_some_and(|adjustments| !adjustments.is_empty())
     }
 
-    /// Width of an unsigned primitive with an exact width the analysis models.
-    pub fn bits(&self, ty: Option<&Type>) -> Option<u8> {
+    /// A primitive integer with an exact width the analysis models.
+    pub fn integer(&self, ty: Option<&Type>) -> Option<Integer> {
         let ty = ty?;
-        if ty.kind != TypeKind::Integer || ty.signed != Some(false) {
+        if ty.kind != TypeKind::Integer {
             return None;
         }
-        if ty.pointer_sized == Some(true) {
-            return Some(self.pointer_bits);
-        }
-        match ty.bits? {
-            bits @ (8 | 16 | 32 | 64) => Some(bits as u8),
-            _ => None,
-        }
+
+        let signed = ty.signed?;
+        let bits = match ty.bits {
+            _ if ty.pointer_sized == Some(true) => self.pointer_bits,
+            Some(bits @ (8 | 16 | 32 | 64)) => bits as u8,
+            _ => return None,
+        };
+
+        Some(Integer { bits, signed })
+    }
+
+    /// Width of an unsigned integer the analysis models, for ranges and iteration.
+    pub fn unsigned_bits(&self, ty: Option<&Type>) -> Option<u8> {
+        self.integer(ty)
+            .filter(|integer| !integer.signed)
+            .map(|integer| integer.bits)
     }
 
     pub fn reference(&self, node: &Node) -> Option<&'a Ref> {

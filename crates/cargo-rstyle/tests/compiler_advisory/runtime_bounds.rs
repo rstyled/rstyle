@@ -559,6 +559,123 @@ fn old_capture_cannot_silently_supply_runtime_bounds() {
     );
 }
 
+/// The programs of issue 35, with what signed counters must not get wrong. Kept apart
+/// from `SOURCE`, whose programs the CPG lowering's snapshot freezes.
+const SIGNED_SOURCE: &str = r#"
+pub fn unsigned_counter(n: u64) { let mut i = 0u64; while i < n { i += 1; } }
+pub fn signed_counter(n: i64) { let mut i = 0i64; while i < n { i += 1; } }
+pub fn signed_narrow(n: i8) { let mut i = 0i8; while i < n { i += 1; } }
+pub fn signed_isize(n: isize) { let mut i = 0isize; while i < n { i += 1; } }
+pub fn unsigned_accumulator(n: u64) -> u64 { let mut t = 0u64; let mut i = 0u64; while i < n { t += 1; i += 1; } t }
+pub fn signed_accumulator(n: u64) -> i64 { let mut t = 0i64; let mut i = 0u64; while i < n { t += 1; i += 1; } t }
+pub fn signed_no_loop(n: i64) -> i64 { let mut t = n; t += 1; t }
+pub fn constant_limit() { let mut i = 0i64; while i < 10 { i += 1; } }
+pub fn copied_limit(n: i64) { let m = n; let mut i = 0i64; while i < m { i += 1; } }
+pub fn nested(n: i64, m: i64) { let mut i = 0i64; while i < n { let mut j = 0i64; while j < m { j += 1; } i += 1; } }
+pub fn negative_start(n: i64) { let mut i = -5i64; while i < n { i += 1; } }
+pub fn input_start(s: i64, n: i64) { let mut i = s; while i < n { i += 1; } }
+pub fn counter_parameter(mut i: i64, n: i64) { while i < n { i += 1; } }
+pub fn negative_limit() { let mut i = 0i64; while i < -3 { i += 1; } }
+pub fn converted_limit(n: i64) { let mut i = 0u64; while i < n as u64 { i += 1; } }
+pub fn converted_start(s: u64, n: i64) { let mut i = s as i64; while i < n { i += 1; } }
+pub fn wider_limit(n: i64) { let mut i = 0i32; while (i as i64) < n { i += 1; } }
+pub fn decrement_in_body(n: i64) { let mut i = 0i64; while i < n { i -= 2; i += 1; } }
+pub fn later_negative_reset(n: i64) { let mut i = 0i64; i = -9; while i < n { i += 1; } }
+fn lower(i: &mut i64) { *i = -100; }
+pub fn aliased_start(n: i64) { let mut i = 0i64; lower(&mut i); while i < n { i += 1; } }
+pub fn captured_start(n: i64) { let mut i = 0i64; let mut f = || i = -100; f(); while i < n { i += 1; } }
+pub fn ref_mut_start(n: i64) { let mut i = 0i64; let ref mut r = i; *r = -100; while i < n { i += 1; } }
+fn callee(k: i64) { let mut i = 0i64; while i < k { i += 1; } }
+pub fn forwards(m: i64) { callee(m); }
+pub fn forwards_constant() { callee(4); }
+pub fn forwards_negative() { callee(-3); }
+pub fn forwards_in_loop(m: i64) { let mut i = 0i64; while i < m { callee(i); i += 1; } }
+"#;
+
+#[test]
+fn signed_counters_are_bounded_without_understating_their_entries() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), SIGNED_SOURCE).unwrap();
+    let output = rstyle(
+        directory.path(),
+        &["patterns", "--format", "json", "--complexity"],
+    );
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(output.status.success(), "{}", stdout(&output));
+    let rows = runtime(&report)["rows"].as_array().unwrap();
+    assert_signed_bounds(rows);
+    assert_signed_starts_stay_unproven(rows);
+    assert_signed_floor_composes(rows);
+}
+
+/// The rendered entries a row reports, at `measure` under `outcome`.
+fn entries(rows: &[Value], name: &str, measure: &str, outcome: &str) -> String {
+    let row = named_row(rows, name);
+    serde_json::from_value::<rstyle_core::runtime_bounds::Bound>(
+        row[measure][outcome]["loop_body_entries"].clone(),
+    )
+    .unwrap_or_else(|_| panic!("{name}: {row}"))
+    .to_string()
+}
+
+fn assert_signed_bounds(rows: &[Value]) {
+    for (name, expected) in [
+        ("unsigned_counter", "n"),
+        ("signed_counter", "max(n, 0)"),
+        ("signed_narrow", "max(n, 0)"),
+        ("signed_isize", "max(n, 0)"),
+        ("unsigned_accumulator", "n"),
+        ("signed_accumulator", "n"),
+        ("signed_no_loop", "0"),
+        ("constant_limit", "10"),
+        ("copied_limit", "max(n, 0)"),
+        ("nested", "max(n, 0) + max(n, 0) * max(m, 0)"),
+    ] {
+        assert_eq!(entries(rows, name, "result", "Proven"), expected, "{name}");
+    }
+}
+
+fn assert_signed_starts_stay_unproven(rows: &[Value]) {
+    // Each loop is opaque, so its entries are never stated in terms of the limit alone.
+    for (name, reason) in [
+        ("negative_start", "may start below zero"),
+        ("input_start", "may start below zero"),
+        ("counter_parameter", "may start below zero"),
+        ("later_negative_reset", "may start below zero"),
+        ("converted_start", "may start below zero"),
+        ("negative_limit", "Unknown, cyclic or out-of-range"),
+        ("converted_limit", "Unknown, cyclic or out-of-range"),
+        ("wider_limit", "integer less-than guard"),
+        ("decrement_in_body", "may start below zero"),
+    ] {
+        let row = named_row(rows, name);
+        let found = row["result"]["Partial"]["loops"][0]["opaque"]["reason"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{name}: {row}"));
+        assert!(found.contains(reason), "{name}: {found}");
+    }
+    // A write through an alias would otherwise lower the counter unseen.
+    for name in ["aliased_start", "captured_start", "ref_mut_start"] {
+        let row = named_row(rows, name);
+        assert!(row["result"].get("Unknown").is_some(), "{name}: {row}");
+    }
+}
+
+fn assert_signed_floor_composes(rows: &[Value]) {
+    let composed = |name, outcome| entries(rows, name, "composed", outcome);
+    assert_eq!(composed("forwards", "Proven"), "max(m, 0)");
+    assert_eq!(composed("forwards_constant", "Proven"), "4");
+    assert_eq!(
+        composed("forwards_in_loop", "Proven"),
+        "max(m, 0) + max(m, 0) * max(m, 0)"
+    );
+    // A negative argument is an unknown value, and the callee's floor stays around it.
+    assert_eq!(
+        composed("forwards_negative", "Partial"),
+        "max(?input(callee::k), 0)"
+    );
+}
+
 fn value(bound: &rstyle_core::runtime_bounds::Bound) -> u64 {
     // Inputs named `...m` are 5 and all others 3.
     let input = |name: &str| Some(if name.ends_with('m') { 5 } else { 3 });

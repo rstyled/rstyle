@@ -12,7 +12,7 @@ use super::extent::{has_role, is_method};
 use crate::runtime_bounds::contracts::{
     ConsumerEffect, Contracts, ExtentRole, Iteration, StageEffect,
 };
-use crate::runtime_bounds::{Action, Callee, Condition, Flow, Value};
+use crate::runtime_bounds::{Action, Callee, Condition, Flow, Integer, Value};
 
 const MAX_STAGES: usize = 32;
 const CHAIN_EVIDENCE: &str = "live typed HIR; resolved standard iterator chain over a stable extent or primitive range; callbacks inlined at each invocation";
@@ -320,8 +320,9 @@ impl<'a> Collector<'_, '_, 'a> {
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
     /// Scans `chain`, then `rest` per item; `tail.targets` are the scan exit and chain stop.
     fn scan_chain(&mut self, chain: &Chain<'a>, rest: &[Stage<'a>], tail: Tail<'a>) -> Lowered {
-        let index = self.variable("chain-index".into(), Value::Unknown, chain.bits);
-        let limit = self.variable("chain-limit".into(), Value::Unknown, chain.bits);
+        let integer = Integer::unsigned(chain.bits);
+        let index = self.variable("chain-index".into(), Value::Unknown, integer);
+        let limit = self.variable("chain-limit".into(), Value::Unknown, integer);
         let header = self.chain_header(tail.at, tail.targets.skip);
         let counter = Counter {
             index,

@@ -84,6 +84,33 @@ impl Bound {
         }
     }
 
+    /// `max(value, 0)`: a signed input's upper bound, since a count is never negative
+    /// however far below zero the input is.
+    pub(super) fn floored(value: Self) -> Self {
+        Self::Max(vec![value, Self::Const(0)])
+    }
+
+    /// The largest of `values`, whose own maxima are already flat: their terms, then
+    /// their largest constant.
+    pub(super) fn max(values: Vec<Self>) -> Self {
+        let (constants, mut terms): (Vec<_>, Vec<_>) = values
+            .into_iter()
+            .flat_map(|value| match value {
+                Self::Max(inner) => inner,
+                value => vec![value],
+            })
+            .partition(|value| matches!(value, Self::Const(_)));
+        terms.dedup();
+        let constant = constants.iter().filter_map(|c| c.evaluate(&|_| None)).max();
+        terms.extend(constant.map(Self::Const));
+
+        match terms.len() {
+            0 => Self::Const(0),
+            1 => terms.remove(0),
+            _ => Self::Max(terms),
+        }
+    }
+
     /// `log(value)`, folding constants. Logarithms of logarithms stay explicit.
     pub fn log(value: Self) -> Self {
         match value {
@@ -290,6 +317,23 @@ mod tests {
         .map(OpaqueKind::label);
         assert_eq!(labels, ["call", "invocations", "input", "library"]);
         assert!(!opaque.is_complete());
+    }
+
+    #[test]
+    fn maxima_flatten_and_fold_their_constants_in_place() {
+        let n = || input("n");
+        let floored = || Bound::floored(n());
+        assert_eq!(Bound::max(vec![floored(), Bound::Const(0)]), floored());
+        assert_eq!(Bound::max(vec![floored(), floored()]), floored());
+        assert_eq!(
+            Bound::max(vec![Bound::Const(7), Bound::Const(0)]),
+            Bound::Const(7)
+        );
+        assert_eq!(
+            Bound::max(vec![Bound::Const(2), n(), Bound::Const(9)]),
+            Bound::Max(vec![n(), Bound::Const(9)])
+        );
+        assert_eq!(Bound::max(Vec::new()), Bound::Const(0));
     }
 
     #[test]
