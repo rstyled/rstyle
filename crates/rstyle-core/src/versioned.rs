@@ -52,3 +52,19 @@ impl<T: Default> ByNamespace<T> {
             .unwrap_or_else(|| self.none.get_or_init(T::default))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn named(text: &str) -> Result<(String, String), String> {
+        Ok((text.to_string(), format!("data of {text}")))
+    }
+
+    #[test]
+    fn a_namespace_gets_its_file_and_any_other_the_default() {
+        let data: &'static ByNamespace<String> = Box::leak(Box::new(ByNamespace::empty()));
+        assert_eq!(data.of("go", (&["go"], named)), "data of go");
+        assert_eq!(data.of("rust", (&["go"], named)), "");
+    }
+}

@@ -1227,6 +1227,22 @@ fn a_namespace_without_classes_leaves_library_calls_unclassified() {
 }
 
 #[test]
+fn a_memory_write_stays_an_effect_when_its_argument_has_no_type() {
+    let mut document = library_calls();
+    let nodes = document["unit"]["functions"][0]["nodes"]
+        .as_array_mut()
+        .unwrap();
+    for node in nodes.iter_mut() {
+        if node["id"] == "to_buffer" {
+            node.as_object_mut().unwrap().remove("type");
+        }
+    }
+    let facts = &facts_of(document)[0];
+    let io = Some(LibraryClass::Effect(EffectKind::Io));
+    assert_eq!(facts.calls[1].library, io);
+}
+
+#[test]
 fn a_library_call_without_a_key_takes_the_unlisted_class() {
     let mut document = library_calls();
     let definitions = document["unit"]["definitions"].as_array_mut().unwrap();
