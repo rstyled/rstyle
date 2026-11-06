@@ -49,8 +49,6 @@ fn same_proposal(before: &Value, after: &Value) {
     expected.as_object_mut().unwrap().remove("counter_evidence");
     observed.as_object_mut().unwrap().remove("counter_evidence");
     assert_eq!(expected, observed);
-    assert_eq!(before["matching"], after["matching"]);
-    assert_eq!(before["accepted_pairs"], after["accepted_pairs"]);
 }
 
 fn policy_replay(directory: &Path, original: &Value, policy: &str) -> Value {
@@ -170,7 +168,6 @@ fn completed_effect_notes_replay_without_sources_and_stay_with_their_units() {
     let (output, saved) = replay(directory.path(), &original, &[]);
     assert_eq!(output.status.code(), Some(2), "{}", stdout(&output));
     assert_eq!(original["compiler_advisory"], saved["compiler_advisory"]);
-    assert_eq!(original["matching"], saved["matching"]);
 }
 
 #[test]

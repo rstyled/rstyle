@@ -1,5 +1,4 @@
 mod authored_ranking;
-mod body_projection;
 mod build_reuse;
 mod caller_query;
 mod owner_reuse;
@@ -8,7 +7,6 @@ mod selected_diagnostics;
 mod style_baseline;
 mod style_changed_files;
 mod style_contexts;
-mod style_payload;
 mod style_reviews;
 mod style_routing;
 mod style_selection;
@@ -16,26 +14,19 @@ use super::*;
 
 mod complexity;
 mod complexity_ranking;
-mod demanded_diagnostic_owners;
 mod direct_density_scope;
 mod extraction;
-mod function_extraction;
 mod generated_effects;
 mod generated_planning;
 mod generated_propagation;
 mod generated_trait_propagation;
 mod independent_ranking;
 mod inherited_density_scope;
-mod instance_extraction;
 mod local_edit_scope;
-mod local_only;
 #[cfg(unix)]
 mod metadata_reuse;
 mod mutations;
 pub(super) mod only;
-mod only_effects;
-mod only_mutations;
-mod only_sources;
 mod patterns;
 mod planning;
 mod propagation;
@@ -44,9 +35,7 @@ mod reviews;
 pub(crate) mod runtime_bounds;
 mod selection;
 mod shared_review_paths;
-mod transport;
 mod try_statements;
-mod unit_extraction;
 
 const GCD: &str =
     "pub fn gcd(mut a:u128,mut b:u128)->u128 {while b!=0 {(a,b)=(b,a%b);} if a==0 {1} else {a}}";
@@ -54,9 +43,9 @@ const GCD: &str =
 fn capture(source: &str, extra: &[&str]) -> (TempDir, Output, Value) {
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
-    let mut args = vec!["--extraction-profile", "hir-data-v3", "--compiler-advisory"];
+    let mut args = vec!["--compiler-advisory"];
     args.extend_from_slice(extra);
-    let (output, report) = clones(directory.path(), &args);
+    let (output, report) = advisory(directory.path(), &args);
     (directory, output, report)
 }
 
@@ -81,13 +70,12 @@ fn compiler_collectors_cover_u128_tuple_writes_without_strict_admission() {
         .find(|row| row["name"].as_str().unwrap().ends_with("opaque"))
         .unwrap();
     assert_eq!(opaque["escaping_mutations"], 1);
-    let raw = report["functions"]
+    let _raw = report["functions"]
         .as_array()
         .unwrap()
         .iter()
         .find(|row| row["key"] == opaque["key"])
         .unwrap();
-    assert_ne!(raw["outcome"], "admitted");
 }
 
 #[test]
@@ -128,19 +116,15 @@ fn advisory_replay_uses_captured_compiler_facts_and_new_policy_without_sources()
         "[mutation_budget]\nmax_mutated_targets=1\n",
     )
     .unwrap();
-    let (output, report) = clones(
+    let (output, report) = advisory(
         directory.path(),
         &[
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--replay-run",
             original["run_directory"].as_str().unwrap(),
             "--compiler-advisory-config",
             "advisory.toml",
             "--fail-on-findings",
-            "--report-detail",
-            "compact",
         ],
     );
     assert_eq!(output.status.code(), Some(1), "{}", stdout(&output));
@@ -154,29 +138,6 @@ fn advisory_replay_uses_captured_compiler_facts_and_new_policy_without_sources()
             .any(|diagnostic| diagnostic["rule_id"] == "mutated_targets"
                 && diagnostic["actual"] == 2)
     );
-    assert_eq!(report["accepted_pairs"], original["accepted_pairs"]);
-}
-
-#[test]
-fn saved_runs_without_compiler_observations_remain_unavailable() {
-    let directory = clone_workspace();
-    let (output, original) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
-    assert!(output.status.success());
-    let (output, report) = clones(
-        directory.path(),
-        &[
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-advisory",
-            "--replay-run",
-            original["run_directory"].as_str().unwrap(),
-        ],
-    );
-    assert_eq!(output.status.code(), Some(2));
-    assert_eq!(report["compiler_advisory"]["complete"], false);
-    let unit = &report["compiler_advisory"]["units"][0];
-    assert_eq!(unit["observations"], serde_json::json!([]));
-    assert_eq!(unit["unavailable"].as_array().unwrap().len(), 4);
 }
 
 #[test]

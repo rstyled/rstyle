@@ -107,8 +107,6 @@ fn root_style_route_uses_workspace_config_suppressions_and_finding_exit() {
         report["summary"],
         report["compiler_advisory"]["units"][0]["evaluation"]["summary"]
     );
-    assert_eq!(report["strict_assessment_execution"], "not_requested");
-    assert_eq!(report["matching_execution"], "not_requested");
     assert_eq!(report["compiler_advisory"]["complete"], true);
     assert_eq!(diagnostics(&report).len(), 1);
     assert_eq!(diagnostics(&report)[0]["rule_id"], "fn_params");
@@ -308,8 +306,6 @@ pub fn authored_chain() {generated_middle();}
 
 fn authored_inherited_finding(report: &Value) {
     assert_eq!(report["capture_complete"], true);
-    assert_eq!(report["strict_assessment_execution"], "not_requested");
-    assert_eq!(report["matching_execution"], "not_requested");
     let advisory = &report["compiler_advisory"];
     assert_eq!(advisory["complete"], true);
     assert_eq!(advisory["planning"]["input_complete"], false);
@@ -363,19 +359,14 @@ fn replay_authored_style_without_tools(directory: &Path, original: &Value) -> (O
     command
         .current_dir(directory)
         .args([
-            "clones",
+            "advisory",
             "--format",
             "json",
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-advisory-only",
             "--compiler-advisory",
             "--compiler-diagnostic-scope",
             "authored",
             "--compiler-plans",
             "--fail-on-findings",
-            "--report-detail",
-            "compact",
             "--compiler-advisory-config",
             "rstyle.toml",
             "--replay-run",
@@ -423,7 +414,7 @@ fn root_style_inherits_generated_io_into_authored_findings_and_replays_reused_ow
     std::fs::remove_dir_all(old_run).unwrap();
     std::fs::remove_dir_all(directory.path().join("src")).unwrap();
     std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
-    std::fs::remove_dir_all(directory.path().join("target/rstyle/clones/advisory-build")).unwrap();
+    std::fs::remove_dir_all(directory.path().join("target/rstyle/runs/advisory-build")).unwrap();
     std::fs::remove_file(old_run.with_file_name("advisory-owners.json")).unwrap();
     let (output, replayed) = replay_authored_style_without_tools(directory.path(), &warm);
     checked(&output, 1);

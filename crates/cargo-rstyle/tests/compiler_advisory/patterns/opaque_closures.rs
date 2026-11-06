@@ -15,8 +15,7 @@ pub fn owned(values: Vec<Edge>) -> Vec<Edge> {
 
 #[test]
 fn opaque_closure_contracts_remain_visible_in_compiler_proposals_and_saved_replay() {
-    let (directory, _output, original) =
-        capture(SOURCE, &["--compiler-patterns", "--compiler-advisory-only"]);
+    let (directory, _output, original) = capture(SOURCE, &["--compiler-patterns"]);
     let evaluation = &proposals(&original)["evaluation"];
     let helper = candidate_at(evaluation, "borrowed").expect("advisory helper");
     assert_eq!(helper["kind"], "parameterize");
@@ -41,6 +40,6 @@ fn opaque_closure_contracts_remain_visible_in_compiler_proposals_and_saved_repla
             std::fs::remove_file(path).unwrap();
         }
     }
-    let (_output, saved) = replay(directory.path(), &original, &["--compiler-advisory-only"]);
+    let (_output, saved) = replay(directory.path(), &original, &[]);
     assert_eq!(original["compiler_advisory"], saved["compiler_advisory"]);
 }

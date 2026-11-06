@@ -56,6 +56,14 @@ fn producer_revision() {
         "cargo:rustc-env=RSTYLE_PRODUCER_REVISION={}{dirty}",
         revision.trim()
     );
-    println!("cargo:rerun-if-changed=../../.git/HEAD");
-    println!("cargo:rerun-if-changed=../../.git/index");
+    // A worktree's `.git` is a file, so ask git where these live. A missing path would rerun
+    // this script, and relink the driver, on every build.
+    for name in ["HEAD", "index"] {
+        let path = Command::new("git")
+            .args(["rev-parse", "--git-path", name])
+            .output()
+            .expect("git path");
+        let path = String::from_utf8(path.stdout).expect("git path UTF-8");
+        println!("cargo:rerun-if-changed={}", path.trim());
+    }
 }

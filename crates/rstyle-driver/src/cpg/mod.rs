@@ -1,14 +1,19 @@
 //! `compat.cpg` documents from rustc. `cargo rstyle cpg emit` writes one bundled
 //! unit document per compilation; captures write the crate in batches.
 
+mod accesses;
 mod body;
 mod compiler;
+mod flow;
+mod generated_root;
 mod namespaces;
 mod places;
+pub mod publish;
+mod source;
 pub(crate) mod sysroot;
 mod unit;
 
-use rstyle_pdg::nominal_binding::PackageContext;
+use rstyle_capture::PackageContext;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::LOCAL_CRATE;
@@ -25,7 +30,7 @@ pub const ROOT_ENV: &str = "RSTYLE_CPG_ROOT";
 pub fn emit(tcx: TyCtxt<'_>, root: &Path, dir: &Path) -> Result<(), String> {
     let name = unit_name(tcx);
     let encoding = rstyle_core::cpg::transport::Encoding::from_environment()?;
-    let documents = documents_in(tcx, (root, None), Capture::default());
+    let documents = documents_in(tcx, (root, None), None);
 
     for (index, (document, unrecorded)) in documents.enumerate() {
         if let Some((id, reason)) = unrecorded.first() {
@@ -37,35 +42,22 @@ pub fn emit(tcx: TyCtxt<'_>, root: &Path, dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// A frontend's own observations of a function, recorded as its extensions.
-pub type Observe<'r> = dyn Fn(LocalDefId) -> serde_json::Map<String, Value> + 'r;
-
-/// What a capture adds to the crate's documents: its session, each function's own
-/// observations, and the unit's, which the first document records.
-#[derive(Default)]
-pub struct Capture<'r> {
-    pub session: Option<Value>,
-    pub observe: Option<&'r Observe<'r>>,
-    pub unit: serde_json::Map<String, Value>,
-}
-
 // rstyle-allow(side_effect_density): documents are produced lazily, one batch at a time
 /// The crate's function documents, each recording the capture `session` when given:
-/// the compiler invocation, the selected profile and unit, and each file's path.
+/// the compiler invocation, the selected unit, and each file's path.
 pub fn documents_in<'tcx, 'r>(
     tcx: TyCtxt<'tcx>,
     (root, package): (&'r Path, Option<&'r PackageContext>),
-    capture: Capture<'r>,
+    session: Option<Value>,
 ) -> impl Iterator<Item = (Value, Vec<(LocalDefId, String)>)> + use<'tcx, 'r> {
     let package = cargo_package(package);
     batches(tcx)
         .into_iter()
         .enumerate()
         .map(move |(index, batch)| {
-            let origin = (root, package.clone(), capture.session.clone());
-            // The first document records every file of the unit, and the unit's observations.
-            let unit = (index == 0).then(|| capture.unit.clone());
-            batch_document(tcx, (origin, capture.observe, unit), &batch)
+            let origin = (root, package.clone(), session.clone());
+            // The first document records every file of the unit.
+            batch_document(tcx, (origin, index == 0), &batch)
         })
 }
 
@@ -80,9 +72,7 @@ fn cargo_package(selected: Option<&PackageContext>) -> Option<Value> {
     let version = std::env::var("CARGO_PKG_VERSION").ok()?;
     let directory = std::env::var("CARGO_MANIFEST_DIR").ok()?;
     let manifest = std::fs::read_to_string(Path::new(&directory).join("Cargo.toml")).ok()?;
-    let digest = rstyle_pdg::SourceSnapshot::from(manifest)
-        .checksum()
-        .to_owned();
+    let digest = rstyle_capture::checksum(manifest.as_bytes());
 
     Some(json!({"name": name, "version": version, "manifest_digest": digest}))
 }
@@ -98,7 +88,7 @@ fn batches(tcx: TyCtxt<'_>) -> Vec<Vec<LocalDefId>> {
             .start_pos
     };
     let mut batches: Vec<(rustc_span::BytePos, Vec<LocalDefId>)> = Vec::new();
-    for id in crate::hir_extraction::function_owners(tcx) {
+    for id in function_owners(tcx) {
         let file = file(id);
         match batches.last_mut() {
             Some((current, batch)) if *current == file && batch.len() < BATCH => batch.push(id),
@@ -116,16 +106,11 @@ type Origin<'r> = (&'r Path, Option<Value>, Option<Value>);
 // rstyle-allow(mutated_targets): assembles one document from the builder that accumulates it
 fn batch_document(
     tcx: TyCtxt<'_>,
-    ((root, package, session), observe, observed): (
-        Origin<'_>,
-        Option<&Observe<'_>>,
-        Option<serde_json::Map<String, Value>>,
-    ),
+    ((root, package, session), whole): (Origin<'_>, bool),
     owners: &[LocalDefId],
 ) -> (Value, Vec<(LocalDefId, String)>) {
     let mut unit = unit::Unit::new(tcx, root.to_path_buf());
     // The first document records the whole unit: every file, namespace and import.
-    let whole = observed.is_some();
     if whole {
         unit.record_local_files();
     }
@@ -133,13 +118,7 @@ fn batch_document(
     let mut recorded = Vec::new();
     for &id in owners {
         match function(&mut unit, id) {
-            Ok(mut function) => {
-                let extensions = observe.map(|observe| observe(id)).unwrap_or_default();
-                if !extensions.is_empty() {
-                    function["extensions"] = Value::Object(extensions);
-                }
-                recorded.push(function);
-            }
+            Ok(function) => recorded.push(function),
             Err(reason) => unrecorded.push((id, reason)),
         }
     }
@@ -152,9 +131,6 @@ fn batch_document(
     if let Some(mut session) = session {
         session["files"] = json!(paths);
         document["unit"]["extensions"]["rust:compiler-session"] = session;
-    }
-    for (name, observation) in observed.into_iter().flatten() {
-        document["unit"]["extensions"][name] = observation;
     }
 
     (document, unrecorded)
@@ -221,7 +197,7 @@ fn document(
             "target": {"triple": session.opts.target_triple.tuple(),
                        "pointer_width": session.target.pointer_width,
                        "data_layout": session.target.data_layout.to_string()},
-            "configuration": crate::hir_extraction::cfgs(tcx),
+            "configuration": configuration(tcx),
             "semantics": {"integer_overflow": if session.overflow_checks() { "checked" } else { "wrapping" },
                           "exceptions": if format!("{:?}", session.panic_strategy()) == "Abort" { "abort" } else { "unwind" },
                           "debug_assertions": session.opts.debug_assertions,
@@ -280,17 +256,43 @@ fn function(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Result<Value, String> 
         .and_then(|item| item.trait_item_def_id())
         .map(|trait_fn| builder.unit.definition(trait_fn));
     let definition = builder.unit.definition(id.to_def_id());
+    let written = places::coroutine_places(tcx, id, &mut builder);
+    let (cfg, accesses) = control_flow(&builder, &root, (&places, &written));
 
     let mut function = json!({
         "id": format!("fn:{}", crate::ids::def_id_str(tcx, id.to_def_id())), "definition": definition,
         "name": tcx.def_path_str(id.to_def_id()), "span": span, "signature": signature, "root": root,
-        "nodes": builder.nodes, "cfg": {"entry": "entry", "exits": [], "edges": []}, "symbols": builder.symbols,
-        "accesses": [], "refs": builder.refs, "places": places, "values": [],
+        "nodes": builder.nodes, "cfg": cfg, "symbols": builder.symbols,
+        "accesses": accesses, "refs": builder.refs, "places": places, "values": [],
     });
     if let Some(implements) = implements {
         function["implements"] = json!(implements);
     }
     Ok(function)
+}
+
+/// The function's control flow and who reads and writes its bindings.
+fn control_flow(
+    builder: &body::Builder<'_, '_>,
+    root: &str,
+    (places, coroutines): (&[Value], &[Value]),
+) -> (Value, Vec<Value>) {
+    let cfg = flow::cfg(
+        &builder.nodes,
+        flow::Inputs {
+            root,
+            diverging: &builder.diverging,
+            refs: &builder.refs,
+        },
+    );
+    let accesses = accesses::accesses(&accesses::Records {
+        nodes: &builder.nodes,
+        symbols: &builder.symbols,
+        refs: &builder.refs,
+        places: &[places, coroutines].concat(),
+    });
+
+    (cfg, accesses)
 }
 
 /// Where a function is written. A macro that wraps a function keeps its author's signature
@@ -559,4 +561,27 @@ fn constants(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Vec<Value> {
     }
 
     constants
+}
+
+fn configuration(tcx: TyCtxt<'_>) -> Vec<String> {
+    let cfgs: Vec<String> = tcx
+        .sess
+        .config
+        .iter()
+        .map(|(name, value)| {
+            value.map_or_else(|| name.to_string(), |value| format!("{name}=\"{value}\""))
+        })
+        .collect();
+    let mut cfgs = cfgs;
+    cfgs.sort();
+    cfgs
+}
+
+fn function_owners(tcx: TyCtxt<'_>) -> impl Iterator<Item = LocalDefId> {
+    tcx.hir_body_owners().filter(move |id| {
+        matches!(
+            tcx.def_kind(*id),
+            rustc_hir::def::DefKind::Fn | rustc_hir::def::DefKind::AssocFn
+        )
+    })
 }

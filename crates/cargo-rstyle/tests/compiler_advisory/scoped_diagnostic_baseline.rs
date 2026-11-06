@@ -17,12 +17,9 @@ fn replay(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value)
     command
         .current_dir(directory)
         .args([
-            "clones",
+            "advisory",
             "--format",
             "json",
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-advisory-only",
             "--compiler-advisory",
             "--replay-run",
             original["run_directory"].as_str().unwrap(),
@@ -68,7 +65,6 @@ fn generated_caller() -> (TempDir, Value) {
         &[
             "--package",
             "caller",
-            "--compiler-advisory-only",
             "--compiler-advisory-config",
             "policy.toml",
         ],
@@ -178,11 +174,7 @@ fn empty_numeric_baseline_detects_rule_and_population_drift() {
         &[
             AUTHORED,
             RULES,
-            &[
-                "--compiler-advisory-only",
-                "--write-compiler-baseline",
-                "baseline.json",
-            ],
+            &["--write-compiler-baseline", "baseline.json"],
         ]
         .concat(),
     );
@@ -222,7 +214,6 @@ fn unrequested_retained_numeric_rule_cannot_become_a_negative() {
     let (directory, output, original) = capture(
         "pub fn many(a:u32,b:u32,c:u32,d:u32,e:u32){}",
         &[
-            "--compiler-advisory-only",
             "--compiler-diagnostic-rules",
             "fn_params",
             "--write-compiler-baseline",

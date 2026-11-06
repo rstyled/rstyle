@@ -1,14 +1,7 @@
 use super::*;
 
 const OWNERS: usize = 4098;
-const OPTIONS: &[&str] = &[
-    "--report-detail",
-    "compact",
-    "--compiler-advisory-only",
-    "--compiler-plans",
-    "--review-file",
-    "reviews.json",
-];
+const OPTIONS: &[&str] = &["--compiler-plans", "--review-file", "reviews.json"];
 
 fn large_source() -> String {
     let mut source =
@@ -70,10 +63,6 @@ fn changed_policy(directory: &Path, original: &Value) {
     assert_eq!(
         changed["compiler_advisory"]["units"][0]["evaluation"]["diagnostics"],
         serde_json::json!([])
-    );
-    assert_eq!(
-        changed["strict_assessment_execution"],
-        original["strict_assessment_execution"]
     );
 }
 

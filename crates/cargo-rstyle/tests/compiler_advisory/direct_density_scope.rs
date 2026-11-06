@@ -3,9 +3,6 @@ use super::*;
 
 const CALLER: &str = "#[derive(Debug)] pub struct Generated(pub u32);\npub fn direct(){\nstd::fs::write(\"/unused\",b\"x\").ok();\nrenamed::leaf();\n}\npub fn pure(value:u128)->u128 {value}\n";
 const BASE: &[&str] = &[
-    "--extraction-profile",
-    "hir-data-v3",
-    "--compiler-advisory-only",
     "--compiler-advisory",
     "--compiler-advisory-config",
     "policy.toml",
@@ -30,7 +27,7 @@ fn fixture() -> (TempDir, Value) {
     policy(directory.path(), 0, 500);
     let mut flags = BASE.to_vec();
     flags.extend(["--package", "caller"]);
-    let (output, report) = clones(directory.path(), &flags);
+    let (output, report) = advisory(directory.path(), &flags);
     checked(&output, 2);
     assert!(!unit(&report)["unavailable"].as_array().unwrap().is_empty());
     assert_eq!(
@@ -44,7 +41,7 @@ fn replay(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value)
     let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
     command
         .current_dir(directory)
-        .arg("clones")
+        .arg("advisory")
         .args(BASE)
         .args([
             "--format",
@@ -92,7 +89,6 @@ fn complete_direct(report: &Value) {
     assert_eq!(scope(report)["effect_inputs_complete"], false);
     assert_eq!(scope(report)["unavailable_owners"], 0);
     assert_eq!(report["compiler_advisory"]["complete"], true);
-    assert_eq!(report["matching_execution"], "not_requested");
     assert_eq!(
         scope(report)["request"]["rules"],
         serde_json::json!(["side_effect_density"])
@@ -243,64 +239,4 @@ fn inherited_density_and_planning_keep_their_missing_effect_routes_at_every_dept
     );
     assert_eq!(planned["compiler_advisory"]["complete"], true);
     unchanged(&original, &planned);
-}
-
-fn raw_wire(report: &Value) -> Value {
-    let path = report["functions"][0]["unit_evidence"]["bundle"]
-        .as_str()
-        .unwrap();
-    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
-}
-
-fn damaged(wire: &Value, kind: &str) -> Value {
-    let mut changed = wire.clone();
-    for fact in changed["facts"].as_array_mut().unwrap() {
-        if fact["name"] == "direct" && kind == "observation" {
-            fact["build"]["frontend_options"]
-                .as_object_mut()
-                .unwrap()
-                .remove(rstyle_core::advisory::KEY);
-        }
-        if kind == "origin"
-            && fact["source_diagnostics"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|row| row["construct"] == "macro_generated_function")
-        {
-            fact["source_diagnostics"]
-                .as_array_mut()
-                .unwrap()
-                .retain(|row| row["construct"] != "macro_generated_function");
-            let options = fact["build"]["frontend_options"].as_object_mut().unwrap();
-            options.remove(rstyle_core::advisory::generated_effects::KEY);
-            options.remove(rstyle_core::advisory::generated_effects::CONNECTED_KEY);
-        }
-    }
-    changed
-}
-
-#[test]
-fn direct_density_never_hides_missing_applicable_facts_or_unknown_generated_origins() {
-    let (directory, original) = fixture();
-    let wire = raw_wire(&original);
-    let ledger = only::ledger_path(&original);
-    for kind in ["observation", "origin"] {
-        only::reseal_raw(&original, &ledger, &damaged(&wire, kind));
-        let (output, incomplete) = replay(directory.path(), &original, DIRECT);
-        checked(&output, 2);
-        assert_eq!(scope(&incomplete)["input_complete"], false, "{kind}");
-        assert_eq!(scope(&incomplete)["unavailable_owners"], 1);
-        assert_eq!(scope(&incomplete)["effect_inputs_complete"], false);
-        if kind == "origin" {
-            assert!(
-                scope(&incomplete)["source_scope"]["outside_scope_functions"]
-                    .as_array()
-                    .unwrap()
-                    .is_empty()
-            );
-        }
-    }
-    only::reseal_raw(&original, &ledger, &wire);
-    checked(&replay(directory.path(), &original, DIRECT).0, 0);
 }

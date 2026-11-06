@@ -48,14 +48,6 @@ fn cross_unit_plans_reuse_core_order_bundles_and_pass_through_without_strict_adm
         serde_json::json!(["a", "b", "c", "d", "e"])
     );
     assert_eq!(group["evaluation"]["plan"]["bundles"][0]["sites"], 1);
-    assert!(report["accepted_pairs"].as_array().unwrap().is_empty());
-    assert!(
-        report["functions"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|row| row["outcome"] != "admitted")
-    );
 }
 
 #[test]
@@ -67,17 +59,13 @@ fn plans_are_replay_only_optional_and_do_not_change_existing_reports() {
     for path in ["caller", "leaf"] {
         std::fs::remove_dir_all(directory.path().join(path)).unwrap();
     }
-    for detail in ["full", "compact"] {
+    {
         let (output, replayed) = capture(
             directory.path(),
             &[
                 "--replay-run",
                 original["run_directory"].as_str().unwrap(),
                 "--compiler-plans",
-                "--max-pairs",
-                "0",
-                "--report-detail",
-                detail,
             ],
         );
         checked(&output, 0);
@@ -85,23 +73,15 @@ fn plans_are_replay_only_optional_and_do_not_change_existing_reports() {
         let mut advisory = replayed["compiler_advisory"].clone();
         advisory.as_object_mut().unwrap().remove("planning");
         assert_eq!(advisory, original["compiler_advisory"]);
-        assert_eq!(replayed["matching"], original["matching"]);
     }
 }
 
 #[test]
 fn missing_generated_and_excluded_callees_leave_plans_incomplete() {
     let directory = fixture();
-    let (output, missing) = clones(
+    let (output, missing) = advisory(
         directory.path(),
-        &[
-            "-p",
-            "caller",
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-advisory",
-            "--compiler-plans",
-        ],
+        &["-p", "caller", "--compiler-advisory", "--compiler-plans"],
     );
     checked(&output, 2);
     assert_eq!(planning(&missing)["input_complete"], false);
@@ -186,15 +166,9 @@ fn core_policy_and_original_suppressions_drive_shared_planning() {
 #[test]
 fn ambiguous_check_test_dependencies_do_not_acquire_cross_context_steps() {
     let directory = fixture();
-    let (output, report) = clones(
+    let (output, report) = advisory(
         directory.path(),
-        &[
-            "--all-targets",
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-advisory",
-            "--compiler-plans",
-        ],
+        &["--all-targets", "--compiler-advisory", "--compiler-plans"],
     );
     checked(&output, 2);
     assert_eq!(planning(&report)["input_complete"], false);
@@ -218,18 +192,12 @@ fn single_unit_planning_keeps_known_empty_results_distinct() {
 #[test]
 fn text_displays_core_plans_and_cli_requires_advisory() {
     let directory = fixture();
-    let invalid = rstyle(directory.path(), &["clones", "--compiler-plans"]);
+    let invalid = rstyle(directory.path(), &["advisory", "--compiler-plans"]);
     assert_eq!(invalid.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&invalid.stderr).contains("--compiler-advisory"));
     let output = rstyle(
         directory.path(),
-        &[
-            "clones",
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-advisory",
-            "--compiler-plans",
-        ],
+        &["advisory", "--compiler-advisory", "--compiler-plans"],
     );
     assert!(output.status.success(), "{}", stdout(&output));
     let text = stdout(&output);

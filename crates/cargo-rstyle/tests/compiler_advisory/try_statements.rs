@@ -43,11 +43,9 @@ fn fixture_with_source(source: &str) -> (TempDir, Value) {
         "[side_effects]\nmin_lines=0\nmin_statements=0\nmax_density_milli=500\ntransitive_depth=0\n",
     )
     .unwrap();
-    let (output, report) = clones(
+    let (output, report) = advisory(
         directory.path(),
         &[
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--compiler-advisory-config",
             "policy.toml",
@@ -63,14 +61,7 @@ fn fixture_with_source(source: &str) -> (TempDir, Value) {
 }
 
 fn check_sample(report: &Value, name: &str, statements: u64, writes: u64) {
-    let function = report["functions"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|function| function["facts"]["name"] == name)
-        .unwrap();
-    let facts =
-        &function["facts"]["build"]["frontend_options"][rstyle_core::advisory::KEY]["facts"];
+    let facts = &saved_fact(report, name);
     assert_eq!(facts["statements"], statements, "{name}");
     let io = facts["calls"]
         .as_array()
@@ -143,21 +134,16 @@ fn replay_statement_metrics(directory: &Path, original: &Value) {
     for path in ["src/lib.rs", "Cargo.toml", "Cargo.lock"] {
         std::fs::remove_file(directory.join(path)).unwrap();
     }
-    let (output, replayed) = clones(
+    let (output, replayed) = advisory(
         directory,
         &[
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--compiler-advisory-config",
             "policy.toml",
             "--replay-run",
             original["run_directory"].as_str().unwrap(),
-            "--max-pairs",
-            "0",
         ],
     );
     assert!(output.status.success(), "{}", stdout(&output));
     assert_eq!(original["compiler_advisory"], replayed["compiler_advisory"]);
-    assert_eq!(original["matching"], replayed["matching"]);
 }

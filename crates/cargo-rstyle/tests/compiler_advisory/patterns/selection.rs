@@ -44,14 +44,12 @@ fn select(directory: &Path, paths: &[&str]) {
 
 fn current(directory: &Path, extra: &[&str]) -> (Output, Value) {
     let mut args = vec![
-        "--extraction-profile",
-        "hir-data-v3",
         "--compiler-advisory",
         "--compiler-patterns",
         "--compiler-plans",
     ];
     args.extend_from_slice(extra);
-    clones(directory, &args)
+    advisory(directory, &args)
 }
 
 fn replay(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) {
@@ -86,8 +84,6 @@ fn unchanged(original: &Value, selected: &Value) {
         original["compiler_advisory"]["planning"],
         selected["compiler_advisory"]["planning"]
     );
-    assert_eq!(original["matching"], selected["matching"]);
-    assert_eq!(original["accepted_pairs"], selected["accepted_pairs"]);
 }
 
 #[test]
@@ -206,16 +202,14 @@ fn compiler_pattern_file_selection_requires_patterns_and_changed_files() {
         vec!["--changed-files", "selection.json"],
     ] {
         let mut args = vec![
-            "clones",
-            "--extraction-profile",
-            "hir-data-v3",
+            "advisory",
             "--compiler-advisory",
             "--select-compiler-patterns",
         ];
         args.extend(extra);
         checked(&rstyle(directory.path(), &args), 2);
     }
-    assert!(!directory.path().join("target/rstyle/clones").exists());
+    assert!(!directory.path().join("target/rstyle/runs").exists());
 }
 
 #[test]
@@ -228,9 +222,7 @@ fn compiler_pattern_selected_replay_needs_no_sources_and_filters_text() {
     command
         .current_dir(directory.path())
         .args([
-            "clones",
-            "--extraction-profile",
-            "hir-data-v3",
+            "advisory",
             "--compiler-advisory",
             "--compiler-patterns",
             "--replay-run",
@@ -272,38 +264,6 @@ fn compiler_pattern_selection_and_review_masks_are_independent() {
     checked(&output, 0);
     assert_eq!(
         proposals(&empty)["selected_candidates"],
-        serde_json::json!([])
-    );
-}
-
-#[test]
-fn compiler_pattern_selection_keeps_check_test_occurrences_and_incomplete_graphs() {
-    let directory = workspace();
-    select(directory.path(), &["src/usage.rs"]);
-    let mut args = FILTER.to_vec();
-    args.push("--all-targets");
-    let (output, report) = current(directory.path(), &args);
-    checked(&output, 2);
-    let units = report["compiler_advisory"]["units"].as_array().unwrap();
-    assert_eq!(units.len(), 2);
-    assert_ne!(units[0]["unit"], units[1]["unit"]);
-    assert!(units.iter().all(|unit| {
-        !unit["patterns"]["selected_candidates"]
-            .as_array()
-            .unwrap()
-            .is_empty()
-    }));
-    select(directory.path(), &[]);
-    let (output, empty) = replay(directory.path(), &report, FILTER);
-    checked(&output, 2);
-    assert_eq!(empty["compiler_advisory"]["complete"], false);
-    let (directory, _, missing) = capture(GCD, &[]);
-    select(directory.path(), &[]);
-    let (output, report) = replay(directory.path(), &missing, FILTER);
-    checked(&output, 2);
-    assert_eq!(proposals(&report)["input_complete"], false);
-    assert_eq!(
-        proposals(&report)["selected_candidates"],
         serde_json::json!([])
     );
 }

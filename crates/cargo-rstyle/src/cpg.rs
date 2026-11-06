@@ -12,7 +12,7 @@ use rstyle_core::{cpg, patterns_report, report};
 use serde_json::json;
 use std::path::{Path, PathBuf};
 
-use crate::{Cli, CpgInputArgs, CpgPatternsArgs, CpgReceiveArgs, Format};
+use crate::{Cli, CpgFlowArgs, CpgInputArgs, CpgPatternsArgs, CpgReceiveArgs, Format};
 
 /// Style report of a run over any number of units, and its exit code.
 pub fn check(
@@ -47,6 +47,7 @@ pub fn patterns(cli: &Cli, args: &CpgPatternsArgs) -> Result<(String, u8), Strin
     let demand = Demand {
         graphs: true,
         bounds: args.complexity,
+        flow: false,
     };
     let received = match input::read(&args.input, demand) {
         Ok(received) => received,
@@ -55,7 +56,7 @@ pub fn patterns(cli: &Cli, args: &CpgPatternsArgs) -> Result<(String, u8), Strin
     let records = received.records;
     let bounds = args
         .complexity
-        .then(|| crate::clones::document_bounds(&records, args.display.top));
+        .then(|| crate::compiler::document_bounds(&records, args.display.top));
     let evaluation = mined(records, args, &load_config(cli.config.as_deref())?)?;
     let code = u8::from(args.fail_on_candidates && !evaluation.candidates.is_empty());
 
@@ -76,6 +77,56 @@ pub fn patterns(cli: &Cli, args: &CpgPatternsArgs) -> Result<(String, u8), Strin
         }
     };
     Ok((output, code))
+}
+
+/// What each function's control flow establishes, and how far each can be relied on.
+pub fn flow(args: &CpgFlowArgs, format: Format) -> Result<(String, u8), String> {
+    let demand = Demand {
+        flow: true,
+        ..Demand::default()
+    };
+    let received = match input::read(&args.input, demand) {
+        Ok(received) => received,
+        Err(error) => return error.output(format),
+    };
+    let selected = |record: &Record| {
+        args.function
+            .as_ref()
+            .is_none_or(|name| record.name.contains(name.as_str()))
+    };
+
+    let functions: Vec<_> = received
+        .records
+        .iter()
+        .filter(|record| selected(record))
+        .filter_map(|record| Some((record, record.flow.as_ref()?)))
+        .collect();
+    let output = match format {
+        Format::Text => receipt::text(flow_text(&functions), &received.receipt),
+        Format::Json => {
+            let rows: Vec<_> = functions
+                .iter()
+                .map(|(record, flow)| {
+                    json!({"function": record.function, "name": record.name,
+                           "path": record.path, "flow": flow})
+                })
+                .collect();
+            receipt::json(&json!({"functions": rows}), &received.receipt)?
+        }
+    };
+    Ok((output, 0))
+}
+
+fn flow_text(functions: &[(&Record, &cpg::flow::Derived)]) -> String {
+    let mut lines: Vec<String> = functions
+        .iter()
+        .map(|(record, flow)| {
+            let reasons = flow.reasons.join("; ");
+            format!("{:?}  {}  {}", flow.standing, record.name, reasons)
+        })
+        .collect();
+    lines.push(format!("{} functions", functions.len()));
+    lines.join("\n")
 }
 
 fn mined(

@@ -15,21 +15,13 @@ Rust style checker built on rustc HIR (resolved names and types, not just syntax
 
 See [`SIDE_EFFECTS.md`](SIDE_EFFECTS.md) for the rule spec.
 
-Opt-in strict source-to-pair analysis is available with `cargo rstyle clones`.
-Clones also offers opt-in source and signature rules
-whose evidence remains usable when a body is excluded from strict matching.
-Compiler advisory reuses existing Rust
-collectors and core policy. Add `--compiler-advisory --compiler-complexity-top 20`
-to rank clean and flagged functions by completed COG/CC scores per unit;
-missing scores and owners remain explicit, including on saved-facts replay.
-Normal style checks use that compiler path by default:
+Normal style checks use the compiler path by default:
 `cargo rstyle --format json`. It reads workspace
 `rstyle.toml` (or `--config`), checks all authored rules and returns 1 for findings.
 The compiler path reuses private builds and completed owner observations when Cargo
 reports the exact artifacts fresh; reports retain separate compilation contexts.
 Root JSON exposes diagnostics, summary, fix groups and complexity rows, with
-explicit scope and planning completeness. Root style saves its numeric compiler
-inputs for replay; analyses requiring original HIR bodies use a full clones capture.
+explicit scope and planning completeness. Every run saves its documents for replay.
 Text diagnostics and complexity rows carry compiler unit labels, followed by a
 table of package, target, test mode and source for each unit. Library and test
 builds of the same source remain distinguishable on saved-run replay.
@@ -62,23 +54,13 @@ changed values, policy or build context can make it visible again. Raw per-unit
 findings remain available. `--review-status` inspects the file without writing.
 The review file is explicit and independent of the pattern ignore ledger.
 
-Default `cargo rstyle patterns` also saves metadata and its advisory graphs,
-avoiding full body trees. Pattern and review replay need no source or compiler
-tools; body-dependent analysis requires a full clones capture.
-Optional native pair explanations show ordered
-scalar differences with separate coverage through `--explain-pairs`.
-Bounded helper proposals use that evidence
-with `--helper-proposals` to suggest useful scalar-expression abstractions.
-Saved finding reviews retain explicit dismissals
-for helpers, enum dispatch and witnessed capability sets across analysis runs.
-`--review-status` inspects every retained entry with explicit scope and evidence gaps.
-`--review-prune --review-prune-dry-run` previews removal of completed negative reviews.
+Default `cargo rstyle patterns` saves the same documents. Pattern and review replay
+need no source or compiler tools.
 
 Other top-level folders:
 
 | Folder | What it is |
 | --- | --- |
-| [`eval/`](eval/README.md) | Current compiler evaluation tools, authored inputs and the HIR coverage inventory. |
 | [`scripts/`](scripts/README.md) | Build, test, profiling and evaluation scripts; also `style.sh`. |
 | `rust_refactoring_examples/` | Labeled example crates (`labels.csv`) the miner is scored against. |
 | `.plans/` | Local planning notes and LLM logs. Gitignored, not part of the repo. |
@@ -251,7 +233,7 @@ Two layers:
 
 Each candidate has a `kind` (`trait_method`, `capability_set`, `enum_dispatch`, `generic_fn`, `parameterize`), a score with its parts (`support`, `lift`, `holes`, `coverage`), an observation, an inference, a possible refactor sketch, every site with `path:line`, the functions that fill the holes, and counter-evidence (effect mismatch, common signature). Patterns whose implementations all already implement one trait method are listed under `suppressed`, not proposed. Output is deterministic.
 
-Compiler patterns captures graph observations under `target/rstyle/clones/`. Use `--replay-run PATH` to reevaluate an explicit saved run without source files or compiler tools. Style and patterns both consume saved compiler unit snapshots.
+Compiler patterns captures graph observations under `target/rstyle/runs/`. Use `--replay-run PATH` to reevaluate an explicit saved run without source files or compiler tools. Style and patterns both consume saved compiler unit snapshots.
 
 A new capture removes all but a workspace's 5 most recently used runs, since one run can hold gigabytes. It never removes a run another command is using, or the run the next build reuses compiled crates from. Set `RSTYLE_KEEP_RUNS` to another count, or to `all` to keep every run; to keep a run you are working through, set it before capturing again.
 
@@ -380,6 +362,7 @@ reimplemented per language:
 ```
 cargo rstyle cpg check DOC.json... [--config rstyle.toml] [--format text|json]
 cargo rstyle cpg patterns DOC.json... [--complexity] [--config rstyle.toml] [--format text|json]
+cargo rstyle cpg flow DOC.json... [--function NAME] [--format text|json]
 cargo rstyle cpg receive --capture CAPTURE_DIR --format json
 cargo rstyle cpg check --capture CAPTURE_DIR [--format text|json]
 cargo rstyle cpg patterns --capture CAPTURE_DIR [--complexity] [--format text|json]
@@ -445,9 +428,21 @@ each crate's documents and a manifest sealing them into its unit directory, and
 everything the report needs is derived from those documents afterwards, in core. A
 saved run therefore replays without a compiler or the sources, and its documents
 answer any of these routes: replaying a style run with `patterns` needs no recapture.
-The strict `clones` route and the source-level analyses on it (source rules, guards,
-mutation rules, enum dispatch, capability proposals) still read function bodies from
-the driver's own unit evidence.
+The driver writes nothing else, and no route reads rustc directly.
+
+`cpg flow` reports what each function's control flow establishes, from any frontend that
+emits one: immediate dominators and post-dominators, each loop's back edges, and a
+dependence graph of data, control and execution edges. A data edge is a write that can
+reach a read; a control edge marked `termination` holds only because a loop before its
+target might never finish. Each function says how far this can be relied on: `known`,
+`approximated` with its reasons, such as a binding that can also change through a borrow,
+or `unknown` where the frontend emits no flow. A closure's body is opaque and has no
+flow of its own; a coroutine's, which is all of an `async fn`, runs in place. Unwinding is
+not a transfer.
+
+The strict `clones` route, `rstyle-pdg` and `rstyle-ccgraph` were retired in
+[#46](https://github.com/rstyled/rstyle/issues/46), which records the commit they can
+be read at and what they did.
 
 Every rule fact (statement counts, complexity, calls, edges, effects, mutations,
 parameter lists, signature shapes, mutated types and dependence graphs) was proven

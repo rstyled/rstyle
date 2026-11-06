@@ -19,14 +19,9 @@ fn fixture() -> (TempDir, Value) {
     ] {
         std::fs::write(directory.path().join(path), source).unwrap();
     }
-    let (output, report) = clones(
+    let (output, report) = advisory(
         directory.path(),
-        &[
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-advisory",
-            "--compiler-patterns",
-        ],
+        &["--compiler-advisory", "--compiler-patterns"],
     );
     checked(&output, 0);
     let candidates = proposals(&report)["evaluation"]["candidates"]
@@ -52,8 +47,6 @@ fn unchanged(original: &Value, current: &Value) {
         proposals(original)["evaluation"]
     );
     assert_eq!(proposals(current)["policy"], proposals(original)["policy"]);
-    assert_eq!(current["matching"], original["matching"]);
-    assert_eq!(current["accepted_pairs"], original["accepted_pairs"]);
     let original_unit = &original["compiler_advisory"]["units"][0];
     let current_unit = &current["compiler_advisory"]["units"][0];
     assert_eq!(current_unit["evaluation"], original_unit["evaluation"]);
@@ -266,9 +259,7 @@ fn zero_text(directory: &Path, original: &Value) {
     let text = rstyle(
         directory,
         &[
-            "clones",
-            "--extraction-profile",
-            "hir-data-v3",
+            "advisory",
             "--compiler-advisory",
             "--compiler-patterns",
             "--top",
@@ -334,7 +325,7 @@ fn presentation_cannot_hide_missing_inputs_or_run_without_patterns() {
     );
     unchanged(&original, &hidden);
     for options in [vec!["--top", "0"], vec!["--min-score", "0.5"]] {
-        let mut args = vec!["clones", "--compiler-advisory"];
+        let mut args = vec!["advisory", "--compiler-advisory"];
         args.extend(options);
         let output = rstyle(directory.path(), &args);
         checked(&output, 2);

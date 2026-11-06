@@ -21,14 +21,12 @@ fn configured_from_capture(directory: &TempDir, original: &Value) -> Value {
 
 pub(super) fn replay(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) {
     let mut args = vec![
-        "--extraction-profile",
-        "hir-data-v3",
         "--compiler-advisory",
         "--replay-run",
         original["run_directory"].as_str().unwrap(),
     ];
     args.extend_from_slice(extra);
-    clones(directory, &args)
+    advisory(directory, &args)
 }
 
 fn diagnostics(report: &Value) -> &[Value] {
@@ -123,7 +121,6 @@ fn all_six_compiler_style_families_use_exact_reviews_without_changing_raw_report
     for index in 0..diagnostics(original).len() {
         reviewed = dismiss(directory.path(), original, index);
         assert_eq!(decisions(&reviewed)[index]["state"], "hidden_exact");
-        assert_eq!(reviewed["matching"], original["matching"]);
         assert_eq!(
             reviewed["compiler_advisory"]["units"][0]["evaluation"],
             original["compiler_advisory"]["units"][0]["evaluation"]
@@ -197,11 +194,9 @@ fn movement_and_parameter_renaming_preserve_completed_compiler_reviews_scenario(
         ),
     )
     .unwrap();
-    let (_output, current) = clones(
+    let (_output, current) = advisory(
         directory.path(),
         &[
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--compiler-advisory-config",
             "policy.toml",
@@ -230,11 +225,9 @@ fn changed_distribution_and_policy_make_compiler_reviews_visible_again_scenario(
         SOURCE.replace("x+=2", "y+=2"),
     )
     .unwrap();
-    let (_output, current) = clones(
+    let (_output, current) = advisory(
         directory.path(),
         &[
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--compiler-advisory-config",
             "policy.toml",
@@ -284,11 +277,9 @@ fn compiler_diagnostic_reviews_keep_check_and_test_contexts_separate_scenario(
         .position(|d| d["rule_id"] == "fn_params")
         .unwrap();
     dismiss(directory.path(), original, index);
-    let (_output, both) = clones(
+    let (_output, both) = advisory(
         directory.path(),
         &[
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--all-targets",
             "--compiler-advisory-config",
@@ -320,9 +311,7 @@ fn compiler_diagnostic_reviews_preserve_contexts_missing_findings_and_atomic_wri
     let output = rstyle(
         directory.path(),
         &[
-            "clones",
-            "--extraction-profile",
-            "hir-data-v3",
+            "advisory",
             "--compiler-advisory",
             "--replay-run",
             original["run_directory"].as_str().unwrap(),
@@ -366,9 +355,7 @@ fn invalid_suppressions_cannot_be_dismissed_and_lookup_creates_no_store() {
     let output = rstyle(
         directory.path(),
         &[
-            "clones",
-            "--extraction-profile",
-            "hir-data-v3",
+            "advisory",
             "--compiler-advisory",
             "--replay-run",
             original["run_directory"].as_str().unwrap(),
@@ -408,7 +395,6 @@ fn hiding_a_compiler_diagnostic_cannot_erase_missing_generated_input() {
     assert_eq!(decisions(&reviewed)[0]["state"], "hidden_exact");
     assert_eq!(reviewed["compiler_advisory"]["findings"], 0);
     assert_eq!(reviewed["compiler_advisory"]["complete"], false);
-    assert_eq!(reviewed["matching"], original["matching"]);
 }
 
 mod baseline;

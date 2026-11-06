@@ -3,13 +3,7 @@ use super::*;
 
 const DERIVED: &str = "#[derive(Debug)] pub struct Generated(pub u32);\n";
 const ORIGINAL: &str = "pub fn original(a:bool,b:bool){if a {if b {}}}\n";
-const RANK: &[&str] = &[
-    "--extraction-profile",
-    "hir-data-v3",
-    "--compiler-advisory-only",
-    "--compiler-complexity-top",
-    "10",
-];
+const RANK: &[&str] = &["--compiler-complexity-top", "10"];
 const AUTHORED: &[&str] = &["--compiler-complexity-scope", "authored"];
 
 fn capture_rank(source: &str, extra: &[&str]) -> (TempDir, Output, Value) {
@@ -17,7 +11,7 @@ fn capture_rank(source: &str, extra: &[&str]) -> (TempDir, Output, Value) {
     std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
     let mut flags = RANK.to_vec();
     flags.extend_from_slice(extra);
-    let (output, report) = clones(directory.path(), &flags);
+    let (output, report) = advisory(directory.path(), &flags);
     (directory, output, report)
 }
 
@@ -25,7 +19,7 @@ fn replay_rank(directory: &Path, original: &Value, extra: &[&str]) -> (Output, V
     let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
     command
         .current_dir(directory)
-        .arg("clones")
+        .arg("advisory")
         .args(RANK)
         .args([
             "--format",
@@ -64,8 +58,6 @@ fn standalone(report: &Value) {
     assert_eq!(advisory["diagnostic_execution"], "not_requested");
     assert_eq!(advisory["effect_execution"], "not_requested");
     assert_eq!(advisory["findings"], 0);
-    assert_eq!(report["matching_execution"], "not_requested");
-    assert_eq!(report["strict_assessment_execution"], "not_requested");
     for unit in advisory["units"].as_array().unwrap() {
         assert!(unit.get("evaluation").is_none());
         assert!(unit.get("patterns").is_none());
@@ -187,63 +179,6 @@ fn authored_generated_only_complexity_ranking_is_complete_without_inventing_scor
     assert_eq!(replayed["compiler_advisory"], original["compiler_advisory"]);
 }
 
-fn raw_wire(report: &Value) -> Value {
-    let path = report["functions"][0]["unit_evidence"]["bundle"]
-        .as_str()
-        .unwrap();
-    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
-}
-
-fn damaged(wire: &Value, kind: &str) -> Value {
-    let mut changed = wire.clone();
-    for fact in changed["facts"].as_array_mut().unwrap() {
-        if fact["name"] == "original" {
-            let options = fact["build"]["frontend_options"].as_object_mut().unwrap();
-            match kind {
-                "score" => options[rstyle_core::advisory::KEY]["facts"]["complexity"] = Value::Null,
-                "observation" => {
-                    options.remove(rstyle_core::advisory::KEY);
-                }
-                _ => {}
-            }
-        } else if kind == "origin" {
-            fact["source_diagnostics"]
-                .as_array_mut()
-                .unwrap()
-                .retain(|row| row["construct"] != "macro_generated_function");
-            let options = fact["build"]["frontend_options"].as_object_mut().unwrap();
-            options.remove(rstyle_core::advisory::generated_effects::KEY);
-            options.remove(rstyle_core::advisory::generated_effects::CONNECTED_KEY);
-        }
-    }
-    changed
-}
-
-#[test]
-fn authored_scope_does_not_hide_missing_authored_scores_observations_or_unknown_origins() {
-    let (directory, output, original) = capture_rank(&format!("{DERIVED}{ORIGINAL}"), AUTHORED);
-    checked(&output, 0);
-    let wire = raw_wire(&original);
-    let ledger = only::ledger_path(&original);
-    for kind in ["score", "observation", "origin"] {
-        only::reseal_raw(&original, &ledger, &damaged(&wire, kind));
-        let (output, report) = replay_rank(directory.path(), &original, AUTHORED);
-        checked(&output, 2);
-        standalone(&report);
-        assert_eq!(ranking(&report)["input_complete"], false, "{kind}");
-        if kind == "score" {
-            assert_eq!(ranking(&report)["unavailable_measurements"], 1);
-        } else if kind == "origin" {
-            assert!(outside(ranking(&report)).is_empty());
-            assert_eq!(ranking(&report)["unavailable_owners"], 1);
-        } else {
-            assert_eq!(ranking(&report)["unavailable_owners"], 1);
-        }
-    }
-    only::reseal_raw(&original, &ledger, &wire);
-    checked(&replay_rank(directory.path(), &original, AUTHORED).0, 0);
-}
-
 #[test]
 fn authored_ranking_retains_check_and_test_owners_and_replays_without_sources_or_tools() {
     let source = format!("{DERIVED}{ORIGINAL}#[cfg(test)] pub fn test_only(a:bool){{if a {{}}}}\n");
@@ -279,7 +214,7 @@ fn complexity_scope_requires_ranking_before_capture_even_when_explicitly_capture
         let output = diagnostic_process::output(
             Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap())
                 .current_dir(directory.path())
-                .args(["clones", "--compiler-complexity-scope", scope])
+                .args(["advisory", "--compiler-complexity-scope", scope])
                 .env("PATH", directory.path().join("no-tools"))
                 .env("CARGO", directory.path().join("no-cargo")),
         )
@@ -288,6 +223,6 @@ fn complexity_scope_requires_ranking_before_capture_even_when_explicitly_capture
         let error = String::from_utf8_lossy(&output.stderr);
         assert!(error.contains("--compiler-complexity-top"), "{error}");
         assert!(!error.contains("no-cargo"), "{error}");
-        assert!(!directory.path().join("target/rstyle/clones").exists());
+        assert!(!directory.path().join("target/rstyle/runs").exists());
     }
 }

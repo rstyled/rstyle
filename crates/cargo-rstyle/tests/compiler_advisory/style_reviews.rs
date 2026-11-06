@@ -80,7 +80,6 @@ fn default_contract(original: &Value) {
         original["compiler_advisory"]["metrics"],
         "rstyle.compiler-style-metrics/7"
     );
-    assert_eq!(original["strict_assessment_execution"], "not_requested");
     assert!(
         !original["diagnostics"]
             .as_array()

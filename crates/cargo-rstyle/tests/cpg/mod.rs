@@ -380,7 +380,7 @@ fn emitted() -> (TempDir, PathBuf) {
 }
 
 /// The rule facts core derives from the documents in `out`, graphs included.
-fn derived(out: &Path) -> Vec<rstyle_core::facts::FnFacts> {
+pub(crate) fn derived(out: &Path) -> Vec<rstyle_core::facts::FnFacts> {
     let documents: Vec<Value> = documents_in(out)
         .iter()
         .map(|path| rstyle_core::cpg::transport::read_json(Path::new(path)).unwrap())
@@ -388,6 +388,7 @@ fn derived(out: &Path) -> Vec<rstyle_core::facts::FnFacts> {
     let demand = rstyle_core::cpg::records::Demand {
         graphs: true,
         bounds: false,
+        flow: false,
     };
     rstyle_core::cpg::run_records(documents, demand)
         .unwrap()
@@ -472,6 +473,7 @@ mod capture;
 #[cfg(unix)]
 mod descriptor;
 mod facts;
+mod flow;
 mod stdin;
 mod transport;
 

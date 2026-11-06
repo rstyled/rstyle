@@ -108,11 +108,9 @@ pub(super) fn source_free_replay(directory: &Path, original: &Value) {
     command
         .current_dir(directory)
         .args([
-            "clones",
+            "advisory",
             "--format",
             "json",
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--compiler-plans",
             "--replay-run",
@@ -123,8 +121,6 @@ pub(super) fn source_free_replay(directory: &Path, original: &Value) {
     checked(&output, 0);
     let replayed: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(original["compiler_advisory"], replayed["compiler_advisory"]);
-    assert_eq!(original["matching"], replayed["matching"]);
-    assert_eq!(original["accepted_pairs"], replayed["accepted_pairs"]);
 }
 
 #[test]
@@ -154,16 +150,9 @@ pub fn dynamic(value:&dyn renamed::Action) { value.act(); }
 fn generated_implementations_propagate_but_missing_and_excluded_targets_do_not() {
     let callers = "use renamed::Action; pub fn method() { renamed::Reader.act(); }";
     let directory = fixture(LEAF, callers);
-    let (output, missing) = clones(
+    let (output, missing) = advisory(
         directory.path(),
-        &[
-            "-p",
-            "caller",
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-advisory",
-            "--compiler-plans",
-        ],
+        &["-p", "caller", "--compiler-advisory", "--compiler-plans"],
     );
     checked(&output, 2);
     std::fs::write(

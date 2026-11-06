@@ -3,12 +3,8 @@ use super::*;
 
 const SHARED: &str = "pub fn leaf(a:u128,b:u128,c:u128,d:u128,e:u128){std::fs::write(\"/unused\",b\"shared\").ok();}";
 
-fn options(raw: bool) -> Vec<&'static str> {
-    let mut options = vec!["--compiler-plans"];
-    if raw {
-        options.push("--compiler-advisory-only");
-    }
-    options
+fn options(_raw: bool) -> Vec<&'static str> {
+    vec!["--compiler-plans"]
 }
 
 fn source(directory: &Path, path: &str) {
@@ -178,9 +174,7 @@ fn outside_mode(raw: bool) {
     assert_eq!(unit["unavailable"].as_array().unwrap().len(), 1);
     assert!(!directory.path().join("reviews.json").exists());
     let mut args = vec![
-        "clones",
-        "--extraction-profile",
-        "hir-data-v3",
+        "advisory",
         "--compiler-advisory",
         "--replay-run",
         report["run_directory"].as_str().unwrap(),

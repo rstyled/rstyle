@@ -1,10 +1,6 @@
 # scripts
 
-Repository scripts run from anywhere (shell drivers generally `cd` to the repo root). `install.sh` also works without a checkout and installs from GitHub. Python is stdlib only. Evaluation outputs go to [`eval/`](../eval/README.md). Caches live in `/tmp/rx_*`, `/tmp/cn_*`.
-
-Shared Rust regression sources, selections and companion oracles live under
-[`tests/fixtures/`](../tests/fixtures/README.md). Current manual evaluations live
-in `eval/`, separately from the normal compiler analysis and CI test route.
+Repository scripts run from anywhere (shell drivers generally `cd` to the repo root). `install.sh` also works without a checkout and installs from GitHub. Python is stdlib only. Evaluation outputs go to the gitignored `eval/codenet/`. Caches live in `/tmp/rx_*`, `/tmp/cn_*`.
 
 Current style and pattern commands use compiler captures exclusively. Research
 scorers consume the published workspace `compiler_advisory.units[].patterns`
@@ -68,8 +64,8 @@ is an incomplete observation, never a passing test. Subprocesses must stay in th
 launched process group; deliberately detached processes are outside this supervisor.
 
 ```sh
-python3 scripts/watchdog.py --timeout 120 --output /tmp/rstyle-build-1 -- cargo test --locked -p rstyle-pdg --test data_types --no-run
-python3 scripts/watchdog.py --timeout 60 --output /tmp/rstyle-types-1 -- cargo test --locked -p rstyle-pdg --test data_types
+python3 scripts/watchdog.py --timeout 120 --output /tmp/rstyle-build-1 -- cargo test --locked -p rstyle-core --no-run
+python3 scripts/watchdog.py --timeout 60 --output /tmp/rstyle-types-1 -- cargo test --locked -p rstyle-core
 python3 -m unittest discover -s scripts -p test_watchdog.py
 ```
 
@@ -120,73 +116,18 @@ Use a distinct target directory for a cold condition, and a new output directory
 for every repetition. Cargo timings and nextest JUnit remain in the target tree;
 retain them separately from the harness logs. These examples do not change CI.
 
-Set `RSTYLE_PERF=1` for opt-in `rstyle-perf` JSON lines on stderr. Initial
-instrumentation covers `capture.binary_hash`, `producer.produce`,
-`producer.verify` and `helper.verify`. Starts are emitted before work; finishes
-and failures include monotonic elapsed seconds, PID, identity and nesting depth.
-Depth describes instrumented calls, not the source dependency-chain length.
-Helper visits are counted per thread by SHA-256 of exact encoded resolution
-bytes, including the serialized dependency. Names are navigation labels, never
-proof identities. These observations do not memoize or bypass any validation.
-Timing and counts never enter documents or deterministic reports. Detailed
-logging and diagnostic hashing add overhead: compare diagnostic runs separately
-from uninstrumented timings. This initial instrumentation does not yet cover all
-stages or make buffered child stderr visible in CLI tests.
-
-Diagnostic stderr now streams through the Cargo capture adapter and the CLI test
-helper while remaining available in failure output and retained capture logs.
-Only the exact `RSTYLE_PERF=1` switch passes through producer-environment clearing;
-extraction selection and evidence publication settings are still cleared. Output
-from concurrent compiler units may interleave; correlate JSON events by PID and
-identity. Add `--nocapture` when running a CLI test to expose its tee output.
-
-Set `RSTYLE_DIAGNOSTIC_FACTS_DIR` to retain version-1, phase-tagged snapshots
-before helper certification and, when available, after it but before production.
-Files use compiler PIDs and exclusive creation; they are flushed before work
-continues. They contain owned facts with original provenance, and explicitly do
-not certify a complete source-to-pair capture. Add
-`RSTYLE_DIAGNOSTIC_CAPTURE_ONLY=1` to stop after raw HIR/unit evidence. The CLI
-reports incomplete capture and exits nonzero because no normal producer artifacts
-are published. This is an extraction-only diagnostic outcome, not a passed E2E
-analysis. These two diagnostic settings are explicitly forwarded to the driver.
-
-The smallest ordinary-library replay seam is currently a PDG example:
-
-```sh
-cargo build --locked --workspace --example helper_replay
-RSTYLE_PERF=1 python3 scripts/watchdog.py --timeout 120 --output /tmp/helper-replay-1 -- target/debug/examples/helper_replay /path/to/PID-pre-helper-certification.json
-```
-
-Build separately. The executable loads one snapshot, then invokes the same
-`helper_calls::capture` used by the driver, without Cargo, rustc or source-file
-reads. Output is diagnostic scope and cannot claim source-to-pair completeness.
-This is an initial helper-stage seam, not the proposed full evidence-bundle format
-or the complete `rstyle-analysis` API. Retain the original source bytes alongside
-snapshots for regeneration; snapshots keep original provenance paths unchanged.
-
-Normal current-run driver/CLI production now uses the `trusted-generated`
-verification policy, retaining structural validation and avoiding duplicate graph
-reconstruction and recursive certified-summary derivation. Independent library
-calls and replay remain strict by default. To measure the normal production
-policy on one's own raw snapshot, add `--generated` to `helper_replay`. The
-reported scope remains diagnostic; choosing this policy does not certify capture
-completeness. Stage events and the CLI report declare the selected policy.
-
-### Complete clones and strict-import profiling
-
-`python3 scripts/profile_clones.py --profile debug` (or `release`) profiles
-minimal and complete read/inherent helper fixtures using already built tools.
-Build the workspace and `rstyle-pdg`'s `unit_import_replay` example in that profile
-first. The script retains reports, timing and diagnostic logs in a new temporary
-directory, checks completeness and pair decisions, and separates ordinary
-samples from `RSTYLE_PERF` observations.
+Set `RSTYLE_PERF=1` for opt-in `rstyle-perf` JSON lines on stderr. Starts are emitted
+before work; finishes and failures include monotonic elapsed seconds, PID, identity
+and nesting depth. Timing never enters documents or deterministic reports. Output from
+concurrent compiler units may interleave; correlate events by PID and identity. Only
+the exact `RSTYLE_PERF=1` passes through producer-environment clearing.
 
 ## Shared CI style capture
 
 CI reuses the normal CLI and driver binaries produced by the workspace test
 prebuild, then runs `python3 scripts/ci-style.py --binary
 /path/to/cargo-rstyle --output NEW_DIRECTORY`. It captures graph-rich patterns
-once and numerically replays that exact run with normal strict replay validation.
+once and numerically replays that exact run with normal replay validation.
 `rstyle-report.json` keeps the numeric presentation; `rstyle-patterns.json` keeps
 the pattern presentation; `patterns-capture-report.json` preserves the original
 archive before replay replaces its presentation. `status.json` records both

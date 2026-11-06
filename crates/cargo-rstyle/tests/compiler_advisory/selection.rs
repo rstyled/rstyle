@@ -35,14 +35,12 @@ fn select(directory: &Path, paths: &[&str]) {
 
 fn requested(directory: &Path, extra: &[&str]) -> (Output, Value) {
     let mut args = vec![
-        "--extraction-profile",
-        "hir-data-v3",
         "--compiler-advisory",
         "--compiler-advisory-config",
         "policy.toml",
     ];
     args.extend_from_slice(extra);
-    clones(directory, &args)
+    advisory(directory, &args)
 }
 
 fn replay(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) {
@@ -78,14 +76,12 @@ fn compiler_file_selection_preserves_raw_reports_and_exact_path_boundaries() {
     checked(&output, 0);
     assert_eq!(scope(&clean)["visible_findings"], 0);
     assert_eq!(scope(&clean)["coverage"], "complete");
-    assert_eq!(clean["analysis"]["execution"], "not_requested");
     select(directory.path(), &["src/bad.rs"]);
     let (output, bad) = replay(directory.path(), &original, FILTER);
     checked(&output, 1);
     assert_eq!(scope(&bad)["visible_findings"], 1);
     assert_eq!(scope(&bad)["paths"][0]["matched_functions"], 1);
     assert_eq!(diagnostics(&bad), diagnostics(&original));
-    assert_eq!(bad["matching"], original["matching"]);
     assert_eq!(bad["compiler_advisory"]["findings"], 2);
     assert!(bad["compiler_advisory"]["diagnostic_review"].is_null());
     assert!(!directory.path().join("reviews.json").exists());
@@ -99,11 +95,9 @@ fn compiler_file_selection_filters_text_diagnostics() {
     let output = rstyle(
         directory.path(),
         &[
-            "clones",
+            "advisory",
             "--format",
             "text",
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--compiler-advisory-config",
             "policy.toml",
@@ -152,11 +146,9 @@ fn compiler_selection_replays_without_sources_or_compiler_tools() {
     command
         .current_dir(directory.path())
         .args([
-            "clones",
+            "advisory",
             "--format",
             "json",
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--compiler-advisory-config",
             "policy.toml",
@@ -172,25 +164,6 @@ fn compiler_selection_replays_without_sources_or_compiler_tools() {
     let saved: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(scope(&saved)["visible_findings"], 1);
     assert_eq!(diagnostics(&saved), diagnostics(&original));
-}
-
-#[test]
-fn generated_or_missing_observations_cannot_be_hidden_by_clean_file_selection() {
-    let directory = workspace();
-    std::fs::write(
-        directory.path().join("src/lib.rs"),
-        "pub mod clean; macro_rules! make {()=>{pub fn generated(){}}} make!();",
-    )
-    .unwrap();
-    let (output, generated) = requested(directory.path(), FILTER);
-    checked(&output, 2);
-    assert_eq!(generated["compiler_advisory"]["complete"], false);
-    std::fs::write(directory.path().join("src/lib.rs"), "pub mod clean;").unwrap();
-    let (_, original) = clones(directory.path(), &["--extraction-profile", "hir-data-v3"]);
-    let (output, missing) = replay(directory.path(), &original, FILTER);
-    checked(&output, 2);
-    assert_eq!(scope(&missing)["paths"][0]["unavailable_functions"], 1);
-    assert_eq!(scope(&missing)["coverage"], "incomplete");
 }
 
 #[test]

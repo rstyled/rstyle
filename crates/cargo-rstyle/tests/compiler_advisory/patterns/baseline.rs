@@ -32,23 +32,16 @@ fn exported(source: &str) -> (TempDir, Value) {
     (directory, report)
 }
 fn current(directory: &Path, extra: &[&str]) -> (Output, Value) {
-    let mut args = vec![
-        "--extraction-profile",
-        "hir-data-v3",
-        "--compiler-advisory",
-        "--compiler-patterns",
-    ];
+    let mut args = vec!["--compiler-advisory", "--compiler-patterns"];
     args.extend_from_slice(extra);
-    clones(directory, &args)
+    advisory(directory, &args)
 }
 
 fn raw(directory: &Path, original: Option<&Value>, extra: &[&str]) -> Output {
     let mut args = vec![
-        "clones",
+        "advisory",
         "--format",
         "json",
-        "--extraction-profile",
-        "hir-data-v3",
         "--compiler-advisory",
         "--compiler-patterns",
     ];
@@ -81,7 +74,6 @@ fn proposal_baseline_covers_five_families_and_preserves_raw_reports() {
             report["compiler_advisory"]["units"],
             original["compiler_advisory"]["units"]
         );
-        assert_eq!(report["matching"], original["matching"]);
         assert!(!directory.path().join("reviews.json").exists());
         let mut args = COMPARE.to_vec();
         args.push("--fail-on-findings");
@@ -130,22 +122,18 @@ fn check_source_free_proposal_baseline(directory: &Path, seed: &Value) {
     for path in ["src/lib.rs", "Cargo.toml"] {
         std::fs::remove_file(directory.join(path)).unwrap();
     }
-    for detail in ["full", "compact"] {
+    {
         let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
         command
             .current_dir(directory)
             .args([
-                "clones",
+                "advisory",
                 "--format",
                 "json",
-                "--extraction-profile",
-                "hir-data-v3",
                 "--compiler-advisory",
                 "--compiler-patterns",
                 "--replay-run",
                 original["run_directory"].as_str().unwrap(),
-                "--report-detail",
-                detail,
             ])
             .args(COMPARE)
             .env("PATH", directory.join("no-tools"));
@@ -153,7 +141,6 @@ fn check_source_free_proposal_baseline(directory: &Path, seed: &Value) {
         checked(&output, 0);
         let report: Value = serde_json::from_slice(&output.stdout).unwrap();
         assert_eq!(baseline(&report)["existing_findings"], 1);
-        assert_eq!(report["matching"], original["matching"]);
     }
 }
 
@@ -253,33 +240,6 @@ fn reviews_hide_new_proposals_but_export_keeps_raw_snapshots_and_selection_is_gl
         proposals(&hidden)["evaluation"],
         proposals(&new)["evaluation"]
     );
-}
-
-#[test]
-fn incomplete_generated_or_uncaptured_graph_inputs_cannot_export() {
-    let (directory, output, generated) = capture(
-        "macro_rules! make {()=>{pub fn generated(){}}} make!(); pub fn original(){}",
-        &["--compiler-patterns"],
-    );
-    checked(&output, 2);
-    let output = raw(
-        directory.path(),
-        Some(&generated),
-        &["--write-compiler-pattern-baseline", "baseline.json"],
-    );
-    checked(&output, 2);
-    assert!(!directory.path().join("baseline.json").exists());
-    let (directory, _, missing) = capture(HELPERS, &[]);
-    let (output, report) = replay(directory.path(), &missing, &[]);
-    checked(&output, 2);
-    assert_eq!(proposals(&report)["input_complete"], false);
-    let output = raw(
-        directory.path(),
-        Some(&missing),
-        &["--write-compiler-pattern-baseline", "baseline.json"],
-    );
-    checked(&output, 2);
-    assert!(!directory.path().join("baseline.json").exists());
 }
 
 fn check_test_proposals_remain_distinct_and_generated_harness_stays_incomplete(

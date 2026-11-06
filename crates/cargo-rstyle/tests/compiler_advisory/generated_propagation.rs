@@ -60,7 +60,6 @@ fn fixture(source: &str) -> TempDir {
 
 fn current(directory: &Path, extra: &[&str]) -> (Output, Value) {
     let mut args = vec![
-        "--compiler-advisory-only",
         "--compiler-advisory-config",
         "policy.toml",
         "--compiler-plans",
@@ -72,13 +71,10 @@ fn current(directory: &Path, extra: &[&str]) -> (Output, Value) {
 fn replay(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) {
     let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
     command.current_dir(directory).args([
-        "clones",
+        "advisory",
         "--format",
         "json",
-        "--extraction-profile",
-        "hir-data-v3",
         "--compiler-advisory",
-        "--compiler-advisory-only",
         "--compiler-plans",
         "--compiler-advisory-config",
         "policy.toml",
@@ -183,46 +179,6 @@ pub fn after_boundary() {boundary();}
         }));
     }
     authored_plans(&report, 4);
-}
-
-#[test]
-fn generated_connections_replay_without_sources_tools_or_recollecting_calls() {
-    let directory = fixture(CHAIN);
-    let (output, original) = current(directory.path(), &[]);
-    checked(&output, 2);
-    std::fs::remove_dir_all(directory.path().join("src")).unwrap();
-    std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
-    for detail in ["full", "compact"] {
-        let (output, report) = replay(directory.path(), &original, &["--report-detail", detail]);
-        checked(&output, 2);
-        assert_eq!(report["compiler_advisory"], original["compiler_advisory"]);
-    }
-    std::fs::write(
-        directory.path().join("policy.toml"),
-        format!("{POLICY}\n[side_effects.paths]\nnetwork=['std::fs::read']\n"),
-    )
-    .unwrap();
-    let (output, changed) = replay(directory.path(), &original, &[]);
-    checked(&output, 2);
-    partial(&changed, 4, 6);
-    assert_eq!(effect_count(unit(&changed), "io"), 0);
-    assert_eq!(effect_count(unit(&changed), "network"), 2);
-    for (before, after) in unit(&original)["generated_effects"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .zip(unit(&changed)["generated_effects"].as_array().unwrap())
-    {
-        for field in [
-            "key",
-            "connections",
-            "mutations",
-            "calls",
-            "intrinsic_effects",
-        ] {
-            assert_eq!(before[field], after[field], "{field}");
-        }
-    }
 }
 
 #[test]

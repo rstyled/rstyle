@@ -1,7 +1,7 @@
 #![feature(rustc_private)]
 
-//! `RUSTC_WORKSPACE_WRAPPER` driver: runs rustc normally, and after analysis
-//! publishes compiler observations into the explicitly selected unit destination.
+//! `RUSTC_WORKSPACE_WRAPPER` driver: runs rustc normally, and after analysis publishes the
+//! crate's documents into the explicitly selected unit directory.
 
 extern crate rustc_abi;
 extern crate rustc_ast;
@@ -16,7 +16,6 @@ extern crate rustc_span;
 
 mod cpg;
 mod driver_options;
-mod hir_extraction;
 mod ids;
 mod mutations;
 mod paths;
@@ -54,18 +53,9 @@ fn run(invocation: driver_options::Invocation) -> ExitCode {
     // The private driver selection has been consumed; rustc receives its path
     // followed by only its own compiler arguments.
     let args = with_sysroot(invocation.arguments);
-    let document_dir = std::env::var_os("RSTYLE_HIR_DOCUMENT_DIR").map(PathBuf::from);
-    let facts_path = std::env::var_os("RSTYLE_HIR_FACTS_FILE")
-        .map(PathBuf::from)
-        .or_else(|| document_dir.as_ref().map(|dir| dir.join("facts.json")));
-    let r0 = facts_path.map(|path| HirExtract {
-        output: hir_extraction::output::Destination {
-            facts_file: path,
-            document_directory: document_dir,
-        },
-        scanned: Vec::new(),
+    let capture = std::env::var_os("RSTYLE_DOCUMENT_DIR").map(|directory| CaptureDocuments {
+        directory: PathBuf::from(directory),
         invocation: args.clone(),
-        profile: invocation.profile,
         unit_context: invocation.unit_context,
         source_root: std::env::var_os(rstyle_core::advisory::SOURCE_ROOT_ENV).map(PathBuf::from),
     });
@@ -83,7 +73,7 @@ fn run(invocation: driver_options::Invocation) -> ExitCode {
         });
     }
 
-    rustc_driver::catch_with_exit_code(|| match r0 {
+    rustc_driver::catch_with_exit_code(|| match capture {
         Some(mut callbacks) => rustc_driver::run_compiler(&args, &mut callbacks),
         None => rustc_driver::run_compiler(&args, &mut NoOp),
     })
@@ -109,132 +99,23 @@ impl Callbacks for CpgEmit {
     }
 }
 
-struct HirExtract {
-    output: hir_extraction::output::Destination,
-    scanned: Vec<hir_extraction::source::Function>,
+/// Publishes the crate's documents; everything the run derives comes from them.
+struct CaptureDocuments {
+    directory: PathBuf,
     invocation: Vec<String>,
-    profile: Option<rstyle_pdg::extraction_profile::ExtractionProfile>,
-    unit_context: Option<rstyle_pdg::nominal_boundary::UnitContext>,
+    unit_context: Option<rstyle_capture::UnitContext>,
     source_root: Option<PathBuf>,
 }
 
-impl Callbacks for HirExtract {
-    fn after_crate_root_parsing(
-        &mut self,
-        _: &Compiler,
-        krate: &mut rustc_ast::Crate,
-    ) -> Compilation {
-        self.scanned = hir_extraction::source::scan(krate, self.profile.unwrap_or_default());
-        Compilation::Continue
-    }
-
+impl Callbacks for CaptureDocuments {
     fn after_analysis<'tcx>(&mut self, _: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
-        let options = hir_extraction::Options {
+        let options = cpg::publish::Options {
             source_root: self.source_root.as_deref(),
-            sources: Default::default(),
-            scanned: &self.scanned,
-            scans: Default::default(),
-            profile: self.profile,
             invocation: &self.invocation,
             unit_context: self.unit_context.as_ref(),
         };
-        self.capture(tcx, &options)
-    }
-}
-
-impl HirExtract {
-    fn capture(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) -> Compilation {
-        if rstyle_pdg::diagnostics::switch("RSTYLE_DIAGNOSTIC_CAPTURE_ONLY") {
-            self.capture_diagnostic(tcx, options);
-            Compilation::Stop
-        } else {
-            self.capture_complete(tcx, options);
-            Compilation::Continue
-        }
-    }
-
-    fn capture_diagnostic(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
-        let facts = hir_extraction::raw_crate_facts(tcx, &self.scanned, options)
-            .expect("capture diagnostic raw facts");
-        hir_extraction::capture_instance_diagnostics(tcx, &facts, options)
-            .expect("capture requested instance diagnostics");
-        Self::retain_diagnostic(&facts);
-    }
-
-    fn retain_diagnostic(facts: &[rstyle_pdg::HirFnFacts]) {
-        hir_extraction::diagnostics::snapshot("pre-helper-certification", facts)
-            .expect("retain diagnostic raw facts");
-        eprintln!(
-            "rstyle diagnostic scope=extraction-only; helper certification and successful publication not performed"
-        );
-    }
-
-    fn capture_advisory(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
-        if rstyle_pdg::diagnostics::switch("RSTYLE_DOCUMENTS_ONLY") {
-            self.capture_documents(tcx, options);
-            return;
-        }
-        let facts = hir_extraction::advisory_crate_facts(tcx, options)
-            .expect("capture compiler advisory facts");
-        let inventory = self.inventory(tcx, options, &facts);
-        self.output
-            .write_advisory_capture(&facts, inventory.as_ref())
-            .expect("write compiler advisory facts");
-    }
-
-    /// Publishes the crate's documents; everything the run derives comes from them.
-    fn capture_documents(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
-        let directory = self
-            .output
-            .document_directory
-            .as_deref()
-            .expect("document capture names its unit directory");
-        hir_extraction::publish_documents(tcx, options, directory)
+        cpg::publish::publish(tcx, &options, &self.directory)
             .expect("publish compat.cpg documents");
-    }
-
-    fn capture_complete(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
-        if rstyle_pdg::diagnostics::switch("RSTYLE_COMPILER_ADVISORY_ONLY") {
-            self.capture_advisory(tcx, options);
-        } else {
-            rstyle_pdg::verification_policy::generated(|| self.capture_generated(tcx, options));
-        }
-    }
-
-    fn capture_generated(&self, tcx: TyCtxt<'_>, options: &hir_extraction::Options<'_>) {
-        let facts = hir_extraction::crate_facts(tcx, &self.scanned, options)
-            .expect("capture complete source-facing R0 evidence");
-
-        self.write_capture(tcx, options, &facts);
-    }
-
-    fn write_capture(
-        &self,
-        tcx: TyCtxt<'_>,
-        options: &hir_extraction::Options<'_>,
-        store: &rstyle_pdg::unit_store::UnitStore,
-    ) {
-        let inventory = self.inventory(tcx, options, store.functions());
-        self.output
-            .write_capture(&hir_extraction::output::CapturedOutput {
-                store,
-                inventory: inventory.as_ref(),
-            })
-            .expect("write captured evidence");
-    }
-
-    fn inventory<B, S>(
-        &self,
-        tcx: TyCtxt<'_>,
-        options: &hir_extraction::Options<'_>,
-        facts: &[rstyle_pdg::HirFnFacts<B, S>],
-    ) -> Option<serde_json::Value> {
-        options
-            .selected()
-            .supports("rust.conditional-source-correspondence")
-            .then(|| {
-                hir_extraction::source_inventory(tcx, &self.scanned, facts, options)
-                    .expect("capture owned source inventory")
-            })
+        Compilation::Continue
     }
 }

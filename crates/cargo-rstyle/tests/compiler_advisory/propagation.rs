@@ -35,9 +35,9 @@ pub(super) fn workspace(leaf: &str) -> TempDir {
 }
 
 pub(super) fn capture(directory: &Path, extra: &[&str]) -> (Output, Value) {
-    let mut args = vec!["--extraction-profile", "hir-data-v3", "--compiler-advisory"];
+    let mut args = vec!["--compiler-advisory"];
     args.extend_from_slice(extra);
-    clones(directory, &args)
+    advisory(directory, &args)
 }
 
 pub(super) fn unit<'a>(report: &'a Value, name: &str) -> &'a Value {
@@ -81,13 +81,6 @@ fn renamed_direct_workspace_calls_reuse_core_propagation_without_strict_admissio
         unit(&report, "caller")["unresolved_callees"],
         serde_json::json!([])
     );
-    assert!(
-        report["functions"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|function| function["outcome"] != "admitted")
-    );
 }
 
 #[test]
@@ -120,16 +113,7 @@ fn cross_unit_hops_and_suppression_boundaries_use_the_existing_policy() {
 #[test]
 fn omitted_dependencies_stay_unresolved_while_generated_effects_propagate() {
     let directory = workspace(IO);
-    let (output, omitted) = clones(
-        directory.path(),
-        &[
-            "-p",
-            "caller",
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-advisory",
-        ],
-    );
+    let (output, omitted) = advisory(directory.path(), &["-p", "caller", "--compiler-advisory"]);
     checked(&output, 2);
     assert_eq!(io(unit(&omitted, "caller")), 0);
     assert_eq!(
@@ -196,17 +180,11 @@ fn cross_unit_effects_replay_without_sources_and_ignore_strict_pair_budgets() {
     }
     let (output, replayed) = capture(
         directory.path(),
-        &[
-            "--replay-run",
-            original["run_directory"].as_str().unwrap(),
-            "--max-pairs",
-            "0",
-        ],
+        &["--replay-run", original["run_directory"].as_str().unwrap()],
     );
     // Neither IO function is strictly admitted, so the strict pair budget has no work.
     checked(&output, 0);
     assert_eq!(original["compiler_advisory"], replayed["compiler_advisory"]);
-    assert_eq!(original["matching"], replayed["matching"]);
 }
 
 #[test]
@@ -245,15 +223,7 @@ fn indistinguishable_check_and_test_graph_entries_never_share_effect_inputs() {
     let directory = workspace(&format!(
         "#[cfg(not(test))]\n{IO}\n#[cfg(test)] pub fn leaf(){{}}"
     ));
-    let (output, report) = clones(
-        directory.path(),
-        &[
-            "--all-targets",
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-advisory",
-        ],
-    );
+    let (output, report) = advisory(directory.path(), &["--all-targets", "--compiler-advisory"]);
     checked(&output, 2);
     let callers: Vec<_> = report["compiler_advisory"]["units"]
         .as_array()

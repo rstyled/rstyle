@@ -528,37 +528,6 @@ fn derive_macros_keep_their_traits_implementations_selectable() {
     );
 }
 
-#[test]
-fn old_capture_cannot_silently_supply_runtime_bounds() {
-    let (directory, output, original) = capture("pub fn empty() {}", &["--compiler-advisory-only"]);
-    assert!(output.status.success(), "{}", stdout(&output));
-    assert!(
-        original["compiler_advisory"]["units"][0]
-            .get("runtime_bounds")
-            .is_none()
-    );
-    let output = rstyle(
-        directory.path(),
-        &[
-            "clones",
-            "--format",
-            "json",
-            "--extraction-profile",
-            "hir-data-v3",
-            "--compiler-advisory",
-            "--compiler-runtime-bounds",
-            "--compiler-advisory-only",
-            "--replay-run",
-            original["run_directory"].as_str().unwrap(),
-        ],
-    );
-    assert_eq!(output.status.code(), Some(2));
-    assert!(
-        String::from_utf8_lossy(&output.stderr)
-            .contains("missing compiler runtime-bound capture capability")
-    );
-}
-
 /// Loops whose patterns are more than one immutable binding. Kept apart from `SOURCE`,
 /// whose programs the CPG lowering's snapshot freezes.
 const FOR_PATTERN_SOURCE: &str = r#"

@@ -11,14 +11,8 @@ fn evaluation(report: &Value) -> &Value {
     &report["compiler_advisory"]["units"][0]["evaluation"]
 }
 
-fn captured<'a>(report: &'a Value, name: &str) -> &'a Value {
-    let function = report["functions"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|function| function["facts"]["name"] == name)
-        .unwrap();
-    &function["facts"]["build"]["frontend_options"][rstyle_core::advisory::KEY]["facts"]
+fn captured(report: &Value, name: &str) -> Value {
+    saved_fact(report, name)
 }
 
 #[test]
@@ -53,15 +47,6 @@ fn advisory_complexity_preserves_construct_scores_and_source_free_policy_replay(
             .unwrap()
             .iter()
             .any(|point| point["kind"] == "recursion" && point["cognitive"] == 1)
-    );
-    assert!(
-        report["functions"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|function| {
-                function["facts"]["name"] == "recursion" && function["outcome"] != "admitted"
-            })
     );
     replay_complexity_limits(directory.path(), &report);
 }
@@ -107,8 +92,6 @@ fn replay_complexity_limits(directory: &Path, original: &Value) {
             .iter()
             .all(|row| row["actual"] == 3 && row["limit"] == 2)
     );
-    assert_eq!(original["matching"], replayed["matching"]);
-    assert_eq!(original["accepted_pairs"], replayed["accepted_pairs"]);
     for name in ["straight", "nested", "flat", "recursion"] {
         assert_eq!(
             captured(original, name)["complexity"],
@@ -215,5 +198,4 @@ fn completed_complexity_reviews_hide_exact_findings_and_reopen_changed_limits() 
     );
     assert_eq!(evaluation(&changed)["diagnostics"][0]["actual"], 3);
     assert_eq!(evaluation(&changed)["diagnostics"][0]["limit"], 1);
-    assert_eq!(changed["matching"], original["matching"]);
 }

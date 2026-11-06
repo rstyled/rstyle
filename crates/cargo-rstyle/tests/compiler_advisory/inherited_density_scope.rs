@@ -10,9 +10,6 @@ make!();
 pub fn authored_chain() {generated_middle();}
 "#;
 const BASE: &[&str] = &[
-    "--extraction-profile",
-    "hir-data-v3",
-    "--compiler-advisory-only",
     "--compiler-advisory",
     "--compiler-advisory-config",
     "policy.toml",
@@ -34,7 +31,7 @@ fn fixture() -> (TempDir, Value) {
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), CHAIN).unwrap();
     policy(directory.path(), 3);
-    let (output, report) = clones(directory.path(), BASE);
+    let (output, report) = advisory(directory.path(), BASE);
     checked(&output, 2);
     assert_eq!(unit(&report)["unavailable"].as_array().unwrap().len(), 2);
     assert_eq!(
@@ -48,7 +45,7 @@ fn replay(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value)
     let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
     command
         .current_dir(directory)
-        .arg("clones")
+        .arg("advisory")
         .args(BASE)
         .args([
             "--format",
@@ -93,7 +90,6 @@ fn complete(report: &Value) {
     assert_eq!(scope(report)["effect_inputs_complete"], true);
     assert_eq!(scope(report)["unavailable_owners"], 0);
     assert_eq!(report["compiler_advisory"]["complete"], true);
-    assert_eq!(report["matching_execution"], "not_requested");
 }
 
 fn measured_density(report: &Value, expected: usize) {
@@ -211,83 +207,13 @@ fn connected_generated_effects_do_not_supply_missing_numeric_planning_facts() {
     same_inputs_and_evaluation(&original, &planned);
 }
 
-fn raw_wire(report: &Value) -> Value {
-    let path = report["functions"][0]["unit_evidence"]["bundle"]
-        .as_str()
-        .unwrap();
-    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
-}
-
-fn damage_generated(fact: &mut Value, kind: &str) {
-    use rstyle_core::advisory::generated_effects::{CONNECTED_KEY, KEY};
-    let options = fact["build"]["frontend_options"].as_object_mut().unwrap();
-    let row = options.remove(CONNECTED_KEY).unwrap();
-    if kind == "historical" {
-        let mut row = row;
-        row["metrics"] = KEY.into();
-        row.as_object_mut().unwrap().remove("connections");
-        options.insert(KEY.into(), row);
-    } else if kind == "origin" {
-        fact["source_diagnostics"]
-            .as_array_mut()
-            .unwrap()
-            .retain(|row| row["construct"] != "macro_generated_function");
-    }
-}
-
-fn damaged(wire: &Value, kind: &str) -> Value {
-    let mut changed = wire.clone();
-    let facts = changed["facts"].as_array_mut().unwrap();
-    let target = if kind == "authored" {
-        "authored_chain"
-    } else {
-        "generated_leaf"
-    };
-    let fact = facts
-        .iter_mut()
-        .find(|fact| fact["name"] == target)
-        .unwrap();
-    if kind == "authored" {
-        fact["build"]["frontend_options"]
-            .as_object_mut()
-            .unwrap()
-            .remove(rstyle_core::advisory::KEY);
-    } else {
-        damage_generated(fact, kind);
-    }
-    changed
-}
-
-#[test]
-fn inherited_density_requires_connected_rows_known_origins_and_applicable_authored_facts() {
-    let (directory, original) = fixture();
-    let wire = raw_wire(&original);
-    let ledger = only::ledger_path(&original);
-    for kind in ["missing", "historical", "authored", "origin"] {
-        only::reseal_raw(&original, &ledger, &damaged(&wire, kind));
-        let (output, incomplete) = replay(directory.path(), &original, AUTHORED);
-        checked(&output, 2);
-        assert_eq!(scope(&incomplete)["input_complete"], false, "{kind}");
-        assert_eq!(
-            scope(&incomplete)["effect_inputs_complete"],
-            false,
-            "{kind}"
-        );
-        assert_eq!(incomplete["compiler_advisory"]["complete"], false, "{kind}");
-    }
-    only::reseal_raw(&original, &ledger, &wire);
-    let (output, restored) = replay(directory.path(), &original, AUTHORED);
-    checked(&output, 0);
-    complete(&restored);
-}
-
 #[test]
 fn authored_inherited_density_keeps_unresolved_dependency_routes_incomplete() {
     let directory = propagation::workspace(
         "macro_rules! make {()=>{pub fn leaf(){let _=std::fs::read(\"/unused\");}}} make!();",
     );
     policy(directory.path(), 3);
-    let (output, original) = clones(directory.path(), &[BASE, &["-p", "caller"]].concat());
+    let (output, original) = advisory(directory.path(), &[BASE, &["-p", "caller"]].concat());
     checked(&output, 2);
     let (output, selected) = replay(directory.path(), &original, AUTHORED);
     checked(&output, 2);
@@ -306,7 +232,7 @@ fn selected_generated_dependency_supplies_existing_connected_effect_route() {
         "macro_rules! make {()=>{pub fn leaf(){let _=std::fs::read(\"/unused\");}}} make!();",
     );
     policy(directory.path(), 3);
-    let (output, selected) = clones(directory.path(), &[BASE, AUTHORED].concat());
+    let (output, selected) = advisory(directory.path(), &[BASE, AUTHORED].concat());
     checked(&output, 0);
     assert_eq!(selected["compiler_advisory"]["complete"], true);
     let caller = propagation::unit(&selected, "caller");

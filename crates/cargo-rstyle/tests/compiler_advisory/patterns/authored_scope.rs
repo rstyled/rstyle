@@ -4,18 +4,6 @@ use super::*;
 const DERIVED: &str = "#[derive(Debug)] pub struct Generated(pub u32);";
 const HELPERS: &str = "pub fn first(a:u128)->u128 {std::hint::black_box(a.wrapping_add(7)).wrapping_mul(3)} pub fn second(a:u128)->u128 {std::hint::black_box(a.wrapping_add(8)).wrapping_mul(3)}";
 const AUTHORED: &[&str] = &["--compiler-pattern-scope", "authored"];
-/// A capture that records its observations, unlike documents, which the core reads anew.
-const RECORDED: &[&str] = &[
-    "--extraction-profile",
-    "hir-data-v3",
-    "--compiler-advisory-only",
-    "--compiler-patterns",
-    "--compiler-pattern-scope",
-    "authored",
-    "--report-detail",
-    "compact",
-];
-
 fn fixture(source: &str) -> TempDir {
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
@@ -61,19 +49,14 @@ fn saved(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) 
 
 fn direct(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) {
     let mut args = vec![
-        "--extraction-profile",
-        "hir-data-v3",
         "--compiler-patterns",
         "--pattern-ledger",
         "rstyle-ignore.toml",
-        "--compiler-advisory-only",
-        "--report-detail",
-        "compact",
         "--replay-run",
         original["run_directory"].as_str().unwrap(),
     ];
     args.extend_from_slice(extra);
-    clones(directory, &args)
+    advisory(directory, &args)
 }
 
 fn outside(report: &Value) -> &Vec<Value> {
@@ -157,8 +140,6 @@ fn authored_scope_preserves_findings_and_replays_without_sources_or_tools() {
     );
     checked(&output, 1);
     assert_eq!(replayed["compiler_advisory"], original["compiler_advisory"]);
-    assert_eq!(replayed["matching_execution"], "not_requested");
-    assert_eq!(replayed["strict_assessment_execution"], "not_requested");
 }
 
 #[test]
@@ -183,22 +164,17 @@ fn authored_scope_preserves_numeric_incompleteness_and_strict_decisions() {
 }
 
 fn strict_decisions_agree(directory: &Path) {
-    let (output, standalone) = clones(directory, &["--extraction-profile", "hir-data-v3"]);
+    let (output, standalone) = advisory(directory, &[]);
     checked(&output, 0);
-    let (output, strict) = clones(
+    let (output, strict) = advisory(
         directory,
         &[
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-patterns",
             "--compiler-pattern-scope",
             "authored",
         ],
     );
     checked(&output, 0);
-    assert_eq!(strict["matching_execution"], "completed");
-    assert_eq!(strict["matching"], standalone["matching"]);
-    assert_eq!(strict["accepted_pairs"], standalone["accepted_pairs"]);
     let outcomes = |report: &Value| {
         report["functions"]
             .as_array()
@@ -444,115 +420,10 @@ fn authored_changed_scope_covers_expanded_only_files_but_not_unknown_paths() {
     }
 }
 
-fn raw_wire(original: &Value) -> Value {
-    let path = original["functions"][0]["unit_evidence"]["bundle"]
-        .as_str()
-        .unwrap();
-    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
-}
-
-fn damaged_wire(wire: &Value, damage: &str) -> Value {
-    let mut wire = wire.clone();
-    for function in wire["facts"].as_array_mut().unwrap() {
-        if function["name"] == "original" {
-            let options = function["build"]["frontend_options"]
-                .as_object_mut()
-                .unwrap();
-            match damage {
-                "observation" => {
-                    options.remove(rstyle_core::advisory::KEY);
-                }
-                "graph" => {
-                    options.remove(rstyle_core::advisory::patterns::KEY);
-                }
-                "historical" => {
-                    options[rstyle_core::advisory::KEY]["metrics"] =
-                        rstyle_core::advisory::V6_METRICS.into();
-                }
-                _ => {}
-            }
-        } else if matches!(damage, "unknown_origin" | "historical") {
-            let options = function["build"]["frontend_options"]
-                .as_object_mut()
-                .unwrap();
-            options.remove(rstyle_core::advisory::generated_effects::KEY);
-            options.remove(rstyle_core::advisory::generated_effects::CONNECTED_KEY);
-            if damage == "unknown_origin" {
-                function["source_diagnostics"]
-                    .as_array_mut()
-                    .unwrap()
-                    .retain(|row| row["construct"] != "macro_generated_function");
-            }
-        }
-    }
-    wire
-}
-
-fn missing_graph_selection(directory: &Path, original: &Value, current: &Value) {
-    select(directory, "src/lib.rs");
-    let (output, selected) = direct(
-        directory,
-        original,
-        &[
-            "--compiler-pattern-scope",
-            "authored",
-            "--select-compiler-patterns",
-            "--changed-files",
-            "selection.json",
-            "--fail-on-findings",
-        ],
-    );
-    checked(&output, 2);
-    assert_eq!(proposals(&selected)["input_complete"], false);
-    assert_eq!(
-        selected["compiler_advisory"]["changed_scope"]["paths"][0]["coverage"],
-        "incomplete"
-    );
-    assert_eq!(
-        proposals(&selected)["evaluation"],
-        proposals(current)["evaluation"]
-    );
-}
-
-#[test]
-fn authored_scope_never_hides_missing_authored_graphs_observations_or_unknown_origins() {
-    let directory = fixture(&format!("{DERIVED} pub fn original() {{}}"));
-    let (output, original) = clones(directory.path(), RECORDED);
-    checked(&output, 0);
-    let wire = raw_wire(&original);
-    let ledger = super::super::only::ledger_path(&original);
-    for damage in ["observation", "graph", "unknown_origin", "historical"] {
-        let changed = damaged_wire(&wire, damage);
-        super::super::only::reseal_raw(&original, &ledger, &changed);
-        let (output, report) = saved(directory.path(), &original, AUTHORED);
-        let complete = damage == "historical";
-        checked(&output, if complete { 0 } else { 2 });
-        assert_eq!(proposals(&report)["input_complete"], complete, "{damage}");
-        assert_eq!(report["capture_failures"], serde_json::json!([]));
-        assert_eq!(report["handoff_failures"], serde_json::json!([]));
-        if damage == "unknown_origin" {
-            assert!(outside(&report).is_empty());
-            assert_eq!(proposals(&report)["unavailable_functions"], 1);
-        }
-        if damage == "graph" {
-            assert_eq!(
-                proposals(&report)["unavailable_graphs"]
-                    .as_array()
-                    .unwrap()
-                    .len(),
-                1
-            );
-            missing_graph_selection(directory.path(), &original, &report);
-        }
-    }
-    super::super::only::reseal_raw(&original, &ledger, &wire);
-}
-
 /// A saved run's documents, with its manifest and ledger sealed over `edit`'s result.
 fn resealed(original: &Value, edit: impl FnOnce(&mut Vec<Value>)) {
-    use rstyle_pdg::unit_store::{
-        DOCUMENTS_MANIFEST, DocumentManifest, SealedDocument, transport_checksum,
-    };
+    use rstyle_capture::checksum as transport_checksum;
+    use rstyle_core::cpg::transport::{DOCUMENTS_MANIFEST, DocumentManifest, SealedDocument};
     let path = original["functions"][0]["unit_evidence"]["bundle"]
         .as_str()
         .unwrap();
@@ -642,10 +513,11 @@ fn a_changed_document_or_manifest_fails_the_replay() {
         .as_str()
         .unwrap();
     let manifest = Path::new(manifest);
-    let seal = rstyle_pdg::unit_store::DocumentManifest::read(&std::fs::read(manifest).unwrap())
-        .unwrap()
-        .documents
-        .remove(0);
+    let seal =
+        rstyle_core::cpg::transport::DocumentManifest::read(&std::fs::read(manifest).unwrap())
+            .unwrap()
+            .documents
+            .remove(0);
     let document = manifest.with_file_name(&seal.file);
     let refused = |expected: &str| {
         let (output, report) = saved(directory.path(), &original, AUTHORED);

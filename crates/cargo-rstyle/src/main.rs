@@ -4,7 +4,7 @@
 
 #[cfg(test)]
 mod cli_tests;
-mod clones;
+mod compiler;
 mod cpg;
 mod diagnostic_process;
 mod ignore;
@@ -136,8 +136,9 @@ struct StyleReviewArgs {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Capture HIR R0 evidence and evaluate exhaustive strict similarity pairs.
-    Clones(Box<clones::Args>),
+    /// Evaluate compiler reports with every report option, over this capture or a saved run.
+    #[command(hide = true)]
+    Advisory(Box<compiler::Args>),
     /// Mine the workspace for latent shared abstractions (signature groups).
     Patterns(PatternsArgs),
     /// Dismiss a merge candidate you reviewed, list the ledger, or prune dead entries.
@@ -166,6 +167,8 @@ enum CpgCommand {
     Check(CpgInputArgs),
     /// Mine a run's documents for latent shared abstractions.
     Patterns(CpgPatternsArgs),
+    /// Derive each function's dominators, post-dominators and dependence graph.
+    Flow(CpgFlowArgs),
     /// Write compat.cpg documents for the workspace from the rustc frontend.
     Emit {
         /// Output directory; its `target` subdirectory holds the private build.
@@ -220,6 +223,15 @@ struct CpgPatternsArgs {
 }
 
 #[derive(Args)]
+struct CpgFlowArgs {
+    #[command(flatten)]
+    input: CpgInputArgs,
+    /// Only functions whose name contains this.
+    #[arg(long)]
+    function: Option<String>,
+}
+
+#[derive(Args)]
 struct PatternsArgs {
     /// Include symbolic loop-body entry and call invocation upper bounds.
     #[arg(long)]
@@ -246,7 +258,7 @@ struct PatternsArgs {
 struct PatternInputArgs {
     /// Compiler population; authored excludes explicitly generated signatures.
     #[arg(long, value_enum)]
-    compiler_pattern_scope: Option<clones::CompilerSourceScope>,
+    compiler_pattern_scope: Option<compiler::CompilerSourceScope>,
     /// Reevaluate an explicit saved compiler run without compiling.
     #[arg(long)]
     replay_run: Option<PathBuf>,
@@ -402,6 +414,7 @@ fn cpg_command(cli: &Cli, command: CpgCommand) -> Result<(String, u8), String> {
         CpgCommand::Receive(input) => cpg::receive(&input, cli.format),
         CpgCommand::Check(input) => cpg::check(&input, cli.config.as_deref(), cli.format),
         CpgCommand::Patterns(args) => cpg::patterns(cli, &args),
+        CpgCommand::Flow(args) => cpg::flow(&args, cli.format),
         CpgCommand::Emit { out } => {
             let selection = cpg::Selection {
                 packages: &cli.packages,
@@ -433,7 +446,7 @@ fn main() -> ExitCode {
     if let Some(plan) = std::env::var_os("RSTYLE_CAPTURE_PLAN") {
         let args: Vec<String> = std::env::args().skip(1).collect();
         if args.first().is_some_and(|a| a.ends_with("rustc")) {
-            return match clones::capture::wrapper(Path::new(&plan), args) {
+            return match compiler::capture::wrapper(Path::new(&plan), args) {
                 Ok(code) => ExitCode::from(code),
                 Err(error) => {
                     eprintln!("{error}");
@@ -459,13 +472,15 @@ fn main() -> ExitCode {
     cli.resolve_manifest_path();
 
     match cli.command.take() {
-        Some(Command::Clones(args)) => return exit_with(clones::run(&cli, &args)),
-        Some(Command::Patterns(args)) => return exit_with(clones::patterns_route::run(cli, args)),
+        Some(Command::Advisory(args)) => return exit_with(compiler::run(&cli, &args)),
+        Some(Command::Patterns(args)) => {
+            return exit_with(compiler::patterns_route::run(cli, args));
+        }
         Some(Command::Ignore(args)) => {
-            return exit_with(clones::patterns_route::ignore(cli, args));
+            return exit_with(compiler::patterns_route::ignore(cli, args));
         }
         Some(Command::Cpg(CpgArgs { command })) => return exit_with(cpg_command(&cli, command)),
         None => {}
     }
-    exit_with(clones::style_route::run(cli))
+    exit_with(compiler::style_route::run(cli))
 }

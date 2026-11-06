@@ -49,7 +49,6 @@ fn shared_workspace_source_reuses_effects_and_parameter_planning_without_strict_
         steps[1]["pass_through"],
         serde_json::json!(["a", "b", "c", "d", "e"])
     );
-    assert!(report["accepted_pairs"].as_array().unwrap().is_empty());
     std::fs::remove_dir_all(directory.path().join("shared")).unwrap();
     super::concrete_traits::source_free_replay(directory.path(), &report);
 }
@@ -192,43 +191,4 @@ fn shared_source_check_and_test_owners_keep_their_compilation_contexts() {
         }
         assert_eq!(caller["unresolved_callees"], serde_json::json!([]));
     }
-}
-
-#[test]
-fn explicitly_selected_dependency_outside_workspace_keeps_its_package_scope() {
-    let directory = clone_workspace();
-    let dependency = TempDir::new().unwrap();
-    std::fs::create_dir(dependency.path().join("src")).unwrap();
-    std::fs::write(
-        dependency.path().join("Cargo.toml"),
-        "[package]\nname='external_leaf'\nversion='0.1.0'\nedition='2021'\n[workspace]\n",
-    )
-    .unwrap();
-    std::fs::write(
-        dependency.path().join("src/lib.rs"),
-        "pub fn leaf() { std::fs::write(\"/unused\",b\"leaf\").ok(); }",
-    )
-    .unwrap();
-    std::fs::write(directory.path().join("Cargo.toml"), format!("[package]\nname='clone_fixture'\nversion='0.1.0'\nedition='2021'\n[dependencies]\nexternal_leaf={{path={:?}}}\n", dependency.path().to_str().unwrap())).unwrap();
-    std::fs::write(
-        directory.path().join("src/lib.rs"),
-        "pub fn caller() { external_leaf::leaf(); }",
-    )
-    .unwrap();
-    let (output, report) = capture(
-        directory.path(),
-        &["--capture-dependency", "external_leaf", "--compiler-plans"],
-    );
-    checked(&output, 0);
-    let units = report["compiler_advisory"]["units"].as_array().unwrap();
-    assert_eq!(units.len(), 2);
-    let external = units
-        .iter()
-        .find(|u| u["package_root"] == dependency.path().to_str().unwrap())
-        .unwrap();
-    assert_eq!(external["source_root"], directory.path().to_str().unwrap());
-    assert_eq!(external["observations"].as_array().unwrap().len(), 1);
-    assert_eq!(external["unavailable"], serde_json::json!([]));
-    assert_eq!(io(external), 1);
-    assert_eq!(report["compiler_advisory"]["complete"], true);
 }

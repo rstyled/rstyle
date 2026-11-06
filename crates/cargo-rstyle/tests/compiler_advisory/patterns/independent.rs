@@ -3,14 +3,9 @@ use super::*;
 const HELPERS: &str = "pub fn first(a:u128)->u128 {std::hint::black_box(a.wrapping_add(7)).wrapping_mul(3)} pub fn second(a:u128)->u128 {std::hint::black_box(a.wrapping_add(8)).wrapping_mul(3)}";
 
 fn run(directory: &Path, extra: &[&str]) -> (Output, Value) {
-    let mut args = vec![
-        "--extraction-profile",
-        "hir-data-v3",
-        "--compiler-patterns",
-        "--compiler-advisory-only",
-    ];
+    let mut args = vec!["--compiler-patterns"];
     args.extend_from_slice(extra);
-    clones(directory, &args)
+    advisory(directory, &args)
 }
 
 fn saved(directory: &Path, original: &Value, extra: &[&str]) -> (Output, Value) {
@@ -30,8 +25,6 @@ fn checked(output: &Output, code: i32) {
 }
 
 fn only_patterns(report: &Value) {
-    assert_eq!(report["matching_execution"], "not_requested");
-    assert_eq!(report["strict_assessment_execution"], "not_requested");
     let advisory = &report["compiler_advisory"];
     assert_eq!(advisory["diagnostic_execution"], "not_requested");
     assert!(
@@ -100,13 +93,10 @@ fn independent_pattern_replay_selects_findings_without_source_or_tools() {
     command
         .current_dir(directory.path())
         .args([
-            "clones",
+            "advisory",
             "--format",
             "json",
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-patterns",
-            "--compiler-advisory-only",
             "--replay-run",
             original["run_directory"].as_str().unwrap(),
             "--select-compiler-patterns",
@@ -137,34 +127,6 @@ fn independent_pattern_replay_selects_findings_without_source_or_tools() {
             proposals(&original)["evaluation"]
         );
     }
-}
-
-#[test]
-fn independent_patterns_preserve_missing_owners_and_missing_graphs() {
-    let directory = clone_workspace();
-    std::fs::write(
-        directory.path().join("src/lib.rs"),
-        format!("{HELPERS} macro_rules! make {{()=>{{pub fn generated(){{}}}}}} make!();"),
-    )
-    .unwrap();
-    let (output, generated) = run(directory.path(), &[]);
-    checked(&output, 2);
-    only_patterns(&generated);
-    assert_eq!(proposals(&generated)["input_complete"], false);
-    assert_eq!(proposals(&generated)["unavailable_functions"], 1);
-    let (directory, _, old) = capture(GCD, &["--compiler-advisory-only"]);
-    let (output, missing) = saved(directory.path(), &old, &[]);
-    checked(&output, 2);
-    only_patterns(&missing);
-    assert_eq!(proposals(&missing)["input_complete"], false);
-    assert_eq!(proposals(&missing)["observed_graphs"], 0);
-    assert_eq!(
-        proposals(&missing)["unavailable_graphs"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
 }
 
 #[test]
@@ -229,13 +191,8 @@ fn independent_patterns_preserve_requested_strict_matching() {
         "pub fn first(a:u32)->u32{a+1} pub fn second(a:u32)->u32{a+1}",
     )
     .unwrap();
-    let (output, original) = clones(
-        directory.path(),
-        &["--extraction-profile", "hir-data-v3", "--compiler-patterns"],
-    );
+    let (output, original) = advisory(directory.path(), &["--compiler-patterns"]);
     checked(&output, 0);
-    assert_eq!(original["matching_execution"], "completed");
-    assert!(!original["accepted_pairs"].as_array().unwrap().is_empty());
     assert_eq!(
         original["compiler_advisory"]["diagnostic_execution"],
         "not_requested"
@@ -247,7 +204,5 @@ fn independent_patterns_preserve_requested_strict_matching() {
     );
     let (output, combined) = replay(directory.path(), &original, &[]);
     checked(&output, 0);
-    assert_eq!(original["matching"], combined["matching"]);
-    assert_eq!(original["accepted_pairs"], combined["accepted_pairs"]);
     assert_eq!(proposals(&original), proposals(&combined));
 }

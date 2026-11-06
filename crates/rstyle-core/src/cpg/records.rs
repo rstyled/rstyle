@@ -2,6 +2,7 @@
 //! it declares, its rule facts or, for a function a macro writes, its own events, and
 //! on demand its dependence graph and runtime-bound program.
 
+use super::flow::Derived;
 use super::model::{Document, FileSpan, Function, Generic, Node, Origin, Type, TypeKind};
 use super::source::Sources;
 use super::tree::Tables;
@@ -18,6 +19,8 @@ pub const UNMEASURED: &str = "Existing compiler collector has no original functi
 pub struct Demand {
     pub graphs: bool,
     pub bounds: bool,
+    /// Dominators, post-dominators and the dependence graph the control flow gives.
+    pub flow: bool,
 }
 
 /// A type as a signature declares it.
@@ -70,6 +73,7 @@ pub struct Record {
     pub measured: Measured,
     pub graph: Option<Pdg>,
     pub bounds: Option<Input>,
+    pub flow: Option<Derived>,
 }
 
 /// Every function of a bundled document, in document order. A document that cannot be
@@ -138,7 +142,7 @@ fn read(
             record(
                 function,
                 (identity, compilation),
-                (facts, bounds),
+                (facts, bounds, flow_of(document, function, demand)),
                 (&tables, &sources),
             )
             .map_err(|reason| format!("{}: {reason}", function.name))
@@ -147,10 +151,16 @@ fn read(
     Ok((records, failed))
 }
 
+fn flow_of(document: &Document, function: &Function, demand: Demand) -> Option<Derived> {
+    demand
+        .flow
+        .then(|| super::flow::derive(&document.coverage, function))
+}
+
 fn record(
     function: &Function,
     (identity, compilation): (String, String),
-    (facts, bounds): (Option<FnFacts>, Option<Input>),
+    (facts, bounds, flow): (Option<FnFacts>, Option<Input>, Option<Derived>),
     (tables, sources): (&Tables<'_>, &Sources<'_>),
 ) -> Result<Record, String> {
     let at = located(function);
@@ -174,6 +184,7 @@ fn record(
         measured,
         graph,
         bounds,
+        flow,
     })
 }
 
@@ -377,6 +388,7 @@ mod tests {
             Demand {
                 graphs: true,
                 bounds: true,
+                flow: false,
             },
         );
         for record in &records {
@@ -409,6 +421,7 @@ mod tests {
             Demand {
                 graphs: true,
                 bounds: false,
+                flow: false,
             },
         )[0];
 

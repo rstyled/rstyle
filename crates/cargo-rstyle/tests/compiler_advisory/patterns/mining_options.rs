@@ -23,11 +23,9 @@ pub(super) fn saved(directory: &Path, original: &Value, extra: &[&str]) -> (Outp
     command
         .current_dir(directory)
         .args([
-            "clones",
+            "advisory",
             "--format",
             "json",
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
             "--compiler-patterns",
             "--replay-run",
@@ -69,8 +67,6 @@ fn single_call_option_reuses_substantial_work_guard_and_saved_graphs() {
         "generic_fn"
     );
     assert_eq!(proposals(&guarded)["policy"]["single_call_guard"], true);
-    assert_eq!(guarded["matching"], original["matching"]);
-    assert_eq!(guarded["accepted_pairs"], original["accepted_pairs"]);
     let (output, defaults) = saved(directory.path(), &original, &[]);
     checked(&output, 0);
     assert_eq!(proposals(&defaults), proposals(&original));
@@ -119,7 +115,6 @@ fn hole_limit_changes_helper_outcome_and_all_mining_parameters_are_reported() {
         patterns["hide_implements"],
         serde_json::json!(["unrelated"])
     );
-    assert_eq!(configured["matching"], original["matching"]);
 }
 
 fn reviewed_inputs(directory: &Path, original: &Value) -> Vec<u8> {
@@ -285,7 +280,7 @@ fn mining_options_require_the_compiler_pattern_consumer() {
         vec!["--max-holes", "4"],
         vec!["--hide-implements", "unrelated"],
     ] {
-        let mut args = vec!["clones", "--compiler-advisory"];
+        let mut args = vec!["advisory", "--compiler-advisory"];
         args.extend(options);
         let output = rstyle(directory.path(), &args);
         checked(&output, 2);

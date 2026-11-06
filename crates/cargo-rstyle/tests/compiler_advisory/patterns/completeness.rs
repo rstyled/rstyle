@@ -10,15 +10,12 @@ fn structural_reviews_do_not_require_completed_effect_callees() {
         format!("{HELPERS} pub fn caller() {{ renamed::leaf(); }}"),
     )
     .unwrap();
-    let (output, original) = clones(
+    let (output, original) = advisory(
         directory.path(),
         &[
             "-p",
             "caller",
-            "--extraction-profile",
-            "hir-data-v3",
             "--compiler-advisory",
-            "--compiler-advisory-only",
             "--compiler-patterns",
             "--review-file",
             "reviews.json",
@@ -36,12 +33,10 @@ fn structural_reviews_do_not_require_completed_effect_callees() {
     let (output, saved) = replay(
         directory.path(),
         &original,
-        &["--compiler-advisory-only", "--review-file", "reviews.json"],
+        &["--review-file", "reviews.json"],
     );
     assert_independent_completion(&output, &saved);
     assert_eq!(original["compiler_advisory"], saved["compiler_advisory"]);
-    assert_eq!(original["matching_execution"], "not_requested");
-    assert_eq!(original["strict_assessment_execution"], "not_requested");
 }
 
 fn assert_independent_completion(output: &Output, report: &Value) {

@@ -140,7 +140,7 @@ impl<'tcx> Unit<'tcx> {
         let id = format!("file:{path}");
         // A file is recorded as written: its original bytes, and offsets into them.
         if !self.files.contains_key(&id) {
-            let content = crate::hir_extraction::recover_source(&lo.sf)?;
+            let content = super::source::recover(&lo.sf)?;
             let digest: String = Sha256::digest(content.as_bytes())
                 .iter()
                 .map(|b| format!("{b:02x}"))
@@ -437,9 +437,7 @@ impl<'tcx> Unit<'tcx> {
             })
             .collect();
         record["marks"] = json!(marks);
-        if let Some(root) =
-            crate::hir_extraction::generated_sources::generated_root(self.tcx, local)
-        {
+        if let Some(root) = super::generated_root::generated_root(self.tcx, local) {
             record["root"] = json!(root);
         }
 
@@ -1088,16 +1086,16 @@ pub fn coverage() -> Value {
             "aliasing": declare("approximated", "Places come from rustc's expression-use visitor for writes and exclusive borrows only"),
             "implicit-calls": declare("unsupported", "Destructors and implicit conversions are not emitted"),
             "constant-values": declare("unsupported", "Constant values are not emitted"),
-            "evaluation-order": declare("unknown", "No control flow is emitted"),
-            "exceptional-flow": declare("unsupported", "No control flow is emitted"),
+            "evaluation-order": declare("supported", "Operands, assignments and branches in the order the language specifies"),
+            "exceptional-flow": declare("unsupported", "A panic ends its path; unwinding is not a transfer"),
             "macro-provenance": declare("supported", "Macro-expanded and desugared nodes carry their outermost call site"),
         },
         "layers": {
             "unit": declare("supported", "Unit files with content, target and edition"),
             "method": declare("approximated", "Identity, spans, parameters and receiver; generics and lifetimes are not emitted"),
             "ast": declare("supported", "The HIR tree with for, while and ? restored to their source shape"),
-            "cfg": declare("unsupported", "No control flow is emitted"),
-            "symbol": declare("approximated", "Bindings without access records"),
+            "cfg": declare("approximated", "Every transfer but unwinding; closure bodies are opaque and coroutine bodies run in place"),
+            "symbol": declare("supported", "Bindings with their reads and writes"),
             "ref": declare("approximated", "Paths, calls and method calls"),
             "type": declare("approximated", "Signature, place and called-value types"),
             "value": declare("unsupported", "No compile-time values are emitted"),

@@ -9,8 +9,6 @@ fn reviewed_from_configured(directory: &TempDir, original: &Value) {
 }
 fn current(directory: &Path, extra: &[&str]) -> (Output, Value) {
     let mut args = vec![
-        "--extraction-profile",
-        "hir-data-v3",
         "--compiler-advisory",
         "--compiler-advisory-config",
         "policy.toml",
@@ -25,12 +23,12 @@ fn current(directory: &Path, extra: &[&str]) -> (Output, Value) {
             .copied()
             .filter(|arg| !["--review-prune", "--review-prune-dry-run"].contains(arg))
             .collect();
-        let (_, captured) = clones(directory, &capture);
+        let (_, captured) = advisory(directory, &capture);
         args.retain(|arg| *arg != "--release");
         args.extend(["--replay-run", captured["run_directory"].as_str().unwrap()]);
-        return clones(directory, &args);
+        return advisory(directory, &args);
     }
-    clones(directory, &args)
+    advisory(directory, &args)
 }
 fn records(report: &Value) -> &[Value] {
     report["review_status"]["records"].as_array().unwrap()
@@ -64,8 +62,6 @@ fn completed_six_rule_negatives_support_readonly_status_dry_run_and_explicit_pru
         missing_and_generated_owners_do_not_become_numeric_negatives_scenario
             as fn(&TempDir, &Value),
         direct_negatives_survive_unrelated_generated_inputs_but_density_remains_unavailable_scenario
-            as fn(&TempDir, &Value),
-        completed_numeric_negatives_do_not_require_strict_pair_completion_scenario
             as fn(&TempDir, &Value),
         completed_six_rule_negatives_support_readonly_status_dry_run_and_explicit_pruning_scenario
             as fn(&TempDir, &Value),
@@ -242,7 +238,7 @@ fn direct_negatives_survive_unrelated_generated_inputs_but_density_remains_unava
 
 #[test]
 fn baseline_resolution_reuses_the_same_completed_scope_gates() {
-    let (directory, original) = baseline::exported();
+    let (directory, _original) = baseline::exported();
     std::fs::write(
         directory.path().join("src/lib.rs"),
         format!("{CLEAN}\nmacro_rules! make {{()=>{{pub fn generated(){{}}}}}} make!();"),
@@ -267,22 +263,4 @@ fn baseline_resolution_reuses_the_same_completed_scope_gates() {
             .count(),
         1
     );
-    assert_ne!(report["matching"], Value::Null);
-    assert_ne!(original["matching"], Value::Null);
-}
-
-fn completed_numeric_negatives_do_not_require_strict_pair_completion_scenario(
-    directory: &TempDir,
-    _original: &Value,
-) {
-    std::fs::write(
-        directory.path().join("src/lib.rs"),
-        format!("{CLEAN} pub fn first(x:u8)->u8 {{x+1}} pub fn second(x:u8)->u8 {{x+2}}"),
-    )
-    .unwrap();
-    let (output, report) = current(directory.path(), &["--max-pairs", "0"]);
-    checked(&output, 2);
-    assert_eq!(report["pair_evaluation_complete"], false);
-    assert_eq!(report["compiler_advisory"]["complete"], true);
-    states(&report, "no_finding");
 }

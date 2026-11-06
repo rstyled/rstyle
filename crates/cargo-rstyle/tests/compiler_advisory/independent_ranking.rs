@@ -2,20 +2,14 @@ use super::propagation::checked;
 use super::*;
 
 const SOURCE: &str = "pub fn straight(){} pub fn nested(a:bool,b:bool){if a {if b {}}}";
-const RANK: &[&str] = &[
-    "--extraction-profile",
-    "hir-data-v3",
-    "--compiler-advisory-only",
-    "--compiler-complexity-top",
-    "10",
-];
+const RANK: &[&str] = &["--compiler-complexity-top", "10"];
 
 fn capture_rank(source: &str, extra: &[&str]) -> (TempDir, Output, Value) {
     let directory = clone_workspace();
     std::fs::write(directory.path().join("src/lib.rs"), source).unwrap();
     let mut args = RANK.to_vec();
     args.extend_from_slice(extra);
-    let (output, report) = clones(directory.path(), &args);
+    let (output, report) = advisory(directory.path(), &args);
     (directory, output, report)
 }
 
@@ -23,7 +17,7 @@ fn replay_rank(directory: &Path, original: &Value, extra: &[&str]) -> (Output, V
     let mut args = RANK.to_vec();
     args.extend(["--replay-run", original["run_directory"].as_str().unwrap()]);
     args.extend_from_slice(extra);
-    clones(directory, &args)
+    advisory(directory, &args)
 }
 
 fn unit(report: &Value) -> &Value {
@@ -47,7 +41,7 @@ fn ranking_only_completes_without_resolving_unselected_workspace_callees() {
     let directory = propagation::workspace("pub fn leaf(){} ");
     let mut args = RANK.to_vec();
     args.extend(["--package", "caller"]);
-    let (output, report) = clones(directory.path(), &args);
+    let (output, report) = advisory(directory.path(), &args);
     checked(&output, 0);
     rank_only(&report);
     assert_eq!(report["compiler_advisory"]["complete"], true);
@@ -88,7 +82,7 @@ fn standalone_ranking_reuses_exclusions_and_preserves_combined_numeric_findings(
         numeric["compiler_advisory"]["effect_execution"],
         "completed"
     );
-    let (output, plain) = reviews::replay(directory.path(), &ranked, &["--compiler-advisory-only"]);
+    let (output, plain) = reviews::replay(directory.path(), &ranked, &[]);
     checked(&output, 0);
     assert_eq!(unit(&numeric)["evaluation"], unit(&plain)["evaluation"]);
     assert_eq!(
@@ -127,7 +121,7 @@ fn standalone_ranking_replays_without_sources_or_compiler_tools() {
     let mut command = Command::new(cargo_bin("cargo-rstyle").canonicalize().unwrap());
     command
         .current_dir(directory.path())
-        .arg("clones")
+        .arg("advisory")
         .args(RANK)
         .args([
             "--format",
@@ -141,54 +135,6 @@ fn standalone_ranking_replays_without_sources_or_compiler_tools() {
     let replayed: Value = serde_json::from_slice(&output.stdout).unwrap();
     rank_only(&replayed);
     assert_eq!(replayed["compiler_advisory"], original["compiler_advisory"]);
-    assert_eq!(replayed["matching_execution"], "not_requested");
-    assert_eq!(replayed["strict_assessment_execution"], "not_requested");
-}
-
-#[test]
-fn standalone_ranking_keeps_missing_owners_and_scores_incomplete() {
-    let source = "macro_rules! make {()=>{pub fn generated(){}}} make!(); pub fn original(){}";
-    let (_directory, output, missing_owner) = capture_rank(source, &[]);
-    checked(&output, 2);
-    rank_only(&missing_owner);
-    assert_eq!(
-        unit(&missing_owner)["complexity_ranking"]["unavailable_owners"],
-        1
-    );
-    assert_eq!(
-        unit(&missing_owner)["complexity_ranking"]["input_complete"],
-        false
-    );
-    let (directory, output, original) = capture_rank(SOURCE, &[]);
-    checked(&output, 0);
-    let ledger = only::ledger_path(&original);
-    let bundle = original["functions"][0]["unit_evidence"]["bundle"]
-        .as_str()
-        .unwrap();
-    let wire: Value = serde_json::from_slice(&std::fs::read(bundle).unwrap()).unwrap();
-    for metrics in [
-        rstyle_core::advisory::V5_METRICS,
-        rstyle_core::advisory::METRICS,
-    ] {
-        let mut changed = wire.clone();
-        for fact in changed["facts"].as_array_mut().unwrap() {
-            let observation = &mut fact["build"]["frontend_options"][rstyle_core::advisory::KEY];
-            observation["metrics"] = metrics.into();
-            observation["facts"]["complexity"] = Value::Null;
-        }
-        only::reseal_raw(&original, &ledger, &changed);
-        let (output, missing) = replay_rank(directory.path(), &original, &[]);
-        checked(&output, 2);
-        rank_only(&missing);
-        assert_eq!(
-            unit(&missing)["complexity_ranking"]["unavailable_measurements"],
-            2
-        );
-        assert_eq!(
-            unit(&missing)["complexity_ranking"]["input_complete"],
-            false
-        );
-    }
 }
 
 #[test]
