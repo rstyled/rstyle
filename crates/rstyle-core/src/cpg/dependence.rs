@@ -12,9 +12,9 @@ use super::tree::{Body, Tables, generated, line};
 use crate::clip::clip;
 use crate::facts::{NodeKind as Kind, Pdg, PdgNode, TyShape};
 use crate::pdg_builder::{GraphBuilder, Lowering};
+use crate::versioned::ByNamespace;
 use serde::Deserialize;
 use std::collections::BTreeMap;
-use std::sync::OnceLock;
 
 const SCHEMA: &str = "rstyle.dependence-roles/1";
 /// Role files compiled into the engine, one per frontend namespace.
@@ -40,18 +40,13 @@ impl Roles {
 
     /// The roles of a frontend namespace; none for a namespace without a file.
     pub fn of(namespace: &str) -> &'static Roles {
-        static ROLES: OnceLock<BTreeMap<String, Roles>> = OnceLock::new();
-        static NONE: OnceLock<Roles> = OnceLock::new();
-        let roles = ROLES.get_or_init(|| {
-            EMBEDDED
-                .iter()
-                .map(|text| Roles::parse(text).expect("embedded dependence roles are valid"))
-                .map(|roles| (roles.namespace.clone(), roles))
-                .collect()
-        });
-        roles
-            .get(namespace)
-            .unwrap_or_else(|| NONE.get_or_init(Roles::default))
+        static ROLES: ByNamespace<Roles> = ByNamespace::empty();
+        ROLES.of(
+            namespace,
+            (EMBEDDED, |text| {
+                Roles::parse(text).map(|roles| (roles.namespace.clone(), roles))
+            }),
+        )
     }
 
     pub(super) fn parse(text: &str) -> Result<Self, String> {

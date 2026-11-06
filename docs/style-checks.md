@@ -86,6 +86,12 @@ The default weights are `mutation = 1`, `io = 3`, `network = 3`, `global = 2`, `
 network = ["std::net::", "reqwest::"]
 ```
 
+A frontend can also ship a table of its language's library calls, keyed by operation.
+[Go's](../crates/rstyle-core/src/cpg/contracts/effects/go.toml) knows that `os.WriteFile` is
+`io` and that `strings.ToUpper` has no effect, and treats a library call it doesn't list as
+`unknown`. `[side_effects.paths]` wins for any callee it matches, so you can still name a
+third-party package there.
+
 ## Suppressing a finding
 
 Put a comment on the line directly above the function, with a reason:

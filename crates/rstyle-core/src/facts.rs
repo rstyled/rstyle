@@ -70,6 +70,18 @@ pub struct CallEvent {
     /// Dispatched through `dyn`, a fn pointer or a generic callable: the target is unknown.
     #[serde(default)]
     pub dynamic: bool,
+    /// What the frontend's library contract says this call does, when it says anything.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub library: Option<LibraryClass>,
+}
+
+/// What a library contract says a call does. Config can still override it, which is why
+/// it stays on the call rather than becoming an effect here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LibraryClass {
+    Pure,
+    Effect(EffectKind),
 }
 
 /// An effect the driver can decide without any config (unsafe, static mut, dyn calls).

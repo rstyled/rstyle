@@ -6,6 +6,7 @@
 
 pub mod bounds;
 mod dependence;
+mod effects;
 mod events;
 mod facts;
 pub mod flow;
