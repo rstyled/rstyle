@@ -2,6 +2,7 @@
 name = "cargo-rstyle"
 version.workspace = true
 edition.workspace = true
+default-run = "cargo-rstyle"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }

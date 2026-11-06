@@ -475,6 +475,8 @@ mod capture;
 mod descriptor;
 mod facts;
 mod flow;
+#[cfg(unix)]
+mod runner;
 mod stdin;
 mod transport;
 

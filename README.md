@@ -11,7 +11,7 @@ Rust style checker built on rustc HIR (resolved names and types, not just syntax
 | --- | --- |
 | `rstyle-core` | Pure rules, config, suppression, reporting. No IO, no compiler types. |
 | `rstyle-driver` | rustc driver (`rustc_private`). The Rust frontend: writes each crate's `compat.cpg` documents. |
-| `cargo-rstyle` | `cargo rstyle` CLI. Runs `cargo check` with the driver as workspace wrapper, then evaluates. |
+| `cargo-rstyle` | `cargo rstyle` and `rstyle` CLI. Runs `cargo check` with the driver as workspace wrapper, then evaluates, and runs other languages' frontends. |
 
 See [`SIDE_EFFECTS.md`](SIDE_EFFECTS.md) for the rule spec.
 
@@ -84,7 +84,7 @@ curl --proto '=https' --tlsv1.2 -fsSL \
 
 This executes the downloaded script directly, so only use it with a repository
 you trust. To inspect it first, download the script instead of piping it to `sh`.
-The installer installs the pinned nightly and both binaries; it does not install
+The installer installs the pinned nightly and the binaries; it does not install
 `rustup`, use `sudo`, or change your shell configuration.
 
 To replace an existing installation:
@@ -352,6 +352,83 @@ Inspiration: comparing functions by approximate matching of their program depend
 
 Known limits: function-level only; closure bodies are opaque (except `for_each`); a cluster mixing already-trait and inherent impls is reported as a candidate rather than as "implement the existing trait"; the size floor is 4 nodes and 1 call, so small functions never cluster (on competitive-programming code that is more than half of edited-copy pairs), and the defaults were picked on a few real crates and a labeled example set, not tuned on a large corpus.
 
+## Run any language (`rstyle go`, `rstyle rust`)
+
+`rstyle` is the runner for every language frontend. It finds the frontend, reads the
+`compat.cpg` documents it produces, runs the selected analyses once in core, and saves the run:
+
+```
+rstyle go                  rstyle rust
+rstyle go --check          rstyle rust --check
+rstyle go --patterns       rstyle rust --patterns
+```
+
+`cargo rstyle go` and `cargo rstyle rust` are the same commands.
+
+- **Go:** rstyle uses `$RSTYLE_GO` if set, then `rstyle-go` where Go installs binaries or on
+  `PATH`, and otherwise runs `go install`. While `rstyle-go` is private, set
+  `GOPRIVATE=github.com/rstyled` or point `$RSTYLE_GO` at a local build. `--source DIR` picks
+  the directory; by default it's the module holding the current directory.
+- **Rust:** the frontend is the bundled driver. `--manifest-path`, `-p` and `--all-targets`
+  apply. Dependencies stay built between runs, and the workspace's crates compile afresh.
+
+**Selecting analyses.** With no filter you get everything. `--filter` takes names,
+comma-separated or repeated, and `--check` and `--patterns` are shorthand for two of them:
+
+| Name | Runs |
+|---|---|
+| `check`, `patterns`, `bounds`, `flow` | Core's analyses |
+| `go:<name>`, `rust:<name>` | An analysis local to that frontend; none exist yet |
+
+An unknown name fails before anything runs, as does `--fail-on-candidates` without patterns.
+
+**Saved runs.** A finished run is published whole, so a rejected one leaves nothing behind:
+
+| | Default location | Cleared by |
+|---|---|---|
+| Go | `.rstyle/runs/<UTC timestamp>/` in the module, which ignores itself in Git | Deleting it |
+| Rust | `target/rstyle/runs/<UTC timestamp>/` | `cargo clean` |
+
+Nothing prunes older runs yet. `--out DIR` saves to a new directory instead. Each run holds:
+
+```
+documents/                 what the frontend produced
+report.json.zst            the complete report
+check.sarif                SARIF 2.1.0, category rstyle/check/
+patterns.sarif             SARIF 2.1.0, category rstyle/patterns/
+frontend/<analysis>.sarif  a frontend analysis's results, listed as pending in the report
+run.json                   the language, source root and document count
+```
+
+`--from DIR` analyzes a saved run without its frontend, and saves only with `--out`.
+`--format json` prints plain JSON to stdout, with `run` naming where the run was saved. Two runs
+over the same source give byte-identical reports and SARIF.
+
+SARIF carries findings and candidates, one run per file, so nothing interleaves. Runtime bounds,
+signature groups and control flow stay in the report, which remains the complete one. `flow` is
+what `cpg flow` derives for each function, and it's most of a report's size: on gstyle, 126 MB of
+the 176 MB printed and 6.2 MB of the 7.5 MB saved, for about 2 s more. `--filter
+check,patterns,bounds` leaves it out.
+
+**Exit codes.** The worst result of what ran: 0 clean, 1 findings (including candidates left
+with `--fail-on-candidates`), and 2 for a tool error, missing analysis or failed frontend analysis.
+
+**Writing a frontend.** A frontend is a program with up to three commands:
+
+| Command | Does |
+|---|---|
+| `describe` | Prints `{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"calls"}]}` |
+| `cpg --source DIR --output-fd N` | Writes an RFC 7464 JSON text sequence to the inherited descriptor, then `RS null LF` only if generation succeeded |
+| `analyze NAME --source DIR --out FILE` | Writes SARIF 2.1.0 to `FILE`, for each name it describes |
+
+`N` is a descriptor on Unix and an inherited handle's value on Windows. A non-zero exit means the
+run is incomplete. A frontend's stdout goes to rstyle's stderr. Its descriptor must not reach its
+own child processes, or rstyle never sees end of file. The runner keeps what it receives, so a
+frontend needs no compression or storage code of its own. Documents are derived on a worker pool
+as they arrive, and records are put in a canonical order, so arrival order can't change a result.
+
+Windows support has been type-checked and has a CI job, but hasn't been run outside CI.
+
 ## Other languages (`cpg`)
 
 Frontends for other languages emit `compat.cpg`
@@ -369,6 +446,8 @@ cargo rstyle cpg patterns --capture CAPTURE_DIR [--complexity] [--format text|js
 cargo rstyle cpg receive --stdin --format json
 cargo rstyle cpg check --stdin [--format text|json]
 cargo rstyle cpg patterns --stdin [--complexity] [--format text|json]
+cargo rstyle cpg analyze DOC.json... [--filter check,patterns,bounds,flow] [--sarif-dir DIR]
+cargo rstyle cpg analyze --stdin [--filter check,patterns,bounds,flow] [--sarif-dir DIR]
 ```
 
 A run is any number of units: bundled unit documents, and split unit documents with
@@ -381,6 +460,11 @@ and only an explicit `--config` applies. Documents from another profile version,
 with undeclared coverage, without file content, or whose split function documents
 do not match their unit's digest are rejected with exit code 2, as is a function read
 twice. `cpg patterns` exits 1 with `--fail-on-candidates` when a candidate is left.
+
+`cpg analyze` runs the selected analyses in one pass, so their results are what `cpg check`,
+`cpg patterns --complexity` and `cpg flow` report separately. With no `--filter` it runs them all, and
+`--sarif-dir` writes `check.sarif` and `patterns.sarif`. It reads the same inputs, deriving
+documents on a worker pool. The `rstyle` commands above use it and add the frontend and saved run.
 
 A frontend records every function the compiler holds and marks what a macro writes by
 its provenance; what each analysis does with it is core's to decide, on every route. A
