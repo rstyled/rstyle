@@ -1,5 +1,5 @@
 //! SARIF 2.1.0: one log and one run per analysis, so the results of different analyses
-//! never interleave. Merging logs later only means appending to `runs`.
+//! never interleave, and one log holding every run as a run's final report.
 //!
 //! Findings and candidates are what SARIF carries. The JSON report stays the complete one:
 //! runtime bounds, signature groups and fix groups aren't findings.
@@ -132,6 +132,42 @@ pub fn validate(log: &Value) -> Result<(), String> {
         .filter(|runs| !runs.is_empty())
         .ok_or("A SARIF log needs at least one run")?;
     runs.iter().try_for_each(valid_run)
+}
+
+/// A frontend's runs as a final report holds them: each stays distinguishable from every other
+/// analysis and has a root for its relative paths, unless it says otherwise. `category` is the
+/// analysis's own, such as `go/calls/`.
+pub fn labeled_runs(log: &Value, category: &str, root: &Path) -> Result<Vec<Value>, String> {
+    let runs = log["runs"].as_array().ok_or("A SARIF log needs runs")?;
+    let root = serde_json::to_value(root_artifact(root)?).map_err(|error| error.to_string())?;
+    let several = runs.len() > 1;
+
+    runs.iter()
+        .enumerate()
+        .map(|(index, run)| {
+            let id = match several {
+                true => format!("{category}{index}/"),
+                false => category.to_string(),
+            };
+            labeled_run(run.clone(), &id, &root)
+        })
+        .collect()
+}
+
+fn labeled_run(mut run: Value, id: &str, root: &Value) -> Result<Value, String> {
+    let fields = run.as_object_mut().ok_or("A SARIF run must be an object")?;
+    fields
+        .entry("automationDetails")
+        .or_insert_with(|| serde_json::json!({"id": id}));
+    fields
+        .entry("originalUriBaseIds")
+        .or_insert_with(|| serde_json::json!({SOURCE_ROOT: root}));
+    Ok(run)
+}
+
+/// One log holding these runs, in order: a run's final report.
+pub fn combined(runs: Vec<Value>) -> Value {
+    serde_json::json!({"$schema": SCHEMA, "version": VERSION, "runs": runs})
 }
 
 fn valid_run(run: &Value) -> Result<(), String> {

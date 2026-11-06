@@ -215,3 +215,41 @@ fn a_canonical_windows_root_is_a_plain_file_uri() {
         "file:///C%3A/w%20x/"
     );
 }
+
+#[test]
+fn a_frontend_run_gets_a_category_and_root_only_if_it_has_none() {
+    let log = json!({"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "x"}}}]});
+    let runs = labeled_runs(&log, "go/calls/", Path::new(ROOT)).unwrap();
+    assert_eq!(runs[0]["automationDetails"]["id"], "go/calls/");
+    assert_eq!(runs[0]["originalUriBaseIds"]["%SRCROOT%"]["uri"], ROOT_URI);
+
+    let own = json!({"version": "2.1.0", "runs": [{
+        "tool": {"driver": {"name": "x"}},
+        "automationDetails": {"id": "own/"},
+        "originalUriBaseIds": {"BASE": {"uri": "file:///b/"}},
+    }]});
+    let runs = labeled_runs(&own, "go/calls/", Path::new(ROOT)).unwrap();
+    assert_eq!(runs[0]["automationDetails"]["id"], "own/");
+    assert!(runs[0]["originalUriBaseIds"].get("%SRCROOT%").is_none());
+}
+
+#[test]
+fn several_runs_of_one_frontend_analysis_stay_distinguishable() {
+    let run = json!({"tool": {"driver": {"name": "x"}}});
+    let log = json!({"version": "2.1.0", "runs": [run, run]});
+    let runs = labeled_runs(&log, "go/calls/", Path::new(ROOT)).unwrap();
+    assert_eq!(runs[0]["automationDetails"]["id"], "go/calls/0/");
+    assert_eq!(runs[1]["automationDetails"]["id"], "go/calls/1/");
+}
+
+#[test]
+fn a_combined_log_is_valid_and_keeps_every_run_in_order() {
+    let core = value(check(&report(Vec::new()), Path::new(ROOT)).unwrap());
+    let frontend = json!({"tool": {"driver": {"name": "x"}}});
+    let log = combined(vec![core["runs"][0].clone(), frontend]);
+    validate(&log).unwrap();
+    assert_eq!(log["$schema"], SCHEMA);
+    let runs = log["runs"].as_array().unwrap();
+    assert_eq!(runs[0]["automationDetails"]["id"], "rstyle/check/");
+    assert_eq!(runs[1]["tool"]["driver"]["name"], "x");
+}

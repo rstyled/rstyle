@@ -33,7 +33,7 @@ analyze)
     broken) exit 3 ;;
     invalid) echo '{"version":"1.0"}' > "$6" ;;
     silent) ;;
-    *) echo '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"fake"}},"results":[]}]}' > "$6" ;;
+    *) echo '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"fake"}},"results":[{"message":{"text":"found"}}]}]}' > "$6" ;;
     esac
     ;;
 *) exit 64 ;;
@@ -406,7 +406,7 @@ fn out_must_be_new() {
 }
 
 #[test]
-fn frontend_analyses_stay_in_their_own_pending_files() {
+fn a_frontend_analysis_keeps_its_file_and_joins_the_final_report() {
     let project = Project::new();
     let output = project
         .command(
@@ -419,14 +419,67 @@ fn frontend_analyses_stay_in_their_own_pending_files() {
         .unwrap();
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     let unified = report(&output);
-    assert_eq!(
-        unified["frontend"],
-        json!([{"analysis": "go:calls", "status": "pending", "file": "frontend/calls.sarif"}])
-    );
+    let frontend = &unified["frontend"][0];
+    assert_eq!(frontend["analysis"], "go:calls");
+    assert_eq!(frontend["status"], "complete");
+    assert_eq!(frontend["file"], "frontend/calls.sarif");
+    assert_eq!(frontend["runs"][0]["automationDetails"]["id"], "go/calls/");
     assert!(unified.get("check").is_none());
     let run = saved_run(&output);
     assert!(run.join("frontend/calls.sarif").is_file());
     assert!(!run.join("documents").exists() && !run.join("check.sarif").exists());
+    let log: Value =
+        serde_json::from_slice(&std::fs::read(run.join("report.sarif")).unwrap()).unwrap();
+    assert_eq!(log["runs"], frontend["runs"]);
+}
+
+#[test]
+fn the_final_report_holds_core_and_frontend_runs_in_order() {
+    let project = Project::new();
+    let output = project
+        .command(
+            ANALYSES,
+            &[
+                "go",
+                "--filter",
+                "check,patterns,go:calls",
+                "--format",
+                "json",
+            ],
+        )
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let run = saved_run(&output);
+    let log: Value =
+        serde_json::from_slice(&std::fs::read(run.join("report.sarif")).unwrap()).unwrap();
+    let categories: Vec<_> = log["runs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|run| run["automationDetails"]["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        categories,
+        ["rstyle/check/", "rstyle/patterns/", "go/calls/"]
+    );
+    assert_eq!(log["version"], "2.1.0");
+}
+
+#[test]
+fn text_output_says_what_a_frontend_analysis_found() {
+    let project = Project::new();
+    let output = project
+        .command(ANALYSES, &["go", "--filter", "go:calls"])
+        .env_remove("FAKE_DOCUMENT")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let text = stdout(&output);
+    assert!(
+        text.contains("go:calls: 1 result, in frontend/calls.sarif"),
+        "{text}"
+    );
 }
 
 #[test]
@@ -444,7 +497,7 @@ fn no_filter_runs_every_analysis_and_a_failure_is_the_worst_result() {
         .iter()
         .map(|result| result["status"].as_str().unwrap())
         .collect();
-    assert_eq!(statuses, ["pending", "failed", "failed", "failed"]);
+    assert_eq!(statuses, ["complete", "failed", "failed", "failed"]);
     let run = saved_run(&output);
     assert!(run.join("frontend/calls.sarif").is_file());
     let files: Vec<_> = std::fs::read_dir(run.join("frontend")).unwrap().collect();

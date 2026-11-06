@@ -2,26 +2,48 @@
 //! they make.
 use rstyle_core::cpg::transport::{self, Encoding};
 use rstyle_core::filter::{Analysis, Filter};
+use rstyle_core::sarif;
 use rstyle_core::unified::Analyses;
 use serde::Serialize;
+use serde_json::Value;
 use std::path::{Path, PathBuf};
 
-/// An analysis a frontend ran itself. Its results stay in their own file, pending until the
-/// report can hold them.
+const REPORT_FILE: &str = "report.sarif";
+
+/// An analysis a frontend ran itself. Its results also stay in a file of their own, as the
+/// frontend wrote them.
 #[derive(Serialize)]
 pub(crate) struct FrontendResult {
     pub analysis: String,
     pub status: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub runs: Vec<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
 
 impl FrontendResult {
+    fn results(&self) -> usize {
+        self.runs
+            .iter()
+            .filter_map(|run| run["results"].as_array())
+            .map(Vec::len)
+            .sum()
+    }
+
     fn text(&self) -> String {
         match (&self.file, &self.error) {
-            (Some(file), _) => format!("{}: pending in {}", self.analysis, file.display()),
+            (Some(file), _) => {
+                let results = self.results();
+                let plural = if results == 1 { "" } else { "s" };
+                format!(
+                    "{}: {results} result{plural}, in {}",
+                    self.analysis,
+                    file.display()
+                )
+            }
             (None, Some(error)) => format!("{}: failed: {error}", self.analysis),
             (None, None) => format!("{}: {}", self.analysis, self.status),
         }
@@ -75,11 +97,22 @@ impl Unified {
         self.analyses.exit_code(fail_on_candidates).max(frontend)
     }
 
-    /// One file per analysis in `directory`; `root` is what their relative paths resolve against.
+    /// One file per core analysis in `directory`, and `report.sarif` holding every analysis's
+    /// runs. `root` is what relative paths resolve against.
+    // rstyle-allow(side_effect_density): IO boundary: writes the SARIF files
     pub(crate) fn write_sarif(&self, directory: &Path, root: &Path) -> Result<(), String> {
+        let mut runs = Vec::new();
+
         for (name, log) in self.analyses.sarif(root)? {
             transport::write_json(&directory.join(name), Encoding::Json, &log)?;
+            let log = serde_json::to_value(&log).map_err(|error| error.to_string())?;
+            runs.extend(log["runs"].as_array().into_iter().flatten().cloned());
         }
-        Ok(())
+        runs.extend(self.frontend.iter().flat_map(|result| result.runs.clone()));
+        if runs.is_empty() {
+            return Ok(());
+        }
+        let report = directory.join(REPORT_FILE);
+        transport::write_json(&report, Encoding::Json, &sarif::combined(runs)).map(|_| ())
     }
 }

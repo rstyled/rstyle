@@ -254,7 +254,7 @@ struct CpgAnalyzeArgs {
     /// [default: everything].
     #[arg(long, value_delimiter = ',')]
     filter: Vec<String>,
-    /// Write check.sarif and patterns.sarif here, for the analyses that ran.
+    /// Write check.sarif, patterns.sarif and report.sarif here, for the analyses that ran.
     #[arg(long)]
     sarif_dir: Option<PathBuf>,
     #[command(flatten)]

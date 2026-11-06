@@ -394,9 +394,10 @@ clears the build a Rust run reuses, in `target/rstyle/build/`. Deleting `.rstyle
 ```
 documents/                 what the frontend produced
 report.json.zst            the complete report
+report.sarif               SARIF 2.1.0: every run below in one log
 check.sarif                SARIF 2.1.0, category rstyle/check/
 patterns.sarif             SARIF 2.1.0, category rstyle/patterns/
-frontend/<analysis>.sarif  a frontend analysis's results, listed as pending in the report
+frontend/<analysis>.sarif  a frontend analysis's results, as it wrote them
 run.json                   the language, source root and document count
 ```
 
@@ -404,7 +405,9 @@ run.json                   the language, source root and document count
 `--format json` prints plain JSON to stdout, with `run` naming where the run was saved. Two runs
 over the same source give byte-identical reports and SARIF.
 
-SARIF carries findings and candidates, one run per file, so nothing interleaves. Runtime bounds,
+SARIF carries findings and candidates, one run per analysis, so nothing interleaves. A frontend
+analysis's runs also join `report.sarif` and the JSON report's `frontend` list, with a category
+such as `go/calls/` and a source root if they have none. Its results don't change the exit code. Runtime bounds,
 signature groups and control flow stay in the report, which remains the complete one. `flow` is
 what `cpg flow` derives for each function, and it's most of a report's size: on gstyle, 126 MB of
 the 176 MB printed and 6.2 MB of the 7.5 MB saved, for about 2 s more. `--filter
@@ -463,7 +466,7 @@ twice. `cpg patterns` exits 1 with `--fail-on-candidates` when a candidate is le
 
 `cpg analyze` runs the selected analyses in one pass, so their results are what `cpg check`,
 `cpg patterns --complexity` and `cpg flow` report separately. With no `--filter` it runs them all, and
-`--sarif-dir` writes `check.sarif` and `patterns.sarif`. It reads the same inputs, deriving
+`--sarif-dir` writes `check.sarif`, `patterns.sarif` and `report.sarif`. It reads the same inputs, deriving
 documents on a worker pool. The `rstyle` commands above use it and add the frontend and saved run.
 
 A frontend records every function the compiler holds and marks what a macro writes by

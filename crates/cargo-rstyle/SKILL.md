@@ -170,7 +170,7 @@ Defaults (WL similarity 600, alignment coverage 600, 3 holes max for `parameteri
 `rstyle go` and `rstyle rust` find the frontend, run it and analyze what it produces. `--check`,
 `--patterns` or `--filter check,patterns,bounds,flow` select analyses; the default is everything.
 Each run is saved whole in `.rstyle/runs/`, which keeps each language's newest 5 (`RSTYLE_KEEP_RUNS`
-changes that), with `report.json.zst`, `check.sarif` and `patterns.sarif`. `--format json` prints plain JSON with `run`
+changes that), with `report.json.zst`, `report.sarif`, `check.sarif` and `patterns.sarif`. `--format json` prints plain JSON with `run`
 naming that folder. `--from DIR` reads a saved run back. Exit 0 is clean, 1 is findings, and 2 is a
 tool error. `RSTYLE_GO` points at a local `rstyle-go`.
 
