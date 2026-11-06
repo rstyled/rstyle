@@ -14,7 +14,7 @@ pub(super) struct Completed {
     pub values: Option<BTreeMap<String, Vec<Effect>>>,
     pub resolved: BTreeMap<String, UnitId>,
     pub unresolved: BTreeSet<String>,
-    pub unimplemented: BTreeSet<String>,
+    pub unknown: BTreeSet<String>,
     pub complete: bool,
     pub generated: BTreeMap<String, Vec<Effect>>,
     pub local: BTreeSet<String>,
@@ -116,12 +116,12 @@ impl Completed {
         Ok(self.unreached(super::unresolved(facts)?, missing))
     }
 
-    pub(super) fn unimplemented_callees(
+    pub(super) fn unknown_callees(
         &mut self,
         facts: &[FnFacts],
     ) -> Result<BTreeSet<String>, String> {
-        let missing = std::mem::take(&mut self.unimplemented);
-        Ok(self.unreached(super::unimplemented(facts)?, missing))
+        let missing = std::mem::take(&mut self.unknown);
+        Ok(self.unreached(super::unknown(facts)?, missing))
     }
 
     fn unreached(&self, found: BTreeSet<String>, missing: BTreeSet<String>) -> BTreeSet<String> {
@@ -302,7 +302,7 @@ impl Targets<'_> {
             if targets.is_empty() {
                 let unit = completed.get_mut(&unit).expect("Captured propagation unit");
                 let unanswered = match edge.required {
-                    true => &mut unit.unimplemented,
+                    true => &mut unit.unknown,
                     false => &mut unit.unresolved,
                 };
                 unanswered.insert(edge.callee.clone());

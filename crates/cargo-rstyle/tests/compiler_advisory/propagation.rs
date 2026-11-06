@@ -548,7 +548,7 @@ fn a_required_method_nothing_implements_is_unknown_and_leaves_the_report_complet
     let caller = unit(&report, "caller");
     assert_eq!(caller["unresolved_callees"], serde_json::json!([]));
     assert_eq!(
-        caller["unimplemented_callees"],
+        caller["unknown_callees"],
         serde_json::json!(["traits::Source::read"])
     );
     assert_eq!(
@@ -590,7 +590,7 @@ fn a_default_body_stays_unresolved_when_its_crate_is_not_captured() {
         serde_json::json!(["traits::Hook::inherited"])
     );
     assert_eq!(
-        caller["unimplemented_callees"],
+        caller["unknown_callees"],
         serde_json::json!(["traits::Source::read"])
     );
 }

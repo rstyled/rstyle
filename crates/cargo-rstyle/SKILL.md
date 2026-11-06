@@ -620,8 +620,10 @@ evaluation, with no extra hash, artifact scan, source proof or body/graph copy.
 Hop limits and suppression boundaries are unchanged. A trait's default body in a
 dependency and the overrides of it in the caller's crate are all targets. A method a
 trait declares without a body, with no implementation in the caller's crate, is an
-`Unknown` effect on its caller, listed in `unimplemented_callees`; it leaves coverage
-complete, so a complete report can still hold these calls. Missing, generated, excluded
+`Unknown` effect on its caller, listed in `unknown_callees`; it leaves coverage
+complete, so a complete report can still hold these calls, and as coverage grows they
+become known. Compiler plans stay incomplete over them, because the callers behind
+them cannot be enumerated. Missing, generated, excluded
 and ambiguous targets remain unresolved; indistinguishable
 check/test graph descriptors never share inputs. Cross-unit plans require the
 explicit flag below; proposal mining remains per unit. Strict clone admission
