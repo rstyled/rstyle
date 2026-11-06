@@ -62,8 +62,9 @@ impl Project {
         Self { directory }
     }
 
-    fn root(&self) -> &Path {
-        self.directory.path()
+    fn root(&self) -> PathBuf {
+        // As the frontend's process sees it: a temporary directory can sit behind a symlink.
+        self.directory.path().canonicalize().unwrap()
     }
 
     fn command(&self, description: &str, args: &[&str]) -> Command {

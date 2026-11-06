@@ -2,6 +2,14 @@ use super::*;
 use crate::candidates::{Breakdown, CandidateKind, Site};
 use serde_json::json;
 
+/// A source root, which must be absolute wherever the tests run, and its URI.
+const ROOT: &str = if cfg!(windows) { r"C:\w" } else { "/w" };
+const ROOT_URI: &str = if cfg!(windows) {
+    "file:///C%3A/w/"
+} else {
+    "file:///w/"
+};
+
 fn report(diagnostics: Vec<Diagnostic>) -> Report {
     Report {
         diagnostics,
@@ -67,13 +75,13 @@ fn value(log: Log) -> Value {
 
 #[test]
 fn a_diagnostic_is_one_warning_located_by_its_line() {
-    let log = value(check(&report(vec![violation("src/a.rs", 3)]), Path::new("/w")).unwrap());
+    let log = value(check(&report(vec![violation("src/a.rs", 3)]), Path::new(ROOT)).unwrap());
     assert_eq!(log["version"], "2.1.0");
     assert_eq!(log["$schema"], SCHEMA);
     let run = &log["runs"][0];
     assert_eq!(run["tool"]["driver"]["name"], "rstyle");
     assert_eq!(run["automationDetails"]["id"], "rstyle/check/");
-    assert_eq!(run["originalUriBaseIds"]["%SRCROOT%"]["uri"], "file:///w/");
+    assert_eq!(run["originalUriBaseIds"]["%SRCROOT%"]["uri"], ROOT_URI);
     assert_eq!(
         run["results"],
         json!([{
@@ -91,7 +99,7 @@ fn a_diagnostic_is_one_warning_located_by_its_line() {
 #[test]
 fn a_candidate_has_one_primary_site_and_keeps_its_id() {
     let sites = vec![site("a.go", 1), site("b.go", 2), site("c.go", 3)];
-    let log = value(patterns(&candidates(sites), Path::new("/w")).unwrap());
+    let log = value(patterns(&candidates(sites), Path::new(ROOT)).unwrap());
     let run = &log["runs"][0];
     assert_eq!(run["automationDetails"]["id"], "rstyle/patterns/");
     let result = &run["results"][0];
@@ -108,21 +116,27 @@ fn a_candidate_has_one_primary_site_and_keeps_its_id() {
 
 #[test]
 fn an_empty_report_has_an_empty_results_array() {
-    let log = value(check(&report(Vec::new()), Path::new("/w/")).unwrap());
+    let log = value(
+        check(
+            &report(Vec::new()),
+            Path::new(if cfg!(windows) { r"C:\w\" } else { "/w/" }),
+        )
+        .unwrap(),
+    );
     assert_eq!(log["runs"][0]["results"], json!([]));
     assert_eq!(
         log["runs"][0]["originalUriBaseIds"]["%SRCROOT%"]["uri"],
-        "file:///w/"
+        ROOT_URI
     );
 }
 
 #[test]
 fn an_unknown_line_or_path_is_left_out_not_invented() {
-    let log = value(check(&report(vec![violation("a.rs", 0)]), Path::new("/w")).unwrap());
+    let log = value(check(&report(vec![violation("a.rs", 0)]), Path::new(ROOT)).unwrap());
     let located = &log["runs"][0]["results"][0]["locations"][0]["physicalLocation"];
     assert!(located.get("region").is_none());
 
-    let log = value(check(&report(vec![violation("", 4)]), Path::new("/w")).unwrap());
+    let log = value(check(&report(vec![violation("", 4)]), Path::new(ROOT)).unwrap());
     assert!(log["runs"][0]["results"][0].get("locations").is_none());
 }
 
@@ -131,24 +145,33 @@ fn paths_are_escaped_and_an_absolute_one_needs_no_base() {
     let log = value(
         check(
             &report(vec![violation("a b/#é:c.rs", 1)]),
-            Path::new("/w x"),
+            Path::new(if cfg!(windows) { r"C:\w x" } else { "/w x" }),
         )
         .unwrap(),
     );
     let run = &log["runs"][0];
     assert_eq!(
         run["originalUriBaseIds"]["%SRCROOT%"]["uri"],
-        "file:///w%20x/"
+        if cfg!(windows) {
+            "file:///C%3A/w%20x/"
+        } else {
+            "file:///w%20x/"
+        }
     );
     assert_eq!(
         run["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"],
         "a%20b/%23%C3%A9%3Ac.rs"
     );
 
-    let log = value(check(&report(vec![violation("/x/a.rs", 1)]), Path::new("/w")).unwrap());
+    let (absolute, uri) = if cfg!(windows) {
+        (r"C:\x\a.rs", "file:///C%3A/x/a.rs")
+    } else {
+        ("/x/a.rs", "file:///x/a.rs")
+    };
+    let log = value(check(&report(vec![violation(absolute, 1)]), Path::new(ROOT)).unwrap());
     assert_eq!(
         log["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"],
-        json!({"uri": "file:///x/a.rs"})
+        json!({"uri": uri})
     );
 }
 
@@ -160,7 +183,7 @@ fn a_relative_source_root_is_refused() {
 
 #[test]
 fn what_this_module_writes_passes_its_own_validation() {
-    let log = value(patterns(&candidates(vec![site("a.go", 1)]), Path::new("/w")).unwrap());
+    let log = value(patterns(&candidates(vec![site("a.go", 1)]), Path::new(ROOT)).unwrap());
     validate(&log).unwrap();
 }
 
