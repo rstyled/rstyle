@@ -350,6 +350,6 @@ fn diagnostic_selection_flags_require_numeric_advice_and_known_rule_names_before
         checked(&output, 2);
         let error = String::from_utf8_lossy(&output.stderr);
         assert!(!error.contains("no-cargo"), "{error}");
-        assert!(!directory.path().join("target/rstyle/clones").exists());
+        assert!(!directory.path().join("target/rstyle/runs").exists());
     }
 }

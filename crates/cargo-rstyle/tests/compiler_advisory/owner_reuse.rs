@@ -238,7 +238,7 @@ fn saved_reused_run_replays_without_original_run_sources_or_shared_builds() {
     fresh(&reused, "clone_fixture", true);
     owned(&reused, true);
     std::fs::remove_dir_all(run(&first)).unwrap();
-    for path in ["src", "target/rstyle/clones/advisory-build"] {
+    for path in ["src", "target/rstyle/runs/advisory-build"] {
         std::fs::remove_dir_all(directory.path().join(path)).unwrap();
     }
     std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();

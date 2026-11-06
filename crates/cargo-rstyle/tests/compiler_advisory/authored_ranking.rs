@@ -223,6 +223,6 @@ fn complexity_scope_requires_ranking_before_capture_even_when_explicitly_capture
         let error = String::from_utf8_lossy(&output.stderr);
         assert!(error.contains("--compiler-complexity-top"), "{error}");
         assert!(!error.contains("no-cargo"), "{error}");
-        assert!(!directory.path().join("target/rstyle/clones").exists());
+        assert!(!directory.path().join("target/rstyle/runs").exists());
     }
 }

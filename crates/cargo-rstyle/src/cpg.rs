@@ -55,7 +55,7 @@ pub fn patterns(cli: &Cli, args: &CpgPatternsArgs) -> Result<(String, u8), Strin
     let records = received.records;
     let bounds = args
         .complexity
-        .then(|| crate::clones::document_bounds(&records, args.display.top));
+        .then(|| crate::compiler::document_bounds(&records, args.display.top));
     let evaluation = mined(records, args, &load_config(cli.config.as_deref())?)?;
     let code = u8::from(args.fail_on_candidates && !evaluation.candidates.is_empty());
 

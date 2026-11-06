@@ -209,7 +209,7 @@ fn compiler_pattern_file_selection_requires_patterns_and_changed_files() {
         args.extend(extra);
         checked(&rstyle(directory.path(), &args), 2);
     }
-    assert!(!directory.path().join("target/rstyle/clones").exists());
+    assert!(!directory.path().join("target/rstyle/runs").exists());
 }
 
 #[test]

@@ -60,7 +60,7 @@ Validate static claims against real functions and measured call counts where pra
 - Lowering from documents: `crates/rstyle-core/src/cpg/bounds/`.
 - Pure engine: `crates/rstyle-core/src/runtime_bounds/{ir,symbolic,analysis,tests}.rs` and `analysis/{loops,values}.rs`.
 - Observation schema and capture limits: `crates/rstyle-core/src/advisory/runtime_bounds.rs`.
-- CLI results and routing: `crates/cargo-rstyle/src/clones/advisory/runtime_bounds.rs` and `crates/cargo-rstyle/src/clones/patterns_route.rs`.
+- CLI results and routing: `crates/cargo-rstyle/src/compiler/advisory/runtime_bounds.rs` and `crates/cargo-rstyle/src/compiler/patterns_route.rs`.
 - Batched compiler integration fixture: `crates/cargo-rstyle/tests/compiler_advisory/runtime_bounds.rs`.
 - Pattern clustering and similarity: `crates/rstyle-core/src/cluster.rs` and `wl.rs`.
 

@@ -414,7 +414,7 @@ fn root_style_inherits_generated_io_into_authored_findings_and_replays_reused_ow
     std::fs::remove_dir_all(old_run).unwrap();
     std::fs::remove_dir_all(directory.path().join("src")).unwrap();
     std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
-    std::fs::remove_dir_all(directory.path().join("target/rstyle/clones/advisory-build")).unwrap();
+    std::fs::remove_dir_all(directory.path().join("target/rstyle/runs/advisory-build")).unwrap();
     std::fs::remove_file(old_run.with_file_name("advisory-owners.json")).unwrap();
     let (output, replayed) = replay_authored_style_without_tools(directory.path(), &warm);
     checked(&output, 1);

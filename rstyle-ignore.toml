@@ -20,11 +20,11 @@ fns = [
   "rstyle_core::normalize::dedup",
 ]
 
-[ignore.58fb7142d7b5]
+[ignore.3b294422b69f]
 kind = "parameterize"
 reason = "Both are a one-line membership test on an unrelated type's own set; a shared helper would add nothing"
 fns = [
-  "cargo_rstyle::clones::review::compiler_diagnostics::demand::Demand::includes",
+  "cargo_rstyle::compiler::review::compiler_diagnostics::demand::Demand::includes",
   "rstyle_core::cpg::source::Sources::generated",
 ]
 

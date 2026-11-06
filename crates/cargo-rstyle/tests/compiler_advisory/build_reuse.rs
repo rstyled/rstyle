@@ -154,7 +154,7 @@ fn advisory_build_lane_serializes_concurrent_captures_with_separate_run_owners()
 fn advisory_saved_replay_survives_removal_of_shared_builds_and_sources() {
     let directory = clone_workspace();
     let original = live(directory.path(), &[], 0);
-    std::fs::remove_dir_all(directory.path().join("target/rstyle/clones/advisory-build")).unwrap();
+    std::fs::remove_dir_all(directory.path().join("target/rstyle/runs/advisory-build")).unwrap();
     std::fs::remove_dir_all(directory.path().join("src")).unwrap();
     std::fs::remove_file(directory.path().join("Cargo.toml")).unwrap();
     let (output, replay) = super::reviews::replay(directory.path(), &original, &[]);
