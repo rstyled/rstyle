@@ -389,9 +389,11 @@ twice. `cpg patterns` exits 1 with `--fail-on-candidates` when a candidate is le
 
 A frontend records every function the compiler holds and marks what a macro writes by
 its provenance; what each analysis does with it is core's to decide, on every route. A
-function a macro writes gets no rule findings or pattern candidates, since nothing
-original was written to change, but its effects reach its callers and runtime bounds
-compose through it. Report a macro's own tokens as generated even when they carry the
+macro writes a function when it writes both its signature and its body's root: a macro
+that only wraps a function, as `#[instrument]` does, or rewrites its signature, as
+`#[async_trait]` does, leaves it the author's. A function a macro writes gets no rule
+findings or pattern candidates, since nothing original was written to change, but its
+effects reach its callers and runtime bounds compose through it. Report a macro's own tokens as generated even when they carry the
 span of one of its inputs, as `quote_spanned!` writes them. A file the build writes has
 `origin: "generated"`, and its functions are treated the same way; the Rust frontend
 marks what a build script writes to `OUT_DIR`.

@@ -86,7 +86,8 @@ findings and fix groups. Clean functions are omitted from both formats.
 The summary reports `complexity_measured` and `complexity_unavailable`.
 Missing scores are unavailable, never zero; the command exits 2 on missing
 measurements and retains other findings. Closures contribute to their owner;
-compiler lowering and opaque macro expansions do not add hidden branches.
+compiler lowering and a macro's own code add no branches, while code you pass to a macro
+or that a macro wraps counts like any other.
 
 [complexity] settings `max_cyclomatic` and `max_cognitive` both default to 12.
 Scores strictly above their limit produce `cyclomatic_complexity` or
@@ -611,7 +612,8 @@ plan source labels require an independently reviewed `unsuppressed: true`;
 captured-but-excluded owners remain unavailable. No extra runtime scans are added.
 
 When the caller and dependency workspace packages are selected, compiler effects follow
-unique captured direct Cargo edges to known free functions. The report's
+unique captured Cargo dependencies, direct or through a crate that re-exports them, to
+known free functions. The report's
 `resolved_dependency_callees` maps compiler IDs to report-local unit IDs.
 Core propagation borrows captured owners and completed effects move into rule
 evaluation, with no extra hash, artifact scan, source proof or body/graph copy.

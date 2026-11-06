@@ -17,7 +17,7 @@ mod shapes;
 pub mod source;
 pub mod tree;
 
-pub use facts::{CAPABILITIES, LAYERS, all_facts, rule_facts};
+pub use facts::{CAPABILITIES, LAYERS, all_facts, derivable_facts, rule_facts};
 pub use run::{RunInputs, run_inputs};
 
 use crate::facts::FnFacts;

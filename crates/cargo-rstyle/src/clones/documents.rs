@@ -4,7 +4,7 @@ use super::capture;
 use rstyle_core::cpg::{
     self,
     model::Document,
-    records::{Demand, Measured, Record, records},
+    records::{Demand, Measured, Record, records_with_gaps},
 };
 use rstyle_pdg::{
     BuildFacts, cpg_reader,
@@ -40,7 +40,7 @@ impl DocumentFunction {
                 .connections
                 .as_ref()
                 .map(|connections| connections.id.as_str()),
-            Measured::Unavailable => None,
+            Measured::Unavailable(_) => None,
         }
     }
 }
@@ -89,7 +89,7 @@ fn functions(document: &Document, demand: Demand) -> Result<Vec<DocumentFunction
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let bodies = unit.functions.as_deref().unwrap_or_default();
 
-    Ok(records(document, demand)?
+    Ok(records_with_gaps(document, demand)?
         .into_iter()
         .zip(bodies)
         .map(|(record, body)| DocumentFunction {
