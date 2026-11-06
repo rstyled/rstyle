@@ -2,7 +2,9 @@
 //! post-dominators, reaching definitions, control dependence and the dependence graph they
 //! give. Frontends emit the flow and the accesses; all of this is derived, never emitted.
 
-use super::model::{AccessMode, Coverage, Declarations, Function, NodeKind, PlaceMode, Status};
+use super::model::{
+    AccessMode, Coverage, Declarations, Function, NodeKind, Origin, PlaceMode, Status,
+};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -646,23 +648,40 @@ fn usable(status: Option<Status>) -> bool {
     matches!(status, Some(Status::Supported | Status::Approximated))
 }
 
-/// Symbols something other than their name can change: borrowed exclusively or captured
-/// to be changed. Their data edges say what the names do, not everything that happens.
-/// What a lowering borrows to run the construct it stands for is not in the flow.
+/// Symbols something other than their name can change: borrowed exclusively, captured to be
+/// changed, or written with what was there kept, which is what a read and write at one node
+/// says unless it replaces the value. Their data edges say what the names do, not everything
+/// that happens. What a lowering does to run the construct it stands for says nothing of this.
 fn aliased<'f>(function: &'f Function, flow: &Flow<'f>) -> BTreeSet<&'f str> {
+    let strong = whole_updates(function);
+    let written: HashSet<&str> = function
+        .nodes
+        .iter()
+        .filter(|node| node.provenance.origin != Origin::Desugaring)
+        .filter(|node| flow.vertex(&node.id).is_some())
+        .map(|node| node.id.as_str())
+        .collect();
     let borrowed = function
         .places
         .iter()
-        .filter(|place| place.mode == PlaceMode::Exclusive && flow.vertex(&place.node).is_some())
+        .filter(|place| place.mode == PlaceMode::Exclusive && written.contains(place.node.as_str()))
         .filter_map(|place| place.root.symbol.as_deref());
     let captured = function
         .nodes
         .iter()
-        .filter(|node| flow.vertex(&node.id).is_some())
+        .filter(|node| written.contains(node.id.as_str()))
         .flat_map(|node| node.captures.iter().flatten())
         .filter(|capture| matches!(capture.mode.as_str(), "exclusive" | "unique"))
         .map(|capture| capture.symbol.as_str());
-    borrowed.chain(captured).collect()
+    let kept = function
+        .accesses
+        .iter()
+        .filter(|access| access.mode == AccessMode::ReadWrite)
+        .filter(|access| written.contains(access.node.as_str()))
+        .filter(|access| !strong.contains(access.node.as_str()))
+        .map(|access| access.symbol.as_str());
+
+    borrowed.chain(captured).chain(kept).collect()
 }
 
 /// Symbols written in part: data edges treat a place as a whole, so a read of one field
@@ -745,7 +764,7 @@ fn limits<'f>(
 
     if !aliased.is_empty() {
         reasons.push(format!(
-            "{} can also change through a borrow or capture",
+            "{} can also change through a borrow, a capture or a write to part of it",
             names(function, aliased)
         ));
     }

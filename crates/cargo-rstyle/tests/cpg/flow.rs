@@ -137,6 +137,22 @@ pub async fn sleeping(flag: bool) -> u32 {
 
 pub async fn other() -> u32 { 2 }
 
+pub async fn counting(limit: u32) -> u32 {
+    let mut tries = 0;
+    let mut last = 1;
+    while tries < limit {
+        tries += 1;
+        last = other().await;
+    }
+    last
+}
+
+pub async fn gathering() -> usize {
+    let mut items = Vec::new();
+    items.push(1u32);
+    items.len()
+}
+
 pub fn swapping() -> u32 {
     let (mut a, mut b) = (1, 2);
     (a, b) = (b, a);
@@ -581,6 +597,58 @@ fn an_async_function_has_a_flow_and_its_return_stays_inside_it() {
     assert!(returns.iter().all(|edge| edge["target"] != "exit"));
     // `.await` polls until the future is ready.
     assert_eq!(sleeping.loops().len(), 1);
+}
+
+#[test]
+fn what_an_async_body_writes_reaches_what_it_reads() {
+    let counting = function("counting");
+    let data = counting.data();
+
+    // The update keeps counting up, and what is assigned in the loop reaches the end.
+    assert!(
+        data.contains(&pair("tries", "tries < limit")) || data.contains(&pair("tries", "tries"))
+    );
+    assert!(data.contains(&pair("last", "last")), "{data:?}");
+    assert!(data.contains(&pair("mut last", "last")), "{data:?}");
+    assert_eq!(counting.standing(), "known", "{}", counting.reasons());
+
+    let gathering = function("gathering");
+    assert_eq!(gathering.standing(), "approximated");
+    assert!(
+        gathering.reasons().contains("items"),
+        "{}",
+        gathering.reasons()
+    );
+}
+
+#[test]
+fn every_assignment_records_a_write_of_its_target() {
+    for row in emitted().flow["functions"].as_array().unwrap() {
+        let name = row["name"].as_str().unwrap();
+        let record = function(name).record;
+        let nodes = record["nodes"].as_array().unwrap();
+        let targets = nodes
+            .iter()
+            .filter(|node| node["synthetic"] != true)
+            .filter(|node| {
+                matches!(
+                    node["kind"].as_str(),
+                    Some("assignment" | "compound_assignment")
+                )
+            })
+            .filter_map(|node| node["children"][0].as_str());
+        for target in targets {
+            let identifier = nodes
+                .iter()
+                .any(|node| node["id"] == target && node["kind"] == "identifier");
+            let written = record["accesses"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|access| access["node"] == target && access["mode"] != "read");
+            assert!(!identifier || written, "{name}: {target} is only read");
+        }
+    }
 }
 
 #[test]
