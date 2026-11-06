@@ -703,6 +703,70 @@ fn a_function_an_attribute_wraps_is_measured_and_located_as_written() {
 }
 
 #[test]
+fn a_function_whose_signature_a_macro_rewrites_stays_its_authors() {
+    let dir = fixture("generated");
+    let (_, captured, _) = captured_and_emitted(dir.path());
+    let documents = parsed(&captured);
+    let rewritten = function(&documents, "rewritten_by_an_attribute");
+    assert_eq!(
+        rewritten["signature"]["provenance"]["origin"],
+        "macro_expansion"
+    );
+
+    let (route, _) = routes_over(dir.path(), &["--complexity"]);
+
+    assert!(
+        route_bounds(&route).contains_key("rewritten_by_an_attribute"),
+        "{:?}",
+        route_bounds(&route).keys()
+    );
+}
+
+/// A signature that names a projection through a const parameter of its implementation.
+const PROJECTS_THROUGH_A_CONST: &str = r#"pub enum Outcome<T> {
+    Done(T),
+    Failed,
+}
+
+pub trait Work {
+    type Output;
+    fn run(&mut self) -> Outcome<Self::Output>;
+}
+
+pub struct Choice<T>(pub T);
+
+impl<const N: usize, A: Work> Work for Choice<[A; N]> {
+    type Output = A::Output;
+
+    fn run(&mut self) -> Outcome<Self::Output> {
+        Outcome::Failed
+    }
+}
+"#;
+
+#[test]
+fn a_signature_projecting_through_a_const_parameter_is_captured() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("src")).unwrap();
+    std::fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"choice\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("src/lib.rs"), PROJECTS_THROUGH_A_CONST).unwrap();
+
+    let (route, captured, _) = captured_and_emitted(dir.path());
+
+    assert_eq!(
+        route["capture_complete"], true,
+        "{}",
+        route["capture_failures"]
+    );
+    let names = function_names(&captured);
+    assert!(names.iter().any(|name| name.ends_with("run")), "{names:?}");
+}
+
+#[test]
 fn complexity_counts_what_the_author_writes_and_not_what_a_macro_does() {
     let dir = fixture("generated");
     let (_, _, emitted) = captured_and_emitted(dir.path());

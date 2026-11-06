@@ -281,6 +281,12 @@ impl Targets<'_> {
         match (local, candidates.as_slice()) {
             (Some(local), []) => local.clone(),
             (None, [target]) => vec![*target],
+            // A trait's default body in a dependency, and the overrides of it here.
+            (Some(local), [default])
+                if local.iter().all(|index| self.rows[*index].id() != callee) =>
+            {
+                local.iter().copied().chain([*default]).collect()
+            }
             _ => Vec::new(),
         }
     }

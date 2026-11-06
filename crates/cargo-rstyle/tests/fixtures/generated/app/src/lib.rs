@@ -83,3 +83,12 @@ macro_rules! branches_of_its_own {
 pub fn branches_a_macro_writes(value: u32) -> u32 {
     branches_of_its_own!(value)
 }
+
+#[spanning::rewriting]
+pub fn rewritten_by_an_attribute(value: u32) -> u32 {
+    if value > 1 && value < 9 {
+        value
+    } else {
+        0
+    }
+}

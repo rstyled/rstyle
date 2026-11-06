@@ -84,7 +84,12 @@ fn functions(document: &Document, demand: Demand) -> Result<Vec<DocumentFunction
             digest: transport_checksum(record.source.as_bytes()),
             build: Arc::clone(&build),
             source_file: cpg_reader::session_path(unit, &record.located.file).map(str::to_owned),
-            generated: cpg_reader::generated_signature(body),
+            generated: match record.measured {
+                Measured::Known(_) => false,
+                Measured::Generated(_) => true,
+                // Nothing was classified, so only the signature's own scan is left to say.
+                Measured::Unavailable(_) => cpg_reader::generated_signature(body),
+            },
             record,
         })
         .collect())
