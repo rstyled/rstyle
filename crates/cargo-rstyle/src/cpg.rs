@@ -255,11 +255,7 @@ pub fn emit(selection: &Selection<'_>, out: &Path) -> Result<(String, u8), Strin
 /// Compiles afresh into `target`, whose dependencies a later run can reuse, and writes the
 /// workspace's documents to the existing directory `out`. Returns how many it wrote.
 // rstyle-allow(side_effect_density): process boundary: runs cargo with the driver
-pub(crate) fn emit_documents(
-    selection: &Selection<'_>,
-    out: &Path,
-    target: &Path,
-) -> Result<usize, String> {
+fn emit_documents(selection: &Selection<'_>, out: &Path, target: &Path) -> Result<usize, String> {
     let metadata: crate::workspace::Metadata = crate::workspace::load_with_toolchain(
         selection.manifest,
         Some(&crate::run::pinned_toolchain()),

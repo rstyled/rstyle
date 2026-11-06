@@ -483,12 +483,29 @@ fn compilation_result(capture: &mut Capture, output: &std::process::Output) {
 
 fn cargo_result(capture: &mut Capture, output: &std::process::Output) -> Result<(), String> {
     if !output.status.success() {
-        return Err(format!(
-            "Cargo compilation failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
+        return Err(compilation_failure(output));
     }
     reconcile(capture, &output.stdout)
+}
+
+fn compilation_failure(output: &std::process::Output) -> String {
+    format!(
+        "Cargo compilation failed: {}{}",
+        compiler_errors(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )
+}
+
+/// The compiler's errors as it would print them. Asking Cargo for JSON moves them to stdout,
+/// and its stderr then only says that a crate failed.
+fn compiler_errors(cargo: &[u8]) -> String {
+    String::from_utf8_lossy(cargo)
+        .lines()
+        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+        .filter(|record| record["reason"] == "compiler-message")
+        .filter(|record| record["message"]["level"] == "error")
+        .filter_map(|record| record["message"]["rendered"].as_str().map(str::to_owned))
+        .collect()
 }
 
 fn save_logs(capture: &Capture, output: &std::process::Output) -> Result<(), String> {

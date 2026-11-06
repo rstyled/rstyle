@@ -170,14 +170,25 @@ pub(crate) fn stream_records<R: BufRead>(
     Ok(records)
 }
 
-/// Every record of explicitly listed documents, read and derived on a pool.
-pub(crate) fn file_records(paths: &[PathBuf], demand: Demand) -> Result<Vec<Record>, String> {
+/// Every record of documents already on disk, read and derived on a pool. There's nothing to
+/// stop if one fails.
+fn records_on_disk<J: Send>(
+    jobs: impl IntoIterator<Item = J>,
+    read: impl Fn(J) -> Result<serde_json::Value, String> + Sync,
+    demand: Demand,
+) -> Result<Vec<Record>, String> {
     let pool = Pool {
         workers: workers(),
         demand,
         on_failure: &|| {},
     };
-    cpg::pooled_records(paths.iter().map(Ok), |_, path| super::read(path), &pool)
+    let jobs = jobs.into_iter().map(Ok);
+    cpg::pooled_records(jobs, |_, job| read(job), &pool)
+}
+
+/// Every record of explicitly listed documents.
+pub(crate) fn file_records(paths: &[PathBuf], demand: Demand) -> Result<Vec<Record>, String> {
+    records_on_disk(paths, |path| super::read(path), demand)
 }
 
 /// Every record of a sealed capture, each document verified against its seal on a worker.
@@ -186,16 +197,19 @@ pub(crate) fn capture_records(directory: &Path, demand: Demand) -> Result<Vec<Re
     if manifest.documents.is_empty() {
         return Err("A completed capture must contain at least one document".into());
     }
+    let seals = manifest.documents.iter().map(|seal| (directory, seal));
+    sealed_records(seals, demand)
+}
 
-    let pool = Pool {
-        workers: workers(),
-        demand,
-        on_failure: &|| {},
-    };
-    let read = |_, seal: &SealedDocument| {
+/// Every record of these sealed documents, wherever each one is, read on one pool.
+pub(crate) fn sealed_records<'a>(
+    seals: impl IntoIterator<Item = (&'a Path, &'a SealedDocument)>,
+    demand: Demand,
+) -> Result<Vec<Record>, String> {
+    let read = |(directory, seal): (&Path, &SealedDocument)| {
         transport::read_sealed(directory, seal).map_err(|error| format!("{}: {error}", seal.file))
     };
-    cpg::pooled_records(manifest.documents.iter().map(Ok), read, &pool)
+    records_on_disk(seals, read, demand)
 }
 
 pub(super) fn receive(args: &CpgReceiveArgs, format: Format) -> Result<(String, u8), String> {

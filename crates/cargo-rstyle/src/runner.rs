@@ -7,7 +7,7 @@ mod store;
 
 use crate::cpg::analyze::{self, Unified};
 use crate::cpg::{self, input};
-use crate::{Cli, Format, MineArgs, PatternDisplayArgs, ignore, workspace};
+use crate::{Cli, Format, MineArgs, PatternDisplayArgs, compiler, ignore, workspace};
 use clap::Args;
 use frontend::{Frontend, Saving};
 use rstyle_core::cpg::records::{Demand, Record};
@@ -186,38 +186,29 @@ pub(crate) fn rust(cli: &Cli, args: &RunArgs) -> Result<(String, u8), String> {
         project: root,
     };
 
-    let build = metadata.target_directory.join("rstyle/build");
-    let (records, documents) = rust_records(&plan, &staged, &build)?;
+    let (records, documents) = rust_records(&plan, &staged)?;
     let unified = plan.analyzed(records)?;
     let run = plan.save(&unified, staged, documents)?;
     plan.output(&unified, Some(&run))
 }
 
-/// The driver writes one document per compilation. Dependencies stay built between runs in
-/// the shared `target`; the workspace's own crates are always compiled afresh.
+/// Reads the capture `cargo rstyle` and `patterns` share, so only what changed compiles, and
+/// keeps its documents with the run.
 // rstyle-allow(side_effect_density): process boundary: runs the compiler and reads what it wrote
-fn rust_records(
-    plan: &Plan<'_>,
-    staged: &Staged,
-    target: &Path,
-) -> Result<(Vec<Record>, usize), String> {
+fn rust_records(plan: &Plan<'_>, staged: &Staged) -> Result<(Vec<Record>, usize), String> {
     if !plan.filter.needs_documents() {
         return Ok((Vec::new(), 0));
     }
 
-    let directory = staged.folder(DOCUMENTS_FOLDER)?;
-    let selection = cpg::Selection {
-        packages: &plan.cli.packages,
-        encoding: plan.cli.cpg_compression,
-        all_targets: plan.cli.all_targets,
-        manifest: plan.cli.manifest_path.as_deref(),
-    };
-    let directory = crate::run::canonical(&directory)
-        .map_err(|error| format!("{}: {error}", directory.display()))?;
-    cpg::emit_documents(&selection, &directory, target)?;
-    let paths = cpg::documents(&directory)?;
-    let records = input::file_records(&paths, plan.filter.demand())?;
-    Ok((records, paths.len()))
+    let units = compiler::captured_documents(plan.cli)?;
+    let documents = store::keep_documents(&units, &staged.folder(DOCUMENTS_FOLDER)?)?;
+    let seals = units.iter().flat_map(|unit| {
+        unit.documents
+            .iter()
+            .map(|seal| (unit.directory.as_path(), seal))
+    });
+    let records = input::sealed_records(seals, plan.filter.demand())?;
+    Ok((records, documents))
 }
 
 /// Reads a saved run back. A frontend analysis needs a frontend, so naming one is an error.

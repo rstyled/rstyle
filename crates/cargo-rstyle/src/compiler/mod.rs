@@ -15,7 +15,7 @@ mod review;
 mod selected_context;
 pub(crate) mod style_route;
 use crate::Cli;
-use clap::Args as ClapArgs;
+use clap::{Args as ClapArgs, FromArgMatches};
 use identity::FunctionKey;
 use rstyle_capture::diagnostics::Stage;
 use serde::{Serialize, de::DeserializeOwned};
@@ -512,6 +512,39 @@ fn capture_input(cli: &Cli, args: &Args) -> Result<capture::Capture, String> {
         return replay::load_capture(directory, args);
     }
     capture_fresh(cli, args)
+}
+
+/// One compilation's sealed documents, for a route that reads them itself.
+pub(crate) struct SealedUnit {
+    pub directory: PathBuf,
+    pub documents: Vec<rstyle_core::cpg::transport::SealedDocument>,
+}
+
+/// The workspace's documents, through the capture every compiler route shares: only what changed
+/// since the last capture compiles. A failed or empty capture is an error, not an empty run.
+pub(crate) fn captured_documents(cli: &Cli) -> Result<Vec<SealedUnit>, String> {
+    let matches = Args::augment_args(clap::Command::new("capture"))
+        .try_get_matches_from(["capture"])
+        .map_err(|error| error.to_string())?;
+    let args = Args::from_arg_matches(&matches).map_err(|error| error.to_string())?;
+
+    let capture = capture_fresh(cli, &args)?;
+    if !capture.failures.is_empty() {
+        return Err(capture.failures.join("\n"));
+    }
+    if capture.units.is_empty() {
+        return Err("The capture compiled nothing, so there's nothing to analyze".into());
+    }
+    capture
+        .units
+        .iter()
+        .map(|unit| {
+            Ok(SealedUnit {
+                directory: unit.directory.clone(),
+                documents: documents::manifest(unit)?.documents,
+            })
+        })
+        .collect()
 }
 
 fn capture_fresh(cli: &Cli, args: &Args) -> Result<capture::Capture, String> {

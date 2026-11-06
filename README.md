@@ -370,7 +370,7 @@ rstyle go --patterns       rstyle rust --patterns
   `GOPRIVATE=github.com/rstyled` or point `$RSTYLE_GO` at a local build. `--source DIR` picks
   the directory; by default it's the module holding the current directory.
 - **Rust:** the frontend is the bundled driver. `--manifest-path`, `-p` and `--all-targets`
-  apply. Dependencies stay built between runs, and the workspace's crates compile afresh.
+  apply. It reads the same capture as `cargo rstyle` and `patterns`, so only what changed compiles.
 
 **Selecting analyses.** With no filter you get everything. `--filter` takes names,
 comma-separated or repeated, and `--check` and `--patterns` are shorthand for two of them:
@@ -387,7 +387,7 @@ An unknown name fails before anything runs, as does `--fail-on-candidates` witho
 Every language saves to `.rstyle/runs/<UTC timestamp>-<language>/` in the project root (the Go
 module or Cargo workspace), a folder that ignores itself in Git. Each language keeps its newest 5
 runs; `RSTYLE_KEEP_RUNS` sets another count, or `all`. `cargo clean` doesn't touch them, though it
-clears the build a Rust run reuses, in `target/rstyle/build/`. Deleting `.rstyle/` is always safe.
+clears the capture a Rust run reuses, in `target/rstyle/runs/`. Deleting `.rstyle/` is always safe.
 
 `--out DIR` saves to a new directory instead, which is never pruned. Each run holds:
 
