@@ -1,8 +1,10 @@
 //! `compat.cpg` documents from rustc. `cargo rstyle cpg emit` writes one bundled
 //! unit document per compilation; captures write the crate in batches.
 
+mod accesses;
 mod body;
 mod compiler;
+mod flow;
 mod generated_root;
 mod namespaces;
 mod places;
@@ -254,17 +256,42 @@ fn function(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Result<Value, String> 
         .and_then(|item| item.trait_item_def_id())
         .map(|trait_fn| builder.unit.definition(trait_fn));
     let definition = builder.unit.definition(id.to_def_id());
+    let (cfg, accesses) = control_flow(&builder, &root, &places);
 
     let mut function = json!({
         "id": format!("fn:{}", crate::ids::def_id_str(tcx, id.to_def_id())), "definition": definition,
         "name": tcx.def_path_str(id.to_def_id()), "span": span, "signature": signature, "root": root,
-        "nodes": builder.nodes, "cfg": {"entry": "entry", "exits": [], "edges": []}, "symbols": builder.symbols,
-        "accesses": [], "refs": builder.refs, "places": places, "values": [],
+        "nodes": builder.nodes, "cfg": cfg, "symbols": builder.symbols,
+        "accesses": accesses, "refs": builder.refs, "places": places, "values": [],
     });
     if let Some(implements) = implements {
         function["implements"] = json!(implements);
     }
     Ok(function)
+}
+
+/// The function's control flow and who reads and writes its bindings.
+fn control_flow(
+    builder: &body::Builder<'_, '_>,
+    root: &str,
+    places: &[Value],
+) -> (Value, Vec<Value>) {
+    let cfg = flow::cfg(
+        &builder.nodes,
+        flow::Inputs {
+            root,
+            diverging: &builder.diverging,
+            refs: &builder.refs,
+        },
+    );
+    let accesses = accesses::accesses(&accesses::Records {
+        nodes: &builder.nodes,
+        symbols: &builder.symbols,
+        refs: &builder.refs,
+        places,
+    });
+
+    (cfg, accesses)
 }
 
 /// Where a function is written. A macro that wraps a function keeps its author's signature

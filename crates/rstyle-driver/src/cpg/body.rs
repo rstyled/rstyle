@@ -31,6 +31,8 @@ pub struct Builder<'u, 'tcx> {
     claimed: HashSet<HirId>,
     lowering: Option<&'static str>,
     pub emitted: HashSet<HirId>,
+    /// Nodes whose type is `!`: a call among them never returns.
+    pub diverging: HashSet<String>,
     bound: HashSet<HirId>,
     pub nodes: Vec<Value>,
     pub symbols: Vec<Value>,
@@ -65,6 +67,7 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             claimed: HashSet::new(),
             lowering: None,
             emitted: HashSet::new(),
+            diverging: HashSet::new(),
             bound: HashSet::new(),
             nodes: vec![],
             symbols: vec![],
@@ -121,6 +124,9 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         }
         if let Some(ty) = self.typeck.node_type_opt(hir_id) {
             record["type"] = json!(self.unit.ty(ty));
+            if ty.is_never() {
+                self.diverging.insert(id.clone());
+            }
         }
         self.compiler_facts(hir_id, &mut record);
         self.emitted.insert(hir_id);
