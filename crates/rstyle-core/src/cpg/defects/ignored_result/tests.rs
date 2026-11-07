@@ -5,6 +5,7 @@ use super::super::super::source::Sources;
 use super::super::super::tree::Tables;
 use super::super::{Examined, examine};
 use super::*;
+use crate::config::Percent;
 use serde_json::{Value, json};
 
 const INT: &str = "type:int";
@@ -36,6 +37,8 @@ fn document_of(function: Value) -> Value {
         {"id": "type:parameter", "kind": "parameter", "spelling": "P", "index": 0},
         {"id": "type:t", "kind": "record", "spelling": "T", "definition": "def:t"},
         {"id": "type:ref", "kind": "pointer", "spelling": "*T", "target": "type:t", "mode": "raw"},
+        {"id": "type:loop", "kind": "pointer", "spelling": "*L", "target": "type:pool", "mode": "raw"},
+        {"id": "type:pool", "kind": "pointer", "spelling": "**L", "target": "type:loop", "mode": "raw"},
     ]);
     unit["files"] = json!([{"id": FILE, "path": "a.go", "digest": "", "origin": "source",
                             "content": "ok .....\n ".repeat(20)}]);
@@ -228,10 +231,27 @@ fn a_dependent_call_is_a_call_of_what_it_goes_through() {
 
 #[test]
 fn a_callee_needs_enough_calls_nearly_all_of_which_use_it() {
-    assert!(stands_out(9, 10));
-    assert!(stands_out(5, 5));
-    assert!(!stands_out(3, 4), "too few calls");
-    assert!(!stands_out(8, 10), "too many drop it");
+    let default = IgnoredResultConfig::default();
+    assert!(stands_out(9, 10, &default));
+    assert!(!stands_out(3, 4, &default), "too few calls");
+    assert!(!stands_out(8, 10, &default), "too many drop it");
+}
+
+#[test]
+fn a_project_says_how_many_calls_and_how_much_of_them_it_takes() {
+    let limits = IgnoredResultConfig {
+        min_calls: 4,
+        min_used_percent: Percent(75),
+    };
+    assert!(stands_out(3, 4, &limits));
+    assert!(!stands_out(2, 3, &limits), "too few calls");
+    assert!(!stands_out(5, 7, &limits), "too many drop it");
+}
+
+#[test]
+fn a_chain_of_pointers_that_repeats_ends_where_it_repeats() {
+    let results = method_on("type:loop", INT).results();
+    assert_eq!(results.len(), 1, "{results:?}");
 }
 
 #[test]

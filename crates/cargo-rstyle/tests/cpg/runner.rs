@@ -1916,6 +1916,16 @@ fn a_rust_run_finds_a_result_the_other_calls_use() {
     assert_eq!(row["rule"], "ignored_result");
     assert_eq!(row["path"], "src/lib.rs");
     assert_eq!(row["line"], 4);
+
+    std::fs::write(
+        root.join("rstyle.toml"),
+        "[ignored_result]\nmin_calls = 11\n",
+    )
+    .unwrap();
+    let output = rust_run(root, &["--filter", "defects", "--format", "json"]);
+    let unified = report(&output);
+    let rows = unified["defects"]["defects"].as_array().unwrap();
+    assert!(rows.is_empty(), "{rows:?}");
 }
 
 /// A crate with a build script, whose own functions no route should report.

@@ -1,6 +1,6 @@
 //! The defects a run's records hold, as the report and SARIF show them.
 
-use crate::config::Config;
+use crate::config::{Config, IgnoredResultConfig};
 use crate::cpg::defects::ignored_result::{self, ResultUse};
 use crate::cpg::defects::{Defect, Examined};
 use crate::cpg::records::{Measured, Record};
@@ -75,7 +75,7 @@ pub fn from_records(records: &mut [Record], config: &Config) -> Result<DefectsRe
         }
         read.add(record, examined);
     }
-    Ok(read.into_report())
+    Ok(read.into_report(&config.ignored_result))
 }
 
 /// Where a call is, which makes it one call however many compilations hold it.
@@ -175,12 +175,12 @@ impl Gathered {
     }
 
     /// Reports the calls that drop a result nearly all of a callee's other calls use.
-    fn weigh(&mut self, calls: Calls) {
+    fn weigh(&mut self, calls: Calls, limits: &IgnoredResultConfig) {
         let (used, total) = (
             calls.values().filter(|call| !call.dropped).count(),
             calls.len(),
         );
-        if !ignored_result::stands_out(used, total) {
+        if !ignored_result::stands_out(used, total, limits) {
             return;
         }
 
@@ -200,9 +200,9 @@ impl Gathered {
         }
     }
 
-    fn into_report(mut self) -> DefectsReport {
+    fn into_report(mut self, limits: &IgnoredResultConfig) -> DefectsReport {
         for calls in std::mem::take(&mut self.results).into_values() {
-            self.weigh(calls);
+            self.weigh(calls, limits);
         }
 
         DefectsReport {

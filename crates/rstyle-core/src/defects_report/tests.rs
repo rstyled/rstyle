@@ -290,6 +290,27 @@ fn too_few_calls_say_nothing() {
 }
 
 #[test]
+fn a_project_can_ask_for_fewer_calls_and_a_smaller_share() {
+    let calls = document_with_calls(&[false, false, false, true]);
+    let mut config = Config::default();
+    assert!(report_of(vec![calls.clone()], &config).defects.is_empty());
+
+    config.ignored_result.min_calls = 4;
+    config.ignored_result.min_used_percent = crate::config::Percent(75);
+    let report = report_of(vec![calls], &config);
+    assert_eq!(report.defects.len(), 1, "{report:?}");
+    assert!(report.defects[0].message.contains("3 of its 4"));
+}
+
+#[test]
+fn asking_for_every_call_reports_nothing() {
+    let mut config = Config::default();
+    config.ignored_result.min_used_percent = crate::config::Percent(100);
+    let report = report_of(vec![document_with_calls(&nine_uses_and_a_drop())], &config);
+    assert!(report.defects.is_empty(), "{report:?}");
+}
+
+#[test]
 fn a_call_read_in_two_compilations_counts_once() {
     let document = document_with_calls(&[false, false, false, true]);
     let mut records = records(vec![document.clone()]);
