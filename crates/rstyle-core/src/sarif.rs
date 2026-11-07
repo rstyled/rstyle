@@ -117,6 +117,8 @@ struct PhysicalLocation {
     artifact_location: Artifact,
     #[serde(skip_serializing_if = "Option::is_none")]
     region: Option<Region>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context_region: Option<ContextRegion>,
 }
 
 #[derive(Debug, Serialize)]
@@ -131,6 +133,15 @@ struct Artifact {
 #[serde(rename_all = "camelCase")]
 struct Region {
     start_line: usize,
+}
+
+/// The whole function around a finding, with its text, so a viewer needs no checkout.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ContextRegion {
+    start_line: usize,
+    end_line: usize,
+    snippet: Message,
 }
 
 /// One warning per diagnostic, with its rule id and message. `root` is what relative paths
@@ -303,7 +314,27 @@ fn diagnostic(diagnostic: &Diagnostic, fix_group: Option<usize>) -> Finding {
         limit: diagnostic.limit,
         fix_group,
     });
+    if let Some(location) = finding.locations.first_mut() {
+        location.physical_location.context_region = function_region(diagnostic);
+    }
     finding
+}
+
+/// The function's whole lines, starting at the diagnostic's line; none when the frontend gave no
+/// source. The source starts at the function's column, so its first line is indented back to it.
+fn function_region(diagnostic: &Diagnostic) -> Option<ContextRegion> {
+    let lines = diagnostic.source.lines().count();
+    (lines > 0 && diagnostic.line > 0).then(|| ContextRegion {
+        start_line: diagnostic.line,
+        end_line: diagnostic.line + lines - 1,
+        snippet: Message {
+            text: format!(
+                "{}{}",
+                " ".repeat(diagnostic.column.saturating_sub(1)),
+                diagnostic.source
+            ),
+        },
+    })
 }
 
 /// A detail at one line says how much it added there; at several lines, each line is one of them.
@@ -371,6 +402,7 @@ fn location(path: &str, line: usize) -> Option<Location> {
         physical_location: PhysicalLocation {
             artifact_location: artifact(path),
             region: (line > 0).then_some(Region { start_line: line }),
+            context_region: None,
         },
         message: None,
     })

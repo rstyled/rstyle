@@ -70,6 +70,7 @@ fn invalid_suppression(f: &FnFacts, message: &str) -> Diagnostic {
         actual: 1,
         limit: 0,
         details: vec![],
+        source: f.source.clone(),
     }
 }
 

@@ -29,6 +29,7 @@ fn violation(path: &str, line: usize) -> Diagnostic {
         actual: 60,
         limit: 50,
         details: Vec::new(),
+        source: String::new(),
     }
 }
 
@@ -357,4 +358,33 @@ fn a_check_finding_is_fingerprinted_by_its_rule_and_function() {
     );
     // No function at that location: no fingerprint rather than one that could collide.
     assert!(results[1].get("partialFingerprints").is_none());
+}
+
+#[test]
+fn a_check_finding_carries_its_function_source_as_the_context_region() {
+    // A method: its source starts at column 5, where `fn` is.
+    let with_source = Diagnostic {
+        column: 5,
+        source: "fn a() {\n        1\n    }".into(),
+        ..violation("src/a.rs", 3)
+    };
+    let log = value(
+        check(
+            &report(vec![with_source, violation("src/b.rs", 9)]),
+            Path::new(ROOT),
+        )
+        .unwrap(),
+    );
+    let results = &log["runs"][0]["results"];
+
+    assert_eq!(
+        results[0]["locations"][0]["physicalLocation"]["contextRegion"],
+        json!({"startLine": 3, "endLine": 5, "snippet": {"text": "    fn a() {\n        1\n    }"}})
+    );
+    // No source from the frontend: no context region rather than an empty one.
+    assert!(
+        results[1]["locations"][0]["physicalLocation"]
+            .get("contextRegion")
+            .is_none()
+    );
 }
