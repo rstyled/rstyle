@@ -58,9 +58,10 @@ frontend/<analysis>.sarif  a frontend analysis's results, as it wrote them
 run.json                   the language, source root and document count
 ```
 
-`--from DIR` analyzes a saved run without its frontend, and saves only with `--out`. `--format json` prints
-plain JSON to stdout, with `run` naming where the run was saved. Two runs over the same source give
-byte-identical reports and SARIF.
+`--from DIR` analyzes a saved run without its frontend, and saves only with `--out`. Naming a frontend analysis
+that reads documents, as `--filter go:<name>`, replays it too, which needs the frontend but not the source or a
+compiler. One that reads the source is refused. `--format json` prints plain JSON to stdout, with `run` naming where
+the run was saved. Two runs over the same source give byte-identical reports and SARIF.
 
 ## SARIF
 
