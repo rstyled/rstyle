@@ -10,6 +10,7 @@ pub const RULE_IDS: &[&str] = &[
     "mutated_targets",
     "side_effect_density",
     "abstraction",
+    "dead_store",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]

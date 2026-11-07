@@ -54,6 +54,7 @@ pub fn patterns(cli: &Cli, args: &CpgPatternsArgs) -> Result<(String, u8), Strin
         graphs: true,
         bounds: args.complexity,
         flow: false,
+        defects: false,
     };
     let received = match input::read(&args.input, demand) {
         Ok(received) => received,
@@ -160,10 +161,14 @@ fn validate_analyze(filter: &Filter, args: &CpgAnalyzeArgs) -> Result<(), String
             named.frontend
         ));
     }
-    if args.sarif_dir.is_some()
-        && !(filter.core(Analysis::Check) || filter.core(Analysis::Patterns))
-    {
-        return Err("--sarif-dir needs check or patterns, the analyses that make SARIF".into());
+
+    let makes_sarif = [Analysis::Check, Analysis::Patterns, Analysis::Defects]
+        .into_iter()
+        .any(|analysis| filter.core(analysis));
+    if args.sarif_dir.is_some() && !makes_sarif {
+        return Err(
+            "--sarif-dir needs check, patterns or defects, the analyses that make SARIF".into(),
+        );
     }
     Ok(())
 }

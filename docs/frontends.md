@@ -27,7 +27,7 @@ With no filter you get everything. `--filter` takes names, comma-separated or re
 
 | Name | Runs |
 | --- | --- |
-| `check`, `patterns`, `bounds`, `flow` | Core's analyses |
+| `check`, `patterns`, `bounds`, `flow`, `defects` | Core's analyses |
 | `go:<name>`, `rust:<name>` | An analysis local to that frontend; none exist yet |
 
 An unknown name fails before anything runs, as does `--fail-on-candidates` without patterns.
@@ -54,6 +54,7 @@ report.json.zst            the complete report
 report.sarif               SARIF 2.1.0: every run below in one log
 check.sarif                SARIF 2.1.0, category rstyle/check/
 patterns.sarif             SARIF 2.1.0, category rstyle/patterns/
+defects.sarif              SARIF 2.1.0, category rstyle/defects/
 frontend/<analysis>.sarif  a frontend analysis's results, as it wrote them
 run.json                   the language, source root and document count
 ```
@@ -123,7 +124,7 @@ These run core's analyses directly over `compat.cpg` documents, with no compiler
 cargo rstyle cpg check DOC.json... [--config rstyle.toml] [--format text|json]
 cargo rstyle cpg patterns DOC.json... [--complexity] [--config rstyle.toml] [--format text|json]
 cargo rstyle cpg flow DOC.json... [--function NAME] [--format text|json]
-cargo rstyle cpg analyze DOC.json... [--filter check,patterns,bounds,flow] [--sarif-dir DIR]
+cargo rstyle cpg analyze DOC.json... [--filter check,patterns,bounds,flow,defects] [--sarif-dir DIR]
 cargo rstyle cpg emit --out cpg/     # a fresh check of a Rust workspace with the driver
 ```
 
@@ -137,7 +138,7 @@ cargo rstyle cpg patterns --capture CAPTURE_DIR [--complexity] [--format text|js
 cargo rstyle cpg receive --stdin --format json
 cargo rstyle cpg check --stdin [--format text|json]
 cargo rstyle cpg patterns --stdin [--complexity] [--format text|json]
-cargo rstyle cpg analyze --stdin [--filter check,patterns,bounds,flow] [--sarif-dir DIR]
+cargo rstyle cpg analyze --stdin [--filter check,patterns,bounds,flow,defects] [--sarif-dir DIR]
 ```
 
 A run is any number of units: bundled unit documents, and split unit documents with their function documents.
@@ -159,7 +160,7 @@ These are rejected with exit code 2:
 
 `cpg analyze` runs the selected analyses in one pass, so its results are what `cpg check`,
 `cpg patterns --complexity` and `cpg flow` report separately. With no `--filter` it runs them all, and
-`--sarif-dir` writes `check.sarif`, `patterns.sarif` and `report.sarif`. It derives documents on a worker pool.
+`--sarif-dir` writes `check.sarif`, `patterns.sarif`, `defects.sarif` and `report.sarif`. It derives documents on a worker pool.
 The `rstyle` commands above use it, and add the frontend and the saved run.
 
 ### Sending documents to rstyle
@@ -210,3 +211,8 @@ Each function says how far this can be relied on:
 
 A closure's body is opaque and has no flow of its own. A coroutine's, which is all of an `async fn`, runs in place.
 Unwinding is not a transfer.
+
+### Defects
+
+`--filter defects` runs the rules in [Defects](defects.md) over each function's facts. Its results don't change the
+exit code yet.
