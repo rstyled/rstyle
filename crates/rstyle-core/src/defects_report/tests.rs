@@ -338,3 +338,17 @@ fn an_excluded_call_neither_counts_nor_is_reported() {
     let report = report_of(vec![document_with_calls(&nine_uses_and_a_drop())], &config);
     assert!(report.defects.is_empty(), "{report:?}");
 }
+
+#[test]
+fn a_test_file_has_no_defects_and_its_calls_do_not_count() {
+    let mut document = document_with_dead_store();
+    document["unit"]["files"][0]["test"] = json!(true);
+    let report = report_of(vec![document], &Config::default());
+    assert!(report.defects.is_empty(), "{report:?}");
+    assert_eq!(report.functions, 0);
+
+    let mut document = document_with_calls(&nine_uses_and_a_drop());
+    document["unit"]["files"][0]["test"] = json!(true);
+    let report = report_of(vec![document], &Config::default());
+    assert!(report.defects.is_empty(), "{report:?}");
+}
