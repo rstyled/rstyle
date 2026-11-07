@@ -119,6 +119,10 @@ a score. The same command returns 1 for findings or 2 for missing measurements.
 - `mutation_per_target` / `mutated_targets`: return new values instead of writing through `&mut`; split functions by the thing they mutate.
 - `side_effect_density`: separate pure computation from IO/network/time/random/unsafe. Keep effects in a thin outer function.
 
+## Comparing two runs
+
+`rstyle risk --base RUN --head RUN [--format json]` says what changed between two saved runs of any language, with no compiler: each function that changed, what it newly does and calls, and what reaches it. `[risk]` in `rstyle.toml` rates it, by the base run's policy, and with no rules it's `unrated`. It always exits 0. See `docs/merge-risk.md`.
+
 ## Suppression (last resort)
 
 Line directly above the function, reason required:
@@ -172,6 +176,8 @@ Defaults (WL similarity 600, alignment coverage 600, 3 holes max for `parameteri
 
 `rstyle go`, `rstyle cxx` and `rstyle rust` find the frontend, run it and analyze what it produces. `--check`,
 `--patterns` or `--filter check,patterns,bounds,flow,defects` select analyses; the default is everything.
+
+`taint_flow`, under `defects`, follows input to where it's dangerous, across functions. `[taint]` in `rstyle.toml` names a project's own sources, sinks and sanitizers, and `ignored` drops what doesn't count. A result is a path to read, not proof of a bug.
 Each run is saved whole in `.rstyle/runs/`, which keeps each language's newest 5 (`RSTYLE_KEEP_RUNS`
 changes that), with `report.json.zst`, `report.sarif`, `check.sarif` and `patterns.sarif`. `--format json` prints plain JSON with `run`
 naming that folder. `--from DIR` reads a saved run back. Exit 0 is clean, 1 is findings, and 2 is a

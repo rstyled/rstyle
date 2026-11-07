@@ -185,19 +185,38 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 
     /// Workspace code that runs without a call site: a workspace type's own `Deref`
-    /// reached by an implicit dereference, and drop glue.
+    /// reached by an implicit dereference, and drop glue, unless the frontend emits
+    /// destructors as calls.
     pub(super) fn hidden_call(&self, expression: &Node) -> Result<Option<&'static str>, String> {
         if self.workspace_deref(expression) {
             return Ok(Some("Overloaded auto-deref runs a workspace Deref impl"));
         }
+        if self.facts.destructors_are_calls {
+            return Ok(None);
+        }
         Ok(self
             .facts
             .ty(expression)
-            .is_some_and(|ty| {
-                self.facts
-                    .any_part(ty, 64, &|part| self.workspace_destructor(part))
-            })
+            .is_some_and(|ty| self.drop_runs_workspace_code(ty, 64))
             .then_some("A value with a workspace Drop impl runs uncounted drop glue"))
+    }
+
+    /// Whether dropping a value of `ty` may run a workspace `Drop` impl. A reference or a
+    /// pointer that doesn't own its referent drops nothing behind it.
+    fn drop_runs_workspace_code(&self, ty: &Type, depth: usize) -> bool {
+        let Some(depth) = depth.checked_sub(1) else {
+            return false;
+        };
+        let borrowed = ty.kind == TypeKind::Reference
+            || (ty.kind == TypeKind::Pointer && ty.mode.as_deref() != Some("owned"));
+        if borrowed {
+            return false;
+        }
+
+        self.workspace_destructor(ty)
+            || components(ty)
+                .filter_map(|id| self.facts.type_of(id))
+                .any(|part| self.drop_runs_workspace_code(part, depth))
     }
 
     fn workspace_deref(&self, expression: &Node) -> bool {
@@ -238,7 +257,6 @@ impl<'a> Collector<'_, '_, 'a> {
         self.facts.tables.definition(id).ok()
     }
 
-    /// Whether dropping a value of `ty` may run a workspace `Drop` impl.
     /// A nominal type the workspace defines with a destructor of its own.
     fn workspace_destructor(&self, ty: &Type) -> bool {
         self.nominal(ty)

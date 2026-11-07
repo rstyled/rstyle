@@ -181,15 +181,15 @@ fn examined(document: Value) -> Examined {
     let function = &unit.functions.as_ref().unwrap()[0];
     let tables = Tables::new(unit).unwrap();
     let sources = Sources::new(unit).unwrap();
-    examine(&document.coverage, function, &tables, &sources)
+    examine((&document.coverage, "test"), function, &tables, &sources)
 }
 
 /// The lines a value is reported stored on, by binding.
 fn dead_stores(document: Value) -> Vec<(String, usize)> {
-    let Examined::Read(found) = examined(document) else {
+    let Examined::Read { defects, .. } = examined(document) else {
         panic!("the function was not read");
     };
-    found
+    defects
         .into_iter()
         .map(|defect| {
             assert_eq!(defect.rule, "dead_store");

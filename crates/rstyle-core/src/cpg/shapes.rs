@@ -1,10 +1,24 @@
 //! Parameter lists, signature shapes and mutated types (the profile's Pattern facts).
 
-use super::model::{Callable, Scope, Symbol, TargetKind, Type, TypeKind};
+use super::model::{Callable, Function, Scope, Symbol, TargetKind, Type, TypeKind};
 use super::source::Sources;
 use super::tree::{Body, Tables};
 use crate::facts::{ParamFacts, Receiver, Scalar, SigFacts, TyShape};
 use std::collections::BTreeSet;
+
+/// What a function's receiver, parameters and result are, in that order, whatever anything spells
+/// them as: a spelling can hold ids local to one document. A type that can't be shaped has none.
+pub fn signature_shapes(function: &Function, tables: &Tables<'_>) -> Vec<Option<TyShape>> {
+    let signature = &function.signature;
+    signature
+        .receiver
+        .iter()
+        .map(|receiver| &receiver.ty)
+        .chain(signature.parameters.iter().map(|parameter| &parameter.ty))
+        .chain(std::iter::once(&signature.result))
+        .map(|id| shape(tables, id).ok())
+        .collect()
+}
 
 /// The structural shape of a type.
 pub fn shape(tables: &Tables<'_>, id: &str) -> Result<TyShape, String> {
@@ -31,7 +45,7 @@ pub fn shape(tables: &Tables<'_>, id: &str) -> Result<TyShape, String> {
             Ok(TyShape::Array(inner(&ty.element, "element")?))
         }
         TypeKind::Sequence => Ok(TyShape::Slice(inner(&ty.element, "element")?)),
-        TypeKind::Integer => primitive(&integer(ty)?),
+        TypeKind::Integer => primitive(&integer(tables, ty)?),
         TypeKind::Float => primitive(&format!("f{}", bits(ty)?)),
         TypeKind::Bool => primitive("bool"),
         TypeKind::Char => primitive("char"),
@@ -103,10 +117,11 @@ fn bits(ty: &Type) -> Result<u32, String> {
         .ok_or_else(|| format!("Type {} has no width", ty.id))
 }
 
-fn integer(ty: &Type) -> Result<String, String> {
+fn integer(tables: &Tables<'_>, ty: &Type) -> Result<String, String> {
     let sign = if ty.signed == Some(true) { "i" } else { "u" };
     Ok(match ty.pointer_sized {
         Some(true) => format!("{sign}size"),
+        _ if ty.bits.is_none() && tables.unbounded_integers() => "int".into(),
         _ => format!("{sign}{}", bits(ty)?),
     })
 }

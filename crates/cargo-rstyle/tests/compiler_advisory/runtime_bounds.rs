@@ -108,6 +108,18 @@ pub fn str_keys(s: &str) -> String { let _ = s.is_empty(); s.into() }
 pub fn local_map(n: usize) -> bool { let mut map = std::collections::BTreeMap::new(); map.insert(n, n); map.contains_key(&n) }
 "#;
 
+const DROPS: &str = r#"
+pub struct Guard;
+impl Drop for Guard { fn drop(&mut self) {} }
+pub fn drops(n: usize) { let mut i = 0; while i < n { let _g = Guard; i += 1; } }
+pub fn drops_boxed(n: usize) { let mut i = 0; while i < n { let _g = Box::new(Guard); i += 1; } }
+pub fn drops_in_vec(n: usize) { let mut i = 0; while i < n { let _g = vec![Guard]; i += 1; } }
+pub fn near_a_shared_guard(g: &Guard, n: usize) { let mut i = 0; while i < n { let _r = g; i += 1; } }
+pub fn near_a_mutable_guard(g: &mut Guard, n: usize) { let mut i = 0; while i < n { let _r = &g; i += 1; } }
+pub fn near_a_raw_guard(g: *const Guard, n: usize) { let mut i = 0; while i < n { let _r = g; i += 1; } }
+pub fn near_borrowed_guards(g: &[&Guard], n: usize) { let mut i = 0; while i < n { let _r = g; i += 1; } }
+"#;
+
 fn runtime(report: &Value) -> &Value {
     &report["compiler_advisory"]["units"][0]["runtime_bounds"]
 }
@@ -136,6 +148,31 @@ fn runtime_bounds_are_independent_replayable_owner_results() {
     assert_partial(runtime(&original)["rows"].as_array().unwrap());
     assert_unknown(runtime(&original)["rows"].as_array().unwrap());
     assert_replay(directory.path(), &original);
+}
+
+#[test]
+fn only_what_a_value_owns_is_dropped_with_it() {
+    let directory = clone_workspace();
+    std::fs::write(directory.path().join("src/lib.rs"), DROPS).unwrap();
+    let output = rstyle(
+        directory.path(),
+        &["patterns", "--format", "json", "--complexity"],
+    );
+    assert!(output.status.success(), "{}", stdout(&output));
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let rows = runtime(&report)["rows"].as_array().unwrap();
+    let stopped = |name: &str| named_row(rows, name).to_string().contains("drop glue");
+    for name in ["drops", "drops_boxed", "drops_in_vec"] {
+        assert!(stopped(name), "{name} drops a Guard on every pass");
+    }
+    for name in [
+        "near_a_shared_guard",
+        "near_a_mutable_guard",
+        "near_a_raw_guard",
+        "near_borrowed_guards",
+    ] {
+        assert!(!stopped(name), "{name} drops nothing behind what it holds");
+    }
 }
 
 fn assert_known(original: &Value) {

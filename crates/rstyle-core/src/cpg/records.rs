@@ -6,10 +6,10 @@ use super::defects::{self, Examined};
 use super::flow::Derived;
 use super::model::{Document, FileSpan, Function, Generic, Node, Origin, Type, TypeKind};
 use super::source::Sources;
-use super::tree::Tables;
+use super::tree::{Tables, generated};
 use crate::advisory::generated_effects::{self, CONNECTED_KEY, Connections};
 use crate::advisory::runtime_bounds::Input;
-use crate::facts::{FnFacts, Pdg};
+use crate::facts::{FnFacts, Pdg, TyShape};
 use std::collections::BTreeMap;
 
 /// Why a function has no measured facts: nothing original was written to measure.
@@ -78,6 +78,42 @@ pub struct Record {
     pub bounds: Option<Input>,
     pub flow: Option<Derived>,
     pub defects: Option<Examined>,
+    /// The language says the function's file holds tests.
+    pub test: bool,
+    /// Why the function's tree isn't all of it, when it isn't.
+    pub syntax_gap: Option<&'static str>,
+    /// With graphs: what its receiver, parameters and result are, whatever spells them.
+    pub signature_shapes: Vec<Option<TyShape>>,
+    /// With graphs: every value the frontend knows at a written node, sorted. A constant's use can
+    /// read the same while its value changes somewhere no function is. What a macro expands to can
+    /// hold anything a build knows, such as its own revision, so it's left out.
+    pub known_values: Vec<String>,
+}
+
+/// What a run reads beyond a function's graph when it asks for graphs.
+fn with_graph_facts(
+    record: Record,
+    function: &Function,
+    demand: Demand,
+    tables: &Tables<'_>,
+) -> Record {
+    if !demand.graphs {
+        return record;
+    }
+    Record {
+        signature_shapes: super::shapes::signature_shapes(function, tables),
+        known_values: known_values(function),
+        ..record
+    }
+}
+
+fn known_values(function: &Function) -> Vec<String> {
+    let written = function.nodes.iter().filter(|node| !generated(node));
+    let values = written.filter_map(|node| node.value.as_ref());
+    let mut known: Vec<String> = values.map(|value| format!("{value:?}")).collect();
+
+    known.sort_unstable();
+    known
 }
 
 /// Records in an order independent of how their documents arrived. Runtime bounds compose
@@ -160,6 +196,11 @@ fn read(document: &Document, demand: Demand) -> Result<(Vec<Record>, Failed), St
                 ),
                 (&tables, &sources),
             )
+            .map(|record| Record {
+                test: sources.marks(located(function)).test,
+                syntax_gap: super::flow::syntax_gap(&document.coverage, function),
+                ..with_graph_facts(record, function, demand, &tables)
+            })
             .map_err(|reason| format!("{}: {reason}", function.name))
         })
         .collect::<Result<Vec<_>, String>>()?;
@@ -192,9 +233,10 @@ fn defects_of(
     demand: Demand,
     (tables, sources): (&Tables<'_>, &Sources<'_>),
 ) -> Option<Examined> {
-    demand
-        .defects
-        .then(|| defects::examine(&document.coverage, function, tables, sources))
+    (demand.defects && !sources.marks(located(function)).test).then(|| {
+        let read = (&document.coverage, document.producer.namespace.as_str());
+        defects::examine(read, function, tables, sources)
+    })
 }
 
 fn flow_of(document: &Document, function: &Function, demand: Demand) -> Option<Derived> {
@@ -237,17 +279,22 @@ fn record(
         bounds,
         flow,
         defects,
+        test: false,
+        syntax_gap: None,
+        signature_shapes: Vec::new(),
+        known_values: Vec::new(),
     })
 }
 
-/// The body's root, when a macro writes the whole function: its signature and its root.
-/// A macro that wraps a function, or rewrites its signature, leaves it its author's.
+/// The body's root, when a macro or the compiler writes the whole function: its signature
+/// and its root. A macro that wraps a function, or rewrites its signature, leaves it its
+/// author's.
 fn macro_written_root(function: &Function) -> Option<&Node> {
     let signature = function.signature.provenance.as_ref()?;
-    (signature.origin == Origin::MacroExpansion)
+    matches!(signature.origin, Origin::MacroExpansion | Origin::Analysis)
         .then(|| function.nodes.iter().find(|node| node.id == function.root))
         .flatten()
-        .filter(|root| root.provenance.origin == Origin::MacroExpansion)
+        .filter(|root| root.provenance.origin == signature.origin)
 }
 
 /// Whether a macro writes the whole function.
@@ -271,7 +318,7 @@ pub fn measure(
     sources: &Sources<'_>,
 ) -> Result<Measured, String> {
     let at = located(function);
-    let generated_file = sources.generated(&function.span);
+    let generated_file = sources.marks(&function.span).generated;
     let generated = generated_file || written_by_macro(function);
     match facts {
         Some(facts) if generated => {
@@ -452,6 +499,24 @@ mod tests {
             // The graph moves to the record, so the facts carry none of their own.
             assert!(facts.pdg.is_none());
         }
+    }
+
+    #[test]
+    fn a_function_the_compiler_writes_is_nobody_s_to_review() {
+        let mut document = example();
+        let function = &mut document["unit"]["functions"][0];
+        let root = function["root"].as_str().unwrap().to_owned();
+        let provenance = serde_json::json!({"origin": "analysis"});
+        function["signature"]["provenance"] = provenance.clone();
+        let nodes = function["nodes"].as_array_mut().unwrap();
+        let root = nodes
+            .iter_mut()
+            .find(|node| node["id"] == root.as_str())
+            .unwrap();
+        root["provenance"] = provenance;
+        let record = &read(document, Demand::default())[0];
+
+        assert!(matches!(record.measured, Measured::Generated(_)));
     }
 
     #[test]

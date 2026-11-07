@@ -160,6 +160,39 @@ fn free_functions_have_no_signature_shape() {
     assert!(facts_of(example()).iter().all(|facts| facts.sig.is_none()));
 }
 
+/// A method over the example's integer as a language whose integers have no width would write it,
+/// in a unit whose overflow is `overflow`.
+fn method_over_widthless_integers(overflow: &str) -> Value {
+    let mut document = example();
+    nominal(&mut document);
+    document["unit"]["semantics"]["integer_overflow"] = json!(overflow);
+    let types = document["unit"]["types"].as_array_mut().unwrap();
+    let integer = types.iter_mut().find(|ty| ty["id"] == "type:u32").unwrap();
+    integer.as_object_mut().unwrap().remove("bits");
+    integer["signed"] = json!(true);
+    let signature = &mut function(&mut document, "fn:top")["signature"];
+    signature["owner_type"] = json!("point");
+    signature["receiver"] = json!({"symbol": "top.a", "type": "&mut point"});
+    document
+}
+
+#[test]
+fn an_unbounded_integer_shapes_as_one_primitive() {
+    let sig = facts_of(method_over_widthless_integers("unbounded"))[1]
+        .sig
+        .clone()
+        .unwrap();
+    let int = || TyShape::Prim("int".into());
+    assert_eq!(sig.params, vec![int(), int()]);
+    assert_eq!(sig.ret, int());
+}
+
+#[test]
+fn an_integer_needs_a_width_unless_its_unit_says_integers_have_none() {
+    let error = run_facts(vec![method_over_widthless_integers("wrapping")]).unwrap_err();
+    assert!(error.contains("has no width"), "{error}");
+}
+
 #[test]
 fn methods_shape_their_owner_receiver_parameters_and_modifiers() {
     let mut document = example();

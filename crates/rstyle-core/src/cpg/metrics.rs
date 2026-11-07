@@ -43,7 +43,12 @@ fn count(body: &Body<'_>, node: &Node, inside: bool) -> Result<usize, String> {
 pub fn top_statements(body: &Body<'_>) -> Result<usize, String> {
     let root = body.root()?;
     Ok(match root.kind {
-        NodeKind::Block => root.children.len(),
+        // What a frontend adds to the end of a block, such as destructors, nobody wrote.
+        NodeKind::Block => body
+            .children(root)?
+            .into_iter()
+            .filter(|child| !child.synthetic)
+            .count(),
         _ => 1,
     })
 }

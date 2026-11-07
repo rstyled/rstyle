@@ -7,7 +7,7 @@ use super::model::{
     RefTarget, Scope, Step, Symbol, TargetKind, TypeKind,
 };
 use super::source::Sources;
-use super::tree::{Body, Tables, anchor, generated, is_kind, line};
+use super::tree::{Body, Tables, anchor, generated, is_kind, line, scope_end};
 use crate::complexity::{Kind, Node as Construct};
 use crate::facts::{
     ArgSource, CallEvent, Edge, EffectEvent, EffectKind, LibraryClass, MutationEvent,
@@ -159,6 +159,7 @@ impl<'a> Walk<'a> {
                     line,
                     dynamic: true,
                     library: None,
+                    library_callee: None,
                 });
                 Ok(())
             }
@@ -168,7 +169,7 @@ impl<'a> Walk<'a> {
 
     fn classify_call(&self, node: &'a Node) -> Result<Call<'a>, String> {
         // Implicit calls (destructors, conversions) have no call site in the source.
-        if node.provenance.origin == Origin::Analysis {
+        if node.provenance.origin == Origin::Analysis || scope_end(node) {
             return Ok(Call::Skipped);
         }
         let Some(reference) = self.body.reference(&node.id) else {
@@ -263,11 +264,14 @@ impl<'a> Walk<'a> {
         }
         let line = self.line(site.node)?;
         let library = self.library_class(site.node, declared)?;
+        let library_callee =
+            (declared.scope == Scope::Library).then(|| declared.stable_identity.clone());
         out.calls.push(CallEvent {
             callee: name,
             line,
             dynamic,
             library,
+            library_callee,
         });
         Ok(())
     }

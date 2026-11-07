@@ -38,6 +38,15 @@ least zero, and any other start makes that loop opaque. A signed input counts as
 `while i < n` over an `i64` gives `max(n, 0)`, and that floor survives composition with a caller's
 argument. A conversion between signed and unsigned stays unknown.
 
+**Unbounded integers.** A language whose integers have no width, as Python's don't, says so with
+`integer_overflow: unbounded` and leaves `bits` out of its integer types. They count as signed values, read
+at 64 bits. What's proved of a counter under its guard holds at any width, and a constant too large for 64
+bits stays unknown, so that can only lose precision.
+
+A function declared inside another, as Python's nested `def` is, has its own bound, and what it can write counts
+against the function declaring it: an exclusive capture of a counter or an extent leaves that function unknown,
+as a closure's does.
+
 **`for` patterns.** A pattern may declare any new bindings, since they can't change how often the loop
 runs. A pattern holding anything else is unsupported, as is a declaration that writes what a loop's
 length is measured from.
@@ -85,7 +94,10 @@ reason:
 
 Standard-library bodies are outside this cost unit only when they can't call back into workspace code,
 through either a callable argument or a trait bound on a workspace type. Other standard calls are opaque.
-Workspace `Drop` glue and overloaded auto-deref into workspace impls make the owner unknown.
+Workspace `Drop` glue and overloaded auto-deref into workspace impls make the owner unknown. A reference or a pointer
+that doesn't own its referent drops nothing behind it, so it doesn't count. A frontend that declares `implicit-calls` as
+`supported` emits each destructor as a call instead, which counts like any other, so the C and C++ route isn't held back
+by this rule. Its destructors' bodies count wherever they run.
 
 Identities include the compilation, so lib, bin and test builds never share a summary. The report lists
 its assumptions, and results keep each compilation context.

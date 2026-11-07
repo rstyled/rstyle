@@ -13,6 +13,19 @@ count_self = false        # `self` is the object, not an argument
 [fn_spacing]
 min_statements = 5
 
+# What `taint_flow` reads, on top of the sources and sinks each frontend's models name. Each callee
+# is an operation, a name or an identity, and an argument's position counts a receiver as 0.
+# [taint]
+# sources = ["myapp::read_request"]        # calls whose result is input
+# sanitizers = ["myapp::escape"]           # calls whose result no longer is, for every kind of sink
+# ignored = ["std::env::var"]              # calls that are no end of a flow here
+#
+# [[taint.sinks]]                          # where input is dangerous
+# callees = ["sqlx::query"]
+# arguments = [0]
+# risk = "SQL injection"
+# cwe = "CWE-89"
+
 [complexity]
 # Start at current maxima; lower these toward 12 in follow-up refactoring PRs.
 max_cyclomatic = 40
@@ -45,6 +58,21 @@ unknown = 1    # calls through dyn / fn pointers / generic callables
 # [side_effects.paths]
 # io = ["std::fs::", "std::io::"]
 # network = ["std::net::", "reqwest::"]
+
+# How much each kind of change matters to `rstyle risk`. Nothing here has a default, so with no
+# rules a change is unrated. The base run's rules decide, so a change can't relax what judges it.
+# [risk]
+# pdg_change = "medium"             # low, medium or high: what a function depends on or does changed
+# pdg_low_risk_max_functions = 3    # lowers a medium pdg_change to low when at most this many functions changed
+#
+# [[risk.calls]]                    # calling exactly this callee more often than before
+# callee = "go::os.WriteFile"       # its identity, as the report prints it under `calls more`
+# level = "high"
+
+[ignored_result]
+# A call that drops its result is reported when enough of the callee's other calls use theirs.
+min_used_percent = 90     # 1 to 100. Decides most of it; 100 reports nothing, since then no call can have dropped it
+min_calls = 5             # fewer calls than this say too little. At 90%, one drop already takes 10
 
 [grouping]
 # Which violations must be fixed together. A fix's footprint is the function itself plus,

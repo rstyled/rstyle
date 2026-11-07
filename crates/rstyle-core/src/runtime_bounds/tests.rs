@@ -843,6 +843,43 @@ fn signed_limit_is_floored_and_never_understates_the_entries() {
 }
 
 #[test]
+fn unbounded_arithmetic_bounds_a_counter_as_a_signed_one() {
+    let mut program = signed_scan(Value::Const(0));
+    program.arithmetic = Arithmetic::Unbounded;
+    let bound = proven(&program).loop_body_entries;
+    assert_eq!(bound.to_string(), "max(n, 0)");
+    for n in -5..=5 {
+        assert_eq!(
+            signed_value(&bound, n),
+            signed_entries(&program, n) as i64,
+            "n = {n}"
+        );
+    }
+}
+
+#[test]
+fn unbounded_arithmetic_leaves_a_limit_past_the_modeled_width_unknown() {
+    let mut program = signed_scan(Value::Const(0));
+    program.arithmetic = Arithmetic::Unbounded;
+    program.nodes[1] = node(
+        Action::Nop,
+        Flow::Branch {
+            condition: Condition::Less {
+                variable: 1,
+                limit: Value::Const(1 << 63),
+            },
+            then_node: 2,
+            else_node: 3,
+        },
+    );
+    assert!(
+        !matches!(analyze(&program), Outcome::Proven(_)),
+        "{:?}",
+        analyze(&program)
+    );
+}
+
+#[test]
 fn signed_constant_start_above_zero_keeps_an_upper_bound() {
     let program = signed_scan(Value::Const(2));
     let bound = proven(&program).loop_body_entries;

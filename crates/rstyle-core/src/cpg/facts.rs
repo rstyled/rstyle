@@ -75,7 +75,7 @@ pub(super) fn derive_each(document: &Document, graphs: bool) -> Result<EachFunct
     // A function whose file lies outside the workspace root has no workspace facts,
     // unless the build wrote it there, as it does when the target directory is elsewhere.
     let inside = |function: &&Function| {
-        sources.generated(&function.signature.span)
+        sources.marks(&function.signature.span).generated
             || sources
                 .path(&function.signature.span)
                 .is_ok_and(|path| !path.starts_with("../"))
