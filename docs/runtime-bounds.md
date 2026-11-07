@@ -95,7 +95,9 @@ reason:
 Standard-library bodies are outside this cost unit only when they can't call back into workspace code,
 through either a callable argument or a trait bound on a workspace type. Other standard calls are opaque.
 Workspace `Drop` glue and overloaded auto-deref into workspace impls make the owner unknown. A reference or a pointer
-that doesn't own its referent drops nothing behind it, so it doesn't count.
+that doesn't own its referent drops nothing behind it, so it doesn't count. A frontend that declares `implicit-calls` as
+`supported` emits each destructor as a call instead, which counts like any other, so the C and C++ route isn't held back
+by this rule. Its destructors' bodies count wherever they run.
 
 Identities include the compilation, so lib, bin and test builds never share a summary. The report lists
 its assumptions, and results keep each compilation context.

@@ -127,6 +127,63 @@ fn iterations_bind_their_items_and_control_their_bodies() {
     }
 }
 
+/// Wraps a node in the call to a destructor, as a frontend does for a temporary's expression.
+fn destroyed_after(document: &mut Value, function: usize, id: &str, wrapper: &str) {
+    let function = &mut document["unit"]["functions"][function];
+    let nodes = function["nodes"].as_array_mut().unwrap();
+    let wrapped = nodes.iter().find(|node| node["id"] == id).unwrap();
+    let (span, ty) = (wrapped["span"].clone(), wrapped["type"].clone());
+    let callee = format!("{wrapper}.callee");
+    let lowering = json!({"origin": "desugaring", "construct": "scope"});
+    for parent in nodes.iter_mut() {
+        for child in parent["children"].as_array_mut().unwrap() {
+            if *child == id {
+                *child = json!(wrapper);
+            }
+        }
+    }
+    nodes.push(json!({
+        "id": callee, "kind": "identifier", "original_kind": "Added", "type": "type:unit",
+        "span": span, "synthetic": true, "children": [], "provenance": lowering,
+    }));
+    nodes.push(json!({
+        "id": wrapper, "kind": "call", "original_kind": "Added", "type": ty,
+        "span": span, "synthetic": true, "children": [callee, id], "provenance": lowering,
+    }));
+    function["refs"].as_array_mut().unwrap().push(json!({
+        "node": wrapper, "status": "unresolved", "dispatch": "function_value",
+        "reason": "stands in for a destructor",
+    }));
+}
+
+#[test]
+fn a_destructor_around_an_expression_leaves_the_graph_as_it_was() {
+    let plain = graphs(example());
+    let mut document = example();
+    destroyed_after(&mut document, 1, "top.larger", "destroyed");
+    assert_eq!(graph(&graphs(document)[1]), graph(&plain[1]));
+}
+
+#[test]
+fn a_destructor_around_an_iterable_leaves_the_graph_as_it_was() {
+    let plain = graphs(example());
+    let mut document = example();
+    // It's around the `into_iter` call a `for` already lowers to, and twice to read through itself.
+    destroyed_after(&mut document, 2, "count.into_iter", "inner");
+    destroyed_after(&mut document, 2, "inner", "outer");
+    assert_eq!(graph(&graphs(document)[2]), graph(&plain[2]));
+}
+
+#[test]
+fn a_lowering_around_nothing_anyone_wrote_is_an_error() {
+    let mut document = example();
+    node(&mut document, "count.items")["synthetic"] = json!(true);
+    assert_eq!(
+        derived(document).unwrap_err(),
+        "Synthetic node count.into_iter wraps no source node"
+    );
+}
+
 #[test]
 fn literals_show_their_values() {
     let detail = |value: Value, origin: &str| {

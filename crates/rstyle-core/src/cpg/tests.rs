@@ -1591,6 +1591,209 @@ fn undefined_overflow_holds_a_bound_as_checked_overflow_does() {
     assert_eq!(arithmetic("anything else"), Arithmetic::Unknown);
 }
 
+/// The example with its `top` call typed as a value whose type has a workspace destructor.
+fn with_a_destroyed_value(implicit_calls: &str) -> Value {
+    let mut document = example();
+    document["coverage"]["capabilities"]["implicit-calls"]["status"] = json!(implicit_calls);
+    let unit = &mut document["unit"];
+    unit["definitions"].as_array_mut().unwrap().push(json!({
+        "id": "def:guard", "kind": "type", "name": "Guard", "stable_identity": "guard",
+        "scope": "unit", "destructor": true,
+    }));
+    unit["types"].as_array_mut().unwrap().push(json!({
+        "id": "type:guard", "kind": "record", "spelling": "Guard", "definition": "def:guard",
+    }));
+    let top = unit["functions"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|function| function["name"] == "top")
+        .unwrap();
+    let call = top["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|node| node["kind"] == "call")
+        .unwrap();
+    call["type"] = json!("type:guard");
+    document
+}
+
+fn lowered_text(document: Value) -> String {
+    serde_json::to_string(
+        &run_bounds(vec![document])
+            .unwrap()
+            .into_iter()
+            .map(|(_, input)| serde_json::to_value(input).unwrap())
+            .collect::<Vec<_>>(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn a_destructor_only_stops_a_function_when_it_runs_unseen() {
+    let unseen = lowered_text(with_a_destroyed_value("unsupported"));
+    assert!(unseen.contains("drop glue"), "{unseen}");
+    let called = lowered_text(with_a_destroyed_value("supported"));
+    assert!(!called.contains("drop glue"), "{called}");
+}
+
+/// A statement a frontend adds to the end of a function's body.
+fn with_an_added_statement(mut document: Value) -> Value {
+    let function = document["unit"]["functions"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|function| function["name"] == "count")
+        .unwrap();
+    let span = function["span"].clone();
+    let root = function["root"].as_str().unwrap().to_owned();
+    let nodes = function["nodes"].as_array_mut().unwrap();
+    nodes.push(json!({
+        "id": "added.call", "kind": "literal", "original_kind": "Added", "type": "type:u32",
+        "span": span, "synthetic": true, "children": [],
+        "provenance": {"origin": "analysis"},
+    }));
+    nodes.push(json!({
+        "id": "added.statement", "kind": "expression_statement", "original_kind": "Added",
+        "span": span, "synthetic": true, "children": ["added.call"],
+        "provenance": {"origin": "desugaring", "construct": "scope"},
+    }));
+    let root = nodes
+        .iter_mut()
+        .find(|node| node["id"] == root.as_str())
+        .unwrap();
+    let children = root["children"].as_array_mut().unwrap();
+    // A statement goes before what a block yields.
+    children.insert(children.len() - 1, json!("added.statement"));
+    document
+}
+
+#[test]
+fn what_a_frontend_adds_to_a_body_is_not_a_statement_anyone_wrote() {
+    let count = |document: Value| {
+        run_facts(vec![document])
+            .unwrap()
+            .into_iter()
+            .find(|facts| facts.name == "count")
+            .map(|facts| (facts.statements, facts.top_statements))
+            .unwrap()
+    };
+    assert_eq!(count(with_an_added_statement(example())), count(example()));
+}
+
+/// A destructor a frontend adds to the end of `count`'s body, as a scope's lowering.
+fn with_a_scope_end(mut document: Value) -> Value {
+    let function = document["unit"]["functions"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|function| function["name"] == "count")
+        .unwrap();
+    let span = function["span"].clone();
+    let root = function["root"].as_str().unwrap().to_owned();
+    let lowering = json!({"origin": "desugaring", "construct": "scope"});
+    let nodes = function["nodes"].as_array_mut().unwrap();
+    nodes.push(json!({
+        "id": "scope.callee", "kind": "identifier", "original_kind": "Added", "type": "type:unit",
+        "span": span, "synthetic": true, "children": [], "provenance": lowering,
+    }));
+    nodes.push(json!({
+        "id": "scope.call", "kind": "call", "original_kind": "Added", "type": "type:unit",
+        "span": span, "synthetic": true, "children": ["scope.callee"], "provenance": lowering,
+    }));
+    nodes.push(json!({
+        "id": "scope.statement", "kind": "expression_statement", "original_kind": "Added",
+        "span": span, "synthetic": true, "children": ["scope.call"], "provenance": lowering,
+    }));
+    let root = nodes
+        .iter_mut()
+        .find(|node| node["id"] == root.as_str())
+        .unwrap();
+    let children = root["children"].as_array_mut().unwrap();
+    children.insert(children.len() - 1, json!("scope.statement"));
+    function["refs"].as_array_mut().unwrap().push(json!({
+        "node": "scope.call", "status": "unresolved", "dispatch": "function_value",
+        "reason": "stands in for a destructor",
+    }));
+    document
+}
+
+#[test]
+fn what_a_scope_end_runs_is_not_code_anyone_wrote() {
+    let of_count = |document: Value| {
+        let records = run_records(
+            vec![document],
+            Demand {
+                graphs: true,
+                ..Demand::default()
+            },
+        )
+        .unwrap();
+        let record = records.into_iter().find(|r| r.name == "count").unwrap();
+        let graph = format!("{:?}", record.graph);
+        let facts = super::authored(record).unwrap();
+        (facts.calls, facts.effects, facts.statements, graph)
+    };
+    assert_eq!(of_count(with_a_scope_end(example())), of_count(example()));
+}
+
+/// `top`, returning its value, with a call after the value when `after` says so.
+fn returning(after: bool) -> Value {
+    let mut document = example();
+    let function = document["unit"]["functions"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|function| function["name"] == "top")
+        .unwrap();
+    let span = function["span"].clone();
+    let root = function["root"].as_str().unwrap().to_owned();
+    let value = function["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|node| node["id"] == root.as_str())
+        .unwrap()["children"][0]
+        .clone();
+    let lowering = json!({"origin": "desugaring", "construct": "scope"});
+    let mut children = vec![value];
+    if after {
+        children.push(json!("top.after"));
+        function["refs"].as_array_mut().unwrap().push(json!({
+            "node": "top.after", "status": "unresolved", "dispatch": "function_value",
+            "reason": "stands in for a destructor",
+        }));
+    }
+    let nodes = function["nodes"].as_array_mut().unwrap();
+    if after {
+        nodes.push(json!({
+            "id": "top.after.callee", "kind": "identifier", "original_kind": "Added", "type": "type:unit",
+            "span": span, "synthetic": true, "children": [], "provenance": lowering,
+        }));
+        nodes.push(json!({
+            "id": "top.after", "kind": "call", "original_kind": "Added", "type": "type:unit",
+            "span": span, "synthetic": true, "children": ["top.after.callee"], "provenance": lowering,
+        }));
+    }
+    nodes.push(json!({
+        "id": "top.return", "kind": "return", "original_kind": "Return", "type": "type:unit",
+        "span": span, "children": children, "provenance": {"origin": "source"},
+    }));
+    let root = nodes
+        .iter_mut()
+        .find(|node| node["id"] == root.as_str())
+        .unwrap();
+    root["children"] = json!(["top.return"]);
+    document
+}
+
+#[test]
+fn a_return_runs_what_follows_its_value() {
+    let calls = |document: Value| lowered_text(document).matches("\"Call\"").count();
+    assert_eq!(calls(returning(true)), calls(returning(false)) + 1);
+}
+
 /// The example as a language whose integers have no width would write it.
 fn example_with_unbounded_integers() -> Value {
     let mut document = example();

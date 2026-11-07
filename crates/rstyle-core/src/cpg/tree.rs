@@ -172,7 +172,7 @@ impl<'a> Body<'a> {
         Ok(sources)
     }
 
-    fn has_source(&self, node: &Node) -> Result<bool, String> {
+    pub fn has_source(&self, node: &Node) -> Result<bool, String> {
         if !node.synthetic {
             return Ok(true);
         }
@@ -183,6 +183,13 @@ impl<'a> Body<'a> {
         }
         Ok(false)
     }
+}
+
+/// What the language runs as a scope ends, such as a destructor, wherever the scope was written.
+pub fn scope_end(node: &Node) -> bool {
+    node.synthetic
+        && node.provenance.origin == Origin::Desugaring
+        && node.provenance.construct.as_deref() == Some("scope")
 }
 
 /// Macro-expanded or desugared: code the developer did not write at this node.

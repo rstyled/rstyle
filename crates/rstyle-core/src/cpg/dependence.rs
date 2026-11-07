@@ -8,7 +8,7 @@ use super::model::{
 };
 use super::shapes::{callable_shape, shape};
 use super::source::Sources;
-use super::tree::{Body, Tables, generated, line};
+use super::tree::{Body, Tables, generated, line, scope_end};
 use crate::clip::clip;
 use crate::facts::{NodeKind as Kind, Pdg, PdgNode, TyShape};
 use crate::pdg_builder::{GraphBuilder, Lowering};
@@ -233,6 +233,16 @@ impl<'a> Graph<'_, 'a> {
     /// Lowers an expression; the result is the node that produces its value, if any.
     // rstyle-allow(mutation_per_target): the graph accumulates nodes and edges in self by design
     fn expr(&mut self, node: &'a Node) -> Lowered {
+        // Nobody wrote what a scope's end runs, so it says nothing about the shape of the code. All
+        // it can hold of theirs is the expression whose temporaries it destroys.
+        if scope_end(node) {
+            for child in self.body.children(node)? {
+                if self.body.has_source(child)? {
+                    return self.expr(child);
+                }
+            }
+            return Ok(None);
+        }
         match node.kind {
             NodeKind::For => return self.iterate(node).map(Some),
             NodeKind::Propagate => return self.propagated(node).map(Some),
@@ -517,12 +527,19 @@ impl<'a> Graph<'_, 'a> {
         if !node.synthetic {
             return Ok(node);
         }
+
         let children = self.body.children(node)?;
-        children
-            .into_iter()
-            .rev()
-            .find(|child| !child.synthetic)
-            .ok_or_else(|| format!("Synthetic node {} wraps no source node", node.id))
+        if let Some(source) = children.iter().rev().find(|child| !child.synthetic) {
+            return Ok(source);
+        }
+
+        // A destructor wrapped around a temporary's expression can wrap another lowering.
+        for child in children.into_iter().rev() {
+            if self.body.has_source(child)? {
+                return self.wrapped(child);
+            }
+        }
+        Err(format!("Synthetic node {} wraps no source node", node.id))
     }
 
     fn propagated(&mut self, node: &'a Node) -> Result<usize, String> {
