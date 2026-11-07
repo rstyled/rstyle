@@ -149,7 +149,8 @@ ends up with none it warns, says how to specify one, and goes on guessing flags,
 | `mutated_targets` | Distinct roots mutated in one function | `mutation_budget.max_mutated_targets` | 3 |
 | `side_effect_density` | Weighted effects per statement, times 1000 | `side_effects.max_density_milli` | 500 |
 
-[Style checks](docs/style-checks.md) describes each rule and every setting.
+[Style checks](docs/style-checks.md) describes each rule and every setting. It also covers
+[strict style](docs/style-checks.md#strict-style) rules, which are off until `rstyle.toml` turns them on.
 
 ## Configuration
 

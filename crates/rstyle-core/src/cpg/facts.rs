@@ -3,7 +3,7 @@
 use super::dependence::{Roles, dependence_graph};
 use super::effects::EffectClasses;
 use super::events::{Events, Walk, mutations};
-use super::metrics::{Constructs, statements, top_statements};
+use super::metrics::{Constructs, guard_clauses, statements, top_statements};
 use super::model::{Coverage, Document, Function, Status};
 use super::shapes::{mutated_types, param_list, signature_shape};
 use super::source::Sources;
@@ -166,6 +166,7 @@ fn function_facts(
         edges: events.edges,
         mutated_types: mutated_types(tables, mutated)?,
         sig: signature_shape(&body, tables)?,
+        guard_clauses: guard_clauses(&body, sources)?,
         // Patterns are searched in source functions; a macro-written one has no graph.
         pdg: match roles.filter(|_| !super::records::written_by_macro(function)) {
             Some(roles) => Some(dependence_graph(&body, tables, sources, roles)?),

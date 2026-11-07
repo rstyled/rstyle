@@ -35,6 +35,7 @@ pub mod shape;
 pub mod sigmine;
 pub mod spacing;
 pub mod stacking;
+pub mod strict_style;
 pub mod suppress;
 pub mod unified;
 pub mod versioned;
@@ -56,6 +57,7 @@ fn rule_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec
         rules::complexity(f, cfg),
         rules::mutation_budget(f, &cfg.mutation_budget),
         rules::side_effect_density_with_lines(f, effects, cfg, || source_lines),
+        strict_style::guard_clause(f, cfg),
     ]
     .concat()
 }

@@ -26,6 +26,7 @@ analyzed function.
 | `mutated_targets` | Too many distinct roots mutated in one function. |
 | `side_effect_density` | Too many effects for the number of statements. See below. |
 | `invalid_suppression` | An `rstyle-allow` comment with no reason or an unknown rule id. |
+| `guard_clause` | Off by default. See [strict style](#strict-style). |
 
 A missing complexity score is reported as unavailable, never as zero, and makes the run exit 2.
 Closures count toward the function that owns them. Compiler lowering and a macro's own code add no
@@ -74,6 +75,7 @@ is a commented example, though it raises the complexity limits above their defau
 | `side_effects.paths.*` | see below | Callee path prefixes that count as each effect kind |
 | `grouping.caller_rules` | `["fn_params"]` | Rules whose fix also edits the function's callers |
 | `grouping.caller_hops` | 1 | How many caller hops those fixes reach |
+| `strict_style.guard_clause` | `false` | See [strict style](#strict-style) |
 
 The default weights are `mutation = 1`, `io = 3`, `network = 3`, `global = 2`, `unsafe = 4`, `time = 1`,
 `random = 1`, `panic = 0` and `unknown = 1`.
@@ -103,6 +105,35 @@ fn shim(a: u32, b: u32, c: u32, d: u32, e: u32) { /* ... */ }
 
 `abstraction` is also a valid rule id, and keeps a function out of [pattern mining](patterns.md). So
 is [`dead_store`](defects.md).
+
+## Strict style
+
+These rules are opinions about how code could be shaped, not limits it has passed, and plenty of good code disagrees with
+them. So each is off until `[strict_style]` in `rstyle.toml` turns it on:
+
+```toml
+[strict_style]
+guard_clause = true
+```
+
+A rule that's on behaves like any other here: it reports through `check`, fails the run, shows up in `check.sarif` and
+baselines, and `rstyle-allow` silences it for a function. Every language gets them from the same facts.
+
+### `guard_clause`
+
+An `if` whose `else` ends by returning, around at least 2 statements that don't:
+
+```go
+if ok {
+    a := first()
+    second(a)
+} else {
+    return errBad
+}
+```
+
+Returning early lets the main path stop being nested, and in Rust, `let ... else` often says it best. An `else if` is left
+alone, since returning early there means restructuring the whole chain.
 
 ## Fix groups
 

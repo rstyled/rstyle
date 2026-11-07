@@ -59,6 +59,7 @@ impl exact_rules::ReviewSnapshot for Snapshot {
                 | "mutation_per_target"
                 | "mutated_targets"
                 | "side_effect_density"
+                | "guard_clause"
         ) || self.actual <= self.limit
             || !self.policy.is_object()
         {

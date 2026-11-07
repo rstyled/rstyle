@@ -324,6 +324,38 @@ fn fn_spacing_is_configurable() {
 }
 
 #[test]
+fn guard_clause_is_off_until_a_project_turns_it_on_and_then_fails_a_run() {
+    let dir = fixture("clean");
+    let source = "pub fn f(a: bool) -> i32 {\n    if a {\n        let b = 1;\n        b + 1\n    } else {\n        return 0;\n    }\n}\n";
+    std::fs::write(dir.path().join("src/lib.rs"), source).unwrap();
+    let off = rstyle(dir.path(), &["--format", "json"]);
+    assert_eq!(off.status.code(), Some(0), "{off:?}");
+
+    std::fs::write(
+        dir.path().join("rstyle.toml"),
+        "[strict_style]\nguard_clause = true\n",
+    )
+    .unwrap();
+    let on = rstyle(dir.path(), &["--format", "json"]);
+    assert_eq!(on.status.code(), Some(1), "{on:?}");
+    let report: Value = serde_json::from_slice(&on.stdout).unwrap();
+    let found = diagnostics_for(&report, "f");
+    let [diagnostic] = found.as_slice() else {
+        panic!("{found:?}");
+    };
+    assert_eq!(diagnostic["rule_id"], "guard_clause");
+    assert!(
+        diagnostic["message"].as_str().unwrap().contains("line 2"),
+        "{diagnostic}"
+    );
+
+    let allowed = format!("// rstyle-allow(guard_clause): reads better here\n{source}");
+    std::fs::write(dir.path().join("src/lib.rs"), allowed).unwrap();
+    let suppressed = rstyle(dir.path(), &["--format", "json"]);
+    assert_eq!(suppressed.status.code(), Some(0), "{suppressed:?}");
+}
+
+#[test]
 fn config_change_reevaluates_without_recompiling() {
     let dir = fixture("violations");
     let before = style_json(dir.path());
