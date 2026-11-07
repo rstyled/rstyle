@@ -159,6 +159,7 @@ pub(crate) fn stream_records<R: BufRead>(
         workers: workers(),
         demand: stream.demand,
         on_failure: stream.on_failure,
+        on_document: &|_| {},
     };
     let jobs = std::iter::from_fn(|| reader.next_bytes().transpose());
     let records = cpg::pooled_records(jobs, load, &pool)?;
@@ -175,30 +176,49 @@ pub(crate) fn stream_records<R: BufRead>(
 fn records_on_disk<J: Send>(
     jobs: impl IntoIterator<Item = J>,
     read: impl Fn(J) -> Result<serde_json::Value, String> + Sync,
-    demand: Demand,
+    (demand, see): (Demand, See<'_>),
 ) -> Result<Vec<Record>, String> {
     let pool = Pool {
         workers: workers(),
         demand,
         on_failure: &|| {},
+        on_document: see,
     };
     let jobs = jobs.into_iter().map(Ok);
     cpg::pooled_records(jobs, |_, job| read(job), &pool)
 }
 
+/// What's shown each document as it's read, for what a run's records don't hold.
+pub(crate) type See<'a> = &'a (dyn Fn(&rstyle_core::cpg::model::Document) + Sync);
+
 /// Every record of explicitly listed documents.
 pub(crate) fn file_records(paths: &[PathBuf], demand: Demand) -> Result<Vec<Record>, String> {
-    records_on_disk(paths, |path| super::read(path), demand)
+    seen_file_records(paths, demand, &|_| {})
 }
 
-/// Every record of a sealed capture, each document verified against its seal on a worker.
-pub(crate) fn capture_records(directory: &Path, demand: Demand) -> Result<Vec<Record>, String> {
+/// Every record of explicitly listed documents, each one shown to `see`.
+pub(crate) fn seen_file_records(
+    paths: &[PathBuf],
+    demand: Demand,
+    see: See<'_>,
+) -> Result<Vec<Record>, String> {
+    records_on_disk(paths, |path| super::read(path), (demand, see))
+}
+
+/// Every record of a sealed capture, each document verified against its seal on a worker and
+/// shown to `see`.
+// rstyle-allow(side_effect_density): IO boundary: reads a capture's manifest
+pub(crate) fn seen_capture_records(
+    directory: &Path,
+    demand: Demand,
+    see: See<'_>,
+) -> Result<Vec<Record>, String> {
     let manifest = DocumentManifest::read(&transport::read_manifest_bytes(directory)?)?;
     if manifest.documents.is_empty() {
         return Err("A completed capture must contain at least one document".into());
     }
     let seals = manifest.documents.iter().map(|seal| (directory, seal));
-    sealed_records(seals, demand)
+    seen_sealed_records(seals, demand, see)
 }
 
 /// Every record of these sealed documents, wherever each one is, read on one pool.
@@ -206,10 +226,18 @@ pub(crate) fn sealed_records<'a>(
     seals: impl IntoIterator<Item = (&'a Path, &'a SealedDocument)>,
     demand: Demand,
 ) -> Result<Vec<Record>, String> {
+    seen_sealed_records(seals, demand, &|_| {})
+}
+
+fn seen_sealed_records<'a>(
+    seals: impl IntoIterator<Item = (&'a Path, &'a SealedDocument)>,
+    demand: Demand,
+    see: See<'_>,
+) -> Result<Vec<Record>, String> {
     let read = |(directory, seal): (&Path, &SealedDocument)| {
         transport::read_sealed(directory, seal).map_err(|error| format!("{}: {error}", seal.file))
     };
-    records_on_disk(seals, read, demand)
+    records_on_disk(seals, read, (demand, see))
 }
 
 pub(super) fn receive(args: &CpgReceiveArgs, format: Format) -> Result<(String, u8), String> {

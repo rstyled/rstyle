@@ -19,6 +19,8 @@ pub struct Pool<'a> {
     pub workers: usize,
     pub demand: Demand,
     pub on_failure: &'a (dyn Fn() + Sync),
+    /// Shown each bundled document, on a worker, for what a run's records don't hold.
+    pub on_document: &'a (dyn Fn(&Document) + Sync),
 }
 
 /// Derives every job's document. `load` turns a job, numbered in arrival order, into its
@@ -90,6 +92,7 @@ fn next<J>(queue: &Mutex<Receiver<J>>) -> Option<J> {
 struct State<'a> {
     demand: Demand,
     on_failure: &'a (dyn Fn() + Sync),
+    on_document: &'a (dyn Fn(&Document) + Sync),
     failed: AtomicBool,
     failure: Mutex<Option<String>>,
     functions: Mutex<layout::FunctionIds>,
@@ -102,6 +105,7 @@ impl<'a> State<'a> {
         Self {
             demand: pool.demand,
             on_failure: pool.on_failure,
+            on_document: pool.on_document,
             failed: AtomicBool::new(false),
             failure: Mutex::default(),
             functions: Mutex::default(),
@@ -137,6 +141,8 @@ impl<'a> State<'a> {
     }
 
     fn bundled(&self, document: &Document) -> Result<(), String> {
+        (self.on_document)(document);
+
         self.functions
             .lock()
             .expect("no panic while including")
@@ -183,6 +189,7 @@ mod tests {
             workers,
             demand,
             on_failure: &no_failure,
+            on_document: &|_| {},
         }
     }
 
@@ -264,6 +271,7 @@ mod tests {
             workers: 4,
             demand: Demand::default(),
             on_failure: &stop,
+            on_document: &|_| {},
         };
         let jobs = (0..100).map(|index| match index {
             3 => Err("broken pipe".to_string()),
