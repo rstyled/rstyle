@@ -1,13 +1,15 @@
 //! SARIF 2.1.0: one log and one run per analysis, so the results of different analyses
 //! never interleave, and one log holding every run as a run's final report.
 //!
-//! Findings and candidates are what SARIF carries. The JSON report stays the complete one:
-//! runtime bounds, signature groups and fix groups aren't findings.
+//! Findings and candidates are what SARIF carries. A check's findings also carry why: each
+//! decision point is a related location, and the measured value and its limit are properties.
+//! A check run carries its fix groups, so a consumer holding only the SARIF can plan fixes.
+//! The JSON report stays the complete one: runtime bounds and signature groups aren't here.
 
 use crate::candidates::Candidate;
 use crate::defects_report::{DefectRow, DefectsReport};
 use crate::patterns_report::PatternsReport;
-use crate::report::{Diagnostic, Report};
+use crate::report::{Detail, Diagnostic, FixGroup, Report};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -38,6 +40,14 @@ struct Run {
     automation_details: Automation,
     original_uri_base_ids: BTreeMap<&'static str, Artifact>,
     results: Vec<Finding>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    properties: Option<RunProperties>,
+}
+
+/// Beside, not under, the `rstyle` key: a service stamps `properties.rstyle` with its own record.
+#[derive(Debug, Serialize)]
+struct RunProperties {
+    fix_groups: Vec<FixGroup>,
 }
 
 #[derive(Debug, Serialize)]
@@ -69,6 +79,17 @@ struct Finding {
     related_locations: Vec<Location>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     fingerprints: BTreeMap<&'static str, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    properties: Option<Measure>,
+}
+
+/// What a check measured against its limit, and the fix group that fixes it.
+#[derive(Debug, Serialize)]
+struct Measure {
+    actual: usize,
+    limit: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fix_group: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]
@@ -80,6 +101,8 @@ struct Message {
 #[serde(rename_all = "camelCase")]
 struct Location {
     physical_location: PhysicalLocation,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<Message>,
 }
 
 #[derive(Debug, Serialize)]
@@ -107,11 +130,30 @@ struct Region {
 /// One warning per diagnostic, with its rule id and message. `root` is what relative paths
 /// resolve against. Columns are left out: SARIF counts them in other units than a frontend.
 pub fn check(report: &Report, root: &Path) -> Result<Log, String> {
-    log(
-        report.diagnostics.iter().map(diagnostic).collect(),
-        CHECK,
-        root,
-    )
+    let findings = report
+        .diagnostics
+        .iter()
+        .map(|d| diagnostic(d, group_of(d, &report.fix_groups)))
+        .collect();
+    let mut log = log(findings, CHECK, root)?;
+    log.runs[0].properties = (!report.fix_groups.is_empty()).then(|| RunProperties {
+        fix_groups: report.fix_groups.clone(),
+    });
+    Ok(log)
+}
+
+/// The fix group whose function is the diagnostic's, for the diagnostic's rule.
+fn group_of(diagnostic: &Diagnostic, groups: &[FixGroup]) -> Option<usize> {
+    groups
+        .iter()
+        .find(|group| {
+            group.functions.iter().any(|function| {
+                function.path == diagnostic.path
+                    && function.line == diagnostic.line
+                    && function.rules.contains(&diagnostic.rule_id)
+            })
+        })
+        .map(|group| group.id)
 }
 
 /// One warning per candidate left in the report, with its kind as the rule id.
@@ -201,6 +243,7 @@ fn log(results: Vec<Finding>, category: &'static str, root: &Path) -> Result<Log
             automation_details: Automation { id: category },
             original_uri_base_ids: BTreeMap::from([(SOURCE_ROOT, root_artifact(root)?)]),
             results,
+            properties: None,
         }],
     })
 }
@@ -218,12 +261,37 @@ fn root_artifact(root: &Path) -> Result<Artifact, String> {
     })
 }
 
-fn diagnostic(diagnostic: &Diagnostic) -> Finding {
-    at_one_place(
+/// One warning at the function, with each decision point that raised it as a related location.
+fn diagnostic(diagnostic: &Diagnostic, fix_group: Option<usize>) -> Finding {
+    let mut finding = at_one_place(
         &diagnostic.rule_id,
         &diagnostic.message,
         (&diagnostic.path, diagnostic.line),
-    )
+    );
+    finding.related_locations = diagnostic
+        .details
+        .iter()
+        .flat_map(|detail| decision_points(&diagnostic.path, detail))
+        .collect();
+    finding.properties = Some(Measure {
+        actual: diagnostic.actual,
+        limit: diagnostic.limit,
+        fix_group,
+    });
+    finding
+}
+
+/// A detail at one line says how much it added there; at several lines, each line is one of them.
+fn decision_points<'a>(path: &'a str, detail: &'a Detail) -> impl Iterator<Item = Location> + 'a {
+    let text = match detail.lines.len() {
+        1 => format!("{} +{}", detail.label, detail.count),
+        _ => detail.label.clone(),
+    };
+    detail.lines.iter().filter_map(move |line| {
+        let mut location = location(path, *line)?;
+        location.message = Some(Message { text: text.clone() });
+        Some(location)
+    })
 }
 
 fn defect(defect: &DefectRow) -> Finding {
@@ -240,6 +308,7 @@ fn at_one_place(rule_id: &str, text: &str, (path, line): (&str, usize)) -> Findi
         locations: location(path, line).into_iter().collect(),
         related_locations: Vec::new(),
         fingerprints: BTreeMap::new(),
+        properties: None,
     }
 }
 
@@ -265,6 +334,7 @@ fn candidate(candidate: &Candidate) -> Finding {
         locations,
         related_locations: sites.collect(),
         fingerprints: BTreeMap::from([(CANDIDATE_FINGERPRINT, candidate.id.clone())]),
+        properties: None,
     }
 }
 
@@ -275,6 +345,7 @@ fn location(path: &str, line: usize) -> Option<Location> {
             artifact_location: artifact(path),
             region: (line > 0).then_some(Region { start_line: line }),
         },
+        message: None,
     })
 }
 
