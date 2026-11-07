@@ -106,3 +106,69 @@ Calls are weighed by the callee they name, so everything that implements an inte
 test file or an excluded path neither count nor get reported, so only the code you ship is weighed.
 
 A result may be dropped on purpose, such as calling a function for what it caches. Suppress those with a reason.
+
+## `taint_flow`
+
+Input reaching where it's dangerous: a value from a source, through what your functions do with it, to an argument a sink
+treats as more than data.
+
+```text
+common/path.go:42: taint_flow: input from `os.Getenv` on node/defaults.go:124 reaches `os.Open` (path traversal, CWE-22): check how it's validated
+```
+
+It's a path to look at, not proof that it can be exploited, and no result doesn't mean there isn't one. It's reported at the
+sink, in whichever function holds it, and `rstyle-allow` goes above that function.
+
+Which calls are sources and sinks is data, per language, in `cpg/contracts/taint/`:
+
+| Language | Sources | Sinks |
+| --- | --- | --- |
+| Go | Query values, form values, headers, `os.Getenv`, `os.LookupEnv`, `io.ReadAll` | `database/sql` query text, `net/http` URLs, `os/exec` programs, template source, `os` file paths |
+| C and C++ | `getenv`, `fgets`, `read` and others | `system`, `popen`, the `exec` family, `fopen`, `open` and others |
+| Rust | `std::env::var`, `std::env::args`, reading stdin and others | `std::process::Command::new`, `std::fs` paths |
+
+Only an argument the sink treats as more than data counts, so a query parameter doesn't, and neither does an ordinary
+argument to a program, unless a literal shell and `-c` say it's code.
+
+`rstyle.toml` has the last word. The standard library is all the models know, so name your own crates and packages here:
+
+```toml
+[taint]
+sources = ["myapp::read_request"]   # calls whose result is input
+sanitizers = ["myapp::escape"]      # calls whose result no longer is, for every kind of sink
+ignored = ["std::env::var"]         # calls that are no end of a flow here
+
+[[taint.sinks]]
+callees = ["sqlx::query"]
+arguments = [0]                     # a receiver is 0, and otherwise the first argument is
+risk = "SQL injection"
+cwe = "CWE-89"
+```
+
+A callee is named by its operation, its name or its identity. A command-line tool is meant to read its own environment, as that
+example is, and every result on go-ethereum and on rstyle itself is an environment variable choosing a path or a program, so
+`ignored` is often the right answer for those.
+
+### How it follows a value
+
+Each function says where its values go, by what its tree's operands and its reaching definitions show, so overwriting a value
+clears it, `q += input` holds it, and `b.WriteString(input)` leaves it in `b`. A summary of each function says which parameters
+reach a sink or what it returns, and whether it returns input of its own, so a value is followed across a run.
+
+| What | What happens |
+| --- | --- |
+| A call with a body here | Gives back what its body does |
+| A call with no body here | Gives back everything it was handed |
+| A number or a truth value | Holds no input, so `len(input)` and `%d` of one are clean |
+| A value that only decides a branch | Isn't followed: this is about what a value holds |
+
+### What it misses
+
+- **Fields.** A value of your own types isn't followed through, since one field from a request says nothing of the others. So
+  input stored in a field and read back isn't found, and a builder holding input in a field isn't either. Following them gave
+  go-ethereum 8 more results from one HTTP header, by way of `cfg.client = makeClient(ctx)` reading as `cfg.filterQueryFile`
+  being input.
+- **A call through an interface or a function value** gives back what it's handed, and a sink behind one isn't seen. Neither is
+  what a closure returns.
+- **A shell in Rust.** `Command::new("sh").arg("-c").arg(input)` isn't found, since `arg` isn't a sink.
+- **Functions it can't read** are `unknown`, as for every rule here.

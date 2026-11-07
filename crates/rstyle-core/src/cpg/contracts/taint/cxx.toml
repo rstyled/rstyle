@@ -1,0 +1,22 @@
+# What the C and POSIX libraries take input from and where input is dangerous, keyed by operation
+# without its namespace. A receiver is position 0, and otherwise the first argument is.
+#
+# Only these are read, so a call to anything else isn't an endpoint. A project adds its own under
+# [taint] in rstyle.toml.
+
+schema = "rstyle.taint-models/1"
+namespace = "cxx"
+
+sources = ["getenv", "secure_getenv", "fgets", "gets", "getline", "recv", "read"]
+
+[[sinks]]
+risk = "command injection"
+cwe = "CWE-78"
+arguments = [0]
+callees = ["system", "popen", "execl", "execlp", "execle", "execv", "execvp", "execve"]
+
+[[sinks]]
+risk = "path traversal"
+cwe = "CWE-22"
+arguments = [0]
+callees = ["fopen", "freopen", "open", "remove", "unlink", "rmdir"]

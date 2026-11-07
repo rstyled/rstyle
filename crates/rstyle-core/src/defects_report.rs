@@ -1,7 +1,9 @@
 //! The defects a run's records hold, as the report and SARIF show them.
 
-use crate::config::{Config, IgnoredResultConfig};
+use crate::config::{Config, IgnoredResultConfig, TaintConfig};
 use crate::cpg::defects::ignored_result::{self, ResultUse};
+use crate::cpg::defects::taint::{self, Finding, FunctionFlows};
+use crate::cpg::defects::value_flow::ValueFlows;
 use crate::cpg::defects::{Defect, Examined};
 use crate::cpg::records::{Measured, Record};
 use crate::{exclusions, suppress};
@@ -75,7 +77,7 @@ pub fn from_records(records: &mut [Record], config: &Config) -> Result<DefectsRe
         }
         read.add(record, examined);
     }
-    Ok(read.into_report(&config.ignored_result))
+    Ok(read.into_report(config))
 }
 
 /// Where a call is, which makes it one call however many compilations hold it.
@@ -105,6 +107,8 @@ struct Gathered {
     unknown: BTreeSet<UnknownRow>,
     /// Each callee's calls, by its identity.
     results: BTreeMap<String, Calls>,
+    /// Where each function's values go, by its identity.
+    flows: BTreeMap<String, FunctionFlows>,
 }
 
 fn preceding(record: &Record) -> &str {
@@ -118,14 +122,37 @@ impl Gathered {
     fn add(&mut self, record: &Record, examined: Examined) {
         self.functions.insert(record.identity.clone());
         match examined {
-            Examined::Read { defects, results } => self.add_read(record, (defects, results)),
+            Examined::Read {
+                defects,
+                results,
+                flows,
+            } => {
+                self.add_read(record, (defects, results, flows));
+            }
             Examined::Unknown(reason) => self.add_unknown(record, reason),
         }
     }
 
-    fn add_read(&mut self, record: &Record, (defects, results): (Vec<Defect>, Vec<ResultUse>)) {
+    fn add_read(
+        &mut self,
+        record: &Record,
+        (defects, results, flows): (Vec<Defect>, Vec<ResultUse>, ValueFlows),
+    ) {
         self.add_found(record, defects);
         self.add_results(record, results);
+        self.add_flows(record, flows);
+    }
+
+    fn add_flows(&mut self, record: &Record, flows: ValueFlows) {
+        let function = FunctionFlows {
+            identity: record.identity.clone(),
+            path: record.path.clone(),
+            allowed: suppress::allows(preceding(record), taint::RULE),
+            flows,
+        };
+        self.flows
+            .entry(record.identity.clone())
+            .or_insert(function);
     }
 
     fn add_unknown(&mut self, record: &Record, reason: String) {
@@ -200,10 +227,31 @@ impl Gathered {
         }
     }
 
-    fn into_report(mut self, limits: &IgnoredResultConfig) -> DefectsReport {
-        for calls in std::mem::take(&mut self.results).into_values() {
-            self.weigh(calls, limits);
+    /// Reports the input that reaches a sink, wherever in the run each end is.
+    fn follow_input(&mut self, project: &TaintConfig) {
+        let functions: Vec<FunctionFlows> = std::mem::take(&mut self.flows).into_values().collect();
+        for Finding { function, defect } in taint::find(&functions, project) {
+            let holder = &functions[function];
+            if holder.allowed {
+                self.suppressed
+                    .insert((holder.path.clone(), defect.line, defect.rule));
+                continue;
+            }
+            self.defects.insert(DefectRow {
+                path: holder.path.clone(),
+                line: defect.line,
+                rule: defect.rule,
+                message: defect.message,
+                function: holder.identity.clone(),
+            });
         }
+    }
+
+    fn into_report(mut self, config: &Config) -> DefectsReport {
+        for calls in std::mem::take(&mut self.results).into_values() {
+            self.weigh(calls, &config.ignored_result);
+        }
+        self.follow_input(&config.taint);
 
         DefectsReport {
             defects: self.defects.into_iter().collect(),

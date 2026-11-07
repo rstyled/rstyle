@@ -1888,6 +1888,65 @@ fn a_rust_run_finds_a_value_nothing_reads() {
     assert!(saved_run(&output).join("defects.sarif").is_file());
 }
 
+/// The lines `taint_flow` reports in a run of a package. Defects don't change the exit code.
+fn taint_lines(root: &Path) -> Vec<u64> {
+    let output = rust_run(root, &["--filter", "defects", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let unified = report(&output);
+    let rows = unified["defects"]["defects"].as_array().unwrap();
+    let taint = rows.iter().filter(|row| row["rule"] == "taint_flow");
+    taint.map(|row| row["line"].as_u64().unwrap()).collect()
+}
+
+#[test]
+fn a_rust_run_follows_input_to_where_its_dangerous_and_a_project_has_the_last_word() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    std::fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n[workspace]\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "fn input() -> String { std::env::var(\"Q\").unwrap() }\n\
+         pub fn compound() {\n    let mut q = String::from(\"/tmp/\");\n    q.push_str(&input());\n    \
+         let _ = std::fs::read(q);\n}\n\
+         pub fn overwritten() {\n    let mut q = input();\n    q = String::from(\"safe\");\n    \
+         let _ = std::fs::read(q);\n}\n\
+         pub fn number() {\n    let n = input().len();\n    let _ = std::fs::read(n.to_string());\n}\n\
+         fn open(path: &str) {\n    let _ = std::fs::read(path);\n}\n\
+         pub fn through_a_helper() {\n    open(&input());\n}\n",
+    )
+    .unwrap();
+    let rows = || taint_lines(root);
+    assert_eq!(rows(), [5, 17], "compound, and open's call of read");
+
+    std::fs::write(
+        root.join("rstyle.toml"),
+        "[taint]\nignored = [\"std::env::var\"]\n",
+    )
+    .unwrap();
+    assert!(rows().is_empty(), "a tool reads its own environment");
+
+    std::fs::write(
+        root.join("rstyle.toml"),
+        "[taint]\nsanitizers = [\"app::input\"]\n",
+    )
+    .unwrap();
+    assert!(rows().is_empty(), "what cleans input can't also return it");
+
+    std::fs::remove_file(root.join("rstyle.toml")).unwrap();
+    let source = std::fs::read_to_string(root.join("src/lib.rs")).unwrap();
+    let allowed = source.replace(
+        "fn open(",
+        "// rstyle-allow(taint_flow): the caller checks it\nfn open(",
+    );
+    std::fs::write(root.join("src/lib.rs"), allowed).unwrap();
+    assert_eq!(rows(), [5]);
+}
+
 #[test]
 fn a_rust_run_finds_a_result_the_other_calls_use() {
     let directory = tempfile::tempdir().unwrap();

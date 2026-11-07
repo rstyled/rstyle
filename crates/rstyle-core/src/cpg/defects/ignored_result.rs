@@ -89,7 +89,7 @@ fn dropped(reading: &Reading<'_>, node: &Node) -> Option<bool> {
 
 /// The function or method a call names, whichever implementation it reaches: what's expected of
 /// a callee is expected of everything that implements it. A call of a value names nothing.
-fn declared_callee<'r>(
+pub(super) fn declared_callee<'r>(
     reading: &Reading<'r>,
     node: &Node,
 ) -> Result<Option<&'r Definition>, String> {
