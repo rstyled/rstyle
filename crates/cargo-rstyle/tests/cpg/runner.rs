@@ -294,9 +294,190 @@ fn a_saved_run_reads_back_without_the_frontend() {
     let named = project.go(&["--filter", "go:calls", "--from", run.to_str().unwrap()]);
     assert_eq!(named.status.code(), Some(2));
     assert!(
-        stderr(&named).contains("no frontend to run `go:calls`"),
+        stderr(&named).contains("has no analysis `calls`"),
         "{named:?}"
     );
+}
+
+/// A saved run, with the frontend's analyses described as `description`.
+fn saved_with(project: &Project, description: &str) -> PathBuf {
+    let output = project
+        .command(description, &["go", "--check", "--format", "json"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    saved_run(&output)
+}
+
+#[test]
+fn a_saved_run_replays_an_analysis_that_reads_documents() {
+    let project = Project::new();
+    let run = saved_with(&project, READERS);
+    let received = project.root().join("received");
+
+    let output = project
+        .command(
+            READERS,
+            &[
+                "go",
+                "--filter",
+                "go:reader",
+                "--from",
+                run.to_str().unwrap(),
+                "--format",
+                "json",
+            ],
+        )
+        .env("FAKE_RECEIVED", &received)
+        // Only the saved documents can answer.
+        .env_remove("FAKE_DOCUMENT")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let unified = report(&output);
+    let frontend = &unified["frontend"][0];
+    assert_eq!(frontend["status"], "complete", "{frontend}");
+    assert_eq!(frontend["runs"][0]["automationDetails"]["id"], "go/reader/");
+    assert!(
+        frontend.get("file").is_none(),
+        "nothing keeps it: {frontend}"
+    );
+
+    let bytes = std::fs::read(&received).unwrap();
+    let mut sequence = SequenceReader::new(bytes.as_slice());
+    assert_eq!(sequence.next().unwrap().unwrap(), example());
+    assert!(sequence.next().is_none());
+    sequence.complete().unwrap();
+    assert_eq!(project.run_folders().len(), 1, "--from alone saves nothing");
+}
+
+#[test]
+fn text_from_a_replay_says_what_was_found_and_names_no_file() {
+    let project = Project::new();
+    let run = saved_with(&project, READERS);
+    let output = project
+        .command(
+            READERS,
+            &[
+                "go",
+                "--filter",
+                "go:reader",
+                "--from",
+                run.to_str().unwrap(),
+            ],
+        )
+        .env("FAKE_RECEIVED", project.root().join("received"))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let text = stdout(&output);
+    assert!(text.contains("go:reader: 1 result"), "{text}");
+    assert!(!text.contains("frontend/"), "{text}");
+}
+
+#[test]
+fn a_replay_saved_with_out_keeps_the_analysis_file() {
+    let project = Project::new();
+    let run = saved_with(&project, READERS);
+    let out = project.root().join("replayed");
+    let output = project
+        .command(
+            READERS,
+            &[
+                "go",
+                "--filter",
+                "go:reader",
+                "--from",
+                run.to_str().unwrap(),
+                "--out",
+                out.to_str().unwrap(),
+                "--format",
+                "json",
+            ],
+        )
+        .env("FAKE_RECEIVED", project.root().join("received"))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(
+        report(&output)["frontend"][0]["file"],
+        "frontend/reader.sarif"
+    );
+    assert!(out.join("frontend/reader.sarif").is_file());
+    assert!(out.join("report.sarif").is_file());
+}
+
+#[test]
+fn a_saved_run_refuses_an_analysis_that_reads_the_source() {
+    let project = Project::new();
+    let run = saved_with(&project, READERS);
+    let output = project
+        .command(
+            READERS,
+            &[
+                "go",
+                "--filter",
+                "go:calls",
+                "--from",
+                run.to_str().unwrap(),
+            ],
+        )
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(
+        stderr(&output).contains("`go:calls` reads the source"),
+        "{output:?}"
+    );
+}
+
+#[test]
+fn a_replay_without_its_frontend_says_so() {
+    let project = Project::new();
+    let run = saved_with(&project, READERS);
+    let output = Command::new(cargo_bin("rstyle"))
+        .args([
+            "go",
+            "--filter",
+            "go:reader",
+            "--from",
+            run.to_str().unwrap(),
+        ])
+        .current_dir(project.root())
+        .env("RSTYLE_GO", "/nonexistent/frontend")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("RSTYLE_GO"), "{output:?}");
+}
+
+#[test]
+fn a_replay_of_documents_with_no_seals_fails_its_analysis_and_keeps_the_report() {
+    let project = Project::new();
+    let run = saved_with(&project, READERS);
+    std::fs::remove_file(run.join("documents/documents.manifest.json")).unwrap();
+    let output = project
+        .command(
+            READERS,
+            &[
+                "go",
+                "--filter",
+                "check,go:reader",
+                "--from",
+                run.to_str().unwrap(),
+                "--format",
+                "json",
+            ],
+        )
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    let unified = report(&output);
+    assert!(unified["check"].is_object(), "core could read them");
+    let frontend = &unified["frontend"][0];
+    assert_eq!(frontend["status"], "failed");
+    let error = frontend["error"].as_str().unwrap();
+    assert!(error.contains("documents.manifest.json"), "{error}");
 }
 
 #[test]
