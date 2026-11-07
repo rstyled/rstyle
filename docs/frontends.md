@@ -28,7 +28,8 @@ With no filter you get everything. `--filter` takes names, comma-separated or re
 | Name | Runs |
 | --- | --- |
 | `check`, `patterns`, `bounds`, `flow`, `defects` | Core's analyses |
-| `go:<name>`, `rust:<name>` | An analysis local to that frontend; none exist yet |
+| `go:<name>` | An analysis local to the Go frontend, which offers `forcetypeassert` |
+| `rust:<name>` | An analysis local to the Rust frontend; none exist yet |
 
 An unknown name fails before anything runs, as does `--fail-on-candidates` without patterns.
 
