@@ -186,10 +186,10 @@ fn examined(document: Value) -> Examined {
 
 /// The lines a value is reported stored on, by binding.
 fn dead_stores(document: Value) -> Vec<(String, usize)> {
-    let Examined::Read(found) = examined(document) else {
+    let Examined::Read { defects, .. } = examined(document) else {
         panic!("the function was not read");
     };
-    found
+    defects
         .into_iter()
         .map(|defect| {
             assert_eq!(defect.rule, "dead_store");

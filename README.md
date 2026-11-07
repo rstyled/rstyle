@@ -14,6 +14,8 @@ types rather than just syntax, and it analyzes Rust and Go.
 - **Control flow** reports dominators and data and control dependence for each function.
 - **Defects** point out what a function's own flow shows is probably wrong, such as a computed value
   nothing ever reads.
+- **Merge risk** compares two saved runs of a codebase: what changed, what it newly does and what reaches
+  it, in any language rstyle reads.
 
 > rstyle is in alpha and is installed from source. It depends on rustc internals, so it needs a
 > specific nightly toolchain, which the installer sets up for you.

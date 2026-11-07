@@ -258,6 +258,18 @@ fn call_effect(call: &CallEvent, cfg: &Config) -> Option<EffectKind> {
     }
 }
 
+/// The callee of a library call nothing says the effect of, neither the config nor a contract, so
+/// what it does can't be told from here. Density is right not to count one: nobody classified it.
+/// A comparison can't call it clean, though. A call with an unknown target is its own matter.
+pub fn unclassified_callee<'c>(call: &'c CallEvent, cfg: &Config) -> Option<&'c str> {
+    let callee = call.library_callee.as_deref().filter(|_| !call.dynamic)?;
+    let classified = match call_effect(call, cfg) {
+        Some(kind) => kind != EffectKind::Unknown,
+        None => call.library.is_some(),
+    };
+    (!classified).then_some(callee)
+}
+
 /// Weighted effect sum per statement, in thousandths (integer math only).
 pub fn density_milli(f: &FnFacts, effects: &[Effect], cfg: &Config) -> usize {
     let total: usize = effects
@@ -376,6 +388,7 @@ mod tests {
                 line: 8,
                 dynamic: true,
                 library: None,
+                library_callee: None,
             },
             call("unclassified::ordinary"),
             CallEvent {
@@ -546,12 +559,65 @@ mod tests {
         assert_eq!(out[0].actual, 4);
     }
 
+    #[test]
+    fn a_library_call_nothing_classifies_is_named_and_any_other_is_not() {
+        let cfg = Config::default();
+        let library = |library| CallEvent {
+            callee: "lib::call".into(),
+            line: 1,
+            dynamic: false,
+            library,
+            library_callee: Some("lib::call#1".into()),
+        };
+
+        let unlisted = library(None);
+        assert_eq!(unclassified_callee(&unlisted, &cfg), Some("lib::call#1"));
+        let unknown = library(Some(LibraryClass::Effect(EffectKind::Unknown)));
+        assert_eq!(unclassified_callee(&unknown, &cfg), Some("lib::call#1"));
+
+        assert_eq!(
+            unclassified_callee(&library(Some(LibraryClass::Pure)), &cfg),
+            None
+        );
+        let io = library(Some(LibraryClass::Effect(EffectKind::Io)));
+        assert_eq!(unclassified_callee(&io, &cfg), None);
+
+        let dynamic = CallEvent {
+            dynamic: true,
+            ..library(None)
+        };
+        assert_eq!(unclassified_callee(&dynamic, &cfg), None, "its own matter");
+
+        let workspace = CallEvent {
+            library_callee: None,
+            ..library(None)
+        };
+        assert_eq!(unclassified_callee(&workspace, &cfg), None, "readable here");
+    }
+
+    #[test]
+    fn the_config_classifying_a_library_call_is_enough() {
+        let mut cfg = Config::default();
+        let write = CallEvent {
+            callee: "tokio::fs::write".into(),
+            line: 1,
+            dynamic: false,
+            library: None,
+            library_callee: Some("tokio::fs::write".into()),
+        };
+        assert_eq!(unclassified_callee(&write, &cfg), Some("tokio::fs::write"));
+
+        cfg.side_effects.paths.io.push("tokio::fs::".into());
+        assert_eq!(unclassified_callee(&write, &cfg), None);
+    }
+
     fn call(callee: &str) -> CallEvent {
         CallEvent {
             callee: callee.into(),
             line: 1,
             dynamic: false,
             library: None,
+            library_callee: None,
         }
     }
 

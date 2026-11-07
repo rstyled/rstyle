@@ -152,6 +152,9 @@ pub struct File {
     pub digest: String,
     pub origin: String,
     pub generated_by: Option<String>,
+    /// The language says this file holds tests.
+    #[serde(default)]
+    pub test: bool,
     pub content: Option<String>,
 }
 

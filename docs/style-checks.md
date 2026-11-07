@@ -72,6 +72,8 @@ is a commented example, though it raises the complexity limits above their defau
 | `side_effects.transitive_depth` | 3 | Call hops an effect travels up; 0 means direct effects only |
 | `side_effects.weights.*` | see below | Weight of each effect kind |
 | `side_effects.paths.*` | see below | Callee path prefixes that count as each effect kind |
+| `ignored_result.min_used_percent` | 90 | How much of a callee's calls must use its result, from 1 to 100. See [`ignored_result`](defects.md#ignored_result) |
+| `ignored_result.min_calls` | 5 | Fewest calls of a callee that say anything. At 90%, one drop already takes 10 |
 | `grouping.caller_rules` | `["fn_params"]` | Rules whose fix also edits the function's callers |
 | `grouping.caller_hops` | 1 | How many caller hops those fixes reach |
 
@@ -102,7 +104,7 @@ fn shim(a: u32, b: u32, c: u32, d: u32, e: u32) { /* ... */ }
 ```
 
 `abstraction` is also a valid rule id, and keeps a function out of [pattern mining](patterns.md). So
-is [`dead_store`](defects.md).
+are [`dead_store` and `ignored_result`](defects.md).
 
 ## Fix groups
 

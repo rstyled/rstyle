@@ -729,22 +729,28 @@ fn accesses_recorded(coverage: &Coverage, function: &Function) -> bool {
         || declared(layers, "symbol") == Some(Status::Supported)
 }
 
-/// A function's flow when all of its syntax and what reads and writes each binding are known
-/// too, or why they aren't. Whatever isn't in the tree, such as code a compiler couldn't parse or
-/// a construct a frontend doesn't model, can do anything, so nothing can be said to be unused.
-pub fn with_accesses<'f>(coverage: &Coverage, function: &'f Function) -> Result<Flow<'f>, String> {
-    let flow = declared_flow(coverage, function)?;
-    let (layers, capabilities) = entries(coverage, function);
-
+/// Why a function's tree isn't all of it, when it isn't. What's missing could do anything.
+pub fn syntax_gap(coverage: &Coverage, function: &Function) -> Option<&'static str> {
+    let (layers, _) = entries(coverage, function);
     if declared(layers, "ast") != Some(Status::Supported) {
-        return Err("The frontend does not hold all of this function's syntax".into());
+        return Some("The frontend does not hold all of this function's syntax");
     }
-    if function
+    function
         .nodes
         .iter()
         .any(|node| node.kind == NodeKind::Unsupported)
-    {
-        return Err("The function holds a construct the frontend does not model".into());
+        .then_some("The function holds a construct the frontend does not model")
+}
+
+/// A function's flow when all of its syntax, what reads and writes each binding and what its calls
+/// resolve to are known too, or why they aren't. Whatever isn't in the tree, such as code a
+/// compiler couldn't parse or a construct a frontend doesn't model, can do anything, so nothing can
+/// be said to be unused.
+pub fn with_accesses<'f>(coverage: &Coverage, function: &'f Function) -> Result<Flow<'f>, String> {
+    let flow = declared_flow(coverage, function)?;
+    let (_, capabilities) = entries(coverage, function);
+    if let Some(gap) = syntax_gap(coverage, function) {
+        return Err(gap.into());
     }
 
     if !accesses_recorded(coverage, function) {
@@ -752,6 +758,9 @@ pub fn with_accesses<'f>(coverage: &Coverage, function: &'f Function) -> Result<
     }
     if !usable(declared(capabilities, "aliasing")) {
         return Err("The frontend does not say what can alias in this function".into());
+    }
+    if !usable(declared(capabilities, "resolution")) {
+        return Err("The frontend does not say what this function's calls resolve to".into());
     }
     Ok(flow)
 }

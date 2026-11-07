@@ -4,6 +4,7 @@
 mod database;
 mod frontend;
 mod pipe;
+mod risk;
 mod store;
 
 use crate::cpg::analyze::{self, FrontendResult, Unified};
@@ -11,6 +12,7 @@ use crate::cpg::{self, input};
 use crate::{Cli, Format, MineArgs, PatternDisplayArgs, compiler, ignore, workspace};
 use clap::Args;
 use frontend::{AnalysisPaths, Frontend, Saving};
+pub(crate) use risk::{RiskArgs, risk};
 use rstyle_core::cpg::records::{Demand, Record};
 use rstyle_core::cpg::transport::{self, DOCUMENTS_MANIFEST, Encoding};
 use rstyle_core::filter::{Analysis, Filter};
@@ -22,6 +24,7 @@ use store::{Destination, Staged};
 
 const RUN_SCHEMA: &str = "rstyle.run/1";
 const RUN_FILE: &str = "run.json";
+const POLICY_FILE: &str = "rstyle.toml";
 const REPORT_FILE: &str = "report.json.zst";
 const DOCUMENTS_FOLDER: &str = "documents";
 const FRONTEND_FOLDER: &str = "frontend";
@@ -449,8 +452,20 @@ fn unsaved_analyses(
     Ok(results)
 }
 
-// rstyle-allow(side_effect_density): IO boundary: reads the run's record
 fn read_record(from: &Path, language: &str) -> Result<Option<RunRecord>, String> {
+    let record = read_any_record(from)?;
+    if let Some(other) = record.as_ref().filter(|record| record.language != language) {
+        return Err(format!(
+            "{} is a {} run, not {language}",
+            from.display(),
+            other.language
+        ));
+    }
+    Ok(record)
+}
+
+// rstyle-allow(side_effect_density): IO boundary: reads the run's record
+fn read_any_record(from: &Path) -> Result<Option<RunRecord>, String> {
     let path = from.join(RUN_FILE);
     if !path.exists() {
         return Ok(None);
@@ -466,13 +481,6 @@ fn read_record(from: &Path, language: &str) -> Result<Option<RunRecord>, String>
             record.schema
         ));
     }
-    if record.language != language {
-        return Err(format!(
-            "{} is a {} run, not {language}",
-            from.display(),
-            record.language
-        ));
-    }
     Ok(Some(record))
 }
 
@@ -484,9 +492,19 @@ fn saved_records(
     record: Option<&RunRecord>,
     demand: Demand,
 ) -> Result<Vec<Record>, String> {
+    seen_saved_records((from, record), demand, &|_| {})
+}
+
+/// A saved run's records, with each document shown to `see` as it's read.
+// rstyle-allow(side_effect_density): IO boundary: reads a saved run's documents
+fn seen_saved_records(
+    (from, record): (&Path, Option<&RunRecord>),
+    demand: Demand,
+    see: input::See<'_>,
+) -> Result<Vec<Record>, String> {
     let directory = documents_folder(from);
     if directory.join(DOCUMENTS_MANIFEST).exists() {
-        return input::capture_records(&directory, demand);
+        return input::seen_capture_records(&directory, demand, see);
     }
 
     let paths = cpg::documents(&directory)?;
@@ -501,7 +519,7 @@ fn saved_records(
     if paths.is_empty() {
         return Err(format!("{} holds no documents", from.display()));
     }
-    input::file_records(&paths, demand)
+    input::seen_file_records(&paths, demand, see)
 }
 
 /// Where a saved run keeps its documents, or the folder itself if it holds them directly.
@@ -546,6 +564,8 @@ impl Plan<'_> {
     fn save(&self, unified: &Unified, staged: Staged, documents: usize) -> Result<PathBuf, String> {
         unified.write_sarif(staged.path(), &self.source)?;
         transport::write_json(&staged.path().join(REPORT_FILE), Encoding::Zstd, unified)?;
+        let policy = crate::config_path(self.cli.config.clone(), &self.project);
+        keep_policy(policy.as_deref(), staged.path())?;
 
         let record = RunRecord {
             schema: RUN_SCHEMA.into(),
@@ -565,6 +585,18 @@ impl Plan<'_> {
         };
         Ok((output, code))
     }
+}
+
+/// Keeps the policy a run read beside it, so a later comparison goes by what this run used,
+/// whatever the checkout holds by then.
+// rstyle-allow(side_effect_density): IO boundary: copies the policy into the run
+fn keep_policy(policy: Option<&Path>, run: &Path) -> Result<(), String> {
+    let Some(policy) = policy else {
+        return Ok(());
+    };
+    std::fs::copy(policy, run.join(POLICY_FILE))
+        .map(drop)
+        .map_err(|error| format!("{}: {error}", policy.display()))
 }
 
 fn with_location(text: String, run: Option<&Path>) -> String {

@@ -116,6 +116,10 @@ a score. The same command returns 1 for findings or 2 for missing measurements.
 - `mutation_per_target` / `mutated_targets`: return new values instead of writing through `&mut`; split functions by the thing they mutate.
 - `side_effect_density`: separate pure computation from IO/network/time/random/unsafe. Keep effects in a thin outer function.
 
+## Comparing two runs
+
+`rstyle risk --base RUN --head RUN [--format json]` says what changed between two saved runs of any language, with no compiler: each function that changed, what it newly does and calls, and what reaches it. `[risk]` in `rstyle.toml` rates it, by the base run's policy, and with no rules it's `unrated`. It always exits 0. See `docs/merge-risk.md`.
+
 ## Suppression (last resort)
 
 Line directly above the function, reason required:

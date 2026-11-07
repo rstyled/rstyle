@@ -11,7 +11,119 @@ pub struct Config {
     pub complexity: ComplexityConfig,
     pub mutation_budget: MutationBudgetConfig,
     pub side_effects: SideEffectsConfig,
+    /// Left out of what a baseline compares, since compiler diagnostics don't read it: changing it
+    /// shouldn't read as a change in their policy.
+    #[serde(skip_serializing)]
+    pub ignored_result: IgnoredResultConfig,
+    /// Left out of what a baseline compares for the same reason: only `rstyle risk` reads it.
+    #[serde(skip_serializing)]
+    pub risk: RiskConfig,
     pub grouping: GroupingConfig,
+}
+
+/// How much a kind of change matters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Severity {
+    Low,
+    Medium,
+    High,
+}
+
+/// A severity for calling one callee more often than before.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CallRule {
+    /// The callee's identity, exactly as `rstyle risk` prints it.
+    pub callee: String,
+    pub level: Severity,
+}
+
+/// How much each kind of change between two runs matters, for `rstyle risk`. Nothing here has a
+/// default: how much a change matters is a project's to say, so a change nothing here rates stays
+/// unrated rather than being given a severity. Rules are checked on load, so a typo can't quietly
+/// turn one off.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(try_from = "UncheckedRisk")]
+pub struct RiskConfig {
+    /// A function's dependence graph changed, or it was added or removed.
+    pub pdg_change: Option<Severity>,
+    /// Lowers a medium `pdg_change` to low when at most this many functions changed. 0 is no limit.
+    /// It's a policy on size, not a proof that behavior is preserved.
+    pub pdg_low_risk_max_functions: usize,
+    pub calls: Vec<CallRule>,
+}
+
+impl RiskConfig {
+    pub fn is_set(&self) -> bool {
+        self.pdg_change.is_some() || !self.calls.is_empty()
+    }
+}
+
+#[derive(Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct UncheckedRisk {
+    pdg_change: Option<Severity>,
+    pdg_low_risk_max_functions: usize,
+    calls: Vec<CallRule>,
+}
+
+impl TryFrom<UncheckedRisk> for RiskConfig {
+    type Error = String;
+
+    fn try_from(risk: UncheckedRisk) -> Result<Self, String> {
+        if risk.pdg_low_risk_max_functions > 0 && risk.pdg_change.is_none() {
+            return Err("risk.pdg_low_risk_max_functions requires pdg_change".to_owned());
+        }
+        let mut callees = std::collections::BTreeSet::new();
+        for rule in &risk.calls {
+            let named = !rule.callee.is_empty() && rule.callee.trim() == rule.callee;
+            if !named || !callees.insert(&rule.callee) {
+                return Err("risk.calls require distinct nonempty callee identities".to_owned());
+            }
+        }
+        Ok(Self {
+            pdg_change: risk.pdg_change,
+            pdg_low_risk_max_functions: risk.pdg_low_risk_max_functions,
+            calls: risk.calls,
+        })
+    }
+}
+
+/// A share from 1 to 100, checked on load so a typo can't quietly change what a rule reports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(try_from = "usize")]
+pub struct Percent(pub usize);
+
+impl TryFrom<usize> for Percent {
+    type Error = String;
+
+    fn try_from(percent: usize) -> Result<Self, String> {
+        match percent {
+            1..=100 => Ok(Self(percent)),
+            _ => Err(format!("{percent} is not a percentage from 1 to 100")),
+        }
+    }
+}
+
+/// How much of a callee's calls it takes for one that drops its result to stand out.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct IgnoredResultConfig {
+    /// Fewer calls than this say too little about what a callee's callers expect.
+    pub min_calls: usize,
+    /// How much of a callee's calls must use its result. 100 reports nothing, since then no call
+    /// can have dropped it.
+    pub min_used_percent: Percent,
+}
+
+impl Default for IgnoredResultConfig {
+    fn default() -> Self {
+        Self {
+            min_calls: 5,
+            min_used_percent: Percent(90),
+        }
+    }
 }
 
 /// Findings start strictly above either configured complexity limit.
@@ -372,5 +484,76 @@ mod tests {
             Some(EffectKind::Random)
         );
         assert_eq!(paths.classify("std::io::stdin"), Some(EffectKind::Io));
+    }
+
+    #[test]
+    fn ignored_result_has_defaults_a_project_can_change_and_a_share_must_be_one() {
+        let default = Config::parse("").unwrap().ignored_result;
+        assert_eq!(default.min_calls, 5);
+        assert_eq!(default.min_used_percent, Percent(90));
+
+        let set = Config::parse("[ignored_result]\nmin_calls = 20\nmin_used_percent = 75").unwrap();
+        assert_eq!(set.ignored_result.min_calls, 20);
+        assert_eq!(set.ignored_result.min_used_percent, Percent(75));
+
+        for wrong in [
+            "min_used_percent = 0",
+            "min_used_percent = 101",
+            "min_call = 5",
+        ] {
+            let input = format!("[ignored_result]\n{wrong}");
+            assert!(Config::parse(&input).is_err(), "{wrong}");
+        }
+    }
+
+    #[test]
+    fn a_baseline_compares_nothing_of_ignored_result() {
+        let config = Config::parse("[ignored_result]\nmin_calls = 20").unwrap();
+        let policy = serde_json::to_value(&config).unwrap();
+        assert!(policy.get("ignored_result").is_none(), "{policy}");
+    }
+
+    #[test]
+    fn risk_rules_have_no_defaults() {
+        let risk = Config::parse("").unwrap().risk;
+        assert!(!risk.is_set());
+        assert_eq!(risk.pdg_change, None);
+
+        let set = Config::parse(
+            "[risk]\npdg_change = \"medium\"\npdg_low_risk_max_functions = 3\n\
+             [[risk.calls]]\ncallee = \"go::os.WriteFile\"\nlevel = \"high\"\n",
+        )
+        .unwrap()
+        .risk;
+        assert!(set.is_set());
+        assert_eq!(set.pdg_change, Some(Severity::Medium));
+        assert_eq!(set.pdg_low_risk_max_functions, 3);
+        assert_eq!(set.calls[0].callee, "go::os.WriteFile");
+        assert_eq!(set.calls[0].level, Severity::High);
+
+        let only_a_call = "[[risk.calls]]\ncallee = \"f\"\nlevel = \"low\"\n";
+        assert!(Config::parse(only_a_call).unwrap().risk.is_set());
+    }
+
+    #[test]
+    fn a_risk_rule_that_would_quietly_do_nothing_is_an_error() {
+        let error = |input: &str| Config::parse(input).unwrap_err().to_string();
+        assert!(error("[risk]\npdg_change = \"severe\"").contains("severe"));
+        assert!(error("[risk]\ndependency_change = \"high\"").contains("dependency_change"));
+        assert!(error("[risk]\npdg_low_risk_max_functions = 3").contains("requires pdg_change"),);
+
+        let rule =
+            |callee: &str| format!("[[risk.calls]]\ncallee = \"{callee}\"\nlevel = \"low\"\n");
+        for bad in [rule(""), rule(" f"), format!("{0}{0}", rule("f"))] {
+            assert!(error(&bad).contains("distinct nonempty"), "{bad}");
+        }
+        assert!(error("[[risk.calls]]\ncallee = \"f\"").contains("level"));
+        assert!(error("[[risk.calls]]\nlevel = \"low\"").contains("callee"));
+    }
+
+    #[test]
+    fn a_baseline_does_not_compare_risk_rules() {
+        let policy = |input: &str| serde_json::to_value(Config::parse(input).unwrap()).unwrap();
+        assert_eq!(policy("[risk]\npdg_change = \"high\""), policy(""));
     }
 }
