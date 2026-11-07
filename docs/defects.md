@@ -21,7 +21,10 @@ A function the rules can't read is `unknown`, with why, and never counted as cle
 - it holds a construct the frontend doesn't model
 - the frontend doesn't say what its calls resolve to
 
-A function a macro or a build writes has no author to tell, so it's left out, as are the paths `exclude` removes.
+A function a macro or a build writes has no author to tell, so it's left out, as are the paths `exclude` removes. So is a
+function in a file the frontend marks as a test, since tests drop and overwrite values to set things up. Go's `_test.go`
+files are marked. Rust's default run doesn't read tests, and with `--all-targets`, or in C and C++, they aren't told apart,
+so `exclude` them if they're noisy.
 
 ## Exit code
 
@@ -99,9 +102,7 @@ Dropping means the call is all of a statement. These don't count either way:
 
 Giving a result a name to discard it, as in `_ = f()` or `let _ = f();`, uses it, since that says it's deliberate.
 
-Calls are weighed by the callee they name, so everything that implements an interface method counts together. Excluded
-paths neither count nor get reported. The Go frontend always reads tests, which drop results as part of setting up, so add
-`**/*_test.go` to `exclude` to weigh only the code you ship. On go-ethereum at this commit that takes it from 132 results
-to 14.
+Calls are weighed by the callee they name, so everything that implements an interface method counts together. Calls in a
+test file or an excluded path neither count nor get reported, so only the code you ship is weighed.
 
 A result may be dropped on purpose, such as calling a function for what it caches. Suppress those with a reason.

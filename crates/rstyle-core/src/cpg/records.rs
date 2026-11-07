@@ -192,8 +192,7 @@ fn defects_of(
     demand: Demand,
     (tables, sources): (&Tables<'_>, &Sources<'_>),
 ) -> Option<Examined> {
-    demand
-        .defects
+    (demand.defects && !sources.marks(located(function)).test)
         .then(|| defects::examine(&document.coverage, function, tables, sources))
 }
 
@@ -271,7 +270,7 @@ pub fn measure(
     sources: &Sources<'_>,
 ) -> Result<Measured, String> {
     let at = located(function);
-    let generated_file = sources.generated(&function.span);
+    let generated_file = sources.marks(&function.span).generated;
     let generated = generated_file || written_by_macro(function);
     match facts {
         Some(facts) if generated => {
