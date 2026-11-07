@@ -1888,6 +1888,46 @@ fn a_rust_run_finds_a_value_nothing_reads() {
     assert!(saved_run(&output).join("defects.sarif").is_file());
 }
 
+#[test]
+fn a_rust_run_finds_a_result_the_other_calls_use() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    std::fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n[workspace]\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "fn g() -> i32 { 1 }\n\
+         pub fn used() -> i32 { g() + g() + g() + g() + g() + g() + g() + g() + g() }\n\
+         pub fn dropped() {\n    g();\n}\n",
+    )
+    .unwrap();
+
+    let output = rust_run(root, &["--filter", "defects", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let unified = report(&output);
+    let rows = unified["defects"]["defects"].as_array().unwrap();
+    let [row] = rows.as_slice() else {
+        panic!("{rows:?}");
+    };
+    assert_eq!(row["rule"], "ignored_result");
+    assert_eq!(row["path"], "src/lib.rs");
+    assert_eq!(row["line"], 4);
+
+    std::fs::write(
+        root.join("rstyle.toml"),
+        "[ignored_result]\nmin_calls = 11\n",
+    )
+    .unwrap();
+    let output = rust_run(root, &["--filter", "defects", "--format", "json"]);
+    let unified = report(&output);
+    let rows = unified["defects"]["defects"].as_array().unwrap();
+    assert!(rows.is_empty(), "{rows:?}");
+}
+
 /// A crate with a build script, whose own functions no route should report.
 fn crate_with_build_script() -> TempDir {
     let directory = tempfile::tempdir().unwrap();

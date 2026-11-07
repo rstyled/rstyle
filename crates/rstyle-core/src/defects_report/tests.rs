@@ -162,3 +162,179 @@ fn sarif_holds_one_warning_per_defect_under_its_own_category() {
     assert_eq!(results[0]["level"], "warning");
     assert!(results[0]["locations"][0]["physicalLocation"]["region"]["startLine"].is_number());
 }
+
+/// A function's body calling `g` once a line, using its result where `false` and dropping it
+/// where `true`.
+struct Calling {
+    nodes: Vec<Value>,
+    refs: Vec<Value>,
+    edges: Vec<Value>,
+    statements: Vec<String>,
+}
+
+fn calling(dropped: &[bool], integer: &Value, span: impl Fn(usize) -> Value) -> Calling {
+    let (mut nodes, mut refs, mut edges, mut statements) = (vec![], vec![], vec![], vec![]);
+    let mut last = "entry".to_owned();
+    for (line, dropped) in dropped.iter().enumerate() {
+        let (call, statement) = (format!("call{line}"), format!("statement{line}"));
+        let parent = if *dropped {
+            "expression_statement"
+        } else {
+            "return"
+        };
+        nodes.push(
+            json!({"id": call, "kind": "call", "original_kind": "c", "children": [],
+                          "type": integer, "span": span(line + 1),
+                          "provenance": {"origin": "source"}}),
+        );
+        nodes.push(
+            json!({"id": statement, "kind": parent, "original_kind": "s",
+                          "children": [call], "span": span(line + 1),
+                          "provenance": {"origin": "source"}}),
+        );
+        refs.push(
+            json!({"node": call, "status": "resolved", "dispatch": "static",
+                         "target": {"kind": "definition", "id": "def:g"}}),
+        );
+        for (source, target) in [(&last, &call), (&call, &statement)] {
+            edges.push(json!({"id": format!("e{}", edges.len()), "source": source,
+                              "target": target, "kind": "normal"}));
+        }
+        last.clone_from(&statement);
+        statements.push(statement);
+    }
+    edges.push(json!({"id": "out", "source": last, "target": "exit", "kind": "normal"}));
+    Calling {
+        nodes,
+        refs,
+        edges,
+        statements,
+    }
+}
+
+fn document_with_calls(dropped: &[bool]) -> Value {
+    let mut document = document_with_dead_store();
+    let file = document["unit"]["functions"][0]["span"]["file"].clone();
+    let span = |line: usize| json!({"file": file, "start": line * 10, "end": line * 10 + 5});
+    let Calling {
+        mut nodes,
+        refs,
+        edges,
+        statements,
+    } = calling(dropped, &integer_type(), span);
+    nodes.push(
+        json!({"id": "root", "kind": "block", "original_kind": "block",
+                      "children": statements, "span": span(0),
+                      "provenance": {"origin": "source"}}),
+    );
+
+    let unit = &mut document["unit"];
+    unit["definitions"].as_array_mut().unwrap().push(json!(
+        {"id": "def:g", "kind": "function", "name": "g", "stable_identity": "id:g", "scope": "unit"}
+    ));
+    unit["files"][0]["content"] = json!("ok .....\n ".repeat(40));
+    let function = &mut unit["functions"][0];
+    function["span"] = span(0);
+    function["signature"]["span"] = span(0);
+    function["nodes"] = json!(nodes);
+    function["refs"] = json!(refs);
+    function["symbols"] = json!([]);
+    function["accesses"] = json!([]);
+    function["cfg"] =
+        json!({"entry": "entry", "exits": [{"id": "exit", "kind": "normal"}], "edges": edges});
+    document
+}
+
+fn nine_uses_and_a_drop() -> Vec<bool> {
+    let mut calls = vec![false; 9];
+    calls.push(true);
+    calls
+}
+
+#[test]
+fn a_call_that_drops_what_the_rest_use_says_how_many_do() {
+    let report = report_of(
+        vec![document_with_calls(&nine_uses_and_a_drop())],
+        &Config::default(),
+    );
+    let [row] = report.defects.as_slice() else {
+        panic!("{report:?}");
+    };
+    assert_eq!(row.rule, "ignored_result");
+    assert_eq!(row.line, 11);
+    assert!(
+        row.message.contains("`g`") && row.message.contains("9 of its 10"),
+        "{}",
+        row.message
+    );
+}
+
+#[test]
+fn a_result_dropped_as_often_as_not_says_nothing() {
+    let report = report_of(
+        vec![document_with_calls(&[
+            true, false, true, false, true, false,
+        ])],
+        &Config::default(),
+    );
+    assert!(report.defects.is_empty(), "{report:?}");
+}
+
+#[test]
+fn too_few_calls_say_nothing() {
+    let report = report_of(
+        vec![document_with_calls(&[false, false, false, true])],
+        &Config::default(),
+    );
+    assert!(report.defects.is_empty(), "{report:?}");
+}
+
+#[test]
+fn a_project_can_ask_for_fewer_calls_and_a_smaller_share() {
+    let calls = document_with_calls(&[false, false, false, true]);
+    let mut config = Config::default();
+    assert!(report_of(vec![calls.clone()], &config).defects.is_empty());
+
+    config.ignored_result.min_calls = 4;
+    config.ignored_result.min_used_percent = crate::config::Percent(75);
+    let report = report_of(vec![calls], &config);
+    assert_eq!(report.defects.len(), 1, "{report:?}");
+    assert!(report.defects[0].message.contains("3 of its 4"));
+}
+
+#[test]
+fn asking_for_every_call_reports_nothing() {
+    let mut config = Config::default();
+    config.ignored_result.min_used_percent = crate::config::Percent(100);
+    let report = report_of(vec![document_with_calls(&nine_uses_and_a_drop())], &config);
+    assert!(report.defects.is_empty(), "{report:?}");
+}
+
+#[test]
+fn a_call_read_in_two_compilations_counts_once() {
+    let document = document_with_calls(&[false, false, false, true]);
+    let mut records = records(vec![document.clone()]);
+    records.extend(self::records(vec![document]));
+    let report = from_records(&mut records, &Config::default()).unwrap();
+    assert!(report.defects.is_empty(), "4 calls, not 8: {report:?}");
+}
+
+#[test]
+fn an_allow_comment_covers_a_dropped_result_and_it_still_counts_the_rest() {
+    let mut records = records(vec![document_with_calls(&nine_uses_and_a_drop())]);
+    let Measured::Known(facts) = &mut records[0].measured else {
+        panic!("not measured");
+    };
+    facts.preceding_line = "// rstyle-allow(ignored_result): best effort".into();
+    let report = from_records(&mut records, &Config::default()).unwrap();
+    assert!(report.defects.is_empty(), "{report:?}");
+    assert_eq!(report.suppressed, 1);
+}
+
+#[test]
+fn an_excluded_call_neither_counts_nor_is_reported() {
+    let mut config = Config::default();
+    config.exclude.0 = vec!["**/*".into(), "*".into()];
+    let report = report_of(vec![document_with_calls(&nine_uses_and_a_drop())], &config);
+    assert!(report.defects.is_empty(), "{report:?}");
+}

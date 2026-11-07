@@ -19,6 +19,7 @@ A function the rules can't read is `unknown`, with why, and never counted as cle
 - the frontend records no reads and writes for it
 - it doesn't hold all of its syntax, such as when the compiler couldn't parse part of the file
 - it holds a construct the frontend doesn't model
+- the frontend doesn't say what its calls resolve to
 
 A function a macro or a build writes has no author to tell, so it's left out, as are the paths `exclude` removes.
 
@@ -63,3 +64,44 @@ A store means an assignment to a binding or a declaration's computed initializer
 
 It reports a real store, and the store may still be harmless, such as clearing a local before returning. It doesn't look
 at fields or what a pointer holds: `t.a = 1` isn't a store here. A compiler already warns about many of these in Rust.
+
+## `ignored_result`
+
+A call that drops its result where nearly all of the run's other calls of that callee use it. Nothing in a signature says
+a result matters, so the calls decide, as in "Bugs as Deviant Behavior" (Engler et al., SOSP 2001):
+
+```go
+json.Unmarshal(raw, &out) // 90 of this callee's 93 calls use the error
+```
+
+A callee needs at least 5 calls that count, and at least 90% of them using the result. Those defaults were read against Go,
+Rust and C++ modules, and what's normal differs between languages and codebases, so `rstyle.toml` can change both:
+
+```toml
+[ignored_result]
+min_calls = 5
+min_used_percent = 90
+```
+
+`min_used_percent` decides most of it. At 90%, one dropped call already takes 10 calls, so `min_calls` only matters once the
+share is lower. On go-ethereum's code outside tests, 95% reports 10 results, 90% reports 14 and 80% reports 53. A share of
+100 reports nothing, since then no call can have dropped the result.
+
+Dropping means the call is all of a statement. These don't count either way:
+
+| Case | Why |
+| --- | --- |
+| A call with no result, or one of a type the frontend can't describe or a type parameter | There's nothing to judge |
+| A method that returns what it was called on, such as `x.SetUint64(1)` | The result is only there so calls can chain |
+| A `defer`, or anything else an extension runs | It says how the call runs, not what becomes of its result |
+| A call of a function value, or one nothing resolves | No callee to weigh it against |
+| A statement a lowering made up, or a call a macro wrote | Nobody wrote it |
+
+Giving a result a name to discard it, as in `_ = f()` or `let _ = f();`, uses it, since that says it's deliberate.
+
+Calls are weighed by the callee they name, so everything that implements an interface method counts together. Excluded
+paths neither count nor get reported. The Go frontend always reads tests, which drop results as part of setting up, so add
+`**/*_test.go` to `exclude` to weigh only the code you ship. On go-ethereum at this commit that takes it from 132 results
+to 14.
+
+A result may be dropped on purpose, such as calling a function for what it caches. Suppress those with a reason.
