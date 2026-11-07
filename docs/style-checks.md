@@ -102,7 +102,7 @@ fn shim(a: u32, b: u32, c: u32, d: u32, e: u32) { /* ... */ }
 ```
 
 `abstraction` is also a valid rule id, and keeps a function out of [pattern mining](patterns.md). So
-is [`dead_store`](defects.md).
+are [`dead_store` and `ignored_result`](defects.md).
 
 ## Fix groups
 
