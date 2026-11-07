@@ -10,10 +10,17 @@ use crate::report::{Detail, Diagnostic};
 use crate::rules::{Measure, diagnostic};
 
 pub fn guard_clause(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
-    if !cfg.strict_style.guard_clause || f.guard_clauses.is_empty() {
+    let rule = &cfg.strict_style.guard_clause;
+    let lines: Vec<usize> = f
+        .guard_clauses
+        .iter()
+        .filter(|guard| rule.enabled && guard.statements >= rule.min_nested_statements)
+        .map(|guard| guard.line)
+        .collect();
+    if lines.is_empty() {
         return Vec::new();
     }
-    let lines: Vec<usize> = f.guard_clauses.iter().map(|guard| guard.line).collect();
+
     let actual = lines.len();
     let written: Vec<String> = lines.iter().map(ToString::to_string).collect();
     let message = format!(

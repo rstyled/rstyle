@@ -6,9 +6,6 @@ use super::tree::{self, Body};
 use crate::complexity::{Kind, Node as Construct};
 use crate::facts::GuardClause;
 
-/// Fewer statements than this under an `if` are no main path to bring back out of it.
-const MIN_NESTED_STATEMENTS: usize = 2;
-
 /// Generated code counts once, at its outermost node.
 pub fn statements(body: &Body<'_>) -> Result<usize, String> {
     count(body, body.root()?, false)
@@ -52,8 +49,8 @@ pub fn top_statements(body: &Body<'_>) -> Result<usize, String> {
 }
 
 /// Each `if` with a block for its `else` that ends by returning, around a block that doesn't and
-/// holds a main path to bring out. An `else if` is left alone, since it can't return early without
-/// restructuring the chain it's in.
+/// holds something to bring out. How much is enough is a project's to say. An `else if` is left
+/// alone, since it can't return early without restructuring the chain it's in.
 pub fn guard_clauses(body: &Body<'_>, sources: &Sources<'_>) -> Result<Vec<GuardClause>, String> {
     let function = body.function;
     let is_else_if = |node: &Node| {
@@ -72,7 +69,7 @@ pub fn guard_clauses(body: &Body<'_>, sources: &Sources<'_>) -> Result<Vec<Guard
             .all(|n| !tree::generated(n));
         if written
             && !is_else_if(node)
-            && nested.children.len() >= MIN_NESTED_STATEMENTS
+            && !nested.children.is_empty()
             && only_returns(body, otherwise)?
             && !only_returns(body, nested)?
         {

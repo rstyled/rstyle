@@ -102,9 +102,18 @@ fn an_else_that_returns_around_a_main_path_could_return_early() {
 }
 
 #[test]
-fn one_nested_statement_is_no_main_path() {
+fn how_much_is_nested_is_left_for_a_project_to_judge() {
     let found = guards_of(&If {
         nested: &["call"],
+        ..If::default()
+    });
+    assert_eq!(found.iter().map(|g| g.statements).collect::<Vec<_>>(), [1]);
+}
+
+#[test]
+fn an_empty_block_has_nothing_to_bring_out() {
+    let found = guards_of(&If {
+        nested: &[],
         ..If::default()
     });
     assert!(found.is_empty(), "{found:?}");

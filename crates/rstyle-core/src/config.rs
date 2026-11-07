@@ -19,19 +19,45 @@ pub struct Config {
 }
 
 /// Opinions about how code could be shaped rather than limits it passed, so each is off unless a
-/// project turns it on. One that's on reports and fails a run like any other style rule.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+/// project turns it on. One that's on reports and fails a run like any other style rule. A rule
+/// that's off says nothing about a policy, whatever its other settings hold.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct StrictStyleConfig {
-    /// An `if` whose `else` only returns, around a body that could stop being nested.
-    pub guard_clause: bool,
+    #[serde(skip_serializing_if = "GuardClauseConfig::is_off")]
+    pub guard_clause: GuardClauseConfig,
     /// A parameter whose name says what it means, held as plain text or an integer.
     pub primitive_obsession: bool,
 }
 
 impl StrictStyleConfig {
     fn all_off(&self) -> bool {
-        self == &Self::default()
+        !self.guard_clause.enabled && !self.primitive_obsession
+    }
+}
+
+/// An `if` whose `else` only returns, around a body that could stop being nested.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct GuardClauseConfig {
+    pub enabled: bool,
+    /// Fewer statements than this under the `if` are no main path to bring out of it. An empty
+    /// block never is, so 0 reads as 1.
+    pub min_nested_statements: usize,
+}
+
+impl GuardClauseConfig {
+    fn is_off(&self) -> bool {
+        !self.enabled
+    }
+}
+
+impl Default for GuardClauseConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            min_nested_statements: 2,
+        }
     }
 }
 
@@ -338,21 +364,47 @@ mod tests {
     #[test]
     fn a_baseline_compares_strict_style_only_once_a_rule_is_on() {
         let policy = |input: &str| serde_json::to_value(Config::parse(input).unwrap()).unwrap();
-        let off = policy("[strict_style]\nguard_clause = false");
+        let off = policy("[strict_style.guard_clause]\nenabled = false");
         assert!(off.get("strict_style").is_none(), "{off}");
         assert_eq!(off, policy(""));
 
-        let on = policy("[strict_style]\nguard_clause = true");
-        assert_eq!(on["strict_style"]["guard_clause"], true, "{on}");
+        let tuned = "[strict_style.guard_clause]\nmin_nested_statements = 5";
+        assert_eq!(policy(tuned), policy(""), "a rule that's off has no limits");
+
+        let on = policy("[strict_style.guard_clause]\nenabled = true");
+        let rule = &on["strict_style"]["guard_clause"];
+        assert_eq!(rule["enabled"], true, "{on}");
+        assert_eq!(rule["min_nested_statements"], 2, "{on}");
     }
 
     #[test]
     fn strict_style_rules_are_off_unless_asked_for() {
-        assert!(!Config::parse("").unwrap().strict_style.guard_clause);
-        let on = Config::parse("[strict_style]\nguard_clause = true").unwrap();
-        assert!(on.strict_style.guard_clause);
-        assert!(!Config::parse("").unwrap().strict_style.primitive_obsession);
-        assert!(Config::parse("[strict_style]\nguard_clauses = true").is_err());
+        let default = Config::parse("").unwrap().strict_style;
+        assert!(!default.guard_clause.enabled);
+        assert!(!default.primitive_obsession);
+        assert_eq!(default.guard_clause.min_nested_statements, 2);
+
+        let set = "[strict_style.guard_clause]\nenabled = true\nmin_nested_statements = 4";
+        let set = Config::parse(set).unwrap().strict_style.guard_clause;
+        assert!(set.enabled);
+        assert_eq!(set.min_nested_statements, 4);
+
+        assert!(Config::parse("[strict_style.guard_clauses]\nenabled = true").is_err());
+        assert!(Config::parse("[strict_style.guard_clause]\nenable = true").is_err());
+        assert!(Config::parse("[strict_style]\nguard_clause = true").is_err());
+    }
+
+    /// The example is where a project reads what it can set, so a rule's table has to state every
+    /// setting, and state what it defaults to.
+    fn example_states_the_defaults_of<Rule: Serialize + Default>(rule: &str) {
+        let example: toml::Table = toml::from_str(include_str!("../../../rstyle.toml")).unwrap();
+        let defaults = toml::Value::try_from(Rule::default()).unwrap();
+        assert_eq!(example["strict_style"][rule], defaults, "{rule}");
+    }
+
+    #[test]
+    fn the_example_config_states_strict_styles_defaults() {
+        example_states_the_defaults_of::<GuardClauseConfig>("guard_clause");
     }
 
     #[test]

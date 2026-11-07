@@ -75,8 +75,7 @@ is a commented example, though it raises the complexity limits above their defau
 | `side_effects.paths.*` | see below | Callee path prefixes that count as each effect kind |
 | `grouping.caller_rules` | `["fn_params"]` | Rules whose fix also edits the function's callers |
 | `grouping.caller_hops` | 1 | How many caller hops those fixes reach |
-| `strict_style.guard_clause` | `false` | See [strict style](#strict-style) |
-| `strict_style.primitive_obsession` | `false` | See [strict style](#strict-style) |
+| `strict_style.*` | off | See [strict style](#strict-style) |
 
 The default weights are `mutation = 1`, `io = 3`, `network = 3`, `global = 2`, `unsafe = 4`, `time = 1`,
 `random = 1`, `panic = 0` and `unknown = 1`.
@@ -110,19 +109,21 @@ is [`dead_store`](defects.md).
 ## Strict style
 
 These rules are opinions about how code could be shaped, not limits it has passed, and plenty of good code disagrees with
-them. So each is off until `[strict_style]` in `rstyle.toml` turns it on:
+them. So each is off until its table under `[strict_style]` in `rstyle.toml` turns it on, and says how much it takes:
 
 ```toml
-[strict_style]
-guard_clause = true
+[strict_style.guard_clause]
+enabled = true
+min_nested_statements = 3
 ```
 
 A rule that's on behaves like any other here: it reports through `check`, fails the run, shows up in `check.sarif` and
-baselines, and `rstyle-allow` silences it for a function. Every language gets them from the same facts.
+baselines, and `rstyle-allow` silences it for a function. Every language gets them from the same facts. A rule that's off
+is left out of what a baseline compares, whatever its other settings hold.
 
 ### `guard_clause`
 
-An `if` whose `else` ends by returning, around at least 2 statements that don't:
+An `if` whose `else` ends by returning, around statements that don't:
 
 ```go
 if ok {
@@ -135,6 +136,11 @@ if ok {
 
 Returning early lets the main path stop being nested, and in Rust, `let ... else` often says it best. An `else if` is left
 alone, since returning early there means restructuring the whole chain.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | |
+| `min_nested_statements` | 2 | Fewer statements under the `if` than this are no main path to bring out |
 
 ### `primitive_obsession`
 
