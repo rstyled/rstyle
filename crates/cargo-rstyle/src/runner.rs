@@ -1,5 +1,5 @@
-//! `rstyle go` and `rstyle rust`: find the frontend, read what it produces, run the selected
-//! analyses once in core, and save the run in one piece.
+//! `rstyle go`, `rstyle cxx` and `rstyle rust`: find the frontend, read what it produces, run the
+//! selected analyses once in core, and save the run in one piece.
 
 mod frontend;
 mod pipe;
@@ -15,6 +15,7 @@ use rstyle_core::cpg::transport::{self, DOCUMENTS_MANIFEST, Encoding};
 use rstyle_core::filter::{Analysis, Filter};
 use rstyle_core::{patterns_report, unified};
 use serde::{Deserialize, Serialize};
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use store::{Destination, Staged};
 
@@ -61,6 +62,46 @@ pub(crate) struct GoArgs {
     source: Option<PathBuf>,
     #[command(flatten)]
     run: RunArgs,
+}
+
+#[derive(Args)]
+pub(crate) struct CxxArgs {
+    /// C or C++ source directory [default: the project holding the current directory].
+    #[arg(long, conflicts_with = "from")]
+    source: Option<PathBuf>,
+    /// compile_commands.json, or a directory holding one [default: in the source directory or
+    /// its build directory].
+    #[arg(long, conflicts_with = "from")]
+    compilation_database: Option<PathBuf>,
+    /// Another include directory. Can be repeated.
+    #[arg(long = "include", value_name = "DIR", conflicts_with = "from")]
+    includes: Vec<PathBuf>,
+    /// A preprocessor definition, NAME or NAME=VALUE. Can be repeated.
+    #[arg(long = "define", value_name = "NAME[=VALUE]", conflicts_with = "from")]
+    defines: Vec<String>,
+    #[command(flatten)]
+    run: RunArgs,
+}
+
+impl CxxArgs {
+    /// What the frontend needs to hear about the build, after the arguments every frontend gets.
+    fn build_arguments(&self) -> Vec<OsString> {
+        let database = self.compilation_database.iter().flat_map(|path| {
+            [
+                OsString::from("--compilation-database"),
+                path.clone().into_os_string(),
+            ]
+        });
+        let includes = self
+            .includes
+            .iter()
+            .flat_map(|path| [OsString::from("--include"), path.clone().into_os_string()]);
+        let defines = self
+            .defines
+            .iter()
+            .flat_map(|name| [OsString::from("--define"), OsString::from(name)]);
+        database.chain(includes).chain(defines).collect()
+    }
 }
 
 impl RunArgs {
@@ -113,29 +154,53 @@ struct Plan<'a> {
 
 // rstyle-allow(side_effect_density): process boundary: runs the frontend and saves the run
 pub(crate) fn go(cli: &Cli, args: &GoArgs) -> Result<(String, u8), String> {
-    reject_rust_flags(cli)?;
+    reject_rust_flags(cli, "Go")?;
     let filter = args.run.selection()?;
     if let Some(from) = &args.run.from {
         return saved(cli, &args.run, (filter, "go"), from);
     }
-    let source = go_source(args.source.as_deref())?;
-    let project = module_root(&source).unwrap_or_else(|| source.clone());
 
-    let frontend = Frontend::go()?;
-    let local = filter.frontend_analyses("go", &frontend.analyses())?;
-    let staged = Staged::new(args.run.destination(&project, "go")?)?;
+    let source = chosen_source(args.source.as_deref(), module_root)?;
+    let project = module_root(&source).unwrap_or_else(|| source.clone());
+    from_frontend(cli, &args.run, (filter, source, project), Frontend::go()?)
+}
+
+// rstyle-allow(side_effect_density): process boundary: runs the frontend and saves the run
+pub(crate) fn cxx(cli: &Cli, args: &CxxArgs) -> Result<(String, u8), String> {
+    reject_rust_flags(cli, "C++")?;
+    let filter = args.run.selection()?;
+    if let Some(from) = &args.run.from {
+        return saved(cli, &args.run, (filter, "cxx"), from);
+    }
+
+    let source = chosen_source(args.source.as_deref(), cxx_project_root)?;
+    let frontend = Frontend::cxx(args.build_arguments())?;
+    from_frontend(cli, &args.run, (filter, source.clone(), source), frontend)
+}
+
+/// A run of a frontend that's a program of its own, over its documents and its own analyses.
+// rstyle-allow(side_effect_density): process boundary: runs the frontend and saves the run
+fn from_frontend(
+    cli: &Cli,
+    args: &RunArgs,
+    (filter, source, project): (Filter, PathBuf, PathBuf),
+    frontend: Frontend,
+) -> Result<(String, u8), String> {
+    let language = frontend.language;
+    let local = filter.frontend_analyses(language, &frontend.analyses())?;
+    let staged = Staged::new(args.destination(&project, language)?)?;
     let plan = Plan {
         cli,
-        args: &args.run,
+        args,
         filter,
-        language: "go",
+        language,
         source,
         project,
     };
 
     let (records, documents) =
         match plan.filter.needs_documents() || frontend.reads_documents(&local) {
-            true => go_records(&plan, &frontend, &staged)?,
+            true => frontend_records(&plan, &frontend, &staged)?,
             false => (Vec::new(), 0),
         };
     let mut unified = plan.analyzed(records)?;
@@ -152,7 +217,7 @@ pub(crate) fn go(cli: &Cli, args: &GoArgs) -> Result<(String, u8), String> {
 }
 
 // rstyle-allow(side_effect_density): process boundary: reads the frontend's stream
-fn go_records(
+fn frontend_records(
     plan: &Plan<'_>,
     frontend: &Frontend,
     staged: &Staged,
@@ -274,7 +339,10 @@ fn replayed_analyses(
         return Ok(None);
     }
 
-    let frontend = Frontend::go()?;
+    let frontend = match language {
+        "cxx" => Frontend::cxx(Vec::new())?,
+        _ => Frontend::go()?,
+    };
     let names = filter.frontend_analyses(language, &frontend.analyses())?;
     let reading_source = names
         .iter()
@@ -453,28 +521,37 @@ fn json_output(report: &Unified, run: Option<&Path>) -> Result<String, String> {
     serde_json::to_string_pretty(&Printed { report, run }).map_err(|error| error.to_string())
 }
 
-fn reject_rust_flags(cli: &Cli) -> Result<(), String> {
+fn reject_rust_flags(cli: &Cli, language: &str) -> Result<(), String> {
     if !cli.packages.is_empty() {
-        return Err("--package applies to Rust; for Go, choose a directory with --source".into());
+        return Err(format!(
+            "--package applies to Rust; for {language}, choose a directory with --source"
+        ));
     }
     if cli.all_targets {
-        return Err("--all-targets applies to Rust; the Go frontend always reads tests".into());
+        return Err(format!(
+            "--all-targets applies to Rust; the {language} frontend always reads tests"
+        ));
     }
     if cli.manifest_path.is_some() {
-        return Err("--manifest-path applies to Rust; for Go, use --source".into());
+        return Err(format!(
+            "--manifest-path applies to Rust; for {language}, use --source"
+        ));
     }
     Ok(())
 }
 
 // rstyle-allow(side_effect_density): IO boundary: resolves the source directory
-fn go_source(explicit: Option<&Path>) -> Result<PathBuf, String> {
+fn chosen_source(
+    explicit: Option<&Path>,
+    project_root: fn(&Path) -> Option<PathBuf>,
+) -> Result<PathBuf, String> {
     match explicit {
         Some(source) => {
             crate::run::canonical(source).map_err(|error| format!("{}: {error}", source.display()))
         }
         None => {
             let current = std::env::current_dir().map_err(|error| error.to_string())?;
-            Ok(module_root(&current).unwrap_or(current))
+            Ok(project_root(&current).unwrap_or(current))
         }
     }
 }
@@ -485,6 +562,18 @@ fn module_root(start: &Path) -> Option<PathBuf> {
         .ancestors()
         .find(|directory| directory.join("go.mod").is_file())
         .map(Path::to_path_buf)
+}
+
+/// The project holding `start`. C++ has no one marker for that, so it's the nearest directory that
+/// knows how the code is built, or failing that the repository.
+fn cxx_project_root(start: &Path) -> Option<PathBuf> {
+    let found = |marker: fn(&Path) -> bool| start.ancestors().find(|directory| marker(directory));
+    found(|directory| {
+        directory.join("compile_commands.json").is_file()
+            || directory.join("build/compile_commands.json").is_file()
+    })
+    .or_else(|| found(|directory| directory.join(".git").exists()))
+    .map(Path::to_path_buf)
 }
 
 #[cfg(test)]
@@ -501,5 +590,53 @@ mod tests {
         assert_eq!(module_root(&nested), Some(dir.path().to_path_buf()));
         std::fs::write(dir.path().join("a/go.mod"), "module m/a\n").unwrap();
         assert_eq!(module_root(&nested), Some(dir.path().join("a")));
+    }
+
+    #[test]
+    fn a_cxx_project_is_what_knows_its_build_then_its_repository() {
+        let dir = tempfile::tempdir().unwrap();
+        let nested = dir.path().join("a/b");
+        std::fs::create_dir_all(nested.join(".git")).unwrap();
+        std::fs::remove_dir(nested.join(".git")).unwrap();
+        assert_eq!(cxx_project_root(&nested), None);
+        std::fs::create_dir(dir.path().join(".git")).unwrap();
+        assert_eq!(cxx_project_root(&nested), Some(dir.path().to_path_buf()));
+        std::fs::create_dir_all(dir.path().join("a/build")).unwrap();
+        std::fs::write(dir.path().join("a/build/compile_commands.json"), "[]").unwrap();
+        assert_eq!(cxx_project_root(&nested), Some(dir.path().join("a")));
+        std::fs::write(nested.join("compile_commands.json"), "[]").unwrap();
+        assert_eq!(cxx_project_root(&nested), Some(nested.clone()));
+    }
+
+    #[test]
+    fn a_cxx_run_passes_its_build_context_on() {
+        let args = CxxArgs {
+            source: None,
+            compilation_database: Some("build".into()),
+            includes: vec!["a".into(), "b".into()],
+            defines: vec!["X=1".into()],
+            run: RunArgs {
+                check: false,
+                patterns: false,
+                filter: Vec::new(),
+                out: None,
+                from: None,
+                fail_on_candidates: false,
+                no_ignore: false,
+                display: PatternDisplayArgs::default(),
+                mine: MineArgs::default(),
+            },
+        };
+        let expected = [
+            "--compilation-database",
+            "build",
+            "--include",
+            "a",
+            "--include",
+            "b",
+            "--define",
+            "X=1",
+        ];
+        assert_eq!(args.build_arguments(), expected.map(OsString::from));
     }
 }

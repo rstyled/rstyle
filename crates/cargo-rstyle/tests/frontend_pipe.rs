@@ -112,6 +112,7 @@ fn help_names_the_command_that_was_typed() {
     };
     assert!(help("rstyle", &["--help"]).contains("Usage: rstyle"));
     assert!(help("rstyle", &["go", "--help"]).contains("Usage: rstyle go"));
+    assert!(help("rstyle", &["cxx", "--help"]).contains("Usage: rstyle cxx"));
     assert!(help("cargo-rstyle", &["--help"]).contains("Usage: cargo rstyle"));
 }
 

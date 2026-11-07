@@ -1,5 +1,5 @@
-//! `rstyle go` against a fake frontend that keeps to the contract, and `rstyle rust` through
-//! the real driver. Unix only: the fake frontend is a shell script.
+//! `rstyle go` and `rstyle cxx` against a fake frontend that keeps to the contract, and `rstyle
+//! rust` through the real driver. Unix only: the fake frontend is a shell script.
 use super::*;
 use rstyle_core::cpg::transport::{SequenceReader, read_json};
 use std::os::unix::fs::PermissionsExt;
@@ -14,6 +14,7 @@ describe)
 cpg)
     echo "progress that must not reach rstyle's stdout"
     test "$2" = --source && test "$4" = --output-fd
+    if [ -n "${FAKE_ARGUMENTS:-}" ]; then printf '%s\n' "$@" > "$FAKE_ARGUMENTS"; fi
     if [ -n "${FAKE_BAD_DOCUMENT:-}" ]; then
         # The next separator finishes the record, so the runner starts on it at once.
         printf '\036{"layout":"bundled"}\n\036' > "/dev/fd/$5"
@@ -52,6 +53,8 @@ const NO_ANALYSES: &str =
     r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[]}"#;
 const ANALYSES: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"calls"},{"name":"broken"},{"name":"invalid"},{"name":"silent"}]}"#;
 const READERS: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"reader","input":"documents"},{"name":"quitter","input":"documents"},{"name":"sinking","input":"documents"},{"name":"calls","input":"source"}]}"#;
+const CXX: &str = r#"{"schema":"rstyle.frontend-description/1","language":"cxx","analyses":[]}"#;
+const CXX_READERS: &str = r#"{"schema":"rstyle.frontend-description/1","language":"cxx","analyses":[{"name":"reader","input":"documents"},{"name":"calls","input":"source"}]}"#;
 
 /// A Go module and a frontend to run over it.
 struct Project {
@@ -91,6 +94,12 @@ impl Project {
         self.command(NO_ANALYSES, &[&["go"], args].concat())
             .output()
             .unwrap()
+    }
+
+    fn cxx(&self, args: &[&str]) -> Command {
+        let mut command = self.command(CXX, &[&["cxx"], args].concat());
+        command.env("RSTYLE_CXX", self.root().join("fake-frontend"));
+        command
     }
 
     fn run_folders(&self) -> Vec<PathBuf> {
@@ -959,6 +968,244 @@ fn an_override_that_names_nothing_is_an_error_not_an_install() {
         .unwrap();
     assert_eq!(output.status.code(), Some(2), "{output:?}");
     assert!(stderr(&output).contains("isn't a file"), "{output:?}");
+}
+
+#[test]
+fn a_cxx_run_hands_on_its_build_context_after_what_every_frontend_gets() {
+    let project = Project::new();
+    let arguments = project.root().join("arguments");
+    let output = project
+        .cxx(&[
+            "--source",
+            ".",
+            "--compilation-database",
+            "build",
+            "--include",
+            "inc",
+            "--define",
+            "X=1",
+            "--format",
+            "json",
+        ])
+        .env("FAKE_ARGUMENTS", &arguments)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let written = std::fs::read_to_string(&arguments).unwrap();
+    let written: Vec<&str> = written.lines().collect();
+    assert_eq!(
+        (written[0], written[1], written[3]),
+        ("cpg", "--source", "--output-fd")
+    );
+    assert_eq!(
+        written[5..],
+        [
+            "--compilation-database",
+            "build",
+            "--include",
+            "inc",
+            "--define",
+            "X=1"
+        ]
+    );
+    let run = saved_run(&output);
+    assert!(
+        run.file_name().unwrap().to_str().unwrap().ends_with("-cxx"),
+        "{run:?}"
+    );
+}
+
+#[test]
+fn a_saved_cxx_run_reads_back_without_the_frontend() {
+    let project = Project::new();
+    let output = project
+        .cxx(&["--check", "--format", "json"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let run = saved_run(&output);
+    let again = project
+        .cxx(&[
+            "--check",
+            "--format",
+            "json",
+            "--from",
+            run.to_str().unwrap(),
+        ])
+        .env("RSTYLE_CXX", "/nonexistent/frontend")
+        .output()
+        .unwrap();
+    assert_eq!(again.status.code(), Some(0), "{again:?}");
+    assert_eq!(without_run(report(&again)), without_run(report(&output)));
+}
+
+#[test]
+fn a_cxx_analysis_that_reads_documents_is_all_a_run_needs_to_stream_them() {
+    let project = Project::new();
+    let received = project.root().join("received");
+    let output = project
+        .cxx(&["--filter", "cxx:reader", "--format", "json"])
+        .env("FAKE_DESCRIPTION", CXX_READERS)
+        .env("FAKE_RECEIVED", &received)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let unified = report(&output);
+    let frontend = &unified["frontend"][0];
+    assert_eq!(frontend["status"], "complete", "{frontend}");
+    assert_eq!(
+        frontend["runs"][0]["automationDetails"]["id"],
+        "cxx/reader/"
+    );
+
+    let bytes = std::fs::read(&received).unwrap();
+    let mut sequence = SequenceReader::new(bytes.as_slice());
+    assert_eq!(sequence.next().unwrap().unwrap(), example());
+    assert!(sequence.next().is_none());
+    sequence.complete().unwrap();
+    assert!(
+        saved_run(&output)
+            .join("documents/document-000000.cpg.json.zst")
+            .is_file()
+    );
+}
+
+#[test]
+fn a_saved_cxx_run_replays_through_the_cxx_frontend() {
+    let project = Project::new();
+    let saved = project
+        .cxx(&["--check", "--format", "json"])
+        .env("FAKE_DESCRIPTION", CXX_READERS)
+        .output()
+        .unwrap();
+    assert_eq!(saved.status.code(), Some(0), "{saved:?}");
+    let run = saved_run(&saved);
+    let received = project.root().join("received");
+
+    let replayed = |analysis: &str| {
+        project
+            .cxx(&[
+                "--filter",
+                analysis,
+                "--from",
+                run.to_str().unwrap(),
+                "--format",
+                "json",
+            ])
+            .env("FAKE_DESCRIPTION", CXX_READERS)
+            .env("FAKE_RECEIVED", &received)
+            // Only the C++ frontend and the saved documents can answer.
+            .env("RSTYLE_GO", "/nonexistent/frontend")
+            .env_remove("FAKE_DOCUMENT")
+            .output()
+            .unwrap()
+    };
+
+    let output = replayed("cxx:reader");
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let unified = report(&output);
+    let frontend = &unified["frontend"][0];
+    assert_eq!(frontend["status"], "complete", "{frontend}");
+    assert_eq!(
+        frontend["runs"][0]["automationDetails"]["id"],
+        "cxx/reader/"
+    );
+    let bytes = std::fs::read(&received).unwrap();
+    let mut sequence = SequenceReader::new(bytes.as_slice());
+    assert_eq!(sequence.next().unwrap().unwrap(), example());
+
+    let source = replayed("cxx:calls");
+    assert_eq!(source.status.code(), Some(2), "{source:?}");
+    assert!(
+        stderr(&source).contains("`cxx:calls` reads the source"),
+        "{source:?}"
+    );
+
+    let other = replayed("go:reader");
+    assert_eq!(other.status.code(), Some(2), "{other:?}");
+    assert!(
+        stderr(&other).contains("belongs to the go frontend, not cxx"),
+        "{other:?}"
+    );
+}
+
+#[test]
+fn a_missing_cxx_frontend_says_how_to_build_it_and_installs_nothing() {
+    let project = Project::new();
+    let output = project
+        .cxx(&[])
+        .env_remove("RSTYLE_CXX")
+        .env("PATH", project.root().join("no-such-directory"))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    let text = stderr(&output);
+    assert!(
+        text.contains("rstyle-cxx isn't on PATH") && text.contains("RSTYLE_CXX"),
+        "{text}"
+    );
+    assert!(project.run_folders().is_empty());
+}
+
+#[test]
+fn a_cxx_override_that_names_nothing_is_an_error() {
+    let output = Project::new()
+        .cxx(&[])
+        .env("RSTYLE_CXX", "/nonexistent/frontend")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("RSTYLE_CXX names"), "{output:?}");
+}
+
+#[test]
+fn a_frontend_for_another_language_is_refused_for_cxx() {
+    let project = Project::new();
+    let output = project
+        .command(NO_ANALYSES, &["cxx"])
+        .env("RSTYLE_CXX", project.root().join("fake-frontend"))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("cxx"), "{output:?}");
+    assert!(project.run_folders().is_empty());
+}
+
+#[test]
+fn a_stale_cxx_frontend_says_to_rebuild_it() {
+    let output = Project::new()
+        .cxx(&[])
+        .env("FAKE_DESCRIBE_FAILS", "1")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("rebuild it from"), "{output:?}");
+}
+
+#[test]
+fn rust_flags_are_refused_for_cxx() {
+    for flag in [
+        vec!["-p", "x"],
+        vec!["--all-targets"],
+        vec!["--manifest-path", "Cargo.toml"],
+    ] {
+        let output = Project::new().cxx(&flag).output().unwrap();
+        assert_eq!(output.status.code(), Some(2), "{output:?}");
+        let text = stderr(&output);
+        assert!(
+            text.contains("applies to Rust") && text.contains("C++"),
+            "{output:?}"
+        );
+    }
+}
+
+#[test]
+fn an_analysis_of_another_frontend_is_refused_for_cxx() {
+    let output = Project::new()
+        .cxx(&["--filter", "go:calls"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
 }
 
 /// `rstyle rust` over a fixture, through the driver next to the test binary.

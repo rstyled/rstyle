@@ -90,9 +90,10 @@ Fix one group at a time, callees first, then run it again, since fixes change th
 | `cargo rstyle ignore <id>` | Dismiss a pattern candidate you reviewed |
 | `rstyle rust` | Every analysis over a Rust workspace, saved with SARIF reports |
 | `rstyle go` | Every analysis over a Go module, saved with SARIF reports |
+| `rstyle cxx` | Every analysis over a C or C++ project, saved with SARIF reports |
 
-`rstyle` and `cargo rstyle` are the same program, so either name works for any command. `rstyle go`
-and `rstyle rust` also take `--check` or `--patterns` to run just that analysis.
+`rstyle` and `cargo rstyle` are the same program, so either name works for any command. `rstyle go`,
+`rstyle cxx` and `rstyle rust` also take `--check` or `--patterns` to run just that analysis.
 
 Common options:
 
@@ -123,6 +124,13 @@ mkdir -p .cursor/skills/rstyle && cargo rstyle --skill > .cursor/skills/rstyle/S
 `rstyle go` uses `$RSTYLE_GO` if set, then `rstyle-go` from Go's binary directory or your `PATH`, and
 otherwise runs `go install`. `rstyle-go` is private for now, so set `GOPRIVATE=github.com/rstyled` if
 you have access to it, or point `$RSTYLE_GO` at a local build.
+
+### C and C++
+
+`rstyle cxx` uses `$RSTYLE_CXX` if set, then `rstyle-cxx` on your `PATH`. It's built against LLVM 19, so
+rstyle doesn't install it: build it from [rstyle-cxx](https://github.com/rstyled/rstyle-cxx), which is
+private for now. It reads your project through Clang, so give it the build's `compile_commands.json`.
+Without one it guesses flags, warns, and loses what it can't parse.
 
 ## Rules
 
@@ -188,7 +196,7 @@ that file:
 cargo rstyle patterns --fail-on-candidates
 ```
 
-For code scanning tools, `rstyle rust` and `rstyle go` write SARIF 2.1.0 to the run's `report.sarif`
+For code scanning tools, `rstyle rust`, `rstyle go` and `rstyle cxx` write SARIF 2.1.0 to the run's `report.sarif`
 under `.rstyle/runs/`. [Style checks](docs/style-checks.md#using-it-in-ci) also covers checking only
 the files a change touches.
 
@@ -199,7 +207,7 @@ the files a change touches.
 | [Style checks](docs/style-checks.md) | Rules, every setting, fix groups, parameter refactor plans, baselines and reviews |
 | [Pattern mining](docs/patterns.md) | How candidates are found and scored, and the ignore ledger |
 | [Runtime bounds](docs/runtime-bounds.md) | What `--complexity` models, and how to read its results |
-| [Runner and frontends](docs/frontends.md) | `rstyle go` and `rstyle rust`, saved runs, the `cpg` commands, and writing a frontend for another language |
+| [Runner and frontends](docs/frontends.md) | `rstyle go`, `rstyle cxx` and `rstyle rust`, saved runs, the `cpg` commands, and writing a frontend for another language |
 | [CPG storage and transport](docs/cpg-transport.md) | Document storage, sealed captures and the local pipe protocol |
 | [Scripts](scripts/README.md) | Build, test, profiling and evaluation scripts |
 

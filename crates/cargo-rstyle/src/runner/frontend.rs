@@ -8,7 +8,7 @@ use rstyle_core::cpg::transport::{self, DocumentManifest, Encoding, SequenceRead
 use rstyle_core::filter::valid_name;
 use rstyle_core::sarif;
 use serde::Deserialize;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::io::{BufReader, PipeWriter};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -16,11 +16,14 @@ use std::sync::Mutex;
 
 const SCHEMA: &str = "rstyle.frontend-description/1";
 const GO_PACKAGE: &str = "github.com/rstyled/rstyle-go/cmd/rstyle-go@latest";
+const CXX_REPOSITORY: &str = "https://github.com/rstyled/rstyle-cxx";
 
 pub(super) struct Frontend {
-    language: &'static str,
+    pub(super) language: &'static str,
     program: PathBuf,
     analyses: Vec<Described>,
+    /// What this run's stream needs beyond the arguments every frontend gets.
+    stream_arguments: Vec<OsString>,
 }
 
 /// What a frontend says of itself, so a stale one fails with a reason instead of partway in.
@@ -79,12 +82,26 @@ pub(super) struct Saving<'a> {
 impl Frontend {
     /// `$RSTYLE_GO`, or `rstyle-go` where Go installs it or on `PATH`, or else installed.
     pub(super) fn go() -> Result<Self, String> {
-        let program = locate_go()?;
-        let analyses = describe(&program, "go")?;
+        Self::described("go", locate_go()?, Vec::new())
+    }
+
+    /// `$RSTYLE_CXX`, or `rstyle-cxx` on `PATH`. It's built against a specific LLVM, so there's no
+    /// one command that installs it, and a missing one says how to build it.
+    pub(super) fn cxx(stream_arguments: Vec<OsString>) -> Result<Self, String> {
+        Self::described("cxx", locate_cxx()?, stream_arguments)
+    }
+
+    fn described(
+        language: &'static str,
+        program: PathBuf,
+        stream_arguments: Vec<OsString>,
+    ) -> Result<Self, String> {
+        let analyses = describe(&program, language)?;
         Ok(Self {
-            language: "go",
+            language,
             program,
             analyses,
+            stream_arguments,
         })
     }
 
@@ -149,6 +166,7 @@ impl Frontend {
         let number = pipe::inherit(&mut command, writer)?;
         command
             .args(["--output-fd", &number])
+            .args(&self.stream_arguments)
             .spawn()
             .map_err(|error| format!("Cannot run {}: {error}", self.name()))
     }
@@ -319,9 +337,13 @@ fn describe(program: &Path, language: &str) -> Result<Vec<Described>, String> {
         .map_err(|error| format!("Cannot run {}: {error}", program.display()))?;
     if !output.status.success() {
         return Err(format!(
-            "`{} describe` failed with {}, so it may be too old; update it with `go install {GO_PACKAGE}`:\n{}",
+            "`{} describe` failed with {}, so it may be too old; {}:\n{}",
             program.display(),
             output.status,
+            match language {
+                "cxx" => format!("rebuild it from {CXX_REPOSITORY}"),
+                _ => format!("update it with `go install {GO_PACKAGE}`"),
+            },
             String::from_utf8_lossy(&output.stderr)
         ));
     }
@@ -356,15 +378,8 @@ fn described(description: Description, language: &str) -> Result<Vec<Described>,
 
 // rstyle-allow(side_effect_density): process boundary: finds the frontend, or installs it
 fn locate_go() -> Result<PathBuf, String> {
-    if let Some(path) = std::env::var_os("RSTYLE_GO") {
-        let path = PathBuf::from(path);
-        return match path.is_file() {
-            true => Ok(path),
-            false => Err(format!(
-                "RSTYLE_GO names {}, which isn't a file",
-                path.display()
-            )),
-        };
+    if let Some(path) = overridden("RSTYLE_GO")? {
+        return Ok(path);
     }
     if let Some(found) = installed_go() {
         return Ok(found);
@@ -372,6 +387,35 @@ fn locate_go() -> Result<PathBuf, String> {
     install_go()?;
     installed_go().ok_or_else(|| {
         format!("`go install {GO_PACKAGE}` succeeded, but rstyle-go isn't in Go's bin directory or on PATH")
+    })
+}
+
+// rstyle-allow(side_effect_density): IO boundary: reads the override and checks what it names
+fn overridden(variable: &str) -> Result<Option<PathBuf>, String> {
+    let Some(path) = std::env::var_os(variable) else {
+        return Ok(None);
+    };
+    let path = PathBuf::from(path);
+    match path.is_file() {
+        true => Ok(Some(path)),
+        false => Err(format!(
+            "{variable} names {}, which isn't a file",
+            path.display()
+        )),
+    }
+}
+
+// rstyle-allow(side_effect_density): IO boundary: finds the frontend
+fn locate_cxx() -> Result<PathBuf, String> {
+    if let Some(path) = overridden("RSTYLE_CXX")? {
+        return Ok(path);
+    }
+    let name = format!("rstyle-cxx{}", std::env::consts::EXE_SUFFIX);
+    on_path(&name).ok_or_else(|| {
+        format!(
+            "rstyle-cxx isn't on PATH. It's built against a specific LLVM, so rstyle can't install \
+             it: build it from {CXX_REPOSITORY}, then put it on PATH or point RSTYLE_CXX at it"
+        )
     })
 }
 
