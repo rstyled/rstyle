@@ -85,19 +85,28 @@ impl Staged {
     }
 }
 
-/// The project's runs of `language`. The folder ignores itself, so a project needs no change to
-/// keep it out of version control.
-// rstyle-allow(side_effect_density): IO boundary: creates the run folder and its ignore file
-pub(super) fn project_runs(project: &Path, language: &'static str) -> Result<Runs, String> {
-    let keep = crate::compiler::capture::saved_run_limit()?;
-    let folder = project.join(".rstyle");
-    let parent = folder.join("runs");
-    std::fs::create_dir_all(&parent).map_err(|error| format!("{}: {error}", parent.display()))?;
+pub(super) const PROJECT_FOLDER: &str = ".rstyle";
+
+/// The project's `.rstyle`. The folder ignores itself, so a project needs no change to keep it out
+/// of version control.
+// rstyle-allow(side_effect_density): IO boundary: creates the folder and its ignore file
+pub(super) fn project_folder(project: &Path) -> Result<PathBuf, String> {
+    let folder = project.join(PROJECT_FOLDER);
+    std::fs::create_dir_all(&folder).map_err(|error| format!("{}: {error}", folder.display()))?;
 
     let ignore = folder.join(".gitignore");
     if !ignore.exists() {
         std::fs::write(&ignore, "*\n").map_err(|error| format!("{}: {error}", ignore.display()))?;
     }
+    Ok(folder)
+}
+
+/// The project's runs of `language`.
+// rstyle-allow(side_effect_density): IO boundary: creates the run folder
+pub(super) fn project_runs(project: &Path, language: &'static str) -> Result<Runs, String> {
+    let keep = crate::compiler::capture::saved_run_limit()?;
+    let parent = project_folder(project)?.join("runs");
+    std::fs::create_dir_all(&parent).map_err(|error| format!("{}: {error}", parent.display()))?;
     Ok(Runs {
         parent,
         language,

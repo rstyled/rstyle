@@ -131,8 +131,10 @@ you have access to it, or point `$RSTYLE_GO` at a local build.
 
 `rstyle cxx` uses `$RSTYLE_CXX` if set, then `rstyle-cxx` on your `PATH`. It's built against LLVM 19, so
 rstyle doesn't install it: build it from [rstyle-cxx](https://github.com/rstyled/rstyle-cxx), which is
-private for now. It reads your project through Clang, so give it the build's `compile_commands.json`.
-Without one it guesses flags, warns, and loses what it can't parse.
+private for now. It reads your project through Clang, so it needs your build's `compile_commands.json`. It looks in
+the project and its build folders, and otherwise asks your CMake, Meson or Make build for one, which runs its build
+scripts: pass `--no-generate-database` on code you wouldn't build. `--compilation-database` names one elsewhere. If it
+ends up with none it warns, says how to specify one, and goes on guessing flags, which loses what it can't parse.
 
 ## Rules
 

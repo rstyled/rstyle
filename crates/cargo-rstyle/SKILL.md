@@ -173,7 +173,9 @@ Each run is saved whole in `.rstyle/runs/`, which keeps each language's newest 5
 changes that), with `report.json.zst`, `report.sarif`, `check.sarif` and `patterns.sarif`. `--format json` prints plain JSON with `run`
 naming that folder. `--from DIR` reads a saved run back. Exit 0 is clean, 1 is findings, and 2 is a
 tool error. `RSTYLE_GO` points at a local `rstyle-go`, and `RSTYLE_CXX` at a local `rstyle-cxx`. For C and
-C++, pass `--compilation-database` when `compile_commands.json` isn't in the project: without one the frontend
+C++, rstyle looks for `compile_commands.json` in the project and its build folders, and otherwise asks the project's
+CMake, Meson or Make build for one, which runs its build scripts; `--no-generate-database` stops that, and
+`--compilation-database` names one. If it ends up with none it warns and says how to specify one, and the frontend
 guesses flags and loses what it can't parse.
 
 ## Other languages (`cpg`)

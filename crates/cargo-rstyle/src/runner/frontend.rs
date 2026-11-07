@@ -80,29 +80,31 @@ pub(super) struct Saving<'a> {
 }
 
 impl Frontend {
-    /// `$RSTYLE_GO`, or `rstyle-go` where Go installs it or on `PATH`, or else installed.
-    pub(super) fn go() -> Result<Self, String> {
-        Self::described("go", locate_go()?, Vec::new())
-    }
-
-    /// `$RSTYLE_CXX`, or `rstyle-cxx` on `PATH`. It's built against a specific LLVM, so there's no
-    /// one command that installs it, and a missing one says how to build it.
-    pub(super) fn cxx(stream_arguments: Vec<OsString>) -> Result<Self, String> {
-        Self::described("cxx", locate_cxx()?, stream_arguments)
-    }
-
-    fn described(
-        language: &'static str,
-        program: PathBuf,
-        stream_arguments: Vec<OsString>,
-    ) -> Result<Self, String> {
+    /// The frontend for `language`. Go's is `$RSTYLE_GO`, or `rstyle-go` where Go installs it or on
+    /// `PATH`, or else installed. C++'s is `$RSTYLE_CXX`, or `rstyle-cxx` on `PATH`: it's built
+    /// against a specific LLVM, so there's no one command that installs it, and a missing one says
+    /// how to build it.
+    // rstyle-allow(side_effect_density): process boundary: finds the frontend and asks what it offers
+    pub(super) fn located(language: &'static str) -> Result<Self, String> {
+        let program = match language {
+            "cxx" => locate_cxx()?,
+            _ => locate_go()?,
+        };
         let analyses = describe(&program, language)?;
         Ok(Self {
             language,
             program,
             analyses,
-            stream_arguments,
+            stream_arguments: Vec::new(),
         })
+    }
+
+    /// The same frontend, with what this run's stream needs beyond what every frontend gets.
+    pub(super) fn streaming(self, stream_arguments: Vec<OsString>) -> Self {
+        Self {
+            stream_arguments,
+            ..self
+        }
     }
 
     fn name(&self) -> std::path::Display<'_> {

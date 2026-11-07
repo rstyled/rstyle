@@ -21,8 +21,19 @@ rstyle go --patterns       rstyle cxx --patterns       rstyle rust --patterns
   LLVM, so rstyle can't install it, and a missing one says where to build it from. `--source DIR` picks the
   directory, and by default it's the nearest directory holding `compile_commands.json` or
   `build/compile_commands.json`, then the repository. `--compilation-database PATH` names the database when it's
-  elsewhere, and `--include DIR` and `--define NAME[=VALUE]` add to the flags. Without a database the frontend guesses
-  flags and warns, and what it can't parse is lost, so generate one.
+  elsewhere, and `--include DIR` and `--define NAME[=VALUE]` add to the flags.
+
+  Without a named database, rstyle looks where the frontend does, then in the top-level folders whose names say a
+  build wrote them (`build*`, `cmake-build*`, `builddir`, `_build` and `out`). If that finds nothing, it guesses the
+  build from `CMakeLists.txt`, `meson.build` or a Makefile, in that order, and asks it for one on every run: `cmake`,
+  `meson setup`, or `bear -- make`. It writes to `.rstyle/compile-database`, so your `build/` stays as it was, though
+  Make still builds in place. All three run the project's build scripts, so pass `--no-generate-database` on code you
+  wouldn't build. That still reuses one generated earlier.
+
+  If the build can't be guessed or doesn't write a database, rstyle warns and says how to specify one. One an earlier
+  run generated still serves, with a warning that it may be out of date. Otherwise the run goes on: the frontend
+  guesses flags and loses what it can't parse, and its report says so. A build that needs options should be configured
+  by hand and named with `--compilation-database`.
 - **Rust:** the frontend is the bundled driver. `--manifest-path`, `-p` and `--all-targets` apply.
   It reads the same capture as `cargo rstyle` and `patterns`, so only what changed compiles.
 
