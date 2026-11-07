@@ -95,9 +95,10 @@ Fix one group at a time, callees first, then run it again, since fixes change th
 | `rstyle rust` | Every analysis over a Rust workspace, saved with SARIF reports |
 | `rstyle go` | Every analysis over a Go module, saved with SARIF reports |
 | `rstyle cxx` | Every analysis over a C or C++ project, saved with SARIF reports |
+| `rstyle py` | Every analysis over a Python project, saved with SARIF reports |
 
 `rstyle` and `cargo rstyle` are the same program, so either name works for any command. `rstyle go`,
-`rstyle cxx` and `rstyle rust` also take `--check` or `--patterns` to run just that analysis.
+`rstyle cxx`, `rstyle py` and `rstyle rust` also take `--check` or `--patterns` to run just that analysis.
 
 Common options:
 
@@ -137,6 +138,13 @@ private for now. It reads your project through Clang, so it needs your build's `
 the project and its build folders, and otherwise asks your CMake, Meson or Make build for one, which runs its build
 scripts: pass `--no-generate-database` on code you wouldn't build. `--compilation-database` names one elsewhere. If it
 ends up with none it warns, says how to specify one, and goes on guessing flags, which loses what it can't parse.
+
+### Python
+
+`rstyle py` uses `$RSTYLE_PY` if set, then `rstyle-py` on your `PATH`. It pins its analyzer, so it needs an environment of
+its own: `uv tool install git+https://github.com/rstyled/rstyle-py`, from [rstyle-py](https://github.com/rstyled/rstyle-py),
+which is private for now. It reads your project's environment without running it, and `--python` names an interpreter to run
+instead. A file that doesn't parse ends the run, and `--exclude` names a path or glob to leave out.
 
 ## Rules
 
@@ -202,7 +210,7 @@ that file:
 cargo rstyle patterns --fail-on-candidates
 ```
 
-For code scanning tools, `rstyle rust`, `rstyle go` and `rstyle cxx` write SARIF 2.1.0 to the run's `report.sarif`
+For code scanning tools, `rstyle rust`, `rstyle go`, `rstyle cxx` and `rstyle py` write SARIF 2.1.0 to the run's `report.sarif`
 under `.rstyle/runs/`. [Style checks](docs/style-checks.md#using-it-in-ci) also covers checking only
 the files a change touches.
 
@@ -213,7 +221,7 @@ the files a change touches.
 | [Style checks](docs/style-checks.md) | Rules, every setting, fix groups, parameter refactor plans, baselines and reviews |
 | [Pattern mining](docs/patterns.md) | How candidates are found and scored, and the ignore ledger |
 | [Runtime bounds](docs/runtime-bounds.md) | What `--complexity` models, and how to read its results |
-| [Runner and frontends](docs/frontends.md) | `rstyle go`, `rstyle cxx` and `rstyle rust`, saved runs, the `cpg` commands, and writing a frontend for another language |
+| [Runner and frontends](docs/frontends.md) | `rstyle go`, `rstyle cxx`, `rstyle py` and `rstyle rust`, saved runs, the `cpg` commands, and writing a frontend for another language |
 | [CPG storage and transport](docs/cpg-transport.md) | Document storage, sealed captures and the local pipe protocol |
 | [Scripts](scripts/README.md) | Build, test, profiling and evaluation scripts |
 

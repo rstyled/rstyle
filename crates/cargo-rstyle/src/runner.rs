@@ -1,4 +1,4 @@
-//! `rstyle go`, `rstyle cxx` and `rstyle rust`: find the frontend, read what it produces, run the
+//! `rstyle go`, `rstyle cxx`, `rstyle py` and `rstyle rust`: find the frontend, read what it produces, run the
 //! selected analyses once in core, and save the run in one piece.
 
 mod database;
@@ -114,6 +114,37 @@ impl CxxArgs {
     }
 }
 
+#[derive(Args)]
+pub(crate) struct PyArgs {
+    /// Python source directory [default: the project holding the current directory].
+    #[arg(long, conflicts_with = "from")]
+    source: Option<PathBuf>,
+    /// The interpreter whose packages the project uses, which the frontend runs [default: an
+    /// environment in the project, read without running it, or else the active one].
+    #[arg(long, conflicts_with = "from")]
+    python: Option<PathBuf>,
+    /// A path or glob the frontend doesn't read, relative to the source directory. Can be repeated.
+    #[arg(long = "exclude", value_name = "GLOB", conflicts_with = "from")]
+    excludes: Vec<String>,
+    #[command(flatten)]
+    run: RunArgs,
+}
+
+impl PyArgs {
+    /// What the frontend needs to hear, after the arguments every frontend gets.
+    fn stream_arguments(&self) -> Vec<OsString> {
+        let python = self
+            .python
+            .iter()
+            .flat_map(|path| [OsString::from("--python"), path.clone().into_os_string()]);
+        let excludes = self
+            .excludes
+            .iter()
+            .flat_map(|glob| [OsString::from("--exclude"), OsString::from(glob)]);
+        python.chain(excludes).collect()
+    }
+}
+
 impl RunArgs {
     /// The shorthands and `--filter` together; flags that can't be honored fail here.
     fn selection(&self) -> Result<Filter, String> {
@@ -192,6 +223,21 @@ pub(crate) fn cxx(cli: &Cli, args: &CxxArgs) -> Result<(String, u8), String> {
     let found = found_database(args, &source);
     let frontend = frontend.streaming(args.build_arguments(found.as_deref()));
     from_frontend(cli, &args.run, (filter, source.clone(), source), frontend)
+}
+
+// rstyle-allow(side_effect_density): process boundary: runs the frontend and saves the run
+pub(crate) fn py(cli: &Cli, args: &PyArgs) -> Result<(String, u8), String> {
+    reject_rust_flags(cli, "Python")?;
+    let filter = args.run.selection()?;
+    filter.names_only_frontend("py")?;
+    if let Some(from) = &args.run.from {
+        return saved(cli, &args.run, (filter, "py"), from);
+    }
+
+    let source = chosen_source(args.source.as_deref(), py_project_root)?;
+    let project = py_project_root(&source).unwrap_or_else(|| source.clone());
+    let frontend = Frontend::located("py")?.streaming(args.stream_arguments());
+    from_frontend(cli, &args.run, (filter, source, project), frontend)
 }
 
 /// The database to name to the frontend, when nobody named one and it wouldn't find it itself.
@@ -619,8 +665,22 @@ fn module_root(start: &Path) -> Option<PathBuf> {
 /// The project holding `start`. C++ has no one marker for that, so it's the nearest directory that
 /// knows how the code is built, or failing that the repository.
 fn cxx_project_root(start: &Path) -> Option<PathBuf> {
+    marked_or_repository(start, database::found_in)
+}
+
+/// The project holding `start`: the nearest directory saying how it's packaged, or else the repository.
+fn py_project_root(start: &Path) -> Option<PathBuf> {
+    marked_or_repository(start, |directory| {
+        ["pyproject.toml", "setup.py", "setup.cfg"]
+            .iter()
+            .any(|name| directory.join(name).is_file())
+    })
+}
+
+/// The nearest directory at or above `start` that `marks_a_project` picks out, or else the repository.
+fn marked_or_repository(start: &Path, marks_a_project: fn(&Path) -> bool) -> Option<PathBuf> {
     let found = |marker: fn(&Path) -> bool| start.ancestors().find(|directory| marker(directory));
-    found(database::found_in)
+    found(marks_a_project)
         .or_else(|| found(|directory| directory.join(".git").exists()))
         .map(Path::to_path_buf)
 }
@@ -628,6 +688,47 @@ fn cxx_project_root(start: &Path) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_python_project_is_what_says_how_it_is_packaged_then_its_repository() {
+        let dir = tempfile::tempdir().unwrap();
+        let nested = dir.path().join("a/b");
+        std::fs::create_dir_all(&nested).unwrap();
+        assert_eq!(py_project_root(&nested), None);
+        std::fs::create_dir(dir.path().join(".git")).unwrap();
+        assert_eq!(py_project_root(&nested), Some(dir.path().to_path_buf()));
+        std::fs::write(dir.path().join("a/pyproject.toml"), "").unwrap();
+        assert_eq!(py_project_root(&nested), Some(dir.path().join("a")));
+    }
+
+    #[test]
+    fn a_python_run_passes_its_interpreter_and_exclusions_on() {
+        let args = PyArgs {
+            source: None,
+            python: Some("/env/bin/python".into()),
+            excludes: vec!["tests/data/**".into(), "old.py".into()],
+            run: RunArgs {
+                check: false,
+                patterns: false,
+                filter: Vec::new(),
+                out: None,
+                from: None,
+                fail_on_candidates: false,
+                no_ignore: false,
+                display: PatternDisplayArgs::default(),
+                mine: MineArgs::default(),
+            },
+        };
+        let expected = [
+            "--python",
+            "/env/bin/python",
+            "--exclude",
+            "tests/data/**",
+            "--exclude",
+            "old.py",
+        ];
+        assert_eq!(args.stream_arguments(), expected.map(OsString::from));
+    }
 
     #[test]
     fn the_module_root_is_the_nearest_with_a_go_mod() {

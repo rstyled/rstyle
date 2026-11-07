@@ -146,6 +146,8 @@ enum Command {
     Rust(Box<runner::RunArgs>),
     /// Run the C and C++ frontend and analyze what it produces.
     Cxx(Box<runner::CxxArgs>),
+    /// Run the Python frontend and analyze what it produces.
+    Py(Box<runner::PyArgs>),
     /// Compare two saved runs of a codebase: what changed, and what could reach it.
     Risk(runner::RiskArgs),
     /// Mine the workspace for latent shared abstractions (signature groups).
@@ -534,6 +536,7 @@ fn main() -> ExitCode {
         Some(Command::Go(args)) => return exit_with(runner::go(&cli, &args)),
         Some(Command::Rust(args)) => return exit_with(runner::rust(&cli, &args)),
         Some(Command::Cxx(args)) => return exit_with(runner::cxx(&cli, &args)),
+        Some(Command::Py(args)) => return exit_with(runner::py(&cli, &args)),
         Some(Command::Risk(args)) => return exit_with(runner::risk(&cli, &args)),
         Some(Command::Patterns(args)) => {
             return exit_with(compiler::patterns_route::run(cli, args));

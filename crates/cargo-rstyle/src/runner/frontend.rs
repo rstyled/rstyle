@@ -17,6 +17,7 @@ use std::sync::Mutex;
 const SCHEMA: &str = "rstyle.frontend-description/1";
 const GO_PACKAGE: &str = "github.com/rstyled/rstyle-go/cmd/rstyle-go@latest";
 const CXX_REPOSITORY: &str = "https://github.com/rstyled/rstyle-cxx";
+const PY_REPOSITORY: &str = "https://github.com/rstyled/rstyle-py";
 
 pub(super) struct Frontend {
     pub(super) language: &'static str,
@@ -83,11 +84,13 @@ impl Frontend {
     /// The frontend for `language`. Go's is `$RSTYLE_GO`, or `rstyle-go` where Go installs it or on
     /// `PATH`, or else installed. C++'s is `$RSTYLE_CXX`, or `rstyle-cxx` on `PATH`: it's built
     /// against a specific LLVM, so there's no one command that installs it, and a missing one says
-    /// how to build it.
+    /// how to build it. Python's is `$RSTYLE_PY`, or `rstyle-py` on `PATH`: it pins its analyzer and
+    /// needs an environment of its own, so a missing one says how to install it.
     // rstyle-allow(side_effect_density): process boundary: finds the frontend and asks what it offers
     pub(super) fn located(language: &'static str) -> Result<Self, String> {
         let program = match language {
             "cxx" => locate_cxx()?,
+            "py" => locate_py()?,
             _ => locate_go()?,
         };
         let analyses = describe(&program, language)?;
@@ -344,6 +347,7 @@ fn describe(program: &Path, language: &str) -> Result<Vec<Described>, String> {
             output.status,
             match language {
                 "cxx" => format!("rebuild it from {CXX_REPOSITORY}"),
+                "py" => format!("reinstall it from {PY_REPOSITORY}"),
                 _ => format!("update it with `go install {GO_PACKAGE}`"),
             },
             String::from_utf8_lossy(&output.stderr)
@@ -407,18 +411,40 @@ fn overridden(variable: &str) -> Result<Option<PathBuf>, String> {
     }
 }
 
-// rstyle-allow(side_effect_density): IO boundary: finds the frontend
 fn locate_cxx() -> Result<PathBuf, String> {
-    if let Some(path) = overridden("RSTYLE_CXX")? {
-        return Ok(path);
-    }
-    let name = format!("rstyle-cxx{}", std::env::consts::EXE_SUFFIX);
-    on_path(&name).ok_or_else(|| {
+    located_without_installing(
+        "RSTYLE_CXX",
+        "rstyle-cxx",
         format!(
             "rstyle-cxx isn't on PATH. It's built against a specific LLVM, so rstyle can't install \
              it: build it from {CXX_REPOSITORY}, then put it on PATH or point RSTYLE_CXX at it"
-        )
-    })
+        ),
+    )
+}
+
+fn locate_py() -> Result<PathBuf, String> {
+    located_without_installing(
+        "RSTYLE_PY",
+        "rstyle-py",
+        format!(
+            "rstyle-py isn't on PATH: install it with `uv tool install git+{PY_REPOSITORY}`, or point \
+             RSTYLE_PY at it"
+        ),
+    )
+}
+
+/// What `variable` names, or else `program` on `PATH`, for a frontend rstyle can't install itself.
+// rstyle-allow(side_effect_density): IO boundary: finds the frontend
+fn located_without_installing(
+    variable: &str,
+    program: &str,
+    missing: String,
+) -> Result<PathBuf, String> {
+    if let Some(path) = overridden(variable)? {
+        return Ok(path);
+    }
+    let name = format!("{program}{}", std::env::consts::EXE_SUFFIX);
+    on_path(&name).ok_or(missing)
 }
 
 fn installed_go() -> Option<PathBuf> {

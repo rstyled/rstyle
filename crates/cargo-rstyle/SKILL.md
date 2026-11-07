@@ -169,20 +169,21 @@ Reviewed and rejected candidates: every candidate has an `id`. Only when the use
 
 Defaults (WL similarity 600, alignment coverage 600, 3 holes max for `parameterize`) are the evaluated setting. Opt-in experiments, not recommended unless asked: `--normalize all|ctor,pred,case,exit,counter,cmp,try` (canonicalize graphs; on CodeNet it removes about one unmatched node per pair and did not change what gets flagged, `case` does nearly all the work), `--pair-coverage N`, `--max-holes N`, `--single-call-guard`, `--threshold N`, `--min-coverage N` (more recall of strangers' spellings at the price of more false positives; `--pair-coverage 650 --max-holes 4` on CodeNet: about 20 extra cross-problem flags per 350k pairs).
 
-## Any language (`rstyle go`, `rstyle cxx`, `rstyle rust`)
+## Any language (`rstyle go`, `rstyle cxx`, `rstyle py`, `rstyle rust`)
 
-`rstyle go`, `rstyle cxx` and `rstyle rust` find the frontend, run it and analyze what it produces. `--check`,
+`rstyle go`, `rstyle cxx`, `rstyle py` and `rstyle rust` find the frontend, run it and analyze what it produces. `--check`,
 `--patterns` or `--filter check,patterns,bounds,flow,defects` select analyses; the default is everything.
 
 `taint_flow`, under `defects`, follows input to where it's dangerous, across functions. `[taint]` in `rstyle.toml` names a project's own sources, sinks and sanitizers, and `ignored` drops what doesn't count. A result is a path to read, not proof of a bug.
 Each run is saved whole in `.rstyle/runs/`, which keeps each language's newest 5 (`RSTYLE_KEEP_RUNS`
 changes that), with `report.json.zst`, `report.sarif`, `check.sarif` and `patterns.sarif`. `--format json` prints plain JSON with `run`
 naming that folder. `--from DIR` reads a saved run back. Exit 0 is clean, 1 is findings, and 2 is a
-tool error. `RSTYLE_GO` points at a local `rstyle-go`, and `RSTYLE_CXX` at a local `rstyle-cxx`. For C and
+tool error. `RSTYLE_GO` points at a local `rstyle-go`, `RSTYLE_CXX` at a local `rstyle-cxx`, and `RSTYLE_PY` at a local `rstyle-py`. For C and
 C++, rstyle looks for `compile_commands.json` in the project and its build folders, and otherwise asks the project's
 CMake, Meson or Make build for one, which runs its build scripts; `--no-generate-database` stops that, and
 `--compilation-database` names one. If it ends up with none it warns and says how to specify one, and the frontend
-guesses flags and loses what it can't parse.
+guesses flags and loses what it can't parse. For Python, a file that doesn't parse ends the run, and `--exclude` names a
+path or glob to leave out. An environment in the project is read and never run; `--python` names an interpreter to run instead.
 
 ## Other languages (`cpg`)
 
