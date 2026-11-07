@@ -411,32 +411,40 @@ fn overridden(variable: &str) -> Result<Option<PathBuf>, String> {
     }
 }
 
-// rstyle-allow(side_effect_density): IO boundary: finds the frontend
 fn locate_cxx() -> Result<PathBuf, String> {
-    if let Some(path) = overridden("RSTYLE_CXX")? {
-        return Ok(path);
-    }
-    let name = format!("rstyle-cxx{}", std::env::consts::EXE_SUFFIX);
-    on_path(&name).ok_or_else(|| {
+    located_without_installing(
+        "RSTYLE_CXX",
+        "rstyle-cxx",
         format!(
             "rstyle-cxx isn't on PATH. It's built against a specific LLVM, so rstyle can't install \
              it: build it from {CXX_REPOSITORY}, then put it on PATH or point RSTYLE_CXX at it"
-        )
-    })
+        ),
+    )
 }
 
-// rstyle-allow(side_effect_density): IO boundary: finds the frontend
 fn locate_py() -> Result<PathBuf, String> {
-    if let Some(path) = overridden("RSTYLE_PY")? {
-        return Ok(path);
-    }
-    let name = format!("rstyle-py{}", std::env::consts::EXE_SUFFIX);
-    on_path(&name).ok_or_else(|| {
+    located_without_installing(
+        "RSTYLE_PY",
+        "rstyle-py",
         format!(
             "rstyle-py isn't on PATH: install it with `uv tool install git+{PY_REPOSITORY}`, or point \
              RSTYLE_PY at it"
-        )
-    })
+        ),
+    )
+}
+
+/// What `variable` names, or else `program` on `PATH`, for a frontend rstyle can't install itself.
+// rstyle-allow(side_effect_density): IO boundary: finds the frontend
+fn located_without_installing(
+    variable: &str,
+    program: &str,
+    missing: String,
+) -> Result<PathBuf, String> {
+    if let Some(path) = overridden(variable)? {
+        return Ok(path);
+    }
+    let name = format!("{program}{}", std::env::consts::EXE_SUFFIX);
+    on_path(&name).ok_or(missing)
 }
 
 fn installed_go() -> Option<PathBuf> {

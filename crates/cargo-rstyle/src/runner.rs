@@ -633,22 +633,22 @@ fn module_root(start: &Path) -> Option<PathBuf> {
 /// The project holding `start`. C++ has no one marker for that, so it's the nearest directory that
 /// knows how the code is built, or failing that the repository.
 fn cxx_project_root(start: &Path) -> Option<PathBuf> {
-    let found = |marker: fn(&Path) -> bool| start.ancestors().find(|directory| marker(directory));
-    found(database::found_in)
-        .or_else(|| found(|directory| directory.join(".git").exists()))
-        .map(Path::to_path_buf)
+    marked_or_repository(start, database::found_in)
 }
 
 /// The project holding `start`: the nearest directory saying how it's packaged, or else the repository.
-// rstyle-allow(side_effect_density): IO boundary: looks for what marks a project
 fn py_project_root(start: &Path) -> Option<PathBuf> {
-    let found = |marker: fn(&Path) -> bool| start.ancestors().find(|directory| marker(directory));
-    let packaged = |directory: &Path| {
+    marked_or_repository(start, |directory| {
         ["pyproject.toml", "setup.py", "setup.cfg"]
             .iter()
             .any(|name| directory.join(name).is_file())
-    };
-    found(packaged)
+    })
+}
+
+/// The nearest directory at or above `start` that `marks_a_project` picks out, or else the repository.
+fn marked_or_repository(start: &Path, marks_a_project: fn(&Path) -> bool) -> Option<PathBuf> {
+    let found = |marker: fn(&Path) -> bool| start.ancestors().find(|directory| marker(directory));
+    found(marks_a_project)
         .or_else(|| found(|directory| directory.join(".git").exists()))
         .map(Path::to_path_buf)
 }
