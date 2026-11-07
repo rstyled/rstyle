@@ -10,7 +10,10 @@ use std::collections::BTreeMap;
 
 const SCHEMA: &str = "rstyle.effect-classes/1";
 /// Class files compiled into the engine, one per frontend namespace.
-const EMBEDDED: &[&str] = &[include_str!("contracts/effects/go.toml")];
+const EMBEDDED: &[&str] = &[
+    include_str!("contracts/effects/go.toml"),
+    include_str!("contracts/effects/cxx.toml"),
+];
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -172,6 +175,15 @@ mod tests {
         );
         assert_eq!(go.class("go:example.com/lib.Do"), Some(UNKNOWN));
         assert_eq!(go.unlisted(), Some(UNKNOWN));
+    }
+
+    #[test]
+    fn cxx_classes_a_call_by_its_library_class() {
+        let cxx = EffectClasses::of("cxx");
+        assert_eq!(cxx.class("cxx:fopen"), Some(IO));
+        assert_eq!(cxx.class("cxx:basic_ofstream.write"), Some(IO));
+        assert_eq!(cxx.class("cxx:some_library_call"), Some(UNKNOWN));
+        assert_eq!(cxx.unlisted(), Some(UNKNOWN));
     }
 
     #[test]

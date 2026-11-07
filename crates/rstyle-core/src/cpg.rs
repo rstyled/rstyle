@@ -36,6 +36,16 @@ pub fn run_bounds(
     lowered(&layout::bundle(documents)?)
 }
 
+/// What integer overflow means for a bound. An undefined overflow is one no defined execution
+/// reaches, as a checked one is one no execution gets past, so a bound holds the same way.
+fn arithmetic(overflow: &str) -> crate::runtime_bounds::Arithmetic {
+    match overflow {
+        "checked" | "undefined" => crate::runtime_bounds::Arithmetic::Checked,
+        "wrapping" => crate::runtime_bounds::Arithmetic::Wrapping,
+        _ => crate::runtime_bounds::Arithmetic::Unknown,
+    }
+}
+
 /// The runtime-bound program of every function of a document, in document order.
 fn lowered(
     document: &model::Document,
@@ -43,11 +53,7 @@ fn lowered(
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let sources = source::Sources::new(unit)?;
     let tables = tree::Tables::new(unit)?;
-    let arithmetic = match unit.semantics.integer_overflow.as_str() {
-        "checked" => crate::runtime_bounds::Arithmetic::Checked,
-        "wrapping" => crate::runtime_bounds::Arithmetic::Wrapping,
-        _ => crate::runtime_bounds::Arithmetic::Unknown,
-    };
+    let arithmetic = arithmetic(&unit.semantics.integer_overflow);
     let pointer_bits = unit.target.pointer_width as u8;
     let functions = unit.functions.as_deref().unwrap_or_default();
 
