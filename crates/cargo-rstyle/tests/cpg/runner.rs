@@ -1,7 +1,7 @@
 //! `rstyle go` against a fake frontend that keeps to the contract, and `rstyle rust` through
 //! the real driver. Unix only: the fake frontend is a shell script.
 use super::*;
-use rstyle_core::cpg::transport::read_json;
+use rstyle_core::cpg::transport::{SequenceReader, read_json};
 use std::os::unix::fs::PermissionsExt;
 
 const FRONTEND: &str = r#"#!/bin/sh
@@ -30,6 +30,14 @@ cpg)
 analyze)
     test "$3" = --source && test "$5" = --out
     case "$2" in
+    reader|quitter|sinking) test "$7" = --input-fd ;;
+    *) test "$#" = 6 ;;
+    esac
+    case "$2" in
+    reader) cat "/dev/fd/$8" > "$FAKE_RECEIVED" ;;
+    sinking) cat "/dev/fd/$8" > /dev/null; exit 3 ;;
+    esac
+    case "$2" in
     broken) exit 3 ;;
     invalid) echo '{"version":"1.0"}' > "$6" ;;
     silent) ;;
@@ -43,6 +51,7 @@ esac
 const NO_ANALYSES: &str =
     r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[]}"#;
 const ANALYSES: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"calls"},{"name":"broken"},{"name":"invalid"},{"name":"silent"}]}"#;
+const READERS: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"reader","input":"documents"},{"name":"quitter","input":"documents"},{"name":"sinking","input":"documents"},{"name":"calls","input":"source"}]}"#;
 
 /// A Go module and a frontend to run over it.
 struct Project {
@@ -452,6 +461,97 @@ fn a_frontend_analysis_keeps_its_file_and_joins_the_final_report() {
     let log: Value =
         serde_json::from_slice(&std::fs::read(run.join("report.sarif")).unwrap()).unwrap();
     assert_eq!(log["runs"], frontend["runs"]);
+}
+
+#[test]
+fn a_frontend_analysis_can_read_the_documents_the_run_holds() {
+    let project = Project::new();
+    let received = project.root().join("received");
+    let output = project
+        .command(
+            READERS,
+            &["go", "--filter", "go:reader", "--format", "json"],
+        )
+        .env("FAKE_RECEIVED", &received)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let unified = report(&output);
+    assert_eq!(unified["frontend"][0]["status"], "complete");
+    assert!(
+        unified.get("check").is_none(),
+        "it asked for no core analysis"
+    );
+
+    let run = saved_run(&output);
+    assert!(run.join("documents/documents.manifest.json").is_file());
+    let bytes = std::fs::read(&received).unwrap();
+    let mut sequence = SequenceReader::new(bytes.as_slice());
+    assert_eq!(sequence.next().unwrap().unwrap(), example());
+    assert!(sequence.next().is_none());
+    sequence.complete().unwrap();
+}
+
+#[test]
+fn a_source_analysis_beside_a_reader_is_handed_no_documents() {
+    let project = Project::new();
+    let output = project
+        .command(READERS, &["go", "--filter", "go:calls", "--format", "json"])
+        .env_remove("FAKE_DOCUMENT")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(report(&output)["frontend"][0]["status"], "complete");
+    assert!(!saved_run(&output).join("documents").exists());
+}
+
+#[test]
+fn an_analysis_that_exits_before_reading_its_documents_failed() {
+    let project = Project::new();
+    // More than a pipe holds, so the runner is still writing when it goes.
+    let mut document = serde_json::to_vec(&example()).unwrap();
+    document.resize(document.len() + (1 << 20), b' ');
+    std::fs::write(project.root().join("document.json"), document).unwrap();
+    let output = project
+        .command(
+            READERS,
+            &["go", "--filter", "go:quitter", "--format", "json"],
+        )
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    let unified = report(&output);
+    let frontend = &unified["frontend"][0];
+    assert_eq!(frontend["status"], "failed");
+    let error = frontend["error"].as_str().unwrap();
+    assert!(error.contains("exited before reading"), "{error}");
+    assert!(!saved_run(&output).join("frontend/quitter.sarif").exists());
+}
+
+#[test]
+fn an_analysis_that_read_its_documents_can_still_fail() {
+    let project = Project::new();
+    let output = project
+        .command(
+            READERS,
+            &["go", "--filter", "go:sinking", "--format", "json"],
+        )
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    let unified = report(&output);
+    let error = unified["frontend"][0]["error"].as_str().unwrap();
+    assert!(error.contains("failed with"), "{error}");
+}
+
+#[test]
+fn a_frontend_that_asks_for_an_unknown_input_fails_before_anything_runs() {
+    let project = Project::new();
+    let description = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"a","input":"telepathy"}]}"#;
+    let output = project.command(description, &["go"]).output().unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("telepathy"), "{output:?}");
+    assert!(project.run_folders().is_empty());
 }
 
 #[test]

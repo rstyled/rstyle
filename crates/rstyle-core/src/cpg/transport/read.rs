@@ -6,7 +6,7 @@ use serde::{
 use std::{
     fmt,
     fs::File,
-    io::{self, BufReader, Read, Seek},
+    io::{self, BufReader, Read, Seek, Write},
     path::Path,
 };
 
@@ -113,6 +113,21 @@ pub fn read_sealed<T: DeserializeOwned>(
     read(&directory.join(&seal.file), seal.encoding, Some(seal))
 }
 
+/// Writes a sealed document's JSON to `output` as it was received. Bytes already written can't
+/// be taken back when a seal then disagrees, so whoever reads them waits for a later commitment.
+pub fn copy_sealed(
+    directory: &Path,
+    seal: &SealedDocument,
+    output: &mut dyn Write,
+) -> Result<(), String> {
+    Source {
+        path: &directory.join(&seal.file),
+        encoding: seal.encoding,
+        seal: Some(seal),
+    }
+    .copy(output)
+}
+
 fn read<T: DeserializeOwned>(
     path: &Path,
     encoding: Encoding,
@@ -147,6 +162,16 @@ impl Source<'_> {
         let value = self.decoded(&mut stored).map_err(|e| self.context(e))?;
         self.verify(&stored.observed)?;
         Ok(value)
+    }
+
+    fn copy(&self, output: &mut dyn Write) -> Result<(), String> {
+        let mut stored = self.stored()?;
+        let copied = match self.encoding {
+            Encoding::Json => copied(&mut stored, self.seal, output),
+            Encoding::Zstd => copied(decoder(&mut stored)?, self.seal, output),
+        };
+        copied.map_err(|error| self.context(error))?;
+        self.verify(&stored.observed)
     }
 
     fn stored(&self) -> Result<Counted<File>, String> {
@@ -224,6 +249,21 @@ fn parsed<T: DeserializeOwned>(
         seal.verify_decoded(&decoded.observed)?;
     }
     Ok(value)
+}
+
+// rstyle-allow(side_effect_density): IO boundary: copies a decoded document to its reader
+fn copied(
+    reader: impl Read,
+    seal: Option<&SealedDocument>,
+    output: &mut dyn Write,
+) -> Result<(), String> {
+    let mut decoded = Counted {
+        inner: reader,
+        observed: Observed::default(),
+        limit: seal.and_then(|s| s.decoded_bytes),
+    };
+    io::copy(&mut decoded, output).map_err(|error| error.to_string())?;
+    seal.map_or(Ok(()), |seal| seal.verify_decoded(&decoded.observed))
 }
 
 /// Syntax-only object validation without retaining a document tree.

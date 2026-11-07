@@ -9,7 +9,7 @@ use crate::cpg::analyze::{self, Unified};
 use crate::cpg::{self, input};
 use crate::{Cli, Format, MineArgs, PatternDisplayArgs, compiler, ignore, workspace};
 use clap::Args;
-use frontend::{Frontend, Saving};
+use frontend::{AnalysisPaths, Frontend, Saving};
 use rstyle_core::cpg::records::{Demand, Record};
 use rstyle_core::cpg::transport::{self, DOCUMENTS_MANIFEST, Encoding};
 use rstyle_core::filter::{Analysis, Filter};
@@ -122,7 +122,7 @@ pub(crate) fn go(cli: &Cli, args: &GoArgs) -> Result<(String, u8), String> {
     let project = module_root(&source).unwrap_or_else(|| source.clone());
 
     let frontend = Frontend::go()?;
-    let local = filter.frontend_analyses("go", &frontend.analyses)?;
+    let local = filter.frontend_analyses("go", &frontend.analyses())?;
     let staged = Staged::new(args.run.destination(&project, "go")?)?;
     let plan = Plan {
         cli,
@@ -133,11 +133,19 @@ pub(crate) fn go(cli: &Cli, args: &GoArgs) -> Result<(String, u8), String> {
         project,
     };
 
-    let (records, documents) = go_records(&plan, &frontend, &staged)?;
+    let (records, documents) =
+        match plan.filter.needs_documents() || frontend.reads_documents(&local) {
+            true => go_records(&plan, &frontend, &staged)?,
+            false => (Vec::new(), 0),
+        };
     let mut unified = plan.analyzed(records)?;
     if !local.is_empty() {
-        let directory = staged.folder(FRONTEND_FOLDER)?;
-        unified.frontend = frontend.run_analyses(&local, &plan.source, &directory);
+        let paths = AnalysisPaths {
+            source: &plan.source,
+            results: &staged.folder(FRONTEND_FOLDER)?,
+            documents: &staged.path().join(DOCUMENTS_FOLDER),
+        };
+        unified.frontend = frontend.run_analyses(&local, &paths);
     }
     let run = plan.save(&unified, staged, documents)?;
     plan.output(&unified, Some(&run))
@@ -149,10 +157,6 @@ fn go_records(
     frontend: &Frontend,
     staged: &Staged,
 ) -> Result<(Vec<Record>, usize), String> {
-    if !plan.filter.needs_documents() {
-        return Ok((Vec::new(), 0));
-    }
-
     let directory = staged.folder(DOCUMENTS_FOLDER)?;
     let saving = Saving {
         directory: &directory,

@@ -86,7 +86,7 @@ A frontend is a program with up to three commands:
 
 | Command | Does |
 | --- | --- |
-| `describe` | Prints `{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"calls"}]}` |
+| `describe` | Prints `{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"calls"},{"name":"nilerr","input":"documents"}]}` |
 | `cpg --source DIR --output-fd N` | Writes an RFC 7464 JSON text sequence to the inherited descriptor, then `RS null LF` only if generation succeeded |
 | `analyze NAME --source DIR --out FILE` | Writes SARIF 2.1.0 to `FILE`, for each name it describes |
 
@@ -98,6 +98,20 @@ A frontend is a program with up to three commands:
 The runner keeps what it receives, so a frontend needs no compression or storage code of its own. Documents
 are derived on a worker pool as they arrive, and records are put in a canonical order, so arrival order
 can't change a result.
+
+### Analyses that read documents
+
+An analysis works from the source unless its description says `"input":"documents"`. Then the runner also
+passes `--input-fd N`, after the other arguments, and writes the run's documents to that inherited descriptor
+or handle while the analysis runs:
+
+- It's the sequence `cpg` writes: each document as the frontend sent it, in the order it sent them, then
+  `RS null LF`. A sequence that stops without that record is incomplete, and the analysis must fail.
+- The analysis must read to the end. One that exits successfully while the runner is still writing has failed.
+- Selecting only such an analysis still runs `cpg`, and the run keeps the documents.
+
+This gives an analysis exactly what core's analyses read, with no second load of the source and no decompression
+or file handling of its own.
 
 ### Generated code
 
