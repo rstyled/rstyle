@@ -12,16 +12,25 @@ pub struct Config {
     pub mutation_budget: MutationBudgetConfig,
     pub side_effects: SideEffectsConfig,
     pub grouping: GroupingConfig,
+    /// Left out of what a baseline compares while nothing is on, so a project that hasn't asked for
+    /// these rules sees no change in its policy. Turning one on is one.
+    #[serde(skip_serializing_if = "StrictStyleConfig::all_off")]
     pub strict_style: StrictStyleConfig,
 }
 
 /// Opinions about how code could be shaped rather than limits it passed, so each is off unless a
 /// project turns it on. One that's on reports and fails a run like any other style rule.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct StrictStyleConfig {
     /// An `if` whose `else` only returns, around a body that could stop being nested.
     pub guard_clause: bool,
+}
+
+impl StrictStyleConfig {
+    fn all_off(&self) -> bool {
+        self == &Self::default()
+    }
 }
 
 /// Findings start strictly above either configured complexity limit.
@@ -322,6 +331,17 @@ mod tests {
         assert_eq!(config.fn_params.max_params, 4);
         assert_eq!(config.fn_spacing.min_statements, 5);
         assert_eq!(config.side_effects.weights.io, 3);
+    }
+
+    #[test]
+    fn a_baseline_compares_strict_style_only_once_a_rule_is_on() {
+        let policy = |input: &str| serde_json::to_value(Config::parse(input).unwrap()).unwrap();
+        let off = policy("[strict_style]\nguard_clause = false");
+        assert!(off.get("strict_style").is_none(), "{off}");
+        assert_eq!(off, policy(""));
+
+        let on = policy("[strict_style]\nguard_clause = true");
+        assert_eq!(on["strict_style"]["guard_clause"], true, "{on}");
     }
 
     #[test]
