@@ -1,15 +1,16 @@
-//! A pipe whose write end one child inherits, named by a number it can take as an argument:
-//! a descriptor on Unix, a handle's value on Windows.
-use std::io::PipeWriter;
+//! A pipe with one end one child inherits, named by a number it can take as an argument: a
+//! descriptor on Unix, a handle's value on Windows.
 use std::process::Command;
 
-/// Lets `command`'s child inherit `writer`, and returns the number that names it there.
+/// Lets `command`'s child inherit this end of a pipe, and returns the number that names it there.
 // rstyle-allow(side_effect_density): process boundary: arranges a child's inherited descriptor
 #[cfg(unix)]
-pub(super) fn inherit(command: &mut Command, writer: &PipeWriter) -> Result<String, String> {
-    use std::os::fd::AsRawFd;
+pub(super) fn inherit(
+    command: &mut Command,
+    end: &impl std::os::fd::AsRawFd,
+) -> Result<String, String> {
     use std::os::unix::process::CommandExt;
-    let number = writer.as_raw_fd();
+    let number = end.as_raw_fd();
 
     // SAFETY: the closure runs in the forked child before exec and only calls fcntl, which is
     // async-signal-safe, on a descriptor the child holds a copy of. The parent's copy stays
@@ -27,15 +28,17 @@ pub(super) fn inherit(command: &mut Command, writer: &PipeWriter) -> Result<Stri
 /// and holds the pipe open. The runner spawns one frontend at a time, and drops the handle
 /// before spawning anything else.
 #[cfg(windows)]
-pub(super) fn inherit(_command: &mut Command, writer: &PipeWriter) -> Result<String, String> {
+pub(super) fn inherit(
+    _command: &mut Command,
+    end: &impl std::os::windows::io::AsRawHandle,
+) -> Result<String, String> {
     use std::ffi::c_void;
-    use std::os::windows::io::AsRawHandle;
     const HANDLE_FLAG_INHERIT: u32 = 1;
     unsafe extern "system" {
         fn SetHandleInformation(handle: *mut c_void, mask: u32, flags: u32) -> i32;
     }
-    let handle = writer.as_raw_handle();
-    // SAFETY: `writer` owns this open handle for the whole call.
+    let handle = end.as_raw_handle();
+    // SAFETY: `end` owns this open handle for the whole call.
     match unsafe { SetHandleInformation(handle.cast(), HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) } {
         0 => Err(format!(
             "Cannot let the frontend inherit its pipe: {}",
@@ -46,6 +49,6 @@ pub(super) fn inherit(_command: &mut Command, writer: &PipeWriter) -> Result<Str
 }
 
 #[cfg(not(any(unix, windows)))]
-pub(super) fn inherit(_command: &mut Command, _writer: &PipeWriter) -> Result<String, String> {
+pub(super) fn inherit<End>(_command: &mut Command, _end: &End) -> Result<String, String> {
     Err("A frontend's pipe needs Unix or Windows".into())
 }

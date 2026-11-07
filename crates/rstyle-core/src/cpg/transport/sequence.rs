@@ -1,9 +1,40 @@
 //! Uncompressed RFC 7464 object records, committed by a terminal null and EOF.
-use super::Encoding;
+use super::{Encoding, SealedDocument, copy_sealed};
 use serde::{Serialize, de::DeserializeOwned};
-use std::io::{self, BufRead, BufReader, Read};
+use std::io::{self, BufRead, BufReader, Read, Write};
+use std::path::Path;
 
 const RS: u8 = 0x1e;
+
+/// Writes sealed documents as the sequence `SequenceReader` reads: each unchanged, then the
+/// terminal record. One that can't be read or that disagrees with its seal ends the sequence
+/// without that record, so a reader refuses everything before it.
+// rstyle-allow(side_effect_density): IO boundary: writes each document to the reader
+pub fn send_sealed<'a>(
+    directory: &Path,
+    seals: impl IntoIterator<Item = &'a SealedDocument>,
+    output: &mut dyn Write,
+) -> Result<(), String> {
+    for seal in seals {
+        send_document(directory, seal, output)?;
+    }
+    write_all(output, b"\x1enull\n")
+}
+
+// rstyle-allow(side_effect_density): IO boundary: frames one document for the reader
+fn send_document(
+    directory: &Path,
+    seal: &SealedDocument,
+    output: &mut dyn Write,
+) -> Result<(), String> {
+    write_all(output, &[RS])?;
+    copy_sealed(directory, seal, output)?;
+    write_all(output, b"\n")
+}
+
+fn write_all(output: &mut dyn Write, bytes: &[u8]) -> Result<(), String> {
+    output.write_all(bytes).map_err(|error| error.to_string())
+}
 
 /// Observations of consumed input, without a manifest or independently verified seals.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
