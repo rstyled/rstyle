@@ -109,6 +109,14 @@ pub enum ArgSource {
     Other,
 }
 
+/// An `if` whose `else` only returns, around a body that could stop being nested.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GuardClause {
+    pub line: usize,
+    /// Statements nested under the `if`.
+    pub statements: usize,
+}
+
 /// A parameter of a function (`self` excluded).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ParamFacts {
@@ -121,6 +129,33 @@ pub struct ParamFacts {
     /// forwards to workspace callees is a pure pass-through.
     #[serde(default)]
     pub uses: usize,
+    /// What it holds when that's a plain value, however it's passed. A type someone named says
+    /// more than this, so it has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scalar: Option<Scalar>,
+}
+
+/// A plain value a language gives its parameters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Scalar {
+    Text,
+    Integer,
+    Float,
+    Bool,
+    Char,
+}
+
+impl Scalar {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Text => "text",
+            Self::Integer => "integer",
+            Self::Float => "float",
+            Self::Bool => "bool",
+            Self::Char => "char",
+        }
+    }
 }
 
 /// A call into workspace code (same crate or a sibling crate), by stable fn id.
@@ -382,6 +417,9 @@ pub struct FnFacts {
     /// Signature shape; `None` for free functions and facts from older runs.
     #[serde(default)]
     pub sig: Option<SigFacts>,
+    /// Each `if` that could be a guard clause.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub guard_clauses: Vec<GuardClause>,
     /// Dependence graph; only present when the driver ran in semantic (`patterns`) mode.
     #[serde(default)]
     pub pdg: Option<Pdg>,
@@ -424,6 +462,7 @@ pub fn sample(name: &str) -> FnFacts {
         edges: vec![],
         mutated_types: vec![],
         sig: None,
+        guard_clauses: vec![],
         pdg: None,
     }
 }

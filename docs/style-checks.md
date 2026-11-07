@@ -26,6 +26,7 @@ analyzed function.
 | `mutated_targets` | Too many distinct roots mutated in one function. |
 | `side_effect_density` | Too many effects for the number of statements. See below. |
 | `invalid_suppression` | An `rstyle-allow` comment with no reason or an unknown rule id. |
+| `guard_clause`, `primitive_obsession`, `value_object` | Off by default. See [strict style](#strict-style). |
 
 A missing complexity score is reported as unavailable, never as zero, and makes the run exit 2.
 Closures count toward the function that owns them. Compiler lowering and a macro's own code add no
@@ -76,6 +77,7 @@ is a commented example, though it raises the complexity limits above their defau
 | `ignored_result.min_calls` | 5 | Fewest calls of a callee that say anything. At 90%, one drop already takes 10 |
 | `grouping.caller_rules` | `["fn_params"]` | Rules whose fix also edits the function's callers |
 | `grouping.caller_hops` | 1 | How many caller hops those fixes reach |
+| `strict_style.*` | off | See [strict style](#strict-style) |
 
 The default weights are `mutation = 1`, `io = 3`, `network = 3`, `global = 2`, `unsafe = 4`, `time = 1`,
 `random = 1`, `panic = 0` and `unknown = 1`.
@@ -105,6 +107,93 @@ fn shim(a: u32, b: u32, c: u32, d: u32, e: u32) { /* ... */ }
 
 `abstraction` is also a valid rule id, and keeps a function out of [pattern mining](patterns.md). So
 are [`dead_store`, `ignored_result` and `taint_flow`](defects.md).
+
+## Strict style
+
+These rules are opinions about how code could be shaped, not limits it has passed, and plenty of good code disagrees with
+them. So each is off until its table under `[strict_style]` in `rstyle.toml` turns it on, and says how much it takes:
+
+```toml
+[strict_style.guard_clause]
+enabled = true
+min_nested_statements = 3
+```
+
+A rule that's on behaves like any other here: it reports through `check`, fails the run, shows up in `check.sarif` and
+baselines, and `rstyle-allow` silences it for a function. Every language gets them from the same facts. A rule that's off
+is left out of what a baseline compares, whatever its other settings hold.
+
+### `guard_clause`
+
+An `if` whose `else` ends by returning, around statements that don't:
+
+```go
+if ok {
+    a := first()
+    second(a)
+} else {
+    return errBad
+}
+```
+
+Returning early lets the main path stop being nested, and in Rust, `let ... else` often says it best. An `else if` is left
+alone, since returning early there means restructuring the whole chain.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | |
+| `min_nested_statements` | 2 | Fewer statements under the `if` than this are no main path to bring out |
+
+### `primitive_obsession`
+
+A parameter whose name says what it means, held as plain text or an integer in several functions of a run:
+
+```rust
+fn charge(user_id: &str, amount: u64) {}
+fn refund(user_id: &str, amount: u64) {}
+```
+
+A named type would say what each holds, and stop two of them being swapped. It reads a name's whole words, so `userEmail`
+and `user_email` hold `email`, and `valid` doesn't hold `id`.
+
+Each function reports each meaning once, and a type someone named is never reported. It looks through references, so
+`&str`, `String` and `const std::string &` are all text. Most results on real code are `name` and `id`, so expect to take them
+out of `meanings`, or suppress or exclude some.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | |
+| `min_functions` | 2 | Fewer functions than this holding a meaning say nothing about a codebase |
+| `meanings` | see below | Words of a name that mean something a type could say. Each is one lowercase word, and anything else is an error, since it could never match |
+
+The default words are `email`, `phone`, `url`, `uri`, `uuid`, `guid`, `id`, `name`, `address`, `street`, `city`, `state`, `zip`,
+`postal`, `country`, `currency`, `price`, `amount`, `quantity`, `ssn`, `passport`, `license`, `username`, `password`, `token`,
+`apikey`, `secret`, `creditcard`, `iban`, `isbn`, `sku` and `serial`.
+
+### `value_object`
+
+Plain values under the same names, in several functions of a run:
+
+```go
+func dial(host string, port int) {}
+func probe(host string, port int, timeout int) {}
+func listen(port int, host string) {}
+```
+
+A small type could hold them. Only the largest such group is reported, and a function can be in several. Names that say
+nothing about a value, such as `x`, `tmp` or `arg`, can't make a group on their own, and a name starting with `_` isn't part
+of one. It only reads parameters, so it can't say the values really belong together: the callers decide that. Signatures
+matching by accident is the commonest reason to suppress one.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | |
+| `min_parameters` | 2 | Fewer values than this have nothing to travel with |
+| `min_functions` | 3 | Fewer functions than this could share a set of names by chance |
+| `placeholders` | see below | Names that say nothing about a value. Each is one lowercase word, and anything else is an error |
+
+The default placeholders are `foo`, `bar`, `baz`, `qux`, `tmp`, `temp`, `val`, `var`, `arg`, `args`, `param`, `params`, `obj`,
+`item`, `elem`, `el`, `p1`, `p2`, `p3`, `a1`, `a2`, `a3`, `v1`, `v2`, `x1`, `x2`, `y1` and `y2`.
 
 ## Fix groups
 

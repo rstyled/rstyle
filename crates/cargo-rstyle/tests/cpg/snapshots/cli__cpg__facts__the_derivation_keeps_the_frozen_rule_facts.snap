@@ -1068,7 +1068,8 @@ expression: facts
       {
         "name": "value",
         "type": "u32",
-        "uses": 1
+        "uses": 1,
+        "scalar": "integer"
       }
     ],
     "has_self": false,
@@ -2247,7 +2248,8 @@ expression: facts
       {
         "name": "value",
         "type": "i64",
-        "uses": 1
+        "uses": 1,
+        "scalar": "integer"
       }
     ],
     "has_self": false,
@@ -2355,7 +2357,8 @@ expression: facts
       {
         "name": "flag",
         "type": "bool",
-        "uses": 1
+        "uses": 1,
+        "scalar": "bool"
       }
     ],
     "has_self": false,
@@ -3108,7 +3111,8 @@ expression: facts
       {
         "name": "count",
         "type": "usize",
-        "uses": 2
+        "uses": 2,
+        "scalar": "integer"
       }
     ],
     "has_self": false,
@@ -3881,22 +3885,26 @@ expression: facts
       {
         "name": "a",
         "type": "i64",
-        "uses": 1
+        "uses": 1,
+        "scalar": "integer"
       },
       {
         "name": "b",
         "type": "i64",
-        "uses": 1
+        "uses": 1,
+        "scalar": "integer"
       },
       {
         "name": "c",
         "type": "i64",
-        "uses": 1
+        "uses": 1,
+        "scalar": "integer"
       },
       {
         "name": "d",
         "type": "i64",
-        "uses": 1
+        "uses": 1,
+        "scalar": "integer"
       }
     ],
     "has_self": false,
@@ -5616,7 +5624,8 @@ expression: facts
       {
         "name": "limit",
         "type": "u32",
-        "uses": 1
+        "uses": 1,
+        "scalar": "integer"
       }
     ],
     "has_self": false,
@@ -5849,7 +5858,8 @@ expression: facts
       {
         "name": "limit",
         "type": "u32",
-        "uses": 1
+        "uses": 1,
+        "scalar": "integer"
       }
     ],
     "has_self": true,
@@ -6926,7 +6936,8 @@ expression: facts
       {
         "name": "text",
         "type": "&str",
-        "uses": 1
+        "uses": 1,
+        "scalar": "text"
       }
     ],
     "has_self": true,
@@ -8357,7 +8368,8 @@ expression: facts
       {
         "name": "value",
         "type": "u32",
-        "uses": 2
+        "uses": 2,
+        "scalar": "integer"
       }
     ],
     "has_self": false,

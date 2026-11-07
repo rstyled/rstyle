@@ -22,6 +22,183 @@ pub struct Config {
     #[serde(skip_serializing)]
     pub risk: RiskConfig,
     pub grouping: GroupingConfig,
+    /// Left out of what a baseline compares while nothing is on, so a project that hasn't asked for
+    /// these rules sees no change in its policy. Turning one on is one.
+    #[serde(skip_serializing_if = "StrictStyleConfig::all_off")]
+    pub strict_style: StrictStyleConfig,
+}
+
+/// Opinions about how code could be shaped rather than limits it passed, so each is off unless a
+/// project turns it on. One that's on reports and fails a run like any other style rule. A rule
+/// that's off says nothing about a policy, whatever its other settings hold.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct StrictStyleConfig {
+    #[serde(skip_serializing_if = "GuardClauseConfig::is_off")]
+    pub guard_clause: GuardClauseConfig,
+    #[serde(skip_serializing_if = "PrimitiveObsessionConfig::is_off")]
+    pub primitive_obsession: PrimitiveObsessionConfig,
+    #[serde(skip_serializing_if = "ValueObjectConfig::is_off")]
+    pub value_object: ValueObjectConfig,
+}
+
+impl StrictStyleConfig {
+    fn all_off(&self) -> bool {
+        !self.guard_clause.enabled
+            && !self.primitive_obsession.enabled
+            && !self.value_object.enabled
+    }
+}
+
+/// An `if` whose `else` only returns, around a body that could stop being nested.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct GuardClauseConfig {
+    pub enabled: bool,
+    /// Fewer statements than this under the `if` are no main path to bring out of it. An empty
+    /// block never is, so 0 reads as 1.
+    pub min_nested_statements: usize,
+}
+
+impl GuardClauseConfig {
+    fn is_off(&self) -> bool {
+        !self.enabled
+    }
+}
+
+impl Default for GuardClauseConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            min_nested_statements: 2,
+        }
+    }
+}
+
+/// One lowercase word, checked on load: a name is read as lowercase words, so anything else could
+/// never match one, and a typo would quietly do nothing.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(try_from = "String")]
+pub struct Word(String);
+
+impl Word {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Names known to be words, as a rule's defaults are.
+    fn list(words: &[&str]) -> Vec<Self> {
+        words.iter().map(|word| Self((*word).to_owned())).collect()
+    }
+}
+
+impl TryFrom<String> for Word {
+    type Error = String;
+
+    fn try_from(word: String) -> Result<Self, String> {
+        let valid = !word.is_empty()
+            && word
+                .chars()
+                .all(|letter| letter.is_alphanumeric() && !letter.is_uppercase());
+        match valid {
+            true => Ok(Self(word)),
+            false => Err(format!("`{word}` is not one lowercase word")),
+        }
+    }
+}
+
+/// A parameter whose name says what it means, held as plain text or an integer.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PrimitiveObsessionConfig {
+    pub enabled: bool,
+    /// Fewer functions than this holding a meaning as a plain value say nothing about a codebase.
+    pub min_functions: usize,
+    /// Words of a name that mean something a type could say.
+    pub meanings: Vec<Word>,
+}
+
+impl PrimitiveObsessionConfig {
+    fn is_off(&self) -> bool {
+        !self.enabled
+    }
+}
+
+impl Default for PrimitiveObsessionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            min_functions: 2,
+            meanings: Word::list(&[
+                "email",
+                "phone",
+                "url",
+                "uri",
+                "uuid",
+                "guid",
+                "id",
+                "name",
+                "address",
+                "street",
+                "city",
+                "state",
+                "zip",
+                "postal",
+                "country",
+                "currency",
+                "price",
+                "amount",
+                "quantity",
+                "ssn",
+                "passport",
+                "license",
+                "username",
+                "password",
+                "token",
+                "apikey",
+                "secret",
+                "creditcard",
+                "iban",
+                "isbn",
+                "sku",
+                "serial",
+            ]),
+        }
+    }
+}
+
+/// Plain values that travel together through several functions, under one set of names.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ValueObjectConfig {
+    pub enabled: bool,
+    /// Fewer values than this have nothing to travel with.
+    pub min_parameters: usize,
+    /// Fewer functions than this could share a set of names by chance.
+    pub min_functions: usize,
+    /// Names that say nothing about what a value holds, so a group of only these describes nothing.
+    pub placeholders: Vec<Word>,
+}
+
+impl ValueObjectConfig {
+    fn is_off(&self) -> bool {
+        !self.enabled
+    }
+}
+
+impl Default for ValueObjectConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            min_parameters: 2,
+            min_functions: 3,
+            placeholders: Word::list(&[
+                "foo", "bar", "baz", "qux", "tmp", "temp", "val", "var", "arg", "args", "param",
+                "params", "obj", "item", "elem", "el", "p1", "p2", "p3", "a1", "a2", "a3", "v1",
+                "v2", "x1", "x2", "y1", "y2",
+            ]),
+        }
+    }
 }
 
 /// How much a kind of change matters.
@@ -454,6 +631,88 @@ mod tests {
         assert_eq!(config.fn_params.max_params, 4);
         assert_eq!(config.fn_spacing.min_statements, 5);
         assert_eq!(config.side_effects.weights.io, 3);
+    }
+
+    #[test]
+    fn a_baseline_compares_strict_style_only_once_a_rule_is_on() {
+        let policy = |input: &str| serde_json::to_value(Config::parse(input).unwrap()).unwrap();
+        let off = policy("[strict_style.guard_clause]\nenabled = false");
+        assert!(off.get("strict_style").is_none(), "{off}");
+        assert_eq!(off, policy(""));
+
+        let tuned = "[strict_style.guard_clause]\nmin_nested_statements = 5";
+        assert_eq!(policy(tuned), policy(""), "a rule that's off has no limits");
+
+        let on = policy("[strict_style.guard_clause]\nenabled = true");
+        let rule = &on["strict_style"]["guard_clause"];
+        assert_eq!(rule["enabled"], true, "{on}");
+        assert_eq!(rule["min_nested_statements"], 2, "{on}");
+    }
+
+    #[test]
+    fn strict_style_rules_are_off_unless_asked_for() {
+        let default = Config::parse("").unwrap().strict_style;
+        assert!(!default.guard_clause.enabled);
+        assert!(!default.value_object.enabled);
+        assert_eq!(default.value_object.min_parameters, 2);
+        assert_eq!(default.value_object.min_functions, 3);
+        assert_eq!(default.value_object.placeholders.len(), 28);
+        assert!(!default.primitive_obsession.enabled);
+        assert_eq!(default.primitive_obsession.min_functions, 2);
+        assert_eq!(default.primitive_obsession.meanings.len(), 32);
+        assert_eq!(default.guard_clause.min_nested_statements, 2);
+
+        let set = "[strict_style.guard_clause]\nenabled = true\nmin_nested_statements = 4";
+        let set = Config::parse(set).unwrap().strict_style.guard_clause;
+        assert!(set.enabled);
+        assert_eq!(set.min_nested_statements, 4);
+
+        assert!(Config::parse("[strict_style.guard_clauses]\nenabled = true").is_err());
+        assert!(Config::parse("[strict_style.guard_clause]\nenable = true").is_err());
+        assert!(Config::parse("[strict_style]\nguard_clause = true").is_err());
+    }
+
+    /// The example is where a project reads what it can set, so a rule's table has to state every
+    /// setting, and state what it defaults to.
+    fn example_states_the_defaults_of<Rule: Serialize + Default>(rule: &str) {
+        let example: toml::Table = toml::from_str(include_str!("../../../rstyle.toml")).unwrap();
+        let defaults = toml::Value::try_from(Rule::default()).unwrap();
+        assert_eq!(example["strict_style"][rule], defaults, "{rule}");
+    }
+
+    #[test]
+    fn the_example_config_states_strict_styles_defaults() {
+        example_states_the_defaults_of::<GuardClauseConfig>("guard_clause");
+        example_states_the_defaults_of::<PrimitiveObsessionConfig>("primitive_obsession");
+        example_states_the_defaults_of::<ValueObjectConfig>("value_object");
+    }
+
+    #[test]
+    fn a_word_that_could_never_match_a_name_is_an_error() {
+        let parsed = |word: &str| {
+            let input = format!("[strict_style.primitive_obsession]\nmeanings = [\"{word}\"]");
+            Config::parse(&input).map(|config| config.strict_style.primitive_obsession.meanings)
+        };
+        assert_eq!(parsed("iban").unwrap()[0].as_str(), "iban");
+        assert_eq!(parsed("a1").unwrap()[0].as_str(), "a1");
+        for word in ["Email", "user_id", "user-id", "two words", ""] {
+            let error = parsed(word).unwrap_err().to_string();
+            assert!(error.contains("not one lowercase word"), "{word}: {error}");
+        }
+    }
+
+    #[test]
+    fn a_rule_that_is_off_has_no_limits_or_words_in_a_baseline() {
+        let policy = |input: &str| serde_json::to_value(Config::parse(input).unwrap()).unwrap();
+        let tuned = "[strict_style.primitive_obsession]\nmin_functions = 5\nmeanings = [\"iban\"]";
+        assert_eq!(policy(tuned), policy(""));
+        let tuned = "[strict_style.value_object]\nmin_functions = 5\nplaceholders = [\"x\"]";
+        assert_eq!(policy(tuned), policy(""));
+
+        // One rule on leaves the others out.
+        let on = policy("[strict_style.guard_clause]\nenabled = true");
+        let rules = on["strict_style"].as_object().unwrap();
+        assert_eq!(rules.keys().collect::<Vec<_>>(), ["guard_clause"], "{on}");
     }
 
     #[test]

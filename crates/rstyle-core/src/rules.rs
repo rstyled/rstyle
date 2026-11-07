@@ -13,7 +13,12 @@ pub struct Measure {
     pub limit: usize,
 }
 
-fn diagnostic(f: &FnFacts, rule_id: &str, message: String, measure: Measure) -> Diagnostic {
+pub(crate) fn diagnostic(
+    f: &FnFacts,
+    rule_id: &str,
+    message: String,
+    measure: Measure,
+) -> Diagnostic {
     Diagnostic {
         path: f.path.clone(),
         line: f.line,

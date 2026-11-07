@@ -2,8 +2,9 @@
 
 use super::model::{FileSpan, Node, NodeKind, Origin};
 use super::source::Sources;
-use super::tree::Body;
+use super::tree::{self, Body};
 use crate::complexity::{Kind, Node as Construct};
+use crate::facts::GuardClause;
 
 /// Generated code counts once, at its outermost node.
 pub fn statements(body: &Body<'_>) -> Result<usize, String> {
@@ -50,6 +51,58 @@ pub fn top_statements(body: &Body<'_>) -> Result<usize, String> {
             .count(),
         _ => 1,
     })
+}
+
+/// Each `if` with a block for its `else` that ends by returning, around a block that doesn't and
+/// holds something to bring out. How much is enough is a project's to say. An `else if` is left
+/// alone, since it can't return early without restructuring the chain it's in.
+pub fn guard_clauses(body: &Body<'_>, sources: &Sources<'_>) -> Result<Vec<GuardClause>, String> {
+    let function = body.function;
+    let is_else_if = |node: &Node| {
+        let otherwise = |parent: &Node| parent.children.get(2) == Some(&node.id);
+        let ifs = function.nodes.iter().filter(|n| n.kind == NodeKind::If);
+        ifs.into_iter().any(otherwise)
+    };
+
+    let mut found = Vec::new();
+    for node in function.nodes.iter().filter(|n| n.kind == NodeKind::If) {
+        let [_, nested, otherwise] = body.children(node)?[..] else {
+            continue;
+        };
+        let written = [node, nested, otherwise]
+            .iter()
+            .all(|n| !tree::generated(n));
+        if written
+            && !is_else_if(node)
+            && !nested.children.is_empty()
+            && only_returns(body, otherwise)?
+            && !only_returns(body, nested)?
+        {
+            found.push(GuardClause {
+                line: tree::line(sources, node)?,
+                statements: nested.children.len(),
+            });
+        }
+    }
+    found.sort_by_key(|guard| guard.line);
+    Ok(found)
+}
+
+/// Whether a block's last statement is a `return`.
+fn only_returns(body: &Body<'_>, block: &Node) -> Result<bool, String> {
+    if block.kind != NodeKind::Block {
+        return Ok(false);
+    }
+    let Some(last) = block.children.last() else {
+        return Ok(false);
+    };
+
+    let last = body.node(last)?;
+    let stated = match (last.kind, last.children.first()) {
+        (NodeKind::ExpressionStatement, Some(child)) => body.node(child)?,
+        _ => last,
+    };
+    Ok(stated.kind == NodeKind::Return)
 }
 
 pub struct Constructs<'a> {
