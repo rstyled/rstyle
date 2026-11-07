@@ -42,8 +42,9 @@ pub fn guard_clause(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
 /// What the rules only a whole run can judge find, one list per function, in the order of `facts`.
 pub fn across_the_run(facts: &[FnFacts], cfg: &Config) -> Vec<Vec<Diagnostic>> {
     let mut found = vec![Vec::new(); facts.len()];
-    if cfg.strict_style.primitive_obsession {
-        primitive_obsession::add(facts, &mut found);
+    let rules = &cfg.strict_style;
+    if rules.primitive_obsession.enabled {
+        primitive_obsession::add(facts, &rules.primitive_obsession, &mut found);
     }
     found
 }

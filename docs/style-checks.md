@@ -144,7 +144,7 @@ alone, since returning early there means restructuring the whole chain.
 
 ### `primitive_obsession`
 
-A parameter whose name says what it means, held as plain text or an integer in at least 2 functions of a run:
+A parameter whose name says what it means, held as plain text or an integer in several functions of a run:
 
 ```rust
 fn charge(user_id: &str, amount: u64) {}
@@ -152,14 +152,21 @@ fn refund(user_id: &str, amount: u64) {}
 ```
 
 A named type would say what each holds, and stop two of them being swapped. It reads a name's whole words, so `userEmail`
-and `user_email` hold `email`, and `valid` doesn't hold `id`. The words are `email`, `phone`, `url`, `uri`, `uuid`, `guid`,
-`id`, `name`, `address`, `street`, `city`, `state`, `zip`, `postal`, `country`, `currency`, `price`, `amount`, `quantity`,
-`ssn`, `passport`, `license`, `username`, `password`, `token`, `apikey`, `secret`, `creditcard`, `iban`, `isbn`, `sku` and
-`serial`.
+and `user_email` hold `email`, and `valid` doesn't hold `id`.
 
 Each function reports each meaning once, and a type someone named is never reported. It looks through references, so
-`&str`, `String` and `const std::string &` are all text. Most results on real code are `name` and `id`, so expect to suppress
-or exclude some.
+`&str`, `String` and `const std::string &` are all text. Most results on real code are `name` and `id`, so expect to take them
+out of `meanings`, or suppress or exclude some.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | |
+| `min_functions` | 2 | Fewer functions than this holding a meaning say nothing about a codebase |
+| `meanings` | see below | Words of a name that mean something a type could say. Each is one lowercase word, and anything else is an error, since it could never match |
+
+The default words are `email`, `phone`, `url`, `uri`, `uuid`, `guid`, `id`, `name`, `address`, `street`, `city`, `state`, `zip`,
+`postal`, `country`, `currency`, `price`, `amount`, `quantity`, `ssn`, `passport`, `license`, `username`, `password`, `token`,
+`apikey`, `secret`, `creditcard`, `iban`, `isbn`, `sku` and `serial`.
 
 ## Fix groups
 
