@@ -251,6 +251,11 @@ Each function says how far this can be relied on:
 A closure's body is opaque and has no flow of its own. A coroutine's, which is all of an `async fn`, runs in place.
 Unwinding is not a transfer.
 
+### Merge risk
+
+`rstyle risk --base RUN --head RUN` compares two saved runs from these same facts, so a frontend gets it with no code of
+its own. See [merge risk](merge-risk.md).
+
 ### Defects
 
 `--filter defects` runs the rules in [Defects](defects.md) over each function's facts. Its results don't change the
