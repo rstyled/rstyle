@@ -355,33 +355,6 @@ mod tests {
     }
 
     #[test]
-    fn ignored_result_has_defaults_a_project_can_change_and_a_share_must_be_one() {
-        let default = Config::parse("").unwrap().ignored_result;
-        assert_eq!(default.min_calls, 5);
-        assert_eq!(default.min_used_percent, Percent(90));
-
-        let set = Config::parse("[ignored_result]\nmin_calls = 20\nmin_used_percent = 75").unwrap();
-        assert_eq!(set.ignored_result.min_calls, 20);
-        assert_eq!(set.ignored_result.min_used_percent, Percent(75));
-
-        for wrong in [
-            "min_used_percent = 0",
-            "min_used_percent = 101",
-            "min_call = 5",
-        ] {
-            let input = format!("[ignored_result]\n{wrong}");
-            assert!(Config::parse(&input).is_err(), "{wrong}");
-        }
-    }
-
-    #[test]
-    fn a_baseline_compares_nothing_of_ignored_result() {
-        let config = Config::parse("[ignored_result]\nmin_calls = 20").unwrap();
-        let policy = serde_json::to_value(&config).unwrap();
-        assert!(policy.get("ignored_result").is_none(), "{policy}");
-    }
-
-    #[test]
     fn grouping_rules_are_validated() {
         assert!(Config::parse("[grouping]\ncaller_rules = [\"fn_param\"]").is_err());
         let ok =
@@ -439,5 +412,32 @@ mod tests {
             Some(EffectKind::Random)
         );
         assert_eq!(paths.classify("std::io::stdin"), Some(EffectKind::Io));
+    }
+
+    #[test]
+    fn ignored_result_has_defaults_a_project_can_change_and_a_share_must_be_one() {
+        let default = Config::parse("").unwrap().ignored_result;
+        assert_eq!(default.min_calls, 5);
+        assert_eq!(default.min_used_percent, Percent(90));
+
+        let set = Config::parse("[ignored_result]\nmin_calls = 20\nmin_used_percent = 75").unwrap();
+        assert_eq!(set.ignored_result.min_calls, 20);
+        assert_eq!(set.ignored_result.min_used_percent, Percent(75));
+
+        for wrong in [
+            "min_used_percent = 0",
+            "min_used_percent = 101",
+            "min_call = 5",
+        ] {
+            let input = format!("[ignored_result]\n{wrong}");
+            assert!(Config::parse(&input).is_err(), "{wrong}");
+        }
+    }
+
+    #[test]
+    fn a_baseline_compares_nothing_of_ignored_result() {
+        let config = Config::parse("[ignored_result]\nmin_calls = 20").unwrap();
+        let policy = serde_json::to_value(&config).unwrap();
+        assert!(policy.get("ignored_result").is_none(), "{policy}");
     }
 }
