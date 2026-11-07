@@ -120,7 +120,7 @@ impl Fixture {
         let tables = Tables::new(unit).unwrap();
         let sources = Sources::new(unit).unwrap();
         let function = &unit.functions.as_ref().unwrap()[0];
-        match examine(&document.coverage, function, &tables, &sources) {
+        match examine((&document.coverage, "test"), function, &tables, &sources) {
             Examined::Read { results, .. } => results,
             Examined::Unknown(reason) => panic!("the function was not read: {reason}"),
         }
@@ -262,7 +262,9 @@ fn a_function_whose_calls_resolve_to_nothing_known_is_unknown() {
     let unit = document.unit.as_ref().unwrap();
     let (tables, sources) = (Tables::new(unit).unwrap(), Sources::new(unit).unwrap());
     let function = &unit.functions.as_ref().unwrap()[0];
-    let Examined::Unknown(reason) = examine(&document.coverage, function, &tables, &sources) else {
+    let Examined::Unknown(reason) =
+        examine((&document.coverage, "test"), function, &tables, &sources)
+    else {
         panic!("a function whose calls resolve to nothing known was read");
     };
     assert!(reason.contains("resolve"), "{reason}");

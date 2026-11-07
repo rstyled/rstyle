@@ -4,9 +4,12 @@
 
 mod dead_store;
 pub mod ignored_result;
+pub mod taint;
+pub mod value_flow;
 
 use self::ignored_result::ResultUse;
-use super::flow::{self, Flow};
+use self::value_flow::ValueFlows;
+use super::flow::{self, Flow, Reaching, Vertex};
 use super::model::{Coverage, Function, Node};
 use super::source::Sources;
 use super::tree::{Body, Tables};
@@ -28,6 +31,8 @@ pub enum Examined {
         defects: Vec<Defect>,
         /// What each call did with its result, which only the whole run can judge.
         results: Vec<ResultUse>,
+        /// Where its values go, which a project's models say the meaning of.
+        flows: ValueFlows,
     },
     /// The function's facts can't answer, and why.
     Unknown(String),
@@ -39,6 +44,8 @@ struct Reading<'a> {
     flow: Flow<'a>,
     body: Body<'a>,
     parents: HashMap<&'a str, &'a Node>,
+    /// Each write with each read it reaches: where it's written, where it's read, what.
+    dependence: Vec<(Vertex, Vertex, &'a str)>,
     tables: &'a Tables<'a>,
     sources: &'a Sources<'a>,
 }
@@ -46,15 +53,17 @@ struct Reading<'a> {
 /// Runs every rule over a function. A malformed function is the document's fault, and reported
 /// as unknown, with why, like any other function that can't be read.
 pub fn examine(
-    coverage: &Coverage,
+    (coverage, namespace): (&Coverage, &str),
     function: &Function,
     tables: &Tables<'_>,
     sources: &Sources<'_>,
 ) -> Examined {
     let read = flow::with_accesses(coverage, function).and_then(|flow| {
+        let dependence = Reaching::of(function, &flow).data_dependence();
         let reading = Reading {
             function,
             flow,
+            dependence,
             body: Body::new(function)?,
             parents: parents(function),
             tables,
@@ -63,6 +72,7 @@ pub fn examine(
         Ok(Examined::Read {
             defects: dead_store::find(&reading)?,
             results: ignored_result::uses(&reading)?,
+            flows: value_flow::of(&reading, namespace)?,
         })
     });
     read.unwrap_or_else(Examined::Unknown)

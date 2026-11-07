@@ -1,0 +1,93 @@
+# What Go's standard library takes input from and where input is dangerous, keyed by operation
+# without its namespace. A receiver is position 0, and otherwise the first argument is.
+#
+# From gstyle's models. Only these are read, so a call to anything else isn't an endpoint. A project
+# adds its own under [taint] in rstyle.toml.
+
+schema = "rstyle.taint-models/1"
+namespace = "go"
+
+sources = [
+    "net/url.Values.Get",
+    "net/http.Request.FormValue",
+    "net/http.Request.PostFormValue",
+    "net/http.Header.Get",
+    "os.Getenv",
+    "os.LookupEnv",
+    "io.ReadAll",
+    "io/ioutil.ReadAll",
+]
+
+[[sinks]]
+risk = "SQL injection"
+cwe = "CWE-89"
+arguments = [1]
+callees = [
+    "database/sql.DB.Exec",
+    "database/sql.DB.Query",
+    "database/sql.DB.QueryRow",
+    "database/sql.DB.Prepare",
+    "database/sql.Tx.Exec",
+    "database/sql.Tx.Query",
+    "database/sql.Tx.QueryRow",
+    "database/sql.Tx.Prepare",
+]
+
+[[sinks]]
+risk = "SQL injection"
+cwe = "CWE-89"
+arguments = [2]
+callees = [
+    "database/sql.Conn.ExecContext",
+    "database/sql.Conn.QueryContext",
+    "database/sql.Conn.QueryRowContext",
+    "database/sql.Conn.PrepareContext",
+    "database/sql.DB.ExecContext",
+    "database/sql.DB.QueryContext",
+    "database/sql.DB.QueryRowContext",
+    "database/sql.DB.PrepareContext",
+    "database/sql.Tx.ExecContext",
+    "database/sql.Tx.QueryContext",
+    "database/sql.Tx.QueryRowContext",
+    "database/sql.Tx.PrepareContext",
+]
+
+[[sinks]]
+risk = "SSRF"
+cwe = "CWE-918"
+arguments = [0]
+callees = ["net/http.Get", "net/http.Post", "net/http.PostForm"]
+
+[[sinks]]
+risk = "SSRF"
+cwe = "CWE-918"
+arguments = [1]
+callees = ["net/http.Client.Get", "net/http.Client.Post", "net/http.Client.PostForm"]
+
+# A program's arguments are data to it, unless a shell is told to run the next one as code.
+[[sinks]]
+risk = "command injection"
+cwe = "CWE-78"
+arguments = [0]
+callees = ["os/exec.Command"]
+shell = { executables = ["sh", "bash", "dash", "ksh", "zsh"], flag = "-c" }
+
+[[sinks]]
+risk = "command injection"
+cwe = "CWE-78"
+arguments = [1]
+callees = ["os/exec.CommandContext"]
+shell = { executables = ["sh", "bash", "dash", "ksh", "zsh"], flag = "-c" }
+
+# Data passed to Execute is escaped. The template's own source has to be trusted, in both packages.
+[[sinks]]
+risk = "template injection"
+cwe = "CWE-1336"
+arguments = [1]
+callees = ["html/template.Template.Parse", "text/template.Template.Parse"]
+
+[[sinks]]
+risk = "path traversal"
+cwe = "CWE-22"
+arguments = [0]
+callees = ["os.Open", "os.OpenFile", "os.Create", "os.WriteFile", "io/ioutil.WriteFile"]

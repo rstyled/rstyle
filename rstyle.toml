@@ -13,6 +13,19 @@ count_self = false        # `self` is the object, not an argument
 [fn_spacing]
 min_statements = 5
 
+# What `taint_flow` reads, on top of the sources and sinks each frontend's models name. Each callee
+# is an operation, a name or an identity, and an argument's position counts a receiver as 0.
+# [taint]
+# sources = ["myapp::read_request"]        # calls whose result is input
+# sanitizers = ["myapp::escape"]           # calls whose result no longer is, for every kind of sink
+# ignored = ["std::env::var"]              # calls that are no end of a flow here
+#
+# [[taint.sinks]]                          # where input is dangerous
+# callees = ["sqlx::query"]
+# arguments = [0]
+# risk = "SQL injection"
+# cwe = "CWE-89"
+
 [complexity]
 # Start at current maxima; lower these toward 12 in follow-up refactoring PRs.
 max_cyclomatic = 40

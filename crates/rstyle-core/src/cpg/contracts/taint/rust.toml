@@ -1,0 +1,40 @@
+# What Rust's standard library takes input from and where input is dangerous, keyed by a callee's
+# name, since few of these have an operation. A receiver is position 0, and otherwise the first
+# argument is.
+#
+# Only these are read, so a call to anything else isn't an endpoint, and the standard library has
+# no SQL or HTTP. A project names its crates' under [taint] in rstyle.toml.
+
+schema = "rstyle.taint-models/1"
+namespace = "rust"
+
+sources = [
+    "std::env::var",
+    "std::env::var_os",
+    "std::env::args",
+    "std::env::args_os",
+    "std::io::read_to_string",
+    "std::io::Read::read_to_string",
+    "std::io::Read::read_to_end",
+    "std::io::Stdin::read_line",
+]
+
+[[sinks]]
+risk = "command injection"
+cwe = "CWE-78"
+arguments = [0]
+callees = ["std::process::Command::new"]
+
+[[sinks]]
+risk = "path traversal"
+cwe = "CWE-22"
+arguments = [0]
+callees = [
+    "std::fs::read",
+    "std::fs::read_to_string",
+    "std::fs::write",
+    "std::fs::remove_file",
+    "std::fs::remove_dir_all",
+    "std::fs::File::open",
+    "std::fs::File::create",
+]

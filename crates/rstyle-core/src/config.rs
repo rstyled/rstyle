@@ -11,6 +11,9 @@ pub struct Config {
     pub complexity: ComplexityConfig,
     pub mutation_budget: MutationBudgetConfig,
     pub side_effects: SideEffectsConfig,
+    /// Left out of what a baseline compares, since compiler diagnostics don't read it.
+    #[serde(skip_serializing)]
+    pub taint: TaintConfig,
     /// Left out of what a baseline compares, since compiler diagnostics don't read it: changing it
     /// shouldn't read as a change in their policy.
     #[serde(skip_serializing)]
@@ -166,6 +169,33 @@ impl Default for FnLengthConfig {
 }
 
 /// Bodies with at least `min_statements` top-level statements need a blank line between phases.
+/// Where a project's own input is dangerous.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TaintSink {
+    /// Callees, each by its operation, its name or its identity.
+    pub callees: Vec<String>,
+    /// Which arguments are more than data to it. A receiver is 0, and otherwise the first argument is.
+    pub arguments: Vec<usize>,
+    pub risk: String,
+    pub cwe: Option<String>,
+}
+
+/// What a project adds to the sources and sinks a frontend's models name, each callee by its
+/// operation, its name or its identity.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TaintConfig {
+    /// Calls whose result is input.
+    pub sources: Vec<String>,
+    pub sinks: Vec<TaintSink>,
+    /// Calls whose result no longer holds input, whatever they were given, for every kind of sink.
+    pub sanitizers: Vec<String>,
+    /// Calls that are no end of a flow here, whatever a frontend's models say: a command-line tool
+    /// is meant to read its own environment.
+    pub ignored: Vec<String>,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct FnSpacingConfig {

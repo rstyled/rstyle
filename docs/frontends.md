@@ -258,5 +258,8 @@ its own. See [merge risk](merge-risk.md).
 
 ### Defects
 
+`taint_flow` reads which library calls are sources and sinks from `cpg/contracts/taint/<namespace>.toml`, by a definition's
+`operation` or `name`, so a new language needs that file and no code.
+
 `--filter defects` runs the rules in [Defects](defects.md) over each function's facts. Its results don't change the
 exit code yet.
