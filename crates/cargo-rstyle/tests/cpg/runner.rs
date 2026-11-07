@@ -2017,6 +2017,64 @@ fn risk_goes_by_the_policy_the_base_run_used_not_what_the_checkout_now_holds() {
 }
 
 #[test]
+fn risk_rates_by_the_base_runs_rules_and_a_change_cannot_turn_them_off() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    let rated = |base: &Path, head: &Path| {
+        let output = risk(base, head);
+        assert_eq!(output.status.code(), Some(0), "advisory: {output:?}");
+        report(&output)["risk"].as_str().unwrap().to_owned()
+    };
+
+    let unrated = saved_run_of(root, "pub fn f() -> i32 { 1 }\n");
+    let head = saved_run_of(root, "pub fn f() -> i32 { 2 }\n");
+    assert_eq!(rated(&unrated, &head), "unrated", "no rules, no severity");
+
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"high\"\n").unwrap();
+    let base = saved_run_of(root, "pub fn f() -> i32 { 3 }\n");
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let head = saved_run_of(root, "pub fn f() -> i32 { 4 }\n");
+    assert_eq!(rated(&base, &head), "high");
+
+    std::fs::remove_file(root.join("rstyle.toml")).unwrap();
+    let head = saved_run_of(root, "pub fn f() -> i32 { 5 }\n");
+    assert_eq!(rated(&base, &head), "high");
+}
+
+/// The gap a merge gate must not read as clean: Rust has no effect contract, so a library call the
+/// config's paths don't name gains no effect at all.
+#[test]
+fn risk_does_not_rate_a_new_rust_library_call_low_when_nothing_classifies_it() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let base = saved_run_of(root, "pub fn f(a: u8, b: u8) -> u8 { a }\n");
+    let head = saved_run_of(
+        root,
+        "pub fn f(a: u8, b: u8) -> u8 { std::cmp::max(a, b) }\n",
+    );
+
+    let rated = report(&risk(&base, &head));
+    assert_eq!(rated["risk"], "unknown", "{rated}");
+    let change = &rated["changes"][0];
+    assert!(
+        change["effects_gained"].as_array().unwrap().is_empty(),
+        "{change}"
+    );
+    let called = change["calls_unclassified"][0].as_str().unwrap();
+    assert!(called.contains("max"), "{change}");
+
+    // Naming that exact callee is the project saying what it is.
+    let rules = format!(
+        "[risk]\npdg_change = \"low\"\n[[risk.calls]]\ncallee = \"{called}\"\nlevel = \"low\"\n"
+    );
+    std::fs::write(base.join("rstyle.toml"), rules).unwrap();
+    assert_eq!(report(&risk(&base, &head))["risk"], "low");
+}
+
+#[test]
 fn risk_refuses_two_runs_of_different_languages() {
     let directory = tempfile::tempdir().unwrap();
     let (base, head) = two_runs_of(directory.path(), "pub fn f() {}\n", "pub fn g() {}\n");

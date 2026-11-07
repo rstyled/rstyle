@@ -159,6 +159,7 @@ impl<'a> Walk<'a> {
                     line,
                     dynamic: true,
                     library: None,
+                    library_callee: None,
                 });
                 Ok(())
             }
@@ -263,11 +264,14 @@ impl<'a> Walk<'a> {
         }
         let line = self.line(site.node)?;
         let library = self.library_class(site.node, declared)?;
+        let library_callee =
+            (declared.scope == Scope::Library).then(|| declared.stable_identity.clone());
         out.calls.push(CallEvent {
             callee: name,
             line,
             dynamic,
             library,
+            library_callee,
         });
         Ok(())
     }
