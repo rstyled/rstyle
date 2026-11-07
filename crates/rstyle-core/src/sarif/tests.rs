@@ -91,7 +91,8 @@ fn a_diagnostic_is_one_warning_located_by_its_line() {
             "locations": [{"physicalLocation": {
                 "artifactLocation": {"uri": "src/a.rs", "uriBaseId": "%SRCROOT%"},
                 "region": {"startLine": 3}
-            }}]
+            }}],
+            "properties": {"actual": 60, "limit": 50}
         }])
     );
 }
@@ -252,4 +253,108 @@ fn a_combined_log_is_valid_and_keeps_every_run_in_order() {
     let runs = log["runs"].as_array().unwrap();
     assert_eq!(runs[0]["automationDetails"]["id"], "rstyle/check/");
     assert_eq!(runs[1]["tool"]["driver"]["name"], "x");
+}
+
+fn detail(label: &str, count: usize, lines: Vec<usize>) -> Detail {
+    Detail {
+        label: label.into(),
+        count,
+        lines,
+    }
+}
+
+fn group(id: usize, path: &str, line: usize, rules: &[&str]) -> FixGroup {
+    FixGroup {
+        id,
+        functions: vec![crate::report::GroupFunction {
+            path: path.into(),
+            line,
+            name: "f".into(),
+            rules: rules.iter().map(|rule| (*rule).into()).collect(),
+        }],
+        hints: Vec::new(),
+        plan: None,
+    }
+}
+
+#[test]
+fn a_check_finding_says_what_raised_it_and_by_how_much() {
+    let mut raised = violation("src/a.rs", 3);
+    raised.details = vec![
+        detail("Branch (nesting 1)", 2, vec![5]),
+        detail("io: std::fs::read", 2, vec![7, 9]),
+    ];
+    let log = value(check(&report(vec![raised]), Path::new(ROOT)).unwrap());
+    let result = &log["runs"][0]["results"][0];
+
+    let points: Vec<(u64, &str)> = result["relatedLocations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| {
+            (
+                l["physicalLocation"]["region"]["startLine"]
+                    .as_u64()
+                    .unwrap(),
+                l["message"]["text"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        points,
+        [
+            (5, "Branch (nesting 1) +2"),
+            (7, "io: std::fs::read"),
+            (9, "io: std::fs::read")
+        ]
+    );
+    assert_eq!(result["properties"], json!({"actual": 60, "limit": 50}));
+}
+
+#[test]
+fn a_check_run_carries_its_fix_groups_and_each_finding_names_its_own() {
+    let mut fixed = report(vec![violation("src/a.rs", 3), violation("src/b.rs", 4)]);
+    fixed.fix_groups = vec![
+        group(1, "src/a.rs", 3, &["fn_length"]),
+        group(2, "src/b.rs", 4, &["other_rule"]),
+    ];
+    let log = value(check(&fixed, Path::new(ROOT)).unwrap());
+    let run = &log["runs"][0];
+
+    assert_eq!(run["results"][0]["properties"]["fix_group"], 1);
+    // Group 2 names the function for another rule, so this diagnostic is in no group.
+    assert!(run["results"][1]["properties"].get("fix_group").is_none());
+    assert_eq!(run["properties"]["fix_groups"][1]["id"], 2);
+    assert_eq!(
+        run["properties"]["fix_groups"][0]["functions"][0]["path"],
+        "src/a.rs"
+    );
+}
+
+#[test]
+fn a_check_without_fix_groups_has_no_run_properties() {
+    let log = value(check(&report(vec![violation("src/a.rs", 3)]), Path::new(ROOT)).unwrap());
+    assert!(log["runs"][0].get("properties").is_none());
+}
+
+#[test]
+fn a_check_finding_is_fingerprinted_by_its_rule_and_function() {
+    let mut named = report(vec![violation("src/a.rs", 3), violation("src/b.rs", 9)]);
+    named.functions = vec![crate::complexity_report::Function {
+        id: "krate::a::{impl#0}::run".into(),
+        name: "a::Job::run".into(),
+        path: "src/a.rs".into(),
+        line: 3,
+        column: 7,
+        complexity: None,
+    }];
+    let log = value(check(&named, Path::new(ROOT)).unwrap());
+    let results = &log["runs"][0]["results"];
+
+    assert_eq!(
+        results[0]["partialFingerprints"],
+        json!({"rstyle/check/v1": "fn_length:a::Job::run"})
+    );
+    // No function at that location: no fingerprint rather than one that could collide.
+    assert!(results[1].get("partialFingerprints").is_none());
 }
