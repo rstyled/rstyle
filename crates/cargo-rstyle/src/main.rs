@@ -144,6 +144,8 @@ enum Command {
     Go(Box<runner::GoArgs>),
     /// Run the bundled Rust frontend and analyze what it produces.
     Rust(Box<runner::RunArgs>),
+    /// Run the C and C++ frontend and analyze what it produces.
+    Cxx(Box<runner::CxxArgs>),
     /// Mine the workspace for latent shared abstractions (signature groups).
     Patterns(PatternsArgs),
     /// Dismiss a merge candidate you reviewed, list the ledger, or prune dead entries.
@@ -529,6 +531,7 @@ fn main() -> ExitCode {
         Some(Command::Advisory(args)) => return exit_with(compiler::run(&cli, &args)),
         Some(Command::Go(args)) => return exit_with(runner::go(&cli, &args)),
         Some(Command::Rust(args)) => return exit_with(runner::rust(&cli, &args)),
+        Some(Command::Cxx(args)) => return exit_with(runner::cxx(&cli, &args)),
         Some(Command::Patterns(args)) => {
             return exit_with(compiler::patterns_route::run(cli, args));
         }

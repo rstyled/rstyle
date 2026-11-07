@@ -19,7 +19,10 @@ use std::sync::OnceLock;
 pub const SCHEMA: &str = "rstyle.library-contracts/1";
 
 /// Contract files compiled into the engine, one per frontend namespace.
-const EMBEDDED: &[&str] = &[include_str!("contracts/rust.toml")];
+const EMBEDDED: &[&str] = &[
+    include_str!("contracts/rust.toml"),
+    include_str!("contracts/cxx.toml"),
+];
 
 /// Per-invocation steps of one operation, over the sizes of its arguments.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -224,6 +227,20 @@ mod tests {
         );
         assert!(contracts.get("BTreeMap.get").is_none());
         assert!(contracts.get("rust:Vec.push").is_none());
+    }
+
+    #[test]
+    fn cxx_contracts_are_keyed_by_the_library_class() {
+        let contracts = Contracts::embedded();
+        let find = contracts.get("cxx:map.find").expect("tree lookup contract");
+        assert_eq!(find.steps, Steps::Log(Box::new(Steps::Size(0))));
+        assert_eq!(
+            contracts.get("cxx:vector.size").unwrap().steps,
+            Steps::Const(1)
+        );
+        // Growth can reallocate, and a hash lookup's worst case isn't its average.
+        assert!(contracts.get("cxx:vector.push_back").is_none());
+        assert!(contracts.get("cxx:unordered_map.find").is_none());
     }
 
     #[test]

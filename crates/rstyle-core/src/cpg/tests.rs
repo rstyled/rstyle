@@ -1,6 +1,6 @@
 use super::layout::{self, digest, split};
 use super::records::Demand;
-use super::{run_bounds, run_facts, run_records};
+use super::{arithmetic, run_bounds, run_facts, run_records};
 use crate::complexity::Kind;
 use crate::facts::{
     ArgSource, CallEvent, Edge, EffectEvent, EffectKind, FnFacts, LibraryClass, MutationEvent,
@@ -1553,4 +1553,14 @@ fn or_chains_and_nested_items_follow_the_profile() {
         kinds(&facts_of(document)[2]),
         [Kind::Loop, Kind::Branch, Kind::Or]
     );
+}
+
+#[test]
+fn undefined_overflow_holds_a_bound_as_checked_overflow_does() {
+    use crate::runtime_bounds::Arithmetic;
+    // An execution that overflows has no defined behavior to bound, as a checked one stops there.
+    assert_eq!(arithmetic("undefined"), Arithmetic::Checked);
+    assert_eq!(arithmetic("checked"), Arithmetic::Checked);
+    assert_eq!(arithmetic("wrapping"), Arithmetic::Wrapping);
+    assert_eq!(arithmetic("anything else"), Arithmetic::Unknown);
 }

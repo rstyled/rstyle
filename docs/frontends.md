@@ -4,12 +4,12 @@
 documents it produces, runs the selected analyses once in core, and saves the run.
 
 ```text
-rstyle go                  rstyle rust
-rstyle go --check          rstyle rust --check
-rstyle go --patterns       rstyle rust --patterns
+rstyle go                  rstyle cxx                  rstyle rust
+rstyle go --check          rstyle cxx --check          rstyle rust --check
+rstyle go --patterns       rstyle cxx --patterns       rstyle rust --patterns
 ```
 
-`cargo rstyle go` and `cargo rstyle rust` are the same commands.
+`cargo rstyle go`, `cargo rstyle cxx` and `cargo rstyle rust` are the same commands.
 
 ## Finding the frontend
 
@@ -17,6 +17,23 @@ rstyle go --patterns       rstyle rust --patterns
   otherwise runs `go install`. While `rstyle-go` is private, set `GOPRIVATE=github.com/rstyled` or point
   `$RSTYLE_GO` at a local build. `--source DIR` picks the directory, and by default it's the module
   holding the current directory.
+- **C and C++:** rstyle uses `$RSTYLE_CXX` if set, then `rstyle-cxx` on `PATH`. It's built against a specific
+  LLVM, so rstyle can't install it, and a missing one says where to build it from. `--source DIR` picks the
+  directory, and by default it's the nearest directory holding `compile_commands.json` or
+  `build/compile_commands.json`, then the repository. `--compilation-database PATH` names the database when it's
+  elsewhere, and `--include DIR` and `--define NAME[=VALUE]` add to the flags.
+
+  Without a named database, rstyle looks where the frontend does, then in the top-level folders whose names say a
+  build wrote them (`build*`, `cmake-build*`, `builddir`, `_build` and `out`). If that finds nothing, it guesses the
+  build from `CMakeLists.txt`, `meson.build` or a Makefile, in that order, and asks it for one on every run: `cmake`,
+  `meson setup`, or `bear -- make`. It writes to `.rstyle/compile-database`, so your `build/` stays as it was, though
+  Make still builds in place. All three run the project's build scripts, so pass `--no-generate-database` on code you
+  wouldn't build. That still reuses one generated earlier.
+
+  If the build can't be guessed or doesn't write a database, rstyle warns and says how to specify one. One an earlier
+  run generated still serves, with a warning that it may be out of date. Otherwise the run goes on: the frontend
+  guesses flags and loses what it can't parse, and its report says so. A build that needs options should be configured
+  by hand and named with `--compilation-database`.
 - **Rust:** the frontend is the bundled driver. `--manifest-path`, `-p` and `--all-targets` apply.
   It reads the same capture as `cargo rstyle` and `patterns`, so only what changed compiles.
 
@@ -29,7 +46,7 @@ With no filter you get everything. `--filter` takes names, comma-separated or re
 | --- | --- |
 | `check`, `patterns`, `bounds`, `flow`, `defects` | Core's analyses |
 | `go:<name>` | An analysis local to the Go frontend, which offers `forcetypeassert` |
-| `rust:<name>` | An analysis local to the Rust frontend; none exist yet |
+| `cxx:<name>`, `rust:<name>` | An analysis local to that frontend; none exist yet |
 
 An unknown name fails before anything runs, as does `--fail-on-candidates` without patterns.
 
@@ -41,7 +58,7 @@ for about 2 s more. `--filter check,patterns,bounds` leaves it out.
 A finished run is published whole, so a rejected one leaves nothing behind.
 
 Every language saves to `.rstyle/runs/<UTC timestamp>-<language>/` in the project root, meaning the Go
-module or Cargo workspace. That folder ignores itself in Git. Each language keeps its newest 5 runs, and
+module, the C or C++ project, or the Cargo workspace. That folder ignores itself in Git. Each language keeps its newest 5 runs, and
 `RSTYLE_KEEP_RUNS` sets another count, or `all`.
 
 `cargo clean` doesn't touch these runs, though it clears the capture a Rust run reuses, in
@@ -61,8 +78,8 @@ run.json                   the language, source root and document count
 ```
 
 `--from DIR` analyzes a saved run without its frontend, and saves only with `--out`. Naming a frontend analysis
-that reads documents, as `--filter go:<name>`, replays it too, which needs the frontend but not the source or a
-compiler. One that reads the source is refused. `--format json` prints plain JSON to stdout, with `run` naming where
+that reads documents, as `--filter <frontend>:<name>`, replays it too, which needs the frontend but not the source
+or a compiler. One that reads the source is refused. `--format json` prints plain JSON to stdout, with `run` naming where
 the run was saved. Two runs over the same source give byte-identical reports and SARIF.
 
 ## SARIF
@@ -94,6 +111,7 @@ A frontend is a program with up to three commands:
 | `analyze NAME --source DIR --out FILE` | Writes SARIF 2.1.0 to `FILE`, for each name it describes |
 
 - `N` is a descriptor on Unix and an inherited handle's value on Windows.
+- Arguments rstyle has for that language come after these, such as `rstyle-cxx`'s `--compilation-database`.
 - A non-zero exit means the run is incomplete.
 - A frontend's stdout goes to rstyle's stderr.
 - The descriptor must not reach the frontend's own child processes, or rstyle never sees end of file.
