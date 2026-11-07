@@ -125,6 +125,33 @@ pub struct ParamFacts {
     /// forwards to workspace callees is a pure pass-through.
     #[serde(default)]
     pub uses: usize,
+    /// What it holds when that's a plain value, however it's passed. A type someone named says
+    /// more than this, so it has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scalar: Option<Scalar>,
+}
+
+/// A plain value a language gives its parameters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Scalar {
+    Text,
+    Integer,
+    Float,
+    Bool,
+    Char,
+}
+
+impl Scalar {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Text => "text",
+            Self::Integer => "integer",
+            Self::Float => "float",
+            Self::Bool => "bool",
+            Self::Char => "char",
+        }
+    }
 }
 
 /// A call into workspace code (same crate or a sibling crate), by stable fn id.

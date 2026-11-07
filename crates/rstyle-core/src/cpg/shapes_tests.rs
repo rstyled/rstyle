@@ -1,13 +1,36 @@
 //! Parameter lists, signature shapes and mutated types derived from the example.
 
 use super::run_facts;
-use crate::facts::{FnFacts, ParamFacts, Receiver, SigFacts, TyShape};
+use crate::facts::{FnFacts, ParamFacts, Receiver, Scalar, SigFacts, TyShape};
 use serde_json::{Value, json};
 
 const EXAMPLE: &str = include_str!("testdata/example.cpg.json");
 
 fn example() -> Value {
     serde_json::from_str(EXAMPLE).unwrap()
+}
+
+#[test]
+fn a_parameter_holds_a_scalar_however_it_is_passed_and_a_named_type_holds_none() {
+    let mut document = example();
+    nominal(&mut document);
+    add_types(
+        &mut document,
+        json!([
+            {"id": "text", "kind": "string"},
+            {"id": "&text", "kind": "reference", "target": "text", "mode": "shared"},
+            {"id": "&&text", "kind": "reference", "target": "&text", "mode": "shared"},
+        ]),
+    );
+    let holding = |document: &Value, ty: &str| {
+        let mut document = document.clone();
+        let parameters = &mut function(&mut document, "fn:count")["signature"]["parameters"];
+        parameters[0]["type"] = json!(ty);
+        facts_of(document)[2].param_list[0].scalar
+    };
+    assert_eq!(holding(&document, "text"), Some(Scalar::Text));
+    assert_eq!(holding(&document, "&&text"), Some(Scalar::Text));
+    assert_eq!(holding(&document, "point"), None);
 }
 
 fn facts_of(document: Value) -> Vec<FnFacts> {
@@ -65,6 +88,7 @@ fn nominal(document: &mut Value) {
 fn parameters_list_their_names_written_types_and_uses() {
     let facts = facts_of(example());
     let param = |name: &str, ty: &str, uses| ParamFacts {
+        scalar: None,
         name: name.into(),
         ty: ty.into(),
         uses,
@@ -78,7 +102,11 @@ fn parameters_list_their_names_written_types_and_uses() {
     let mut document = example();
     let parameter = &mut function(&mut document, "fn:top")["signature"]["parameters"][0];
     parameter.as_object_mut().unwrap().remove("annotation");
-    assert_eq!(facts_of(document)[1].param_list[0], param("a", "", 1));
+    let a = ParamFacts {
+        scalar: Some(Scalar::Integer),
+        ..param("a", "", 1)
+    };
+    assert_eq!(facts_of(document)[1].param_list[0], a);
 }
 
 #[test]

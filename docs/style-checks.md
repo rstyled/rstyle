@@ -26,7 +26,7 @@ analyzed function.
 | `mutated_targets` | Too many distinct roots mutated in one function. |
 | `side_effect_density` | Too many effects for the number of statements. See below. |
 | `invalid_suppression` | An `rstyle-allow` comment with no reason or an unknown rule id. |
-| `guard_clause` | Off by default. See [strict style](#strict-style). |
+| `guard_clause`, `primitive_obsession` | Off by default. See [strict style](#strict-style). |
 
 A missing complexity score is reported as unavailable, never as zero, and makes the run exit 2.
 Closures count toward the function that owns them. Compiler lowering and a macro's own code add no
@@ -76,6 +76,7 @@ is a commented example, though it raises the complexity limits above their defau
 | `grouping.caller_rules` | `["fn_params"]` | Rules whose fix also edits the function's callers |
 | `grouping.caller_hops` | 1 | How many caller hops those fixes reach |
 | `strict_style.guard_clause` | `false` | See [strict style](#strict-style) |
+| `strict_style.primitive_obsession` | `false` | See [strict style](#strict-style) |
 
 The default weights are `mutation = 1`, `io = 3`, `network = 3`, `global = 2`, `unsafe = 4`, `time = 1`,
 `random = 1`, `panic = 0` and `unknown = 1`.
@@ -134,6 +135,25 @@ if ok {
 
 Returning early lets the main path stop being nested, and in Rust, `let ... else` often says it best. An `else if` is left
 alone, since returning early there means restructuring the whole chain.
+
+### `primitive_obsession`
+
+A parameter whose name says what it means, held as plain text or an integer in at least 2 functions of a run:
+
+```rust
+fn charge(user_id: &str, amount: u64) {}
+fn refund(user_id: &str, amount: u64) {}
+```
+
+A named type would say what each holds, and stop two of them being swapped. It reads a name's whole words, so `userEmail`
+and `user_email` hold `email`, and `valid` doesn't hold `id`. The words are `email`, `phone`, `url`, `uri`, `uuid`, `guid`,
+`id`, `name`, `address`, `street`, `city`, `state`, `zip`, `postal`, `country`, `currency`, `price`, `amount`, `quantity`,
+`ssn`, `passport`, `license`, `username`, `password`, `token`, `apikey`, `secret`, `creditcard`, `iban`, `isbn`, `sku` and
+`serial`.
+
+Each function reports each meaning once, and a type someone named is never reported. It looks through references, so
+`&str`, `String` and `const std::string &` are all text. Most results on real code are `name` and `id`, so expect to suppress
+or exclude some.
 
 ## Fix groups
 

@@ -22,6 +22,8 @@ pub struct Config {
 pub struct StrictStyleConfig {
     /// An `if` whose `else` only returns, around a body that could stop being nested.
     pub guard_clause: bool,
+    /// A parameter whose name says what it means, held as plain text or an integer.
+    pub primitive_obsession: bool,
 }
 
 /// Findings start strictly above either configured complexity limit.
@@ -329,6 +331,7 @@ mod tests {
         assert!(!Config::parse("").unwrap().strict_style.guard_clause);
         let on = Config::parse("[strict_style]\nguard_clause = true").unwrap();
         assert!(on.strict_style.guard_clause);
+        assert!(!Config::parse("").unwrap().strict_style.primitive_obsession);
         assert!(Config::parse("[strict_style]\nguard_clauses = true").is_err());
     }
 

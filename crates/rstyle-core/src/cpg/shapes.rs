@@ -3,7 +3,7 @@
 use super::model::{Callable, Scope, Symbol, TargetKind, Type, TypeKind};
 use super::source::Sources;
 use super::tree::{Body, Tables};
-use crate::facts::{ParamFacts, Receiver, SigFacts, TyShape};
+use crate::facts::{ParamFacts, Receiver, Scalar, SigFacts, TyShape};
 use std::collections::BTreeSet;
 
 /// The structural shape of a type.
@@ -111,8 +111,29 @@ fn integer(ty: &Type) -> Result<String, String> {
     })
 }
 
-/// Name, written type and use count of each parameter, receiver excluded.
-pub fn param_list(body: &Body<'_>, sources: &Sources<'_>) -> Result<Vec<ParamFacts>, String> {
+/// What a parameter of this type holds when that's a plain value, however it's passed.
+fn scalar_of(tables: &Tables<'_>, id: &str) -> Result<Option<Scalar>, String> {
+    let mut ty = tables.ty(id)?;
+    while ty.kind == TypeKind::Reference {
+        ty = tables.ty(required(ty, &ty.target, "target")?)?;
+    }
+
+    Ok(match ty.kind {
+        TypeKind::String => Some(Scalar::Text),
+        TypeKind::Integer => Some(Scalar::Integer),
+        TypeKind::Float => Some(Scalar::Float),
+        TypeKind::Bool => Some(Scalar::Bool),
+        TypeKind::Char => Some(Scalar::Char),
+        _ => None,
+    })
+}
+
+/// Name, written type, use count and scalar of each parameter, receiver excluded.
+pub fn param_list(
+    body: &Body<'_>,
+    tables: &Tables<'_>,
+    sources: &Sources<'_>,
+) -> Result<Vec<ParamFacts>, String> {
     let function = body.function;
     function
         .signature
@@ -136,6 +157,7 @@ pub fn param_list(body: &Body<'_>, sources: &Sources<'_>) -> Result<Vec<ParamFac
                 name: body.symbol(&parameter.symbol)?.name.clone(),
                 ty,
                 uses,
+                scalar: scalar_of(tables, &parameter.ty)?,
             })
         })
         .collect()
