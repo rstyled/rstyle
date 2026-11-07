@@ -459,7 +459,7 @@ mod tests {
             actual: 1,
             limit: 0,
             details: vec![],
-            source: f.source.clone(),
+            source: f.whole_lines(),
         }
     }
 

@@ -180,6 +180,7 @@ mod tests {
             name: locator.into(),
             locator: locator.into(),
             shape: Some(shape.into()),
+            source: String::new(),
         }
     }
 

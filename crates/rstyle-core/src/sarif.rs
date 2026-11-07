@@ -315,24 +315,20 @@ fn diagnostic(diagnostic: &Diagnostic, fix_group: Option<usize>) -> Finding {
         fix_group,
     });
     if let Some(location) = finding.locations.first_mut() {
-        location.physical_location.context_region = function_region(diagnostic);
+        location.physical_location.context_region =
+            function_region(diagnostic.line, &diagnostic.source);
     }
     finding
 }
 
-/// The function's whole lines, starting at the diagnostic's line; none when the frontend gave no
-/// source. The source starts at the function's column, so its first line is indented back to it.
-fn function_region(diagnostic: &Diagnostic) -> Option<ContextRegion> {
-    let lines = diagnostic.source.lines().count();
-    (lines > 0 && diagnostic.line > 0).then(|| ContextRegion {
-        start_line: diagnostic.line,
-        end_line: diagnostic.line + lines - 1,
+/// A function's whole lines, starting at its line; none when the frontend gave no source.
+fn function_region(line: usize, source: &str) -> Option<ContextRegion> {
+    let lines = source.lines().count();
+    (lines > 0 && line > 0).then(|| ContextRegion {
+        start_line: line,
+        end_line: line + lines - 1,
         snippet: Message {
-            text: format!(
-                "{}{}",
-                " ".repeat(diagnostic.column.saturating_sub(1)),
-                diagnostic.source
-            ),
+            text: source.to_owned(),
         },
     })
 }
@@ -372,10 +368,11 @@ fn at_one_place(rule_id: &str, text: &str, (path, line): (&str, usize)) -> Findi
 /// The first site is primary because code scanning shows only one; the id is what
 /// `cargo rstyle ignore` takes.
 fn candidate(candidate: &Candidate) -> Finding {
-    let mut sites = candidate
-        .sites
-        .iter()
-        .filter_map(|site| location(&site.path, site.line));
+    let mut sites = candidate.sites.iter().filter_map(|site| {
+        let mut location = location(&site.path, site.line)?;
+        location.physical_location.context_region = function_region(site.line, &site.source);
+        Some(location)
+    });
     let locations = sites.next().into_iter().collect();
     Finding {
         rule_id: candidate.kind.name().to_string(),

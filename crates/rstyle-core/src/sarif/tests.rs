@@ -41,6 +41,7 @@ fn site(path: &str, line: usize) -> Site {
         name: "name".into(),
         locator: "locator".into(),
         shape: None,
+        source: String::new(),
     }
 }
 
@@ -362,10 +363,8 @@ fn a_check_finding_is_fingerprinted_by_its_rule_and_function() {
 
 #[test]
 fn a_check_finding_carries_its_function_source_as_the_context_region() {
-    // A method: its source starts at column 5, where `fn` is.
     let with_source = Diagnostic {
-        column: 5,
-        source: "fn a() {\n        1\n    }".into(),
+        source: "    fn a() {\n        1\n    }".into(),
         ..violation("src/a.rs", 3)
     };
     let log = value(
@@ -386,5 +385,25 @@ fn a_check_finding_carries_its_function_source_as_the_context_region() {
         results[1]["locations"][0]["physicalLocation"]
             .get("contextRegion")
             .is_none()
+    );
+}
+
+#[test]
+fn each_candidate_site_carries_its_function_source() {
+    let sited = Site {
+        source: "fn b() {}".into(),
+        ..site("b.go", 2)
+    };
+    let log = value(patterns(&candidates(vec![site("a.go", 1), sited]), Path::new(ROOT)).unwrap());
+    let result = &log["runs"][0]["results"][0];
+
+    assert!(
+        result["locations"][0]["physicalLocation"]
+            .get("contextRegion")
+            .is_none()
+    );
+    assert_eq!(
+        result["relatedLocations"][0]["physicalLocation"]["contextRegion"],
+        json!({"startLine": 2, "endLine": 2, "snippet": {"text": "fn b() {}"}})
     );
 }

@@ -384,6 +384,16 @@ pub struct FnFacts {
 }
 
 impl FnFacts {
+    /// The function's source as whole lines: `source` starts at the function's column, so its
+    /// first line is indented back to it.
+    pub fn whole_lines(&self) -> String {
+        format!(
+            "{}{}",
+            " ".repeat(self.column.saturating_sub(1)),
+            self.source
+        )
+    }
+
     fn key(&self) -> (&str, usize, usize, &str) {
         (&self.path, self.line, self.column, &self.name)
     }

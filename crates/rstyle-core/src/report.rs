@@ -19,8 +19,8 @@ pub struct Diagnostic {
     pub limit: usize,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub details: Vec<Detail>,
-    /// The function's source, from its `fn` line through the closing brace. SARIF carries it so a
-    /// viewer shows the code without the checkout; the JSON report leaves it out.
+    /// The function's whole lines, from its `fn` line through the closing brace. SARIF carries
+    /// them so a viewer shows the code without the checkout; the JSON report leaves them out.
     #[serde(skip)]
     pub source: String,
 }

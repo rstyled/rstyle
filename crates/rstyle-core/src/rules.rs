@@ -23,7 +23,7 @@ fn diagnostic(f: &FnFacts, rule_id: &str, message: String, measure: Measure) -> 
         actual: measure.actual,
         limit: measure.limit,
         details: vec![],
-        source: f.source.clone(),
+        source: f.whole_lines(),
     }
 }
 
