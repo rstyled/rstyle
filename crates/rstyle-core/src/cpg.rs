@@ -56,6 +56,11 @@ fn lowered(
     let tables = tree::Tables::new(unit)?;
     let arithmetic = arithmetic(&unit.semantics.integer_overflow);
     let pointer_bits = unit.target.pointer_width as u8;
+    let destructors_are_calls = document
+        .coverage
+        .capabilities
+        .get("implicit-calls")
+        .is_some_and(|capability| capability.status == model::Status::Supported);
     let functions = unit.functions.as_deref().unwrap_or_default();
 
     functions
@@ -71,6 +76,7 @@ fn lowered(
                     tables: &tables,
                     sources: &sources,
                     pointer_bits,
+                    destructors_are_calls,
                 };
                 bounds::lower(&facts, arithmetic)
             });
