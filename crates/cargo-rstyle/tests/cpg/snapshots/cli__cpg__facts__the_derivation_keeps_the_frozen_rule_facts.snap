@@ -207,7 +207,8 @@ expression: facts
       {
         "callee": "core::slice::iter",
         "line": 15,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       }
     ],
     "effects": [],
@@ -401,12 +402,14 @@ expression: facts
       {
         "callee": "core::slice::iter",
         "line": 21,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::vec::Vec::len",
         "line": 24,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "core::num::is_multiple_of",
@@ -1582,7 +1585,8 @@ expression: facts
       {
         "callee": "core::slice::len",
         "line": 29,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::clone::Clone::clone",
@@ -2474,12 +2478,14 @@ expression: facts
       {
         "callee": "core::slice::first",
         "line": 38,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "core::slice::is_empty",
         "line": 46,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       }
     ],
     "effects": [],
@@ -3173,7 +3179,8 @@ expression: facts
       {
         "callee": "core::slice::len",
         "line": 56,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::iter::IntoIterator::into_iter",
@@ -4097,7 +4104,8 @@ expression: facts
       {
         "callee": "std::fmt::Arguments::from_str",
         "line": 74,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       }
     ],
     "effects": [],
@@ -7023,12 +7031,14 @@ expression: facts
       {
         "callee": "core::fmt::rt::Argument::new_display",
         "line": 75,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::fmt::Arguments::new",
         "line": 75,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::ops::FromResidual::from_residual",
@@ -7043,7 +7053,8 @@ expression: facts
       {
         "callee": "std::string::String::is_empty",
         "line": 77,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::io::_print",
@@ -7053,12 +7064,14 @@ expression: facts
       {
         "callee": "core::fmt::rt::Argument::new_display",
         "line": 78,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::fmt::Arguments::new",
         "line": 78,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::iter::Iterator::next",
@@ -7068,7 +7081,8 @@ expression: facts
       {
         "callee": "core::slice::first",
         "line": 81,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::convert::Into::into",
@@ -7078,7 +7092,8 @@ expression: facts
       {
         "callee": "std::vec::Vec::len",
         "line": 84,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       }
     ],
     "effects": [],
@@ -7912,12 +7927,14 @@ expression: facts
       {
         "callee": "core::fmt::rt::Argument::new_display",
         "line": 92,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::fmt::Arguments::new",
         "line": 92,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "<fn pointer>",
@@ -8415,12 +8432,14 @@ expression: facts
       {
         "callee": "core::fmt::rt::Argument::new_display",
         "line": 99,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::fmt::Arguments::new",
         "line": 99,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       }
     ],
     "effects": [],

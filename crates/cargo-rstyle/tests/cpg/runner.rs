@@ -2287,8 +2287,8 @@ fn risk_rates_by_the_base_runs_rules_and_a_change_cannot_turn_them_off() {
     assert_eq!(rated(&base, &head), "high");
 }
 
-/// The gap a merge gate must not read as clean: Rust has no effect contract, so a library call the
-/// config's paths don't name gains no effect at all.
+/// The gap a merge gate must not read as clean: a free function has no key for Rust's effect table
+/// to list, so a library call the config's paths don't name gains no effect at all.
 #[test]
 fn risk_does_not_rate_a_new_rust_library_call_low_when_nothing_classifies_it() {
     let directory = tempfile::tempdir().unwrap();
@@ -2317,6 +2317,41 @@ fn risk_does_not_rate_a_new_rust_library_call_low_when_nothing_classifies_it() {
     );
     std::fs::write(base.join("rstyle.toml"), rules).unwrap();
     assert_eq!(report(&risk(&base, &head))["risk"], "low");
+}
+
+/// A standard member the effect table says is pure is classified, so adding a call to one can rate
+/// low. A trait's member isn't in it, since what runs depends on the implementation.
+#[test]
+fn risk_reads_a_new_pure_standard_call_as_classified_and_a_trait_call_as_not() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let base = saved_run_of(root, "pub fn f(a: &[u8]) -> usize { 0 }\n");
+    let pure = saved_run_of(root, "pub fn f(a: &[u8]) -> usize { a.len() }\n");
+
+    let rated = report(&risk(&base, &pure));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    let change = &rated["changes"][0];
+    assert_eq!(
+        change["calls_unclassified"],
+        serde_json::json!([]),
+        "{change}"
+    );
+    assert!(
+        change["effects_gained"].as_array().unwrap().is_empty(),
+        "{change}"
+    );
+
+    let cloned = saved_run_of(
+        root,
+        "pub fn f(a: &[u8]) -> usize { a.len() + a.first().clone().map_or(0, |_| 1) }\n",
+    );
+    let rated = report(&risk(&pure, &cloned));
+    assert_eq!(rated["risk"], "unknown", "{rated}");
+    let called = rated["changes"][0]["calls_unclassified"].to_string();
+    assert!(called.contains("Clone::clone"), "{called}");
+    assert!(!called.contains("first"), "{called}");
 }
 
 #[test]
