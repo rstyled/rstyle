@@ -72,6 +72,8 @@ pub enum Argument {
 pub enum Arithmetic {
     Checked,
     Wrapping,
+    /// Integers have no width, so nothing overflows.
+    Unbounded,
     Unknown,
 }
 

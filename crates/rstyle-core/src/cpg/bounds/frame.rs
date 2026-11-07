@@ -176,7 +176,8 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
             NodeKind::ExpressionStatement | NodeKind::MatchArm | NodeKind::MatchGuard => {
                 self.children(node)
             }
-            NodeKind::ItemDeclaration | NodeKind::TypeAnnotation => Ok(()),
+            NodeKind::ItemDeclaration => self.nested_function(node),
+            NodeKind::TypeAnnotation => Ok(()),
             NodeKind::LocalDeclaration => self.local(node),
             kind if is_pattern(kind) => self.pattern(node),
             NodeKind::Extension => self.pattern(node),
@@ -483,6 +484,15 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
         self.loops -= 1;
         self.closures -= 1;
         result
+    }
+
+    /// A function declared here runs when it's called, and isn't lowered as part of this body, but
+    /// what it can write is still written. Most declarations capture nothing.
+    fn nested_function(&mut self, declaration: &'a Node) -> Visited {
+        if self.validating {
+            self.check_captures(declaration)?;
+        }
+        Ok(())
     }
 
     fn check_captures(&mut self, closure: &'a Node) -> Visited {
