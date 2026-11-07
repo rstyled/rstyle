@@ -314,6 +314,7 @@ fn diagnostic(diagnostic: &Diagnostic, fix_group: Option<usize>) -> Finding {
         limit: diagnostic.limit,
         fix_group,
     });
+
     if let Some(location) = finding.locations.first_mut() {
         location.physical_location.context_region =
             function_region(diagnostic.line, &diagnostic.source);
