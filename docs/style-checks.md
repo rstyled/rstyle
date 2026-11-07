@@ -26,7 +26,7 @@ analyzed function.
 | `mutated_targets` | Too many distinct roots mutated in one function. |
 | `side_effect_density` | Too many effects for the number of statements. See below. |
 | `invalid_suppression` | An `rstyle-allow` comment with no reason or an unknown rule id. |
-| `guard_clause`, `primitive_obsession` | Off by default. See [strict style](#strict-style). |
+| `guard_clause`, `primitive_obsession`, `value_object` | Off by default. See [strict style](#strict-style). |
 
 A missing complexity score is reported as unavailable, never as zero, and makes the run exit 2.
 Closures count toward the function that owns them. Compiler lowering and a macro's own code add no
@@ -167,6 +167,31 @@ out of `meanings`, or suppress or exclude some.
 The default words are `email`, `phone`, `url`, `uri`, `uuid`, `guid`, `id`, `name`, `address`, `street`, `city`, `state`, `zip`,
 `postal`, `country`, `currency`, `price`, `amount`, `quantity`, `ssn`, `passport`, `license`, `username`, `password`, `token`,
 `apikey`, `secret`, `creditcard`, `iban`, `isbn`, `sku` and `serial`.
+
+### `value_object`
+
+Plain values under the same names, in several functions of a run:
+
+```go
+func dial(host string, port int) {}
+func probe(host string, port int, timeout int) {}
+func listen(port int, host string) {}
+```
+
+A small type could hold them. Only the largest such group is reported, and a function can be in several. Names that say
+nothing about a value, such as `x`, `tmp` or `arg`, can't make a group on their own, and a name starting with `_` isn't part
+of one. It only reads parameters, so it can't say the values really belong together: the callers decide that. Signatures
+matching by accident is the commonest reason to suppress one.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | |
+| `min_parameters` | 2 | Fewer values than this have nothing to travel with |
+| `min_functions` | 3 | Fewer functions than this could share a set of names by chance |
+| `placeholders` | see below | Names that say nothing about a value. Each is one lowercase word, and anything else is an error |
+
+The default placeholders are `foo`, `bar`, `baz`, `qux`, `tmp`, `temp`, `val`, `var`, `arg`, `args`, `param`, `params`, `obj`,
+`item`, `elem`, `el`, `p1`, `p2`, `p3`, `a1`, `a2`, `a3`, `v1`, `v2`, `x1`, `x2`, `y1` and `y2`.
 
 ## Fix groups
 

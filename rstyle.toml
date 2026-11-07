@@ -71,3 +71,12 @@ meanings = [                # words of a name that mean something a type could s
     "ssn", "passport", "license", "username", "password", "token", "apikey", "secret",
     "creditcard", "iban", "isbn", "sku", "serial",
 ]
+
+[strict_style.value_object]
+enabled = false             # plain values that travel together through several functions
+min_parameters = 2          # fewer values than this have nothing to travel with
+min_functions = 3           # fewer functions than this could share a set of names by chance
+placeholders = [            # names that say nothing about what a value holds, each one lowercase word
+    "foo", "bar", "baz", "qux", "tmp", "temp", "val", "var", "arg", "args", "param", "params",
+    "obj", "item", "elem", "el", "p1", "p2", "p3", "a1", "a2", "a3", "v1", "v2", "x1", "x2", "y1", "y2",
+]
