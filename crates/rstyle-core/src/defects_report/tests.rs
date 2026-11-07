@@ -352,3 +352,57 @@ fn a_test_file_has_no_defects_and_its_calls_do_not_count() {
     let report = report_of(vec![document], &Config::default());
     assert!(report.defects.is_empty(), "{report:?}");
 }
+
+/// What a frontend wrote of `a.go` or `a.cpp`, and each function a value reached a sink in.
+fn taint_in(document: &str) -> Vec<(String, usize)> {
+    let document: Value = serde_json::from_str(document).unwrap();
+    let report = report_of(vec![document], &Config::default());
+    assert!(report.unknown.is_empty(), "{:?}", report.unknown);
+
+    let taint = report.defects.iter().filter(|row| row.rule == "taint_flow");
+    taint
+        .map(|row| {
+            let name = row.function.rsplit(['.', ':']).next().unwrap_or_default();
+            (name.to_owned(), row.line)
+        })
+        .collect()
+}
+
+#[test]
+fn input_is_followed_in_what_a_go_frontend_writes() {
+    let found = taint_in(include_str!("../cpg/testdata/taint-go.cpg.json"));
+    assert_eq!(
+        found,
+        [
+            ("compound".to_owned(), 14),
+            ("builder".to_owned(), 34),
+            ("shell".to_owned(), 42),
+            ("viaSource".to_owned(), 48),
+            ("output".to_owned(), 50),
+        ],
+        "overwritten, parameterized, onlyDecides, number, argv, viaIgnoring and fields are clean"
+    );
+}
+
+#[test]
+fn input_is_followed_in_what_a_cxx_frontend_writes() {
+    let found = taint_in(include_str!("../cpg/testdata/taint-cxx.cpg.json"));
+    let lines: Vec<usize> = found.iter().map(|(_, line)| *line).collect();
+    assert_eq!(
+        lines,
+        [5, 18, 21, 22],
+        "local, out_parameter, via_source and run; overwritten and only_decides are clean: {found:?}"
+    );
+}
+
+#[test]
+fn a_function_compiled_twice_reports_its_flow_once() {
+    let document = || -> Value {
+        serde_json::from_str(include_str!("../cpg/testdata/taint-go.cpg.json")).unwrap()
+    };
+    let once = report_of(vec![document()], &Config::default());
+    let mut compiled_twice = records(vec![document()]);
+    compiled_twice.extend(records(vec![document()]));
+    let twice = from_records(&mut compiled_twice, &Config::default()).unwrap();
+    assert_eq!(once.defects, twice.defects);
+}

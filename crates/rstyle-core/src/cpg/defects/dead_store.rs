@@ -7,7 +7,7 @@
 //! y, err := g(x) // the first err is gone
 //! ```
 
-use super::super::flow::{Reaching, Vertex, changed_elsewhere};
+use super::super::flow::{Vertex, changed_elsewhere};
 use super::super::model::{AccessMode, Function, Node, NodeKind, Origin, Symbol, TypeKind};
 use super::super::tree::{self, Body, Tables};
 use super::{Defect, Reading};
@@ -21,10 +21,10 @@ const ARGUMENT_DEPTH: usize = 16;
 pub(super) fn find(reading: &Reading<'_>) -> Result<Vec<Defect>, String> {
     let function = reading.function;
     let body = &reading.body;
-    let reached: HashSet<(Vertex, &str)> = Reaching::of(function, &reading.flow)
-        .data_dependence()
-        .into_iter()
-        .map(|(store, _, symbol)| (store, symbol))
+    let reached: HashSet<(Vertex, &str)> = reading
+        .dependence
+        .iter()
+        .map(|&(store, _, symbol)| (store, symbol))
         .collect();
     let skipped = unreliable(function, reading);
     let mut found = Vec::new();

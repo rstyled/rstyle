@@ -16,6 +16,7 @@ pub const RULE_IDS: &[&str] = &[
     "abstraction",
     "dead_store",
     "ignored_result",
+    "taint_flow",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
