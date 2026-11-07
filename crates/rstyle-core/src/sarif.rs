@@ -3,7 +3,8 @@
 //!
 //! Findings and candidates are what SARIF carries. A check's findings also carry why: each
 //! decision point is a related location, and the measured value and its limit are properties.
-//! A check run carries its fix groups, so a consumer holding only the SARIF can plan fixes.
+//! A check run carries its fix groups, so a consumer holding only the SARIF can plan fixes, and
+//! each check finding a fingerprint of its rule and function, so it can be followed across commits.
 //! The JSON report stays the complete one: runtime bounds and signature groups aren't here.
 
 use crate::candidates::Candidate;
@@ -20,6 +21,9 @@ const SCHEMA: &str =
 const VERSION: &str = "2.1.0";
 const SOURCE_ROOT: &str = "%SRCROOT%";
 const CANDIDATE_FINGERPRINT: &str = "rstyle/candidate/v1";
+/// A check finding's identity across commits: its rule and its function's path, as long as the
+/// function keeps its name. Consumers key what they know about a finding by it, not by its index.
+const CHECK_FINGERPRINT: &str = "rstyle/check/v1";
 /// Categories keep the two analyses apart once a consumer holds both.
 pub const CHECK: &str = "rstyle/check/";
 pub const PATTERNS: &str = "rstyle/patterns/";
@@ -79,6 +83,8 @@ struct Finding {
     related_locations: Vec<Location>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     fingerprints: BTreeMap<&'static str, String>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    partial_fingerprints: BTreeMap<&'static str, String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     properties: Option<Measure>,
 }
@@ -133,13 +139,32 @@ pub fn check(report: &Report, root: &Path) -> Result<Log, String> {
     let findings = report
         .diagnostics
         .iter()
-        .map(|d| diagnostic(d, group_of(d, &report.fix_groups)))
+        .map(|d| {
+            let mut finding = diagnostic(d, group_of(d, &report.fix_groups));
+            if let Some(name) = function_of(d, report) {
+                finding
+                    .partial_fingerprints
+                    .insert(CHECK_FINGERPRINT, format!("{}:{name}", d.rule_id));
+            }
+            finding
+        })
         .collect();
     let mut log = log(findings, CHECK, root)?;
     log.runs[0].properties = (!report.fix_groups.is_empty()).then(|| RunProperties {
         fix_groups: report.fix_groups.clone(),
     });
     Ok(log)
+}
+
+/// The name of the function a diagnostic is about, from the report's functions at its location.
+fn function_of<'a>(diagnostic: &Diagnostic, report: &'a Report) -> Option<&'a str> {
+    report
+        .functions
+        .iter()
+        .find(|f| {
+            f.path == diagnostic.path && f.line == diagnostic.line && f.column == diagnostic.column
+        })
+        .map(|f| f.name.as_str())
 }
 
 /// The fix group whose function is the diagnostic's, for the diagnostic's rule.
@@ -308,6 +333,7 @@ fn at_one_place(rule_id: &str, text: &str, (path, line): (&str, usize)) -> Findi
         locations: location(path, line).into_iter().collect(),
         related_locations: Vec::new(),
         fingerprints: BTreeMap::new(),
+        partial_fingerprints: BTreeMap::new(),
         properties: None,
     }
 }
@@ -334,6 +360,7 @@ fn candidate(candidate: &Candidate) -> Finding {
         locations,
         related_locations: sites.collect(),
         fingerprints: BTreeMap::from([(CANDIDATE_FINGERPRINT, candidate.id.clone())]),
+        partial_fingerprints: BTreeMap::new(),
         properties: None,
     }
 }

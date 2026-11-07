@@ -336,3 +336,25 @@ fn a_check_without_fix_groups_has_no_run_properties() {
     let log = value(check(&report(vec![violation("src/a.rs", 3)]), Path::new(ROOT)).unwrap());
     assert!(log["runs"][0].get("properties").is_none());
 }
+
+#[test]
+fn a_check_finding_is_fingerprinted_by_its_rule_and_function() {
+    let mut named = report(vec![violation("src/a.rs", 3), violation("src/b.rs", 9)]);
+    named.functions = vec![crate::complexity_report::Function {
+        id: "krate::a::{impl#0}::run".into(),
+        name: "a::Job::run".into(),
+        path: "src/a.rs".into(),
+        line: 3,
+        column: 7,
+        complexity: None,
+    }];
+    let log = value(check(&named, Path::new(ROOT)).unwrap());
+    let results = &log["runs"][0]["results"];
+
+    assert_eq!(
+        results[0]["partialFingerprints"],
+        json!({"rstyle/check/v1": "fn_length:a::Job::run"})
+    );
+    // No function at that location: no fingerprint rather than one that could collide.
+    assert!(results[1].get("partialFingerprints").is_none());
+}
