@@ -4,12 +4,12 @@
 documents it produces, runs the selected analyses once in core, and saves the run.
 
 ```text
-rstyle go                  rstyle cxx                  rstyle rust
-rstyle go --check          rstyle cxx --check          rstyle rust --check
-rstyle go --patterns       rstyle cxx --patterns       rstyle rust --patterns
+rstyle go                  rstyle cxx                  rstyle py                  rstyle rust
+rstyle go --check          rstyle cxx --check          rstyle py --check          rstyle rust --check
+rstyle go --patterns       rstyle cxx --patterns       rstyle py --patterns       rstyle rust --patterns
 ```
 
-`cargo rstyle go`, `cargo rstyle cxx` and `cargo rstyle rust` are the same commands.
+`cargo rstyle go`, `cargo rstyle cxx`, `cargo rstyle py` and `cargo rstyle rust` are the same commands.
 
 ## Finding the frontend
 
@@ -34,6 +34,19 @@ rstyle go --patterns       rstyle cxx --patterns       rstyle rust --patterns
   run generated still serves, with a warning that it may be out of date. Otherwise the run goes on: the frontend
   guesses flags and loses what it can't parse, and its report says so. A build that needs options should be configured
   by hand and named with `--compilation-database`.
+- **Python:** rstyle uses `$RSTYLE_PY` if set, then `rstyle-py` on `PATH`. It pins its analyzer and needs an environment
+  of its own, so rstyle doesn't install it, and a missing one says how: `uv tool install
+  git+https://github.com/rstyled/rstyle-py`, which needs access to it while it's private. `--source DIR` picks the
+  directory, and by default it's the nearest directory holding `pyproject.toml`, `setup.py` or `setup.cfg`, then the
+  repository.
+
+  Types from third-party packages come from where they're installed. The frontend reads an environment it finds in the
+  project, or the active one, without running anything in it. `--python PATH` names an interpreter instead, and
+  that one it runs. With neither, those calls stay unresolved, and the run says so.
+
+  A file that doesn't parse ends the run, naming every such file. `--exclude GLOB`, which can be repeated, names a path or
+  a glob relative to the source directory for the frontend not to read, and a path takes what's under it. Calls into what's
+  left out stay incomplete.
 - **Rust:** the frontend is the bundled driver. `--manifest-path`, `-p` and `--all-targets` apply.
   It reads the same capture as `cargo rstyle` and `patterns`, so only what changed compiles.
 
@@ -46,7 +59,7 @@ With no filter you get everything. `--filter` takes names, comma-separated or re
 | --- | --- |
 | `check`, `patterns`, `bounds`, `flow`, `defects` | Core's analyses |
 | `go:<name>` | An analysis local to the Go frontend, which offers `forcetypeassert` |
-| `cxx:<name>`, `rust:<name>` | An analysis local to that frontend; none exist yet |
+| `cxx:<name>`, `py:<name>`, `rust:<name>` | An analysis local to that frontend; none exist yet |
 
 An unknown name fails before anything runs, as does `--fail-on-candidates` without patterns.
 
@@ -58,7 +71,7 @@ for about 2 s more. `--filter check,patterns,bounds` leaves it out.
 A finished run is published whole, so a rejected one leaves nothing behind.
 
 Every language saves to `.rstyle/runs/<UTC timestamp>-<language>/` in the project root, meaning the Go
-module, the C or C++ project, or the Cargo workspace. That folder ignores itself in Git. Each language keeps its newest 5 runs, and
+module, the C, C++ or Python project, or the Cargo workspace. That folder ignores itself in Git. Each language keeps its newest 5 runs, and
 `RSTYLE_KEEP_RUNS` sets another count, or `all`.
 
 `cargo clean` doesn't touch these runs, though it clears the capture a Rust run reuses, in

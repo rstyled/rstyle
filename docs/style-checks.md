@@ -213,7 +213,7 @@ gigabytes. It never removes a run another command is using, or the run the next 
 crates from. Set `RSTYLE_KEEP_RUNS` to another count, or to `all` to keep every run. To keep a run
 you're working through, set it before capturing again.
 
-`rstyle rust`, `rstyle go` and `rstyle cxx` save their finished runs elsewhere. See
+`rstyle rust`, `rstyle go`, `rstyle cxx` and `rstyle py` save their finished runs elsewhere. See
 [saved runs](frontends.md#saved-runs) in the runner guide.
 
 ## Reading the report
