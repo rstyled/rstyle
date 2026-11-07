@@ -9,6 +9,9 @@ use super::super::tree::{Body, Tables, anchor};
 use crate::runtime_bounds::{Integer, Source};
 use std::collections::BTreeMap;
 
+/// The width an unbounded integer is read at.
+const UNBOUNDED_INTEGER_BITS: u8 = 64;
+
 pub struct Facts<'b, 'a> {
     pub body: &'b Body<'a>,
     pub tables: &'b Tables<'a>,
@@ -51,7 +54,9 @@ impl<'a> Facts<'_, 'a> {
             .is_some_and(|adjustments| !adjustments.is_empty())
     }
 
-    /// A primitive integer with an exact width the analysis models.
+    /// A primitive integer with an exact width the analysis models. An unbounded integer reads as
+    /// the widest of them: what's proved of a counter under its guard holds at any width, and a
+    /// constant past this one stays unknown, so the stand-in can only lose precision.
     pub fn integer(&self, ty: Option<&Type>) -> Option<Integer> {
         let ty = ty?;
         if ty.kind != TypeKind::Integer {
@@ -62,6 +67,7 @@ impl<'a> Facts<'_, 'a> {
         let bits = match ty.bits {
             _ if ty.pointer_sized == Some(true) => self.pointer_bits,
             Some(bits @ (8 | 16 | 32 | 64)) => bits as u8,
+            None if self.tables.unbounded_integers() => UNBOUNDED_INTEGER_BITS,
             _ => return None,
         };
 

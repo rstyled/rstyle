@@ -46,6 +46,11 @@ unknown = 1    # calls through dyn / fn pointers / generic callables
 # io = ["std::fs::", "std::io::"]
 # network = ["std::net::", "reqwest::"]
 
+[ignored_result]
+# A call that drops its result is reported when enough of the callee's other calls use theirs.
+min_used_percent = 90     # 1 to 100. Decides most of it; 100 reports nothing, since then no call can have dropped it
+min_calls = 5             # fewer calls than this say too little. At 90%, one drop already takes 10
+
 [grouping]
 # Which violations must be fixed together. A fix's footprint is the function itself plus,
 # for these rules, its callers (a signature change edits every call site). Violations with

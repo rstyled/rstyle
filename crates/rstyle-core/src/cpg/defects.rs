@@ -3,12 +3,15 @@
 //! A function whose facts fall short of a rule's needs stays unknown, and is never read as clean.
 
 mod dead_store;
+pub mod ignored_result;
 
+use self::ignored_result::ResultUse;
 use super::flow::{self, Flow};
-use super::model::{Coverage, Function};
+use super::model::{Coverage, Function, Node};
 use super::source::Sources;
-use super::tree::Tables;
+use super::tree::{Body, Tables};
 use serde::Serialize;
+use std::collections::HashMap;
 
 /// One thing a rule found in a function.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -21,7 +24,11 @@ pub struct Defect {
 /// What the rules could say of a function.
 #[derive(Clone, Debug)]
 pub enum Examined {
-    Read(Vec<Defect>),
+    Read {
+        defects: Vec<Defect>,
+        /// What each call did with its result, which only the whole run can judge.
+        results: Vec<ResultUse>,
+    },
     /// The function's facts can't answer, and why.
     Unknown(String),
 }
@@ -30,6 +37,8 @@ pub enum Examined {
 struct Reading<'a> {
     function: &'a Function,
     flow: Flow<'a>,
+    body: Body<'a>,
+    parents: HashMap<&'a str, &'a Node>,
     tables: &'a Tables<'a>,
     sources: &'a Sources<'a>,
 }
@@ -42,20 +51,33 @@ pub fn examine(
     tables: &Tables<'_>,
     sources: &Sources<'_>,
 ) -> Examined {
-    let flow = match flow::with_accesses(coverage, function) {
-        Ok(flow) => flow,
-        Err(reason) => return Examined::Unknown(reason),
-    };
-    let reading = Reading {
-        function,
-        flow,
-        tables,
-        sources,
-    };
-    match dead_store::find(&reading) {
-        Ok(defects) => Examined::Read(defects),
-        Err(reason) => Examined::Unknown(reason),
-    }
+    let read = flow::with_accesses(coverage, function).and_then(|flow| {
+        let reading = Reading {
+            function,
+            flow,
+            body: Body::new(function)?,
+            parents: parents(function),
+            tables,
+            sources,
+        };
+        Ok(Examined::Read {
+            defects: dead_store::find(&reading)?,
+            results: ignored_result::uses(&reading)?,
+        })
+    });
+    read.unwrap_or_else(Examined::Unknown)
+}
+
+fn parents(function: &Function) -> HashMap<&str, &Node> {
+    function
+        .nodes
+        .iter()
+        .flat_map(|node| {
+            node.children
+                .iter()
+                .map(move |child| (child.as_str(), node))
+        })
+        .collect()
 }
 
 #[cfg(test)]
