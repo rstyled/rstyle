@@ -45,6 +45,14 @@ fns = [
   "rstyle_core::normalize::predicate_tree",
 ]
 
+[ignore.efcd50482f0a]
+kind = "parameterize"
+reason = "Both find one item by an unrelated type's own key and return its name; a shared helper would only take the predicate"
+fns = [
+  "rstyle_core::cpg::bounds::Collector::declared",
+  "rstyle_core::sarif::function_of",
+]
+
 [ignore.fdb66ce83259]
 kind = "parameterize"
 reason = "different finder logic (closures) around a shared tail, already extracted (#11)"

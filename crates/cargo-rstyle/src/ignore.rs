@@ -125,6 +125,7 @@ mod tests {
             name: locator.into(),
             locator: locator.into(),
             shape: Some("1".into()),
+            source: String::new(),
         };
 
         Candidate {

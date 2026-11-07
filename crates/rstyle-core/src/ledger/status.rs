@@ -282,6 +282,7 @@ mod tests {
             name: f.name.clone(),
             locator: f.id.clone(),
             shape,
+            source: String::new(),
         }
     }
 

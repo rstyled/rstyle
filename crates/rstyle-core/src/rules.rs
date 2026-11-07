@@ -28,6 +28,7 @@ pub(crate) fn diagnostic(
         actual: measure.actual,
         limit: measure.limit,
         details: vec![],
+        source: f.whole_lines(),
     }
 }
 

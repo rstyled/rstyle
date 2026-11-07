@@ -86,6 +86,7 @@ fn diagnostic(fact: &FnFacts) -> Diagnostic {
         actual: 2,
         limit: 1,
         details: vec![],
+        source: String::new(),
     }
 }
 

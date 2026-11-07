@@ -1,13 +1,16 @@
 //! SARIF 2.1.0: one log and one run per analysis, so the results of different analyses
 //! never interleave, and one log holding every run as a run's final report.
 //!
-//! Findings and candidates are what SARIF carries. The JSON report stays the complete one:
-//! runtime bounds, signature groups and fix groups aren't findings.
+//! Findings and candidates are what SARIF carries. A check's findings also carry why: each
+//! decision point is a related location, and the measured value and its limit are properties.
+//! A check run carries its fix groups, so a consumer holding only the SARIF can plan fixes, and
+//! each check finding a fingerprint of its rule and function, so it can be followed across commits.
+//! The JSON report stays the complete one: runtime bounds and signature groups aren't here.
 
 use crate::candidates::Candidate;
 use crate::defects_report::{DefectRow, DefectsReport};
 use crate::patterns_report::PatternsReport;
-use crate::report::{Diagnostic, Report};
+use crate::report::{Detail, Diagnostic, FixGroup, Report};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -18,6 +21,9 @@ const SCHEMA: &str =
 const VERSION: &str = "2.1.0";
 const SOURCE_ROOT: &str = "%SRCROOT%";
 const CANDIDATE_FINGERPRINT: &str = "rstyle/candidate/v1";
+/// A check finding's identity across commits: its rule and its function's path, as long as the
+/// function keeps its name. Consumers key what they know about a finding by it, not by its index.
+const CHECK_FINGERPRINT: &str = "rstyle/check/v1";
 /// Categories keep the two analyses apart once a consumer holds both.
 pub const CHECK: &str = "rstyle/check/";
 pub const PATTERNS: &str = "rstyle/patterns/";
@@ -38,6 +44,14 @@ struct Run {
     automation_details: Automation,
     original_uri_base_ids: BTreeMap<&'static str, Artifact>,
     results: Vec<Finding>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    properties: Option<RunProperties>,
+}
+
+/// Beside, not under, the `rstyle` key: a service stamps `properties.rstyle` with its own record.
+#[derive(Debug, Serialize)]
+struct RunProperties {
+    fix_groups: Vec<FixGroup>,
 }
 
 #[derive(Debug, Serialize)]
@@ -69,6 +83,19 @@ struct Finding {
     related_locations: Vec<Location>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     fingerprints: BTreeMap<&'static str, String>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    partial_fingerprints: BTreeMap<&'static str, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    properties: Option<Measure>,
+}
+
+/// What a check measured against its limit, and the fix group that fixes it.
+#[derive(Debug, Serialize)]
+struct Measure {
+    actual: usize,
+    limit: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fix_group: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]
@@ -80,6 +107,8 @@ struct Message {
 #[serde(rename_all = "camelCase")]
 struct Location {
     physical_location: PhysicalLocation,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<Message>,
 }
 
 #[derive(Debug, Serialize)]
@@ -88,6 +117,8 @@ struct PhysicalLocation {
     artifact_location: Artifact,
     #[serde(skip_serializing_if = "Option::is_none")]
     region: Option<Region>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context_region: Option<ContextRegion>,
 }
 
 #[derive(Debug, Serialize)]
@@ -104,14 +135,61 @@ struct Region {
     start_line: usize,
 }
 
+/// The whole function around a finding, with its text, so a viewer needs no checkout.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ContextRegion {
+    start_line: usize,
+    end_line: usize,
+    snippet: Message,
+}
+
 /// One warning per diagnostic, with its rule id and message. `root` is what relative paths
 /// resolve against. Columns are left out: SARIF counts them in other units than a frontend.
 pub fn check(report: &Report, root: &Path) -> Result<Log, String> {
-    log(
-        report.diagnostics.iter().map(diagnostic).collect(),
-        CHECK,
-        root,
-    )
+    let findings = report
+        .diagnostics
+        .iter()
+        .map(|d| {
+            let mut finding = diagnostic(d, group_of(d, &report.fix_groups));
+            if let Some(name) = function_of(d, report) {
+                finding
+                    .partial_fingerprints
+                    .insert(CHECK_FINGERPRINT, format!("{}:{name}", d.rule_id));
+            }
+            finding
+        })
+        .collect();
+    let mut log = log(findings, CHECK, root)?;
+    log.runs[0].properties = (!report.fix_groups.is_empty()).then(|| RunProperties {
+        fix_groups: report.fix_groups.clone(),
+    });
+    Ok(log)
+}
+
+/// The name of the function a diagnostic is about, from the report's functions at its location.
+fn function_of<'a>(diagnostic: &Diagnostic, report: &'a Report) -> Option<&'a str> {
+    report
+        .functions
+        .iter()
+        .find(|f| {
+            f.path == diagnostic.path && f.line == diagnostic.line && f.column == diagnostic.column
+        })
+        .map(|f| f.name.as_str())
+}
+
+/// The fix group whose function is the diagnostic's, for the diagnostic's rule.
+fn group_of(diagnostic: &Diagnostic, groups: &[FixGroup]) -> Option<usize> {
+    groups
+        .iter()
+        .find(|group| {
+            group.functions.iter().any(|function| {
+                function.path == diagnostic.path
+                    && function.line == diagnostic.line
+                    && function.rules.contains(&diagnostic.rule_id)
+            })
+        })
+        .map(|group| group.id)
 }
 
 /// One warning per candidate left in the report, with its kind as the rule id.
@@ -201,6 +279,7 @@ fn log(results: Vec<Finding>, category: &'static str, root: &Path) -> Result<Log
             automation_details: Automation { id: category },
             original_uri_base_ids: BTreeMap::from([(SOURCE_ROOT, root_artifact(root)?)]),
             results,
+            properties: None,
         }],
     })
 }
@@ -218,12 +297,54 @@ fn root_artifact(root: &Path) -> Result<Artifact, String> {
     })
 }
 
-fn diagnostic(diagnostic: &Diagnostic) -> Finding {
-    at_one_place(
+/// One warning at the function, with each decision point that raised it as a related location.
+fn diagnostic(diagnostic: &Diagnostic, fix_group: Option<usize>) -> Finding {
+    let mut finding = at_one_place(
         &diagnostic.rule_id,
         &diagnostic.message,
         (&diagnostic.path, diagnostic.line),
-    )
+    );
+    finding.related_locations = diagnostic
+        .details
+        .iter()
+        .flat_map(|detail| decision_points(&diagnostic.path, detail))
+        .collect();
+    finding.properties = Some(Measure {
+        actual: diagnostic.actual,
+        limit: diagnostic.limit,
+        fix_group,
+    });
+
+    if let Some(location) = finding.locations.first_mut() {
+        location.physical_location.context_region =
+            function_region(diagnostic.line, &diagnostic.source);
+    }
+    finding
+}
+
+/// A function's whole lines, starting at its line; none when the frontend gave no source.
+fn function_region(line: usize, source: &str) -> Option<ContextRegion> {
+    let lines = source.lines().count();
+    (lines > 0 && line > 0).then(|| ContextRegion {
+        start_line: line,
+        end_line: line + lines - 1,
+        snippet: Message {
+            text: source.to_owned(),
+        },
+    })
+}
+
+/// A detail at one line says how much it added there; at several lines, each line is one of them.
+fn decision_points<'a>(path: &'a str, detail: &'a Detail) -> impl Iterator<Item = Location> + 'a {
+    let text = match detail.lines.len() {
+        1 => format!("{} +{}", detail.label, detail.count),
+        _ => detail.label.clone(),
+    };
+    detail.lines.iter().filter_map(move |line| {
+        let mut location = location(path, *line)?;
+        location.message = Some(Message { text: text.clone() });
+        Some(location)
+    })
 }
 
 fn defect(defect: &DefectRow) -> Finding {
@@ -240,16 +361,19 @@ fn at_one_place(rule_id: &str, text: &str, (path, line): (&str, usize)) -> Findi
         locations: location(path, line).into_iter().collect(),
         related_locations: Vec::new(),
         fingerprints: BTreeMap::new(),
+        partial_fingerprints: BTreeMap::new(),
+        properties: None,
     }
 }
 
 /// The first site is primary because code scanning shows only one; the id is what
 /// `cargo rstyle ignore` takes.
 fn candidate(candidate: &Candidate) -> Finding {
-    let mut sites = candidate
-        .sites
-        .iter()
-        .filter_map(|site| location(&site.path, site.line));
+    let mut sites = candidate.sites.iter().filter_map(|site| {
+        let mut location = location(&site.path, site.line)?;
+        location.physical_location.context_region = function_region(site.line, &site.source);
+        Some(location)
+    });
     let locations = sites.next().into_iter().collect();
     Finding {
         rule_id: candidate.kind.name().to_string(),
@@ -265,6 +389,8 @@ fn candidate(candidate: &Candidate) -> Finding {
         locations,
         related_locations: sites.collect(),
         fingerprints: BTreeMap::from([(CANDIDATE_FINGERPRINT, candidate.id.clone())]),
+        partial_fingerprints: BTreeMap::new(),
+        properties: None,
     }
 }
 
@@ -274,7 +400,9 @@ fn location(path: &str, line: usize) -> Option<Location> {
         physical_location: PhysicalLocation {
             artifact_location: artifact(path),
             region: (line > 0).then_some(Region { start_line: line }),
+            context_region: None,
         },
+        message: None,
     })
 }
 

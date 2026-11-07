@@ -19,6 +19,10 @@ pub struct Diagnostic {
     pub limit: usize,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub details: Vec<Detail>,
+    /// The function's whole lines, from its `fn` line through the closing brace. SARIF carries
+    /// them so a viewer shows the code without the checkout; the JSON report leaves them out.
+    #[serde(skip)]
+    pub source: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
@@ -319,6 +323,7 @@ mod tests {
             actual: 2,
             limit: 1,
             details: vec![],
+            source: String::new(),
         }
     }
 

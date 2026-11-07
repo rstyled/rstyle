@@ -58,6 +58,9 @@ pub struct Site {
     /// Hex `wl::shape_hash` of the body's dependence graph; absent without a graph.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shape: Option<String>,
+    /// The function's whole lines, for SARIF; the JSON report leaves them out.
+    #[serde(skip)]
+    pub source: String,
 }
 
 /// The score, split so each signal stays visible (support and lift are not summed blindly).
@@ -178,6 +181,7 @@ fn site(f: &FnFacts) -> Site {
             .pdg
             .as_ref()
             .map(|p| format!("{:016x}", wl::shape_hash(p))),
+        source: f.whole_lines(),
     }
 }
 
