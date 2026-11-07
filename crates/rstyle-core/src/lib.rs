@@ -20,6 +20,7 @@ pub mod groups;
 pub mod ledger;
 pub mod lines;
 pub mod locator;
+pub mod merge_risk;
 pub mod normalize;
 pub mod paths;
 pub mod patterns_report;

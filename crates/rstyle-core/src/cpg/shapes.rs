@@ -1,6 +1,6 @@
 //! Parameter lists, signature shapes and mutated types (the profile's Pattern facts).
 
-use super::model::{Callable, Scope, Symbol, TargetKind, Type, TypeKind};
+use super::model::{Callable, Function, Scope, Symbol, TargetKind, Type, TypeKind};
 use super::source::Sources;
 use super::tree::{Body, Tables};
 use crate::facts::{ParamFacts, Receiver, SigFacts, TyShape};
@@ -109,6 +109,20 @@ fn integer(ty: &Type) -> Result<String, String> {
         Some(true) => format!("{sign}size"),
         _ => format!("{sign}{}", bits(ty)?),
     })
+}
+
+/// What a function's receiver, parameters and result are, in that order, whatever anything spells
+/// them as: a spelling can hold ids local to one document. A type that can't be shaped has none.
+pub fn signature_shapes(function: &Function, tables: &Tables<'_>) -> Vec<Option<TyShape>> {
+    let signature = &function.signature;
+    signature
+        .receiver
+        .iter()
+        .map(|receiver| &receiver.ty)
+        .chain(signature.parameters.iter().map(|parameter| &parameter.ty))
+        .chain(std::iter::once(&signature.result))
+        .map(|id| shape(tables, id).ok())
+        .collect()
 }
 
 /// Name, written type and use count of each parameter, receiver excluded.

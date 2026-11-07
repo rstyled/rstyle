@@ -4,6 +4,7 @@
 mod database;
 mod frontend;
 mod pipe;
+mod risk;
 mod store;
 
 use crate::cpg::analyze::{self, FrontendResult, Unified};
@@ -11,6 +12,7 @@ use crate::cpg::{self, input};
 use crate::{Cli, Format, MineArgs, PatternDisplayArgs, compiler, ignore, workspace};
 use clap::Args;
 use frontend::{AnalysisPaths, Frontend, Saving};
+pub(crate) use risk::{RiskArgs, risk};
 use rstyle_core::cpg::records::{Demand, Record};
 use rstyle_core::cpg::transport::{self, DOCUMENTS_MANIFEST, Encoding};
 use rstyle_core::filter::{Analysis, Filter};
@@ -403,8 +405,20 @@ fn unsaved_analyses(
     Ok(results)
 }
 
-// rstyle-allow(side_effect_density): IO boundary: reads the run's record
 fn read_record(from: &Path, language: &str) -> Result<Option<RunRecord>, String> {
+    let record = read_any_record(from)?;
+    if let Some(other) = record.as_ref().filter(|record| record.language != language) {
+        return Err(format!(
+            "{} is a {} run, not {language}",
+            from.display(),
+            other.language
+        ));
+    }
+    Ok(record)
+}
+
+// rstyle-allow(side_effect_density): IO boundary: reads the run's record
+fn read_any_record(from: &Path) -> Result<Option<RunRecord>, String> {
     let path = from.join(RUN_FILE);
     if !path.exists() {
         return Ok(None);
@@ -420,13 +434,6 @@ fn read_record(from: &Path, language: &str) -> Result<Option<RunRecord>, String>
             record.schema
         ));
     }
-    if record.language != language {
-        return Err(format!(
-            "{} is a {} run, not {language}",
-            from.display(),
-            record.language
-        ));
-    }
     Ok(Some(record))
 }
 
@@ -438,9 +445,19 @@ fn saved_records(
     record: Option<&RunRecord>,
     demand: Demand,
 ) -> Result<Vec<Record>, String> {
+    seen_saved_records((from, record), demand, &|_| {})
+}
+
+/// A saved run's records, with each document shown to `see` as it's read.
+// rstyle-allow(side_effect_density): IO boundary: reads a saved run's documents
+fn seen_saved_records(
+    (from, record): (&Path, Option<&RunRecord>),
+    demand: Demand,
+    see: input::See<'_>,
+) -> Result<Vec<Record>, String> {
     let directory = documents_folder(from);
     if directory.join(DOCUMENTS_MANIFEST).exists() {
-        return input::capture_records(&directory, demand);
+        return input::seen_capture_records(&directory, demand, see);
     }
 
     let paths = cpg::documents(&directory)?;
@@ -455,7 +472,7 @@ fn saved_records(
     if paths.is_empty() {
         return Err(format!("{} holds no documents", from.display()));
     }
-    input::file_records(&paths, demand)
+    input::seen_file_records(&paths, demand, see)
 }
 
 /// Where a saved run keeps its documents, or the folder itself if it holds them directly.
