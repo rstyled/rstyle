@@ -16,7 +16,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
+        # TEMPORARILY DISABLED: macOS runners are too expensive to run right now. Restore the line
+        # below, with macos-15, to bring it back.
+        # runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -142,43 +145,45 @@ jobs:
             ${{ env.RSTYLE_CI_OUTPUT }}/results/status.json
           if-no-files-found: warn
 
+  # TEMPORARILY DISABLED: Windows runners are too expensive to run right now. Uncomment this
+  # job to restore it.
   # The runner's pipe and inherited handles, and the Rust route through the real driver. The
   # rest of the compiler tests are Unix-only.
-  windows:
-    permissions:
-      contents: read
-    runs-on: windows-2025
-    steps:
-      - uses: actions/checkout@v4
-
-      # Installs the pinned nightly and components from rust-toolchain.toml.
-      - name: Install Rust
-        shell: bash
-        run: |
-          rustup show active-toolchain
-          rustc --version
-          cargo --version
-
-      - name: Restore Cargo cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-cargo-
-
-      - name: Core modules
-        run: |
-          cargo test --locked -p rstyle-core --lib -- sarif:: filter:: cpg::pool
-
-      - name: Runner pipe and inherited handles
-        run: cargo test --locked -p cargo-rstyle --test frontend_pipe
-
-      - name: Rust route through the driver
-        run: cargo test --locked -p cargo-rstyle --test rust_route
+  # windows:
+  #   permissions:
+  #     contents: read
+  #   runs-on: windows-2025
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #
+  #     # Installs the pinned nightly and components from rust-toolchain.toml.
+  #     - name: Install Rust
+  #       shell: bash
+  #       run: |
+  #         rustup show active-toolchain
+  #         rustc --version
+  #         cargo --version
+  #
+  #     - name: Restore Cargo cache
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: |
+  #           ~/.cargo/registry
+  #           ~/.cargo/git
+  #           target
+  #         key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-${{ runner.arch }}-cargo-
+  #
+  #     - name: Core modules
+  #       run: |
+  #         cargo test --locked -p rstyle-core --lib -- sarif:: filter:: cpg::pool
+  #
+  #     - name: Runner pipe and inherited handles
+  #       run: cargo test --locked -p cargo-rstyle --test frontend_pipe
+  #
+  #     - name: Rust route through the driver
+  #       run: cargo test --locked -p cargo-rstyle --test rust_route
 
   coverage:
     needs: check

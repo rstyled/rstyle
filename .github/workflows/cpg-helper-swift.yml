@@ -1,9 +1,12 @@
 name: CPG helper Swift adapter
 on:
-  pull_request:
-    paths:
-      - 'examples/cpg-helper/swift/**'
-      - '.github/workflows/cpg-helper-swift.yml'
+  # TEMPORARILY DISABLED: macOS runners are too expensive to run right now, so this only runs
+  # when started by hand. Uncomment pull_request and delete workflow_dispatch to restore it.
+  workflow_dispatch:
+  # pull_request:
+  #   paths:
+  #     - 'examples/cpg-helper/swift/**'
+  #     - '.github/workflows/cpg-helper-swift.yml'
 jobs:
   typecheck:
     permissions:
