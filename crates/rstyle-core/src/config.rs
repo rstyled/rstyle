@@ -26,11 +26,13 @@ pub struct Config {
 pub struct StrictStyleConfig {
     #[serde(skip_serializing_if = "GuardClauseConfig::is_off")]
     pub guard_clause: GuardClauseConfig,
+    #[serde(skip_serializing_if = "PrimitiveObsessionConfig::is_off")]
+    pub primitive_obsession: PrimitiveObsessionConfig,
 }
 
 impl StrictStyleConfig {
     fn all_off(&self) -> bool {
-        !self.guard_clause.enabled
+        !self.guard_clause.enabled && !self.primitive_obsession.enabled
     }
 }
 
@@ -55,6 +57,98 @@ impl Default for GuardClauseConfig {
         Self {
             enabled: false,
             min_nested_statements: 2,
+        }
+    }
+}
+
+/// One lowercase word, checked on load: a name is read as lowercase words, so anything else could
+/// never match one, and a typo would quietly do nothing.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(try_from = "String")]
+pub struct Word(String);
+
+impl Word {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Names known to be words, as a rule's defaults are.
+    fn list(words: &[&str]) -> Vec<Self> {
+        words.iter().map(|word| Self((*word).to_owned())).collect()
+    }
+}
+
+impl TryFrom<String> for Word {
+    type Error = String;
+
+    fn try_from(word: String) -> Result<Self, String> {
+        let valid = !word.is_empty()
+            && word
+                .chars()
+                .all(|letter| letter.is_alphanumeric() && !letter.is_uppercase());
+        match valid {
+            true => Ok(Self(word)),
+            false => Err(format!("`{word}` is not one lowercase word")),
+        }
+    }
+}
+
+/// A parameter whose name says what it means, held as plain text or an integer.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PrimitiveObsessionConfig {
+    pub enabled: bool,
+    /// Fewer functions than this holding a meaning as a plain value say nothing about a codebase.
+    pub min_functions: usize,
+    /// Words of a name that mean something a type could say.
+    pub meanings: Vec<Word>,
+}
+
+impl PrimitiveObsessionConfig {
+    fn is_off(&self) -> bool {
+        !self.enabled
+    }
+}
+
+impl Default for PrimitiveObsessionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            min_functions: 2,
+            meanings: Word::list(&[
+                "email",
+                "phone",
+                "url",
+                "uri",
+                "uuid",
+                "guid",
+                "id",
+                "name",
+                "address",
+                "street",
+                "city",
+                "state",
+                "zip",
+                "postal",
+                "country",
+                "currency",
+                "price",
+                "amount",
+                "quantity",
+                "ssn",
+                "passport",
+                "license",
+                "username",
+                "password",
+                "token",
+                "apikey",
+                "secret",
+                "creditcard",
+                "iban",
+                "isbn",
+                "sku",
+                "serial",
+            ]),
         }
     }
 }
@@ -379,6 +473,9 @@ mod tests {
     fn strict_style_rules_are_off_unless_asked_for() {
         let default = Config::parse("").unwrap().strict_style;
         assert!(!default.guard_clause.enabled);
+        assert!(!default.primitive_obsession.enabled);
+        assert_eq!(default.primitive_obsession.min_functions, 2);
+        assert_eq!(default.primitive_obsession.meanings.len(), 32);
         assert_eq!(default.guard_clause.min_nested_statements, 2);
 
         let set = "[strict_style.guard_clause]\nenabled = true\nmin_nested_statements = 4";
@@ -402,6 +499,35 @@ mod tests {
     #[test]
     fn the_example_config_states_strict_styles_defaults() {
         example_states_the_defaults_of::<GuardClauseConfig>("guard_clause");
+        example_states_the_defaults_of::<PrimitiveObsessionConfig>("primitive_obsession");
+    }
+
+    #[test]
+    fn a_word_that_could_never_match_a_name_is_an_error() {
+        let parsed = |word: &str| {
+            let input = format!("[strict_style.primitive_obsession]\nmeanings = [\"{word}\"]");
+            Config::parse(&input).map(|config| config.strict_style.primitive_obsession.meanings)
+        };
+        assert_eq!(parsed("iban").unwrap()[0].as_str(), "iban");
+        assert_eq!(parsed("a1").unwrap()[0].as_str(), "a1");
+        for word in ["Email", "user_id", "user-id", "two words", ""] {
+            let error = parsed(word).unwrap_err().to_string();
+            assert!(error.contains("not one lowercase word"), "{word}: {error}");
+        }
+    }
+
+    #[test]
+    fn a_rule_that_is_off_has_no_limits_or_words_in_a_baseline() {
+        let policy = |input: &str| serde_json::to_value(Config::parse(input).unwrap()).unwrap();
+        let tuned = "[strict_style.primitive_obsession]\nmin_functions = 5\nmeanings = [\"iban\"]";
+        assert_eq!(policy(tuned), policy(""));
+
+        // One rule on leaves the others out.
+        let on = policy("[strict_style.guard_clause]\nenabled = true");
+        assert!(
+            on["strict_style"].get("primitive_obsession").is_none(),
+            "{on}"
+        );
     }
 
     #[test]

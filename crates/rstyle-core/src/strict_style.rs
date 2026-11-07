@@ -2,6 +2,8 @@
 //! `[strict_style]` turns it on. One that's on reports through `check`, and a run fails on it, as
 //! on any other style rule.
 
+mod primitive_obsession;
+
 use crate::config::Config;
 use crate::facts::FnFacts;
 use crate::report::{Detail, Diagnostic};
@@ -35,6 +37,16 @@ pub fn guard_clause(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
         lines,
     }];
     vec![found]
+}
+
+/// What the rules only a whole run can judge find, one list per function, in the order of `facts`.
+pub fn across_the_run(facts: &[FnFacts], cfg: &Config) -> Vec<Vec<Diagnostic>> {
+    let mut found = vec![Vec::new(); facts.len()];
+    let rules = &cfg.strict_style;
+    if rules.primitive_obsession.enabled {
+        primitive_obsession::add(facts, &rules.primitive_obsession, &mut found);
+    }
+    found
 }
 
 #[cfg(test)]

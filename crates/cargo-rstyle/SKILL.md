@@ -68,7 +68,7 @@ bulk-dismiss findings merely to make a gate pass.
 JSON top level: `diagnostics`, `summary`, `fix_groups`, `functions`.
 
 - `diagnostics[]`: `path`, `line`, `column`, `rule_id`, `message`, `actual`, `limit`, `details`.
-- Rule ids: `fn_length`, `fn_params`, `fn_spacing`, `cyclomatic_complexity`, `cognitive_complexity`, `mutation_per_target`, `mutated_targets`, `side_effect_density`, `guard_clause`, `invalid_suppression`.
+- Rule ids: `fn_length`, `fn_params`, `fn_spacing`, `cyclomatic_complexity`, `cognitive_complexity`, `mutation_per_target`, `mutated_targets`, `side_effect_density`, `guard_clause`, `primitive_obsession`, `invalid_suppression`.
 - `fix_groups[]`: violations whose fixes overlap. Different groups never conflict.
 
 ## Complexity in the same report
@@ -113,6 +113,7 @@ a score. The same command returns 1 for findings or 2 for missing measurements.
 - `fn_length`: extract cohesive blocks into named helpers. Do not just compress lines.
 - `fn_spacing`: add a blank line where the body changes phase (setup, work, result).
 - `guard_clause`, only when `[strict_style.guard_clause]` turns it on: return early, so the main path stops being nested.
+- `primitive_obsession`, only when `[strict_style.primitive_obsession]` turns it on: give what the parameter holds a named type.
 - `fn_params`: introduce a params struct or move state into a type. Do not hide arguments in tuples.
 - `mutation_per_target` / `mutated_targets`: return new values instead of writing through `&mut`; split functions by the thing they mutate.
 - `side_effect_density`: separate pure computation from IO/network/time/random/unsafe. Keep effects in a thin outer function.

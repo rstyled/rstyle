@@ -26,7 +26,7 @@ analyzed function.
 | `mutated_targets` | Too many distinct roots mutated in one function. |
 | `side_effect_density` | Too many effects for the number of statements. See below. |
 | `invalid_suppression` | An `rstyle-allow` comment with no reason or an unknown rule id. |
-| `guard_clause` | Off by default. See [strict style](#strict-style). |
+| `guard_clause`, `primitive_obsession` | Off by default. See [strict style](#strict-style). |
 
 A missing complexity score is reported as unavailable, never as zero, and makes the run exit 2.
 Closures count toward the function that owns them. Compiler lowering and a macro's own code add no
@@ -141,6 +141,32 @@ alone, since returning early there means restructuring the whole chain.
 | --- | --- | --- |
 | `enabled` | `false` | |
 | `min_nested_statements` | 2 | Fewer statements under the `if` than this are no main path to bring out |
+
+### `primitive_obsession`
+
+A parameter whose name says what it means, held as plain text or an integer in several functions of a run:
+
+```rust
+fn charge(user_id: &str, amount: u64) {}
+fn refund(user_id: &str, amount: u64) {}
+```
+
+A named type would say what each holds, and stop two of them being swapped. It reads a name's whole words, so `userEmail`
+and `user_email` hold `email`, and `valid` doesn't hold `id`.
+
+Each function reports each meaning once, and a type someone named is never reported. It looks through references, so
+`&str`, `String` and `const std::string &` are all text. Most results on real code are `name` and `id`, so expect to take them
+out of `meanings`, or suppress or exclude some.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | |
+| `min_functions` | 2 | Fewer functions than this holding a meaning say nothing about a codebase |
+| `meanings` | see below | Words of a name that mean something a type could say. Each is one lowercase word, and anything else is an error, since it could never match |
+
+The default words are `email`, `phone`, `url`, `uri`, `uuid`, `guid`, `id`, `name`, `address`, `street`, `city`, `state`, `zip`,
+`postal`, `country`, `currency`, `price`, `amount`, `quantity`, `ssn`, `passport`, `license`, `username`, `password`, `token`,
+`apikey`, `secret`, `creditcard`, `iban`, `isbn`, `sku` and `serial`.
 
 ## Fix groups
 

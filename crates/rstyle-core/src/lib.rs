@@ -79,8 +79,11 @@ fn function_diagnostics(
     f: &FnFacts,
     effects: &[rules::Effect],
     cfg: &Config,
+    across_the_run: Vec<Diagnostic>,
 ) -> (Vec<Diagnostic>, Suppression) {
     let mut out = rule_diagnostics(f, effects, cfg);
+    out.extend(across_the_run);
+
     let suppression = suppress::parse(&f.preceding_line);
     match &suppression {
         Suppression::None => {}
@@ -327,14 +330,16 @@ fn collect_diagnostics<T>(
     emit: impl Fn(usize, Diagnostic) -> T,
     mut scopes: Option<&mut Vec<Suppression>>,
 ) -> Vec<T> {
+    let across_the_run = strict_style::across_the_run(inputs.facts, inputs.cfg);
     inputs
         .facts
         .iter()
         .zip(inputs.effects)
+        .zip(across_the_run)
         .enumerate()
-        .flat_map(|(owner, (f, e))| {
+        .flat_map(|(owner, ((f, e), across_the_run))| {
             let emit = &emit;
-            let (diagnostics, suppression) = function_diagnostics(f, e, inputs.cfg);
+            let (diagnostics, suppression) = function_diagnostics(f, e, inputs.cfg, across_the_run);
             if let Some(scopes) = scopes.as_mut() {
                 scopes.push(suppression);
             }
@@ -476,14 +481,14 @@ mod tests {
         config.fn_length.max_lines = 2;
         config.side_effects.min_lines = 3;
 
-        let (diagnostics, _) = function_diagnostics(&facts, &effects, &config);
+        let (diagnostics, _) = function_diagnostics(&facts, &effects, &config, vec![]);
         assert_eq!(diagnostics.len(), 2);
         assert_eq!(diagnostics[0].rule_id, "fn_length");
         assert_eq!(diagnostics[0].actual, 3);
         assert_eq!(diagnostics[1].rule_id, "side_effect_density");
         assert_eq!(diagnostics[1].actual, 1000);
         config.side_effects.min_lines = 4;
-        let (diagnostics, _) = function_diagnostics(&facts, &effects, &config);
+        let (diagnostics, _) = function_diagnostics(&facts, &effects, &config, vec![]);
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].rule_id, "fn_length");
     }

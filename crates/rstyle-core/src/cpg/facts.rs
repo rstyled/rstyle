@@ -151,7 +151,7 @@ fn function_facts(
         column,
         name: function.name.clone(),
         params: signature.parameters.len(),
-        param_list: param_list(&body, sources)?,
+        param_list: param_list(&body, tables, sources)?,
         has_self: signature.receiver.is_some(),
         statements: statements(&body)?,
         top_statements: top_statements(&body)?,
