@@ -3,11 +3,14 @@
 //! stable identity. A text change with no change in the compared facts says only that those facts
 //! didn't change, not that behavior didn't.
 
+pub mod rating;
+
 use crate::config::Config;
 use crate::cpg::model::Document;
 use crate::cpg::records::{DeclaredSignature, Measured, Record};
 use crate::facts::{FnFacts, NodeKind, Pdg, PdgNode, TyShape};
 use crate::{exclusions, graph, locator, rules};
+use rating::{Measured as Evidence, Rating};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
@@ -63,8 +66,8 @@ pub struct Snapshot {
     index: BTreeMap<String, usize>,
     /// Each test function's text, by identity. Changing a test isn't a risk, but it's worth saying.
     tests: BTreeMap<String, String>,
-    /// Functions with nothing to compare: what a macro or a build writes.
-    not_compared: BTreeSet<String>,
+    /// The text of functions with nothing to compare, what a macro or a build writes, by identity.
+    not_compared: BTreeMap<String, String>,
     /// Each written file's digest, by path.
     files: BTreeMap<String, String>,
 }
@@ -110,7 +113,9 @@ impl Snapshot {
             return;
         }
         let Measured::Known(mut facts) = record.measured else {
-            self.not_compared.insert(record.identity);
+            self.not_compared
+                .entry(record.identity)
+                .or_insert(record.source);
             return;
         };
 
@@ -217,6 +222,11 @@ pub struct FunctionChange {
     pub graph: GraphDelta,
     pub calls_added: Vec<String>,
     pub calls_removed: Vec<String>,
+    /// It makes a call whose target can't be known, in either run, so nothing can be said of all it
+    /// calls.
+    pub unresolved_calls: bool,
+    /// Library callees it calls more often that nothing says the effect of, by identity.
+    pub calls_unclassified: Vec<String>,
     pub effects_gained: Vec<EffectChange>,
     pub effects_lost: Vec<EffectChange>,
     /// Functions that call it directly, tests aside.
@@ -228,11 +238,16 @@ pub struct FunctionChange {
 /// What changed between two runs.
 #[derive(Debug, Serialize)]
 pub struct ChangeReport {
+    pub schema_version: u32,
+    #[serde(flatten)]
+    pub rating: Rating,
     pub changes: Vec<FunctionChange>,
     pub unchanged: usize,
     pub tests_changed: usize,
     /// Functions a macro or a build writes, which aren't compared.
     pub not_compared: usize,
+    /// How many of those differ between the runs.
+    pub not_compared_changed: usize,
     /// Written files whose text changed with no function in them changing: a constant, a
     /// package-level value or a type's fields can change what a program does, and no fact here says
     /// how, so these need a person.
@@ -353,6 +368,21 @@ fn more_calls(before: &BTreeMap<&str, usize>, after: &BTreeMap<&str, usize>) -> 
         .collect()
 }
 
+/// How many times a function calls each library callee nothing says the effect of.
+fn unclassified_calls<'f>(facts: &'f FnFacts, config: &Config) -> BTreeMap<&'f str, usize> {
+    let mut found = BTreeMap::new();
+    for call in &facts.calls {
+        if let Some(callee) = rules::unclassified_callee(call, config) {
+            *found.entry(callee).or_default() += 1;
+        }
+    }
+    found
+}
+
+fn has_unresolved_calls(facts: &FnFacts) -> bool {
+    facts.calls.iter().any(|call| call.dynamic)
+}
+
 fn effects_of(facts: &FnFacts, config: &Config) -> BTreeSet<EffectChange> {
     rules::effects_of(facts, config)
         .into_iter()
@@ -414,6 +444,11 @@ fn compared(
         graph: delta,
         calls_added: more_calls(&calls_before, &calls_after),
         calls_removed: more_calls(&calls_after, &calls_before),
+        unresolved_calls: has_unresolved_calls(before) || has_unresolved_calls(after),
+        calls_unclassified: more_calls(
+            &unclassified_calls(before, config),
+            &unclassified_calls(after, config),
+        ),
         effects_gained: gained(&effects_before, &effects_after),
         effects_lost: gained(&effects_after, &effects_before),
         ..one_sided(after, kind)
@@ -430,10 +465,14 @@ fn present_once(facts: &FnFacts, kind: ChangeKind, config: &Config) -> FunctionC
         all_calls(facts),
         effects_of(facts, config).into_iter().collect(),
     );
-    let change = one_sided(facts, kind);
+    let change = FunctionChange {
+        unresolved_calls: has_unresolved_calls(facts),
+        ..one_sided(facts, kind)
+    };
     match kind {
         ChangeKind::Added => FunctionChange {
             calls_added: calls,
+            calls_unclassified: more_calls(&BTreeMap::new(), &unclassified_calls(facts, config)),
             effects_gained: effects,
             ..change
         },
@@ -459,6 +498,8 @@ fn one_sided(facts: &FnFacts, kind: ChangeKind) -> FunctionChange {
         graph: GraphDelta::default(),
         calls_added: Vec::new(),
         calls_removed: Vec::new(),
+        unresolved_calls: false,
+        calls_unclassified: Vec::new(),
         effects_gained: Vec::new(),
         effects_lost: Vec::new(),
         callers: 0,
@@ -474,14 +515,17 @@ fn changed_tests(base: &Snapshot, head: &Snapshot) -> usize {
         .count()
 }
 
-/// What changed from `base` to `head`, most in need of a look first.
-pub fn compare(base: &Snapshot, head: &Snapshot, config: &Config) -> ChangeReport {
-    let identities: BTreeSet<&String> = base.index.keys().chain(head.index.keys()).collect();
-    let total = identities.len();
+/// What changed of each function, most in need of a look first, among `identities`.
+fn function_changes(
+    identities: &BTreeSet<&String>,
+    (base, head): (&Snapshot, &Snapshot),
+    config: &Config,
+) -> Vec<FunctionChange> {
     let (reach_before, reach_after) = (Reach::of(base), Reach::of(head));
 
     let mut changes: Vec<FunctionChange> = identities
-        .into_iter()
+        .iter()
+        .copied()
         .filter_map(|identity| {
             let (mut change, reach, at) = match (base.function(identity), head.function(identity)) {
                 (Some(before), Some(after)) => (
@@ -508,16 +552,61 @@ pub fn compare(base: &Snapshot, head: &Snapshot, config: &Config) -> ChangeRepor
     changes.sort_by(|a, b| {
         (a.kind, &a.path, a.line, &a.function).cmp(&(b.kind, &b.path, b.line, &b.function))
     });
+    changes
+}
 
-    let not_compared: BTreeSet<&String> =
-        base.not_compared.iter().chain(&head.not_compared).collect();
+/// What changed from `base` to `head`, and how much that matters by `config`'s rules.
+pub fn compare(base: &Snapshot, head: &Snapshot, config: &Config) -> ChangeReport {
+    let identities: BTreeSet<&String> = base.index.keys().chain(head.index.keys()).collect();
+    let changes = function_changes(&identities, (base, head), config);
+
+    let not_compared: BTreeSet<&String> = base
+        .not_compared
+        .keys()
+        .chain(head.not_compared.keys())
+        .collect();
+    let not_compared_changed = not_compared_changed(base, head);
+    let changed_outside_functions = changed_outside_functions(base, head, &changes);
+    let rating = rating::rate(
+        &Evidence {
+            changes: &changes,
+            changed_outside_functions: &changed_outside_functions,
+            not_compared_changed,
+        },
+        &config.risk,
+    );
+
     ChangeReport {
-        unchanged: total - changes.len(),
+        schema_version: 1,
+        rating,
+        unchanged: identities.len() - changes.len(),
         tests_changed: changed_tests(base, head),
         not_compared: not_compared.len(),
-        changed_outside_functions: changed_outside_functions(base, head, &changes),
+        not_compared_changed,
+        changed_outside_functions,
         changes,
     }
+}
+
+/// How many functions with nothing to compare differ between the runs, by what they say: what a
+/// macro expands to is numbered by what comes before it, so one more expansion would otherwise read
+/// as every later one changing.
+fn not_compared_changed(base: &Snapshot, head: &Snapshot) -> usize {
+    let by_text = |snapshot: &'_ Snapshot| {
+        let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+        for source in snapshot.not_compared.values() {
+            *counts.entry(source.clone()).or_default() += 1;
+        }
+        counts
+    };
+    let (before, after) = (by_text(base), by_text(head));
+
+    let texts: BTreeSet<&String> = before.keys().chain(after.keys()).collect();
+    let difference = |text: &&String| {
+        let count = |counts: &BTreeMap<String, usize>| counts.get(*text).copied().unwrap_or(0);
+        count(&before).abs_diff(count(&after))
+    };
+    texts.iter().map(difference).sum()
 }
 
 /// Written files that differ between the runs, leaving out those a function change already sends a
@@ -576,11 +665,20 @@ fn change_lines(change: &FunctionChange) -> Vec<String> {
     let values = change
         .values_changed
         .then(|| "  a known value changed, as a constant's does".to_owned());
+    let unresolved = change
+        .unresolved_calls
+        .then(|| "  makes a call whose target can't be known".to_owned());
+    let unclassified = change
+        .calls_unclassified
+        .iter()
+        .map(|callee| format!("  new library call nothing classifies: {callee}"));
 
     std::iter::once(summary)
         .chain(reason)
         .chain(signature)
         .chain(values)
+        .chain(unresolved)
+        .chain(unclassified)
         .chain(effect_lines("gains", &change.effects_gained))
         .chain(effect_lines("loses", &change.effects_lost))
         .chain(call_lines(change))
@@ -599,7 +697,7 @@ impl ChangeReport {
         let summary = format!(
             "Changes: {} changed, {} added, {} removed, {} text only, {} unknown; {} unchanged. \
              Files changed outside any function: {}. Test functions changed: {}. Generated \
-             functions not compared: {}.",
+             functions not compared: {}, {} of them changed.",
             self.count(ChangeKind::Changed),
             self.count(ChangeKind::Added),
             self.count(ChangeKind::Removed),
@@ -609,13 +707,17 @@ impl ChangeReport {
             self.changed_outside_functions.len(),
             self.tests_changed,
             self.not_compared,
+            self.not_compared_changed,
         );
         let outside = self
             .changed_outside_functions
             .iter()
             .map(|path| format!("{path}: changed outside any function"));
         let lines = self.changes.iter().flat_map(change_lines);
-        lines
+        self.rating
+            .lines(self.changes.len())
+            .into_iter()
+            .chain(lines)
             .chain(outside)
             .chain(std::iter::once(summary))
             .collect::<Vec<_>>()

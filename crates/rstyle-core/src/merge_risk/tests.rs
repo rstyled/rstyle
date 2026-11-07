@@ -1,6 +1,6 @@
 use super::*;
 use crate::cpg::records::DeclaredType;
-use crate::facts::{Edge, EdgeKind, EffectEvent, EffectKind, PdgEdge, Receiver, sample};
+use crate::facts::{CallEvent, Edge, EdgeKind, EffectEvent, EffectKind, PdgEdge, Receiver, sample};
 use crate::shape::fixtures::method;
 
 fn signature(result: &str) -> DeclaredSignature {
@@ -446,7 +446,7 @@ fn changed_tests_are_counted_and_not_reported_as_changes() {
 #[test]
 fn the_summary_says_what_is_not_compared() {
     let mut base = snapshot(vec![]);
-    base.not_compared.insert("generated".into());
+    base.not_compared.insert("generated".into(), "Debug".into());
     let report = compare(
         &base,
         &snapshot(vec![function("f", calling(&[]))]),
@@ -455,9 +455,149 @@ fn the_summary_says_what_is_not_compared() {
     let text = report.text();
     assert!(text.contains("1 added"), "{text}");
     assert!(
-        text.contains("Generated functions not compared: 1."),
+        text.contains("Generated functions not compared: 1, 1 of them changed."),
         "{text}"
     );
+}
+
+#[test]
+fn what_a_macro_writes_compares_by_what_it_says_since_its_numbers_shift() {
+    let with = |written: &[(&str, &str)]| {
+        let mut run = snapshot(vec![]);
+        for (identity, source) in written {
+            run.not_compared
+                .insert((*identity).to_owned(), (*source).to_owned());
+        }
+        run
+    };
+    let changed = |base: &Snapshot, head: &Snapshot| {
+        compare(base, head, &Config::default()).not_compared_changed
+    };
+
+    let base = with(&[("{impl#1}::fmt", "Debug"), ("{impl#2}::clone", "Clone")]);
+    let renumbered = with(&[("{impl#2}::fmt", "Debug"), ("{impl#3}::clone", "Clone")]);
+    assert_eq!(changed(&base, &renumbered), 0);
+
+    let one_more = with(&[
+        ("{impl#1}::fmt", "Debug"),
+        ("{impl#2}::clone", "Clone"),
+        ("{impl#3}::fmt", "Debug"),
+    ]);
+    assert_eq!(changed(&base, &one_more), 1);
+    assert_eq!(changed(&one_more, &base), 1);
+}
+
+fn call_of(callee: &str, library_callee: Option<&str>) -> CallEvent {
+    CallEvent {
+        callee: callee.into(),
+        line: 1,
+        dynamic: false,
+        library: None,
+        library_callee: library_callee.map(str::to_owned),
+    }
+}
+
+fn making(name: &str, calls: Vec<CallEvent>) -> FnFacts {
+    FnFacts {
+        calls,
+        ..function(name, calling(&[]))
+    }
+}
+
+#[test]
+fn a_new_library_call_nothing_classifies_is_said_by_its_identity() {
+    let unlisted = || call_of("tokio::fs::write", Some("tokio::fs::write"));
+    let report = report(
+        vec![making("f", vec![unlisted()])],
+        vec![FnFacts {
+            source: "fn f() { /* more */ }".into(),
+            ..making("f", vec![unlisted(), unlisted()])
+        }],
+    );
+    let change = only(&report);
+    assert_eq!(change.calls_unclassified, ["tokio::fs::write"]);
+    assert!(
+        report
+            .text()
+            .contains("  new library call nothing classifies: tokio::fs::write")
+    );
+}
+
+#[test]
+fn a_library_call_that_was_there_already_is_nothing_new() {
+    let unlisted = || call_of("tokio::fs::write", Some("tokio::fs::write"));
+    let report = report(
+        vec![making("f", vec![unlisted(), unlisted()])],
+        vec![FnFacts {
+            source: "fn f() { /* more */ }".into(),
+            ..making("f", vec![unlisted()])
+        }],
+    );
+    assert!(only(&report).calls_unclassified.is_empty());
+}
+
+#[test]
+fn a_new_function_says_each_library_call_nothing_classifies_and_a_removed_one_does_not() {
+    let facts = || {
+        making(
+            "f",
+            vec![call_of("tokio::fs::write", Some("tokio::fs::write"))],
+        )
+    };
+    let added = report(vec![], vec![facts()]);
+    assert_eq!(only(&added).calls_unclassified, ["tokio::fs::write"]);
+
+    let removed = report(vec![facts()], vec![]);
+    assert!(only(&removed).calls_unclassified.is_empty());
+}
+
+#[test]
+fn a_call_to_an_unknown_target_in_either_run_is_said_of_a_change() {
+    let indirect = || CallEvent {
+        dynamic: true,
+        ..call_of("<fn pointer>", None)
+    };
+    let edited = |calls: Vec<CallEvent>| FnFacts {
+        source: "fn f() { /* edited */ }".into(),
+        ..making("f", calls)
+    };
+
+    let gone = report(vec![making("f", vec![indirect()])], vec![edited(vec![])]);
+    assert!(only(&gone).unresolved_calls);
+
+    let came = report(vec![making("f", vec![])], vec![edited(vec![indirect()])]);
+    let change = only(&came);
+    assert!(change.unresolved_calls);
+    assert!(change.calls_unclassified.is_empty(), "it isn't both");
+    assert!(
+        came.text()
+            .contains("  makes a call whose target can't be known")
+    );
+
+    let neither = report(vec![making("f", vec![])], vec![edited(vec![])]);
+    assert!(!only(&neither).unresolved_calls);
+}
+
+#[test]
+fn the_report_leads_with_the_rating() {
+    let mut config = Config::default();
+    config.risk.pdg_change = Some(crate::config::Severity::Medium);
+    let report = compare(
+        &snapshot(vec![function("f", calling(&["a"]))]),
+        &snapshot(vec![function("f", calling(&["b"]))]),
+        &config,
+    );
+
+    assert_eq!(report.rating.risk, rating::Level::Medium);
+    let text = report.text();
+    assert!(text.starts_with("Merge risk: medium ⚠️\n"), "{text}");
+
+    let json = serde_json::to_value(&report).unwrap();
+    assert_eq!(json["schema_version"], 1);
+    assert_eq!(json["risk"], "medium");
+    assert_eq!(json["policy_configured"], true);
+    assert_eq!(json["reasons"][0]["rule"], "pdg_change");
+    assert_eq!(json["reasons"][0]["function"], "f");
 }
 
 #[test]

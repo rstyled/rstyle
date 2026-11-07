@@ -687,6 +687,7 @@ mod tests {
             line: 6,
             dynamic: false,
             library: None,
+            library_callee: None,
         }];
         let report = evaluate(vec![sample("pure"), heavy], &Config::default()).unwrap();
         assert_eq!(report.summary.functions, 2);
