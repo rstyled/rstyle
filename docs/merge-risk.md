@@ -11,17 +11,26 @@ rstyle risk --base base --head head [--format json]
 ```
 
 ```text
+Merge risk: high ⚠️
+- core/rawdb/freezer_meta.go:133: newMetadata: added call: go::(*os.File).Truncate
+
+Code impact: partial 👀
+Affected functions: 110.
+
 core/rawdb/freezer_meta.go:133: newMetadata: changed, 1 callers, reached by 176
   signature changed
+  makes a call whose target can't be known
   gains io: (*os.File).Sync
   gains io: (*os.File).Truncate
   calls more: go::(*os.File).Sync
   calls more: go::(*os.File).Truncate
+  calls more: go::(io/fs.FileInfo).Size
 beacon/params/networks.go: changed outside any function
-Changes: 60 changed, 44 added, 4 removed, 2 text only, 0 unknown; 10604 unchanged. Files changed outside any function: 3. Test functions changed: 34. Generated functions not compared: 601.
+Changes: 60 changed, 44 added, 4 removed, 2 text only, 0 unknown; 10604 unchanged. Files changed outside any function: 3. Test functions changed: 34. Generated functions not compared: 601, 0 of them changed.
 ```
 
-It doesn't rate a change yet. It reports the evidence, and exits 0 whatever that is.
+That's go-ethereum over 10 commits, trimmed, with `pdg_change = "medium"` and a `high` rule for `go::(*os.File).Truncate`. It
+exits 0 whatever the rating is. It's a report, and doesn't authorize or perform a merge.
 
 ## What it compares
 
@@ -44,6 +53,45 @@ Each one also says:
 - which **direct effects** it gained or lost, using the same classes as `side_effect_density`
 - how many functions **call it**, and how many **reach it** through any chain of calls, tests aside
 
+## How it rates a change
+
+What changed is measured, and how much that matters is yours to say. With no rules, a change is **unrated**, and the report
+says so. Severities go in `rstyle.toml`, and only `rstyle risk` reads them:
+
+```toml
+[risk]
+pdg_change = "medium"             # low, medium or high: what a function depends on or does changed, or it's new or gone
+pdg_low_risk_max_functions = 3    # lowers a medium pdg_change to low when at most this many functions changed
+
+[[risk.calls]]                    # calling exactly this callee more often than before
+callee = "go::os.WriteFile"       # its identity, as the report prints it under `calls more`
+level = "high"
+```
+
+Nothing here has a default, so nothing is low because of a guess. A mistyped level, a rule with no callee, two rules for one
+callee, or a limit with no `pdg_change` are errors. The limit is a policy on size, not a proof that behavior is preserved,
+and it only lowers `pdg_change`.
+
+The rating is the strongest of its reasons, in this order: `high`, `unknown`, `unrated`, `medium`, `low`. So a measured high
+stands whatever else is unclear, and what can't be seen can't be rated away. These are always **unknown**, under any policy
+that has rules:
+
+| Reason | Meaning |
+| --- | --- |
+| `pdg_change`, on a `text only` or `unknown` function | Its text changed and the compared facts don't say how |
+| `unresolved_calls` | A changed function, in either run, makes a call whose target can't be known, so call rules can't speak for it |
+| `unclassified_call` | It newly calls a library function that nothing says the effect of |
+| `analysis_unavailable` | A file changed outside any function, or a function a macro or a build writes changed |
+
+`unclassified_call` is why a new library call can't pass as a clean one. Go's and C++'s effect tables give a call with no
+entry the `unknown` effect, and Rust has no table, so only [`side_effects.paths`](style-checks.md) and rules here can say
+what a Rust library call does. So `core::clone::Clone::clone` counts until you name it. A `[[risk.calls]]` rule for that
+callee, at any level, is you saying what it is. A comment edited inside a function also reads as `text only`, since core has
+no tokens to read around one.
+
+`--format json` keeps every reason, with `risk`, `policy_configured` and `schema_version`. The text gives what can't be seen
+by kind, and each function's lines say which.
+
 ## What it can't see
 
 A change outside any function can change what a program does, and no fact here says how. A written file whose text changed
@@ -58,5 +106,5 @@ of these added a hard fork to a package-level `var`.
 - Test functions are counted but not reported, where a frontend [marks its test files](defects.md). Generated functions
   are counted and not compared. `exclude` removes paths from both runs.
 
-A run keeps the `rstyle.toml` it read. `--config` or the one the base run kept decides what's excluded, not whatever the
-checkout holds by the time they're compared, so a change can't relax what it's judged by.
+A run keeps the `rstyle.toml` it read. `--config` or the one the base run kept decides what's excluded and how a change is
+rated, not whatever the checkout holds by the time they're compared, so a change can't relax what it's judged by.

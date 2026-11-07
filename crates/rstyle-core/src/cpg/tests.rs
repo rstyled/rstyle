@@ -55,12 +55,14 @@ fn kinds(facts: &FnFacts) -> Vec<Kind> {
         .collect()
 }
 
+/// A call of a library's function, by the identity these documents give it, or to an unknown target.
 fn call(callee: &str, line: usize, dynamic: bool) -> CallEvent {
     CallEvent {
         callee: callee.into(),
         line,
         dynamic,
         library: None,
+        library_callee: (!callee.starts_with('<')).then(|| callee.to_owned()),
     }
 }
 
@@ -1104,7 +1106,11 @@ fn calls_through_values_are_dynamic_unless_they_invoke_a_local_closure() {
         call("ffi::raw", 3, false),
         call("<fn pointer>", 5, true),
         call("<unresolved>", 8, true),
-        call("alloc::vec::Vec::push", 9, false),
+        // An identity keeps the generics that a callee's name leaves out.
+        CallEvent {
+            library_callee: Some("alloc::vec::Vec::<T>::push".into()),
+            ..call("alloc::vec::Vec::push", 9, false)
+        },
     ];
     assert_eq!(facts.calls, expected);
     assert!(kinds(facts).is_empty(), "a closure nests but adds no score");
@@ -1224,6 +1230,26 @@ fn a_namespace_without_classes_leaves_library_calls_unclassified() {
     document["producer"]["namespace"] = json!("rust");
     let facts = &facts_of(document)[0];
     assert!(facts.calls.iter().all(|call| call.library.is_none()));
+}
+
+#[test]
+fn a_library_call_says_which_callee_it_is_and_a_workspace_call_does_not() {
+    let facts = &facts_of(library_calls())[0];
+    let named = facts
+        .calls
+        .iter()
+        .filter(|call| call.library_callee.is_some());
+    assert_eq!(
+        named.count(),
+        facts.calls.iter().filter(|call| call.line < 7).count()
+    );
+    assert!(
+        facts
+            .calls
+            .iter()
+            .filter(|call| call.line == 7)
+            .all(|call| call.library_callee.is_none())
+    );
 }
 
 #[test]

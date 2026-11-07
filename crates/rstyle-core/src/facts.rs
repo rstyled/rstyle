@@ -73,6 +73,10 @@ pub struct CallEvent {
     /// What the frontend's library contract says this call does, when it says anything.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub library: Option<LibraryClass>,
+    /// The identity of a callee that's a library's, as a dependence graph names it. A comparison
+    /// reads this, since `library` alone can't tell a library nothing classifies from this code.
+    #[serde(default, skip_serializing)]
+    pub library_callee: Option<String>,
 }
 
 /// What a library contract says a call does. Config can still override it, which is why
