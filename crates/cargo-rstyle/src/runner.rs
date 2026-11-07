@@ -24,6 +24,7 @@ use store::{Destination, Staged};
 
 const RUN_SCHEMA: &str = "rstyle.run/1";
 const RUN_FILE: &str = "run.json";
+const POLICY_FILE: &str = "rstyle.toml";
 const REPORT_FILE: &str = "report.json.zst";
 const DOCUMENTS_FOLDER: &str = "documents";
 const FRONTEND_FOLDER: &str = "frontend";
@@ -517,6 +518,8 @@ impl Plan<'_> {
     fn save(&self, unified: &Unified, staged: Staged, documents: usize) -> Result<PathBuf, String> {
         unified.write_sarif(staged.path(), &self.source)?;
         transport::write_json(&staged.path().join(REPORT_FILE), Encoding::Zstd, unified)?;
+        let policy = crate::config_path(self.cli.config.clone(), &self.project);
+        keep_policy(policy.as_deref(), staged.path())?;
 
         let record = RunRecord {
             schema: RUN_SCHEMA.into(),
@@ -536,6 +539,18 @@ impl Plan<'_> {
         };
         Ok((output, code))
     }
+}
+
+/// Keeps the policy a run read beside it, so a later comparison goes by what this run used,
+/// whatever the checkout holds by then.
+// rstyle-allow(side_effect_density): IO boundary: copies the policy into the run
+fn keep_policy(policy: Option<&Path>, run: &Path) -> Result<(), String> {
+    let Some(policy) = policy else {
+        return Ok(());
+    };
+    std::fs::copy(policy, run.join(POLICY_FILE))
+        .map(drop)
+        .map_err(|error| format!("{}: {error}", policy.display()))
 }
 
 fn with_location(text: String, run: Option<&Path>) -> String {

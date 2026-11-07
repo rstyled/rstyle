@@ -58,5 +58,5 @@ of these added a hard fork to a package-level `var`.
 - Test functions are counted but not reported, where a frontend [marks its test files](defects.md). Generated functions
   are counted and not compared. `exclude` removes paths from both runs.
 
-`--config` or the base run's `rstyle.toml` decides what's excluded, not the head's, so a change can't relax what it's judged
-by.
+A run keeps the `rstyle.toml` it read. `--config` or the one the base run kept decides what's excluded, not whatever the
+checkout holds by the time they're compared, so a change can't relax what it's judged by.

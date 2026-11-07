@@ -36,11 +36,11 @@ fn same_language(base: Option<&RunRecord>, head: Option<&RunRecord>) -> Result<(
     }
 }
 
-/// `--config`, or the base run's own. A change can't relax the policy it's judged by.
+/// `--config`, or the policy the base run kept. Its checkout can't say: by now it may well hold the
+/// head, and a change can't relax the policy it's judged by.
 // rstyle-allow(side_effect_density): IO boundary: reads the base's policy
-fn base_policy(cli: &Cli, base: Option<&RunRecord>) -> Result<Config, String> {
-    let root = base.map_or_else(PathBuf::new, |run| run.source.clone());
-    load_config(crate::config_path(cli.config.clone(), &root).as_deref())
+fn base_policy(cli: &Cli, base: &Path) -> Result<Config, String> {
+    load_config(crate::config_path(cli.config.clone(), base).as_deref())
 }
 
 // rstyle-allow(side_effect_density): IO boundary: reads a saved run
@@ -54,7 +54,7 @@ fn snapshot(run: &Path, record: Option<&RunRecord>, config: &Config) -> Result<S
 pub(crate) fn risk(cli: &Cli, args: &RiskArgs) -> Result<(String, u8), String> {
     let (base_run, head_run) = (read_any_record(&args.base)?, read_any_record(&args.head)?);
     same_language(base_run.as_ref(), head_run.as_ref())?;
-    let config = base_policy(cli, base_run.as_ref())?;
+    let config = base_policy(cli, &args.base)?;
 
     let base = snapshot(&args.base, base_run.as_ref(), &config)?;
     let head = snapshot(&args.head, head_run.as_ref(), &config)?;

@@ -1929,20 +1929,25 @@ fn a_rust_run_finds_a_result_the_other_calls_use() {
 }
 
 /// Two saved runs of one crate, the second with `head` for its source.
-fn two_runs_of(root: &Path, base: &str, head: &str) -> (PathBuf, PathBuf) {
+fn a_package_in(root: &Path) {
     std::fs::write(
         root.join("Cargo.toml"),
         "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n[workspace]\n",
     )
     .unwrap();
     std::fs::create_dir_all(root.join("src")).unwrap();
-    let run = |source: &str| {
-        std::fs::write(root.join("src/lib.rs"), source).unwrap();
-        let output = rust_run(root, &["--filter", "check", "--format", "json"]);
-        assert_ne!(output.status.code(), Some(2), "{output:?}");
-        saved_run(&output)
-    };
-    (run(base), run(head))
+}
+
+fn saved_run_of(root: &Path, source: &str) -> PathBuf {
+    std::fs::write(root.join("src/lib.rs"), source).unwrap();
+    let output = rust_run(root, &["--filter", "check", "--format", "json"]);
+    assert_ne!(output.status.code(), Some(2), "{output:?}");
+    saved_run(&output)
+}
+
+fn two_runs_of(root: &Path, base: &str, head: &str) -> (PathBuf, PathBuf) {
+    a_package_in(root);
+    (saved_run_of(root, base), saved_run_of(root, head))
 }
 
 fn risk(base: &Path, head: &Path) -> Output {
@@ -1986,6 +1991,29 @@ fn risk_says_what_changed_between_two_saved_runs_with_no_compiler() {
     assert_eq!(change("going")["kind"], "removed");
     assert_eq!(changes.len(), 3, "{changes:?}");
     assert_eq!(report["unchanged"], 2);
+}
+
+/// The two runs usually share a checkout, so by the time they're compared it holds the head's policy.
+#[test]
+fn risk_goes_by_the_policy_the_base_run_used_not_what_the_checkout_now_holds() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    let changes = |base: &Path, head: &Path| {
+        let output = risk(base, head);
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
+        report(&output)["changes"].as_array().unwrap().len()
+    };
+
+    let base = saved_run_of(root, "pub fn f() -> i32 { 1 }\n");
+    std::fs::write(root.join("rstyle.toml"), "exclude = [\"src/**\"]\n").unwrap();
+    let head = saved_run_of(root, "pub fn f() -> i32 { 2 }\n");
+    assert_eq!(changes(&base, &head), 1, "a change can't hide itself");
+
+    let excluding = saved_run_of(root, "pub fn f() -> i32 { 3 }\n");
+    std::fs::remove_file(root.join("rstyle.toml")).unwrap();
+    let head = saved_run_of(root, "pub fn f() -> i32 { 4 }\n");
+    assert_eq!(changes(&excluding, &head), 0, "the base run excluded it");
 }
 
 #[test]
