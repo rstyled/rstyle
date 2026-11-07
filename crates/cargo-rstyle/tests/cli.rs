@@ -333,7 +333,7 @@ fn guard_clause_is_off_until_a_project_turns_it_on_and_then_fails_a_run() {
 
     std::fs::write(
         dir.path().join("rstyle.toml"),
-        "[strict_style]\nguard_clause = true\n",
+        "[strict_style.guard_clause]\nenabled = true\n",
     )
     .unwrap();
     let on = rstyle(dir.path(), &["--format", "json"]);
