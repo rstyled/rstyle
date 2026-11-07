@@ -12,6 +12,51 @@ pub struct Config {
     pub mutation_budget: MutationBudgetConfig,
     pub side_effects: SideEffectsConfig,
     pub grouping: GroupingConfig,
+    /// Left out of what a baseline compares while nothing is on, so a project that hasn't asked for
+    /// these rules sees no change in its policy. Turning one on is one.
+    #[serde(skip_serializing_if = "StrictStyleConfig::all_off")]
+    pub strict_style: StrictStyleConfig,
+}
+
+/// Opinions about how code could be shaped rather than limits it passed, so each is off unless a
+/// project turns it on. One that's on reports and fails a run like any other style rule. A rule
+/// that's off says nothing about a policy, whatever its other settings hold.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct StrictStyleConfig {
+    #[serde(skip_serializing_if = "GuardClauseConfig::is_off")]
+    pub guard_clause: GuardClauseConfig,
+}
+
+impl StrictStyleConfig {
+    fn all_off(&self) -> bool {
+        !self.guard_clause.enabled
+    }
+}
+
+/// An `if` whose `else` only returns, around a body that could stop being nested.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct GuardClauseConfig {
+    pub enabled: bool,
+    /// Fewer statements than this under the `if` are no main path to bring out of it. An empty
+    /// block never is, so 0 reads as 1.
+    pub min_nested_statements: usize,
+}
+
+impl GuardClauseConfig {
+    fn is_off(&self) -> bool {
+        !self.enabled
+    }
+}
+
+impl Default for GuardClauseConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            min_nested_statements: 2,
+        }
+    }
 }
 
 /// Findings start strictly above either configured complexity limit.
@@ -312,6 +357,51 @@ mod tests {
         assert_eq!(config.fn_params.max_params, 4);
         assert_eq!(config.fn_spacing.min_statements, 5);
         assert_eq!(config.side_effects.weights.io, 3);
+    }
+
+    #[test]
+    fn a_baseline_compares_strict_style_only_once_a_rule_is_on() {
+        let policy = |input: &str| serde_json::to_value(Config::parse(input).unwrap()).unwrap();
+        let off = policy("[strict_style.guard_clause]\nenabled = false");
+        assert!(off.get("strict_style").is_none(), "{off}");
+        assert_eq!(off, policy(""));
+
+        let tuned = "[strict_style.guard_clause]\nmin_nested_statements = 5";
+        assert_eq!(policy(tuned), policy(""), "a rule that's off has no limits");
+
+        let on = policy("[strict_style.guard_clause]\nenabled = true");
+        let rule = &on["strict_style"]["guard_clause"];
+        assert_eq!(rule["enabled"], true, "{on}");
+        assert_eq!(rule["min_nested_statements"], 2, "{on}");
+    }
+
+    #[test]
+    fn strict_style_rules_are_off_unless_asked_for() {
+        let default = Config::parse("").unwrap().strict_style;
+        assert!(!default.guard_clause.enabled);
+        assert_eq!(default.guard_clause.min_nested_statements, 2);
+
+        let set = "[strict_style.guard_clause]\nenabled = true\nmin_nested_statements = 4";
+        let set = Config::parse(set).unwrap().strict_style.guard_clause;
+        assert!(set.enabled);
+        assert_eq!(set.min_nested_statements, 4);
+
+        assert!(Config::parse("[strict_style.guard_clauses]\nenabled = true").is_err());
+        assert!(Config::parse("[strict_style.guard_clause]\nenable = true").is_err());
+        assert!(Config::parse("[strict_style]\nguard_clause = true").is_err());
+    }
+
+    /// The example is where a project reads what it can set, so a rule's table has to state every
+    /// setting, and state what it defaults to.
+    fn example_states_the_defaults_of<Rule: Serialize + Default>(rule: &str) {
+        let example: toml::Table = toml::from_str(include_str!("../../../rstyle.toml")).unwrap();
+        let defaults = toml::Value::try_from(Rule::default()).unwrap();
+        assert_eq!(example["strict_style"][rule], defaults, "{rule}");
+    }
+
+    #[test]
+    fn the_example_config_states_strict_styles_defaults() {
+        example_states_the_defaults_of::<GuardClauseConfig>("guard_clause");
     }
 
     #[test]
