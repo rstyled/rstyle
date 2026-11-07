@@ -461,6 +461,96 @@ fn a_replay_without_its_frontend_says_so() {
     assert!(stderr(&output).contains("RSTYLE_GO"), "{output:?}");
 }
 
+/// A run with no frontend to be found, where looking for Go's would install it.
+fn with_nothing_installed(project: &Project, bin: &Path, args: &[&str]) -> Output {
+    project
+        .command(NO_ANALYSES, args)
+        .env_remove("RSTYLE_GO")
+        .env_remove("RSTYLE_CXX")
+        .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
+        .env("HOME", project.root())
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn another_frontends_analysis_is_refused_without_looking_for_one() {
+    let project = Project::new();
+    let bin = fake_go(&project, false);
+    let from = project.root().join("empty");
+    std::fs::create_dir(&from).unwrap();
+    let from = from.to_str().unwrap();
+
+    for (language, analysis, refusal) in [
+        (
+            "rust",
+            "go:reader",
+            "`go:reader` belongs to the go frontend, not rust",
+        ),
+        (
+            "go",
+            "cxx:reader",
+            "`cxx:reader` belongs to the cxx frontend, not go",
+        ),
+        (
+            "cxx",
+            "go:reader",
+            "`go:reader` belongs to the go frontend, not cxx",
+        ),
+    ] {
+        let run = [language, "--filter", analysis];
+        let replay = [language, "--filter", analysis, "--from", from];
+        for args in [&run[..], &replay[..]] {
+            let output = with_nothing_installed(&project, &bin, args);
+            assert_eq!(output.status.code(), Some(2), "{args:?}: {output:?}");
+            assert!(stderr(&output).contains(refusal), "{args:?}: {output:?}");
+            assert!(
+                !project.root().join("gobin/installs").exists(),
+                "{args:?} installed a frontend for an analysis that can't run"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_rust_replay_has_no_frontend_to_ask() {
+    let project = Project::new();
+    let bin = fake_go(&project, false);
+    let from = project.root().join("empty");
+    std::fs::create_dir(&from).unwrap();
+
+    let args = [
+        "rust",
+        "--filter",
+        "rust:calls",
+        "--from",
+        from.to_str().unwrap(),
+    ];
+    let output = with_nothing_installed(&project, &bin, &args);
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(
+        stderr(&output).contains("The rust frontend has no analysis `calls`: it offers none"),
+        "{output:?}"
+    );
+    assert!(!project.root().join("gobin/installs").exists());
+}
+
+#[test]
+fn a_replay_of_another_languages_run_says_so_before_looking_for_a_frontend() {
+    let project = Project::new();
+    let run = saved_with(&project, READERS);
+    let output = project
+        .cxx(&["--filter", "cxx:reader", "--from", run.to_str().unwrap()])
+        .env("RSTYLE_CXX", "/nonexistent/frontend")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(
+        stderr(&output).contains("is a go run, not cxx"),
+        "{output:?}"
+    );
+}
+
 #[test]
 fn a_replay_of_documents_with_no_seals_fails_its_analysis_and_keeps_the_report() {
     let project = Project::new();

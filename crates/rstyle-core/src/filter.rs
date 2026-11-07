@@ -51,6 +51,18 @@ pub struct FrontendAnalysis {
     pub name: String,
 }
 
+impl FrontendAnalysis {
+    fn belongs_to(&self, language: &str) -> Result<(), String> {
+        match self.frontend == language {
+            true => Ok(()),
+            false => Err(format!(
+                "`{self}` belongs to the {} frontend, not {language}",
+                self.frontend
+            )),
+        }
+    }
+}
+
 impl std::fmt::Display for FrontendAnalysis {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(formatter, "{}:{}", self.frontend, self.name)
@@ -118,6 +130,14 @@ impl Filter {
         }
     }
 
+    /// Fails on an analysis of another frontend. It takes no frontend to tell, so a run can
+    /// refuse before looking for one, which may install it.
+    pub fn names_only_frontend(&self, language: &str) -> Result<(), String> {
+        self.named_frontend_analyses()
+            .into_iter()
+            .try_for_each(|analysis| analysis.belongs_to(language))
+    }
+
     /// The analyses `language`'s frontend should run, given the ones it offers. A name it
     /// doesn't offer, or one for another frontend, fails before anything runs.
     pub fn frontend_analyses(
@@ -181,12 +201,7 @@ fn offered(
     language: &str,
     available: &[String],
 ) -> Result<String, String> {
-    if analysis.frontend != language {
-        return Err(format!(
-            "`{analysis}` belongs to the {} frontend, not {language}",
-            analysis.frontend
-        ));
-    }
+    analysis.belongs_to(language)?;
     if available.contains(&analysis.name) {
         return Ok(analysis.name.clone());
     }
@@ -275,6 +290,16 @@ mod tests {
                 .is_empty()
         );
         assert_eq!(filter.named_frontend_analyses()[0].to_string(), "go:taint");
+    }
+
+    #[test]
+    fn another_frontends_analysis_fails_with_nothing_on_offer_to_ask() {
+        assert_eq!(Filter::Everything.names_only_frontend("go"), Ok(()));
+        assert_eq!(only(&["go:calls"]).names_only_frontend("go"), Ok(()));
+        let other = only(&["go:calls", "rust:calls"])
+            .names_only_frontend("go")
+            .unwrap_err();
+        assert!(other.contains("belongs to the rust frontend"), "{other}");
     }
 
     #[test]

@@ -163,6 +163,7 @@ struct Plan<'a> {
 pub(crate) fn go(cli: &Cli, args: &GoArgs) -> Result<(String, u8), String> {
     reject_rust_flags(cli, "Go")?;
     let filter = args.run.selection()?;
+    filter.names_only_frontend("go")?;
     if let Some(from) = &args.run.from {
         return saved(cli, &args.run, (filter, "go"), from);
     }
@@ -177,6 +178,7 @@ pub(crate) fn go(cli: &Cli, args: &GoArgs) -> Result<(String, u8), String> {
 pub(crate) fn cxx(cli: &Cli, args: &CxxArgs) -> Result<(String, u8), String> {
     reject_rust_flags(cli, "C++")?;
     let filter = args.run.selection()?;
+    filter.names_only_frontend("cxx")?;
     if let Some(from) = &args.run.from {
         return saved(cli, &args.run, (filter, "cxx"), from);
     }
@@ -309,8 +311,8 @@ fn saved(
     (filter, language): (Filter, &'static str),
     from: &Path,
 ) -> Result<(String, u8), String> {
-    let replay = replayed_analyses(&filter, language)?;
     let record = read_record(from, language)?;
+    let replay = replayed_analyses(&filter, language)?;
     let source = match &record {
         Some(record) => record.source.clone(),
         None => std::env::current_dir().map_err(|error| error.to_string())?,
