@@ -192,8 +192,10 @@ fn defects_of(
     demand: Demand,
     (tables, sources): (&Tables<'_>, &Sources<'_>),
 ) -> Option<Examined> {
-    (demand.defects && !sources.marks(located(function)).test)
-        .then(|| defects::examine(&document.coverage, function, tables, sources))
+    (demand.defects && !sources.marks(located(function)).test).then(|| {
+        let read = (&document.coverage, document.producer.namespace.as_str());
+        defects::examine(read, function, tables, sources)
+    })
 }
 
 fn flow_of(document: &Document, function: &Function, demand: Demand) -> Option<Derived> {

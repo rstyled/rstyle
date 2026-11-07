@@ -181,7 +181,7 @@ fn examined(document: Value) -> Examined {
     let function = &unit.functions.as_ref().unwrap()[0];
     let tables = Tables::new(unit).unwrap();
     let sources = Sources::new(unit).unwrap();
-    examine(&document.coverage, function, &tables, &sources)
+    examine((&document.coverage, "test"), function, &tables, &sources)
 }
 
 /// The lines a value is reported stored on, by binding.
