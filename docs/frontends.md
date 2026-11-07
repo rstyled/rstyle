@@ -113,6 +113,11 @@ or handle while the analysis runs:
 This gives an analysis exactly what core's analyses read, with no second load of the source and no decompression
 or file handling of its own.
 
+### Suppressing a frontend's rule
+
+`// rstyle-allow(go:nilerr): reason` above a function names a frontend's rule the way `--filter` does. Core accepts
+that spelling and doesn't check the rule, and the frontend decides what the comment does for its own analysis.
+
 ### Generated code
 
 A frontend records every function the compiler holds and marks what a macro writes by its provenance. What
