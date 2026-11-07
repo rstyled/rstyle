@@ -13,6 +13,7 @@ const SCHEMA: &str = "rstyle.effect-classes/1";
 const EMBEDDED: &[&str] = &[
     include_str!("contracts/effects/go.toml"),
     include_str!("contracts/effects/cxx.toml"),
+    include_str!("contracts/effects/rust.toml"),
 ];
 
 #[derive(Debug, Deserialize)]
@@ -187,11 +188,32 @@ mod tests {
     }
 
     #[test]
-    fn a_namespace_without_a_file_classifies_nothing() {
+    fn rust_classes_only_what_is_pure_for_every_type() {
         let rust = EffectClasses::of("rust");
+        assert_eq!(rust.class("rust:slice.iter"), Some(LibraryClass::Pure));
+        assert_eq!(rust.class("rust:slice.iter_mut"), Some(LibraryClass::Pure));
+        assert_eq!(
+            rust.class("rust:usize.checked_add"),
+            Some(LibraryClass::Pure)
+        );
+        assert_eq!(rust.class("rust:Vec.new"), Some(LibraryClass::Pure));
+        // It allocates, or runs a caller's `Ord`, or what runs depends on the implementation.
         assert_eq!(rust.class("rust:Vec.push"), None);
+        assert_eq!(rust.class("rust:BTreeMap.get"), None);
+        assert_eq!(rust.class("rust:Clone.clone"), None);
+        assert_eq!(rust.class("rust:Iterator.next"), None);
+        // An entry would cover `is_some_and`, which runs a callable.
+        assert_eq!(rust.class("rust:Option.is_some"), None);
+        assert_eq!(rust.class("rust:Option.is_some_and"), None);
         assert_eq!(rust.unlisted(), None);
-        assert!(rust.memory_write("rust:Vec.push").is_none());
+    }
+
+    #[test]
+    fn a_namespace_without_a_file_classifies_nothing() {
+        let none = EffectClasses::of("nowhere");
+        assert_eq!(none.class("nowhere:Vec.len"), None);
+        assert_eq!(none.unlisted(), None);
+        assert!(none.memory_write("nowhere:Vec.len").is_none());
     }
 
     #[test]
