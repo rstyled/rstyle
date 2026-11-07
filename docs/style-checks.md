@@ -26,7 +26,7 @@ analyzed function.
 | `mutated_targets` | Too many distinct roots mutated in one function. |
 | `side_effect_density` | Too many effects for the number of statements. See below. |
 | `invalid_suppression` | An `rstyle-allow` comment with no reason or an unknown rule id. |
-| `guard_clause`, `primitive_obsession` | Off by default. See [strict style](#strict-style). |
+| `guard_clause`, `primitive_obsession`, `value_object` | Off by default. See [strict style](#strict-style). |
 
 A missing complexity score is reported as unavailable, never as zero, and makes the run exit 2.
 Closures count toward the function that owns them. Compiler lowering and a macro's own code add no
@@ -77,6 +77,7 @@ is a commented example, though it raises the complexity limits above their defau
 | `grouping.caller_hops` | 1 | How many caller hops those fixes reach |
 | `strict_style.guard_clause` | `false` | See [strict style](#strict-style) |
 | `strict_style.primitive_obsession` | `false` | See [strict style](#strict-style) |
+| `strict_style.value_object` | `false` | See [strict style](#strict-style) |
 
 The default weights are `mutation = 1`, `io = 3`, `network = 3`, `global = 2`, `unsafe = 4`, `time = 1`,
 `random = 1`, `panic = 0` and `unknown = 1`.
@@ -154,6 +155,21 @@ and `user_email` hold `email`, and `valid` doesn't hold `id`. The words are `ema
 Each function reports each meaning once, and a type someone named is never reported. It looks through references, so
 `&str`, `String` and `const std::string &` are all text. Most results on real code are `name` and `id`, so expect to suppress
 or exclude some.
+
+### `value_object`
+
+At least 2 plain values under the same names, in at least 3 functions of a run:
+
+```go
+func dial(host string, port int) {}
+func probe(host string, port int, timeout int) {}
+func listen(port int, host string) {}
+```
+
+A small type could hold them. Only the largest such group is reported, and a function can be in several. Names that say
+nothing about a value, such as `x`, `tmp` or `arg`, can't make a group on their own, and a name starting with `_` isn't part
+of one. It only reads parameters, so it can't say the values really belong together: the callers decide that. Signatures
+matching by accident is the commonest reason to suppress one.
 
 ## Fix groups
 

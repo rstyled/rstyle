@@ -3,6 +3,7 @@
 //! on any other style rule.
 
 mod primitive_obsession;
+mod value_object;
 
 use crate::config::Config;
 use crate::facts::FnFacts;
@@ -37,6 +38,9 @@ pub fn across_the_run(facts: &[FnFacts], cfg: &Config) -> Vec<Vec<Diagnostic>> {
     let mut found = vec![Vec::new(); facts.len()];
     if cfg.strict_style.primitive_obsession {
         primitive_obsession::add(facts, &mut found);
+    }
+    if cfg.strict_style.value_object {
+        value_object::add(facts, &mut found);
     }
     found
 }

@@ -59,3 +59,4 @@ caller_hops = 1
 # turn it on. One that's on reports and fails a run like any other rule here.
 guard_clause = false         # an `if` whose `else` only returns, around a body that could stop being nested
 primitive_obsession = false  # a parameter whose name says what it means, held as plain text or an integer
+value_object = false         # plain values that travel together through several functions

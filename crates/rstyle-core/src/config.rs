@@ -24,6 +24,8 @@ pub struct StrictStyleConfig {
     pub guard_clause: bool,
     /// A parameter whose name says what it means, held as plain text or an integer.
     pub primitive_obsession: bool,
+    /// Plain values that travel together through at least 3 functions, under one set of names.
+    pub value_object: bool,
 }
 
 /// Findings start strictly above either configured complexity limit.
@@ -332,6 +334,7 @@ mod tests {
         let on = Config::parse("[strict_style]\nguard_clause = true").unwrap();
         assert!(on.strict_style.guard_clause);
         assert!(!Config::parse("").unwrap().strict_style.primitive_obsession);
+        assert!(!Config::parse("").unwrap().strict_style.value_object);
         assert!(Config::parse("[strict_style]\nguard_clauses = true").is_err());
     }
 
