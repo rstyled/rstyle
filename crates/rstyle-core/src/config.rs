@@ -427,50 +427,6 @@ mod tests {
     }
 
     #[test]
-    fn risk_rules_have_no_defaults() {
-        let risk = Config::parse("").unwrap().risk;
-        assert!(!risk.is_set());
-        assert_eq!(risk.pdg_change, None);
-
-        let set = Config::parse(
-            "[risk]\npdg_change = \"medium\"\npdg_low_risk_max_functions = 3\n\
-             [[risk.calls]]\ncallee = \"go::os.WriteFile\"\nlevel = \"high\"\n",
-        )
-        .unwrap()
-        .risk;
-        assert!(set.is_set());
-        assert_eq!(set.pdg_change, Some(Severity::Medium));
-        assert_eq!(set.pdg_low_risk_max_functions, 3);
-        assert_eq!(set.calls[0].callee, "go::os.WriteFile");
-        assert_eq!(set.calls[0].level, Severity::High);
-
-        let only_a_call = "[[risk.calls]]\ncallee = \"f\"\nlevel = \"low\"\n";
-        assert!(Config::parse(only_a_call).unwrap().risk.is_set());
-    }
-
-    #[test]
-    fn a_risk_rule_that_would_quietly_do_nothing_is_an_error() {
-        let error = |input: &str| Config::parse(input).unwrap_err().to_string();
-        assert!(error("[risk]\npdg_change = \"severe\"").contains("severe"));
-        assert!(error("[risk]\ndependency_change = \"high\"").contains("dependency_change"));
-        assert!(error("[risk]\npdg_low_risk_max_functions = 3").contains("requires pdg_change"),);
-
-        let rule =
-            |callee: &str| format!("[[risk.calls]]\ncallee = \"{callee}\"\nlevel = \"low\"\n");
-        for bad in [rule(""), rule(" f"), format!("{0}{0}", rule("f"))] {
-            assert!(error(&bad).contains("distinct nonempty"), "{bad}");
-        }
-        assert!(error("[[risk.calls]]\ncallee = \"f\"").contains("level"));
-        assert!(error("[[risk.calls]]\nlevel = \"low\"").contains("callee"));
-    }
-
-    #[test]
-    fn a_baseline_does_not_compare_risk_rules() {
-        let policy = |input: &str| serde_json::to_value(Config::parse(input).unwrap()).unwrap();
-        assert_eq!(policy("[risk]\npdg_change = \"high\""), policy(""));
-    }
-
-    #[test]
     fn grouping_rules_are_validated() {
         assert!(Config::parse("[grouping]\ncaller_rules = [\"fn_param\"]").is_err());
         let ok =
@@ -555,5 +511,49 @@ mod tests {
         let config = Config::parse("[ignored_result]\nmin_calls = 20").unwrap();
         let policy = serde_json::to_value(&config).unwrap();
         assert!(policy.get("ignored_result").is_none(), "{policy}");
+    }
+
+    #[test]
+    fn risk_rules_have_no_defaults() {
+        let risk = Config::parse("").unwrap().risk;
+        assert!(!risk.is_set());
+        assert_eq!(risk.pdg_change, None);
+
+        let set = Config::parse(
+            "[risk]\npdg_change = \"medium\"\npdg_low_risk_max_functions = 3\n\
+             [[risk.calls]]\ncallee = \"go::os.WriteFile\"\nlevel = \"high\"\n",
+        )
+        .unwrap()
+        .risk;
+        assert!(set.is_set());
+        assert_eq!(set.pdg_change, Some(Severity::Medium));
+        assert_eq!(set.pdg_low_risk_max_functions, 3);
+        assert_eq!(set.calls[0].callee, "go::os.WriteFile");
+        assert_eq!(set.calls[0].level, Severity::High);
+
+        let only_a_call = "[[risk.calls]]\ncallee = \"f\"\nlevel = \"low\"\n";
+        assert!(Config::parse(only_a_call).unwrap().risk.is_set());
+    }
+
+    #[test]
+    fn a_risk_rule_that_would_quietly_do_nothing_is_an_error() {
+        let error = |input: &str| Config::parse(input).unwrap_err().to_string();
+        assert!(error("[risk]\npdg_change = \"severe\"").contains("severe"));
+        assert!(error("[risk]\ndependency_change = \"high\"").contains("dependency_change"));
+        assert!(error("[risk]\npdg_low_risk_max_functions = 3").contains("requires pdg_change"),);
+
+        let rule =
+            |callee: &str| format!("[[risk.calls]]\ncallee = \"{callee}\"\nlevel = \"low\"\n");
+        for bad in [rule(""), rule(" f"), format!("{0}{0}", rule("f"))] {
+            assert!(error(&bad).contains("distinct nonempty"), "{bad}");
+        }
+        assert!(error("[[risk.calls]]\ncallee = \"f\"").contains("level"));
+        assert!(error("[[risk.calls]]\nlevel = \"low\"").contains("callee"));
+    }
+
+    #[test]
+    fn a_baseline_does_not_compare_risk_rules() {
+        let policy = |input: &str| serde_json::to_value(Config::parse(input).unwrap()).unwrap();
+        assert_eq!(policy("[risk]\npdg_change = \"high\""), policy(""));
     }
 }
