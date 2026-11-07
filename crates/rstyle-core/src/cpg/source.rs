@@ -4,14 +4,23 @@
 use super::model::{FileSpan, Unit};
 use super::tree::lookup;
 use crate::lines::preceding_comment_line;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 /// Lines above a signature that are searched for its comment, as the rustc frontend does.
 const LOOKBACK_LINES: usize = 40;
 
+/// What a document says of a file beyond its text.
+#[derive(Clone, Copy, Default)]
+pub struct FileMarks {
+    /// The build, rather than an author, wrote it.
+    pub generated: bool,
+    /// The language says it holds tests.
+    pub test: bool,
+}
+
 pub struct Sources<'a> {
     files: BTreeMap<&'a str, (&'a str, &'a str)>,
-    generated: BTreeSet<&'a str>,
+    marks: BTreeMap<&'a str, FileMarks>,
 }
 
 impl<'a> Sources<'a> {
@@ -32,18 +41,24 @@ impl<'a> Sources<'a> {
                 return Err(format!("Duplicate file ID {}", file.id));
             }
         }
-        let generated = unit
-            .files
-            .iter()
-            .filter(|file| file.origin == "generated")
-            .map(|file| file.id.as_str())
-            .collect();
-        Ok(Self { files, generated })
+
+        let marks = unit.files.iter().map(|file| {
+            let marks = FileMarks {
+                generated: file.origin == "generated",
+                test: file.test,
+            };
+            (file.id.as_str(), marks)
+        });
+        Ok(Self {
+            files,
+            marks: marks.collect(),
+        })
     }
 
-    /// Whether the build, rather than an author, wrote the file a span lies in.
-    pub fn generated(&self, span: &FileSpan) -> bool {
-        self.generated.contains(span.file.as_str())
+    /// What the document says of the file a span lies in.
+    pub fn marks(&self, span: &FileSpan) -> FileMarks {
+        let marks = self.marks.get(span.file.as_str());
+        marks.copied().unwrap_or_default()
     }
 
     fn file(&self, id: &str) -> Result<(&'a str, &'a str), String> {
