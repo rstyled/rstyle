@@ -12,16 +12,10 @@ use super::super::model::{
 };
 use super::super::tree::{self, Tables};
 use super::Reading;
+use crate::config::IgnoredResultConfig;
+use std::collections::BTreeSet;
 
 pub const RULE: &str = "ignored_result";
-
-/// Fewer calls than this say too little about what a callee's callers expect.
-const MIN_CALLS: usize = 5;
-/// How much of a callee's calls must use its result for one that doesn't to stand out.
-const MIN_USED_PERCENT: usize = 90;
-/// How many references and pointers are looked through. Far more than a type is written, and
-/// a Go type can point to itself.
-const POINTER_DEPTH: usize = 16;
 
 /// What one call did with its result.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -36,8 +30,8 @@ pub struct ResultUse {
 }
 
 /// Whether `used` of a callee's `total` calls are enough that the rest stand out.
-pub fn stands_out(used: usize, total: usize) -> bool {
-    total >= MIN_CALLS && used * 100 >= total * MIN_USED_PERCENT
+pub fn stands_out(used: usize, total: usize, limits: &IgnoredResultConfig) -> bool {
+    total >= limits.min_calls && used * 100 >= total * limits.min_used_percent.0
 }
 
 pub fn message(name: &str, used: usize, total: usize) -> String {
@@ -164,13 +158,17 @@ fn returns_its_receiver(reading: &Reading<'_>, node: &Node, result: &Type) -> Re
     Ok(receiver.spelling == pointed_at(tables, result)?.spelling)
 }
 
+/// What a chain of references and pointers ends at, or where it starts repeating. No frontend
+/// writes a chain that repeats, but a document is only data.
 fn pointed_at<'t>(tables: &Tables<'t>, ty: &'t Type) -> Result<&'t Type, String> {
-    let mut at = ty;
-    for _ in 0..POINTER_DEPTH {
-        match (at.kind, at.target.as_deref()) {
-            (TypeKind::Reference | TypeKind::Pointer, Some(target)) => at = tables.ty(target)?,
-            _ => break,
+    let (mut at, mut seen) = (ty, BTreeSet::new());
+    while let (TypeKind::Reference | TypeKind::Pointer, Some(target)) =
+        (at.kind, at.target.as_deref())
+    {
+        if !seen.insert(target) {
+            break;
         }
+        at = tables.ty(target)?;
     }
     Ok(at)
 }

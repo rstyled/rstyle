@@ -74,8 +74,20 @@ a result matters, so the calls decide, as in "Bugs as Deviant Behavior" (Engler 
 json.Unmarshal(raw, &out) // 90 of this callee's 93 calls use the error
 ```
 
-A callee needs at least 5 calls that count, and at least 90% of them using the result. Dropping means the call is all of a
-statement. These don't count either way:
+A callee needs at least 5 calls that count, and at least 90% of them using the result. Those defaults were read against Go,
+Rust and C++ modules, and what's normal differs between languages and codebases, so `rstyle.toml` can change both:
+
+```toml
+[ignored_result]
+min_calls = 5
+min_used_percent = 90
+```
+
+`min_used_percent` decides most of it. At 90%, one dropped call already takes 10 calls, so `min_calls` only matters once the
+share is lower. On go-ethereum's code outside tests, 95% reports 10 results, 90% reports 14 and 80% reports 53. A share of
+100 reports nothing, since then no call can have dropped the result.
+
+Dropping means the call is all of a statement. These don't count either way:
 
 | Case | Why |
 | --- | --- |
