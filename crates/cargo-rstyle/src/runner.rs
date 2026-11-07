@@ -5,11 +5,11 @@ mod frontend;
 mod pipe;
 mod store;
 
-use crate::cpg::analyze::{self, Unified};
+use crate::cpg::analyze::{self, FrontendResult, Unified};
 use crate::cpg::{self, input};
 use crate::{Cli, Format, MineArgs, PatternDisplayArgs, compiler, ignore, workspace};
 use clap::Args;
-use frontend::{Frontend, Saving};
+use frontend::{AnalysisPaths, Frontend, Saving};
 use rstyle_core::cpg::records::{Demand, Record};
 use rstyle_core::cpg::transport::{self, DOCUMENTS_MANIFEST, Encoding};
 use rstyle_core::filter::{Analysis, Filter};
@@ -122,7 +122,7 @@ pub(crate) fn go(cli: &Cli, args: &GoArgs) -> Result<(String, u8), String> {
     let project = module_root(&source).unwrap_or_else(|| source.clone());
 
     let frontend = Frontend::go()?;
-    let local = filter.frontend_analyses("go", &frontend.analyses)?;
+    let local = filter.frontend_analyses("go", &frontend.analyses())?;
     let staged = Staged::new(args.run.destination(&project, "go")?)?;
     let plan = Plan {
         cli,
@@ -133,11 +133,19 @@ pub(crate) fn go(cli: &Cli, args: &GoArgs) -> Result<(String, u8), String> {
         project,
     };
 
-    let (records, documents) = go_records(&plan, &frontend, &staged)?;
+    let (records, documents) =
+        match plan.filter.needs_documents() || frontend.reads_documents(&local) {
+            true => go_records(&plan, &frontend, &staged)?,
+            false => (Vec::new(), 0),
+        };
     let mut unified = plan.analyzed(records)?;
     if !local.is_empty() {
-        let directory = staged.folder(FRONTEND_FOLDER)?;
-        unified.frontend = frontend.run_analyses(&local, &plan.source, &directory);
+        let paths = AnalysisPaths {
+            source: &plan.source,
+            results: &staged.folder(FRONTEND_FOLDER)?,
+            documents: &staged.path().join(DOCUMENTS_FOLDER),
+        };
+        unified.frontend = frontend.run_analyses(&local, &paths);
     }
     let run = plan.save(&unified, staged, documents)?;
     plan.output(&unified, Some(&run))
@@ -149,10 +157,6 @@ fn go_records(
     frontend: &Frontend,
     staged: &Staged,
 ) -> Result<(Vec<Record>, usize), String> {
-    if !plan.filter.needs_documents() {
-        return Ok((Vec::new(), 0));
-    }
-
     let directory = staged.folder(DOCUMENTS_FOLDER)?;
     let saving = Saving {
         directory: &directory,
@@ -211,7 +215,7 @@ fn rust_records(plan: &Plan<'_>, staged: &Staged) -> Result<(Vec<Record>, usize)
     Ok((records, documents))
 }
 
-/// Reads a saved run back. A frontend analysis needs a frontend, so naming one is an error.
+/// Reads a saved run back, with no frontend unless the filter names one of its analyses.
 // rstyle-allow(side_effect_density): IO boundary: reads a saved run
 fn saved(
     cli: &Cli,
@@ -219,12 +223,7 @@ fn saved(
     (filter, language): (Filter, &'static str),
     from: &Path,
 ) -> Result<(String, u8), String> {
-    if let Some(named) = filter.named_frontend_analyses().first() {
-        return Err(format!(
-            "--from reads saved documents, and a saved run has no frontend to run `{named}`"
-        ));
-    }
-
+    let replay = replayed_analyses(&filter, language)?;
     let record = read_record(from, language)?;
     let source = match &record {
         Some(record) => record.source.clone(),
@@ -240,16 +239,80 @@ fn saved(
     };
 
     let records = saved_records(from, record.as_ref(), plan.filter.demand())?;
-    let unified = plan.analyzed(records)?;
+    let mut unified = plan.analyzed(records)?;
+    let documents = documents_folder(from);
     match &args.out {
         Some(out) => {
             let staged = Staged::new(Destination::Exact(out.clone()))?;
+            if let Some((frontend, names)) = &replay {
+                let paths = AnalysisPaths {
+                    source: &plan.source,
+                    results: &staged.folder(FRONTEND_FOLDER)?,
+                    documents: &documents,
+                };
+                unified.frontend = frontend.run_analyses(names, &paths);
+            }
             // The documents stay with the run they came from.
             let run = plan.save(&unified, staged, 0)?;
             plan.output(&unified, Some(&run))
         }
-        None => plan.output(&unified, None),
+        None => {
+            unified.frontend = unsaved_analyses(replay.as_ref(), &plan.source, &documents)?;
+            plan.output(&unified, None)
+        }
     }
+}
+
+/// The analyses a run read back should replay. An analysis that reads the source can't, since a
+/// saved run doesn't hold it, and may not even be where it was.
+// rstyle-allow(side_effect_density): process boundary: asks the frontend what it offers
+fn replayed_analyses(
+    filter: &Filter,
+    language: &'static str,
+) -> Result<Option<(Frontend, Vec<String>)>, String> {
+    if filter.named_frontend_analyses().is_empty() {
+        return Ok(None);
+    }
+
+    let frontend = Frontend::go()?;
+    let names = filter.frontend_analyses(language, &frontend.analyses())?;
+    let reading_source = names
+        .iter()
+        .find(|name| !frontend.reads_documents(std::slice::from_ref(name)));
+
+    match reading_source {
+        Some(name) => Err(format!(
+            "--from reads saved documents, and `{language}:{name}` reads the source; run it \
+             without --from"
+        )),
+        None => Ok(Some((frontend, names))),
+    }
+}
+
+/// Replays analyses for a run nothing saves: what they found is reported, and no file of theirs
+/// outlives the command, so none is named.
+// rstyle-allow(side_effect_density): process boundary: runs the analyses in a scratch folder
+fn unsaved_analyses(
+    replay: Option<&(Frontend, Vec<String>)>,
+    source: &Path,
+    documents: &Path,
+) -> Result<Vec<FrontendResult>, String> {
+    let Some((frontend, names)) = replay else {
+        return Ok(Vec::new());
+    };
+
+    let scratch = tempfile::tempdir().map_err(|error| error.to_string())?;
+    let paths = AnalysisPaths {
+        source,
+        results: scratch.path(),
+        documents,
+    };
+    let mut results = frontend.run_analyses(names, &paths);
+
+    for result in &mut results {
+        result.file = None;
+    }
+    Ok(results)
 }
 
 // rstyle-allow(side_effect_density): IO boundary: reads the run's record
@@ -287,12 +350,7 @@ fn saved_records(
     record: Option<&RunRecord>,
     demand: Demand,
 ) -> Result<Vec<Record>, String> {
-    let folder = from.join(DOCUMENTS_FOLDER);
-    let directory = if folder.is_dir() {
-        folder
-    } else {
-        from.to_path_buf()
-    };
+    let directory = documents_folder(from);
     if directory.join(DOCUMENTS_MANIFEST).exists() {
         return input::capture_records(&directory, demand);
     }
@@ -310,6 +368,15 @@ fn saved_records(
         return Err(format!("{} holds no documents", from.display()));
     }
     input::file_records(&paths, demand)
+}
+
+/// Where a saved run keeps its documents, or the folder itself if it holds them directly.
+fn documents_folder(from: &Path) -> PathBuf {
+    let folder = from.join(DOCUMENTS_FOLDER);
+    match folder.is_dir() {
+        true => folder,
+        false => from.to_path_buf(),
+    }
 }
 
 impl Plan<'_> {

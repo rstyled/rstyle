@@ -4,7 +4,7 @@ use super::pipe;
 use crate::cpg::analyze::FrontendResult;
 use crate::cpg::input::{self, STREAM_BUFFER, Store, Stream};
 use rstyle_core::cpg::records::{Demand, Record};
-use rstyle_core::cpg::transport::{Encoding, SequenceReader};
+use rstyle_core::cpg::transport::{self, DocumentManifest, Encoding, SequenceReader};
 use rstyle_core::filter::valid_name;
 use rstyle_core::sarif;
 use serde::Deserialize;
@@ -20,7 +20,7 @@ const GO_PACKAGE: &str = "github.com/rstyled/rstyle-go/cmd/rstyle-go@latest";
 pub(super) struct Frontend {
     language: &'static str,
     program: PathBuf,
-    pub(super) analyses: Vec<String>,
+    analyses: Vec<Described>,
 }
 
 /// What a frontend says of itself, so a stale one fails with a reason instead of partway in.
@@ -32,15 +32,36 @@ struct Description {
     analyses: Vec<Described>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct Described {
     name: String,
+    #[serde(default)]
+    input: Input,
+}
+
+/// What an analysis works from. A frontend that says nothing of it reads its source.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum Input {
+    #[default]
+    Source,
+    /// The run's documents, on a pipe it inherits, so it needs no second read of the source.
+    Documents,
 }
 
 /// An analysis that finished: its own file, and its runs as the final report holds them.
 struct FinishedAnalysis {
     file: PathBuf,
     runs: Vec<serde_json::Value>,
+}
+
+/// Where a run's frontend analyses read from and write to.
+pub(super) struct AnalysisPaths<'a> {
+    pub source: &'a Path,
+    /// Where each analysis's results are published.
+    pub results: &'a Path,
+    /// The run's documents, for an analysis that reads them.
+    pub documents: &'a Path,
 }
 
 /// A frontend's complete stream, with what was received.
@@ -69,6 +90,25 @@ impl Frontend {
 
     fn name(&self) -> std::path::Display<'_> {
         self.program.display()
+    }
+
+    /// The analyses on offer.
+    pub(super) fn analyses(&self) -> Vec<String> {
+        self.analyses.iter().map(|it| it.name.clone()).collect()
+    }
+
+    /// Whether any of these analyses works from the run's documents.
+    pub(super) fn reads_documents(&self, names: &[String]) -> bool {
+        names
+            .iter()
+            .any(|name| self.input(name) == Input::Documents)
+    }
+
+    fn input(&self, name: &str) -> Input {
+        self.analyses
+            .iter()
+            .find(|analysis| analysis.name == name)
+            .map_or(Input::Source, |analysis| analysis.input)
     }
 
     /// Reads a run from the frontend over its own pipe, keeping the documents as they arrive.
@@ -137,14 +177,13 @@ impl Frontend {
     pub(super) fn run_analyses(
         &self,
         names: &[String],
-        source: &Path,
-        directory: &Path,
+        paths: &AnalysisPaths<'_>,
     ) -> Vec<FrontendResult> {
         names
             .iter()
             .map(|name| {
                 let analysis = format!("{}:{name}", self.language);
-                match self.run_analysis(name, source, directory) {
+                match self.run_analysis(name, paths) {
                     Ok(finished) => FrontendResult {
                         analysis,
                         status: "complete",
@@ -170,29 +209,67 @@ impl Frontend {
     fn run_analysis(
         &self,
         name: &str,
-        source: &Path,
-        directory: &Path,
+        paths: &AnalysisPaths<'_>,
     ) -> Result<FinishedAnalysis, String> {
-        let staged = directory.join(format!(".{name}.staged"));
-        let status = self
-            .command(&[
-                "analyze".as_ref(),
-                name.as_ref(),
-                "--source".as_ref(),
-                source.as_os_str(),
-                "--out".as_ref(),
-                staged.as_os_str(),
-            ])
-            .status()
-            .map_err(|error| format!("Cannot run {}: {error}", self.name()))?;
+        let AnalysisPaths {
+            source,
+            results,
+            documents,
+        } = *paths;
+        let staged = results.join(format!(".{name}.staged"));
+        let mut command = self.command(&[
+            "analyze".as_ref(),
+            name.as_ref(),
+            "--source".as_ref(),
+            source.as_os_str(),
+            "--out".as_ref(),
+            staged.as_os_str(),
+        ]);
+        let status = match self.input(name) {
+            Input::Source => command
+                .status()
+                .map_err(|error| format!("Cannot run {}: {error}", self.name()))?,
+            Input::Documents => self.run_reading(command, documents)?,
+        };
 
-        let result = published(status, &staged, &directory.join(format!("{name}.sarif")));
+        let result = published(status, &staged, &results.join(format!("{name}.sarif")));
         let _ = std::fs::remove_file(&staged);
         let category = format!("{}/{name}/", self.language);
         Ok(FinishedAnalysis {
             runs: sarif::labeled_runs(&result?, &category, source)?,
             file: Path::new("frontend").join(format!("{name}.sarif")),
         })
+    }
+
+    /// Runs an analysis with the run's documents on a pipe it inherits. It must read them to
+    /// the end: only the last record says it has them all, so one that exits first can't have
+    /// analyzed the run.
+    // rstyle-allow(side_effect_density): process boundary: runs an analysis and feeds it
+    fn run_reading(&self, mut command: Command, documents: &Path) -> Result<ExitStatus, String> {
+        let manifest = DocumentManifest::read(&transport::read_manifest_bytes(documents)?)?;
+        let (reader, mut writer) =
+            std::io::pipe().map_err(|error| format!("Cannot create a pipe: {error}"))?;
+        let number = pipe::inherit(&mut command, &reader)?;
+        let mut child = command
+            .args(["--input-fd", &number])
+            .spawn()
+            .map_err(|error| format!("Cannot run {}: {error}", self.name()))?;
+        // The child must hold the only read end, so writing fails if it stops reading.
+        drop(reader);
+
+        let (status, sent) = std::thread::scope(|scope| {
+            let sending = scope
+                .spawn(move || transport::send_sealed(documents, &manifest.documents, &mut writer));
+            let status = child.wait();
+            (status, sending.join().expect("no panic while sending"))
+        });
+        let status = status.map_err(|error| format!("Cannot wait for the analysis: {error}"))?;
+        match sent {
+            Err(error) if status.success() => {
+                Err(format!("it exited before reading its documents: {error}"))
+            }
+            _ => Ok(status),
+        }
     }
 
     /// A frontend's stdout goes to our stderr, so it can't mix with a report on our stdout.
@@ -234,7 +311,7 @@ fn published(status: ExitStatus, staged: &Path, file: &Path) -> Result<serde_jso
 }
 
 // rstyle-allow(side_effect_density): process boundary: asks the frontend what it offers
-fn describe(program: &Path, language: &str) -> Result<Vec<String>, String> {
+fn describe(program: &Path, language: &str) -> Result<Vec<Described>, String> {
     let output = Command::new(program)
         .arg("describe")
         .stdin(Stdio::null())
@@ -254,7 +331,7 @@ fn describe(program: &Path, language: &str) -> Result<Vec<String>, String> {
         .map_err(|error| format!("`{} describe`: {error}", program.display()))
 }
 
-fn described(description: Description, language: &str) -> Result<Vec<String>, String> {
+fn described(description: Description, language: &str) -> Result<Vec<Described>, String> {
     if description.schema != SCHEMA {
         return Err(format!(
             "speaks {}, and this rstyle needs {SCHEMA}",
@@ -271,7 +348,7 @@ fn described(description: Description, language: &str) -> Result<Vec<String>, St
         .analyses
         .into_iter()
         .map(|analysis| match valid_name(&analysis.name) {
-            true => Ok(analysis.name),
+            true => Ok(analysis),
             false => Err(format!("names an invalid analysis `{}`", analysis.name)),
         })
         .collect()
@@ -384,6 +461,7 @@ mod tests {
                 .iter()
                 .map(|name| Described {
                     name: (*name).into(),
+                    input: Input::Source,
                 })
                 .collect(),
         }
@@ -392,7 +470,8 @@ mod tests {
     #[test]
     fn a_description_lists_the_analyses_on_offer() {
         let analyses = described(description(SCHEMA, "go", &["calls"]), "go").unwrap();
-        assert_eq!(analyses, ["calls"]);
+        assert_eq!(analyses.len(), 1);
+        assert_eq!(analyses[0].name, "calls");
     }
 
     #[test]
@@ -404,6 +483,21 @@ mod tests {
         assert!(stale.unwrap_err().contains("this rstyle needs"));
         let wrong = described(description(SCHEMA, "rust", &[]), "go");
         assert!(wrong.unwrap_err().contains("is a rust frontend"));
+    }
+
+    #[test]
+    fn an_analysis_reads_its_source_unless_it_says_otherwise() {
+        let parsed = |text: &str| serde_json::from_str::<Described>(text).map(|it| it.input);
+        assert_eq!(parsed(r#"{"name":"a"}"#).unwrap(), Input::Source);
+        assert_eq!(
+            parsed(r#"{"name":"a","input":"source"}"#).unwrap(),
+            Input::Source
+        );
+        assert_eq!(
+            parsed(r#"{"name":"a","input":"documents"}"#).unwrap(),
+            Input::Documents
+        );
+        assert!(parsed(r#"{"name":"a","input":"both"}"#).is_err());
     }
 
     #[test]

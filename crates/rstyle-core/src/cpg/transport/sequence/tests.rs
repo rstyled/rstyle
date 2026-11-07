@@ -100,3 +100,70 @@ fn a_read_error_after_the_completion_marker_still_rejects_the_stream() {
     assert_eq!(reader.progress().received_documents, 1);
     assert!(reader.complete().is_err());
 }
+
+fn sealed_documents(encoding: Encoding) -> (tempfile::TempDir, Vec<SealedDocument>) {
+    let directory = tempfile::tempdir().unwrap();
+    let seals = [json!({"source":"λ\u{1e}"}), json!({"second":2})]
+        .iter()
+        .enumerate()
+        .map(|(index, document)| {
+            let path = directory
+                .path()
+                .join(format!("document-{index:06}{}", encoding.suffix()));
+            super::super::write_json(&path, encoding, document).unwrap()
+        })
+        .collect();
+    (directory, seals)
+}
+
+#[test]
+fn sealed_documents_send_as_a_sequence_a_reader_accepts() {
+    for encoding in [Encoding::Json, Encoding::Zstd] {
+        let (directory, seals) = sealed_documents(encoding);
+        let mut sent = Vec::new();
+        send_sealed(directory.path(), &seals, &mut sent).unwrap();
+
+        let mut reader = SequenceReader::new(sent.as_slice());
+        assert_eq!(reader.next().unwrap().unwrap(), json!({"source":"λ\u{1e}"}));
+        assert_eq!(reader.next().unwrap().unwrap(), json!({"second":2}));
+        assert!(reader.next().is_none());
+        reader.complete().unwrap();
+    }
+}
+
+#[test]
+fn a_document_that_disagrees_with_its_seal_leaves_a_sequence_a_reader_refuses() {
+    for encoding in [Encoding::Json, Encoding::Zstd] {
+        let (directory, mut seals) = sealed_documents(encoding);
+        let last = seals.last_mut().unwrap();
+        last.decoded_checksum = Some(format!("sha256:{}", "0".repeat(64)));
+        let mut sent = Vec::new();
+        let error = send_sealed(directory.path(), &seals, &mut sent).unwrap_err();
+        assert!(error.contains("disagrees with its manifest"), "{error}");
+
+        let mut reader = SequenceReader::new(sent.as_slice());
+        let read: Result<Vec<_>, _> = reader.by_ref().collect();
+        assert!(read.is_err() || reader.complete().is_err(), "{sent:?}");
+        assert!(reader.complete().is_err());
+    }
+}
+
+impl Write for Broken {
+    fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+        Err(io::Error::new(
+            io::ErrorKind::BrokenPipe,
+            "the reader stopped reading",
+        ))
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn a_reader_that_stops_stops_the_sequence() {
+    let (directory, seals) = sealed_documents(Encoding::Json);
+    let error = send_sealed(directory.path(), &seals, &mut Broken).unwrap_err();
+    assert!(error.contains("stopped reading"), "{error}");
+}

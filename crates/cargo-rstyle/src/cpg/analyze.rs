@@ -34,18 +34,18 @@ impl FrontendResult {
     }
 
     fn text(&self) -> String {
-        match (&self.file, &self.error) {
-            (Some(file), _) => {
-                let results = self.results();
-                let plural = if results == 1 { "" } else { "s" };
-                format!(
-                    "{}: {results} result{plural}, in {}",
-                    self.analysis,
-                    file.display()
-                )
-            }
-            (None, Some(error)) => format!("{}: failed: {error}", self.analysis),
-            (None, None) => format!("{}: {}", self.analysis, self.status),
+        if let Some(error) = &self.error {
+            return format!("{}: failed: {error}", self.analysis);
+        }
+        let results = self.results();
+        let plural = if results == 1 { "" } else { "s" };
+        match &self.file {
+            Some(file) => format!(
+                "{}: {results} result{plural}, in {}",
+                self.analysis,
+                file.display()
+            ),
+            None => format!("{}: {results} result{plural}", self.analysis),
         }
     }
 }

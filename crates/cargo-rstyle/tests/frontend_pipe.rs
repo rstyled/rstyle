@@ -84,6 +84,24 @@ fn a_frontend_streams_a_run_over_the_pipe_it_inherits() {
 }
 
 #[test]
+fn a_frontend_analysis_reads_the_run_over_a_pipe_it_inherits() {
+    let project = tempfile::tempdir().unwrap();
+    let output = run_go(
+        project.path(),
+        &["--filter", "go:count", "--format", "json"],
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let frontend = &report["frontend"][0];
+    assert_eq!(frontend["status"], "complete", "{frontend}");
+    assert_eq!(
+        frontend["runs"][0]["results"][0]["message"]["text"],
+        "read 1"
+    );
+    assert!(report.get("check").is_none());
+}
+
+#[test]
 fn help_names_the_command_that_was_typed() {
     let help = |program: &str, args: &[&str]| {
         let output = Command::new(cargo_bin(program))
