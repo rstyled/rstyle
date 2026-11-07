@@ -9,7 +9,7 @@ use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 /// A vertex's position in its flow.
-type Vertex = usize;
+pub type Vertex = usize;
 
 /// Vertices times transfers past which termination dependence is not computed: its cost, in
 /// the worst case. Far above any function a person wrote.
@@ -653,7 +653,7 @@ fn usable(status: Option<Status>) -> bool {
 /// read and write at one node says unless it replaces the value. Their data edges say what
 /// the names do, not everything that happens. What a lowering does to run the construct it
 /// stands for says nothing of this.
-fn aliased<'f>(function: &'f Function, flow: &Flow<'f>) -> BTreeSet<&'f str> {
+pub fn changed_elsewhere<'f>(function: &'f Function, flow: &Flow<'f>) -> BTreeSet<&'f str> {
     let strong = whole_updates(function);
     let written: HashSet<&str> = function
         .nodes
@@ -700,30 +700,74 @@ fn written_in_part<'f>(function: &'f Function, flow: &Flow<'f>) -> BTreeSet<&'f 
 /// A coverage table and the function's own override of it.
 type Entries<'c> = (&'c Declarations, Option<&'c Declarations>);
 
-/// Everything derived of a function under this coverage. Unknown where the frontend emits
-/// no flow, whatever the reason: the same function becomes known as its coverage grows.
-pub fn derive(coverage: &Coverage, function: &Function) -> Derived {
+/// The layers and capabilities a function is covered by.
+fn entries<'c>(coverage: &'c Coverage, function: &'c Function) -> (Entries<'c>, Entries<'c>) {
     let own = function.coverage.as_ref();
     let layers = (&coverage.layers, own.and_then(|own| own.layers.as_ref()));
     let capabilities = (
         &coverage.capabilities,
         own.and_then(|own| own.capabilities.as_ref()),
     );
+    (layers, capabilities)
+}
 
+/// A function's flow, or why it has none to read.
+fn declared_flow<'f>(coverage: &Coverage, function: &'f Function) -> Result<Flow<'f>, String> {
+    let (layers, _) = entries(coverage, function);
     if !usable(declared(layers, "cfg")) {
-        return Derived::unknown("The frontend does not emit this function's control flow".into());
+        return Err("The frontend does not emit this function's control flow".into());
     }
-    let Some(flow) = Flow::of(function) else {
-        return Derived::unknown("The function records no control flow".into());
+    Flow::of(function).ok_or_else(|| "The function records no control flow".to_owned())
+}
+
+/// Whether a function's accesses can be taken as all of them. A frontend that declares its
+/// accesses complete can have none to record.
+fn accesses_recorded(coverage: &Coverage, function: &Function) -> bool {
+    let (layers, _) = entries(coverage, function);
+    !function.accesses.is_empty()
+        || function.symbols.is_empty()
+        || declared(layers, "symbol") == Some(Status::Supported)
+}
+
+/// A function's flow when all of its syntax and what reads and writes each binding are known
+/// too, or why they aren't. Whatever isn't in the tree, such as code a compiler couldn't parse or
+/// a construct a frontend doesn't model, can do anything, so nothing can be said to be unused.
+pub fn with_accesses<'f>(coverage: &Coverage, function: &'f Function) -> Result<Flow<'f>, String> {
+    let flow = declared_flow(coverage, function)?;
+    let (layers, capabilities) = entries(coverage, function);
+
+    if declared(layers, "ast") != Some(Status::Supported) {
+        return Err("The frontend does not hold all of this function's syntax".into());
+    }
+    if function
+        .nodes
+        .iter()
+        .any(|node| node.kind == NodeKind::Unsupported)
+    {
+        return Err("The function holds a construct the frontend does not model".into());
+    }
+
+    if !accesses_recorded(coverage, function) {
+        return Err("The frontend records no accesses for this function".into());
+    }
+    if !usable(declared(capabilities, "aliasing")) {
+        return Err("The frontend does not say what can alias in this function".into());
+    }
+    Ok(flow)
+}
+
+/// Everything derived of a function under this coverage. Unknown where the frontend emits
+/// no flow, whatever the reason: the same function becomes known as its coverage grows.
+pub fn derive(coverage: &Coverage, function: &Function) -> Derived {
+    let (_, capabilities) = entries(coverage, function);
+    let flow = match declared_flow(coverage, function) {
+        Ok(flow) => flow,
+        Err(reason) => return Derived::unknown(reason),
     };
     let (dominators, post) = (flow.dominators(), flow.post_dominators());
 
-    let aliased = aliased(function, &flow);
-    // A frontend that declares its accesses complete can have none to record.
-    let accessed = !function.accesses.is_empty()
-        || function.symbols.is_empty()
-        || declared(layers, "symbol") == Some(Status::Supported);
-    let data = accessed.then(|| data_edges(function, &flow, &aliased));
+    let aliased = changed_elsewhere(function, &flow);
+    let data = accesses_recorded(coverage, function).then(|| data_edges(function, &flow, &aliased));
 
     let (control, too_large) = control_edges(&flow, &post);
     let mut reasons = limits((function, &flow), data.is_some(), capabilities, &aliased);

@@ -6,6 +6,7 @@ use crate::cpg::bounds::report::{DocumentReport, from_records};
 use crate::cpg::flow::{Derived, Standing};
 use crate::cpg::records::{self, Measured, Record};
 use crate::cpg::{self, RunInputs};
+use crate::defects_report::{self, DefectsReport};
 use crate::filter::{Analysis, Filter};
 use crate::patterns_report::{self, PatternsReport};
 use crate::report::{self, Report};
@@ -26,6 +27,8 @@ pub struct Analyses {
     pub runtime_bounds: Option<DocumentReport>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flow: Option<FlowReport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub defects: Option<DefectsReport>,
 }
 
 /// A function's derived flow, in terms of its document's node ids.
@@ -96,6 +99,10 @@ pub fn analyze(
     let flow = filter.core(Analysis::Flow).then(|| FlowReport {
         functions: take_flow(&mut records, None),
     });
+    let defects = filter
+        .core(Analysis::Defects)
+        .then(|| defects_report::from_records(&mut records, config))
+        .transpose()?;
 
     let (check, patterns) = checked_and_mined(records, filter, config, options)?;
     Ok(Analyses {
@@ -103,6 +110,7 @@ pub fn analyze(
         patterns,
         runtime_bounds,
         flow,
+        defects,
     })
 }
 
@@ -131,8 +139,9 @@ impl Analyses {
         let patterns = self.patterns.as_ref().map(patterns_report::text);
         let bounds = self.runtime_bounds.as_ref().map(DocumentReport::text);
         let flow = self.flow.as_ref().map(FlowReport::summary);
+        let defects = self.defects.as_ref().map(DefectsReport::text);
 
-        [check, patterns, bounds, flow]
+        [check, patterns, bounds, flow, defects]
             .into_iter()
             .flatten()
             .collect::<Vec<_>>()
@@ -160,7 +169,11 @@ impl Analyses {
             .patterns
             .as_ref()
             .map(|report| Ok(("patterns.sarif", sarif::patterns(report, root)?)));
-        [check, patterns].into_iter().flatten().collect()
+        let defects = self
+            .defects
+            .as_ref()
+            .map(|report| Ok(("defects.sarif", sarif::defects(report, root)?)));
+        [check, patterns, defects].into_iter().flatten().collect()
     }
 }
 
@@ -247,6 +260,7 @@ mod tests {
         let analyses = run(&[]);
         assert!(analyses.check.is_some() && analyses.patterns.is_some());
         assert!(analyses.runtime_bounds.is_some() && analyses.flow.is_some());
+        assert!(analyses.defects.is_some());
         let text = analyses.text();
         assert!(text.contains("Runtime upper bounds"), "{text}");
         assert!(text.contains("Control flow of 3 functions"), "{text}");
@@ -260,6 +274,7 @@ mod tests {
             ("patterns", "patterns"),
             ("bounds", "runtime_bounds"),
             ("flow", "flow"),
+            ("defects", "defects"),
         ] {
             let alone = serde_json::to_value(run(&[name])).unwrap();
             let object = alone.as_object().unwrap();
@@ -275,8 +290,12 @@ mod tests {
             let logs = analyses.sarif(root).unwrap();
             logs.into_iter().map(|(name, _)| name).collect()
         };
-        assert_eq!(names(&run(&[])), ["check.sarif", "patterns.sarif"]);
+        assert_eq!(
+            names(&run(&[])),
+            ["check.sarif", "patterns.sarif", "defects.sarif"]
+        );
         assert_eq!(names(&run(&["patterns"])), ["patterns.sarif"]);
+        assert_eq!(names(&run(&["defects"])), ["defects.sarif"]);
         assert!(names(&run(&["bounds", "flow"])).is_empty());
     }
 

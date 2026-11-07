@@ -2,6 +2,7 @@
 //! it declares, its rule facts or, for a function a macro writes, its own events, and
 //! on demand its dependence graph and runtime-bound program.
 
+use super::defects::{self, Examined};
 use super::flow::Derived;
 use super::model::{Document, FileSpan, Function, Generic, Node, Origin, Type, TypeKind};
 use super::source::Sources;
@@ -21,6 +22,8 @@ pub struct Demand {
     pub bounds: bool,
     /// Dominators, post-dominators and the dependence graph the control flow gives.
     pub flow: bool,
+    /// What the defect rules find in each function.
+    pub defects: bool,
 }
 
 /// A type as a signature declares it.
@@ -74,6 +77,7 @@ pub struct Record {
     pub graph: Option<Pdg>,
     pub bounds: Option<Input>,
     pub flow: Option<Derived>,
+    pub defects: Option<Examined>,
 }
 
 /// Records in an order independent of how their documents arrived. Runtime bounds compose
@@ -116,27 +120,15 @@ pub fn records_with_gaps(document: &Document, demand: Demand) -> Result<Vec<Reco
     Ok(records)
 }
 
+/// Why each function whose facts failed could not be derived, by its document ID.
+type Failed = BTreeMap<String, String>;
+
 /// The records of a document, and why each function's facts that failed could not be derived.
-fn read(
-    document: &Document,
-    demand: Demand,
-) -> Result<(Vec<Record>, BTreeMap<String, String>), String> {
+fn read(document: &Document, demand: Demand) -> Result<(Vec<Record>, Failed), String> {
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let sources = Sources::new(unit)?;
     let tables = Tables::new(unit)?;
-    let derived = super::facts::derive_each(document, demand.graphs)?;
-    let mut failed = BTreeMap::new();
-    let mut measured: BTreeMap<String, FnFacts> = BTreeMap::new();
-    for (function, facts) in derived {
-        match facts {
-            Ok(facts) => {
-                measured.insert(facts.id.clone(), facts);
-            }
-            Err(reason) => {
-                failed.insert(function.id.clone(), reason);
-            }
-        }
-    }
+    let (mut measured, failed) = measured_and_failed(document, demand)?;
     let functions = unit.functions.as_deref().unwrap_or_default();
     let mut bounds = match demand.bounds {
         true => super::lowered(document)?
@@ -160,13 +152,49 @@ fn read(
             record(
                 function,
                 (identity, compilation),
-                (facts, bounds, flow_of(document, function, demand)),
+                (
+                    facts,
+                    bounds,
+                    flow_of(document, function, demand),
+                    defects_of(document, function, demand, (&tables, &sources)),
+                ),
                 (&tables, &sources),
             )
             .map_err(|reason| format!("{}: {reason}", function.name))
         })
         .collect::<Result<Vec<_>, String>>()?;
     Ok((records, failed))
+}
+
+/// Each function's facts by identity, and why each one's that failed could not be derived.
+fn measured_and_failed(
+    document: &Document,
+    demand: Demand,
+) -> Result<(BTreeMap<String, FnFacts>, Failed), String> {
+    let mut failed = BTreeMap::new();
+    let mut measured = BTreeMap::new();
+    for (function, facts) in super::facts::derive_each(document, demand.graphs)? {
+        match facts {
+            Ok(facts) => {
+                measured.insert(facts.id.clone(), facts);
+            }
+            Err(reason) => {
+                failed.insert(function.id.clone(), reason);
+            }
+        }
+    }
+    Ok((measured, failed))
+}
+
+fn defects_of(
+    document: &Document,
+    function: &Function,
+    demand: Demand,
+    (tables, sources): (&Tables<'_>, &Sources<'_>),
+) -> Option<Examined> {
+    demand
+        .defects
+        .then(|| defects::examine(&document.coverage, function, tables, sources))
 }
 
 fn flow_of(document: &Document, function: &Function, demand: Demand) -> Option<Derived> {
@@ -178,7 +206,12 @@ fn flow_of(document: &Document, function: &Function, demand: Demand) -> Option<D
 fn record(
     function: &Function,
     (identity, compilation): (String, String),
-    (facts, bounds, flow): (Option<FnFacts>, Option<Input>, Option<Derived>),
+    (facts, bounds, flow, defects): (
+        Option<FnFacts>,
+        Option<Input>,
+        Option<Derived>,
+        Option<Examined>,
+    ),
     (tables, sources): (&Tables<'_>, &Sources<'_>),
 ) -> Result<Record, String> {
     let at = located(function);
@@ -203,6 +236,7 @@ fn record(
         graph,
         bounds,
         flow,
+        defects,
     })
 }
 
@@ -406,7 +440,7 @@ mod tests {
             Demand {
                 graphs: true,
                 bounds: true,
-                flow: false,
+                ..Demand::default()
             },
         );
         for record in &records {
@@ -438,8 +472,7 @@ mod tests {
             document,
             Demand {
                 graphs: true,
-                bounds: false,
-                flow: false,
+                ..Demand::default()
             },
         )[0];
 

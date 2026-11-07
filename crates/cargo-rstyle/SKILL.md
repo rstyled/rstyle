@@ -168,7 +168,7 @@ Defaults (WL similarity 600, alignment coverage 600, 3 holes max for `parameteri
 ## Any language (`rstyle go`, `rstyle cxx`, `rstyle rust`)
 
 `rstyle go`, `rstyle cxx` and `rstyle rust` find the frontend, run it and analyze what it produces. `--check`,
-`--patterns` or `--filter check,patterns,bounds,flow` select analyses; the default is everything.
+`--patterns` or `--filter check,patterns,bounds,flow,defects` select analyses; the default is everything.
 Each run is saved whole in `.rstyle/runs/`, which keeps each language's newest 5 (`RSTYLE_KEEP_RUNS`
 changes that), with `report.json.zst`, `report.sarif`, `check.sarif` and `patterns.sarif`. `--format json` prints plain JSON with `run`
 naming that folder. `--from DIR` reads a saved run back. Exit 0 is clean, 1 is findings, and 2 is a
@@ -188,7 +188,7 @@ statement counts, complexity, calls, edges, effects, mutations, dependence graph
 runtime-bound programs from the documents; no compiler runs and only an explicit
 `--config` applies. Exit codes are as for the default command; invalid or mismatched
 documents, or a function read twice, return 2.
-`cargo rstyle cpg analyze DOC.json [MORE.json ...] [--filter check,patterns,bounds,flow] [--sarif-dir DIR]`
+`cargo rstyle cpg analyze DOC.json [MORE.json ...] [--filter check,patterns,bounds,flow,defects] [--sarif-dir DIR]`
 runs them in one pass.
 
 `cargo rstyle cpg emit --out DIR` writes such documents for a Rust workspace.

@@ -252,7 +252,7 @@ struct CpgFlowArgs {
 struct CpgAnalyzeArgs {
     #[command(flatten)]
     input: CpgInputArgs,
-    /// What to run: check, patterns, bounds, flow. Comma-separated or repeated
+    /// What to run: check, patterns, bounds, flow, defects. Comma-separated or repeated
     /// [default: everything].
     #[arg(long, value_delimiter = ',')]
     filter: Vec<String>,

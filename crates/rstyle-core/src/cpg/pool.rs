@@ -191,6 +191,7 @@ mod tests {
             graphs: true,
             bounds: true,
             flow: true,
+            defects: false,
         };
         pooled_records(
             documents.into_iter().map(Ok),
