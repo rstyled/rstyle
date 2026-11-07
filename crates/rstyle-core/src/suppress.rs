@@ -17,6 +17,7 @@ pub const RULE_IDS: &[&str] = &[
     "dead_store",
     "guard_clause",
     "primitive_obsession",
+    "value_object",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -61,6 +61,7 @@ impl exact_rules::ReviewSnapshot for Snapshot {
                 | "side_effect_density"
                 | "guard_clause"
                 | "primitive_obsession"
+                | "value_object"
         ) || self.actual <= self.limit
             || !self.policy.is_object()
         {
