@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub struct Tables<'a> {
     definitions: BTreeMap<&'a str, &'a Definition>,
     types: BTreeMap<&'a str, &'a Type>,
+    unbounded_integers: bool,
 }
 
 impl<'a> Tables<'a> {
@@ -16,7 +17,13 @@ impl<'a> Tables<'a> {
         Ok(Self {
             definitions: index("definition", &unit.definitions, |d| &d.id)?,
             types: index("type", &unit.types, |t| &t.id)?,
+            unbounded_integers: unit.semantics.integer_overflow == "unbounded",
         })
+    }
+
+    /// Whether the unit's integers have no width, so an integer type needs no `bits`.
+    pub fn unbounded_integers(&self) -> bool {
+        self.unbounded_integers
     }
 
     pub fn definition(&self, id: &str) -> Result<&'a Definition, String> {
