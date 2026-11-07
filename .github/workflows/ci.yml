@@ -18,8 +18,8 @@ jobs:
       matrix:
         # TEMPORARILY DISABLED: macOS runners are too expensive to run right now. Restore the line
         # below, with macos-15, to bring it back.
-        # runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
-        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        # runner: [warp-ubuntu-latest-x64-4x, warp-ubuntu-latest-arm64-4x, macos-15]
+        runner: [warp-ubuntu-latest-x64-4x, warp-ubuntu-latest-arm64-4x]
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -63,7 +63,7 @@ jobs:
           tool: cargo-nextest@0.9.148
 
       - name: Install coverage tool
-        if: matrix.runner == 'ubuntu-24.04'
+        if: matrix.runner == 'warp-ubuntu-latest-x64-4x'
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov@0.9.1
@@ -72,9 +72,9 @@ jobs:
       - name: Tests
         id: tests
         env:
-          CARGO_TARGET_DIR: ${{ matrix.runner == 'ubuntu-24.04' && format('{0}/rstyle-coverage', runner.temp) || 'target' }}
+          CARGO_TARGET_DIR: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && format('{0}/rstyle-coverage', runner.temp) || 'target' }}
         run: |
-          if [ "${{ matrix.runner }}" = ubuntu-24.04 ]; then
+          if [ "${{ matrix.runner }}" = warp-ubuntu-latest-x64-4x ]; then
             ./scripts/coverage.sh
           else
             ./scripts/test.sh --nextest
@@ -83,17 +83,17 @@ jobs:
       # Coverage builds live outside the normal Cargo cache. Style capture uses
       # ordinary binaries, with no coverage flags or profile environment.
       - name: Build style binaries
-        if: matrix.runner == 'ubuntu-24.04'
+        if: matrix.runner == 'warp-ubuntu-latest-x64-4x'
         run: cargo build --locked -p cargo-rstyle -p rstyle-driver
 
       - name: Node for CPG helper adapter
-        if: matrix.runner == 'ubuntu-24.04'
+        if: matrix.runner == 'warp-ubuntu-latest-x64-4x'
         uses: actions/setup-node@v4
         with:
           node-version: '24'
 
       - name: CPG helper TypeScript adapter
-        if: matrix.runner == 'ubuntu-24.04'
+        if: matrix.runner == 'warp-ubuntu-latest-x64-4x'
         env:
           RSTYLE_CPG_BIN: ${{ github.workspace }}/target/debug/cargo-rstyle
         run: node --test examples/cpg-helper/typescript/capture.test.mjs
@@ -111,7 +111,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Retain coverage report
-        if: always() && matrix.runner == 'ubuntu-24.04' && steps.tests.outcome == 'success'
+        if: always() && matrix.runner == 'warp-ubuntu-latest-x64-4x' && steps.tests.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-linux-x64
@@ -187,7 +187,7 @@ jobs:
 
   coverage:
     needs: check
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-4x
     permissions:
       contents: read
       id-token: write
