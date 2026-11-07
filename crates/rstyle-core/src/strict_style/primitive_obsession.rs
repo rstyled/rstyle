@@ -1,51 +1,13 @@
 //! A parameter whose name says what it means, held as plain text or an integer in more than one
 //! function. A named type would say what it holds, and stop two of them being swapped.
 
+use crate::config::{PrimitiveObsessionConfig, Word};
 use crate::facts::{FnFacts, Scalar};
 use crate::report::Diagnostic;
 use crate::rules::{Measure, diagnostic};
 use std::collections::BTreeMap;
 
 pub(super) const RULE: &str = "primitive_obsession";
-
-/// Fewer functions than this holding a meaning as a plain value say nothing about a codebase.
-const MIN_FUNCTIONS: usize = 2;
-
-/// Words in a name that mean something a type could say.
-const MEANINGS: [&str; 32] = [
-    "email",
-    "phone",
-    "url",
-    "uri",
-    "uuid",
-    "guid",
-    "id",
-    "name",
-    "address",
-    "street",
-    "city",
-    "state",
-    "zip",
-    "postal",
-    "country",
-    "currency",
-    "price",
-    "amount",
-    "quantity",
-    "ssn",
-    "passport",
-    "license",
-    "username",
-    "password",
-    "token",
-    "apikey",
-    "secret",
-    "creditcard",
-    "iban",
-    "isbn",
-    "sku",
-    "serial",
-];
 
 /// The words of a name, lowercase, split at `_`, `-` and each lower-to-upper change: `userEmail`
 /// and `user_email` both hold `email`, and `valid` doesn't hold `id`.
@@ -70,23 +32,25 @@ fn words(name: &str) -> Vec<String> {
     found
 }
 
-fn meaning(name: &str) -> Option<&'static str> {
-    words(name)
-        .iter()
-        .find_map(|word| MEANINGS.iter().find(|meaning| *meaning == word))
-        .copied()
+fn meaning<'c>(name: &str, meanings: &'c [Word]) -> Option<&'c str> {
+    words(name).iter().find_map(|word| {
+        meanings
+            .iter()
+            .map(Word::as_str)
+            .find(|meaning| meaning == word)
+    })
 }
 
 /// Each function holding a meaning as a plain value, by that meaning and value: the function and
 /// the first such parameter's name.
-type Holders<'f> = BTreeMap<(&'static str, Scalar), BTreeMap<usize, &'f str>>;
+type Holders<'c, 'f> = BTreeMap<(&'c str, Scalar), BTreeMap<usize, &'f str>>;
 
-fn holders(facts: &[FnFacts]) -> Holders<'_> {
+fn holders<'c, 'f>(facts: &'f [FnFacts], meanings: &'c [Word]) -> Holders<'c, 'f> {
     let mut found = Holders::new();
     for (index, function) in facts.iter().enumerate() {
         for parameter in &function.param_list {
             let (Some(scalar @ (Scalar::Text | Scalar::Integer)), Some(meaning)) =
-                (parameter.scalar, meaning(&parameter.name))
+                (parameter.scalar, meaning(&parameter.name, meanings))
             else {
                 continue;
             };
@@ -97,10 +61,14 @@ fn holders(facts: &[FnFacts]) -> Holders<'_> {
     found
 }
 
-pub(super) fn add(facts: &[FnFacts], found: &mut [Vec<Diagnostic>]) {
-    for ((meaning, scalar), functions) in holders(facts) {
+pub(super) fn add(
+    facts: &[FnFacts],
+    rule: &PrimitiveObsessionConfig,
+    found: &mut [Vec<Diagnostic>],
+) {
+    for ((meaning, scalar), functions) in holders(facts, &rule.meanings) {
         let actual = functions.len();
-        if actual < MIN_FUNCTIONS {
+        if actual < rule.min_functions {
             continue;
         }
         for (index, parameter) in functions {
@@ -112,7 +80,7 @@ pub(super) fn add(facts: &[FnFacts], found: &mut [Vec<Diagnostic>]) {
             );
             let measure = Measure {
                 actual,
-                limit: MIN_FUNCTIONS - 1,
+                limit: rule.min_functions.saturating_sub(1),
             };
             found[index].push(diagnostic(&facts[index], RULE, message, measure));
         }

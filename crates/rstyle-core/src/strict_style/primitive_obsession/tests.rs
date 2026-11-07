@@ -15,21 +15,70 @@ fn function(name: &str, parameters: &[(&str, Option<Scalar>)]) -> FnFacts {
     f
 }
 
-fn found(facts: &[FnFacts]) -> Vec<Vec<Diagnostic>> {
+fn found_under(facts: &[FnFacts], rule: &PrimitiveObsessionConfig) -> Vec<Vec<Diagnostic>> {
     let mut found = vec![Vec::new(); facts.len()];
-    add(facts, &mut found);
+    add(facts, rule, &mut found);
     found
+}
+
+fn found(facts: &[FnFacts]) -> Vec<Vec<Diagnostic>> {
+    found_under(facts, &PrimitiveObsessionConfig::default())
+}
+
+/// What a name means by the default words.
+fn means(name: &str) -> Option<String> {
+    meaning(name, &PrimitiveObsessionConfig::default().meanings).map(str::to_owned)
+}
+
+fn has_a_diagnostic(found: &[Vec<Diagnostic>]) -> bool {
+    found.iter().any(|function| !function.is_empty())
 }
 
 #[test]
 fn a_meaning_is_a_whole_word_of_a_name() {
-    assert_eq!(meaning("user_email"), Some("email"));
-    assert_eq!(meaning("userEmail"), Some("email"));
-    assert_eq!(meaning("user-email"), Some("email"));
-    assert_eq!(meaning("userID"), Some("id"));
-    assert_eq!(meaning("id2"), None);
-    assert_eq!(meaning("valid"), None);
-    assert_eq!(meaning("count"), None);
+    assert_eq!(means("user_email").as_deref(), Some("email"));
+    assert_eq!(means("userEmail").as_deref(), Some("email"));
+    assert_eq!(means("user-email").as_deref(), Some("email"));
+    assert_eq!(means("userID").as_deref(), Some("id"));
+    assert_eq!(means("id2"), None);
+    assert_eq!(means("valid"), None);
+    assert_eq!(means("count"), None);
+}
+
+#[test]
+fn a_project_says_what_a_name_can_mean_and_how_often_it_counts() {
+    let facts = [
+        function(
+            "a",
+            &[("iban", Some(Scalar::Text)), ("email", Some(Scalar::Text))],
+        ),
+        function(
+            "b",
+            &[("iban", Some(Scalar::Text)), ("email", Some(Scalar::Text))],
+        ),
+    ];
+    assert!(
+        has_a_diagnostic(&found(&facts)),
+        "the default words hold both"
+    );
+
+    let words =
+        |input: &str| -> PrimitiveObsessionConfig { toml::from_str(input).expect("a valid rule") };
+    let only_iban = found_under(&facts, &words("meanings = [\"iban\"]"));
+    assert_eq!(only_iban[0].len(), 1, "{only_iban:?}");
+    assert!(only_iban[0][0].message.contains("`iban`"));
+
+    let none = found_under(&facts, &words("meanings = []"));
+    assert!(!has_a_diagnostic(&none), "{none:?}");
+
+    let three = found_under(&facts, &words("min_functions = 3"));
+    assert!(!has_a_diagnostic(&three), "{three:?}");
+
+    let alone = [function("a", &[("email", Some(Scalar::Text))])];
+    for one in ["min_functions = 1", "min_functions = 0"] {
+        let found = found_under(&alone, &words(one));
+        assert!(found[0][0].actual > found[0][0].limit, "{one}: {found:?}");
+    }
 }
 
 #[test]
@@ -109,7 +158,7 @@ fn it_runs_only_when_a_project_asks_and_an_allow_comment_covers_it() {
     let mut config = crate::config::Config::default();
     assert_eq!(rules(located.clone(), &config), 0);
 
-    config.strict_style.primitive_obsession = true;
+    config.strict_style.primitive_obsession.enabled = true;
     assert_eq!(rules(located.clone(), &config), 2);
 
     located[1].preceding_line =

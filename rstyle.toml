@@ -54,9 +54,20 @@ unknown = 1    # calls through dyn / fn pointers / generic callables
 caller_rules = ["fn_params"]
 caller_hops = 1
 
-[strict_style]
-# Opinions about how code could be shaped rather than limits it passed, so each is off unless you
-# turn it on. One that's on reports and fails a run like any other rule here.
-guard_clause = false         # an `if` whose `else` only returns, around a body that could stop being nested
-primitive_obsession = false  # a parameter whose name says what it means, held as plain text or an integer
-value_object = false         # plain values that travel together through several functions
+# Strict style: opinions about how code could be shaped rather than limits it passed, so each rule
+# is off unless you turn it on. One that's on reports and fails a run like any other rule here.
+
+[strict_style.guard_clause]
+enabled = false             # an `if` whose `else` only returns, around a body that could stop being nested
+min_nested_statements = 2   # fewer statements under the `if` than this are no main path to bring out
+
+[strict_style.primitive_obsession]
+enabled = false             # a parameter whose name says what it means, held as plain text or an integer
+min_functions = 2           # fewer functions than this holding a meaning as a plain value say nothing about a codebase
+meanings = [                # words of a name that mean something a type could say, each one lowercase word
+    "email", "phone", "url", "uri", "uuid", "guid", "id", "name",
+    "address", "street", "city", "state", "zip", "postal", "country",
+    "currency", "price", "amount", "quantity",
+    "ssn", "passport", "license", "username", "password", "token", "apikey", "secret",
+    "creditcard", "iban", "isbn", "sku", "serial",
+]

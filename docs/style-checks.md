@@ -75,9 +75,7 @@ is a commented example, though it raises the complexity limits above their defau
 | `side_effects.paths.*` | see below | Callee path prefixes that count as each effect kind |
 | `grouping.caller_rules` | `["fn_params"]` | Rules whose fix also edits the function's callers |
 | `grouping.caller_hops` | 1 | How many caller hops those fixes reach |
-| `strict_style.guard_clause` | `false` | See [strict style](#strict-style) |
-| `strict_style.primitive_obsession` | `false` | See [strict style](#strict-style) |
-| `strict_style.value_object` | `false` | See [strict style](#strict-style) |
+| `strict_style.*` | off | See [strict style](#strict-style) |
 
 The default weights are `mutation = 1`, `io = 3`, `network = 3`, `global = 2`, `unsafe = 4`, `time = 1`,
 `random = 1`, `panic = 0` and `unknown = 1`.
@@ -111,19 +109,21 @@ is [`dead_store`](defects.md).
 ## Strict style
 
 These rules are opinions about how code could be shaped, not limits it has passed, and plenty of good code disagrees with
-them. So each is off until `[strict_style]` in `rstyle.toml` turns it on:
+them. So each is off until its table under `[strict_style]` in `rstyle.toml` turns it on, and says how much it takes:
 
 ```toml
-[strict_style]
-guard_clause = true
+[strict_style.guard_clause]
+enabled = true
+min_nested_statements = 3
 ```
 
 A rule that's on behaves like any other here: it reports through `check`, fails the run, shows up in `check.sarif` and
-baselines, and `rstyle-allow` silences it for a function. Every language gets them from the same facts.
+baselines, and `rstyle-allow` silences it for a function. Every language gets them from the same facts. A rule that's off
+is left out of what a baseline compares, whatever its other settings hold.
 
 ### `guard_clause`
 
-An `if` whose `else` ends by returning, around at least 2 statements that don't:
+An `if` whose `else` ends by returning, around statements that don't:
 
 ```go
 if ok {
@@ -137,9 +137,14 @@ if ok {
 Returning early lets the main path stop being nested, and in Rust, `let ... else` often says it best. An `else if` is left
 alone, since returning early there means restructuring the whole chain.
 
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | |
+| `min_nested_statements` | 2 | Fewer statements under the `if` than this are no main path to bring out |
+
 ### `primitive_obsession`
 
-A parameter whose name says what it means, held as plain text or an integer in at least 2 functions of a run:
+A parameter whose name says what it means, held as plain text or an integer in several functions of a run:
 
 ```rust
 fn charge(user_id: &str, amount: u64) {}
@@ -147,14 +152,21 @@ fn refund(user_id: &str, amount: u64) {}
 ```
 
 A named type would say what each holds, and stop two of them being swapped. It reads a name's whole words, so `userEmail`
-and `user_email` hold `email`, and `valid` doesn't hold `id`. The words are `email`, `phone`, `url`, `uri`, `uuid`, `guid`,
-`id`, `name`, `address`, `street`, `city`, `state`, `zip`, `postal`, `country`, `currency`, `price`, `amount`, `quantity`,
-`ssn`, `passport`, `license`, `username`, `password`, `token`, `apikey`, `secret`, `creditcard`, `iban`, `isbn`, `sku` and
-`serial`.
+and `user_email` hold `email`, and `valid` doesn't hold `id`.
 
 Each function reports each meaning once, and a type someone named is never reported. It looks through references, so
-`&str`, `String` and `const std::string &` are all text. Most results on real code are `name` and `id`, so expect to suppress
-or exclude some.
+`&str`, `String` and `const std::string &` are all text. Most results on real code are `name` and `id`, so expect to take them
+out of `meanings`, or suppress or exclude some.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | |
+| `min_functions` | 2 | Fewer functions than this holding a meaning say nothing about a codebase |
+| `meanings` | see below | Words of a name that mean something a type could say. Each is one lowercase word, and anything else is an error, since it could never match |
+
+The default words are `email`, `phone`, `url`, `uri`, `uuid`, `guid`, `id`, `name`, `address`, `street`, `city`, `state`, `zip`,
+`postal`, `country`, `currency`, `price`, `amount`, `quantity`, `ssn`, `passport`, `license`, `username`, `password`, `token`,
+`apikey`, `secret`, `creditcard`, `iban`, `isbn`, `sku` and `serial`.
 
 ### `value_object`
 

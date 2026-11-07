@@ -112,8 +112,8 @@ a score. The same command returns 1 for findings or 2 for missing measurements.
 
 - `fn_length`: extract cohesive blocks into named helpers. Do not just compress lines.
 - `fn_spacing`: add a blank line where the body changes phase (setup, work, result).
-- `guard_clause`, only when `[strict_style]` turns it on: return early, so the main path stops being nested.
-- `primitive_obsession`, only when `[strict_style]` turns it on: give what the parameter holds a named type.
+- `guard_clause`, only when `[strict_style.guard_clause]` turns it on: return early, so the main path stops being nested.
+- `primitive_obsession`, only when `[strict_style.primitive_obsession]` turns it on: give what the parameter holds a named type.
 - `value_object`, only when `[strict_style]` turns it on: gather the values into a small type, if the callers really pass them together.
 - `fn_params`: introduce a params struct or move state into a type. Do not hide arguments in tuples.
 - `mutation_per_target` / `mutated_targets`: return new values instead of writing through `&mut`; split functions by the thing they mutate.
