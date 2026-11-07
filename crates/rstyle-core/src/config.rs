@@ -28,13 +28,15 @@ pub struct StrictStyleConfig {
     pub guard_clause: GuardClauseConfig,
     #[serde(skip_serializing_if = "PrimitiveObsessionConfig::is_off")]
     pub primitive_obsession: PrimitiveObsessionConfig,
-    /// Plain values that travel together through several functions, under one set of names.
-    pub value_object: bool,
+    #[serde(skip_serializing_if = "ValueObjectConfig::is_off")]
+    pub value_object: ValueObjectConfig,
 }
 
 impl StrictStyleConfig {
     fn all_off(&self) -> bool {
-        !self.guard_clause.enabled && !self.primitive_obsession.enabled && !self.value_object
+        !self.guard_clause.enabled
+            && !self.primitive_obsession.enabled
+            && !self.value_object.enabled
     }
 }
 
@@ -150,6 +152,40 @@ impl Default for PrimitiveObsessionConfig {
                 "isbn",
                 "sku",
                 "serial",
+            ]),
+        }
+    }
+}
+
+/// Plain values that travel together through several functions, under one set of names.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ValueObjectConfig {
+    pub enabled: bool,
+    /// Fewer values than this have nothing to travel with.
+    pub min_parameters: usize,
+    /// Fewer functions than this could share a set of names by chance.
+    pub min_functions: usize,
+    /// Names that say nothing about what a value holds, so a group of only these describes nothing.
+    pub placeholders: Vec<Word>,
+}
+
+impl ValueObjectConfig {
+    fn is_off(&self) -> bool {
+        !self.enabled
+    }
+}
+
+impl Default for ValueObjectConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            min_parameters: 2,
+            min_functions: 3,
+            placeholders: Word::list(&[
+                "foo", "bar", "baz", "qux", "tmp", "temp", "val", "var", "arg", "args", "param",
+                "params", "obj", "item", "elem", "el", "p1", "p2", "p3", "a1", "a2", "a3", "v1",
+                "v2", "x1", "x2", "y1", "y2",
             ]),
         }
     }
@@ -475,7 +511,10 @@ mod tests {
     fn strict_style_rules_are_off_unless_asked_for() {
         let default = Config::parse("").unwrap().strict_style;
         assert!(!default.guard_clause.enabled);
-        assert!(!default.value_object);
+        assert!(!default.value_object.enabled);
+        assert_eq!(default.value_object.min_parameters, 2);
+        assert_eq!(default.value_object.min_functions, 3);
+        assert_eq!(default.value_object.placeholders.len(), 28);
         assert!(!default.primitive_obsession.enabled);
         assert_eq!(default.primitive_obsession.min_functions, 2);
         assert_eq!(default.primitive_obsession.meanings.len(), 32);
@@ -503,6 +542,7 @@ mod tests {
     fn the_example_config_states_strict_styles_defaults() {
         example_states_the_defaults_of::<GuardClauseConfig>("guard_clause");
         example_states_the_defaults_of::<PrimitiveObsessionConfig>("primitive_obsession");
+        example_states_the_defaults_of::<ValueObjectConfig>("value_object");
     }
 
     #[test]
@@ -524,13 +564,13 @@ mod tests {
         let policy = |input: &str| serde_json::to_value(Config::parse(input).unwrap()).unwrap();
         let tuned = "[strict_style.primitive_obsession]\nmin_functions = 5\nmeanings = [\"iban\"]";
         assert_eq!(policy(tuned), policy(""));
+        let tuned = "[strict_style.value_object]\nmin_functions = 5\nplaceholders = [\"x\"]";
+        assert_eq!(policy(tuned), policy(""));
 
         // One rule on leaves the others out.
         let on = policy("[strict_style.guard_clause]\nenabled = true");
-        assert!(
-            on["strict_style"].get("primitive_obsession").is_none(),
-            "{on}"
-        );
+        let rules = on["strict_style"].as_object().unwrap();
+        assert_eq!(rules.keys().collect::<Vec<_>>(), ["guard_clause"], "{on}");
     }
 
     #[test]

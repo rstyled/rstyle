@@ -170,7 +170,7 @@ The default words are `email`, `phone`, `url`, `uri`, `uuid`, `guid`, `id`, `nam
 
 ### `value_object`
 
-At least 2 plain values under the same names, in at least 3 functions of a run:
+Plain values under the same names, in several functions of a run:
 
 ```go
 func dial(host string, port int) {}
@@ -182,6 +182,16 @@ A small type could hold them. Only the largest such group is reported, and a fun
 nothing about a value, such as `x`, `tmp` or `arg`, can't make a group on their own, and a name starting with `_` isn't part
 of one. It only reads parameters, so it can't say the values really belong together: the callers decide that. Signatures
 matching by accident is the commonest reason to suppress one.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | |
+| `min_parameters` | 2 | Fewer values than this have nothing to travel with |
+| `min_functions` | 3 | Fewer functions than this could share a set of names by chance |
+| `placeholders` | see below | Names that say nothing about a value. Each is one lowercase word, and anything else is an error |
+
+The default placeholders are `foo`, `bar`, `baz`, `qux`, `tmp`, `temp`, `val`, `var`, `arg`, `args`, `param`, `params`, `obj`,
+`item`, `elem`, `el`, `p1`, `p2`, `p3`, `a1`, `a2`, `a3`, `v1`, `v2`, `x1`, `x2`, `y1` and `y2`.
 
 ## Fix groups
 

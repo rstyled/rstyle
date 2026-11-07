@@ -18,10 +18,22 @@ fn function(name: &str, parameters: &[(&str, Option<Scalar>)]) -> FnFacts {
     f
 }
 
-fn found(facts: &[FnFacts]) -> Vec<Vec<Diagnostic>> {
+fn found_under(facts: &[FnFacts], rule: &ValueObjectConfig) -> Vec<Vec<Diagnostic>> {
     let mut found = vec![Vec::new(); facts.len()];
-    add(facts, &mut found);
+    add(facts, rule, &mut found);
     found
+}
+
+fn found(facts: &[FnFacts]) -> Vec<Vec<Diagnostic>> {
+    found_under(facts, &ValueObjectConfig::default())
+}
+
+fn rule(settings: &str) -> ValueObjectConfig {
+    toml::from_str(settings).expect("a valid rule")
+}
+
+fn reported(found: &[Vec<Diagnostic>]) -> usize {
+    found.iter().map(Vec::len).sum()
 }
 
 fn three_with(parameters: &[(&str, Option<Scalar>)]) -> Vec<FnFacts> {
@@ -131,6 +143,60 @@ fn it_runs_only_when_a_project_asks() {
     let mut config = crate::config::Config::default();
     assert_eq!(count(&config), 0);
 
-    config.strict_style.value_object = true;
+    config.strict_style.value_object.enabled = true;
     assert_eq!(count(&config), 3);
+}
+
+#[test]
+fn a_project_says_how_many_functions_and_values_make_a_group() {
+    let two = &three_with(&[("host", TEXT), ("port", INT)])[..2];
+    assert_eq!(reported(&found(two)), 0, "two functions, by default");
+    assert_eq!(reported(&found_under(two, &rule("min_functions = 2"))), 2);
+
+    let three = three_with(&[("host", TEXT), ("port", INT)]);
+    assert_eq!(
+        reported(&found_under(&three, &rule("min_functions = 4"))),
+        0
+    );
+    assert_eq!(
+        reported(&found_under(&three, &rule("min_parameters = 3"))),
+        0
+    );
+
+    let one_value = three_with(&[("host", TEXT)]);
+    assert_eq!(reported(&found(&one_value)), 0, "two values, by default");
+    assert_eq!(
+        reported(&found_under(&one_value, &rule("min_parameters = 1"))),
+        3
+    );
+}
+
+#[test]
+fn a_project_says_which_names_describe_nothing() {
+    let named = three_with(&[("host", TEXT), ("port", INT)]);
+    assert_eq!(reported(&found(&named)), 3);
+    let placeholders = rule("placeholders = [\"host\", \"port\"]");
+    assert_eq!(reported(&found_under(&named, &placeholders)), 0);
+
+    let holders = three_with(&[("foo", TEXT), ("bar", INT)]);
+    assert_eq!(
+        reported(&found(&holders)),
+        0,
+        "these are placeholders by default"
+    );
+    assert_eq!(
+        reported(&found_under(&holders, &rule("placeholders = []"))),
+        3
+    );
+}
+
+#[test]
+fn a_limit_of_zero_reads_as_one() {
+    let [diagnostic] = &found_under(
+        &three_with(&[("host", TEXT), ("port", INT)])[..1],
+        &rule("min_functions = 0"),
+    )[0][..] else {
+        panic!("one diagnostic");
+    };
+    assert!(diagnostic.actual > diagnostic.limit);
 }

@@ -44,11 +44,12 @@ pub fn guard_clause(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
 pub fn across_the_run(facts: &[FnFacts], cfg: &Config) -> Vec<Vec<Diagnostic>> {
     let mut found = vec![Vec::new(); facts.len()];
     let rules = &cfg.strict_style;
+
     if rules.primitive_obsession.enabled {
         primitive_obsession::add(facts, &rules.primitive_obsession, &mut found);
     }
-    if rules.value_object {
-        value_object::add(facts, &mut found);
+    if rules.value_object.enabled {
+        value_object::add(facts, &rules.value_object, &mut found);
     }
     found
 }
