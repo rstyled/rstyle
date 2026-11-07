@@ -15,6 +15,8 @@ pub struct Facts<'b, 'a> {
     pub sources: &'b Sources<'a>,
     /// Width of a pointer-sized integer on the target.
     pub pointer_bits: u8,
+    /// Whether the frontend emits destructors as calls, so none can run unseen.
+    pub destructors_are_calls: bool,
 }
 
 impl<'a> Facts<'_, 'a> {

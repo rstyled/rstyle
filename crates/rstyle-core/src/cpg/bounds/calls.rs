@@ -185,10 +185,14 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 
     /// Workspace code that runs without a call site: a workspace type's own `Deref`
-    /// reached by an implicit dereference, and drop glue.
+    /// reached by an implicit dereference, and drop glue, unless the frontend emits
+    /// destructors as calls.
     pub(super) fn hidden_call(&self, expression: &Node) -> Result<Option<&'static str>, String> {
         if self.workspace_deref(expression) {
             return Ok(Some("Overloaded auto-deref runs a workspace Deref impl"));
+        }
+        if self.facts.destructors_are_calls {
+            return Ok(None);
         }
         Ok(self
             .facts

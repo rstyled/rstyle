@@ -240,14 +240,15 @@ fn record(
     })
 }
 
-/// The body's root, when a macro writes the whole function: its signature and its root.
-/// A macro that wraps a function, or rewrites its signature, leaves it its author's.
+/// The body's root, when a macro or the compiler writes the whole function: its signature
+/// and its root. A macro that wraps a function, or rewrites its signature, leaves it its
+/// author's.
 fn macro_written_root(function: &Function) -> Option<&Node> {
     let signature = function.signature.provenance.as_ref()?;
-    (signature.origin == Origin::MacroExpansion)
+    matches!(signature.origin, Origin::MacroExpansion | Origin::Analysis)
         .then(|| function.nodes.iter().find(|node| node.id == function.root))
         .flatten()
-        .filter(|root| root.provenance.origin == Origin::MacroExpansion)
+        .filter(|root| root.provenance.origin == signature.origin)
 }
 
 /// Whether a macro writes the whole function.
@@ -452,6 +453,24 @@ mod tests {
             // The graph moves to the record, so the facts carry none of their own.
             assert!(facts.pdg.is_none());
         }
+    }
+
+    #[test]
+    fn a_function_the_compiler_writes_is_nobody_s_to_review() {
+        let mut document = example();
+        let function = &mut document["unit"]["functions"][0];
+        let root = function["root"].as_str().unwrap().to_owned();
+        let provenance = serde_json::json!({"origin": "analysis"});
+        function["signature"]["provenance"] = provenance.clone();
+        let nodes = function["nodes"].as_array_mut().unwrap();
+        let root = nodes
+            .iter_mut()
+            .find(|node| node["id"] == root.as_str())
+            .unwrap();
+        root["provenance"] = provenance;
+        let record = &read(document, Demand::default())[0];
+
+        assert!(matches!(record.measured, Measured::Generated(_)));
     }
 
     #[test]

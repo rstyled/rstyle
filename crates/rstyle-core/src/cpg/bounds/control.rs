@@ -54,10 +54,13 @@ impl<'a> Collector<'_, '_, 'a> {
             Some(&resume) => resume,
             None => self.node(Action::Nop, Flow::Return, expression),
         };
-        match expression.children.first() {
-            Some(value) => self.expr(self.facts.body.node(value)?, end),
-            None => Ok(end),
+        // What a frontend adds after the value, such as destructors, runs before the return.
+        let mut entry = end;
+        for child in expression.children.iter().rev() {
+            entry = self.expr(self.facts.body.node(child)?, entry)?;
         }
+
+        Ok(entry)
     }
 
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design

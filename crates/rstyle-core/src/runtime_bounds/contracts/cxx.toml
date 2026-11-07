@@ -73,3 +73,50 @@ operations = [
   "span.size",
   "vector.size",
 ]
+
+[[contract]]
+basis = "Frees one block or releases one lock, with nothing inside it to destroy in turn"
+steps = { Const = 1 }
+operations = [
+  "basic_filebuf.~basic_filebuf",
+  "basic_fstream.~basic_fstream",
+  "basic_ifstream.~basic_ifstream",
+  "basic_istringstream.~basic_istringstream",
+  "basic_ofstream.~basic_ofstream",
+  "basic_ostringstream.~basic_ostringstream",
+  "basic_string.~basic_string",
+  "basic_stringstream.~basic_stringstream",
+  "domain_error.~domain_error",
+  "exception.~exception",
+  "invalid_argument.~invalid_argument",
+  "length_error.~length_error",
+  "lock_guard.~lock_guard",
+  "logic_error.~logic_error",
+  "out_of_range.~out_of_range",
+  "overflow_error.~overflow_error",
+  "range_error.~range_error",
+  "runtime_error.~runtime_error",
+  "scoped_lock.~scoped_lock",
+  "shared_lock.~shared_lock",
+  "operator_delete",
+  "underflow_error.~underflow_error",
+  "unique_lock.~unique_lock",
+]
+
+[[contract]]
+basis = "Destroying a container visits each element, at a constant cost: the frontend keeps this contract from one whose elements cost more"
+steps = { Size = 0 }
+operations = [
+  "deque.~deque",
+  "forward_list.~forward_list",
+  "list.~list",
+  "map.~map",
+  "multimap.~multimap",
+  "multiset.~multiset",
+  "set.~set",
+  "unordered_map.~unordered_map",
+  "unordered_multimap.~unordered_multimap",
+  "unordered_multiset.~unordered_multiset",
+  "unordered_set.~unordered_set",
+  "vector.~vector",
+]
