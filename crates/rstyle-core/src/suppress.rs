@@ -15,6 +15,7 @@ pub const RULE_IDS: &[&str] = &[
     "side_effect_density",
     "abstraction",
     "dead_store",
+    "ignored_result",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]

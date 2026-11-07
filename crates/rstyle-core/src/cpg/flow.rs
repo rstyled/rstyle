@@ -729,9 +729,10 @@ fn accesses_recorded(coverage: &Coverage, function: &Function) -> bool {
         || declared(layers, "symbol") == Some(Status::Supported)
 }
 
-/// A function's flow when all of its syntax and what reads and writes each binding are known
-/// too, or why they aren't. Whatever isn't in the tree, such as code a compiler couldn't parse or
-/// a construct a frontend doesn't model, can do anything, so nothing can be said to be unused.
+/// A function's flow when all of its syntax, what reads and writes each binding and what its calls
+/// resolve to are known too, or why they aren't. Whatever isn't in the tree, such as code a
+/// compiler couldn't parse or a construct a frontend doesn't model, can do anything, so nothing can
+/// be said to be unused.
 pub fn with_accesses<'f>(coverage: &Coverage, function: &'f Function) -> Result<Flow<'f>, String> {
     let flow = declared_flow(coverage, function)?;
     let (layers, capabilities) = entries(coverage, function);
@@ -752,6 +753,9 @@ pub fn with_accesses<'f>(coverage: &Coverage, function: &'f Function) -> Result<
     }
     if !usable(declared(capabilities, "aliasing")) {
         return Err("The frontend does not say what can alias in this function".into());
+    }
+    if !usable(declared(capabilities, "resolution")) {
+        return Err("The frontend does not say what this function's calls resolve to".into());
     }
     Ok(flow)
 }

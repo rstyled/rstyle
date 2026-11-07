@@ -20,13 +20,12 @@ const ARGUMENT_DEPTH: usize = 16;
 
 pub(super) fn find(reading: &Reading<'_>) -> Result<Vec<Defect>, String> {
     let function = reading.function;
-    let body = Body::new(function)?;
+    let body = &reading.body;
     let reached: HashSet<(Vertex, &str)> = Reaching::of(function, &reading.flow)
         .data_dependence()
         .into_iter()
         .map(|(store, _, symbol)| (store, symbol))
         .collect();
-    let parents = parents(function);
     let skipped = unreliable(function, reading);
     let mut found = Vec::new();
 
@@ -42,39 +41,23 @@ pub(super) fn find(reading: &Reading<'_>) -> Result<Vec<Defect>, String> {
             continue;
         }
         let node = body.node(&access.node)?;
-        if node.provenance.origin == Origin::Source && stores_a_value(node, &parents, &body)? {
-            found.push(defect(reading, &body, node, symbol)?);
+        if node.provenance.origin == Origin::Source && stores_a_value(node, &reading.parents, body)?
+        {
+            found.push(defect(reading, node, symbol)?);
         }
     }
     Ok(found)
 }
 
-fn defect(
-    reading: &Reading<'_>,
-    body: &Body<'_>,
-    node: &Node,
-    symbol: &str,
-) -> Result<Defect, String> {
+fn defect(reading: &Reading<'_>, node: &Node, symbol: &str) -> Result<Defect, String> {
     Ok(Defect {
         rule: RULE,
         line: tree::line(reading.sources, node)?,
         message: format!(
             "the value stored in `{}` here is never read: every path replaces it or leaves first",
-            body.symbol(symbol)?.name
+            reading.body.symbol(symbol)?.name
         ),
     })
-}
-
-fn parents(function: &Function) -> HashMap<&str, &Node> {
-    function
-        .nodes
-        .iter()
-        .flat_map(|node| {
-            node.children
-                .iter()
-                .map(move |child| (child.as_str(), node))
-        })
-        .collect()
 }
 
 /// Symbols a read of the name doesn't account for, or whose stores aren't only that value. A
