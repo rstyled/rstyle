@@ -43,6 +43,7 @@ fn arithmetic(overflow: &str) -> crate::runtime_bounds::Arithmetic {
     match overflow {
         "checked" | "undefined" => crate::runtime_bounds::Arithmetic::Checked,
         "wrapping" => crate::runtime_bounds::Arithmetic::Wrapping,
+        "unbounded" => crate::runtime_bounds::Arithmetic::Unbounded,
         _ => crate::runtime_bounds::Arithmetic::Unknown,
     }
 }

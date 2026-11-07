@@ -31,7 +31,7 @@ pub fn shape(tables: &Tables<'_>, id: &str) -> Result<TyShape, String> {
             Ok(TyShape::Array(inner(&ty.element, "element")?))
         }
         TypeKind::Sequence => Ok(TyShape::Slice(inner(&ty.element, "element")?)),
-        TypeKind::Integer => primitive(&integer(ty)?),
+        TypeKind::Integer => primitive(&integer(tables, ty)?),
         TypeKind::Float => primitive(&format!("f{}", bits(ty)?)),
         TypeKind::Bool => primitive("bool"),
         TypeKind::Char => primitive("char"),
@@ -103,10 +103,11 @@ fn bits(ty: &Type) -> Result<u32, String> {
         .ok_or_else(|| format!("Type {} has no width", ty.id))
 }
 
-fn integer(ty: &Type) -> Result<String, String> {
+fn integer(tables: &Tables<'_>, ty: &Type) -> Result<String, String> {
     let sign = if ty.signed == Some(true) { "i" } else { "u" };
     Ok(match ty.pointer_sized {
         Some(true) => format!("{sign}size"),
+        _ if ty.bits.is_none() && tables.unbounded_integers() => "int".into(),
         _ => format!("{sign}{}", bits(ty)?),
     })
 }

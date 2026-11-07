@@ -1564,3 +1564,70 @@ fn undefined_overflow_holds_a_bound_as_checked_overflow_does() {
     assert_eq!(arithmetic("wrapping"), Arithmetic::Wrapping);
     assert_eq!(arithmetic("anything else"), Arithmetic::Unknown);
 }
+
+/// The example as a language whose integers have no width would write it.
+fn example_with_unbounded_integers() -> Value {
+    let mut document = example();
+    document["unit"]["semantics"]["integer_overflow"] = json!("unbounded");
+    let types = document["unit"]["types"].as_array_mut().unwrap();
+    let integer = types.iter_mut().find(|ty| ty["kind"] == "integer").unwrap();
+    integer.as_object_mut().unwrap().remove("bits");
+    integer["signed"] = json!(true);
+    document
+}
+
+#[test]
+fn unbounded_overflow_is_its_own_arithmetic() {
+    use crate::runtime_bounds::Arithmetic;
+    assert_eq!(arithmetic("unbounded"), Arithmetic::Unbounded);
+}
+
+#[test]
+fn a_function_of_unbounded_integers_lowers_at_the_widest_width() {
+    let program = count_program(example_with_unbounded_integers());
+    assert!(!program.contains("Unavailable"), "{program}");
+    assert!(program.contains(r#""arithmetic":"Unbounded""#), "{program}");
+    assert!(program.contains(r#""bits":64,"signed":true"#), "{program}");
+}
+
+#[test]
+fn a_nested_function_that_can_write_a_counter_leaves_its_loop_unbounded() {
+    // `def reset(): nonlocal total; total = 0`, which a call in the loop's body can run.
+    let mut document = example();
+    let function = count_function(&mut document);
+    let mut declaration = count_part(function, "count.reset", "item_declaration", json!([]));
+    declaration["captures"] =
+        json!([{"symbol": "count.total", "mode": "exclusive", "type": "type:u32"}]);
+    function["nodes"].as_array_mut().unwrap().push(declaration);
+    let root = function["root"].as_str().unwrap().to_string();
+    let block = count_node(function, &root);
+    block["children"]
+        .as_array_mut()
+        .unwrap()
+        .insert(0, json!("count.reset"));
+    let program = count_program(document);
+    assert!(program.contains("Mutable closure capture"), "{program}");
+}
+
+#[test]
+fn a_nested_function_that_only_reads_a_counter_changes_nothing() {
+    let mut document = example();
+    let function = count_function(&mut document);
+    let mut declaration = count_part(function, "count.read", "item_declaration", json!([]));
+    declaration["captures"] =
+        json!([{"symbol": "count.total", "mode": "shared", "type": "type:u32"}]);
+    function["nodes"].as_array_mut().unwrap().push(declaration);
+    let root = function["root"].as_str().unwrap().to_string();
+    let block = count_node(function, &root);
+    block["children"]
+        .as_array_mut()
+        .unwrap()
+        .insert(0, json!("count.read"));
+    let program = count_program(document);
+    assert!(!program.contains("Mutable closure capture"), "{program}");
+}
+
+#[test]
+fn a_function_of_unbounded_integers_gets_its_facts() {
+    assert_eq!(facts_of(example_with_unbounded_integers()).len(), 3);
+}
