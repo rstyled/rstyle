@@ -120,10 +120,8 @@ impl<'a> Facts<'_, 'a> {
 
     /// A member of an interface (Rust trait) rather than of an implementation.
     pub fn interface_member(&self, definition: &Definition) -> bool {
-        definition
-            .owner
-            .as_deref()
-            .and_then(|owner| self.tables.definition(owner).ok())
+        self.tables
+            .named_definition(definition.owner.as_deref())
             .is_some_and(|owner| owner.kind == DefinitionKind::Trait)
     }
 

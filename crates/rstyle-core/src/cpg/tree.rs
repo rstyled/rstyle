@@ -23,6 +23,11 @@ impl<'a> Tables<'a> {
         lookup(&self.definitions, id, || format!("Unknown definition {id}"))
     }
 
+    /// The definition something optionally names, when it names one the unit holds.
+    pub fn named_definition(&self, id: Option<&str>) -> Option<&'a Definition> {
+        self.definition(id?).ok()
+    }
+
     pub fn ty(&self, id: &str) -> Result<&'a Type, String> {
         lookup(&self.types, id, || format!("Unknown type {id}"))
     }

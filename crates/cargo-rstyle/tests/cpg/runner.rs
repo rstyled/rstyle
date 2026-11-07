@@ -134,6 +134,7 @@ fn a_go_run_saves_everything_in_one_timestamped_folder() {
     assert!(unified["patterns"].is_object());
     assert!(unified["runtime_bounds"].is_object());
     assert!(unified["flow"]["functions"].is_array());
+    assert!(unified["defects"]["defects"].is_array());
 
     let run = saved_run(&output);
     assert_eq!(run.parent().unwrap(), project.root().join(".rstyle/runs"));
@@ -1086,6 +1087,48 @@ fn rust_has_no_analyses_of_its_own_yet() {
     let output = rust_run(directory.path(), &["--filter", "rust:calls"]);
     assert_eq!(output.status.code(), Some(2), "{output:?}");
     assert!(stderr(&output).contains("it offers none"), "{output:?}");
+}
+
+/// A crate whose function stores a value it replaces before reading it.
+fn crate_with_a_dead_store() -> TempDir {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    std::fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n[workspace]\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "#![allow(unused_assignments)]\n\
+         fn f() -> i32 { 1 }\n\
+         pub fn dead() -> i32 {\n    let mut v = f();\n    v = f();\n    v\n}\n\
+         // rstyle-allow(dead_store): the first call's effect is the point\n\
+         pub fn allowed() -> i32 {\n    let mut v = f();\n    v = f();\n    v\n}\n\
+         pub fn alive() -> i32 {\n    let mut v = f();\n    v += f();\n    v\n}\n",
+    )
+    .unwrap();
+    directory
+}
+
+#[test]
+fn a_rust_run_finds_a_value_nothing_reads() {
+    let directory = crate_with_a_dead_store();
+    let output = rust_run(
+        directory.path(),
+        &["--filter", "defects", "--format", "json"],
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let unified = report(&output);
+    let defects = &unified["defects"];
+    assert_eq!(defects["suppressed"], 1, "{defects}");
+    let rows = defects["defects"].as_array().unwrap();
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(rows[0]["rule"], "dead_store");
+    assert_eq!(rows[0]["path"], "src/lib.rs");
+    assert_eq!(rows[0]["line"], 4);
+    assert!(saved_run(&output).join("defects.sarif").is_file());
 }
 
 /// A crate with a build script, whose own functions no route should report.

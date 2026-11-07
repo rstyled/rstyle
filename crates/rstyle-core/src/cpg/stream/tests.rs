@@ -32,6 +32,7 @@ fn split_functions_can_arrive_before_their_unit() {
             graphs: true,
             bounds: true,
             flow: false,
+            defects: false,
         },
     )
     .unwrap();

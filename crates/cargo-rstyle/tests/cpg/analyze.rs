@@ -119,11 +119,11 @@ fn flags_that_cannot_be_honored_fail_before_anything_runs() {
         ),
         (
             vec!["--filter", "bounds", "--sarif-dir", "unused"],
-            "--sarif-dir needs check or patterns",
+            "--sarif-dir needs check, patterns or defects",
         ),
         (
             vec!["--filter", "flow", "--sarif-dir", "unused"],
-            "--sarif-dir needs check or patterns",
+            "--sarif-dir needs check, patterns or defects",
         ),
     ] {
         let output = with_documents("analyze", &[example()], &extra);
@@ -181,7 +181,7 @@ fn sarif_is_one_file_per_selected_analysis() {
     assert_eq!(patterns["runs"].as_array().unwrap().len(), 1);
     let report: Value =
         serde_json::from_slice(&std::fs::read(sarif.join("report.sarif")).unwrap()).unwrap();
-    assert_eq!(report["runs"].as_array().unwrap().len(), 2);
+    assert_eq!(report["runs"].as_array().unwrap().len(), 3);
 
     let only = dir.path().join("only");
     let output = with_documents(
@@ -191,6 +191,33 @@ fn sarif_is_one_file_per_selected_analysis() {
     );
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     assert!(only.join("check.sarif").exists() && !only.join("patterns.sarif").exists());
+}
+
+#[test]
+fn a_defects_run_counts_what_it_read_and_keeps_its_own_sarif() {
+    let dir = tempfile::tempdir().unwrap();
+    let sarif = dir.path().join("sarif");
+    let output = with_documents(
+        "analyze",
+        &[example()],
+        &[
+            "--filter",
+            "defects",
+            "--format",
+            "json",
+            "--sarif-dir",
+            sarif.to_str().unwrap(),
+        ],
+    );
+    let report = json_report(&output);
+    assert_eq!(report["defects"]["functions"], 3);
+    assert!(report["defects"]["defects"].is_array());
+    assert!(report.get("check").is_none());
+
+    let log: Value =
+        serde_json::from_slice(&std::fs::read(sarif.join("defects.sarif")).unwrap()).unwrap();
+    assert_eq!(log["runs"][0]["automationDetails"]["id"], "rstyle/defects/");
+    assert!(!sarif.join("check.sarif").exists());
 }
 
 #[test]

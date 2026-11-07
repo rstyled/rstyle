@@ -5,6 +5,7 @@
 //! runtime bounds, signature groups and fix groups aren't findings.
 
 use crate::candidates::Candidate;
+use crate::defects_report::{DefectRow, DefectsReport};
 use crate::patterns_report::PatternsReport;
 use crate::report::{Diagnostic, Report};
 use serde::Serialize;
@@ -20,6 +21,7 @@ const CANDIDATE_FINGERPRINT: &str = "rstyle/candidate/v1";
 /// Categories keep the two analyses apart once a consumer holds both.
 pub const CHECK: &str = "rstyle/check/";
 pub const PATTERNS: &str = "rstyle/patterns/";
+pub const DEFECTS: &str = "rstyle/defects/";
 
 #[derive(Debug, Serialize)]
 pub struct Log {
@@ -121,6 +123,11 @@ pub fn patterns(report: &PatternsReport, root: &Path) -> Result<Log, String> {
     )
 }
 
+/// One warning per defect, with its rule as the rule id.
+pub fn defects(report: &DefectsReport, root: &Path) -> Result<Log, String> {
+    log(report.defects.iter().map(defect).collect(), DEFECTS, root)
+}
+
 /// Whether a frontend's file is a log a report can later hold: right version, and every run
 /// names its tool. The contents remain the frontend's to answer for.
 pub fn validate(log: &Value) -> Result<(), String> {
@@ -212,15 +219,25 @@ fn root_artifact(root: &Path) -> Result<Artifact, String> {
 }
 
 fn diagnostic(diagnostic: &Diagnostic) -> Finding {
+    at_one_place(
+        &diagnostic.rule_id,
+        &diagnostic.message,
+        (&diagnostic.path, diagnostic.line),
+    )
+}
+
+fn defect(defect: &DefectRow) -> Finding {
+    at_one_place(defect.rule, &defect.message, (&defect.path, defect.line))
+}
+
+fn at_one_place(rule_id: &str, text: &str, (path, line): (&str, usize)) -> Finding {
     Finding {
-        rule_id: diagnostic.rule_id.clone(),
+        rule_id: rule_id.to_owned(),
         level: "warning",
         message: Message {
-            text: diagnostic.message.clone(),
+            text: text.to_owned(),
         },
-        locations: location(&diagnostic.path, diagnostic.line)
-            .into_iter()
-            .collect(),
+        locations: location(path, line).into_iter().collect(),
         related_locations: Vec::new(),
         fingerprints: BTreeMap::new(),
     }

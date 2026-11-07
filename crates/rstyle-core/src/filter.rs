@@ -10,10 +10,17 @@ pub enum Analysis {
     Patterns,
     Bounds,
     Flow,
+    Defects,
 }
 
 impl Analysis {
-    const ALL: [Self; 4] = [Self::Check, Self::Patterns, Self::Bounds, Self::Flow];
+    const ALL: [Self; 5] = [
+        Self::Check,
+        Self::Patterns,
+        Self::Bounds,
+        Self::Flow,
+        Self::Defects,
+    ];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -21,6 +28,7 @@ impl Analysis {
             Self::Patterns => "patterns",
             Self::Bounds => "bounds",
             Self::Flow => "flow",
+            Self::Defects => "defects",
         }
     }
 
@@ -30,6 +38,7 @@ impl Analysis {
             "patterns" => Some(Self::Patterns),
             "bounds" => Some(Self::Bounds),
             "flow" => Some(Self::Flow),
+            "defects" => Some(Self::Defects),
             _ => None,
         }
     }
@@ -97,6 +106,7 @@ impl Filter {
             graphs: self.core(Analysis::Patterns),
             bounds: self.core(Analysis::Bounds),
             flow: self.core(Analysis::Flow),
+            defects: self.core(Analysis::Defects),
         }
     }
 
@@ -145,7 +155,7 @@ fn parsed(name: &str) -> Result<Selected, String> {
     }
     Analysis::named(name).map(Selected::Core).ok_or_else(|| {
         format!(
-            "Unknown analysis `{name}`: expected check, patterns, bounds, flow or <frontend>:<analysis>"
+            "Unknown analysis `{name}`: expected check, patterns, bounds, flow, defects or <frontend>:<analysis>"
         )
     })
 }
@@ -209,9 +219,10 @@ mod tests {
         assert!(filter.core(Analysis::Patterns));
         assert!(filter.core(Analysis::Bounds));
         assert!(filter.core(Analysis::Flow));
+        assert!(filter.core(Analysis::Defects));
         assert!(filter.needs_documents());
         let demand = filter.demand();
-        assert!(demand.graphs && demand.bounds && demand.flow);
+        assert!(demand.graphs && demand.bounds && demand.flow && demand.defects);
     }
 
     #[test]
@@ -222,8 +233,9 @@ mod tests {
         assert!(filter.core(Analysis::Bounds));
         assert!(!filter.core(Analysis::Flow));
         let demand = filter.demand();
-        assert!(!demand.graphs && demand.bounds && !demand.flow);
+        assert!(!demand.graphs && demand.bounds && !demand.flow && !demand.defects);
         assert!(only(&["flow"]).demand().flow);
+        assert!(only(&["defects"]).demand().defects);
     }
 
     #[test]
