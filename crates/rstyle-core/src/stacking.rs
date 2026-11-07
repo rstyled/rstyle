@@ -334,6 +334,7 @@ mod tests {
 
     fn param(name: &str, ty: &str, uses: usize) -> ParamFacts {
         ParamFacts {
+            scalar: None,
             name: name.into(),
             ty: ty.into(),
             uses,

@@ -17,6 +17,8 @@ pub(crate) enum Rule {
     MutatedTargets,
     SideEffectDensity,
     GuardClause,
+    PrimitiveObsession,
+    ValueObject,
 }
 
 impl Rule {
@@ -31,6 +33,8 @@ impl Rule {
             Self::MutatedTargets => "mutated_targets",
             Self::SideEffectDensity => "side_effect_density",
             Self::GuardClause => "guard_clause",
+            Self::PrimitiveObsession => "primitive_obsession",
+            Self::ValueObject => "value_object",
         }
     }
 }
