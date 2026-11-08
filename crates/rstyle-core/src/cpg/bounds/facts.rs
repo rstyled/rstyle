@@ -2,7 +2,8 @@
 //! the document instead of the compiler.
 
 use super::super::model::{
-    Definition, DefinitionKind, Node, NodeKind, Ref, RefStatus, TargetKind, Type, TypeKind,
+    Definition, DefinitionKind, Dispatch, Node, NodeKind, Ref, RefStatus, TargetKind, Type,
+    TypeKind,
 };
 use super::super::source::Sources;
 use super::super::tree::{Body, Tables, anchor};
@@ -115,6 +116,30 @@ impl<'a> Facts<'_, 'a> {
             TargetKind::Definition | TargetKind::Constructor
         )
         .then_some((target.kind, definition))
+    }
+
+    /// The function a call in function form runs when its callee names a type: the one the
+    /// call's own reference resolves to, dispatched statically. A frontend leaves that
+    /// reference unresolved when making the value runs anything else.
+    pub fn type_call(&self, call: &Node, callee: &Node) -> Option<&'a Definition> {
+        let names_a_type = callee.kind == NodeKind::Identifier
+            && self.resolved(callee).is_some_and(|(kind, named)| {
+                kind == TargetKind::Definition && named.kind == DefinitionKind::Type
+            });
+        let reference = self.reference(call)?;
+        if !names_a_type
+            || reference.status != RefStatus::Resolved
+            || reference.dispatch != Some(Dispatch::Static)
+        {
+            return None;
+        }
+
+        let (kind, function) = self.resolved(call)?;
+        let callable = matches!(
+            function.kind,
+            DefinitionKind::Function | DefinitionKind::Method
+        );
+        (kind == TargetKind::Definition && callable).then_some(function)
     }
 
     /// The member a call or operator declares: its target, or `via` when dependent.

@@ -83,6 +83,11 @@ its count times the callee's bound, with callee inputs replaced by per-invocatio
 caller's arguments. Lengths follow shared places and field paths, so passing `&g.edges` into a slice scan
 contributes `len(g.edges)`.
 
+A call of a type, such as Python's `Made(xs, ys)`, runs the function its own reference names when the
+frontend resolves that statically, here `Made.__init__`. The value the call makes is that function's
+receiver, so `xs` and `ys` are the parameters after `self`. A frontend leaves the reference unresolved when
+making the value runs anything else, and the call stays opaque.
+
 These contribute opaque factors, which make the composed result `Partial` and are each listed with the
 reason:
 

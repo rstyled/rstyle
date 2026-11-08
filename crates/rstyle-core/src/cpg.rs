@@ -129,3 +129,5 @@ mod guard_clause_tests;
 mod shapes_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod type_call_tests;
