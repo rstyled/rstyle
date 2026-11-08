@@ -172,6 +172,7 @@ fn function_facts(
             Some(roles) => Some(dependence_graph(&body, tables, sources, roles)?),
             None => None,
         },
+        wording: tables.wording(),
     })
 }
 

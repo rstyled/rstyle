@@ -28,11 +28,10 @@ impl<'a> Collector<'_, '_, 'a> {
             NodeKind::PatternCondition => self.expr(self.facts.body.child(expression, 1)?, next),
             NodeKind::Identifier => Ok(self.path(expression, next)),
             NodeKind::Literal => Ok(next),
-            _ => Ok(self.unsupported(
-                expression,
-                next,
-                "HIR expression has unmodeled control, alias, cleanup, or operator semantics",
-            )),
+            _ => {
+                let reason = self.facts.tables.wording().unmodeled_expression();
+                Ok(self.unsupported(expression, next, reason))
+            }
         }
     }
 
@@ -80,7 +79,8 @@ impl<'a> Collector<'_, '_, 'a> {
     fn path(&mut self, expression: &'a Node, next: u32) -> u32 {
         match self.facts.local(expression) {
             Some(symbol) if self.closures.contains_key(symbol) => {
-                self.unsupported(expression, next, "Local closure escapes direct invocation")
+                let reason = self.facts.tables.wording().escaping_closure();
+                self.unsupported(expression, next, reason)
             }
             _ => next,
         }

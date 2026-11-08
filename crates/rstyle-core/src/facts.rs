@@ -423,6 +423,9 @@ pub struct FnFacts {
     /// Dependence graph; only present when the driver ran in semantic (`patterns`) mode.
     #[serde(default)]
     pub pdg: Option<Pdg>,
+    /// The terms its language's labels use. A label says them, so they aren't a fact to keep.
+    #[serde(skip)]
+    pub wording: crate::wording::Wording,
 }
 
 impl FnFacts {
@@ -474,6 +477,7 @@ pub fn sample(name: &str) -> FnFacts {
         sig: None,
         guard_clauses: vec![],
         pdg: None,
+        wording: Default::default(),
     }
 }
 

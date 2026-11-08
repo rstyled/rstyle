@@ -130,7 +130,7 @@ impl<'a> Walk<'a> {
         }
     }
 
-    /// A reference to a mutable static is a global effect, read or written.
+    /// A reference to a static that can be written is a global effect, read or written.
     fn path(&self, node: &Node, out: &mut Events) -> Result<(), String> {
         let target = self
             .body
@@ -142,7 +142,8 @@ impl<'a> Walk<'a> {
 
         let definition = self.tables.definition(target_id(target)?)?;
         if definition.kind == DefinitionKind::Static && has_modifier(definition, "mutable") {
-            let detail = format!("static mut {}", strip_generics(&definition.name));
+            let mutable_static = self.tables.wording().mutable_static();
+            let detail = format!("{mutable_static} {}", strip_generics(&definition.name));
             out.effects
                 .push(self.effect(EffectKind::Global, detail, node)?);
         }

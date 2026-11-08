@@ -198,7 +198,7 @@ impl<'a> Collector<'_, '_, 'a> {
             .facts
             .ty(expression)
             .is_some_and(|ty| self.drop_runs_workspace_code(ty, 64))
-            .then_some("A value with a workspace Drop impl runs uncounted drop glue"))
+            .then_some(self.facts.tables.wording().uncounted_destructor()))
     }
 
     /// Whether dropping a value of `ty` may run a workspace `Drop` impl. A reference or a

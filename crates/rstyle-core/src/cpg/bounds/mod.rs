@@ -21,9 +21,6 @@ pub use canonical::canonical_bounds;
 use facts::Facts;
 use std::collections::BTreeMap;
 
-pub(crate) const EVIDENCE: &str =
-    "live typed HIR; primitive unsigned semantics; no iterator trait size contract";
-
 /// The runtime-bound program of one function.
 pub fn lower(facts: &Facts<'_, '_>, arithmetic: Arithmetic) -> Result<Input, String> {
     let mut collector = Collector {
@@ -76,13 +73,13 @@ impl<'a> Collector<'_, '_, 'a> {
         let parameters = self.parameter_symbols()?;
         if parameters.len() > MAX_VARIABLES {
             return Ok(Input::BudgetExhausted {
-                reason: "HIR parameter capture budget exhausted".into(),
+                reason: self.facts.tables.wording().parameter_budget().into(),
             });
         }
         let frame = frame::inspect(self.facts, &parameters)?;
         if frame.exhausted {
             return Ok(Input::BudgetExhausted {
-                reason: "HIR frame inspection budget exhausted".into(),
+                reason: self.facts.tables.wording().frame_budget().into(),
             });
         }
         self.install_extents(&parameters, frame.extents)?;
@@ -94,7 +91,7 @@ impl<'a> Collector<'_, '_, 'a> {
         }
         if self.exhausted {
             return Ok(Input::BudgetExhausted {
-                reason: "HIR CFG capture node, variable, or nesting budget exhausted".into(),
+                reason: self.facts.tables.wording().capture_budget().into(),
             });
         }
 
@@ -150,7 +147,8 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 
     fn node(&mut self, action: Action, flow: Flow, at: &Node) -> u32 {
-        self.node_with((action, flow), at, EVIDENCE)
+        let evidence = self.facts.tables.wording().bound_evidence();
+        self.node_with((action, flow), at, evidence)
     }
 
     fn unsupported(&mut self, at: &Node, next: u32, reason: &str) -> u32 {

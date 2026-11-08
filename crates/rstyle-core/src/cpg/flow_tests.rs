@@ -1,8 +1,14 @@
 //! The derivations over flows no frontend's lowering shapes: any graph a document can hold.
 
-use super::flow::{Flow, Reaching, Standing, derive};
+use super::flow::{Derived, Flow, Reaching, Standing, derive};
 use super::model::{Coverage, Function};
+use crate::wording::Wording;
 use serde_json::{Value, json};
+
+/// What core derives of `function` in Rust's terms.
+fn rust_flow(coverage: &Coverage, function: &Function) -> Derived {
+    derive(coverage, function, Wording::Rust)
+}
 
 const ENTRY: &str = "entry";
 const EXIT: &str = "exit";
@@ -225,7 +231,7 @@ fn what_follows_a_loop_depends_on_the_loop_finishing_and_is_marked_so() {
         ("after", "last", "normal"),
         ("last", EXIT, "normal"),
     ]);
-    let derived = derive(&coverage("supported", "supported"), &function);
+    let derived = rust_flow(&coverage("supported", "supported"), &function);
     let termination: Vec<(&str, &str, &str)> = derived
         .control
         .iter()
@@ -254,7 +260,7 @@ fn what_follows_a_loop_depends_on_the_loop_finishing_and_is_marked_so() {
 #[test]
 fn without_a_loop_nothing_depends_on_one_finishing() {
     let function = bare(DIAMOND);
-    let derived = derive(&coverage("supported", "supported"), &function);
+    let derived = rust_flow(&coverage("supported", "supported"), &function);
 
     assert!(derived.control.iter().all(|edge| !edge.termination));
 }
@@ -420,12 +426,12 @@ fn coverage(cfg: &str, aliasing: &str) -> Coverage {
 #[test]
 fn a_frontend_that_emits_no_flow_leaves_every_function_unknown_not_empty() {
     let function = bare(&[]);
-    let derived = derive(&coverage("supported", "supported"), &function);
+    let derived = rust_flow(&coverage("supported", "supported"), &function);
     assert_eq!(derived.standing, Standing::Unknown);
     assert!(derived.data.is_none());
 
     let function = bare(DIAMOND);
-    let derived = derive(&coverage("unsupported", "supported"), &function);
+    let derived = rust_flow(&coverage("unsupported", "supported"), &function);
     assert_eq!(derived.standing, Standing::Unknown);
     assert!(derived.control.is_empty());
 }
@@ -442,7 +448,7 @@ fn flow_without_accesses_keeps_control_and_says_data_is_unknown() {
     let mut without = function.clone();
     without.accesses.clear();
 
-    let derived = derive(&coverage("supported", "supported"), &without);
+    let derived = rust_flow(&coverage("supported", "supported"), &without);
     assert_eq!(derived.standing, Standing::Approximated);
     assert!(derived.data.is_none());
     assert_eq!(derived.control.len(), 2);
@@ -462,7 +468,7 @@ fn a_binding_a_raw_pointer_reaches_can_change_through_it() {
         parameters: &[],
         compound: &[],
     };
-    let with_place = |mode: &str| {
+    let with_place = |mode: &str, wording| {
         let mut function = shape.function();
         function.places = vec![
             serde_json::from_value(json!({
@@ -471,13 +477,13 @@ fn a_binding_a_raw_pointer_reaches_can_change_through_it() {
             }))
             .unwrap(),
         ];
-        derive(&coverage("supported", "supported"), &function)
+        derive(&coverage("supported", "supported"), &function, wording)
     };
 
-    let shared = with_place("shared");
+    let shared = with_place("shared", Wording::Rust);
     assert_eq!(shared.standing, Standing::Known, "{:?}", shared.reasons);
 
-    let raw = with_place("raw");
+    let raw = with_place("raw", Wording::Rust);
     assert_eq!(raw.standing, Standing::Approximated);
     assert!(
         raw.reasons
@@ -485,16 +491,20 @@ fn a_binding_a_raw_pointer_reaches_can_change_through_it() {
             .any(|reason| reason.contains("a borrow, a capture"))
     );
     assert!(raw.data.unwrap().iter().all(|edge| edge.approximate));
+
+    let in_cxx = with_place("raw", Wording::Cxx).reasons;
+    let expected = "x can also change through a reference, a pointer, a lambda capture or a write to part of it";
+    assert!(in_cxx.iter().any(|reason| reason == expected), "{in_cxx:?}");
 }
 
 #[test]
 fn what_a_frontend_cannot_say_about_aliasing_is_recorded_and_unwinding_assumed_away() {
     let function = bare(DIAMOND);
-    let known = derive(&coverage("supported", "supported"), &function);
+    let known = rust_flow(&coverage("supported", "supported"), &function);
     assert_eq!(known.standing, Standing::Known);
     assert_eq!(known.assumptions.len(), 1);
 
-    let unstated = derive(&coverage("supported", "unknown"), &function);
+    let unstated = rust_flow(&coverage("supported", "unknown"), &function);
     assert_eq!(unstated.standing, Standing::Approximated);
     assert_eq!(unstated.reasons.len(), 1);
 }

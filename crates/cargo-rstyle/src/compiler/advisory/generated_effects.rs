@@ -69,6 +69,7 @@ impl Measurement {
             edges: self
                 .connections()
                 .map_or(&[], |connections| connections.edges.as_slice()),
+            wording: rstyle_core::wording::Wording::Rust,
         }
     }
 }

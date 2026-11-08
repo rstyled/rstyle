@@ -8,6 +8,7 @@ use crate::config::Config;
 use crate::facts::{Edge, FnFacts};
 use crate::graph::{self, EffectInput, EffectOwner};
 use crate::rules::{self, Effect, EffectEvents};
+use crate::wording::Wording;
 use crate::{EffectSource, exclusions};
 use std::collections::BTreeMap;
 
@@ -19,14 +20,14 @@ pub struct RunInputs {
 
 enum Row<'a> {
     Authored(&'a FnFacts),
-    Generated(&'a Observation),
+    Generated(&'a Observation, Wording),
 }
 
 impl Row<'_> {
     fn identity(&self) -> (&str, Option<&str>) {
         match self {
             Row::Authored(facts) => (&facts.id, facts.implements.as_deref()),
-            Row::Generated(observation) => match &observation.connections {
+            Row::Generated(observation, _) => match &observation.connections {
                 Some(connections) => (&connections.id, connections.implements.as_deref()),
                 None => (&observation.name, None),
             },
@@ -38,13 +39,14 @@ impl EffectInput for Row<'_> {
     fn effect_owner(&self) -> EffectOwner<'_> {
         match self {
             Row::Authored(facts) => facts.effect_owner(),
-            Row::Generated(observation) => EffectOwner {
+            Row::Generated(observation, wording) => EffectOwner {
                 name: &observation.name,
                 mutations: &observation.mutations,
                 edges: observation
                     .connections
                     .as_ref()
                     .map_or(&[] as &[Edge], |connections| &connections.edges),
+                wording: *wording,
             },
         }
     }
@@ -54,7 +56,7 @@ impl EffectSource for Row<'_> {
     fn direct_effects(&self, config: &Config) -> Vec<Effect> {
         match self {
             Row::Authored(facts) => rules::effects_of(facts, config),
-            Row::Generated(observation) => rules::effects_from_events(
+            Row::Generated(observation, _) => rules::effects_from_events(
                 EffectEvents {
                     mutations: &observation.mutations,
                     calls: &observation.calls,
@@ -82,7 +84,10 @@ pub fn run_inputs(records: Vec<Record>, config: &Config) -> Result<RunInputs, St
                 if observation.generated_file
                     || !excluded.is_excluded(std::path::Path::new(&record.path))
                 {
-                    generated.entry(record.identity).or_insert(observation);
+                    let wording = record.wording;
+                    generated
+                        .entry(record.identity)
+                        .or_insert((observation, wording));
                 }
             }
             _ => authored.extend(super::authored(record)),
@@ -96,7 +101,7 @@ pub fn run_inputs(records: Vec<Record>, config: &Config) -> Result<RunInputs, St
         .chain(
             generated
                 .values()
-                .map(|observation| Row::Generated(observation)),
+                .map(|(observation, wording)| Row::Generated(observation, *wording)),
         )
         .collect();
     let graph = graph::build_identified(&rows, Row::identity);

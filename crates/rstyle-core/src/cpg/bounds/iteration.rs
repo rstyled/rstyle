@@ -56,9 +56,8 @@ impl<'a> Collector<'_, '_, 'a> {
         if !self.written_places(parts.pattern)?.is_empty() {
             return Ok(Err("Iterator pattern holds more than new bindings"));
         }
-        Ok(self
-            .iteration_values(parts.head)?
-            .ok_or("Only resolved primitive ranges and shared slice iteration have a size model"))
+        let unsized_iteration = self.facts.tables.wording().unsized_iteration();
+        Ok(self.iteration_values(parts.head)?.ok_or(unsized_iteration))
     }
 
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design

@@ -739,7 +739,9 @@ fn opaque_loops_under_a_zero_trip_parent_still_make_the_owner_partial() {
         },
         Limits::default(),
     );
-    let compose::Composed::Partial(composed) = composer.composed("w::zero") else {
+    let compose::Composed::Partial(composed) =
+        composer.composed("w::zero", crate::wording::Wording::Rust)
+    else {
         panic!("a zero bound must not hide the opaque loop");
     };
     assert_eq!(composed.opaque_factors[0].kind, OpaqueKind::Loop);

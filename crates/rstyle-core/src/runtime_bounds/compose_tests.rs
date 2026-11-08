@@ -1,5 +1,6 @@
 use super::compose::{Analyzed, Composed, Composer};
 use super::*;
+use crate::wording::Wording;
 use std::collections::BTreeMap;
 
 fn node(action: Action, flow: Flow) -> Node {
@@ -213,7 +214,7 @@ fn compose_with(owners: Vec<(&str, Program)>, root: &str, limits: Limits) -> Com
         },
         limits,
     );
-    composer.composed(root)
+    composer.composed(root, Wording::Rust)
 }
 
 fn proven(composed: Composed) -> compose::Composition {
@@ -733,7 +734,7 @@ fn injected_contracts_replace_the_embedded_table() {
         Limits::default(),
         contracts,
     );
-    let composition = proven(composer.composed("w::lookup"));
+    let composition = proven(composer.composed("w::lookup", Wording::Rust));
     assert_eq!(
         composition.library_steps.to_string(),
         "n * len(map) * len(map) + n * n"

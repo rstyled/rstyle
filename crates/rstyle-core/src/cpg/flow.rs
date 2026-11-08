@@ -5,6 +5,7 @@
 use super::model::{
     AccessMode, Coverage, Declarations, Function, NodeKind, Origin, PlaceMode, Status,
 };
+use crate::wording::Wording;
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -767,7 +768,7 @@ pub fn with_accesses<'f>(coverage: &Coverage, function: &'f Function) -> Result<
 
 /// Everything derived of a function under this coverage. Unknown where the frontend emits
 /// no flow, whatever the reason: the same function becomes known as its coverage grows.
-pub fn derive(coverage: &Coverage, function: &Function) -> Derived {
+pub fn derive(coverage: &Coverage, function: &Function, wording: Wording) -> Derived {
     let (_, capabilities) = entries(coverage, function);
     let flow = match declared_flow(coverage, function) {
         Ok(flow) => flow,
@@ -779,7 +780,8 @@ pub fn derive(coverage: &Coverage, function: &Function) -> Derived {
     let data = accesses_recorded(coverage, function).then(|| data_edges(function, &flow, &aliased));
 
     let (control, too_large) = control_edges(&flow, &post);
-    let mut reasons = limits((function, &flow), data.is_some(), capabilities, &aliased);
+    let read = (data.is_some(), capabilities, wording);
+    let mut reasons = limits((function, &flow), read, &aliased);
     reasons.extend(too_large);
 
     Derived {
@@ -805,8 +807,7 @@ pub fn derive(coverage: &Coverage, function: &Function) -> Derived {
 /// Where the recorded facts stop short of the whole function.
 fn limits<'f>(
     (function, flow): (&'f Function, &Flow<'f>),
-    has_data: bool,
-    capabilities: Entries<'_>,
+    (has_data, capabilities, wording): (bool, Entries<'_>, Wording),
     aliased: &BTreeSet<&str>,
 ) -> Vec<String> {
     let mut reasons = Vec::new();
@@ -818,10 +819,8 @@ fn limits<'f>(
     }
 
     if !aliased.is_empty() {
-        reasons.push(format!(
-            "{} can also change through a borrow, a capture or a write to part of it",
-            names(function, aliased)
-        ));
+        let changed_elsewhere = wording.changed_elsewhere();
+        reasons.push(format!("{} {changed_elsewhere}", names(function, aliased)));
     }
     let partial = written_in_part(function, flow);
     if !partial.is_empty() {
