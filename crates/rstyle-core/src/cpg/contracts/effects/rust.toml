@@ -12,17 +12,21 @@
 # no trait member is listed here.
 #
 # `none` lists members that are pure for every type they're called with. They don't do IO, touch
-# globals, the environment, the clock or randomness, or panic; they take no callable, have no bound
-# through which a caller's type runs code (`Ord`, `Hash`, `Deref`, `Clone`, `Default`), and drop no
-# value of a type parameter. One that writes through `&mut self`, as `Option.replace` does, writes the
-# caller's own place, which core counts from the borrow. An `unsafe` member can be listed, since core
-# counts the `unsafe` block it's called in.
+# globals, the environment, the clock or randomness; they take no callable, have no bound through
+# which a caller's type runs code (`Ord`, `Hash`, `Deref`, `Clone`, `Default`), and drop no value of a
+# type parameter. One that writes through `&mut self`, as `Option.replace` does, writes the caller's
+# own place, which core counts from the borrow. An `unsafe` member can be listed, since core counts
+# the `unsafe` block it's called in.
 #
 # Allocating and freeing memory is no effect, as `append` and `make_unique` are none in Go's and C++'s
-# tables, and neither is running out of memory, which aborts. A collection that grows past `isize::MAX`
-# bytes panics, as `Vec.push` can, and that's memory running out too. A `Vec`'s allocator, which only
-# nightly code can supply, counts as allocating. A size the caller passes is an argument, though:
-# `Vec.with_capacity` panics when it's too large, so a member that takes one isn't listed.
+# tables, and neither is running out of memory, which aborts. A `Vec`'s allocator, which only nightly
+# code can supply, counts as allocating.
+#
+# A member that panics only on a bad argument is none too, as Go's `make` and `regexp.MustCompile` and
+# C++'s `vector.at` are: `Vec.with_capacity` for more than `isize::MAX` bytes, `Vec.remove` for an
+# index past the end, `Option.unwrap` on `None`, and `Vec.push` on a `Vec` that can't grow. What a
+# panic drops as it unwinds, such as the element `Vec.insert` was given, is the panic's. A member that
+# always panics, aborts or exits isn't listed.
 #
 # A string entry covers every member whose name it starts: `slice.iter` is `iter_mut` too. An exact
 # entry covers only the member it names, as `Option.is_some` needs, since `is_some_and` runs a callable.
@@ -58,10 +62,12 @@ none = [
     "HashSet.is_empty",
     "HashSet.len",
     { exact = "IoBufReader.new" },
+    { exact = "IoBufReader.with_capacity" },
     "Option.as_mut",
     "Option.as_ref",
     "Option.as_slice",
     "Option.copied",
+    { exact = "Option.expect" },
     "Option.flatten",
     { exact = "Option.is_none" },
     { exact = "Option.is_some" },
@@ -69,6 +75,7 @@ none = [
     "Option.replace",
     { exact = "Option.take" },
     "Option.transpose",
+    { exact = "Option.unwrap" },
     "Option.unzip",
     { exact = "Ordering.then" },
     { exact = "OsStr.to_os_string" },
@@ -108,14 +115,20 @@ none = [
     "String.new",
     { exact = "String.push" },
     { exact = "String.push_str" },
+    { exact = "String.reserve" },
+    { exact = "String.with_capacity" },
     "Vec.as_mut_slice",
     "Vec.as_slice",
     "Vec.capacity",
+    { exact = "Vec.insert" },
     "Vec.is_empty",
     "Vec.len",
     "Vec.new",
     { exact = "Vec.pop" },
     { exact = "Vec.push" },
+    { exact = "Vec.remove" },
+    { exact = "Vec.reserve" },
+    { exact = "Vec.with_capacity" },
     { exact = "VecDeque.pop_front" },
     "char.is_alphabetic",
     "char.is_alphanumeric",
@@ -127,6 +140,7 @@ none = [
     "char.len_utf8",
     "char.to_ascii_lowercase",
     "char.to_ascii_uppercase",
+    { exact = "format_argument.from_usize" },
     "format_argument.new_",
     "format_arguments.as_str",
     "format_arguments.from_str",
@@ -217,6 +231,8 @@ none = [
     "isize.wrapping_sub",
     { exact = "owned_box.new" },
     { exact = "owned_box.new_uninit" },
+    { exact = "owned_box.new_uninit_slice" },
+    { exact = "slice.copy_from_slice" },
     "slice.first",
     "slice.get",
     "slice.is_empty",
@@ -225,6 +241,7 @@ none = [
     "slice.len",
     "slice.split_first",
     "slice.split_last",
+    { exact = "slice.windows" },
     "str.as_bytes",
     "str.as_ptr",
     "str.bytes",
@@ -326,6 +343,7 @@ none = [
     "usize.checked_mul",
     "usize.checked_sub",
     "usize.count_ones",
+    { exact = "usize.div_ceil" },
     "usize.is_power_of_two",
     "usize.leading_zeros",
     "usize.saturating_add",

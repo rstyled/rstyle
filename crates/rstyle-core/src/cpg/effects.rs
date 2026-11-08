@@ -227,11 +227,24 @@ mod tests {
             Some(LibraryClass::Pure)
         );
         assert_eq!(rust.class("rust:Vec.new"), Some(LibraryClass::Pure));
-        // Allocating is no effect, but a size the caller passes can panic.
+        // Allocating is no effect, and neither is panicking on a bad argument: a size too large
+        // to allocate, an index past the end, or `None`.
         assert_eq!(rust.class("rust:Vec.push"), Some(LibraryClass::Pure));
         assert_eq!(rust.class("rust:owned_box.new"), Some(LibraryClass::Pure));
-        assert_eq!(rust.class("rust:Vec.with_capacity"), None);
-        assert_eq!(rust.class("rust:owned_box.new_uninit_slice"), None);
+        assert_eq!(
+            rust.class("rust:Vec.with_capacity"),
+            Some(LibraryClass::Pure)
+        );
+        assert_eq!(
+            rust.class("rust:owned_box.new_uninit_slice"),
+            Some(LibraryClass::Pure)
+        );
+        assert_eq!(rust.class("rust:Vec.remove"), Some(LibraryClass::Pure));
+        assert_eq!(rust.class("rust:Option.unwrap"), Some(LibraryClass::Pure));
+        // An exact entry doesn't cover `with_capacity_in`, which takes an allocator, or
+        // `unwrap_or`, which drops its default.
+        assert_eq!(rust.class("rust:Vec.with_capacity_in"), None);
+        assert_eq!(rust.class("rust:Option.unwrap_or"), None);
         // It runs a caller's `Ord`, or what runs depends on the implementation.
         assert_eq!(rust.class("rust:BTreeMap.get"), None);
         assert_eq!(rust.class("rust:Clone.clone"), None);
