@@ -429,3 +429,39 @@ fn a_function_compiled_twice_reports_its_flow_once() {
     let twice = from_records(&mut compiled_twice, &Config::default()).unwrap();
     assert_eq!(once.defects, twice.defects);
 }
+
+#[test]
+fn an_argument_its_sibling_methods_disagree_with_is_found_in_what_a_go_frontend_writes() {
+    let document: Value =
+        serde_json::from_str(include_str!("../cpg/testdata/deviant-argument-go.cpg.json")).unwrap();
+    let report = report_of(vec![document], &Config::default());
+    assert!(report.unknown.is_empty(), "{:?}", report.unknown);
+
+    let found: Vec<(usize, &str)> = report
+        .defects
+        .iter()
+        .filter(|row| row.rule == "deviant_argument")
+        .map(|row| (row.line, row.message.as_str()))
+        .collect();
+    assert_eq!(
+        found,
+        [
+            (
+                56,
+                "`NewContext` is passed `w.Log` here, where 5 of its 6 calls in sibling methods \
+                 pass `log`"
+            ),
+            (
+                58,
+                "`(*Writer).record` is passed `name` here, where 6 of its 7 calls in sibling \
+                 methods pass `options.Kind`"
+            ),
+            (
+                71,
+                "`(*Writer).record` is passed `startLegacy` here, where 6 of its 7 calls in \
+                 sibling methods pass `startStorage`"
+            ),
+        ],
+        "Store's constant, whole-call, computed and not-yet-written differences are deliberate"
+    );
+}

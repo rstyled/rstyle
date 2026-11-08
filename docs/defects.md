@@ -107,6 +107,40 @@ test file or an excluded path neither count nor get reported, so only the code y
 
 A result may be dropped on purpose, such as calling a function for what it caches. Suppress those with a reason.
 
+## `deviant_argument`
+
+A call that passes one variable where the same call in its sibling methods all pass another. Methods of one type
+written as near copies of each other, such as a store's `Create`, `Get`, `Update` and `Delete`, agree on what they
+pass, so the copy that doesn't stands out. It's "Bugs as Deviant Behavior" one level down from `ignored_result`:
+the calls decide what an argument should be.
+
+```text
+pkg/apiserver/rest/dualwriter_mode3.go:106: deviant_argument: `recordStorageDuration` is passed `name` here, where 6 of its 7 calls in sibling methods pass `options.Kind`
+```
+
+Siblings are methods of the same type that share at least half their callees. A call is compared with the calls of
+the same callee at the same argument in at least 4 of them, counting its own, and every other call must agree.
+
+A difference is reported only when nothing but a slip explains it:
+
+| Case | Why it stays quiet |
+| --- | --- |
+| A literal or a constant, such as `http.StatusNoContent` where siblings pass `http.StatusOK` | A different value is a choice; a slip reads the wrong variable |
+| A call that differs in another argument too, such as `log.Infof("denied: %v", err)` | It's another call, not the same call with one thing wrong |
+| A variable of another type than the siblings pass, such as decoding into `respDTO` where siblings decode into their `result` | It's another value, not the same one misnamed |
+| A variable that holds nothing yet at the call, such as `membs := convert(members)` | The siblings' variable couldn't have been passed there |
+| A variable computed from the siblings' one, in any number of steps, such as `body := read(resp.Body)` then `decode(wrap(body))` | Deriving one from the other is deliberate |
+| A builtin, such as `len` or `append` | What it's asked varies by design |
+| A function that isn't a method, or a callee nothing resolves | There are no siblings to weigh it against |
+
+A call inside a closure, such as a goroutine's, is judged where the closure is made, with what the closure binds
+before the call. Calls a test file holds, or an excluded path, neither count nor get reported.
+
+A difference can still be deliberate, such as a method that reads its old value where its siblings read the new one.
+It doesn't check that the siblings' field exists on the variable passed here: `r.User` where siblings pass `r.Name` is
+reported even when this `r` has no `Name`, since frontends don't describe the fields of every type. Suppress those with
+a reason.
+
 ## `taint_flow`
 
 Input reaching where it's dangerous: a value from a source, through what your functions do with it, to an argument a sink

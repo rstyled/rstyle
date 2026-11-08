@@ -1,6 +1,7 @@
 //! The defects a run's records hold, as the report and SARIF show them.
 
 use crate::config::{Config, IgnoredResultConfig, TaintConfig};
+use crate::cpg::defects::deviant_argument::{self, Arguments, MethodArguments};
 use crate::cpg::defects::ignored_result::{self, ResultUse};
 use crate::cpg::defects::taint::{self, Finding, FunctionFlows};
 use crate::cpg::defects::value_flow::ValueFlows;
@@ -109,6 +110,8 @@ struct Gathered {
     results: BTreeMap<String, Calls>,
     /// Where each function's values go, by its identity.
     flows: BTreeMap<String, FunctionFlows>,
+    /// What each method's calls pass, by its identity.
+    arguments: BTreeMap<String, MethodArguments>,
 }
 
 fn preceding(record: &Record) -> &str {
@@ -126,8 +129,9 @@ impl Gathered {
                 defects,
                 results,
                 flows,
+                arguments,
             } => {
-                self.add_read(record, (defects, results, flows));
+                self.add_read(record, (defects, results, (flows, arguments)));
             }
             Examined::Unknown(reason) => self.add_unknown(record, reason),
         }
@@ -136,11 +140,17 @@ impl Gathered {
     fn add_read(
         &mut self,
         record: &Record,
-        (defects, results, flows): (Vec<Defect>, Vec<ResultUse>, ValueFlows),
+        (defects, results, calls): (Vec<Defect>, Vec<ResultUse>, (ValueFlows, Arguments)),
     ) {
         self.add_found(record, defects);
         self.add_results(record, results);
+        self.add_calls(record, calls);
+    }
+
+    /// What a function's calls do with values: where its values go, and what each call passes.
+    fn add_calls(&mut self, record: &Record, (flows, arguments): (ValueFlows, Arguments)) {
         self.add_flows(record, flows);
+        self.add_arguments(record, arguments);
     }
 
     fn add_flows(&mut self, record: &Record, flows: ValueFlows) {
@@ -153,6 +163,39 @@ impl Gathered {
         self.flows
             .entry(record.identity.clone())
             .or_insert(function);
+    }
+
+    fn add_arguments(&mut self, record: &Record, arguments: Arguments) {
+        let method = MethodArguments {
+            identity: record.identity.clone(),
+            path: record.path.clone(),
+            allowed: suppress::allows(preceding(record), deviant_argument::RULE),
+            arguments,
+        };
+        self.arguments
+            .entry(record.identity.clone())
+            .or_insert(method);
+    }
+
+    /// Reports the arguments a method passes where its siblings' same calls all pass another.
+    fn compare_siblings(&mut self) {
+        let methods: Vec<MethodArguments> =
+            std::mem::take(&mut self.arguments).into_values().collect();
+        for deviant_argument::Finding { method, defect } in deviant_argument::find(&methods) {
+            let holder = &methods[method];
+            if holder.allowed {
+                self.suppressed
+                    .insert((holder.path.clone(), defect.line, defect.rule));
+                continue;
+            }
+            self.defects.insert(DefectRow {
+                path: holder.path.clone(),
+                line: defect.line,
+                rule: defect.rule,
+                message: defect.message,
+                function: holder.identity.clone(),
+            });
+        }
     }
 
     fn add_unknown(&mut self, record: &Record, reason: String) {
@@ -227,6 +270,12 @@ impl Gathered {
         }
     }
 
+    /// The rules only the run's functions together can judge.
+    fn across_functions(&mut self, taint: &TaintConfig) {
+        self.follow_input(taint);
+        self.compare_siblings();
+    }
+
     /// Reports the input that reaches a sink, wherever in the run each end is.
     fn follow_input(&mut self, project: &TaintConfig) {
         let functions: Vec<FunctionFlows> = std::mem::take(&mut self.flows).into_values().collect();
@@ -251,7 +300,7 @@ impl Gathered {
         for calls in std::mem::take(&mut self.results).into_values() {
             self.weigh(calls, &config.ignored_result);
         }
-        self.follow_input(&config.taint);
+        self.across_functions(&config.taint);
 
         DefectsReport {
             defects: self.defects.into_iter().collect(),
