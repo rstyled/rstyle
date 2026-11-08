@@ -7031,7 +7031,8 @@ expression: facts
       {
         "callee": "std::fmt::format",
         "line": 75,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "core::fmt::rt::Argument::new_display",
@@ -8433,7 +8434,8 @@ expression: facts
       {
         "callee": "std::fmt::format",
         "line": 99,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "core::fmt::rt::Argument::new_display",

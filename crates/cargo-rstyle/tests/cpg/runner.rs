@@ -2386,8 +2386,8 @@ fn risk_reads_an_exact_entry_as_only_the_member_it_names() {
     assert!(!called.contains("push"), "{called}");
 }
 
-/// A standard free function has a key, so the table can say `mem::swap` is pure, and leave out
-/// `mem::take`, which runs the caller's `Default`.
+/// A standard free function has a key, so the table can say `mem::swap` and `fmt::format` are
+/// pure, and leave out `mem::take`, which runs the caller's `Default`.
 #[test]
 fn risk_reads_a_pure_free_function_as_classified() {
     let directory = tempfile::tempdir().unwrap();
@@ -2398,7 +2398,7 @@ fn risk_reads_a_pure_free_function_as_classified() {
     let base = saved_run_of(root, &format!("{signature} {{ 0 }}\n"));
     let swapped = saved_run_of(
         root,
-        &format!("{signature} {{ std::mem::swap(a, b); 0 }}\n"),
+        &format!("{signature} {{ std::mem::swap(a, b); format!(\"{{}}\", a.len()).len() }}\n"),
     );
 
     let rated = report(&risk(&base, &swapped));
