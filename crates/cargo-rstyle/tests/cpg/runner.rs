@@ -2133,6 +2133,88 @@ fn a_rust_run_follows_input_to_where_its_dangerous_and_a_project_has_the_last_wo
     assert_eq!(rows(), [5]);
 }
 
+/// A crate that runs input in a shell, built each way a `Command` can be, and that runs it where it's
+/// data.
+fn crate_running_input_in_a_shell() -> TempDir {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    std::fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n[workspace]\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    let lines = [
+        "use std::process::Command;",
+        "fn input() -> String { std::env::var(\"Q\").unwrap() }",
+        "pub fn chained() {",
+        "    let _ = Command::new(\"sh\").arg(\"-c\").arg(input()).output();",
+        "}",
+        "pub fn bound() -> std::io::Result<()> {",
+        "    let mut cmd = Command::new(\"sh\");",
+        "    cmd.arg(\"-c\");",
+        "    cmd.arg(input());",
+        "    cmd.output()?;",
+        "    Ok(())",
+        "}",
+        "pub fn listed() {",
+        "    let q = input();",
+        "    let _ = Command::new(\"bash\").args([\"-c\", &q]).output();",
+        "}",
+        "pub fn sliced() {",
+        "    let q = input();",
+        "    let _ = Command::new(\"/bin/sh\").args(&[\"-c\", q.as_str()]).output();",
+        "}",
+        "pub fn argv() {",
+        "    let _ = Command::new(\"ls\").arg(input()).output();",
+        "}",
+        "pub fn a_script() {",
+        "    let _ = Command::new(\"sh\").arg(\"script.sh\").arg(input()).output();",
+        "}",
+        "pub fn data_to_the_code() {",
+        "    let mut cmd = Command::new(\"sh\");",
+        "    cmd.arg(\"-c\").arg(\"printf %s \\\"$0\\\"\");",
+        "    cmd.arg(input());",
+        "    let _ = cmd.status();",
+        "}",
+        "pub fn data_in_a_list() {",
+        "    let q = input();",
+        "    let _ = Command::new(\"sh\").args([\"-c\", SCRIPT, \"sh\", &q]).output();",
+        "}",
+        "const SCRIPT: &str = \"printf %s \\\"$1\\\"\";",
+    ];
+    std::fs::write(root.join("src/lib.rs"), lines.join("\n") + "\n").unwrap();
+    directory
+}
+
+#[test]
+fn a_rust_run_finds_input_a_shell_runs_as_code() {
+    let directory = crate_running_input_in_a_shell();
+    let root = directory.path();
+    assert_eq!(
+        taint_lines(root),
+        [4, 9, 15, 19],
+        "chained, bound, listed and sliced; argv, a script and data to the code are clean"
+    );
+
+    let ignoring = |keys: &str| {
+        let config = format!("[taint]\nignored = [{keys}]\n");
+        std::fs::write(root.join("rstyle.toml"), config).unwrap();
+        taint_lines(root)
+    };
+    let added = "\"std::process::Command::arg\", \"std::process::Command::args\"";
+    assert!(ignoring(added).is_empty(), "where it's added");
+    assert!(
+        ignoring("\"std::process::Command::new\"").is_empty(),
+        "what made the command"
+    );
+    assert_eq!(
+        ignoring("\"std::process::Command::output\""),
+        [4, 9, 15, 19],
+        "what runs it"
+    );
+}
+
 #[test]
 fn a_rust_run_finds_a_result_the_other_calls_use() {
     let directory = tempfile::tempdir().unwrap();

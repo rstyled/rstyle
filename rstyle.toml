@@ -59,6 +59,11 @@ unknown = 1    # calls through dyn / fn pointers / generic callables
 # io = ["std::fs::", "std::io::"]
 # network = ["std::net::", "reqwest::"]
 
+# Per-path rules, deep-merged onto the above in order (see README).
+# [[overrides]]
+# paths = ["adapters"]   # the adapters module, anywhere; globs work too
+# side_effects.weights = { io = 1, network = 1 }
+
 # How much each kind of change matters to `rstyle risk`. Nothing here has a default, so with no
 # rules a change is unrated. The base run's rules decide, so a change can't relax what judges it.
 # [risk]

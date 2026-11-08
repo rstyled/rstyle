@@ -139,7 +139,11 @@ fn gives_a_result(reading: &Reading<'_>, node: &Node) -> Result<bool, String> {
     Ok(!returns_its_receiver(reading, node, ty)?)
 }
 
-fn returns_its_receiver(reading: &Reading<'_>, node: &Node, result: &Type) -> Result<bool, String> {
+pub(super) fn returns_its_receiver(
+    reading: &Reading<'_>,
+    node: &Node,
+    result: &Type,
+) -> Result<bool, String> {
     let on_a_receiver = reading.body.reference(&node.id).is_some_and(|reference| {
         matches!(
             reference.dispatch,

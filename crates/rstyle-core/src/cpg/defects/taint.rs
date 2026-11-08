@@ -5,6 +5,9 @@
 //!
 //! A path says what to look at, not that it can be exploited, and no path doesn't say there's none.
 
+mod builder;
+
+use self::builder::ShellCode;
 use super::Defect;
 use super::value_flow::{End, FlowCall, Start, ValueFlows};
 use crate::config::TaintConfig;
@@ -39,6 +42,17 @@ struct Keyword {
     literal: String,
 }
 
+/// Calls made on what a sink returns that add arguments after its own, as a builder's do: each of
+/// `one` adds what it's given, and each of `each` every element of a list written out for it.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Appends {
+    #[serde(default)]
+    one: Vec<String>,
+    #[serde(default)]
+    each: Vec<String>,
+}
+
 /// Where a value is dangerous.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -49,6 +63,8 @@ struct Sink {
     callees: Vec<String>,
     shell: Option<Shell>,
     when: Option<Keyword>,
+    #[serde(default)]
+    appends: Appends,
 }
 
 /// Where input comes from and goes, for one frontend namespace.
@@ -98,11 +114,11 @@ fn program(path: &str) -> Option<&str> {
     std::path::Path::new(path).file_name()?.to_str()
 }
 
-/// Whether a known shell is told to run the argument after its flag, which is code to it. What
-/// isn't a literal can't establish that.
-fn shell_code_at(shell: &Shell, program_at: usize, call: &FlowCall) -> Option<usize> {
+/// Whether a known shell is told to run the argument after its flag, which is code to it, given the
+/// text of each argument that's a literal. What isn't a literal can't establish that.
+fn shell_code_at(shell: &Shell, program_at: usize, literals: &[(usize, String)]) -> Option<usize> {
     let literal = |at: usize| {
-        let found = call.literals.iter().find(|(position, _)| *position == at);
+        let found = literals.iter().find(|(position, _)| *position == at);
         found.map(|(_, text)| text.as_str())
     };
     let known = shell
@@ -122,8 +138,9 @@ fn dangerous(sink: &Sink, call: &FlowCall, position: usize) -> bool {
     };
     sink.when.as_ref().is_none_or(passed)
         && (sink.arguments.contains(&position)
-            || shell_code
-                .is_some_and(|(shell, &at)| shell_code_at(shell, at, call) == Some(position)))
+            || shell_code.is_some_and(|(shell, &at)| {
+                shell_code_at(shell, at, &call.literals) == Some(position)
+            }))
 }
 
 /// A sink's risk and what it's called, wherever it's defined.
@@ -233,10 +250,13 @@ pub struct Finding {
     pub defect: Defect,
 }
 
+/// An argument a value reached: the call, the position, and the element of a list written out there.
+type Reached = (usize, usize, Option<usize>);
+
 /// What a value does as it goes through one function.
 #[derive(Default)]
 struct Walk {
-    arguments: BTreeSet<(usize, usize)>,
+    arguments: BTreeSet<Reached>,
     returned: bool,
 }
 
@@ -246,6 +266,8 @@ struct Solver<'a> {
     /// Whose body each identity is.
     by_identity: BTreeMap<&'a str, usize>,
     summaries: Vec<Summary>,
+    /// Where each function's commands put what a shell runs as code.
+    shell_code: Vec<ShellCode>,
 }
 
 impl Solver<'_> {
@@ -272,11 +294,16 @@ impl Solver<'_> {
 
         while let Some(start) = stack.pop() {
             for hop in flows.hops.iter().filter(|hop| hop.from == start) {
-                let End::Argument { call, position } = hop.to else {
+                let End::Argument {
+                    call,
+                    position,
+                    element,
+                } = hop.to
+                else {
                     walk.returned = true;
                     continue;
                 };
-                walk.arguments.insert((call, position));
+                walk.arguments.insert((call, position, element));
                 let next = Start::Result(call);
                 if self.passes(models, &flows.calls[call], position) && seen.insert(next) {
                     stack.push(next);
@@ -287,12 +314,15 @@ impl Solver<'_> {
     }
 
     /// The sink an argument reaches, here or in the callee's body.
-    fn sink_at(&self, at: usize, call: usize, position: usize) -> Option<SinkSite> {
+    fn sink_at(&self, at: usize, reached: Reached) -> Option<SinkSite> {
+        let (call, position, _) = reached;
         let flows = &self.functions[at].flows;
         let called = &flows.calls[call];
         let models = Models::of(&flows.namespace);
 
-        if let Some(risk) = self.reader.risk_at(models, called, position) {
+        let code = self.shell_code[at].get(&reached);
+        let code = code.filter(|_| self.reader.counts(called)).cloned();
+        if let Some(risk) = self.reader.risk_at(models, called, position).or(code) {
             return Some(SinkSite {
                 function: at,
                 line: called.line,
@@ -344,7 +374,7 @@ impl Solver<'_> {
                 summary.passes.insert(position);
             }
             let sinks = walk.arguments.iter();
-            let sink = sinks.filter_map(|&(call, argument)| self.sink_at(at, call, argument));
+            let sink = sinks.filter_map(|&reached| self.sink_at(at, reached));
             if let Some(site) = sink.min_by_key(|site| (site.function, site.line)) {
                 summary.sinks.insert(position, site);
             }
@@ -373,7 +403,7 @@ impl Solver<'_> {
         for (start, origin) in self.input_starts(at) {
             let walk = self.walk(flows, &[start]);
             let sinks = walk.arguments.iter();
-            for site in sinks.filter_map(|&(call, argument)| self.sink_at(at, call, argument)) {
+            for site in sinks.filter_map(|&reached| self.sink_at(at, reached)) {
                 found.push((site, origin.clone()));
             }
         }
@@ -406,16 +436,24 @@ fn finding(functions: &[FunctionFlows], site: SinkSite, origin: &Origin) -> Find
 
 /// What reaches a sink across a run's functions, each named by what its callers call it.
 pub fn find(functions: &[FunctionFlows], project: &TaintConfig) -> Vec<Finding> {
-    let by_identity = functions
+    let by_identity: BTreeMap<&str, usize> = functions
         .iter()
         .enumerate()
         .map(|(at, function)| (function.flows.identity.as_str(), at))
         .collect();
+    let reader = Reader { project };
+    let has_body = |call: &FlowCall| by_identity.contains_key(call.selected.as_str());
+    let counts = |call: &FlowCall| reader.counts(call);
+    let shell_code = functions
+        .iter()
+        .map(|function| builder::shell_code(&function.flows, has_body, counts))
+        .collect();
     let mut solver = Solver {
         functions,
-        reader: Reader { project },
+        reader,
         by_identity,
         summaries: vec![Summary::default(); functions.len()],
+        shell_code,
     };
     solver.solve();
 

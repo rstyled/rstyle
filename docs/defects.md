@@ -125,7 +125,7 @@ Which calls are sources and sinks is data, per language, in `cpg/contracts/taint
 | --- | --- | --- |
 | Go | Query values, form values, headers, `os.Getenv`, `os.LookupEnv`, `io.ReadAll` | `database/sql` query text, `net/http` URLs, `os/exec` programs, template source, `os` file paths |
 | C and C++ | `getenv`, `fgets`, `read` and others | `system`, `popen`, the `exec` family, `fopen`, `open` and others |
-| Rust | `std::env::var`, `std::env::args`, reading stdin and others | `std::process::Command::new`, `std::fs` paths |
+| Rust | `std::env::var`, `std::env::args`, reading stdin and others | `std::process::Command` programs and what a shell runs, `std::fs` paths |
 | Python | `os.environ`, `os.getenv`, `sys.argv`, `sys.stdin`, `input` | `os.system`, `subprocess` with `shell=True`, `eval`, `exec`, `sqlite3` query text, `pickle.loads`, `open`, `os` and `pathlib` paths and others |
 
 Only an argument the sink treats as more than data counts, so a query parameter doesn't, and neither does an ordinary
@@ -135,6 +135,11 @@ told to, so it's a sink only where a call passes `shell=True`.
 A source can be a library's variable as well as a call, so reading `os.environ` or `sys.argv` is where input starts, and
 `os.environ.get("HOME")` and `sys.argv[1]` hold it. A model can say what cleans input too: Python's says `shlex.quote`
 does.
+
+A Rust `Command` is built a call at a time, so its arguments are what `arg` adds and each element of a list written out for
+`args`, in the order the calls ran. So `Command::new("sh").arg("-c").arg(input)` is found, and so is the same through
+`let mut cmd`, while `.arg("script.sh").arg(input)` and `.args(["-c", SCRIPT, "sh", &input])` aren't. A call between them
+with no body here, such as `current_dir`, keeps the command as it was.
 
 `rstyle.toml` has the last word. The standard library is all the models know, so name your own crates and packages here:
 
@@ -155,6 +160,10 @@ A callee is named by its operation, its name or its identity. A command-line too
 example is, and every result on go-ethereum and on rstyle itself is an environment variable choosing a path or a program, so
 `ignored` is often the right answer for those.
 
+Ignoring a sink ignores each way it's dangerous. So ignoring `std::process::Command::new` ignores both the program it's
+given and what a shell runs in a command it made, chained or through `let mut cmd`, as ignoring `os/exec.Command` does in
+Go. Ignoring `std::process::Command::arg` or `std::process::Command::args` ignores only what that call adds.
+
 ### How it follows a value
 
 Each function says where its values go, by what its tree's operands and its reaching definitions show, so overwriting a value
@@ -165,6 +174,7 @@ reach a sink or what it returns, and whether it returns input of its own, so a v
 | --- | --- |
 | A call with a body here | Gives back what its body does |
 | A call with no body here | Gives back everything it was handed |
+| A call that gives back a reference to what it was called on | Writes what that writes, so `cmd.arg("-c").arg(script)` adds both to `cmd` |
 | A number or a truth value | Holds no input, so `len(input)` and `%d` of one are clean |
 | A value that only decides a branch | Isn't followed: this is about what a value holds |
 
@@ -176,7 +186,11 @@ reach a sink or what it returns, and whether it returns input of its own, so a v
   being input.
 - **A call through an interface or a function value** gives back what it's handed, and a sink behind one isn't seen. Neither is
   what a closure returns.
-- **A shell in Rust.** `Command::new("sh").arg("-c").arg(input)` isn't found, since `arg` isn't a sink.
+- **A Rust command built in more than one function**, or handed a list that isn't written out in the call, as
+  `args(&argv)` and `args(vec![..])` are: what's added can't be counted, so nothing after it is read as code. Neither is
+  anything after a call with a body here, which could add arguments, or after a flag or program that isn't a literal. A call
+  on a branch is read as having run, so `cmd.arg("-c"); if verbose { cmd.arg("-x"); } cmd.arg(input)` isn't found. The
+  shells are Go's, all told to run code by `-c`, so `cmd /C` and PowerShell aren't modeled.
 - **Python's frameworks.** The models only know the standard library. Flask's `request` is a variable, so with Flask
   installed a project can name `flask.globals.request` under `sources`, and `request.args` holds what it does. Django's
   `request.GET.get(...)` is `django.utils.datastructures.MultiValueDict.get` once django-stubs gives Django types, but

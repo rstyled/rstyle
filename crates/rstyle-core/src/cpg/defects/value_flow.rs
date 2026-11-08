@@ -11,9 +11,13 @@ use super::super::model::{
 };
 use super::super::tree;
 use super::Reading;
-use super::ignored_result::declared_callee;
+use super::ignored_result::{declared_callee, returns_its_receiver};
 use crate::paths::strip_generics;
 use std::collections::{BTreeSet, HashMap};
+
+/// An argument that's a list written out in a call: its position, and the text of each element
+/// that's a string literal.
+pub type WrittenList = (usize, Vec<Option<String>>);
 
 /// A call a flow can start or end at, or a library's variable one can start at: reading it is where
 /// its value comes from, as a call's result is, and it has no arguments.
@@ -31,6 +35,8 @@ pub struct FlowCall {
     pub literals: Vec<(usize, String)>,
     /// The literal each keyword argument passes, by the parameter it names.
     pub keywords: Vec<(String, String)>,
+    /// Each argument that's a list written out in the call.
+    pub lists: Vec<WrittenList>,
 }
 
 /// Where a value starts. Parameters number as a call's arguments do: a receiver is 0.
@@ -40,10 +46,15 @@ pub enum Start {
     Parameter(usize),
 }
 
-/// Where a step of a value ends.
+/// Where a step of a value ends: an argument, and which element of it when it's a list written out
+/// in the call.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum End {
-    Argument { call: usize, position: usize },
+    Argument {
+        call: usize,
+        position: usize,
+        element: Option<usize>,
+    },
     Returned,
 }
 
@@ -64,13 +75,17 @@ pub struct ValueFlows {
     pub hops: Vec<Hop>,
 }
 
+/// Where in a call a value can end: a position, the element of a list written out there, and the
+/// node that holds it.
+type Slot<'a> = (usize, Option<usize>, &'a str);
+
 /// The directed graph values take between a function's tree nodes, each step ending at a call.
 struct Graph<'a> {
     reading: &'a Reading<'a>,
     accesses: HashMap<&'a str, Vec<&'a Access>>,
     successors: HashMap<&'a str, Vec<&'a str>>,
     /// Each call's argument nodes, by position, and the nodes it can write.
-    arguments: HashMap<&'a str, Vec<(usize, &'a str)>>,
+    arguments: HashMap<&'a str, Vec<Slot<'a>>>,
     written_by_calls: HashMap<&'a str, Vec<&'a str>>,
 }
 
@@ -115,6 +130,39 @@ fn operands<'a>(reading: &Reading<'a>, call: &Node) -> Result<Vec<(usize, &'a No
     let arguments = children.into_iter().skip(usize::from(!has_receiver));
 
     Ok(arguments.enumerate().collect())
+}
+
+/// The elements of a list written out where it's passed, as `args(["-c", script])` passes one,
+/// looking through a borrow of it.
+fn written_out_list<'a>(
+    reading: &Reading<'a>,
+    operand: &'a Node,
+) -> Result<Option<Vec<&'a Node>>, String> {
+    let mut at = operand;
+    while at.kind == NodeKind::Reference && !at.children.is_empty() {
+        at = reading.body.child(at, 0)?;
+    }
+    if at.kind != NodeKind::Array {
+        return Ok(None);
+    }
+    reading.body.children(at).map(Some)
+}
+
+/// Where in each argument a value can end: the argument, or each element of a list written out.
+fn slots<'a>(
+    reading: &Reading<'a>,
+    operands: &[(usize, &'a Node)],
+) -> Result<Vec<Slot<'a>>, String> {
+    let mut slots = Vec::new();
+    for &(position, operand) in operands {
+        let Some(elements) = written_out_list(reading, operand)? else {
+            slots.push((position, None, operand.id.as_str()));
+            continue;
+        };
+        let elements = elements.into_iter().enumerate();
+        slots.extend(elements.map(|(at, element)| (position, Some(at), element.id.as_str())));
+    }
+    Ok(slots)
 }
 
 impl<'a> Graph<'a> {
@@ -220,17 +268,23 @@ impl<'a> Graph<'a> {
         }
 
         self.written_by_calls.insert(&node.id, written);
-        self.arguments.insert(
-            &node.id,
-            operands
-                .iter()
-                .map(|(at, o)| (*at, o.id.as_str()))
-                .collect(),
-        );
+        self.arguments
+            .insert(&node.id, slots(self.reading, &operands)?);
         Ok(())
     }
 
-    /// The node an operand writes, looking through what only points at it.
+    /// Whether a call gives back a reference to what it was called on, as a builder's calls do.
+    fn lends_its_receiver(&self, call: &Node) -> Result<bool, String> {
+        let Some(ty) = call.ty.as_deref() else {
+            return Ok(false);
+        };
+        let ty = self.reading.tables.ty(ty)?;
+        let by_reference = matches!(ty.kind, TypeKind::Reference | TypeKind::Pointer);
+        Ok(by_reference && returns_its_receiver(self.reading, call, ty)?)
+    }
+
+    /// The node an operand writes, looking through what only points at it, which a call that
+    /// lends its receiver does: `cmd.arg("-c").arg(script)` writes `cmd` twice.
     fn written_through(&self, operand: &'a Node) -> Result<Option<&'a str>, String> {
         let mut at = operand;
         loop {
@@ -238,7 +292,8 @@ impl<'a> Graph<'a> {
                 return Ok(Some(at.id.as_str()));
             }
             let through = matches!(at.kind, NodeKind::Reference | NodeKind::FieldAccess)
-                || (at.kind == NodeKind::Operator && at.operator.as_deref() == Some("deref"));
+                || (at.kind == NodeKind::Operator && at.operator.as_deref() == Some("deref"))
+                || (at.kind == NodeKind::Call && self.lends_its_receiver(at)?);
             if !through || at.children.is_empty() {
                 return Ok(None);
             }
@@ -429,6 +484,20 @@ fn keyword_literal(
     Ok(text.map(|text| (keyword.clone(), text)))
 }
 
+/// The text of each element of each list written out in a call, where it's a string literal.
+fn lists_of(
+    reading: &Reading<'_>,
+    operands: &[(usize, &Node)],
+) -> Result<Vec<WrittenList>, String> {
+    let mut lists = Vec::new();
+    for &(position, operand) in operands {
+        if let Some(elements) = written_out_list(reading, operand)? {
+            lists.push((position, elements.into_iter().map(literal_text).collect()));
+        }
+    }
+    Ok(lists)
+}
+
 fn flow_call(
     reading: &Reading<'_>,
     node: &Node,
@@ -459,6 +528,7 @@ fn flow_call(
         line: tree::line(reading.sources, node)?,
         literals,
         keywords,
+        lists: lists_of(reading, &operands)?,
     })
 }
 
@@ -494,6 +564,7 @@ fn variable_read(
         line: tree::line(reading.sources, node)?,
         literals: Vec::new(),
         keywords: Vec::new(),
+        lists: Vec::new(),
     })
 }
 
@@ -527,12 +598,19 @@ fn flow_calls<'a>(
     Ok((calls, positions))
 }
 
+/// The nodes a value starts in: what holds it, and what a call writes with it.
+struct StartNodes<'a> {
+    start: Start,
+    value: Vec<&'a str>,
+    written: Vec<&'a str>,
+}
+
 /// Where each call's result can go next. A call whose result holds no text gives nothing on, though
 /// it can still write what it's handed.
 fn starts_of<'a>(
     graph: &Graph<'a>,
     positions: &HashMap<&'a str, usize>,
-) -> Result<Vec<(Start, Vec<&'a str>)>, String> {
+) -> Result<Vec<StartNodes<'a>>, String> {
     let mut starts = Vec::new();
     for (&node, &call) in positions {
         let written = graph
@@ -541,38 +619,54 @@ fn starts_of<'a>(
             .cloned()
             .unwrap_or_default();
         let result = (!graph.holds_no_text(graph.reading.body.node(node)?)?).then_some(node);
-        starts.push((
-            Start::Result(call),
-            result.into_iter().chain(written).collect(),
-        ));
+        starts.push(StartNodes {
+            start: Start::Result(call),
+            value: result.into_iter().collect(),
+            written,
+        });
     }
     for (position, symbol) in parameter_symbols(graph.reading) {
-        starts.push((Start::Parameter(position), vec![symbol]));
+        let value = vec![symbol];
+        let start = Start::Parameter(position);
+        starts.push(StartNodes {
+            start,
+            value,
+            written: Vec::new(),
+        });
     }
     Ok(starts)
 }
 
-/// Every step from one start.
+/// Every step from one start. What a call writes is under its own operands, as the receiver of a
+/// call it's chained on can be, so no call is handed it until something reads it.
 fn hops_from<'a>(
     graph: &Graph<'a>,
-    (start, nodes): (Start, &[&'a str]),
+    from: &StartNodes<'a>,
     (positions, returned): (&HashMap<&'a str, usize>, &[&'a str]),
 ) -> Result<Vec<Hop>, String> {
-    let reached = graph.reached(nodes)?;
-    let holds = |node: &&str| reached.contains(*node) || nodes.contains(node);
+    let (start, written) = (from.start, &from.written);
+    let reached = graph.reached(&[&from.value[..], written].concat())?;
+    let given = |node: &&str| reached.contains(*node) || from.value.contains(node);
     let mut found = Vec::new();
 
-    for (&target, arguments) in &graph.arguments {
+    for (&target, slots) in &graph.arguments {
         let Some(&call) = positions.get(target) else {
             continue;
         };
-        let held = arguments.iter().filter(|(_, argument)| holds(argument));
-        for &(position, _) in held.filter(|_| start != Start::Result(call)) {
-            let to = End::Argument { call, position };
+        let held = slots.iter().filter(|(_, _, node)| given(node));
+        for &(position, element, _) in held.filter(|_| start != Start::Result(call)) {
+            let to = End::Argument {
+                call,
+                position,
+                element,
+            };
             found.push(Hop { from: start, to });
         }
     }
-    if returned.iter().any(holds) {
+    if returned
+        .iter()
+        .any(|node| given(node) || written.contains(node))
+    {
         found.push(Hop {
             from: start,
             to: End::Returned,
@@ -592,8 +686,8 @@ pub(super) fn of<'a>(reading: &'a Reading<'a>, namespace: &str) -> Result<ValueF
     let (calls, positions) = flow_calls(reading)?;
     let returned = returned_nodes(reading)?;
     let mut hops = BTreeSet::new();
-    for (start, nodes) in starts_of(&graph, &positions)? {
-        hops.extend(hops_from(&graph, (start, &nodes), (&positions, &returned))?);
+    for from in starts_of(&graph, &positions)? {
+        hops.extend(hops_from(&graph, &from, (&positions, &returned))?);
     }
 
     Ok(ValueFlows {
