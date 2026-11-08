@@ -17,6 +17,13 @@ pub(crate) struct RiskArgs {
     /// The saved run to compare to.
     #[arg(long)]
     head: PathBuf,
+    /// Write the report as Markdown, for a pull request's description.
+    #[arg(long)]
+    markdown: bool,
+    /// What the Markdown joins each file's path to for a link, such as
+    /// `https://github.com/OWNER/REPO/blob/HEAD_SHA`.
+    #[arg(long, requires = "markdown")]
+    source_url: Option<String>,
 }
 
 const DEMAND: Demand = Demand {
@@ -52,6 +59,9 @@ fn snapshot(run: &Path, record: Option<&RunRecord>, config: &Config) -> Result<S
 
 // rstyle-allow(side_effect_density): IO boundary: reads both saved runs
 pub(crate) fn risk(cli: &Cli, args: &RiskArgs) -> Result<(String, u8), String> {
+    if args.markdown && matches!(cli.format, Format::Json) {
+        return Err("--markdown and --format json each choose the output; pass one".to_owned());
+    }
     let (base_run, head_run) = (read_any_record(&args.base)?, read_any_record(&args.head)?);
     same_language(base_run.as_ref(), head_run.as_ref())?;
     let config = base_policy(cli, &args.base)?;
@@ -60,6 +70,7 @@ pub(crate) fn risk(cli: &Cli, args: &RiskArgs) -> Result<(String, u8), String> {
     let head = snapshot(&args.head, head_run.as_ref(), &config)?;
     let report = merge_risk::compare(&base, &head, &config);
     let output = match cli.format {
+        Format::Text if args.markdown => report.markdown(args.source_url.as_deref()),
         Format::Text => report.text(),
         Format::Json => serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?,
     };

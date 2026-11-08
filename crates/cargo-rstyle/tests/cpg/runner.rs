@@ -2320,6 +2320,48 @@ fn risk_says_what_changed_between_two_saved_runs_with_no_compiler() {
     assert_eq!(report["unchanged"], 2);
 }
 
+#[test]
+fn risk_writes_markdown_for_a_pull_request_with_links_into_the_head() {
+    let directory = tempfile::tempdir().unwrap();
+    let (base, head) = two_runs_of(
+        directory.path(),
+        "pub fn changing() -> bool { true }\n",
+        "pub fn changing() -> bool { std::fs::read(\"x\").is_ok() }\n",
+    );
+    let markdown = |extra: &[&str]| {
+        Command::new(cargo_bin("rstyle"))
+            .args([
+                "risk",
+                "--markdown",
+                "--source-url",
+                "https://example.test/blob/abc",
+            ])
+            .args(extra)
+            .arg("--base")
+            .arg(&base)
+            .arg("--head")
+            .arg(&head)
+            .output()
+            .unwrap()
+    };
+
+    let output = markdown(&[]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.starts_with("**Merge risk: "), "{text}");
+    assert!(
+        text.contains("<details><summary>1 affected function</summary>"),
+        "{text}"
+    );
+    assert!(
+        text.contains("[`changing`](https://example.test/blob/abc/src/lib.rs#L1)"),
+        "{text}"
+    );
+
+    let both = markdown(&["--format", "json"]);
+    assert_ne!(both.status.code(), Some(0), "{both:?}");
+}
+
 /// The two runs usually share a checkout, so by the time they're compared it holds the head's policy.
 #[test]
 fn risk_goes_by_the_policy_the_base_run_used_not_what_the_checkout_now_holds() {

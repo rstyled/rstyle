@@ -9,7 +9,7 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 
 const PDG_CHANGE: &str = "pdg_change";
-const ADDED_CALL: &str = "added_call";
+pub(super) const ADDED_CALL: &str = "added_call";
 const UNRESOLVED_CALLS: &str = "unresolved_calls";
 const UNCLASSIFIED_CALL: &str = "unclassified_call";
 const ANALYSIS_UNAVAILABLE: &str = "analysis_unavailable";
@@ -47,7 +47,7 @@ impl Level {
         }
     }
 
-    fn name(self) -> &'static str {
+    pub(super) fn name(self) -> &'static str {
         match self {
             Self::Low => "low",
             Self::Medium => "medium",
@@ -57,7 +57,7 @@ impl Level {
         }
     }
 
-    fn icon(self) -> &'static str {
+    pub(super) fn icon(self) -> &'static str {
         match self {
             Self::Low => "✅",
             Self::Medium | Self::High => "⚠️",
@@ -196,19 +196,29 @@ fn function_reasons(change: &FunctionChange, policy: &RiskConfig) -> Vec<Reason>
         .collect()
 }
 
-/// A medium change to few enough functions is low. This is a policy on size, not a proof that
-/// behavior is preserved, and it only lowers what's measured as a change.
+/// A medium change to few enough functions is low, and one to more says it's over the limit. This
+/// is a policy on size, not a proof that behavior is preserved, and it only lowers what's measured
+/// as a change.
 fn within_size_limit(reasons: &mut [Reason], changed: usize, policy: &RiskConfig) {
     let limit = policy.pdg_low_risk_max_functions;
-    if limit == 0 || changed > limit {
+    if limit == 0 {
         return;
     }
+    let (level, message) = if changed > limit {
+        let message =
+            format!("{changed} functions changed, more than the low-risk limit of {limit}");
+        (Level::Medium, message)
+    } else {
+        let message = format!("the change is within the low-risk limit of {limit} functions");
+        (Level::Low, message)
+    };
+
     let medium = reasons
         .iter_mut()
         .filter(|reason| reason.rule == PDG_CHANGE && reason.level == Level::Medium);
     for reason in medium {
-        reason.level = Level::Low;
-        reason.message = format!("the change is within the low-risk limit of {limit} functions");
+        reason.level = level;
+        reason.message.clone_from(&message);
     }
 }
 
@@ -249,7 +259,7 @@ pub(super) fn rate(measured: &Measured<'_>, policy: &RiskConfig) -> Rating {
 
 impl Rating {
     /// What can't be seen, by kind: the report below says which functions.
-    fn unknown_lines(&self) -> Vec<String> {
+    pub(super) fn unknown_lines(&self) -> Vec<String> {
         let mut by_rule: BTreeMap<&str, usize> = BTreeMap::new();
         for reason in self.reasons.iter().filter(|r| r.level == Level::Unknown) {
             *by_rule.entry(reason.rule).or_default() += 1;
@@ -268,7 +278,7 @@ impl Rating {
     }
 
     /// Who hasn't said what, which tells a project with no rules from one missing some.
-    fn unrated_line(&self) -> String {
+    pub(super) fn unrated_line(&self) -> String {
         if self.policy_configured {
             "The base's policy has no severity for code impact.".to_owned()
         } else {
@@ -292,7 +302,7 @@ impl Rating {
             .collect()
     }
 
-    fn code_impact(&self, changed: usize) -> (&'static str, &'static str) {
+    pub(super) fn code_impact(&self, changed: usize) -> (&'static str, &'static str) {
         let partial = self.reasons.iter().any(|reason| {
             reason.level == Level::Unknown
                 && matches!(reason.rule, PDG_CHANGE | ANALYSIS_UNAVAILABLE)
