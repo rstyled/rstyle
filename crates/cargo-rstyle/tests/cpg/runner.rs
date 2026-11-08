@@ -2402,7 +2402,7 @@ fn risk_does_not_rate_a_new_rust_library_call_low_when_nothing_classifies_it() {
 }
 
 /// A standard member the effect table says is pure is classified, so adding a call to one can rate
-/// low. A trait's member isn't in it, since what runs depends on the implementation.
+/// low. `Option`'s `clone`, which the call selects, isn't in it, since it runs the element's.
 #[test]
 fn risk_reads_a_new_pure_standard_call_as_classified_and_a_trait_call_as_not() {
     let directory = tempfile::tempdir().unwrap();
@@ -2500,6 +2500,46 @@ fn risk_reads_a_pure_free_function_as_classified() {
     assert_eq!(rated["risk"], "unknown", "{rated}");
     let called = rated["changes"][0]["calls_unclassified"].to_string();
     assert!(called.contains("core::mem::take"), "{called}");
+}
+
+/// A call is classified by the implementation it selects: `?` on an `Option`, `to_string`, a `for`
+/// over a slice and `usize::from` run pure standard implementations. `to_string`'s and the slice's
+/// `into_iter` are keyed by their paths. `Option`'s `clone` runs its element's, so it isn't pure for
+/// every type, and the report still names the trait's member.
+#[test]
+fn risk_reads_a_call_by_the_implementation_it_selects() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let signature = "pub fn f(a: Option<u8>, s: &str, v: &[u8]) -> Option<usize>";
+    let base = saved_run_of(root, &format!("{signature} {{ None }}\n"));
+    let body = "let mut n = usize::from(a?); for b in v { n += usize::from(*b); }";
+    let selected = saved_run_of(
+        root,
+        &format!("{signature} {{ {body} Some(n + s.to_string().len()) }}\n"),
+    );
+
+    let rated = report(&risk(&base, &selected));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    let change = &rated["changes"][0];
+    assert_eq!(
+        change["calls_unclassified"],
+        serde_json::json!([]),
+        "{change}"
+    );
+
+    let cloned = saved_run_of(
+        root,
+        &format!(
+            "{signature} {{ {body} Some(n + usize::from(Some(s.to_owned()).clone().is_some())) }}\n"
+        ),
+    );
+    let rated = report(&risk(&selected, &cloned));
+    assert_eq!(rated["risk"], "unknown", "{rated}");
+    let called = rated["changes"][0]["calls_unclassified"].to_string();
+    assert!(called.contains("core::clone::Clone::clone"), "{called}");
+    assert!(!called.contains("to_owned"), "{called}");
 }
 
 #[test]

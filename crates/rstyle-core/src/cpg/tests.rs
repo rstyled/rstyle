@@ -1282,6 +1282,123 @@ fn a_library_call_without_a_key_takes_the_unlisted_class() {
     assert_eq!(facts.calls[0].library, unknown);
 }
 
+const SELECTED: &str = "fn selected(a: A, b: B, c: C, d: D) {
+    a.branch();
+    b.clone();
+    c.clone();
+    d.clone();
+}
+";
+
+/// A library trait member, or a key, as a definition of a standard method.
+fn standard_method(fx: &mut Fixture, id: &str, key: &str) {
+    fx.definitions
+        .push(json!({"id": id, "kind": "method", "name": key,
+        "stable_identity": format!("std::{key}"), "scope": "library", "standard": true,
+        "operation": format!("rust:{key}")}));
+}
+
+/// Rust trait calls: one selecting a pure standard implementation, one selecting a standard
+/// implementation the table doesn't list, one selecting a workspace one, and one selecting none.
+fn selected_calls() -> Value {
+    let mut fx = Fixture::new(SELECTED);
+    let statements = ["s0", "s1", "s2", "s3"];
+    fx.node(("root", "block"), ("{\n    a", ""), &statements)["span"]["end"] =
+        json!(SELECTED.trim_end().len());
+    let calls = [
+        ("a.branch()", "def:branch", Some("def:result_branch")),
+        ("b.clone()", "def:clone", Some("def:vec_clone")),
+        ("c.clone()", "def:clone", Some("def:data_clone")),
+        ("d.clone()", "def:clone", None),
+    ];
+    for (index, (text, declared, selected)) in calls.into_iter().enumerate() {
+        library_call(&mut fx, index, (text, declared), &[]);
+        let reference = fx.refs.last_mut().unwrap();
+        reference["dispatch"] = json!("method");
+        if let Some(selected) = selected {
+            reference["selected"] = json!({"kind": "definition", "id": selected});
+        }
+    }
+    standard_method(&mut fx, "def:branch", "Try.branch");
+    standard_method(&mut fx, "def:result_branch", "Result.branch");
+    standard_method(&mut fx, "def:clone", "Clone.clone");
+    standard_method(&mut fx, "def:vec_clone", "Vec.clone");
+    fx.definition(
+        ("def:data_clone", "method"),
+        ("example::Data::clone", "workspace"),
+        &[],
+    );
+
+    let mut document = fx.document("fn selected(a: A, b: B, c: C, d: D)");
+    document["producer"]["namespace"] = json!("rust");
+    document
+}
+
+#[test]
+fn a_library_call_is_classified_by_the_implementation_it_selects() {
+    let facts = &facts_of(selected_calls())[0];
+    let classes: Vec<_> = facts
+        .calls
+        .iter()
+        .map(|call| (call.line, call.library))
+        .collect();
+    // `Result.branch` is pure, `Vec.clone` runs its elements' `clone`, and a workspace
+    // implementation is followed through its edge, so the call keeps its declared callee's class.
+    let expected = [
+        (2, Some(LibraryClass::Pure)),
+        (3, None),
+        (4, None),
+        (5, None),
+    ];
+    assert_eq!(classes, expected);
+
+    let callees: Vec<_> = facts
+        .calls
+        .iter()
+        .map(|call| &call.library_callee)
+        .collect();
+    let declared = |key: &str| Some(format!("std::{key}"));
+    assert_eq!(
+        callees,
+        [
+            &declared("Try.branch"),
+            &declared("Clone.clone"),
+            &declared("Clone.clone"),
+            &declared("Clone.clone")
+        ]
+    );
+    let edges: Vec<_> = facts
+        .edges
+        .iter()
+        .map(|edge| edge.callee.as_str())
+        .collect();
+    assert_eq!(edges, ["example::Data::clone"]);
+}
+
+/// A dynamic call that names the implementation it runs, as a C++ virtual call Clang devirtualizes
+/// does, is classified by that implementation, and still reads as dynamic.
+#[test]
+fn a_dynamic_call_that_names_its_implementation_is_classified_by_it_and_stays_dynamic() {
+    let mut document = library_calls();
+    let unit = &mut document["unit"];
+    let reference = unit["functions"][0]["refs"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|reference| reference["node"] == "c0")
+        .unwrap();
+    reference["dispatch"] = json!("dynamic");
+    reference["selected"] = json!({"kind": "definition", "id": "def:upper"});
+    let facts = &facts_of(document)[0];
+
+    assert_eq!(facts.calls[0].library, Some(LibraryClass::Pure));
+    assert!(facts.calls[0].dynamic);
+    assert_eq!(
+        facts.calls[0].library_callee.as_deref(),
+        Some("go::os.WriteFile")
+    );
+}
+
 const DELEGATE: &str = "fn delegate(&mut self, other: &mut Data) {
     self.helper();
     other.count = 1;

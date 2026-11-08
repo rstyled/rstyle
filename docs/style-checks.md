@@ -97,8 +97,11 @@ A frontend can also ship a table of its language's library calls, keyed by opera
 standard methods and functions that have no effect whatever type they're called with, such as
 `slice::iter`, `std::mem::swap`, `Vec::push`, `Option::unwrap` and `format!`, since allocating,
 panicking on a bad argument and formatting into a `String` count as no effect, and leaves every
-other library call unclassified, so density doesn't count it. `[side_effects.paths]` wins for any
-callee it matches, so you can still name a third-party package there.
+other library call unclassified, so density doesn't count it. A call is classified by the
+implementation it selects, when the frontend names one, and by the function it names otherwise: `?`
+on a `Result`, `String`'s `clone` and `to_string` are pure, but `Option`'s `clone`, which runs the
+element's, isn't listed. `[side_effects.paths]` wins for any callee it matches, so you can still
+name a third-party package there.
 
 ## Suppressing a finding
 

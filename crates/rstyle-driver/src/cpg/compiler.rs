@@ -96,7 +96,8 @@ fn mode_of(mutability: rustc_hir::Mutability) -> &'static str {
 }
 
 /// The operation key of a library member: a trait member by its trait's name, a free
-/// function by its path, and any other by its implementation's self type.
+/// function by its path, and any other by its implementation's self type, or by its path when
+/// it implements a trait for a type with no compiler name.
 pub fn declared_operation(tcx: TyCtxt<'_>, member: DefId) -> Option<String> {
     match tcx.trait_of_assoc(member) {
         Some(owner) => sysroot::trait_operation(tcx, owner, member),

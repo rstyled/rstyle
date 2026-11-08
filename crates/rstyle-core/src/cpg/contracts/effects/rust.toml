@@ -6,17 +6,29 @@
 # `core::mem::swap`, though a caller writes `std::mem::swap`, and `core::iter::sources::once::once`
 # for `std::iter::once`.
 #
-# A trait's member is keyed by the trait (`Clone.clone`, `Iterator.next`) whichever implementation runs,
-# and some do more than others: `String`'s `clone` allocates, and `io::Lines`'s `next` reads. A call to
-# a workspace implementation is followed through its call edge, but nothing follows a standard one, so
-# no trait member is listed here.
+# A call is classified by the implementation the document says it selects, and by its declared callee
+# when it names none. A trait implementation's member is keyed by its type, like any other member: `?`
+# on a `Result` runs `Result.branch`, and `String`'s `clone` is `String.clone`. One for a type with no
+# compiler name, such as the `T` of a blanket implementation, `&Vec<T>`, `[T; N]` or `vec::IntoIter<T>`,
+# is keyed by the path it's defined at, as a free function is: every `to_string` runs
+# `alloc::string::{impl#39}::to_string`. That path numbers the implementations in its module, so a new
+# nightly can move it onto another implementation of the same member. A test in `cargo-rstyle`,
+# `the_effect_table_path_keys_name_the_implementations_they_were_checked_against`, names what each one
+# was checked against, and fails when one moves. A call to a workspace implementation is followed
+# through its call edge instead.
+#
+# A trait's own member is keyed by the trait (`Clone.clone`, `Iterator.next`) and stands for whichever
+# implementation runs, and some do more than others: `io::Lines`'s `next` reads. A call is classified by
+# it only where the document names no implementation, as in a generic body, so no trait member is
+# listed here.
 #
 # `none` lists members that are pure for every type they're called with. They don't do IO, touch
 # globals, the environment, the clock or randomness; they take no callable, have no bound through
-# which a caller's type runs code (`Ord`, `Hash`, `Deref`, `Clone`, `Default`), and drop no value of a
-# type parameter. One that writes through `&mut self`, as `Option.replace` does, writes the caller's
-# own place, which core counts from the borrow. An `unsafe` member can be listed, since core counts
-# the `unsafe` block it's called in.
+# which a caller's type runs code (`Ord`, `Hash`, `Deref`, `Clone`, `Default`, `From`, `Iterator`), and
+# drop no value of a type parameter. So `Option`'s `clone`, which runs its element's, isn't listed, and
+# nor is `Result.from_residual`, which converts the error with `From`. One that writes through
+# `&mut self`, as `Option.replace` does, writes the caller's own place, which core counts from the
+# borrow. An `unsafe` member can be listed, since core counts the `unsafe` block it's called in.
 #
 # Allocating and freeing memory is no effect, as `append` and `make_unique` are none in Go's and C++'s
 # tables, and neither is running out of memory, which aborts. A `Vec`'s allocator, which only nightly
@@ -33,8 +45,9 @@
 # So `alloc::fmt::format`, which every `format!` calls, is listed, and so are `Result.unwrap` and
 # `expect`, which panic with the error's `Debug`. Writing what's formatted somewhere else isn't, as
 # Go's `fmt.Fprintf` is io: `Formatter`'s methods write to whatever the formatting started with,
-# which for `write!` to an `io::Write` is that writer. `ToString.to_string` and `FmtWrite.write_fmt`,
-# which `to_string` and `write!` to a `String` call, are trait members.
+# which for `write!` to an `io::Write` is that writer. `ToString`'s blanket implementation, which formats
+# the value with its `Display`, is listed by its path. `FmtWrite.write_fmt`, which `write!` to a
+# `String` calls, is the trait's own member, since `String` doesn't implement it itself.
 #
 # A string entry covers every member whose name it starts: `slice.iter` is `iter_mut` too. An exact
 # entry covers only the member it names, as `Option.is_some` needs, since `is_some_and` runs a callable.
@@ -49,7 +62,10 @@ namespace = "rust"
 
 none = [
     { exact = "Arc.new" },
+    { exact = "ArrayIntoIter.next" },
+    { exact = "BTreeMap.default" },
     "BTreeMap.first_key_value",
+    { exact = "BTreeMap.into_iter" },
     "BTreeMap.into_keys",
     "BTreeMap.into_values",
     "BTreeMap.is_empty",
@@ -59,7 +75,9 @@ none = [
     "BTreeMap.len",
     "BTreeMap.new",
     "BTreeMap.values",
+    { exact = "BTreeSet.default" },
     "BTreeSet.first",
+    { exact = "BTreeSet.into_iter" },
     "BTreeSet.is_empty",
     "BTreeSet.iter",
     "BTreeSet.last",
@@ -74,9 +92,13 @@ none = [
     "Option.as_mut",
     "Option.as_ref",
     "Option.as_slice",
+    { exact = "Option.branch" },
     "Option.copied",
+    { exact = "Option.default" },
     { exact = "Option.expect" },
     "Option.flatten",
+    { exact = "Option.from_residual" },
+    { exact = "Option.into_iter" },
     { exact = "Option.is_none" },
     { exact = "Option.is_some" },
     "Option.iter",
@@ -87,6 +109,7 @@ none = [
     "Option.unzip",
     { exact = "Ordering.then" },
     { exact = "OsStr.to_os_string" },
+    { exact = "OsStr.to_owned" },
     { exact = "OsStr.to_str" },
     { exact = "OsStr.to_string_lossy" },
     "Path.ancestors",
@@ -103,10 +126,13 @@ none = [
     { exact = "Path.to_path_buf" },
     { exact = "Path.to_str" },
     { exact = "Path.to_string_lossy" },
+    { exact = "PathBuf.clone" },
     "RangeInclusive.new",
+    { exact = "Rc.as_ref" },
     { exact = "Rc.new" },
     "Result.as_mut",
     "Result.as_ref",
+    { exact = "Result.branch" },
     "Result.copied",
     { exact = "Result.expect" },
     { exact = "Result.is_err" },
@@ -114,10 +140,14 @@ none = [
     "Result.iter",
     "Result.transpose",
     { exact = "Result.unwrap" },
+    { exact = "SliceIter.next" },
     "String.as_bytes",
     "String.as_mut_str",
     "String.as_str",
     "String.capacity",
+    { exact = "String.clone" },
+    { exact = "String.cmp" },
+    { exact = "String.default" },
     { exact = "String.from_utf8" },
     { exact = "String.from_utf8_lossy" },
     "String.is_empty",
@@ -130,7 +160,9 @@ none = [
     "Vec.as_mut_slice",
     "Vec.as_slice",
     "Vec.capacity",
+    { exact = "Vec.default" },
     { exact = "Vec.insert" },
+    { exact = "Vec.into_iter" },
     "Vec.is_empty",
     "Vec.len",
     "Vec.new",
@@ -140,6 +172,10 @@ none = [
     { exact = "Vec.reserve" },
     { exact = "Vec.with_capacity" },
     { exact = "VecDeque.pop_front" },
+    { exact = "bool.clone" },
+    { exact = "bool.cmp" },
+    { exact = "bool.default" },
+    { exact = "char.from" },
     "char.is_alphabetic",
     "char.is_alphanumeric",
     "char.is_ascii",
@@ -150,6 +186,8 @@ none = [
     "char.len_utf8",
     "char.to_ascii_lowercase",
     "char.to_ascii_uppercase",
+    { exact = "f64.clone" },
+    { exact = "f64.from" },
     { exact = "format_argument.from_usize" },
     "format_argument.new_",
     "format_arguments.as_str",
@@ -194,6 +232,7 @@ none = [
     "i32.saturating_mul",
     "i32.saturating_sub",
     "i32.trailing_zeros",
+    { exact = "i32.try_from" },
     "i32.wrapping_add",
     "i32.wrapping_mul",
     "i32.wrapping_sub",
@@ -230,6 +269,7 @@ none = [
     "isize.checked_div",
     "isize.checked_mul",
     "isize.checked_sub",
+    { exact = "isize.cmp" },
     "isize.count_ones",
     "isize.leading_zeros",
     "isize.saturating_add",
@@ -254,9 +294,11 @@ none = [
     { exact = "slice.windows" },
     "str.as_bytes",
     "str.as_ptr",
+    { exact = "str.as_ref" },
     "str.bytes",
     "str.char_indices",
     "str.chars",
+    { exact = "str.cmp" },
     "str.is_ascii",
     "str.is_char_boundary",
     "str.is_empty",
@@ -265,6 +307,7 @@ none = [
     "str.split_ascii_whitespace",
     "str.split_whitespace",
     { exact = "str.to_lowercase" },
+    { exact = "str.to_owned" },
     { exact = "str.trim" },
     "str.trim_ascii",
     { exact = "str.trim_end" },
@@ -289,6 +332,8 @@ none = [
     "u16.checked_div",
     "u16.checked_mul",
     "u16.checked_sub",
+    { exact = "u16.clone" },
+    { exact = "u16.cmp" },
     "u16.count_ones",
     "u16.is_power_of_two",
     "u16.leading_zeros",
@@ -296,6 +341,7 @@ none = [
     "u16.saturating_mul",
     "u16.saturating_sub",
     "u16.trailing_zeros",
+    { exact = "u16.try_from" },
     "u16.wrapping_add",
     "u16.wrapping_mul",
     "u16.wrapping_sub",
@@ -304,13 +350,18 @@ none = [
     "u32.checked_div",
     "u32.checked_mul",
     "u32.checked_sub",
+    { exact = "u32.clone" },
+    { exact = "u32.cmp" },
     "u32.count_ones",
+    { exact = "u32.default" },
     "u32.is_power_of_two",
     "u32.leading_zeros",
+    { exact = "u32.max" },
     "u32.saturating_add",
     "u32.saturating_mul",
     "u32.saturating_sub",
     "u32.trailing_zeros",
+    { exact = "u32.try_from" },
     "u32.wrapping_add",
     "u32.wrapping_mul",
     "u32.wrapping_sub",
@@ -319,9 +370,14 @@ none = [
     "u64.checked_div",
     "u64.checked_mul",
     "u64.checked_sub",
+    { exact = "u64.clone" },
+    { exact = "u64.cmp" },
     "u64.count_ones",
+    { exact = "u64.default" },
+    { exact = "u64.from" },
     "u64.is_power_of_two",
     "u64.leading_zeros",
+    { exact = "u64.max" },
     "u64.saturating_add",
     "u64.saturating_mul",
     "u64.saturating_sub",
@@ -334,10 +390,14 @@ none = [
     "u8.checked_div",
     "u8.checked_mul",
     "u8.checked_sub",
+    { exact = "u8.clone" },
+    { exact = "u8.cmp" },
     "u8.count_ones",
+    { exact = "u8.from" },
     "u8.is_ascii",
     "u8.is_power_of_two",
     "u8.leading_zeros",
+    { exact = "u8.max" },
     "u8.saturating_add",
     "u8.saturating_mul",
     "u8.saturating_sub",
@@ -352,14 +412,22 @@ none = [
     "usize.checked_div",
     "usize.checked_mul",
     "usize.checked_sub",
+    { exact = "usize.clamp" },
+    { exact = "usize.clone" },
+    { exact = "usize.cmp" },
     "usize.count_ones",
+    { exact = "usize.default" },
     { exact = "usize.div_ceil" },
+    { exact = "usize.from" },
     "usize.is_power_of_two",
     "usize.leading_zeros",
+    { exact = "usize.max" },
+    { exact = "usize.min" },
     "usize.saturating_add",
     "usize.saturating_mul",
     "usize.saturating_sub",
     "usize.trailing_zeros",
+    { exact = "usize.try_from" },
     "usize.wrapping_add",
     "usize.wrapping_mul",
     "usize.wrapping_sub",
@@ -380,4 +448,34 @@ none = [
     { exact = "core::ptr::from_ref" },
     { exact = "core::slice::raw::from_ref" },
     { exact = "core::str::converts::from_utf8" },
+
+    # Trait implementations for a type with no compiler name, by path. `btree_map::IntoValues`'s
+    # `next` isn't one, since it drops the key, and nor are the adapters, such as `Filter`'s or
+    # `Zip`'s, whose `next` runs the `next` of what they wrap.
+    { exact = "alloc::collections::btree::map::{impl#21}::into_iter" },  # `&BTreeMap`
+    { exact = "alloc::collections::btree::map::{impl#22}::next" },       # `btree_map::Iter`
+    { exact = "alloc::collections::btree::map::{impl#38}::next" },       # `btree_map::IntoIter`
+    { exact = "alloc::collections::btree::map::{impl#50}::next" },       # `btree_map::Values`
+    { exact = "alloc::collections::btree::set::{impl#19}::into_iter" },  # `&BTreeSet`
+    { exact = "alloc::collections::btree::set::{impl#32}::next" },       # `btree_set::Iter`
+    { exact = "alloc::collections::btree::set::{impl#37}::next" },       # `btree_set::IntoIter`
+    { exact = "alloc::string::{impl#39}::to_string" },                   # `ToString` for every `T: Display`
+    { exact = "alloc::vec::into_iter::{impl#6}::next" },                 # `vec::IntoIter`
+    { exact = "alloc::vec::{impl#19}::into_iter" },                      # `&Vec`
+    { exact = "alloc::vec::{impl#20}::into_iter" },                      # `&mut Vec`
+    { exact = "core::array::iter::{impl#2}::into_iter" },                # `[T; N]`
+    { exact = "core::clone::impls::{impl#6}::clone" },                   # `&T`
+    { exact = "core::iter::traits::collect::{impl#0}::into_iter" },      # `IntoIterator` for every `I: Iterator`
+    { exact = "core::ops::bit::{impl#14}::not" },                        # `&bool`
+    { exact = "core::ops::bit::{impl#19}::not" },                        # `&u64`
+    { exact = "core::slice::iter::{impl#178}::next" },                   # `slice::IterMut`
+    { exact = "core::slice::iter::{impl#1}::into_iter" },                # `&[T]`
+    { exact = "core::slice::iter::{impl#2}::into_iter" },                # `&mut [T]`
+    { exact = "core::str::iter::{impl#0}::count" },                      # `str::Chars`
+    { exact = "core::str::iter::{impl#0}::next" },                       # `str::Chars`
+    { exact = "core::str::iter::{impl#30}::next" },                      # `str::Lines`
+    { exact = "core::str::iter::{impl#9}::next" },                       # `str::Bytes`
+    { exact = "std::path::{impl#20}::next" },                            # `path::Components`
+    { exact = "std::process::{impl#39}::from" },                         # `Stdio` from `io::Stderr`
+    { exact = "std::process::{impl#54}::from" },                         # `ExitCode` from `u8`
 ]

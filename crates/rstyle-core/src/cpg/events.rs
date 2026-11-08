@@ -249,9 +249,7 @@ impl<'a> Walk<'a> {
             return Ok(());
         }
         self.edge(site.node, &callee, out)?;
-        let Callee {
-            declared, dynamic, ..
-        } = callee;
+        let (declared, dynamic) = (callee.declared, callee.dynamic);
         if declared.scope == Scope::Unit {
             return Ok(());
         }
@@ -263,7 +261,7 @@ impl<'a> Walk<'a> {
                 .push(self.effect(EffectKind::Unsafe, detail, site.node)?);
         }
         let line = self.line(site.node)?;
-        let library = self.library_class(site.node, declared)?;
+        let library = self.library_class(site.node, &callee)?;
         let library_callee =
             (declared.scope == Scope::Library).then(|| declared.stable_identity.clone());
         out.calls.push(CallEvent {
@@ -276,16 +274,23 @@ impl<'a> Walk<'a> {
         Ok(())
     }
 
-    /// What the namespace's contract says this call does.
+    /// What the namespace's contract says this library call does: the implementation it selects,
+    /// when the document names a library's, since that's what runs, and its declared callee
+    /// otherwise. An implementation in the workspace is followed through the call edge instead.
     fn library_class(
         &self,
         node: &'a Node,
-        declared: &Definition,
+        callee: &Callee<'a>,
     ) -> Result<Option<LibraryClass>, String> {
-        if declared.scope != Scope::Library {
+        if callee.declared.scope != Scope::Library {
             return Ok(None);
         }
-        let Some(operation) = declared.operation.as_deref() else {
+        let runs = match callee.selected.scope {
+            Scope::Library => callee.selected,
+            Scope::Unit | Scope::Workspace => callee.declared,
+        };
+
+        let Some(operation) = runs.operation.as_deref() else {
             return Ok(self.classes.unlisted());
         };
         if self.writes_to_memory(node, operation)? {
