@@ -2436,6 +2436,38 @@ fn risk_reads_a_new_pure_standard_call_as_classified_and_a_trait_call_as_not() {
     assert!(!called.contains("first"), "{called}");
 }
 
+/// An exact entry classifies the member it names and not one whose name it starts, and a member
+/// that only allocates is pure.
+#[test]
+fn risk_reads_an_exact_entry_as_only_the_member_it_names() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let signature = "pub fn f(a: Option<u8>, v: &mut Vec<u8>) -> bool";
+    let base = saved_run_of(root, &format!("{signature} {{ false }}\n"));
+    let pure = saved_run_of(root, &format!("{signature} {{ v.push(1); a.is_some() }}\n"));
+
+    let rated = report(&risk(&base, &pure));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    let change = &rated["changes"][0];
+    assert_eq!(
+        change["calls_unclassified"],
+        serde_json::json!([]),
+        "{change}"
+    );
+
+    let callable = saved_run_of(
+        root,
+        &format!("{signature} {{ v.push(1); a.is_some_and(|x| x > 0) }}\n"),
+    );
+    let rated = report(&risk(&pure, &callable));
+    assert_eq!(rated["risk"], "unknown", "{rated}");
+    let called = rated["changes"][0]["calls_unclassified"].to_string();
+    assert!(called.contains("is_some_and"), "{called}");
+    assert!(!called.contains("push"), "{called}");
+}
+
 #[test]
 fn risk_refuses_two_runs_of_different_languages() {
     let directory = tempfile::tempdir().unwrap();

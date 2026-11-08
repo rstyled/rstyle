@@ -5970,12 +5970,14 @@ expression: facts
       {
         "callee": "std::boxed::Box::new_uninit",
         "line": 43,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::vec::Vec::pop",
         "line": 45,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::iter::IntoIterator::into_iter",
