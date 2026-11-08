@@ -2350,7 +2350,7 @@ fn risk_writes_markdown_for_a_pull_request_with_links_into_the_head() {
     let text = String::from_utf8(output.stdout).unwrap();
     assert!(text.starts_with("### Merge risk: "), "{text}");
     assert!(
-        text.contains("<details><summary><strong>Code impact:</strong> changed"),
+        text.contains("<details><summary><strong>At a glance:</strong>"),
         "{text}"
     );
     assert!(

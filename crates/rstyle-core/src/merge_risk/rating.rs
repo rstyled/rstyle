@@ -8,11 +8,11 @@ use crate::config::{RiskConfig, Severity};
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-const PDG_CHANGE: &str = "pdg_change";
+pub(super) const PDG_CHANGE: &str = "pdg_change";
 pub(super) const ADDED_CALL: &str = "added_call";
-const UNRESOLVED_CALLS: &str = "unresolved_calls";
-const UNCLASSIFIED_CALL: &str = "unclassified_call";
-const ANALYSIS_UNAVAILABLE: &str = "analysis_unavailable";
+pub(super) const UNRESOLVED_CALLS: &str = "unresolved_calls";
+pub(super) const UNCLASSIFIED_CALL: &str = "unclassified_call";
+pub(super) const ANALYSIS_UNAVAILABLE: &str = "analysis_unavailable";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -29,7 +29,7 @@ pub enum Level {
 impl Level {
     /// How far it pulls a whole change. A measured `high` outweighs not being able to see something,
     /// which outweighs nobody having said, which outweighs any severity short of `high`.
-    fn weight(self) -> u8 {
+    pub(super) fn weight(self) -> u8 {
         match self {
             Self::Low => 1,
             Self::Medium => 2,
@@ -57,7 +57,7 @@ impl Level {
         }
     }
 
-    pub(super) fn icon(self) -> &'static str {
+    fn icon(self) -> &'static str {
         match self {
             Self::Low => "✅",
             Self::Medium | Self::High => "⚠️",
@@ -259,7 +259,7 @@ pub(super) fn rate(measured: &Measured<'_>, policy: &RiskConfig) -> Rating {
 
 impl Rating {
     /// What can't be seen, by kind: the report below says which functions.
-    pub(super) fn unknown_lines(&self) -> Vec<String> {
+    fn unknown_lines(&self) -> Vec<String> {
         let mut by_rule: BTreeMap<&str, usize> = BTreeMap::new();
         for reason in self.reasons.iter().filter(|r| r.level == Level::Unknown) {
             *by_rule.entry(reason.rule).or_default() += 1;
@@ -278,7 +278,7 @@ impl Rating {
     }
 
     /// Who hasn't said what, which tells a project with no rules from one missing some.
-    pub(super) fn unrated_line(&self) -> String {
+    fn unrated_line(&self) -> String {
         if self.policy_configured {
             "The base's policy has no severity for code impact.".to_owned()
         } else {
@@ -302,7 +302,7 @@ impl Rating {
             .collect()
     }
 
-    pub(super) fn code_impact(&self, changed: usize) -> (&'static str, &'static str) {
+    fn code_impact(&self, changed: usize) -> (&'static str, &'static str) {
         let partial = self.reasons.iter().any(|reason| {
             reason.level == Level::Unknown
                 && matches!(reason.rule, PDG_CHANGE | ANALYSIS_UNAVAILABLE)

@@ -1,22 +1,27 @@
-//! The report as Markdown, for a pull request's description. The rating and why come first, then
-//! the functions that need a look, then one folded section per kind of fact. Each section's summary
-//! holds its verdict, so the report reads folded.
+//! The report as Markdown, for a pull request's description. The rating comes first, with the
+//! checks that hold it above low and why. A folded glance at the change follows, then one fold per
+//! check that found something, listing the functions behind each of its reasons. A check is one of
+//! the rules the rating is the strongest reason of, so the headline is the worst check by
+//! construction.
 
-use super::rating::{ADDED_CALL, Level, Reason};
+use super::rating::{
+    ADDED_CALL, ANALYSIS_UNAVAILABLE, Level, PDG_CHANGE, Reason, UNCLASSIFIED_CALL,
+    UNRESOLVED_CALLS,
+};
 use super::{ChangeKind, ChangeReport, EffectChange, FunctionChange};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
-/// How many functions "Needs a look" names before pointing at the sections.
-const LOOK_LIMIT: usize = 10;
-
-/// What every section lists functions by: changed, added, removed, text only, unknown.
-const KINDS: [ChangeKind; 5] = [
-    ChangeKind::Changed,
-    ChangeKind::Added,
-    ChangeKind::Removed,
-    ChangeKind::TextOnly,
-    ChangeKind::Unknown,
+/// The rating's rules, in the order a reader should meet them, with the name each check goes by.
+const CHECKS: [(&str, &str); 5] = [
+    (PDG_CHANGE, "Changed code"),
+    (ADDED_CALL, "Calls a rule names"),
+    (UNCLASSIFIED_CALL, "Library calls nothing classifies"),
+    (UNRESOLVED_CALLS, "Calls to unknown targets"),
+    (ANALYSIS_UNAVAILABLE, "Changes it can't compare"),
 ];
+
+/// How many functions a reason lists before saying how many more there are.
+const SHOWN: usize = 25;
 
 impl ChangeReport {
     /// `source_url` is what a file's path is joined to for a link, such as
@@ -24,165 +29,128 @@ impl ChangeReport {
     /// function is never one, since the head doesn't hold it.
     pub fn markdown(&self, source_url: Option<&str>) -> String {
         let links = Links(source_url.map(|url| url.trim_end_matches('/')));
-        let sections = [
-            self.impact_section(&links),
-            self.calls_section(&links),
-            self.signatures_section(&links),
-            self.effects_section(&links),
-            self.blind_spots_section(&links),
-        ];
-
-        [Some(self.verdict(&links)), self.needs_a_look(&links)]
+        let checks: Vec<Check> = CHECKS
             .into_iter()
-            .flatten()
-            .chain(sections.into_iter().map(Section::render))
+            .filter_map(|(rule, title)| Check::of(&self.rating.reasons, rule, title))
+            .collect();
+
+        let folds = checks.iter().map(|check| check.render(self, &links));
+        [self.headline(), self.why(&checks), self.glance()]
+            .into_iter()
+            .chain(folds)
             .collect::<Vec<_>>()
             .join("\n\n")
     }
 
-    fn verdict(&self, links: &Links) -> String {
+    fn headline(&self) -> String {
         let risk = self.rating.risk;
-        let heading = format!("### Merge risk: {} {}", risk.name(), icon(risk));
-        let why: Vec<String> = match risk {
-            Level::Unknown => self.rating.unknown_lines(),
-            Level::Unrated => vec![self.rating.unrated_line()],
-            Level::Low | Level::Medium | Level::High => self.decisive(links),
-        };
-
-        let why = match why.as_slice() {
-            [one] => format!("{}.", one.trim_start_matches("- ").trim_end_matches('.')),
-            many => many.join("\n"),
-        };
-        format!("{heading}\n\n{why}")
+        format!("### Merge risk: {} {}", risk.name(), icon(risk))
     }
 
-    /// The reasons at the rating, since those are why it's this one. A call a rule names is said
-    /// where it's made; any other reason is said once, however many functions share it.
-    fn decisive(&self, links: &Links) -> Vec<String> {
-        let at_rating = self
-            .rating
-            .reasons
-            .iter()
-            .filter(|reason| reason.level == self.rating.risk);
-        let mut said = BTreeSet::new();
-
-        at_rating
-            .filter_map(|reason| match reason.rule {
-                ADDED_CALL => Some(format!("- {}", added_call(reason, links))),
-                _ => said
-                    .insert(reason.message.as_str())
-                    .then(|| format!("- {}", escape(&reason.message))),
-            })
-            .collect()
-    }
-
-    /// Each function a person should read first: what a rule names, what can't be seen, and what
-    /// changed in what it takes, holds or does, in the order the report puts them.
-    fn needs_a_look(&self, links: &Links) -> Option<String> {
-        let flagged: Vec<String> = self
-            .changes
-            .iter()
-            .filter_map(|change| look_line(change, &self.rule_hits(change), links))
-            .collect();
-        if flagged.is_empty() {
-            return None;
+    /// Every check above low, with what it found. An unrated report says why nothing is rated.
+    fn why(&self, checks: &[Check]) -> String {
+        if !self.rating.policy_configured {
+            return "**Not rated:** the base's `rstyle.toml` has no `[risk]` rules, so nothing \
+                    here is rated. The checks below still show what each rule found."
+                .to_owned();
         }
-
-        let more = flagged.len().saturating_sub(LOOK_LIMIT);
-        let rest = (more > 0).then(|| format!("\n\n…and {more} more in the sections below."));
-        let lines = flagged
+        let held: Vec<String> = checks
             .iter()
-            .take(LOOK_LIMIT)
-            .map(|line| format!("1. {line}"));
-        let list = lines.collect::<Vec<_>>().join("\n");
-        Some(format!(
-            "**Needs a look**\n\n{list}{}",
-            rest.unwrap_or_default()
-        ))
+            .filter(|check| check.level.weight() > Level::Low.weight())
+            .map(Check::held)
+            .collect();
+
+        match held.is_empty() {
+            true => "**Every check is low or found nothing.**".to_owned(),
+            false => format!("**Why it isn't low:**\n\n{}", held.join("\n")),
+        }
     }
 
-    fn rule_hits(&self, change: &FunctionChange) -> Vec<&Reason> {
-        let at = |reason: &&Reason| {
-            reason.rule == ADDED_CALL
-                && reason.path.as_deref() == Some(change.path.as_str())
-                && reason.line == Some(change.line)
-        };
-        self.rating.reasons.iter().filter(at).collect()
-    }
-
-    fn impact_section(&self, links: &Links) -> Section {
-        let (verdict, icon) = self.rating.code_impact(self.changes.len());
-        let files = by_file(&self.changes);
-        let widest = self.changes.iter().map(|change| change.reached_by).max();
-        let detail = match widest {
-            Some(widest) => format!(
-                "{} in {}, reached by up to {widest}",
-                plural(self.changes.len(), "function", "functions"),
-                plural(files.len(), "file", "files")
-            ),
+    fn glance(&self) -> String {
+        let scope = match self.most_used() {
+            Some(most) => format!("{}, used by up to {most}", self.scope()),
             None => "no function changed".to_owned(),
         };
+        format!(
+            "<details><summary><strong>At a glance:</strong> {scope}</summary>\n\n{}\n\n</details>",
+            self.category_lines().join("\n")
+        )
+    }
 
-        let body = (!self.changes.is_empty()).then(|| self.impact_body(&files, links));
-        Section {
-            title: "Code impact",
-            verdict: format!("{verdict} {icon}"),
-            detail,
-            body: body.unwrap_or_default(),
+    fn scope(&self) -> String {
+        let files: BTreeSet<&str> = self
+            .changes
+            .iter()
+            .map(|change| change.path.as_str())
+            .collect();
+        format!(
+            "{} in {}",
+            plural(self.changes.len(), "function", "functions"),
+            plural(files.len(), "file", "files")
+        )
+    }
+
+    fn most_used(&self) -> Option<usize> {
+        self.changes.iter().map(|change| change.reached_by).max()
+    }
+
+    /// One line per kind of fact, each with what it found.
+    fn category_lines(&self) -> [String; 5] {
+        [
+            self.impact_line(),
+            self.signatures_line(),
+            self.calls_line(),
+            self.effects_line(),
+            self.coverage_line(),
+        ]
+    }
+
+    fn impact_line(&self) -> String {
+        let Some(most) = self.most_used() else {
+            return format!(
+                "**Impact:** no function changed · {} unchanged",
+                self.unchanged
+            );
+        };
+        format!(
+            "**Impact:** {} · {} · {} unchanged · used by up to {most}",
+            self.scope(),
+            tally(&self.changes),
+            self.unchanged
+        )
+    }
+
+    /// Whether some of the change is out of the compared facts' sight.
+    fn has_gaps(&self) -> bool {
+        let unseen = |change: &FunctionChange| {
+            matches!(change.kind, ChangeKind::TextOnly | ChangeKind::Unknown)
+        };
+        self.changes.iter().any(unseen) || !self.changed_outside_functions.is_empty()
+    }
+
+    fn signatures_line(&self) -> String {
+        let changed = self
+            .changes
+            .iter()
+            .filter(|change| change.signature_changed)
+            .count();
+        match (changed, self.has_gaps()) {
+            (0, true) => "**Signatures:** incomplete 👀 · 0 signature changes recorded; \
+                          comparison has gaps"
+                .to_owned(),
+            (0, false) => "**Signatures:** unchanged ✅".to_owned(),
+            (count, _) => format!("**Signatures:** {count} changed 👀"),
         }
     }
 
-    fn impact_body(
-        &self,
-        files: &BTreeMap<&str, Vec<&FunctionChange>>,
-        links: &Links,
-    ) -> Vec<String> {
-        let totals = format!(
-            "{}; {} unchanged.",
-            tally(self.changes.iter()),
-            self.unchanged
-        );
-        let header = [
-            "| File | Functions | Widest reach |".to_owned(),
-            "|---|---|--:|".to_owned(),
-        ];
-        let rows = files.iter().map(|(path, changes)| {
-            let widest = changes
-                .iter()
-                .map(|change| change.reached_by)
-                .max()
-                .unwrap_or(0);
-            format!(
-                "| {} | {} | {widest} |",
-                links.file(path),
-                tally(changes.iter().copied())
-            )
-        });
-
-        let functions = self
-            .changes
-            .iter()
-            .flat_map(|change| function_lines(change, links));
-        let folded = format!(
-            "<details><summary>All {}</summary>\n\n{}\n\n</details>",
-            plural(self.changes.len(), "function", "functions"),
-            functions.collect::<Vec<_>>().join("\n")
-        );
-        [totals, String::new()]
-            .into_iter()
-            .chain(header)
-            .chain(rows)
-            .chain([String::new(), folded])
-            .collect()
-    }
-
-    fn calls_section(&self, links: &Links) -> Section {
-        let hits: Vec<&Reason> = self
+    /// What the calls show, with no level of its own: the checks below say how they rate.
+    fn calls_line(&self) -> String {
+        let matched = self
             .rating
             .reasons
             .iter()
             .filter(|reason| reason.rule == ADDED_CALL)
-            .collect();
+            .count();
         let unclassified: usize = self
             .changes
             .iter()
@@ -193,181 +161,383 @@ impl ChangeReport {
             .iter()
             .filter(|change| change.unresolved_calls)
             .count();
+        let found = [
+            nonzero(unclassified, "new call", "new calls")
+                .map(|calls| calls + " nothing classifies"),
+            nonzero(unresolved, "function", "functions")
+                .map(|count| count + " calling an unknown target"),
+        ];
 
-        let (verdict, detail) = calls_verdict(&hits, unclassified, unresolved);
-        let body = hits
-            .iter()
-            .map(|hit| format!("- {}", added_call(hit, links)))
-            .chain(
-                self.changes
-                    .iter()
-                    .filter_map(|change| calls_line(change, links)),
-            );
-        Section {
-            title: "Calls",
-            verdict,
-            detail,
-            body: body.collect(),
-        }
+        let found: Vec<String> = found.into_iter().flatten().collect();
+        let gaps = (found.is_empty() && self.has_gaps()).then(|| "comparison has gaps".to_owned());
+        let gaps: Vec<String> = found.into_iter().chain(gaps).collect();
+        calls_verdict(matched, &gaps)
     }
 
-    fn signatures_section(&self, links: &Links) -> Section {
-        let changed: Vec<&FunctionChange> = self
-            .changes
-            .iter()
-            .filter(|change| change.signature_changed)
-            .collect();
-        let body = changed.iter().map(|change| {
-            let callers = plural(change.callers, "caller", "callers");
-            format!(
-                "- {} · {callers}",
-                links.function(&change.name, &change.path, Some(change.line))
-            )
-        });
-
-        let (verdict, detail) = match changed.len() {
-            0 => ("unchanged ✅", "no signature changed".to_owned()),
-            count => ("changed 👀", plural(count, "function", "functions")),
-        };
-        Section {
-            title: "Signatures",
-            verdict: verdict.to_owned(),
-            detail,
-            body: body.collect(),
-        }
-    }
-
-    fn effects_section(&self, links: &Links) -> Section {
-        let kinds = |pick: fn(&FunctionChange) -> &[EffectChange]| -> BTreeSet<&str> {
-            self.changes
-                .iter()
-                .flat_map(|change| pick(change).iter().map(|effect| effect.kind))
-                .collect()
-        };
-        let (gained, lost) = (
-            kinds(|change| &change.effects_gained),
-            kinds(|change| &change.effects_lost),
-        );
-        let said = [("gains", gained), ("loses", lost)]
+    fn effects_line(&self) -> String {
+        let gained = effect_kinds(&self.changes, |change| &change.effects_gained);
+        let lost = effect_kinds(&self.changes, |change| &change.effects_lost);
+        let said: Vec<String> = [("gains", gained), ("loses", lost)]
             .into_iter()
             .filter(|(_, kinds)| !kinds.is_empty())
-            .map(|(verb, kinds)| {
-                format!(
-                    "{verb} {}",
-                    kinds.into_iter().collect::<Vec<_>>().join(", ")
-                )
-            });
+            .map(|(verb, kinds)| format!("{verb} {}", kinds.join(", ")))
+            .collect();
 
-        let detail = said.collect::<Vec<_>>().join("; ");
-        let body = self
-            .changes
-            .iter()
-            .filter_map(|change| effects_line(change, links));
-        let (verdict, detail) = match detail.is_empty() {
-            true => ("unchanged ✅", "no effect gained or lost".to_owned()),
-            false => ("changed 👀", detail),
-        };
-        Section {
-            title: "Effects",
-            verdict: verdict.to_owned(),
-            detail,
-            body: body.collect(),
+        match said.is_empty() {
+            true => "**Effects:** unchanged ✅".to_owned(),
+            false => format!("**Effects:** {} 👀", said.join("; ")),
         }
     }
 
-    /// What the comparison can't see, so a person has to: text outside any function, functions
-    /// whose facts don't say what changed, and generated code.
-    fn blind_spots_section(&self, links: &Links) -> Section {
-        let unseen: Vec<&FunctionChange> = self
-            .changes
-            .iter()
-            .filter(|change| matches!(change.kind, ChangeKind::TextOnly | ChangeKind::Unknown))
-            .collect();
-        let counts = [
-            (
-                self.changed_outside_functions.len(),
-                "file changed outside a function",
-                "files changed outside a function",
+    fn coverage_line(&self) -> String {
+        let count = |kind| {
+            self.changes
+                .iter()
+                .filter(|change| change.kind == kind)
+                .count()
+        };
+        let generated = nonzero(
+            self.not_compared,
+            "generated function",
+            "generated functions",
+        )
+        .map(|count| {
+            format!(
+                "{count} not compared ({} changed)",
+                self.not_compared_changed
+            )
+        });
+        let gaps = [
+            nonzero(self.changed_outside_functions.len(), "file", "files")
+                .map(|count| count + " changed outside a function"),
+            nonzero(
+                count(ChangeKind::TextOnly),
+                "text-only function",
+                "text-only functions",
             ),
-            (
-                unseen.len(),
-                "function its facts can't speak for",
-                "functions its facts can't speak for",
+            nonzero(
+                count(ChangeKind::Unknown),
+                "unknown function",
+                "unknown functions",
             ),
-            (
-                self.not_compared_changed,
-                "generated function changed",
-                "generated functions changed",
-            ),
+            nonzero(
+                self.tests_changed,
+                "changed test function",
+                "changed test functions",
+            )
+            .map(|count| count + " not rated"),
+            generated,
         ];
-        let found: Vec<String> = counts
-            .into_iter()
-            .filter(|(count, _, _)| *count > 0)
-            .map(|(count, one, many)| plural(count, one, many))
-            .collect();
 
-        let files = self
-            .changed_outside_functions
-            .iter()
-            .map(|path| format!("- {}", links.file(path)));
-        let functions = unseen.iter().map(|change| function_summary(change, links));
-        let listed: Vec<String> = files.chain(functions).collect();
-        let separator = (!listed.is_empty()).then(String::new);
-        let body = listed.into_iter().chain(separator).chain([self.coverage()]);
-        let (verdict, detail) = match found.is_empty() {
-            true => ("none ✅", "nothing it can't see".to_owned()),
-            false => ("found 👀", found.join(", ")),
-        };
-        Section {
-            title: "Blind spots",
-            verdict: verdict.to_owned(),
-            detail,
-            body: body.collect(),
+        let gaps: Vec<String> = gaps.into_iter().flatten().collect();
+        match gaps.is_empty() {
+            true => "**Coverage:** no listed gaps ✅".to_owned(),
+            false => format!("**Coverage:** limited 👀 · {}", gaps.join(" · ")),
         }
     }
 
-    fn coverage(&self) -> String {
-        format!(
-            "{} unchanged. {} changed and aren't rated. {} aren't compared; {} of them changed.",
-            plural(self.unchanged, "function", "functions"),
-            plural(self.tests_changed, "test function", "test functions"),
-            plural(
-                self.not_compared,
-                "generated function",
-                "generated functions"
-            ),
-            self.not_compared_changed
-        )
+    fn change_at(&self, reason: &Reason) -> Option<&FunctionChange> {
+        self.changes.iter().find(|change| {
+            reason.path.as_deref() == Some(change.path.as_str())
+                && reason.line == Some(change.line)
+                && reason.function.as_deref() == Some(change.name.as_str())
+        })
     }
 }
 
-/// One folded part of the report. Its title, verdict and what the verdict rests on make its
-/// summary, so it reads while folded; one with nothing to unfold is a line.
-struct Section {
+/// The calls line: a matched rule first, then anything the calls can't say.
+fn calls_verdict(matched: usize, gaps: &[String]) -> String {
+    let rules = match matched {
+        0 => "no call rule matched".to_owned(),
+        count => plural(count, "call rule match", "call rule matches"),
+    };
+    let said = std::iter::once(rules)
+        .chain(gaps.iter().cloned())
+        .collect::<Vec<_>>();
+
+    match (matched, gaps.is_empty()) {
+        (0, true) => "**Calls:** classified ✅ · no call rule matched; every new call is \
+                      classified and resolved"
+            .to_owned(),
+        (0, false) => format!("**Calls:** incomplete 👀 · {}", said.join("; ")),
+        _ => format!("**Calls:** matched 👀 · {}", said.join("; ")),
+    }
+}
+
+/// The kinds of effect the changes gained, or lost, in order.
+fn effect_kinds(
+    changes: &[FunctionChange],
+    pick: fn(&FunctionChange) -> &[EffectChange],
+) -> Vec<&'static str> {
+    let kinds: BTreeSet<&'static str> = changes
+        .iter()
+        .flat_map(|change| pick(change).iter().map(|effect| effect.kind))
+        .collect();
+    kinds.into_iter().collect()
+}
+
+/// One rule's reasons, as a check: its strongest level and its reasons grouped by what they say.
+struct Check<'a> {
+    rule: &'static str,
     title: &'static str,
-    verdict: String,
-    detail: String,
-    body: Vec<String>,
+    level: Level,
+    groups: Vec<Group<'a>>,
 }
 
-impl Section {
-    fn render(self) -> String {
-        let Self {
-            title,
-            verdict,
-            detail,
-            body,
-        } = self;
-        if body.is_empty() {
-            return format!("**{title}:** {verdict} · {detail}");
-        }
+/// The reasons of one check that say the same thing at the same level.
+struct Group<'a> {
+    level: Level,
+    message: String,
+    reasons: Vec<&'a Reason>,
+}
 
-        let summary = format!("<strong>{title}:</strong> {verdict} · {detail}");
+impl<'a> Check<'a> {
+    /// The check for `rule`, or none when it found nothing.
+    fn of(reasons: &'a [Reason], rule: &'static str, title: &'static str) -> Option<Self> {
+        let found: Vec<&Reason> = reasons
+            .iter()
+            .filter(|reason| reason.rule == rule)
+            .collect();
+        let level = found
+            .iter()
+            .map(|reason| reason.level)
+            .reduce(Level::strongest)?;
+        let mut groups: Vec<Group> = found.into_iter().fold(Vec::new(), group_into);
+
+        groups.sort_by_key(|group| std::cmp::Reverse(group.level.weight()));
+        Some(Self {
+            rule,
+            title,
+            level,
+            groups,
+        })
+    }
+
+    /// What it found, as the first two of its groups.
+    fn summary(&self) -> String {
+        let said: Vec<String> = self
+            .groups
+            .iter()
+            .take(2)
+            .map(|group| group.counted(self.rule))
+            .collect();
+        let more = self.groups.len().saturating_sub(2);
+        let rest = (more > 0).then(|| format!("; and {more} more"));
+        said.join("; ") + &rest.unwrap_or_default()
+    }
+
+    /// Its line under "Why it isn't low".
+    fn held(&self) -> String {
+        let summary = escape(self.summary().trim_end_matches('.'));
+        let level = self.level;
         format!(
-            "<details><summary>{summary}</summary>\n\n{}\n\n</details>",
-            body.join("\n")
+            "- **{}** is {} {}: {summary}.",
+            self.title,
+            level.name(),
+            icon(level)
         )
     }
+
+    fn render(&self, report: &ChangeReport, links: &Links) -> String {
+        let listing = Listing {
+            rule: self.rule,
+            titled: self.groups.len() > 1,
+            report,
+            links,
+        };
+        let body = self.groups.iter().flat_map(|group| group.lines(&listing));
+        let level = self.level;
+
+        format!(
+            "<details><summary><strong>{}:</strong> {} {} · {}</summary>\n\n{}\n\n</details>",
+            self.title,
+            level.name(),
+            icon(level),
+            html(&self.summary()),
+            body.collect::<Vec<_>>().join("\n").trim()
+        )
+    }
+}
+
+/// Adds a reason to the group that says what it says, by its message without the callee it names.
+fn group_into<'a>(mut groups: Vec<Group<'a>>, reason: &'a Reason) -> Vec<Group<'a>> {
+    let message = match reason.callee.as_deref() {
+        Some(callee) => reason
+            .message
+            .replace(callee, "")
+            .trim_end_matches([':', ' '])
+            .to_owned(),
+        None => reason.message.clone(),
+    };
+    let same = |group: &&mut Group| group.level == reason.level && group.message == message;
+
+    match groups.iter_mut().find(same) {
+        Some(group) => group.reasons.push(reason),
+        None => groups.push(Group {
+            level: reason.level,
+            message,
+            reasons: vec![reason],
+        }),
+    }
+    groups
+}
+
+impl Group<'_> {
+    /// Its message, with how many functions it was found in unless the message already says.
+    fn counted(&self, rule: &str) -> String {
+        let functions: BTreeSet<(&Option<String>, Option<usize>, &Option<String>)> = self
+            .reasons
+            .iter()
+            .filter(|reason| reason.function.is_some())
+            .map(|reason| (&reason.path, reason.line, &reason.function))
+            .collect();
+        let count = functions.len();
+        if count <= 1 || self.message.starts_with(&format!("{count} ")) {
+            return self.message.clone();
+        }
+
+        let in_functions = plural(count, "function", "functions");
+        match rule {
+            ADDED_CALL | UNCLASSIFIED_CALL => {
+                let calls = plural(self.reasons.len(), "call", "calls");
+                format!("{}: {calls} in {in_functions}", self.message)
+            }
+            _ => format!("{}: {in_functions}", self.message),
+        }
+    }
+
+    /// Its reasons, one line each, under its own heading when the check holds more than one group.
+    fn lines(&self, listing: &Listing) -> Vec<String> {
+        let title = listing.titled.then(|| {
+            let (said, level) = (escape(&self.counted(listing.rule)), self.level);
+            format!("**{said}** — {} {}\n", level.name(), icon(level))
+        });
+        let listed = self.reasons.iter().take(SHOWN);
+        let listed = listed.filter_map(|reason| listing.line(reason));
+
+        let more = self.reasons.len().saturating_sub(SHOWN);
+        let rest = (more > 0).then(|| format!("- …and {more} more"));
+        title
+            .into_iter()
+            .chain(listed)
+            .chain(rest)
+            .chain([String::new()])
+            .collect()
+    }
+}
+
+/// What a check's reasons are listed with.
+struct Listing<'a> {
+    rule: &'a str,
+    /// Whether each group of reasons gets a heading, as when a check holds more than one.
+    titled: bool,
+    report: &'a ChangeReport,
+    links: &'a Links<'a>,
+}
+
+impl Listing<'_> {
+    /// Where a reason was found, the callee it names, and for a changed function, what changed.
+    fn line(&self, reason: &Reason) -> Option<String> {
+        let change = self.report.change_at(reason);
+        let place = match (change, &reason.path) {
+            (Some(change), _) => place(change, self.links),
+            (None, Some(path)) => self.links.file(path),
+            (None, None) => return None,
+        };
+        let callee = reason
+            .callee
+            .as_deref()
+            .map(|callee| format!(" calls {}", code(&short(callee))));
+
+        let facts = change
+            .filter(|_| self.rule == PDG_CHANGE)
+            .map(|change| format!(" — {}", facts(change)));
+        Some(format!(
+            "- {place}{}{}",
+            callee.unwrap_or_default(),
+            facts.unwrap_or_default()
+        ))
+    }
+}
+
+/// What a changed function's line says of it, ending with what uses it.
+fn facts(change: &FunctionChange) -> String {
+    let flags = [
+        change
+            .signature_changed
+            .then(|| "signature changed".to_owned()),
+        change
+            .values_changed
+            .then(|| "a known value changed".to_owned()),
+    ];
+    let effects = effect_facts("gains", &change.effects_gained)
+        .chain(effect_facts("loses", &change.effects_lost));
+    // All of a new or removed function's calls are what it is, not what changed.
+    let moved = !matches!(change.kind, ChangeKind::Added | ChangeKind::Removed);
+    let calls = [
+        moved
+            .then(|| listed("calls more", &change.calls_added))
+            .flatten(),
+        moved
+            .then(|| listed("calls less", &change.calls_removed))
+            .flatten(),
+    ];
+
+    let used = format!(
+        "used by {} ({} directly)",
+        change.reached_by, change.callers
+    );
+    std::iter::once(change.kind.name().to_owned())
+        .chain(flags.into_iter().flatten())
+        .chain(effects)
+        .chain(calls.into_iter().flatten())
+        .chain([used])
+        .collect::<Vec<_>>()
+        .join(" · ")
+}
+
+fn effect_facts<'a>(
+    verb: &'a str,
+    effects: &'a [EffectChange],
+) -> impl Iterator<Item = String> + 'a {
+    effects
+        .iter()
+        .map(move |effect| format!("{verb} {} {}", effect.kind, code(&effect.label)))
+}
+
+fn listed(label: &str, callees: &[String]) -> Option<String> {
+    if callees.is_empty() {
+        return None;
+    }
+    let names: Vec<String> = callees.iter().map(|callee| code(&short(callee))).collect();
+    Some(format!("{label} {}", names.join(", ")))
+}
+
+/// A function's name and file, linked to its line in the head unless it's removed, since the head
+/// doesn't hold it then.
+fn place(change: &FunctionChange, links: &Links) -> String {
+    let name = code(&display(&change.name));
+    let linked = match change.kind {
+        ChangeKind::Removed => name,
+        _ => links.to(name, &change.path, Some(change.line)),
+    };
+    format!("{linked} in {}", code(&change.path))
+}
+
+/// How many functions of each kind, kinds with none left out.
+fn tally(changes: &[FunctionChange]) -> String {
+    let kinds = [
+        ChangeKind::Changed,
+        ChangeKind::Added,
+        ChangeKind::Removed,
+        ChangeKind::TextOnly,
+        ChangeKind::Unknown,
+    ];
+    let count = |kind| changes.iter().filter(|change| change.kind == kind).count();
+    let said = kinds
+        .into_iter()
+        .filter_map(|kind| nonzero(count(kind), kind.name(), kind.name()));
+    said.collect::<Vec<_>>().join(", ")
 }
 
 /// The verdict's mark: a color for a measured level, eyes for what needs a person.
@@ -386,246 +556,32 @@ fn plural(count: usize, one: &str, many: &str) -> String {
     format!("{count} {noun}")
 }
 
-/// How many functions of each kind, kinds with none left out.
-fn tally<'a>(changes: impl Iterator<Item = &'a FunctionChange>) -> String {
-    let changes: Vec<&FunctionChange> = changes.collect();
-    let counts = KINDS.into_iter().map(|kind| {
-        let count = changes.iter().filter(|change| change.kind == kind).count();
-        (count, kind)
-    });
-    let said = counts
-        .filter(|(count, _)| *count > 0)
-        .map(|(count, kind)| format!("{count} {}", kind.name()));
-    said.collect::<Vec<_>>().join(", ")
+fn nonzero(count: usize, one: &str, many: &str) -> Option<String> {
+    (count > 0).then(|| plural(count, one, many))
 }
 
-fn by_file(changes: &[FunctionChange]) -> BTreeMap<&str, Vec<&FunctionChange>> {
-    let mut files: BTreeMap<&str, Vec<&FunctionChange>> = BTreeMap::new();
-    for change in changes {
-        files.entry(change.path.as_str()).or_default().push(change);
+/// A function's name without the module path its file already gives: a Rust method keeps its type,
+/// as `Links::to` for `markdown::Links::<'_>::to` and `ChangeReport::markdown` for
+/// `markdown::<impl merge_risk::ChangeReport>::markdown`. A Go name is already short.
+fn display(name: &str) -> String {
+    if let Some((owner, item)) = impl_item(name) {
+        return format!("{owner}::{item}");
     }
-    files
-}
-
-/// The strongest rule a new call hits, else whether any call can't be judged, else clean.
-fn calls_verdict(hits: &[&Reason], unclassified: usize, unresolved: usize) -> (String, String) {
-    let strongest = hits.iter().map(|hit| hit.level).reduce(Level::strongest);
-    match strongest {
-        Some(level) => (
-            format!("{} {}", level.name(), icon(level)),
-            format!("{} a rule names", plural(hits.len(), "call", "calls")),
-        ),
-        None if unclassified + unresolved > 0 => (
-            "unknown 👀".to_owned(),
-            format!(
-                "{} nothing classifies, {} with a call to an unknown target",
-                plural(unclassified, "new library call", "new library calls"),
-                plural(unresolved, "function", "functions")
-            ),
-        ),
-        None => (
-            "clean ✅".to_owned(),
-            "no rule fired; every new call is classified and resolved".to_owned(),
-        ),
-    }
-}
-
-/// A function and what's said of it, or nothing when nothing is.
-fn noted(
-    change: &FunctionChange,
-    links: &Links,
-    notes: Vec<String>,
-    separator: &str,
-) -> Option<String> {
-    (!notes.is_empty()).then(|| format!("{}: {}", place(change, links), notes.join(separator)))
-}
-
-/// A function's line in "Needs a look", if anything about it needs one.
-fn look_line(change: &FunctionChange, hits: &[&Reason], links: &Links) -> Option<String> {
-    let line = noted(change, links, look_notes(change, hits), ", ")?;
-    Some(format!("{line} · reached by {}", change.reached_by))
-}
-
-fn look_notes(change: &FunctionChange, hits: &[&Reason]) -> Vec<String> {
-    let rules = hits.iter().map(|hit| {
-        let callee = code(&short(hit.callee.as_deref().unwrap_or_default()));
-        format!("calls {callee}, which a rule rates {}", hit.level.name())
-    });
-    let unknown = (change.kind == ChangeKind::Unknown)
-        .then(|| escape(change.reason.unwrap_or("its tree isn't all of it")));
-    // A new or removed function's facts are all of it; only a changed one's say what moved.
-    let changed = (change.kind == ChangeKind::Changed).then(|| changed_notes(change));
-
-    rules
-        .chain(unknown)
-        .chain(changed.into_iter().flatten())
-        .collect()
-}
-
-fn changed_notes(change: &FunctionChange) -> Vec<String> {
-    let unclassified = change.calls_unclassified.len();
-    let outside: BTreeSet<&str> = change
-        .effects_gained
-        .iter()
-        .map(|effect| effect.kind)
-        .filter(|kind| *kind != "mutation")
+    let parts: Vec<&str> = name
+        .split("::")
+        .filter(|part| !part.starts_with('<'))
         .collect();
-    let facts = [
-        change
-            .signature_changed
-            .then(|| "signature changed".to_owned()),
-        change
-            .values_changed
-            .then(|| "a known value changed".to_owned()),
-        change
-            .unresolved_calls
-            .then(|| "calls an unknown target".to_owned()),
-        (unclassified > 0).then(|| {
-            plural(
-                unclassified,
-                "new call nothing classifies",
-                "new calls nothing classifies",
-            )
-        }),
-    ];
-
-    let gains = outside.into_iter().map(|kind| format!("gains {kind}"));
-    facts.into_iter().flatten().chain(gains).collect()
-}
-
-/// A function's name and file, linked to its line in the head unless it's removed, since the head
-/// doesn't hold it then.
-fn place(change: &FunctionChange, links: &Links) -> String {
-    match change.kind {
-        ChangeKind::Removed => Links(None).function(&change.name, &change.path, None),
-        _ => links.function(&change.name, &change.path, Some(change.line)),
+    match parts.as_slice() {
+        [.., owner, item] if owner.starts_with(char::is_uppercase) => format!("{owner}::{item}"),
+        _ => parts.last().copied().unwrap_or(name).to_owned(),
     }
 }
 
-fn calls_line(change: &FunctionChange, links: &Links) -> Option<String> {
-    let moved = !matches!(change.kind, ChangeKind::Added | ChangeKind::Removed);
-    let parts = [
-        moved
-            .then(|| listed("calls more", &change.calls_added))
-            .flatten(),
-        moved
-            .then(|| listed("calls less", &change.calls_removed))
-            .flatten(),
-        listed(
-            "new library calls nothing classifies",
-            &change.calls_unclassified,
-        ),
-        change
-            .unresolved_calls
-            .then(|| "calls an unknown target".to_owned()),
-    ];
-    let line = noted(change, links, parts.into_iter().flatten().collect(), "; ")?;
-    Some(format!("- {line}"))
-}
-
-fn effects_line(change: &FunctionChange, links: &Links) -> Option<String> {
-    let parts = effect_details("gains", &change.effects_gained)
-        .into_iter()
-        .chain(effect_details("loses", &change.effects_lost));
-    let line = noted(change, links, parts.collect(), "; ")?;
-    Some(format!("- {line}"))
-}
-
-fn added_call(reason: &Reason, links: &Links) -> String {
-    let callee = code(&short(reason.callee.as_deref().unwrap_or_default()));
-    let function = reason.function.as_deref().unwrap_or_default();
-    let path = reason.path.as_deref().unwrap_or_default();
-    let place = links.function(function, path, reason.line);
-
-    format!(
-        "{callee} newly called in {place}, which a rule rates {}",
-        reason.level.name()
-    )
-}
-
-fn function_lines(change: &FunctionChange, links: &Links) -> Vec<String> {
-    let details = function_details(change).into_iter();
-    std::iter::once(function_summary(change, links))
-        .chain(details.map(|detail| format!("  - {detail}")))
-        .collect()
-}
-
-fn function_summary(change: &FunctionChange, links: &Links) -> String {
-    let name = place(change, links);
-    let callers = if change.callers == 1 {
-        "caller"
-    } else {
-        "callers"
-    };
-
-    format!(
-        "- {name} {} · {} {callers}, reached by {}",
-        change.kind.name(),
-        change.callers,
-        change.reached_by
-    )
-}
-
-fn function_details(change: &FunctionChange) -> Vec<String> {
-    let facts = [
-        change.reason.map(escape),
-        change
-            .signature_changed
-            .then(|| "signature changed".to_owned()),
-        change
-            .values_changed
-            .then(|| "a known value changed, as a constant's does".to_owned()),
-        change
-            .unresolved_calls
-            .then(|| "makes a call whose target can't be known".to_owned()),
-        listed(
-            "new library calls nothing classifies",
-            &change.calls_unclassified,
-        ),
-    ];
-    // All of a new or removed function's calls are what it is, not what changed.
-    let calls = match change.kind {
-        ChangeKind::Added | ChangeKind::Removed => [None, None],
-        _ => [
-            listed("calls more", &change.calls_added),
-            listed("calls less", &change.calls_removed),
-        ],
-    };
-
-    let effects = [
-        effect_details("gains", &change.effects_gained),
-        effect_details("loses", &change.effects_lost),
-    ];
-    facts
-        .into_iter()
-        .flatten()
-        .chain(effects.into_iter().flatten())
-        .chain(calls.into_iter().flatten())
-        .collect()
-}
-
-/// One line per effect kind gained or lost, naming what causes it.
-fn effect_details(verb: &str, effects: &[EffectChange]) -> Vec<String> {
-    let kinds: BTreeSet<&str> = effects.iter().map(|effect| effect.kind).collect();
-    kinds
-        .into_iter()
-        .filter_map(|kind| {
-            let labels: Vec<String> = effects
-                .iter()
-                .filter(|effect| effect.kind == kind)
-                .map(|effect| effect.label.clone())
-                .collect();
-            listed(&format!("{verb} {kind}"), &labels)
-        })
-        .collect()
-}
-
-fn listed(label: &str, callees: &[String]) -> Option<String> {
-    if callees.is_empty() {
-        return None;
-    }
-    let names: Vec<String> = callees.iter().map(|callee| code(&short(callee))).collect();
-    Some(format!("{label}: {}", names.join(", ")))
+/// The type and item of `…<impl path::Type>::item`.
+fn impl_item(name: &str) -> Option<(&str, &str)> {
+    let (_, rest) = name.rsplit_once("<impl ")?;
+    let (owner, item) = rest.split_once(">::")?;
+    Some((owner.rsplit("::").next().unwrap_or(owner), item))
 }
 
 /// A callee without the directories of its import path, which a Go identity spells in full:
@@ -666,10 +622,6 @@ impl Links<'_> {
     fn file(&self, path: &str) -> String {
         self.to(code(path), path, None)
     }
-
-    fn function(&self, name: &str, path: &str, line: Option<usize>) -> String {
-        format!("{} in {}", self.to(code(name), path, line), code(path))
-    }
 }
 
 /// A code span. It only holds identifiers and paths, which hold no backtick.
@@ -677,7 +629,7 @@ fn code(text: &str) -> String {
     format!("`{text}`")
 }
 
-/// Text with what Markdown or HTML would read as syntax escaped.
+/// Text with what Markdown would read as syntax escaped.
 fn escape(text: &str) -> String {
     let mut escaped = String::with_capacity(text.len());
     for character in text.chars() {
@@ -687,6 +639,13 @@ fn escape(text: &str) -> String {
         escaped.push(character);
     }
     escaped
+}
+
+/// Text for a `<summary>`, where Markdown isn't read but HTML is.
+fn html(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 #[cfg(test)]
