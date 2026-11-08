@@ -15,20 +15,29 @@ fn call(name: &str, line: usize) -> FlowCall {
         operation: None,
         line,
         literals: Vec::new(),
+        lists: Vec::new(),
     }
 }
 
 fn result_to(from: usize, call: usize, position: usize) -> Hop {
     Hop {
         from: Start::Result(from),
-        to: End::Argument { call, position },
+        to: End::Argument {
+            call,
+            position,
+            element: None,
+        },
     }
 }
 
 fn parameter_to(parameter: usize, call: usize, position: usize) -> Hop {
     Hop {
         from: Start::Parameter(parameter),
-        to: End::Argument { call, position },
+        to: End::Argument {
+            call,
+            position,
+            element: None,
+        },
     }
 }
 
@@ -149,6 +158,229 @@ fn a_programs_arguments_are_data_unless_a_shell_is_told_to_run_one() {
         into_command(&[(0, "sh"), (1, "-c")], 3).is_empty(),
         "data to the script"
     );
+}
+
+/// The Rust models name these.
+const ENV: &str = "std::env::var";
+const NEW: &str = "std::process::Command::new";
+const ARG: &str = "std::process::Command::arg";
+const ARGS: &str = "std::process::Command::args";
+
+fn with_literals(name: &str, line: usize, literals: &[(usize, &str)]) -> FlowCall {
+    FlowCall {
+        literals: literals
+            .iter()
+            .map(|(at, text)| (*at, (*text).to_owned()))
+            .collect(),
+        ..call(name, line)
+    }
+}
+
+fn in_rust(mut function: FunctionFlows) -> FunctionFlows {
+    function.flows.namespace = "rust".into();
+    function
+}
+
+/// `let input = env::var(..)`, then `Command::new(program)` and an `arg` for each of these in a
+/// chain, each on its own line, where `None` is the input.
+fn chained(program: &str, arguments: &[Option<&str>]) -> FunctionFlows {
+    let mut calls = vec![call(ENV, 1), with_literals(NEW, 2, &[(0, program)])];
+    let mut hops = Vec::new();
+    for argument in arguments {
+        let at = calls.len();
+        hops.push(result_to(at - 1, at, 0));
+        calls.push(match argument {
+            Some(text) => with_literals(ARG, at + 1, &[(1, text)]),
+            None => call(ARG, at + 1),
+        });
+        if argument.is_none() {
+            hops.push(result_to(0, at, 1));
+        }
+    }
+    in_rust(function("f", calls, hops))
+}
+
+/// The same, as `let mut cmd = Command::new(..); cmd.arg(..);`: a borrow keeps what `cmd` held, so
+/// what each call is made on reaches every later one.
+fn bound(program: &str, arguments: &[Option<&str>]) -> FunctionFlows {
+    let mut bound = chained(program, arguments);
+    let made = 1..bound.flows.calls.len();
+    for later in made.clone() {
+        let earlier = made.clone().filter(|&earlier| earlier + 1 < later);
+        let reaching: Vec<Hop> = earlier
+            .map(|earlier| result_to(earlier, later, 0))
+            .collect();
+        bound.flows.hops.extend(reaching);
+    }
+    bound
+}
+
+fn lines(functions: &[FunctionFlows]) -> Vec<usize> {
+    found(functions).iter().map(|(_, line, _)| *line).collect()
+}
+
+#[test]
+fn a_shell_runs_what_a_command_adds_after_its_flag_as_code() {
+    let [(holder, line, message)] = &found(&[chained("sh", &[Some("-c"), None])])[..] else {
+        panic!("one finding");
+    };
+    assert_eq!((*holder, *line), (0, 4), "the arg it's given to");
+    assert!(
+        message.contains("`std::process::Command::arg`"),
+        "{message}"
+    );
+    assert!(message.contains("command injection, CWE-78"), "{message}");
+    assert_eq!(lines(&[chained("/bin/bash", &[Some("-c"), None])]), [4]);
+
+    for (program, arguments, why) in [
+        ("ls", &[None][..], "argv"),
+        ("ls", &[Some("-c"), None], "not a shell"),
+        ("sh", &[None], "a script's path"),
+        ("sh", &[Some("script.sh"), None], "data to the script"),
+        ("sh", &[Some("-x"), None], "not told to"),
+        (
+            "sh",
+            &[Some("-c"), Some("echo $0"), None],
+            "data to the code",
+        ),
+    ] {
+        assert!(lines(&[chained(program, arguments)]).is_empty(), "{why}");
+    }
+}
+
+#[test]
+fn a_command_bound_to_a_name_is_read_in_the_order_its_calls_ran() {
+    assert_eq!(lines(&[bound("sh", &[Some("-c"), None])]), [4]);
+    assert!(
+        lines(&[bound("sh", &[Some("-c"), Some("echo $0"), None])]).is_empty(),
+        "what -c added still reaches the last arg, but the one after it came between"
+    );
+    assert!(lines(&[bound("sh", &[Some("script.sh"), None])]).is_empty());
+}
+
+/// `Command::new("sh").args(list)` and then `.arg(..)`, where `list` is `None` when it isn't written
+/// out. The input is that element of the list, or what `arg` is given when there's none.
+fn listed(list: Option<&[Option<&str>]>, input: Option<usize>) -> FunctionFlows {
+    let written_out = list.map(|list| (1, list.iter().map(|it| it.map(str::to_owned)).collect()));
+    let args = FlowCall {
+        lists: written_out.into_iter().collect(),
+        ..call(ARGS, 3)
+    };
+    let calls = vec![
+        call(ENV, 1),
+        with_literals(NEW, 2, &[(0, "sh")]),
+        args,
+        call(ARG, 4),
+    ];
+    let to = match input {
+        Some(element) => End::Argument {
+            call: 2,
+            position: 1,
+            element: Some(element),
+        },
+        None => result_to(0, 3, 1).to,
+    };
+    let from = Start::Result(0);
+    let hops = vec![result_to(1, 2, 0), result_to(2, 3, 0), Hop { from, to }];
+    in_rust(function("f", calls, hops))
+}
+
+#[test]
+fn each_element_of_a_list_written_out_is_an_argument_of_its_own() {
+    let code = [Some("-c"), None, None];
+    assert_eq!(lines(&[listed(Some(&code), Some(1))]), [3]);
+    assert!(
+        lines(&[listed(Some(&code), Some(2))]).is_empty(),
+        "data to the code"
+    );
+    assert_eq!(
+        lines(&[listed(Some(&[Some("-c")]), None)]),
+        [4],
+        "the list counts"
+    );
+    assert!(
+        lines(&[listed(None, None)]).is_empty(),
+        "a list that isn't written out can't be counted"
+    );
+}
+
+/// `Command::new("sh").between().arg("-c").arg(input)`
+fn with_a_call_between(between: &str) -> FunctionFlows {
+    let calls = vec![
+        call(ENV, 1),
+        with_literals(NEW, 2, &[(0, "sh")]),
+        call(between, 2),
+        with_literals(ARG, 3, &[(1, "-c")]),
+        call(ARG, 4),
+    ];
+    let made_on = (1..4).map(|on| result_to(on, on + 1, 0));
+    let hops = made_on.chain([result_to(0, 4, 1)]).collect();
+    in_rust(function("f", calls, hops))
+}
+
+#[test]
+fn a_call_between_with_no_body_here_keeps_the_command() {
+    let between = with_a_call_between("std::process::Command::current_dir");
+    assert_eq!(lines(&[between]), [4]);
+
+    let configure = function(
+        "configure",
+        Vec::new(),
+        vec![returned_from(Start::Parameter(0))],
+    );
+    assert!(
+        lines(&[with_a_call_between("configure"), configure]).is_empty(),
+        "a body here could add an argument"
+    );
+}
+
+#[test]
+fn a_helper_that_runs_its_parameter_in_a_shell_is_where_it_is_reported() {
+    let run = in_rust(function(
+        "run",
+        vec![
+            with_literals(NEW, 2, &[(0, "sh")]),
+            with_literals(ARG, 3, &[(1, "-c")]),
+            call(ARG, 4),
+        ],
+        vec![
+            result_to(0, 1, 0),
+            result_to(1, 2, 0),
+            parameter_to(0, 2, 1),
+        ],
+    ));
+    let caller = in_rust(function(
+        "caller",
+        vec![call(ENV, 7), call("run", 8)],
+        vec![result_to(0, 1, 0)],
+    ));
+    let [(holder, line, message)] = &found(&[run, caller])[..] else {
+        panic!("one finding");
+    };
+    assert_eq!((*holder, *line), (0, 4));
+    assert!(message.contains("caller.go:7"), "{message}");
+}
+
+#[test]
+fn a_project_can_say_what_a_shell_is_given_doesnt_count() {
+    let project = |ignored: &str| TaintConfig {
+        ignored: vec![ignored.into()],
+        ..TaintConfig::default()
+    };
+    let shell = || chained("sh", &[Some("-c"), None]);
+    assert!(found_with(&[shell()], &project(ARG)).is_empty());
+    assert_eq!(
+        found_with(&[shell()], &project(NEW)).len(),
+        1,
+        "new isn't where it ends"
+    );
+}
+
+#[test]
+fn commands_built_around_a_loop_settle() {
+    let mut looped = chained("sh", &[Some("-v"), None]);
+    looped.flows.hops.push(result_to(3, 2, 0));
+    assert!(lines(&[looped]).is_empty());
 }
 
 /// `sink(through(source()))`

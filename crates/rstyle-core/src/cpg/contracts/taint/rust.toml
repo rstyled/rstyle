@@ -19,11 +19,16 @@ sources = [
     "std::io::Stdin::read_line",
 ]
 
+# A program's arguments are data to it, unless a shell is told to run the next one as code. A
+# Command is built a call at a time, so its arguments are what `arg` adds and each element of a list
+# written out for `args`, in the order they're called.
 [[sinks]]
 risk = "command injection"
 cwe = "CWE-78"
 arguments = [0]
 callees = ["std::process::Command::new"]
+shell = { executables = ["sh", "bash", "dash", "ksh", "zsh"], flag = "-c" }
+appends = { one = ["std::process::Command::arg"], each = ["std::process::Command::args"] }
 
 [[sinks]]
 risk = "path traversal"

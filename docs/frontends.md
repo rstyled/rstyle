@@ -272,7 +272,8 @@ its own. See [merge risk](merge-risk.md).
 ### Defects
 
 `taint_flow` reads which library calls are sources and sinks from `cpg/contracts/taint/<namespace>.toml`, by a definition's
-`operation` or `name`, so a new language needs that file and no code.
+`operation` or `name`, so a new language needs that file and no code. A sink whose command is built a call at a time, as
+Rust's `Command` is, names the calls that add its arguments under `appends`.
 
 `--filter defects` runs the rules in [Defects](defects.md) over each function's facts. Its results don't change the
 exit code yet.
