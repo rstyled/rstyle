@@ -15,6 +15,7 @@ fn call(name: &str, line: usize) -> FlowCall {
         operation: None,
         line,
         literals: Vec::new(),
+        keywords: Vec::new(),
         lists: Vec::new(),
     }
 }
@@ -60,6 +61,13 @@ fn function(identity: &str, calls: Vec<FlowCall>, hops: Vec<Hop>) -> FunctionFlo
             hops,
         },
     }
+}
+
+/// One function as a Python frontend writes it, read by Python's models.
+fn in_python(calls: Vec<FlowCall>, hops: Vec<Hop>) -> FunctionFlows {
+    let mut function = function("f", calls, hops);
+    function.flows.namespace = "py".into();
+    function
 }
 
 fn found_with(functions: &[FunctionFlows], project: &TaintConfig) -> Vec<(usize, usize, String)> {
@@ -157,6 +165,34 @@ fn a_programs_arguments_are_data_unless_a_shell_is_told_to_run_one() {
     assert!(
         into_command(&[(0, "sh"), (1, "-c")], 3).is_empty(),
         "data to the script"
+    );
+}
+
+/// `subprocess.run(os.getenv(..), ..)` with these keywords, and input at this position.
+fn into_run(keywords: &[(&str, &str)], position: usize) -> Vec<(usize, usize, String)> {
+    let run = FlowCall {
+        keywords: keywords
+            .iter()
+            .map(|(name, literal)| ((*name).to_owned(), (*literal).to_owned()))
+            .collect(),
+        ..call("subprocess.run", 2)
+    };
+    let calls = vec![call("os.getenv", 1), run];
+    found(&[in_python(calls, vec![result_to(0, 1, position)])])
+}
+
+#[test]
+fn a_sink_that_needs_a_keyword_is_one_only_where_the_call_passes_its_literal() {
+    assert_eq!(into_run(&[("shell", "true")], 0).len(), 1);
+    assert!(into_run(&[], 0).is_empty(), "no shell");
+    assert!(into_run(&[("shell", "false")], 0).is_empty());
+    assert!(
+        into_run(&[("check", "true")], 0).is_empty(),
+        "another keyword"
+    );
+    assert!(
+        into_run(&[("shell", "true")], 1).is_empty(),
+        "not the command"
     );
 }
 
@@ -485,6 +521,25 @@ fn a_project_says_what_cleans_input() {
 }
 
 #[test]
+fn a_model_says_what_cleans_input_and_a_project_can_take_that_back() {
+    let quoted = || {
+        let calls = vec![
+            call("os.getenv", 1),
+            call("shlex.quote", 2),
+            call("os.system", 3),
+        ];
+        in_python(calls, vec![result_to(0, 1, 0), result_to(1, 2, 0)])
+    };
+    assert!(found(&[quoted()]).is_empty());
+
+    let project = TaintConfig {
+        ignored: vec!["shlex.quote".into()],
+        ..TaintConfig::default()
+    };
+    assert_eq!(found_with(&[quoted()], &project).len(), 1);
+}
+
+#[test]
 fn a_helpers_body_says_which_arguments_it_gives_back() {
     let passes = function("pass", Vec::new(), vec![returned_from(Start::Parameter(0))]);
     assert_eq!(found(&[through("pass"), passes]).len(), 1);
@@ -661,7 +716,7 @@ fn a_helper_returning_ignored_input_returns_nothing() {
 
 #[test]
 fn every_model_file_is_read_and_a_namespace_without_one_names_nothing() {
-    for namespace in ["go", "cxx", "rust"] {
+    for namespace in ["go", "cxx", "rust", "py"] {
         let models = Models::of(namespace);
         assert!(!models.sources.is_empty(), "{namespace}");
         assert!(!models.sinks.is_empty(), "{namespace}");

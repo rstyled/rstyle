@@ -23,6 +23,7 @@ const EMBEDDED: &[&str] = &[
     include_str!("../contracts/taint/go.toml"),
     include_str!("../contracts/taint/cxx.toml"),
     include_str!("../contracts/taint/rust.toml"),
+    include_str!("../contracts/taint/py.toml"),
 ];
 
 /// How a shell is told to take its next argument as code.
@@ -31,6 +32,14 @@ const EMBEDDED: &[&str] = &[
 struct Shell {
     executables: Vec<String>,
     flag: String,
+}
+
+/// A keyword argument a call has to pass a literal for a sink to be one, as Python's `shell=True`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Keyword {
+    keyword: String,
+    literal: String,
 }
 
 /// Calls made on what a sink returns that add arguments after its own, as a builder's do: each of
@@ -53,6 +62,7 @@ struct Sink {
     arguments: Vec<usize>,
     callees: Vec<String>,
     shell: Option<Shell>,
+    when: Option<Keyword>,
     #[serde(default)]
     appends: Appends,
 }
@@ -69,6 +79,8 @@ pub struct Models {
     sources: Vec<String>,
     #[serde(default)]
     sinks: Vec<Sink>,
+    #[serde(default)]
+    sanitizers: Vec<String>,
 }
 
 impl Models {
@@ -116,12 +128,19 @@ fn shell_code_at(shell: &Shell, program_at: usize, literals: &[(usize, String)])
     (known && literal(program_at + 1) == Some(shell.flag.as_str())).then_some(program_at + 2)
 }
 
-/// What a sink means by a dangerous argument, at this call.
+/// What a sink means by a dangerous argument, at this call. A sink that needs a keyword's literal
+/// isn't one where the call doesn't pass it.
 fn dangerous(sink: &Sink, call: &FlowCall, position: usize) -> bool {
     let shell_code = sink.shell.as_ref().zip(sink.arguments.first());
-    sink.arguments.contains(&position)
-        || shell_code
-            .is_some_and(|(shell, &at)| shell_code_at(shell, at, &call.literals) == Some(position))
+    let passed = |when: &Keyword| {
+        let mut keywords = call.keywords.iter();
+        keywords.any(|(name, literal)| *name == when.keyword && *literal == when.literal)
+    };
+    sink.when.as_ref().is_none_or(passed)
+        && (sink.arguments.contains(&position)
+            || shell_code.is_some_and(|(shell, &at)| {
+                shell_code_at(shell, at, &call.literals) == Some(position)
+            }))
 }
 
 /// A sink's risk and what it's called, wherever it's defined.
@@ -155,8 +174,10 @@ impl Reader<'_> {
         self.counts(call) && keys.into_iter().any(|key| names(key, call))
     }
 
-    fn is_sanitizer(&self, call: &FlowCall) -> bool {
-        self.project.sanitizers.iter().any(|key| names(key, call))
+    /// A project's sanitizers, and a model's unless the project ignores them.
+    fn is_sanitizer(&self, models: &Models, call: &FlowCall) -> bool {
+        let modeled = models.sanitizers.iter().any(|key| names(key, call));
+        (modeled && self.counts(call)) || self.project.sanitizers.iter().any(|key| names(key, call))
     }
 
     fn risk_at(&self, models: &Models, call: &FlowCall, position: usize) -> Option<Risk> {
@@ -255,10 +276,10 @@ impl Solver<'_> {
         Some(&self.summaries[at])
     }
 
-    /// A call gives back what it was handed, unless its body says otherwise or a project says it
-    /// cleans it. A call with no body here can't be seen into.
-    fn passes(&self, call: &FlowCall, position: usize) -> bool {
-        !self.reader.is_sanitizer(call)
+    /// A call gives back what it was handed, unless its body says otherwise or a model or project
+    /// says it cleans it. A call with no body here can't be seen into.
+    fn passes(&self, models: &Models, call: &FlowCall, position: usize) -> bool {
+        !self.reader.is_sanitizer(models, call)
             && self
                 .callee_summary(call)
                 .is_none_or(|summary| summary.passes.contains(&position))
@@ -266,6 +287,7 @@ impl Solver<'_> {
 
     /// Everything these starts reach in one function, through the calls that pass them on.
     fn walk(&self, flows: &ValueFlows, starts: &[Start]) -> Walk {
+        let models = Models::of(&flows.namespace);
         let mut walk = Walk::default();
         let mut seen: BTreeSet<Start> = starts.iter().copied().collect();
         let mut stack = starts.to_vec();
@@ -283,7 +305,7 @@ impl Solver<'_> {
                 };
                 walk.arguments.insert((call, position, element));
                 let next = Start::Result(call);
-                if self.passes(&flows.calls[call], position) && seen.insert(next) {
+                if self.passes(models, &flows.calls[call], position) && seen.insert(next) {
                     stack.push(next);
                 }
             }
@@ -317,7 +339,7 @@ impl Solver<'_> {
         let models = Models::of(&function.flows.namespace);
         let starts = function.flows.calls.iter().enumerate();
         starts
-            .filter(|(_, call)| !self.reader.is_sanitizer(call))
+            .filter(|(_, call)| !self.reader.is_sanitizer(models, call))
             .filter_map(|(index, call)| {
                 let origin = if self.reader.is_source(models, call) {
                     Origin {
