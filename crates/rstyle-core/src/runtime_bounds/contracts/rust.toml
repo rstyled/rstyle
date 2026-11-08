@@ -1,0 +1,238 @@
+# Library operation contracts for the Rust frontend.
+#
+# Keys are `<self type>.<member>`: the defining impl's self type by its compiler
+# diagnostic item name (`BTreeMap`, `Vec`), else its lang item name (`String`,
+# `owned_box`), else its primitive kind (`slice`, `str`, `usize`), and the resolved
+# member name. The frontend emits them only for standard-library bodies that cannot
+# call back into workspace code.
+#
+# `steps` bounds element operations per invocation (comparisons, element clones,
+# byte copies) up to a constant factor. The cost of each element operation itself,
+# such as comparing two long keys, and of dropping values the operation displaces
+# or discards, is excluded. `Size = i` is the size of argument `i` (the receiver is
+# argument 0): a container's entry count, a string's byte length, or a scalar's value.
+# Operations that can panic or allocate unboundedly are deliberately absent;
+# an operation without a contract keeps an explicit opaque factor.
+
+schema = "rstyle.library-contracts/1"
+namespace = "rust"
+
+[[contract]]
+basis = "B-tree search: tree height is logarithmic in the entry count"
+steps = { Log = { Size = 0 } }
+operations = [
+  "BTreeMap.contains_key",
+  "BTreeMap.entry",
+  "BTreeMap.first_key_value",
+  "BTreeMap.get",
+  "BTreeMap.get_key_value",
+  "BTreeMap.get_mut",
+  "BTreeMap.insert",
+  "BTreeMap.last_key_value",
+  "BTreeMap.pop_first",
+  "BTreeMap.pop_last",
+  "BTreeMap.remove",
+  "BTreeMap.remove_entry",
+  "BTreeSet.contains",
+  "BTreeSet.first",
+  "BTreeSet.get",
+  "BTreeSet.insert",
+  "BTreeSet.last",
+  "BTreeSet.pop_first",
+  "BTreeSet.pop_last",
+  "BTreeSet.remove",
+  "BTreeSet.replace",
+  "BTreeSet.take",
+]
+
+[[contract]]
+basis = "Binary search over a sorted slice halves the candidate range per comparison"
+steps = { Log = { Size = 0 } }
+operations = ["slice.binary_search"]
+
+[[contract]]
+basis = "Reads or moves a fixed number of fields; no element is visited"
+steps = { Const = 1 }
+operations = [
+  "BTreeMap.is_empty",
+  "BTreeMap.len",
+  "BTreeMap.new",
+  "BTreeSet.is_empty",
+  "BTreeSet.len",
+  "BTreeSet.new",
+  "Option.as_deref",
+  "Option.as_mut",
+  "Option.as_ref",
+  "Option.branch",
+  "Option.from_residual",
+  "Option.is_none",
+  "Option.is_some",
+  "Option.ok_or",
+  "Option.take",
+  "Option.unwrap_or",
+  "Result.as_ref",
+  "Result.branch",
+  "Result.err",
+  "Result.is_err",
+  "Result.is_ok",
+  "Result.ok",
+  "String.as_str",
+  "String.is_empty",
+  "String.len",
+  "String.new",
+  "Vec.as_slice",
+  "Vec.is_empty",
+  "Vec.len",
+  "Vec.new",
+  "slice.first",
+  "slice.is_empty",
+  "slice.last",
+  "slice.len",
+  "str.is_empty",
+  "str.len",
+]
+
+[[contract]]
+basis = "Copies or compares each byte or element of the receiver at most once"
+steps = { Size = 0 }
+operations = [
+  "String.clone",
+  "String.eq",
+  "String.ne",
+  "Vec.clone",
+  "str.to_owned",
+  "str.to_string",
+]
+
+# Iteration roles. A `[[stage]]` transforms the items of a chain and a `[[consumer]]`
+# drives it; `effect` is the per-item behaviour, `arity` the argument count after the
+# receiver and `callback` the index of the argument run once per item. Every other
+# argument is evaluated once, before the first item. Upper bounds rely on these
+# effects, never on `size_hint`.
+#
+# `dispatch.standard` lists types whose trait impls the call may run per item (`Item`
+# is the iterator's item type, `Generic = i` the call's type argument `i` with the
+# receiver at 0); each must be built only from standard types. `item_agnostic` waives
+# that when type argument `generic` is one of `types`.
+
+[[stage]]
+basis = "Yields each source item once, unchanged in count"
+effect = "Pass"
+operations = ["Iterator.copied", "Iterator.enumerate", "Iterator.rev"]
+
+[[stage]]
+basis = "Clones each item once with its standard Clone impl"
+effect = "Pass"
+dispatch = { standard = [{ Generic = 1 }] }
+operations = ["Iterator.cloned"]
+
+[[stage]]
+basis = "Runs the callback once per item and yields its item"
+effect = "Map"
+arity = 1
+callback = 0
+operations = ["Iterator.inspect", "Iterator.map"]
+
+[[stage]]
+basis = "Runs the predicate once per item and may drop the item"
+effect = "Filter"
+arity = 1
+callback = 0
+operations = ["Iterator.filter", "Iterator.filter_map", "Iterator.skip_while"]
+
+[[stage]]
+basis = "Drops a prefix of the items without a callback"
+effect = "Skip"
+arity = 1
+operations = ["Iterator.skip"]
+
+[[stage]]
+basis = "Ends the traversal after a counted prefix without a callback"
+effect = "Take"
+arity = 1
+operations = ["Iterator.take"]
+
+[[stage]]
+basis = "Runs the predicate once per item and may end the traversal"
+effect = "TakeWhile"
+arity = 1
+callback = 0
+operations = ["Iterator.take_while"]
+
+[[stage]]
+basis = "Runs the callback once per item; the inner iterator's items continue the chain"
+effect = "FlatMap"
+arity = 1
+callback = 0
+operations = ["Iterator.flat_map"]
+
+[[consumer]]
+basis = "Pulls every item without a callback"
+effect = "Drain"
+operations = ["Iterator.count", "Iterator.last"]
+
+[[consumer]]
+basis = "Pulls every item, adding them with the standard Sum or Product impl of the result"
+effect = "Drain"
+dispatch = { standard = ["Item", { Generic = 1 }] }
+operations = ["Iterator.product", "Iterator.sum"]
+
+[[consumer]]
+basis = "Pulls every item, comparing them with their standard Ord impl"
+effect = "Drain"
+dispatch = { standard = ["Item"] }
+operations = ["Iterator.max", "Iterator.min"]
+
+[[consumer]]
+basis = "Pulls every item into the target; only standard FromIterator impls run per item"
+effect = "Drain"
+dispatch = { standard = ["Item", { Generic = 1 }], item_agnostic = { generic = 1, types = ["String", "Vec", "VecDeque"] } }
+operations = ["Iterator.collect"]
+
+[[consumer]]
+basis = "Runs the key callback once per item, comparing keys with their standard Ord impl"
+effect = "Each"
+arity = 1
+callback = 0
+dispatch = { standard = [{ Generic = 1 }] }
+operations = ["Iterator.max_by_key", "Iterator.min_by_key"]
+
+[[consumer]]
+basis = "Runs the callback once per item"
+effect = "Each"
+arity = 1
+callback = 0
+operations = ["Iterator.for_each", "Iterator.max_by", "Iterator.min_by"]
+
+[[consumer]]
+basis = "Runs the folding callback once per item after evaluating the initial value"
+effect = "Each"
+arity = 2
+callback = 1
+operations = ["Iterator.fold"]
+
+[[consumer]]
+basis = "Runs the predicate once per item and stops at the first match"
+effect = "Search"
+arity = 1
+callback = 0
+operations = [
+  "Iterator.all",
+  "Iterator.any",
+  "Iterator.find",
+  "Iterator.find_map",
+  "Iterator.position",
+]
+
+# Extent roles: inherent members over a receiver whose entry count is stable while
+# a shared borrow is live.
+
+[[extent]]
+basis = "Reads the stored entry count of a contiguous buffer"
+role = "Length"
+operations = ["Vec.len", "slice.len", "str.len"]
+
+[[extent]]
+basis = "Yields shared references to each element of a contiguous buffer once, in order"
+role = "Traversal"
+operations = ["slice.iter"]

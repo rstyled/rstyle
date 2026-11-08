@@ -32,9 +32,20 @@ impl EffectKind {
     }
 }
 
+/// Source budgets exclude lowered iterator bindings, while effects retain them.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MutationOrigin {
+    #[default]
+    Source,
+    ForDesugaring,
+}
+
 /// A write to, or `&mut` borrow of, a place rooted at a local, param or `self`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MutationEvent {
+    #[serde(default)]
+    pub origin: MutationOrigin,
     pub root: String,
     /// Dotted field projections below `root` (empty when the root itself is mutated).
     pub field_path: String,
@@ -59,6 +70,22 @@ pub struct CallEvent {
     /// Dispatched through `dyn`, a fn pointer or a generic callable: the target is unknown.
     #[serde(default)]
     pub dynamic: bool,
+    /// What the frontend's library contract says this call does, when it says anything.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub library: Option<LibraryClass>,
+    /// The identity of a callee that's a library's, as a dependence graph names it. A comparison
+    /// reads this, since `library` alone can't tell a library nothing classifies from this code.
+    #[serde(default, skip_serializing)]
+    pub library_callee: Option<String>,
+}
+
+/// What a library contract says a call does. Config can still override it, which is why
+/// it stays on the call rather than becoming an effect here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LibraryClass {
+    Pure,
+    Effect(EffectKind),
 }
 
 /// An effect the driver can decide without any config (unsafe, static mut, dyn calls).
@@ -82,6 +109,14 @@ pub enum ArgSource {
     Other,
 }
 
+/// An `if` whose `else` only returns, around a body that could stop being nested.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GuardClause {
+    pub line: usize,
+    /// Statements nested under the `if`.
+    pub statements: usize,
+}
+
 /// A parameter of a function (`self` excluded).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ParamFacts {
@@ -94,6 +129,33 @@ pub struct ParamFacts {
     /// forwards to workspace callees is a pure pass-through.
     #[serde(default)]
     pub uses: usize,
+    /// What it holds when that's a plain value, however it's passed. A type someone named says
+    /// more than this, so it has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scalar: Option<Scalar>,
+}
+
+/// A plain value a language gives its parameters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Scalar {
+    Text,
+    Integer,
+    Float,
+    Bool,
+    Char,
+}
+
+impl Scalar {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Text => "text",
+            Self::Integer => "integer",
+            Self::Float => "float",
+            Self::Bool => "bool",
+            Self::Char => "char",
+        }
+    }
 }
 
 /// A call into workspace code (same crate or a sibling crate), by stable fn id.
@@ -107,6 +169,9 @@ pub struct Edge {
     /// Dispatched through `dyn`: the concrete impl is unknown.
     #[serde(default)]
     pub dynamic: bool,
+    /// A trait declares the callee without a body, so only an implementation can run.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub required: bool,
     /// One entry per callee parameter (`self` excluded), in order.
     #[serde(default)]
     pub args: Vec<ArgSource>,
@@ -352,12 +417,25 @@ pub struct FnFacts {
     /// Signature shape; `None` for free functions and facts from older runs.
     #[serde(default)]
     pub sig: Option<SigFacts>,
+    /// Each `if` that could be a guard clause.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub guard_clauses: Vec<GuardClause>,
     /// Dependence graph; only present when the driver ran in semantic (`patterns`) mode.
     #[serde(default)]
     pub pdg: Option<Pdg>,
 }
 
 impl FnFacts {
+    /// The function's source as whole lines: `source` starts at the function's column, so its
+    /// first line is indented back to it.
+    pub fn whole_lines(&self) -> String {
+        format!(
+            "{}{}",
+            " ".repeat(self.column.saturating_sub(1)),
+            self.source
+        )
+    }
+
     fn key(&self) -> (&str, usize, usize, &str) {
         (&self.path, self.line, self.column, &self.name)
     }
@@ -394,6 +472,7 @@ pub fn sample(name: &str) -> FnFacts {
         edges: vec![],
         mutated_types: vec![],
         sig: None,
+        guard_clauses: vec![],
         pdg: None,
     }
 }

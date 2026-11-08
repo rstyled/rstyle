@@ -15,10 +15,43 @@
 //! - Effects go at most `depth` hops up. Rounds are synchronous, so cycles terminate and
 //!   the result does not depend on iteration order.
 
-use crate::facts::{ArgSource, EffectKind, FnFacts};
+use crate::facts::{ArgSource, Edge, EffectKind, FnFacts, MutationEvent};
 use crate::rules::Effect;
 use crate::suppress;
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    borrow::Borrow,
+    collections::{BTreeMap, BTreeSet},
+};
+
+/// Source-independent owner facts read by graph construction and propagation.
+#[derive(Clone, Copy)]
+pub struct EffectOwner<'a> {
+    pub name: &'a str,
+    pub mutations: &'a [MutationEvent],
+    pub edges: &'a [Edge],
+}
+
+/// Borrow just the graph inputs, without manufacturing authored function metrics.
+pub trait EffectInput {
+    fn effect_owner(&self) -> EffectOwner<'_>;
+}
+
+impl<F: Borrow<FnFacts>> EffectInput for F {
+    fn effect_owner(&self) -> EffectOwner<'_> {
+        let facts = self.borrow();
+        EffectOwner {
+            name: &facts.name,
+            mutations: &facts.mutations,
+            edges: &facts.edges,
+        }
+    }
+}
+
+impl EffectInput for EffectOwner<'_> {
+    fn effect_owner(&self) -> EffectOwner<'_> {
+        *self
+    }
+}
 
 /// A resolved call: one of `targets` runs at `line` of the caller. Several targets
 /// mean a trait-method call (any impl, or the default body).
@@ -30,10 +63,19 @@ pub struct Callee {
     pub args: Vec<ArgSource>,
 }
 
+/// A call to a method a trait declares without a body, with no implementation to go to.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct OpenCall {
+    pub line: usize,
+    pub callee: String,
+}
+
 /// `callees[i]` are the resolved calls out of `facts[i]`, sorted by (line, target).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Graph {
     pub callees: Vec<Vec<Callee>>,
+    /// `open[i]` are the calls out of `facts[i]` that no implementation can answer, sorted.
+    pub open: Vec<Vec<OpenCall>>,
 }
 
 impl Graph {
@@ -47,46 +89,102 @@ impl Graph {
         }
         out.into_iter().map(|s| s.into_iter().collect()).collect()
     }
+
+    /// What runs at an open call is unknown to its caller, once per callee, unless the
+    /// caller's own events already account for it.
+    pub fn add_open_calls(&self, direct: &mut [Vec<Effect>]) {
+        for (effects, open) in direct.iter_mut().zip(&self.open) {
+            for call in open {
+                if effects.iter().all(|effect| effect.label != call.callee) {
+                    effects.push(Effect {
+                        kind: EffectKind::Unknown,
+                        label: call.callee.clone(),
+                        line: call.line,
+                        via: None,
+                    });
+                }
+            }
+        }
+    }
 }
 
 pub fn build(facts: &[FnFacts]) -> Graph {
+    build_identified(facts, |f| (f.id.as_str(), f.implements.as_deref()))
+}
+
+/// A graph over any owners, resolving a callee by each one's identity and the trait
+/// function it implements.
+pub fn build_identified<'a, F: EffectInput>(
+    facts: &'a [F],
+    identity: impl Fn(&'a F) -> (&'a str, Option<&'a str>),
+) -> Graph {
     let mut by_id: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     for (index, f) in facts.iter().enumerate() {
-        by_id.entry(f.id.as_str()).or_default().push(index);
-        if let Some(trait_fn) = &f.implements {
-            by_id.entry(trait_fn.as_str()).or_default().push(index);
+        let (id, implements) = identity(f);
+        by_id.entry(id).or_default().push(index);
+        if let Some(trait_fn) = implements {
+            by_id.entry(trait_fn).or_default().push(index);
         }
     }
-    let callees = facts
-        .iter()
-        .enumerate()
-        .map(|(caller, f)| {
-            let resolved: BTreeSet<Callee> = f
-                .edges
-                .iter()
-                .filter_map(|edge| {
-                    let found = by_id.get(edge.callee.as_str())?;
-                    let targets: BTreeSet<usize> =
-                        found.iter().copied().filter(|&t| t != caller).collect();
-                    (!targets.is_empty()).then(|| Callee {
-                        line: edge.line,
-                        targets: targets.into_iter().collect(),
-                        args: edge.args.clone(),
-                    })
-                })
-                .collect();
-            resolved.into_iter().collect()
-        })
-        .collect();
-    Graph { callees }
+    build_resolved(facts, |_, edge| {
+        by_id
+            .get(edge.callee.as_str())
+            .into_iter()
+            .flatten()
+            .copied()
+    })
+}
+
+/// Reuse graph construction with a consumer's scoped target indices, borrowing its owners.
+pub fn build_resolved<F: EffectInput, T: IntoIterator<Item = usize>>(
+    facts: &[F],
+    mut targets: impl FnMut(usize, &crate::facts::Edge) -> T,
+) -> Graph {
+    let mut graph = Graph::default();
+    for (caller, fact) in facts.iter().enumerate() {
+        let (resolved, open) = caller_calls(caller, fact.effect_owner().edges, &mut targets);
+        graph.callees.push(resolved);
+        graph.open.push(open);
+    }
+    graph
+}
+
+/// One caller's calls with a target, and those with none that only an implementation can answer.
+fn caller_calls<T: IntoIterator<Item = usize>>(
+    caller: usize,
+    edges: &[crate::facts::Edge],
+    targets: &mut impl FnMut(usize, &crate::facts::Edge) -> T,
+) -> (Vec<Callee>, Vec<OpenCall>) {
+    let mut resolved = BTreeSet::new();
+    let mut open = BTreeSet::new();
+    for edge in edges {
+        let mut targets: BTreeSet<_> = targets(caller, edge).into_iter().collect();
+        if targets.is_empty() && edge.required {
+            open.insert(OpenCall {
+                line: edge.line,
+                callee: edge.callee.clone(),
+            });
+        }
+        targets.remove(&caller);
+        if !targets.is_empty() {
+            resolved.insert(Callee {
+                line: edge.line,
+                targets: targets.into_iter().collect(),
+                args: edge.args.clone(),
+            });
+        }
+    }
+    (resolved.into_iter().collect(), open.into_iter().collect())
 }
 
 /// True for functions that declared themselves a side-effect boundary.
 pub fn boundaries(facts: &[FnFacts]) -> Vec<bool> {
-    facts
-        .iter()
-        .map(|f| suppress::allows(&f.preceding_line, "side_effect_density"))
-        .collect()
+    facts.iter().map(is_boundary).collect()
+}
+
+/// The existing suppression policy over one borrowed owner.
+pub fn is_boundary(facts: &FnFacts) -> bool {
+    suppress::allows(&facts.preceding_line, "side_effect_density")
 }
 
 fn outward(kind: EffectKind) -> bool {
@@ -112,8 +210,13 @@ fn split_more(label: &str) -> (&str, usize) {
         .unwrap_or((label, 0))
 }
 
-fn exported_by(target: &FnFacts, theirs: &[Effect], line: usize, delegated: bool) -> Vec<Effect> {
-    let via = Some(target.name.clone());
+fn exported_by(
+    target: EffectOwner<'_>,
+    theirs: &[Effect],
+    line: usize,
+    delegated: bool,
+) -> Vec<Effect> {
+    let via = Some(target.name.to_owned());
 
     // One effect per kind: a callee that opens twenty files is one unit of IO for its
     // caller, otherwise orchestrators would score by how deep the call tree is.
@@ -150,9 +253,9 @@ fn exported_by(target: &FnFacts, theirs: &[Effect], line: usize, delegated: bool
 }
 
 /// What a call hands to its caller: the effects every possible target exports.
-fn exported(
-    inputs: &Inputs,
-    caller: &FnFacts,
+fn exported<F: EffectInput>(
+    inputs: &Inputs<'_, F>,
+    caller: EffectOwner<'_>,
     callee: &Callee,
     current: &[Vec<Effect>],
 ) -> Vec<Effect> {
@@ -164,7 +267,12 @@ fn exported(
         if inputs.boundary[t] {
             return Vec::new();
         }
-        exported_by(&inputs.facts[t], &current[t], callee.line, delegated)
+        exported_by(
+            inputs.facts[t].effect_owner(),
+            &current[t],
+            callee.line,
+            delegated,
+        )
     });
     let first = per_target.next().unwrap_or_default();
     let rest: Vec<Vec<Effect>> = per_target.collect();
@@ -182,22 +290,26 @@ fn exported(
 }
 
 /// Everything propagation reads. `direct[i]` and `boundary[i]` belong to `facts[i]`.
-pub struct Inputs<'a> {
-    pub facts: &'a [FnFacts],
+pub struct Inputs<'a, F = FnFacts> {
+    pub facts: &'a [F],
     pub graph: &'a Graph,
     pub direct: &'a [Vec<Effect>],
     pub boundary: &'a [bool],
 }
 
 /// One synchronous round for `facts[index]`: its direct effects plus what its callees export.
-fn round(inputs: &Inputs, index: usize, current: &[Vec<Effect>]) -> Vec<Effect> {
+fn round<F: EffectInput>(
+    inputs: &Inputs<'_, F>,
+    index: usize,
+    current: &[Vec<Effect>],
+) -> Vec<Effect> {
     let direct = &inputs.direct[index];
     let mut out = direct.clone();
     let mut seen: BTreeSet<(EffectKind, String)> =
         direct.iter().map(|e| (e.kind, e.label.clone())).collect();
     let inherited = inputs.graph.callees[index]
         .iter()
-        .flat_map(|callee| exported(inputs, &inputs.facts[index], callee, current));
+        .flat_map(|callee| exported(inputs, inputs.facts[index].effect_owner(), callee, current));
 
     for effect in inherited {
         if seen.insert((effect.kind, effect.label.clone())) {
@@ -208,7 +320,7 @@ fn round(inputs: &Inputs, index: usize, current: &[Vec<Effect>]) -> Vec<Effect> 
 }
 
 /// Direct effects plus effects inherited up to `depth` hops.
-pub fn propagate(inputs: &Inputs, depth: usize) -> Vec<Vec<Effect>> {
+pub fn propagate<F: EffectInput>(inputs: &Inputs<'_, F>, depth: usize) -> Vec<Vec<Effect>> {
     let mut current = inputs.direct.to_vec();
     for _ in 0..depth {
         let next: Vec<Vec<Effect>> = (0..inputs.facts.len())
@@ -232,8 +344,85 @@ mod tests {
             callee: callee.into(),
             line,
             dynamic: false,
+            required: false,
             args: vec![],
         }
+    }
+
+    fn required(callee: &str, line: usize) -> Edge {
+        Edge {
+            required: true,
+            ..edge(callee, line)
+        }
+    }
+
+    fn unknown(label: &str) -> Effect {
+        Effect {
+            kind: EffectKind::Unknown,
+            label: label.into(),
+            line: 5,
+            via: None,
+        }
+    }
+
+    #[test]
+    fn a_required_call_with_no_implementation_is_unknown_once_per_callee() {
+        let mut caller = sample("caller");
+        caller.edges = vec![
+            required("krate::Read::read", 5),
+            required("krate::Read::read", 9),
+        ];
+        let graph = build(&[caller]);
+        let mut direct = vec![vec![]];
+
+        graph.add_open_calls(&mut direct);
+
+        assert_eq!(direct, [vec![unknown("krate::Read::read")]]);
+    }
+
+    #[test]
+    fn a_required_call_with_an_implementation_is_not_open() {
+        let mut caller = sample("caller");
+        caller.edges = vec![required("krate::Read::read", 5)];
+        let mut implementation = sample("implementation");
+        implementation.implements = Some("krate::Read::read".into());
+
+        let graph = build(&[caller, implementation]);
+
+        assert_eq!(graph.open, [vec![], vec![]]);
+        assert_eq!(graph.callees[0][0].targets, [1]);
+    }
+
+    #[test]
+    fn a_required_call_that_only_reaches_its_caller_is_not_open() {
+        let mut implementation = sample("implementation");
+        implementation.implements = Some("krate::Read::read".into());
+        implementation.edges = vec![required("krate::Read::read", 5)];
+
+        let graph = build(&[implementation]);
+
+        assert_eq!(graph.open, [vec![]]);
+        assert_eq!(graph.callees, [vec![]]);
+    }
+
+    #[test]
+    fn an_open_call_the_callers_own_events_name_adds_nothing() {
+        let mut caller = sample("caller");
+        caller.edges = vec![required("krate::Read::read", 5)];
+        let graph = build(&[caller]);
+        let mut direct = vec![vec![unknown("krate::Read::read")]];
+
+        graph.add_open_calls(&mut direct);
+
+        assert_eq!(direct, [vec![unknown("krate::Read::read")]]);
+    }
+
+    #[test]
+    fn an_ordinary_call_with_no_target_is_not_open() {
+        let mut caller = sample("caller");
+        caller.edges = vec![edge("krate::missing", 5)];
+
+        assert_eq!(build(&[caller]).open, [vec![]]);
     }
 
     fn io(line: usize) -> Effect {
@@ -260,7 +449,19 @@ mod tests {
         depth: usize,
     ) -> Vec<Vec<Effect>> {
         let graph = build(facts);
-        propagate(
+        let owners: Vec<_> = facts.iter().map(EffectInput::effect_owner).collect();
+        let borrowed_graph = build_resolved(&owners, |_, edge| {
+            facts
+                .iter()
+                .enumerate()
+                .filter_map(|(index, facts)| {
+                    (facts.id == edge.callee || facts.implements.as_ref() == Some(&edge.callee))
+                        .then_some(index)
+                })
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(borrowed_graph, graph);
+        let expected = propagate(
             &Inputs {
                 facts,
                 graph: &graph,
@@ -268,7 +469,54 @@ mod tests {
                 boundary,
             },
             depth,
-        )
+        );
+        let borrowed = propagate(
+            &Inputs {
+                facts: &owners,
+                graph: &borrowed_graph,
+                direct,
+                boundary,
+            },
+            depth,
+        );
+        assert_eq!(borrowed, expected);
+        borrowed
+    }
+
+    #[test]
+    fn source_independent_owners_reuse_resolved_targets_and_propagation() {
+        let edges = [edge("generated", 7)];
+        let owners = [
+            EffectOwner {
+                name: "caller",
+                mutations: &[],
+                edges: &edges,
+            },
+            EffectOwner {
+                name: "generated",
+                mutations: &[],
+                edges: &[],
+            },
+        ];
+        let graph = build_resolved(&owners, |_, edge| (edge.callee == "generated").then_some(1));
+        let direct = [vec![], vec![io(3)]];
+        let effects = propagate(
+            &Inputs {
+                facts: &owners,
+                graph: &graph,
+                direct: &direct,
+                boundary: &[false; 2],
+            },
+            1,
+        );
+        assert_eq!(
+            effects[0],
+            [Effect {
+                line: 7,
+                via: Some("generated".into()),
+                ..io(3)
+            }]
+        );
     }
 
     #[test]
@@ -343,6 +591,7 @@ mod tests {
 
     fn write(line: usize, delegated: bool) -> MutationEvent {
         MutationEvent {
+            origin: crate::facts::MutationOrigin::Source,
             root: "self".into(),
             field_path: String::new(),
             line,
@@ -353,20 +602,28 @@ mod tests {
 
     #[test]
     fn delegated_mutation_is_inherited_only_when_callee_writes() {
-        let (mut a, mut b, c) = (sample("a"), sample("b"), sample("c"));
-        a.edges = vec![edge("krate::b", 4), edge("krate::c", 5)];
-        a.mutations = vec![write(4, true), write(5, true)];
-        b.mutations = vec![write(9, false)];
-        let mutation = Effect {
-            kind: EffectKind::Mutation,
-            label: "self".into(),
-            line: 9,
-            via: None,
-        };
-        let direct = vec![vec![], vec![mutation], vec![]];
-        let out = run(&[a, b, c], &direct, &[false; 3], 1);
-        assert_eq!(out[0].len(), 1, "only the call to `b` brings a write");
-        assert_eq!(out[0][0].line, 4);
+        for origin in [
+            crate::facts::MutationOrigin::Source,
+            crate::facts::MutationOrigin::ForDesugaring,
+        ] {
+            let (mut a, mut b, c) = (sample("a"), sample("b"), sample("c"));
+            a.edges = vec![edge("krate::b", 4), edge("krate::c", 5)];
+            a.mutations = vec![write(4, true), write(5, true)];
+            for event in &mut a.mutations {
+                event.origin = origin;
+            }
+            b.mutations = vec![write(9, false)];
+            let mutation = Effect {
+                kind: EffectKind::Mutation,
+                label: "self".into(),
+                line: 9,
+                via: None,
+            };
+            let direct = vec![vec![], vec![mutation], vec![]];
+            let out = run(&[a, b, c], &direct, &[false; 3], 1);
+            assert_eq!(out[0].len(), 1, "only the call to `b` brings a write");
+            assert_eq!(out[0][0].line, 4);
+        }
     }
 
     #[test]

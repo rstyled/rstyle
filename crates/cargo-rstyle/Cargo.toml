@@ -2,17 +2,20 @@
 name = "cargo-rstyle"
 version.workspace = true
 edition.workspace = true
+default-run = "cargo-rstyle"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 rstyle-core = { path = "../rstyle-core" }
-rstyle-pdg = { path = "../rstyle-pdg" }
-rstyle-ccgraph = { path = "../rstyle-ccgraph" }
+rstyle-capture = { path = "../rstyle-capture" }
 tempfile = "3"
 sha2 = "0.10"
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 toml = "0.9"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 # SHA-2 0.10 only enables its runtime-detected ARM SHA-256 backend with `asm`.
 # Preserve the software fallback and the original dev/test build profile.
@@ -23,7 +26,6 @@ sha2 = { version = "0.10", features = ["asm"] }
 adler2 = "=2.0.1"
 assert_cmd = "2"
 insta = { version = "1", features = ["json"] }
-syn = { version = "2", features = ["full"] }
 tempfile = "3"
 
 [lints]

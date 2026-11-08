@@ -1,8 +1,8 @@
 //! Pure rules over `FnFacts`. No IO, no compiler types.
 
 use crate::config::{Config, Granularity, MutationBudgetConfig};
-use crate::facts::{EffectKind, FnFacts};
-use crate::lines::{code_lines, has_blank_line};
+use crate::facts::{CallEvent, EffectEvent, EffectKind, FnFacts, LibraryClass, MutationEvent};
+use crate::lines::code_lines;
 use crate::report::{Detail, Diagnostic};
 use std::collections::BTreeMap;
 
@@ -13,7 +13,12 @@ pub struct Measure {
     pub limit: usize,
 }
 
-fn diagnostic(f: &FnFacts, rule_id: &str, message: String, measure: Measure) -> Diagnostic {
+pub(crate) fn diagnostic(
+    f: &FnFacts,
+    rule_id: &str,
+    message: String,
+    measure: Measure,
+) -> Diagnostic {
     Diagnostic {
         path: f.path.clone(),
         line: f.line,
@@ -23,11 +28,15 @@ fn diagnostic(f: &FnFacts, rule_id: &str, message: String, measure: Measure) -> 
         actual: measure.actual,
         limit: measure.limit,
         details: vec![],
+        source: f.whole_lines(),
     }
 }
 
 pub fn fn_length(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
-    let actual = code_lines(&f.source);
+    fn_length_with_lines(f, cfg, code_lines(&f.source))
+}
+
+pub(crate) fn fn_length_with_lines(f: &FnFacts, cfg: &Config, actual: usize) -> Vec<Diagnostic> {
     let limit = cfg.fn_length.max_lines;
     let message = format!("function `{}` is too long", f.name);
     (actual > limit)
@@ -104,7 +113,7 @@ pub fn fn_spacing(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
     let actual = f.top_statements;
     let limit = min.saturating_sub(1);
     let message = format!("function `{}` has no blank line between its phases", f.name);
-    let flagged = min > 0 && actual >= min && !has_blank_line(&f.source);
+    let flagged = crate::spacing::is_finding(&f.source, actual, min);
 
     flagged
         .then(|| diagnostic(f, "fn_spacing", message, Measure { actual, limit }))
@@ -115,6 +124,9 @@ pub fn fn_spacing(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
 fn mutation_groups(f: &FnFacts, granularity: Granularity) -> BTreeMap<String, Vec<usize>> {
     let mut groups: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for event in &f.mutations {
+        if event.origin == crate::facts::MutationOrigin::ForDesugaring {
+            continue;
+        }
         let key = match granularity {
             Granularity::Field if !event.field_path.is_empty() => {
                 format!("{}.{}", event.root, event.field_path)
@@ -184,9 +196,28 @@ pub struct Effect {
 
 /// All effects of a function: mutations, classified calls, and driver-decided effects.
 pub fn effects_of(f: &FnFacts, cfg: &Config) -> Vec<Effect> {
+    effects_from_events(
+        EffectEvents {
+            mutations: &f.mutations,
+            calls: &f.calls,
+            effects: &f.effects,
+        },
+        cfg,
+    )
+}
+
+/// Compiler-observed events, independent of authored source and numeric measurements.
+pub struct EffectEvents<'a> {
+    pub mutations: &'a [MutationEvent],
+    pub calls: &'a [CallEvent],
+    pub effects: &'a [EffectEvent],
+}
+
+/// Reuse effect classification over borrowed events without inventing function metrics.
+pub fn effects_from_events(events: EffectEvents<'_>, cfg: &Config) -> Vec<Effect> {
     // One effect per written target: repeated writes are `mutation_per_target`'s business.
     let mut written = std::collections::BTreeSet::new();
-    let mutations = f
+    let mutations = events
         .mutations
         .iter()
         .filter(|m| m.escapes)
@@ -201,9 +232,8 @@ pub fn effects_of(f: &FnFacts, cfg: &Config) -> Vec<Effect> {
             line: m.line,
             via: None,
         });
-    let calls = f.calls.iter().filter_map(|c| {
-        let classified = cfg.side_effects.paths.classify(&c.callee);
-        let kind = classified.or(c.dynamic.then_some(EffectKind::Unknown))?;
+    let calls = events.calls.iter().filter_map(|c| {
+        let kind = call_effect(c, cfg)?;
         Some(Effect {
             kind,
             label: c.callee.clone(),
@@ -211,7 +241,7 @@ pub fn effects_of(f: &FnFacts, cfg: &Config) -> Vec<Effect> {
             via: None,
         })
     });
-    let intrinsic = f.effects.iter().map(|e| Effect {
+    let intrinsic = events.effects.iter().map(|e| Effect {
         kind: e.kind,
         label: e.detail.clone(),
         line: e.line,
@@ -219,6 +249,31 @@ pub fn effects_of(f: &FnFacts, cfg: &Config) -> Vec<Effect> {
     });
 
     mutations.chain(calls).chain(intrinsic).collect()
+}
+
+/// A call's effect: the config's say first, as the user's own, then the library contract's.
+/// A call neither classifies is an unknown effect only when its target is unknown.
+fn call_effect(call: &CallEvent, cfg: &Config) -> Option<EffectKind> {
+    if let Some(kind) = cfg.side_effects.paths.classify(&call.callee) {
+        return Some(kind);
+    }
+    match call.library {
+        Some(LibraryClass::Pure) => None,
+        Some(LibraryClass::Effect(kind)) => Some(kind),
+        None => call.dynamic.then_some(EffectKind::Unknown),
+    }
+}
+
+/// The callee of a library call nothing says the effect of, neither the config nor a contract, so
+/// what it does can't be told from here. Density is right not to count one: nobody classified it.
+/// A comparison can't call it clean, though. A call with an unknown target is its own matter.
+pub fn unclassified_callee<'c>(call: &'c CallEvent, cfg: &Config) -> Option<&'c str> {
+    let callee = call.library_callee.as_deref().filter(|_| !call.dynamic)?;
+    let classified = match call_effect(call, cfg) {
+        Some(kind) => kind != EffectKind::Unknown,
+        None => call.library.is_some(),
+    };
+    (!classified).then_some(callee)
 }
 
 /// Weighted effect sum per statement, in thousandths (integer math only).
@@ -250,10 +305,19 @@ fn effect_details(effects: &[Effect], cfg: &Config) -> Vec<Detail> {
 
 /// `effects` is the function's full effect list (direct plus inherited, see `graph`).
 pub fn side_effect_density(f: &FnFacts, effects: &[Effect], cfg: &Config) -> Vec<Diagnostic> {
+    side_effect_density_with_lines(f, effects, cfg, || code_lines(&f.source))
+}
+
+pub(crate) fn side_effect_density_with_lines(
+    f: &FnFacts,
+    effects: &[Effect],
+    cfg: &Config,
+    source_lines: impl FnOnce() -> usize,
+) -> Vec<Diagnostic> {
     let actual = density_milli(f, effects, cfg);
     let limit = cfg.side_effects.max_density_milli;
     let small = f.statements < cfg.side_effects.min_statements
-        || code_lines(&f.source) < cfg.side_effects.min_lines;
+        || source_lines() < cfg.side_effects.min_lines;
 
     if small || actual <= limit {
         return Vec::new();
@@ -273,12 +337,97 @@ mod tests {
 
     fn mutation(root: &str, field: &str, line: usize) -> MutationEvent {
         MutationEvent {
+            origin: crate::facts::MutationOrigin::Source,
             root: root.into(),
             field_path: field.into(),
             line,
             escapes: true,
             delegated: false,
         }
+    }
+
+    #[test]
+    fn borrowed_events_preserve_written_targets_and_exclude_owned_or_delegated_writes() {
+        let mutations = [
+            mutation("out", "first", 1),
+            mutation("out", "first", 2),
+            mutation("out", "second", 3),
+            MutationEvent {
+                escapes: false,
+                ..mutation("local", "", 4)
+            },
+            MutationEvent {
+                escapes: false,
+                delegated: true,
+                ..mutation("self", "", 5)
+            },
+        ];
+        let effects = effects_from_events(
+            EffectEvents {
+                mutations: &mutations,
+                calls: &[],
+                effects: &[],
+            },
+            &Config::default(),
+        );
+        let observed: Vec<_> = effects
+            .iter()
+            .map(|e| (e.kind, e.label.as_str(), e.line))
+            .collect();
+        assert_eq!(
+            observed,
+            [
+                (EffectKind::Mutation, "out.first", 1),
+                (EffectKind::Mutation, "out.second", 3),
+            ]
+        );
+        assert!(effects.iter().all(|effect| effect.via.is_none()));
+    }
+
+    #[test]
+    fn borrowed_events_preserve_call_classification_intrinsics_and_wrapper_results() {
+        let mut facts = sample("f");
+        facts.calls = vec![
+            call("std::fs::write"),
+            CallEvent {
+                callee: "<fn pointer>".into(),
+                line: 8,
+                dynamic: true,
+                library: None,
+                library_callee: None,
+            },
+            call("unclassified::ordinary"),
+            CallEvent {
+                dynamic: true,
+                ..call("std::fs::read")
+            },
+        ];
+        facts.effects = vec![EffectEvent {
+            kind: EffectKind::Global,
+            detail: "static mut STATE".into(),
+            line: 9,
+        }];
+        let cfg = Config::default();
+        let effects = effects_from_events(
+            EffectEvents {
+                mutations: &facts.mutations,
+                calls: &facts.calls,
+                effects: &facts.effects,
+            },
+            &cfg,
+        );
+        assert_eq!(effects, effects_of(&facts, &cfg));
+        let observed: Vec<_> = effects.iter().map(|e| (e.kind, e.label.as_str())).collect();
+        assert_eq!(
+            observed,
+            [
+                (EffectKind::Io, "std::fs::write"),
+                (EffectKind::Unknown, "<fn pointer>"),
+                (EffectKind::Io, "std::fs::read"),
+                (EffectKind::Global, "static mut STATE"),
+            ]
+        );
+        assert_eq!((effects[1].line, effects[3].line), (8, 9));
     }
 
     fn density_diags(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
@@ -362,6 +511,35 @@ mod tests {
     }
 
     #[test]
+    fn lowered_iterators_do_not_inflate_source_budgets_or_erase_escaping_effects() {
+        let mut f = sample("f");
+        let mut source = mutation("iter", "", 1);
+        source.escapes = false;
+        f.mutations.push(source);
+        for line in 2..6 {
+            let mut generated = mutation("iter", "", line);
+            generated.origin = crate::facts::MutationOrigin::ForDesugaring;
+            f.mutations.push(generated);
+        }
+        let cfg = MutationBudgetConfig {
+            max_mutated_targets: 0,
+            max_mutations_per_target: 0,
+            ..MutationBudgetConfig::default()
+        };
+        let out = mutation_budget(&f, &cfg);
+        assert_eq!(out.len(), 2);
+        assert!(out.iter().all(|diagnostic| diagnostic.actual == 1));
+        assert!(
+            out.iter()
+                .all(|diagnostic| diagnostic.details[0].count == 1)
+        );
+        let effects = effects_of(&f, &Config::default());
+        assert_eq!(effects.len(), 1);
+        assert_eq!(effects[0].kind, EffectKind::Mutation);
+        assert_eq!(effects[0].line, 2);
+    }
+
+    #[test]
     fn field_granularity_splits_targets() {
         let mut f = sample("f");
         f.mutations = (0..4)
@@ -387,11 +565,65 @@ mod tests {
         assert_eq!(out[0].actual, 4);
     }
 
+    #[test]
+    fn a_library_call_nothing_classifies_is_named_and_any_other_is_not() {
+        let cfg = Config::default();
+        let library = |library| CallEvent {
+            callee: "lib::call".into(),
+            line: 1,
+            dynamic: false,
+            library,
+            library_callee: Some("lib::call#1".into()),
+        };
+
+        let unlisted = library(None);
+        assert_eq!(unclassified_callee(&unlisted, &cfg), Some("lib::call#1"));
+        let unknown = library(Some(LibraryClass::Effect(EffectKind::Unknown)));
+        assert_eq!(unclassified_callee(&unknown, &cfg), Some("lib::call#1"));
+
+        assert_eq!(
+            unclassified_callee(&library(Some(LibraryClass::Pure)), &cfg),
+            None
+        );
+        let io = library(Some(LibraryClass::Effect(EffectKind::Io)));
+        assert_eq!(unclassified_callee(&io, &cfg), None);
+
+        let dynamic = CallEvent {
+            dynamic: true,
+            ..library(None)
+        };
+        assert_eq!(unclassified_callee(&dynamic, &cfg), None, "its own matter");
+
+        let workspace = CallEvent {
+            library_callee: None,
+            ..library(None)
+        };
+        assert_eq!(unclassified_callee(&workspace, &cfg), None, "readable here");
+    }
+
+    #[test]
+    fn the_config_classifying_a_library_call_is_enough() {
+        let mut cfg = Config::default();
+        let write = CallEvent {
+            callee: "tokio::fs::write".into(),
+            line: 1,
+            dynamic: false,
+            library: None,
+            library_callee: Some("tokio::fs::write".into()),
+        };
+        assert_eq!(unclassified_callee(&write, &cfg), Some("tokio::fs::write"));
+
+        cfg.side_effects.paths.io.push("tokio::fs::".into());
+        assert_eq!(unclassified_callee(&write, &cfg), None);
+    }
+
     fn call(callee: &str) -> CallEvent {
         CallEvent {
             callee: callee.into(),
             line: 1,
             dynamic: false,
+            library: None,
+            library_callee: None,
         }
     }
 
@@ -408,6 +640,39 @@ mod tests {
         f.calls[0].callee = "std::io::Write::write".into();
         let effects = effects_of(&f, &Config::default());
         assert_eq!(effects[0].kind, EffectKind::Io);
+    }
+
+    #[test]
+    fn a_library_class_decides_a_call_unless_the_config_names_it() {
+        let classified = |library| CallEvent {
+            dynamic: true,
+            library,
+            ..call("example.com/lib.Do")
+        };
+        let mut f = sample("f");
+        let mut config = Config::default();
+
+        f.calls = vec![classified(Some(LibraryClass::Effect(EffectKind::Io)))];
+        let effects = effects_of(&f, &config);
+        assert_eq!(effects.len(), 1, "a class is one effect, not one more");
+        assert_eq!(effects[0].kind, EffectKind::Io);
+
+        f.calls = vec![classified(Some(LibraryClass::Pure))];
+        assert!(
+            effects_of(&f, &config).is_empty(),
+            "pure wins over a dynamic target"
+        );
+
+        config.side_effects.paths.network = vec!["example.com/lib.".into()];
+        for class in [
+            LibraryClass::Pure,
+            LibraryClass::Effect(EffectKind::Unknown),
+        ] {
+            f.calls = vec![classified(Some(class))];
+            let effects = effects_of(&f, &config);
+            assert_eq!(effects.len(), 1, "the config replaces the class");
+            assert_eq!(effects[0].kind, EffectKind::Network);
+        }
     }
 
     #[test]
@@ -443,6 +708,7 @@ mod tests {
         f.statements = 4;
         f.mutations = (1..=4)
             .map(|line| MutationEvent {
+                origin: crate::facts::MutationOrigin::Source,
                 escapes: false,
                 ..mutation("acc", "", line)
             })

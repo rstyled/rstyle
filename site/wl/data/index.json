@@ -1,6 +1,0 @@
-[
-{"id": "b1", "title": "B1 near clone (extra Path::components node)", "note": "Real target. One extra node costs 29 of 80 points.", "file": "b1.json", "expect": "high"},
-{"id": "q2", "title": "Q2 small arithmetic fns", "note": "Real target. 5 of 6 labels match at level 0, score is 433.", "file": "q2.json", "expect": "high"},
-{"id": "clone", "title": "Clone (same fn twice)", "note": "Upper bound: every level matches.", "file": "clone.json", "expect": "high"},
-{"id": "t3", "title": "T3 decoy (timestamps)", "note": "Labelled keep-separate; 4-node graphs, not comparable.", "file": "t3.json", "expect": "low"},
-{"id": "t4", "title": "T4 decoy (orchestration)", "note": "Same stages, different cardinality; should stay under the threshold.", "file": "t4.json", "expect": "low"}]

@@ -1,0 +1,8670 @@
+---
+source: crates/cargo-rstyle/tests/cpg/facts.rs
+expression: facts
+---
+[
+  {
+    "id": "lowered::graphs::{impl#0}::doubled",
+    "implements": null,
+    "path": "src/graphs.rs",
+    "line": 7,
+    "column": 5,
+    "name": "graphs::Meters::doubled",
+    "params": 0,
+    "param_list": [],
+    "has_self": true,
+    "statements": 1,
+    "top_statements": 1,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 1,
+      "cognitive": 0,
+      "contributions": []
+    },
+    "source": "pub fn doubled(&self) -> Self {\n        Self(self.0 * 2.0)\n    }",
+    "preceding_line": "impl Meters {",
+    "mutations": [],
+    "calls": [],
+    "effects": [],
+    "edges": [],
+    "mutated_types": [],
+    "sig": {
+      "self_ty": "lowered::graphs::Meters",
+      "self_args": [],
+      "receiver": "ref",
+      "params": [],
+      "ret": {
+        "adt": {
+          "id": "lowered::graphs::Meters",
+          "args": []
+        }
+      },
+      "is_async": false,
+      "is_unsafe": false,
+      "is_const": false,
+      "generics": 0
+    },
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "adt": {
+                  "id": "lowered::graphs::Meters",
+                  "args": []
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 7
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "adt": {
+              "id": "lowered::graphs::Meters",
+              "args": []
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "ctor",
+          "line": 8
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "f64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "*",
+          "line": 8
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "prim": "f64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "0",
+          "line": 8
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "f64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "float",
+          "detail": "",
+          "line": 8
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 7
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 5,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 1,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 4,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::graphs::total",
+    "implements": null,
+    "path": "src/graphs.rs",
+    "line": 13,
+    "column": 1,
+    "name": "graphs::total",
+    "params": 1,
+    "param_list": [
+      {
+        "name": "values",
+        "type": "&[u32]",
+        "uses": 1
+      }
+    ],
+    "has_self": false,
+    "statements": 3,
+    "top_statements": 3,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 1,
+      "cognitive": 0,
+      "contributions": []
+    },
+    "source": "pub fn total(values: &[u32]) -> u32 {\n    let mut sum = 0;\n    values.iter().for_each(|value| sum += value);\n    sum\n}",
+    "preceding_line": "",
+    "mutations": [
+      {
+        "origin": "source",
+        "root": "sum",
+        "field_path": "",
+        "line": 15,
+        "escapes": false,
+        "delegated": false
+      }
+    ],
+    "calls": [
+      {
+        "callee": "std::iter::Iterator::for_each",
+        "line": 15,
+        "dynamic": false
+      },
+      {
+        "callee": "core::slice::iter",
+        "line": 15,
+        "dynamic": false,
+        "library": "pure"
+      }
+    ],
+    "effects": [],
+    "edges": [],
+    "mutated_types": [],
+    "sig": null,
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "slice": {
+                  "prim": "u32"
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 13
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "0",
+          "line": 14
+        },
+        {
+          "kind": "iterate",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "prim": "u32"
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 15
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "+=",
+          "line": 15
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 13
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 1,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "kind": "ctrl",
+          "arg_pos": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::graphs::first_even",
+    "implements": null,
+    "path": "src/graphs.rs",
+    "line": 20,
+    "column": 1,
+    "name": "graphs::first_even",
+    "params": 1,
+    "param_list": [
+      {
+        "name": "values",
+        "type": "&[u32]",
+        "uses": 1
+      }
+    ],
+    "has_self": false,
+    "statements": 9,
+    "top_statements": 3,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 4,
+      "cognitive": 5,
+      "contributions": [
+        {
+          "kind": "loop",
+          "line": 23,
+          "column": 5,
+          "cyclomatic": 1,
+          "cognitive": 1,
+          "nesting": 0
+        },
+        {
+          "kind": "branch",
+          "line": 24,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 2,
+          "nesting": 1
+        },
+        {
+          "kind": "branch",
+          "line": 27,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 2,
+          "nesting": 1
+        }
+      ]
+    },
+    "source": "pub fn first_even(values: &[u32]) -> Option<u32> {\n    let halves: Vec<u32> = values.iter().copied().map(half).collect();\n    let mut index = 0;\n    loop {\n        if index >= halves.len() {\n            break None;\n        }\n        if !halves[index].is_multiple_of(2) {\n            index += 1;\n            continue;\n        }\n        break Some(halves[index]);\n    }\n}",
+    "preceding_line": "",
+    "mutations": [
+      {
+        "origin": "source",
+        "root": "index",
+        "field_path": "",
+        "line": 28,
+        "escapes": false,
+        "delegated": false
+      }
+    ],
+    "calls": [
+      {
+        "callee": "std::iter::Iterator::collect",
+        "line": 21,
+        "dynamic": false
+      },
+      {
+        "callee": "std::iter::Iterator::map",
+        "line": 21,
+        "dynamic": false
+      },
+      {
+        "callee": "std::iter::Iterator::copied",
+        "line": 21,
+        "dynamic": false
+      },
+      {
+        "callee": "core::slice::iter",
+        "line": 21,
+        "dynamic": false,
+        "library": "pure"
+      },
+      {
+        "callee": "std::vec::Vec::len",
+        "line": 24,
+        "dynamic": false,
+        "library": "pure"
+      },
+      {
+        "callee": "core::num::is_multiple_of",
+        "line": 27,
+        "dynamic": false
+      }
+    ],
+    "effects": [],
+    "edges": [],
+    "mutated_types": [],
+    "sig": null,
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "slice": {
+                  "prim": "u32"
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 20
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "adt": {
+              "id": "alloc::vec::Vec",
+              "args": [
+                {
+                  "prim": "u32"
+                },
+                {
+                  "adt": {
+                    "id": "alloc::alloc::Global",
+                    "args": []
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": "core::iter::traits::iterator::Iterator::collect",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "value",
+            "params": [],
+            "ret": {
+              "param": 1
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": false,
+            "generics": 1
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 21
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "adt": {
+              "id": "core::iter::adapters::map::Map",
+              "args": [
+                {
+                  "adt": {
+                    "id": "core::iter::adapters::copied::Copied",
+                    "args": [
+                      {
+                        "adt": {
+                          "id": "core::slice::iter::Iter",
+                          "args": [
+                            {
+                              "prim": "u32"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                "other"
+              ]
+            }
+          },
+          "callee_id": "core::iter::traits::iterator::Iterator::map",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "value",
+            "params": [
+              {
+                "param": 2
+              }
+            ],
+            "ret": {
+              "adt": {
+                "id": "core::iter::adapters::map::Map",
+                "args": [
+                  {
+                    "param": 0
+                  },
+                  {
+                    "param": 2
+                  }
+                ]
+              }
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": true,
+            "generics": 2
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 21
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "adt": {
+              "id": "core::iter::adapters::copied::Copied",
+              "args": [
+                {
+                  "adt": {
+                    "id": "core::slice::iter::Iter",
+                    "args": [
+                      {
+                        "prim": "u32"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": "core::iter::traits::iterator::Iterator::copied",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "value",
+            "params": [],
+            "ret": {
+              "adt": {
+                "id": "core::iter::adapters::copied::Copied",
+                "args": [
+                  {
+                    "param": 0
+                  }
+                ]
+              }
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": true,
+            "generics": 1
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 21
+        },
+        {
+          "kind": "lit",
+          "ty": "other",
+          "callee_id": "lowered::graphs::half",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "none",
+            "params": [
+              {
+                "prim": "u32"
+              }
+            ],
+            "ret": {
+              "prim": "u32"
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": false,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": "fn",
+          "detail": "",
+          "line": 21
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "0",
+          "line": 22
+        },
+        {
+          "kind": "loop",
+          "ty": {
+            "adt": {
+              "id": "core::option::Option",
+              "args": [
+                {
+                  "prim": "u32"
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "loop",
+          "line": 23
+        },
+        {
+          "kind": "branch",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 24
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": ">=",
+          "line": 24
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": "alloc::vec::{impl#1}::len",
+          "callee_sig": {
+            "self_ty": "alloc::vec::Vec",
+            "self_args": [
+              {
+                "param": 0
+              },
+              {
+                "param": 1
+              }
+            ],
+            "receiver": "ref",
+            "params": [],
+            "ret": {
+              "prim": "usize"
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": true,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 24
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "adt": {
+              "id": "core::option::Option",
+              "args": [
+                {
+                  "prim": "u32"
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "path",
+          "detail": "None",
+          "line": 25
+        },
+        {
+          "kind": "branch",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 27
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "!",
+          "line": 27
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": "core::num::{impl#8}::is_multiple_of",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "value",
+            "params": [
+              {
+                "prim": "u32"
+              }
+            ],
+            "ret": {
+              "prim": "bool"
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": true,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 27
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "index",
+          "line": 27
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "2",
+          "line": 27
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "+=",
+          "line": 28
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "1",
+          "line": 28
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "adt": {
+              "id": "core::option::Option",
+              "args": [
+                {
+                  "prim": "u32"
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "ctor",
+          "line": 31
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "index",
+          "line": 31
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 20
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 9,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 14,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 19,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 1,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 4,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 5,
+          "to": 8,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 5,
+          "to": 14,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 5,
+          "to": 16,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 5,
+          "to": 19,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 6,
+          "to": 7,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 8,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 9,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 11,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 12,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 13,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 14,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 15,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 18,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 19,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 20,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 7,
+          "to": 10,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 8,
+          "to": 7,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 9,
+          "to": 8,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 11,
+          "to": 16,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 11,
+          "to": 17,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 12,
+          "to": 11,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 13,
+          "to": 12,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 14,
+          "to": 13,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 15,
+          "to": 13,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 17,
+          "to": 16,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 19,
+          "to": 18,
+          "kind": "data",
+          "arg_pos": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::graphs::half",
+    "implements": null,
+    "path": "src/graphs.rs",
+    "line": 35,
+    "column": 1,
+    "name": "graphs::half",
+    "params": 1,
+    "param_list": [
+      {
+        "name": "value",
+        "type": "u32",
+        "uses": 1,
+        "scalar": "integer"
+      }
+    ],
+    "has_self": false,
+    "statements": 1,
+    "top_statements": 1,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 1,
+      "cognitive": 0,
+      "contributions": []
+    },
+    "source": "fn half(value: u32) -> u32 {\n    value / 2\n}",
+    "preceding_line": "",
+    "mutations": [],
+    "calls": [],
+    "effects": [],
+    "edges": [],
+    "mutated_types": [],
+    "sig": null,
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 35
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "/",
+          "line": 36
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "2",
+          "line": 36
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 35
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 1,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 1,
+          "kind": "data",
+          "arg_pos": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::graphs::literals",
+    "implements": null,
+    "path": "src/graphs.rs",
+    "line": 40,
+    "column": 1,
+    "name": "graphs::literals",
+    "params": 0,
+    "param_list": [],
+    "has_self": false,
+    "statements": 1,
+    "top_statements": 1,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 1,
+      "cognitive": 0,
+      "contributions": []
+    },
+    "source": "pub fn literals() -> (u8, char, f64, bool, &'static [u8], i32) {\n    (b'a', 'z', 1.5, true, b\"raw\", -7)\n}",
+    "preceding_line": "",
+    "mutations": [],
+    "calls": [],
+    "effects": [],
+    "edges": [],
+    "mutated_types": [],
+    "sig": null,
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": [
+              {
+                "prim": "u8"
+              },
+              {
+                "prim": "char"
+              },
+              {
+                "prim": "f64"
+              },
+              {
+                "prim": "bool"
+              },
+              {
+                "ref": {
+                  "mutable": false,
+                  "inner": {
+                    "slice": {
+                      "prim": "u8"
+                    }
+                  }
+                }
+              },
+              {
+                "prim": "i32"
+              }
+            ]
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "tuple",
+          "line": 41
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u8"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "97",
+          "line": 41
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "char"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "char",
+          "detail": "'z'",
+          "line": 41
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "f64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "float",
+          "detail": "",
+          "line": 41
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "bool",
+          "detail": "true",
+          "line": 41
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "array": {
+                  "prim": "u8"
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "str",
+          "detail": "",
+          "line": 41
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "i32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "-",
+          "line": 41
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "i32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "7",
+          "line": 41
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 40
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 8,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 0,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 0,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 3,
+          "to": 0,
+          "kind": "data",
+          "arg_pos": 2
+        },
+        {
+          "from": 4,
+          "to": 0,
+          "kind": "data",
+          "arg_pos": 3
+        },
+        {
+          "from": 5,
+          "to": 0,
+          "kind": "data",
+          "arg_pos": 4
+        },
+        {
+          "from": 6,
+          "to": 0,
+          "kind": "data",
+          "arg_pos": 5
+        },
+        {
+          "from": 7,
+          "to": 6,
+          "kind": "data",
+          "arg_pos": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::shapes::{impl#0}::area",
+    "implements": "lowered::shapes::Shape::area",
+    "path": "src/shapes.rs",
+    "line": 17,
+    "column": 5,
+    "name": "<shapes::Point as shapes::Shape>::area",
+    "params": 0,
+    "param_list": [],
+    "has_self": true,
+    "statements": 1,
+    "top_statements": 1,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 1,
+      "cognitive": 0,
+      "contributions": []
+    },
+    "source": "fn area(&self) -> i64 {\n        self.x * self.y\n    }",
+    "preceding_line": "impl Shape for Point {",
+    "mutations": [],
+    "calls": [],
+    "effects": [],
+    "edges": [],
+    "mutated_types": [],
+    "sig": {
+      "self_ty": "lowered::shapes::Point",
+      "self_args": [],
+      "receiver": "ref",
+      "params": [],
+      "ret": {
+        "prim": "i64"
+      },
+      "is_async": false,
+      "is_unsafe": false,
+      "is_const": false,
+      "generics": 0
+    },
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "adt": {
+                  "id": "lowered::shapes::Point",
+                  "args": []
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 17
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "*",
+          "line": 18
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "x",
+          "line": 18
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "y",
+          "line": 18
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 17
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 0,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 1,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 1,
+          "kind": "data",
+          "arg_pos": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::shapes::build",
+    "implements": null,
+    "path": "src/shapes.rs",
+    "line": 23,
+    "column": 1,
+    "name": "shapes::build",
+    "params": 2,
+    "param_list": [
+      {
+        "name": "values",
+        "type": "&mut [i64]",
+        "uses": 2
+      },
+      {
+        "name": "origin",
+        "type": "&Point",
+        "uses": 1
+      }
+    ],
+    "has_self": false,
+    "statements": 9,
+    "top_statements": 8,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 1,
+      "cognitive": 0,
+      "contributions": []
+    },
+    "source": "pub fn build(values: &mut [i64], origin: &Point) -> Point {\n    fn double(value: i64) -> i64 {\n        value * 2\n    }\n    values[0] = double(values[0]);\n    let grid = [0u8; LIMIT];\n    let pair = (grid.len(), const { 3 });\n    let mut point = Point { x: pair.0 as i64, ..origin.clone() };\n    point.tags[1] = !point.tags[0];\n    point.y = -point.x;\n    point\n}",
+    "preceding_line": "",
+    "mutations": [
+      {
+        "origin": "source",
+        "root": "values",
+        "field_path": "",
+        "line": 27,
+        "escapes": true,
+        "delegated": false
+      },
+      {
+        "origin": "source",
+        "root": "point",
+        "field_path": "tags",
+        "line": 31,
+        "escapes": false,
+        "delegated": false
+      },
+      {
+        "origin": "source",
+        "root": "point",
+        "field_path": "y",
+        "line": 32,
+        "escapes": false,
+        "delegated": false
+      }
+    ],
+    "calls": [
+      {
+        "callee": "core::slice::len",
+        "line": 29,
+        "dynamic": false,
+        "library": "pure"
+      },
+      {
+        "callee": "std::clone::Clone::clone",
+        "line": 30,
+        "dynamic": false
+      }
+    ],
+    "effects": [],
+    "edges": [
+      {
+        "callee": "lowered::shapes::build::double",
+        "line": 27,
+        "dynamic": false,
+        "args": [
+          "other"
+        ]
+      },
+      {
+        "callee": "lowered::shapes::{impl#1}::clone",
+        "line": 30,
+        "dynamic": false,
+        "args": []
+      }
+    ],
+    "mutated_types": [
+      "lowered::shapes::Point"
+    ],
+    "sig": null,
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": true,
+              "inner": {
+                "slice": {
+                  "prim": "i64"
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 23
+        },
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "adt": {
+                  "id": "lowered::shapes::Point",
+                  "args": []
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 23
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "=",
+          "line": 27
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": "lowered::shapes::build::double",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "none",
+            "params": [
+              {
+                "prim": "i64"
+              }
+            ],
+            "ret": {
+              "prim": "i64"
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": false,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 27
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "index",
+          "line": 27
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "0",
+          "line": 27
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "index",
+          "line": 27
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "0",
+          "line": 27
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "array": {
+              "prim": "u8"
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "array",
+          "line": 28
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u8"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "0",
+          "line": 28
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": [
+              {
+                "prim": "usize"
+              },
+              {
+                "prim": "i32"
+              }
+            ]
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "tuple",
+          "line": 29
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": "core::slice::{impl#0}::len",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "ref",
+            "params": [],
+            "ret": {
+              "prim": "usize"
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": true,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 29
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "i32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "expr",
+          "line": 29
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "adt": {
+              "id": "lowered::shapes::Point",
+              "args": []
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "struct",
+          "line": 30
+        },
+        {
+          "kind": "cast",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 30
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "0",
+          "line": 30
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "adt": {
+              "id": "lowered::shapes::Point",
+              "args": []
+            }
+          },
+          "callee_id": "core::clone::Clone::clone",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "ref",
+            "params": [],
+            "ret": {
+              "param": 0
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": true,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 30
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "=",
+          "line": 31
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "!",
+          "line": 31
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "index",
+          "line": 31
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "array": {
+              "prim": "bool"
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "tags",
+          "line": 31
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "0",
+          "line": 31
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "index",
+          "line": 31
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "array": {
+              "prim": "bool"
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "tags",
+          "line": 31
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "1",
+          "line": 31
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "=",
+          "line": 32
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "-",
+          "line": 32
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "x",
+          "line": 32
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "y",
+          "line": 32
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 23
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 0,
+          "to": 6,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 16,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 4,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 5,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 6,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 7,
+          "to": 6,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 8,
+          "to": 11,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 9,
+          "to": 8,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 10,
+          "to": 15,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 11,
+          "to": 10,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 12,
+          "to": 10,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 13,
+          "to": 20,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 13,
+          "to": 23,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 13,
+          "to": 27,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 13,
+          "to": 28,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 13,
+          "to": 29,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 14,
+          "to": 13,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 15,
+          "to": 14,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 16,
+          "to": 13,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 18,
+          "to": 17,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 19,
+          "to": 18,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 20,
+          "to": 19,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 21,
+          "to": 19,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 22,
+          "to": 17,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 23,
+          "to": 22,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 24,
+          "to": 22,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 26,
+          "to": 25,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 27,
+          "to": 26,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 28,
+          "to": 25,
+          "kind": "data",
+          "arg_pos": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::shapes::build::double",
+    "implements": null,
+    "path": "src/shapes.rs",
+    "line": 24,
+    "column": 5,
+    "name": "shapes::build::double",
+    "params": 1,
+    "param_list": [
+      {
+        "name": "value",
+        "type": "i64",
+        "uses": 1,
+        "scalar": "integer"
+      }
+    ],
+    "has_self": false,
+    "statements": 1,
+    "top_statements": 1,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 1,
+      "cognitive": 0,
+      "contributions": []
+    },
+    "source": "fn double(value: i64) -> i64 {\n        value * 2\n    }",
+    "preceding_line": "pub fn build(values: &mut [i64], origin: &Point) -> Point {",
+    "mutations": [],
+    "calls": [],
+    "effects": [],
+    "edges": [],
+    "mutated_types": [],
+    "sig": null,
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 24
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "*",
+          "line": 25
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "2",
+          "line": 25
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 24
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 1,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 1,
+          "kind": "data",
+          "arg_pos": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::shapes::classify",
+    "implements": null,
+    "path": "src/shapes.rs",
+    "line": 37,
+    "column": 1,
+    "name": "shapes::classify",
+    "params": 2,
+    "param_list": [
+      {
+        "name": "values",
+        "type": "&[i64]",
+        "uses": 2
+      },
+      {
+        "name": "flag",
+        "type": "bool",
+        "uses": 1,
+        "scalar": "bool"
+      }
+    ],
+    "has_self": false,
+    "statements": 9,
+    "top_statements": 2,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 12,
+      "cognitive": 10,
+      "contributions": [
+        {
+          "kind": "branch",
+          "line": 38,
+          "column": 5,
+          "cyclomatic": 1,
+          "cognitive": 1,
+          "nesting": 0
+        },
+        {
+          "kind": "and",
+          "line": 39,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 1,
+          "nesting": 1
+        },
+        {
+          "kind": "selection",
+          "line": 43,
+          "column": 5,
+          "cyclomatic": 0,
+          "cognitive": 1,
+          "nesting": 0
+        },
+        {
+          "kind": "alternative",
+          "line": 45,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 0,
+          "nesting": 0
+        },
+        {
+          "kind": "guard",
+          "line": 45,
+          "column": 30,
+          "cyclomatic": 1,
+          "cognitive": 2,
+          "nesting": 1
+        },
+        {
+          "kind": "or",
+          "line": 45,
+          "column": 46,
+          "cyclomatic": 1,
+          "cognitive": 1,
+          "nesting": 2
+        },
+        {
+          "kind": "alternative",
+          "line": 46,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 0,
+          "nesting": 0
+        },
+        {
+          "kind": "guard",
+          "line": 46,
+          "column": 31,
+          "cyclomatic": 1,
+          "cognitive": 2,
+          "nesting": 1
+        },
+        {
+          "kind": "alternative",
+          "line": 47,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 0,
+          "nesting": 0
+        },
+        {
+          "kind": "guard",
+          "line": 47,
+          "column": 20,
+          "cyclomatic": 1,
+          "cognitive": 2,
+          "nesting": 1
+        },
+        {
+          "kind": "alternative",
+          "line": 48,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 0,
+          "nesting": 0
+        },
+        {
+          "kind": "alternative",
+          "line": 49,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 0,
+          "nesting": 0
+        }
+      ]
+    },
+    "source": "pub fn classify(values: &[i64], flag: bool) -> &'static str {\n    if let Some(&head) = values.first()\n        && head < -100\n    {\n        return \"deep\";\n    }\n    match values {\n        [] => \"empty\",\n        [first, .., last] if *first == *last || flag => \"bracketed\",\n        [1..=9, rest @ ..] if !rest.is_empty() => \"digit\",\n        [value] if *value < 0 => \"negative\",\n        [0 | 1] => \"bit\",\n        _ => \"other\",\n    }\n}",
+    "preceding_line": "",
+    "mutations": [],
+    "calls": [
+      {
+        "callee": "core::slice::first",
+        "line": 38,
+        "dynamic": false,
+        "library": "pure"
+      },
+      {
+        "callee": "core::slice::is_empty",
+        "line": 46,
+        "dynamic": false,
+        "library": "pure"
+      }
+    ],
+    "effects": [],
+    "edges": [],
+    "mutated_types": [],
+    "sig": null,
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "slice": {
+                  "prim": "i64"
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 37
+        },
+        {
+          "kind": "param",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 37
+        },
+        {
+          "kind": "branch",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 38
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "&&",
+          "line": 38
+        },
+        {
+          "kind": "let",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 38
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "adt": {
+              "id": "core::option::Option",
+              "args": [
+                {
+                  "ref": {
+                    "mutable": false,
+                    "inner": {
+                      "prim": "i64"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": "core::slice::{impl#0}::first",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "ref",
+            "params": [],
+            "ret": {
+              "adt": {
+                "id": "core::option::Option",
+                "args": [
+                  {
+                    "ref": {
+                      "mutable": false,
+                      "inner": {
+                        "param": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": true,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 38
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "<",
+          "line": 39
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "-",
+          "line": 39
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "100",
+          "line": 39
+        },
+        {
+          "kind": "return",
+          "ty": {
+            "prim": "!"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 41
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "prim": "str"
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "str",
+          "detail": "\"deep\"",
+          "line": 41
+        },
+        {
+          "kind": "match",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "prim": "str"
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 43
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "prim": "str"
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "str",
+          "detail": "\"empty\"",
+          "line": 44
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "||",
+          "line": 45
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "==",
+          "line": 45
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "prim": "str"
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "str",
+          "detail": "\"bracketed\"",
+          "line": 45
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "!",
+          "line": 46
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": "core::slice::{impl#0}::is_empty",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "ref",
+            "params": [],
+            "ret": {
+              "prim": "bool"
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": true,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 46
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "prim": "str"
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "str",
+          "detail": "\"digit\"",
+          "line": 46
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "<",
+          "line": 47
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "0",
+          "line": 47
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "prim": "str"
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "str",
+          "detail": "\"negative\"",
+          "line": 47
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "prim": "str"
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "str",
+          "detail": "\"bit\"",
+          "line": 48
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "prim": "str"
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "str",
+          "detail": "\"other\"",
+          "line": 49
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 37
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 5,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 0,
+          "to": 11,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 13,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 2,
+          "to": 9,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 10,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 4,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 4,
+          "to": 6,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 5,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 7,
+          "to": 6,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 8,
+          "to": 7,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 10,
+          "to": 9,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 11,
+          "to": 12,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 11,
+          "to": 13,
+          "kind": "ctrl",
+          "arg_pos": 1
+        },
+        {
+          "from": 11,
+          "to": 14,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 11,
+          "to": 14,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 11,
+          "to": 14,
+          "kind": "ctrl",
+          "arg_pos": 1
+        },
+        {
+          "from": 11,
+          "to": 15,
+          "kind": "ctrl",
+          "arg_pos": 1
+        },
+        {
+          "from": 11,
+          "to": 16,
+          "kind": "ctrl",
+          "arg_pos": 2
+        },
+        {
+          "from": 11,
+          "to": 17,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 11,
+          "to": 17,
+          "kind": "ctrl",
+          "arg_pos": 2
+        },
+        {
+          "from": 11,
+          "to": 18,
+          "kind": "ctrl",
+          "arg_pos": 2
+        },
+        {
+          "from": 11,
+          "to": 19,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 11,
+          "to": 19,
+          "kind": "ctrl",
+          "arg_pos": 3
+        },
+        {
+          "from": 11,
+          "to": 20,
+          "kind": "ctrl",
+          "arg_pos": 3
+        },
+        {
+          "from": 11,
+          "to": 21,
+          "kind": "ctrl",
+          "arg_pos": 3
+        },
+        {
+          "from": 11,
+          "to": 22,
+          "kind": "ctrl",
+          "arg_pos": 4
+        },
+        {
+          "from": 11,
+          "to": 23,
+          "kind": "ctrl",
+          "arg_pos": 5
+        },
+        {
+          "from": 11,
+          "to": 24,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 14,
+          "to": 13,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 17,
+          "to": 16,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 20,
+          "to": 19,
+          "kind": "data",
+          "arg_pos": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::shapes::dispatch",
+    "implements": null,
+    "path": "src/shapes.rs",
+    "line": 55,
+    "column": 1,
+    "name": "shapes::dispatch",
+    "params": 4,
+    "param_list": [
+      {
+        "name": "shape",
+        "type": "&dyn Shape",
+        "uses": 1
+      },
+      {
+        "name": "generic",
+        "type": "&T",
+        "uses": 1
+      },
+      {
+        "name": "origin",
+        "type": "&Point",
+        "uses": 3
+      },
+      {
+        "name": "count",
+        "type": "usize",
+        "uses": 2,
+        "scalar": "integer"
+      }
+    ],
+    "has_self": false,
+    "statements": 8,
+    "top_statements": 5,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 4,
+      "cognitive": 5,
+      "contributions": [
+        {
+          "kind": "branch",
+          "line": 58,
+          "column": 5,
+          "cyclomatic": 1,
+          "cognitive": 1,
+          "nesting": 0
+        },
+        {
+          "kind": "loop",
+          "line": 61,
+          "column": 5,
+          "cyclomatic": 1,
+          "cognitive": 1,
+          "nesting": 0
+        },
+        {
+          "kind": "branch",
+          "line": 62,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 2,
+          "nesting": 1
+        },
+        {
+          "kind": "jump",
+          "line": 63,
+          "column": 13,
+          "cyclomatic": 0,
+          "cognitive": 1,
+          "nesting": 2
+        }
+      ]
+    },
+    "source": "pub fn dispatch<T: Shape>(shape: &dyn Shape, generic: &T, origin: &Point, count: usize) -> i64 {\n    let total = combine(origin.x, LIMIT as i64, count as i64, origin.tags.len() as i64);\n    let spread = combine(shape.area(), generic.area(), total, origin.y);\n    if spread == i64::MIN {\n        unreachable_value();\n    }\n    'rows: for row in 0..count {\n        if row == LIMIT {\n            continue 'rows;\n        }\n    }\n    spread\n}",
+    "preceding_line": "",
+    "mutations": [
+      {
+        "origin": "for_desugaring",
+        "root": "iter",
+        "field_path": "",
+        "line": 61,
+        "escapes": false,
+        "delegated": false
+      }
+    ],
+    "calls": [
+      {
+        "callee": "core::slice::len",
+        "line": 56,
+        "dynamic": false,
+        "library": "pure"
+      },
+      {
+        "callee": "std::iter::IntoIterator::into_iter",
+        "line": 61,
+        "dynamic": false
+      },
+      {
+        "callee": "std::iter::Iterator::next",
+        "line": 61,
+        "dynamic": false
+      }
+    ],
+    "effects": [],
+    "edges": [
+      {
+        "callee": "lowered::shapes::combine",
+        "line": 56,
+        "dynamic": false,
+        "args": [
+          "field",
+          "other",
+          "other",
+          "other"
+        ]
+      },
+      {
+        "callee": "lowered::shapes::combine",
+        "line": 57,
+        "dynamic": false,
+        "args": [
+          "other",
+          "other",
+          "other",
+          "field"
+        ]
+      },
+      {
+        "callee": "lowered::shapes::Shape::area",
+        "line": 57,
+        "dynamic": true,
+        "required": true,
+        "args": []
+      },
+      {
+        "callee": "lowered::shapes::Shape::area",
+        "line": 57,
+        "dynamic": false,
+        "required": true,
+        "args": []
+      },
+      {
+        "callee": "lowered::shapes::unreachable_value",
+        "line": 59,
+        "dynamic": false,
+        "args": []
+      }
+    ],
+    "mutated_types": [],
+    "sig": null,
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "dyn": "lowered::shapes::Shape"
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 55
+        },
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "param": 0
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 55
+        },
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "adt": {
+                  "id": "lowered::shapes::Point",
+                  "args": []
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 55
+        },
+        {
+          "kind": "param",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 55
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": "lowered::shapes::combine",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "none",
+            "params": [
+              {
+                "prim": "i64"
+              },
+              {
+                "prim": "i64"
+              },
+              {
+                "prim": "i64"
+              },
+              {
+                "prim": "i64"
+              }
+            ],
+            "ret": {
+              "prim": "i64"
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": false,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 56
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "x",
+          "line": 56
+        },
+        {
+          "kind": "cast",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 56
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "path",
+          "detail": "LIMIT",
+          "line": 56
+        },
+        {
+          "kind": "cast",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 56
+        },
+        {
+          "kind": "cast",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 56
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": "core::slice::{impl#0}::len",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "ref",
+            "params": [],
+            "ret": {
+              "prim": "usize"
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": true,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 56
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "array": {
+              "prim": "bool"
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "tags",
+          "line": 56
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": "lowered::shapes::combine",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "none",
+            "params": [
+              {
+                "prim": "i64"
+              },
+              {
+                "prim": "i64"
+              },
+              {
+                "prim": "i64"
+              },
+              {
+                "prim": "i64"
+              }
+            ],
+            "ret": {
+              "prim": "i64"
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": false,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 57
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": "lowered::shapes::Shape::area",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "ref",
+            "params": [],
+            "ret": {
+              "prim": "i64"
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": false,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 57
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": "lowered::shapes::Shape::area",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "ref",
+            "params": [],
+            "ret": {
+              "prim": "i64"
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": false,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 57
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "y",
+          "line": 57
+        },
+        {
+          "kind": "branch",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 58
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "==",
+          "line": 58
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "path",
+          "detail": "i64::MIN",
+          "line": 58
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "prim": "!"
+          },
+          "callee_id": "lowered::shapes::unreachable_value",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "none",
+            "params": [],
+            "ret": {
+              "prim": "!"
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": false,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 59
+        },
+        {
+          "kind": "iterate",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 61
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "adt": {
+              "id": "core::ops::range::Range",
+              "args": [
+                {
+                  "prim": "usize"
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "struct",
+          "line": 61
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "0",
+          "line": 61
+        },
+        {
+          "kind": "branch",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 62
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "==",
+          "line": 62
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "path",
+          "detail": "LIMIT",
+          "line": 62
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 55
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 13,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 14,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 5,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 11,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 15,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 8,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 21,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 4,
+          "to": 12,
+          "kind": "data",
+          "arg_pos": 2
+        },
+        {
+          "from": 5,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 7,
+          "to": 6,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 8,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 2
+        },
+        {
+          "from": 9,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 3
+        },
+        {
+          "from": 10,
+          "to": 9,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 11,
+          "to": 10,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 12,
+          "to": 17,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 12,
+          "to": 26,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 13,
+          "to": 12,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 14,
+          "to": 12,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 15,
+          "to": 12,
+          "kind": "data",
+          "arg_pos": 3
+        },
+        {
+          "from": 16,
+          "to": 19,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 17,
+          "to": 16,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 18,
+          "to": 17,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 20,
+          "to": 23,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 20,
+          "to": 24,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 20,
+          "to": 24,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 20,
+          "to": 25,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 21,
+          "to": 20,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 22,
+          "to": 21,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 24,
+          "to": 23,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 25,
+          "to": 24,
+          "kind": "data",
+          "arg_pos": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::shapes::combine",
+    "implements": null,
+    "path": "src/shapes.rs",
+    "line": 69,
+    "column": 1,
+    "name": "shapes::combine",
+    "params": 4,
+    "param_list": [
+      {
+        "name": "a",
+        "type": "i64",
+        "uses": 1,
+        "scalar": "integer"
+      },
+      {
+        "name": "b",
+        "type": "i64",
+        "uses": 1,
+        "scalar": "integer"
+      },
+      {
+        "name": "c",
+        "type": "i64",
+        "uses": 1,
+        "scalar": "integer"
+      },
+      {
+        "name": "d",
+        "type": "i64",
+        "uses": 1,
+        "scalar": "integer"
+      }
+    ],
+    "has_self": false,
+    "statements": 1,
+    "top_statements": 1,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 1,
+      "cognitive": 0,
+      "contributions": []
+    },
+    "source": "fn combine(a: i64, b: i64, c: i64, d: i64) -> i64 {\n    a + b + c + d\n}",
+    "preceding_line": "",
+    "mutations": [],
+    "calls": [],
+    "effects": [],
+    "edges": [],
+    "mutated_types": [],
+    "sig": null,
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 69
+        },
+        {
+          "kind": "param",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 69
+        },
+        {
+          "kind": "param",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 69
+        },
+        {
+          "kind": "param",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 69
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "+",
+          "line": 70
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "+",
+          "line": 70
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "+",
+          "line": 70
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 69
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 6,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 6,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 2,
+          "to": 5,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 4,
+          "to": 7,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 5,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 5,
+          "kind": "data",
+          "arg_pos": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::shapes::unreachable_value",
+    "implements": null,
+    "path": "src/shapes.rs",
+    "line": 73,
+    "column": 1,
+    "name": "shapes::unreachable_value",
+    "params": 0,
+    "param_list": [],
+    "has_self": false,
+    "statements": 1,
+    "top_statements": 1,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 1,
+      "cognitive": 0,
+      "contributions": []
+    },
+    "source": "fn unreachable_value() -> ! {\n    panic!(\"unreachable\")\n}",
+    "preceding_line": "",
+    "mutations": [],
+    "calls": [
+      {
+        "callee": "std::rt::panic_fmt",
+        "line": 74,
+        "dynamic": false
+      },
+      {
+        "callee": "std::fmt::Arguments::from_str",
+        "line": 74,
+        "dynamic": false,
+        "library": "pure"
+      }
+    ],
+    "effects": [],
+    "edges": [],
+    "mutated_types": [],
+    "sig": null,
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "macro",
+          "ty": {
+            "prim": "!"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": "$crate::panic::panic_2021",
+          "lit_kind": null,
+          "detail": "",
+          "line": 74
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "prim": "str"
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "str",
+          "detail": "\"unreachable\"",
+          "line": 74
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 73
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 0,
+          "kind": "data",
+          "arg_pos": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::shapes::destructure",
+    "implements": null,
+    "path": "src/shapes.rs",
+    "line": 80,
+    "column": 1,
+    "name": "shapes::destructure",
+    "params": 2,
+    "param_list": [
+      {
+        "name": "values",
+        "type": "[i64; 3]",
+        "uses": 3
+      },
+      {
+        "name": "point",
+        "type": "&mut Point",
+        "uses": 2
+      }
+    ],
+    "has_self": false,
+    "statements": 10,
+    "top_statements": 8,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 2,
+      "cognitive": 1,
+      "contributions": [
+        {
+          "kind": "selection",
+          "line": 87,
+          "column": 5,
+          "cyclomatic": 0,
+          "cognitive": 1,
+          "nesting": 0
+        },
+        {
+          "kind": "alternative",
+          "line": 89,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 0,
+          "nesting": 0
+        }
+      ]
+    },
+    "source": "pub fn destructure(values: [i64; 3], point: &mut Point) -> i64 {\n    let (mut a, mut b, mut last) = (0, 0, 0);\n    (a, b) = (values[0], values[1]);\n    Pair(a, b) = Pair(b, a);\n    [.., last] = values;\n    Point { x: point.y, tags: [point.tags[1], _], .. } = Point::default();\n    _ = last;\n    match last {\n        0 => _ = a,\n        _ => (a, b) = (b, a),\n    }\n    a + b + last\n}",
+    "preceding_line": "",
+    "mutations": [
+      {
+        "origin": "source",
+        "root": "a",
+        "field_path": "",
+        "line": 82,
+        "escapes": false,
+        "delegated": false
+      },
+      {
+        "origin": "source",
+        "root": "b",
+        "field_path": "",
+        "line": 82,
+        "escapes": false,
+        "delegated": false
+      },
+      {
+        "origin": "source",
+        "root": "a",
+        "field_path": "",
+        "line": 83,
+        "escapes": false,
+        "delegated": false
+      },
+      {
+        "origin": "source",
+        "root": "b",
+        "field_path": "",
+        "line": 83,
+        "escapes": false,
+        "delegated": false
+      },
+      {
+        "origin": "source",
+        "root": "last",
+        "field_path": "",
+        "line": 84,
+        "escapes": false,
+        "delegated": false
+      },
+      {
+        "origin": "source",
+        "root": "point",
+        "field_path": "y",
+        "line": 85,
+        "escapes": true,
+        "delegated": false
+      },
+      {
+        "origin": "source",
+        "root": "point",
+        "field_path": "tags",
+        "line": 85,
+        "escapes": true,
+        "delegated": false
+      },
+      {
+        "origin": "source",
+        "root": "a",
+        "field_path": "",
+        "line": 89,
+        "escapes": false,
+        "delegated": false
+      },
+      {
+        "origin": "source",
+        "root": "b",
+        "field_path": "",
+        "line": 89,
+        "escapes": false,
+        "delegated": false
+      }
+    ],
+    "calls": [
+      {
+        "callee": "std::default::Default::default",
+        "line": 85,
+        "dynamic": false
+      }
+    ],
+    "effects": [],
+    "edges": [
+      {
+        "callee": "lowered::shapes::{impl#2}::default",
+        "line": 85,
+        "dynamic": false,
+        "args": []
+      }
+    ],
+    "mutated_types": [
+      "lowered::shapes::Point"
+    ],
+    "sig": null,
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "array": {
+              "prim": "i64"
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 80
+        },
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": true,
+              "inner": {
+                "adt": {
+                  "id": "lowered::shapes::Point",
+                  "args": []
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 80
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": [
+              {
+                "prim": "i64"
+              },
+              {
+                "prim": "i64"
+              },
+              {
+                "prim": "i64"
+              }
+            ]
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "tuple",
+          "line": 81
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "0",
+          "line": 81
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "0",
+          "line": 81
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "0",
+          "line": 81
+        },
+        {
+          "kind": "let",
+          "ty": {
+            "tuple": [
+              {
+                "prim": "i64"
+              },
+              {
+                "prim": "i64"
+              },
+              {
+                "prim": "i64"
+              }
+            ]
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 81
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": [
+              {
+                "prim": "i64"
+              },
+              {
+                "prim": "i64"
+              }
+            ]
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "tuple",
+          "line": 82
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "index",
+          "line": 82
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "0",
+          "line": 82
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "index",
+          "line": 82
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "1",
+          "line": 82
+        },
+        {
+          "kind": "let",
+          "ty": {
+            "tuple": [
+              {
+                "prim": "i64"
+              },
+              {
+                "prim": "i64"
+              }
+            ]
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 82
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "=",
+          "line": 82
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "=",
+          "line": 82
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "adt": {
+              "id": "lowered::shapes::Pair",
+              "args": []
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "ctor",
+          "line": 83
+        },
+        {
+          "kind": "let",
+          "ty": {
+            "adt": {
+              "id": "lowered::shapes::Pair",
+              "args": []
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 83
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "=",
+          "line": 83
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "=",
+          "line": 83
+        },
+        {
+          "kind": "let",
+          "ty": {
+            "array": {
+              "prim": "i64"
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 84
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "=",
+          "line": 84
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "adt": {
+              "id": "lowered::shapes::Point",
+              "args": []
+            }
+          },
+          "callee_id": "core::default::Default::default",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "none",
+            "params": [],
+            "ret": {
+              "param": 0
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": true,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 85
+        },
+        {
+          "kind": "let",
+          "ty": {
+            "adt": {
+              "id": "lowered::shapes::Point",
+              "args": []
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 85
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "=",
+          "line": 85
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "y",
+          "line": 85
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "=",
+          "line": 85
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "index",
+          "line": 85
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "array": {
+              "prim": "bool"
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "tags",
+          "line": 85
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "1",
+          "line": 85
+        },
+        {
+          "kind": "let",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 86
+        },
+        {
+          "kind": "match",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 87
+        },
+        {
+          "kind": "let",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 88
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": [
+              {
+                "prim": "i64"
+              },
+              {
+                "prim": "i64"
+              }
+            ]
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "tuple",
+          "line": 89
+        },
+        {
+          "kind": "let",
+          "ty": {
+            "tuple": [
+              {
+                "prim": "i64"
+              },
+              {
+                "prim": "i64"
+              }
+            ]
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 89
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "=",
+          "line": 89
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "=",
+          "line": 89
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "+",
+          "line": 91
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "i64"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "+",
+          "line": 91
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 80
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 8,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 0,
+          "to": 10,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 0,
+          "to": 19,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 24,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 27,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 6,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 4,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 5,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 2
+        },
+        {
+          "from": 6,
+          "to": 13,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 6,
+          "to": 14,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 6,
+          "to": 15,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 15,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 6,
+          "to": 17,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 6,
+          "to": 18,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 6,
+          "to": 20,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 6,
+          "to": 29,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 30,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 31,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 32,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 32,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 6,
+          "to": 34,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 6,
+          "to": 35,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 6,
+          "to": 36,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 6,
+          "to": 37,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 37,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 7,
+          "to": 12,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 8,
+          "to": 7,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 9,
+          "to": 8,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 10,
+          "to": 7,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 11,
+          "to": 10,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 12,
+          "to": 13,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 12,
+          "to": 14,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 15,
+          "to": 16,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 16,
+          "to": 17,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 16,
+          "to": 18,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 19,
+          "to": 20,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 21,
+          "to": 22,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 22,
+          "to": 23,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 22,
+          "to": 25,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 24,
+          "to": 23,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 26,
+          "to": 25,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 27,
+          "to": 26,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 28,
+          "to": 26,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 30,
+          "to": 31,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 30,
+          "to": 32,
+          "kind": "ctrl",
+          "arg_pos": 1
+        },
+        {
+          "from": 30,
+          "to": 33,
+          "kind": "ctrl",
+          "arg_pos": 1
+        },
+        {
+          "from": 30,
+          "to": 34,
+          "kind": "ctrl",
+          "arg_pos": 1
+        },
+        {
+          "from": 30,
+          "to": 35,
+          "kind": "ctrl",
+          "arg_pos": 1
+        },
+        {
+          "from": 32,
+          "to": 33,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 33,
+          "to": 34,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 33,
+          "to": 35,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 36,
+          "to": 38,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 37,
+          "to": 36,
+          "kind": "data",
+          "arg_pos": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::{impl#0}::bump",
+    "implements": null,
+    "path": "src/lib.rs",
+    "line": 17,
+    "column": 5,
+    "name": "Store::bump",
+    "params": 0,
+    "param_list": [],
+    "has_self": true,
+    "statements": 1,
+    "top_statements": 1,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 1,
+      "cognitive": 0,
+      "contributions": []
+    },
+    "source": "fn bump(&mut self) {\n        self.count += 1;\n    }",
+    "preceding_line": "impl Store {",
+    "mutations": [
+      {
+        "origin": "source",
+        "root": "self",
+        "field_path": "count",
+        "line": 18,
+        "escapes": true,
+        "delegated": false
+      }
+    ],
+    "calls": [],
+    "effects": [],
+    "edges": [],
+    "mutated_types": [
+      "lowered::Store"
+    ],
+    "sig": {
+      "self_ty": "lowered::Store",
+      "self_args": [],
+      "receiver": "ref_mut",
+      "params": [],
+      "ret": {
+        "tuple": []
+      },
+      "is_async": false,
+      "is_unsafe": false,
+      "is_const": false,
+      "generics": 0
+    },
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": true,
+              "inner": {
+                "adt": {
+                  "id": "lowered::Store",
+                  "args": []
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 17
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "+=",
+          "line": 18
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "1",
+          "line": 18
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "count",
+          "line": 18
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 1,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 1,
+          "kind": "data",
+          "arg_pos": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::{impl#0}::nested",
+    "implements": null,
+    "path": "src/lib.rs",
+    "line": 22,
+    "column": 5,
+    "name": "Store::nested",
+    "params": 0,
+    "param_list": [],
+    "has_self": true,
+    "statements": 5,
+    "top_statements": 3,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 3,
+      "cognitive": 3,
+      "contributions": [
+        {
+          "kind": "loop",
+          "line": 24,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 1,
+          "nesting": 0
+        },
+        {
+          "kind": "loop",
+          "line": 25,
+          "column": 13,
+          "cyclomatic": 1,
+          "cognitive": 2,
+          "nesting": 1
+        }
+      ]
+    },
+    "source": "pub fn nested(&self) -> u32 {\n        let mut total = 0;\n        for row in &self.items {\n            for item in row {\n                total += item;\n            }\n        }\n        total\n    }",
+    "preceding_line": "",
+    "mutations": [
+      {
+        "origin": "for_desugaring",
+        "root": "iter",
+        "field_path": "",
+        "line": 24,
+        "escapes": false,
+        "delegated": false
+      },
+      {
+        "origin": "for_desugaring",
+        "root": "iter",
+        "field_path": "",
+        "line": 25,
+        "escapes": false,
+        "delegated": false
+      },
+      {
+        "origin": "source",
+        "root": "total",
+        "field_path": "",
+        "line": 26,
+        "escapes": false,
+        "delegated": false
+      }
+    ],
+    "calls": [
+      {
+        "callee": "std::iter::IntoIterator::into_iter",
+        "line": 24,
+        "dynamic": false
+      },
+      {
+        "callee": "std::iter::IntoIterator::into_iter",
+        "line": 25,
+        "dynamic": false
+      },
+      {
+        "callee": "std::iter::Iterator::next",
+        "line": 25,
+        "dynamic": false
+      },
+      {
+        "callee": "std::iter::Iterator::next",
+        "line": 24,
+        "dynamic": false
+      }
+    ],
+    "effects": [],
+    "edges": [],
+    "mutated_types": [],
+    "sig": {
+      "self_ty": "lowered::Store",
+      "self_args": [],
+      "receiver": "ref",
+      "params": [],
+      "ret": {
+        "prim": "u32"
+      },
+      "is_async": false,
+      "is_unsafe": false,
+      "is_const": false,
+      "generics": 0
+    },
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "adt": {
+                  "id": "lowered::Store",
+                  "args": []
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 22
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "0",
+          "line": 23
+        },
+        {
+          "kind": "iterate",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "adt": {
+                  "id": "alloc::vec::Vec",
+                  "args": [
+                    {
+                      "prim": "u32"
+                    },
+                    {
+                      "adt": {
+                        "id": "alloc::alloc::Global",
+                        "args": []
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 24
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "adt": {
+              "id": "alloc::vec::Vec",
+              "args": [
+                {
+                  "adt": {
+                    "id": "alloc::vec::Vec",
+                    "args": [
+                      {
+                        "prim": "u32"
+                      },
+                      {
+                        "adt": {
+                          "id": "alloc::alloc::Global",
+                          "args": []
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "adt": {
+                    "id": "alloc::alloc::Global",
+                    "args": []
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "items",
+          "line": 24
+        },
+        {
+          "kind": "iterate",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "prim": "u32"
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 25
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "+=",
+          "line": 26
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 22
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 5,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 1,
+          "to": 6,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 4,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "kind": "ctrl",
+          "arg_pos": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::{impl#0}::countdown",
+    "implements": null,
+    "path": "src/lib.rs",
+    "line": 33,
+    "column": 5,
+    "name": "Store::countdown",
+    "params": 1,
+    "param_list": [
+      {
+        "name": "limit",
+        "type": "u32",
+        "uses": 1,
+        "scalar": "integer"
+      }
+    ],
+    "has_self": false,
+    "statements": 4,
+    "top_statements": 3,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 2,
+      "cognitive": 1,
+      "contributions": [
+        {
+          "kind": "loop",
+          "line": 35,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 1,
+          "nesting": 0
+        }
+      ]
+    },
+    "source": "pub fn countdown(limit: u32) -> u32 {\n        let mut total = limit;\n        while total > 3 {\n            total -= 1;\n        }\n        total\n    }",
+    "preceding_line": "",
+    "mutations": [
+      {
+        "origin": "source",
+        "root": "total",
+        "field_path": "",
+        "line": 36,
+        "escapes": false,
+        "delegated": false
+      }
+    ],
+    "calls": [],
+    "effects": [],
+    "edges": [],
+    "mutated_types": [],
+    "sig": {
+      "self_ty": "lowered::Store",
+      "self_args": [],
+      "receiver": "none",
+      "params": [
+        {
+          "prim": "u32"
+        }
+      ],
+      "ret": {
+        "prim": "u32"
+      },
+      "is_async": false,
+      "is_unsafe": false,
+      "is_const": false,
+      "generics": 0
+    },
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 33
+        },
+        {
+          "kind": "loop",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "while",
+          "line": 35
+        },
+        {
+          "kind": "branch",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 35
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": ">",
+          "line": 35
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "3",
+          "line": 35
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "-=",
+          "line": 36
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "1",
+          "line": 36
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 33
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 0,
+          "to": 5,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 0,
+          "to": 7,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 4,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 5,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 6,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 4,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 6,
+          "to": 5,
+          "kind": "data",
+          "arg_pos": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::{impl#0}::drain",
+    "implements": null,
+    "path": "src/lib.rs",
+    "line": 42,
+    "column": 5,
+    "name": "Store::drain",
+    "params": 1,
+    "param_list": [
+      {
+        "name": "limit",
+        "type": "u32",
+        "uses": 1,
+        "scalar": "integer"
+      }
+    ],
+    "has_self": true,
+    "statements": 9,
+    "top_statements": 5,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 5,
+      "cognitive": 8,
+      "contributions": [
+        {
+          "kind": "loop",
+          "line": 45,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 1,
+          "nesting": 0
+        },
+        {
+          "kind": "loop",
+          "line": 48,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 1,
+          "nesting": 0
+        },
+        {
+          "kind": "loop",
+          "line": 49,
+          "column": 13,
+          "cyclomatic": 1,
+          "cognitive": 2,
+          "nesting": 1
+        },
+        {
+          "kind": "branch",
+          "line": 50,
+          "column": 17,
+          "cyclomatic": 1,
+          "cognitive": 3,
+          "nesting": 2
+        },
+        {
+          "kind": "jump",
+          "line": 51,
+          "column": 21,
+          "cyclomatic": 0,
+          "cognitive": 1,
+          "nesting": 3
+        }
+      ]
+    },
+    "source": "pub fn drain(&self, limit: u32) -> u32 {\n        let mut pending = vec![1, 2, 3];\n        let mut total = 0;\n        while let Some(next) = pending.pop() {\n            total += next;\n        }\n        'outer: for row in &self.items {\n            for item in row {\n                if *item == limit {\n                    break 'outer;\n                }\n            }\n        }\n        total\n    }",
+    "preceding_line": "",
+    "mutations": [
+      {
+        "origin": "source",
+        "root": "pending",
+        "field_path": "",
+        "line": 45,
+        "escapes": false,
+        "delegated": false
+      },
+      {
+        "origin": "source",
+        "root": "total",
+        "field_path": "",
+        "line": 46,
+        "escapes": false,
+        "delegated": false
+      },
+      {
+        "origin": "for_desugaring",
+        "root": "iter",
+        "field_path": "",
+        "line": 48,
+        "escapes": false,
+        "delegated": false
+      },
+      {
+        "origin": "for_desugaring",
+        "root": "iter",
+        "field_path": "",
+        "line": 49,
+        "escapes": false,
+        "delegated": false
+      }
+    ],
+    "calls": [
+      {
+        "callee": "std::boxed::box_assume_init_into_vec_unsafe",
+        "line": 43,
+        "dynamic": false
+      },
+      {
+        "callee": "alloc::intrinsics::write_box_via_move",
+        "line": 43,
+        "dynamic": false
+      },
+      {
+        "callee": "std::boxed::Box::new_uninit",
+        "line": 43,
+        "dynamic": false
+      },
+      {
+        "callee": "std::vec::Vec::pop",
+        "line": 45,
+        "dynamic": false
+      },
+      {
+        "callee": "std::iter::IntoIterator::into_iter",
+        "line": 48,
+        "dynamic": false
+      },
+      {
+        "callee": "std::iter::IntoIterator::into_iter",
+        "line": 49,
+        "dynamic": false
+      },
+      {
+        "callee": "std::iter::Iterator::next",
+        "line": 49,
+        "dynamic": false
+      },
+      {
+        "callee": "std::iter::Iterator::next",
+        "line": 48,
+        "dynamic": false
+      }
+    ],
+    "effects": [],
+    "edges": [],
+    "mutated_types": [],
+    "sig": {
+      "self_ty": "lowered::Store",
+      "self_args": [],
+      "receiver": "ref",
+      "params": [
+        {
+          "prim": "u32"
+        }
+      ],
+      "ret": {
+        "prim": "u32"
+      },
+      "is_async": false,
+      "is_unsafe": false,
+      "is_const": false,
+      "generics": 0
+    },
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "adt": {
+                  "id": "lowered::Store",
+                  "args": []
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 42
+        },
+        {
+          "kind": "param",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 42
+        },
+        {
+          "kind": "macro",
+          "ty": {
+            "adt": {
+              "id": "alloc::vec::Vec",
+              "args": [
+                {
+                  "prim": "u32"
+                },
+                {
+                  "adt": {
+                    "id": "alloc::alloc::Global",
+                    "args": []
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": "vec",
+          "lit_kind": null,
+          "detail": "",
+          "line": 43
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "1",
+          "line": 43
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "2",
+          "line": 43
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "3",
+          "line": 43
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "0",
+          "line": 44
+        },
+        {
+          "kind": "loop",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "while",
+          "line": 45
+        },
+        {
+          "kind": "branch",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 45
+        },
+        {
+          "kind": "let",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 45
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "adt": {
+              "id": "core::option::Option",
+              "args": [
+                {
+                  "prim": "u32"
+                }
+              ]
+            }
+          },
+          "callee_id": "alloc::vec::{impl#1}::pop",
+          "callee_sig": {
+            "self_ty": "alloc::vec::Vec",
+            "self_args": [
+              {
+                "param": 0
+              },
+              {
+                "param": 1
+              }
+            ],
+            "receiver": "ref_mut",
+            "params": [],
+            "ret": {
+              "adt": {
+                "id": "core::option::Option",
+                "args": [
+                  {
+                    "param": 0
+                  }
+                ]
+              }
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": false,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 45
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "+=",
+          "line": 46
+        },
+        {
+          "kind": "iterate",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "adt": {
+                  "id": "alloc::vec::Vec",
+                  "args": [
+                    {
+                      "prim": "u32"
+                    },
+                    {
+                      "adt": {
+                        "id": "alloc::alloc::Global",
+                        "args": []
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 48
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "adt": {
+              "id": "alloc::vec::Vec",
+              "args": [
+                {
+                  "adt": {
+                    "id": "alloc::vec::Vec",
+                    "args": [
+                      {
+                        "prim": "u32"
+                      },
+                      {
+                        "adt": {
+                          "id": "alloc::alloc::Global",
+                          "args": []
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "adt": {
+                    "id": "alloc::alloc::Global",
+                    "args": []
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "items",
+          "line": 48
+        },
+        {
+          "kind": "iterate",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "prim": "u32"
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 49
+        },
+        {
+          "kind": "branch",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 50
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "==",
+          "line": 50
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 42
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 13,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 16,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 2,
+          "to": 10,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 4,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 5,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 2
+        },
+        {
+          "from": 6,
+          "to": 11,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 6,
+          "to": 17,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 7,
+          "to": 8,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 7,
+          "to": 9,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 7,
+          "to": 10,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 8,
+          "to": 11,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 9,
+          "to": 8,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 9,
+          "to": 11,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 10,
+          "to": 9,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 12,
+          "to": 14,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 12,
+          "to": 14,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 13,
+          "to": 12,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 14,
+          "to": 15,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 14,
+          "to": 16,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 14,
+          "to": 16,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 16,
+          "to": 15,
+          "kind": "data",
+          "arg_pos": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::{impl#0}::check_all",
+    "implements": null,
+    "path": "src/lib.rs",
+    "line": 59,
+    "column": 5,
+    "name": "Store::check_all",
+    "params": 0,
+    "param_list": [],
+    "has_self": true,
+    "statements": 6,
+    "top_statements": 2,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 5,
+      "cognitive": 6,
+      "contributions": [
+        {
+          "kind": "loop",
+          "line": 60,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 1,
+          "nesting": 0
+        },
+        {
+          "kind": "loop",
+          "line": 61,
+          "column": 13,
+          "cyclomatic": 1,
+          "cognitive": 2,
+          "nesting": 1
+        },
+        {
+          "kind": "selection",
+          "line": 62,
+          "column": 17,
+          "cyclomatic": 0,
+          "cognitive": 3,
+          "nesting": 2
+        },
+        {
+          "kind": "alternative",
+          "line": 64,
+          "column": 21,
+          "cyclomatic": 1,
+          "cognitive": 0,
+          "nesting": 2
+        },
+        {
+          "kind": "propagate",
+          "line": 65,
+          "column": 40,
+          "cyclomatic": 1,
+          "cognitive": 0,
+          "nesting": 3
+        }
+      ]
+    },
+    "source": "pub fn check_all(&self) -> Result<(), String> {\n        for row in &self.items {\n            for item in row {\n                match item {\n                    0 => continue,\n                    value => {\n                        checked(*value)?\n                    }\n                }\n            }\n        }\n        Ok(())\n    }",
+    "preceding_line": "",
+    "mutations": [
+      {
+        "origin": "for_desugaring",
+        "root": "iter",
+        "field_path": "",
+        "line": 60,
+        "escapes": false,
+        "delegated": false
+      },
+      {
+        "origin": "for_desugaring",
+        "root": "iter",
+        "field_path": "",
+        "line": 61,
+        "escapes": false,
+        "delegated": false
+      }
+    ],
+    "calls": [
+      {
+        "callee": "std::iter::IntoIterator::into_iter",
+        "line": 60,
+        "dynamic": false
+      },
+      {
+        "callee": "std::iter::IntoIterator::into_iter",
+        "line": 61,
+        "dynamic": false
+      },
+      {
+        "callee": "std::ops::Try::branch",
+        "line": 65,
+        "dynamic": false
+      },
+      {
+        "callee": "std::ops::FromResidual::from_residual",
+        "line": 65,
+        "dynamic": false
+      },
+      {
+        "callee": "std::iter::Iterator::next",
+        "line": 61,
+        "dynamic": false
+      },
+      {
+        "callee": "std::iter::Iterator::next",
+        "line": 60,
+        "dynamic": false
+      }
+    ],
+    "effects": [],
+    "edges": [
+      {
+        "callee": "lowered::checked",
+        "line": 65,
+        "dynamic": false,
+        "args": [
+          "other"
+        ]
+      }
+    ],
+    "mutated_types": [],
+    "sig": {
+      "self_ty": "lowered::Store",
+      "self_args": [],
+      "receiver": "ref",
+      "params": [],
+      "ret": {
+        "adt": {
+          "id": "core::result::Result",
+          "args": [
+            {
+              "tuple": []
+            },
+            {
+              "adt": {
+                "id": "alloc::string::String",
+                "args": []
+              }
+            }
+          ]
+        }
+      },
+      "is_async": false,
+      "is_unsafe": false,
+      "is_const": false,
+      "generics": 0
+    },
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "adt": {
+                  "id": "lowered::Store",
+                  "args": []
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 59
+        },
+        {
+          "kind": "iterate",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "adt": {
+                  "id": "alloc::vec::Vec",
+                  "args": [
+                    {
+                      "prim": "u32"
+                    },
+                    {
+                      "adt": {
+                        "id": "alloc::alloc::Global",
+                        "args": []
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 60
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "adt": {
+              "id": "alloc::vec::Vec",
+              "args": [
+                {
+                  "adt": {
+                    "id": "alloc::vec::Vec",
+                    "args": [
+                      {
+                        "prim": "u32"
+                      },
+                      {
+                        "adt": {
+                          "id": "alloc::alloc::Global",
+                          "args": []
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "adt": {
+                    "id": "alloc::alloc::Global",
+                    "args": []
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "items",
+          "line": 60
+        },
+        {
+          "kind": "iterate",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "prim": "u32"
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 61
+        },
+        {
+          "kind": "match",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 62
+        },
+        {
+          "kind": "try",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 65
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "adt": {
+              "id": "core::result::Result",
+              "args": [
+                {
+                  "tuple": []
+                },
+                {
+                  "adt": {
+                    "id": "alloc::string::String",
+                    "args": []
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": "lowered::checked",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "none",
+            "params": [
+              {
+                "prim": "u32"
+              }
+            ],
+            "ret": {
+              "adt": {
+                "id": "core::result::Result",
+                "args": [
+                  {
+                    "tuple": []
+                  },
+                  {
+                    "adt": {
+                      "id": "alloc::string::String",
+                      "args": []
+                    }
+                  }
+                ]
+              }
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": false,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 65
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "adt": {
+              "id": "core::result::Result",
+              "args": [
+                {
+                  "tuple": []
+                },
+                {
+                  "adt": {
+                    "id": "alloc::string::String",
+                    "args": []
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "ctor",
+          "line": 70
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "tuple",
+          "line": 70
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 59
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 1,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "kind": "ctrl",
+          "arg_pos": 1
+        },
+        {
+          "from": 4,
+          "to": 6,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 4,
+          "to": 6,
+          "kind": "ctrl",
+          "arg_pos": 1
+        },
+        {
+          "from": 6,
+          "to": 5,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 7,
+          "to": 9,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 8,
+          "to": 7,
+          "kind": "data",
+          "arg_pos": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::{impl#0}::report",
+    "implements": null,
+    "path": "src/lib.rs",
+    "line": 74,
+    "column": 5,
+    "name": "Store::report",
+    "params": 1,
+    "param_list": [
+      {
+        "name": "text",
+        "type": "&str",
+        "uses": 1,
+        "scalar": "text"
+      }
+    ],
+    "has_self": true,
+    "statements": 7,
+    "top_statements": 4,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 5,
+      "cognitive": 4,
+      "contributions": [
+        {
+          "kind": "propagate",
+          "line": 75,
+          "column": 74,
+          "cyclomatic": 1,
+          "cognitive": 0,
+          "nesting": 0
+        },
+        {
+          "kind": "loop",
+          "line": 76,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 1,
+          "nesting": 0
+        },
+        {
+          "kind": "branch",
+          "line": 77,
+          "column": 13,
+          "cyclomatic": 1,
+          "cognitive": 2,
+          "nesting": 1
+        },
+        {
+          "kind": "branch",
+          "line": 81,
+          "column": 9,
+          "cyclomatic": 1,
+          "cognitive": 1,
+          "nesting": 0
+        }
+      ]
+    },
+    "source": "pub fn report(&self, text: &str) -> Result<u32, String> {\n        let first: u32 = text.parse().map_err(|error| format!(\"{error}\"))?;\n        for (name, value) in &self.names {\n            if name.is_empty() {\n                println!(\"empty name for {value}\")\n            }\n        }\n        let Some(row) = self.items.first() else {\n            return Err(\"no rows\".into());\n        };\n        Ok(first + row.len() as u32)\n    }",
+    "preceding_line": "",
+    "mutations": [
+      {
+        "origin": "for_desugaring",
+        "root": "iter",
+        "field_path": "",
+        "line": 76,
+        "escapes": false,
+        "delegated": false
+      }
+    ],
+    "calls": [
+      {
+        "callee": "std::ops::Try::branch",
+        "line": 75,
+        "dynamic": false
+      },
+      {
+        "callee": "std::result::Result::map_err",
+        "line": 75,
+        "dynamic": false
+      },
+      {
+        "callee": "core::str::parse",
+        "line": 75,
+        "dynamic": false
+      },
+      {
+        "callee": "std::hint::must_use",
+        "line": 75,
+        "dynamic": false
+      },
+      {
+        "callee": "std::fmt::format",
+        "line": 75,
+        "dynamic": false
+      },
+      {
+        "callee": "core::fmt::rt::Argument::new_display",
+        "line": 75,
+        "dynamic": false,
+        "library": "pure"
+      },
+      {
+        "callee": "std::fmt::Arguments::new",
+        "line": 75,
+        "dynamic": false,
+        "library": "pure"
+      },
+      {
+        "callee": "std::ops::FromResidual::from_residual",
+        "line": 75,
+        "dynamic": false
+      },
+      {
+        "callee": "std::iter::IntoIterator::into_iter",
+        "line": 76,
+        "dynamic": false
+      },
+      {
+        "callee": "std::string::String::is_empty",
+        "line": 77,
+        "dynamic": false,
+        "library": "pure"
+      },
+      {
+        "callee": "std::io::_print",
+        "line": 78,
+        "dynamic": false
+      },
+      {
+        "callee": "core::fmt::rt::Argument::new_display",
+        "line": 78,
+        "dynamic": false,
+        "library": "pure"
+      },
+      {
+        "callee": "std::fmt::Arguments::new",
+        "line": 78,
+        "dynamic": false,
+        "library": "pure"
+      },
+      {
+        "callee": "std::iter::Iterator::next",
+        "line": 76,
+        "dynamic": false
+      },
+      {
+        "callee": "core::slice::first",
+        "line": 81,
+        "dynamic": false,
+        "library": "pure"
+      },
+      {
+        "callee": "std::convert::Into::into",
+        "line": 82,
+        "dynamic": false
+      },
+      {
+        "callee": "std::vec::Vec::len",
+        "line": 84,
+        "dynamic": false,
+        "library": "pure"
+      }
+    ],
+    "effects": [],
+    "edges": [],
+    "mutated_types": [],
+    "sig": {
+      "self_ty": "lowered::Store",
+      "self_args": [],
+      "receiver": "ref",
+      "params": [
+        {
+          "ref": {
+            "mutable": false,
+            "inner": {
+              "prim": "str"
+            }
+          }
+        }
+      ],
+      "ret": {
+        "adt": {
+          "id": "core::result::Result",
+          "args": [
+            {
+              "prim": "u32"
+            },
+            {
+              "adt": {
+                "id": "alloc::string::String",
+                "args": []
+              }
+            }
+          ]
+        }
+      },
+      "is_async": false,
+      "is_unsafe": false,
+      "is_const": false,
+      "generics": 0
+    },
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "adt": {
+                  "id": "lowered::Store",
+                  "args": []
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 74
+        },
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "prim": "str"
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 74
+        },
+        {
+          "kind": "try",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 75
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "adt": {
+              "id": "core::result::Result",
+              "args": [
+                {
+                  "prim": "u32"
+                },
+                {
+                  "adt": {
+                    "id": "alloc::string::String",
+                    "args": []
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": "core::result::{impl#0}::map_err",
+          "callee_sig": {
+            "self_ty": "core::result::Result",
+            "self_args": [
+              {
+                "param": 0
+              },
+              {
+                "param": 1
+              }
+            ],
+            "receiver": "value",
+            "params": [
+              {
+                "param": 3
+              }
+            ],
+            "ret": {
+              "adt": {
+                "id": "core::result::Result",
+                "args": [
+                  {
+                    "param": 0
+                  },
+                  {
+                    "param": 2
+                  }
+                ]
+              }
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": true,
+            "generics": 2
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 75
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "adt": {
+              "id": "core::result::Result",
+              "args": [
+                {
+                  "prim": "u32"
+                },
+                {
+                  "adt": {
+                    "id": "core::num::error::ParseIntError",
+                    "args": []
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": "core::str::{impl#0}::parse",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "ref",
+            "params": [],
+            "ret": {
+              "adt": {
+                "id": "core::result::Result",
+                "args": [
+                  {
+                    "param": 0
+                  },
+                  "other"
+                ]
+              }
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": false,
+            "generics": 1
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 75
+        },
+        {
+          "kind": "closure",
+          "ty": "other",
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 75
+        },
+        {
+          "kind": "iterate",
+          "ty": {
+            "tuple": [
+              {
+                "ref": {
+                  "mutable": false,
+                  "inner": {
+                    "adt": {
+                      "id": "alloc::string::String",
+                      "args": []
+                    }
+                  }
+                }
+              },
+              {
+                "ref": {
+                  "mutable": false,
+                  "inner": {
+                    "prim": "u32"
+                  }
+                }
+              }
+            ]
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 76
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "adt": {
+              "id": "alloc::collections::btree::map::BTreeMap",
+              "args": [
+                {
+                  "adt": {
+                    "id": "alloc::string::String",
+                    "args": []
+                  }
+                },
+                {
+                  "prim": "u32"
+                },
+                {
+                  "adt": {
+                    "id": "alloc::alloc::Global",
+                    "args": []
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "names",
+          "line": 76
+        },
+        {
+          "kind": "branch",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 77
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": "alloc::string::{impl#0}::is_empty",
+          "callee_sig": {
+            "self_ty": "alloc::string::String",
+            "self_args": [],
+            "receiver": "ref",
+            "params": [],
+            "ret": {
+              "prim": "bool"
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": true,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 77
+        },
+        {
+          "kind": "macro",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": "println",
+          "lit_kind": null,
+          "detail": "",
+          "line": 78
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "adt": {
+              "id": "core::option::Option",
+              "args": [
+                {
+                  "ref": {
+                    "mutable": false,
+                    "inner": {
+                      "adt": {
+                        "id": "alloc::vec::Vec",
+                        "args": [
+                          {
+                            "prim": "u32"
+                          },
+                          {
+                            "adt": {
+                              "id": "alloc::alloc::Global",
+                              "args": []
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": "core::slice::{impl#0}::first",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "ref",
+            "params": [],
+            "ret": {
+              "adt": {
+                "id": "core::option::Option",
+                "args": [
+                  {
+                    "ref": {
+                      "mutable": false,
+                      "inner": {
+                        "param": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": true,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 81
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "adt": {
+              "id": "alloc::vec::Vec",
+              "args": [
+                {
+                  "adt": {
+                    "id": "alloc::vec::Vec",
+                    "args": [
+                      {
+                        "prim": "u32"
+                      },
+                      {
+                        "adt": {
+                          "id": "alloc::alloc::Global",
+                          "args": []
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "adt": {
+                    "id": "alloc::alloc::Global",
+                    "args": []
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "items",
+          "line": 81
+        },
+        {
+          "kind": "let",
+          "ty": {
+            "adt": {
+              "id": "core::option::Option",
+              "args": [
+                {
+                  "ref": {
+                    "mutable": false,
+                    "inner": {
+                      "adt": {
+                        "id": "alloc::vec::Vec",
+                        "args": [
+                          {
+                            "prim": "u32"
+                          },
+                          {
+                            "adt": {
+                              "id": "alloc::alloc::Global",
+                              "args": []
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 81
+        },
+        {
+          "kind": "return",
+          "ty": {
+            "prim": "!"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 82
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "adt": {
+              "id": "core::result::Result",
+              "args": [
+                {
+                  "prim": "u32"
+                },
+                {
+                  "adt": {
+                    "id": "alloc::string::String",
+                    "args": []
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "ctor",
+          "line": 82
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "adt": {
+              "id": "alloc::string::String",
+              "args": []
+            }
+          },
+          "callee_id": "core::convert::Into::into",
+          "callee_sig": {
+            "self_ty": null,
+            "self_args": [],
+            "receiver": "value",
+            "params": [],
+            "ret": {
+              "param": 1
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": true,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 82
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "ref": {
+              "mutable": false,
+              "inner": {
+                "prim": "str"
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "str",
+          "detail": "\"no rows\"",
+          "line": 82
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "adt": {
+              "id": "core::result::Result",
+              "args": [
+                {
+                  "prim": "u32"
+                },
+                {
+                  "adt": {
+                    "id": "alloc::string::String",
+                    "args": []
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "ctor",
+          "line": 84
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "+",
+          "line": 84
+        },
+        {
+          "kind": "cast",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 84
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "prim": "usize"
+          },
+          "callee_id": "alloc::vec::{impl#1}::len",
+          "callee_sig": {
+            "self_ty": "alloc::vec::Vec",
+            "self_args": [
+              {
+                "param": 0
+              },
+              {
+                "param": 1
+              }
+            ],
+            "receiver": "ref",
+            "params": [],
+            "ret": {
+              "prim": "usize"
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": true,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 84
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 74
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 7,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 0,
+          "to": 12,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 19,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 4,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 5,
+          "to": 3,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 6,
+          "to": 8,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 9,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 9,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 10,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 7,
+          "to": 6,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 8,
+          "to": 10,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 9,
+          "to": 8,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 11,
+          "to": 13,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 12,
+          "to": 11,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 13,
+          "to": 21,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 15,
+          "to": 14,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 16,
+          "to": 15,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 17,
+          "to": 16,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 18,
+          "to": 22,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 19,
+          "to": 18,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 20,
+          "to": 19,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 21,
+          "to": 20,
+          "kind": "data",
+          "arg_pos": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::{impl#0}::effects",
+    "implements": null,
+    "path": "src/lib.rs",
+    "line": 88,
+    "column": 5,
+    "name": "Store::effects",
+    "params": 1,
+    "param_list": [
+      {
+        "name": "callback",
+        "type": "fn(u32) -> u32",
+        "uses": 1
+      }
+    ],
+    "has_self": true,
+    "statements": 9,
+    "top_statements": 6,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 2,
+      "cognitive": 2,
+      "contributions": [
+        {
+          "kind": "branch",
+          "line": 93,
+          "column": 22,
+          "cyclomatic": 1,
+          "cognitive": 1,
+          "nesting": 0
+        },
+        {
+          "kind": "else",
+          "line": 93,
+          "column": 70,
+          "cyclomatic": 0,
+          "cognitive": 1,
+          "nesting": 0
+        }
+      ]
+    },
+    "source": "pub fn effects(&mut self, callback: fn(u32) -> u32) -> u32 {\n        self.bump();\n        let local = |value: u32| value + 1;\n        unsafe { COUNTER += 1 };\n        println!(\"{}\", self.count);\n        let shown = (if self.count > 1 { callback(self.count) } else { local(self.count) }) + 1;\n        shown\n    }",
+    "preceding_line": "",
+    "mutations": [
+      {
+        "origin": "source",
+        "root": "self",
+        "field_path": "",
+        "line": 89,
+        "escapes": false,
+        "delegated": true
+      }
+    ],
+    "calls": [
+      {
+        "callee": "std::io::_print",
+        "line": 92,
+        "dynamic": false
+      },
+      {
+        "callee": "core::fmt::rt::Argument::new_display",
+        "line": 92,
+        "dynamic": false,
+        "library": "pure"
+      },
+      {
+        "callee": "std::fmt::Arguments::new",
+        "line": 92,
+        "dynamic": false,
+        "library": "pure"
+      },
+      {
+        "callee": "<fn pointer>",
+        "line": 93,
+        "dynamic": true
+      }
+    ],
+    "effects": [
+      {
+        "kind": "unsafe",
+        "detail": "unsafe block",
+        "line": 91
+      },
+      {
+        "kind": "global",
+        "detail": "static mut COUNTER",
+        "line": 91
+      }
+    ],
+    "edges": [
+      {
+        "callee": "lowered::{impl#0}::bump",
+        "line": 89,
+        "dynamic": false,
+        "args": []
+      }
+    ],
+    "mutated_types": [
+      "lowered::Store"
+    ],
+    "sig": {
+      "self_ty": "lowered::Store",
+      "self_args": [],
+      "receiver": "ref_mut",
+      "params": [
+        "fn_ptr"
+      ],
+      "ret": {
+        "prim": "u32"
+      },
+      "is_async": false,
+      "is_unsafe": false,
+      "is_const": false,
+      "generics": 0
+    },
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "ref": {
+              "mutable": true,
+              "inner": {
+                "adt": {
+                  "id": "lowered::Store",
+                  "args": []
+                }
+              }
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 88
+        },
+        {
+          "kind": "param",
+          "ty": "fn_ptr",
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 88
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": "lowered::{impl#0}::bump",
+          "callee_sig": {
+            "self_ty": "lowered::Store",
+            "self_args": [],
+            "receiver": "ref_mut",
+            "params": [],
+            "ret": {
+              "tuple": []
+            },
+            "is_async": false,
+            "is_unsafe": false,
+            "is_const": false,
+            "generics": 0
+          },
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 89
+        },
+        {
+          "kind": "closure",
+          "ty": "other",
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 90
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "+=",
+          "line": 91
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "1",
+          "line": 91
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "path",
+          "detail": "COUNTER",
+          "line": 91
+        },
+        {
+          "kind": "macro",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": "println",
+          "lit_kind": null,
+          "detail": "",
+          "line": 92
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "count",
+          "line": 92
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "+",
+          "line": 93
+        },
+        {
+          "kind": "branch",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 93
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": ">",
+          "line": 93
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "count",
+          "line": 93
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "1",
+          "line": 93
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 93
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "count",
+          "line": 93
+        },
+        {
+          "kind": "call",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 93
+        },
+        {
+          "kind": "field",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "count",
+          "line": 93
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "1",
+          "line": 93
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 88
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 0,
+          "to": 8,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 0,
+          "to": 12,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 0,
+          "to": 15,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 0,
+          "to": 17,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 14,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 16,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 5,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 8,
+          "to": 7,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 9,
+          "to": 19,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 10,
+          "to": 9,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 10,
+          "to": 14,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 10,
+          "to": 15,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 10,
+          "to": 16,
+          "kind": "ctrl",
+          "arg_pos": 1
+        },
+        {
+          "from": 10,
+          "to": 17,
+          "kind": "ctrl",
+          "arg_pos": 1
+        },
+        {
+          "from": 11,
+          "to": 10,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 12,
+          "to": 11,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 13,
+          "to": 11,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 15,
+          "to": 14,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 17,
+          "to": 16,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 18,
+          "to": 9,
+          "kind": "data",
+          "arg_pos": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowered::checked",
+    "implements": null,
+    "path": "src/lib.rs",
+    "line": 98,
+    "column": 1,
+    "name": "checked",
+    "params": 1,
+    "param_list": [
+      {
+        "name": "value",
+        "type": "u32",
+        "uses": 2,
+        "scalar": "integer"
+      }
+    ],
+    "has_self": false,
+    "statements": 3,
+    "top_statements": 1,
+    "complexity": {
+      "policy_version": 1,
+      "cyclomatic": 2,
+      "cognitive": 2,
+      "contributions": [
+        {
+          "kind": "branch",
+          "line": 99,
+          "column": 5,
+          "cyclomatic": 1,
+          "cognitive": 1,
+          "nesting": 0
+        },
+        {
+          "kind": "else",
+          "line": 99,
+          "column": 66,
+          "cyclomatic": 0,
+          "cognitive": 1,
+          "nesting": 0
+        }
+      ]
+    },
+    "source": "fn checked(value: u32) -> Result<(), String> {\n    if value > 100 { Err(format!(\"{value} is too large\")) } else { Ok(()) }\n}",
+    "preceding_line": "",
+    "mutations": [],
+    "calls": [
+      {
+        "callee": "std::hint::must_use",
+        "line": 99,
+        "dynamic": false
+      },
+      {
+        "callee": "std::fmt::format",
+        "line": 99,
+        "dynamic": false
+      },
+      {
+        "callee": "core::fmt::rt::Argument::new_display",
+        "line": 99,
+        "dynamic": false,
+        "library": "pure"
+      },
+      {
+        "callee": "std::fmt::Arguments::new",
+        "line": 99,
+        "dynamic": false,
+        "library": "pure"
+      }
+    ],
+    "effects": [],
+    "edges": [],
+    "mutated_types": [],
+    "sig": null,
+    "pdg": {
+      "nodes": [
+        {
+          "kind": "param",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 98
+        },
+        {
+          "kind": "branch",
+          "ty": {
+            "adt": {
+              "id": "core::result::Result",
+              "args": [
+                {
+                  "tuple": []
+                },
+                {
+                  "adt": {
+                    "id": "alloc::string::String",
+                    "args": []
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 99
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "bool"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": ">",
+          "line": 99
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "100",
+          "line": 99
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "adt": {
+              "id": "core::result::Result",
+              "args": [
+                {
+                  "tuple": []
+                },
+                {
+                  "adt": {
+                    "id": "alloc::string::String",
+                    "args": []
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "ctor",
+          "line": 99
+        },
+        {
+          "kind": "macro",
+          "ty": {
+            "adt": {
+              "id": "alloc::string::String",
+              "args": []
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": "format",
+          "lit_kind": null,
+          "detail": "",
+          "line": 99
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "adt": {
+              "id": "core::result::Result",
+              "args": [
+                {
+                  "tuple": []
+                },
+                {
+                  "adt": {
+                    "id": "alloc::string::String",
+                    "args": []
+                  }
+                }
+              ]
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "ctor",
+          "line": 99
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "tuple": []
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "tuple",
+          "line": 99
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 98
+        }
+      ],
+      "edges": [
+        {
+          "from": 0,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 0,
+          "to": 5,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 4,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 5,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 1,
+          "to": 6,
+          "kind": "ctrl",
+          "arg_pos": 1
+        },
+        {
+          "from": 1,
+          "to": 7,
+          "kind": "ctrl",
+          "arg_pos": 1
+        },
+        {
+          "from": 1,
+          "to": 8,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 2,
+          "to": 1,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 2,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 5,
+          "to": 4,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 7,
+          "to": 6,
+          "kind": "data",
+          "arg_pos": 0
+        }
+      ]
+    }
+  }
+]

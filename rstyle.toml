@@ -13,6 +13,19 @@ count_self = false        # `self` is the object, not an argument
 [fn_spacing]
 min_statements = 5
 
+# What `taint_flow` reads, on top of the sources and sinks each frontend's models name. Each callee
+# is an operation, a name or an identity, and an argument's position counts a receiver as 0.
+# [taint]
+# sources = ["myapp::read_request"]        # calls whose result is input
+# sanitizers = ["myapp::escape"]           # calls whose result no longer is, for every kind of sink
+# ignored = ["std::env::var"]              # calls that are no end of a flow here
+#
+# [[taint.sinks]]                          # where input is dangerous
+# callees = ["sqlx::query"]
+# arguments = [0]
+# risk = "SQL injection"
+# cwe = "CWE-89"
+
 [complexity]
 # Start at current maxima; lower these toward 12 in follow-up refactoring PRs.
 max_cyclomatic = 40
@@ -51,6 +64,21 @@ unknown = 1    # calls through dyn / fn pointers / generic callables
 # paths = ["adapters"]   # the adapters module, anywhere; globs work too
 # side_effects.weights = { io = 1, network = 1 }
 
+# How much each kind of change matters to `rstyle risk`. Nothing here has a default, so with no
+# rules a change is unrated. The base run's rules decide, so a change can't relax what judges it.
+# [risk]
+# pdg_change = "medium"             # low, medium or high: what a function depends on or does changed
+# pdg_low_risk_max_functions = 3    # lowers a medium pdg_change to low when at most this many functions changed
+#
+# [[risk.calls]]                    # calling exactly this callee more often than before
+# callee = "go::os.WriteFile"       # its identity, as the report prints it under `calls more`
+# level = "high"
+
+[ignored_result]
+# A call that drops its result is reported when enough of the callee's other calls use theirs.
+min_used_percent = 90     # 1 to 100. Decides most of it; 100 reports nothing, since then no call can have dropped it
+min_calls = 5             # fewer calls than this say too little. At 90%, one drop already takes 10
+
 [grouping]
 # Which violations must be fixed together. A fix's footprint is the function itself plus,
 # for these rules, its callers (a signature change edits every call site). Violations with
@@ -58,3 +86,30 @@ unknown = 1    # calls through dyn / fn pointers / generic callables
 # Everything else is independent. Wider footprints (e.g. density) create hub groups.
 caller_rules = ["fn_params"]
 caller_hops = 1
+
+# Strict style: opinions about how code could be shaped rather than limits it passed, so each rule
+# is off unless you turn it on. One that's on reports and fails a run like any other rule here.
+
+[strict_style.guard_clause]
+enabled = false             # an `if` whose `else` only returns, around a body that could stop being nested
+min_nested_statements = 2   # fewer statements under the `if` than this are no main path to bring out
+
+[strict_style.primitive_obsession]
+enabled = false             # a parameter whose name says what it means, held as plain text or an integer
+min_functions = 2           # fewer functions than this holding a meaning as a plain value say nothing about a codebase
+meanings = [                # words of a name that mean something a type could say, each one lowercase word
+    "email", "phone", "url", "uri", "uuid", "guid", "id", "name",
+    "address", "street", "city", "state", "zip", "postal", "country",
+    "currency", "price", "amount", "quantity",
+    "ssn", "passport", "license", "username", "password", "token", "apikey", "secret",
+    "creditcard", "iban", "isbn", "sku", "serial",
+]
+
+[strict_style.value_object]
+enabled = false             # plain values that travel together through several functions
+min_parameters = 2          # fewer values than this have nothing to travel with
+min_functions = 3           # fewer functions than this could share a set of names by chance
+placeholders = [            # names that say nothing about what a value holds, each one lowercase word
+    "foo", "bar", "baz", "qux", "tmp", "temp", "val", "var", "arg", "args", "param", "params",
+    "obj", "item", "elem", "el", "p1", "p2", "p3", "a1", "a2", "a3", "v1", "v2", "x1", "x2", "y1", "y2",
+]

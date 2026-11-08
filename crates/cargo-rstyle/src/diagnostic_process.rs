@@ -3,12 +3,13 @@ use std::io::{self, Read, Write};
 use std::process::{Command, Output, Stdio};
 
 pub fn output(command: &mut Command) -> io::Result<Output> {
-    if !rstyle_pdg::diagnostics::switch("RSTYLE_PERF") {
+    if !rstyle_capture::diagnostics::switch("RSTYLE_PERF") {
         return command.output();
     }
     streamed_output(command)
 }
 
+// rstyle-allow(side_effect_density): Subprocess IO boundary drains stdout and stderr concurrently before collecting child status.
 fn streamed_output(command: &mut Command) -> io::Result<Output> {
     command
         .stdin(Stdio::null())

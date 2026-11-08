@@ -3,8 +3,9 @@
 
 use crate::align::{Alignment, Ctx, HoleKind, align};
 use crate::facts::{NodeKind, Pdg};
-use crate::normalize::{Rules, canonicalize};
-use crate::wl::{Wl, call_class, comparable, similarity_milli};
+use crate::normalize::{Rules, canonicalize_or_borrow};
+use crate::wl::{SimilarityKey, Wl, call_class, comparable, similarity_milli};
+use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Blocks larger than this are skipped: their key is too common to say anything.
@@ -15,11 +16,13 @@ const BLOCK_KEYS: usize = 2;
 /// classes unique to each function when the corpus is tiny, so parallel functions never meet.
 const ALL_PAIRS_LIMIT: usize = 400;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Params {
     pub threshold_milli: u32,
     pub min_coverage_milli: u32,
     /// Experiment: also select pairs whose alignment coverage reaches this (besides WL similarity).
+    #[serde(deserialize_with = "serde::Deserialize::deserialize")]
     pub pair_coverage_milli: Option<u32>,
     /// Canonicalization rules applied to every graph before hashing and aligning (default: none).
     pub normalize: Rules,
@@ -56,6 +59,11 @@ pub struct Cluster {
     pub members: Vec<usize>,
     pub coverage_milli: Vec<u32>,
     pub columns: Vec<Column>,
+    /// Every retained alignment only forwards through distinct, single-use callee holes.
+    /// Missing identities, shared calls, repeated holes or other node kinds keep this false.
+    pub forwarding_only: bool,
+    /// At least one retained member contains an opaque ordinary closure node.
+    pub opaque_closure: bool,
 }
 
 fn classes_of(pdg: &Pdg) -> BTreeSet<String> {
@@ -152,19 +160,65 @@ fn next_seed(adjacency: &Adjacency, free: &BTreeSet<usize>) -> Option<usize> {
         .map(|(_, v)| v)
 }
 
-/// The group member with the highest total similarity to the others.
+/// Members with equal similarity keys, collapsed into one weighted class.
+struct Classes {
+    /// `(representative, members)` per class, in order of first appearance.
+    reps: Vec<(usize, u64)>,
+    /// Class of each group member, by group position.
+    of_member: Vec<usize>,
+}
+
+fn classes(wls: &[Wl], group: &[usize]) -> Classes {
+    let mut index: BTreeMap<SimilarityKey<'_>, usize> = BTreeMap::new();
+    let mut reps: Vec<(usize, u64)> = Vec::new();
+    let mut of_member = Vec::with_capacity(group.len());
+
+    for &v in group {
+        let class = *index.entry(wls[v].similarity_key()).or_insert(reps.len());
+        if class == reps.len() {
+            reps.push((v, 0));
+        }
+        reps[class].1 += 1;
+        of_member.push(class);
+    }
+    Classes { reps, of_member }
+}
+
+/// Total similarity of one member of each class to every other group member. Similarity
+/// is symmetric, so each distinct pair of classes is scored once and credited to both.
+fn class_totals(wls: &[Wl], reps: &[(usize, u64)]) -> Vec<u64> {
+    let score = |a: usize, b: usize| u64::from(similarity_milli(&wls[a], &wls[b]));
+    let mut totals = vec![0; reps.len()];
+    for (i, &(a, size_a)) in reps.iter().enumerate() {
+        let own = if size_a > 1 {
+            (size_a - 1) * score(a, a)
+        } else {
+            0
+        };
+        let mut total = totals[i] + own;
+        for (j, &(b, size_b)) in reps.iter().enumerate().skip(i + 1) {
+            let s = score(a, b);
+            total += size_b * s;
+            totals[j] += size_a * s;
+        }
+        totals[i] = total;
+    }
+    totals
+}
+
+/// The group member with the highest total similarity to the others (lowest index on
+/// ties). Group members are distinct indices.
+///
+/// Identical members are scored once as a weighted class, as when a sum over many equal
+/// subproblems is evaluated once per distinct subproblem and scaled by its multiplicity.
 fn medoid(wls: &[Wl], group: &[usize]) -> usize {
-    let total = |v: usize| -> u32 {
-        group
-            .iter()
-            .filter(|w| **w != v)
-            .map(|w| similarity_milli(&wls[v], &wls[*w]))
-            .sum()
-    };
+    let Classes { reps, of_member } = classes(wls, group);
+    let totals = class_totals(wls, &reps);
     group
         .iter()
-        .copied()
-        .min_by_key(|v| (u32::MAX - total(*v), *v))
+        .zip(&of_member)
+        .min_by_key(|(v, class)| (Reverse(totals[**class]), **v))
+        .map(|(v, _)| *v)
         .expect("group is non-empty")
 }
 
@@ -223,6 +277,20 @@ fn columns_of(joined: &[Joined]) -> Vec<Column> {
         .collect()
 }
 
+/// Reuse completed holes and call counts: with no fn-item/literal nodes, each callee
+/// hole site is a call. Equality to the smaller call count accounts for every such call.
+/// This is proposal policy about shared work, not a body-equivalence or purity proof.
+fn forwards_calls(a: &Wl, b: &Wl, alignment: &Alignment) -> bool {
+    let calls = a.calls.min(b.calls);
+    a.forwarding_shape
+        && b.forwarding_shape
+        && calls > 0
+        && alignment.holes.len() == calls
+        && alignment.holes.iter().all(|hole| {
+            matches!(hole.kind, HoleKind::Method | HoleKind::FreeFn) && hole.sites.len() == 1
+        })
+}
+
 fn build(pdgs: &[&Pdg], wls: &[Wl], group: &[usize], params: &Params) -> Option<Cluster> {
     let template = medoid(wls, group);
     let joined: Vec<Joined> = group
@@ -239,17 +307,22 @@ fn build(pdgs: &[&Pdg], wls: &[Wl], group: &[usize], params: &Params) -> Option<
             .chain(joined.iter().map(|j| j.alignment.coverage_milli))
             .collect(),
         columns: columns_of(&joined),
+        opaque_closure: wls[template].opaque_closure
+            || joined.iter().any(|member| wls[member.index].opaque_closure),
+        forwarding_only: joined
+            .iter()
+            .all(|member| forwards_calls(&wls[template], &wls[member.index], &member.alignment)),
     })
 }
 
 /// Clusters of structurally parallel functions, largest first. Each function lands in at
 /// most one cluster; members must align with the template above the coverage floor.
 pub fn cluster(pdgs: &[&Pdg], params: &Params) -> Vec<Cluster> {
-    let canonical: Vec<Pdg> = pdgs
+    let canonical: Vec<_> = pdgs
         .iter()
-        .map(|p| canonicalize(p, &params.normalize))
+        .map(|p| canonicalize_or_borrow(p, &params.normalize))
         .collect();
-    let pdgs: Vec<&Pdg> = canonical.iter().collect();
+    let pdgs: Vec<&Pdg> = canonical.iter().map(|p| p.as_ref()).collect();
     let pdgs = pdgs.as_slice();
     let wls: Vec<Wl> = pdgs.iter().map(|p| Wl::new(p)).collect();
     let adjacency = similar(pdgs, &wls, &pairs_to_compare(pdgs), params);
@@ -281,7 +354,7 @@ pub fn cluster(pdgs: &[&Pdg], params: &Params) -> Vec<Cluster> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::facts::{PdgNode, TyShape};
+    use crate::facts::{NodeKind, PdgNode, TyShape};
     use crate::pdgtest::*;
 
     fn animals() -> Vec<Pdg> {
@@ -295,6 +368,100 @@ mod tests {
     fn run(pdgs: &[Pdg], params: &Params) -> Vec<Cluster> {
         let refs: Vec<&Pdg> = pdgs.iter().collect();
         cluster(&refs, params)
+    }
+
+    /// `emit_loop` plus `extra` getter calls on the loop item, each feeding the return.
+    fn extended(ty: &str, extra: usize) -> Pdg {
+        let mut pdg = emit_loop(ty, "base");
+        for k in 0..extra {
+            let call = pdg.nodes.len();
+            pdg.nodes.push(getter_call(ty, &format!("extra{k}")));
+            pdg.edges
+                .extend([data(2, call, 0), ctrl(2, call, 0), data(call, 5, k + 1)]);
+        }
+        pdg
+    }
+
+    /// The original definition: every ordered pair scored separately.
+    fn reference_medoid(wls: &[Wl], group: &[usize]) -> usize {
+        let total = |v: usize| -> u32 {
+            group
+                .iter()
+                .filter(|w| **w != v)
+                .map(|w| similarity_milli(&wls[v], &wls[*w]))
+                .sum()
+        };
+        group
+            .iter()
+            .copied()
+            .min_by_key(|v| (u32::MAX - total(*v), *v))
+            .expect("group is non-empty")
+    }
+
+    #[test]
+    fn weighted_class_medoid_matches_pairwise_definition() {
+        let pdgs = [
+            extended("Dog", 0),
+            extended("Cat", 2),
+            permuted(&extended("Cow", 2), 3),
+            extended("Pig", 1),
+            extended("Hen", 4),
+            permuted(&extended("Dog", 0), 1),
+            extended("Elk", 2),
+            extended("Owl", 1),
+        ];
+        let wls: Vec<Wl> = pdgs.iter().map(Wl::new).collect();
+        // Every non-empty subset, in ascending and descending member order.
+        for mask in 1u32..1 << pdgs.len() {
+            let mut group: Vec<usize> = (0..pdgs.len()).filter(|i| mask >> i & 1 == 1).collect();
+            assert_eq!(
+                medoid(&wls, &group),
+                reference_medoid(&wls, &group),
+                "{group:?}"
+            );
+            group.reverse();
+            assert_eq!(
+                medoid(&wls, &group),
+                reference_medoid(&wls, &group),
+                "{group:?}"
+            );
+        }
+        // Names are not labels and node order does not matter: repeated shapes share a class.
+        let Classes { reps, of_member } = classes(&wls, &[0, 1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(reps.len(), 4);
+        assert_eq!(of_member, [0, 1, 1, 2, 3, 0, 1, 2]);
+    }
+
+    #[test]
+    fn identical_majority_outweighs_a_distinct_member() {
+        let pdgs = [extended("Hen", 4), extended("Dog", 1), extended("Cat", 1)];
+        let wls: Vec<Wl> = pdgs.iter().map(Wl::new).collect();
+        assert_eq!(medoid(&wls, &[0, 1, 2]), 1);
+        assert_eq!(medoid(&wls, &[0, 2, 1]), 1, "ties keep the lowest index");
+    }
+
+    #[test]
+    fn opaque_closure_summary_follows_only_retained_graph_members() {
+        let mut pdgs = animals();
+        assert!(
+            run(&pdgs, &Params::default())
+                .iter()
+                .all(|c| !c.opaque_closure)
+        );
+        for pdg in &mut pdgs {
+            pdg.nodes.push(node(NodeKind::Closure));
+        }
+        let clusters = run(&pdgs, &Params::default());
+        assert_eq!(clusters.len(), 1);
+        assert!(clusters[0].opaque_closure);
+        assert_eq!(clusters[0].coverage_milli, [1000, 1000, 1000]);
+
+        let mut ordinary = animals();
+        ordinary.push(pdgs.pop().unwrap());
+        let refs: Vec<_> = ordinary.iter().collect();
+        let wls: Vec<_> = refs.iter().map(|pdg| Wl::new(pdg)).collect();
+        let selected = build(&refs, &wls, &[0, 1, 2], &Params::default()).unwrap();
+        assert!(!selected.opaque_closure);
     }
 
     #[test]

@@ -4,54 +4,12 @@
 
 version = 1
 
-[ignore.3d01b396fee9]
-kind = "generic_fn"
-reason = "residual one-line wrappers around shared well_formed helper; nothing left to merge"
-fns = [
-  "rstyle_pdg::model::BoolFact::shape_ok",
-  "rstyle_pdg::model::StringFact::shape_ok",
-]
-
-[ignore.b4fde1f557ee]
-kind = "generic_fn"
-reason = "residual delegations to well_formed; a generic trait would add more code than it removes"
-fns = [
-  "rstyle_pdg::model::BoolFact::shape_ok",
-  "rstyle_pdg::model::StringFact::shape_ok",
-]
-
-[ignore.fc9b070d78be]
-kind = "generic_fn"
-reason = "residual one-line delegations to shared well_formed helper; a trait would add more code than it removes"
-fns = [
-  "rstyle_pdg::model::BoolFact::shape_ok",
-  "rstyle_pdg::model::CountFact::shape_ok",
-  "rstyle_pdg::model::StringFact::shape_ok",
-]
-
-[ignore.0ee0a828b288]
-kind = "parameterize"
-reason = "BFS successor scan over ProjectedGraph vs CfgDocument in different crates; a shared generic would couple ccgraph to pdg internals for 8 lines"
-fns = [
-  "rstyle_ccgraph::wl::fresh_targets",
-  "rstyle_pdg::cfg::fresh_successors",
-]
-
 [ignore.114994040aee]
 kind = "parameterize"
 reason = "thin mirrored wrappers over one shared helper after #10 (#11)"
 fns = [
   "rstyle_core::align::evidence",
   "rstyle_core::align::reverse_conflicts",
-]
-
-[ignore.1a2db6420b6e]
-kind = "parameterize"
-reason = "one-line flat_map-collect validators over distinct check domains; merging saves nothing"
-fns = [
-  "rstyle_pdg::validate::check_node_requirements",
-  "rstyle_pdg::validate::check_source_digests",
-  "rstyle_pdg::validate::check_source_identities",
 ]
 
 [ignore.28ac5efc1baa]
@@ -62,108 +20,12 @@ fns = [
   "rstyle_core::normalize::dedup",
 ]
 
-[ignore.3648312ee5d9]
+[ignore.3b294422b69f]
 kind = "parameterize"
-reason = "one-line flat_map-collect shape over distinct validation domains; merging saves nothing"
+reason = "Both are a one-line membership test on an unrelated type's own set; a shared helper would add nothing"
 fns = [
-  "rstyle_pdg::validate::check_node_requirements",
-  "rstyle_pdg::validate::check_source_identities",
-]
-
-[ignore.3fff85bb6c1b]
-kind = "parameterize"
-reason = "iterator one-liners (map/filter + collect) over unrelated types; coincidental shape (#11)"
-fns = [
-  "rstyle_core::graph::boundaries",
-  "rstyle_core::ledger::status::current",
-  "rstyle_driver::effects::Walker::sources",
-]
-
-[ignore.440013106447]
-kind = "parameterize"
-reason = "stateful dup/index checks vs stateless key filter; shapes differ genuinely"
-fns = [
-  "rstyle_pdg::validate::dup_issues",
-  "rstyle_pdg::validate::key_issues",
-  "rstyle_pdg::validate::position_issues",
-]
-
-[ignore.4f48d2ce7fc8]
-kind = "parameterize"
-reason = "cross-domain coincidence between core prep and pdg access validation; shapes differ genuinely"
-fns = [
-  "rstyle_core::prep::impls",
-  "rstyle_pdg::validate::access_issues",
-]
-
-[ignore.60e8af5f467a]
-kind = "parameterize"
-reason = "map/collect/join with a different separator over different types; not worth a helper (#11)"
-fns = [
-  "rstyle_core::candidates::columns_text_of",
-  "rstyle_core::shape::Namer::list",
-]
-
-[ignore.6b880033132d]
-kind = "parameterize"
-reason = "generic one-line ID collectors across core/driver/pdg; no shared abstraction without cross-crate coupling"
-fns = [
-  "rstyle_core::graph::boundaries",
-  "rstyle_core::ledger::status::current",
-  "rstyle_driver::effects::Walker::sources",
-  "rstyle_pdg::cfg::id_set",
-]
-
-[ignore.76534998402b]
-kind = "parameterize"
-reason = "map/collect one-liners over unrelated types (id sets, triple lists, boundaries); merging across domains saves nothing"
-fns = [
-  "rstyle_core::graph::boundaries",
-  "rstyle_core::ledger::status::current",
-  "rstyle_driver::effects::Walker::sources",
-  "rstyle_pdg::cfg::id_set",
-  "rstyle_pdg::cfg::sorted_triples",
-]
-
-[ignore.8758139492e7]
-kind = "parameterize"
-reason = "lists of passes (function composition), not duplicated logic (#11)"
-fns = [
-  "rstyle_core::normalize::counter_loops",
-  "rstyle_core::normalize::unify_case",
-]
-
-[ignore.885b7a4e6179]
-kind = "parameterize"
-reason = "definition-links vs node-links validators over different reference domains; merging saves nothing"
-fns = [
-  "rstyle_pdg::validate::check_definition_links",
-  "rstyle_pdg::validate::check_node_links",
-]
-
-[ignore.8c495a7ebe17]
-kind = "parameterize"
-reason = "single-field Option-to-issue mappers differing in predicate and diagnostic; a shared helper would just take the differing parts"
-fns = [
-  "rstyle_pdg::validate::evidence_issue",
-  "rstyle_pdg::validate::subkind_issue",
-]
-
-[ignore.9cfdfc96cdf0]
-kind = "parameterize"
-reason = "cross-crate BFS frontier over distinct edge types; shared generic would couple pdg/ccgraph for 8 lines"
-fns = [
-  "rstyle_ccgraph::wl::fresh_targets",
-  "rstyle_pdg::cfg::fresh_successors",
-]
-
-[ignore.a59c863eac67]
-kind = "parameterize"
-reason = "thin one-line wrappers already sharing repeat_issues; nothing left to extract"
-fns = [
-  "rstyle_pdg::cfg::repeated_operation_issues",
-  "rstyle_pdg::cfg::repeated_pdg_issues",
-  "rstyle_pdg::cfg::repeated_triple_issues",
+  "cargo_rstyle::compiler::review::compiler_diagnostics::demand::Demand::includes",
+  "rstyle_core::cpg::source::Sources::generated",
 ]
 
 [ignore.a6512f630b9a]
@@ -183,38 +45,12 @@ fns = [
   "rstyle_core::normalize::predicate_tree",
 ]
 
-[ignore.c26dbf1aa399]
+[ignore.efcd50482f0a]
 kind = "parameterize"
-reason = "cross-domain coincidence between core prep and pdg access validation"
+reason = "Both find one item by an unrelated type's own key and return its name; a shared helper would only take the predicate"
 fns = [
-  "rstyle_core::prep::impls",
-  "rstyle_pdg::validate::access_issues",
-]
-
-[ignore.c2d0658d42db]
-kind = "parameterize"
-reason = "new-contract weights vs parked legacy miner weights; miner parked, no retrofit merging"
-fns = [
-  "rstyle_ccgraph::wl::weights",
-  "rstyle_core::wl::weights",
-]
-
-[ignore.c5f442ffa59a]
-kind = "parameterize"
-reason = "distinct exact rational operations; merging add/mul/div/compare would obscure overflow-critical arithmetic"
-fns = [
-  "rstyle_ccgraph::frac::Frac::checked_add",
-  "rstyle_ccgraph::frac::Frac::checked_div",
-  "rstyle_ccgraph::frac::Frac::checked_mul",
-  "rstyle_ccgraph::frac::Frac::ge",
-]
-
-[ignore.c9a521034072]
-kind = "parameterize"
-reason = "symbol extraction vs policy check; different shapes sharing only filter_map, coincidental"
-fns = [
-  "rstyle_ccgraph::admission::read_symbols",
-  "rstyle_pdg::validate::edge_provenance_issues",
+  "rstyle_core::cpg::bounds::Collector::declared",
+  "rstyle_core::sarif::function_of",
 ]
 
 [ignore.fdb66ce83259]

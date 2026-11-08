@@ -20,6 +20,7 @@ Config names: `none`, `all`, `all-<rule>` (ablation), a rule list (`case,counter
 (pair coverage), `+h<N>` (max holes), `+guard`.
 """
 import argparse, csv, glob, json, os, subprocess, sys
+from compiler_patterns import evaluation
 from collections import defaultdict
 from itertools import combinations
 
@@ -68,11 +69,14 @@ def run_miner(shard_dir, name, args):
     p = subprocess.run(cmd, cwd=shard_dir, env=env, capture_output=True, text=True)
     if p.returncode not in (0, 1) or not p.stdout.strip():
         sys.exit(f"miner failed on {shard_dir}: {p.stderr[-400:]}")
-    return json.loads(p.stdout)
+    return evaluation(json.loads(p.stdout))
 
 
 def facts_files(shard):
-    return sorted(glob.glob(f"/tmp/cn_m_{shard}/rstyle/facts-sem/*.json"))
+    files = sorted(glob.glob(f"/tmp/cn_m_{shard}/rstyle/facts-sem/*.json"))
+    if not files:
+        raise ValueError("This historical graph study needs retained facts inputs; compiler captures do not publish facts-sem")
+    return files
 
 
 def load_facts(shard):

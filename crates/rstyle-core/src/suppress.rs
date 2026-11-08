@@ -1,4 +1,8 @@
-//! `// rstyle-allow(rule_a, rule_b): reason` comments above a function.
+//! `// rstyle-allow(rule_a, go:rule_b): reason` comments above a function. A rule named as
+//! `--filter` names a frontend's analysis belongs to that frontend, which reads the comment
+//! itself, so core can't call it unknown.
+
+use crate::filter::valid_name;
 
 pub const RULE_IDS: &[&str] = &[
     "fn_length",
@@ -10,6 +14,12 @@ pub const RULE_IDS: &[&str] = &[
     "mutated_targets",
     "side_effect_density",
     "abstraction",
+    "dead_store",
+    "ignored_result",
+    "taint_flow",
+    "guard_clause",
+    "primitive_obsession",
+    "value_object",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,10 +44,17 @@ pub fn parse(comment_line: &str) -> Suppression {
         return Suppression::Invalid("rstyle-allow requires a reason after `:`".into());
     }
     let names: Vec<String> = rules.split(',').map(|r| r.trim().to_string()).collect();
-    match names.iter().find(|name| !RULE_IDS.contains(&name.as_str())) {
+    match names.iter().find(|name| !known(name)) {
         Some(unknown) => Suppression::Invalid(format!("unknown rule `{unknown}` in rstyle-allow")),
         None => Suppression::Allow(names),
     }
+}
+
+fn known(name: &str) -> bool {
+    RULE_IDS.contains(&name)
+        || name
+            .split_once(':')
+            .is_some_and(|(frontend, rule)| valid_name(frontend) && valid_name(rule))
 }
 
 /// True when the comment is a valid suppression that names `rule`.
@@ -74,6 +91,20 @@ mod tests {
             "abstraction"
         ));
         assert!(!allows("// rstyle-allow(abstraction): why", "fn_length"));
+    }
+
+    #[test]
+    fn a_frontends_rule_is_that_frontends_to_judge() {
+        assert_eq!(
+            parse("// rstyle-allow(go:nilerr, fn_length): deliberate"),
+            Suppression::Allow(vec!["go:nilerr".into(), "fn_length".into()])
+        );
+        assert!(allows("// rstyle-allow(go:nilerr): why", "go:nilerr"));
+        assert!(!allows("// rstyle-allow(go:nilerr): why", "fn_length"));
+        for name in ["go:", ":nilerr", "go:a:b", "go:../x"] {
+            let comment = format!("// rstyle-allow({name}): why");
+            assert!(matches!(parse(&comment), Suppression::Invalid(_)), "{name}");
+        }
     }
 
     #[test]

@@ -1,5 +1,5 @@
 use globset::{Glob, GlobSet, GlobSetBuilder};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use toml::{Table, Value};
 
 use super::Config;
@@ -14,12 +14,26 @@ const PER_FUNCTION: &[&str] = &[
     "side_effects",
 ];
 
+/// `side_effects` keys read once for the whole run: effects are classified and propagated
+/// through the call graph before any function's policy applies.
+const RUN_WIDE_SIDE_EFFECTS: &[&str] = &["transitive_depth", "paths"];
+
 /// Rule settings layered onto the base config for functions whose source path matches.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(try_from = "Table")]
+/// Serializes back to the table it was written as, so a baseline sees the policy.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(try_from = "Table", into = "Table")]
 pub struct Override {
+    patterns: Vec<String>,
     paths: GlobSet,
     rules: Table,
+}
+
+impl From<Override> for Table {
+    fn from(layer: Override) -> Self {
+        let mut table = layer.rules;
+        table.insert("paths".into(), layer.patterns.into());
+        table
+    }
 }
 
 impl Override {
@@ -36,28 +50,33 @@ impl TryFrom<Table> for Override {
     type Error = String;
 
     fn try_from(mut rules: Table) -> Result<Self, String> {
-        let paths = rules.remove("paths").ok_or("an override needs `paths`")?;
-        let paths = glob_set(Vec::deserialize(paths).map_err(|e| e.to_string())?)?;
+        let patterns = rules.remove("paths").ok_or("an override needs `paths`")?;
+        let patterns = Vec::<String>::deserialize(patterns).map_err(|e| e.to_string())?;
+        let paths = glob_set(&patterns)?;
         if let Some(key) = rules
             .keys()
             .find(|key| !PER_FUNCTION.contains(&key.as_str()))
         {
             return Err(format!("`{key}` cannot be overridden by path"));
         }
-        if rules
-            .get("side_effects")
-            .and_then(|s| s.get("transitive_depth"))
-            .is_some()
-        {
-            return Err("`side_effects.transitive_depth` cannot be overridden by path".into());
+        if let Some(key) = RUN_WIDE_SIDE_EFFECTS.iter().find(|key| {
+            rules
+                .get("side_effects")
+                .is_some_and(|s| s.get(**key).is_some())
+        }) {
+            return Err(format!("`side_effects.{key}` cannot be overridden by path"));
         }
         Config::deserialize(Value::Table(rules.clone())).map_err(|e| e.to_string())?;
 
-        Ok(Self { paths, rules })
+        Ok(Self {
+            patterns,
+            paths,
+            rules,
+        })
     }
 }
 
-fn glob_set(paths: Vec<String>) -> Result<GlobSet, String> {
+fn glob_set(paths: &[String]) -> Result<GlobSet, String> {
     if paths.is_empty() {
         return Err("an override needs at least one path".into());
     }

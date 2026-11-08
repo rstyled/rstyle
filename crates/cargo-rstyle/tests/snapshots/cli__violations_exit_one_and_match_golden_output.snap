@@ -1,24 +1,27 @@
 ---
 source: crates/cargo-rstyle/tests/cli.rs
-expression: stdout(&output)
+expression: "snapshot_output(dir.path(), &output)"
 ---
-src/lib.rs:12:5: mutation_per_target: function `Account::churn` mutates one target too many times (actual 4, limit 3)
-src/lib.rs:12:5: side_effect_density: function `Account::churn` has a high side-effect density (actual 1000, limit 500)
-src/lib.rs:24:1: fn_params: function `too_many` has too many parameters (actual 5, limit 4)
-src/lib.rs:28:1: mutated_targets: function `spread` mutates too many distinct targets (actual 4, limit 3)
-src/lib.rs:28:1: side_effect_density: function `spread` has a high side-effect density (actual 1000, limit 500)
-src/lib.rs:35:1: side_effect_density: function `noisy` has a high side-effect density (actual 3000, limit 500)
-src/lib.rs:43:1: side_effect_density: function `dirty` has a high side-effect density (actual 1600, limit 500)
-src/lib.rs:58:1: fn_params: function `missing_reason` has too many parameters (actual 5, limit 4)
-src/lib.rs:58:1: invalid_suppression: function `missing_reason`: rstyle-allow requires a reason after `:` (actual 1, limit 0)
-src/lib.rs:72:1: fn_length: function `very_long` is too long (actual 54, limit 50)
+src/lib.rs:12:5: mutation_per_target: function `Account::churn` mutates one target too many times (actual 4, limit 3) [diagnostic 0] [compiler unit 0]
+src/lib.rs:12:5: side_effect_density: function `Account::churn` has a high side-effect density (actual 1000, limit 500) [diagnostic 1] [compiler unit 0]
+src/lib.rs:24:1: fn_params: function `too_many` has too many parameters (actual 5, limit 4) [diagnostic 2] [compiler unit 0]
+src/lib.rs:28:1: mutated_targets: function `spread` mutates too many distinct targets (actual 4, limit 3) [diagnostic 3] [compiler unit 0]
+src/lib.rs:28:1: side_effect_density: function `spread` has a high side-effect density (actual 1000, limit 500) [diagnostic 4] [compiler unit 0]
+src/lib.rs:35:1: side_effect_density: function `noisy` has a high side-effect density (actual 3000, limit 500) [diagnostic 5] [compiler unit 0]
+src/lib.rs:43:1: side_effect_density: function `dirty` has a high side-effect density (actual 1600, limit 500) [diagnostic 6] [compiler unit 0]
+src/lib.rs:58:1: fn_params: function `missing_reason` has too many parameters (actual 5, limit 4) [diagnostic 7] [compiler unit 0]
+src/lib.rs:58:1: invalid_suppression: function `missing_reason`: rstyle-allow requires a reason after `:` (actual 1, limit 0) [diagnostic 8] [compiler unit 0]
+src/lib.rs:72:1: fn_length: function `very_long` is too long (actual 54, limit 50) [diagnostic 9] [compiler unit 0]
 fix groups: 7 (0 stacked, 7 independent)
-  CC  COG  LOCATION  FUNCTION
-   1    0  src/lib.rs:12:5  Account::churn
-   1    0  src/lib.rs:24:1  too_many
-   1    0  src/lib.rs:28:1  spread
-   1    0  src/lib.rs:35:1  noisy
-   1    0  src/lib.rs:43:1  dirty
-   1    0  src/lib.rs:58:1  missing_reason
-   1    0  src/lib.rs:72:1  very_long
+  CC  COG  LOCATION  FUNCTION  UNIT
+   1    0  src/lib.rs:12:5  Account::churn [compiler unit 0]
+   1    0  src/lib.rs:24:1  too_many [compiler unit 0]
+   1    0  src/lib.rs:28:1  spread [compiler unit 0]
+   1    0  src/lib.rs:35:1  noisy [compiler unit 0]
+   1    0  src/lib.rs:43:1  dirty [compiler unit 0]
+   1    0  src/lib.rs:58:1  missing_reason [compiler unit 0]
+   1    0  src/lib.rs:72:1  very_long [compiler unit 0]
 rstyle: 11 functions, 10 violations, mean density 690, max density 3000, complexity 11 measured, 0 unavailable
+compiler style: summary complete=true, planning input complete=false, required edits complete=true
+compiler unit 0: package=path+file://<workspace>#violations@0.1.0 target=violations kind=lib test=false source=<workspace>/src/lib.rs
+Compiler evidence and coverage: <saved compiler run>

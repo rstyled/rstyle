@@ -1,0 +1,122 @@
+# Library operation contracts for the C and C++ frontend.
+#
+# Keys are `<class>.<member>`, the class by its own name in the standard library (`vector`,
+# `basic_string`), or the function's name for a free function. The frontend emits them for the
+# standard library's bodies, and core only reads one for a call that can't call back into workspace
+# code, so a comparison or a copy of a workspace type never hides behind these steps.
+#
+# `steps` bounds element operations per invocation up to a constant factor, with `Size = i` the size
+# of argument `i` (the receiver is argument 0). An operation that can allocate without bound, such as
+# `vector.push_back`, is deliberately absent: without a contract it keeps an explicit opaque factor.
+# So are the hash containers' lookups, whose worst case is linear and whose average isn't a bound.
+
+schema = "rstyle.library-contracts/1"
+namespace = "cxx"
+
+[[contract]]
+basis = "Balanced-tree search: tree height is logarithmic in the entry count"
+steps = { Log = { Size = 0 } }
+operations = [
+  "map.contains",
+  "map.count",
+  "map.erase",
+  "map.find",
+  "map.lower_bound",
+  "map.upper_bound",
+  "set.contains",
+  "set.count",
+  "set.erase",
+  "set.find",
+  "set.lower_bound",
+  "set.upper_bound",
+]
+
+[[contract]]
+basis = "Reads a stored count or an element at a known place"
+steps = { Const = 1 }
+operations = [
+  "array.empty",
+  "array.size",
+  "basic_string.empty",
+  "basic_string.length",
+  "basic_string.size",
+  "basic_string_view.empty",
+  "basic_string_view.length",
+  "basic_string_view.size",
+  "deque.empty",
+  "deque.size",
+  "list.empty",
+  "list.size",
+  "map.empty",
+  "map.size",
+  "set.empty",
+  "set.size",
+  "span.empty",
+  "span.size",
+  "vector.empty",
+  "vector.size",
+]
+
+# Extent roles: members over a receiver whose entry count is stable while it's only read.
+
+[[extent]]
+basis = "Reads the stored entry count of a container"
+role = "Length"
+operations = [
+  "array.size",
+  "basic_string.length",
+  "basic_string.size",
+  "basic_string_view.length",
+  "basic_string_view.size",
+  "deque.size",
+  "list.size",
+  "span.size",
+  "vector.size",
+]
+
+[[contract]]
+basis = "Frees one block or releases one lock, with nothing inside it to destroy in turn"
+steps = { Const = 1 }
+operations = [
+  "basic_filebuf.~basic_filebuf",
+  "basic_fstream.~basic_fstream",
+  "basic_ifstream.~basic_ifstream",
+  "basic_istringstream.~basic_istringstream",
+  "basic_ofstream.~basic_ofstream",
+  "basic_ostringstream.~basic_ostringstream",
+  "basic_string.~basic_string",
+  "basic_stringstream.~basic_stringstream",
+  "domain_error.~domain_error",
+  "exception.~exception",
+  "invalid_argument.~invalid_argument",
+  "length_error.~length_error",
+  "lock_guard.~lock_guard",
+  "logic_error.~logic_error",
+  "out_of_range.~out_of_range",
+  "overflow_error.~overflow_error",
+  "range_error.~range_error",
+  "runtime_error.~runtime_error",
+  "scoped_lock.~scoped_lock",
+  "shared_lock.~shared_lock",
+  "operator_delete",
+  "underflow_error.~underflow_error",
+  "unique_lock.~unique_lock",
+]
+
+[[contract]]
+basis = "Destroying a container visits each element, at a constant cost: the frontend keeps this contract from one whose elements cost more"
+steps = { Size = 0 }
+operations = [
+  "deque.~deque",
+  "forward_list.~forward_list",
+  "list.~list",
+  "map.~map",
+  "multimap.~multimap",
+  "multiset.~multiset",
+  "set.~set",
+  "unordered_map.~unordered_map",
+  "unordered_multimap.~unordered_multimap",
+  "unordered_multiset.~unordered_multiset",
+  "unordered_set.~unordered_set",
+  "vector.~vector",
+]

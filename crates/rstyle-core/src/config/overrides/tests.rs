@@ -49,6 +49,7 @@ fn invalid_overrides_are_rejected() {
         "[[overrides]]\npaths = ['src/**']\nexclude = ['x']",
         "[[overrides]]\npaths = ['src/**']\ngrouping = { caller_hops = 2 }",
         "[[overrides]]\npaths = ['src/**']\nside_effects = { transitive_depth = 0 }",
+        "[[overrides]]\npaths = ['src/**']\nside_effects.paths = { io = ['x::'] }",
     ] {
         assert!(Config::parse(input).is_err(), "accepted {input}");
     }
@@ -80,4 +81,18 @@ fn slashes_around_a_plain_name_are_ignored() {
         assert_eq!(max_lines("src/adapters.rs"), 80, "{name}");
         assert_eq!(max_lines("src/domain/rules.rs"), 50, "{name}");
     }
+}
+
+#[test]
+fn overrides_serialize_back_to_their_table_and_only_when_present() {
+    let plain = toml::to_string(&Config::default()).unwrap();
+    assert!(!plain.contains("overrides"));
+
+    let config = Config::parse(LAYERED).unwrap();
+    let round_trip = Config::parse(&toml::to_string(&config).unwrap()).unwrap();
+    let policy = round_trip
+        .for_path("src/adapters/critical/store.rs")
+        .unwrap();
+    assert_eq!(policy.side_effects.weights.io, 6);
+    assert_eq!(policy.fn_length.max_lines, 80);
 }
