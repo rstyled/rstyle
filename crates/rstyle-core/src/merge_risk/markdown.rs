@@ -50,7 +50,7 @@ impl ChangeReport {
         };
 
         let why = match why.as_slice() {
-            [one] => format!("{}.", one.trim_start_matches("- ")),
+            [one] => format!("{}.", one.trim_start_matches("- ").trim_end_matches('.')),
             many => many.join("\n"),
         };
         format!("{heading}\n\n{why}")

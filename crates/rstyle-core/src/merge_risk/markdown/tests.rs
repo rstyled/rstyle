@@ -274,3 +274,11 @@ fn needs_a_look_names_ten_and_counts_the_rest() {
     assert_eq!(markdown.matches("\n1. ").count(), 10, "{markdown}");
     assert!(markdown.contains("`f9` in `a.go`: signature changed · reached by 4\n\n…and 2 more in the sections below.\n\n"), "{markdown}");
 }
+
+#[test]
+fn an_unrated_change_says_so_in_one_sentence() {
+    let markdown = report(Level::Unrated, Vec::new(), Vec::new()).markdown(None);
+    let expected =
+        "### Merge risk: unrated ⚪\n\nThe base's policy has no severity for code impact.\n\n";
+    assert!(markdown.starts_with(expected), "{markdown}");
+}
