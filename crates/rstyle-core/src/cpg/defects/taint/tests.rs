@@ -15,7 +15,7 @@ fn call(name: &str, line: usize) -> FlowCall {
         operation: None,
         line,
         literals: Vec::new(),
-        keywords: Vec::new(),
+        named: Vec::new(),
         lists: Vec::new(),
         strings: Vec::new(),
     }
@@ -119,6 +119,53 @@ fn an_argument_a_sink_takes_as_data_is_not_dangerous() {
     assert_eq!(found(&[the_query]).len(), 1);
 }
 
+fn result_unplaced(from: usize, call: usize) -> Hop {
+    Hop {
+        from: Start::Result(from),
+        to: End::Unplaced { call },
+    }
+}
+
+#[test]
+fn an_argument_with_no_position_reaches_no_sink_but_what_a_call_gives_back() {
+    let spread_into_sink = function(
+        "f",
+        vec![call(SOURCE, 1), call(SINK, 2)],
+        vec![result_unplaced(0, 1)],
+    );
+    assert!(
+        found(&[spread_into_sink]).is_empty(),
+        "which parameter is unknown"
+    );
+
+    // `sink(join(**input))`: a call with no body here gives back everything it's handed.
+    let through_a_call = function(
+        "f",
+        vec![call(SOURCE, 1), call("join", 2), call(SINK, 3)],
+        vec![result_unplaced(0, 1), result_to(1, 2, 0)],
+    );
+    assert_eq!(found(&[through_a_call]).len(), 1);
+}
+
+#[test]
+fn a_body_gives_back_an_argument_with_no_position_only_if_it_gives_back_a_parameter() {
+    let caller = |callee: FunctionFlows| {
+        let caller = function(
+            "caller",
+            vec![call(SOURCE, 1), call("helper", 2), call(SINK, 3)],
+            vec![result_unplaced(0, 1), result_to(1, 2, 0)],
+        );
+        found(&[caller, callee]).len()
+    };
+    let returns_its_parameter = function(
+        "helper",
+        Vec::new(),
+        vec![returned_from(Start::Parameter(1))],
+    );
+    assert_eq!(caller(returns_its_parameter), 1);
+    assert_eq!(caller(function("helper", Vec::new(), Vec::new())), 0);
+}
+
 #[test]
 fn a_call_that_is_neither_end_has_nothing_to_say() {
     let neither = function(
@@ -169,11 +216,11 @@ fn a_programs_arguments_are_data_unless_a_shell_is_told_to_run_one() {
     );
 }
 
-/// `subprocess.run(os.getenv(..), ..)` with these keywords, and input at this position. Nothing says
+/// `subprocess.run(os.getenv(..), ..)` passing these parameters, and input at this position. Nothing says
 /// it's a string, so without a shell it's a list that isn't written out.
-fn into_run(keywords: &[(&str, &str)], position: usize) -> Vec<(usize, usize, String)> {
+fn into_run(named: &[(&str, &str)], position: usize) -> Vec<(usize, usize, String)> {
     let run = FlowCall {
-        keywords: keywords
+        named: named
             .iter()
             .map(|(name, literal)| ((*name).to_owned(), (*literal).to_owned()))
             .collect(),
@@ -184,13 +231,13 @@ fn into_run(keywords: &[(&str, &str)], position: usize) -> Vec<(usize, usize, St
 }
 
 #[test]
-fn a_sink_that_needs_a_keyword_is_one_only_where_the_call_passes_its_literal() {
+fn a_sink_that_needs_a_parameters_literal_is_one_only_where_the_call_passes_it() {
     assert_eq!(into_run(&[("shell", "true")], 0).len(), 1);
     assert!(into_run(&[], 0).is_empty(), "no shell");
     assert!(into_run(&[("shell", "false")], 0).is_empty());
     assert!(
         into_run(&[("check", "true")], 0).is_empty(),
-        "another keyword"
+        "another parameter"
     );
     assert!(
         into_run(&[("shell", "true")], 1).is_empty(),
@@ -256,10 +303,10 @@ fn a_program_and_its_arguments_in_one_list_are_read_element_by_element() {
 
 #[test]
 fn without_a_shell_a_string_is_the_program_and_a_list_not_written_out_cant_be_counted() {
-    let run = |strings: Vec<usize>, keywords: &[(&str, &str)]| {
+    let run = |strings: Vec<usize>, named: &[(&str, &str)]| {
         let run = FlowCall {
             strings,
-            keywords: keywords
+            named: named
                 .iter()
                 .map(|(name, literal)| ((*name).to_owned(), (*literal).to_owned()))
                 .collect(),

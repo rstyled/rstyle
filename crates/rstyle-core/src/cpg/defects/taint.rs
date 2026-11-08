@@ -37,11 +37,12 @@ struct Shell {
     name_at: Option<usize>,
 }
 
-/// A keyword argument a call has to pass a literal for a sink to be one, as Python's `shell=True`.
+/// A parameter a call has to pass a literal for a sink to be one, as Python's `shell=True`, by
+/// keyword or by position.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Keyword {
-    keyword: String,
+struct Passed {
+    parameter: String,
     literal: String,
 }
 
@@ -65,7 +66,7 @@ struct Sink {
     arguments: Vec<usize>,
     callees: Vec<String>,
     shell: Option<Shell>,
-    when: Option<Keyword>,
+    when: Option<Passed>,
     #[serde(default)]
     appends: Appends,
     /// Whether each of `arguments` is a program and its arguments in one, as `subprocess` takes
@@ -183,12 +184,12 @@ fn is_shell_code(
 }
 
 /// What a sink means by a dangerous argument, at this call: an argument, and the element of a
-/// list written out there. A sink that needs a keyword's literal isn't one where the call doesn't
+/// list written out there. A sink that needs a parameter's literal isn't one where the call doesn't
 /// pass it.
 fn dangerous(sink: &Sink, call: &FlowCall, at: (usize, Option<usize>)) -> bool {
-    let passed = |when: &Keyword| {
-        let mut keywords = call.keywords.iter();
-        keywords.any(|(name, literal)| *name == when.keyword && *literal == when.literal)
+    let passed = |when: &Passed| {
+        let mut named = call.named.iter();
+        named.any(|(name, literal)| *name == when.parameter && *literal == when.literal)
     };
     sink.when.as_ref().is_none_or(passed)
         && (is_argument(sink, call, at) || is_shell_code(sink, call, at))
@@ -333,12 +334,14 @@ impl Solver<'_> {
     }
 
     /// A call gives back what it was handed, unless its body says otherwise or a model or project
-    /// says it cleans it. A call with no body here can't be seen into.
-    fn passes(&self, models: &Models, call: &FlowCall, position: usize) -> bool {
-        !self.reader.is_sanitizer(models, call)
-            && self
-                .callee_summary(call)
-                .is_none_or(|summary| summary.passes.contains(&position))
+    /// says it cleans it. A call with no body here can't be seen into. An argument with no known
+    /// position, as a spread has none, is given back where any of the parameters is.
+    fn passes(&self, models: &Models, call: &FlowCall, position: Option<usize>) -> bool {
+        let gives_back = |summary: &Summary| match position {
+            Some(position) => summary.passes.contains(&position),
+            None => !summary.passes.is_empty(),
+        };
+        !self.reader.is_sanitizer(models, call) && self.callee_summary(call).is_none_or(gives_back)
     }
 
     /// Everything these starts reach in one function, through the calls that pass them on.
@@ -350,16 +353,21 @@ impl Solver<'_> {
 
         while let Some(start) = stack.pop() {
             for hop in flows.hops.iter().filter(|hop| hop.from == start) {
-                let End::Argument {
-                    call,
-                    position,
-                    element,
-                } = hop.to
-                else {
-                    walk.returned = true;
-                    continue;
+                let (call, position) = match hop.to {
+                    End::Argument {
+                        call,
+                        position,
+                        element,
+                    } => {
+                        walk.arguments.insert((call, position, element));
+                        (call, Some(position))
+                    }
+                    End::Unplaced { call } => (call, None),
+                    End::Returned => {
+                        walk.returned = true;
+                        continue;
+                    }
                 };
-                walk.arguments.insert((call, position, element));
                 let next = Start::Result(call);
                 if self.passes(models, &flows.calls[call], position) && seen.insert(next) {
                     stack.push(next);

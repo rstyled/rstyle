@@ -137,6 +137,10 @@ element by element, and a string is the program alone. So `subprocess.run([input
 and `os.posix_spawn` families run a path, and the arguments they give it start with the name it's called by, so
 `os.execl("/bin/sh", "sh", "-c", input)` and `os.execv("/bin/sh", ["sh", "-c", input])` are found too.
 
+A Python keyword argument is read by the parameter it names, as mypy's signature for the callee places it, so
+`subprocess.run(shell=True, args=input)` and `open(mode="r", file=input)` are found, while
+`subprocess.run("ls", cwd=input, shell=True)` and `open(encoding=input, file="a.txt")` aren't, however they're ordered.
+
 A source can be a library's variable as well as a call, so reading `os.environ` or `sys.argv` is where input starts, and
 `os.environ.get("HOME")` and `sys.argv[1]` hold it. A model can say what cleans input too: Python's says `shlex.quote`
 does.
@@ -206,7 +210,15 @@ reach a sink or what it returns, and whether it returns input of its own, so a v
   annotation isn't read as one. `shell` passed anything but a literal `True` isn't read either.
 - **What `shlex.quote` cleans.** It quotes for a shell, but like any sanitizer here it clears a value for every kind
   of sink, so input it quotes and then opens as a path isn't found.
-- **A Python keyword argument is numbered by where it's written,** so `f(b=x)` reads `x` as `f`'s first parameter.
+- **A Python keyword argument rstyle-py can't place.** Where mypy doesn't resolve the call, or the parameter is declared
+  after `*args`, a keyword names its parameter but has no position, and neither does a `*` or `**` spread. Such an
+  argument reaches no sink and no parameter, though a call with no body here still gives it back. `shell=True` is still
+  read wherever the parameter is named. A document from before rstyle-py wrote bindings numbers every argument where it's
+  written and names no parameter, so `shell=True` isn't read in it.
+- **A Python class called to make an object** passes no `self`, while its `__init__` numbers `self` as 0, so in
+  `Opener("a.txt", input())` the input is read as `__init__`'s first parameter rather than its second. A static method
+  called through an object, as `tools.run(input())`, is off by one the other way. This is how they're numbered, keywords
+  or not.
 - **A Python `with`'s target** isn't given what its expression returns, so `with open(path) as f` leaves `f` clean.
 - **What Python can't resolve** ends a flow: `sys.stdin.buffer`, since typeshed's `sys.stdin` can be `None`, and
   `shutil.rmtree` and `io.open`, which typeshed declares as variables, so a call of one is through a value. So does a call

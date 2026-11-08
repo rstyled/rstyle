@@ -970,6 +970,85 @@ fn recursive_calls_are_edges_with_argument_sources() {
     );
 }
 
+/// Gives a call's reference in the document's first function these `arguments`.
+fn bind(document: &mut Value, call: &str, arguments: Value) {
+    let refs = document["unit"]["functions"][0]["refs"]
+        .as_array_mut()
+        .unwrap();
+    let reference = refs.iter_mut().find(|it| it["node"] == call).unwrap();
+    reference["arguments"] = arguments;
+}
+
+#[test]
+fn an_edge_places_each_argument_at_the_parameter_it_binds() {
+    let edge_arguments = |arguments: Value| {
+        let mut document = flow();
+        bind(&mut document, "f1", arguments);
+        facts_of(document)[0].edges[0].args.clone()
+    };
+    use ArgSource::{Const, Other, Param};
+    assert_eq!(
+        edge_arguments(json!([{"position": 1}, {"position": 0}])),
+        [Param(1), Const]
+    );
+    assert_eq!(
+        edge_arguments(json!([{"spread": "mapping"}, {"position": 1}])),
+        [Other, Param(1)],
+        "a spread has no position, and the parameter it skips takes its default"
+    );
+    assert_eq!(
+        edge_arguments(json!([{"position": 0}, {"position": 1}])),
+        [Const, Param(1)]
+    );
+
+    // A method called by path, as Python's call of a class is, may not pass its receiver, so its
+    // arguments stay as they're written.
+    let mut document = flow();
+    let definitions = document["unit"]["definitions"].as_array_mut().unwrap();
+    let callee = definitions
+        .iter_mut()
+        .find(|it| it["id"] == "def:f")
+        .unwrap();
+    callee["kind"] = json!("method");
+    let written = facts_of(document.clone())[0].edges[0].args.clone();
+    bind(
+        &mut document,
+        "f1",
+        json!([{"position": 1}, {"position": 0}]),
+    );
+    assert_eq!(facts_of(document)[0].edges[0].args, written);
+}
+
+#[test]
+fn a_binding_that_doesnt_fit_its_call_is_an_error() {
+    let mut document = flow();
+    bind(&mut document, "f1", json!([{"position": 0}]));
+    assert!(error_of(vec![document]).contains("Call f1: binds 1 arguments, and has 2"));
+
+    let mut document = flow();
+    bind(
+        &mut document,
+        "f1",
+        json!([{"position": 0, "value": "y4"}, {}]),
+    );
+    assert!(error_of(vec![document]).contains("Call f1: y4 isn't a child of its argument"));
+}
+
+#[test]
+fn a_memory_write_reads_the_argument_bound_to_its_position() {
+    let class = |arguments: Value| {
+        let mut document = library_calls();
+        bind(&mut document, "c1", arguments);
+        facts_of(document)[0].calls[1].library
+    };
+    assert_eq!(class(json!([{"position": 0}])), Some(LibraryClass::Pure));
+    assert_eq!(
+        class(json!([{"position": 1}])),
+        Some(LibraryClass::Effect(EffectKind::Io)),
+        "the buffer is another parameter, so the first takes its default"
+    );
+}
+
 const EFFECTS: &str = "fn effects(p: fn(), mut v: Vec<u32>) {
     unsafe { raw() };
     raw();
