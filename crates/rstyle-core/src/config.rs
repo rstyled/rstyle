@@ -1,8 +1,10 @@
 use crate::facts::EffectKind;
 use serde::Deserialize;
+use std::borrow::Cow;
+use toml::{Table, Value};
 
-mod weights;
-pub use weights::SourceWeights;
+mod overrides;
+pub use overrides::Override;
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -15,6 +17,11 @@ pub struct Config {
     pub mutation_budget: MutationBudgetConfig,
     pub side_effects: SideEffectsConfig,
     pub grouping: GroupingConfig,
+    /// Per-path rule settings, merged onto the base in declaration order.
+    pub overrides: Vec<Override>,
+    /// The parsed file minus `overrides`: what each override is merged onto.
+    #[serde(skip)]
+    base: Table,
 }
 
 /// Findings start strictly above either configured complexity limit.
@@ -125,8 +132,6 @@ pub struct SideEffectsConfig {
     pub transitive_depth: usize,
     pub weights: Weights,
     pub paths: EffectPaths,
-    /// Matching source-path overrides apply in order; later supplied weights win.
-    pub overrides: Vec<SourceWeights>,
 }
 
 impl Default for SideEffectsConfig {
@@ -138,19 +143,7 @@ impl Default for SideEffectsConfig {
             transitive_depth: 3,
             weights: Weights::default(),
             paths: EffectPaths::default(),
-            overrides: Vec::new(),
         }
-    }
-}
-
-impl SideEffectsConfig {
-    /// Effective weight for the function being measured, including inherited effects.
-    pub fn weight_for(&self, path: &str, kind: EffectKind) -> usize {
-        self.overrides
-            .iter()
-            .rev()
-            .find_map(|rule| rule.weight(path, kind))
-            .unwrap_or_else(|| self.weights.of(kind))
     }
 }
 
@@ -314,7 +307,25 @@ impl Default for GroupingConfig {
 
 impl Config {
     pub fn parse(input: &str) -> Result<Self, toml::de::Error> {
-        toml::from_str(input)
+        let mut base: Table = toml::from_str(input)?;
+        let config = Self::deserialize(Value::Table(base.clone()))?;
+        base.remove("overrides");
+        Ok(Self { base, ..config })
+    }
+
+    /// The policy for a function at `path`: the base with every matching override merged in.
+    pub fn for_path(&self, path: &str) -> Result<Cow<'_, Self>, String> {
+        let mut matching = self.overrides.iter().filter(|o| o.matches(path)).peekable();
+        if matching.peek().is_none() {
+            return Ok(Cow::Borrowed(self));
+        }
+        let mut table = self.base.clone();
+        for layer in matching {
+            overrides::merge(&mut table, layer.rules());
+        }
+        let policy = Self::deserialize(Value::Table(table)).map_err(|e| format!("{path}: {e}"))?;
+
+        Ok(Cow::Owned(policy))
     }
 }
 

@@ -242,26 +242,31 @@ Drop an `rstyle.toml` in the project root (see the one in this repo for every ke
 
 Callee classification (`[side_effects.paths]`) and effect weights (`[side_effects.weights]`) are configurable. Changing config never triggers a recompile.
 
-Source-path overrides change weights only for matching functions. For example,
-an adapter can allow more I/O while domain and application functions keep the
-default weights:
+`[[overrides]]` changes rules for functions whose source path matches. Good for
+DDD layers: adapters can do more I/O while domain and application code keep the
+defaults.
 
 ```toml
-[[side_effects.overrides]]
-paths = ["src/adapters/**"]
-weights = { io = 1, network = 1 }
+[[overrides]]
+paths = ["adapters"]
+side_effects.weights = { io = 1, network = 1 }
+fn_length = { max_lines = 80 }
 
-[[side_effects.overrides]]
-paths = ["src/adapters/critical/**"]
-weights = { io = 5 }
+[[overrides]]
+paths = ["adapters/critical"]
+side_effects.weights = { io = 5 }
 ```
 
-Paths match the function source paths shown in reports. Rules apply in declaration
-order; the last matching rule that supplies a given weight wins. Other weights
-keep their earlier or global values. Invalid globs, empty path lists, and unknown
-weight names are errors. Inherited effects use the caller's source-path policy,
-so an adapter override does not lower weights in its application callers. These
-overrides do not change complexity, mutation budgets, or density thresholds.
+A plain name in `paths` is a module anywhere in the tree: `adapters` matches
+`adapters.rs` and everything under an `adapters/` folder, at any depth. A name
+ending in `.rs` matches that file anywhere. Anything with `*`, `?`, `[` or `{` is
+a glob over the source paths shown in reports, used as is. Every matching override
+is deep-merged onto the base config in order, so later ones win key by key. An
+override may set `fn_length`, `fn_params`, `fn_spacing`, `complexity`,
+`mutation_budget` and `side_effects` (except `transitive_depth`). Workspace-wide
+keys like `exclude` and `grouping` are errors, as are bad globs and unknown keys.
+Inherited effects are weighed by the caller's policy, so a cheap adapter call
+still costs full price in the domain code that makes it.
 
 ## Suppression
 
