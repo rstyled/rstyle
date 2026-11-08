@@ -749,14 +749,10 @@ fn existing_trait_for(verdicts: &Verdicts<'_>, hidden: &[Existing]) -> Option<St
 
 fn from_dispatch<'a>(ix: &Index<'a>, f: &'a FnFacts, d: &Dispatch) -> Outcome<'a> {
     let values: Vec<String> = d.arms.iter().map(|(_, id)| id.clone()).collect();
-    let summary = format!(
-        "`{}` matches on an enum and calls analogous methods per arm: M0 = {}",
-        f.name,
-        values
-            .iter()
-            .map(|v| ix.display_callee(v))
-            .collect::<Vec<_>>()
-            .join(" | ")
+    let methods: Vec<String> = values.iter().map(|v| ix.display_callee(v)).collect();
+    let summary = f.wording.say(
+        Message::Dispatch,
+        &[("function", &f.name), ("methods", &methods.join(" | "))],
     );
     match judge(ix, &values) {
         Verdict::Trait { group, defs } => Outcome::Found(Evidence {
@@ -1371,6 +1367,53 @@ mod tests {
             reason,
             "all 2 implement the interface method k::Speak::speak"
         );
+    }
+
+    /// `pet_sound`, which matches on a value and calls `Dog::bark` or `Cat::meow` on it.
+    fn dispatcher() -> FnFacts {
+        let pdg = Pdg {
+            nodes: vec![
+                node(NodeKind::Param),
+                node(NodeKind::Match),
+                getter_call("Dog", "bark"),
+                getter_call("Cat", "meow"),
+                node(NodeKind::Return),
+            ],
+            edges: vec![
+                data(0, 1, 0),
+                ctrl(1, 2, 0),
+                ctrl(1, 3, 1),
+                data(1, 2, 0),
+                data(1, 3, 0),
+                data(1, 4, 0),
+            ],
+        };
+        FnFacts {
+            pdg: Some(pdg),
+            ..super::tests_support::rust("pet_sound")
+        }
+    }
+
+    #[test]
+    fn a_dispatch_is_observed_in_its_languages_terms() {
+        let mut facts = vec![getter("Dog", "bark"), getter("Cat", "meow"), dispatcher()];
+        let observation = |facts: &[FnFacts]| {
+            let mined = run(facts);
+            let dispatch = mined
+                .candidates
+                .into_iter()
+                .find(|c| c.kind == CandidateKind::EnumDispatch);
+            dispatch.map(|c| c.observation)
+        };
+        let rust = "`pet_sound` matches on an enum and calls analogous methods per arm: M0 = Dog::bark | Cat::meow";
+        assert_eq!(observation(&facts).as_deref(), Some(rust));
+
+        facts.iter_mut().for_each(|f| f.wording = Wording::of("go"));
+        let go = "`pet_sound` calls analogous methods per case of a type switch: M0 = Dog::bark | Cat::meow";
+        assert_eq!(observation(&facts).as_deref(), Some(go));
+        facts.iter_mut().for_each(|f| f.wording = Wording::of("py"));
+        let python = "`pet_sound` branches on a value and calls analogous methods per branch: M0 = Dog::bark | Cat::meow";
+        assert_eq!(observation(&facts).as_deref(), Some(python));
     }
 
     /// The corpus, as C++ that rstyle-cxx read.

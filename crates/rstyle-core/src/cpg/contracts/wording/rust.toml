@@ -35,3 +35,5 @@ extend_interface = "add {methods} to existing trait `{interface}`, already imple
 implemented_interface = "all {count} impls are of trait method {method}"
 interface_members = "({count} via trait impls)"
 opaque_closures = "Ordinary closure bodies are opaque in these graphs; aligned nodes do not establish matching closure behavior or captures."
+dispatch = "`{function}` matches on an enum and calls analogous methods per arm: M0 = {methods}"
+loop_target = "Iterator pattern holds more than new bindings"

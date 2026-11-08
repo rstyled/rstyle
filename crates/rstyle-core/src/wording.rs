@@ -13,6 +13,8 @@ const SCHEMA: &str = "rstyle.wording/1";
 const EMBEDDED: &[&str] = &[
     include_str!("cpg/contracts/wording/rust.toml"),
     include_str!("cpg/contracts/wording/cxx.toml"),
+    include_str!("cpg/contracts/wording/go.toml"),
+    include_str!("cpg/contracts/wording/py.toml"),
 ];
 
 /// A message whose words depend on the language.
@@ -63,6 +65,10 @@ pub enum Message {
     InterfaceMembers,
     /// A candidate's counter-evidence when its graphs hold closures.
     OpaqueClosures,
+    /// What `{function}` does when it calls a method of each case's own type, `{methods}`.
+    Dispatch,
+    /// A loop that assigns each item to something other than variables of its own.
+    LoopTarget,
 }
 
 /// A message's key in a wording file, its neutral text, and the placeholders its text fills.
@@ -79,7 +85,7 @@ type Placeholders = &'static [&'static [&'static str]];
 const NONE: Placeholders = &[];
 
 /// Every message, in the order of `Message`, which the assertion after it checks.
-const SPECS: [Spec; 26] = [
+const SPECS: [Spec; 28] = [
     Spec {
         message: Message::BoundEvidence,
         key: "bound_evidence",
@@ -234,6 +240,18 @@ const SPECS: [Spec; 26] = [
         message: Message::OpaqueClosures,
         key: "opaque_closures",
         neutral: "Closure bodies are opaque in these graphs; aligned nodes do not establish matching closure behavior or captures.",
+        placeholders: NONE,
+    },
+    Spec {
+        message: Message::Dispatch,
+        key: "dispatch",
+        neutral: "`{function}` branches on a value and calls analogous methods per branch: M0 = {methods}",
+        placeholders: &[&["function"], &["methods"]],
+    },
+    Spec {
+        message: Message::LoopTarget,
+        key: "loop_target",
+        neutral: "A loop's target assigns to more than new variables",
         placeholders: NONE,
     },
 ];

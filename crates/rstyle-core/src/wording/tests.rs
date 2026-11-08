@@ -19,7 +19,8 @@ fn every_embedded_file_loads_for_a_language_of_its_own() {
         assert!(languages.insert(language.clone()), "{language} twice");
         assert_ne!(Wording::of(&language), Wording::neutral(), "{language}");
     }
-    assert!(languages.contains("rust") && languages.contains("cxx"));
+    let expected = ["cxx", "go", "py", "rust"].map(String::from);
+    assert_eq!(languages, expected.into_iter().collect());
 }
 
 #[test]
@@ -176,6 +177,44 @@ fn the_neutral_text_says_none_of_rusts_terms() {
 }
 
 #[test]
+fn go_and_python_say_none_of_rusts_terms() {
+    for language in ["go", "py"] {
+        for text in Wording::of(language).templates() {
+            for term in RUST_TERMS {
+                assert!(!words(text).contains(term), "{language}: {term}: {text}");
+            }
+        }
+    }
+}
+
+#[test]
+fn go_says_pointer_and_python_nonlocal_where_rust_says_borrow() {
+    let variables = [("variables", "x")];
+    let changed = |language| Wording::of(language).say(Message::ChangedElsewhere, &variables);
+    assert_eq!(
+        changed("go"),
+        "x can also change through a pointer, a closure capture or a write to part of it"
+    );
+    assert_eq!(
+        changed("py"),
+        "x can also change through a `nonlocal` capture or a write to part of it"
+    );
+    let name = [("name", "settings")];
+    let global = |language| Wording::of(language).say(Message::WritableStatic, &name);
+    assert_eq!(global("go"), "package variable settings");
+    assert_eq!(global("py"), "module variable settings");
+    let loop_target = |language| Wording::of(language).text(Message::LoopTarget);
+    assert_eq!(
+        loop_target("go"),
+        "A range clause assigns to more than new variables"
+    );
+    assert_eq!(
+        loop_target("py"),
+        "A `for` target assigns to more than new names"
+    );
+}
+
+#[test]
 fn cxx_says_none_of_rusts_terms_or_closure() {
     for text in Wording::of("cxx").templates() {
         for term in RUST_TERMS.iter().chain(&["closure", "Closure"]) {
@@ -188,7 +227,8 @@ fn cxx_says_none_of_rusts_terms_or_closure() {
 #[test]
 fn no_changed_part_of_a_rust_message_is_part_of_another() {
     let rust = Wording::of("rust");
-    for wording in [Wording::of("cxx"), Wording::neutral()] {
+    let others = ["cxx", "go", "py"].map(Wording::of);
+    for wording in others.into_iter().chain([Wording::neutral()]) {
         let pairs = wording.pairs(rust);
         for (index, (theirs, _)) in pairs.iter().enumerate() {
             let others = pairs
