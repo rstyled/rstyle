@@ -3,7 +3,7 @@
 //! unrated instead of being given a severity, and what a comparison can't see stays unknown. Neither
 //! reads as low.
 
-use super::{ChangeKind, FunctionChange};
+use super::{ChangeKind, FunctionChange, Unread};
 use crate::config::{RiskConfig, Severity};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -13,6 +13,8 @@ const ADDED_CALL: &str = "added_call";
 const UNRESOLVED_CALLS: &str = "unresolved_calls";
 const UNCLASSIFIED_CALL: &str = "unclassified_call";
 const ANALYSIS_UNAVAILABLE: &str = "analysis_unavailable";
+/// What a reason says before why the changed files can't be listed.
+const UNLISTED: &str = "changed files can't be listed: ";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -76,6 +78,18 @@ impl From<Severity> for Level {
     }
 }
 
+/// What an `analysis_unavailable` reason couldn't see, so the verdict sums up each apart.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+enum Unseen {
+    /// Something a document holds that isn't compared.
+    #[default]
+    Compared,
+    /// A changed file no document holds, or one nothing rates.
+    File,
+    /// Which files changed at all, when the runs' commits couldn't say.
+    Listing,
+}
+
 /// One thing that decided a rating.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Reason {
@@ -90,6 +104,8 @@ pub struct Reason {
     pub line: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub callee: Option<String>,
+    #[serde(skip)]
+    unseen: Unseen,
 }
 
 impl Reason {
@@ -102,6 +118,7 @@ impl Reason {
             function: Some(change.name.clone()),
             line: Some(change.line),
             callee: None,
+            unseen: Unseen::default(),
         }
     }
 
@@ -121,6 +138,23 @@ impl Reason {
             function: None,
             line: None,
             callee: None,
+            unseen: Unseen::default(),
+        }
+    }
+
+    fn unread(file: &Unread) -> Self {
+        let message = format!("it changed, and {}", file.why());
+        Self {
+            unseen: Unseen::File,
+            ..Self::outside_functions(message, Some(file.path.clone()))
+        }
+    }
+
+    fn unlisted(why: &str) -> Self {
+        let message = format!("{UNLISTED}{why}");
+        Self {
+            unseen: Unseen::Listing,
+            ..Self::outside_functions(message, None)
         }
     }
 }
@@ -139,6 +173,8 @@ pub(super) struct Measured<'a> {
     pub changes: &'a [FunctionChange],
     pub changed_outside_functions: &'a [String],
     pub not_compared_changed: usize,
+    /// Changed files nothing here can see into, or why the runs' commits can't say which.
+    pub unread: Result<&'a [Unread], &'a str>,
 }
 
 /// What a function's own change comes to, before how many others changed has a say.
@@ -212,6 +248,27 @@ fn within_size_limit(reasons: &mut [Reason], changed: usize, policy: &RiskConfig
     }
 }
 
+/// What no compared function says: a file that changed outside any function, what a macro or a
+/// build writes, and each changed file nothing here can see into, or why they can't be listed.
+fn outside_reasons(measured: &Measured<'_>) -> Vec<Reason> {
+    let files = measured.changed_outside_functions.iter().map(|path| {
+        let message = "it changed outside any function, and no fact here says what that does";
+        Reason::outside_functions(message.to_owned(), Some(path.clone()))
+    });
+    let generated = (measured.not_compared_changed > 0).then(|| {
+        let message = format!(
+            "{} functions a macro or a build writes changed, and they aren't compared",
+            measured.not_compared_changed
+        );
+        Reason::outside_functions(message, None)
+    });
+    let unread = match measured.unread {
+        Ok(files) => files.iter().map(Reason::unread).collect(),
+        Err(why) => vec![Reason::unlisted(why)],
+    };
+    files.chain(generated).chain(unread).collect()
+}
+
 pub(super) fn rate(measured: &Measured<'_>, policy: &RiskConfig) -> Rating {
     let mut reasons: Vec<Reason> = measured
         .changes
@@ -219,18 +276,7 @@ pub(super) fn rate(measured: &Measured<'_>, policy: &RiskConfig) -> Rating {
         .flat_map(|change| function_reasons(change, policy))
         .collect();
     within_size_limit(&mut reasons, measured.changes.len(), policy);
-
-    reasons.extend(measured.changed_outside_functions.iter().map(|path| {
-        let message = "it changed outside any function, and no fact here says what that does";
-        Reason::outside_functions(message.to_owned(), Some(path.clone()))
-    }));
-    if measured.not_compared_changed > 0 {
-        let message = format!(
-            "{} functions a macro or a build writes changed, and they aren't compared",
-            measured.not_compared_changed
-        );
-        reasons.push(Reason::outside_functions(message, None));
-    }
+    reasons.extend(outside_reasons(measured));
 
     let policy_configured = policy.is_set();
     let measured_risk = reasons
@@ -248,23 +294,37 @@ pub(super) fn rate(measured: &Measured<'_>, policy: &RiskConfig) -> Rating {
 }
 
 impl Rating {
-    /// What can't be seen, by kind: the report below says which functions.
+    /// What can't be seen, by kind: the report below says which functions and files.
     fn unknown_lines(&self) -> Vec<String> {
-        let mut by_rule: BTreeMap<&str, usize> = BTreeMap::new();
+        let mut by_kind: BTreeMap<(&str, Unseen), usize> = BTreeMap::new();
         for reason in self.reasons.iter().filter(|r| r.level == Level::Unknown) {
-            *by_rule.entry(reason.rule).or_default() += 1;
+            *by_kind.entry((reason.rule, reason.unseen)).or_default() += 1;
         }
-        by_rule
+        by_kind
             .into_iter()
-            .map(|(rule, count)| match rule {
-                PDG_CHANGE => format!("- changes the compared facts can't speak for: {count}"),
-                UNRESOLVED_CALLS => {
+            .map(|((rule, unseen), count)| match (rule, unseen) {
+                (PDG_CHANGE, _) => {
+                    format!("- changes the compared facts can't speak for: {count}")
+                }
+                (UNRESOLVED_CALLS, _) => {
                     format!("- functions with a call to an unknown target: {count}")
                 }
-                UNCLASSIFIED_CALL => format!("- new library calls nothing classifies: {count}"),
-                _ => format!("- changes outside what's compared: {count}"),
+                (UNCLASSIFIED_CALL, _) => {
+                    format!("- new library calls nothing classifies: {count}")
+                }
+                (_, Unseen::File) => format!("- changed files nothing here can see into: {count}"),
+                (_, Unseen::Listing) => {
+                    format!("- {UNLISTED}{}", self.unlisted().unwrap_or_default())
+                }
+                (_, Unseen::Compared) => format!("- changes outside what's compared: {count}"),
             })
             .collect()
+    }
+
+    /// Why the changed files can't be listed, if they can't.
+    pub(super) fn unlisted(&self) -> Option<&str> {
+        let reason = self.reasons.iter().find(|r| r.unseen == Unseen::Listing)?;
+        reason.message.strip_prefix(UNLISTED)
     }
 
     /// Who hasn't said what, which tells a project with no rules from one missing some.

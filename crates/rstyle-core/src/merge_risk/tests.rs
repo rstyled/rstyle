@@ -81,6 +81,15 @@ fn snapshot(functions: Vec<FnFacts>) -> Snapshot {
         .snapshot
 }
 
+/// What the documents alone say, with nothing else changed in the runs' commits.
+fn compare(base: &Snapshot, head: &Snapshot, config: &Config) -> ChangeReport {
+    let commits = Commits::Compared {
+        prefix: String::new(),
+        changed: Vec::new(),
+    };
+    super::compare(base, head, config, &commits).unwrap()
+}
+
 fn report(base: Vec<FnFacts>, head: Vec<FnFacts>) -> ChangeReport {
     compare(&snapshot(base), &snapshot(head), &Config::default())
 }
@@ -611,4 +620,115 @@ fn what_needs_a_look_first_comes_first() {
     );
     let kinds: Vec<ChangeKind> = report.changes.iter().map(|change| change.kind).collect();
     assert_eq!(kinds, [ChangeKind::Changed, ChangeKind::Added]);
+}
+
+fn low_policy() -> Config {
+    let mut config = Config::default();
+    config.risk.pdg_change = Some(crate::config::Severity::Low);
+    config
+}
+
+fn changed_paths(paths: &[&str]) -> Commits {
+    Commits::Compared {
+        prefix: String::new(),
+        changed: paths
+            .iter()
+            .map(|path| ChangedPath {
+                path: (*path).to_owned(),
+                special: None,
+            })
+            .collect(),
+    }
+}
+
+/// A saved run only holds what its frontend read, so a changed workflow is only known from the
+/// commits, and it's what a gate allowing `low` must not wave through.
+#[test]
+fn a_changed_file_no_document_holds_keeps_a_change_from_rating_low() {
+    let base = with_files(vec![], &[("src/lib.rs", "a")]);
+    let commits = changed_paths(&[".github/workflows/ci.yml", "README.md"]);
+    let report = super::compare(&base, &base, &low_policy(), &commits).unwrap();
+
+    assert_eq!(report.rating.risk, rating::Level::Unknown);
+    let text = report.text();
+    assert!(
+        text.contains("- changed files nothing here can see into: 1"),
+        "{text}"
+    );
+    assert!(
+        text.contains(".github/workflows/ci.yml: changed, and no document holds it"),
+        "{text}"
+    );
+    assert!(
+        !text.contains("README.md"),
+        "documentation is for people: {text}"
+    );
+
+    let json = serde_json::to_value(&report).unwrap();
+    assert_eq!(
+        json["changed_files_unread"],
+        serde_json::json!([{"path": ".github/workflows/ci.yml"}])
+    );
+    let reason = &json["reasons"][0];
+    assert_eq!(reason["rule"], "analysis_unavailable");
+    assert_eq!(reason["path"], ".github/workflows/ci.yml");
+
+    let only_docs = super::compare(&base, &base, &low_policy(), &changed_paths(&["README.md"]));
+    assert_eq!(only_docs.unwrap().rating.risk, rating::Level::Low);
+}
+
+#[test]
+fn a_file_a_document_holds_or_the_policy_excludes_is_not_unread() {
+    let base = with_files(vec![], &[("src/lib.rs", "a")]);
+    let head = with_files(vec![], &[("src/lib.rs", "b")]);
+    let mut config = low_policy();
+    config.exclude.0 = vec!["src/generated/**".into()];
+    let commits = changed_paths(&["src/lib.rs", "src/generated/api.rs"]);
+    let report = super::compare(&base, &head, &config, &commits).unwrap();
+
+    assert_eq!(report.changed_files_unread, Some(Vec::new()));
+    assert_eq!(report.changed_outside_functions, ["src/lib.rs"]);
+    assert_eq!(report.changed_files_excluded, ["src/generated/api.rs"]);
+    let text = report.text();
+    assert!(
+        text.contains("Changed files nothing here can see into: 0, and 1 the policy excludes."),
+        "{text}"
+    );
+}
+
+#[test]
+fn commits_that_cannot_be_compared_leave_the_change_unknown_and_say_why() {
+    let why = "the base run doesn't say which commit it read";
+    let report = super::compare(
+        &snapshot(vec![]),
+        &snapshot(vec![]),
+        &low_policy(),
+        &Commits::Unavailable(why.into()),
+    )
+    .unwrap();
+
+    assert_eq!(report.rating.risk, rating::Level::Unknown);
+    assert_eq!(report.changed_files_unread, None);
+    let text = report.text();
+    let line = format!("- changed files can't be listed: {why}");
+    assert!(text.contains(&line), "{text}");
+    assert!(
+        text.contains("Changed files can't be listed: the base run"),
+        "{text}"
+    );
+    let json = serde_json::to_value(&report).unwrap();
+    assert!(json["changed_files_unread"].is_null(), "{json}");
+}
+
+#[test]
+fn a_policy_with_no_rules_stays_unrated_and_still_lists_what_it_cannot_see() {
+    let report = super::compare(
+        &snapshot(vec![]),
+        &snapshot(vec![]),
+        &Config::default(),
+        &changed_paths(&["Cargo.lock"]),
+    )
+    .unwrap();
+    assert_eq!(report.rating.risk, rating::Level::Unrated);
+    assert!(report.text().contains("Cargo.lock: changed"));
 }

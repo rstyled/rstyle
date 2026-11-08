@@ -52,6 +52,7 @@ fn rated(changes: &[FunctionChange], policy: &RiskConfig) -> Rating {
             changes,
             changed_outside_functions: &[],
             not_compared_changed: 0,
+            unread: Ok(&[]),
         },
         policy,
     )
@@ -284,6 +285,7 @@ fn a_change_outside_what_is_compared_is_unknown() {
             changes: &[],
             changed_outside_functions: &["src/limits.rs".to_owned()],
             not_compared_changed: 0,
+            unread: Ok(&[]),
         },
         &medium(),
     );
@@ -296,6 +298,7 @@ fn a_change_outside_what_is_compared_is_unknown() {
             changes: &[],
             changed_outside_functions: &[],
             not_compared_changed: 4,
+            unread: Ok(&[]),
         },
         &medium(),
     );
@@ -322,5 +325,54 @@ fn what_cannot_be_seen_is_summed_up_by_kind() {
             "- new library calls nothing classifies: 2",
             "- functions with a call to an unknown target: 1",
         ]
+    );
+}
+
+#[test]
+fn a_changed_file_no_document_holds_is_summed_apart_from_what_is_not_compared() {
+    let unread = [Unread {
+        path: "scripts/test.sh".into(),
+        special: Some("executable"),
+    }];
+    let rating = rate(
+        &Measured {
+            changes: &[],
+            changed_outside_functions: &["src/limits.rs".to_owned()],
+            not_compared_changed: 0,
+            unread: Ok(&unread),
+        },
+        &medium(),
+    );
+    assert_eq!(rating.risk, Level::Unknown);
+    assert_eq!(
+        &rating.lines(0)[..3],
+        [
+            "Merge risk: unknown 👀",
+            "- changes outside what's compared: 1",
+            "- changed files nothing here can see into: 1",
+        ]
+    );
+    let reason = &rating.reasons[1];
+    assert_eq!(reason.rule, ANALYSIS_UNAVAILABLE);
+    assert_eq!(reason.path.as_deref(), Some("scripts/test.sh"));
+    assert!(reason.message.contains("(executable)"), "{reason:?}");
+}
+
+#[test]
+fn files_that_cannot_be_listed_are_unknown_and_say_why() {
+    let rating = rate(
+        &Measured {
+            changes: &[],
+            changed_outside_functions: &[],
+            not_compared_changed: 0,
+            unread: Err("git can't read commit 0a55f040"),
+        },
+        &medium(),
+    );
+    assert_eq!(rating.risk, Level::Unknown);
+    assert_eq!(rating.unlisted(), Some("git can't read commit 0a55f040"));
+    assert_eq!(
+        rating.lines(0)[1],
+        "- changed files can't be listed: git can't read commit 0a55f040"
     );
 }

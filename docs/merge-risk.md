@@ -7,7 +7,7 @@ reaches it. It reads only the runs' documents, so it needs no compiler or fronte
 rstyle go --out base
 git checkout my-branch
 rstyle go --out head
-rstyle risk --base base --head head [--format json]
+rstyle risk --base base --head head [--format json] [--check]
 ```
 
 ```text
@@ -29,8 +29,8 @@ beacon/params/networks.go: changed outside any function
 Changes: 60 changed, 44 added, 4 removed, 2 text only, 0 unknown; 10604 unchanged. Files changed outside any function: 3. Test functions changed: 34. Generated functions not compared: 601, 0 of them changed.
 ```
 
-That's go-ethereum over 10 commits, trimmed, with `pdg_change = "medium"` and a `high` rule for `go::(*os.File).Truncate`. It
-exits 0 whatever the rating is. It's a report, and doesn't authorize or perform a merge.
+That's go-ethereum over 10 commits, trimmed, with `pdg_change = "medium"` and a `high` rule for `go::(*os.File).Truncate`.
+Without `--check` it exits 0 whatever the rating is. It's a report, and doesn't authorize or perform a merge.
 
 ## What it compares
 
@@ -93,14 +93,84 @@ edited inside a function also reads as `text only`, since core has no tokens to 
 `--format json` keeps every reason, with `risk`, `policy_configured` and `schema_version`. The text gives what can't be seen
 by kind, and each function's lines say which.
 
+## Gating a merge
+
+`--check` exits 1 unless the change rates `low`, so CI can hold a merge for a person. `medium`, `high`, `unknown` and
+`unrated` all exit 1, and the report is still written. That's gstyle's gate. There's no flag for another threshold: a
+project that would let a medium change through says so in its policy, such as with `pdg_change = "low"`, which the base
+run decides and a change can't relax.
+
+| Code | Meaning |
+| --- | --- |
+| `0` | The change rates `low`, or `--check` wasn't given |
+| `1` | With `--check`, the change rates anything but `low` |
+| `2` | No report: a run can't be read, the runs are of different languages, or the policy is invalid |
+
+```text
+git checkout "$BASE" && rstyle go --out "$RUNNER_TEMP/base"
+git checkout "$HEAD" && rstyle go --out "$RUNNER_TEMP/head"
+rstyle risk --base "$RUNNER_TEMP/base" --head "$RUNNER_TEMP/head" --check
+```
+
+### Changed files nothing here can see into
+
+A run's documents only hold the files its frontend read, so a changed script, workflow, build file, lockfile or config
+would otherwise read as no change at all. So each run records the commit it read in its `run.json`, and `rstyle risk` asks
+git, from the current directory, for every path that differs between the two commits. Each one is:
+
+- **compared**, when either run's documents hold it, since a function change or `changed outside any function` already
+  shows it
+- **excluded**, when the base's `exclude` matches it. It's listed in `changed_files_excluded`, and isn't rated, as with a
+  function in it
+- **documentation**, when it's the repository's `README.md` or Markdown under its `docs/`, but not in a dotted folder or a
+  file an agent reads, such as `AGENTS.md` or anything under `skills/`
+- otherwise **unread**, and an `analysis_unavailable` reason makes the change `unknown`
+
+A symlink, a submodule or an executable file is unread even where a document holds its path, since its text isn't all of
+what it is. A changed test file is unread too: a run that doesn't read tests, as Rust's doesn't by default, holds none, and
+a test file a frontend marks, such as Go's `_test.go`, isn't rated. gstyle lets a new file through once it has parsed it
+as nothing but plain Go tests. A document can't say a file is that plain, so here a new test file needs a person too.
+
+```text
+Merge risk: unknown 👀
+- changes outside what's compared: 2
+- changed files nothing here can see into: 5
+- new library calls nothing classifies: 55
+...
+crates/rstyle-core/src/suppress.rs: changed outside any function
+crates/cargo-rstyle/tests/cpg/runner.rs: changed, and no document holds it
+crates/rstyle-core/src/cpg/defects/ignored_result/tests.rs: changed, and no document holds it
+crates/rstyle-core/src/cpg/defects/tests.rs: changed, and no document holds it
+crates/rstyle-core/src/defects_report/tests.rs: changed, and no document holds it
+rstyle.toml: changed, and no document holds it
+```
+
+That's rstyle's own `main`..#77, whose two changed pages under `docs/` aren't listed. JSON lists the files in
+`changed_files_unread`, by path from the repository's root, with `special` for a test file, symlink, submodule or
+executable.
+
+### When the commits can't say
+
+The change is `unknown`, `changed_files_unread` is `null`, and the report says why, when:
+
+- a run doesn't record its commit, because an older rstyle saved it or its source isn't in a git checkout
+- a run's checkout had changes to tracked files when it began or when it was saved
+- a run read a file its commit doesn't hold, such as one not yet added
+- the runs read different folders of their repository
+- git can't compare the commits from the current directory, as in a shallow clone without the base
+
+Run it from a clone holding both commits. Untracked files a run didn't read don't matter, so runs can be saved inside the
+checkout.
+
 ## What it can't see
 
 A change outside any function can change what a program does, and no fact here says how. A written file whose text changed
 with no reported function in it is listed as **changed outside any function**, for a person to read. On go-ethereum, one
-of these added a hard fork to a package-level `var`.
+of these added a hard fork to a package-level `var`. A changed file no document holds is listed from the runs' commits, as
+[above](#changed-files-nothing-here-can-see-into).
 
 - A frontend may only list the files that hold functions, as C++'s does, so a header of only types and constants isn't
-  listed. A constant's new value still shows at each function that uses it.
+  held. The commits still list it, and a constant's new value shows at each function that uses it.
 - A file with both a function change and another change is only reported for the function.
 - What a macro expands to is compared by its graph, not its values, since those can hold anything a build knows, such as
   its own revision.

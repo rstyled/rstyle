@@ -3,6 +3,7 @@
 //! stable identity. A text change with no change in the compared facts says only that those facts
 //! didn't change, not that behavior didn't.
 
+mod commits;
 pub mod rating;
 
 use crate::config::Config;
@@ -10,6 +11,7 @@ use crate::cpg::model::Document;
 use crate::cpg::records::{DeclaredSignature, Measured, Record};
 use crate::facts::{FnFacts, NodeKind, Pdg, PdgNode, TyShape};
 use crate::{exclusions, graph, locator, rules};
+pub use commits::{ChangedPath, Commits, Unread};
 use rating::{Measured as Evidence, Rating};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -19,32 +21,47 @@ use std::sync::Mutex;
 /// The source files a run's documents hold, by path, seen as they're read. A run's records only
 /// say what's in its functions, and a file with no functions has no records at all.
 #[derive(Default)]
-pub struct SourceFiles(Mutex<BTreeMap<String, String>>);
+pub struct SourceFiles(Mutex<HeldFiles>);
+
+#[derive(Default)]
+struct HeldFiles {
+    /// Each written file's digest.
+    written: BTreeMap<String, String>,
+    /// The files a frontend marks as tests, which aren't what ships.
+    tests: BTreeSet<String>,
+}
 
 impl SourceFiles {
-    /// Keeps what the document says of its written files. A test isn't what ships, a generated
-    /// file has no author to tell, and a path that climbs out of the root isn't this code's own.
+    /// Keeps what the document says of its written files and its tests. A generated file has no
+    /// author to tell, and a path that climbs out of the root isn't this code's own.
     pub fn see(&self, document: &Document) {
         let Some(unit) = document.unit.as_ref() else {
             return;
         };
-        let mut digests = self.0.lock().expect("no panic while keeping");
-        let written = unit
+        let mut held = self.0.lock().expect("no panic while keeping");
+        let own = unit
             .files
             .iter()
-            .filter(|file| file.origin == "source" && !file.test)
+            .filter(|file| file.origin == "source")
             .filter(|file| !file.path.starts_with("../") && !Path::new(&file.path).is_absolute());
-        for file in written {
-            digests
+        for file in own {
+            if file.test {
+                held.tests.insert(file.path.clone());
+                continue;
+            }
+            held.written
                 .entry(file.path.clone())
                 .or_insert_with(|| file.digest.clone());
         }
     }
 
-    fn selected(self, excluded: &exclusions::Matcher) -> BTreeMap<String, String> {
-        let mut digests = self.0.into_inner().expect("no panic while keeping");
-        digests.retain(|path, _| !excluded.is_excluded(Path::new(path)));
-        digests
+    fn selected(self, excluded: &exclusions::Matcher) -> HeldFiles {
+        let mut held = self.0.into_inner().expect("no panic while keeping");
+        let kept = |path: &String| !excluded.is_excluded(Path::new(path));
+
+        held.written.retain(|path, _| kept(path));
+        held.tests.retain(kept);
+        held
     }
 }
 
@@ -70,14 +87,18 @@ pub struct Snapshot {
     not_compared: BTreeMap<String, String>,
     /// Each written file's digest, by path.
     files: BTreeMap<String, String>,
+    /// The files a frontend marks as tests.
+    test_files: BTreeSet<String>,
 }
 
 impl Snapshot {
     /// Reads a run's records in canonical order. A function several compilations hold is read once.
     pub fn of(records: Vec<Record>, files: SourceFiles, config: &Config) -> Result<Self, String> {
         let excluded = exclusions::Matcher::compile(&config.exclude.0)?;
+        let held = files.selected(&excluded);
         let mut snapshot = Self {
-            files: files.selected(&excluded),
+            files: held.written,
+            test_files: held.tests,
             ..Self::default()
         };
 
@@ -142,6 +163,11 @@ impl Snapshot {
     fn function(&self, identity: &str) -> Option<(&FnFacts, &Declared)> {
         let &at = self.index.get(identity)?;
         Some((&self.facts[at], &self.declared[at]))
+    }
+
+    /// The written files its documents hold, by path from the source.
+    pub fn files(&self) -> impl Iterator<Item = &str> {
+        self.files.keys().map(String::as_str)
     }
 }
 
@@ -252,6 +278,12 @@ pub struct ChangeReport {
     /// package-level value or a type's fields can change what a program does, and no fact here says
     /// how, so these need a person.
     pub changed_outside_functions: Vec<String>,
+    /// Changed files nothing here can see into, by the runs' commits: what no document holds, such
+    /// as scripts, workflows, build files, lockfiles and configuration, and tests, which aren't
+    /// rated. `None` when the commits couldn't be compared, and a reason says why.
+    pub changed_files_unread: Option<Vec<Unread>>,
+    /// Changed files the base's policy excludes, which aren't looked at.
+    pub changed_files_excluded: Vec<String>,
 }
 
 /// Each function's direct callers, and everything that reaches it through them.
@@ -555,10 +587,27 @@ fn function_changes(
     changes
 }
 
-/// What changed from `base` to `head`, and how much that matters by `config`'s rules.
-pub fn compare(base: &Snapshot, head: &Snapshot, config: &Config) -> ChangeReport {
+/// What changed from `base` to `head`, and how much that matters by `config`'s rules. `commits`
+/// says what else changed, which no document holds.
+pub fn compare(
+    base: &Snapshot,
+    head: &Snapshot,
+    config: &Config,
+    commits: &Commits,
+) -> Result<ChangeReport, String> {
     let identities: BTreeSet<&String> = base.index.keys().chain(head.index.keys()).collect();
     let changes = function_changes(&identities, (base, head), config);
+    let excluded = exclusions::Matcher::compile(&config.exclude.0)?;
+    let held = |path: &str| {
+        let written = base.files.contains_key(path) || head.files.contains_key(path);
+        let test = base.test_files.contains(path) || head.test_files.contains(path);
+        match (written, test) {
+            (true, _) => commits::Held::Written,
+            (false, true) => commits::Held::Test,
+            (false, false) => commits::Held::No,
+        }
+    };
+    let outside = commits::Outside::of(commits, held, &excluded);
 
     let not_compared: BTreeSet<&String> = base
         .not_compared
@@ -572,11 +621,12 @@ pub fn compare(base: &Snapshot, head: &Snapshot, config: &Config) -> ChangeRepor
             changes: &changes,
             changed_outside_functions: &changed_outside_functions,
             not_compared_changed,
+            unread: outside.unread.as_deref().map_err(String::as_str),
         },
         &config.risk,
     );
 
-    ChangeReport {
+    Ok(ChangeReport {
         schema_version: 1,
         rating,
         unchanged: identities.len() - changes.len(),
@@ -584,8 +634,10 @@ pub fn compare(base: &Snapshot, head: &Snapshot, config: &Config) -> ChangeRepor
         not_compared: not_compared.len(),
         not_compared_changed,
         changed_outside_functions,
+        changed_files_unread: outside.unread.ok(),
+        changed_files_excluded: outside.excluded,
         changes,
-    }
+    })
 }
 
 /// How many functions with nothing to compare differ between the runs, by what they say: what a
@@ -693,11 +745,27 @@ impl ChangeReport {
             .count()
     }
 
+    /// Each changed file nothing here can see into, or why they can't be listed.
+    fn unread_lines(&self) -> Vec<String> {
+        match (&self.changed_files_unread, self.rating.unlisted()) {
+            (Some(files), _) => files.iter().map(Unread::line).collect(),
+            (None, why) => vec![format!(
+                "Changed files can't be listed: {}",
+                why.unwrap_or("the runs' commits weren't compared")
+            )],
+        }
+    }
+
     pub fn text(&self) -> String {
+        let unread = match &self.changed_files_unread {
+            Some(files) => files.len().to_string(),
+            None => "can't be listed".to_owned(),
+        };
         let summary = format!(
             "Changes: {} changed, {} added, {} removed, {} text only, {} unknown; {} unchanged. \
-             Files changed outside any function: {}. Test functions changed: {}. Generated \
-             functions not compared: {}, {} of them changed.",
+             Files changed outside any function: {}. Changed files nothing here can see into: {unread}, \
+             and {} the policy excludes. Test functions changed: {}. Generated functions not \
+             compared: {}, {} of them changed.",
             self.count(ChangeKind::Changed),
             self.count(ChangeKind::Added),
             self.count(ChangeKind::Removed),
@@ -705,10 +773,12 @@ impl ChangeReport {
             self.count(ChangeKind::Unknown),
             self.unchanged,
             self.changed_outside_functions.len(),
+            self.changed_files_excluded.len(),
             self.tests_changed,
             self.not_compared,
             self.not_compared_changed,
         );
+
         let outside = self
             .changed_outside_functions
             .iter()
@@ -719,6 +789,7 @@ impl ChangeReport {
             .into_iter()
             .chain(lines)
             .chain(outside)
+            .chain(self.unread_lines())
             .chain(std::iter::once(summary))
             .collect::<Vec<_>>()
             .join(

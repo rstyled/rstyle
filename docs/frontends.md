@@ -87,7 +87,7 @@ check.sarif                SARIF 2.1.0, category rstyle/check/
 patterns.sarif             SARIF 2.1.0, category rstyle/patterns/
 defects.sarif              SARIF 2.1.0, category rstyle/defects/
 frontend/<analysis>.sarif  a frontend analysis's results, as it wrote them
-run.json                   the language, source root and document count
+run.json                   the language, source root, document count and the commit it read
 ```
 
 `--from DIR` analyzes a saved run without its frontend, and saves only with `--out`. Naming a frontend analysis

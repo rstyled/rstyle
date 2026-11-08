@@ -2255,8 +2255,7 @@ fn a_rust_run_finds_a_result_the_other_calls_use() {
     assert!(rows.is_empty(), "{rows:?}");
 }
 
-/// Two saved runs of one crate, the second with `head` for its source.
-fn a_package_in(root: &Path) {
+fn a_crate_in(root: &Path) {
     std::fs::write(
         root.join("Cargo.toml"),
         "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n[workspace]\n",
@@ -2265,26 +2264,76 @@ fn a_package_in(root: &Path) {
     std::fs::create_dir_all(root.join("src")).unwrap();
 }
 
-fn saved_run_of(root: &Path, source: &str) -> PathBuf {
-    std::fs::write(root.join("src/lib.rs"), source).unwrap();
+fn git(root: &Path, args: &[&str]) {
+    let output = Command::new("git")
+        .args([
+            "-c",
+            "user.name=rstyle",
+            "-c",
+            "user.email=rstyle@example.com",
+        ])
+        .args([
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "init.defaultBranch=main",
+        ])
+        .args(args)
+        .current_dir(root)
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "git {args:?}: {output:?}");
+}
+
+/// A crate in a repository of its own, so each run says which commit it read.
+fn a_package_in(root: &Path) {
+    a_crate_in(root);
+    std::fs::write(root.join(".gitignore"), "/target\n/Cargo.lock\n").unwrap();
+    git(root, &["init", "-q"]);
+}
+
+fn commit_all(root: &Path) {
+    git(root, &["add", "-A"]);
+    git(root, &["commit", "-q", "--allow-empty", "-m", "change"]);
+}
+
+fn run_saved(root: &Path) -> PathBuf {
     let output = rust_run(root, &["--filter", "check", "--format", "json"]);
     assert_ne!(output.status.code(), Some(2), "{output:?}");
     saved_run(&output)
 }
 
+/// A run of `source`, committed first.
+fn saved_run_of(root: &Path, source: &str) -> PathBuf {
+    std::fs::write(root.join("src/lib.rs"), source).unwrap();
+    commit_all(root);
+    run_saved(root)
+}
+
+/// Two saved runs of one crate, the second with `head` for its source.
 fn two_runs_of(root: &Path, base: &str, head: &str) -> (PathBuf, PathBuf) {
     a_package_in(root);
     (saved_run_of(root, base), saved_run_of(root, head))
 }
 
-fn risk(base: &Path, head: &Path) -> Output {
+fn risk_with(base: &Path, head: &Path, args: &[&str]) -> Output {
     Command::new(cargo_bin("rstyle"))
-        .args(["risk", "--format", "json", "--base"])
+        .arg("risk")
+        .args(args)
+        .arg("--base")
         .arg(base)
         .arg("--head")
         .arg(head)
+        // A run is saved in its project, so this is in the repository holding both commits.
+        .current_dir(base)
         .output()
         .unwrap()
+}
+
+fn risk(base: &Path, head: &Path) -> Output {
+    risk_with(base, head, &["--format", "json"])
 }
 
 #[test]
@@ -2447,6 +2496,168 @@ fn risk_refuses_two_runs_of_different_languages() {
     let output = risk(&base, &head);
     assert_eq!(output.status.code(), Some(2), "{output:?}");
     assert!(stderr(&output).contains("is a rust run"), "{output:?}");
+}
+
+/// A crate whose base run rates by `policy`, with a run of the first source and one of the second.
+fn rated_runs(root: &Path, policy: &str, (base, head): (&str, &str)) -> (PathBuf, PathBuf) {
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), policy).unwrap();
+    (saved_run_of(root, base), saved_run_of(root, head))
+}
+
+const LOW: &str = "[risk]\npdg_change = \"low\"\n";
+
+#[test]
+fn risk_check_passes_a_low_change_and_fails_anything_above_it() {
+    let directory = tempfile::tempdir().unwrap();
+    let (base, head) = rated_runs(
+        directory.path(),
+        LOW,
+        ("pub fn f() -> i32 { 1 }\n", "pub fn f() -> i32 { 2 }\n"),
+    );
+    let checked = |policy: Option<&str>| {
+        match policy {
+            Some(policy) => std::fs::write(base.join("rstyle.toml"), policy).unwrap(),
+            None => std::fs::remove_file(base.join("rstyle.toml")).unwrap(),
+        }
+        let output = risk_with(&base, &head, &["--check"]);
+        let first = stdout(&output)
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .to_owned();
+        (output.status.code(), first)
+    };
+
+    assert_eq!(checked(Some(LOW)), (Some(0), "Merge risk: low ✅".into()));
+    let medium = "[risk]\npdg_change = \"medium\"\n";
+    assert_eq!(
+        checked(Some(medium)),
+        (Some(1), "Merge risk: medium ⚠️".into())
+    );
+    let high = "[risk]\npdg_change = \"high\"\n";
+    assert_eq!(checked(Some(high)), (Some(1), "Merge risk: high ⚠️".into()));
+    assert_eq!(checked(None), (Some(1), "Merge risk: unrated 👀".into()));
+
+    let advisory = risk_with(&base, &head, &[]);
+    assert_eq!(advisory.status.code(), Some(0), "{advisory:?}");
+}
+
+#[test]
+fn risk_check_fails_a_change_whose_rating_is_unknown() {
+    let directory = tempfile::tempdir().unwrap();
+    let (base, head) = rated_runs(
+        directory.path(),
+        LOW,
+        (
+            "pub fn f(a: u8, b: u8) -> u8 { a }\n",
+            "pub fn f(a: u8, b: u8) -> u8 { std::cmp::max(a, b) }\n",
+        ),
+    );
+    let output = risk_with(&base, &head, &["--check", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert_eq!(report(&output)["risk"], "unknown");
+}
+
+/// What #87 held the gate back for: a saved run only holds files with functions, so a changed
+/// workflow reads as nothing unless the commits say it changed.
+#[test]
+fn risk_check_fails_a_low_change_that_also_changes_a_workflow() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    let (base, low) = rated_runs(
+        root,
+        LOW,
+        ("pub fn f() -> i32 { 1 }\n", "pub fn f() -> i32 { 2 }\n"),
+    );
+    std::fs::create_dir_all(root.join(".github/workflows")).unwrap();
+    std::fs::write(root.join(".github/workflows/ci.yml"), "on: push\n").unwrap();
+    let workflow = saved_run_of(root, "pub fn f() -> i32 { 2 }\n");
+
+    assert_eq!(risk_with(&base, &low, &["--check"]).status.code(), Some(0));
+    let output = risk_with(&base, &workflow, &["--check"]);
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    let text = stdout(&output);
+    assert!(text.starts_with("Merge risk: unknown 👀\n"), "{text}");
+    let summary = "- changed files nothing here can see into: 1";
+    assert!(text.contains(summary), "{text}");
+    let line = ".github/workflows/ci.yml: changed, and no document holds it";
+    assert!(text.contains(line), "{text}");
+    let json = report(&risk(&base, &workflow));
+    assert_eq!(
+        json["changed_files_unread"],
+        serde_json::json!([{"path": ".github/workflows/ci.yml"}])
+    );
+
+    // Prose for people isn't what a gate is for.
+    std::fs::write(root.join("README.md"), "# app\n").unwrap();
+    let documented = saved_run_of(root, "pub fn f() -> i32 { 2 }\n");
+    let output = risk_with(&workflow, &documented, &["--check"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+}
+
+/// The gate fails closed when the runs' commits can't say what else changed: a run outside a
+/// repository, one of a checkout with changes, and one that read a file its commit doesn't hold.
+#[test]
+fn risk_check_fails_closed_when_a_run_does_not_say_what_commit_it_read() {
+    let unlisted = |base: &Path, head: &Path| {
+        let output = risk_with(base, head, &["--check"]);
+        assert_eq!(output.status.code(), Some(1), "{output:?}");
+        let text = stdout(&output);
+        assert!(text.starts_with("Merge risk: unknown 👀\n"), "{text}");
+        let json = report(&risk(base, head));
+        assert!(json["changed_files_unread"].is_null(), "{json}");
+        text
+    };
+
+    let outside = tempfile::tempdir().unwrap();
+    a_crate_in(outside.path());
+    std::fs::write(outside.path().join("rstyle.toml"), LOW).unwrap();
+    std::fs::write(outside.path().join("src/lib.rs"), "pub fn f() {}\n").unwrap();
+    let base = run_saved(outside.path());
+    let text = unlisted(&base, &run_saved(outside.path()));
+    assert!(
+        text.contains("can't be listed: the base run doesn't say which commit it read"),
+        "{text}"
+    );
+
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    let (base, _) = rated_runs(root, LOW, ("pub fn f() {}\n", "pub fn f() {}\n"));
+    std::fs::write(root.join("src/lib.rs"), "pub fn f() { g() }\nfn g() {}\n").unwrap();
+    let text = unlisted(&base, &run_saved(root));
+    assert!(
+        text.contains("the head run's checkout had changes"),
+        "{text}"
+    );
+
+    std::fs::write(root.join("src/lib.rs"), "mod extra;\npub fn f() {}\n").unwrap();
+    commit_all(root);
+    std::fs::write(root.join("src/extra.rs"), "pub fn g() {}\n").unwrap();
+    let text = unlisted(&base, &run_saved(root));
+    assert!(
+        text.contains("the head run read 1 files its commit doesn't hold, such as src/extra.rs"),
+        "{text}"
+    );
+}
+
+#[test]
+fn risk_check_exits_2_on_a_policy_it_cannot_read() {
+    let directory = tempfile::tempdir().unwrap();
+    let (base, head) = rated_runs(
+        directory.path(),
+        LOW,
+        ("pub fn f() -> i32 { 1 }\n", "pub fn f() -> i32 { 2 }\n"),
+    );
+    std::fs::write(
+        base.join("rstyle.toml"),
+        "[risk]\npdg_change = \"severe\"\n",
+    )
+    .unwrap();
+    let output = risk_with(&base, &head, &["--check"]);
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stdout(&output).is_empty(), "{output:?}");
+    assert!(stderr(&output).contains("severe"), "{output:?}");
 }
 
 /// A crate with a build script, whose own functions no route should report.

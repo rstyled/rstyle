@@ -4,6 +4,7 @@
 mod database;
 mod frontend;
 mod pipe;
+mod revision;
 mod risk;
 mod store;
 
@@ -12,6 +13,7 @@ use crate::cpg::{self, input};
 use crate::{Cli, Format, MineArgs, PatternDisplayArgs, compiler, ignore, workspace};
 use clap::Args;
 use frontend::{AnalysisPaths, Frontend, Saving};
+use revision::Revision;
 pub(crate) use risk::{RiskArgs, risk};
 use rstyle_core::cpg::records::{Demand, Record};
 use rstyle_core::cpg::transport::{self, DOCUMENTS_MANIFEST, Encoding};
@@ -179,6 +181,9 @@ struct RunRecord {
     /// What the documents' relative paths resolve against.
     source: PathBuf,
     documents: usize,
+    /// The commit the run read, so a comparison can ask git what else changed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    revision: Option<Revision>,
 }
 
 /// What one run has settled before analyzing.
@@ -270,6 +275,7 @@ fn from_frontend(
         project,
     };
 
+    let revision = Revision::of(&plan.source);
     let (records, documents) =
         match plan.filter.needs_documents() || frontend.reads_documents(&local) {
             true => frontend_records(&plan, &frontend, &staged)?,
@@ -284,7 +290,8 @@ fn from_frontend(
         };
         unified.frontend = frontend.run_analyses(&local, &paths);
     }
-    let run = plan.save(&unified, staged, documents)?;
+    let revision = revision.map(|revision| revision.still(&plan.source));
+    let run = plan.save(&unified, staged, (documents, revision))?;
     plan.output(&unified, Some(&run))
 }
 
@@ -327,9 +334,11 @@ pub(crate) fn rust(cli: &Cli, args: &RunArgs) -> Result<(String, u8), String> {
         project: root,
     };
 
+    let revision = Revision::of(&plan.source);
     let (records, documents) = rust_records(&plan, &staged)?;
     let unified = plan.analyzed(records)?;
-    let run = plan.save(&unified, staged, documents)?;
+    let revision = revision.map(|revision| revision.still(&plan.source));
+    let run = plan.save(&unified, staged, (documents, revision))?;
     plan.output(&unified, Some(&run))
 }
 
@@ -389,8 +398,9 @@ fn saved(
                 };
                 unified.frontend = frontend.run_analyses(names, &paths);
             }
-            // The documents stay with the run they came from.
-            let run = plan.save(&unified, staged, 0)?;
+            // The documents stay with the run they came from, and so does what it read.
+            let revision = record.and_then(|record| record.revision);
+            let run = plan.save(&unified, staged, (0, revision))?;
             plan.output(&unified, Some(&run))
         }
         None => {
@@ -560,8 +570,14 @@ impl Plan<'_> {
     }
 
     /// Writes the report and SARIF, then publishes the whole run. The report is compressed
-    /// here and printed plain, so `--format json | jq` keeps working.
-    fn save(&self, unified: &Unified, staged: Staged, documents: usize) -> Result<PathBuf, String> {
+    /// here and printed plain, so `--format json | jq` keeps working. The run read `documents`
+    /// from the commit `revision` names.
+    fn save(
+        &self,
+        unified: &Unified,
+        staged: Staged,
+        (documents, revision): (usize, Option<Revision>),
+    ) -> Result<PathBuf, String> {
         unified.write_sarif(staged.path(), &self.source)?;
         transport::write_json(&staged.path().join(REPORT_FILE), Encoding::Zstd, unified)?;
         let policy = crate::config_path(self.cli.config.clone(), &self.project);
@@ -572,6 +588,7 @@ impl Plan<'_> {
             language: self.language.into(),
             source: self.source.clone(),
             documents,
+            revision,
         };
         transport::write_json(&staged.path().join(RUN_FILE), Encoding::Json, &record)?;
         staged.publish()
