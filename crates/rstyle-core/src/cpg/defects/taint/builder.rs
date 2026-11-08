@@ -3,6 +3,7 @@
 //! it's made on: the calls whose result reaches its receiver.
 //!
 //! Only a command made and built in one function is read, by calls whose argument count is known.
+//! A project that ignores the call that makes a command ignores what a shell runs in it too.
 
 use super::super::value_flow::{End, FlowCall, Start, ValueFlows};
 use super::{Models, Reached, Risk, Shell, Sink, names, shell_code_at};
@@ -22,6 +23,8 @@ const ADDED: usize = 1;
 enum Role {
     /// Makes one: it's a call the sink names.
     Makes,
+    /// Makes one a project ignores, so nothing it's built into is read.
+    MakesIgnored,
     /// Adds what it's given.
     AddsOne,
     /// Adds each element of a list written out for it.
@@ -33,9 +36,16 @@ enum Role {
 }
 
 impl Role {
-    fn of(sink: &Sink, call: &FlowCall, has_body: impl Fn(&FlowCall) -> bool) -> Role {
+    fn of(
+        sink: &Sink,
+        call: &FlowCall,
+        has_body: impl Fn(&FlowCall) -> bool,
+        counts: impl Fn(&FlowCall) -> bool,
+    ) -> Role {
         let named = |keys: &[String]| keys.iter().any(|key| names(key, call));
-        if named(&sink.callees) {
+        if named(&sink.callees) && !counts(call) {
+            Role::MakesIgnored
+        } else if named(&sink.callees) {
             Role::Makes
         } else if named(&sink.appends.one) {
             Role::AddsOne
@@ -148,6 +158,7 @@ impl<'a> Commands<'a> {
         sink: &'a Sink,
         flows: &'a ValueFlows,
         has_body: impl Fn(&FlowCall) -> bool,
+        counts: impl Fn(&FlowCall) -> bool,
     ) -> Option<Self> {
         let (shell, &program_at) = sink.shell.as_ref().zip(sink.arguments.first())?;
         if sink.appends.one.is_empty() && sink.appends.each.is_empty() {
@@ -155,7 +166,8 @@ impl<'a> Commands<'a> {
         }
 
         let calls = flows.calls.iter();
-        let roles: Vec<Role> = calls.map(|call| Role::of(sink, call, &has_body)).collect();
+        let role = |call| Role::of(sink, call, &has_body, &counts);
+        let roles: Vec<Role> = calls.map(role).collect();
         let adding: Vec<usize> = (0..roles.len()).filter(|&at| roles[at].adds()).collect();
         if adding.is_empty() {
             return None;
@@ -188,7 +200,8 @@ impl<'a> Commands<'a> {
     }
 
     /// What a call adds: for each argument, the element of a list it is and its text where it's a
-    /// literal. Nothing is known after a call that could add anything.
+    /// literal. Nothing is known after a call that could add anything, and nothing is read of a
+    /// command a project ignores the maker of.
     fn added(&self, call: usize) -> Option<Vec<(Option<usize>, Option<&str>)>> {
         let called = &self.calls[call];
         match self.roles[call] {
@@ -206,7 +219,7 @@ impl<'a> Commands<'a> {
                 )
             }
             Role::Makes | Role::Passes => Some(Vec::new()),
-            Role::Unknown => None,
+            Role::MakesIgnored | Role::Unknown => None,
         }
     }
 
@@ -266,11 +279,15 @@ impl<'a> Commands<'a> {
 }
 
 /// Where each command a function builds puts what a shell runs as code, for every sink whose
-/// command is built a call at a time.
-pub(super) fn shell_code(flows: &ValueFlows, has_body: impl Fn(&FlowCall) -> bool) -> ShellCode {
+/// command is built a call at a time and made by a call that counts.
+pub(super) fn shell_code(
+    flows: &ValueFlows,
+    has_body: impl Fn(&FlowCall) -> bool,
+    counts: impl Fn(&FlowCall) -> bool,
+) -> ShellCode {
     let mut found = ShellCode::new();
     for sink in &Models::of(&flows.namespace).sinks {
-        let Some(commands) = Commands::of(sink, flows, &has_body) else {
+        let Some(commands) = Commands::of(sink, flows, &has_body, &counts) else {
             continue;
         };
         let risk = Risk {

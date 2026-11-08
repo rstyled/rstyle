@@ -154,6 +154,10 @@ A callee is named by its operation, its name or its identity. A command-line too
 example is, and every result on go-ethereum and on rstyle itself is an environment variable choosing a path or a program, so
 `ignored` is often the right answer for those.
 
+Ignoring a sink ignores each way it's dangerous. So ignoring `std::process::Command::new` ignores both the program it's
+given and what a shell runs in a command it made, chained or through `let mut cmd`, as ignoring `os/exec.Command` does in
+Go. Ignoring `std::process::Command::arg` or `std::process::Command::args` ignores only what that call adds.
+
 ### How it follows a value
 
 Each function says where its values go, by what its tree's operands and its reaching definitions show, so overwriting a value

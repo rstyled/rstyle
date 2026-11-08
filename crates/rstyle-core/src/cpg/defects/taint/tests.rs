@@ -361,19 +361,96 @@ fn a_helper_that_runs_its_parameter_in_a_shell_is_where_it_is_reported() {
     assert!(message.contains("caller.go:7"), "{message}");
 }
 
+fn ignoring(key: &str) -> TaintConfig {
+    TaintConfig {
+        ignored: vec![key.into()],
+        ..TaintConfig::default()
+    }
+}
+
+/// `Command::new("sh").arg("-c").arg(input)`, chained and through `let mut cmd`.
+fn shells() -> [(&'static str, FunctionFlows); 2] {
+    let code = [Some("-c"), None];
+    [
+        ("chained", chained("sh", &code)),
+        ("bound", bound("sh", &code)),
+    ]
+}
+
 #[test]
 fn a_project_can_say_what_a_shell_is_given_doesnt_count() {
-    let project = |ignored: &str| TaintConfig {
-        ignored: vec![ignored.into()],
-        ..TaintConfig::default()
-    };
-    let shell = || chained("sh", &[Some("-c"), None]);
-    assert!(found_with(&[shell()], &project(ARG)).is_empty());
-    assert_eq!(
-        found_with(&[shell()], &project(NEW)).len(),
-        1,
-        "new isn't where it ends"
+    for (form, shell) in shells() {
+        let found = |key: &str| found_with(std::slice::from_ref(&shell), &ignoring(key)).len();
+        assert_eq!(found(ARG), 0, "{form}: where it's added");
+        assert_eq!(found(NEW), 0, "{form}: what made the command");
+        for other in [
+            "std::process::Command::current_dir",
+            "std::process::Command",
+            "os/exec.Command",
+        ] {
+            assert_eq!(found(other), 1, "{form}: {other}");
+        }
+    }
+}
+
+#[test]
+fn what_made_a_command_is_ignored_by_any_name_it_has() {
+    for (form, mut shell) in shells() {
+        let new = &mut shell.flows.calls[1];
+        new.identity = "std::process::{impl#20}::new".into();
+        new.operation = Some("rust:Command.new".into());
+        let shell = std::slice::from_ref(&shell);
+        assert_eq!(found(shell).len(), 1, "{form}");
+        for key in [
+            NEW,
+            "std::process::{impl#20}::new",
+            "rust:Command.new",
+            "Command.new",
+        ] {
+            assert!(
+                found_with(shell, &ignoring(key)).is_empty(),
+                "{form}: {key}"
+            );
+        }
+    }
+}
+
+#[test]
+fn ignoring_what_made_a_command_leaves_other_ends_of_the_input() {
+    for (form, mut shell) in shells() {
+        let read = shell.flows.calls.len();
+        shell.flows.calls.push(call("std::fs::read", 9));
+        shell.flows.hops.push(result_to(0, read, 0));
+        let shell = std::slice::from_ref(&shell);
+        assert_eq!(lines(shell), [4, 9], "{form}");
+        let found = found_with(shell, &ignoring(NEW));
+        assert_eq!(found.len(), 1, "{form}: {found:?}");
+        assert!(found[0].2.contains("path traversal"), "{form}: {found:?}");
+    }
+
+    let program = in_rust(function(
+        "f",
+        vec![call(ENV, 1), call(NEW, 2)],
+        vec![result_to(0, 1, 0)],
+    ));
+    let program = std::slice::from_ref(&program);
+    assert_eq!(found_with(program, &ignoring(ARG)).len(), 1);
+    assert!(
+        found_with(program, &ignoring(NEW)).is_empty(),
+        "the program it's given is the same sink"
     );
+}
+
+#[test]
+fn a_go_command_is_one_call_so_ignoring_it_ignores_what_its_shell_runs() {
+    let shell = function(
+        "f",
+        vec![call(SOURCE, 1), command(&[(0, "sh"), (1, "-c")])],
+        vec![result_to(0, 1, 2)],
+    );
+    let shell = std::slice::from_ref(&shell);
+    assert_eq!(found(shell).len(), 1);
+    assert!(found_with(shell, &ignoring("os/exec.Command")).is_empty());
 }
 
 #[test]

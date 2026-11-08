@@ -2197,12 +2197,22 @@ fn a_rust_run_finds_input_a_shell_runs_as_code() {
         "chained, bound, listed and sliced; argv, a script and data to the code are clean"
     );
 
-    std::fs::write(
-        root.join("rstyle.toml"),
-        "[taint]\nignored = [\"std::process::Command::arg\", \"std::process::Command::args\"]\n",
-    )
-    .unwrap();
-    assert!(taint_lines(root).is_empty());
+    let ignoring = |keys: &str| {
+        let config = format!("[taint]\nignored = [{keys}]\n");
+        std::fs::write(root.join("rstyle.toml"), config).unwrap();
+        taint_lines(root)
+    };
+    let added = "\"std::process::Command::arg\", \"std::process::Command::args\"";
+    assert!(ignoring(added).is_empty(), "where it's added");
+    assert!(
+        ignoring("\"std::process::Command::new\"").is_empty(),
+        "what made the command"
+    );
+    assert_eq!(
+        ignoring("\"std::process::Command::output\""),
+        [4, 9, 15, 19],
+        "what runs it"
+    );
 }
 
 #[test]

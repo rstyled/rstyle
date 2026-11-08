@@ -419,14 +419,16 @@ pub fn find(functions: &[FunctionFlows], project: &TaintConfig) -> Vec<Finding> 
         .enumerate()
         .map(|(at, function)| (function.flows.identity.as_str(), at))
         .collect();
+    let reader = Reader { project };
     let has_body = |call: &FlowCall| by_identity.contains_key(call.selected.as_str());
+    let counts = |call: &FlowCall| reader.counts(call);
     let shell_code = functions
         .iter()
-        .map(|function| builder::shell_code(&function.flows, has_body))
+        .map(|function| builder::shell_code(&function.flows, has_body, counts))
         .collect();
     let mut solver = Solver {
         functions,
-        reader: Reader { project },
+        reader,
         by_identity,
         summaries: vec![Summary::default(); functions.len()],
         shell_code,
