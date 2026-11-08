@@ -1,6 +1,6 @@
 use super::super::rating::{Level, Rating, Reason};
 use super::super::{ChangeKind, ChangeReport, EffectChange, FunctionChange, GraphDelta};
-use super::{display, short};
+use super::name;
 
 const URL: &str = "https://github.com/o/r/blob/abc";
 
@@ -39,6 +39,14 @@ fn found(rule: &'static str, level: Level, message: &str, change: &FunctionChang
     }
 }
 
+fn unclassified(change: &FunctionChange, callee: &str) -> Reason {
+    let message = format!("new library call nothing classifies: {callee}");
+    Reason {
+        callee: Some(callee.into()),
+        ..found("unclassified_call", Level::Unknown, &message, change)
+    }
+}
+
 fn report(risk: Level, reasons: Vec<Reason>, changes: Vec<FunctionChange>) -> ChangeReport {
     ChangeReport {
         schema_version: 1,
@@ -64,7 +72,7 @@ fn effect(kind: &'static str, label: &str) -> EffectChange {
 }
 
 #[test]
-fn it_says_which_check_holds_the_rating_above_low_and_lists_what_it_found() {
+fn it_leads_with_why_and_folds_a_glance_and_a_table_per_file() {
     let mut moved = change("FromPackages", ChangeKind::Changed, 25);
     moved.signature_changed = true;
     moved.calls_added = vec!["go::slices.Clone".into()];
@@ -79,72 +87,38 @@ fn it_says_which_check_holds_the_rating_above_low_and_lists_what_it_found() {
     let markdown = report(Level::Medium, reasons, vec![moved, gone]).markdown(Some(URL));
 
     let expected = format!(
-        "### Merge risk: medium 🟡\n\n**Why it isn't low:**\n\n\
-         - **Changed code** is medium 🟡: {over}.\n\n\
-         <details><summary><strong>At a glance:</strong> 2 functions in 1 file, used by up to 4</summary>\n\n\
-         **Impact:** 2 functions in 1 file · 1 changed, 1 removed · 1383 unchanged · used by up to 4\n\
-         **Signatures:** 1 changed 👀\n\
-         **Calls:** classified ✅ · no call rule matched; every new call is classified and resolved\n\
-         **Effects:** gains mutation 👀\n\
-         **Coverage:** limited 👀 · 3 changed test functions not rated · 2 generated functions not \
-         compared (0 changed)\n\n</details>\n\n\
-         <details><summary><strong>Changed code:</strong> medium 🟡 · {over}</summary>\n\n\
-         - [`FromPackages`]({URL}/native/source.go#L25) in `native/source.go` — changed · \
-         signature changed · gains mutation `f.typed` · calls more `go::slices.Clone` · \
-         calls less `go::goeffects.packageErrors` · used by 4 (1 directly)\n\
-         - `typedFiles` in `native/source.go` — removed · used by 4 (1 directly)\n\n</details>"
+        "### 🟡 Merge risk: medium\n\n- 🟡 **Changed code**: {over}.\n\n\
+         <details><summary><strong>At a glance</strong></summary>\n\n\
+         | Check | Result |\n|---|---|\n\
+         | **Impact** | 2 functions in 1 file: 1 changed, 1 removed |\n\
+         | **Signatures** | 👀 1 changed |\n\
+         | **Calls** | ✅ nothing new to flag |\n\
+         | **Effects** | 👀 gains mutation |\n\
+         | **Coverage** | 👀 3 test functions not rated; 2 generated functions not compared |\n\n\
+         </details>\n\n\
+         <details><summary><strong>2 functions</strong> in 1 file</summary>\n\n\
+         **[`native/source.go`]({URL}/native/source.go)**\n\n\
+         | Function | What changed | Used by |\n|---|---|--:|\n\
+         | [`FromPackages`]({URL}/native/source.go#L25) | changed; signature changed; \
+         gains mutation; now calls `slices.Clone`; no longer calls `goeffects.packageErrors` \
+         | 4 (1 direct) |\n\
+         | `typedFiles` | removed | 4 (1 direct) |\n\n</details>"
     );
     assert_eq!(markdown, expected);
 }
 
 #[test]
-fn several_checks_share_one_fold_each_under_its_own_heading() {
-    let mut load = change("load", ChangeKind::Changed, 7);
-    load.calls_added = vec!["go::os.WriteFile".into()];
-    let mut writes = found(
-        "added_call",
-        Level::High,
-        "added call: go::os.WriteFile",
-        &load,
-    );
-    writes.callee = Some("go::os.WriteFile".into());
-    let within = "the change is within the low-risk limit of 3 functions";
-    let size = found("pdg_change", Level::Low, within, &load);
-    let markdown = report(Level::High, vec![size, writes], vec![load]).markdown(Some(URL));
-
-    let why = "**Why it isn't low:**\n\n- **Calls a rule names** is high 🔴: added call.\n\n";
-    assert!(markdown.contains(why), "{markdown}");
-    assert!(
-        !markdown.contains("- **Changed code**"),
-        "a low check doesn't hold it: {markdown}"
-    );
-    assert!(
-        markdown.contains("**Calls:** matched 👀 · 1 call rule match\n"),
-        "{markdown}"
-    );
-    let found = format!(
-        "<details><summary><strong>What it found:</strong> Changed code 🟢 · Calls a rule names 🔴\
-         </summary>\n\n\
-         #### Changed code: low 🟢\n\n{within}\n\n\
-         - [`load`]({URL}/native/source.go#L7) in `native/source.go` — changed · \
-         calls more `go::os.WriteFile` · used by 4 (1 directly)\n\n\
-         #### Calls a rule names: high 🔴\n\nadded call\n\n\
-         - [`load`]({URL}/native/source.go#L7) in `native/source.go` calls `go::os.WriteFile`\n\n\
-         </details>"
-    );
-    assert!(markdown.ends_with(&found), "{markdown}");
-}
-
-#[test]
-fn nothing_found_is_said_once_and_no_check_folds() {
+fn nothing_found_says_so_and_no_function_table_follows() {
     let markdown = report(Level::Low, Vec::new(), Vec::new()).markdown(None);
-    let expected = "### Merge risk: low 🟢\n\n**Every check is low or found nothing.**\n\n\
-        <details><summary><strong>At a glance:</strong> no function changed</summary>\n\n\
-        **Impact:** no function changed · 1383 unchanged\n**Signatures:** unchanged ✅\n\
-        **Calls:** classified ✅ · no call rule matched; every new call is classified and resolved\n\
-        **Effects:** unchanged ✅\n\
-        **Coverage:** limited 👀 · 3 changed test functions not rated · 2 generated functions not \
-        compared (0 changed)\n\n</details>";
+    let expected = "### 🟢 Merge risk: low\n\nNothing holds it above low.\n\n\
+        <details><summary><strong>At a glance</strong></summary>\n\n\
+        | Check | Result |\n|---|---|\n\
+        | **Impact** | no function changed |\n\
+        | **Signatures** | ✅ unchanged |\n\
+        | **Calls** | ✅ nothing new to flag |\n\
+        | **Effects** | ✅ unchanged |\n\
+        | **Coverage** | 👀 3 test functions not rated; 2 generated functions not compared |\n\n\
+        </details>";
     assert_eq!(markdown, expected);
 }
 
@@ -152,98 +126,94 @@ fn nothing_found_is_said_once_and_no_check_folds() {
 fn an_unrated_report_says_why_nothing_is_rated() {
     let mut unrated = report(Level::Unrated, Vec::new(), Vec::new());
     unrated.rating.policy_configured = false;
-    let markdown = unrated.markdown(None);
-    let expected = "### Merge risk: unrated ⚪\n\n**Not rated:** the base's `rstyle.toml` has no \
-        `[risk]` rules, so nothing here is rated. The checks below still show what each rule found.";
-    assert!(markdown.starts_with(expected), "{markdown}");
-}
-
-fn unclassified(change: &FunctionChange, callee: &str) -> Reason {
-    let message = format!("new library call nothing classifies: {callee}");
-    Reason {
-        callee: Some(callee.into()),
-        ..found("unclassified_call", Level::Unknown, &message, change)
-    }
+    let expected = "### ⚪ Merge risk: unrated\n\n\
+        Not rated: the base's `rstyle.toml` has no `[risk]` rules.\n\n";
+    assert!(unrated.markdown(None).starts_with(expected));
 }
 
 #[test]
-fn each_kind_of_reason_in_a_check_gets_a_heading_the_stronger_first() {
-    let first = change("first", ChangeKind::Changed, 1);
-    let second = change("second", ChangeKind::Changed, 2);
-    let quiet = change("quiet", ChangeKind::TextOnly, 3);
-    let depends = "what it depends on or does changed";
-    let reasons = vec![
-        found("pdg_change", Level::Unrated, depends, &first),
-        found("pdg_change", Level::Unrated, depends, &second),
-        found(
-            "pdg_change",
-            Level::Unknown,
-            "its text changed outside the compared facts",
-            &quiet,
-        ),
-    ];
-    let markdown = report(Level::Unknown, reasons, vec![first, second, quiet]).markdown(None);
+fn a_rule_naming_a_call_says_which_and_a_low_check_holds_nothing() {
+    let mut load = change("load", ChangeKind::Changed, 7);
+    load.calls_added = vec!["go::os.WriteFile".into()];
+    let within = "the change is within the low-risk limit of 3 functions";
+    let mut writes = found(
+        "added_call",
+        Level::High,
+        "added call: go::os.WriteFile",
+        &load,
+    );
+    writes.callee = Some("go::os.WriteFile".into());
+    let reasons = vec![found("pdg_change", Level::Low, within, &load), writes];
+    let markdown = report(Level::High, reasons, vec![load]).markdown(None);
 
-    let changed = "<details><summary><strong>Changed code:</strong> unknown 👀 · its text changed \
-        outside the compared facts; what it depends on or does changed: 2 functions</summary>\n\n\
-        **its text changed outside the compared facts** — unknown 👀\n\n\
-        - `quiet` in `native/source.go` — text only · used by 4 (1 directly)\n\n\
-        **what it depends on or does changed: 2 functions** — unrated ⚪\n\n";
-    assert!(markdown.contains(changed), "{markdown}");
-    let signatures =
-        "**Signatures:** incomplete 👀 · 0 signature changes recorded; comparison has gaps\n";
-    assert!(markdown.contains(signatures), "{markdown}");
+    let why = "### 🔴 Merge risk: high\n\n\
+        - 🔴 **Calls a rule names**: added call: `os.WriteFile`.\n\n";
+    assert!(markdown.starts_with(why), "{markdown}");
     assert!(
-        markdown.contains("**Coverage:** limited 👀 · 1 text-only function · "),
+        markdown.contains("| **Calls** | 👀 1 call a rule names |\n"),
         "{markdown}"
     );
+    let row = "| `load` | changed; now calls `os.WriteFile` |";
+    assert!(markdown.contains(row), "{markdown}");
 }
 
 #[test]
-fn library_calls_nothing_classifies_are_counted_by_call_and_function() {
-    let map = "core::iter::Iterator::map";
-    let mut first = change("first", ChangeKind::Changed, 1);
-    first.calls_unclassified = vec![map.into(), "core::iter::Iterator::collect".into()];
-    let mut second = change("second", ChangeKind::Changed, 2);
-    second.calls_unclassified = vec![map.into()];
-    let reasons = vec![
-        unclassified(&first, map),
-        unclassified(&first, "core::iter::Iterator::collect"),
-        unclassified(&second, map),
-    ];
-    let markdown = report(Level::Unknown, reasons, vec![first, second]).markdown(None);
-
-    let calls = format!(
-        "<details><summary><strong>Unclassified library calls:</strong> unknown 👀 · \
-         new library call nothing classifies: 3 calls in 2 functions</summary>\n\n\
-         - `first` in `native/source.go` calls `{map}`\n"
-    );
-    assert!(markdown.contains(&calls), "{markdown}");
-    let line = "**Calls:** incomplete 👀 · no call rule matched; 3 new calls nothing classifies\n";
-    assert!(markdown.contains(line), "{markdown}");
-}
-
-#[test]
-fn a_long_list_says_how_many_more_there_are() {
-    let changes: Vec<FunctionChange> = (1..=27)
-        .map(|line| change(&format!("f{line}"), ChangeKind::Added, line))
+fn unclassified_calls_are_counted_by_callee_the_most_first() {
+    let callees: Vec<String> = (0..12)
+        .map(|index| format!("core::iter::Iterator::f{index:02}"))
         .collect();
-    let over = "27 functions changed, more than the low-risk limit of 3";
-    let reasons = changes
+    let mut busy = change("busy", ChangeKind::Changed, 1);
+    busy.calls_unclassified = callees.clone();
+    busy.unresolved_calls = true;
+    let mut other = change("other", ChangeKind::Added, 2);
+    other.calls_unclassified = vec![callees[11].clone()];
+    let reasons = callees
         .iter()
-        .map(|change| found("pdg_change", Level::Medium, over, change))
+        .map(|callee| unclassified(&busy, callee))
         .collect();
-    let markdown = report(Level::Medium, reasons, changes).markdown(None);
+    let markdown = report(Level::Unknown, reasons, vec![busy, other]).markdown(None);
 
-    assert_eq!(markdown.matches("\n- `f").count(), 25, "{markdown}");
-    let last =
-        "`f25` in `native/source.go` — added · used by 4 (1 directly)\n- …and 2 more\n\n</details>";
+    let why = "- 👀 **Unclassified library calls**: new library call nothing classifies: \
+        `Iterator::f00`, `Iterator::f01`, `Iterator::f02` and 9 more.\n\n";
+    assert!(markdown.contains(why), "{markdown}");
+    let row = "| **Calls** | 👀 13 new calls nothing classifies, 1 unknown target |\n";
+    assert!(markdown.contains(row), "{markdown}");
+    let table = "**Unclassified library calls**\n\n| Call | Times |\n|---|--:|\n\
+        | `Iterator::f11` | 2 |\n| `Iterator::f00` | 1 |\n";
+    assert!(markdown.contains(table), "{markdown}");
+    let last = "| `Iterator::f08` | 1 |\n| …2 more | 2 |\n";
     assert!(markdown.contains(last), "{markdown}");
+    let busy =
+        "| `busy` | changed; calls an unknown target; 12 unclassified calls | 4 (1 direct) |";
+    assert!(markdown.contains(busy), "{markdown}");
 }
 
 #[test]
-fn what_markdown_or_html_would_read_as_syntax_stays_text() {
-    let odd = change("f", ChangeKind::Unknown, 1);
+fn what_it_cannot_see_is_in_the_glance_and_listed() {
+    let changes = vec![
+        change("quiet", ChangeKind::TextOnly, 1),
+        change("odd", ChangeKind::Unknown, 2),
+    ];
+    let mut unseen = report(Level::Unknown, Vec::new(), changes);
+    unseen.changed_outside_functions = vec!["params/config.go".into()];
+    let markdown = unseen.markdown(Some(URL));
+
+    for row in [
+        "| **Signatures** | 👀 none recorded, with gaps |\n",
+        "| **Coverage** | 👀 1 file changed outside a function; 1 text-only function; \
+         1 unknown function; 3 test functions not rated; 2 generated functions not compared |\n",
+    ] {
+        assert!(markdown.contains(row), "{row}: {markdown}");
+    }
+    let outside = format!(
+        "**Changed outside any function:** [`params/config.go`]({URL}/params/config.go)\n\n</details>"
+    );
+    assert!(markdown.ends_with(&outside), "{markdown}");
+}
+
+#[test]
+fn text_that_would_break_the_layout_stays_text() {
+    let odd = change("f|g", ChangeKind::Unknown, 1);
     let reasons = vec![found(
         "pdg_change",
         Level::Unknown,
@@ -252,70 +222,27 @@ fn what_markdown_or_html_would_read_as_syntax_stays_text() {
     )];
     let markdown = report(Level::Unknown, reasons, vec![odd]).markdown(None);
 
-    let why = "- **Changed code** is unknown 👀: holds \\<T\\> and \\*ptr.\n";
+    let why = "- 👀 **Changed code**: holds \\<T\\> and \\*ptr.\n";
     assert!(markdown.contains(why), "{markdown}");
     assert!(
-        markdown.contains("unknown 👀 · holds &lt;T&gt; and *ptr</summary>"),
+        markdown.contains("| `f\\|g` | unknown | 4 (1 direct) |"),
         "{markdown}"
     );
 }
 
 #[test]
-fn a_name_keeps_its_type_and_drops_the_module_its_file_gives() {
+fn a_name_drops_the_path_around_it_and_keeps_its_owner() {
+    assert_eq!(name("merge_risk::markdown::Links::<'_>::to"), "Links::to");
     assert_eq!(
-        display("merge_risk::markdown::Links::<'_>::to"),
-        "Links::to"
-    );
-    assert_eq!(
-        display("merge_risk::markdown::<impl merge_risk::ChangeReport>::markdown"),
+        name("merge_risk::markdown::<impl merge_risk::ChangeReport>::markdown"),
         "ChangeReport::markdown"
     );
-    assert_eq!(display("merge_risk::markdown::code"), "code");
+    assert_eq!(name("alloc::slice::{impl#0}::join"), "slice::join");
+    assert_eq!(name("merge_risk::markdown::code"), "code");
     assert_eq!(
-        display("(loadedFiles).addFailed"),
-        "(loadedFiles).addFailed"
+        name("go::github.com/o/r/native.(loadedFiles).reason"),
+        "native.(loadedFiles).reason"
     );
-}
-
-#[test]
-fn a_short_callee_keeps_its_package_and_namespace() {
-    assert_eq!(
-        short("go::github.com/o/r/native.(loadedFiles).reason"),
-        "go::native.(loadedFiles).reason"
-    );
-    assert_eq!(short("go::(io/fs.FileInfo).Size"), "go::(fs.FileInfo).Size");
-    assert_eq!(
-        short("core::clone::Clone::clone"),
-        "core::clone::Clone::clone"
-    );
-}
-
-#[test]
-fn a_change_outside_any_function_lists_its_file_and_a_build_writes_none() {
-    let outside = Reason {
-        rule: "analysis_unavailable",
-        level: Level::Unknown,
-        message: "it changed outside any function".into(),
-        path: Some("params/config.go".into()),
-        function: None,
-        line: None,
-        callee: None,
-    };
-    let generated = Reason {
-        message: "1 functions a macro or a build writes changed".into(),
-        path: None,
-        ..outside.clone()
-    };
-    let mut changed = report(Level::Unknown, vec![outside, generated], Vec::new());
-    changed.changed_outside_functions = vec!["params/config.go".into()];
-    let markdown = changed.markdown(Some(URL));
-
-    let check = format!(
-        "**it changed outside any function** — unknown 👀\n\n\
-         - [`params/config.go`]({URL}/params/config.go)\n\n\
-         **1 functions a macro or a build writes changed** — unknown 👀\n\n</details>"
-    );
-    assert!(markdown.ends_with(&check), "{markdown}");
-    let coverage = "**Coverage:** limited 👀 · 1 file changed outside a function · ";
-    assert!(markdown.contains(coverage), "{markdown}");
+    assert_eq!(name("go::(io/fs.FileInfo).Size"), "(fs.FileInfo).Size");
+    assert_eq!(name("(loadedFiles).addFailed"), "(loadedFiles).addFailed");
 }

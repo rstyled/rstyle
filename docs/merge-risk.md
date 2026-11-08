@@ -94,12 +94,11 @@ has no tokens to read around one.
 `--format json` keeps every reason, with `risk`, `policy_configured` and `schema_version`. The text gives what can't be seen
 by kind, and each function's lines say which.
 
-`--markdown` writes the report for a pull request's description. Under the rating, **Why it isn't low** names each
-check above low and what it found. Each check is one of the rules above, so the rating is the worst check. Two folds
-follow. **At a glance** gives one line each for impact, signatures, calls, effects and coverage. The second holds what
-the checks found: the functions behind each reason, the changed ones with what changed in them and how many functions
-use them, directly and through others. With one check it's named for that check; with several, its summary names each
-with its mark and each gets a heading inside. A check that found nothing isn't shown; the glance's lines say so.
+`--markdown` writes the report for a pull request's description. Under the rating, each check above low says what it
+found, and the callees it names. Each check is one of the rules above, so the rating is the worst check. Two folds follow:
+**At a glance**, a table of impact, signatures, calls, effects and coverage, and every changed function in a table per
+file, with what changed in it and how many functions use it, directly and through others. Library calls nothing
+classifies are counted by callee, the most first, and files changed outside any function are listed last.
 
 `--source-url` is what each file's path is joined to for a link, such as `https://github.com/OWNER/REPO/blob/HEAD_SHA`;
 a removed function isn't linked, since the head doesn't hold it. Callees drop the directories of their import path, so
