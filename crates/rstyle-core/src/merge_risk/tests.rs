@@ -696,6 +696,85 @@ fn a_file_a_document_holds_or_the_policy_excludes_is_not_unread() {
     );
 }
 
+fn with_test_files(mut snapshot: Snapshot, paths: &[&str]) -> Snapshot {
+    snapshot.test_files = paths.iter().map(|path| (*path).to_owned()).collect();
+    snapshot
+}
+
+/// A test file a frontend marks isn't rated, as the functions in it aren't. The run that holds it
+/// says so: the head's for a new one, the base's for one gone, and each one's for a rename, which
+/// git lists as one gone and one new.
+#[test]
+fn a_changed_test_file_is_listed_and_not_rated() {
+    let code = with_files(vec![], &[("flow.go", "a")]);
+    let base = with_test_files(code, &["edited_test.go", "gone_test.go", "old_test.go"]);
+    let code = with_files(vec![], &[("flow.go", "a")]);
+    let head = with_test_files(code, &["edited_test.go", "new_test.go", "renamed_test.go"]);
+    let changed = [
+        "edited_test.go",
+        "gone_test.go",
+        "new_test.go",
+        "old_test.go",
+        "renamed_test.go",
+    ];
+    let report = super::compare(&base, &head, &low_policy(), &changed_paths(&changed)).unwrap();
+
+    assert_eq!(report.rating.risk, rating::Level::Low);
+    assert_eq!(report.changed_files_tests, changed);
+    assert_eq!(report.changed_files_unread, Some(Vec::new()));
+    let text = report.text();
+    let line = "new_test.go: changed, and it's a test file, which isn't rated";
+    assert!(text.contains(line), "{text}");
+    assert!(text.contains("Test files changed: 5."), "{text}");
+    let json = serde_json::to_value(&report).unwrap();
+    assert_eq!(json["changed_files_tests"], serde_json::json!(changed));
+}
+
+#[test]
+fn a_change_with_test_files_is_rated_by_the_rest() {
+    let in_flow = |mut facts: FnFacts| {
+        facts.path = "flow.go".into();
+        facts
+    };
+    let base = with_files(
+        vec![in_flow(function("f", calling(&[])))],
+        &[("flow.go", "1")],
+    );
+    let changed = in_flow(function("f", calling(&["g"])));
+    let head = with_test_files(
+        with_files(vec![changed], &[("flow.go", "2")]),
+        &["flow_test.go"],
+    );
+    let mut config = Config::default();
+    config.risk.pdg_change = Some(crate::config::Severity::Medium);
+
+    let commits = changed_paths(&["flow.go", "flow_test.go"]);
+    let report = super::compare(&base, &head, &config, &commits).unwrap();
+    assert_eq!(report.rating.risk, rating::Level::Medium);
+    assert_eq!(report.changed_files_tests, ["flow_test.go"]);
+
+    let commits = changed_paths(&[".github/workflows/ci.yml", "flow.go", "flow_test.go"]);
+    let report = super::compare(&base, &head, &config, &commits).unwrap();
+    assert_eq!(report.rating.risk, rating::Level::Unknown);
+    let unread = report.changed_files_unread.as_deref().unwrap();
+    assert_eq!(unread[0].path, ".github/workflows/ci.yml");
+    assert_eq!(report.changed_files_tests, ["flow_test.go"]);
+}
+
+/// A path one run holds as code is compared, whatever the other says of it, so a change can't pass
+/// code off as tests.
+#[test]
+fn a_file_either_run_holds_as_code_is_not_a_test_file() {
+    let base = with_files(vec![], &[("check_io.py", "a")]);
+    let head = with_test_files(snapshot(vec![]), &["check_io.py"]);
+    let commits = changed_paths(&["check_io.py"]);
+    let report = super::compare(&base, &head, &low_policy(), &commits).unwrap();
+
+    assert!(report.changed_files_tests.is_empty(), "{report:?}");
+    assert_eq!(report.changed_outside_functions, ["check_io.py"]);
+    assert_eq!(report.rating.risk, rating::Level::Unknown);
+}
+
 #[test]
 fn commits_that_cannot_be_compared_leave_the_change_unknown_and_say_why() {
     let why = "the base run doesn't say which commit it read";
@@ -716,8 +795,13 @@ fn commits_that_cannot_be_compared_leave_the_change_unknown_and_say_why() {
         text.contains("Changed files can't be listed: the base run"),
         "{text}"
     );
+    assert!(
+        text.contains("Changed files can't be listed. Test functions changed: 0."),
+        "{text}"
+    );
     let json = serde_json::to_value(&report).unwrap();
     assert!(json["changed_files_unread"].is_null(), "{json}");
+    assert_eq!(json["changed_files_tests"], serde_json::json!([]));
 }
 
 #[test]

@@ -279,11 +279,13 @@ pub struct ChangeReport {
     /// how, so these need a person.
     pub changed_outside_functions: Vec<String>,
     /// Changed files nothing here can see into, by the runs' commits: what no document holds, such
-    /// as scripts, workflows, build files, lockfiles and configuration, and tests, which aren't
-    /// rated. `None` when the commits couldn't be compared, and a reason says why.
+    /// as scripts, workflows, build files, lockfiles and configuration. `None` when the commits
+    /// couldn't be compared, and a reason says why.
     pub changed_files_unread: Option<Vec<Unread>>,
     /// Changed files the base's policy excludes, which aren't looked at.
     pub changed_files_excluded: Vec<String>,
+    /// Changed files a frontend marks as tests, which aren't rated, as the functions in them aren't.
+    pub changed_files_tests: Vec<String>,
 }
 
 /// Each function's direct callers, and everything that reaches it through them.
@@ -636,6 +638,7 @@ pub fn compare(
         changed_outside_functions,
         changed_files_unread: outside.unread.ok(),
         changed_files_excluded: outside.excluded,
+        changed_files_tests: outside.tests,
         changes,
     })
 }
@@ -745,27 +748,42 @@ impl ChangeReport {
             .count()
     }
 
-    /// Each changed file nothing here can see into, or why they can't be listed.
+    /// Each changed file nothing here can see into, or why they can't be listed, then each test
+    /// file, which isn't rated.
     fn unread_lines(&self) -> Vec<String> {
-        match (&self.changed_files_unread, self.rating.unlisted()) {
+        let unread = match (&self.changed_files_unread, self.rating.unlisted()) {
             (Some(files), _) => files.iter().map(Unread::line).collect(),
             (None, why) => vec![format!(
                 "Changed files can't be listed: {}",
                 why.unwrap_or("the runs' commits weren't compared")
             )],
-        }
+        };
+        let tests = self
+            .changed_files_tests
+            .iter()
+            .map(|path| format!("{path}: changed, and it's a test file, which isn't rated"));
+        unread.into_iter().chain(tests).collect()
+    }
+
+    /// How many changed files went where, by the runs' commits.
+    fn files_summary(&self) -> String {
+        let Some(unread) = &self.changed_files_unread else {
+            return "Changed files can't be listed.".to_owned();
+        };
+        format!(
+            "Changed files nothing here can see into: {}, and {} the policy excludes. Test files \
+             changed: {}.",
+            unread.len(),
+            self.changed_files_excluded.len(),
+            self.changed_files_tests.len(),
+        )
     }
 
     pub fn text(&self) -> String {
-        let unread = match &self.changed_files_unread {
-            Some(files) => files.len().to_string(),
-            None => "can't be listed".to_owned(),
-        };
         let summary = format!(
             "Changes: {} changed, {} added, {} removed, {} text only, {} unknown; {} unchanged. \
-             Files changed outside any function: {}. Changed files nothing here can see into: {unread}, \
-             and {} the policy excludes. Test functions changed: {}. Generated functions not \
-             compared: {}, {} of them changed.",
+             Files changed outside any function: {}. {} Test functions changed: {}. Generated \
+             functions not compared: {}, {} of them changed.",
             self.count(ChangeKind::Changed),
             self.count(ChangeKind::Added),
             self.count(ChangeKind::Removed),
@@ -773,7 +791,7 @@ impl ChangeReport {
             self.count(ChangeKind::Unknown),
             self.unchanged,
             self.changed_outside_functions.len(),
-            self.changed_files_excluded.len(),
+            self.files_summary(),
             self.tests_changed,
             self.not_compared,
             self.not_compared_changed,

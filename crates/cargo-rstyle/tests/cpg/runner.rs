@@ -2662,6 +2662,123 @@ fn risk_check_fails_a_low_change_that_also_changes_a_workflow() {
     assert_eq!(output.status.code(), Some(0), "{output:?}");
 }
 
+/// A Go module in a repository of its own, rated by `LOW`. The fake frontend and what it writes
+/// aren't committed, as a real one isn't.
+fn go_module_in_a_repository() -> Project {
+    let project = Project::new();
+    let root = project.root();
+    let lib = &example()["unit"]["files"][0]["content"];
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::write(root.join("src/lib.rs"), lib.as_str().unwrap()).unwrap();
+    std::fs::write(root.join("rstyle.toml"), LOW).unwrap();
+    let ignored = "/document.json\n/fake-frontend\n";
+    std::fs::write(root.join(".gitignore"), ignored).unwrap();
+    git(&root, &["init", "-q"]);
+    project
+}
+
+/// A run of the module as committed, whose frontend marks `tests` as test files.
+fn go_run_marking(project: &Project, tests: &[&str]) -> PathBuf {
+    let root = project.root();
+    let mut document = example();
+    let files = document["unit"]["files"].as_array_mut().unwrap();
+    for (at, path) in tests.iter().enumerate() {
+        let content = std::fs::read_to_string(root.join(path)).unwrap();
+        files.push(serde_json::json!({
+            "id": format!("file:test{at}"), "path": path, "origin": "source",
+            "digest": format!("sha256:{at}"), "test": true, "content": content,
+        }));
+    }
+    let document = serde_json::to_vec(&document).unwrap();
+    std::fs::write(root.join("document.json"), document).unwrap();
+    commit_all(&root);
+    let output = project.go(&["--format", "json"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    saved_run(&output)
+}
+
+/// A test file the frontend marks, as Go's does `_test.go`, isn't rated, as the functions in it
+/// aren't. So a change to tests alone passes, whether a test file is new, edited or gone, and
+/// anything else in the change is rated as it would be without them.
+#[test]
+fn risk_check_passes_a_change_to_marked_test_files_alone() {
+    let project = go_module_in_a_repository();
+    let root = project.root();
+    let test_file = |body: &str| {
+        let text = format!("package lib\n\nfunc TestTop(t *testing.T) {{{body}}}\n");
+        std::fs::write(root.join("src/lib_test.go"), text).unwrap();
+    };
+    let base = go_run_marking(&project, &[]);
+
+    test_file("");
+    let added = go_run_marking(&project, &["src/lib_test.go"]);
+    let output = risk_with(&base, &added, &["--check"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let text = stdout(&output);
+    assert!(text.starts_with("Merge risk: low ✅\n"), "{text}");
+    let line = "src/lib_test.go: changed, and it's a test file, which isn't rated";
+    assert!(text.contains(line), "{text}");
+    assert!(text.contains("Test files changed: 1."), "{text}");
+    let json = report(&risk(&base, &added));
+    assert_eq!(
+        json["changed_files_tests"],
+        serde_json::json!(["src/lib_test.go"])
+    );
+    assert_eq!(json["changed_files_unread"], serde_json::json!([]));
+
+    test_file(" t.Skip() ");
+    let edited = go_run_marking(&project, &["src/lib_test.go"]);
+    let output = risk_with(&added, &edited, &["--check"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+
+    std::fs::remove_file(root.join("src/lib_test.go")).unwrap();
+    let removed = go_run_marking(&project, &[]);
+    let output = risk_with(&edited, &removed, &["--check"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+
+    test_file("");
+    std::fs::write(root.join("Makefile"), "test:\n\tgo test ./...\n").unwrap();
+    let mixed = go_run_marking(&project, &["src/lib_test.go"]);
+    let output = risk_with(&removed, &mixed, &["--check", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    let json = report(&output);
+    assert_eq!(json["risk"], "unknown");
+    assert_eq!(
+        json["changed_files_unread"],
+        serde_json::json!([{"path": "Makefile"}])
+    );
+    assert_eq!(
+        json["changed_files_tests"],
+        serde_json::json!(["src/lib_test.go"])
+    );
+}
+
+/// Rust's run reads no tests by default, and marks none, so a changed test file is one nothing
+/// here reads, as in C and C++.
+#[test]
+fn risk_check_fails_a_rust_test_file_since_no_document_holds_it() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), LOW).unwrap();
+    let source = "pub fn f() -> i32 { 1 }\n";
+    let base = saved_run_of(root, source);
+    std::fs::create_dir_all(root.join("tests")).unwrap();
+    let test = "#[test]\nfn smoke() {\n    assert_eq!(app::f(), 1);\n}\n";
+    std::fs::write(root.join("tests/smoke.rs"), test).unwrap();
+    let head = saved_run_of(root, source);
+
+    let output = risk_with(&base, &head, &["--check", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    let json = report(&output);
+    assert_eq!(json["risk"], "unknown");
+    assert_eq!(
+        json["changed_files_unread"],
+        serde_json::json!([{"path": "tests/smoke.rs"}])
+    );
+    assert_eq!(json["changed_files_tests"], serde_json::json!([]));
+}
+
 /// The gate fails closed when the runs' commits can't say what else changed: a run outside a
 /// repository, one of a checkout with changes, and one that read a file its commit doesn't hold.
 #[test]

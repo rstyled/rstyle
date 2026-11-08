@@ -84,7 +84,7 @@ enum Unseen {
     /// Something a document holds that isn't compared.
     #[default]
     Compared,
-    /// A changed file no document holds, or one nothing rates.
+    /// A changed file no document holds, or one nothing here reads.
     File,
     /// Which files changed at all, when the runs' commits couldn't say.
     Listing,

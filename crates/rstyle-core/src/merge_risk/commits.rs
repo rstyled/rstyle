@@ -27,11 +27,11 @@ pub enum Commits {
     Unavailable(String),
 }
 
-/// A changed file nothing here reads or rates, from the repository's root.
+/// A changed file nothing here reads, from the repository's root.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Unread {
     pub path: String,
-    /// `test` for a file a frontend marks as tests, or what it is when it isn't a regular file.
+    /// What it is when it isn't a regular file.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub special: Option<&'static str>,
 }
@@ -41,7 +41,6 @@ impl Unread {
     pub(super) fn why(&self) -> String {
         match self.special {
             None => "no document holds it".to_owned(),
-            Some("test") => "it's a test file, which isn't rated".to_owned(),
             Some(special) => format!("nothing here reads it ({special})"),
         }
     }
@@ -61,18 +60,25 @@ pub(super) enum Held {
     Test,
 }
 
-/// The changed files the runs' documents don't hold, by what becomes of them.
+/// The changed files the runs' documents don't hold as written files, by what becomes of them.
 pub(super) struct Outside {
     /// What nothing here reads, or why the commits can't say.
     pub unread: Result<Vec<Unread>, String>,
     /// What the base's policy excludes, from the repository's root.
     pub excluded: Vec<String>,
+    /// What a frontend marks as tests, from the repository's root.
+    pub tests: Vec<String>,
 }
 
 impl Outside {
     /// Sorts each changed path: a written file a document holds is compared already, one the policy
-    /// excludes is one the project said not to look at, and documentation for people is read by
-    /// people. Anything else, tests included, is what this can't say the effect of.
+    /// excludes is one the project said not to look at, a test file is tests, which aren't rated, as
+    /// the functions in it aren't, and documentation for people is read by people. Anything else is
+    /// what this can't say the effect of.
+    ///
+    /// `held` says how either run holds a path, so the head's run says what a new file is and the
+    /// base's what a deleted one was. git lists a renamed file as one deleted and one new, so each
+    /// name is judged by the run that read it.
     pub(super) fn of(
         commits: &Commits,
         held: impl Fn(&str) -> Held,
@@ -84,12 +90,12 @@ impl Outside {
                 return Self {
                     unread: Err(why.clone()),
                     excluded: Vec::new(),
+                    tests: Vec::new(),
                 };
             }
         };
 
-        let mut unread = Vec::new();
-        let mut skipped = Vec::new();
+        let (mut unread, mut skipped, mut tests) = (Vec::new(), Vec::new(), Vec::new());
         for change in changed {
             let in_source = change.path.strip_prefix(prefix.as_str());
             let held_as = in_source.map_or(Held::No, &held);
@@ -101,7 +107,10 @@ impl Outside {
                     skipped.push(change.path.clone());
                     continue;
                 }
-                (None, Held::Test) => Some("test"),
+                (None, Held::Test) => {
+                    tests.push(change.path.clone());
+                    continue;
+                }
                 (None, Held::No) if documentation(&change.path) => continue,
                 (None, Held::No) => None,
             };
@@ -113,6 +122,7 @@ impl Outside {
         Self {
             unread: Ok(unread),
             excluded: skipped,
+            tests,
         }
     }
 }
@@ -179,18 +189,42 @@ mod tests {
         }
     }
 
-    /// gstyle passes a new test file only once it has parsed it as plain tests, which a document
-    /// can't say, so here any test file that changed needs a person.
+    /// A file a frontend marks as tests is set apart, as the functions in it are: new, edited or
+    /// gone, whichever run holds it says so.
     #[test]
-    fn a_changed_test_file_is_unread_and_says_it_is_a_test() {
-        let commits = changed(&["state_test.go"]);
+    fn a_changed_test_file_is_set_apart_and_not_unread() {
+        let commits = changed(&["state_test.go", "flow.go", "Makefile"]);
+        let held = |path: &str| match path {
+            "state_test.go" => Held::Test,
+            "flow.go" => Held::Written,
+            _ => Held::No,
+        };
+        let outside = Outside::of(&commits, held, &nothing_excluded());
+        assert_eq!(outside.tests, ["state_test.go"]);
+        assert_eq!(unread(&outside), ["Makefile"]);
+    }
+
+    /// A frontend that marks no tests, as Rust's and C++'s don't, leaves a test file unread.
+    #[test]
+    fn a_test_file_no_document_marks_is_unread() {
+        let commits = changed(&["tests/smoke.rs", "test/parser_test.cpp"]);
+        let outside = Outside::of(&commits, |_| Held::No, &nothing_excluded());
+        assert!(outside.tests.is_empty());
+        assert_eq!(unread(&outside), ["tests/smoke.rs", "test/parser_test.cpp"]);
+    }
+
+    #[test]
+    fn a_test_file_that_is_not_a_regular_file_is_unread() {
+        let commits = Commits::Compared {
+            prefix: String::new(),
+            changed: vec![ChangedPath {
+                path: "state_test.go".into(),
+                special: Some("symlink"),
+            }],
+        };
         let outside = Outside::of(&commits, |_| Held::Test, &nothing_excluded());
-        let files = outside.unread.unwrap();
-        assert_eq!(files[0].special, Some("test"));
-        assert_eq!(
-            files[0].line(),
-            "state_test.go: changed, and it's a test file, which isn't rated"
-        );
+        assert!(outside.tests.is_empty());
+        assert_eq!(unread(&outside), ["state_test.go"]);
     }
 
     #[test]
@@ -264,7 +298,8 @@ mod tests {
     #[test]
     fn commits_that_could_not_be_compared_say_why() {
         let commits = Commits::Unavailable("no commit".into());
-        let outside = Outside::of(&commits, |_| Held::Written, &nothing_excluded());
+        let outside = Outside::of(&commits, |_| Held::Test, &nothing_excluded());
         assert_eq!(outside.unread, Err("no commit".into()));
+        assert!(outside.tests.is_empty());
     }
 }

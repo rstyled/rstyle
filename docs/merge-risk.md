@@ -123,20 +123,26 @@ git, from the current directory, for every path that differs between the two com
   shows it
 - **excluded**, when the base's `exclude` matches it. It's listed in `changed_files_excluded`, and isn't rated, as with a
   function in it
+- a **test file**, when either run's documents mark it as one, as Go's do `_test.go` files and Python's do files with
+  pytest's test names. It's listed in `changed_files_tests`, and isn't rated, as the test functions in it aren't
 - **documentation**, when it's the repository's `README.md` or Markdown under its `docs/`, but not in a dotted folder or a
   file an agent reads, such as `AGENTS.md` or anything under `skills/`
 - otherwise **unread**, and an `analysis_unavailable` reason makes the change `unknown`
 
+So a change to tests alone rates `low` under a policy with rules, and a change with tests and anything else is rated by
+the rest. A test file is judged by the run that holds it, as a function is: the head's for a new one, the base's for one
+deleted. git lists a renamed file as one deleted and one new, so each name is judged by the run that read it. A path
+either run holds as a written file is compared, whatever the other marks it, so a change can't pass code off as tests.
+
 A symlink, a submodule or an executable file is unread even where a document holds its path, since its text isn't all of
-what it is. A changed test file is unread too: a run that doesn't read tests, as Rust's doesn't by default, holds none, and
-a test file a frontend marks, such as Go's `_test.go`, isn't rated. gstyle lets a new file through once it has parsed it
-as nothing but plain Go tests. A document can't say a file is that plain, so here a new test file needs a person too.
+what it is. A test file no document marks is unread too. Rust's default run doesn't read tests, and with `--all-targets`,
+or in C and C++, a frontend doesn't tell them apart, so a changed `tests/smoke.rs` there needs a person.
 
 ```text
 Merge risk: unknown 👀
 - changes outside what's compared: 2
 - changed files nothing here can see into: 5
-- new library calls nothing classifies: 55
+- new library calls nothing classifies: 50
 ...
 crates/rstyle-core/src/suppress.rs: changed outside any function
 crates/cargo-rstyle/tests/cpg/runner.rs: changed, and no document holds it
@@ -147,12 +153,17 @@ rstyle.toml: changed, and no document holds it
 ```
 
 That's rstyle's own `main`..#77, whose two changed pages under `docs/` aren't listed. JSON lists the files in
-`changed_files_unread`, by path from the repository's root, with `special` for a test file, symlink, submodule or
-executable.
+`changed_files_unread`, by path from the repository's root, with `special` for a symlink, submodule or executable, and
+`changed_files_excluded` and `changed_files_tests` beside it. The text lists each test file after what can't be seen:
+
+```text
+domain/taintflow/state_join_test.go: changed, and it's a test file, which isn't rated
+```
 
 ### When the commits can't say
 
-The change is `unknown`, `changed_files_unread` is `null`, and the report says why, when:
+The change is `unknown`, `changed_files_unread` is `null`, `changed_files_excluded` and `changed_files_tests` are empty,
+and the report says why, when:
 
 - a run doesn't record its commit, because an older rstyle saved it or its source isn't in a git checkout
 - a run's checkout had changes to tracked files when it began or when it was saved
@@ -177,6 +188,8 @@ of these added a hard fork to a package-level `var`. A changed file no document 
   its own revision.
 - Test functions are counted but not reported, where a frontend [marks its test files](defects.md). Generated functions
   are counted and not compared. `exclude` removes paths from both runs.
+- A frontend's mark is taken at its word. Only Go's tests can use a `_test.go` file, but code that ships can import a
+  Python module with one of pytest's test names, and a change to it isn't rated.
 
 A run keeps the `rstyle.toml` it read. `--config` or the one the base run kept decides what's excluded and how a change is
 rated, not whatever the checkout holds by the time they're compared, so a change can't relax what it's judged by.
