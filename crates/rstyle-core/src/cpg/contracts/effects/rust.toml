@@ -9,16 +9,22 @@
 # a workspace implementation is followed through its call edge, but nothing follows a standard one, so
 # no trait member is listed here.
 #
-# `none` lists members that are pure for every type they're called with. They don't allocate or free,
-# do IO, touch globals, the environment, the clock or randomness, or panic; they take no callable, have
-# no bound through which a caller's type runs code (`Ord`, `Hash`, `Deref`, `Clone`), and drop no value
-# of a type parameter. One that writes through `&mut self`, as `Option.replace` does, writes the
+# `none` lists members that are pure for every type they're called with. They don't do IO, touch
+# globals, the environment, the clock or randomness, or panic; they take no callable, have no bound
+# through which a caller's type runs code (`Ord`, `Hash`, `Deref`, `Clone`, `Default`), and drop no
+# value of a type parameter. One that writes through `&mut self`, as `Option.replace` does, writes the
 # caller's own place, which core counts from the borrow. An `unsafe` member can be listed, since core
 # counts the `unsafe` block it's called in.
 #
-# The longest entry that starts a key wins, so an entry covers every member whose name it starts:
-# `slice.iter` is `iter_mut` too. That's why `Option.is_some` isn't here, since it would be
-# `is_some_and` too, which runs a callable.
+# Allocating and freeing memory is no effect, as `append` and `make_unique` are none in Go's and C++'s
+# tables, and neither is running out of memory, which aborts. A collection that grows past `isize::MAX`
+# bytes panics, as `Vec.push` can, and that's memory running out too. A `Vec`'s allocator, which only
+# nightly code can supply, counts as allocating. A size the caller passes is an argument, though:
+# `Vec.with_capacity` panics when it's too large, so a member that takes one isn't listed.
+#
+# A string entry covers every member whose name it starts: `slice.iter` is `iter_mut` too. An exact
+# entry covers only the member it names, as `Option.is_some` needs, since `is_some_and` runs a callable.
+# New entries are exact, so a member a later standard library adds isn't covered without being checked.
 
 schema = "rstyle.effect-classes/1"
 namespace = "rust"
@@ -28,6 +34,7 @@ namespace = "rust"
 # comparison reads it as unknown.
 
 none = [
+    { exact = "Arc.new" },
     "BTreeMap.first_key_value",
     "BTreeMap.into_keys",
     "BTreeMap.into_values",
@@ -48,15 +55,23 @@ none = [
     "HashMap.len",
     "HashSet.is_empty",
     "HashSet.len",
+    { exact = "IoBufReader.new" },
     "Option.as_mut",
     "Option.as_ref",
     "Option.as_slice",
     "Option.copied",
     "Option.flatten",
+    { exact = "Option.is_none" },
+    { exact = "Option.is_some" },
     "Option.iter",
     "Option.replace",
+    { exact = "Option.take" },
     "Option.transpose",
     "Option.unzip",
+    { exact = "Ordering.then" },
+    { exact = "OsStr.to_os_string" },
+    { exact = "OsStr.to_str" },
+    { exact = "OsStr.to_string_lossy" },
     "Path.ancestors",
     "Path.as_os_str",
     "Path.components",
@@ -68,25 +83,38 @@ none = [
     "Path.is_absolute",
     "Path.is_relative",
     "Path.parent",
+    { exact = "Path.to_path_buf" },
+    { exact = "Path.to_str" },
+    { exact = "Path.to_string_lossy" },
     "RangeInclusive.new",
+    { exact = "Rc.new" },
     "Result.as_mut",
     "Result.as_ref",
     "Result.copied",
+    { exact = "Result.is_err" },
+    { exact = "Result.is_ok" },
     "Result.iter",
     "Result.transpose",
     "String.as_bytes",
     "String.as_mut_str",
     "String.as_str",
     "String.capacity",
+    { exact = "String.from_utf8" },
+    { exact = "String.from_utf8_lossy" },
     "String.is_empty",
     "String.len",
     "String.new",
+    { exact = "String.push" },
+    { exact = "String.push_str" },
     "Vec.as_mut_slice",
     "Vec.as_slice",
     "Vec.capacity",
     "Vec.is_empty",
     "Vec.len",
     "Vec.new",
+    { exact = "Vec.pop" },
+    { exact = "Vec.push" },
+    { exact = "VecDeque.pop_front" },
     "char.is_alphabetic",
     "char.is_alphanumeric",
     "char.is_ascii",
@@ -185,6 +213,8 @@ none = [
     "isize.wrapping_add",
     "isize.wrapping_mul",
     "isize.wrapping_sub",
+    { exact = "owned_box.new" },
+    { exact = "owned_box.new_uninit" },
     "slice.first",
     "slice.get",
     "slice.is_empty",
@@ -205,7 +235,11 @@ none = [
     "str.lines",
     "str.split_ascii_whitespace",
     "str.split_whitespace",
+    { exact = "str.to_lowercase" },
+    { exact = "str.trim" },
     "str.trim_ascii",
+    { exact = "str.trim_end" },
+    { exact = "str.trim_start" },
     "u128.abs_diff",
     "u128.checked_add",
     "u128.checked_div",
