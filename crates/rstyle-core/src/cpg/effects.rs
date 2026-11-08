@@ -241,6 +241,13 @@ mod tests {
         assert_eq!(rust.class("rust:Option.is_some_and"), None);
         assert_eq!(rust.class("rust:Rc.new"), Some(LibraryClass::Pure));
         assert_eq!(rust.class("rust:Rc.new_cyclic"), None);
+        // A free function is keyed by the path it's defined at.
+        assert_eq!(
+            rust.class("rust:core::hint::must_use"),
+            Some(LibraryClass::Pure)
+        );
+        assert_eq!(rust.class("rust:core::mem::take"), None);
+        assert_eq!(rust.class("rust:alloc::fmt::format"), None);
         assert_eq!(rust.unlisted(), None);
     }
 

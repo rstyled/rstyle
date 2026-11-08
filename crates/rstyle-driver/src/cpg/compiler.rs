@@ -4,6 +4,7 @@
 
 use super::sysroot;
 use super::unit::Unit;
+use rustc_hir::def::DefKind;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::ty::adjustment::{
     Adjust, Adjustment, AutoBorrow, AutoBorrowMutability, DerefAdjustKind, PatAdjust,
@@ -94,11 +95,12 @@ fn mode_of(mutability: rustc_hir::Mutability) -> &'static str {
     mode(mutability)
 }
 
-/// The operation key of a library member: a trait member by its trait's name, any other
-/// by its implementation's self type.
+/// The operation key of a library member: a trait member by its trait's name, a free
+/// function by its path, and any other by its implementation's self type.
 pub fn declared_operation(tcx: TyCtxt<'_>, member: DefId) -> Option<String> {
     match tcx.trait_of_assoc(member) {
         Some(owner) => sysroot::trait_operation(tcx, owner, member),
+        None if tcx.def_kind(member) == DefKind::Fn => sysroot::function_operation(tcx, member),
         None => sysroot::operation(tcx, member),
     }
 }

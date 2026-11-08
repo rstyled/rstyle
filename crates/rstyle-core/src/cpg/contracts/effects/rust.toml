@@ -2,7 +2,9 @@
 #
 # A key is `<self type>.<member>`, as in the runtime bound contracts: the type an inherent member is
 # defined on, by its compiler name (`Vec`, `BTreeMap`, `format_argument`) or its primitive kind (`slice`,
-# `str`, `usize`). A free function such as `std::mem::take` has no key.
+# `str`, `usize`). A free function's key is the path it's defined at, as its stable identity is:
+# `core::mem::swap`, though a caller writes `std::mem::swap`, and `core::iter::sources::once::once`
+# for `std::iter::once`.
 #
 # A trait's member is keyed by the trait (`Clone.clone`, `Iterator.next`) whichever implementation runs,
 # and some do more than others: `String`'s `clone` allocates, and `io::Lines`'s `next` reads. A call to
@@ -333,4 +335,21 @@ none = [
     "usize.wrapping_add",
     "usize.wrapping_mul",
     "usize.wrapping_sub",
+
+    # Free functions. `alloc::fmt::format`, which every `format!` calls, isn't one: it runs the
+    # `Display` and `Debug` implementations its arguments name, and panics if one fails. Nor are
+    # `core::mem::take`, which runs `T::default`, and `core::mem::drop`, which drops a `T`.
+    { exact = "alloc::boxed::box_assume_init_into_vec_unsafe" },
+    { exact = "alloc::intrinsics::write_box_via_move" },
+    { exact = "core::hint::must_use" },
+    { exact = "core::intrinsics::discriminant_value" },
+    { exact = "core::intrinsics::unreachable" },
+    { exact = "core::iter::sources::once::once" },
+    { exact = "core::mem::forget" },
+    { exact = "core::mem::replace" },
+    { exact = "core::mem::swap" },
+    { exact = "core::ptr::eq" },
+    { exact = "core::ptr::from_ref" },
+    { exact = "core::slice::raw::from_ref" },
+    { exact = "core::str::converts::from_utf8" },
 ]

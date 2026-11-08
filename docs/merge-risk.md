@@ -84,11 +84,12 @@ that has rules:
 | `analysis_unavailable` | A file changed outside any function, or a function a macro or a build writes changed |
 
 `unclassified_call` is why a new library call can't pass as a clean one. Go's and C++'s effect tables give a call with
-no entry the `unknown` effect. Rust's only lists standard methods that have no effect whatever type they're called with,
-such as `slice::iter`, so a trait method like `core::clone::Clone::clone`, whose implementation could do anything, a
-free function like `std::cmp::max`, and any other crate's function count until [`side_effects.paths`](style-checks.md)
-or a rule here names them. A `[[risk.calls]]` rule for that callee, at any level, is you saying what it is. A comment
-edited inside a function also reads as `text only`, since core has no tokens to read around one.
+no entry the `unknown` effect. Rust's only lists standard methods and functions that have no effect whatever type they're
+called with, such as `slice::iter` and `std::mem::swap`, so a trait method like `core::clone::Clone::clone`, whose
+implementation could do anything, a function like `std::cmp::max`, which runs the caller's `Ord`, and any other crate's
+function count until [`side_effects.paths`](style-checks.md) or a rule here names them. A `[[risk.calls]]` rule for that
+callee, at any level, is you saying what it is. A comment edited inside a function also reads as `text only`, since core
+has no tokens to read around one.
 
 `--format json` keeps every reason, with `risk`, `policy_configured` and `schema_version`. The text gives what can't be seen
 by kind, and each function's lines say which.
