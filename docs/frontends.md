@@ -168,6 +168,21 @@ as generated even when they carry the span of one of its inputs, as `quote_spann
 A file the build writes has `origin: "generated"`, and its functions are treated the same way. The Rust
 frontend marks what a build script writes to `OUT_DIR`.
 
+### A language's words
+
+Core says its reasons, labels and proposals in neutral terms, such as a writable reference or a closure
+capture. `cpg/contracts/wording/<language>.toml` in `rstyle-core` says any of them in one language's terms,
+for units whose `language.name` it names: `rust.toml` says borrow and `static mut`, and `cxx.toml` says
+non-const reference and lambda. A language without a file reads the neutral text, so a new frontend needs no
+code for its words.
+
+A file lists messages by key. `{name}` is a placeholder and `{{` and `}}` are braces. An unknown key, or a
+placeholder a message leaves out or doesn't have, is an error when the file loads. `wording.rs` lists every
+key with its neutral text and placeholders.
+
+A pattern candidate describes the interface it proposes, as "one interface for `equals`, which Dog, Cat
+define with matching signatures". Only `rust.toml` writes it as a declaration, `trait Shared { ... }`.
+
 ## The `cpg` commands
 
 These run core's analyses directly over `compat.cpg` documents, with no compiler:

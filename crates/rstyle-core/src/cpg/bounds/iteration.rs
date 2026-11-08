@@ -5,6 +5,7 @@ use super::Collector;
 use super::extent::iteration_receiver;
 use super::facts::Facts;
 use crate::runtime_bounds::{Action, Condition, Flow, Integer, Value};
+use crate::wording::Message;
 
 type Lowered = Result<u32, String>;
 
@@ -56,7 +57,7 @@ impl<'a> Collector<'_, '_, 'a> {
         if !self.written_places(parts.pattern)?.is_empty() {
             return Ok(Err("Iterator pattern holds more than new bindings"));
         }
-        let unsized_iteration = self.facts.tables.wording().unsized_iteration();
+        let unsized_iteration = self.facts.tables.wording().text(Message::UnsizedIteration);
         Ok(self.iteration_values(parts.head)?.ok_or(unsized_iteration))
     }
 

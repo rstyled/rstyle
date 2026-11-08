@@ -214,7 +214,7 @@ fn compose_with(owners: Vec<(&str, Program)>, root: &str, limits: Limits) -> Com
         },
         limits,
     );
-    composer.composed(root, Wording::Rust)
+    composer.composed(root, Wording::of("rust"))
 }
 
 fn proven(composed: Composed) -> compose::Composition {
@@ -734,7 +734,7 @@ fn injected_contracts_replace_the_embedded_table() {
         Limits::default(),
         contracts,
     );
-    let composition = proven(composer.composed("w::lookup", Wording::Rust));
+    let composition = proven(composer.composed("w::lookup", Wording::of("rust")));
     assert_eq!(
         composition.library_steps.to_string(),
         "n * len(map) * len(map) + n * n"

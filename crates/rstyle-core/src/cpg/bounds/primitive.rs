@@ -4,6 +4,7 @@ use super::super::model::{Node, NodeKind};
 use super::Collector;
 use super::facts::Facts;
 use crate::runtime_bounds::{Action, Condition, Flow, Value};
+use crate::wording::Message;
 
 type Lowered = Result<u32, String>;
 
@@ -29,7 +30,11 @@ impl<'a> Collector<'_, '_, 'a> {
             NodeKind::Identifier => Ok(self.path(expression, next)),
             NodeKind::Literal => Ok(next),
             _ => {
-                let reason = self.facts.tables.wording().unmodeled_expression();
+                let reason = self
+                    .facts
+                    .tables
+                    .wording()
+                    .text(Message::UnmodeledExpression);
                 Ok(self.unsupported(expression, next, reason))
             }
         }
@@ -79,7 +84,7 @@ impl<'a> Collector<'_, '_, 'a> {
     fn path(&mut self, expression: &'a Node, next: u32) -> u32 {
         match self.facts.local(expression) {
             Some(symbol) if self.closures.contains_key(symbol) => {
-                let reason = self.facts.tables.wording().escaping_closure();
+                let reason = self.facts.tables.wording().text(Message::EscapingClosure);
                 self.unsupported(expression, next, reason)
             }
             _ => next,

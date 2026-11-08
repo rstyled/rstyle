@@ -6,7 +6,7 @@ use crate::facts::{
     ArgSource, CallEvent, Edge, EffectEvent, EffectKind, FnFacts, LibraryClass, MutationEvent,
     MutationOrigin,
 };
-use crate::wording::Wording;
+use crate::wording::{Message, Wording};
 use serde_json::{Value, json};
 
 const EXAMPLE: &str = include_str!("testdata/example.cpg.json");
@@ -1866,24 +1866,35 @@ fn a_function_of_unbounded_integers_gets_its_facts() {
     assert_eq!(facts_of(example_with_unbounded_integers()).len(), 3);
 }
 
-/// The same document, as rstyle-cxx would name its language.
-fn in_cxx(mut document: Value) -> Value {
-    document["unit"]["language"] = json!({"name": "cxx", "version": "c++20"});
+/// The same document, as a frontend of `language` would name its language.
+fn in_language(mut document: Value, language: &str) -> Value {
+    document["unit"]["language"] = json!({"name": language, "version": "1"});
     document
+}
+
+/// The same document, as rstyle-cxx would name its language.
+fn in_cxx(document: Value) -> Value {
+    in_language(document, "cxx")
 }
 
 #[test]
 fn a_cxx_unit_says_its_own_words_for_what_stops_a_bound() {
-    let cxx = Wording::Cxx;
+    let cxx = Wording::of("cxx");
     let destroyed = lowered_text(in_cxx(with_a_destroyed_value("unsupported")));
     assert!(
-        destroyed.contains(cxx.uncounted_destructor()),
+        destroyed.contains(cxx.text(Message::UncountedDestructor)),
         "{destroyed}"
     );
     assert!(!destroyed.contains("drop glue"), "{destroyed}");
     let captured = count_program(in_cxx(with_a_nested_writer()));
-    assert!(captured.contains(cxx.mutable_capture()), "{captured}");
-    assert!(captured.contains(cxx.bound_evidence()), "{captured}");
+    assert!(
+        captured.contains(cxx.text(Message::WrittenCapture)),
+        "{captured}"
+    );
+    assert!(
+        captured.contains(cxx.text(Message::BoundEvidence)),
+        "{captured}"
+    );
 }
 
 #[test]
@@ -1911,20 +1922,41 @@ fn whole_report(document: Value) -> String {
     )
 }
 
-#[test]
-fn a_cxx_report_says_what_the_rust_one_does_in_cxx_terms() {
+/// What a report of `document` says in `language`, and in Rust, which reads every message
+/// differently from both C++ and the neutral text.
+fn worded_reports(language: &str) -> Vec<(String, String)> {
     let documents = [
         example(),
         with_a_destroyed_value("unsupported"),
         with_a_nested_writer(),
     ];
-    for document in documents {
+    let reports = documents.into_iter().map(|document| {
         let rust = whole_report(document.clone());
-        let cxx = whole_report(in_cxx(document));
-        assert_ne!(rust, cxx, "nothing in the report is worded");
-        assert_eq!(cxx, Wording::Cxx.translated(&rust));
-        for message in Wording::Rust.messages() {
-            assert!(!cxx.contains(message), "{message}");
+        (rust, whole_report(in_language(document, language)))
+    });
+    reports.collect()
+}
+
+#[test]
+fn a_cxx_report_says_what_the_rust_one_does_in_cxx_terms() {
+    let (rust, cxx) = (Wording::of("rust"), Wording::of("cxx"));
+    for (in_rust, in_cxx) in worded_reports("cxx") {
+        assert_ne!(in_rust, in_cxx, "nothing in the report is worded");
+        assert_eq!(in_cxx, cxx.translated(rust, &in_rust));
+        for (rusts, _) in cxx.pairs(rust) {
+            assert!(!in_cxx.contains(&rusts), "{rusts}");
+        }
+    }
+}
+
+#[test]
+fn a_language_without_a_wording_file_reads_core_s_neutral_text() {
+    let (rust, neutral) = (Wording::of("rust"), Wording::neutral());
+    for (in_rust, elsewhere) in worded_reports("nowhere") {
+        assert_ne!(in_rust, elsewhere, "nothing in the report is worded");
+        assert_eq!(elsewhere, neutral.translated(rust, &in_rust));
+        for (rusts, _) in neutral.pairs(rust) {
+            assert!(!elsewhere.contains(&rusts), "{rusts}");
         }
     }
 }

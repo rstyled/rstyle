@@ -19,6 +19,9 @@ cargo rstyle patterns [--format text|json] [--all-targets] [--min-score N] [--to
     src/lib.rs:89  emit_cats_each
 ```
 
+A report in another language describes the interface rather than declare a trait, as "one interface for a
+method, which Cat, Dog define with matching signatures". See [a language's words](frontends.md#a-languages-words).
+
 It runs across the selected workspace. Authored functions are selected by default, and generated
 signatures stay visible in coverage. `--compiler-pattern-scope captured` selects everything captured
 instead. Reports keep compilation contexts, unavailable inputs and the saved run directory, and

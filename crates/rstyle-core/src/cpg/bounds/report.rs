@@ -359,7 +359,7 @@ mod tests {
         let captured = evidence(Ok(observation(Input::Captured { program: polling() })));
         assert!(matches!(captured.result, Some(Outcome::Partial(_))));
         let mut partial = Evidence {
-            composed: Some(composer.composed("w::poll", crate::wording::Wording::Rust)),
+            composed: Some(composer.composed("w::poll", crate::wording::Wording::of("rust"))),
             ..captured
         };
         let order = degree(&partial);

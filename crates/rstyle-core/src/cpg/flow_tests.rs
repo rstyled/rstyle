@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 
 /// What core derives of `function` in Rust's terms.
 fn rust_flow(coverage: &Coverage, function: &Function) -> Derived {
-    derive(coverage, function, Wording::Rust)
+    derive(coverage, function, Wording::of("rust"))
 }
 
 const ENTRY: &str = "entry";
@@ -480,10 +480,10 @@ fn a_binding_a_raw_pointer_reaches_can_change_through_it() {
         derive(&coverage("supported", "supported"), &function, wording)
     };
 
-    let shared = with_place("shared", Wording::Rust);
+    let shared = with_place("shared", Wording::of("rust"));
     assert_eq!(shared.standing, Standing::Known, "{:?}", shared.reasons);
 
-    let raw = with_place("raw", Wording::Rust);
+    let raw = with_place("raw", Wording::of("rust"));
     assert_eq!(raw.standing, Standing::Approximated);
     assert!(
         raw.reasons
@@ -492,7 +492,7 @@ fn a_binding_a_raw_pointer_reaches_can_change_through_it() {
     );
     assert!(raw.data.unwrap().iter().all(|edge| edge.approximate));
 
-    let in_cxx = with_place("raw", Wording::Cxx).reasons;
+    let in_cxx = with_place("raw", Wording::of("cxx")).reasons;
     let expected = "x can also change through a reference, a pointer, a lambda capture or a write to part of it";
     assert!(in_cxx.iter().any(|reason| reason == expected), "{in_cxx:?}");
 }

@@ -13,9 +13,9 @@ use crate::runtime_bounds::contracts::{
     ConsumerEffect, Contracts, ExtentRole, Iteration, StageEffect,
 };
 use crate::runtime_bounds::{Action, Callee, Condition, Flow, Integer, Value};
+use crate::wording::Message;
 
 const MAX_STAGES: usize = 32;
-const CHAIN_EVIDENCE: &str = "live typed HIR; resolved standard iterator chain over a stable extent or primitive range; callbacks inlined at each invocation";
 
 #[derive(Clone, Copy)]
 pub(super) enum Callback<'a> {
@@ -110,7 +110,7 @@ impl<'a> Collector<'_, '_, 'a> {
             return Ok(None);
         };
         if !chain.standard || !self.standard_dispatch(expression, receiver, &contract.dispatch)? {
-            let reason = "Iterator chain dispatches to a non-standard trait implementation";
+            let reason = self.facts.tables.wording().text(Message::ChainDispatch);
             return Ok(Some(self.unsupported(expression, next, reason)));
         }
         // Every argument but the inlined callback is evaluated, so other closures stay visible.
@@ -337,7 +337,8 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 
     fn chain_header(&mut self, at: &'a Node, exit: u32) -> u32 {
-        let header = self.node_with((Action::Nop, Flow::Goto(exit)), at, CHAIN_EVIDENCE);
+        let evidence = self.facts.tables.wording().text(Message::ChainEvidence);
+        let header = self.node_with((Action::Nop, Flow::Goto(exit)), at, evidence);
         self.program.loop_headers.push(header);
         header
     }

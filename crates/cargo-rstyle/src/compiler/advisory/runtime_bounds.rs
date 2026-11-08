@@ -120,7 +120,7 @@ fn row<F: FnMut(&str) -> Option<Analyzed>>(
         .filter(|observation| matches!(observation.input, Input::Captured { .. }))
         .map(|observation| {
             let owner = format!("{}/{}", observation.krate, observation.owner);
-            composer.composed(&owner, Wording::Rust)
+            composer.composed(&owner, Wording::of("rust"))
         });
     Row {
         key: function.key,

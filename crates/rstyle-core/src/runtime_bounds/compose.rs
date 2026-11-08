@@ -15,7 +15,7 @@
 pub use super::contracts::Contracts;
 use super::symbolic::{Bound, OpaqueKind};
 use super::*;
-use crate::wording::Wording;
+use crate::wording::{Message, Wording};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -125,7 +125,7 @@ fn factors(opaque: Opaques) -> Vec<OpaqueFactor> {
 }
 
 fn assumptions(wording: Wording) -> Vec<String> {
-    let standard_bodies = std::iter::once(wording.standard_bodies());
+    let standard_bodies = std::iter::once(wording.text(Message::StandardBodies));
     standard_bodies
         .chain(ASSUMPTIONS.iter().copied())
         .map(String::from)

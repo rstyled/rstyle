@@ -5,7 +5,7 @@
 use super::model::{
     AccessMode, Coverage, Declarations, Function, NodeKind, Origin, PlaceMode, Status,
 };
-use crate::wording::Wording;
+use crate::wording::{Message, Wording};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -819,8 +819,9 @@ fn limits<'f>(
     }
 
     if !aliased.is_empty() {
-        let changed_elsewhere = wording.changed_elsewhere();
-        reasons.push(format!("{} {changed_elsewhere}", names(function, aliased)));
+        let variables = names(function, aliased);
+        let reason = wording.say(Message::ChangedElsewhere, &[("variables", &variables)]);
+        reasons.push(reason);
     }
     let partial = written_in_part(function, flow);
     if !partial.is_empty() {

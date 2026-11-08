@@ -740,7 +740,7 @@ fn opaque_loops_under_a_zero_trip_parent_still_make_the_owner_partial() {
         Limits::default(),
     );
     let compose::Composed::Partial(composed) =
-        composer.composed("w::zero", crate::wording::Wording::Rust)
+        composer.composed("w::zero", crate::wording::Wording::of("rust"))
     else {
         panic!("a zero bound must not hide the opaque loop");
     };

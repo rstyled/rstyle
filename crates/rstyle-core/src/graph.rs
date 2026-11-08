@@ -18,7 +18,7 @@
 use crate::facts::{ArgSource, Edge, EffectKind, FnFacts, MutationEvent};
 use crate::rules::Effect;
 use crate::suppress;
-use crate::wording::Wording;
+use crate::wording::{Message, Wording};
 use std::{
     borrow::Borrow,
     collections::{BTreeMap, BTreeSet},
@@ -250,7 +250,7 @@ fn exported_by(
     if let Some(wording) = delegated.filter(|_| writes) {
         out.push(Effect {
             kind: EffectKind::Mutation,
-            label: wording.delegated_mutation().into(),
+            label: wording.text(Message::DelegatedMutation).into(),
             line,
             via,
         });
@@ -498,13 +498,13 @@ mod tests {
                 name: "caller",
                 mutations: &[],
                 edges: &edges,
-                wording: Wording::Rust,
+                wording: Wording::of("rust"),
             },
             EffectOwner {
                 name: "generated",
                 mutations: &[],
                 edges: &[],
-                wording: Wording::Rust,
+                wording: Wording::of("rust"),
             },
         ];
         let graph = build_resolved(&owners, |_, edge| (edge.callee == "generated").then_some(1));
@@ -649,8 +649,8 @@ mod tests {
         };
         let direct = vec![vec![], vec![mutation]];
         for (wording, label) in [
-            (Wording::Rust, "&mut state"),
-            (Wording::Cxx, "state through a non-const reference"),
+            (Wording::of("rust"), "&mut state"),
+            (Wording::of("cxx"), "state through a non-const reference"),
         ] {
             caller.wording = wording;
             let facts = [caller.clone(), callee.clone()];

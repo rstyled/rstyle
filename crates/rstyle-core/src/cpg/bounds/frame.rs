@@ -9,7 +9,7 @@ use super::extent::{
 use super::facts::Facts;
 use crate::advisory::runtime_bounds::{MAX_NODES, MAX_VARIABLES};
 use crate::runtime_bounds::contracts::ExtentRole;
-use crate::wording::Wording;
+use crate::wording::{Message, Wording};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub struct Frame<'a> {
@@ -109,7 +109,7 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
                 .as_deref()
                 .and_then(|ty| self.facts.type_of(ty));
             if ty.is_some_and(|ty| self.mutable_integer_reference(ty)) {
-                self.reason = Some(self.wording().mutable_numeric_reference().into());
+                self.reason = Some(self.wording().text(Message::WritableNumberReference).into());
             }
         }
         self.depth -= 1;
@@ -262,7 +262,7 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
     fn observe(&mut self, expression: &'a Node) -> Visited {
         self.admit_callbacks(expression)?;
         if self.forbidden(expression)? || self.unadmitted_closure(expression) {
-            self.reason = Some(self.wording().unmodeled_semantics().into());
+            self.reason = Some(self.wording().text(Message::UnmodeledSemantics).into());
         }
         if self.validating {
             self.check_borrow(expression)
@@ -415,14 +415,14 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
             return Some("Implicit dereference-pattern effects are unmodeled");
         }
         if pattern.binding_mode.as_deref() == Some("exclusive") {
-            return Some(self.wording().mutable_reference_pattern());
+            return Some(self.wording().text(Message::WritableReferenceBinding));
         }
         if self
             .facts
             .ty(pattern)
             .is_some_and(|ty| self.mutable_integer_reference(ty))
         {
-            return Some(self.wording().mutable_numeric_reference());
+            return Some(self.wording().text(Message::WritableNumberReference));
         }
 
         None
@@ -511,14 +511,14 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
                         .selected
                         .iter()
                         .any(|place| place.root == capture.symbol);
-                    (numeric || selected).then_some(self.wording().mutable_capture())
+                    (numeric || selected).then_some(self.wording().text(Message::WrittenCapture))
                 }
                 _ => self
                     .facts
                     .body
                     .symbol(&capture.symbol)
                     .map_or(true, |symbol| symbol.mutable)
-                    .then_some(self.wording().copied_mutable_capture()),
+                    .then_some(self.wording().text(Message::CopiedCapture)),
             };
             if let Some(reason) = problem {
                 self.reason = Some(reason.into());
@@ -594,7 +594,7 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
             _ => expression,
         };
         if (explicit || adjusted) && self.sensitive(operand)? {
-            self.reason = Some(self.wording().mutable_borrow().into());
+            self.reason = Some(self.wording().text(Message::WritableReference).into());
         }
 
         Ok(())

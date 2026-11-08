@@ -6,6 +6,7 @@ use super::Collector;
 use super::extent::Place;
 use super::facts::is_shared_reference;
 use crate::runtime_bounds::{Argument, Callee, Extent, Formal, Integer, Measure, Root, Value};
+use crate::wording::Message;
 
 /// A call's target and, for a standard-library body, its operation key.
 pub(super) type Resolution = (Callee, Option<String>);
@@ -189,7 +190,9 @@ impl<'a> Collector<'_, '_, 'a> {
     /// destructors as calls.
     pub(super) fn hidden_call(&self, expression: &Node) -> Result<Option<&'static str>, String> {
         if self.workspace_deref(expression) {
-            return Ok(Some("Overloaded auto-deref runs a workspace Deref impl"));
+            return Ok(Some(
+                self.facts.tables.wording().text(Message::OverloadedDeref),
+            ));
         }
         if self.facts.destructors_are_calls {
             return Ok(None);
@@ -198,7 +201,12 @@ impl<'a> Collector<'_, '_, 'a> {
             .facts
             .ty(expression)
             .is_some_and(|ty| self.drop_runs_workspace_code(ty, 64))
-            .then_some(self.facts.tables.wording().uncounted_destructor()))
+            .then_some(
+                self.facts
+                    .tables
+                    .wording()
+                    .text(Message::UncountedDestructor),
+            ))
     }
 
     /// Whether dropping a value of `ty` may run a workspace `Drop` impl. A reference or a

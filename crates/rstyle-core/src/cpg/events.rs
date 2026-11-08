@@ -14,6 +14,7 @@ use crate::facts::{
     MutationOrigin,
 };
 use crate::paths::strip_generics;
+use crate::wording::Message;
 use std::collections::BTreeMap;
 
 #[derive(Default)]
@@ -142,8 +143,11 @@ impl<'a> Walk<'a> {
 
         let definition = self.tables.definition(target_id(target)?)?;
         if definition.kind == DefinitionKind::Static && has_modifier(definition, "mutable") {
-            let mutable_static = self.tables.wording().mutable_static();
-            let detail = format!("{mutable_static} {}", strip_generics(&definition.name));
+            let name = strip_generics(&definition.name);
+            let detail = self
+                .tables
+                .wording()
+                .say(Message::WritableStatic, &[("name", &name)]);
             out.effects
                 .push(self.effect(EffectKind::Global, detail, node)?);
         }
