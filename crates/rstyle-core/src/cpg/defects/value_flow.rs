@@ -37,6 +37,8 @@ pub struct FlowCall {
     pub keywords: Vec<(String, String)>,
     /// Each argument that's a list written out in the call.
     pub lists: Vec<WrittenList>,
+    /// The position of each argument whose type is a string, literal or not.
+    pub strings: Vec<usize>,
 }
 
 /// Where a value starts. Parameters number as a call's arguments do: a receiver is 0.
@@ -132,13 +134,32 @@ fn operands<'a>(reading: &Reading<'a>, call: &Node) -> Result<Vec<(usize, &'a No
     Ok(arguments.enumerate().collect())
 }
 
+/// A keyword argument's name and what it passes: an `extension` holding one value, with the
+/// parameter it names as its `member`, as Python's `shell=True` is.
+fn keyword<'a>(
+    reading: &Reading<'a>,
+    operand: &'a Node,
+) -> Result<Option<(&'a str, &'a Node)>, String> {
+    let (NodeKind::Extension, Some(name), [_]) =
+        (operand.kind, &operand.member, &operand.children[..])
+    else {
+        return Ok(None);
+    };
+    Ok(Some((name.as_str(), reading.body.child(operand, 0)?)))
+}
+
+/// What an argument passes, whether or not a keyword names its parameter.
+fn passed<'a>(reading: &Reading<'a>, operand: &'a Node) -> Result<&'a Node, String> {
+    Ok(keyword(reading, operand)?.map_or(operand, |(_, value)| value))
+}
+
 /// The elements of a list written out where it's passed, as `args(["-c", script])` passes one,
-/// looking through a borrow of it.
+/// looking through a borrow of it and a keyword naming its parameter.
 fn written_out_list<'a>(
     reading: &Reading<'a>,
     operand: &'a Node,
 ) -> Result<Option<Vec<&'a Node>>, String> {
-    let mut at = operand;
+    let mut at = passed(reading, operand)?;
     while at.kind == NodeKind::Reference && !at.children.is_empty() {
         at = reading.body.child(at, 0)?;
     }
@@ -463,25 +484,20 @@ fn literal_text(node: &Node) -> Option<String> {
     (literal.kind == "string").then(|| literal.value.clone())?
 }
 
-/// What a keyword argument passes when it's a literal: an `extension` holding one, with the
-/// parameter it names as its `member`, as Python's `shell=True` is.
+/// What a keyword argument passes when it's a literal, as Python's `shell=True` does.
 fn keyword_literal(
     reading: &Reading<'_>,
     operand: &Node,
 ) -> Result<Option<(String, String)>, String> {
-    let (NodeKind::Extension, Some(keyword), [_]) =
-        (operand.kind, &operand.member, &operand.children[..])
-    else {
+    let Some((keyword, value)) = keyword(reading, operand)? else {
         return Ok(None);
     };
-
-    let value = reading.body.child(operand, 0)?;
     let literal = value
         .value
         .as_ref()
         .filter(|_| value.kind == NodeKind::Literal);
     let text = literal.and_then(|it| it.value.clone());
-    Ok(text.map(|text| (keyword.clone(), text)))
+    Ok(text.map(|text| (keyword.to_owned(), text)))
 }
 
 /// The text of each element of each list written out in a call, where it's a string literal.
@@ -496,6 +512,19 @@ fn lists_of(
         }
     }
     Ok(lists)
+}
+
+/// The position of each argument a string is passed for, which a contract can tell from a list.
+fn strings_of(reading: &Reading<'_>, operands: &[(usize, &Node)]) -> Result<Vec<usize>, String> {
+    let mut strings = Vec::new();
+    for &(position, operand) in operands {
+        let ty = passed(reading, operand)?.ty.as_deref();
+        let ty = ty.and_then(|id| reading.tables.ty(id).ok());
+        if ty.is_some_and(|ty| ty.kind == TypeKind::String) {
+            strings.push(position);
+        }
+    }
+    Ok(strings)
 }
 
 fn flow_call(
@@ -529,6 +558,7 @@ fn flow_call(
         literals,
         keywords,
         lists: lists_of(reading, &operands)?,
+        strings: strings_of(reading, &operands)?,
     })
 }
 
@@ -565,6 +595,7 @@ fn variable_read(
         literals: Vec::new(),
         keywords: Vec::new(),
         lists: Vec::new(),
+        strings: Vec::new(),
     })
 }
 

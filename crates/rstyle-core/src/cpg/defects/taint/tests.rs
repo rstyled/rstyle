@@ -17,6 +17,7 @@ fn call(name: &str, line: usize) -> FlowCall {
         literals: Vec::new(),
         keywords: Vec::new(),
         lists: Vec::new(),
+        strings: Vec::new(),
     }
 }
 
@@ -168,7 +169,8 @@ fn a_programs_arguments_are_data_unless_a_shell_is_told_to_run_one() {
     );
 }
 
-/// `subprocess.run(os.getenv(..), ..)` with these keywords, and input at this position.
+/// `subprocess.run(os.getenv(..), ..)` with these keywords, and input at this position. Nothing says
+/// it's a string, so without a shell it's a list that isn't written out.
 fn into_run(keywords: &[(&str, &str)], position: usize) -> Vec<(usize, usize, String)> {
     let run = FlowCall {
         keywords: keywords
@@ -194,6 +196,170 @@ fn a_sink_that_needs_a_keyword_is_one_only_where_the_call_passes_its_literal() {
         into_run(&[("shell", "true")], 1).is_empty(),
         "not the command"
     );
+}
+
+/// `subprocess.run([..])`, input at this element of a list written out whose elements are these
+/// literals, `None` where one isn't.
+fn into_listed(elements: &[Option<&str>], input: usize) -> FunctionFlows {
+    let list = elements.iter().map(|it| it.map(str::to_owned)).collect();
+    let run = FlowCall {
+        lists: vec![(0, list)],
+        ..call("subprocess.run", 2)
+    };
+    let to = End::Argument {
+        call: 1,
+        position: 0,
+        element: Some(input),
+    };
+    let hops = vec![Hop {
+        from: Start::Result(0),
+        to,
+    }];
+    in_python(vec![call("os.getenv", 1), run], hops)
+}
+
+#[test]
+fn a_program_and_its_arguments_in_one_list_are_read_element_by_element() {
+    let program = into_listed(&[None, Some("--version")], 0);
+    assert_eq!(lines(std::slice::from_ref(&program)), [2], "the program");
+    assert!(
+        lines(&[into_listed(&[Some("grep"), None], 1)]).is_empty(),
+        "argv"
+    );
+    assert_eq!(
+        lines(&[into_listed(&[Some("sh"), Some("-c"), None], 2)]),
+        [2]
+    );
+    assert_eq!(
+        lines(&[into_listed(&[Some("/bin/bash"), Some("-c"), None], 2)]),
+        [2]
+    );
+    for (elements, input, why) in [
+        (
+            &[Some("sh"), Some("-c"), Some("echo $0"), None][..],
+            3,
+            "data to the code",
+        ),
+        (
+            &[Some("sh"), Some("script.sh"), None],
+            2,
+            "data to the script",
+        ),
+        (&[Some("ls"), Some("-c"), None], 2, "not a shell"),
+        (&[None, Some("-c"), None], 2, "nothing says it's a shell"),
+    ] {
+        assert!(lines(&[into_listed(elements, input)]).is_empty(), "{why}");
+    }
+    let program = std::slice::from_ref(&program);
+    assert!(found_with(program, &ignoring("subprocess.run")).is_empty());
+}
+
+#[test]
+fn without_a_shell_a_string_is_the_program_and_a_list_not_written_out_cant_be_counted() {
+    let run = |strings: Vec<usize>, keywords: &[(&str, &str)]| {
+        let run = FlowCall {
+            strings,
+            keywords: keywords
+                .iter()
+                .map(|(name, literal)| ((*name).to_owned(), (*literal).to_owned()))
+                .collect(),
+            ..call("subprocess.run", 2)
+        };
+        let calls = vec![call("os.getenv", 1), run];
+        lines(&[in_python(calls, vec![result_to(0, 1, 0)])])
+    };
+    assert_eq!(run(vec![0], &[]), [2], "the program's path");
+    assert_eq!(run(vec![0], &[("shell", "false")]), [2]);
+    assert!(run(Vec::new(), &[]).is_empty(), "a list");
+    assert!(run(vec![1], &[]).is_empty(), "another argument is a string");
+    assert_eq!(
+        run(Vec::new(), &[("shell", "true")]),
+        [2],
+        "a shell's command"
+    );
+}
+
+#[test]
+fn a_helper_that_runs_its_parameter_as_the_program_is_where_it_is_reported() {
+    let python = |mut function: FunctionFlows| {
+        function.flows.namespace = "py".into();
+        function
+    };
+    let listed = FlowCall {
+        lists: vec![(0, vec![None, Some("--version".into())])],
+        ..call("subprocess.run", 9)
+    };
+    let to = End::Argument {
+        call: 0,
+        position: 0,
+        element: Some(0),
+    };
+    let from = Start::Parameter(0);
+    let run = python(function("run", vec![listed], vec![Hop { from, to }]));
+    let caller = python(function(
+        "caller",
+        vec![call("builtins.input", 1), call("run", 2)],
+        vec![result_to(0, 1, 0)],
+    ));
+    let [(holder, line, message)] = &found(&[run, caller])[..] else {
+        panic!("one finding");
+    };
+    assert_eq!((*holder, *line), (0, 9));
+    assert!(message.contains("caller.go:1"), "{message}");
+}
+
+/// `os.execl(..)` with these literals and input at this position.
+fn into_execl(literals: &[(usize, &str)], position: usize) -> Vec<usize> {
+    let calls = vec![
+        call("builtins.input", 1),
+        with_literals("os.execl", 2, literals),
+    ];
+    lines(&[in_python(calls, vec![result_to(0, 1, position)])])
+}
+
+/// `os.execv("/bin/sh", [..])`, input at this element of a list written out whose elements are
+/// these literals, `None` where one isn't.
+fn into_execv(elements: &[Option<&str>], input: usize) -> Vec<usize> {
+    let list = elements.iter().map(|it| it.map(str::to_owned)).collect();
+    let execv = FlowCall {
+        lists: vec![(1, list)],
+        ..with_literals("os.execv", 2, &[(0, "/bin/sh")])
+    };
+    let to = End::Argument {
+        call: 1,
+        position: 1,
+        element: Some(input),
+    };
+    let from = Start::Result(0);
+    lines(&[in_python(
+        vec![call("builtins.input", 1), execv],
+        vec![Hop { from, to }],
+    )])
+}
+
+#[test]
+fn a_program_run_by_its_path_is_a_shell_by_the_name_its_called_by() {
+    let shell = [(0, "/bin/sh"), (1, "sh"), (2, "-c")];
+    assert_eq!(into_execl(&shell, 3), [2]);
+    assert_eq!(into_execl(&[(1, "sh")], 0), [2], "the path it runs");
+    assert!(into_execl(&[(0, "/bin/sh")], 1).is_empty(), "its name");
+    assert!(
+        into_execl(&[(0, "/bin/sh"), (1, "-c")], 2).is_empty(),
+        "-c as its name"
+    );
+    let data = [(0, "/bin/sh"), (1, "sh"), (2, "-c"), (3, "echo $0")];
+    assert!(into_execl(&data, 4).is_empty(), "data to the code");
+
+    assert_eq!(into_execv(&[Some("sh"), Some("-c"), None], 2), [2]);
+    assert!(into_execv(&[Some("grep"), None], 1).is_empty(), "argv");
+    assert!(into_execv(&[None, Some("-c")], 0).is_empty(), "its name");
+
+    let spawnl = with_literals("os.spawnl", 2, &[(1, "/bin/sh"), (2, "sh"), (3, "-c")]);
+    let calls = vec![call("builtins.input", 1), spawnl];
+    let spawnl = |position| lines(&[in_python(calls.clone(), vec![result_to(0, 1, position)])]);
+    assert_eq!(spawnl(4), [2], "after the mode");
+    assert_eq!(spawnl(1), [2], "the path it runs");
+    assert!(spawnl(0).is_empty(), "the mode");
 }
 
 /// The Rust models name these.
