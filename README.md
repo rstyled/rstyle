@@ -109,6 +109,7 @@ Common options:
 | `--all-targets` | Include tests, examples and benches |
 | `--config PATH` | Use this file instead of `<workspace root>/rstyle.toml` |
 | `--manifest-path PATH` | Analyze the workspace of this `Cargo.toml` |
+| `--exclude GLOB` | Leave out a path or glob, as `exclude` does, for one `rstyle go`, `cxx`, `py` or `rust` run |
 
 To teach a coding agent how to use rstyle, `--skill` prints a `SKILL.md` for it. For Cursor:
 
@@ -144,7 +145,7 @@ ends up with none it warns, says how to specify one, and goes on guessing flags,
 `rstyle py` uses `$RSTYLE_PY` if set, then `rstyle-py` on your `PATH`. It pins its analyzer, so it needs an environment of
 its own: `uv tool install git+https://github.com/rstyled/rstyle-py`, from [rstyle-py](https://github.com/rstyled/rstyle-py),
 which is private for now. It reads your project's environment without running it, and `--python` names an interpreter to run
-instead. A file that doesn't parse ends the run, and `--exclude` names a path or glob to leave out.
+instead. A file that doesn't parse ends the run, and `--exclude` or `exclude` names a path or glob for it not to read.
 
 ## Rules
 
@@ -167,8 +168,12 @@ instead. A file that doesn't parse ends the run, and `--exclude` names a path or
 Put an `rstyle.toml` in the project root. Every key is optional, and an unknown key is an error, so a
 typo can't silently turn a rule off.
 
+`exclude` takes paths and globs relative to the project root, and a directory takes everything under it. Python's frontend
+doesn't read what it names; the others read it and leave it out of the report. [Runner and frontends](docs/frontends.md#leaving-files-out)
+has the glob syntax.
+
 ```toml
-exclude = ["target/**", "src/generated/**"]
+exclude = ["target/**", "src/generated"]
 
 [fn_length]
 max_lines = 80

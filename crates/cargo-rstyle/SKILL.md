@@ -185,8 +185,10 @@ tool error. `RSTYLE_GO` points at a local `rstyle-go`, `RSTYLE_CXX` at a local `
 C++, rstyle looks for `compile_commands.json` in the project and its build folders, and otherwise asks the project's
 CMake, Meson or Make build for one, which runs its build scripts; `--no-generate-database` stops that, and
 `--compilation-database` names one. If it ends up with none it warns and says how to specify one, and the frontend
-guesses flags and loses what it can't parse. For Python, a file that doesn't parse ends the run, and `--exclude` names a
-path or glob to leave out. An environment in the project is read and never run; `--python` names an interpreter to run instead.
+guesses flags and loses what it can't parse. A file that doesn't parse ends the run. `--exclude GLOB`, repeated as needed, leaves
+a path or glob out of one run on top of `exclude` in `rstyle.toml`, and a directory takes what's under it: Python's frontend
+then doesn't read it, and the others read it but leave it out of the report. For Python, an environment in the project is read
+and never run; `--python` names an interpreter to run instead.
 
 ## Other languages (`cpg`)
 

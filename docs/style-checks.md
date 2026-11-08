@@ -57,7 +57,7 @@ is a commented example, though it raises the complexity limits above their defau
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `exclude` | `["target/**"]` | Globs of original source to skip entirely. A callee they remove keeps its callers' effects incomplete. A build script's output is generated code, which they don't select. |
+| `exclude` | `["target/**"]` | Paths and globs of original source to skip entirely, relative to the root reports show paths from. A directory takes everything under it. A callee they remove keeps its callers' effects incomplete. A build script's output is generated code, which they don't select. `--exclude` on `rstyle go`, `cxx`, `py` and `rust` adds to it for one run, and [the runner guide](frontends.md#leaving-files-out) has the syntax. |
 | `fn_length.max_lines` | 50 | Code lines per function |
 | `fn_params.max_params` | 4 | Parameters per function |
 | `fn_params.count_self` | `false` | Count `self` as a parameter |
