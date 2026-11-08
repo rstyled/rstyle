@@ -1,5 +1,10 @@
 use crate::facts::EffectKind;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
+use toml::{Table, Value};
+
+mod overrides;
+pub use overrides::Override;
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -26,6 +31,13 @@ pub struct Config {
     /// these rules sees no change in its policy. Turning one on is one.
     #[serde(skip_serializing_if = "StrictStyleConfig::all_off")]
     pub strict_style: StrictStyleConfig,
+    /// Per-path rule settings, merged onto the base in declaration order. Left out of what a
+    /// baseline compares while there are none, so a project without them sees no change.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub overrides: Vec<Override>,
+    /// The parsed file minus `overrides`: what each override is merged onto.
+    #[serde(skip)]
+    base: Table,
 }
 
 /// Opinions about how code could be shaped rather than limits it passed, so each is off unless a
@@ -616,7 +628,27 @@ impl Default for GroupingConfig {
 
 impl Config {
     pub fn parse(input: &str) -> Result<Self, toml::de::Error> {
-        toml::from_str(input)
+        let mut base: Table = toml::from_str(input)?;
+        let config = Self::deserialize(Value::Table(base.clone()))?;
+        base.remove("overrides");
+        Ok(Self { base, ..config })
+    }
+
+    /// The policy for a function at `path`: the base with every matching override merged in.
+    /// Can't fail: the base and each override were checked on parse, and the sections an
+    /// override may set only validate single values, so merging checked layers stays valid.
+    pub fn for_path(&self, path: &str) -> Cow<'_, Self> {
+        let mut matching = self.overrides.iter().filter(|o| o.matches(path)).peekable();
+        if matching.peek().is_none() {
+            return Cow::Borrowed(self);
+        }
+        let mut table = self.base.clone();
+        for layer in matching {
+            overrides::merge(&mut table, layer.rules());
+        }
+        let policy = Self::deserialize(Value::Table(table));
+
+        Cow::Owned(policy.expect("checked layers merge into a valid config"))
     }
 }
 

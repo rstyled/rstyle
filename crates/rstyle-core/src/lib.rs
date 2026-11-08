@@ -46,6 +46,7 @@ pub mod wl_trace;
 use config::Config;
 use facts::FnFacts;
 use report::{Diagnostic, Report, Summary};
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use suppress::Suppression;
 
@@ -106,13 +107,14 @@ fn effect_counts<'a>(effects: impl Iterator<Item = &'a rules::Effect>) -> BTreeM
 fn summarize(
     facts: &[FnFacts],
     effects: &[Vec<rules::Effect>],
-    cfg: &Config,
+    policies: &[Cow<Config>],
     violations: usize,
 ) -> Summary {
     let (density_sum, max_density_milli) = facts
         .iter()
         .zip(effects)
-        .map(|(f, e)| rules::density_milli(f, e, cfg))
+        .zip(policies)
+        .map(|((f, e), policy)| rules::density_milli(f, e, policy))
         .fold((0u128, 0), |(sum, maximum), density| {
             (sum + density as u128, maximum.max(density))
         });
@@ -305,7 +307,10 @@ struct EvaluationInputs {
 struct RuleInputs<'a> {
     facts: &'a [FnFacts],
     effects: &'a [Vec<rules::Effect>],
+    /// Read for rules across the whole run.
     cfg: &'a Config,
+    /// One per fact: the run's config with its path's overrides merged in.
+    policies: &'a [Cow<'a, Config>],
 }
 
 fn evaluated_diagnostics(
@@ -337,11 +342,12 @@ fn collect_diagnostics<T>(
         .facts
         .iter()
         .zip(inputs.effects)
+        .zip(inputs.policies)
         .zip(across_the_run)
         .enumerate()
-        .flat_map(|(owner, ((f, e), across_the_run))| {
+        .flat_map(|(owner, (((f, e), policy), across_the_run))| {
             let emit = &emit;
-            let (diagnostics, suppression) = function_diagnostics(f, e, inputs.cfg, across_the_run);
+            let (diagnostics, suppression) = function_diagnostics(f, e, policy, across_the_run);
             if let Some(scopes) = scopes.as_mut() {
                 scopes.push(suppression);
             }
@@ -380,17 +386,19 @@ fn evaluate_observations(inputs: EvaluationInputs, cfg: &Config) -> Result<Evalu
     let facts = select_facts(facts, cfg, &mut scopes)?;
     let graph = graph::build(&facts);
     let effects = completed_effects(&facts, &graph, cfg, completed)?;
+    let policies: Vec<_> = facts.iter().map(|f| cfg.for_path(&f.path)).collect();
 
     let (diagnostic_owners, diagnostics) = evaluated_diagnostics(
         RuleInputs {
             facts: &facts,
             effects: &effects,
             cfg,
+            policies: &policies,
         },
         retention,
         &mut scopes,
     );
-    let summary = summarize(&facts, &effects, cfg, diagnostics.len());
+    let summary = summarize(&facts, &effects, &policies, diagnostics.len());
     let fix_groups = groups::build(&facts, &graph, &diagnostics, cfg);
     let functions = complexity_report::findings(&facts, &diagnostics);
     let effects = retain_effects.then(|| own_effects(&facts, effects));
@@ -702,5 +710,51 @@ mod tests {
         assert_eq!(report.summary.max_density_milli, 750);
         assert_eq!(report.summary.mean_density_milli, 375);
         assert_eq!(report.summary.effect_counts["io"], 1);
+    }
+
+    #[test]
+    fn overrides_apply_per_function_path() {
+        let cfg = Config::parse(
+            r#"
+[[overrides]]
+paths = ["**/adapters/**"]
+fn_params = { max_params = 5 }
+side_effects.weights = { io = 1 }
+"#,
+        )
+        .unwrap();
+        let writer = |path: &str| FnFacts {
+            path: path.into(),
+            source: format!("fn w() {{\n{}}}", "w();\n".repeat(10)),
+            statements: 4,
+            calls: vec![facts::CallEvent {
+                callee: "std::fs::write".into(),
+                line: 2,
+                dynamic: false,
+                library: None,
+                library_callee: None,
+            }],
+            ..four_params(&path.replace('/', "_"))
+        };
+        let report = evaluate(
+            vec![
+                writer("src/adapters/store.rs"),
+                writer("src/domain/rules.rs"),
+            ],
+            &cfg,
+        )
+        .unwrap();
+        let rules: Vec<_> = report
+            .diagnostics
+            .iter()
+            .map(|d| (d.path.as_str(), d.rule_id.as_str()))
+            .collect();
+        assert_eq!(
+            rules,
+            [
+                ("src/domain/rules.rs", "fn_params"),
+                ("src/domain/rules.rs", "side_effect_density"),
+            ]
+        );
     }
 }

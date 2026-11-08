@@ -177,6 +177,37 @@ max_lines = 80
 max_cognitive = 20
 ```
 
+### Per-path overrides
+
+`[[overrides]]` changes rules for functions whose source path matches. Good for
+DDD layers: adapters can do more I/O while domain and application code keep the
+defaults.
+
+```toml
+[[overrides]]
+paths = ["adapters"]
+side_effects.weights = { io = 1, network = 1 }
+fn_length = { max_lines = 80 }
+
+[[overrides]]
+paths = ["adapters/critical"]
+side_effects.weights = { io = 5 }
+```
+
+A plain name in `paths` is a module anywhere in the tree: `adapters` matches
+`adapters.rs` and everything under an `adapters/` folder, at any depth. A name
+ending in `.rs` matches that file anywhere. Anything with `*`, `?`, `[` or `{` is
+a glob over the source paths shown in reports, used as is. Every matching override
+is deep-merged onto the base config in order, so later ones win key by key. An
+override may set `fn_length`, `fn_params`, `fn_spacing`, `complexity`,
+`mutation_budget` and `side_effects`. Keys read once for the whole run are errors:
+`exclude`, `grouping`, `side_effects.transitive_depth` and `side_effects.paths`,
+since effects are classified before any path's policy applies. Bad globs and
+unknown keys are errors too.
+Inherited effects are weighed by the caller's policy, so a cheap adapter call
+still costs full price in the domain code that makes it.
+
+
 ## Suppressing a finding
 
 Put a comment on the line directly above the function. The reason is required:
