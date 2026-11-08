@@ -81,7 +81,9 @@ fn it_leads_with_the_rating_and_says_a_shared_reason_once() {
 #[test]
 fn the_functions_fold_away_with_links_to_the_head_and_short_callees() {
     let mut changed = change("FromPackages", ChangeKind::Changed);
+    changed.signature_changed = true;
     changed.values_changed = true;
+    changed.unresolved_calls = true;
     changed.calls_added = vec!["go::slices.Clone".into(), "go::slices.DeleteFunc".into()];
     changed.calls_removed = vec!["go::github.com/o/r/internal/goeffects.packageErrors".into()];
     changed.effects_gained = vec![EffectChange {
@@ -93,7 +95,9 @@ fn the_functions_fold_away_with_links_to_the_head_and_short_callees() {
 
     let functions = "<details><summary>2 affected functions</summary>\n\n\
         - [`FromPackages`](https://github.com/o/r/blob/abc/native/source.go#L7) in `native/source.go` changed · 1 caller, reached by 4\n  \
+        - signature changed\n  \
         - a known value changed, as a constant's does\n  \
+        - makes a call whose target can't be known\n  \
         - gains io: `os.WriteFile`\n  \
         - calls more: `go::slices.Clone`, `go::slices.DeleteFunc`\n  \
         - calls less: `go::goeffects.packageErrors`\n\

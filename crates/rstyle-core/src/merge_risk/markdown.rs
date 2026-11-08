@@ -125,10 +125,9 @@ impl ChangeReport {
 fn added_call(reason: &Reason, links: &Links) -> String {
     let callee = code(&short(reason.callee.as_deref().unwrap_or_default()));
     let function = reason.function.as_deref().unwrap_or_default();
-    let place = match (&reason.path, reason.line) {
-        (Some(path), line) => links.function(function, path, line),
-        (None, _) => code(function),
-    };
+    let path = reason.path.as_deref().unwrap_or_default();
+    let place = links.function(function, path, reason.line);
+
     format!("- added call {callee} in {place}")
 }
 
@@ -264,18 +263,9 @@ impl Links<'_> {
     }
 }
 
-/// A code span, fenced with more backticks than the text holds in a row.
+/// A code span. It only holds identifiers and paths, which hold no backtick.
 fn code(text: &str) -> String {
-    let longest = text
-        .split(|character| character != '`')
-        .map(str::len)
-        .max()
-        .unwrap_or(0);
-    if longest == 0 {
-        return format!("`{text}`");
-    }
-    let fence = "`".repeat(longest + 1);
-    format!("{fence} {text} {fence}")
+    format!("`{text}`")
 }
 
 /// Text with what Markdown or HTML would read as syntax escaped.
