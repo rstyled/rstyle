@@ -95,10 +95,11 @@ has no tokens to read around one.
 by kind, and each function's lines say which.
 
 `--markdown` writes the report for a pull request's description. Under the rating, **Why it isn't low** names each
-check above low and what it found. Each check is one of the rules above, so the rating is the worst check. **At a
-glance** folds one line each for impact, signatures, calls, effects and coverage. Then each check that found something
-folds the functions behind each of its reasons, the changed ones with what changed in them and how many functions use
-them, directly and through others. A check that found nothing isn't shown; the glance's lines say so.
+check above low and what it found. Each check is one of the rules above, so the rating is the worst check. Two folds
+follow. **At a glance** gives one line each for impact, signatures, calls, effects and coverage. The second holds what
+the checks found: the functions behind each reason, the changed ones with what changed in them and how many functions
+use them, directly and through others. With one check it's named for that check; with several, its summary names each
+with its mark and each gets a heading inside. A check that found nothing isn't shown; the glance's lines say so.
 
 `--source-url` is what each file's path is joined to for a link, such as `https://github.com/OWNER/REPO/blob/HEAD_SHA`;
 a removed function isn't linked, since the head doesn't hold it. Callees drop the directories of their import path, so

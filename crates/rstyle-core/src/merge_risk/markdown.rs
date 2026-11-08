@@ -1,8 +1,7 @@
 //! The report as Markdown, for a pull request's description. The rating comes first, with the
-//! checks that hold it above low and why. A folded glance at the change follows, then one fold per
-//! check that found something, listing the functions behind each of its reasons. A check is one of
-//! the rules the rating is the strongest reason of, so the headline is the worst check by
-//! construction.
+//! checks that hold it above low and why. Two folds follow: a glance at the change, and what the
+//! checks found, with the functions behind each of their reasons. A check is one of the rules the
+//! rating is the strongest reason of, so the headline is the worst check by construction.
 
 use super::rating::{
     ADDED_CALL, ANALYSIS_UNAVAILABLE, Level, PDG_CHANGE, Reason, UNCLASSIFIED_CALL,
@@ -15,9 +14,9 @@ use std::collections::BTreeSet;
 const CHECKS: [(&str, &str); 5] = [
     (PDG_CHANGE, "Changed code"),
     (ADDED_CALL, "Calls a rule names"),
-    (UNCLASSIFIED_CALL, "Library calls nothing classifies"),
+    (UNCLASSIFIED_CALL, "Unclassified library calls"),
     (UNRESOLVED_CALLS, "Calls to unknown targets"),
-    (ANALYSIS_UNAVAILABLE, "Changes it can't compare"),
+    (ANALYSIS_UNAVAILABLE, "Changes outside functions"),
 ];
 
 /// How many functions a reason lists before saying how many more there are.
@@ -34,17 +33,16 @@ impl ChangeReport {
             .filter_map(|(rule, title)| Check::of(&self.rating.reasons, rule, title))
             .collect();
 
-        let folds = checks.iter().map(|check| check.render(self, &links));
+        let found = self.found(&checks, &links);
         [self.headline(), self.why(&checks), self.glance()]
             .into_iter()
-            .chain(folds)
+            .chain(found)
             .collect::<Vec<_>>()
             .join("\n\n")
     }
 
     fn headline(&self) -> String {
-        let risk = self.rating.risk;
-        format!("### Merge risk: {} {}", risk.name(), icon(risk))
+        format!("### Merge risk: {}", status(self.rating.risk))
     }
 
     /// Every check above low, with what it found. An unrated report says why nothing is rated.
@@ -64,6 +62,24 @@ impl ChangeReport {
             true => "**Every check is low or found nothing.**".to_owned(),
             false => format!("**Why it isn't low:**\n\n{}", held.join("\n")),
         }
+    }
+
+    /// One fold for everything the checks found. Its summary is the one check's, or each check's
+    /// name and mark; inside, each check is a heading over its reasons.
+    fn found(&self, checks: &[Check], links: &Links) -> Option<String> {
+        let (summary, body) = match checks {
+            [] => return None,
+            [only] => (only.summary_line(), only.body(self, links)),
+            many => {
+                let marks = many.iter().map(Check::mark).collect::<Vec<_>>().join(" · ");
+                let sections = many.iter().map(|check| check.section(self, links));
+                let body = sections.collect::<Vec<_>>().join("\n\n");
+                (format!("<strong>What it found:</strong> {marks}"), body)
+            }
+        };
+        Some(format!(
+            "<details><summary>{summary}</summary>\n\n{body}\n\n</details>"
+        ))
     }
 
     fn glance(&self) -> String {
@@ -329,33 +345,44 @@ impl<'a> Check<'a> {
     /// Its line under "Why it isn't low".
     fn held(&self) -> String {
         let summary = escape(self.summary().trim_end_matches('.'));
-        let level = self.level;
+        format!("- **{}** is {}: {summary}.", self.title, status(self.level))
+    }
+
+    /// Its name and level, as the fold that holds several checks names it.
+    fn mark(&self) -> String {
+        format!("{} {}", self.title, icon(self.level))
+    }
+
+    /// Its summary, when it's the only check in the fold.
+    fn summary_line(&self) -> String {
         format!(
-            "- **{}** is {} {}: {summary}.",
+            "<strong>{}:</strong> {} · {}",
             self.title,
-            level.name(),
-            icon(level)
+            status(self.level),
+            html(&self.summary())
         )
     }
 
-    fn render(&self, report: &ChangeReport, links: &Links) -> String {
+    /// Its heading and reasons, when the fold holds several checks.
+    fn section(&self, report: &ChangeReport, links: &Links) -> String {
+        let heading = format!("#### {}: {}", self.title, status(self.level));
+        // Several kinds of reason each get a heading in the body, which says what a summary would.
+        let summary = (self.groups.len() == 1).then(|| format!("\n\n{}", escape(&self.summary())));
+
+        let body = self.body(report, links);
+        format!("{heading}{}\n\n{body}", summary.unwrap_or_default())
+    }
+
+    /// Its reasons, each with the functions it was found in.
+    fn body(&self, report: &ChangeReport, links: &Links) -> String {
         let listing = Listing {
             rule: self.rule,
             titled: self.groups.len() > 1,
             report,
             links,
         };
-        let body = self.groups.iter().flat_map(|group| group.lines(&listing));
-        let level = self.level;
-
-        format!(
-            "<details><summary><strong>{}:</strong> {} {} · {}</summary>\n\n{}\n\n</details>",
-            self.title,
-            level.name(),
-            icon(level),
-            html(&self.summary()),
-            body.collect::<Vec<_>>().join("\n").trim()
-        )
+        let lines = self.groups.iter().flat_map(|group| group.lines(&listing));
+        lines.collect::<Vec<_>>().join("\n").trim().to_owned()
     }
 }
 
@@ -409,8 +436,8 @@ impl Group<'_> {
     /// Its reasons, one line each, under its own heading when the check holds more than one group.
     fn lines(&self, listing: &Listing) -> Vec<String> {
         let title = listing.titled.then(|| {
-            let (said, level) = (escape(&self.counted(listing.rule)), self.level);
-            format!("**{said}** — {} {}\n", level.name(), icon(level))
+            let said = escape(&self.counted(listing.rule));
+            format!("**{said}** — {}\n", status(self.level))
         });
         let listed = self.reasons.iter().take(SHOWN);
         let listed = listed.filter_map(|reason| listing.line(reason));
@@ -538,6 +565,11 @@ fn tally(changes: &[FunctionChange]) -> String {
         .into_iter()
         .filter_map(|kind| nonzero(count(kind), kind.name(), kind.name()));
     said.collect::<Vec<_>>().join(", ")
+}
+
+/// A level as every place that names one says it: its name and mark.
+fn status(level: Level) -> String {
+    format!("{} {}", level.name(), icon(level))
 }
 
 /// The verdict's mark: a color for a measured level, eyes for what needs a person.

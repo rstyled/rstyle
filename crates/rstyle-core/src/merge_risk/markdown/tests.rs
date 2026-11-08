@@ -98,7 +98,7 @@ fn it_says_which_check_holds_the_rating_above_low_and_lists_what_it_found() {
 }
 
 #[test]
-fn a_rule_naming_a_call_is_its_own_check_with_where_the_call_is_made() {
+fn several_checks_share_one_fold_each_under_its_own_heading() {
     let mut load = change("load", ChangeKind::Changed, 7);
     load.calls_added = vec!["go::os.WriteFile".into()];
     let mut writes = found(
@@ -122,12 +122,17 @@ fn a_rule_naming_a_call_is_its_own_check_with_where_the_call_is_made() {
         markdown.contains("**Calls:** matched 👀 · 1 call rule match\n"),
         "{markdown}"
     );
-    let check = format!(
-        "<details><summary><strong>Calls a rule names:</strong> high 🔴 · added call</summary>\n\n\
+    let found = format!(
+        "<details><summary><strong>What it found:</strong> Changed code 🟢 · Calls a rule names 🔴\
+         </summary>\n\n\
+         #### Changed code: low 🟢\n\n{within}\n\n\
+         - [`load`]({URL}/native/source.go#L7) in `native/source.go` — changed · \
+         calls more `go::os.WriteFile` · used by 4 (1 directly)\n\n\
+         #### Calls a rule names: high 🔴\n\nadded call\n\n\
          - [`load`]({URL}/native/source.go#L7) in `native/source.go` calls `go::os.WriteFile`\n\n\
          </details>"
     );
-    assert!(markdown.ends_with(&check), "{markdown}");
+    assert!(markdown.ends_with(&found), "{markdown}");
 }
 
 #[test]
@@ -209,7 +214,7 @@ fn library_calls_nothing_classifies_are_counted_by_call_and_function() {
     let markdown = report(Level::Unknown, reasons, vec![first, second]).markdown(None);
 
     let calls = format!(
-        "<details><summary><strong>Library calls nothing classifies:</strong> unknown 👀 · \
+        "<details><summary><strong>Unclassified library calls:</strong> unknown 👀 · \
          new library call nothing classifies: 3 calls in 2 functions</summary>\n\n\
          - `first` in `native/source.go` calls `{map}`\n"
     );
