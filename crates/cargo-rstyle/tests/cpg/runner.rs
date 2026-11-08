@@ -2348,9 +2348,9 @@ fn risk_writes_markdown_for_a_pull_request_with_links_into_the_head() {
     let output = markdown(&[]);
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     let text = String::from_utf8(output.stdout).unwrap();
-    assert!(text.starts_with("**Merge risk: "), "{text}");
+    assert!(text.starts_with("### Merge risk: "), "{text}");
     assert!(
-        text.contains("<details><summary>1 affected function</summary>"),
+        text.contains("<details><summary><strong>Code impact:</strong> changed"),
         "{text}"
     );
     assert!(

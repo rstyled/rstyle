@@ -39,7 +39,7 @@ impl Level {
         }
     }
 
-    fn strongest(self, other: Self) -> Self {
+    pub(super) fn strongest(self, other: Self) -> Self {
         if other.weight() > self.weight() {
             other
         } else {

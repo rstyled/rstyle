@@ -94,10 +94,15 @@ has no tokens to read around one.
 `--format json` keeps every reason, with `risk`, `policy_configured` and `schema_version`. The text gives what can't be seen
 by kind, and each function's lines say which.
 
-`--markdown` writes the report for a pull request's description: the rating and the reasons it rests on, then the code
-impact, any file changed outside a function, and the functions folded under a `<details>`. `--source-url` is what each
-file's path is joined to for a link, such as `https://github.com/OWNER/REPO/blob/HEAD_SHA`; a removed function isn't
-linked, since the head doesn't hold it. Callees drop the directories of their import path, so
+`--markdown` writes the report for a pull request's description. It leads with the rating and the reasons it rests on,
+then **Needs a look**: the first ten functions with a call a rule names, a change its facts can't speak for, or, in a
+changed function, a new signature, a changed known value, a call to an unknown target, a library call nothing classifies,
+or an effect other than mutation. Five folded sections follow, each with its verdict in its summary so the report reads
+folded: **Code impact** (counts by file, then every function), **Calls**, **Signatures**, **Effects** and **Blind spots**
+(what it can't see, and what isn't compared). A section with nothing to unfold is one line.
+
+`--source-url` is what each file's path is joined to for a link, such as `https://github.com/OWNER/REPO/blob/HEAD_SHA`;
+a removed function isn't linked, since the head doesn't hold it. Callees drop the directories of their import path, so
 `go::github.com/o/r/native.load` reads as `go::native.load`. The text and JSON keep the full identity a `[[risk.calls]]`
 rule names.
 
