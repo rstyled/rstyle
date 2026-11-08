@@ -635,18 +635,20 @@ impl Config {
     }
 
     /// The policy for a function at `path`: the base with every matching override merged in.
-    pub fn for_path(&self, path: &str) -> Result<Cow<'_, Self>, String> {
+    /// Can't fail: the base and each override were checked on parse, and the sections an
+    /// override may set only validate single values, so merging checked layers stays valid.
+    pub fn for_path(&self, path: &str) -> Cow<'_, Self> {
         let mut matching = self.overrides.iter().filter(|o| o.matches(path)).peekable();
         if matching.peek().is_none() {
-            return Ok(Cow::Borrowed(self));
+            return Cow::Borrowed(self);
         }
         let mut table = self.base.clone();
         for layer in matching {
             overrides::merge(&mut table, layer.rules());
         }
-        let policy = Self::deserialize(Value::Table(table)).map_err(|e| format!("{path}: {e}"))?;
+        let policy = Self::deserialize(Value::Table(table));
 
-        Ok(Cow::Owned(policy))
+        Cow::Owned(policy.expect("checked layers merge into a valid config"))
     }
 }
 

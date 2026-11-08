@@ -386,10 +386,7 @@ fn evaluate_observations(inputs: EvaluationInputs, cfg: &Config) -> Result<Evalu
     let facts = select_facts(facts, cfg, &mut scopes)?;
     let graph = graph::build(&facts);
     let effects = completed_effects(&facts, &graph, cfg, completed)?;
-    let policies = facts
-        .iter()
-        .map(|f| cfg.for_path(&f.path))
-        .collect::<Result<Vec<_>, _>>()?;
+    let policies: Vec<_> = facts.iter().map(|f| cfg.for_path(&f.path)).collect();
 
     let (diagnostic_owners, diagnostics) = evaluated_diagnostics(
         RuleInputs {

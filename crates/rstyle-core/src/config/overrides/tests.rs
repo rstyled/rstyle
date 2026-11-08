@@ -17,7 +17,7 @@ side_effects.weights = { io = 6 }
 #[test]
 fn unmatched_paths_borrow_the_base() {
     let config = Config::parse(LAYERED).unwrap();
-    let policy = config.for_path("src/domain/rules.rs").unwrap();
+    let policy = config.for_path("src/domain/rules.rs");
     assert!(matches!(policy, std::borrow::Cow::Borrowed(_)));
     assert_eq!(policy.side_effects.weights.network, 4);
     assert_eq!(policy.fn_length.max_lines, 50);
@@ -26,13 +26,13 @@ fn unmatched_paths_borrow_the_base() {
 #[test]
 fn matching_overrides_merge_in_order_over_the_base() {
     let config = Config::parse(LAYERED).unwrap();
-    let adapter = config.for_path("src/adapters/store.rs").unwrap();
+    let adapter = config.for_path("src/adapters/store.rs");
     assert_eq!(adapter.side_effects.weights.io, 1);
     assert_eq!(adapter.side_effects.weights.network, 2);
     assert_eq!(adapter.side_effects.weights.r#unsafe, 4);
     assert_eq!(adapter.fn_length.max_lines, 80);
 
-    let critical = config.for_path("src/adapters/critical/store.rs").unwrap();
+    let critical = config.for_path("src/adapters/critical/store.rs");
     assert_eq!(critical.side_effects.weights.io, 6);
     assert_eq!(critical.side_effects.weights.network, 2);
     assert_eq!(critical.fn_length.max_lines, 80);
@@ -61,7 +61,7 @@ fn plain_names_match_a_module_anywhere() {
         "[[overrides]]\npaths = ['adapters', 'bin/main.rs']\nfn_length = { max_lines = 80 }",
     )
     .unwrap();
-    let max_lines = |path| config.for_path(path).unwrap().fn_length.max_lines;
+    let max_lines = |path| config.for_path(path).fn_length.max_lines;
     assert_eq!(max_lines("adapters/store.rs"), 80);
     assert_eq!(max_lines("crates/app/src/adapters/db/store.rs"), 80);
     assert_eq!(max_lines("crates/app/src/adapters.rs"), 80);
@@ -76,7 +76,7 @@ fn slashes_around_a_plain_name_are_ignored() {
     for name in ["adapters/", "/adapters", "/adapters/"] {
         let input = format!("[[overrides]]\npaths = ['{name}']\nfn_length = {{ max_lines = 80 }}");
         let config = Config::parse(&input).unwrap();
-        let max_lines = |path| config.for_path(path).unwrap().fn_length.max_lines;
+        let max_lines = |path| config.for_path(path).fn_length.max_lines;
         assert_eq!(max_lines("src/adapters/store.rs"), 80, "{name}");
         assert_eq!(max_lines("src/adapters.rs"), 80, "{name}");
         assert_eq!(max_lines("src/domain/rules.rs"), 50, "{name}");
@@ -90,9 +90,7 @@ fn overrides_serialize_back_to_their_table_and_only_when_present() {
 
     let config = Config::parse(LAYERED).unwrap();
     let round_trip = Config::parse(&toml::to_string(&config).unwrap()).unwrap();
-    let policy = round_trip
-        .for_path("src/adapters/critical/store.rs")
-        .unwrap();
+    let policy = round_trip.for_path("src/adapters/critical/store.rs");
     assert_eq!(policy.side_effects.weights.io, 6);
     assert_eq!(policy.fn_length.max_lines, 80);
 }
