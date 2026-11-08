@@ -1,6 +1,7 @@
 //! What sibling methods' calls say of an argument that differs, in the rule's own terms.
 
 use super::*;
+use crate::config::MethodCount;
 
 const RECORD: &str = "go::w.record";
 const OTHER: &str = "go::w.other";
@@ -57,7 +58,14 @@ fn writer(deviant: Argument) -> Vec<MethodArguments> {
 }
 
 fn found(methods: &[MethodArguments]) -> Vec<(String, String)> {
-    find(methods)
+    found_with(methods, &DeviantArgumentConfig::default())
+}
+
+fn found_with(
+    methods: &[MethodArguments],
+    limits: &DeviantArgumentConfig,
+) -> Vec<(String, String)> {
+    find(methods, limits)
         .into_iter()
         .map(|finding| {
             (
@@ -93,6 +101,21 @@ fn too_few_siblings_say_nothing() {
     methods.remove(0);
     methods.remove(0);
     assert_eq!(found(&methods), [], "three are not");
+}
+
+#[test]
+fn a_project_can_ask_for_more_siblings() {
+    let methods = writer(name());
+    let asking = |count| DeviantArgumentConfig {
+        min_methods: MethodCount(count),
+        ..DeviantArgumentConfig::default()
+    };
+    assert_eq!(
+        found_with(&methods, &asking(5)).len(),
+        1,
+        "five methods make the call"
+    );
+    assert_eq!(found_with(&methods, &asking(6)), [], "six are asked for");
 }
 
 #[test]

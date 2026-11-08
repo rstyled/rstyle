@@ -119,7 +119,17 @@ pkg/apiserver/rest/dualwriter_mode3.go:106: deviant_argument: `recordStorageDura
 ```
 
 Siblings are methods of the same type that share at least half their callees. A call is compared with the calls of
-the same callee at the same argument in at least 4 of them, counting its own, and every other call must agree.
+the same callee at the same argument in at least 4 of them, counting its own, and every other call must agree. Both
+numbers are defaults `rstyle.toml` can change:
+
+```toml
+[deviant_argument]
+min_methods = 4                  # at least 3: with two, each would differ from the other
+min_shared_callees_percent = 50  # 1 to 100
+```
+
+Raising `min_methods` misses types with only a few parallel methods, a common shape for a store's `Create`, `Get`,
+`Update` and `Delete`. Lowering `min_shared_callees_percent` compares methods that are less likely to be copies.
 
 A difference is reported only when nothing but a slip explains it:
 

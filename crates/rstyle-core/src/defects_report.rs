@@ -1,6 +1,6 @@
 //! The defects a run's records hold, as the report and SARIF show them.
 
-use crate::config::{Config, IgnoredResultConfig, TaintConfig};
+use crate::config::{Config, DeviantArgumentConfig, IgnoredResultConfig, TaintConfig};
 use crate::cpg::defects::deviant_argument::{self, Arguments, MethodArguments};
 use crate::cpg::defects::ignored_result::{self, ResultUse};
 use crate::cpg::defects::taint::{self, Finding, FunctionFlows};
@@ -178,10 +178,11 @@ impl Gathered {
     }
 
     /// Reports the arguments a method passes where its siblings' same calls all pass another.
-    fn compare_siblings(&mut self) {
+    fn compare_siblings(&mut self, limits: &DeviantArgumentConfig) {
         let methods: Vec<MethodArguments> =
             std::mem::take(&mut self.arguments).into_values().collect();
-        for deviant_argument::Finding { method, defect } in deviant_argument::find(&methods) {
+        for deviant_argument::Finding { method, defect } in deviant_argument::find(&methods, limits)
+        {
             let holder = &methods[method];
             if holder.allowed {
                 self.suppressed
@@ -271,9 +272,9 @@ impl Gathered {
     }
 
     /// The rules only the run's functions together can judge.
-    fn across_functions(&mut self, taint: &TaintConfig) {
-        self.follow_input(taint);
-        self.compare_siblings();
+    fn across_functions(&mut self, config: &Config) {
+        self.follow_input(&config.taint);
+        self.compare_siblings(&config.deviant_argument);
     }
 
     /// Reports the input that reaches a sink, wherever in the run each end is.
@@ -300,7 +301,7 @@ impl Gathered {
         for calls in std::mem::take(&mut self.results).into_values() {
             self.weigh(calls, &config.ignored_result);
         }
-        self.across_functions(&config.taint);
+        self.across_functions(config);
 
         DefectsReport {
             defects: self.defects.into_iter().collect(),

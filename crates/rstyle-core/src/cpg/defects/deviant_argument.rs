@@ -20,14 +20,11 @@ use super::super::flow::Vertex;
 use super::super::model::{AccessMode, Dispatch, FileSpan, Node, NodeKind, Origin, TargetKind};
 use super::ignored_result::declared_callee;
 use super::{Defect, Reading};
+use crate::config::DeviantArgumentConfig;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 pub const RULE: &str = "deviant_argument";
 
-/// How many sibling methods must make the call before their agreement says anything.
-const MIN_METHODS: usize = 4;
-/// The share of callees two methods must have in common to be siblings at all.
-const MIN_SHARED_CALLEES_PERCENT: usize = 50;
 /// What the receiver is called in a written value, so methods naming it differently compare.
 const RECEIVER: &str = "self";
 
@@ -423,11 +420,11 @@ struct Site {
 }
 
 /// The arguments the run's sibling methods pass that their siblings say are a slip.
-pub fn find(methods: &[MethodArguments]) -> Vec<Finding> {
+pub fn find(methods: &[MethodArguments], limits: &DeviantArgumentConfig) -> Vec<Finding> {
     let mut found = Vec::new();
     for slots in slots_by_owner(methods).values() {
         for sites in slots.values() {
-            found.extend(deviations(methods, sites));
+            found.extend(deviations(methods, sites, limits));
         }
     }
 
@@ -456,15 +453,19 @@ fn slots_by_owner(methods: &[MethodArguments]) -> BTreeMap<&str, Slots<'_>> {
     owners
 }
 
-fn deviations(methods: &[MethodArguments], sites: &[Site]) -> Vec<Finding> {
+fn deviations(
+    methods: &[MethodArguments],
+    sites: &[Site],
+    limits: &DeviantArgumentConfig,
+) -> Vec<Finding> {
     let argument = |site: &Site| &methods[site.method].arguments.arguments[site.argument];
     let mut found = Vec::new();
     for deviant in sites {
         let peers: Vec<&Site> = sites
             .iter()
-            .filter(|site| siblings(methods, site.method, deviant.method))
+            .filter(|site| siblings(methods, (site.method, deviant.method), limits))
             .collect();
-        let Some(majority) = agreed_otherwise(methods, &peers, deviant) else {
+        let Some(majority) = agreed_otherwise(methods, &peers, deviant, limits) else {
             continue;
         };
         let passed = argument(deviant);
@@ -496,6 +497,7 @@ fn agreed_otherwise<'m>(
     methods: &'m [MethodArguments],
     peers: &[&Site],
     deviant: &Site,
+    limits: &DeviantArgumentConfig,
 ) -> Option<&'m Argument> {
     let argument = |site: &Site| &methods[site.method].arguments.arguments[site.argument];
     let value = &argument(deviant).value;
@@ -508,7 +510,7 @@ fn agreed_otherwise<'m>(
     let agree = others.iter().all(|other| other.value == majority.value);
     let methods_calling: BTreeSet<usize> = peers.iter().map(|site| site.method).collect();
 
-    let enough = methods_calling.len() >= MIN_METHODS;
+    let enough = methods_calling.len() >= limits.min_methods.0;
     (agree && enough && majority.value != *value).then_some(*majority)
 }
 
@@ -541,7 +543,11 @@ fn differs_only_at(a: &[String], b: &[String], position: usize) -> bool {
 }
 
 /// Whether two methods call enough of the same callees to be written as copies of each other.
-fn siblings(methods: &[MethodArguments], a: usize, b: usize) -> bool {
+fn siblings(
+    methods: &[MethodArguments],
+    (a, b): (usize, usize),
+    limits: &DeviantArgumentConfig,
+) -> bool {
     if a == b {
         return true;
     }
@@ -549,7 +555,7 @@ fn siblings(methods: &[MethodArguments], a: usize, b: usize) -> bool {
     let shared = a.intersection(b).count();
 
     let either = a.union(b).count();
-    either > 0 && shared * 100 >= either * MIN_SHARED_CALLEES_PERCENT
+    either > 0 && shared * 100 >= either * limits.min_shared_callees_percent.0
 }
 
 #[cfg(test)]
