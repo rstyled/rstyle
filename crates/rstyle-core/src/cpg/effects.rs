@@ -23,25 +23,47 @@ struct File {
     namespace: String,
     unlisted: Option<EffectKind>,
     #[serde(default)]
-    io: Vec<String>,
+    io: Vec<Entry>,
     #[serde(default)]
-    network: Vec<String>,
+    network: Vec<Entry>,
     #[serde(default)]
-    time: Vec<String>,
+    time: Vec<Entry>,
     #[serde(default)]
-    random: Vec<String>,
+    random: Vec<Entry>,
     #[serde(default)]
-    panic: Vec<String>,
+    panic: Vec<Entry>,
     #[serde(default)]
-    global: Vec<String>,
+    global: Vec<Entry>,
     #[serde(default, rename = "unsafe")]
-    unsafe_code: Vec<String>,
+    unsafe_code: Vec<Entry>,
     #[serde(default)]
-    unknown: Vec<String>,
+    unknown: Vec<Entry>,
     #[serde(default)]
-    none: Vec<String>,
+    none: Vec<Entry>,
     #[serde(default)]
     writes_to_memory: Vec<MemoryRule>,
+}
+
+/// A list's entry: a string covers every key it starts, and `{ exact = "..." }` only the key
+/// it names, so `Option.is_some` can be listed without `Option.is_some_and`.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum Entry {
+    Prefix(String),
+    Exact(Exact),
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Exact {
+    exact: String,
+}
+
+/// An entry's class, and whether it only covers the key it names.
+#[derive(Debug)]
+struct Listed {
+    class: LibraryClass,
+    exact: bool,
 }
 
 /// Operations that only write to a buffer when an argument has one of these types.
@@ -64,7 +86,7 @@ pub(super) struct MemoryWrite {
 /// The effect classes of one frontend namespace, by operation key.
 #[derive(Debug, Default)]
 pub struct EffectClasses {
-    entries: BTreeMap<String, LibraryClass>,
+    entries: BTreeMap<String, Listed>,
     unlisted: Option<LibraryClass>,
     memory_writes: BTreeMap<String, MemoryWrite>,
 }
@@ -77,13 +99,17 @@ impl EffectClasses {
     }
 
     /// The class of an operation key such as `go:os.WriteFile`: the longest entry that
-    /// starts it, else the file's class for an unlisted call.
+    /// starts it, where an exact entry only starts the key it names, else the file's class
+    /// for an unlisted call.
     pub fn class(&self, operation: &str) -> Option<LibraryClass> {
         operation
             .char_indices()
             .map(|(start, character)| start + character.len_utf8())
             .rev()
-            .find_map(|end| self.entries.get(&operation[..end]).copied())
+            .find_map(|end| {
+                let listed = self.entries.get(&operation[..end])?;
+                (!listed.exact || end == operation.len()).then_some(listed.class)
+            })
             .or(self.unlisted)
     }
 
@@ -115,9 +141,13 @@ fn parse(text: &str) -> Result<(String, EffectClasses), String> {
         (&file.none, LibraryClass::Pure),
     ];
     let mut entries = BTreeMap::new();
-    for (names, class) in lists {
-        for name in names {
-            if entries.insert(key(name), class).is_some() {
+    for (list, class) in lists {
+        for entry in list {
+            let (name, exact) = match entry {
+                Entry::Prefix(name) => (name, false),
+                Entry::Exact(Exact { exact }) => (exact, true),
+            };
+            if entries.insert(key(name), Listed { class, exact }).is_some() {
                 return Err(format!("{name} has more than one effect class"));
             }
         }
@@ -226,6 +256,23 @@ mod tests {
     }
 
     #[test]
+    fn an_exact_entry_covers_only_the_key_it_names() {
+        let classes = parsed("none = [{ exact = \"pkg.Is\" }]").unwrap();
+        assert_eq!(classes.class("x:pkg.Is"), Some(LibraryClass::Pure));
+        assert_eq!(classes.class("x:pkg.IsAnd"), None);
+        assert_eq!(classes.class("x:pkg.I"), None);
+    }
+
+    #[test]
+    fn an_exact_entry_leaves_longer_keys_to_a_shorter_entry() {
+        let classes =
+            parsed("io = [\"pkg.\"]\nnone = [\"pkg.Pure\", { exact = \"pkg.Is\" }]").unwrap();
+        assert_eq!(classes.class("x:pkg.Is"), Some(LibraryClass::Pure));
+        assert_eq!(classes.class("x:pkg.IsAnd"), Some(IO));
+        assert_eq!(classes.class("x:pkg.PureToo"), Some(LibraryClass::Pure));
+    }
+
+    #[test]
     fn a_key_from_another_namespace_matches_nothing() {
         let classes = parsed("io = [\"pkg.\"]").unwrap();
         assert_eq!(classes.class("y:pkg.Write"), None);
@@ -240,6 +287,8 @@ mod tests {
     #[test]
     fn an_entry_has_one_class() {
         let error = parsed("io = [\"pkg.A\"]\nnone = [\"pkg.A\"]").unwrap_err();
+        assert!(error.contains("pkg.A"), "{error}");
+        let error = parsed("io = [\"pkg.A\"]\nnone = [{ exact = \"pkg.A\" }]").unwrap_err();
         assert!(error.contains("pkg.A"), "{error}");
     }
 
@@ -260,5 +309,8 @@ mod tests {
         assert!(parse("schema = \"other/1\"\nnamespace = \"x\"").is_err());
         assert!(parsed("unlisted = \"sometimes\"").is_err());
         assert!(parsed("mystery = [\"pkg.\"]").is_err());
+        assert!(parsed("none = [{ prefix = \"pkg.\" }]").is_err());
+        assert!(parsed("none = [{ exact = \"pkg.A\", also = \"pkg.B\" }]").is_err());
+        assert!(parsed("none = [1]").is_err());
     }
 }
