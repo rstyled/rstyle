@@ -634,6 +634,18 @@ impl Config {
         Ok(Self { base, ..config })
     }
 
+    /// Leaves these out as well, as if `exclude` named them, so a path's policy holds them too. One
+    /// already named is kept where it was.
+    pub fn exclude_also(&mut self, globs: &[String]) {
+        for glob in globs {
+            if !self.exclude.0.contains(glob) {
+                self.exclude.0.push(glob.clone());
+            }
+        }
+        let globs = self.exclude.0.iter().cloned().map(Value::String).collect();
+        self.base.insert("exclude".into(), Value::Array(globs));
+    }
+
     /// The policy for a function at `path`: the base with every matching override merged in.
     /// Can't fail: the base and each override were checked on parse, and the sections an
     /// override may set only validate single values, so merging checked layers stays valid.
@@ -663,6 +675,23 @@ mod tests {
         assert_eq!(config.fn_params.max_params, 4);
         assert_eq!(config.fn_spacing.min_statements, 5);
         assert_eq!(config.side_effects.weights.io, 3);
+    }
+
+    #[test]
+    fn more_exclusions_join_the_configured_ones_and_reach_every_path() {
+        let mut config = Config::parse(
+            "exclude = ['gen/**']\n[[overrides]]\npaths = ['a']\nfn_length = { max_lines = 9 }",
+        )
+        .unwrap();
+        config.exclude_also(&["old.py".into(), "gen/**".into()]);
+        assert_eq!(config.exclude.0, ["gen/**", "old.py"]);
+        let policy = config.for_path("a/b.rs");
+        assert_eq!(policy.fn_length.max_lines, 9);
+        assert_eq!(policy.exclude.0, ["gen/**", "old.py"]);
+
+        let mut default = Config::default();
+        default.exclude_also(&["old.py".into()]);
+        assert_eq!(default.exclude.0, ["target/**", "old.py"]);
     }
 
     #[test]

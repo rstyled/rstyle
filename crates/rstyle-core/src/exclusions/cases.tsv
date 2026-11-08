@@ -1,0 +1,109 @@
+# How core reads an `exclude` glob, which every frontend that takes --exclude must read the same way.
+# Each line is a glob, a path relative to the source directory, and whether the glob leaves the path
+# out, separated by tabs. rstyle-core's tests check this table against core's matcher; a frontend's
+# tests can check theirs against a copy.
+#
+# A plain path, and a glob that matches a directory, take everything under it.
+target	target/a.rs	yes
+target	target	yes
+target	lib/target/a.rs	no
+target	targeted/a.rs	no
+target/	target/a.rs	yes
+./target	target/a.rs	yes
+./target/	target/x/a.rs	yes
+tests/fixtures	tests/fixtures/deep/a.py	yes
+tests/fixtures	tests/fixtures.py	no
+tests/fixtures	tests/fixtures2/a.py	no
+a.py	a.py	yes
+a.py	ba.py	no
+a.py	x/a.py	no
+a.py	a.py/b.py	yes
+# `*` and `?` cross directories.
+*	a/b.go	yes
+*.py	b.py	yes
+*.py	a/b.py	yes
+*.py	b.pyc	no
+a/*.py	a/b/c.py	yes
+a/*/c.py	a/c.py	no
+a/*/c.py	a/b/c.py	yes
+a?c.py	abc.py	yes
+a?c.py	a/c.py	yes
+a?c.py	ac.py	no
+*_test.go	pkg/a_test.go	yes
+x*	xa/b	yes
+# `**/` at the start is any number of directories, none included; `/**` at the end is everything
+# under; `/**/` in the middle is any number of directories between.
+**	a/b.go	yes
+**	a	yes
+target/**	target/a.rs	yes
+target/**	target/x/a.rs	yes
+target/**	lib/target/a.rs	no
+target/**	targeted/a.rs	no
+src/**	x/src/a.rs	no
+**/src/**	src/a.rs	yes
+**/src/**	x/src/y/a.rs	yes
+**/src/**	x/source/a.rs	no
+**/testdata	testdata/b.go	yes
+**/testdata	a/testdata/b.go	yes
+**/testdata	a/testdatas/b.go	no
+**/*_pb2.py	x_pb2.py	yes
+**/*_pb2.py	gen/x_pb2.py	yes
+a/**/c.py	a/c.py	yes
+a/**/c.py	a/b/d/c.py	yes
+a/**/c.py	ab/c.py	no
+pkg/**/*_test.go	pkg/a_test.go	yes
+pkg/**/*_test.go	pkg/sub/a_test.go	yes
+pkg/**/*_test.go	other/a_test.go	no
+# `**` anywhere else is two `*`.
+x**	xa/b	yes
+**x	a/x	yes
+**x	ax	yes
+a**/b	ax/b	yes
+a**/b	a/b	yes
+a/**b	a/xb	yes
+a/**b	a/b	yes
+# Character classes. `!` or `^` first negates, `]` first is itself, and `-` first or last is itself.
+[ab].py	a.py	yes
+[ab].py	c.py	no
+[!ab].py	a.py	no
+[!ab].py	c.py	yes
+[^ab].py	c.py	yes
+[a-c].py	b.py	yes
+[a-c].py	d.py	no
+[]].py	].py	yes
+[]a].py	a.py	yes
+[!]].py	a.py	yes
+[!]].py	].py	no
+[-a].py	-.py	yes
+[a-].py	-.py	yes
+[*].py	*.py	yes
+[*].py	a.py	no
+[/]	a/b	no
+a[/]b	a/b	yes
+# Alternatives, which can nest and hold any of the above.
+{a,b}.py	b.py	yes
+{a,b}.py	c.py	no
+{gen,vendor}/**	vendor/x.go	yes
+{gen,vendor}/**	src/x.go	no
+x_{test,bench}.go	x_bench.go	yes
+{a,b/**}	b/x/y.py	yes
+{a,{b,c}d}.py	cd.py	yes
+{a,{b,c}d}.py	c.py	no
+{**/gen,docs}/*.py	x/gen/a.py	yes
+# An empty alternative matches nothing, so `{,x}` is `x`.
+{,x}a.py	a.py	no
+{,x}a.py	xa.py	yes
+# A backslash makes the next character itself.
+\*.py	*.py	yes
+\*.py	a.py	no
+a\?.py	a?.py	yes
+a\?.py	ab.py	no
+\[a].py	[a].py	yes
+# Everything else is itself, case included.
+A.py	a.py	no
+a+b.py	a+b.py	yes
+a.b	axb	no
+(a|b).py	a.py	no
+(a|b).py	(a|b).py	yes
+a$	a$	yes
+^a	^a	yes
