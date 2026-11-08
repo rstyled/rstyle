@@ -199,7 +199,7 @@ fn what_it_cannot_see_is_in_the_glance_and_listed() {
     let markdown = unseen.markdown(Some(URL));
 
     for row in [
-        "| **Signatures** | 👀 none recorded, with gaps |\n",
+        "| **Signatures** | ✅ unchanged |\n",
         "| **Coverage** | 👀 1 file changed outside a function; 1 text-only function; \
          1 unknown function; 3 test functions not rated; 2 generated functions not compared |\n",
     ] {

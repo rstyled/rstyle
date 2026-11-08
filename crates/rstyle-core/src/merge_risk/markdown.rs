@@ -101,24 +101,17 @@ impl ChangeReport {
         format!("{functions} in {files}: {}", tally(&self.changes))
     }
 
-    /// Whether some of the change is out of the compared facts' sight.
-    fn has_gaps(&self) -> bool {
-        let unseen = |change: &FunctionChange| {
-            matches!(change.kind, ChangeKind::TextOnly | ChangeKind::Unknown)
-        };
-        self.changes.iter().any(unseen) || !self.changed_outside_functions.is_empty()
-    }
-
+    /// Every changed function's signature is compared, a text-only or unknown one's too, so none
+    /// changing is unchanged. What the comparison can't see is the coverage row's to say.
     fn signatures(&self) -> String {
         let changed = self
             .changes
             .iter()
             .filter(|change| change.signature_changed)
             .count();
-        match (changed, self.has_gaps()) {
-            (0, true) => "👀 none recorded, with gaps".to_owned(),
-            (0, false) => "✅ unchanged".to_owned(),
-            (count, _) => format!("👀 {count} changed"),
+        match changed {
+            0 => "✅ unchanged".to_owned(),
+            count => format!("👀 {count} changed"),
         }
     }
 
