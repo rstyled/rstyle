@@ -227,14 +227,49 @@ mod tests {
             Some(LibraryClass::Pure)
         );
         assert_eq!(rust.class("rust:Vec.new"), Some(LibraryClass::Pure));
-        // It allocates, or runs a caller's `Ord`, or what runs depends on the implementation.
-        assert_eq!(rust.class("rust:Vec.push"), None);
+        // Allocating is no effect, and neither is panicking on a bad argument: a size too large
+        // to allocate, an index past the end, or `None`.
+        assert_eq!(rust.class("rust:Vec.push"), Some(LibraryClass::Pure));
+        assert_eq!(rust.class("rust:owned_box.new"), Some(LibraryClass::Pure));
+        assert_eq!(
+            rust.class("rust:Vec.with_capacity"),
+            Some(LibraryClass::Pure)
+        );
+        assert_eq!(
+            rust.class("rust:owned_box.new_uninit_slice"),
+            Some(LibraryClass::Pure)
+        );
+        assert_eq!(rust.class("rust:Vec.remove"), Some(LibraryClass::Pure));
+        assert_eq!(rust.class("rust:Option.unwrap"), Some(LibraryClass::Pure));
+        // An exact entry doesn't cover `with_capacity_in`, which takes an allocator, or
+        // `unwrap_or`, which drops its default.
+        assert_eq!(rust.class("rust:Vec.with_capacity_in"), None);
+        assert_eq!(rust.class("rust:Option.unwrap_or"), None);
+        // It runs a caller's `Ord`, or what runs depends on the implementation.
         assert_eq!(rust.class("rust:BTreeMap.get"), None);
         assert_eq!(rust.class("rust:Clone.clone"), None);
         assert_eq!(rust.class("rust:Iterator.next"), None);
-        // An entry would cover `is_some_and`, which runs a callable.
-        assert_eq!(rust.class("rust:Option.is_some"), None);
+        // An exact entry doesn't cover `is_some_and` or `new_cyclic`, which run a callable.
+        assert_eq!(rust.class("rust:Option.is_some"), Some(LibraryClass::Pure));
         assert_eq!(rust.class("rust:Option.is_some_and"), None);
+        assert_eq!(rust.class("rust:Rc.new"), Some(LibraryClass::Pure));
+        assert_eq!(rust.class("rust:Rc.new_cyclic"), None);
+        // A free function is keyed by the path it's defined at.
+        assert_eq!(
+            rust.class("rust:core::hint::must_use"),
+            Some(LibraryClass::Pure)
+        );
+        assert_eq!(rust.class("rust:core::mem::take"), None);
+        // Formatting into a `String` runs the value's own `Display` or `Debug`, and so does a
+        // panic on `Err`. A `Formatter` writes to whatever the formatting started with.
+        assert_eq!(
+            rust.class("rust:alloc::fmt::format"),
+            Some(LibraryClass::Pure)
+        );
+        assert_eq!(rust.class("rust:Result.unwrap"), Some(LibraryClass::Pure));
+        assert_eq!(rust.class("rust:Result.unwrap_or"), None);
+        assert_eq!(rust.class("rust:Formatter.write_str"), None);
+        assert_eq!(rust.class("rust:ToString.to_string"), None);
         assert_eq!(rust.unlisted(), None);
     }
 

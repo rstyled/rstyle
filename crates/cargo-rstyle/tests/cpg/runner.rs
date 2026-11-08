@@ -2485,6 +2485,72 @@ fn risk_reads_a_new_pure_standard_call_as_classified_and_a_trait_call_as_not() {
     assert!(!called.contains("first"), "{called}");
 }
 
+/// An exact entry classifies the member it names and not one whose name it starts, and a member
+/// that only allocates is pure.
+#[test]
+fn risk_reads_an_exact_entry_as_only_the_member_it_names() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let signature = "pub fn f(a: Option<u8>, v: &mut Vec<u8>) -> bool";
+    let base = saved_run_of(root, &format!("{signature} {{ false }}\n"));
+    let pure = saved_run_of(root, &format!("{signature} {{ v.push(1); a.is_some() }}\n"));
+
+    let rated = report(&risk(&base, &pure));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    let change = &rated["changes"][0];
+    assert_eq!(
+        change["calls_unclassified"],
+        serde_json::json!([]),
+        "{change}"
+    );
+
+    let callable = saved_run_of(
+        root,
+        &format!("{signature} {{ v.push(1); a.is_some_and(|x| x > 0) }}\n"),
+    );
+    let rated = report(&risk(&pure, &callable));
+    assert_eq!(rated["risk"], "unknown", "{rated}");
+    let called = rated["changes"][0]["calls_unclassified"].to_string();
+    assert!(called.contains("is_some_and"), "{called}");
+    assert!(!called.contains("push"), "{called}");
+}
+
+/// A standard free function has a key, so the table can say `mem::swap` and `fmt::format` are
+/// pure, and leave out `mem::take`, which runs the caller's `Default`.
+#[test]
+fn risk_reads_a_pure_free_function_as_classified() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let signature = "pub fn f(a: &mut Vec<u8>, b: &mut Vec<u8>) -> usize";
+    let base = saved_run_of(root, &format!("{signature} {{ 0 }}\n"));
+    let swapped = saved_run_of(
+        root,
+        &format!("{signature} {{ std::mem::swap(a, b); format!(\"{{}}\", a.len()).len() }}\n"),
+    );
+
+    let rated = report(&risk(&base, &swapped));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    let change = &rated["changes"][0];
+    assert_eq!(
+        change["calls_unclassified"],
+        serde_json::json!([]),
+        "{change}"
+    );
+
+    let taken = saved_run_of(
+        root,
+        &format!("{signature} {{ std::mem::take(a).len() }}\n"),
+    );
+    let rated = report(&risk(&swapped, &taken));
+    assert_eq!(rated["risk"], "unknown", "{rated}");
+    let called = rated["changes"][0]["calls_unclassified"].to_string();
+    assert!(called.contains("core::mem::take"), "{called}");
+}
+
 #[test]
 fn risk_refuses_two_runs_of_different_languages() {
     let directory = tempfile::tempdir().unwrap();

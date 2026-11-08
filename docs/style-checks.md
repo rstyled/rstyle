@@ -94,10 +94,11 @@ A frontend can also ship a table of its language's library calls, keyed by opera
 [Go's](../crates/rstyle-core/src/cpg/contracts/effects/go.toml) knows that `os.WriteFile` is
 `io` and that `strings.ToUpper` has no effect, and treats a library call it doesn't list as
 `unknown`. [Rust's](../crates/rstyle-core/src/cpg/contracts/effects/rust.toml) only lists
-standard methods that have no effect whatever type they're called with, such as `slice::iter` and
-`usize::checked_add`, and leaves every other library call unclassified, so density doesn't count
-it. `[side_effects.paths]` wins for any callee it matches, so you can still name a third-party
-package there.
+standard methods and functions that have no effect whatever type they're called with, such as
+`slice::iter`, `std::mem::swap`, `Vec::push`, `Option::unwrap` and `format!`, since allocating,
+panicking on a bad argument and formatting into a `String` count as no effect, and leaves every
+other library call unclassified, so density doesn't count it. `[side_effects.paths]` wins for any
+callee it matches, so you can still name a third-party package there.
 
 ## Suppressing a finding
 

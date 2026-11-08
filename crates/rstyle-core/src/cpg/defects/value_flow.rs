@@ -6,7 +6,8 @@
 //! whoever reads these, since the answer depends on what a project says of that callee.
 
 use super::super::model::{
-    Access, AccessMode, Definition, Dispatch, Node, NodeKind, Scope, TypeKind,
+    Access, AccessMode, Definition, DefinitionKind, Dispatch, Node, NodeKind, RefStatus, Scope,
+    TargetKind, TypeKind,
 };
 use super::super::tree;
 use super::Reading;
@@ -18,7 +19,8 @@ use std::collections::{BTreeSet, HashMap};
 /// that's a string literal.
 pub type WrittenList = (usize, Vec<Option<String>>);
 
-/// A call a flow can start or end at.
+/// A call a flow can start or end at, or a library's variable one can start at: reading it is where
+/// its value comes from, as a call's result is, and it has no arguments.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FlowCall {
     /// The callee as it's declared, which is what a contract names.
@@ -31,6 +33,8 @@ pub struct FlowCall {
     pub line: usize,
     /// The text of each argument that's a string literal, by position: a receiver is 0.
     pub literals: Vec<(usize, String)>,
+    /// The literal each keyword argument passes, by the parameter it names.
+    pub keywords: Vec<(String, String)>,
     /// Each argument that's a list written out in the call.
     pub lists: Vec<WrittenList>,
 }
@@ -459,6 +463,27 @@ fn literal_text(node: &Node) -> Option<String> {
     (literal.kind == "string").then(|| literal.value.clone())?
 }
 
+/// What a keyword argument passes when it's a literal: an `extension` holding one, with the
+/// parameter it names as its `member`, as Python's `shell=True` is.
+fn keyword_literal(
+    reading: &Reading<'_>,
+    operand: &Node,
+) -> Result<Option<(String, String)>, String> {
+    let (NodeKind::Extension, Some(keyword), [_]) =
+        (operand.kind, &operand.member, &operand.children[..])
+    else {
+        return Ok(None);
+    };
+
+    let value = reading.body.child(operand, 0)?;
+    let literal = value
+        .value
+        .as_ref()
+        .filter(|_| value.kind == NodeKind::Literal);
+    let text = literal.and_then(|it| it.value.clone());
+    Ok(text.map(|text| (keyword.clone(), text)))
+}
+
 /// The text of each element of each list written out in a call, where it's a string literal.
 fn lists_of(
     reading: &Reading<'_>,
@@ -483,6 +508,11 @@ fn flow_call(
         .iter()
         .filter_map(|&(at, operand)| Some((at, literal_text(operand)?)))
         .collect();
+    let mut keywords = Vec::new();
+    for (_, operand) in &operands {
+        keywords.extend(keyword_literal(reading, operand)?);
+    }
+
     let selected = reading
         .body
         .reference(&node.id)
@@ -497,22 +527,72 @@ fn flow_call(
         operation: definition.operation.clone(),
         line: tree::line(reading.sources, node)?,
         literals,
+        keywords,
         lists: lists_of(reading, &operands)?,
     })
 }
 
-/// Each call that can start or end a flow, by its node.
+/// The library variable a node reads, as `os.environ` is one.
+fn library_variable<'r>(
+    reading: &Reading<'r>,
+    node: &Node,
+) -> Result<Option<&'r Definition>, String> {
+    let reference = reading.body.reference(&node.id);
+    let resolved = reference.filter(|it| it.status == RefStatus::Resolved);
+    let target = resolved.and_then(|it| it.target.as_ref());
+    let defined = target.filter(|it| it.kind == TargetKind::Definition);
+    let Some(id) = defined.and_then(|it| it.id.as_deref()) else {
+        return Ok(None);
+    };
+
+    let definition = reading.tables.definition(id)?;
+    let variable = definition.kind == DefinitionKind::Static && definition.scope == Scope::Library;
+    Ok(variable.then_some(definition))
+}
+
+/// A read of a library's variable, as a flow sees it: a call with no arguments.
+fn variable_read(
+    reading: &Reading<'_>,
+    node: &Node,
+    definition: &Definition,
+) -> Result<FlowCall, String> {
+    Ok(FlowCall {
+        identity: definition.stable_identity.clone(),
+        selected: definition.stable_identity.clone(),
+        name: strip_generics(&definition.name),
+        operation: definition.operation.clone(),
+        line: tree::line(reading.sources, node)?,
+        literals: Vec::new(),
+        keywords: Vec::new(),
+        lists: Vec::new(),
+    })
+}
+
+/// What a node starts or ends a flow as: a call, or a read of a library's variable.
+fn flow_call_at(reading: &Reading<'_>, node: &Node) -> Result<Option<FlowCall>, String> {
+    if node.kind == NodeKind::Call {
+        let Some(definition) = declared_callee(reading, node)? else {
+            return Ok(None);
+        };
+        return flow_call(reading, node, definition).map(Some);
+    }
+    let Some(definition) = library_variable(reading, node)? else {
+        return Ok(None);
+    };
+    variable_read(reading, node, definition).map(Some)
+}
+
+/// Each call that can start or end a flow, and each read of a library's variable, by its node.
 fn flow_calls<'a>(
     reading: &Reading<'a>,
 ) -> Result<(Vec<FlowCall>, HashMap<&'a str, usize>), String> {
     let mut calls = Vec::new();
     let mut positions = HashMap::new();
-    let nodes = reading.function.nodes.iter();
 
-    for node in nodes.filter(|node| node.kind == NodeKind::Call) {
-        if let Some(definition) = declared_callee(reading, node)? {
+    for node in &reading.function.nodes {
+        if let Some(call) = flow_call_at(reading, node)? {
             positions.insert(node.id.as_str(), calls.len());
-            calls.push(flow_call(reading, node, definition)?);
+            calls.push(call);
         }
     }
     Ok((calls, positions))

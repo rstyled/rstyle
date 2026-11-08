@@ -353,7 +353,7 @@ fn a_test_file_has_no_defects_and_its_calls_do_not_count() {
     assert!(report.defects.is_empty(), "{report:?}");
 }
 
-/// What a frontend wrote of `a.go` or `a.cpp`, and each function a value reached a sink in.
+/// What a frontend wrote of `a.go`, `a.cpp` or `a.py`, and each function a value reached a sink in.
 fn taint_in(document: &str) -> Vec<(String, usize)> {
     let document: Value = serde_json::from_str(document).unwrap();
     let report = report_of(vec![document], &Config::default());
@@ -392,6 +392,29 @@ fn input_is_followed_in_what_a_cxx_frontend_writes() {
         lines,
         [5, 18, 21, 22],
         "local, out_parameter, via_source and run; overwritten and only_decides are clean: {found:?}"
+    );
+}
+
+#[test]
+fn input_is_followed_in_what_a_python_frontend_writes() {
+    let found = taint_in(include_str!("../cpg/testdata/taint-py.cpg.json"));
+    let expected = [
+        ("environ", 11),
+        ("getenv", 15),
+        ("shell", 19),
+        ("literal_shell", 35),
+        ("evaluated", 47),
+        ("path", 51),
+        ("compound", 57),
+        ("lines", 81),
+        ("write", 85),
+        ("via_source", 105),
+    ];
+    let expected = expected.map(|(name, line)| (name.to_owned(), line));
+    assert_eq!(
+        found, expected,
+        "argv, no_shell, not_the_command, program_argument, quoted, parameterized, number, \
+         overwritten, only_decides, via_ignoring, environment and fields are clean"
     );
 }
 
