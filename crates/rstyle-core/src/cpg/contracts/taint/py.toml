@@ -1,0 +1,147 @@
+# What Python's standard library takes input from and where input is dangerous, keyed by a callee's
+# name, which is its qualified name as typeshed declares it: `pickle.loads` is `_pickle.loads`. A
+# receiver is position 0, and otherwise the first argument is.
+#
+# Only these are read, so a call to anything else isn't an endpoint. A project adds its own under
+# [taint] in rstyle.toml, as it would a framework's.
+
+schema = "rstyle.taint-models/1"
+namespace = "py"
+
+# `os.environ`, `sys.argv` and `sys.stdin` are variables, so reading one is where input starts, and
+# `os.environ.get(...)`, `sys.argv[1]` and `sys.stdin.read()` hold it.
+sources = [
+    "os.getenv",
+    "os.getenvb",
+    "os.environ",
+    "os.environb",
+    "builtins.input",
+    "sys.argv",
+    "sys.orig_argv",
+    "sys.stdin",
+]
+
+# It quotes for a shell. Like a project's sanitizers, it clears a value for every kind of sink.
+sanitizers = ["shlex.quote"]
+
+# These always run their argument through a shell.
+[[sinks]]
+risk = "command injection"
+cwe = "CWE-78"
+arguments = [0]
+callees = [
+    "os.system",
+    "os.popen",
+    "subprocess.getoutput",
+    "subprocess.getstatusoutput",
+    "asyncio.subprocess.create_subprocess_shell",
+]
+
+# subprocess runs its arguments through a shell only when it's told to. Otherwise a program's
+# arguments are data to it, and a list of them is one argument here, so the program isn't told apart.
+[[sinks]]
+risk = "command injection"
+cwe = "CWE-78"
+arguments = [0]
+callees = [
+    "subprocess.run",
+    "subprocess.call",
+    "subprocess.check_call",
+    "subprocess.check_output",
+    "subprocess.Popen.__init__",
+]
+when = { keyword = "shell", literal = "true" }
+
+# Each argument is one of the program's, as in Go, so a literal shell and `-c` say the next is code.
+[[sinks]]
+risk = "command injection"
+cwe = "CWE-78"
+arguments = [0]
+callees = ["asyncio.subprocess.create_subprocess_exec"]
+shell = { executables = ["sh", "bash", "dash", "ksh", "zsh"], flag = "-c" }
+
+[[sinks]]
+risk = "command injection"
+cwe = "CWE-78"
+arguments = [0]
+callees = [
+    "os.execl",
+    "os.execle",
+    "os.execlp",
+    "os.execlpe",
+    "os.execv",
+    "os.execve",
+    "os.execvp",
+    "os.execvpe",
+    "os.posix_spawn",
+    "os.posix_spawnp",
+]
+
+# The first argument is the mode.
+[[sinks]]
+risk = "command injection"
+cwe = "CWE-78"
+arguments = [1]
+callees = [
+    "os.spawnl",
+    "os.spawnle",
+    "os.spawnlp",
+    "os.spawnlpe",
+    "os.spawnv",
+    "os.spawnve",
+    "os.spawnvp",
+    "os.spawnvpe",
+]
+
+[[sinks]]
+risk = "code injection"
+cwe = "CWE-95"
+arguments = [0]
+callees = ["builtins.eval", "builtins.exec", "builtins.compile"]
+
+# A parameterized query's parameters are data.
+[[sinks]]
+risk = "SQL injection"
+cwe = "CWE-89"
+arguments = [1]
+callees = [
+    "sqlite3.Connection.execute",
+    "sqlite3.Connection.executemany",
+    "sqlite3.Connection.executescript",
+    "sqlite3.Cursor.execute",
+    "sqlite3.Cursor.executemany",
+    "sqlite3.Cursor.executescript",
+]
+
+[[sinks]]
+risk = "deserialization of untrusted data"
+cwe = "CWE-502"
+arguments = [0]
+callees = ["_pickle.loads", "_pickle.load", "marshal.loads", "marshal.load"]
+
+[[sinks]]
+risk = "SSRF"
+cwe = "CWE-918"
+arguments = [0]
+callees = ["urllib.request.urlopen"]
+
+# A Path's methods take it as their receiver.
+[[sinks]]
+risk = "path traversal"
+cwe = "CWE-22"
+arguments = [0]
+callees = [
+    "builtins.open",
+    "os.open",
+    "os.remove",
+    "os.unlink",
+    "os.rmdir",
+    "os.removedirs",
+    "pathlib.Path.open",
+    "pathlib.Path.read_text",
+    "pathlib.Path.read_bytes",
+    "pathlib.Path.write_text",
+    "pathlib.Path.write_bytes",
+    "pathlib.Path.unlink",
+    "pathlib.Path.rmdir",
+]

@@ -369,7 +369,7 @@ pub struct TaintConfig {
     /// Calls whose result no longer holds input, whatever they were given, for every kind of sink.
     pub sanitizers: Vec<String>,
     /// Calls that are no end of a flow here, whatever a frontend's models say: a command-line tool
-    /// is meant to read its own environment.
+    /// is meant to read its own environment. A model's sanitizer named here cleans nothing.
     pub ignored: Vec<String>,
 }
 

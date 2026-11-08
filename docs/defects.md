@@ -126,9 +126,15 @@ Which calls are sources and sinks is data, per language, in `cpg/contracts/taint
 | Go | Query values, form values, headers, `os.Getenv`, `os.LookupEnv`, `io.ReadAll` | `database/sql` query text, `net/http` URLs, `os/exec` programs, template source, `os` file paths |
 | C and C++ | `getenv`, `fgets`, `read` and others | `system`, `popen`, the `exec` family, `fopen`, `open` and others |
 | Rust | `std::env::var`, `std::env::args`, reading stdin and others | `std::process::Command::new`, `std::fs` paths |
+| Python | `os.environ`, `os.getenv`, `sys.argv`, `sys.stdin`, `input` | `os.system`, `subprocess` with `shell=True`, `eval`, `exec`, `sqlite3` query text, `pickle.loads`, `open`, `os` and `pathlib` paths and others |
 
 Only an argument the sink treats as more than data counts, so a query parameter doesn't, and neither does an ordinary
-argument to a program, unless a literal shell and `-c` say it's code.
+argument to a program, unless a literal shell and `-c` say it's code. Python's `subprocess` runs a shell only when it's
+told to, so it's a sink only where a call passes `shell=True`.
+
+A source can be a library's variable as well as a call, so reading `os.environ` or `sys.argv` is where input starts, and
+`os.environ.get("HOME")` and `sys.argv[1]` hold it. A model can say what cleans input too: Python's says `shlex.quote`
+does.
 
 `rstyle.toml` has the last word. The standard library is all the models know, so name your own crates and packages here:
 
@@ -136,7 +142,7 @@ argument to a program, unless a literal shell and `-c` say it's code.
 [taint]
 sources = ["myapp::read_request"]   # calls whose result is input
 sanitizers = ["myapp::escape"]      # calls whose result no longer is, for every kind of sink
-ignored = ["std::env::var"]         # calls that are no end of a flow here
+ignored = ["std::env::var"]         # calls that are no end of a flow here, or a model's sanitizer that isn't one
 
 [[taint.sinks]]
 callees = ["sqlx::query"]
@@ -171,4 +177,17 @@ reach a sink or what it returns, and whether it returns input of its own, so a v
 - **A call through an interface or a function value** gives back what it's handed, and a sink behind one isn't seen. Neither is
   what a closure returns.
 - **A shell in Rust.** `Command::new("sh").arg("-c").arg(input)` isn't found, since `arg` isn't a sink.
+- **Python's frameworks.** The models only know the standard library. Flask's `request` is a variable, so with Flask
+  installed a project can name `flask.globals.request` under `sources`, and `request.args` holds what it does. Django's
+  `request.GET.get(...)` is `django.utils.datastructures.MultiValueDict.get` once django-stubs gives Django types, but
+  `request.GET["q"]` is a subscript, not a call, so nothing can name it.
+- **A program Python's `subprocess` runs.** A list is one argument here, so input choosing the program, as in
+  `subprocess.run([input, ...])`, isn't told from an ordinary argument, and neither is a shell in a list, as in
+  `subprocess.run(["sh", "-c", input])`. Nor is `shell` passed anything but a literal `True`.
+- **What `shlex.quote` cleans.** It quotes for a shell, but like any sanitizer here it clears a value for every kind
+  of sink, so input it quotes and then opens as a path isn't found.
+- **A Python keyword argument is numbered by where it's written,** so `f(b=x)` reads `x` as `f`'s first parameter.
+- **A Python `with`'s target** isn't given what its expression returns, so `with open(path) as f` leaves `f` clean.
+- **What Python can't resolve** ends a flow: `sys.stdin.buffer`, since typeshed's `sys.stdin` can be `None`, and
+  `shutil.rmtree` and `io.open`, which typeshed declares as variables, so a call of one is through a value.
 - **Functions it can't read** are `unknown`, as for every rule here.

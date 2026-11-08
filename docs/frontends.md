@@ -271,8 +271,10 @@ its own. See [merge risk](merge-risk.md).
 
 ### Defects
 
-`taint_flow` reads which library calls are sources and sinks from `cpg/contracts/taint/<namespace>.toml`, by a definition's
-`operation` or `name`, so a new language needs that file and no code.
+`taint_flow` reads which library calls and variables are sources and sinks from `cpg/contracts/taint/<namespace>.toml`, by
+a definition's `operation` or `name`, so a new language needs that file and no code. A sink can depend on the literal a
+keyword argument passes, which is an `extension` argument with one literal child and the parameter it names as `member`,
+as Python's `py:keyword` is.
 
 `--filter defects` runs the rules in [Defects](defects.md) over each function's facts. Its results don't change the
 exit code yet.
