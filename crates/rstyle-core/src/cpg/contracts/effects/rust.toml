@@ -2,7 +2,9 @@
 #
 # A key is `<self type>.<member>`, as in the runtime bound contracts: the type an inherent member is
 # defined on, by its compiler name (`Vec`, `BTreeMap`, `format_argument`) or its primitive kind (`slice`,
-# `str`, `usize`). A free function such as `std::mem::take` has no key.
+# `str`, `usize`). A free function's key is the path it's defined at, as its stable identity is:
+# `core::mem::swap`, though a caller writes `std::mem::swap`, and `core::iter::sources::once::once`
+# for `std::iter::once`.
 #
 # A trait's member is keyed by the trait (`Clone.clone`, `Iterator.next`) whichever implementation runs,
 # and some do more than others: `String`'s `clone` allocates, and `io::Lines`'s `next` reads. A call to
@@ -25,6 +27,14 @@
 # index past the end, `Option.unwrap` on `None`, and `Vec.push` on a `Vec` that can't grow. What a
 # panic drops as it unwinds, such as the element `Vec.insert` was given, is the panic's. A member that
 # always panics, aborts or exits isn't listed.
+#
+# Formatting into a `String` is no effect, as Go's `fmt.Sprintf` is none though it runs `String()`
+# methods: the `Display` or `Debug` it runs is the value's own code, which counts where it's defined.
+# So `alloc::fmt::format`, which every `format!` calls, is listed, and so are `Result.unwrap` and
+# `expect`, which panic with the error's `Debug`. Writing what's formatted somewhere else isn't, as
+# Go's `fmt.Fprintf` is io: `Formatter`'s methods write to whatever the formatting started with,
+# which for `write!` to an `io::Write` is that writer. `ToString.to_string` and `FmtWrite.write_fmt`,
+# which `to_string` and `write!` to a `String` call, are trait members.
 #
 # A string entry covers every member whose name it starts: `slice.iter` is `iter_mut` too. An exact
 # entry covers only the member it names, as `Option.is_some` needs, since `is_some_and` runs a callable.
@@ -98,10 +108,12 @@ none = [
     "Result.as_mut",
     "Result.as_ref",
     "Result.copied",
+    { exact = "Result.expect" },
     { exact = "Result.is_err" },
     { exact = "Result.is_ok" },
     "Result.iter",
     "Result.transpose",
+    { exact = "Result.unwrap" },
     "String.as_bytes",
     "String.as_mut_str",
     "String.as_str",
@@ -351,4 +363,21 @@ none = [
     "usize.wrapping_add",
     "usize.wrapping_mul",
     "usize.wrapping_sub",
+
+    # Free functions. `core::mem::take` isn't one, since it runs `T::default`, and nor is
+    # `core::mem::drop`, which drops a `T`.
+    { exact = "alloc::boxed::box_assume_init_into_vec_unsafe" },
+    { exact = "alloc::fmt::format" },
+    { exact = "alloc::intrinsics::write_box_via_move" },
+    { exact = "core::hint::must_use" },
+    { exact = "core::intrinsics::discriminant_value" },
+    { exact = "core::intrinsics::unreachable" },
+    { exact = "core::iter::sources::once::once" },
+    { exact = "core::mem::forget" },
+    { exact = "core::mem::replace" },
+    { exact = "core::mem::swap" },
+    { exact = "core::ptr::eq" },
+    { exact = "core::ptr::from_ref" },
+    { exact = "core::slice::raw::from_ref" },
+    { exact = "core::str::converts::from_utf8" },
 ]

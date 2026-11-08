@@ -5960,12 +5960,14 @@ expression: facts
       {
         "callee": "std::boxed::box_assume_init_into_vec_unsafe",
         "line": 43,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "alloc::intrinsics::write_box_via_move",
         "line": 43,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::boxed::Box::new_uninit",
@@ -7023,12 +7025,14 @@ expression: facts
       {
         "callee": "std::hint::must_use",
         "line": 75,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::fmt::format",
         "line": 75,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "core::fmt::rt::Argument::new_display",
@@ -8424,12 +8428,14 @@ expression: facts
       {
         "callee": "std::hint::must_use",
         "line": 99,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::fmt::format",
         "line": 99,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "core::fmt::rt::Argument::new_display",

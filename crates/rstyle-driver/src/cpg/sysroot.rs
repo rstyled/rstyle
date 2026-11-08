@@ -1,4 +1,5 @@
 //! Standard-library identity by crate number, never by crate or path spelling.
+use rustc_hir::def::DefKind;
 use rustc_hir::def_id::{CrateNum, DefId};
 use rustc_middle::ty::GenericArgKind;
 use rustc_middle::ty::{self, Ty};
@@ -93,6 +94,16 @@ pub(crate) fn operation(tcx: ty::TyCtxt<'_>, callee: DefId) -> Option<String> {
         .skip_norm_wip();
     let owner = type_key(tcx, self_ty)?;
     Some(key(&owner, tcx, callee))
+}
+
+/// Key of a standard free function by the path it's defined at, as its stable identity names
+/// it: `rust:core::mem::take`, though a caller writes `std::mem::take`. It has no type to be
+/// keyed by, and few have a diagnostic item. One declared outside a module, as in a function
+/// body or a foreign block, has no key.
+pub(crate) fn function_operation(tcx: ty::TyCtxt<'_>, function: DefId) -> Option<String> {
+    let parent = tcx.opt_parent(function)?;
+    (tcx.def_kind(parent) == DefKind::Mod)
+        .then(|| format!("{NAMESPACE}:{}", crate::ids::def_id_str(tcx, function)))
 }
 
 /// Key of a standard trait's own member by the trait's diagnostic item name, as in

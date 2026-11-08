@@ -254,6 +254,22 @@ mod tests {
         assert_eq!(rust.class("rust:Option.is_some_and"), None);
         assert_eq!(rust.class("rust:Rc.new"), Some(LibraryClass::Pure));
         assert_eq!(rust.class("rust:Rc.new_cyclic"), None);
+        // A free function is keyed by the path it's defined at.
+        assert_eq!(
+            rust.class("rust:core::hint::must_use"),
+            Some(LibraryClass::Pure)
+        );
+        assert_eq!(rust.class("rust:core::mem::take"), None);
+        // Formatting into a `String` runs the value's own `Display` or `Debug`, and so does a
+        // panic on `Err`. A `Formatter` writes to whatever the formatting started with.
+        assert_eq!(
+            rust.class("rust:alloc::fmt::format"),
+            Some(LibraryClass::Pure)
+        );
+        assert_eq!(rust.class("rust:Result.unwrap"), Some(LibraryClass::Pure));
+        assert_eq!(rust.class("rust:Result.unwrap_or"), None);
+        assert_eq!(rust.class("rust:Formatter.write_str"), None);
+        assert_eq!(rust.class("rust:ToString.to_string"), None);
         assert_eq!(rust.unlisted(), None);
     }
 
