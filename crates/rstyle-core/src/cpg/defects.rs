@@ -36,7 +36,7 @@ pub enum Examined {
         /// Where its values go, which a project's models say the meaning of.
         flows: ValueFlows,
         /// What its calls pass, which only its sibling methods can judge.
-        arguments: Arguments,
+        arguments: Box<Arguments>,
     },
     /// The function's facts can't answer, and why.
     Unknown(String),
@@ -81,7 +81,7 @@ pub fn examine(
             defects: dead_store::find(&reading)?,
             results: ignored_result::uses(&reading)?,
             flows: value_flow::of(&reading, namespace)?,
-            arguments: deviant_argument::of(&reading)?,
+            arguments: Box::new(deviant_argument::of(&reading)?),
         })
     });
     read.unwrap_or_else(Examined::Unknown)

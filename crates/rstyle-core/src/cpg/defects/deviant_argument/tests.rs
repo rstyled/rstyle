@@ -6,6 +6,21 @@ use crate::config::MethodCount;
 const RECORD: &str = "go::w.record";
 const OTHER: &str = "go::w.other";
 
+/// What a method of `Writer`'s shape has at the call: its `options`, of type `Options`, and strings.
+fn typed(available: &[&str]) -> Variables {
+    available
+        .iter()
+        .map(|name| {
+            let ty = if *name == "options" {
+                "Options"
+            } else {
+                "string"
+            };
+            ((*name).to_owned(), Some(ty.to_owned()))
+        })
+        .collect()
+}
+
 /// `record(false, <value>, method)` on `line`, where `value` reads `variable` and `available`
 /// hold values at the call.
 fn passing(value: &str, variable: Option<&str>, available: &[&str]) -> Argument {
@@ -19,7 +34,8 @@ fn passing(value: &str, variable: Option<&str>, available: &[&str]) -> Argument 
         ty: Some("string".into()),
         call: vec!["false".into(), value.into(), "method".into()],
         variable: variable.map(Into::into),
-        available: available.iter().map(|name| (*name).into()).collect(),
+        field: value.split_once('.').map(|(_, field)| field.to_owned()),
+        available: typed(available),
         sources: BTreeSet::new(),
     }
 }
@@ -43,6 +59,7 @@ fn method(identity: &str, owner: Option<&str>, arguments: Vec<Argument>) -> Meth
             owner: owner.map(Into::into),
             callees: callees.collect(),
             arguments,
+            fields: [("Options".to_owned(), "Kind".to_owned())].into(),
         },
     }
 }
@@ -141,6 +158,30 @@ fn a_variable_of_another_type_than_the_siblings_pass_is_another_value() {
     let mut deviant = name();
     deviant.ty = Some("*ResponseDTO".into());
     assert_eq!(found(&writer(deviant)), []);
+}
+
+#[test]
+fn a_field_nothing_reads_from_this_variables_type_could_not_have_been_meant() {
+    let mut deviant = name();
+    deviant
+        .available
+        .insert("options".into(), Some("GrantOptions".into()));
+    assert_eq!(
+        found(&writer(deviant.clone())),
+        [],
+        "nothing reads `Kind` of a GrantOptions"
+    );
+
+    let mut methods = writer(deviant);
+    methods[0]
+        .arguments
+        .fields
+        .insert(("GrantOptions".into(), "Kind".into()));
+    assert_eq!(
+        found(&methods).len(),
+        1,
+        "once something does, it could have been passed"
+    );
 }
 
 #[test]

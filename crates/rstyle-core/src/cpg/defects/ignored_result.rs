@@ -164,7 +164,7 @@ pub(super) fn returns_its_receiver(
 
 /// What a chain of references and pointers ends at, or where it starts repeating. No frontend
 /// writes a chain that repeats, but a document is only data.
-fn pointed_at<'t>(tables: &Tables<'t>, ty: &'t Type) -> Result<&'t Type, String> {
+pub(super) fn pointed_at<'t>(tables: &Tables<'t>, ty: &'t Type) -> Result<&'t Type, String> {
     let (mut at, mut seen) = (ty, BTreeSet::new());
     while let (TypeKind::Reference | TypeKind::Pointer, Some(target)) =
         (at.kind, at.target.as_deref())

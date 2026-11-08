@@ -18,7 +18,7 @@
 
 use super::super::flow::Vertex;
 use super::super::model::{AccessMode, Dispatch, FileSpan, Node, NodeKind, Origin, TargetKind};
-use super::ignored_result::declared_callee;
+use super::ignored_result::{declared_callee, pointed_at};
 use super::{Defect, Reading};
 use crate::config::DeviantArgumentConfig;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
@@ -47,8 +47,10 @@ pub struct Argument {
     pub call: Vec<String>,
     /// The variable the argument reads, when it reads one rather than a constant.
     pub variable: Option<String>,
-    /// The variables that hold a value when the call runs.
-    pub available: BTreeSet<String>,
+    /// The field the argument reads that variable through first, as `Kind` of `options.Kind`.
+    pub field: Option<String>,
+    /// The variables that hold a value when the call runs, with each one's type when known.
+    pub available: BTreeMap<String, Option<String>>,
     /// The variables the argument's own variable was computed from in this function.
     pub sources: BTreeSet<String>,
 }
@@ -60,6 +62,9 @@ pub struct Arguments {
     pub owner: Option<String>,
     pub callees: BTreeSet<String>,
     pub arguments: Vec<Argument>,
+    /// Each field the function reads, and of what type: evidence of which types have which fields,
+    /// since a frontend doesn't list every type's.
+    pub fields: BTreeSet<(String, String)>,
 }
 
 pub(super) fn of(reading: &Reading<'_>) -> Result<Arguments, String> {
@@ -68,6 +73,7 @@ pub(super) fn of(reading: &Reading<'_>) -> Result<Arguments, String> {
     };
     let mut found = Arguments {
         owner: Some(reading.tables.ty(owner)?.spelling.clone()),
+        fields: fields_read(reading)?,
         ..Arguments::default()
     };
 
@@ -85,6 +91,28 @@ pub(super) fn of(reading: &Reading<'_>) -> Result<Arguments, String> {
         found.arguments.extend(arguments_of(reading, node, callee)?);
     }
     Ok(found)
+}
+
+/// The fields the function reads, with the type each is read from, behind any pointer.
+fn fields_read(reading: &Reading<'_>) -> Result<BTreeSet<(String, String)>, String> {
+    let mut found = BTreeSet::new();
+    for node in &reading.function.nodes {
+        let (NodeKind::FieldAccess, Some(member), Some(base)) =
+            (node.kind, node.member.as_deref(), node.children.first())
+        else {
+            continue;
+        };
+        if let Some(ty) = reading.body.node(base)?.ty.as_deref() {
+            found.insert((spelled(reading, ty)?, member.to_owned()));
+        }
+    }
+    Ok(found)
+}
+
+/// A type as spelled once any pointers or references to it are followed.
+fn spelled(reading: &Reading<'_>, ty: &str) -> Result<String, String> {
+    let tables = reading.tables;
+    Ok(pointed_at(tables, tables.ty(ty)?)?.spelling.clone())
 }
 
 /// Whether a call is one its siblings' calls say anything of: one someone wrote, of something
@@ -123,7 +151,7 @@ fn arguments_of(
 
     let mut found = Vec::new();
     for (position, argument) in passed.iter().enumerate() {
-        let variable = variable_of(reading, argument)?;
+        let (variable, field) = variable_of(reading, argument)?;
         let sources = match &variable {
             Some((symbol, _)) => sources(reading, symbol, &point)?,
             None => BTreeSet::new(),
@@ -142,6 +170,7 @@ fn arguments_of(
                 .transpose()?,
             call: call_values.clone(),
             variable: variable.map(|(_, name)| name),
+            field,
             available: available.clone(),
             sources,
         });
@@ -172,19 +201,25 @@ fn source_text(reading: &Reading<'_>, node: &Node) -> Result<String, String> {
     Ok(reading.sources.between(span, span)?.to_owned())
 }
 
-/// The variable an argument reads, through fields, indexes and references to it.
-fn variable_of(reading: &Reading<'_>, node: &Node) -> Result<Option<(String, String)>, String> {
-    let mut at = node;
+/// The variable an argument reads, through fields, indexes and references to it, and the field
+/// it's read through first.
+type Read = (Option<(String, String)>, Option<String>);
+
+fn variable_of(reading: &Reading<'_>, node: &Node) -> Result<Read, String> {
+    let (mut at, mut field) = (node, None);
     loop {
         match at.kind {
             NodeKind::FieldAccess | NodeKind::IndexAccess | NodeKind::Reference => {
+                if at.kind == NodeKind::FieldAccess {
+                    field = at.member.clone();
+                }
                 let Some(base) = at.children.first() else {
-                    return Ok(None);
+                    return Ok((None, None));
                 };
                 at = reading.body.node(base)?;
             }
-            NodeKind::Identifier => return symbol_read(reading, at),
-            _ => return Ok(None),
+            NodeKind::Identifier => return Ok((symbol_read(reading, at)?, field)),
+            _ => return Ok((None, None)),
         }
     }
 }
@@ -248,7 +283,7 @@ fn point_of<'r>(reading: &Reading<'r>, call: &Node, span: &FileSpan) -> Option<P
 
 /// The variables holding a value at the point: those reaching it, and those a closure binds
 /// before its call.
-fn available(reading: &Reading<'_>, point: &Point<'_>) -> Result<BTreeSet<String>, String> {
+fn available(reading: &Reading<'_>, point: &Point<'_>) -> Result<Variables, String> {
     let mut found = available_at(reading, point.vertex)?;
     let Some((closure, call)) = point.closure else {
         return Ok(found);
@@ -259,7 +294,7 @@ fn available(reading: &Reading<'_>, point: &Point<'_>) -> Result<BTreeSet<String
             .as_ref()
             .is_some_and(|declared| within(declared, closure) && declared.end <= call);
         if bound_before {
-            found.insert(name_of(reading, &symbol.id)?);
+            found.insert(name_of(reading, &symbol.id)?, type_of(reading, &symbol.id)?);
         }
     }
     Ok(found)
@@ -304,14 +339,23 @@ fn within(span: &FileSpan, outer: &FileSpan) -> bool {
 }
 
 /// The variables some write of which reaches the vertex; parameters are written at entry.
-fn available_at(reading: &Reading<'_>, vertex: Vertex) -> Result<BTreeSet<String>, String> {
-    let mut found = BTreeSet::new();
+fn available_at(reading: &Reading<'_>, vertex: Vertex) -> Result<Variables, String> {
+    let mut found = Variables::new();
     for (index, definition) in reading.reaching.definitions.iter().enumerate() {
         if reading.reaching.reaches(index, vertex) {
-            found.insert(name_of(reading, definition.symbol)?);
+            let symbol = definition.symbol;
+            found.insert(name_of(reading, symbol)?, type_of(reading, symbol)?);
         }
     }
     Ok(found)
+}
+
+/// Variables by name, each with its type when the frontend gives one.
+type Variables = BTreeMap<String, Option<String>>;
+
+fn type_of(reading: &Reading<'_>, symbol: &str) -> Result<Option<String>, String> {
+    let ty = reading.body.symbol(symbol)?.ty.as_deref();
+    ty.map(|ty| spelled(reading, ty)).transpose()
 }
 
 /// What the writes of a symbol that reach the vertex read: the variables its value was made of.
@@ -421,16 +465,28 @@ struct Site {
 
 /// The arguments the run's sibling methods pass that their siblings say are a slip.
 pub fn find(methods: &[MethodArguments], limits: &DeviantArgumentConfig) -> Vec<Finding> {
+    let known = known_fields(methods);
     let mut found = Vec::new();
     for slots in slots_by_owner(methods).values() {
         for sites in slots.values() {
-            found.extend(deviations(methods, sites, limits));
+            found.extend(deviations(methods, sites, limits, &known));
         }
     }
 
     found.sort_by(|a, b| (a.method, &a.defect).cmp(&(b.method, &b.defect)));
     found.dedup();
     found
+}
+
+/// Every field the run reads, by the type it's read from.
+type Fields<'m> = BTreeSet<(&'m str, &'m str)>;
+
+fn known_fields(methods: &[MethodArguments]) -> Fields<'_> {
+    methods
+        .iter()
+        .flat_map(|method| &method.arguments.fields)
+        .map(|(ty, field)| (ty.as_str(), field.as_str()))
+        .collect()
 }
 
 type Slots<'m> = BTreeMap<(&'m str, usize), Vec<Site>>;
@@ -457,6 +513,7 @@ fn deviations(
     methods: &[MethodArguments],
     sites: &[Site],
     limits: &DeviantArgumentConfig,
+    known: &Fields<'_>,
 ) -> Vec<Finding> {
     let argument = |site: &Site| &methods[site.method].arguments.arguments[site.argument];
     let mut found = Vec::new();
@@ -469,7 +526,7 @@ fn deviations(
             continue;
         };
         let passed = argument(deviant);
-        if !is_a_slip(passed, majority, sites, argument) {
+        if !is_a_slip((passed, majority), (sites, argument), known) {
             continue;
         }
         let total = peers.len();
@@ -515,13 +572,12 @@ fn agreed_otherwise<'m>(
 }
 
 /// Whether nothing but a slip explains the difference: both read a variable, a sibling makes the
-/// same call but for that argument, with one of the same type, the siblings' variable holds a value
-/// at the call, and the passed one isn't made of it.
+/// same call but for that argument, with one of the same type, the siblings' value could be written
+/// here, and the passed one isn't made of it.
 fn is_a_slip<'m>(
-    passed: &Argument,
-    majority: &Argument,
-    sites: &[Site],
-    argument: impl Fn(&Site) -> &'m Argument,
+    (passed, majority): (&Argument, &Argument),
+    (sites, argument): (&[Site], impl Fn(&Site) -> &'m Argument),
+    known: &Fields<'_>,
 ) -> bool {
     let (Some(_), Some(expected)) = (&passed.variable, &majority.variable) else {
         return false;
@@ -531,7 +587,25 @@ fn is_a_slip<'m>(
             && other.ty == passed.ty
             && differs_only_at(&other.call, &passed.call, passed.position)
     });
-    twin && passed.available.contains(expected) && !passed.sources.contains(expected)
+    twin && writable_here(passed, (expected, majority.field.as_deref()), known)
+        && !passed.sources.contains(expected)
+}
+
+/// Whether the siblings' value could stand in the passed one's place: its variable holds a value
+/// at the call, and the field it's read through is one the run reads from that variable's type.
+/// No frontend lists every type's fields, so a field nothing reads from the type is taken as absent.
+fn writable_here(
+    passed: &Argument,
+    (variable, field): (&str, Option<&str>),
+    known: &Fields<'_>,
+) -> bool {
+    let Some(ty) = passed.available.get(variable) else {
+        return false;
+    };
+    let Some(field) = field else {
+        return true;
+    };
+    ty.as_deref().is_some_and(|ty| known.contains(&(ty, field)))
 }
 
 fn differs_only_at(a: &[String], b: &[String], position: usize) -> bool {

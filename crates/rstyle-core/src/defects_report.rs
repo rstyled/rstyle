@@ -131,7 +131,7 @@ impl Gathered {
                 flows,
                 arguments,
             } => {
-                self.add_read(record, (defects, results, (flows, arguments)));
+                self.add_read(record, (defects, results, (flows, *arguments)));
             }
             Examined::Unknown(reason) => self.add_unknown(record, reason),
         }

@@ -139,6 +139,7 @@ A difference is reported only when nothing but a slip explains it:
 | A call that differs in another argument too, such as `log.Infof("denied: %v", err)` | It's another call, not the same call with one thing wrong |
 | A variable of another type than the siblings pass, such as decoding into `respDTO` where siblings decode into their `result` | It's another value, not the same one misnamed |
 | A variable that holds nothing yet at the call, such as `membs := convert(members)` | The siblings' variable couldn't have been passed there |
+| A field the variable's type here doesn't have, such as `r.User` where siblings pass `r.Name` of other request types | The siblings' value couldn't be written here |
 | A variable computed from the siblings' one, in any number of steps, such as `body := read(resp.Body)` then `decode(wrap(body))` | Deriving one from the other is deliberate |
 | A builtin, such as `len` or `append` | What it's asked varies by design |
 | A function that isn't a method, or a callee nothing resolves | There are no siblings to weigh it against |
@@ -147,9 +148,10 @@ A call inside a closure, such as a goroutine's, is judged where the closure is m
 before the call. Calls a test file holds, or an excluded path, neither count nor get reported.
 
 A difference can still be deliberate, such as a method that reads its old value where its siblings read the new one.
-It doesn't check that the siblings' field exists on the variable passed here: `r.User` where siblings pass `r.Name` is
-reported even when this `r` has no `Name`, since frontends don't describe the fields of every type. Suppress those with
-a reason.
+Frontends don't list the fields of every type, so a field counts as there when something in the run reads it from a
+value of that type, such as `options.Kind` read anywhere on this `*DeleteOptions`. A field nothing reads from the type
+is taken as absent, which can miss a slip but never reports one that couldn't compile. Suppress deliberate differences
+with a reason.
 
 ## `taint_flow`
 
