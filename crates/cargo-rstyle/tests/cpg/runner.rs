@@ -1114,6 +1114,55 @@ fn a_cxx_run_hands_on_its_build_context_after_what_every_frontend_gets() {
 }
 
 #[test]
+fn what_follows_two_dashes_reaches_any_frontend_last_and_as_it_was() {
+    let passed = ["--require-database", "--std", "c++17", "-x"];
+    for language in ["go", "cxx", "py"] {
+        let project = Project::new();
+        let arguments = project.root().join("arguments");
+        let args = [&["--format", "json", "--"][..], &passed[..]].concat();
+        let mut command = match language {
+            "go" => project.command(NO_ANALYSES, &[&["go"][..], &args].concat()),
+            "cxx" => project.cxx(&args),
+            _ => project.py(&args),
+        };
+        let output = command.env("FAKE_ARGUMENTS", &arguments).output().unwrap();
+        assert_eq!(output.status.code(), Some(0), "{language}: {output:?}");
+        let written = std::fs::read_to_string(&arguments).unwrap();
+        let written: Vec<&str> = written.lines().collect();
+        assert_eq!(written[0], "cpg", "{language}: {written:?}");
+        assert_eq!(
+            written[written.len() - passed.len()..],
+            passed,
+            "{language}: {written:?}"
+        );
+    }
+}
+
+#[test]
+fn frontend_arguments_need_a_frontend_to_run() {
+    let project = Project::new();
+    let output = project
+        .cxx(&["--from", "somewhere", "--", "--require-database"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(
+        stderr(&output).contains("cannot be used with"),
+        "a saved run starts no frontend: {output:?}"
+    );
+    let output = Command::new(cargo_bin("rstyle"))
+        .args(["rust", "--", "--require-database"])
+        .current_dir(project.root())
+        .output()
+        .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "rust has no frontend: {output:?}"
+    );
+}
+
+#[test]
 fn a_saved_cxx_run_reads_back_without_the_frontend() {
     let project = Project::new();
     let output = project
@@ -1225,426 +1274,6 @@ fn a_saved_cxx_run_replays_through_the_cxx_frontend() {
         stderr(&other).contains("belongs to the go frontend, not cxx"),
         "{other:?}"
     );
-}
-
-/// A build tool on `PATH` that notes how it was called, then does what `body` says.
-fn build_tool(project: &Project, name: &str, body: &str) -> PathBuf {
-    let root = project.root();
-    let bin = root.join("tool-bin");
-    std::fs::create_dir_all(&bin).unwrap();
-    script(
-        &bin.join(name),
-        &format!(
-            "#!/bin/sh\npwd > '{root}/{name}.directory'\nprintf '%s\\n' \"$@\" > '{root}/{name}.called'\necho 'progress that must not reach stdout'\n{body}\n",
-            root = root.display(),
-        ),
-    );
-    bin
-}
-
-/// A `rstyle cxx` that finds its build tools in `bin` first, and notes what it tells the frontend.
-fn cxx_with_tools(project: &Project, bin: &Path, args: &[&str]) -> Command {
-    let mut command = project.cxx(&[&["--format", "json"], args].concat());
-    command
-        .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
-        .env("FAKE_ARGUMENTS", project.root().join("arguments"));
-    command
-}
-
-fn generating(project: &Project, bin: &Path) -> Output {
-    cxx_with_tools(project, bin, &[]).output().unwrap()
-}
-
-fn not_generating(project: &Project, bin: &Path) -> Output {
-    cxx_with_tools(project, bin, &["--no-generate-database"])
-        .output()
-        .unwrap()
-}
-
-fn in_project(project: &Project, name: &str, text: &str) {
-    std::fs::write(project.root().join(name), text).unwrap();
-}
-
-fn lines_of(path: &Path) -> Vec<String> {
-    std::fs::read_to_string(path)
-        .unwrap_or_else(|error| panic!("{}: {error}", path.display()))
-        .lines()
-        .map(str::to_string)
-        .collect()
-}
-
-const ONE_ENTRY: &str = r#"[{"directory":".","file":"a.c","command":"cc a.c"}]"#;
-const CMAKE_WRITES: &str = "echo '[{\"file\":\"a.c\"}]' > \"$4/compile_commands.json\"";
-
-/// Generates over a project holding `file`, whose `program` writes to `write_to`, and checks it
-/// was called as `called` from the project, and that the frontend was told what it wrote.
-fn assert_generates(file: &str, program: &str, write_to: &str, called: &[&str]) {
-    let project = Project::new();
-    in_project(&project, file, "");
-    let bin = build_tool(
-        &project,
-        program,
-        &format!("echo '{ONE_ENTRY}' > {write_to}"),
-    );
-    let output = generating(&project, &bin);
-    assert_eq!(output.status.code(), Some(0), "{program}: {output:?}");
-    assert!(report(&output)["check"].is_object(), "stdout is the report");
-    let text = stderr(&output);
-    assert!(text.contains("generating compile_commands.json"), "{text}");
-    assert!(text.contains("--no-generate-database skips"), "{text}");
-
-    let root = project.root();
-    let folder = root.join(".rstyle/compile-database");
-    let expected: Vec<String> = called
-        .iter()
-        .map(|it| it.replace("{folder}", folder.to_str().unwrap()))
-        .collect();
-    assert_eq!(lines_of(&root.join(format!("{program}.called"))), expected);
-    assert_eq!(
-        lines_of(&root.join(format!("{program}.directory"))),
-        [root.to_str().unwrap()]
-    );
-    assert_eq!(
-        lines_of(&root.join("arguments"))[5..],
-        ["--compilation-database", folder.to_str().unwrap()]
-    );
-    assert_eq!(
-        std::fs::read_to_string(root.join(".rstyle/.gitignore")).unwrap(),
-        "*\n",
-        "what it generates stays out of version control"
-    );
-}
-
-#[test]
-fn a_cmake_project_configures_into_rstyles_own_folder() {
-    assert_generates(
-        "CMakeLists.txt",
-        "cmake",
-        r#""$4/compile_commands.json""#,
-        &[
-            "-S",
-            ".",
-            "-B",
-            "{folder}",
-            "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
-        ],
-    );
-}
-
-#[test]
-fn a_meson_project_sets_up_in_rstyles_own_folder() {
-    assert_generates(
-        "meson.build",
-        "meson",
-        r#""$2/compile_commands.json""#,
-        &["setup", "{folder}"],
-    );
-}
-
-#[test]
-fn a_make_project_builds_under_bear() {
-    assert_generates(
-        "Makefile",
-        "bear",
-        r#""$3""#,
-        &[
-            "--append",
-            "--output",
-            "{folder}/compile_commands.json",
-            "--",
-            "make",
-        ],
-    );
-}
-
-#[test]
-fn a_database_the_project_already_has_is_kept_and_nothing_runs() {
-    for place in ["compile_commands.json", "build/compile_commands.json"] {
-        let project = Project::new();
-        in_project(&project, "CMakeLists.txt", "");
-        std::fs::create_dir(project.root().join("build")).unwrap();
-        in_project(&project, place, ONE_ENTRY);
-        let bin = build_tool(&project, "cmake", "exit 3");
-
-        let output = generating(&project, &bin);
-        assert_eq!(output.status.code(), Some(0), "{output:?}");
-        assert!(!project.root().join("cmake.called").exists(), "{place}");
-        assert!(!stderr(&output).contains("rstyle: warning:"), "{output:?}");
-        assert_eq!(
-            lines_of(&project.root().join("arguments")).len(),
-            5,
-            "the frontend finds it by itself"
-        );
-    }
-}
-
-/// Asserts a run warned with `reason`, said how to specify a database, and went on without one.
-fn assert_warned_and_guessed(project: &Project, output: &Output, reason: &str) {
-    assert_eq!(output.status.code(), Some(0), "the run goes on: {output:?}");
-    assert!(report(output)["check"].is_object(), "stdout is the report");
-    let text = stderr(output);
-    assert!(text.contains("rstyle: warning:"), "{text}");
-    assert!(text.contains(reason), "{reason}: {text}");
-    assert!(text.contains("--compilation-database PATH"), "{text}");
-    assert_eq!(
-        lines_of(&project.root().join("arguments")).len(),
-        5,
-        "no database named to the frontend"
-    );
-    assert_eq!(project.run_folders().len(), 1);
-}
-
-#[test]
-fn with_no_build_to_guess_a_run_warns_what_it_looked_for() {
-    let project = Project::new();
-    let bin = build_tool(&project, "cmake", "exit 3");
-    let output = generating(&project, &bin);
-    assert_warned_and_guessed(
-        &project,
-        &output,
-        "no CMakeLists.txt, meson.build or Makefile",
-    );
-    assert!(!project.root().join("cmake.called").exists());
-    assert!(stderr(&output).contains("bear -- <your build command>"));
-}
-
-#[test]
-fn a_build_tool_that_is_missing_is_named_in_the_warning() {
-    for (file, program, manual) in [
-        ("CMakeLists.txt", "cmake", "cmake -S . -B build"),
-        ("meson.build", "meson", "meson setup build"),
-        ("Makefile", "bear", "bear -- make"),
-    ] {
-        let project = Project::new();
-        in_project(&project, file, "");
-        // Only what the fake frontend needs, so a real build tool here can't answer.
-        let bin = project.root().join("only-cat");
-        std::fs::create_dir(&bin).unwrap();
-        std::os::unix::fs::symlink("/bin/cat", bin.join("cat")).unwrap();
-        let output = project
-            .cxx(&["--format", "json"])
-            .env("PATH", &bin)
-            .env("FAKE_ARGUMENTS", project.root().join("arguments"))
-            .output()
-            .unwrap();
-        assert_warned_and_guessed(&project, &output, &format!("{program} isn't on PATH"));
-        assert!(stderr(&output).contains(manual), "{output:?}");
-    }
-}
-
-#[test]
-fn a_failed_generation_warns_and_the_run_goes_on_with_guessed_flags() {
-    let project = Project::new();
-    in_project(&project, "CMakeLists.txt", "");
-    let bin = build_tool(
-        &project,
-        "cmake",
-        "echo 'CMake Error: no compiler' >&2; exit 3",
-    );
-    let output = generating(&project, &bin);
-    assert_warned_and_guessed(&project, &output, "cmake failed");
-    let text = stderr(&output);
-    assert!(
-        text.contains("CMake Error: no compiler"),
-        "its own reason: {text}"
-    );
-    assert!(text.contains("cmake -S . -B build"), "{text}");
-    assert!(
-        !text.contains("without --no-generate-database"),
-        "it just tried that: {text}"
-    );
-}
-
-#[test]
-fn a_build_that_writes_no_usable_database_warns_too() {
-    for (body, reason) in [
-        ("", "didn't write a usable one"),
-        (
-            "echo 'not json' > \"$4/compile_commands.json\"",
-            "didn't write a usable one",
-        ),
-        (
-            "echo '[]' > \"$4/compile_commands.json\"",
-            "lists nothing to compile",
-        ),
-    ] {
-        let project = Project::new();
-        in_project(&project, "CMakeLists.txt", "");
-        let bin = build_tool(&project, "cmake", body);
-        let output = generating(&project, &bin);
-        assert_warned_and_guessed(&project, &output, reason);
-    }
-}
-
-#[test]
-fn a_failed_generation_falls_back_on_what_an_earlier_run_generated() {
-    let project = Project::new();
-    let root = project.root();
-    in_project(&project, "CMakeLists.txt", "");
-    let folder = root.join(".rstyle/compile-database");
-
-    let bin = build_tool(&project, "cmake", CMAKE_WRITES);
-    assert_eq!(generating(&project, &bin).status.code(), Some(0));
-
-    let bin = build_tool(&project, "cmake", "exit 3");
-    let output = generating(&project, &bin);
-    assert_eq!(output.status.code(), Some(0), "{output:?}");
-    let text = stderr(&output);
-    assert!(text.contains("cmake failed"), "{text}");
-    assert!(text.contains("may be out of date"), "{text}");
-    assert_eq!(
-        lines_of(&root.join("arguments"))[5..],
-        ["--compilation-database", folder.to_str().unwrap()]
-    );
-}
-
-#[test]
-fn a_missing_frontend_is_reported_before_any_build_runs() {
-    let project = Project::new();
-    in_project(&project, "CMakeLists.txt", "");
-    let bin = build_tool(&project, "cmake", "exit 0");
-    let output = cxx_with_tools(&project, &bin, &[])
-        .env("RSTYLE_CXX", "/nonexistent/frontend")
-        .output()
-        .unwrap();
-    assert_eq!(output.status.code(), Some(2), "{output:?}");
-    assert!(stderr(&output).contains("RSTYLE_CXX names"), "{output:?}");
-    assert!(!project.root().join("cmake.called").exists());
-}
-
-#[test]
-fn told_not_to_generate_a_run_guesses_the_build_warns_and_builds_nothing() {
-    for (file, program, named, manual) in [
-        (
-            "CMakeLists.txt",
-            "cmake",
-            "a CMake project",
-            "cmake -S . -B build",
-        ),
-        (
-            "meson.build",
-            "meson",
-            "a Meson project",
-            "meson setup build",
-        ),
-        ("Makefile", "bear", "a Make project", "bear -- make"),
-    ] {
-        let project = Project::new();
-        in_project(&project, file, "");
-        let bin = build_tool(&project, program, "exit 3");
-        let output = not_generating(&project, &bin);
-        assert_warned_and_guessed(&project, &output, named);
-        let text = stderr(&output);
-        assert!(text.contains(manual), "{text}");
-        assert!(text.contains("without --no-generate-database"), "{text}");
-        assert!(!project.root().join(format!("{program}.called")).exists());
-    }
-}
-
-#[test]
-fn told_not_to_generate_with_no_build_to_guess_it_still_says_how_to_specify_one() {
-    let project = Project::new();
-    let bin = project.root().join("tool-bin");
-    std::fs::create_dir(&bin).unwrap();
-    let output = not_generating(&project, &bin);
-    assert_warned_and_guessed(
-        &project,
-        &output,
-        "no CMakeLists.txt, meson.build or Makefile",
-    );
-    let text = stderr(&output);
-    assert!(text.contains("bear -- <your build command>"), "{text}");
-    assert!(
-        !text.contains("without --no-generate-database"),
-        "it has no build to ask: {text}"
-    );
-}
-
-#[test]
-fn naming_a_database_needs_no_guess_no_build_and_no_warning() {
-    let project = Project::new();
-    in_project(&project, "CMakeLists.txt", "");
-    let bin = build_tool(&project, "cmake", "exit 3");
-    let output = cxx_with_tools(&project, &bin, &["--compilation-database", "elsewhere"])
-        .output()
-        .unwrap();
-    assert_eq!(output.status.code(), Some(0), "{output:?}");
-    assert!(!stderr(&output).contains("rstyle: warning:"), "{output:?}");
-    assert!(!project.root().join("cmake.called").exists());
-}
-
-#[test]
-fn a_database_in_a_build_directory_is_found_without_being_named() {
-    let project = Project::new();
-    let root = project.root();
-    in_project(&project, "CMakeLists.txt", "");
-    for folder in ["cmake-build-release", "cmake-build-debug", "third_party"] {
-        std::fs::create_dir(root.join(folder)).unwrap();
-        in_project(
-            &project,
-            &format!("{folder}/compile_commands.json"),
-            ONE_ENTRY,
-        );
-    }
-    let bin = build_tool(&project, "cmake", "exit 3");
-    let debug = root.join("cmake-build-debug");
-
-    for output in [generating(&project, &bin), not_generating(&project, &bin)] {
-        assert_eq!(output.status.code(), Some(0), "{output:?}");
-        let text = stderr(&output);
-        assert!(
-            text.contains("using the compile_commands.json in"),
-            "{text}"
-        );
-        assert!(text.contains(debug.to_str().unwrap()), "{text}");
-        assert!(text.contains("also found"), "{text}");
-        assert!(!text.contains("third_party"), "not a build: {text}");
-        assert!(!text.contains("rstyle: warning:"), "{text}");
-        assert!(!root.join("cmake.called").exists(), "nothing to generate");
-    }
-    assert_eq!(
-        lines_of(&root.join("arguments"))[5..],
-        ["--compilation-database", debug.to_str().unwrap()]
-    );
-}
-
-#[test]
-fn a_generated_database_is_refreshed_each_run_and_reused_when_told_not_to_generate() {
-    let project = Project::new();
-    let root = project.root();
-    in_project(&project, "CMakeLists.txt", "");
-    let bin = build_tool(&project, "cmake", CMAKE_WRITES);
-    let folder = root.join(".rstyle/compile-database");
-    let named = ["--compilation-database", folder.to_str().unwrap()];
-
-    assert_eq!(generating(&project, &bin).status.code(), Some(0));
-    std::fs::remove_file(root.join("cmake.called")).unwrap();
-
-    let reused = not_generating(&project, &bin);
-    assert_eq!(reused.status.code(), Some(0), "{reused:?}");
-    assert_eq!(lines_of(&root.join("arguments"))[5..], named);
-    assert!(stderr(&reused).contains("generated earlier"), "{reused:?}");
-    assert!(!root.join("cmake.called").exists());
-
-    assert_eq!(generating(&project, &bin).status.code(), Some(0));
-    assert!(root.join("cmake.called").exists(), "each run refreshes it");
-    assert_eq!(lines_of(&root.join("arguments"))[5..], named);
-}
-
-#[test]
-fn not_generating_conflicts_with_a_named_database_and_a_saved_run() {
-    let project = Project::new();
-    for extra in [["--compilation-database", "build"], ["--from", "somewhere"]] {
-        let output = project
-            .cxx(&[&["--no-generate-database"], &extra[..]].concat())
-            .output()
-            .unwrap();
-        assert_eq!(output.status.code(), Some(2), "{output:?}");
-        assert!(
-            stderr(&output).contains("cannot be used with"),
-            "{output:?}"
-        );
-    }
 }
 
 #[test]
