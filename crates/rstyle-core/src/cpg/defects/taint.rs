@@ -32,6 +32,9 @@ const EMBEDDED: &[&str] = &[
 struct Shell {
     executables: Vec<String>,
     flag: String,
+    /// Where the name a program is called by is, when it isn't the program the call runs, as
+    /// `os.execl(path, name, ..)`'s is. Otherwise it's the sink's first argument.
+    name_at: Option<usize>,
 }
 
 /// A keyword argument a call has to pass a literal for a sink to be one, as Python's `shell=True`.
@@ -65,6 +68,11 @@ struct Sink {
     when: Option<Keyword>,
     #[serde(default)]
     appends: Appends,
+    /// Whether each of `arguments` is a program and its arguments in one, as `subprocess` takes
+    /// them: a list written out, whose first element is the program, or a string, which is the
+    /// program alone. A list that isn't written out can't be counted, so it's neither.
+    #[serde(default)]
+    argv: bool,
 }
 
 /// Where input comes from and goes, for one frontend namespace.
@@ -128,19 +136,62 @@ fn shell_code_at(shell: &Shell, program_at: usize, literals: &[(usize, String)])
     (known && literal(program_at + 1) == Some(shell.flag.as_str())).then_some(program_at + 2)
 }
 
-/// What a sink means by a dangerous argument, at this call. A sink that needs a keyword's literal
-/// isn't one where the call doesn't pass it.
-fn dangerous(sink: &Sink, call: &FlowCall, position: usize) -> bool {
-    let shell_code = sink.shell.as_ref().zip(sink.arguments.first());
+/// The text of each element of the list written out at this position that's a literal, by element.
+fn element_literals(call: &FlowCall, position: usize) -> Option<Vec<(usize, String)>> {
+    let (_, list) = call.lists.iter().find(|(at, _)| *at == position)?;
+    let elements = list.iter().enumerate();
+    Some(
+        elements
+            .filter_map(|(at, text)| Some((at, text.clone()?)))
+            .collect(),
+    )
+}
+
+/// Whether a value here is a sink's dangerous argument. Of a program and its arguments in one,
+/// that's the program: a list's first element, or a string.
+fn is_argument(sink: &Sink, call: &FlowCall, (position, element): (usize, Option<usize>)) -> bool {
+    if !sink.arguments.contains(&position) {
+        return false;
+    }
+    if !sink.argv {
+        return true;
+    }
+    match element {
+        Some(element) => element == 0,
+        None => call.strings.contains(&position),
+    }
+}
+
+/// Whether a value here is what a literal shell is told to run, given as arguments of their own
+/// or as elements of a list written out.
+fn is_shell_code(
+    sink: &Sink,
+    call: &FlowCall,
+    (position, element): (usize, Option<usize>),
+) -> bool {
+    let Some((shell, &program_at)) = sink.shell.as_ref().zip(sink.arguments.first()) else {
+        return false;
+    };
+    let named_at = shell.name_at.unwrap_or(program_at);
+    match element_literals(call, named_at) {
+        Some(literals) => {
+            let code = shell_code_at(shell, 0, &literals);
+            position == named_at && element.is_some_and(|element| code == Some(element))
+        }
+        None => shell_code_at(shell, named_at, &call.literals) == Some(position),
+    }
+}
+
+/// What a sink means by a dangerous argument, at this call: an argument, and the element of a
+/// list written out there. A sink that needs a keyword's literal isn't one where the call doesn't
+/// pass it.
+fn dangerous(sink: &Sink, call: &FlowCall, at: (usize, Option<usize>)) -> bool {
     let passed = |when: &Keyword| {
         let mut keywords = call.keywords.iter();
         keywords.any(|(name, literal)| *name == when.keyword && *literal == when.literal)
     };
     sink.when.as_ref().is_none_or(passed)
-        && (sink.arguments.contains(&position)
-            || shell_code.is_some_and(|(shell, &at)| {
-                shell_code_at(shell, at, &call.literals) == Some(position)
-            }))
+        && (is_argument(sink, call, at) || is_shell_code(sink, call, at))
 }
 
 /// A sink's risk and what it's called, wherever it's defined.
@@ -180,7 +231,12 @@ impl Reader<'_> {
         (modeled && self.counts(call)) || self.project.sanitizers.iter().any(|key| names(key, call))
     }
 
-    fn risk_at(&self, models: &Models, call: &FlowCall, position: usize) -> Option<Risk> {
+    fn risk_at(
+        &self,
+        models: &Models,
+        call: &FlowCall,
+        (position, element): (usize, Option<usize>),
+    ) -> Option<Risk> {
         if !self.counts(call) {
             return None;
         }
@@ -188,7 +244,7 @@ impl Reader<'_> {
             .sinks
             .iter()
             .filter(|sink| sink.callees.iter().any(|key| names(key, call)))
-            .find(|sink| dangerous(sink, call, position))
+            .find(|sink| dangerous(sink, call, (position, element)))
             .map(|sink| Risk {
                 risk: sink.risk.clone(),
                 cwe: Some(sink.cwe.clone()),
@@ -315,14 +371,15 @@ impl Solver<'_> {
 
     /// The sink an argument reaches, here or in the callee's body.
     fn sink_at(&self, at: usize, reached: Reached) -> Option<SinkSite> {
-        let (call, position, _) = reached;
+        let (call, position, element) = reached;
         let flows = &self.functions[at].flows;
         let called = &flows.calls[call];
         let models = Models::of(&flows.namespace);
 
         let code = self.shell_code[at].get(&reached);
         let code = code.filter(|_| self.reader.counts(called)).cloned();
-        if let Some(risk) = self.reader.risk_at(models, called, position).or(code) {
+        let risk = self.reader.risk_at(models, called, (position, element));
+        if let Some(risk) = risk.or(code) {
             return Some(SinkSite {
                 function: at,
                 line: called.line,

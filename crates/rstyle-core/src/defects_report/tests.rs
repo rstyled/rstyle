@@ -402,6 +402,7 @@ fn input_is_followed_in_what_a_python_frontend_writes() {
         ("environ", 11),
         ("getenv", 15),
         ("shell", 19),
+        ("no_shell", 27),
         ("literal_shell", 35),
         ("evaluated", 47),
         ("path", 51),
@@ -409,12 +410,19 @@ fn input_is_followed_in_what_a_python_frontend_writes() {
         ("lines", 81),
         ("write", 85),
         ("via_source", 105),
+        ("listed_program", 122),
+        ("listed_code", 126),
+        ("string_program", 134),
+        ("keyword_list", 138),
+        ("exec_code", 147),
+        ("exec_listed_code", 151),
     ];
     let expected = expected.map(|(name, line)| (name.to_owned(), line));
     assert_eq!(
         found, expected,
-        "argv, no_shell, not_the_command, program_argument, quoted, parameterized, number, \
-         overwritten, only_decides, via_ignoring, environment and fields are clean"
+        "argv, not_the_command, program_argument, quoted, parameterized, number, overwritten, \
+         only_decides, via_ignoring, environment, fields, listed_data, variable_list and exec_data \
+         are clean"
     );
 }
 
