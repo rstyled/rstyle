@@ -12,8 +12,10 @@ use crate::{Cli, Format, MineArgs, PatternDisplayArgs, compiler, ignore, workspa
 use clap::Args;
 use frontend::{AnalysisPaths, Frontend, Saving};
 pub(crate) use risk::{RiskArgs, risk};
+use rstyle_core::config::{Config, Excludes};
 use rstyle_core::cpg::records::{Demand, Record};
 use rstyle_core::cpg::transport::{self, DOCUMENTS_MANIFEST, Encoding};
+use rstyle_core::exclusions;
 use rstyle_core::filter::{Analysis, Filter};
 use rstyle_core::{patterns_report, unified};
 use serde::{Deserialize, Serialize};
@@ -52,6 +54,10 @@ pub(crate) struct RunArgs {
     /// Report every candidate, ignoring the ignore ledger for this run.
     #[arg(long)]
     no_ignore: bool,
+    /// A path or glob relative to the source directory to leave out, as `exclude` in rstyle.toml
+    /// does, for this run. Python's frontend doesn't read it. Can be repeated.
+    #[arg(long = "exclude", value_name = "GLOB")]
+    excludes: Vec<String>,
     #[command(flatten)]
     display: PatternDisplayArgs,
     #[command(flatten)]
@@ -127,12 +133,11 @@ impl FrontendCommand for CxxArgs {
             .defines
             .iter()
             .flat_map(|name| [OsString::from("--define"), OsString::from(name)]);
-        let frontend = self.frontend.arguments.iter().cloned();
-        database
-            .chain(includes)
-            .chain(defines)
-            .chain(frontend)
-            .collect()
+        database.chain(includes).chain(defines).collect()
+    }
+
+    fn passed_on(&self) -> &[OsString] {
+        &self.frontend.arguments
     }
 }
 
@@ -145,9 +150,6 @@ pub(crate) struct PyArgs {
     /// environment in the project, read without running it, or else the active one].
     #[arg(long, conflicts_with = "from")]
     python: Option<PathBuf>,
-    /// A path or glob the frontend doesn't read, relative to the source directory. Can be repeated.
-    #[arg(long = "exclude", value_name = "GLOB", conflicts_with = "from")]
-    excludes: Vec<String>,
     #[command(flatten)]
     run: RunArgs,
     #[command(flatten)]
@@ -167,16 +169,14 @@ impl FrontendCommand for PyArgs {
 
     /// What the frontend needs to hear, after the arguments every frontend gets.
     fn arguments(&self) -> Vec<OsString> {
-        let python = self
-            .python
+        self.python
             .iter()
-            .flat_map(|path| [OsString::from("--python"), path.clone().into_os_string()]);
-        let excludes = self
-            .excludes
-            .iter()
-            .flat_map(|glob| [OsString::from("--exclude"), OsString::from(glob)]);
-        let frontend = self.frontend.arguments.iter().cloned();
-        python.chain(excludes).chain(frontend).collect()
+            .flat_map(|path| [OsString::from("--python"), path.clone().into_os_string()])
+            .collect()
+    }
+
+    fn passed_on(&self) -> &[OsString] {
+        &self.frontend.arguments
     }
 }
 
@@ -214,6 +214,10 @@ struct RunRecord {
     /// What the documents' relative paths resolve against.
     source: PathBuf,
     documents: usize,
+    /// What the run left out, from `exclude` and `--exclude`, so a replay leaves it out too. A run
+    /// saved before runs recorded it doesn't say.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    exclude: Option<Vec<String>>,
 }
 
 /// What one run has settled before analyzing.
@@ -226,6 +230,8 @@ struct Plan<'a> {
     source: PathBuf,
     /// Where `rstyle.toml` and the ignore ledger are.
     project: PathBuf,
+    /// `rstyle.toml`, with `--exclude` added to what it excludes.
+    config: Config,
 }
 
 /// What a run needs to know of a frontend's language: what its errors call it, the frontend's name,
@@ -262,8 +268,10 @@ pub(crate) trait FrontendCommand {
     const LANGUAGE: Language;
     fn source(&self) -> Option<&Path>;
     fn run(&self) -> &RunArgs;
-    /// What the frontend hears after what every frontend gets.
+    /// What the frontend hears of its language, after what every frontend gets.
     fn arguments(&self) -> Vec<OsString>;
+    /// What followed `--`, which the frontend hears last, after what the run excludes, unchanged.
+    fn passed_on(&self) -> &[OsString];
 }
 
 impl FrontendCommand for GoArgs {
@@ -278,7 +286,11 @@ impl FrontendCommand for GoArgs {
     }
 
     fn arguments(&self) -> Vec<OsString> {
-        self.frontend.arguments.clone()
+        Vec::new()
+    }
+
+    fn passed_on(&self) -> &[OsString] {
+        &self.frontend.arguments
     }
 }
 
@@ -296,7 +308,8 @@ pub(crate) fn frontend<C: FrontendCommand>(cli: &Cli, command: &C) -> Result<(St
 
     let source = chosen_source(command.source(), language.source_root)?;
     let project = (language.project_root)(&source).unwrap_or_else(|| source.clone());
-    let frontend = Frontend::located(language.frontend)?.streaming(command.arguments());
+    let frontend = Frontend::located(language.frontend)?
+        .streaming(command.arguments(), command.passed_on().to_vec());
     from_frontend(cli, run, (filter, source, project), frontend)
 }
 
@@ -310,15 +323,9 @@ fn from_frontend(
 ) -> Result<(String, u8), String> {
     let language = frontend.language;
     let local = filter.frontend_analyses(language, &frontend.analyses())?;
-    let staged = Staged::new(args.destination(&project, language)?)?;
-    let plan = Plan {
-        cli,
-        args,
-        filter,
-        language,
-        source,
-        project,
-    };
+    let plan = Plan::new((cli, args), (filter, language), (source, project))?;
+    let staged = Staged::new(args.destination(&plan.project, language)?)?;
+    let frontend = frontend.excluding(&plan.config.exclude.0);
 
     let (records, documents) =
         match plan.filter.needs_documents() || frontend.reads_documents(&local) {
@@ -367,15 +374,9 @@ pub(crate) fn rust(cli: &Cli, args: &RunArgs) -> Result<(String, u8), String> {
     )?;
     let root = crate::run::canonical(&metadata.workspace_root)
         .map_err(|error| format!("{}: {error}", metadata.workspace_root.display()))?;
-    let staged = Staged::new(args.destination(&root, "rust")?)?;
-    let plan = Plan {
-        cli,
-        args,
-        filter,
-        language: "rust",
-        source: root.clone(),
-        project: root,
-    };
+    // The driver compiles every file, and core leaves out what's excluded.
+    let plan = Plan::new((cli, args), (filter, "rust"), (root.clone(), root))?;
+    let staged = Staged::new(args.destination(&plan.project, "rust")?)?;
 
     let (records, documents) = rust_records(&plan, &staged)?;
     let unified = plan.analyzed(records)?;
@@ -416,14 +417,9 @@ fn saved(
         Some(record) => record.source.clone(),
         None => std::env::current_dir().map_err(|error| error.to_string())?,
     };
-    let plan = Plan {
-        cli,
-        args,
-        filter,
-        language,
-        source: source.clone(),
-        project: source,
-    };
+    let mut plan = Plan::new((cli, args), (filter, language), (source.clone(), source))?;
+    let recorded = record.as_ref().and_then(|record| record.exclude.as_deref());
+    plan.config.exclude_also(recorded.unwrap_or_default());
 
     let records = saved_records(from, record.as_ref(), plan.filter.demand())?;
     let mut unified = plan.analyzed(records)?;
@@ -581,14 +577,40 @@ fn documents_folder(from: &Path) -> PathBuf {
     }
 }
 
+impl<'a> Plan<'a> {
+    /// The project's policy with `--exclude` joining what it excludes. A glob core can't read fails
+    /// here, before any frontend runs.
+    // rstyle-allow(side_effect_density): IO boundary: loads the configuration
+    fn new(
+        (cli, args): (&'a Cli, &'a RunArgs),
+        (filter, language): (Filter, &'static str),
+        (source, project): (PathBuf, PathBuf),
+    ) -> Result<Self, String> {
+        let mut config =
+            cpg::load_config(crate::config_path(cli.config.clone(), &project).as_deref())?;
+        config.exclude_also(&args.excludes);
+        exclusions::Matcher::compile(&config.exclude.0)?;
+        Ok(Self {
+            cli,
+            args,
+            filter,
+            language,
+            source,
+            project,
+            config,
+        })
+    }
+}
+
 impl Plan<'_> {
-    // rstyle-allow(side_effect_density): IO boundary: loads the configuration and ledger
+    // rstyle-allow(side_effect_density): IO boundary: loads the ledger
     fn analyzed(&self, records: Vec<Record>) -> Result<Unified, String> {
-        let config = cpg::load_config(
-            crate::config_path(self.cli.config.clone(), &self.project).as_deref(),
-        )?;
         let options = self.pattern_options()?;
-        unified::analyze(records, &self.filter, &config, &options).map(Unified::from)
+        let analyses = unified::analyze(records, &self.filter, &self.config, &options)?;
+
+        let mut unified = Unified::from(analyses);
+        unified.exclude = self.config.exclude.0.clone();
+        Ok(unified)
     }
 
     fn pattern_options(&self) -> Result<patterns_report::Options, String> {
@@ -622,6 +644,7 @@ impl Plan<'_> {
             language: self.language.into(),
             source: self.source.clone(),
             documents,
+            exclude: Some(self.config.exclude.0.clone()),
         };
         transport::write_json(&staged.path().join(RUN_FILE), Encoding::Json, &record)?;
         staged.publish()
@@ -630,10 +653,22 @@ impl Plan<'_> {
     fn output(&self, unified: &Unified, run: Option<&Path>) -> Result<(String, u8), String> {
         let code = unified.exit_code(self.args.fail_on_candidates);
         let output = match self.cli.format {
-            Format::Text => with_location(unified.text(), run),
+            Format::Text => with_location(with_exclusions(unified.text(), &unified.exclude), run),
             Format::Json => json_output(unified, run)?,
         };
         Ok((output, code))
+    }
+}
+
+/// What a report leaves out is said when it's more than the default, so a replay says what its
+/// saved run left out too.
+fn with_exclusions(text: String, globs: &[String]) -> String {
+    match globs == Excludes::default().0 {
+        true => text,
+        false => format!(
+            "{text}\nrstyle: left out what exclude names: {}",
+            globs.join(", ")
+        ),
     }
 }
 
@@ -759,11 +794,10 @@ mod tests {
     }
 
     #[test]
-    fn a_python_run_passes_its_interpreter_and_exclusions_on() {
+    fn a_python_run_passes_its_interpreter_on() {
         let args = PyArgs {
             source: None,
             python: Some("/env/bin/python".into()),
-            excludes: vec!["tests/data/**".into(), "old.py".into()],
             run: RunArgs {
                 check: false,
                 patterns: false,
@@ -772,6 +806,7 @@ mod tests {
                 from: None,
                 fail_on_candidates: false,
                 no_ignore: false,
+                excludes: Vec::new(),
                 display: PatternDisplayArgs::default(),
                 mine: MineArgs::default(),
             },
@@ -779,16 +814,9 @@ mod tests {
                 arguments: vec!["--strict".into()],
             },
         };
-        let expected = [
-            "--python",
-            "/env/bin/python",
-            "--exclude",
-            "tests/data/**",
-            "--exclude",
-            "old.py",
-            "--strict",
-        ];
+        let expected = ["--python", "/env/bin/python"];
         assert_eq!(args.arguments(), expected.map(OsString::from));
+        assert_eq!(args.passed_on(), [OsString::from("--strict")]);
     }
 
     #[test]
@@ -834,6 +862,7 @@ mod tests {
                 from: None,
                 fail_on_candidates: false,
                 no_ignore: false,
+                excludes: Vec::new(),
                 display: PatternDisplayArgs::default(),
                 mine: MineArgs::default(),
             },
@@ -850,12 +879,12 @@ mod tests {
             "b",
             "--define",
             "X=1",
-            "--require-database",
         ];
+        assert_eq!(args.arguments(), expected.map(OsString::from));
         assert_eq!(
-            args.arguments(),
-            expected.map(OsString::from),
-            "what comes after `--` comes last, as it was"
+            args.passed_on(),
+            [OsString::from("--require-database")],
+            "what comes after `--` is kept apart, to come last, as it was"
         );
     }
 }

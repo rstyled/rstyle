@@ -54,7 +54,8 @@ const NO_ANALYSES: &str =
 const ANALYSES: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"calls"},{"name":"broken"},{"name":"invalid"},{"name":"silent"}]}"#;
 const READERS: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"reader","input":"documents"},{"name":"quitter","input":"documents"},{"name":"sinking","input":"documents"},{"name":"calls","input":"source"}]}"#;
 const CXX: &str = r#"{"schema":"rstyle.frontend-description/1","language":"cxx","analyses":[]}"#;
-const PY: &str = r#"{"schema":"rstyle.frontend-description/1","language":"py","analyses":[]}"#;
+const CXX_EXCLUDING: &str = r#"{"schema":"rstyle.frontend-description/1","language":"cxx","analyses":[],"options":["exclude"]}"#;
+const PY: &str = r#"{"schema":"rstyle.frontend-description/1","language":"py","analyses":[],"options":["exclude"]}"#;
 const CXX_READERS: &str = r#"{"schema":"rstyle.frontend-description/1","language":"cxx","analyses":[{"name":"reader","input":"documents"},{"name":"calls","input":"source"}]}"#;
 
 /// A Go module and a frontend to run over it.
@@ -1388,6 +1389,8 @@ fn a_py_run_hands_on_its_interpreter_and_exclusions_after_what_every_frontend_ge
             "--python",
             "/env/bin/python",
             "--exclude",
+            "target/**",
+            "--exclude",
             "tests/data/**",
             "--exclude",
             "old.py"
@@ -1398,6 +1401,146 @@ fn a_py_run_hands_on_its_interpreter_and_exclusions_after_what_every_frontend_ge
         run.file_name().unwrap().to_str().unwrap().ends_with("-py"),
         "{run:?}"
     );
+}
+
+/// The arguments the fake frontend's `cpg` was started with, after what every frontend gets.
+fn cpg_arguments(path: &Path) -> Vec<String> {
+    let written = std::fs::read_to_string(path).unwrap();
+    written.lines().skip(5).map(str::to_owned).collect()
+}
+
+#[test]
+fn exclude_from_the_config_and_the_command_line_follows_a_frontends_build_context() {
+    let project = Project::new();
+    std::fs::write(
+        project.root().join("rstyle.toml"),
+        "exclude = [\"vendor/**\"]\n",
+    )
+    .unwrap();
+    let arguments = project.root().join("arguments");
+    let output = project
+        .cxx(&[
+            "--compilation-database",
+            "build",
+            "--exclude",
+            "old.cpp",
+            "--exclude",
+            "vendor/**",
+            "--format",
+            "json",
+        ])
+        .env("FAKE_DESCRIPTION", CXX_EXCLUDING)
+        .env("FAKE_ARGUMENTS", &arguments)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(
+        cpg_arguments(&arguments),
+        [
+            "--compilation-database",
+            "build",
+            "--exclude",
+            "vendor/**",
+            "--exclude",
+            "old.cpp"
+        ]
+    );
+    assert_eq!(report(&output)["exclude"], json!(["vendor/**", "old.cpp"]));
+    let record: Value = read_json(&saved_run(&output).join("run.json")).unwrap();
+    assert_eq!(record["exclude"], json!(["vendor/**", "old.cpp"]));
+}
+
+#[test]
+fn a_frontend_that_does_not_take_exclude_is_not_handed_it_and_the_report_still_leaves_it_out() {
+    let project = Project::new();
+    let arguments = project.root().join("arguments");
+    let output = project
+        .command(
+            NO_ANALYSES,
+            &[
+                "go",
+                "--check",
+                "--exclude",
+                "src/lib.rs",
+                "--format",
+                "json",
+            ],
+        )
+        .env("FAKE_ARGUMENTS", &arguments)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(cpg_arguments(&arguments).is_empty(), "{output:?}");
+    assert!(
+        stderr(&output).contains("doesn't take --exclude, so it still reads what's excluded"),
+        "{output:?}"
+    );
+    let unified = report(&output);
+    assert_eq!(unified["check"]["summary"]["functions"], 0, "{unified}");
+    assert_eq!(unified["exclude"], json!(["target/**", "src/lib.rs"]));
+
+    let quiet = project.go(&["--check"]);
+    assert!(!stderr(&quiet).contains("--exclude"), "{quiet:?}");
+}
+
+#[test]
+fn a_replay_leaves_out_what_its_run_excluded_and_says_so() {
+    let project = Project::new();
+    let output = project.go(&["--check", "--exclude", "src", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let run = saved_run(&output);
+    let from = run.to_str().unwrap();
+    // The fake frontend doesn't take --exclude, so its documents still hold every function.
+    let all = project.go(&["--check", "--format", "json"]);
+    assert_eq!(report(&all)["check"]["summary"]["functions"], 3);
+
+    let again = project.go(&["--check", "--from", from, "--format", "json"]);
+    assert_eq!(again.status.code(), Some(0), "{again:?}");
+    assert_eq!(report(&again), without_run(report(&output)));
+    assert_eq!(report(&again)["exclude"], json!(["target/**", "src"]));
+    let text = stdout(&project.go(&["--check", "--from", from]));
+    assert!(
+        text.contains("rstyle: 0 functions")
+            && text.contains("left out what exclude names: target/**, src"),
+        "{text}"
+    );
+
+    // A run saved before runs recorded what they excluded replays with what the config says.
+    let record = run.join("run.json");
+    let mut written: Value = read_json(&record).unwrap();
+    written.as_object_mut().unwrap().remove("exclude");
+    std::fs::write(&record, serde_json::to_vec(&written).unwrap()).unwrap();
+    let older = report(&project.go(&["--check", "--from", from, "--format", "json"]));
+    assert_eq!(older["check"]["summary"]["functions"], 3);
+    assert_eq!(older["exclude"], json!(["target/**"]));
+    let more = report(&project.go(&[
+        "--check",
+        "--from",
+        from,
+        "--exclude",
+        "src/lib.rs",
+        "--format",
+        "json",
+    ]));
+    assert_eq!(
+        more["check"]["summary"]["functions"], 0,
+        "a replay can leave out more"
+    );
+}
+
+#[test]
+fn a_glob_core_cannot_read_fails_before_the_frontend_runs() {
+    let project = Project::new();
+    let arguments = project.root().join("arguments");
+    let output = project
+        .py(&["--exclude", "[", "--format", "json"])
+        .env("FAKE_ARGUMENTS", &arguments)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("bad exclude `[`"), "{output:?}");
+    assert!(!arguments.exists(), "the frontend ran");
+    assert!(project.run_folders().is_empty());
 }
 
 #[test]
@@ -1659,6 +1802,52 @@ fn rust_has_no_analyses_of_its_own_yet() {
     let output = rust_run(directory.path(), &["--filter", "rust:calls"]);
     assert_eq!(output.status.code(), Some(2), "{output:?}");
     assert!(stderr(&output).contains("it offers none"), "{output:?}");
+}
+
+#[test]
+fn a_rust_run_reads_what_is_excluded_and_leaves_it_out_of_the_report_and_its_replay() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().canonicalize().unwrap();
+    std::fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n[workspace]\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(root.join("src/generated")).unwrap();
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "mod generated;\npub fn kept() -> i32 { generated::made(1, 2, 3, 4, 5) }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("src/generated/mod.rs"),
+        "pub fn made(a: i32, b: i32, c: i32, d: i32, e: i32) -> i32 { a + b + c + d + e }\n",
+    )
+    .unwrap();
+
+    let all = report(&rust_run(&root, &["--check", "--format", "json"]));
+    assert_eq!(all["check"]["summary"]["functions"], 2, "{all}");
+    let output = rust_run(
+        &root,
+        &["--check", "--exclude", "src/generated", "--format", "json"],
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let unified = report(&output);
+    assert_eq!(unified["check"]["summary"]["functions"], 1, "{unified}");
+    assert_eq!(unified["exclude"], json!(["target/**", "src/generated"]));
+
+    let run = saved_run(&output);
+    let again = rust_run(
+        &root,
+        &[
+            "--check",
+            "--from",
+            run.to_str().unwrap(),
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(report(&again), without_run(unified), "{again:?}");
 }
 
 /// A crate whose function stores a value it replaces before reading it.

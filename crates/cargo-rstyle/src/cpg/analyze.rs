@@ -58,6 +58,9 @@ pub(crate) struct Unified {
     pub analyses: Analyses,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub frontend: Vec<FrontendResult>,
+    /// What the report leaves out, as `exclude` and `--exclude` name it, for a run the runner made.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub exclude: Vec<String>,
 }
 
 impl From<Analyses> for Unified {
@@ -65,6 +68,7 @@ impl From<Analyses> for Unified {
         Self {
             analyses,
             frontend: Vec::new(),
+            exclude: Vec::new(),
         }
     }
 }

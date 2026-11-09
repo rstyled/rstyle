@@ -3,6 +3,7 @@
 use super::pipe;
 use crate::cpg::analyze::FrontendResult;
 use crate::cpg::input::{self, STREAM_BUFFER, Store, Stream};
+use rstyle_core::config::Excludes;
 use rstyle_core::cpg::records::{Demand, Record};
 use rstyle_core::cpg::transport::{self, DocumentManifest, Encoding, SequenceReader};
 use rstyle_core::filter::valid_name;
@@ -23,8 +24,12 @@ pub(super) struct Frontend {
     pub(super) language: &'static str,
     program: PathBuf,
     analyses: Vec<Described>,
+    /// What `cpg` takes beyond the arguments every frontend gets.
+    options: Vec<String>,
     /// What this run's stream needs beyond the arguments every frontend gets.
     stream_arguments: Vec<OsString>,
+    /// What followed `--` on rstyle's command line, which the frontend hears last and unchanged.
+    passed_on: Vec<OsString>,
 }
 
 /// What a frontend says of itself, so a stale one fails with a reason instead of partway in.
@@ -34,6 +39,10 @@ struct Description {
     language: String,
     #[serde(default)]
     analyses: Vec<Described>,
+    /// Options of `cpg` that not every frontend takes, such as `exclude`. One it doesn't list
+    /// isn't passed.
+    #[serde(default)]
+    options: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -93,21 +102,50 @@ impl Frontend {
             "py" => locate_py()?,
             _ => locate_go()?,
         };
-        let analyses = describe(&program, language)?;
+        let description = describe(&program, language)?;
         Ok(Self {
             language,
             program,
-            analyses,
+            analyses: description.analyses,
+            options: description.options,
             stream_arguments: Vec::new(),
+            passed_on: Vec::new(),
         })
     }
 
-    /// The same frontend, with what this run's stream needs beyond what every frontend gets.
-    pub(super) fn streaming(self, stream_arguments: Vec<OsString>) -> Self {
+    /// The same frontend, with what this run's stream needs beyond what every frontend gets, and
+    /// what followed `--`, which comes last.
+    pub(super) fn streaming(
+        self,
+        stream_arguments: Vec<OsString>,
+        passed_on: Vec<OsString>,
+    ) -> Self {
         Self {
             stream_arguments,
+            passed_on,
             ..self
         }
+    }
+
+    /// The same frontend, told what the run excludes if it takes `--exclude`. One that doesn't
+    /// still reads it, and core leaves it out of the report. That's only worth saying when the
+    /// run excludes more than the default.
+    // rstyle-allow(side_effect_density): IO boundary: says what an older frontend still reads
+    pub(super) fn excluding(mut self, globs: &[String]) -> Self {
+        if self.options.iter().any(|option| option == "exclude") {
+            let arguments = globs
+                .iter()
+                .flat_map(|glob| [OsString::from("--exclude"), OsString::from(glob)]);
+            self.stream_arguments.extend(arguments);
+        } else if globs != Excludes::default().0 {
+            eprintln!(
+                "rstyle: {} doesn't take --exclude, so it still reads what's excluded, and only the \
+                 report leaves it out; {}",
+                self.name(),
+                upgrade(self.language)
+            );
+        }
+        self
     }
 
     fn name(&self) -> std::path::Display<'_> {
@@ -171,7 +209,7 @@ impl Frontend {
         let number = pipe::inherit(&mut command, writer)?;
         command
             .args(["--output-fd", &number])
-            .args(&self.stream_arguments)
+            .args(self.stream_arguments.iter().chain(&self.passed_on))
             .spawn()
             .map_err(|error| format!("Cannot run {}: {error}", self.name()))
     }
@@ -333,8 +371,24 @@ fn published(status: ExitStatus, staged: &Path, file: &Path) -> Result<serde_jso
     Ok(log)
 }
 
+/// What a frontend this rstyle reads as out of date should do.
+fn upgrade(language: &str) -> String {
+    match language {
+        "cxx" => format!("rebuild it from {CXX_REPOSITORY}"),
+        "py" => format!("reinstall it from {PY_REPOSITORY}"),
+        _ => format!("update it with `go install {GO_PACKAGE}`"),
+    }
+}
+
+/// What a frontend offers: its analyses, and the options its `cpg` takes.
+#[derive(Debug)]
+struct Offered {
+    analyses: Vec<Described>,
+    options: Vec<String>,
+}
+
 // rstyle-allow(side_effect_density): process boundary: asks the frontend what it offers
-fn describe(program: &Path, language: &str) -> Result<Vec<Described>, String> {
+fn describe(program: &Path, language: &str) -> Result<Offered, String> {
     let output = Command::new(program)
         .arg("describe")
         .stdin(Stdio::null())
@@ -345,11 +399,7 @@ fn describe(program: &Path, language: &str) -> Result<Vec<Described>, String> {
             "`{} describe` failed with {}, so it may be too old; {}:\n{}",
             program.display(),
             output.status,
-            match language {
-                "cxx" => format!("rebuild it from {CXX_REPOSITORY}"),
-                "py" => format!("reinstall it from {PY_REPOSITORY}"),
-                _ => format!("update it with `go install {GO_PACKAGE}`"),
-            },
+            upgrade(language),
             String::from_utf8_lossy(&output.stderr)
         ));
     }
@@ -359,7 +409,7 @@ fn describe(program: &Path, language: &str) -> Result<Vec<Described>, String> {
         .map_err(|error| format!("`{} describe`: {error}", program.display()))
 }
 
-fn described(description: Description, language: &str) -> Result<Vec<Described>, String> {
+fn described(description: Description, language: &str) -> Result<Offered, String> {
     if description.schema != SCHEMA {
         return Err(format!(
             "speaks {}, and this rstyle needs {SCHEMA}",
@@ -372,14 +422,18 @@ fn described(description: Description, language: &str) -> Result<Vec<Described>,
             description.language
         ));
     }
-    description
+    let analyses = description
         .analyses
         .into_iter()
         .map(|analysis| match valid_name(&analysis.name) {
             true => Ok(analysis),
             false => Err(format!("names an invalid analysis `{}`", analysis.name)),
         })
-        .collect()
+        .collect::<Result<_, _>>()?;
+    Ok(Offered {
+        analyses,
+        options: description.options,
+    })
 }
 
 // rstyle-allow(side_effect_density): process boundary: finds the frontend, or installs it
@@ -536,12 +590,15 @@ mod tests {
                     input: Input::Source,
                 })
                 .collect(),
+            options: Vec::new(),
         }
     }
 
     #[test]
     fn a_description_lists_the_analyses_on_offer() {
-        let analyses = described(description(SCHEMA, "go", &["calls"]), "go").unwrap();
+        let analyses = described(description(SCHEMA, "go", &["calls"]), "go")
+            .unwrap()
+            .analyses;
         assert_eq!(analyses.len(), 1);
         assert_eq!(analyses[0].name, "calls");
     }
@@ -576,5 +633,49 @@ mod tests {
     fn an_analysis_name_cannot_climb_out_of_its_folder() {
         let error = described(description(SCHEMA, "go", &["../x"]), "go").unwrap_err();
         assert!(error.contains("invalid analysis"), "{error}");
+    }
+
+    fn frontend(options: &[&str]) -> Frontend {
+        Frontend {
+            language: "go",
+            program: PathBuf::from("rstyle-go"),
+            analyses: Vec::new(),
+            options: options.iter().map(|option| (*option).into()).collect(),
+            stream_arguments: vec!["--compilation-database".into(), "build".into()],
+            passed_on: vec!["--strict".into()],
+        }
+    }
+
+    #[test]
+    fn exclusions_follow_the_other_arguments_only_for_a_frontend_that_takes_them() {
+        let globs = ["target/**".to_string(), "old.py".into()];
+        let taking = frontend(&["exclude"]).excluding(&globs);
+        let expected = [
+            "--compilation-database",
+            "build",
+            "--exclude",
+            "target/**",
+            "--exclude",
+            "old.py",
+        ];
+        assert_eq!(taking.stream_arguments, expected.map(OsString::from));
+        assert_eq!(
+            taking.passed_on,
+            [OsString::from("--strict")],
+            "kept for last"
+        );
+
+        let older = frontend(&[]).excluding(&globs);
+        assert_eq!(older.stream_arguments, expected.map(OsString::from)[..2]);
+    }
+
+    #[test]
+    fn a_description_says_what_its_cpg_takes_and_older_ones_say_nothing() {
+        let parsed = |text: &str| serde_json::from_str::<Description>(text).map(|it| it.options);
+        let older = r#"{"schema":"rstyle.frontend-description/1","language":"go"}"#;
+        assert!(parsed(older).unwrap().is_empty());
+        let taking =
+            r#"{"schema":"rstyle.frontend-description/1","language":"go","options":["exclude"]}"#;
+        assert_eq!(parsed(taking).unwrap(), ["exclude"]);
     }
 }

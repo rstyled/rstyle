@@ -37,9 +37,7 @@ rstyle go --patterns       rstyle cxx --patterns       rstyle py --patterns     
   project, or the active one, without running anything in it. `--python PATH` names an interpreter instead, and
   that one it runs. With neither, those calls stay unresolved, and the run says so.
 
-  A file that doesn't parse ends the run, naming every such file. `--exclude GLOB`, which can be repeated, names a path or
-  a glob relative to the source directory for the frontend not to read, and a path takes what's under it. Calls into what's
-  left out stay incomplete.
+  A file that doesn't parse ends the run, naming every such file and how to [leave it out](#leaving-files-out).
 - **Rust:** the frontend is the bundled driver. `--manifest-path`, `-p` and `--all-targets` apply.
   It reads the same capture as `cargo rstyle` and `patterns`, so only what changed compiles.
 
@@ -58,6 +56,25 @@ An unknown name fails before anything runs, as does `--fail-on-candidates` witho
 
 `flow` is most of a report's size: on gstyle, 126 MB of the 176 MB printed and 6.2 MB of the 7.5 MB saved,
 for about 2 s more. `--filter check,patterns,bounds` leaves it out.
+
+## Leaving files out
+
+`exclude` in `rstyle.toml` names paths and globs a run leaves out, and `--exclude GLOB`, which can be repeated, adds to it for
+one run. Both are relative to the source directory, as reports show paths.
+
+- **One syntax everywhere.** `*` and `?` match across `/`. `**/` at the start and `/**/` in the middle match any number of
+  directories, and `/**` at the end everything under. `[ab]`, `[!ab]`, `{a,b}` and `\` work as in a shell. A path, or a glob
+  that matches a directory, takes everything under it, so `tests/fixtures`, `tests/fixtures/` and `tests/fixtures/**` leave out
+  the same files. [`cases.tsv`](../crates/rstyle-core/src/exclusions/cases.tsv) shows how core reads each form.
+- **What's excluded isn't reported.** Core leaves its functions out of every analysis, from any frontend and on a replay. A
+  callee it removes keeps its callers' effects incomplete.
+- **Only Python skips reading it.** A Python file stands alone, so one that's meant not to parse can be skipped. Go and C++ read
+  an excluded file, since its package or whatever includes it needs it to type-check, and leave its functions out of the
+  documents. One that doesn't parse doesn't stop their run either: Go skips it, and C++ counts its errors like any other.
+  Rust compiles the whole crate, and core leaves them out. A frontend says on stderr how many files that left out.
+- **A run records them.** `run.json` lists what the run excluded, and `--from` leaves that out too, with whatever `exclude` and
+  `--exclude` add now. `--format json` lists everything a report left out as `exclude`, and the text names it when it's more
+  than the default, `target/**`.
 
 ## Saved runs
 
@@ -80,7 +97,7 @@ check.sarif                SARIF 2.1.0, category rstyle/check/
 patterns.sarif             SARIF 2.1.0, category rstyle/patterns/
 defects.sarif              SARIF 2.1.0, category rstyle/defects/
 frontend/<analysis>.sarif  a frontend analysis's results, as it wrote them
-run.json                   the language, source root and document count
+run.json                   the language, source root, document count and what was excluded
 ```
 
 `--from DIR` analyzes a saved run without its frontend, and saves only with `--out`. Naming a frontend analysis
@@ -112,14 +129,19 @@ A frontend is a program with up to three commands:
 
 | Command | Does |
 | --- | --- |
-| `describe` | Prints `{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"calls"},{"name":"nilerr","input":"documents"}]}` |
+| `describe` | Prints `{"schema":"rstyle.frontend-description/1","language":"go","options":["exclude"],"analyses":[{"name":"calls"},{"name":"nilerr","input":"documents"}]}` |
 | `cpg --source DIR --output-fd N` | Writes an RFC 7464 JSON text sequence to the inherited descriptor, then `RS null LF` only if generation succeeded |
 | `analyze NAME --source DIR --out FILE` | Writes SARIF 2.1.0 to `FILE`, for each name it describes |
 
 - `N` is a descriptor on Unix and an inherited handle's value on Windows.
-- Arguments rstyle has for that language come after these, such as `rstyle-cxx`'s `--compilation-database`, and
-  then whatever followed `--` on rstyle's command line, unchanged: `rstyle cxx -- --require-database` hands the
-  frontend `--require-database` last. rstyle knows nothing of what they mean.
+- Arguments rstyle has for that language come after these, such as `rstyle-cxx`'s `--compilation-database`.
+- `options` lists what `cpg` takes that not every frontend does. With `exclude`, the runner passes `--exclude GLOB` for each glob
+  the run [leaves out](#leaving-files-out), after the language's arguments, `target/**` included. The frontend must leave
+  their functions out of its documents, and may skip reading the files. One that doesn't list it isn't passed it, and core
+  still leaves those functions out of the report.
+- Whatever followed `--` on rstyle's command line comes last, after `--exclude`, unchanged: `rstyle cxx --
+  --require-database` hands the frontend `--require-database` last. rstyle knows nothing of what they mean.
+- A file that doesn't parse should fail the run, and the failure should name `--exclude` as the way to skip it.
 - A non-zero exit means the run is incomplete.
 - A frontend's stdout goes to rstyle's stderr.
 - The descriptor must not reach the frontend's own child processes, or rstyle never sees end of file.

@@ -185,8 +185,11 @@ tool error. `RSTYLE_GO` points at a local `rstyle-go`, `RSTYLE_CXX` at a local `
 Options for the frontend itself go after `--` and reach it as they are. For C and C++, rstyle-cxx finds the project's
 `compile_commands.json` or has the project build one, and `--compilation-database` names one; without one it warns and
 guesses flags, losing what it can't parse. Don't accept that: `rstyle cxx -- --require-database` stops instead and
-says why, and `rstyle-cxx database-runbook` says how to work out the project's database. For Python, a file that doesn't parse ends the run, and `--exclude` names a
-path or glob to leave out. An environment in the project is read and never run; `--python` names an interpreter to run instead.
+says why, and `rstyle-cxx database-runbook` says how to work out the project's database. `--exclude GLOB`, repeated as
+needed, leaves a path or glob out of one run on top of `exclude` in `rstyle.toml`, and a directory takes what's under it:
+Python's frontend then doesn't read it, and the others read it but leave it out of the report. For Python, a file that
+doesn't parse ends the run, and `--exclude` is the way past it. An environment in the project is read and never run;
+`--python` names an interpreter to run instead.
 
 ## Other languages (`cpg`)
 
