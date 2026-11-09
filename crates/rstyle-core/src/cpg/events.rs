@@ -25,6 +25,14 @@ pub struct Events {
     pub recursions: Vec<Construct>,
 }
 
+/// Whether a call has no callee node, so that its receiver is its first argument.
+fn method_form(reference: &Ref) -> bool {
+    matches!(
+        reference.dispatch,
+        Some(Dispatch::Method | Dispatch::Dynamic)
+    )
+}
+
 /// Read-only context of one function's derivations.
 pub struct Walk<'a> {
     pub body: &'a Body<'a>,
@@ -299,14 +307,26 @@ impl<'a> Walk<'a> {
         Ok(self.classes.class(operation))
     }
 
-    /// Whether the contract keeps this call's effect in a buffer, by an argument's type.
+    /// Whether the contract keeps this call's effect in a buffer, by an argument's type. The
+    /// argument is counted after the callee or a method call's receiver, by the parameter it binds to.
     fn writes_to_memory(&self, node: &'a Node, operation: &str) -> Result<bool, String> {
         let Some(rule) = self.classes.memory_write(operation) else {
             return Ok(false);
         };
 
-        let children = self.body.source_children(node)?;
-        let argument = children.get(1 + rule.argument);
+        let argument = match self.body.reference(&node.id) {
+            Some(reference) if reference.arguments.is_some() => {
+                let position = rule.argument + usize::from(method_form(reference));
+                let arguments = self.body.arguments(node)?.into_iter();
+                let mut bound = arguments.filter(|argument| argument.position == Some(position));
+                bound.next().map(|argument| argument.value)
+            }
+            _ => self
+                .body
+                .source_children(node)?
+                .get(1 + rule.argument)
+                .copied(),
+        };
         let Some(ty) = argument.and_then(|argument| argument.ty.as_deref()) else {
             return Ok(false);
         };
@@ -346,23 +366,43 @@ impl<'a> Walk<'a> {
 
     /// Arguments after the callee, or after the receiver of a method call; a method
     /// called by path takes its receiver as the first argument, which is not counted.
+    /// Where the call binds them, each is placed at the parameter it binds to, except in a
+    /// method called by path: Python's class call is one too, and passes no receiver, so
+    /// which argument is the receiver isn't known, and they stay in written order.
     fn arguments(
         &self,
         node: &'a Node,
         reference: &Ref,
         declared: &Definition,
     ) -> Result<Vec<ArgSource>, String> {
-        let method_form = matches!(
-            reference.dispatch,
-            Some(Dispatch::Method | Dispatch::Dynamic)
-        );
+        let method_form = method_form(reference);
         let receiver = usize::from(!method_form && declared.kind == DefinitionKind::Method);
+        if reference.arguments.is_some() && receiver == 0 {
+            return self.bound_arguments(node, usize::from(method_form));
+        }
+
         let children = self.body.source_children(node)?;
         children
             .iter()
             .skip(1 + receiver)
             .map(|arg| self.classify(arg))
             .collect()
+    }
+
+    /// Arguments placed by the parameter each binds to, from `first` on: one with no position
+    /// is left out, and a parameter no argument binds, which takes its default, is other.
+    fn bound_arguments(&self, node: &'a Node, first: usize) -> Result<Vec<ArgSource>, String> {
+        let mut placed: BTreeMap<usize, ArgSource> = BTreeMap::new();
+        for argument in self.body.arguments(node)? {
+            let Some(at) = argument.position.and_then(|it| it.checked_sub(first)) else {
+                continue;
+            };
+            placed.entry(at).or_insert(self.classify(argument.value)?);
+        }
+
+        let count = placed.keys().next_back().map_or(0, |last| last + 1);
+        let at = |position| placed.get(&position).copied().unwrap_or(ArgSource::Other);
+        Ok((0..count).map(at).collect())
     }
 
     fn classify(&self, arg: &'a Node) -> Result<ArgSource, String> {

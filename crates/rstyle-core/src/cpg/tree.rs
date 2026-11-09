@@ -1,7 +1,7 @@
 //! Per-function and per-unit indexes, with the tree checks the derivations rely on.
 
 use super::model::{
-    Definition, FileSpan, Function, Node, NodeKind, Origin, Ref, Symbol, Type, Unit,
+    Definition, Dispatch, FileSpan, Function, Node, NodeKind, Origin, Ref, Symbol, Type, Unit,
 };
 use crate::wording::Wording;
 use std::collections::{BTreeMap, BTreeSet};
@@ -71,6 +71,18 @@ fn index<'a, T>(
     Ok(table)
 }
 
+/// One of a call's arguments: the node written, the node holding what it passes, and the
+/// parameter it binds to.
+#[derive(Clone, Copy, Debug)]
+pub struct Argument<'a> {
+    pub node: &'a Node,
+    pub value: &'a Node,
+    /// What a positional argument for its parameter would be numbered, as a call's arguments
+    /// are: a receiver is 0. None where the frontend can't know, as for a spread.
+    pub position: Option<usize>,
+    pub parameter: Option<&'a str>,
+}
+
 /// One function body: its nodes form a tree under the root.
 pub struct Body<'a> {
     pub function: &'a Function,
@@ -135,6 +147,56 @@ impl<'a> Body<'a> {
             .get(index)
             .ok_or_else(|| format!("Node {} has no child {index}", node.id))?;
         self.node(id)
+    }
+
+    /// A call's arguments, from its receiver when its dispatch is `method` or `dynamic` and
+    /// otherwise after its callee. Where its reference binds them, each is numbered by the
+    /// parameter it binds to, and otherwise by where it's written.
+    pub fn arguments(&self, call: &Node) -> Result<Vec<Argument<'a>>, String> {
+        let reference = self.reference(&call.id);
+        let dispatch = reference.and_then(|it| it.dispatch);
+        let receiver = matches!(dispatch, Some(Dispatch::Method | Dispatch::Dynamic));
+        let written = self
+            .children(call)?
+            .into_iter()
+            .skip(usize::from(!receiver));
+        let Some(bindings) = reference.and_then(|it| it.arguments.as_ref()) else {
+            let positional = written.enumerate().map(|(at, node)| Argument {
+                node,
+                value: node,
+                position: Some(at),
+                parameter: None,
+            });
+            return Ok(positional.collect());
+        };
+
+        let written: Vec<&Node> = written.collect();
+        if written.len() != bindings.len() {
+            let (bound, has) = (bindings.len(), written.len());
+            return Err(format!(
+                "Call {}: binds {bound} arguments, and has {has}",
+                call.id
+            ));
+        }
+        let bound = written.into_iter().zip(bindings);
+        bound
+            .map(|(node, binding)| {
+                let value = match binding.value.as_deref() {
+                    None => node,
+                    Some(id) if node.children.iter().any(|child| child == id) => self.node(id)?,
+                    Some(id) => {
+                        let at = &call.id;
+                        return Err(format!("Call {at}: {id} isn't a child of its argument"));
+                    }
+                };
+                Ok(Argument {
+                    node,
+                    value,
+                    position: binding.position,
+                    parameter: binding.parameter.as_deref(),
+                })
+            })
+            .collect()
     }
 
     /// An assignment whose target a destructuring rebuilt from its pattern.

@@ -1,6 +1,7 @@
 # What Python's standard library takes input from and where input is dangerous, keyed by a callee's
 # name, which is its qualified name as typeshed declares it: `pickle.loads` is `_pickle.loads`. A
-# receiver is position 0, and otherwise the first argument is.
+# receiver is position 0, and otherwise the first argument is. A keyword argument is at the position
+# of the parameter it names.
 #
 # Only these are read, so a call to anything else isn't an endpoint. A project adds its own under
 # [taint] in rstyle.toml, as it would a framework's.
@@ -37,7 +38,8 @@ callees = [
     "asyncio.subprocess.create_subprocess_shell",
 ]
 
-# subprocess runs its arguments through a shell only when it's told to.
+# subprocess runs its arguments through a shell only when it's told to, by passing `shell` a literal
+# `True`, by keyword or in its place.
 [[sinks]]
 risk = "command injection"
 cwe = "CWE-78"
@@ -49,7 +51,7 @@ callees = [
     "subprocess.check_output",
     "subprocess.Popen.__init__",
 ]
-when = { keyword = "shell", literal = "true" }
+when = { parameter = "shell", literal = "true" }
 
 # Otherwise it runs a program, which is what's dangerous, as in Go. Its first argument is the program
 # and its arguments in one: a list written out is read element by element, so the program is the

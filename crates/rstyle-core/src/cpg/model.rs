@@ -712,11 +712,34 @@ pub struct Ref {
     pub selected_arguments: Option<Vec<Id>>,
     /// The callee's parameter and result types as the call instantiates them.
     pub signature: Option<InstanceSignature>,
+    /// Which parameter each argument binds to; without it, each binds the number it's written at.
+    pub arguments: Option<Vec<ArgumentBinding>>,
     pub instance: Option<Id>,
     pub calls_back: Option<CallsBack>,
     pub reason: Option<String>,
     /// The item type of the receiver, for a call to an iteration member.
     pub item: Option<Id>,
+}
+
+/// Which parameter one of a call's arguments binds to, each field absent where the frontend
+/// can't know it.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArgumentBinding {
+    /// What a positional argument for the parameter would be numbered: a receiver is 0.
+    pub position: Option<usize>,
+    pub parameter: Option<String>,
+    /// The child of the argument holding what it passes, when the argument isn't that itself.
+    pub value: Option<Id>,
+    pub spread: Option<Spread>,
+}
+
+/// How an argument that unpacks into any number of parameters unpacks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Spread {
+    Sequence,
+    Mapping,
 }
 
 /// A callee's parameter and result types at one call, each absent where the frontend

@@ -283,9 +283,10 @@ its own. See [merge risk](merge-risk.md).
 
 `taint_flow` reads which library calls and variables are sources and sinks from `cpg/contracts/taint/<namespace>.toml`, by a
 definition's `operation` or `name`, so a new language needs that file and no code. A sink can depend on the literal a
-keyword argument passes, which is an `extension` argument with one literal child and the parameter it names as `member`, as
-Python's `py:keyword` is. A sink whose command is built a call at a time, as Rust's `Command` is, names the calls that add
-its arguments under `appends`.
+call passes to a parameter it names. A frontend whose language passes arguments by name says which parameter each binds to
+with a call reference's `arguments`, as rstyle-py does for Python's keyword arguments, and each is then numbered by that
+parameter. Without them, an argument is numbered by where it's written and names none. A sink whose command is built a
+call at a time, as Rust's `Command` is, names the calls that add its arguments under `appends`.
 
 `--filter defects` runs the rules in [Defects](defects.md) over each function's facts. Its results don't change the
 exit code yet.
