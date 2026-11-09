@@ -55,7 +55,7 @@ impl<'a> Collector<'_, '_, 'a> {
         // A pass binds its item, so a pattern of new bindings cannot change how often the
         // loop runs. One holding anything else might write a place a bound relies on.
         if !self.written_places(parts.pattern)?.is_empty() {
-            return Ok(Err("Iterator pattern holds more than new bindings"));
+            return Ok(Err(self.facts.tables.wording().text(Message::LoopTarget)));
         }
         let unsized_iteration = self.facts.tables.wording().text(Message::UnsizedIteration);
         Ok(self.iteration_values(parts.head)?.ok_or(unsized_iteration))

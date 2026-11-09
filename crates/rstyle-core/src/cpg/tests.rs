@@ -1950,6 +1950,51 @@ fn a_cxx_report_says_what_the_rust_one_does_in_cxx_terms() {
 }
 
 #[test]
+fn go_and_python_reports_say_what_the_rust_one_does_in_their_terms() {
+    let rust = Wording::of("rust");
+    for language in ["go", "py"] {
+        let wording = Wording::of(language);
+        for (in_rust, theirs) in worded_reports(language) {
+            assert_ne!(
+                in_rust, theirs,
+                "nothing in the {language} report is worded"
+            );
+            assert_eq!(theirs, wording.translated(rust, &in_rust), "{language}");
+            for (rusts, _) in wording.pairs(rust) {
+                assert!(!theirs.contains(&rusts), "{language}: {rusts}");
+            }
+        }
+    }
+}
+
+#[test]
+fn python_names_a_del_a_nonlocal_capture_and_a_module_variable() {
+    let py = Wording::of("py");
+    let destroyed = lowered_text(in_language(with_a_destroyed_value("unsupported"), "py"));
+    let del = "Destroying a value runs a workspace `__del__` that isn't counted";
+    assert!(destroyed.contains(del), "{destroyed}");
+    assert_eq!(py.text(Message::UncountedDestructor), del);
+    let captured = count_program(in_language(with_a_nested_writer(), "py"));
+    let nonlocal = "A `nonlocal` capture can expose a numeric norm or extent";
+    assert!(captured.contains(nonlocal), "{captured}");
+    let evidence =
+        "Python AST typed by mypy; primitive unsigned semantics; no iterator size contract";
+    assert!(captured.contains(evidence), "{captured}");
+
+    for (language, label) in [
+        ("py", "module variable ffi::COUNTER"),
+        ("go", "package variable ffi::COUNTER"),
+    ] {
+        let facts = &facts_of(in_language(effects(), language))[0];
+        let global = facts
+            .effects
+            .iter()
+            .find(|effect| effect.kind == EffectKind::Global);
+        assert_eq!(global.map(|effect| effect.detail.as_str()), Some(label));
+    }
+}
+
+#[test]
 fn a_language_without_a_wording_file_reads_core_s_neutral_text() {
     let (rust, neutral) = (Wording::of("rust"), Wording::neutral());
     for (in_rust, elsewhere) in worded_reports("nowhere") {

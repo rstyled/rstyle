@@ -167,9 +167,9 @@ frontend marks what a build script writes to `OUT_DIR`.
 
 Core says its reasons, labels and proposals in neutral terms, such as a writable reference or a closure
 capture. `cpg/contracts/wording/<language>.toml` in `rstyle-core` says any of them in one language's terms,
-for units whose `language.name` it names: `rust.toml` says borrow and `static mut`, and `cxx.toml` says
-non-const reference and lambda. A language without a file reads the neutral text, so a new frontend needs no
-code for its words.
+for units whose `language.name` it names: `rust.toml` says borrow and `static mut`, `cxx.toml` non-const
+reference and lambda, `go.toml` pointer and package variable, and `py.toml` `nonlocal` capture and module
+variable. A language without a file reads the neutral text, so a new frontend needs no code for its words.
 
 A file lists messages by key. `{name}` is a placeholder and `{{` and `}}` are braces. An unknown key, or a
 placeholder a message leaves out or doesn't have, is an error when the file loads. `wording.rs` lists every
