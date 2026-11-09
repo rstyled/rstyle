@@ -1,0 +1,24 @@
+# What a C or C++ report says in their terms, by message. A message not listed here reads as core's
+# neutral text, which `wording.rs` holds with each message's placeholders. C++ has no `unsafe`, so
+# no message names it.
+#
+# Pattern candidates describe the interface their types share rather than declare one, since C++
+# could write it as an abstract base class, a concept or a template.
+
+schema = "rstyle.wording/1"
+language = "cxx"
+
+[messages]
+bound_evidence = "typed Clang AST; primitive unsigned semantics; no iterator size contract"
+chain_evidence = "typed Clang AST; resolved standard iterator chain over a stable extent or primitive range; callbacks inlined at each invocation"
+writable_number_reference = "A non-const reference to a number is unmodeled"
+writable_reference_binding = "A non-const reference binding can expose a numeric norm"
+writable_reference = "A non-const reference or a pointer can expose a numeric norm or selected extent metadata"
+unmodeled_semantics = "Foreign, lambda, assembly or coroutine semantics are unmodeled"
+written_capture = "Lambda capture by reference can expose a numeric norm or extent"
+copied_capture = "Lambda capture by value of a non-const variable is unmodeled"
+escaping_closure = "Local lambda escapes direct invocation"
+changed_elsewhere = "{variables} can also change through a reference, a pointer, a lambda capture or a write to part of it"
+delegated_mutation = "state through a non-const reference"
+writable_static = "non-const static {name}"
+opaque_closures = "Lambda bodies are opaque in these graphs; aligned nodes do not establish matching lambda behavior or captures."

@@ -1,0 +1,39 @@
+# What a Rust report says in Rust's terms, by message. A message not listed here reads as core's
+# neutral text, which `wording.rs` holds with each message's placeholders.
+#
+# `{name}` is filled in, and `{{` and `}}` are literal braces. A message has to say each of its
+# placeholders, and an unknown message or placeholder is an error.
+
+schema = "rstyle.wording/1"
+language = "rust"
+
+[messages]
+bound_evidence = "live typed HIR; primitive unsigned semantics; no iterator trait size contract"
+parameter_budget = "HIR parameter capture budget exhausted"
+frame_budget = "HIR frame inspection budget exhausted"
+capture_budget = "HIR CFG capture node, variable, or nesting budget exhausted"
+unmodeled_expression = "HIR expression has unmodeled control, alias, cleanup, or operator semantics"
+uncounted_destructor = "A value with a workspace Drop impl runs uncounted drop glue"
+writable_number_reference = "Mutable numeric-reference binding is unmodeled"
+writable_reference_binding = "Mutable reference pattern can expose a numeric norm"
+writable_reference = "Mutable or raw borrow can expose a numeric norm or selected extent metadata"
+unmodeled_semantics = "Unsafe, foreign, closure, assembly or coroutine semantics are unmodeled"
+written_capture = "Mutable closure capture can expose a numeric norm or extent"
+copied_capture = "By-value closure capture of a mutable binding is unmodeled"
+unsized_iteration = "Only resolved primitive ranges and shared slice iteration have a size model"
+chain_evidence = "live typed HIR; resolved standard iterator chain over a stable extent or primitive range; callbacks inlined at each invocation"
+chain_dispatch = "Iterator chain dispatches to a non-standard trait implementation"
+overloaded_deref = "Overloaded auto-deref runs a workspace Deref impl"
+standard_bodies = "Standard-library bodies are outside the cost unit only when no callable argument or workspace-typed trait bound lets them call back into workspace code; others stay unresolved."
+changed_elsewhere = "{variables} can also change through a borrow, a capture or a write to part of it"
+delegated_mutation = "&mut state"
+writable_static = "static mut {name}"
+
+# `{methods}` writes each method as a signature key does, `fn name(&self, ...) -> T;`.
+new_interface = "trait Shared {{ {methods} }} implemented by {types}; make the sites generic over it"
+extend_interface = "add {methods} to existing trait `{interface}`, already implemented by {types}; make the sites generic over it"
+implemented_interface = "all {count} impls are of trait method {method}"
+interface_members = "({count} via trait impls)"
+opaque_closures = "Ordinary closure bodies are opaque in these graphs; aligned nodes do not establish matching closure behavior or captures."
+dispatch = "`{function}` matches on an enum and calls analogous methods per arm: M0 = {methods}"
+loop_target = "Iterator pattern holds more than new bindings"

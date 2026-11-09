@@ -126,11 +126,20 @@ Which calls are sources and sinks is data, per language, in `cpg/contracts/taint
 | Go | Query values, form values, headers, `os.Getenv`, `os.LookupEnv`, `io.ReadAll` | `database/sql` query text, `net/http` URLs, `os/exec` programs, template source, `os` file paths |
 | C and C++ | `getenv`, `fgets`, `read` and others | `system`, `popen`, the `exec` family, `fopen`, `open` and others |
 | Rust | `std::env::var`, `std::env::args`, reading stdin and others | `std::process::Command` programs and what a shell runs, `std::fs` paths |
-| Python | `os.environ`, `os.getenv`, `sys.argv`, `sys.stdin`, `input` | `os.system`, `subprocess` with `shell=True`, `eval`, `exec`, `sqlite3` query text, `pickle.loads`, `open`, `os` and `pathlib` paths and others |
+| Python | `os.environ`, `os.getenv`, `sys.argv`, `sys.stdin`, `input` | `os.system`, `subprocess` programs and what a shell runs, `eval`, `exec`, `sqlite3` query text, `pickle.loads`, `open`, `os` and `pathlib` paths and others |
 
 Only an argument the sink treats as more than data counts, so a query parameter doesn't, and neither does an ordinary
 argument to a program, unless a literal shell and `-c` say it's code. Python's `subprocess` runs a shell only when it's
-told to, so it's a sink only where a call passes `shell=True`.
+told to, so its whole command is a sink only where a call passes `shell=True`. Otherwise it runs a program, and the program
+is the sink, as in Go. Its first argument is the program and its arguments in one: a list written out in the call is read
+element by element, and a string is the program alone. So `subprocess.run([input, "-v"])`, `subprocess.run(input)` and
+`subprocess.run(["sh", "-c", input])` are found, while `subprocess.run(["grep", input])` isn't. The `os.exec`, `os.spawn`
+and `os.posix_spawn` families run a path, and the arguments they give it start with the name it's called by, so
+`os.execl("/bin/sh", "sh", "-c", input)` and `os.execv("/bin/sh", ["sh", "-c", input])` are found too.
+
+A Python keyword argument is read by the parameter it names, as mypy's signature for the callee places it, so
+`subprocess.run(shell=True, args=input)` and `open(mode="r", file=input)` are found, while
+`subprocess.run("ls", cwd=input, shell=True)` and `open(encoding=input, file="a.txt")` aren't, however they're ordered.
 
 A source can be a library's variable as well as a call, so reading `os.environ` or `sys.argv` is where input starts, and
 `os.environ.get("HOME")` and `sys.argv[1]` hold it. A model can say what cleans input too: Python's says `shlex.quote`
@@ -195,13 +204,24 @@ reach a sink or what it returns, and whether it returns input of its own, so a v
   installed a project can name `flask.globals.request` under `sources`, and `request.args` holds what it does. Django's
   `request.GET.get(...)` is `django.utils.datastructures.MultiValueDict.get` once django-stubs gives Django types, but
   `request.GET["q"]` is a subscript, not a call, so nothing can name it.
-- **A program Python's `subprocess` runs.** A list is one argument here, so input choosing the program, as in
-  `subprocess.run([input, ...])`, isn't told from an ordinary argument, and neither is a shell in a list, as in
-  `subprocess.run(["sh", "-c", input])`. Nor is `shell` passed anything but a literal `True`.
+- **A Python command that isn't written out in the call.** In `subprocess.run(argv)`, `subprocess.run([program] + rest)`
+  or a tuple, what's in it can't be counted, so input there isn't read as the program or as code, as for Rust's
+  `args(&argv)`. A whole first argument is the program only where it's known to be a string, so a parameter with no
+  annotation isn't read as one. `shell` passed anything but a literal `True` isn't read either.
 - **What `shlex.quote` cleans.** It quotes for a shell, but like any sanitizer here it clears a value for every kind
   of sink, so input it quotes and then opens as a path isn't found.
-- **A Python keyword argument is numbered by where it's written,** so `f(b=x)` reads `x` as `f`'s first parameter.
+- **A Python keyword argument rstyle-py can't place.** Where mypy doesn't resolve the call, or the parameter is declared
+  after `*args`, a keyword names its parameter but has no position, and neither does a `*` or `**` spread. Such an
+  argument reaches no sink and no parameter, though a call with no body here still gives it back. `shell=True` is still
+  read wherever the parameter is named. A document from before rstyle-py wrote bindings numbers every argument where it's
+  written and names no parameter, so `shell=True` isn't read in it.
+- **A Python class called to make an object** passes no `self`, while its `__init__` numbers `self` as 0, so in
+  `Opener("a.txt", input())` the input is read as `__init__`'s first parameter rather than its second. A static method
+  called through an object, as `tools.run(input())`, is off by one the other way. This is how they're numbered, keywords
+  or not.
 - **A Python `with`'s target** isn't given what its expression returns, so `with open(path) as f` leaves `f` clean.
 - **What Python can't resolve** ends a flow: `sys.stdin.buffer`, since typeshed's `sys.stdin` can be `None`, and
-  `shutil.rmtree` and `io.open`, which typeshed declares as variables, so a call of one is through a value.
+  `shutil.rmtree` and `io.open`, which typeshed declares as variables, so a call of one is through a value. So does a call
+  of a function `@contextlib.contextmanager` wraps, and `str(x)`, which resolves to the class `str` rather than a
+  function.
 - **Functions it can't read** are `unknown`, as for every rule here.

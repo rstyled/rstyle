@@ -185,6 +185,21 @@ as generated even when they carry the span of one of its inputs, as `quote_spann
 A file the build writes has `origin: "generated"`, and its functions are treated the same way. The Rust
 frontend marks what a build script writes to `OUT_DIR`.
 
+### A language's words
+
+Core says its reasons, labels and proposals in neutral terms, such as a writable reference or a closure
+capture. `cpg/contracts/wording/<language>.toml` in `rstyle-core` says any of them in one language's terms,
+for units whose `language.name` it names: `rust.toml` says borrow and `static mut`, `cxx.toml` non-const
+reference and lambda, `go.toml` pointer and package variable, and `py.toml` `nonlocal` capture and module
+variable. A language without a file reads the neutral text, so a new frontend needs no code for its words.
+
+A file lists messages by key. `{name}` is a placeholder and `{{` and `}}` are braces. An unknown key, or a
+placeholder a message leaves out or doesn't have, is an error when the file loads. `wording.rs` lists every
+key with its neutral text and placeholders.
+
+A pattern candidate describes the interface it proposes, as "one interface for `equals`, which Dog, Cat
+define with matching signatures". Only `rust.toml` writes it as a declaration, `trait Shared { ... }`.
+
 ## The `cpg` commands
 
 These run core's analyses directly over `compat.cpg` documents, with no compiler:
@@ -290,9 +305,10 @@ its own. See [merge risk](merge-risk.md).
 
 `taint_flow` reads which library calls and variables are sources and sinks from `cpg/contracts/taint/<namespace>.toml`, by a
 definition's `operation` or `name`, so a new language needs that file and no code. A sink can depend on the literal a
-keyword argument passes, which is an `extension` argument with one literal child and the parameter it names as `member`, as
-Python's `py:keyword` is. A sink whose command is built a call at a time, as Rust's `Command` is, names the calls that add
-its arguments under `appends`.
+call passes to a parameter it names. A frontend whose language passes arguments by name says which parameter each binds to
+with a call reference's `arguments`, as rstyle-py does for Python's keyword arguments, and each is then numbered by that
+parameter. Without them, an argument is numbered by where it's written and names none. A sink whose command is built a
+call at a time, as Rust's `Command` is, names the calls that add its arguments under `appends`.
 
 `--filter defects` runs the rules in [Defects](defects.md) over each function's facts. Its results don't change the
 exit code yet.

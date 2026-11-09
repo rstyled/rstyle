@@ -15,6 +15,7 @@
 pub use super::contracts::Contracts;
 use super::symbolic::{Bound, OpaqueKind};
 use super::*;
+use crate::wording::{Message, Wording};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -22,8 +23,9 @@ use std::rc::Rc;
 
 pub const COST_SCOPE: &str = "workspace-loop-body-entries-and-invocations-through-resolved-calls";
 
+/// What every composition assumes besides when it leaves a standard-library body out, which
+/// `Wording::standard_bodies` says in each language's terms.
 pub const ASSUMPTIONS: &[&str] = &[
-    "Standard-library bodies are outside the cost unit only when no callable argument or workspace-typed trait bound lets them call back into workspace code; others stay unresolved.",
     "Argument sizes are replaced by a per-invocation maximum; bounds are monotone, so totals are upper bounds but may be loose.",
     "Modeled standard iterator scans count as the owner's own loop-body entries.",
     "Composed counts still do not bound operation costs or whole runtime.",
@@ -122,7 +124,15 @@ fn factors(opaque: Opaques) -> Vec<OpaqueFactor> {
         .collect()
 }
 
-fn composition(summary: Summary) -> Composition {
+fn assumptions(wording: Wording) -> Vec<String> {
+    let standard_bodies = std::iter::once(wording.text(Message::StandardBodies));
+    standard_bodies
+        .chain(ASSUMPTIONS.iter().copied())
+        .map(String::from)
+        .collect()
+}
+
+fn composition(summary: Summary, wording: Wording) -> Composition {
     Composition {
         cost_scope: COST_SCOPE.into(),
         opaque_factors: factors(summary.evidence.opaque),
@@ -132,7 +142,7 @@ fn composition(summary: Summary) -> Composition {
         library_factors: factors(summary.evidence.library_opaque),
         resolved_callees: summary.evidence.callees.into_iter().collect(),
         excluded_library_callees: summary.evidence.library.into_iter().collect(),
-        assumptions: ASSUMPTIONS.iter().map(|text| (*text).into()).collect(),
+        assumptions: assumptions(wording),
     }
 }
 
@@ -166,12 +176,13 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
         }
     }
 
-    pub fn composed(&mut self, id: &str) -> Composed {
+    /// What `id` composes to, with its assumptions in `wording`'s terms.
+    pub fn composed(&mut self, id: &str, wording: Wording) -> Composed {
         match self.summary(id) {
             Ok(summary) if summary.evidence.opaque.is_empty() => {
-                Composed::Proven(composition(summary))
+                Composed::Proven(composition(summary, wording))
             }
-            Ok(summary) => Composed::Partial(composition(summary)),
+            Ok(summary) => Composed::Partial(composition(summary, wording)),
             Err(Failure::Unknown(reason)) => Composed::Unknown { reason },
             Err(Failure::Budget(reason)) => Composed::BudgetExceeded { reason },
         }

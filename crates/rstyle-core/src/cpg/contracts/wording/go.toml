@@ -1,0 +1,20 @@
+# What a Go report says in Go's terms, by message. A message not listed here reads as core's neutral
+# text, which `wording.rs` holds with each message's placeholders. Go has pointers and closures but
+# no references, destructors or captures by value, so those messages stay neutral.
+#
+# Pattern candidates describe the interface their types share, as in every language but Rust.
+
+schema = "rstyle.wording/1"
+language = "go"
+
+[messages]
+bound_evidence = "Go AST typed by go/types; primitive unsigned semantics; no iterator size contract"
+chain_evidence = "Go AST typed by go/types; resolved standard iterator chain over a stable extent or primitive range; callbacks inlined at each invocation"
+writable_number_reference = "A pointer to a number is unmodeled"
+writable_reference = "Taking a pointer to a value can expose a numeric norm or selected extent metadata"
+unmodeled_semantics = "Foreign or closure semantics are unmodeled"
+changed_elsewhere = "{variables} can also change through a pointer, a closure capture or a write to part of it"
+delegated_mutation = "state through a pointer"
+writable_static = "package variable {name}"
+dispatch = "`{function}` calls analogous methods per case of a type switch: M0 = {methods}"
+loop_target = "A range clause assigns to more than new variables"

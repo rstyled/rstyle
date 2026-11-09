@@ -1,0 +1,18 @@
+# What a Python report says in Python's terms, by message. A message not listed here reads as core's
+# neutral text, which `wording.rs` holds with each message's placeholders. Python has no pointers,
+# references to numbers or captures by value, so those messages stay neutral.
+#
+# Pattern candidates describe the interface their types share, as in every language but Rust.
+
+schema = "rstyle.wording/1"
+language = "py"
+
+[messages]
+bound_evidence = "Python AST typed by mypy; primitive unsigned semantics; no iterator size contract"
+chain_evidence = "Python AST typed by mypy; resolved standard iterator chain over a stable extent or primitive range; callbacks inlined at each invocation"
+uncounted_destructor = "Destroying a value runs a workspace `__del__` that isn't counted"
+unmodeled_semantics = "Closure or generator semantics are unmodeled"
+written_capture = "A `nonlocal` capture can expose a numeric norm or extent"
+changed_elsewhere = "{variables} can also change through a `nonlocal` capture or a write to part of it"
+writable_static = "module variable {name}"
+loop_target = "A `for` target assigns to more than new names"

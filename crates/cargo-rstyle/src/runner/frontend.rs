@@ -209,8 +209,7 @@ impl Frontend {
         let number = pipe::inherit(&mut command, writer)?;
         command
             .args(["--output-fd", &number])
-            .args(&self.stream_arguments)
-            .args(&self.passed_on)
+            .args(self.stream_arguments.iter().chain(&self.passed_on))
             .spawn()
             .map_err(|error| format!("Cannot run {}: {error}", self.name()))
     }

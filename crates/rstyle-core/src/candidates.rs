@@ -11,6 +11,7 @@ use crate::dispatch::{Dispatch, find};
 use crate::facts::{EdgeKind, FnFacts, NodeKind, Pdg, Receiver};
 use crate::shape::{normalize, short};
 use crate::sigmine::SigGroup;
+use crate::wording::{Message, Wording};
 use crate::{ledger, locator, wl};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -237,9 +238,10 @@ fn judge<'a>(ix: &Index<'a>, values: &[String]) -> Verdict<'a> {
         return Verdict::Skip;
     }
     if let Some(trait_method) = same_trait_method(&defs) {
-        let reason = format!(
-            "all {} impls are of trait method {trait_method}",
-            defs.len()
+        let count = defs.len().to_string();
+        let reason = wording_of(&defs).say(
+            Message::ImplementedInterface,
+            &[("count", &count), ("method", &trait_method)],
         );
         return Verdict::Suppressed(Existing {
             reason,
@@ -289,13 +291,18 @@ fn sketch(key: &str, name: &str) -> String {
 }
 
 fn shared_name(defs: &[&FnFacts]) -> String {
+    common_name(defs).unwrap_or("method").to_string()
+}
+
+/// The short name every definition has, if they have one.
+fn common_name<'f>(defs: &[&'f FnFacts]) -> Option<&'f str> {
     let short: BTreeSet<&str> = defs
         .iter()
         .map(|f| f.name.rsplit("::").next().unwrap_or(&f.name))
         .collect();
     match short.len() {
-        1 => short.into_iter().next().unwrap_or("method").to_string(),
-        _ => "method".to_string(),
+        1 => short.into_iter().next(),
+        _ => None,
     }
 }
 
@@ -335,11 +342,21 @@ fn trait_name(trait_method: &str) -> String {
     trait_path.last().unwrap_or(&trait_method).to_string()
 }
 
+/// The words of the language `facts` were written in, from the first.
+fn wording_of(facts: &[&FnFacts]) -> Wording {
+    facts.first().map_or_else(Wording::default, |f| f.wording)
+}
+
 fn trait_text(ev: &Evidence<'_>) -> (String, String) {
     let methods: Vec<String> = ev
         .verdicts
         .iter()
         .map(|(group, defs)| sketch(&group.key, &shared_name(defs)))
+        .collect();
+    let names: Vec<String> = ev
+        .verdicts
+        .iter()
+        .map(|(_, defs)| common_name(defs).map_or("a method".into(), |name| format!("`{name}`")))
         .collect();
     let types: BTreeSet<String> = ev.verdicts[0]
         .1
@@ -354,16 +371,20 @@ fn trait_text(ev: &Evidence<'_>) -> (String, String) {
     let inference = format!(
         "{impls} are used interchangeably through methods of identical signature: an implicit interface."
     );
+    let (methods, names) = (methods.join(" "), names.join(", "));
+    let mut values = vec![
+        ("methods", methods.as_str()),
+        ("names", &names),
+        ("types", &impls),
+    ];
+    let wording = wording_of(&ev.verdicts[0].1);
     let refactor = match &ev.existing_trait {
-        Some(t) => format!(
-            "add {} to existing trait `{}`, already implemented by {impls}; make the sites generic over it",
-            methods.join(" "),
-            trait_name(t)
-        ),
-        None => format!(
-            "trait Shared {{ {} }} implemented by {impls}; make the sites generic over it",
-            methods.join(" ")
-        ),
+        Some(t) => {
+            let interface = trait_name(t);
+            values.push(("interface", &interface));
+            wording.say(Message::ExtendInterface, &values)
+        }
+        None => wording.say(Message::NewInterface, &values),
     };
 
     (inference, refactor)
@@ -596,11 +617,10 @@ fn generic_fn(ix: &Index<'_>, sites: &[&FnFacts], cluster: &Cluster) -> Option<C
 
 /// Borrow completed graph summaries; aligned closure nodes do not compare their bodies.
 fn helper_counter_evidence(sites: &[&FnFacts], cluster: &Cluster) -> Vec<String> {
+    let opaque = wording_of(sites).text(Message::OpaqueClosures);
     effect_mismatch(sites)
         .into_iter()
-        .chain(cluster.opaque_closure.then(|| {
-            "Ordinary closure bodies are opaque in these graphs; aligned nodes do not establish matching closure behavior or captures.".into()
-        }))
+        .chain(cluster.opaque_closure.then(|| opaque.into()))
         .collect()
 }
 
@@ -664,11 +684,10 @@ fn without_trait<'a>(
     hidden: Option<String>,
 ) -> Outcome<'a> {
     match hidden {
-        Some(reason) if reason.starts_with("all ") => Outcome::Hidden(Suppressed {
+        Some(reason) => Outcome::Hidden(Suppressed {
             reason,
             sites: sites.iter().map(|f| site(f)).collect(),
         }),
-        Some(_) => Outcome::Nothing,
         None if cluster.forwarding_only
             && parameterizable(sites, cluster, ix.max_holes)
             && sites.iter().all(|f| has_substance(ix, f)) =>
@@ -730,14 +749,10 @@ fn existing_trait_for(verdicts: &Verdicts<'_>, hidden: &[Existing]) -> Option<St
 
 fn from_dispatch<'a>(ix: &Index<'a>, f: &'a FnFacts, d: &Dispatch) -> Outcome<'a> {
     let values: Vec<String> = d.arms.iter().map(|(_, id)| id.clone()).collect();
-    let summary = format!(
-        "`{}` matches on an enum and calls analogous methods per arm: M0 = {}",
-        f.name,
-        values
-            .iter()
-            .map(|v| ix.display_callee(v))
-            .collect::<Vec<_>>()
-            .join(" | ")
+    let methods: Vec<String> = values.iter().map(|v| ix.display_callee(v)).collect();
+    let summary = f.wording.say(
+        Message::Dispatch,
+        &[("function", &f.name), ("methods", &methods.join(" | "))],
     );
     match judge(ix, &values) {
         Verdict::Trait { group, defs } => Outcome::Found(Evidence {
@@ -860,6 +875,15 @@ pub(crate) mod tests_support {
     use crate::facts::{FnFacts, Receiver, sample};
     use crate::pdgtest::*;
     use crate::shape::fixtures::{method, string};
+    use crate::wording::Wording;
+
+    /// A function of a Rust unit, so what's proposed for it reads in Rust's words.
+    pub fn rust(name: &str) -> FnFacts {
+        FnFacts {
+            wording: Wording::of("rust"),
+            ..sample(name)
+        }
+    }
 
     pub fn getter(ty: &str, name: &str) -> FnFacts {
         FnFacts {
@@ -867,7 +891,7 @@ pub(crate) mod tests_support {
             name: format!("{ty}::{name}"),
             path: format!("src/{}.rs", ty.to_lowercase()),
             sig: Some(method(&format!("k::{ty}"), Receiver::Ref, vec![], string())),
-            ..sample(name)
+            ..rust(name)
         }
     }
 
@@ -876,7 +900,7 @@ pub(crate) mod tests_support {
             pdg: Some(emit_loop(ty, name)),
             path: "src/emit.rs".into(),
             line: 1000 - ty.bytes().map(usize::from).sum::<usize>(),
-            ..sample(&format!("emit_{}", ty.to_lowercase()))
+            ..rust(&format!("emit_{}", ty.to_lowercase()))
         }
     }
 
@@ -1332,7 +1356,97 @@ mod tests {
         let mined = run(&facts);
         assert!(mined.candidates.is_empty());
         assert_eq!(mined.suppressed.len(), 1);
-        assert!(mined.suppressed[0].reason.contains("k::Speak::speak"));
+        let reason = &mined.suppressed[0].reason;
+        assert_eq!(reason, "all 2 impls are of trait method k::Speak::speak");
+
+        facts
+            .iter_mut()
+            .for_each(|f| f.wording = Wording::of("cxx"));
+        let reason = &run(&facts).suppressed[0].reason;
+        assert_eq!(
+            reason,
+            "all 2 implement the interface method k::Speak::speak"
+        );
+    }
+
+    /// `pet_sound`, which matches on a value and calls `Dog::bark` or `Cat::meow` on it.
+    fn dispatcher() -> FnFacts {
+        let pdg = Pdg {
+            nodes: vec![
+                node(NodeKind::Param),
+                node(NodeKind::Match),
+                getter_call("Dog", "bark"),
+                getter_call("Cat", "meow"),
+                node(NodeKind::Return),
+            ],
+            edges: vec![
+                data(0, 1, 0),
+                ctrl(1, 2, 0),
+                ctrl(1, 3, 1),
+                data(1, 2, 0),
+                data(1, 3, 0),
+                data(1, 4, 0),
+            ],
+        };
+        FnFacts {
+            pdg: Some(pdg),
+            ..super::tests_support::rust("pet_sound")
+        }
+    }
+
+    #[test]
+    fn a_dispatch_is_observed_in_its_languages_terms() {
+        let mut facts = vec![getter("Dog", "bark"), getter("Cat", "meow"), dispatcher()];
+        let observation = |facts: &[FnFacts]| {
+            let mined = run(facts);
+            let dispatch = mined
+                .candidates
+                .into_iter()
+                .find(|c| c.kind == CandidateKind::EnumDispatch);
+            dispatch.map(|c| c.observation)
+        };
+        let rust = "`pet_sound` matches on an enum and calls analogous methods per arm: M0 = Dog::bark | Cat::meow";
+        assert_eq!(observation(&facts).as_deref(), Some(rust));
+
+        facts.iter_mut().for_each(|f| f.wording = Wording::of("go"));
+        let go = "`pet_sound` calls analogous methods per case of a type switch: M0 = Dog::bark | Cat::meow";
+        assert_eq!(observation(&facts).as_deref(), Some(go));
+        facts.iter_mut().for_each(|f| f.wording = Wording::of("py"));
+        let python = "`pet_sound` branches on a value and calls analogous methods per branch: M0 = Dog::bark | Cat::meow";
+        assert_eq!(observation(&facts).as_deref(), Some(python));
+    }
+
+    /// The corpus, as C++ that rstyle-cxx read.
+    fn in_cxx(mut facts: Vec<FnFacts>) -> Vec<FnFacts> {
+        facts
+            .iter_mut()
+            .for_each(|f| f.wording = Wording::of("cxx"));
+        facts
+    }
+
+    #[test]
+    fn a_cxx_candidate_describes_the_interface_rather_than_declare_a_trait() {
+        let mined = run(&in_cxx(corpus()));
+        let refactor = &mined.candidates[0].possible_refactor;
+        assert_eq!(
+            refactor,
+            "one interface for a method, which Cat, Dog define with matching signatures; make the sites generic over it"
+        );
+
+        let facts = in_cxx(vec![getter("Dog", "speak"), getter("Cat", "speak")]);
+        let groups = mine_groups(&facts);
+        let defs: Vec<&FnFacts> = facts.iter().collect();
+        let (_, refactor) = trait_text(&evidence(&groups[0], &defs, None));
+        assert_eq!(
+            refactor,
+            "one interface for `speak`, which Cat, Dog define with matching signatures; make the sites generic over it"
+        );
+        let ev = evidence(&groups[0], &defs, Some("k::public::Signature::is_valid"));
+        let (_, refactor) = trait_text(&ev);
+        assert_eq!(
+            refactor,
+            "add `speak` to `Signature`, whose methods Cat, Dog already implement; make the sites generic over it"
+        );
     }
 
     #[test]

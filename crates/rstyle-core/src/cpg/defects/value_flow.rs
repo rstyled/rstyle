@@ -6,10 +6,10 @@
 //! whoever reads these, since the answer depends on what a project says of that callee.
 
 use super::super::model::{
-    Access, AccessMode, Definition, DefinitionKind, Dispatch, Node, NodeKind, RefStatus, Scope,
-    TargetKind, TypeKind,
+    Access, AccessMode, Definition, DefinitionKind, Node, NodeKind, RefStatus, Scope, TargetKind,
+    TypeKind,
 };
-use super::super::tree;
+use super::super::tree::{self, Argument};
 use super::Reading;
 use super::ignored_result::{declared_callee, returns_its_receiver};
 use crate::paths::strip_generics;
@@ -33,10 +33,12 @@ pub struct FlowCall {
     pub line: usize,
     /// The text of each argument that's a string literal, by position: a receiver is 0.
     pub literals: Vec<(usize, String)>,
-    /// The literal each keyword argument passes, by the parameter it names.
-    pub keywords: Vec<(String, String)>,
+    /// The literal each argument passes, by the name of the parameter it binds to.
+    pub named: Vec<(String, String)>,
     /// Each argument that's a list written out in the call.
     pub lists: Vec<WrittenList>,
+    /// The position of each argument whose type is a string, literal or not.
+    pub strings: Vec<usize>,
 }
 
 /// Where a value starts. Parameters number as a call's arguments do: a receiver is 0.
@@ -47,13 +49,16 @@ pub enum Start {
 }
 
 /// Where a step of a value ends: an argument, and which element of it when it's a list written out
-/// in the call.
+/// in the call, or an argument whose position isn't known, as a spread's isn't.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum End {
     Argument {
         call: usize,
         position: usize,
         element: Option<usize>,
+    },
+    Unplaced {
+        call: usize,
     },
     Returned,
 }
@@ -75,9 +80,9 @@ pub struct ValueFlows {
     pub hops: Vec<Hop>,
 }
 
-/// Where in a call a value can end: a position, the element of a list written out there, and the
-/// node that holds it.
-type Slot<'a> = (usize, Option<usize>, &'a str);
+/// Where in a call a value can end: a position, when it's known, the element of a list written out
+/// there, and the node that holds it.
+type Slot<'a> = (Option<usize>, Option<usize>, &'a str);
 
 /// The directed graph values take between a function's tree nodes, each step ending at a call.
 struct Graph<'a> {
@@ -122,23 +127,25 @@ fn carries_no_text(ty: Option<&str>, reading: &Reading<'_>) -> bool {
 }
 
 /// The calling convention both sides of a contract use: a receiver is 0, and otherwise the first
-/// argument is, after the callee.
-fn operands<'a>(reading: &Reading<'a>, call: &Node) -> Result<Vec<(usize, &'a Node)>, String> {
-    let dispatch = reading.body.reference(&call.id).and_then(|r| r.dispatch);
-    let has_receiver = matches!(dispatch, Some(Dispatch::Method | Dispatch::Dynamic));
-    let children = reading.body.children(call)?;
-    let arguments = children.into_iter().skip(usize::from(!has_receiver));
+/// argument is, after the callee. An argument is numbered by the parameter it binds to.
+fn operands<'a>(reading: &Reading<'a>, call: &Node) -> Result<Vec<Argument<'a>>, String> {
+    reading.body.arguments(call)
+}
 
-    Ok(arguments.enumerate().collect())
+/// Each argument with a position, by it.
+fn placed<'o, 'a>(operands: &'o [Argument<'a>]) -> impl Iterator<Item = (usize, &'a Node)> + 'o {
+    operands
+        .iter()
+        .filter_map(|argument| Some((argument.position?, argument.value)))
 }
 
 /// The elements of a list written out where it's passed, as `args(["-c", script])` passes one,
 /// looking through a borrow of it.
 fn written_out_list<'a>(
     reading: &Reading<'a>,
-    operand: &'a Node,
+    passed: &'a Node,
 ) -> Result<Option<Vec<&'a Node>>, String> {
-    let mut at = operand;
+    let mut at = passed;
     while at.kind == NodeKind::Reference && !at.children.is_empty() {
         at = reading.body.child(at, 0)?;
     }
@@ -148,15 +155,18 @@ fn written_out_list<'a>(
     reading.body.children(at).map(Some)
 }
 
-/// Where in each argument a value can end: the argument, or each element of a list written out.
-fn slots<'a>(
-    reading: &Reading<'a>,
-    operands: &[(usize, &'a Node)],
-) -> Result<Vec<Slot<'a>>, String> {
+/// Where in each argument a value can end: the argument, or each element of a list written out. An
+/// argument with no position has no elements anyone can count.
+fn slots<'a>(reading: &Reading<'a>, operands: &[Argument<'a>]) -> Result<Vec<Slot<'a>>, String> {
     let mut slots = Vec::new();
-    for &(position, operand) in operands {
-        let Some(elements) = written_out_list(reading, operand)? else {
-            slots.push((position, None, operand.id.as_str()));
+    for argument in operands {
+        let position = argument.position;
+        let elements = match position {
+            Some(_) => written_out_list(reading, argument.value)?,
+            None => None,
+        };
+        let Some(elements) = elements else {
+            slots.push((position, None, argument.node.id.as_str()));
             continue;
         };
         let elements = elements.into_iter().enumerate();
@@ -263,8 +273,8 @@ impl<'a> Graph<'a> {
     fn add_call(&mut self, node: &'a Node) -> Result<(), String> {
         let operands = operands(self.reading, node)?;
         let mut written = Vec::new();
-        for (_, operand) in &operands {
-            written.extend(self.written_through(operand)?);
+        for argument in &operands {
+            written.extend(self.written_through(argument.value)?);
         }
 
         self.written_by_calls.insert(&node.id, written);
@@ -463,39 +473,39 @@ fn literal_text(node: &Node) -> Option<String> {
     (literal.kind == "string").then(|| literal.value.clone())?
 }
 
-/// What a keyword argument passes when it's a literal: an `extension` holding one, with the
-/// parameter it names as its `member`, as Python's `shell=True` is.
-fn keyword_literal(
-    reading: &Reading<'_>,
-    operand: &Node,
-) -> Result<Option<(String, String)>, String> {
-    let (NodeKind::Extension, Some(keyword), [_]) =
-        (operand.kind, &operand.member, &operand.children[..])
-    else {
-        return Ok(None);
-    };
-
-    let value = reading.body.child(operand, 0)?;
+/// The literal an argument passes to a parameter it names, as Python's `shell=True` does, whether
+/// it's passed by keyword or by position.
+fn named_literal(argument: &Argument<'_>) -> Option<(String, String)> {
+    let value = argument.value;
     let literal = value
         .value
         .as_ref()
         .filter(|_| value.kind == NodeKind::Literal);
-    let text = literal.and_then(|it| it.value.clone());
-    Ok(text.map(|text| (keyword.clone(), text)))
+    Some((argument.parameter?.to_owned(), literal?.value.clone()?))
 }
 
 /// The text of each element of each list written out in a call, where it's a string literal.
-fn lists_of(
-    reading: &Reading<'_>,
-    operands: &[(usize, &Node)],
-) -> Result<Vec<WrittenList>, String> {
+fn lists_of(reading: &Reading<'_>, operands: &[Argument<'_>]) -> Result<Vec<WrittenList>, String> {
     let mut lists = Vec::new();
-    for &(position, operand) in operands {
-        if let Some(elements) = written_out_list(reading, operand)? {
+    for (position, passed) in placed(operands) {
+        if let Some(elements) = written_out_list(reading, passed)? {
             lists.push((position, elements.into_iter().map(literal_text).collect()));
         }
     }
     Ok(lists)
+}
+
+/// The position of each argument a string is passed for, which a contract can tell from a list.
+fn strings_of(reading: &Reading<'_>, operands: &[Argument<'_>]) -> Vec<usize> {
+    let mut strings = Vec::new();
+    for (position, passed) in placed(operands) {
+        let ty = passed.ty.as_deref();
+        let ty = ty.and_then(|id| reading.tables.ty(id).ok());
+        if ty.is_some_and(|ty| ty.kind == TypeKind::String) {
+            strings.push(position);
+        }
+    }
+    strings
 }
 
 fn flow_call(
@@ -504,14 +514,10 @@ fn flow_call(
     definition: &Definition,
 ) -> Result<FlowCall, String> {
     let operands = operands(reading, node)?;
-    let literals = operands
-        .iter()
-        .filter_map(|&(at, operand)| Some((at, literal_text(operand)?)))
+    let literals = placed(&operands)
+        .filter_map(|(at, passed)| Some((at, literal_text(passed)?)))
         .collect();
-    let mut keywords = Vec::new();
-    for (_, operand) in &operands {
-        keywords.extend(keyword_literal(reading, operand)?);
-    }
+    let named = operands.iter().filter_map(named_literal).collect();
 
     let selected = reading
         .body
@@ -527,8 +533,9 @@ fn flow_call(
         operation: definition.operation.clone(),
         line: tree::line(reading.sources, node)?,
         literals,
-        keywords,
+        named,
         lists: lists_of(reading, &operands)?,
+        strings: strings_of(reading, &operands),
     })
 }
 
@@ -563,8 +570,9 @@ fn variable_read(
         operation: definition.operation.clone(),
         line: tree::line(reading.sources, node)?,
         literals: Vec::new(),
-        keywords: Vec::new(),
+        named: Vec::new(),
         lists: Vec::new(),
+        strings: Vec::new(),
     })
 }
 
@@ -655,10 +663,13 @@ fn hops_from<'a>(
         };
         let held = slots.iter().filter(|(_, _, node)| given(node));
         for &(position, element, _) in held.filter(|_| start != Start::Result(call)) {
-            let to = End::Argument {
-                call,
-                position,
-                element,
+            let to = match position {
+                Some(position) => End::Argument {
+                    call,
+                    position,
+                    element,
+                },
+                None => End::Unplaced { call },
             };
             found.push(Hop { from: start, to });
         }

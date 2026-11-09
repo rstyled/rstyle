@@ -402,6 +402,7 @@ fn input_is_followed_in_what_a_python_frontend_writes() {
         ("environ", 11),
         ("getenv", 15),
         ("shell", 19),
+        ("no_shell", 27),
         ("literal_shell", 35),
         ("evaluated", 47),
         ("path", 51),
@@ -409,13 +410,53 @@ fn input_is_followed_in_what_a_python_frontend_writes() {
         ("lines", 81),
         ("write", 85),
         ("via_source", 105),
+        ("listed_program", 122),
+        ("listed_code", 126),
+        ("string_program", 134),
+        ("keyword_list", 138),
+        ("exec_code", 147),
+        ("exec_listed_code", 151),
+        ("keyword_first", 159),
+        ("open_by_name", 167),
+        ("popen_after_stdout", 175),
+        ("run_in", 180),
+        ("save", 192),
+        ("run", 201),
     ];
     let expected = expected.map(|(name, line)| (name.to_owned(), line));
     assert_eq!(
         found, expected,
-        "argv, no_shell, not_the_command, program_argument, quoted, parameterized, number, \
-         overwritten, only_decides, via_ignoring, environment and fields are clean"
+        "argv, not_the_command, program_argument, quoted, parameterized, number, overwritten, \
+         only_decides, via_ignoring, environment, fields, listed_data, variable_list, exec_data, \
+         keyword_cwd, open_encoding and helper_directory are clean"
     );
+}
+
+#[test]
+fn without_bindings_a_python_keyword_is_numbered_where_its_written() {
+    let mut document: Value =
+        serde_json::from_str(include_str!("../cpg/testdata/taint-py.cpg.json")).unwrap();
+    let functions = document["unit"]["functions"].as_array_mut().unwrap();
+    let refs = functions.iter_mut().flat_map(|function| {
+        let refs = function["refs"].as_array_mut().unwrap();
+        refs.iter_mut()
+    });
+    for reference in refs {
+        reference.as_object_mut().unwrap().remove("arguments");
+    }
+
+    let report = report_of(vec![document], &Config::default());
+    let taint = report.defects.iter().filter(|row| row.rule == "taint_flow");
+    let found: Vec<(usize, &str)> = taint
+        .map(|row| (row.line, row.message.split(" reaches").next().unwrap()))
+        .collect();
+    // `encoding=input()` reads as the path, and `directory=input()` as the command.
+    assert!(found.contains(&(171, "input from `builtins.input` on line 171")));
+    assert!(found.contains(&(180, "input from `builtins.input` on line 188")));
+    // `shell=True` names no parameter, and `args=[..]` isn't looked into.
+    for missed in [138, 159, 167, 175, 192, 201] {
+        assert!(found.iter().all(|(line, _)| *line != missed), "{missed}");
+    }
 }
 
 #[test]

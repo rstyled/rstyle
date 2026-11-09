@@ -6,6 +6,7 @@ use crate::facts::{
     ArgSource, CallEvent, Edge, EffectEvent, EffectKind, FnFacts, LibraryClass, MutationEvent,
     MutationOrigin,
 };
+use crate::wording::{Message, Wording};
 use serde_json::{Value, json};
 
 const EXAMPLE: &str = include_str!("testdata/example.cpg.json");
@@ -970,6 +971,85 @@ fn recursive_calls_are_edges_with_argument_sources() {
     );
 }
 
+/// Gives a call's reference in the document's first function these `arguments`.
+fn bind(document: &mut Value, call: &str, arguments: Value) {
+    let refs = document["unit"]["functions"][0]["refs"]
+        .as_array_mut()
+        .unwrap();
+    let reference = refs.iter_mut().find(|it| it["node"] == call).unwrap();
+    reference["arguments"] = arguments;
+}
+
+#[test]
+fn an_edge_places_each_argument_at_the_parameter_it_binds() {
+    let edge_arguments = |arguments: Value| {
+        let mut document = flow();
+        bind(&mut document, "f1", arguments);
+        facts_of(document)[0].edges[0].args.clone()
+    };
+    use ArgSource::{Const, Other, Param};
+    assert_eq!(
+        edge_arguments(json!([{"position": 1}, {"position": 0}])),
+        [Param(1), Const]
+    );
+    assert_eq!(
+        edge_arguments(json!([{"spread": "mapping"}, {"position": 1}])),
+        [Other, Param(1)],
+        "a spread has no position, and the parameter it skips takes its default"
+    );
+    assert_eq!(
+        edge_arguments(json!([{"position": 0}, {"position": 1}])),
+        [Const, Param(1)]
+    );
+
+    // A method called by path, as Python's call of a class is, may not pass its receiver, so its
+    // arguments stay as they're written.
+    let mut document = flow();
+    let definitions = document["unit"]["definitions"].as_array_mut().unwrap();
+    let callee = definitions
+        .iter_mut()
+        .find(|it| it["id"] == "def:f")
+        .unwrap();
+    callee["kind"] = json!("method");
+    let written = facts_of(document.clone())[0].edges[0].args.clone();
+    bind(
+        &mut document,
+        "f1",
+        json!([{"position": 1}, {"position": 0}]),
+    );
+    assert_eq!(facts_of(document)[0].edges[0].args, written);
+}
+
+#[test]
+fn a_binding_that_doesnt_fit_its_call_is_an_error() {
+    let mut document = flow();
+    bind(&mut document, "f1", json!([{"position": 0}]));
+    assert!(error_of(vec![document]).contains("Call f1: binds 1 arguments, and has 2"));
+
+    let mut document = flow();
+    bind(
+        &mut document,
+        "f1",
+        json!([{"position": 0, "value": "y4"}, {}]),
+    );
+    assert!(error_of(vec![document]).contains("Call f1: y4 isn't a child of its argument"));
+}
+
+#[test]
+fn a_memory_write_reads_the_argument_bound_to_its_position() {
+    let class = |arguments: Value| {
+        let mut document = library_calls();
+        bind(&mut document, "c1", arguments);
+        facts_of(document)[0].calls[1].library
+    };
+    assert_eq!(class(json!([{"position": 0}])), Some(LibraryClass::Pure));
+    assert_eq!(
+        class(json!([{"position": 1}])),
+        Some(LibraryClass::Effect(EffectKind::Io)),
+        "the buffer is another parameter, so the first takes its default"
+    );
+}
+
 const EFFECTS: &str = "fn effects(p: fn(), mut v: Vec<u32>) {
     unsafe { raw() };
     raw();
@@ -1280,6 +1360,123 @@ fn a_library_call_without_a_key_takes_the_unlisted_class() {
     let facts = &facts_of(document)[0];
     let unknown = Some(LibraryClass::Effect(EffectKind::Unknown));
     assert_eq!(facts.calls[0].library, unknown);
+}
+
+const SELECTED: &str = "fn selected(a: A, b: B, c: C, d: D) {
+    a.branch();
+    b.clone();
+    c.clone();
+    d.clone();
+}
+";
+
+/// A library trait member, or a key, as a definition of a standard method.
+fn standard_method(fx: &mut Fixture, id: &str, key: &str) {
+    fx.definitions
+        .push(json!({"id": id, "kind": "method", "name": key,
+        "stable_identity": format!("std::{key}"), "scope": "library", "standard": true,
+        "operation": format!("rust:{key}")}));
+}
+
+/// Rust trait calls: one selecting a pure standard implementation, one selecting a standard
+/// implementation the table doesn't list, one selecting a workspace one, and one selecting none.
+fn selected_calls() -> Value {
+    let mut fx = Fixture::new(SELECTED);
+    let statements = ["s0", "s1", "s2", "s3"];
+    fx.node(("root", "block"), ("{\n    a", ""), &statements)["span"]["end"] =
+        json!(SELECTED.trim_end().len());
+    let calls = [
+        ("a.branch()", "def:branch", Some("def:result_branch")),
+        ("b.clone()", "def:clone", Some("def:vec_clone")),
+        ("c.clone()", "def:clone", Some("def:data_clone")),
+        ("d.clone()", "def:clone", None),
+    ];
+    for (index, (text, declared, selected)) in calls.into_iter().enumerate() {
+        library_call(&mut fx, index, (text, declared), &[]);
+        let reference = fx.refs.last_mut().unwrap();
+        reference["dispatch"] = json!("method");
+        if let Some(selected) = selected {
+            reference["selected"] = json!({"kind": "definition", "id": selected});
+        }
+    }
+    standard_method(&mut fx, "def:branch", "Try.branch");
+    standard_method(&mut fx, "def:result_branch", "Result.branch");
+    standard_method(&mut fx, "def:clone", "Clone.clone");
+    standard_method(&mut fx, "def:vec_clone", "Vec.clone");
+    fx.definition(
+        ("def:data_clone", "method"),
+        ("example::Data::clone", "workspace"),
+        &[],
+    );
+
+    let mut document = fx.document("fn selected(a: A, b: B, c: C, d: D)");
+    document["producer"]["namespace"] = json!("rust");
+    document
+}
+
+#[test]
+fn a_library_call_is_classified_by_the_implementation_it_selects() {
+    let facts = &facts_of(selected_calls())[0];
+    let classes: Vec<_> = facts
+        .calls
+        .iter()
+        .map(|call| (call.line, call.library))
+        .collect();
+    // `Result.branch` is pure, `Vec.clone` runs its elements' `clone`, and a workspace
+    // implementation is followed through its edge, so the call keeps its declared callee's class.
+    let expected = [
+        (2, Some(LibraryClass::Pure)),
+        (3, None),
+        (4, None),
+        (5, None),
+    ];
+    assert_eq!(classes, expected);
+
+    let callees: Vec<_> = facts
+        .calls
+        .iter()
+        .map(|call| &call.library_callee)
+        .collect();
+    let declared = |key: &str| Some(format!("std::{key}"));
+    assert_eq!(
+        callees,
+        [
+            &declared("Try.branch"),
+            &declared("Clone.clone"),
+            &declared("Clone.clone"),
+            &declared("Clone.clone")
+        ]
+    );
+    let edges: Vec<_> = facts
+        .edges
+        .iter()
+        .map(|edge| edge.callee.as_str())
+        .collect();
+    assert_eq!(edges, ["example::Data::clone"]);
+}
+
+/// A dynamic call that names the implementation it runs, as a C++ virtual call Clang devirtualizes
+/// does, is classified by that implementation, and still reads as dynamic.
+#[test]
+fn a_dynamic_call_that_names_its_implementation_is_classified_by_it_and_stays_dynamic() {
+    let mut document = library_calls();
+    let unit = &mut document["unit"];
+    let reference = unit["functions"][0]["refs"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|reference| reference["node"] == "c0")
+        .unwrap();
+    reference["dispatch"] = json!("dynamic");
+    reference["selected"] = json!({"kind": "definition", "id": "def:upper"});
+    let facts = &facts_of(document)[0];
+
+    assert_eq!(facts.calls[0].library, Some(LibraryClass::Pure));
+    assert!(facts.calls[0].dynamic);
+    assert_eq!(
+        facts.calls[0].library_callee.as_deref(),
+        Some("go::os.WriteFile")
+    );
 }
 
 const DELEGATE: &str = "fn delegate(&mut self, other: &mut Data) {
@@ -1819,9 +2016,8 @@ fn a_function_of_unbounded_integers_lowers_at_the_widest_width() {
     assert!(program.contains(r#""bits":64,"signed":true"#), "{program}");
 }
 
-#[test]
-fn a_nested_function_that_can_write_a_counter_leaves_its_loop_unbounded() {
-    // `def reset(): nonlocal total; total = 0`, which a call in the loop's body can run.
+/// `def reset(): nonlocal total; total = 0`, which a call in the loop's body can run.
+fn with_a_nested_writer() -> Value {
     let mut document = example();
     let function = count_function(&mut document);
     let mut declaration = count_part(function, "count.reset", "item_declaration", json!([]));
@@ -1834,7 +2030,12 @@ fn a_nested_function_that_can_write_a_counter_leaves_its_loop_unbounded() {
         .as_array_mut()
         .unwrap()
         .insert(0, json!("count.reset"));
-    let program = count_program(document);
+    document
+}
+
+#[test]
+fn a_nested_function_that_can_write_a_counter_leaves_its_loop_unbounded() {
+    let program = count_program(with_a_nested_writer());
     assert!(program.contains("Mutable closure capture"), "{program}");
 }
 
@@ -1859,4 +2060,144 @@ fn a_nested_function_that_only_reads_a_counter_changes_nothing() {
 #[test]
 fn a_function_of_unbounded_integers_gets_its_facts() {
     assert_eq!(facts_of(example_with_unbounded_integers()).len(), 3);
+}
+
+/// The same document, as a frontend of `language` would name its language.
+fn in_language(mut document: Value, language: &str) -> Value {
+    document["unit"]["language"] = json!({"name": language, "version": "1"});
+    document
+}
+
+/// The same document, as rstyle-cxx would name its language.
+fn in_cxx(document: Value) -> Value {
+    in_language(document, "cxx")
+}
+
+#[test]
+fn a_cxx_unit_says_its_own_words_for_what_stops_a_bound() {
+    let cxx = Wording::of("cxx");
+    let destroyed = lowered_text(in_cxx(with_a_destroyed_value("unsupported")));
+    assert!(
+        destroyed.contains(cxx.text(Message::UncountedDestructor)),
+        "{destroyed}"
+    );
+    assert!(!destroyed.contains("drop glue"), "{destroyed}");
+    let captured = count_program(in_cxx(with_a_nested_writer()));
+    assert!(
+        captured.contains(cxx.text(Message::WrittenCapture)),
+        "{captured}"
+    );
+    assert!(
+        captured.contains(cxx.text(Message::BoundEvidence)),
+        "{captured}"
+    );
+}
+
+#[test]
+fn a_cxx_unit_names_a_writable_static_without_rusts_syntax() {
+    let facts = &facts_of(in_cxx(effects()))[0];
+    let globals: Vec<&str> = facts
+        .effects
+        .iter()
+        .filter(|effect| effect.kind == EffectKind::Global)
+        .map(|effect| effect.detail.as_str())
+        .collect();
+    assert_eq!(globals, ["non-const static ffi::COUNTER"]);
+}
+
+/// Every analysis of a document, as JSON and as text.
+fn whole_report(document: Value) -> String {
+    let filter = crate::filter::Filter::Everything;
+    let records = super::read_records([Ok(document)], filter.demand()).unwrap();
+    let (config, options) = (Default::default(), Default::default());
+    let analyses = crate::unified::analyze(records, &filter, &config, &options).unwrap();
+    format!(
+        "{}\n{}",
+        serde_json::to_string(&analyses).unwrap(),
+        analyses.text()
+    )
+}
+
+/// What a report of `document` says in `language`, and in Rust, which reads every message
+/// differently from both C++ and the neutral text.
+fn worded_reports(language: &str) -> Vec<(String, String)> {
+    let documents = [
+        example(),
+        with_a_destroyed_value("unsupported"),
+        with_a_nested_writer(),
+    ];
+    let reports = documents.into_iter().map(|document| {
+        let rust = whole_report(document.clone());
+        (rust, whole_report(in_language(document, language)))
+    });
+    reports.collect()
+}
+
+#[test]
+fn a_cxx_report_says_what_the_rust_one_does_in_cxx_terms() {
+    let (rust, cxx) = (Wording::of("rust"), Wording::of("cxx"));
+    for (in_rust, in_cxx) in worded_reports("cxx") {
+        assert_ne!(in_rust, in_cxx, "nothing in the report is worded");
+        assert_eq!(in_cxx, cxx.translated(rust, &in_rust));
+        for (rusts, _) in cxx.pairs(rust) {
+            assert!(!in_cxx.contains(&rusts), "{rusts}");
+        }
+    }
+}
+
+#[test]
+fn go_and_python_reports_say_what_the_rust_one_does_in_their_terms() {
+    let rust = Wording::of("rust");
+    for language in ["go", "py"] {
+        let wording = Wording::of(language);
+        for (in_rust, theirs) in worded_reports(language) {
+            assert_ne!(
+                in_rust, theirs,
+                "nothing in the {language} report is worded"
+            );
+            assert_eq!(theirs, wording.translated(rust, &in_rust), "{language}");
+            for (rusts, _) in wording.pairs(rust) {
+                assert!(!theirs.contains(&rusts), "{language}: {rusts}");
+            }
+        }
+    }
+}
+
+#[test]
+fn python_names_a_del_a_nonlocal_capture_and_a_module_variable() {
+    let py = Wording::of("py");
+    let destroyed = lowered_text(in_language(with_a_destroyed_value("unsupported"), "py"));
+    let del = "Destroying a value runs a workspace `__del__` that isn't counted";
+    assert!(destroyed.contains(del), "{destroyed}");
+    assert_eq!(py.text(Message::UncountedDestructor), del);
+    let captured = count_program(in_language(with_a_nested_writer(), "py"));
+    let nonlocal = "A `nonlocal` capture can expose a numeric norm or extent";
+    assert!(captured.contains(nonlocal), "{captured}");
+    let evidence =
+        "Python AST typed by mypy; primitive unsigned semantics; no iterator size contract";
+    assert!(captured.contains(evidence), "{captured}");
+
+    for (language, label) in [
+        ("py", "module variable ffi::COUNTER"),
+        ("go", "package variable ffi::COUNTER"),
+    ] {
+        let facts = &facts_of(in_language(effects(), language))[0];
+        let global = facts
+            .effects
+            .iter()
+            .find(|effect| effect.kind == EffectKind::Global);
+        assert_eq!(global.map(|effect| effect.detail.as_str()), Some(label));
+    }
+}
+
+#[test]
+fn a_language_without_a_wording_file_reads_core_s_neutral_text() {
+    let (rust, neutral) = (Wording::of("rust"), Wording::neutral());
+    for (in_rust, elsewhere) in worded_reports("nowhere") {
+        assert_ne!(in_rust, elsewhere, "nothing in the report is worded");
+        assert_eq!(elsewhere, neutral.translated(rust, &in_rust));
+        for (rusts, _) in neutral.pairs(rust) {
+            assert!(!elsewhere.contains(&rusts), "{rusts}");
+        }
+    }
 }

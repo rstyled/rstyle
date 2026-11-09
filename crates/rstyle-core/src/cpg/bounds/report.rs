@@ -137,7 +137,7 @@ fn record_evidence<F: FnMut(&str) -> Option<Analyzed>>(
         }),
     };
     let composed = matches!(observation.input, Input::Captured { .. })
-        .then(|| composer.composed(&record_key(record)));
+        .then(|| composer.composed(&record_key(record), record.wording));
     Evidence {
         composed,
         ..evidence(Ok(observation))
@@ -359,7 +359,7 @@ mod tests {
         let captured = evidence(Ok(observation(Input::Captured { program: polling() })));
         assert!(matches!(captured.result, Some(Outcome::Partial(_))));
         let mut partial = Evidence {
-            composed: Some(composer.composed("w::poll")),
+            composed: Some(composer.composed("w::poll", crate::wording::Wording::of("rust"))),
             ..captured
         };
         let order = degree(&partial);

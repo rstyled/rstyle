@@ -1,6 +1,7 @@
 # What Python's standard library takes input from and where input is dangerous, keyed by a callee's
 # name, which is its qualified name as typeshed declares it: `pickle.loads` is `_pickle.loads`. A
-# receiver is position 0, and otherwise the first argument is.
+# receiver is position 0, and otherwise the first argument is. A keyword argument is at the position
+# of the parameter it names.
 #
 # Only these are read, so a call to anything else isn't an endpoint. A project adds its own under
 # [taint] in rstyle.toml, as it would a framework's.
@@ -37,8 +38,8 @@ callees = [
     "asyncio.subprocess.create_subprocess_shell",
 ]
 
-# subprocess runs its arguments through a shell only when it's told to. Otherwise a program's
-# arguments are data to it, and a list of them is one argument here, so the program isn't told apart.
+# subprocess runs its arguments through a shell only when it's told to, by passing `shell` a literal
+# `True`, by keyword or in its place.
 [[sinks]]
 risk = "command injection"
 cwe = "CWE-78"
@@ -50,7 +51,24 @@ callees = [
     "subprocess.check_output",
     "subprocess.Popen.__init__",
 ]
-when = { keyword = "shell", literal = "true" }
+when = { parameter = "shell", literal = "true" }
+
+# Otherwise it runs a program, which is what's dangerous, as in Go. Its first argument is the program
+# and its arguments in one: a list written out is read element by element, so the program is the
+# first, and a literal shell and `-c` make the one after them code. A string is the program alone.
+[[sinks]]
+risk = "command injection"
+cwe = "CWE-78"
+arguments = [0]
+callees = [
+    "subprocess.run",
+    "subprocess.call",
+    "subprocess.check_call",
+    "subprocess.check_output",
+    "subprocess.Popen.__init__",
+]
+argv = true
+shell = { executables = ["sh", "bash", "dash", "ksh", "zsh"], flag = "-c" }
 
 # Each argument is one of the program's, as in Go, so a literal shell and `-c` say the next is code.
 [[sinks]]
@@ -60,6 +78,8 @@ arguments = [0]
 callees = ["asyncio.subprocess.create_subprocess_exec"]
 shell = { executables = ["sh", "bash", "dash", "ksh", "zsh"], flag = "-c" }
 
+# The program is the path they run. Its arguments start with the name it's called by, so a literal
+# shell there and `-c` make the one after them code. `os.execv`'s are a list written out.
 [[sinks]]
 risk = "command injection"
 cwe = "CWE-78"
@@ -76,8 +96,9 @@ callees = [
     "os.posix_spawn",
     "os.posix_spawnp",
 ]
+shell = { executables = ["sh", "bash", "dash", "ksh", "zsh"], flag = "-c", name_at = 1 }
 
-# The first argument is the mode.
+# The same, after the mode.
 [[sinks]]
 risk = "command injection"
 cwe = "CWE-78"
@@ -92,6 +113,7 @@ callees = [
     "os.spawnvp",
     "os.spawnvpe",
 ]
+shell = { executables = ["sh", "bash", "dash", "ksh", "zsh"], flag = "-c", name_at = 2 }
 
 [[sinks]]
 risk = "code injection"

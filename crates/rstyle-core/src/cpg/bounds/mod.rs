@@ -17,12 +17,10 @@ pub mod report;
 use super::model::{Node, NodeKind};
 use crate::advisory::runtime_bounds::{Input, MAX_NODES, MAX_VARIABLES};
 use crate::runtime_bounds::{Action, Arithmetic, Flow, Integer, Program, Value, Variable};
+use crate::wording::Message;
 pub use canonical::canonical_bounds;
 use facts::Facts;
 use std::collections::BTreeMap;
-
-pub(crate) const EVIDENCE: &str =
-    "live typed HIR; primitive unsigned semantics; no iterator trait size contract";
 
 /// The runtime-bound program of one function.
 pub fn lower(facts: &Facts<'_, '_>, arithmetic: Arithmetic) -> Result<Input, String> {
@@ -76,13 +74,23 @@ impl<'a> Collector<'_, '_, 'a> {
         let parameters = self.parameter_symbols()?;
         if parameters.len() > MAX_VARIABLES {
             return Ok(Input::BudgetExhausted {
-                reason: "HIR parameter capture budget exhausted".into(),
+                reason: self
+                    .facts
+                    .tables
+                    .wording()
+                    .text(Message::ParameterBudget)
+                    .into(),
             });
         }
         let frame = frame::inspect(self.facts, &parameters)?;
         if frame.exhausted {
             return Ok(Input::BudgetExhausted {
-                reason: "HIR frame inspection budget exhausted".into(),
+                reason: self
+                    .facts
+                    .tables
+                    .wording()
+                    .text(Message::FrameBudget)
+                    .into(),
             });
         }
         self.install_extents(&parameters, frame.extents)?;
@@ -94,7 +102,12 @@ impl<'a> Collector<'_, '_, 'a> {
         }
         if self.exhausted {
             return Ok(Input::BudgetExhausted {
-                reason: "HIR CFG capture node, variable, or nesting budget exhausted".into(),
+                reason: self
+                    .facts
+                    .tables
+                    .wording()
+                    .text(Message::CaptureBudget)
+                    .into(),
             });
         }
 
@@ -150,7 +163,8 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 
     fn node(&mut self, action: Action, flow: Flow, at: &Node) -> u32 {
-        self.node_with((action, flow), at, EVIDENCE)
+        let evidence = self.facts.tables.wording().text(Message::BoundEvidence);
+        self.node_with((action, flow), at, evidence)
     }
 
     fn unsupported(&mut self, at: &Node, next: u32, reason: &str) -> u32 {

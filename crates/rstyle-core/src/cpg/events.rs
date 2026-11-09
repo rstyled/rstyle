@@ -14,6 +14,7 @@ use crate::facts::{
     MutationOrigin,
 };
 use crate::paths::strip_generics;
+use crate::wording::Message;
 use std::collections::BTreeMap;
 
 #[derive(Default)]
@@ -22,6 +23,14 @@ pub struct Events {
     pub edges: Vec<Edge>,
     pub effects: Vec<EffectEvent>,
     pub recursions: Vec<Construct>,
+}
+
+/// Whether a call has no callee node, so that its receiver is its first argument.
+fn method_form(reference: &Ref) -> bool {
+    matches!(
+        reference.dispatch,
+        Some(Dispatch::Method | Dispatch::Dynamic)
+    )
 }
 
 /// Read-only context of one function's derivations.
@@ -130,7 +139,7 @@ impl<'a> Walk<'a> {
         }
     }
 
-    /// A reference to a mutable static is a global effect, read or written.
+    /// A reference to a static that can be written is a global effect, read or written.
     fn path(&self, node: &Node, out: &mut Events) -> Result<(), String> {
         let target = self
             .body
@@ -142,7 +151,11 @@ impl<'a> Walk<'a> {
 
         let definition = self.tables.definition(target_id(target)?)?;
         if definition.kind == DefinitionKind::Static && has_modifier(definition, "mutable") {
-            let detail = format!("static mut {}", strip_generics(&definition.name));
+            let name = strip_generics(&definition.name);
+            let detail = self
+                .tables
+                .wording()
+                .say(Message::WritableStatic, &[("name", &name)]);
             out.effects
                 .push(self.effect(EffectKind::Global, detail, node)?);
         }
@@ -249,9 +262,7 @@ impl<'a> Walk<'a> {
             return Ok(());
         }
         self.edge(site.node, &callee, out)?;
-        let Callee {
-            declared, dynamic, ..
-        } = callee;
+        let (declared, dynamic) = (callee.declared, callee.dynamic);
         if declared.scope == Scope::Unit {
             return Ok(());
         }
@@ -263,7 +274,7 @@ impl<'a> Walk<'a> {
                 .push(self.effect(EffectKind::Unsafe, detail, site.node)?);
         }
         let line = self.line(site.node)?;
-        let library = self.library_class(site.node, declared)?;
+        let library = self.library_class(site.node, &callee)?;
         let library_callee =
             (declared.scope == Scope::Library).then(|| declared.stable_identity.clone());
         out.calls.push(CallEvent {
@@ -276,16 +287,23 @@ impl<'a> Walk<'a> {
         Ok(())
     }
 
-    /// What the namespace's contract says this call does.
+    /// What the namespace's contract says this library call does: the implementation it selects,
+    /// when the document names a library's, since that's what runs, and its declared callee
+    /// otherwise. An implementation in the workspace is followed through the call edge instead.
     fn library_class(
         &self,
         node: &'a Node,
-        declared: &Definition,
+        callee: &Callee<'a>,
     ) -> Result<Option<LibraryClass>, String> {
-        if declared.scope != Scope::Library {
+        if callee.declared.scope != Scope::Library {
             return Ok(None);
         }
-        let Some(operation) = declared.operation.as_deref() else {
+        let runs = match callee.selected.scope {
+            Scope::Library => callee.selected,
+            Scope::Unit | Scope::Workspace => callee.declared,
+        };
+
+        let Some(operation) = runs.operation.as_deref() else {
             return Ok(self.classes.unlisted());
         };
         if self.writes_to_memory(node, operation)? {
@@ -294,14 +312,26 @@ impl<'a> Walk<'a> {
         Ok(self.classes.class(operation))
     }
 
-    /// Whether the contract keeps this call's effect in a buffer, by an argument's type.
+    /// Whether the contract keeps this call's effect in a buffer, by an argument's type. The
+    /// argument is counted after the callee or a method call's receiver, by the parameter it binds to.
     fn writes_to_memory(&self, node: &'a Node, operation: &str) -> Result<bool, String> {
         let Some(rule) = self.classes.memory_write(operation) else {
             return Ok(false);
         };
 
-        let children = self.body.source_children(node)?;
-        let argument = children.get(1 + rule.argument);
+        let argument = match self.body.reference(&node.id) {
+            Some(reference) if reference.arguments.is_some() => {
+                let position = rule.argument + usize::from(method_form(reference));
+                let arguments = self.body.arguments(node)?.into_iter();
+                let mut bound = arguments.filter(|argument| argument.position == Some(position));
+                bound.next().map(|argument| argument.value)
+            }
+            _ => self
+                .body
+                .source_children(node)?
+                .get(1 + rule.argument)
+                .copied(),
+        };
         let Some(ty) = argument.and_then(|argument| argument.ty.as_deref()) else {
             return Ok(false);
         };
@@ -341,23 +371,43 @@ impl<'a> Walk<'a> {
 
     /// Arguments after the callee, or after the receiver of a method call; a method
     /// called by path takes its receiver as the first argument, which is not counted.
+    /// Where the call binds them, each is placed at the parameter it binds to, except in a
+    /// method called by path: Python's class call is one too, and passes no receiver, so
+    /// which argument is the receiver isn't known, and they stay in written order.
     fn arguments(
         &self,
         node: &'a Node,
         reference: &Ref,
         declared: &Definition,
     ) -> Result<Vec<ArgSource>, String> {
-        let method_form = matches!(
-            reference.dispatch,
-            Some(Dispatch::Method | Dispatch::Dynamic)
-        );
+        let method_form = method_form(reference);
         let receiver = usize::from(!method_form && declared.kind == DefinitionKind::Method);
+        if reference.arguments.is_some() && receiver == 0 {
+            return self.bound_arguments(node, usize::from(method_form));
+        }
+
         let children = self.body.source_children(node)?;
         children
             .iter()
             .skip(1 + receiver)
             .map(|arg| self.classify(arg))
             .collect()
+    }
+
+    /// Arguments placed by the parameter each binds to, from `first` on: one with no position
+    /// is left out, and a parameter no argument binds, which takes its default, is other.
+    fn bound_arguments(&self, node: &'a Node, first: usize) -> Result<Vec<ArgSource>, String> {
+        let mut placed: BTreeMap<usize, ArgSource> = BTreeMap::new();
+        for argument in self.body.arguments(node)? {
+            let Some(at) = argument.position.and_then(|it| it.checked_sub(first)) else {
+                continue;
+            };
+            placed.entry(at).or_insert(self.classify(argument.value)?);
+        }
+
+        let count = placed.keys().next_back().map_or(0, |last| last + 1);
+        let at = |position| placed.get(&position).copied().unwrap_or(ArgSource::Other);
+        Ok((0..count).map(at).collect())
     }
 
     fn classify(&self, arg: &'a Node) -> Result<ArgSource, String> {

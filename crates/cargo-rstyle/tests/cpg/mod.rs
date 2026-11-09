@@ -474,6 +474,7 @@ mod build_outputs;
 mod capture;
 #[cfg(unix)]
 mod descriptor;
+mod effects;
 mod facts;
 mod flow;
 #[cfg(unix)]
