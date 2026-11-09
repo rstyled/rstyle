@@ -28,6 +28,8 @@ pub(super) struct Frontend {
     options: Vec<String>,
     /// What this run's stream needs beyond the arguments every frontend gets.
     stream_arguments: Vec<OsString>,
+    /// What followed `--` on rstyle's command line, which the frontend hears last and unchanged.
+    passed_on: Vec<OsString>,
 }
 
 /// What a frontend says of itself, so a stale one fails with a reason instead of partway in.
@@ -107,13 +109,20 @@ impl Frontend {
             analyses: description.analyses,
             options: description.options,
             stream_arguments: Vec::new(),
+            passed_on: Vec::new(),
         })
     }
 
-    /// The same frontend, with what this run's stream needs beyond what every frontend gets.
-    pub(super) fn streaming(self, stream_arguments: Vec<OsString>) -> Self {
+    /// The same frontend, with what this run's stream needs beyond what every frontend gets, and
+    /// what followed `--`, which comes last.
+    pub(super) fn streaming(
+        self,
+        stream_arguments: Vec<OsString>,
+        passed_on: Vec<OsString>,
+    ) -> Self {
         Self {
             stream_arguments,
+            passed_on,
             ..self
         }
     }
@@ -201,6 +210,7 @@ impl Frontend {
         command
             .args(["--output-fd", &number])
             .args(&self.stream_arguments)
+            .args(&self.passed_on)
             .spawn()
             .map_err(|error| format!("Cannot run {}: {error}", self.name()))
     }
@@ -633,6 +643,7 @@ mod tests {
             analyses: Vec::new(),
             options: options.iter().map(|option| (*option).into()).collect(),
             stream_arguments: vec!["--compilation-database".into(), "build".into()],
+            passed_on: vec!["--strict".into()],
         }
     }
 
@@ -649,6 +660,11 @@ mod tests {
             "old.py",
         ];
         assert_eq!(taking.stream_arguments, expected.map(OsString::from));
+        assert_eq!(
+            taking.passed_on,
+            [OsString::from("--strict")],
+            "kept for last"
+        );
 
         let older = frontend(&[]).excluding(&globs);
         assert_eq!(older.stream_arguments, expected.map(OsString::from)[..2]);

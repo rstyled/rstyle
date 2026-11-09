@@ -23,17 +23,10 @@ rstyle go --patterns       rstyle cxx --patterns       rstyle py --patterns     
   `build/compile_commands.json`, then the repository. `--compilation-database PATH` names the database when it's
   elsewhere, and `--include DIR` and `--define NAME[=VALUE]` add to the flags.
 
-  Without a named database, rstyle looks where the frontend does, then in the top-level folders whose names say a
-  build wrote them (`build*`, `cmake-build*`, `builddir`, `_build` and `out`). If that finds nothing, it guesses the
-  build from `CMakeLists.txt`, `meson.build` or a Makefile, in that order, and asks it for one on every run: `cmake`,
-  `meson setup`, or `bear -- make`. It writes to `.rstyle/compile-database`, so your `build/` stays as it was, though
-  Make still builds in place. All three run the project's build scripts, so pass `--no-generate-database` on code you
-  wouldn't build. That still reuses one generated earlier.
-
-  If the build can't be guessed or doesn't write a database, rstyle warns and says how to specify one. One an earlier
-  run generated still serves, with a warning that it may be out of date. Otherwise the run goes on: the frontend
-  guesses flags and loses what it can't parse, and its report says so. A build that needs options should be configured
-  by hand and named with `--compilation-database`.
+  Without a named database, rstyle-cxx works one out: one the project has, its own `.rstyle/compile-database.sh`,
+  or one its CMake, Meson or Make build writes. Its README has the order. Its own options go after `--`:
+  `rstyle cxx -- --no-generate-database` runs none of the project's build scripts, and `rstyle cxx --
+  --require-database` stops when there's no database instead of guessing flags.
 - **Python:** rstyle uses `$RSTYLE_PY` if set, then `rstyle-py` on `PATH`. It pins its analyzer and needs an environment
   of its own, so rstyle doesn't install it, and a missing one says how: `uv tool install
   git+https://github.com/rstyled/rstyle-py`, which needs access to it while it's private. `--source DIR` picks the
@@ -146,6 +139,8 @@ A frontend is a program with up to three commands:
   the run [leaves out](#leaving-files-out), after the language's arguments, `target/**` included. The frontend must leave
   their functions out of its documents, and may skip reading the files. One that doesn't list it isn't passed it, and core
   still leaves those functions out of the report.
+- Whatever followed `--` on rstyle's command line comes last, after `--exclude`, unchanged: `rstyle cxx --
+  --require-database` hands the frontend `--require-database` last. rstyle knows nothing of what they mean.
 - A file that doesn't parse should fail the run, and the failure should name `--exclude` as the way to skip it.
 - A non-zero exit means the run is incomplete.
 - A frontend's stdout goes to rstyle's stderr.
