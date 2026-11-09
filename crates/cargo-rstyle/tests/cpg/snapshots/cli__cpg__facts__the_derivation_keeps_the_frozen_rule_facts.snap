@@ -3185,7 +3185,8 @@ expression: facts
       {
         "callee": "std::iter::IntoIterator::into_iter",
         "line": 61,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::iter::Iterator::next",
@@ -5392,22 +5393,26 @@ expression: facts
       {
         "callee": "std::iter::IntoIterator::into_iter",
         "line": 24,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::iter::IntoIterator::into_iter",
         "line": 25,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::iter::Iterator::next",
         "line": 25,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::iter::Iterator::next",
         "line": 24,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       }
     ],
     "effects": [],
@@ -5984,22 +5989,26 @@ expression: facts
       {
         "callee": "std::iter::IntoIterator::into_iter",
         "line": 48,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::iter::IntoIterator::into_iter",
         "line": 49,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::iter::Iterator::next",
         "line": 49,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::iter::Iterator::next",
         "line": 48,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       }
     ],
     "effects": [],
@@ -6561,17 +6570,20 @@ expression: facts
       {
         "callee": "std::iter::IntoIterator::into_iter",
         "line": 60,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::iter::IntoIterator::into_iter",
         "line": 61,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::ops::Try::branch",
         "line": 65,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::ops::FromResidual::from_residual",
@@ -6581,12 +6593,14 @@ expression: facts
       {
         "callee": "std::iter::Iterator::next",
         "line": 61,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::iter::Iterator::next",
         "line": 60,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       }
     ],
     "effects": [],
@@ -7010,7 +7024,8 @@ expression: facts
       {
         "callee": "std::ops::Try::branch",
         "line": 75,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::result::Result::map_err",
@@ -7054,7 +7069,8 @@ expression: facts
       {
         "callee": "std::iter::IntoIterator::into_iter",
         "line": 76,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::string::String::is_empty",
@@ -7082,7 +7098,8 @@ expression: facts
       {
         "callee": "std::iter::Iterator::next",
         "line": 76,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "core::slice::first",

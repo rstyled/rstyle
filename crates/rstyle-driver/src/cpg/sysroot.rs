@@ -85,15 +85,18 @@ const NAMESPACE: &str = "rust";
 
 /// Language-neutral key of a standard operation, matched against library contracts:
 /// the defining impl's self type and the member name, as in `rust:BTreeMap.get`.
-/// Never derived from module path spelling.
+/// Never derived from module path spelling, except for a trait implementation's member
+/// whose self type has no compiler name, which `implementation_operation` keys.
 pub(crate) fn operation(tcx: ty::TyCtxt<'_>, callee: DefId) -> Option<String> {
     let implementation = tcx.impl_of_assoc(callee)?;
     let self_ty = tcx
         .type_of(implementation)
         .instantiate_identity()
         .skip_norm_wip();
-    let owner = type_key(tcx, self_ty)?;
-    Some(key(&owner, tcx, callee))
+    match type_key(tcx, self_ty) {
+        Some(owner) => Some(key(&owner, tcx, callee)),
+        None => implementation_operation(tcx, callee),
+    }
 }
 
 /// Key of a standard free function by the path it's defined at, as its stable identity names
@@ -102,8 +105,21 @@ pub(crate) fn operation(tcx: ty::TyCtxt<'_>, callee: DefId) -> Option<String> {
 /// body or a foreign block, has no key.
 pub(crate) fn function_operation(tcx: ty::TyCtxt<'_>, function: DefId) -> Option<String> {
     let parent = tcx.opt_parent(function)?;
-    (tcx.def_kind(parent) == DefKind::Mod)
-        .then(|| format!("{NAMESPACE}:{}", crate::ids::def_id_str(tcx, function)))
+    (tcx.def_kind(parent) == DefKind::Mod).then(|| path_key(tcx, function))
+}
+
+/// Key of a trait implementation's member whose self type has no compiler name, such as the
+/// `T` of a blanket implementation, `&Vec<T>`, `[T; N]` or `vec::IntoIter<T>`, by the path it's
+/// defined at, as a free function is: `rust:alloc::string::{impl#39}::to_string` is the
+/// `ToString` every `to_string` runs. A call that selects it is classified by it. An inherent
+/// member of such a type still has no key.
+fn implementation_operation(tcx: ty::TyCtxt<'_>, member: DefId) -> Option<String> {
+    let item = tcx.opt_associated_item(member)?;
+    item.trait_item_def_id().map(|_| path_key(tcx, member))
+}
+
+fn path_key(tcx: ty::TyCtxt<'_>, definition: DefId) -> String {
+    format!("{NAMESPACE}:{}", crate::ids::def_id_str(tcx, definition))
 }
 
 /// Key of a standard trait's own member by the trait's diagnostic item name, as in

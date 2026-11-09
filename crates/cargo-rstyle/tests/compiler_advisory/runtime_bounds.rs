@@ -365,7 +365,25 @@ fn assert_library(rows: &[Value]) {
     );
     assert_eq!(caller.library_steps.order().logarithmic, 1);
 
-    // Primitive self types are keyed by kind; blanket impls over a parameter are not.
+    assert_keys(rows);
+
+    // A local map's size has no stable bound, so its lookups stay opaque.
+    let local = composition(named_row(rows, "local_map"));
+    assert!(!local.library_steps.is_complete());
+    let kinds: Vec<_> = local
+        .library_factors
+        .iter()
+        .map(|factor| factor.kind)
+        .collect();
+    assert!(
+        kinds.contains(&rstyle_core::runtime_bounds::OpaqueKind::Input),
+        "{local:?}"
+    );
+}
+
+// Primitive self types are keyed by kind; a blanket impl over a parameter by its path, which no
+// contract names.
+fn assert_keys(rows: &[Value]) {
     let keys = named_row(rows, "str_keys");
     let calls = keys["result"]["Proven"]["calls"].as_array().unwrap();
     let operation = |suffix: &str| {
@@ -380,23 +398,15 @@ fn assert_library(rows: &[Value]) {
         operation("is_empty"),
         Some(Value::from("rust:str.is_empty"))
     );
-    assert_eq!(operation("into"), None);
+    let into = operation("into").unwrap_or_default();
+    let into = into.as_str().unwrap_or_default();
+    assert!(
+        into.starts_with("rust:core::convert::{impl#") && into.ends_with("}::into"),
+        "{into}"
+    );
     assert_eq!(
         composition(keys).library_steps.to_string(),
         "?library(std::convert::Into::into) + 1"
-    );
-
-    // A local map's size has no stable bound, so its lookups stay opaque.
-    let local = composition(named_row(rows, "local_map"));
-    assert!(!local.library_steps.is_complete());
-    let kinds: Vec<_> = local
-        .library_factors
-        .iter()
-        .map(|factor| factor.kind)
-        .collect();
-    assert!(
-        kinds.contains(&rstyle_core::runtime_bounds::OpaqueKind::Input),
-        "{local:?}"
     );
 }
 

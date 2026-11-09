@@ -274,6 +274,33 @@ mod tests {
     }
 
     #[test]
+    fn rust_classes_a_trait_implementation_only_when_it_is_pure_for_every_type() {
+        let rust = EffectClasses::of("rust");
+        // A trait implementation is keyed by its type, or by its path when the type has no
+        // compiler name. One that runs a type argument's `clone` or `From` isn't pure for
+        // every type, and neither is an adapter's `next`, which runs what it wraps.
+        assert_eq!(rust.class("rust:Result.branch"), Some(LibraryClass::Pure));
+        assert_eq!(rust.class("rust:String.clone"), Some(LibraryClass::Pure));
+        assert_eq!(rust.class("rust:SliceIter.next"), Some(LibraryClass::Pure));
+        assert_eq!(
+            rust.class("rust:alloc::string::{impl#39}::to_string"),
+            Some(LibraryClass::Pure)
+        );
+        assert_eq!(rust.class("rust:Option.clone"), None);
+        assert_eq!(rust.class("rust:Vec.clone"), None);
+        assert_eq!(rust.class("rust:Result.from_residual"), None);
+        assert_eq!(rust.class("rust:core::convert::{impl#3}::into"), None);
+        assert_eq!(
+            rust.class("rust:core::iter::adapters::filter::{impl#3}::next"),
+            None
+        );
+        // An exact entry doesn't cover the inherent `usize::max_value` or `char::from_u32`.
+        assert_eq!(rust.class("rust:usize.max"), Some(LibraryClass::Pure));
+        assert_eq!(rust.class("rust:usize.max_value"), None);
+        assert_eq!(rust.class("rust:char.from_u32"), None);
+    }
+
+    #[test]
     fn a_namespace_without_a_file_classifies_nothing() {
         let none = EffectClasses::of("nowhere");
         assert_eq!(none.class("nowhere:Vec.len"), None);
