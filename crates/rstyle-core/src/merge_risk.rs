@@ -3,6 +3,7 @@
 //! stable identity. A text change with no change in the compared facts says only that those facts
 //! didn't change, not that behavior didn't.
 
+mod markdown;
 pub mod rating;
 
 use crate::config::Config;

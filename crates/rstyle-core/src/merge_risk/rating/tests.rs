@@ -194,6 +194,10 @@ fn few_enough_functions_lower_a_medium_change_to_low() {
 
     let over = rated(&[changed("a"), changed("b"), changed("c")], &limited);
     assert_eq!(over.risk, Level::Medium);
+    assert_eq!(
+        over.reasons[0].message,
+        "3 functions changed, more than the low-risk limit of 2"
+    );
 
     let no_limit = rated(&[changed("a")], &medium());
     assert_eq!(no_limit.risk, Level::Medium, "0 is no limit");

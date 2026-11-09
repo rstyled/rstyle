@@ -8,11 +8,11 @@ use crate::config::{RiskConfig, Severity};
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-const PDG_CHANGE: &str = "pdg_change";
-const ADDED_CALL: &str = "added_call";
-const UNRESOLVED_CALLS: &str = "unresolved_calls";
-const UNCLASSIFIED_CALL: &str = "unclassified_call";
-const ANALYSIS_UNAVAILABLE: &str = "analysis_unavailable";
+pub(super) const PDG_CHANGE: &str = "pdg_change";
+pub(super) const ADDED_CALL: &str = "added_call";
+pub(super) const UNRESOLVED_CALLS: &str = "unresolved_calls";
+pub(super) const UNCLASSIFIED_CALL: &str = "unclassified_call";
+pub(super) const ANALYSIS_UNAVAILABLE: &str = "analysis_unavailable";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -29,7 +29,7 @@ pub enum Level {
 impl Level {
     /// How far it pulls a whole change. A measured `high` outweighs not being able to see something,
     /// which outweighs nobody having said, which outweighs any severity short of `high`.
-    fn weight(self) -> u8 {
+    pub(super) fn weight(self) -> u8 {
         match self {
             Self::Low => 1,
             Self::Medium => 2,
@@ -39,7 +39,7 @@ impl Level {
         }
     }
 
-    fn strongest(self, other: Self) -> Self {
+    pub(super) fn strongest(self, other: Self) -> Self {
         if other.weight() > self.weight() {
             other
         } else {
@@ -47,7 +47,7 @@ impl Level {
         }
     }
 
-    fn name(self) -> &'static str {
+    pub(super) fn name(self) -> &'static str {
         match self {
             Self::Low => "low",
             Self::Medium => "medium",
@@ -196,19 +196,29 @@ fn function_reasons(change: &FunctionChange, policy: &RiskConfig) -> Vec<Reason>
         .collect()
 }
 
-/// A medium change to few enough functions is low. This is a policy on size, not a proof that
-/// behavior is preserved, and it only lowers what's measured as a change.
+/// A medium change to few enough functions is low, and one to more says it's over the limit. This
+/// is a policy on size, not a proof that behavior is preserved, and it only lowers what's measured
+/// as a change.
 fn within_size_limit(reasons: &mut [Reason], changed: usize, policy: &RiskConfig) {
     let limit = policy.pdg_low_risk_max_functions;
-    if limit == 0 || changed > limit {
+    if limit == 0 {
         return;
     }
+    let (level, message) = if changed > limit {
+        let message =
+            format!("{changed} functions changed, more than the low-risk limit of {limit}");
+        (Level::Medium, message)
+    } else {
+        let message = format!("the change is within the low-risk limit of {limit} functions");
+        (Level::Low, message)
+    };
+
     let medium = reasons
         .iter_mut()
         .filter(|reason| reason.rule == PDG_CHANGE && reason.level == Level::Medium);
     for reason in medium {
-        reason.level = Level::Low;
-        reason.message = format!("the change is within the low-risk limit of {limit} functions");
+        reason.level = level;
+        reason.message.clone_from(&message);
     }
 }
 
