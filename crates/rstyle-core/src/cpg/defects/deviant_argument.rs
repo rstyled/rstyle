@@ -17,7 +17,9 @@
 //! computed from it.
 
 use super::super::flow::Vertex;
-use super::super::model::{AccessMode, Dispatch, FileSpan, Node, NodeKind, Origin, TargetKind};
+use super::super::model::{
+    AccessMode, Dispatch, FileSpan, Node, NodeKind, Origin, TargetKind, Type,
+};
 use super::ignored_result::{declared_callee, pointed_at};
 use super::{Defect, Reading};
 use crate::config::DeviantArgumentConfig;
@@ -63,8 +65,10 @@ pub struct Arguments {
     pub callees: BTreeSet<String>,
     pub arguments: Vec<Argument>,
     /// Each field the function reads, and of what type: evidence of which types have which fields,
-    /// since a frontend doesn't list every type's.
+    /// for a frontend that doesn't list them.
     pub fields: BTreeSet<(String, String)>,
+    /// The fields selectable through each of its variables' types, where the frontend lists them.
+    pub declared: BTreeMap<String, BTreeSet<String>>,
 }
 
 pub(super) fn of(reading: &Reading<'_>) -> Result<Arguments, String> {
@@ -74,6 +78,7 @@ pub(super) fn of(reading: &Reading<'_>) -> Result<Arguments, String> {
     let mut found = Arguments {
         owner: Some(reading.tables.ty(owner)?.spelling.clone()),
         fields: fields_read(reading)?,
+        declared: declared_fields(reading)?,
         ..Arguments::default()
     };
 
@@ -104,6 +109,42 @@ fn fields_read(reading: &Reading<'_>) -> Result<BTreeSet<(String, String)>, Stri
         };
         if let Some(ty) = reading.body.node(base)?.ty.as_deref() {
             found.insert((spelled(reading, ty)?, member.to_owned()));
+        }
+    }
+    Ok(found)
+}
+
+/// The fields each variable's type lists, with those its embedded fields promote.
+fn declared_fields(reading: &Reading<'_>) -> Result<BTreeMap<String, BTreeSet<String>>, String> {
+    let mut found = BTreeMap::new();
+    for symbol in &reading.function.symbols {
+        let Some(ty) = symbol.ty.as_deref() else {
+            continue;
+        };
+        let record = pointed_at(reading.tables, reading.tables.ty(ty)?)?;
+        if record.fields.is_some() && !found.contains_key(&record.spelling) {
+            found.insert(record.spelling.clone(), selectable(reading, record)?);
+        }
+    }
+    Ok(found)
+}
+
+/// How deep embedded fields are followed. Far more than a type nests them.
+const EMBEDDING_DEPTH: usize = 16;
+
+/// A record's field names, and those of every embedded field's type, as Go selects them.
+fn selectable(reading: &Reading<'_>, record: &Type) -> Result<BTreeSet<String>, String> {
+    let (mut found, mut pending, mut seen) = (BTreeSet::new(), vec![(record, 0)], HashSet::new());
+    while let Some((record, depth)) = pending.pop() {
+        if depth > EMBEDDING_DEPTH || !seen.insert(record.id.as_str()) {
+            continue;
+        }
+        for field in record.fields.iter().flatten() {
+            found.insert(field.name.clone());
+            if field.embedded {
+                let inner = pointed_at(reading.tables, reading.tables.ty(&field.ty)?)?;
+                pending.push((inner, depth + 1));
+            }
         }
     }
     Ok(found)
@@ -478,15 +519,41 @@ pub fn find(methods: &[MethodArguments], limits: &DeviantArgumentConfig) -> Vec<
     found
 }
 
-/// Every field the run reads, by the type it's read from.
-type Fields<'m> = BTreeSet<(&'m str, &'m str)>;
+/// What the run says of which types have which fields: what frontends list, and, for the types
+/// they don't, what the run reads from them.
+#[derive(Default)]
+struct Fields<'m> {
+    declared: BTreeMap<&'m str, &'m BTreeSet<String>>,
+    read: BTreeSet<(&'m str, &'m str)>,
+}
+
+impl Fields<'_> {
+    fn has(&self, ty: &str, field: &str) -> bool {
+        match self.declared.get(ty) {
+            Some(declared) => declared.contains(field),
+            None => self.read.contains(&(ty, field)),
+        }
+    }
+}
 
 fn known_fields(methods: &[MethodArguments]) -> Fields<'_> {
-    methods
-        .iter()
-        .flat_map(|method| &method.arguments.fields)
-        .map(|(ty, field)| (ty.as_str(), field.as_str()))
-        .collect()
+    let mut known = Fields::default();
+    for method in methods {
+        let arguments = &method.arguments;
+        known.declared.extend(
+            arguments
+                .declared
+                .iter()
+                .map(|(ty, fields)| (ty.as_str(), fields)),
+        );
+        known.read.extend(
+            arguments
+                .fields
+                .iter()
+                .map(|(ty, field)| (ty.as_str(), field.as_str())),
+        );
+    }
+    known
 }
 
 type Slots<'m> = BTreeMap<(&'m str, usize), Vec<Site>>;
@@ -592,8 +659,9 @@ fn is_a_slip<'m>(
 }
 
 /// Whether the siblings' value could stand in the passed one's place: its variable holds a value
-/// at the call, and the field it's read through is one the run reads from that variable's type.
-/// No frontend lists every type's fields, so a field nothing reads from the type is taken as absent.
+/// at the call, and the field it's read through is one that variable's type has. That's what the
+/// frontend lists for the type, or else what the run reads from it, where a field nothing reads is
+/// taken as absent.
 fn writable_here(
     passed: &Argument,
     (variable, field): (&str, Option<&str>),
@@ -605,7 +673,7 @@ fn writable_here(
     let Some(field) = field else {
         return true;
     };
-    ty.as_deref().is_some_and(|ty| known.contains(&(ty, field)))
+    ty.as_deref().is_some_and(|ty| known.has(ty, field))
 }
 
 fn differs_only_at(a: &[String], b: &[String], position: usize) -> bool {

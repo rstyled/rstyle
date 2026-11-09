@@ -323,6 +323,9 @@ pub struct TypeField {
     pub name: String,
     #[serde(rename = "type")]
     pub ty: Id,
+    /// Its own fields are selectable through the record, as Go promotes an embedded field's.
+    #[serde(default)]
+    pub embedded: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]

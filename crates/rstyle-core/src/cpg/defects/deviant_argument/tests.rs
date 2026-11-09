@@ -60,6 +60,7 @@ fn method(identity: &str, owner: Option<&str>, arguments: Vec<Argument>) -> Meth
             callees: callees.collect(),
             arguments,
             fields: [("Options".to_owned(), "Kind".to_owned())].into(),
+            declared: BTreeMap::new(),
         },
     }
 }
@@ -182,6 +183,36 @@ fn a_field_nothing_reads_from_this_variables_type_could_not_have_been_meant() {
         1,
         "once something does, it could have been passed"
     );
+}
+
+/// `Delete` whose `options` is a `DeleteOptions`, which nothing in the run reads `Kind` from.
+fn deleting(declared: &[&str]) -> Vec<MethodArguments> {
+    let mut deviant = name();
+    deviant
+        .available
+        .insert("options".into(), Some("DeleteOptions".into()));
+    let mut methods = writer(deviant);
+    let fields = declared.iter().map(|field| (*field).to_owned()).collect();
+    methods[0]
+        .arguments
+        .declared
+        .insert("DeleteOptions".into(), fields);
+    methods
+}
+
+#[test]
+fn a_field_the_type_declares_or_embeds_is_there_though_nothing_reads_it() {
+    assert_eq!(found(&deleting(&["TypeMeta", "Kind"])).len(), 1);
+}
+
+#[test]
+fn a_type_that_lists_its_fields_is_believed_over_what_the_run_reads() {
+    let mut methods = deleting(&["Propagation"]);
+    methods[0]
+        .arguments
+        .fields
+        .insert(("DeleteOptions".into(), "Kind".into()));
+    assert_eq!(found(&methods), []);
 }
 
 #[test]

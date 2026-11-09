@@ -148,10 +148,10 @@ A call inside a closure, such as a goroutine's, is judged where the closure is m
 before the call. Calls a test file holds, or an excluded path, neither count nor get reported.
 
 A difference can still be deliberate, such as a method that reads its old value where its siblings read the new one.
-Frontends don't list the fields of every type, so a field counts as there when something in the run reads it from a
-value of that type, such as `options.Kind` read anywhere on this `*DeleteOptions`. A field nothing reads from the type
-is taken as absent, which can miss a slip but never reports one that couldn't compile. Suppress deliberate differences
-with a reason.
+A field counts as there when the variable's type lists it, or embeds a type that does, as a `*DeleteOptions` gets
+`Kind` from its embedded `TypeMeta`. For a type its frontend doesn't list fields for, a field counts when something in
+the run reads it from a value of that type, and is taken as absent otherwise, which can miss a slip but never reports
+one that couldn't compile. Suppress deliberate differences with a reason.
 
 ## `taint_flow`
 

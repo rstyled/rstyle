@@ -447,21 +447,21 @@ fn an_argument_its_sibling_methods_disagree_with_is_found_in_what_a_go_frontend_
         found,
         [
             (
-                56,
+                64,
                 "`NewContext` is passed `w.Log` here, where 5 of its 6 calls in sibling methods \
                  pass `log`"
             ),
             (
-                58,
+                66,
                 "`(*Writer).record` is passed `name` here, where 6 of its 7 calls in sibling \
                  methods pass `options.Kind`"
             ),
             (
-                71,
+                79,
                 "`(*Writer).record` is passed `startLegacy` here, where 6 of its 7 calls in \
                  sibling methods pass `startStorage`"
             ),
         ],
-        "Store's constant, whole-call, computed and not-yet-written differences are deliberate"
+        "Store's and Auth's differences are deliberate; `options.Kind` holds for a `DeleteOptions` only through its embedded `TypeMeta`"
     );
 }
