@@ -1,6 +1,7 @@
 //! Runtime evidence stays separate from abstraction proposals and their review identities.
 use super::{Context, UnitId};
 use crate::compiler::FunctionKey;
+use rstyle_core::wording::Wording;
 use rstyle_core::{
     advisory::runtime_bounds::{Input, KEY, Observation},
     cpg::bounds::report::{Evidence, LIMITATIONS, degree, evidence, render_result},
@@ -118,7 +119,8 @@ fn row<F: FnMut(&str) -> Option<Analyzed>>(
         .ok()
         .filter(|observation| matches!(observation.input, Input::Captured { .. }))
         .map(|observation| {
-            composer.composed(&format!("{}/{}", observation.krate, observation.owner))
+            let owner = format!("{}/{}", observation.krate, observation.owner);
+            composer.composed(&owner, Wording::of("rust"))
         });
     Row {
         key: function.key,

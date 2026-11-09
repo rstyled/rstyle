@@ -6,6 +6,7 @@ use crate::facts::{
     ArgSource, CallEvent, Edge, EffectEvent, EffectKind, FnFacts, LibraryClass, MutationEvent,
     MutationOrigin,
 };
+use crate::wording::{Message, Wording};
 use serde_json::{Value, json};
 
 const EXAMPLE: &str = include_str!("testdata/example.cpg.json");
@@ -1819,9 +1820,8 @@ fn a_function_of_unbounded_integers_lowers_at_the_widest_width() {
     assert!(program.contains(r#""bits":64,"signed":true"#), "{program}");
 }
 
-#[test]
-fn a_nested_function_that_can_write_a_counter_leaves_its_loop_unbounded() {
-    // `def reset(): nonlocal total; total = 0`, which a call in the loop's body can run.
+/// `def reset(): nonlocal total; total = 0`, which a call in the loop's body can run.
+fn with_a_nested_writer() -> Value {
     let mut document = example();
     let function = count_function(&mut document);
     let mut declaration = count_part(function, "count.reset", "item_declaration", json!([]));
@@ -1834,7 +1834,12 @@ fn a_nested_function_that_can_write_a_counter_leaves_its_loop_unbounded() {
         .as_array_mut()
         .unwrap()
         .insert(0, json!("count.reset"));
-    let program = count_program(document);
+    document
+}
+
+#[test]
+fn a_nested_function_that_can_write_a_counter_leaves_its_loop_unbounded() {
+    let program = count_program(with_a_nested_writer());
     assert!(program.contains("Mutable closure capture"), "{program}");
 }
 
@@ -1859,4 +1864,99 @@ fn a_nested_function_that_only_reads_a_counter_changes_nothing() {
 #[test]
 fn a_function_of_unbounded_integers_gets_its_facts() {
     assert_eq!(facts_of(example_with_unbounded_integers()).len(), 3);
+}
+
+/// The same document, as a frontend of `language` would name its language.
+fn in_language(mut document: Value, language: &str) -> Value {
+    document["unit"]["language"] = json!({"name": language, "version": "1"});
+    document
+}
+
+/// The same document, as rstyle-cxx would name its language.
+fn in_cxx(document: Value) -> Value {
+    in_language(document, "cxx")
+}
+
+#[test]
+fn a_cxx_unit_says_its_own_words_for_what_stops_a_bound() {
+    let cxx = Wording::of("cxx");
+    let destroyed = lowered_text(in_cxx(with_a_destroyed_value("unsupported")));
+    assert!(
+        destroyed.contains(cxx.text(Message::UncountedDestructor)),
+        "{destroyed}"
+    );
+    assert!(!destroyed.contains("drop glue"), "{destroyed}");
+    let captured = count_program(in_cxx(with_a_nested_writer()));
+    assert!(
+        captured.contains(cxx.text(Message::WrittenCapture)),
+        "{captured}"
+    );
+    assert!(
+        captured.contains(cxx.text(Message::BoundEvidence)),
+        "{captured}"
+    );
+}
+
+#[test]
+fn a_cxx_unit_names_a_writable_static_without_rusts_syntax() {
+    let facts = &facts_of(in_cxx(effects()))[0];
+    let globals: Vec<&str> = facts
+        .effects
+        .iter()
+        .filter(|effect| effect.kind == EffectKind::Global)
+        .map(|effect| effect.detail.as_str())
+        .collect();
+    assert_eq!(globals, ["non-const static ffi::COUNTER"]);
+}
+
+/// Every analysis of a document, as JSON and as text.
+fn whole_report(document: Value) -> String {
+    let filter = crate::filter::Filter::Everything;
+    let records = super::read_records([Ok(document)], filter.demand()).unwrap();
+    let (config, options) = (Default::default(), Default::default());
+    let analyses = crate::unified::analyze(records, &filter, &config, &options).unwrap();
+    format!(
+        "{}\n{}",
+        serde_json::to_string(&analyses).unwrap(),
+        analyses.text()
+    )
+}
+
+/// What a report of `document` says in `language`, and in Rust, which reads every message
+/// differently from both C++ and the neutral text.
+fn worded_reports(language: &str) -> Vec<(String, String)> {
+    let documents = [
+        example(),
+        with_a_destroyed_value("unsupported"),
+        with_a_nested_writer(),
+    ];
+    let reports = documents.into_iter().map(|document| {
+        let rust = whole_report(document.clone());
+        (rust, whole_report(in_language(document, language)))
+    });
+    reports.collect()
+}
+
+#[test]
+fn a_cxx_report_says_what_the_rust_one_does_in_cxx_terms() {
+    let (rust, cxx) = (Wording::of("rust"), Wording::of("cxx"));
+    for (in_rust, in_cxx) in worded_reports("cxx") {
+        assert_ne!(in_rust, in_cxx, "nothing in the report is worded");
+        assert_eq!(in_cxx, cxx.translated(rust, &in_rust));
+        for (rusts, _) in cxx.pairs(rust) {
+            assert!(!in_cxx.contains(&rusts), "{rusts}");
+        }
+    }
+}
+
+#[test]
+fn a_language_without_a_wording_file_reads_core_s_neutral_text() {
+    let (rust, neutral) = (Wording::of("rust"), Wording::neutral());
+    for (in_rust, elsewhere) in worded_reports("nowhere") {
+        assert_ne!(in_rust, elsewhere, "nothing in the report is worded");
+        assert_eq!(elsewhere, neutral.translated(rust, &in_rust));
+        for (rusts, _) in neutral.pairs(rust) {
+            assert!(!elsewhere.contains(&rusts), "{rusts}");
+        }
+    }
 }

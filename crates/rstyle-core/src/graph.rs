@@ -18,6 +18,7 @@
 use crate::facts::{ArgSource, Edge, EffectKind, FnFacts, MutationEvent};
 use crate::rules::Effect;
 use crate::suppress;
+use crate::wording::{Message, Wording};
 use std::{
     borrow::Borrow,
     collections::{BTreeMap, BTreeSet},
@@ -29,6 +30,8 @@ pub struct EffectOwner<'a> {
     pub name: &'a str,
     pub mutations: &'a [MutationEvent],
     pub edges: &'a [Edge],
+    /// The terms its language's labels use.
+    pub wording: Wording,
 }
 
 /// Borrow just the graph inputs, without manufacturing authored function metrics.
@@ -43,6 +46,7 @@ impl<F: Borrow<FnFacts>> EffectInput for F {
             name: &facts.name,
             mutations: &facts.mutations,
             edges: &facts.edges,
+            wording: facts.wording,
         }
     }
 }
@@ -210,11 +214,12 @@ fn split_more(label: &str) -> (&str, usize) {
         .unwrap_or((label, 0))
 }
 
+/// `delegated` is the caller's wording when the call hands it the caller's own state.
 fn exported_by(
     target: EffectOwner<'_>,
     theirs: &[Effect],
     line: usize,
-    delegated: bool,
+    delegated: Option<Wording>,
 ) -> Vec<Effect> {
     let via = Some(target.name.to_owned());
 
@@ -241,10 +246,11 @@ fn exported_by(
             }
         })
         .collect();
-    if delegated && theirs.iter().any(|e| e.kind == EffectKind::Mutation) {
+    let writes = theirs.iter().any(|e| e.kind == EffectKind::Mutation);
+    if let Some(wording) = delegated.filter(|_| writes) {
         out.push(Effect {
             kind: EffectKind::Mutation,
-            label: "&mut state".into(),
+            label: wording.text(Message::DelegatedMutation).into(),
             line,
             via,
         });
@@ -262,7 +268,8 @@ fn exported<F: EffectInput>(
     let delegated = caller
         .mutations
         .iter()
-        .any(|m| m.delegated && m.line == callee.line);
+        .any(|m| m.delegated && m.line == callee.line)
+        .then_some(caller.wording);
     let mut per_target = callee.targets.iter().map(|&t| {
         if inputs.boundary[t] {
             return Vec::new();
@@ -491,11 +498,13 @@ mod tests {
                 name: "caller",
                 mutations: &[],
                 edges: &edges,
+                wording: Wording::of("rust"),
             },
             EffectOwner {
                 name: "generated",
                 mutations: &[],
                 edges: &[],
+                wording: Wording::of("rust"),
             },
         ];
         let graph = build_resolved(&owners, |_, edge| (edge.callee == "generated").then_some(1));
@@ -623,6 +632,30 @@ mod tests {
             let out = run(&[a, b, c], &direct, &[false; 3], 1);
             assert_eq!(out[0].len(), 1, "only the call to `b` brings a write");
             assert_eq!(out[0][0].line, 4);
+        }
+    }
+
+    #[test]
+    fn a_delegated_write_is_named_in_the_callers_terms() {
+        let (mut caller, mut callee) = (sample("caller"), sample("callee"));
+        caller.edges = vec![edge("krate::callee", 4)];
+        caller.mutations = vec![write(4, true)];
+        callee.mutations = vec![write(9, false)];
+        let mutation = Effect {
+            kind: EffectKind::Mutation,
+            label: "self".into(),
+            line: 9,
+            via: None,
+        };
+        let direct = vec![vec![], vec![mutation]];
+        for (wording, label) in [
+            (Wording::of("rust"), "&mut state"),
+            (Wording::of("cxx"), "state through a non-const reference"),
+        ] {
+            caller.wording = wording;
+            let facts = [caller.clone(), callee.clone()];
+            let out = run(&facts, &direct, &[false; 2], 1);
+            assert_eq!(out[0][0].label, label);
         }
     }
 

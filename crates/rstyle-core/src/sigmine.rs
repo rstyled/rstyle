@@ -3,6 +3,7 @@
 
 use crate::facts::FnFacts;
 use crate::shape::{normalize, short};
+use crate::wording::Wording;
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -31,6 +32,9 @@ pub struct SigGroup {
     pub specificity_milli: u32,
     /// Specificity, plus up to 50% scaled by the share of types that share a name.
     pub score_milli: u32,
+    /// The words of its first member's language.
+    #[serde(skip)]
+    pub wording: Wording,
 }
 
 fn member(f: &FnFacts, self_ty: &str) -> Member {
@@ -64,8 +68,15 @@ fn sorted(mut members: Vec<Member>) -> Vec<Member> {
     members
 }
 
-fn build(key: String, all: Vec<(Member, bool)>, total: usize) -> Option<SigGroup> {
-    let (traited, inherent): (Vec<_>, Vec<_>) = all.into_iter().partition(|(_, traited)| *traited);
+fn build(key: String, all: Vec<Entry>, total: usize) -> Option<SigGroup> {
+    let wording = all
+        .iter()
+        .min_by(|a, b| a.0.cmp(&b.0))
+        .map_or_else(Wording::default, |(_, _, wording)| *wording);
+    let all = all
+        .into_iter()
+        .map(|(member, traited, _)| (member, traited));
+    let (traited, inherent): (Vec<_>, Vec<_>) = all.partition(|(_, traited)| *traited);
     let members = sorted(inherent.into_iter().map(|(m, _)| m).collect());
     let traited = sorted(traited.into_iter().map(|(m, _)| m).collect());
     let types: BTreeSet<&str> = members.iter().map(|m| m.self_ty.as_str()).collect();
@@ -90,10 +101,13 @@ fn build(key: String, all: Vec<(Member, bool)>, total: usize) -> Option<SigGroup
         score_milli: specificity + boost,
         members,
         traited,
+        wording,
     })
 }
 
-type Buckets = BTreeMap<String, Vec<(Member, bool)>>;
+/// A method, whether it implements a trait, and the words of its language.
+type Entry = (Member, bool, Wording);
+type Buckets = BTreeMap<String, Vec<Entry>>;
 
 /// Methods of ADTs by normalized signature; each member is flagged when it implements a trait.
 fn buckets(facts: &[FnFacts]) -> Buckets {
@@ -102,7 +116,7 @@ fn buckets(facts: &[FnFacts]) -> Buckets {
         let self_ty = sig.owner()?;
         Some((
             normalize(sig).key,
-            (member(f, &self_ty), f.implements.is_some()),
+            (member(f, &self_ty), f.implements.is_some(), f.wording),
         ))
     });
     sigs.fold(Buckets::new(), |mut acc, (key, entry)| {

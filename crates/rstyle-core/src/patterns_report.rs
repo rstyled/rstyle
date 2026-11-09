@@ -6,6 +6,7 @@ use crate::facts::FnFacts;
 use crate::ledger::{self, Hidden, Ledger, Matched};
 use crate::prep;
 use crate::sigmine::{self, Member, SigGroup};
+use crate::wording::Message;
 use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -175,7 +176,11 @@ fn group_text(group: &SigGroup) -> String {
     )];
     lines.extend(group.members.iter().map(site));
     if !group.traited.is_empty() {
-        lines.push(format!("    ({} via trait impls)", group.traited.len()));
+        let count = group.traited.len().to_string();
+        let members = group
+            .wording
+            .say(Message::InterfaceMembers, &[("count", &count)]);
+        lines.push(format!("    {members}"));
     }
     lines.join("\n")
 }
@@ -365,7 +370,31 @@ mod tests {
             same_name: false,
             specificity_milli: score,
             score_milli: score,
+            wording: Default::default(),
         }
+    }
+
+    #[test]
+    fn a_group_counts_its_interface_implementations_in_its_language() {
+        let member = Member {
+            path: "src/a.rs".into(),
+            line: 1,
+            id: "k::A::f".into(),
+            name: "A::f".into(),
+            self_ty: "k::A".into(),
+        };
+        let mut traited = SigGroup {
+            traited: vec![member],
+            ..group("fn(&Self) -> bool", 900)
+        };
+        traited.wording = crate::wording::Wording::of("rust");
+        assert!(group_text(&traited).ends_with("\n    (1 via trait impls)"));
+        traited.wording = crate::wording::Wording::of("cxx");
+        let text = group_text(&traited);
+        assert!(
+            text.ends_with("\n    (1 implementing an interface method)"),
+            "{text}"
+        );
     }
 
     #[test]

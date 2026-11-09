@@ -220,3 +220,23 @@ fn opaque_closures_warn_even_with_complete_alignment_without_changing_proposals(
         assert_eq!(after, before);
     }
 }
+
+#[test]
+fn a_cxx_candidate_says_lambda_where_rust_says_closure() {
+    const OPAQUE: &str = "Lambda bodies are opaque in these graphs; aligned nodes do not establish matching lambda behavior or captures.";
+    for kind in KINDS {
+        let mut facts = facts(kind, 2);
+        facts
+            .iter_mut()
+            .for_each(|f| f.wording = crate::wording::Wording::of("cxx"));
+        let cluster = Cluster {
+            opaque_closure: true,
+            ..cluster(kind, &[1000, 1000], false)
+        };
+        let proposal = retain(raw_proposal(&facts, kind, &cluster));
+        assert_eq!(
+            proposal.counter_evidence.last().map(String::as_str),
+            Some(OPAQUE)
+        );
+    }
+}

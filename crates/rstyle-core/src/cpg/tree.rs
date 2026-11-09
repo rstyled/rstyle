@@ -3,6 +3,7 @@
 use super::model::{
     Definition, FileSpan, Function, Node, NodeKind, Origin, Ref, Symbol, Type, Unit,
 };
+use crate::wording::Wording;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Unit tables by ID.
@@ -10,6 +11,7 @@ pub struct Tables<'a> {
     definitions: BTreeMap<&'a str, &'a Definition>,
     types: BTreeMap<&'a str, &'a Type>,
     unbounded_integers: bool,
+    wording: Wording,
 }
 
 impl<'a> Tables<'a> {
@@ -18,7 +20,13 @@ impl<'a> Tables<'a> {
             definitions: index("definition", &unit.definitions, |d| &d.id)?,
             types: index("type", &unit.types, |t| &t.id)?,
             unbounded_integers: unit.semantics.integer_overflow == "unbounded",
+            wording: Wording::of(&unit.language.name),
         })
+    }
+
+    /// The terms the unit's messages use.
+    pub fn wording(&self) -> Wording {
+        self.wording
     }
 
     /// Whether the unit's integers have no width, so an integer type needs no `bits`.

@@ -9,6 +9,7 @@ use super::extent::{
 use super::facts::Facts;
 use crate::advisory::runtime_bounds::{MAX_NODES, MAX_VARIABLES};
 use crate::runtime_bounds::contracts::ExtentRole;
+use crate::wording::{Message, Wording};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub struct Frame<'a> {
@@ -108,7 +109,7 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
                 .as_deref()
                 .and_then(|ty| self.facts.type_of(ty));
             if ty.is_some_and(|ty| self.mutable_integer_reference(ty)) {
-                self.reason = Some("Mutable numeric-reference binding is unmodeled".into());
+                self.reason = Some(self.wording().text(Message::WritableNumberReference).into());
             }
         }
         self.depth -= 1;
@@ -261,9 +262,7 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
     fn observe(&mut self, expression: &'a Node) -> Visited {
         self.admit_callbacks(expression)?;
         if self.forbidden(expression)? || self.unadmitted_closure(expression) {
-            self.reason = Some(
-                "Unsafe, foreign, closure, assembly or coroutine semantics are unmodeled".into(),
-            );
+            self.reason = Some(self.wording().text(Message::UnmodeledSemantics).into());
         }
         if self.validating {
             self.check_borrow(expression)
@@ -416,17 +415,21 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
             return Some("Implicit dereference-pattern effects are unmodeled");
         }
         if pattern.binding_mode.as_deref() == Some("exclusive") {
-            return Some("Mutable reference pattern can expose a numeric norm");
+            return Some(self.wording().text(Message::WritableReferenceBinding));
         }
         if self
             .facts
             .ty(pattern)
             .is_some_and(|ty| self.mutable_integer_reference(ty))
         {
-            return Some("Mutable numeric-reference binding is unmodeled");
+            return Some(self.wording().text(Message::WritableNumberReference));
         }
 
         None
+    }
+
+    fn wording(&self) -> Wording {
+        self.facts.tables.wording()
     }
 
     fn mutable_integer_reference(&self, ty: &super::super::model::Type) -> bool {
@@ -508,15 +511,14 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
                         .selected
                         .iter()
                         .any(|place| place.root == capture.symbol);
-                    (numeric || selected)
-                        .then_some("Mutable closure capture can expose a numeric norm or extent")
+                    (numeric || selected).then_some(self.wording().text(Message::WrittenCapture))
                 }
                 _ => self
                     .facts
                     .body
                     .symbol(&capture.symbol)
                     .map_or(true, |symbol| symbol.mutable)
-                    .then_some("By-value closure capture of a mutable binding is unmodeled"),
+                    .then_some(self.wording().text(Message::CopiedCapture)),
             };
             if let Some(reason) = problem {
                 self.reason = Some(reason.into());
@@ -592,10 +594,7 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
             _ => expression,
         };
         if (explicit || adjusted) && self.sensitive(operand)? {
-            self.reason = Some(
-                "Mutable or raw borrow can expose a numeric norm or selected extent metadata"
-                    .into(),
-            );
+            self.reason = Some(self.wording().text(Message::WritableReference).into());
         }
 
         Ok(())

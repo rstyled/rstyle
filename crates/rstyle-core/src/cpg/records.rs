@@ -10,6 +10,7 @@ use super::tree::{Tables, generated};
 use crate::advisory::generated_effects::{self, CONNECTED_KEY, Connections};
 use crate::advisory::runtime_bounds::Input;
 use crate::facts::{FnFacts, Pdg, TyShape};
+use crate::wording::Wording;
 use std::collections::BTreeMap;
 
 /// Why a function has no measured facts: nothing original was written to measure.
@@ -82,6 +83,8 @@ pub struct Record {
     pub test: bool,
     /// Why the function's tree isn't all of it, when it isn't.
     pub syntax_gap: Option<&'static str>,
+    /// The terms its language's messages use.
+    pub wording: Wording,
     /// With graphs: what its receiver, parameters and result are, whatever spells them.
     pub signature_shapes: Vec<Option<TyShape>>,
     /// With graphs: every value the frontend knows at a written node, sorted. A constant's use can
@@ -191,7 +194,7 @@ fn read(document: &Document, demand: Demand) -> Result<(Vec<Record>, Failed), St
                 (
                     facts,
                     bounds,
-                    flow_of(document, function, demand),
+                    flow_of(document, function, demand, tables.wording()),
                     defects_of(document, function, demand, (&tables, &sources)),
                 ),
                 (&tables, &sources),
@@ -239,10 +242,15 @@ fn defects_of(
     })
 }
 
-fn flow_of(document: &Document, function: &Function, demand: Demand) -> Option<Derived> {
+fn flow_of(
+    document: &Document,
+    function: &Function,
+    demand: Demand,
+    wording: Wording,
+) -> Option<Derived> {
     demand
         .flow
-        .then(|| super::flow::derive(&document.coverage, function))
+        .then(|| super::flow::derive(&document.coverage, function, wording))
 }
 
 fn record(
@@ -281,6 +289,7 @@ fn record(
         defects,
         test: false,
         syntax_gap: None,
+        wording: tables.wording(),
         signature_shapes: Vec::new(),
         known_values: Vec::new(),
     })
