@@ -681,6 +681,10 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
             return Ok(method.is_some_and(|method| foreign_signature(&callable_modifiers(method))));
         }
         let callee = self.facts.body.child(expression, 0)?;
+        if let Some(function) = self.facts.type_call(expression, callee) {
+            let modifiers = callable_modifiers(function);
+            return Ok(foreign_signature(&modifiers) || modifiers.iter().any(|m| m == "foreign"));
+        }
         let Some(ty) = self.facts.ty(callee) else {
             return Ok(false);
         };

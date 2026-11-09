@@ -2,7 +2,7 @@
 
 use super::super::model::{Dispatch, Node, NodeKind};
 use super::Collector;
-use crate::runtime_bounds::{Action, Callee, Condition, Flow, Value};
+use crate::runtime_bounds::{Action, Argument, Callee, Condition, Flow, Value};
 
 type Lowered = Result<u32, String>;
 
@@ -112,13 +112,23 @@ impl<'a> Collector<'_, '_, 'a> {
             None => "indirect call".into(),
         };
         let (target, operation) = self.call_target(expression, callee);
+        let mut inputs: Vec<Argument> = arguments
+            .iter()
+            .map(|argument| self.argument(argument))
+            .collect::<Result<_, _>>()?;
+        // The value a call of a type makes is its function's receiver, which no argument passes.
+        if self
+            .facts
+            .type_call(expression, callee)
+            .and_then(|function| function.callable.as_ref())
+            .is_some_and(|callable| callable.receiver.is_some())
+        {
+            inputs.insert(0, Argument::Opaque);
+        }
         let action = Action::Call {
             callee: name,
             target,
-            arguments: arguments
-                .iter()
-                .map(|argument| self.argument(argument))
-                .collect::<Result<_, _>>()?,
+            arguments: inputs,
             may_modify: false,
             operation,
         };
@@ -381,7 +391,8 @@ impl<'a> Collector<'_, '_, 'a> {
         )
     }
 
-    /// The callee of a call in function form, as the program names its target.
+    /// The callee of a call in function form, as the program names its target: a function the
+    /// callee names and is typed as, or the function a call of a type runs.
     fn call_target(&self, call: &'a Node, callee: &'a Node) -> (Callee, Option<String>) {
         let path = (callee.kind == NodeKind::Identifier)
             .then(|| self.facts.resolved(callee))
@@ -397,6 +408,7 @@ impl<'a> Collector<'_, '_, 'a> {
             {
                 self.reference_target(call)
             }
+            _ if self.facts.type_call(call, callee).is_some() => self.reference_target(call),
             _ => (Callee::Unresolved, None),
         }
     }
