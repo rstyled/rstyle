@@ -55,6 +55,8 @@ pub struct Argument {
     pub available: BTreeMap<String, Option<String>>,
     /// The variables the argument's own variable was computed from in this function.
     pub sources: BTreeSet<String>,
+    /// A branch chooses whether this call runs.
+    pub conditional: bool,
 }
 
 /// A method's arguments, and the callees it calls, which say how alike two methods are.
@@ -75,6 +77,9 @@ pub(super) fn of(reading: &Reading<'_>) -> Result<Arguments, String> {
     let Some(owner) = reading.function.signature.owner_type.as_deref() else {
         return Ok(Arguments::default());
     };
+    if test_suite(reading, reading.tables.ty(owner)?)? {
+        return Ok(Arguments::default());
+    }
     let mut found = Arguments {
         owner: Some(reading.tables.ty(owner)?.spelling.clone()),
         fields: fields_read(reading)?,
@@ -132,6 +137,30 @@ fn declared_fields(reading: &Reading<'_>) -> Result<BTreeMap<String, BTreeSet<St
 /// How deep embedded fields are followed. Far more than a type nests them.
 const EMBEDDING_DEPTH: usize = 16;
 
+/// Testify runs methods of its embedded Suite even when a shared suite lives in a `.go` file.
+/// Its test cases intentionally vary inputs; they aren't production sibling implementations.
+fn test_suite(reading: &Reading<'_>, owner: &Type) -> Result<bool, String> {
+    let (mut pending, mut seen) = (vec![(owner, 0)], HashSet::new());
+    while let Some((record, depth)) = pending.pop() {
+        let record = pointed_at(reading.tables, record)?;
+        if depth > EMBEDDING_DEPTH || !seen.insert(record.id.as_str()) {
+            continue;
+        }
+        if record.spelling == "github.com/stretchr/testify/suite.Suite" {
+            return Ok(true);
+        }
+        for field in record
+            .fields
+            .iter()
+            .flatten()
+            .filter(|field| field.embedded)
+        {
+            pending.push((reading.tables.ty(&field.ty)?, depth + 1));
+        }
+    }
+    Ok(false)
+}
+
 /// A record's field names, and those of every embedded field's type, as Go selects them.
 fn selectable(reading: &Reading<'_>, record: &Type) -> Result<BTreeSet<String>, String> {
     let (mut found, mut pending, mut seen) = (BTreeSet::new(), vec![(record, 0)], HashSet::new());
@@ -183,10 +212,6 @@ fn arguments_of(
         .iter()
         .map(|argument| written(reading, argument))
         .collect::<Result<Vec<_>, _>>()?;
-    let texts = passed
-        .iter()
-        .map(|argument| source_text(reading, argument))
-        .collect::<Result<Vec<_>, _>>()?;
     let available = available(reading, &point)?;
     let (line, _) = reading.sources.location(span)?;
 
@@ -203,7 +228,7 @@ fn arguments_of(
             position,
             line,
             value: call_values[position].clone(),
-            text: texts[position].clone(),
+            text: source_text(reading, argument)?,
             ty: argument
                 .ty
                 .as_deref()
@@ -214,9 +239,21 @@ fn arguments_of(
             field,
             available: available.clone(),
             sources,
+            conditional: conditional(reading, call),
         });
     }
     Ok(found)
+}
+
+fn conditional(reading: &Reading<'_>, call: &Node) -> bool {
+    let mut at = reading.parents.get(call.id.as_str()).copied();
+    while let Some(node) = at {
+        if matches!(node.kind, NodeKind::If | NodeKind::MatchArm) {
+            return true;
+        }
+        at = reading.parents.get(node.id.as_str()).copied();
+    }
+    false
 }
 
 /// The argument as its siblings would write it: a variable by name, the receiver as `self`, a
@@ -631,6 +668,15 @@ fn agreed_otherwise<'m>(
         .map(|site| argument(site))
         .collect();
     let majority = others.first()?;
+    // A method that passes both values supplies its own counterexample to the sibling pattern.
+    // Different branches can deliberately parse different tokens returned by the same scanner.
+    if argument(deviant).conditional
+        && peers
+            .iter()
+            .any(|site| site.method == deviant.method && argument(site).value == majority.value)
+    {
+        return None;
+    }
     let agree = others.iter().all(|other| other.value == majority.value);
     let methods_calling: BTreeSet<usize> = peers.iter().map(|site| site.method).collect();
 

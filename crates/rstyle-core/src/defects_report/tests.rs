@@ -465,3 +465,62 @@ fn an_argument_its_sibling_methods_disagree_with_is_found_in_what_a_go_frontend_
         "Store's and Auth's differences are deliberate; `options.Kind` holds for a `DeleteOptions` only through its embedded `TypeMeta`"
     );
 }
+
+#[test]
+fn shared_testify_suites_in_regular_go_files_do_not_supply_argument_patterns() {
+    let mut document: Value =
+        serde_json::from_str(include_str!("../cpg/testdata/deviant-argument-go.cpg.json")).unwrap();
+    let types = document["unit"]["types"].as_array_mut().unwrap();
+    let writer = types.iter_mut().find(|ty| ty["id"] == "t36").unwrap();
+    writer["fields"].as_array_mut().unwrap().push(json!({
+        "name": "Suite", "type": "type:test-suite", "embedded": true
+    }));
+    types.push(json!({"id": "type:test-suite", "kind": "record",
+        "spelling": "github.com/stretchr/testify/suite.Suite", "fields": []}));
+    let report = report_of(vec![document], &Config::default());
+    assert!(report.unknown.is_empty(), "{:?}", report.unknown);
+    assert!(
+        report
+            .defects
+            .iter()
+            .all(|row| row.rule != "deviant_argument")
+    );
+}
+
+#[test]
+fn a_parser_branch_can_deliberately_use_a_different_tokens_literal() {
+    let document: Value = serde_json::from_str(include_str!(
+        "../cpg/testdata/deviant-argument-branches.cpg.json"
+    ))
+    .unwrap();
+    let report = report_of(vec![document], &Config::default());
+    assert!(report.unknown.is_empty(), "{:?}", report.unknown);
+    assert!(
+        report
+            .defects
+            .iter()
+            .all(|row| row.rule != "deviant_argument")
+    );
+}
+
+#[test]
+fn a_named_suite_field_does_not_make_a_production_type_a_test_suite() {
+    let mut document: Value =
+        serde_json::from_str(include_str!("../cpg/testdata/deviant-argument-go.cpg.json")).unwrap();
+    let types = document["unit"]["types"].as_array_mut().unwrap();
+    let writer = types.iter_mut().find(|ty| ty["id"] == "t36").unwrap();
+    writer["fields"].as_array_mut().unwrap().push(json!({
+        "name": "Suite", "type": "type:test-suite"
+    }));
+    types.push(json!({"id": "type:test-suite", "kind": "record",
+        "spelling": "github.com/stretchr/testify/suite.Suite", "fields": []}));
+    let report = report_of(vec![document], &Config::default());
+    assert_eq!(
+        report
+            .defects
+            .iter()
+            .filter(|row| row.rule == "deviant_argument")
+            .count(),
+        3
+    );
+}

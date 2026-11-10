@@ -37,6 +37,7 @@ fn passing(value: &str, variable: Option<&str>, available: &[&str]) -> Argument 
         field: value.split_once('.').map(|(_, field)| field.to_owned()),
         available: typed(available),
         sources: BTreeSet::new(),
+        conditional: false,
     }
 }
 
@@ -109,6 +110,29 @@ fn a_variable_passed_where_every_sibling_passes_another_is_reported() {
                 .to_owned()
         )]
     );
+}
+
+#[test]
+fn a_method_that_already_uses_both_values_is_not_a_deviant_sibling() {
+    let mut deviant = name();
+    deviant.conditional = true;
+    let mut methods = writer(deviant);
+    methods.last_mut().unwrap().arguments.arguments.push(kind());
+    assert_eq!(found(&methods), []);
+}
+
+#[test]
+fn an_unguarded_difference_within_one_method_is_still_reported() {
+    let mut methods = writer(name());
+    methods.last_mut().unwrap().arguments.arguments.push(kind());
+    assert_eq!(found(&methods).len(), 1);
+}
+
+#[test]
+fn repeated_uses_in_other_methods_do_not_explain_the_deviant_argument() {
+    let mut methods = writer(name());
+    methods[0].arguments.arguments.push(kind());
+    assert_eq!(found(&methods).len(), 1);
 }
 
 #[test]

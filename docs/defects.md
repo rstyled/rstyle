@@ -133,6 +133,12 @@ Raising `min_methods` misses types with only a few parallel methods, a common sh
 
 A difference is reported only when nothing but a slip explains it:
 
+A call inside a branch stays quiet when its own method also passes the siblings' value to that
+callee and argument. A parser can deliberately convert a different token on another branch.
+This conservative check can miss a wrong argument in such a branch. Methods on types that embed
+`github.com/stretchr/testify/suite.Suite` are test code even in a shared, non-`_test.go` file;
+they do not supply sibling patterns. Other defect rules still examine these methods.
+
 | Case | Why it stays quiet |
 | --- | --- |
 | A literal or a constant, such as `http.StatusNoContent` where siblings pass `http.StatusOK` | A different value is a choice; a slip reads the wrong variable |
