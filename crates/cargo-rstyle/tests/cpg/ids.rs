@@ -1,5 +1,6 @@
-//! The Rust frontend's node and symbol IDs. They begin with a prefix taken from the function's
-//! stable identity, so a function's IDs stay the same as items are added and removed around it.
+//! The Rust frontend's node and symbol IDs and its definitions' compiler identities. None holds
+//! a position among the crate's items, so neither changes as items are added and removed
+//! around it.
 
 use super::*;
 use sha2::{Digest, Sha256};
@@ -10,9 +11,8 @@ const KEPT: &str = "pub fn kept(items: &[u32]) -> u32 {\n    let mut total = 0;\
 /// Two paths whose sha256 digests share their first 8 hex digits, `4102858f`.
 const CLASHING: [&str; 2] = ["clash_5072", "clash_52422"];
 
-/// The functions `cpg emit` writes for a crate named `ids` whose library is `source`, by
-/// stable identity.
-fn functions(source: &str) -> BTreeMap<String, Value> {
+/// The documents `cpg emit` writes for a crate named `ids` whose library is `source`.
+fn emitted(source: &str) -> Vec<Value> {
     let dir = tempfile::tempdir().unwrap();
     let write = |path: &str, text: &str| {
         let path = dir.path().join(path);
@@ -30,9 +30,13 @@ fn functions(source: &str) -> BTreeMap<String, Value> {
         &["rstyle", "cpg", "emit", "--out", out.to_str().unwrap()],
     );
     assert_eq!(emit.status.code(), Some(0), "{emit:?}");
+    parsed(&documents_in(&out))
+}
 
+/// The functions `cpg emit` writes for `source`, by stable identity.
+fn functions(source: &str) -> BTreeMap<String, Value> {
     let mut functions = BTreeMap::new();
-    for document in parsed(&documents_in(&out)) {
+    for document in emitted(source) {
         let unit = &document["unit"];
         let identity = |definition: &Value| {
             unit["definitions"]
@@ -48,6 +52,23 @@ fn functions(source: &str) -> BTreeMap<String, Value> {
         }
     }
     functions
+}
+
+/// Each definition's `rust:compiler-identity` in the documents for `source`, by stable
+/// identity, without `ident_span`, which moves with the text before it.
+fn compiler_identities(source: &str) -> BTreeMap<String, Value> {
+    let mut identities = BTreeMap::new();
+    for document in emitted(source) {
+        for definition in document["unit"]["definitions"].as_array().unwrap() {
+            let mut identity = definition["extensions"]["rust:compiler-identity"].clone();
+            if let Some(fields) = identity.as_object_mut() {
+                fields.remove("ident_span");
+            }
+            let key = definition["stable_identity"].as_str().unwrap().to_owned();
+            identities.insert(key, identity);
+        }
+    }
+    identities
 }
 
 /// A function's root and the IDs of its nodes and symbols, in order.
@@ -73,12 +94,15 @@ fn sha256(text: &str) -> String {
         .collect()
 }
 
+/// `KEPT` after a struct and a function.
+fn with_items_before() -> String {
+    format!("pub struct Added;\n\npub fn first() -> u32 {{\n    1\n}}\n\n{KEPT}")
+}
+
 #[test]
 fn a_function_keeps_its_ids_when_items_are_added_before_it() {
     let before = functions(KEPT);
-    let after = functions(&format!(
-        "pub struct Added;\n\npub fn first() -> u32 {{\n    1\n}}\n\n{KEPT}"
-    ));
+    let after = functions(&with_items_before());
     assert_eq!(after.len(), before.len() + 1);
     assert_eq!(ids(&after["ids::kept"]), ids(&before["ids::kept"]));
 }
@@ -119,5 +143,24 @@ fn ids_begin_with_the_sha256_of_the_function_identity() {
                 "{identity}: symbol {id}"
             );
         }
+    }
+}
+
+#[test]
+fn compiler_identities_hold_nothing_that_moves_with_other_items() {
+    let before = compiler_identities(KEPT);
+    let after = compiler_identities(&with_items_before());
+    assert_eq!(after["ids::kept"], before["ids::kept"]);
+    let path = before["ids::kept"]["def_path"].as_str().unwrap();
+    assert!(
+        path.starts_with("ids[") && path.ends_with("]::kept"),
+        "{path}"
+    );
+    // A `DefId` holds its crate's number and its index in this compilation.
+    for (identity, fields) in &after {
+        assert!(
+            !fields.to_string().contains("DefId("),
+            "{identity}: {fields}"
+        );
     }
 }

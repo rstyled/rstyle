@@ -105,7 +105,8 @@ that reads documents, as `--filter <frontend>:<name>`, replays it too, which nee
 or a compiler. One that reads the source is refused. `--format json` prints plain JSON to stdout, with `run` naming where
 the run was saved. Two runs over the same source give byte-identical reports and SARIF. The Rust frontend
 derives a function's node and symbol IDs from its path rather than its position in the crate, so adding or
-removing an item leaves other functions' IDs as they were.
+removing an item leaves other functions' IDs as they were. For the same reason a definition's
+`rust:compiler-identity` names it, and its parent, by def path rather than by `DefId`.
 
 ## SARIF
 

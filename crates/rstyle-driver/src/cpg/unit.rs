@@ -1132,11 +1132,13 @@ fn compiler_facts(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> Vec<(&'stati
 }
 
 // rstyle-allow(mutation_per_target): builds one identity record key by key
-/// The compiler's own identity of a definition, as the frontend's facts print it:
-/// its `DefId`, `DefKind`, `DefPathHash`, crate name and, for another crate, its hash.
+/// The compiler's own identity of a definition, as the frontend's facts print it: its def
+/// path with its crate's disambiguator, `DefKind`, `DefPathHash`, crate name and, for another
+/// crate, its hash. The path is a `DefId` as the compiler prints it, without the crate number
+/// and index, which hold only within one compilation and move whenever an item is added.
 fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> serde_json::Map<String, Value> {
     let mut identity = serde_json::Map::new();
-    identity.insert("def_id".into(), json!(format!("{def_id:?}")));
+    identity.insert("def_path".into(), json!(tcx.def_path_debug_str(def_id)));
     identity.insert("def_kind".into(), json!(format!("{kind:?}")));
     if let Some(name) = tcx.get_diagnostic_name(def_id) {
         identity.insert("diagnostic".into(), json!(name.as_str()));
@@ -1156,7 +1158,7 @@ fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> serde_json::M
     if def_id.is_local()
         && let Some(parent) = tcx.opt_parent(def_id)
     {
-        identity.insert("parent".into(), json!(format!("{parent:?}")));
+        identity.insert("parent".into(), json!(tcx.def_path_debug_str(parent)));
     }
     if !def_id.is_local() {
         identity.insert(
