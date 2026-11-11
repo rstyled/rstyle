@@ -1,8 +1,9 @@
 //! What the rules read of a whole run: its authored functions, with their effects
-//! completed through the functions macros write. No rule reports a macro's function,
-//! since nothing original was written to change, but what it does reaches its callers.
+//! completed through the functions macros write and the bodies modules and types run. No
+//! rule reports either, since neither was written as a function, but what each does reaches
+//! its callers.
 
-use super::records::{Measured, Record};
+use super::records::{self, Measured, Record};
 use crate::advisory::generated_effects::Observation;
 use crate::config::Config;
 use crate::facts::{Edge, FnFacts};
@@ -79,18 +80,22 @@ pub fn run_inputs(records: Vec<Record>, config: &Config) -> Result<RunInputs, St
     // A unit compiled twice, as a library and its test harness are, writes the same function.
     let mut generated = BTreeMap::new();
     for record in records {
-        match record.measured {
-            Measured::Generated(observation) => {
-                if observation.generated_file
-                    || !excluded.is_excluded(std::path::Path::new(&record.path))
-                {
-                    let wording = record.wording;
-                    generated
-                        .entry(record.identity)
-                        .or_insert((observation, wording));
-                }
+        let observation = match record.measured {
+            Measured::Generated(observation) => observation,
+            // A body is its author's, but no rule reads it, so its effects count as a macro's do.
+            Measured::Body(facts) => {
+                let at = (facts.line, facts.column);
+                Box::new(records::observed(*facts, at, false))
             }
-            _ => authored.extend(super::authored(record)),
+            measured => {
+                authored.extend(super::authored(Record { measured, ..record }));
+                continue;
+            }
+        };
+        if observation.generated_file || !excluded.is_excluded(std::path::Path::new(&record.path)) {
+            generated
+                .entry(record.identity)
+                .or_insert((observation, record.wording));
         }
     }
     let facts = crate::selected_observations(authored, config)?;

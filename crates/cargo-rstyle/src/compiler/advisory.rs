@@ -969,7 +969,7 @@ fn document_observation(
         Measured::Unavailable(reason) => Ok(Observation::Unavailable {
             reason: reason.clone(),
         }),
-        Measured::Generated(_) => Ok(Observation::Unavailable {
+        Measured::Generated(_) | Measured::Body(_) => Ok(Observation::Unavailable {
             reason: UNMEASURED.into(),
         }),
     }

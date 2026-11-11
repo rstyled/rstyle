@@ -113,7 +113,8 @@ impl Snapshot {
             self.tests.entry(record.identity).or_insert(record.source);
             return;
         }
-        let Measured::Known(mut facts) = record.measured else {
+        // A body wasn't written as a function, but it's its author's code, so it compares as one.
+        let (Measured::Known(mut facts) | Measured::Body(mut facts)) = record.measured else {
             self.not_compared
                 .entry(record.identity)
                 .or_insert(record.source);

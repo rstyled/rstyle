@@ -93,6 +93,11 @@ fn observed(function: &crate::compiler::Function) -> Result<Option<Observation>,
     use rstyle_core::cpg::records::Measured;
     Ok(match &function.facts.document().record.measured {
         Measured::Generated(observation) => Some((**observation).clone()),
+        Measured::Body(facts) => Some(rstyle_core::cpg::records::observed(
+            (**facts).clone(),
+            (facts.line, facts.column),
+            false,
+        )),
         _ => None,
     })
 }

@@ -122,6 +122,9 @@ of these added a hard fork to a package-level `var`.
 - A file with both a function change and another change is only reported for the function.
 - What a macro expands to is compared by its graph, not its values, since those can hold anything a build knows, such as
   its own revision.
+- What a module or a type runs as it's loaded or defined, a [body](frontends.md#bodies), is compared as a function, by
+  its text less the functions written in it. A Python module's statements are its `<module>` and a class's are its
+  `<body>`, so a method's change isn't its class's or module's too.
 - Test functions are counted but not reported, where a frontend [marks its test files](defects.md). Generated functions
   are counted and not compared. `exclude` removes paths from both runs.
 
