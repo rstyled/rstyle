@@ -51,6 +51,7 @@ fn pull_request_url(value: &str) -> Result<String, String> {
     {
         return Err(invalid());
     }
+
     Ok(root.to_owned())
 }
 
