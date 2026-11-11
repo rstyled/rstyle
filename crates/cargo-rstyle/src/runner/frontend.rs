@@ -187,18 +187,17 @@ impl Frontend {
         // The frontend must hold the only write end, or EOF would never arrive.
         drop(writer);
 
-        std::thread::scope(|scope| {
-            // Drain stderr concurrently: a parser can fill its pipe before closing capture.
-            let diagnostics = scope.spawn(|| crate::diagnostic_process::stderr_tail(stderr));
-            let result = self.receive_stream((child, reader), demand, saving);
-            let diagnostics = diagnostics
-                .join()
-                .map_err(|_| "Frontend stderr reader panicked".to_string())?
-                .map_err(|error| format!("Cannot read frontend stderr: {error}"))?;
-            result.map_err(|error| match diagnostics.trim() {
-                "" => error,
-                details => format!("{error}\nFrontend stderr:\n{details}"),
-            })
+        let mut diagnostics = Ok(String::new());
+        let result = std::thread::scope(|scope| {
+            // Scope joins the reader before diagnostics is used; stderr drains while capture runs.
+            scope.spawn(|| diagnostics = crate::diagnostic_process::stderr_tail(stderr));
+            self.receive_stream((child, reader), demand, saving)
+        });
+        let diagnostics =
+            diagnostics.map_err(|error| format!("Cannot read frontend stderr: {error}"))?;
+        result.map_err(|error| match diagnostics.trim() {
+            "" => error,
+            details => format!("{error}\nFrontend stderr:\n{details}"),
         })
     }
 
