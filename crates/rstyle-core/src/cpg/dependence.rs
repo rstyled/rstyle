@@ -3,8 +3,8 @@
 //! iteration gives control edges. There are no execution-order edges.
 
 use super::model::{
-    DefinitionKind, Dispatch, Literal, Node, NodeKind, RefStatus, RefTarget, Scope, TargetKind,
-    TypeKind,
+    DefinitionKind, Dispatch, Literal, Node, NodeKind, Ref, RefStatus, RefTarget, Scope,
+    TargetKind, TypeKind,
 };
 use super::shapes::{callable_shape, shape};
 use super::source::Sources;
@@ -387,7 +387,10 @@ impl<'a> Graph<'_, 'a> {
         let (callee, arguments) = children
             .split_first()
             .ok_or_else(|| format!("Call {} has no callee", node.id))?;
-        let target = self.function_item(callee)?;
+        let target = match self.function_item(callee)? {
+            Some(target) => Some(target),
+            None => self.statically_called(reference)?,
+        };
         let constructs = matches!(
             self.body
                 .reference(&callee.id)
@@ -412,6 +415,29 @@ impl<'a> Graph<'_, 'a> {
         self.operands(index, arguments, 0)?;
 
         Ok(Some(index))
+    }
+
+    /// The function a call resolves to statically by its own reference, for a callee whose type
+    /// names none: an overloaded Python function, such as `subprocess.run`, has no one function
+    /// type, but its call still names the definition it runs, as its events read it.
+    fn statically_called(&self, reference: Option<&'a Ref>) -> Result<Option<&'a str>, String> {
+        let id = reference
+            .filter(|reference| {
+                reference.status == RefStatus::Resolved
+                    && matches!(reference.dispatch, None | Some(Dispatch::Static))
+            })
+            .and_then(|reference| reference.target.as_ref())
+            .filter(|target| matches!(target.kind, TargetKind::Definition))
+            .and_then(|target| target.id.as_deref());
+        let Some(id) = id else {
+            return Ok(None);
+        };
+        let definition = self.tables.definition(id)?;
+        Ok(matches!(
+            definition.kind,
+            DefinitionKind::Function | DefinitionKind::Method
+        )
+        .then_some(id))
     }
 
     /// The function a callee's type is the item type of, when it is one.
