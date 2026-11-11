@@ -110,8 +110,9 @@ File links open that file's diff. Removed functions use the base (left) line; ot
 use the head (right) line. Without this option, paths and names stay plain text.
 This replaces `--source-url`; update workflow invocations when updating the analyzer.
 Callees drop the directories of their import path, so
-`go::github.com/o/r/native.load` reads as `go::native.load`. The text and JSON keep the full identity a `[[risk.calls]]`
-rule names.
+`go::github.com/o/r/native.load` reads as `go::native.load`. A C++ callee drops its signature and keeps the scope it's
+in, so `cxx::llvm::sys::fs::remove(const llvm::Twine &, bool)` reads as `fs::remove`. The text and JSON keep the full
+identity a `[[risk.calls]]` rule names.
 
 ## What it can't see
 

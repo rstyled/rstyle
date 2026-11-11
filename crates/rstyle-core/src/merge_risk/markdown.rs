@@ -478,8 +478,11 @@ fn nonzero(count: usize, one: &str, many: &str) -> Option<String> {
 /// its type, as `Links::to` for `markdown::Links::<'_>::to`, `ChangeReport::markdown` for
 /// `markdown::<impl merge_risk::ChangeReport>::markdown` and `slice::join` for
 /// `alloc::slice::{impl#0}::join`. A Go identity drops its import path's directories, as
-/// `native.load` for `go::github.com/o/r/native.load`.
+/// `native.load` for `go::github.com/o/r/native.load`. A C++ identity is read by [`cxx_name`].
 fn name(identity: &str) -> String {
+    if let Some(path) = cxx_path(identity) {
+        return cxx_name(&path);
+    }
     if let Some((owner, item)) = impl_item(identity) {
         return format!("{owner}::{item}");
     }
@@ -497,6 +500,40 @@ fn name(identity: &str) -> String {
     match parts.as_slice() {
         [.., owner, item] if owner.starts_with(char::is_uppercase) => format!("{owner}::{item}"),
         _ => short(parts.last().copied().unwrap_or(identity)),
+    }
+}
+
+/// A C++ callee's scopes and name, without what its signature adds: its template arguments,
+/// parameters, qualifiers and return type, any of which can hold a `::` of its own.
+/// `cxx::std::get_if<typename>(variant<…> *) -> typename add_pointer<…>::type` is `std::get_if`.
+fn cxx_path(identity: &str) -> Option<String> {
+    let signature = identity.strip_prefix("cxx::")?;
+    let mut angles = 0_usize;
+    let mut path = String::with_capacity(signature.len());
+    for character in signature.chars() {
+        match character {
+            '<' => angles += 1,
+            '>' => angles = angles.saturating_sub(1),
+            // A scope such as `(anonymous namespace)` starts with one, and parameters follow a name.
+            '(' if angles == 0 && !path.is_empty() && !path.ends_with("::") => break,
+            _ if angles == 0 => path.push(character),
+            _ => {}
+        }
+    }
+    Some(path)
+}
+
+/// A C++ name with the scope it's in, since a type in C++ is as often lowercase as not and a
+/// namespace tells `fs::remove` from `filesystem::remove`. A file or an anonymous namespace says
+/// nothing a reader can use, so a name in one stands alone.
+fn cxx_name(path: &str) -> String {
+    let mut parts = path.rsplit("::");
+    let item = parts.next().unwrap_or(path);
+    match parts.next() {
+        Some(scope) if !scope.starts_with('(') && !scope.contains(['/', '.']) => {
+            format!("{scope}::{item}")
+        }
+        _ => item.to_owned(),
     }
 }
 
