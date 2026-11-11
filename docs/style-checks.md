@@ -17,8 +17,8 @@ analyzed function.
 
 | Rule id | Flags |
 | --- | --- |
-| `fn_length` | Functions with too many code lines. Blank and comment lines don't count. |
-| `fn_params` | Functions with too many parameters. `self` doesn't count unless `fn_params.count_self` is set. |
+| `fn_length` | Functions with too many code lines. Blank and comment lines don't count. A [strict style](#strict-style) rule that's on by default. |
+| `fn_params` | Functions with too many parameters. `self` doesn't count unless `count_self` is set. A [strict style](#strict-style) rule that's on by default. |
 | `cyclomatic_complexity` | Functions whose cyclomatic score, which counts source decisions, is above the limit. |
 | `cognitive_complexity` | Functions whose cognitive score, which also charges nesting, is above the limit. |
 | `mutation_per_target` | Too many writes or `&mut` borrows of one root: a local, parameter or `self`. |
@@ -57,9 +57,6 @@ is a commented example, though it raises the complexity limits above their defau
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `exclude` | `["target/**"]` | Paths and globs of original source to skip entirely, relative to the root reports show paths from. A directory takes everything under it. A callee they remove keeps its callers' effects incomplete. A build script's output is generated code, which they don't select. `--exclude` on `rstyle go`, `cxx`, `py` and `rust` adds to it for one run, and [the runner guide](frontends.md#leaving-files-out) has the syntax. |
-| `fn_length.max_lines` | 50 | Code lines per function |
-| `fn_params.max_params` | 4 | Parameters per function |
-| `fn_params.count_self` | `false` | Count `self` as a parameter |
 | `complexity.max_cyclomatic` | 12 | Report cyclomatic scores above this |
 | `complexity.max_cognitive` | 12 | Report cognitive scores above this |
 | `mutation_budget.max_mutations_per_target` | 3 | Writes or `&mut` borrows of one root |
@@ -75,7 +72,7 @@ is a commented example, though it raises the complexity limits above their defau
 | `ignored_result.min_calls` | 5 | Fewest calls of a callee that say anything. At 90%, one drop already takes 10 |
 | `grouping.caller_rules` | `["fn_params"]` | Rules whose fix also edits the function's callers |
 | `grouping.caller_hops` | 1 | How many caller hops those fixes reach |
-| `strict_style.*` | off | See [strict style](#strict-style) |
+| `strict_style.*` | see [strict style](#strict-style) | `fn_length` and `fn_params` are on, and the rest are off |
 
 The default weights are `mutation = 1`, `io = 3`, `network = 3`, `global = 2`, `unsafe = 4`, `time = 1`,
 `random = 1`, `panic = 0` and `unknown = 1`.
@@ -115,10 +112,14 @@ are [`dead_store`, `ignored_result` and `taint_flow`](defects.md).
 
 ## Strict style
 
-These rules are opinions about how code could be shaped, not limits it has passed, and plenty of good code disagrees with
-them. So each is off until its table under `[strict_style]` in `rstyle.toml` turns it on, and says how much it takes:
+These rules are about how code is shaped. Each has a table under `[strict_style]` in `rstyle.toml` with an `enabled`
+switch and says how much it takes. `fn_length` and `fn_params` are on by default, with the limits below. The rest are
+opinions that plenty of good code disagrees with, so each is off until its table turns it on:
 
 ```toml
+[strict_style.fn_length]
+max_lines = 80
+
 [strict_style.guard_clause]
 enabled = true
 min_nested_statements = 3
@@ -127,6 +128,28 @@ min_nested_statements = 3
 A rule that's on behaves like any other here: it reports through `check`, fails the run, shows up in `check.sarif` and
 baselines, and `rstyle-allow` silences it for a function. Every language gets them from the same facts. A rule that's off
 is left out of what a baseline compares, whatever its other settings hold.
+
+An [override](../README.md#per-path-overrides) can set `fn_length`, `fn_params` and `fn_spacing` for some paths, as
+`strict_style.fn_params = { max_params = 6 }`. The other strict style rules can't be set by path.
+
+### `fn_length`
+
+A function with too many code lines. Blank lines and comments don't count.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `true` | |
+| `max_lines` | 50 | Code lines per function |
+
+### `fn_params`
+
+A function with too many parameters.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `true` | |
+| `max_params` | 4 | Parameters per function |
+| `count_self` | `false` | Count `self` as a parameter |
 
 ### `fn_spacing`
 
@@ -138,9 +161,6 @@ blank line in the signature counts too.
 | --- | --- | --- |
 | `enabled` | `false` | |
 | `min_statements` | 5 | Bodies with this many top-level statements, the tail expression included, need a blank line somewhere |
-
-Unlike the other strict style rules, an [override](../README.md#per-path-overrides) can set it for some paths, as
-`strict_style.fn_spacing = { enabled = false }`.
 
 ### `guard_clause`
 

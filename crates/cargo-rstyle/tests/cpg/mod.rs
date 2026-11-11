@@ -83,7 +83,7 @@ fn cpg_check_reports_rule_violations() {
 fn cpg_check_applies_an_explicit_config() {
     let dir = tempfile::tempdir().unwrap();
     let config = dir.path().join("rstyle.toml");
-    std::fs::write(&config, "[fn_params]\nmax_params = 1\n").unwrap();
+    std::fs::write(&config, "[strict_style.fn_params]\nmax_params = 1\n").unwrap();
     let output = check(&[example()], &["--config", config.to_str().unwrap()]);
     assert_eq!(output.status.code(), Some(1), "{output:?}");
     assert!(stdout(&output).contains("fn_params"), "{}", stdout(&output));

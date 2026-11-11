@@ -10,8 +10,6 @@ pub use overrides::Override;
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     pub exclude: Excludes,
-    pub fn_length: FnLengthConfig,
-    pub fn_params: FnParamsConfig,
     pub complexity: ComplexityConfig,
     pub mutation_budget: MutationBudgetConfig,
     pub side_effects: SideEffectsConfig,
@@ -26,8 +24,7 @@ pub struct Config {
     #[serde(skip_serializing)]
     pub risk: RiskConfig,
     pub grouping: GroupingConfig,
-    /// Left out of what a baseline compares while nothing is on, so a project that hasn't asked for
-    /// these rules sees no change in its policy. Turning one on is one.
+    /// Left out of what a baseline compares while every rule in it is off.
     #[serde(skip_serializing_if = "StrictStyleConfig::all_off")]
     pub strict_style: StrictStyleConfig,
     /// Per-path rule settings, merged onto the base in declaration order. Left out of what a
@@ -39,12 +36,18 @@ pub struct Config {
     base: Table,
 }
 
-/// Opinions about how code could be shaped rather than limits it passed, so each is off unless a
-/// project turns it on. One that's on reports and fails a run like any other style rule. A rule
-/// that's off says nothing about a policy, whatever its other settings hold.
+/// Rules about how code is shaped, each with its own `enabled` switch. `fn_length` and `fn_params`
+/// are on unless a project turns them off. The rest are opinions plenty of good code disagrees
+/// with, so they're off unless a project turns them on. One that's on reports and fails a run like
+/// any other style rule. A rule that's off says nothing about a policy, whatever its other settings
+/// hold.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct StrictStyleConfig {
+    #[serde(skip_serializing_if = "FnLengthConfig::is_off")]
+    pub fn_length: FnLengthConfig,
+    #[serde(skip_serializing_if = "FnParamsConfig::is_off")]
+    pub fn_params: FnParamsConfig,
     #[serde(skip_serializing_if = "FnSpacingConfig::is_off")]
     pub fn_spacing: FnSpacingConfig,
     #[serde(skip_serializing_if = "GuardClauseConfig::is_off")]
@@ -57,10 +60,61 @@ pub struct StrictStyleConfig {
 
 impl StrictStyleConfig {
     fn all_off(&self) -> bool {
-        !self.fn_spacing.enabled
+        !self.fn_length.enabled
+            && !self.fn_params.enabled
+            && !self.fn_spacing.enabled
             && !self.guard_clause.enabled
             && !self.primitive_obsession.enabled
             && !self.value_object.enabled
+    }
+}
+
+/// A function with too many code lines. Blank and comment lines don't count.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct FnLengthConfig {
+    pub enabled: bool,
+    pub max_lines: usize,
+}
+
+impl FnLengthConfig {
+    fn is_off(&self) -> bool {
+        !self.enabled
+    }
+}
+
+impl Default for FnLengthConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_lines: 50,
+        }
+    }
+}
+
+/// A function with too many parameters.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct FnParamsConfig {
+    pub enabled: bool,
+    pub max_params: usize,
+    /// Count `self` as a parameter, rather than as the object the function is called on.
+    pub count_self: bool,
+}
+
+impl FnParamsConfig {
+    fn is_off(&self) -> bool {
+        !self.enabled
+    }
+}
+
+impl Default for FnParamsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_params: 4,
+            count_self: false,
+        }
     }
 }
 
@@ -372,18 +426,6 @@ impl Default for Excludes {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct FnLengthConfig {
-    pub max_lines: usize,
-}
-
-impl Default for FnLengthConfig {
-    fn default() -> Self {
-        Self { max_lines: 50 }
-    }
-}
-
 /// Where a project's own input is dangerous.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -409,22 +451,6 @@ pub struct TaintConfig {
     /// Calls that are no end of a flow here, whatever a frontend's models say: a command-line tool
     /// is meant to read its own environment. A model's sanitizer named here cleans nothing.
     pub ignored: Vec<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct FnParamsConfig {
-    pub max_params: usize,
-    pub count_self: bool,
-}
-
-impl Default for FnParamsConfig {
-    fn default() -> Self {
-        Self {
-            max_params: 4,
-            count_self: false,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -637,16 +663,25 @@ impl Default for GroupingConfig {
     }
 }
 
-/// Where `[fn_spacing]` went, for a config written before it became a strict style rule: the
-/// unknown-key error alone wouldn't say.
-const FN_SPACING_MOVED: &str =
-    "`fn_spacing` is now `strict_style.fn_spacing`, and off unless `enabled = true`";
+/// Sections that became strict style rules. A config written before gets told where each went,
+/// which the unknown-key error alone wouldn't say.
+const MOVED_TO_STRICT_STYLE: &[&str] = &["fn_length", "fn_params", "fn_spacing"];
+
+/// Where a moved section in `table` went, if it names one.
+fn moved_to_strict_style(table: &Table) -> Option<String> {
+    let key = MOVED_TO_STRICT_STYLE
+        .iter()
+        .find(|key| table.contains_key(**key))?;
+    Some(format!(
+        "`{key}` is now `strict_style.{key}`, which says whether it's `enabled`"
+    ))
+}
 
 impl Config {
     pub fn parse(input: &str) -> Result<Self, toml::de::Error> {
         let mut base: Table = toml::from_str(input)?;
-        if base.contains_key("fn_spacing") {
-            return Err(serde::de::Error::custom(FN_SPACING_MOVED));
+        if let Some(moved) = moved_to_strict_style(&base) {
+            return Err(serde::de::Error::custom(moved));
         }
 
         let config = Self::deserialize(Value::Table(base.clone()))?;
@@ -691,9 +726,47 @@ mod tests {
     #[test]
     fn empty_config_gives_defaults() {
         let config = Config::parse("").unwrap();
-        assert_eq!(config.fn_length.max_lines, 50);
-        assert_eq!(config.fn_params.max_params, 4);
         assert_eq!(config.side_effects.weights.io, 3);
+    }
+
+    #[test]
+    fn fn_length_and_fn_params_are_strict_style_rules_on_with_their_limits() {
+        let rules = Config::parse("").unwrap().strict_style;
+        assert!(rules.fn_length.enabled);
+        assert_eq!(rules.fn_length.max_lines, 50);
+        assert!(rules.fn_params.enabled);
+        assert_eq!(rules.fn_params.max_params, 4);
+        assert!(!rules.fn_params.count_self);
+
+        let set = "[strict_style.fn_length]\nenabled = false\n\
+                   [strict_style.fn_params]\nmax_params = 6\ncount_self = true";
+        let rules = Config::parse(set).unwrap().strict_style;
+        assert!(!rules.fn_length.enabled);
+        assert_eq!(rules.fn_length.max_lines, 50);
+        assert!(rules.fn_params.enabled);
+        assert_eq!(rules.fn_params.max_params, 6);
+        assert!(rules.fn_params.count_self);
+    }
+
+    #[test]
+    fn sections_that_became_strict_style_rules_say_where_they_went() {
+        for (key, old) in [
+            ("fn_length", "[fn_length]\nmax_lines = 80"),
+            ("fn_params", "[fn_params]\nmax_params = 6"),
+            ("fn_spacing", "[fn_spacing]\nmin_statements = 5"),
+            (
+                "fn_length",
+                "[[overrides]]\npaths = ['a']\nfn_length = { max_lines = 80 }",
+            ),
+            (
+                "fn_spacing",
+                "[[overrides]]\npaths = ['a']\nfn_spacing = { min_statements = 3 }",
+            ),
+        ] {
+            let error = Config::parse(old).unwrap_err().to_string();
+            let moved = format!("`{key}` is now `strict_style.{key}`");
+            assert!(error.contains(&moved), "{old}: {error}");
+        }
     }
 
     #[test]
@@ -708,26 +781,18 @@ mod tests {
             .fn_spacing;
         assert!(on.enabled);
         assert_eq!(on.min_statements, 3);
-
-        for old in [
-            "[fn_spacing]\nmin_statements = 5",
-            "[[overrides]]\npaths = ['a']\nfn_spacing = { min_statements = 3 }",
-        ] {
-            let error = Config::parse(old).unwrap_err().to_string();
-            assert!(error.contains("strict_style.fn_spacing"), "{old}: {error}");
-        }
     }
 
     #[test]
     fn more_exclusions_join_the_configured_ones_and_reach_every_path() {
         let mut config = Config::parse(
-            "exclude = ['gen/**']\n[[overrides]]\npaths = ['a']\nfn_length = { max_lines = 9 }",
+            "exclude = ['gen/**']\n[[overrides]]\npaths = ['a']\nstrict_style.fn_length = { max_lines = 9 }",
         )
         .unwrap();
         config.exclude_also(&["old.py".into(), "gen/**".into()]);
         assert_eq!(config.exclude.0, ["gen/**", "old.py"]);
         let policy = config.for_path("a/b.rs");
-        assert_eq!(policy.fn_length.max_lines, 9);
+        assert_eq!(policy.strict_style.fn_length.max_lines, 9);
         assert_eq!(policy.exclude.0, ["gen/**", "old.py"]);
 
         let mut default = Config::default();
@@ -736,14 +801,22 @@ mod tests {
     }
 
     #[test]
-    fn a_baseline_compares_strict_style_only_once_a_rule_is_on() {
+    fn a_baseline_compares_a_strict_style_rule_only_while_it_is_on() {
         let policy = |input: &str| serde_json::to_value(Config::parse(input).unwrap()).unwrap();
-        let off = policy("[strict_style.guard_clause]\nenabled = false");
-        assert!(off.get("strict_style").is_none(), "{off}");
-        assert_eq!(off, policy(""));
+        let default = policy("");
+        let rules: Vec<_> = default["strict_style"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .collect();
+        assert_eq!(rules, ["fn_length", "fn_params"], "{default}");
+        assert_eq!(default["strict_style"]["fn_length"]["max_lines"], 50);
+        assert_eq!(default["strict_style"]["fn_params"]["max_params"], 4);
 
+        let off = policy("[strict_style.guard_clause]\nenabled = false");
+        assert_eq!(off, default);
         let tuned = "[strict_style.guard_clause]\nmin_nested_statements = 5";
-        assert_eq!(policy(tuned), policy(""), "a rule that's off has no limits");
+        assert_eq!(policy(tuned), default, "a rule that's off has no limits");
 
         let on = policy("[strict_style.guard_clause]\nenabled = true");
         let rule = &on["strict_style"]["guard_clause"];
@@ -756,7 +829,12 @@ mod tests {
             "{spacing}"
         );
         let tuned = "[strict_style.fn_spacing]\nmin_statements = 3";
-        assert_eq!(policy(tuned), policy(""), "fn_spacing off has no limits");
+        assert_eq!(policy(tuned), default, "fn_spacing off has no limits");
+
+        let none = "[strict_style.fn_length]\nenabled = false\n\
+                    [strict_style.fn_params]\nenabled = false\nmax_params = 9";
+        let none = policy(none);
+        assert!(none.get("strict_style").is_none(), "{none}");
     }
 
     #[test]
@@ -819,10 +897,11 @@ mod tests {
         let tuned = "[strict_style.value_object]\nmin_functions = 5\nplaceholders = [\"x\"]";
         assert_eq!(policy(tuned), policy(""));
 
-        // One rule on leaves the others out.
+        // One rule on leaves the ones that are off out.
         let on = policy("[strict_style.guard_clause]\nenabled = true");
         let rules = on["strict_style"].as_object().unwrap();
-        assert_eq!(rules.keys().collect::<Vec<_>>(), ["guard_clause"], "{on}");
+        let rules: Vec<_> = rules.keys().collect();
+        assert_eq!(rules, ["fn_length", "fn_params", "guard_clause"], "{on}");
     }
 
     #[test]
@@ -837,7 +916,7 @@ mod tests {
     #[test]
     fn unknown_keys_are_errors() {
         assert!(Config::parse("typo = 1").is_err());
-        assert!(Config::parse("[fn_length]\nmax_line = 1").is_err());
+        assert!(Config::parse("[strict_style.fn_length]\nmax_line = 1").is_err());
     }
 
     #[test]

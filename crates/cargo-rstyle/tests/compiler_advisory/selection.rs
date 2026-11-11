@@ -1,6 +1,7 @@
 use super::*;
 
-const POLICY: &str = "[fn_length]\nmax_lines=100\n[fn_params]\nmax_params=1\n";
+const POLICY: &str =
+    "[strict_style.fn_length]\nmax_lines=100\n[strict_style.fn_params]\nmax_params=1\n";
 const BAD: &str = "pub fn many(a:u128,b:u128)->u128 {a+b}";
 
 fn workspace() -> TempDir {

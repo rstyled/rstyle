@@ -57,7 +57,7 @@ fn generated_caller() -> (TempDir, Value) {
     .unwrap();
     std::fs::write(
         directory.path().join("policy.toml"),
-        "[fn_length]\nmax_lines=2\n[fn_params]\nmax_params=1\n[strict_style.fn_spacing]\nenabled=true\nmin_statements=2\n",
+        "[strict_style.fn_length]\nmax_lines=2\n[strict_style.fn_params]\nmax_params=1\n[strict_style.fn_spacing]\nenabled=true\nmin_statements=2\n",
     )
     .unwrap();
     let (output, original) = propagation::capture(

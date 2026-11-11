@@ -186,7 +186,7 @@ fn empty_proposal_headers_detect_policy_and_compilation_context_drift() {
     let (directory, original) = exported("pub fn clean(a:u128)->u128 {a}");
     std::fs::write(
         directory.path().join("policy.toml"),
-        "[fn_length]\nmax_lines=99\n",
+        "[strict_style.fn_length]\nmax_lines=99\n",
     )
     .unwrap();
     let mut args = COMPARE.to_vec();

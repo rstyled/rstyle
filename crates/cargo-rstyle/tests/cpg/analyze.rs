@@ -33,7 +33,7 @@ fn analyzed(extra: &[&str]) -> Value {
 fn strict_config() -> (TempDir, String) {
     let dir = tempfile::tempdir().unwrap();
     let config = dir.path().join("rstyle.toml");
-    std::fs::write(&config, "[fn_params]\nmax_params = 1\n").unwrap();
+    std::fs::write(&config, "[strict_style.fn_params]\nmax_params = 1\n").unwrap();
     let config = config.display().to_string();
     (dir, config)
 }

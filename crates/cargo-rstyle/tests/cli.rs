@@ -372,7 +372,7 @@ fn config_change_reevaluates_without_recompiling() {
     let modified = std::fs::metadata(&facts).unwrap().modified().unwrap();
     std::fs::write(
         dir.path().join("rstyle.toml"),
-        "[fn_params]\nmax_params = 10\n",
+        "[strict_style.fn_params]\nmax_params = 10\n",
     )
     .unwrap();
     let after = style_json(dir.path());

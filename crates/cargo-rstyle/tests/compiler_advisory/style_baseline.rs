@@ -9,7 +9,7 @@ fn fixture() -> TempDir {
     std::fs::write(directory.path().join("caller/src/lib.rs"), WIDE).unwrap();
     std::fs::write(
         directory.path().join("rstyle.toml"),
-        "[fn_params]\nmax_params=1\n",
+        "[strict_style.fn_params]\nmax_params=1\n",
     )
     .unwrap();
     directory
@@ -172,7 +172,7 @@ fn root_style_baseline_keeps_package_and_policy_drift_failing_without_new_findin
     assert_eq!(baseline(&selected)["scope_changed"], true);
     std::fs::write(
         directory.path().join("rstyle.toml"),
-        "[fn_params]\nmax_params=2\n",
+        "[strict_style.fn_params]\nmax_params=2\n",
     )
     .unwrap();
     let output = replay(directory.path(), &original, "json", COMPARE);

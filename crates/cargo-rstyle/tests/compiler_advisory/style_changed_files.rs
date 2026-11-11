@@ -8,7 +8,7 @@ fn fixture() -> TempDir {
     std::fs::write(directory.path().join("caller/src/lib.rs"), WIDE).unwrap();
     std::fs::write(
         directory.path().join("rstyle.toml"),
-        "[fn_params]\nmax_params=1\n",
+        "[strict_style.fn_params]\nmax_params=1\n",
     )
     .unwrap();
     directory

@@ -45,7 +45,11 @@ fn dismiss(directory: &Path, original: &Value, index: &str) -> Value {
 }
 
 fn changed_policy(directory: &Path, original: &Value) {
-    std::fs::write(directory.join("policy.toml"), "[fn_params]\nmax_params=5\n").unwrap();
+    std::fs::write(
+        directory.join("policy.toml"),
+        "[strict_style.fn_params]\nmax_params=5\n",
+    )
+    .unwrap();
     let (output, changed) = replay(
         directory,
         original,

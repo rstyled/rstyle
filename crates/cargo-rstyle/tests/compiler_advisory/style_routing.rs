@@ -2,7 +2,7 @@ use super::propagation::checked;
 use super::*;
 
 const SOURCE: &str = "pub fn wide(a:u32,b:u32)->u32 { a+b }\n// rstyle-allow(fn_params): explicit API boundary\npub fn boundary(a:u32,b:u32)->u32 { a+b }\n";
-const POLICY: &str = "[fn_params]\nmax_params=1\n";
+const POLICY: &str = "[strict_style.fn_params]\nmax_params=1\n";
 
 fn fixture(source: &str) -> TempDir {
     let directory = clone_workspace();
@@ -130,7 +130,7 @@ fn root_style_route_honors_explicit_config_and_ignores_pattern_ledger() {
     let directory = fixture(SOURCE);
     std::fs::write(
         directory.path().join("other.toml"),
-        "[fn_params]\nmax_params=2\n",
+        "[strict_style.fn_params]\nmax_params=2\n",
     )
     .unwrap();
     let (output, report) = capture(
@@ -140,7 +140,7 @@ fn root_style_route_honors_explicit_config_and_ignores_pattern_ledger() {
     checked(&output, 0);
     assert!(diagnostics(&report).is_empty());
     assert_eq!(
-        report["compiler_advisory"]["effective_config"]["fn_params"]["max_params"],
+        report["compiler_advisory"]["effective_config"]["strict_style"]["fn_params"]["max_params"],
         2
     );
     assert_eq!(report["compiler_advisory"]["complete"], true);

@@ -54,8 +54,8 @@ use suppress::Suppression;
 fn rule_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec<Diagnostic> {
     let source_lines = lines::code_lines(&f.source);
     [
-        rules::fn_length_with_lines(f, cfg, source_lines),
-        rules::fn_params(f, cfg),
+        strict_style::fn_length_with_lines(f, cfg, source_lines),
+        strict_style::fn_params(f, cfg),
         strict_style::fn_spacing(f, cfg),
         rules::complexity(f, cfg),
         rules::mutation_budget(f, &cfg.mutation_budget),
@@ -489,7 +489,7 @@ mod tests {
             via: None,
         }];
         let mut config = Config::default();
-        config.fn_length.max_lines = 2;
+        config.strict_style.fn_length.max_lines = 2;
         config.side_effects.min_lines = 3;
 
         let (diagnostics, _) = function_diagnostics(&facts, &effects, &config, vec![]);
@@ -719,7 +719,7 @@ mod tests {
             r#"
 [[overrides]]
 paths = ["**/adapters/**"]
-fn_params = { max_params = 5 }
+strict_style.fn_params = { max_params = 5 }
 side_effects.weights = { io = 1 }
 "#,
         )

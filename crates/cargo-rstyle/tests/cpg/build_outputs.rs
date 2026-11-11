@@ -118,7 +118,7 @@ fn no_rule_reports_what_a_build_script_writes() {
     let dir = workspace();
     write(
         dir.path().join("strict.toml"),
-        "[fn_length]\nmax_lines = 1\n[side_effects]\nmax_density_milli = 0\nmin_statements = 0\nmin_lines = 0\n",
+        "[strict_style.fn_length]\nmax_lines = 1\n[side_effects]\nmax_density_milli = 0\nmin_statements = 0\nmin_lines = 0\n",
     );
 
     let (code, report) = route(dir.path(), None, &["--config", "strict.toml"]);

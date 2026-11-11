@@ -67,7 +67,7 @@ fn root_style_text_labels_same_source_diagnostics_and_scores_by_saved_compilatio
     std::fs::write(directory.path().join("caller/src/lib.rs"), SOURCE).unwrap();
     std::fs::write(
         directory.path().join("rstyle.toml"),
-        "[fn_params]\nmax_params=1\n",
+        "[strict_style.fn_params]\nmax_params=1\n",
     )
     .unwrap();
     let output = rstyle(directory.path(), &["--all-targets", "--format", "json"]);

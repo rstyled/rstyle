@@ -309,7 +309,7 @@ fn compiler_pattern_baseline_counts_selected_changes_but_keeps_raw_changes_and_d
     select(directory.path(), &[]);
     std::fs::write(
         directory.path().join("policy.toml"),
-        "[fn_length]\nmax_lines=99\n",
+        "[strict_style.fn_length]\nmax_lines=99\n",
     )
     .unwrap();
     let mut drift_args = args.to_vec();

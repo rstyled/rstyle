@@ -75,7 +75,7 @@ fn reused_advisory_owners_reevaluate_consumer_thresholds_without_compilation() {
     let original = live(directory.path(), &[], 0);
     std::fs::write(
         directory.path().join("policy.toml"),
-        "[fn_params]\nmax_params=0\n",
+        "[strict_style.fn_params]\nmax_params=0\n",
     )
     .unwrap();
     let changed = live(

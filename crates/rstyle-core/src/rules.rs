@@ -32,31 +32,6 @@ pub(crate) fn diagnostic(
     }
 }
 
-pub fn fn_length(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
-    fn_length_with_lines(f, cfg, code_lines(&f.source))
-}
-
-pub(crate) fn fn_length_with_lines(f: &FnFacts, cfg: &Config, actual: usize) -> Vec<Diagnostic> {
-    let limit = cfg.fn_length.max_lines;
-    let message = format!("function `{}` is too long", f.name);
-    (actual > limit)
-        .then(|| diagnostic(f, "fn_length", message, Measure { actual, limit }))
-        .into_iter()
-        .collect()
-}
-
-pub fn fn_params(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
-    let counted_self = usize::from(cfg.fn_params.count_self && f.has_self);
-    let actual = f.params + counted_self;
-    let limit = cfg.fn_params.max_params;
-    let message = format!("function `{}` has too many parameters", f.name);
-
-    (actual > limit)
-        .then(|| diagnostic(f, "fn_params", message, Measure { actual, limit }))
-        .into_iter()
-        .collect()
-}
-
 pub fn complexity(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
     let Some(score) = &f.complexity else {
         return vec![];
@@ -420,29 +395,6 @@ mod tests {
 
     fn body_of(lines: usize) -> String {
         format!("fn f() {{\n{}}}", "x();\n".repeat(lines))
-    }
-
-    #[test]
-    fn length_boundary() {
-        let mut f = sample("f");
-        f.source = body_of(48); // 50 code lines
-        assert!(fn_length(&f, &Config::default()).is_empty());
-        f.source = body_of(49);
-        assert_eq!(fn_length(&f, &Config::default())[0].actual, 51);
-    }
-
-    #[test]
-    fn params_boundary_and_self() {
-        let mut f = sample("f");
-        f.params = 4;
-        f.has_self = true;
-        let mut cfg = Config::default();
-        assert!(fn_params(&f, &cfg).is_empty());
-        cfg.fn_params.count_self = true;
-        assert_eq!(fn_params(&f, &cfg)[0].actual, 5);
-        f.params = 5;
-        cfg.fn_params.count_self = false;
-        assert_eq!(fn_params(&f, &cfg)[0].actual, 5);
     }
 
     #[test]

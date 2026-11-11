@@ -4,7 +4,7 @@ use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::ty::{self, GenericArgsRef, TyCtxt};
 use std::path::Path;
 
-/// `<crate>::<def path>`, e.g. `rstyle_core::rules::fn_length` or
+/// `<crate>::<def path>`, e.g. `rstyle_core::strict_style::fn_length` or
 /// `rstyle_core::config::{impl#3}::default`. Unlike `def_path_str` it does not
 /// depend on re-exports or visibility, so caller and callee always agree.
 pub fn def_id_str(tcx: TyCtxt<'_>, def_id: DefId) -> String {

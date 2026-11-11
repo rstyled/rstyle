@@ -8,7 +8,7 @@ pub fn right() { let _ = std::fs::read("/unused"); }
 pub fn allowed() { let _ = std::fs::read("/unused"); }
 pub fn wide(a:u32,b:u32)->u32 { a+b }
 "#;
-const POLICY: &str = "[fn_params]\nmax_params=1\n[side_effects]\nmin_lines=0\nmin_statements=1\nmax_density_milli=1\ntransitive_depth=0\n";
+const POLICY: &str = "[strict_style.fn_params]\nmax_params=1\n[side_effects]\nmin_lines=0\nmin_statements=1\nmax_density_milli=1\ntransitive_depth=0\n";
 
 fn fixture() -> TempDir {
     let directory = clone_workspace();

@@ -111,3 +111,42 @@ fn a_project_says_how_many_statements_need_a_blank_line() {
     cfg.strict_style.fn_spacing.min_statements = 8;
     assert_eq!(fn_spacing(&f, &cfg).len(), 1);
 }
+
+#[test]
+fn fn_length_and_fn_params_are_on_unless_turned_off() {
+    let mut f = sample("f");
+    f.source = format!("fn f() {{\n{}}}", "x();\n".repeat(60));
+    f.params = 9;
+    let mut cfg = Config::default();
+    assert_eq!(fn_length(&f, &cfg)[0].rule_id, "fn_length");
+    assert_eq!(fn_params(&f, &cfg)[0].rule_id, "fn_params");
+
+    cfg.strict_style.fn_length.enabled = false;
+    cfg.strict_style.fn_params.enabled = false;
+    assert!(fn_length(&f, &cfg).is_empty());
+    assert!(fn_params(&f, &cfg).is_empty());
+}
+
+#[test]
+fn length_boundary() {
+    let mut f = sample("f");
+    let body = |lines| format!("fn f() {{\n{}}}", "x();\n".repeat(lines));
+    f.source = body(48); // 50 code lines
+    assert!(fn_length(&f, &Config::default()).is_empty());
+    f.source = body(49);
+    assert_eq!(fn_length(&f, &Config::default())[0].actual, 51);
+}
+
+#[test]
+fn params_boundary_and_self() {
+    let mut f = sample("f");
+    f.params = 4;
+    f.has_self = true;
+    let mut cfg = Config::default();
+    assert!(fn_params(&f, &cfg).is_empty());
+    cfg.strict_style.fn_params.count_self = true;
+    assert_eq!(fn_params(&f, &cfg)[0].actual, 5);
+    f.params = 5;
+    cfg.strict_style.fn_params.count_self = false;
+    assert_eq!(fn_params(&f, &cfg)[0].actual, 5);
+}

@@ -145,7 +145,7 @@ fn core_policy_and_original_suppressions_drive_shared_planning() {
     assert_eq!(group["evaluation"]["plan"]["steps"][1]["signature"], false);
     std::fs::write(
         directory.path().join("policy.toml"),
-        "[fn_params]\nmax_params=5\n",
+        "[strict_style.fn_params]\nmax_params=5\n",
     )
     .unwrap();
     let (output, clean) = capture(

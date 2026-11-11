@@ -6,8 +6,6 @@ use super::Config;
 
 /// Sections an override may change: the ones measured per function.
 const PER_FUNCTION: &[&str] = &[
-    "fn_length",
-    "fn_params",
     "complexity",
     "mutation_budget",
     "side_effects",
@@ -16,7 +14,7 @@ const PER_FUNCTION: &[&str] = &[
 
 /// The `strict_style` rules an override may change. The others judge the whole run at once, under
 /// the base policy.
-const PER_FUNCTION_STRICT_STYLE: &[&str] = &["fn_spacing"];
+const PER_FUNCTION_STRICT_STYLE: &[&str] = &["fn_length", "fn_params", "fn_spacing"];
 
 /// `side_effects` keys read once for the whole run: effects are classified and propagated
 /// through the call graph before any function's policy applies.
@@ -57,8 +55,8 @@ impl TryFrom<Table> for Override {
         let patterns = rules.remove("paths").ok_or("an override needs `paths`")?;
         let patterns = Vec::<String>::deserialize(patterns).map_err(|e| e.to_string())?;
         let paths = glob_set(&patterns)?;
-        if rules.contains_key("fn_spacing") {
-            return Err(super::FN_SPACING_MOVED.into());
+        if let Some(moved) = super::moved_to_strict_style(&rules) {
+            return Err(moved);
         }
         if let Some(key) = rules
             .keys()

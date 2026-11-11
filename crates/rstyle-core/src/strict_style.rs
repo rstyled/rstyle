@@ -1,5 +1,6 @@
-//! Opinions about how code could be shaped rather than limits it passed, so each is off unless
-//! `[strict_style]` turns it on. One that's on reports through `check`, and a run fails on it, as
+//! Rules about how code is shaped, each with its own `enabled` switch under `[strict_style]`.
+//! `fn_length` and `fn_params` are on unless a project turns them off. The rest are opinions, off
+//! unless a project turns them on. One that's on reports through `check`, and a run fails on it, as
 //! on any other style rule.
 
 mod primitive_obsession;
@@ -7,8 +8,38 @@ mod value_object;
 
 use crate::config::Config;
 use crate::facts::FnFacts;
+use crate::lines::code_lines;
 use crate::report::{Detail, Diagnostic};
 use crate::rules::{Measure, diagnostic};
+
+pub fn fn_length(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
+    fn_length_with_lines(f, cfg, code_lines(&f.source))
+}
+
+/// `fn_length` over code lines already counted, so rules that share the count measure it once.
+pub(crate) fn fn_length_with_lines(f: &FnFacts, cfg: &Config, actual: usize) -> Vec<Diagnostic> {
+    let rule = &cfg.strict_style.fn_length;
+    let limit = rule.max_lines;
+    let message = format!("function `{}` is too long", f.name);
+
+    (rule.enabled && actual > limit)
+        .then(|| diagnostic(f, "fn_length", message, Measure { actual, limit }))
+        .into_iter()
+        .collect()
+}
+
+pub fn fn_params(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
+    let rule = &cfg.strict_style.fn_params;
+    let counted_self = usize::from(rule.count_self && f.has_self);
+    let actual = f.params + counted_self;
+    let limit = rule.max_params;
+    let message = format!("function `{}` has too many parameters", f.name);
+
+    (rule.enabled && actual > limit)
+        .then(|| diagnostic(f, "fn_params", message, Measure { actual, limit }))
+        .into_iter()
+        .collect()
+}
 
 /// Flags fns with `min_statements`+ top-level statements and no blank line anywhere.
 /// Statements, not lines: a long initializer is still one thing to read. Reported as

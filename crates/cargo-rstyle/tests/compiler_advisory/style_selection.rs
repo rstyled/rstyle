@@ -22,7 +22,7 @@ fn fixture() -> TempDir {
     std::fs::write(directory.path().join("caller/src/lib.rs"), WIDE).unwrap();
     std::fs::write(
         directory.path().join("rstyle.toml"),
-        "[fn_params]\nmax_params=1\n",
+        "[strict_style.fn_params]\nmax_params=1\n",
     )
     .unwrap();
     directory
@@ -69,7 +69,11 @@ fn root_compiler_style_selects_members_without_leaking_other_workspace_findings(
 fn root_compiler_style_rejects_missing_and_malformed_explicit_configuration() {
     let directory = fixture();
     let path = directory.path().join("bad.toml");
-    std::fs::write(&path, "[fn_params]\nmax_params='not a number'\n").unwrap();
+    std::fs::write(
+        &path,
+        "[strict_style.fn_params]\nmax_params='not a number'\n",
+    )
+    .unwrap();
     for name in ["missing.toml", "bad.toml"] {
         let output = rstyle(directory.path(), &["--format", "json", "--config", name]);
         checked(&output, 2);
@@ -87,7 +91,7 @@ fn root_compiler_style_source_exclusions_remove_findings_metrics_and_edit_groups
     let directory = fixture();
     std::fs::write(
         directory.path().join("rstyle.toml"),
-        "exclude=['caller/**']\n[fn_params]\nmax_params=1\n",
+        "exclude=['caller/**']\n[strict_style.fn_params]\nmax_params=1\n",
     )
     .unwrap();
     let (output, report) = capture(directory.path(), &[]);

@@ -3,13 +3,6 @@
 
 exclude = ["target/**"]
 
-[fn_length]
-max_lines = 50            # code lines: blank, `//` and `/* */` lines are not counted
-
-[fn_params]
-max_params = 4
-count_self = false        # `self` is the object, not an argument
-
 # What `taint_flow` reads, on top of the sources and sinks each frontend's models name. Each callee
 # is an operation, a name or an identity, and an argument's position counts a receiver as 0.
 # [taint]
@@ -84,8 +77,18 @@ min_calls = 5             # fewer calls than this say too little. At 90%, one dr
 caller_rules = ["fn_params"]
 caller_hops = 1
 
-# Strict style: opinions about how code could be shaped rather than limits it passed, so each rule
-# is off unless you turn it on. One that's on reports and fails a run like any other rule here.
+# Strict style: rules about how code is shaped, each with its own `enabled` switch. fn_length and
+# fn_params are on unless you turn them off. The rest are opinions, off unless you turn them on.
+# One that's on reports and fails a run like any other rule here.
+
+[strict_style.fn_length]
+enabled = true              # on by default
+max_lines = 50              # code lines: blank, `//` and `/* */` lines are not counted
+
+[strict_style.fn_params]
+enabled = true              # on by default
+max_params = 4
+count_self = false          # `self` is the object, not an argument
 
 [strict_style.fn_spacing]
 enabled = true              # a body of many statements with no blank line between its phases. On for this repo

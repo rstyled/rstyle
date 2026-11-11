@@ -6,7 +6,7 @@ network = 4
 
 [[overrides]]
 paths = ["**/adapters/**"]
-fn_length = { max_lines = 80 }
+strict_style.fn_length = { max_lines = 80 }
 side_effects.weights = { io = 1, network = 2 }
 
 [[overrides]]
@@ -20,7 +20,7 @@ fn unmatched_paths_borrow_the_base() {
     let policy = config.for_path("src/domain/rules.rs");
     assert!(matches!(policy, std::borrow::Cow::Borrowed(_)));
     assert_eq!(policy.side_effects.weights.network, 4);
-    assert_eq!(policy.fn_length.max_lines, 50);
+    assert_eq!(policy.strict_style.fn_length.max_lines, 50);
 }
 
 #[test]
@@ -30,22 +30,22 @@ fn matching_overrides_merge_in_order_over_the_base() {
     assert_eq!(adapter.side_effects.weights.io, 1);
     assert_eq!(adapter.side_effects.weights.network, 2);
     assert_eq!(adapter.side_effects.weights.r#unsafe, 4);
-    assert_eq!(adapter.fn_length.max_lines, 80);
+    assert_eq!(adapter.strict_style.fn_length.max_lines, 80);
 
     let critical = config.for_path("src/adapters/critical/store.rs");
     assert_eq!(critical.side_effects.weights.io, 6);
     assert_eq!(critical.side_effects.weights.network, 2);
-    assert_eq!(critical.fn_length.max_lines, 80);
+    assert_eq!(critical.strict_style.fn_length.max_lines, 80);
 }
 
 #[test]
 fn invalid_overrides_are_rejected() {
     for input in [
-        "[[overrides]]\nfn_length = { max_lines = 1 }",
-        "[[overrides]]\npaths = []\nfn_length = { max_lines = 1 }",
-        "[[overrides]]\npaths = ['[']\nfn_length = { max_lines = 1 }",
+        "[[overrides]]\nstrict_style.fn_length = { max_lines = 1 }",
+        "[[overrides]]\npaths = []\nstrict_style.fn_length = { max_lines = 1 }",
+        "[[overrides]]\npaths = ['[']\nstrict_style.fn_length = { max_lines = 1 }",
         "[[overrides]]\npaths = ['src/**']\nside_effects.weights = { ioo = 1 }",
-        "[[overrides]]\npaths = ['src/**']\nfn_length = { max_lines = 'x' }",
+        "[[overrides]]\npaths = ['src/**']\nstrict_style.fn_length = { max_lines = 'x' }",
         "[[overrides]]\npaths = ['src/**']\nexclude = ['x']",
         "[[overrides]]\npaths = ['src/**']\ngrouping = { caller_hops = 2 }",
         "[[overrides]]\npaths = ['src/**']\nside_effects = { transitive_depth = 0 }",
@@ -60,10 +60,10 @@ fn invalid_overrides_are_rejected() {
 #[test]
 fn plain_names_match_a_module_anywhere() {
     let config = Config::parse(
-        "[[overrides]]\npaths = ['adapters', 'bin/main.rs']\nfn_length = { max_lines = 80 }",
+        "[[overrides]]\npaths = ['adapters', 'bin/main.rs']\nstrict_style.fn_length = { max_lines = 80 }",
     )
     .unwrap();
-    let max_lines = |path| config.for_path(path).fn_length.max_lines;
+    let max_lines = |path| config.for_path(path).strict_style.fn_length.max_lines;
     assert_eq!(max_lines("adapters/store.rs"), 80);
     assert_eq!(max_lines("crates/app/src/adapters/db/store.rs"), 80);
     assert_eq!(max_lines("crates/app/src/adapters.rs"), 80);
@@ -76,9 +76,11 @@ fn plain_names_match_a_module_anywhere() {
 #[test]
 fn slashes_around_a_plain_name_are_ignored() {
     for name in ["adapters/", "/adapters", "/adapters/"] {
-        let input = format!("[[overrides]]\npaths = ['{name}']\nfn_length = {{ max_lines = 80 }}");
+        let input = format!(
+            "[[overrides]]\npaths = ['{name}']\nstrict_style.fn_length = {{ max_lines = 80 }}"
+        );
         let config = Config::parse(&input).unwrap();
-        let max_lines = |path| config.for_path(path).fn_length.max_lines;
+        let max_lines = |path| config.for_path(path).strict_style.fn_length.max_lines;
         assert_eq!(max_lines("src/adapters/store.rs"), 80, "{name}");
         assert_eq!(max_lines("src/adapters.rs"), 80, "{name}");
         assert_eq!(max_lines("src/domain/rules.rs"), 50, "{name}");
@@ -94,14 +96,16 @@ fn overrides_serialize_back_to_their_table_and_only_when_present() {
     let round_trip = Config::parse(&toml::to_string(&config).unwrap()).unwrap();
     let policy = round_trip.for_path("src/adapters/critical/store.rs");
     assert_eq!(policy.side_effects.weights.io, 6);
-    assert_eq!(policy.fn_length.max_lines, 80);
+    assert_eq!(policy.strict_style.fn_length.max_lines, 80);
 }
 
 #[test]
-fn fn_spacing_can_be_turned_on_or_off_by_path() {
+fn per_function_strict_style_rules_can_be_turned_on_or_off_by_path() {
     let config = Config::parse(
         "[strict_style.fn_spacing]\nenabled = true\n\n\
-         [[overrides]]\npaths = ['generated']\nstrict_style.fn_spacing = { enabled = false }\n\n\
+         [[overrides]]\npaths = ['generated']\n\
+         strict_style.fn_spacing = { enabled = false }\n\
+         strict_style.fn_params = { enabled = false }\n\n\
          [[overrides]]\npaths = ['domain']\nstrict_style.fn_spacing = { min_statements = 3 }",
     )
     .unwrap();
@@ -110,4 +114,8 @@ fn fn_spacing_can_be_turned_on_or_off_by_path() {
     assert!(spacing("src/domain/order.rs").enabled);
     assert_eq!(spacing("src/domain/order.rs").min_statements, 3);
     assert_eq!(spacing("src/main.rs").min_statements, 5);
+
+    let params = |path| config.for_path(path).strict_style.fn_params.enabled;
+    assert!(!params("src/generated/api.rs"));
+    assert!(params("src/domain/order.rs"));
 }
