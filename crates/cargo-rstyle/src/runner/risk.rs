@@ -20,10 +20,38 @@ pub(crate) struct RiskArgs {
     /// Write the report as Markdown, for a pull request's description.
     #[arg(long)]
     markdown: bool,
-    /// What the Markdown joins each file's path to for a link, such as
-    /// `https://github.com/OWNER/REPO/blob/HEAD_SHA`.
-    #[arg(long, requires = "markdown")]
-    source_url: Option<String>,
+    /// Link files and functions to this GitHub PR's Changes tab, such as
+    /// `https://github.com/OWNER/REPO/pull/123`.
+    #[arg(long, requires = "markdown", value_parser = pull_request_url)]
+    pull_request_url: Option<String>,
+}
+
+fn pull_request_url(value: &str) -> Result<String, String> {
+    let root = value.trim_end_matches('/');
+    let root = root.strip_suffix("/files").unwrap_or(root);
+    let invalid =
+        || "expected a GitHub pull request URL: https://HOST/OWNER/REPO/pull/NUMBER".to_owned();
+    let Some((repository, number)) = root.rsplit_once("/pull/") else {
+        return Err(invalid());
+    };
+    let repository = repository
+        .strip_prefix("https://")
+        .or_else(|| repository.strip_prefix("http://"))
+        .ok_or_else(invalid)?;
+    if repository.split('/').count() != 3 || repository.split('/').any(str::is_empty) {
+        return Err(invalid());
+    }
+    if root.chars().any(char::is_whitespace)
+        || root.contains(['?', '#', '(', ')', '<', '>', '[', ']', '@'])
+    {
+        return Err(invalid());
+    }
+    if !number.bytes().all(|byte| byte.is_ascii_digit())
+        || !number.parse::<u64>().is_ok_and(|number| number > 0)
+    {
+        return Err(invalid());
+    }
+    Ok(root.to_owned())
 }
 
 const DEMAND: Demand = Demand {
@@ -70,9 +98,44 @@ pub(crate) fn risk(cli: &Cli, args: &RiskArgs) -> Result<(String, u8), String> {
     let head = snapshot(&args.head, head_run.as_ref(), &config)?;
     let report = merge_risk::compare(&base, &head, &config);
     let output = match cli.format {
-        Format::Text if args.markdown => report.markdown(args.source_url.as_deref()),
+        Format::Text if args.markdown => report.markdown(args.pull_request_url.as_deref()),
         Format::Text => report.text(),
         Format::Json => serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?,
     };
     Ok((output, 0))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pull_request_url;
+
+    #[test]
+    fn accepts_a_pr_url_with_an_optional_files_suffix() {
+        let root = "https://github.com/o/r/pull/123";
+        for suffix in ["", "/", "/files", "/files/"] {
+            assert_eq!(
+                pull_request_url(&format!("{root}{suffix}")),
+                Ok(root.into())
+            );
+        }
+    }
+
+    #[test]
+    fn refuses_source_links_and_invalid_pr_urls() {
+        for url in [
+            "https://github.com/o/r/blob/abc",
+            "https://github.com/o/r/pull/0",
+            "https:///pull/1",
+            "https://github.com/pull/1",
+            "https://github.com/o/r/pull/1\t",
+            "https://github.com/o/r/pull/1/files/other",
+            "https://github.com/o/r/pull/abc",
+            "https://github.com/o/r/pull/",
+            "https://github.com/o/r/pull/1#diff-abc",
+            "https://github.com/o/r/pull/1?tab=files",
+            "javascript:alert(1)/pull/1",
+        ] {
+            assert!(pull_request_url(url).is_err(), "{url}");
+        }
+    }
 }

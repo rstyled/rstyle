@@ -2139,7 +2139,7 @@ fn risk_says_what_changed_between_two_saved_runs_with_no_compiler() {
 }
 
 #[test]
-fn risk_writes_markdown_for_a_pull_request_with_links_into_the_head() {
+fn risk_writes_markdown_with_links_into_the_pull_request_diff() {
     let directory = tempfile::tempdir().unwrap();
     let (base, head) = two_runs_of(
         directory.path(),
@@ -2151,8 +2151,8 @@ fn risk_writes_markdown_for_a_pull_request_with_links_into_the_head() {
             .args([
                 "risk",
                 "--markdown",
-                "--source-url",
-                "https://example.test/blob/abc",
+                "--pull-request-url",
+                "https://example.test/o/r/pull/123",
             ])
             .args(extra)
             .arg("--base")
@@ -2172,7 +2172,7 @@ fn risk_writes_markdown_for_a_pull_request_with_links_into_the_head() {
         "{text}"
     );
     assert!(
-        text.contains("[`changing`](https://example.test/blob/abc/src/lib.rs#L1)"),
+        text.contains("[`changing`](https://example.test/o/r/pull/123/files#diff-b1a35a68f14e696205874893c07fd24fdb88882b47c23cc0e0c80a30c7d53759R1)"),
         "{text}"
     );
 

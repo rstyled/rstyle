@@ -2,7 +2,7 @@ use super::super::rating::{Level, Rating, Reason};
 use super::super::{ChangeKind, ChangeReport, EffectChange, FunctionChange, GraphDelta};
 use super::name;
 
-const URL: &str = "https://github.com/o/r/blob/abc";
+const URL: &str = "https://github.com/o/r/pull/123";
 
 fn change(name: &str, kind: ChangeKind, line: usize) -> FunctionChange {
     FunctionChange {
@@ -97,12 +97,12 @@ fn it_leads_with_why_and_folds_a_glance_and_a_table_per_file() {
          | **Coverage** | 👀 3 test functions not rated; 2 generated functions not compared |\n\n\
          </details>\n\n\
          <details><summary><strong>2 functions</strong> in 1 file</summary>\n\n\
-         **[`native/source.go`]({URL}/native/source.go)**\n\n\
+         **[`native/source.go`]({URL}/files#diff-69a4aa84cf12711d033673793bd9079bfc0cfbb545bfc1c60bd7ea36c05d0065)**\n\n\
          | Function | What changed | Used by |\n|---|---|--:|\n\
-         | [`FromPackages`]({URL}/native/source.go#L25) | changed; signature changed; \
+         | [`FromPackages`]({URL}/files#diff-69a4aa84cf12711d033673793bd9079bfc0cfbb545bfc1c60bd7ea36c05d0065R25) | changed; signature changed; \
          gains mutation; now calls `slices.Clone`; no longer calls `goeffects.packageErrors` \
          | 4 (1 direct) |\n\
-         | `typedFiles` | removed | 4 (1 direct) |\n\n</details>"
+         | [`typedFiles`]({URL}/files#diff-69a4aa84cf12711d033673793bd9079bfc0cfbb545bfc1c60bd7ea36c05d0065L75) | removed | 4 (1 direct) |\n\n</details>"
     );
     assert_eq!(markdown, expected);
 }
@@ -206,7 +206,7 @@ fn what_it_cannot_see_is_in_the_glance_and_listed() {
         assert!(markdown.contains(row), "{row}: {markdown}");
     }
     let outside = format!(
-        "**Changed outside any function:** [`params/config.go`]({URL}/params/config.go)\n\n</details>"
+        "**Changed outside any function:** [`params/config.go`]({URL}/files#diff-10ff00a15ef58da7485fedeca3906c73cb236fde4b143a9d61601c63cbf1ffe8)\n\n</details>"
     );
     assert!(markdown.ends_with(&outside), "{markdown}");
 }
@@ -245,4 +245,64 @@ fn a_name_drops_the_path_around_it_and_keeps_its_owner() {
     );
     assert_eq!(name("go::(io/fs.FileInfo).Size"), "(fs.FileInfo).Size");
     assert_eq!(name("(loadedFiles).addFailed"), "(loadedFiles).addFailed");
+}
+
+#[test]
+fn diff_links_hash_exact_paths_and_use_the_correct_side() {
+    let cases = [
+        (
+            "src/a b.rs",
+            "6fb7bacc941e44a163d2dbb1b6e5edfea4e6c008fc0b952d6c7d0b01f73974a3",
+        ),
+        (
+            "src/é.rs",
+            "a547d8165e279612d9975b2f6aba12e049347fb77973a381af9e613773d07f37",
+        ),
+    ];
+    for (path, hash) in cases {
+        for kind in [ChangeKind::Added, ChangeKind::Changed, ChangeKind::Removed] {
+            let mut function = change("f", kind, 42);
+            function.path = path.into();
+            let markdown = report(Level::Low, Vec::new(), vec![function]).markdown(Some(URL));
+            let side = if kind == ChangeKind::Removed {
+                'L'
+            } else {
+                'R'
+            };
+            let target = format!("{URL}/files#diff-{hash}");
+            assert!(
+                markdown.contains(&format!("[`{path}`]({target})")),
+                "{markdown}"
+            );
+            assert!(
+                markdown.contains(&format!("[`f`]({target}{side}42)")),
+                "{markdown}"
+            );
+            assert!(!markdown.contains("/blob/"), "{markdown}");
+        }
+    }
+}
+
+#[test]
+fn diff_urls_with_a_files_suffix_or_trailing_slash_give_the_same_report() {
+    let report = report(
+        Level::Low,
+        Vec::new(),
+        vec![change("f", ChangeKind::Added, 1)],
+    );
+    let expected = report.markdown(Some(URL));
+    for suffix in ["/", "/files", "/files/"] {
+        assert_eq!(report.markdown(Some(&format!("{URL}{suffix}"))), expected);
+    }
+}
+
+#[test]
+fn an_unknown_line_links_to_the_file_diff() {
+    let report = report(
+        Level::Low,
+        Vec::new(),
+        vec![change("f", ChangeKind::Removed, 0)],
+    );
+    let markdown = report.markdown(Some(URL));
+    assert!(markdown.contains(&format!("[`f`]({URL}/files#diff-69a4aa84cf12711d033673793bd9079bfc0cfbb545bfc1c60bd7ea36c05d0065)")), "{markdown}");
 }
