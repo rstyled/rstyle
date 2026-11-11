@@ -42,6 +42,32 @@ fn streamed_output(command: &mut Command) -> io::Result<Output> {
     })
 }
 
+/// Keep parser diagnostics in the returned failure as well as the live log.
+/// Continue draining after the limit so a verbose frontend cannot block capture.
+pub(crate) fn stderr_tail(mut reader: impl Read) -> io::Result<String> {
+    const LIMIT: usize = 16 * 1024;
+    let mut tail = Vec::new();
+    let mut buffer = [0; 8192];
+    let mut truncated = false;
+    loop {
+        let count = reader.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        emit(&buffer[..count]);
+        tail.extend_from_slice(&buffer[..count]);
+        if tail.len() > LIMIT {
+            tail.drain(..tail.len() - LIMIT);
+            truncated = true;
+        }
+    }
+    let text = String::from_utf8_lossy(&tail);
+    Ok(match truncated {
+        true => format!("[frontend stderr truncated]\n{text}"),
+        false => text.into_owned(),
+    })
+}
+
 fn collect(mut reader: impl Read) -> io::Result<Vec<u8>> {
     let mut bytes = Vec::new();
     reader.read_to_end(&mut bytes)?;
@@ -73,6 +99,12 @@ fn emit(bytes: &[u8]) {
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stderr_tail_preserves_parser_details() {
+        let details = b"invalid.py:1: invalid decimal literal\n";
+        assert_eq!(stderr_tail(details.as_slice()).unwrap().as_bytes(), details);
+    }
 
     #[test]
     fn streamed_child_output_preserves_status_and_exact_bytes() {

@@ -49,6 +49,28 @@ analyze)
 esac
 "#;
 
+const INVALID_PYTHON_FRONTEND: &str = r#"#!/usr/bin/env python3
+import ast
+import os
+import pathlib
+import sys
+if sys.argv[1] == "describe":
+    print('{"schema":"rstyle.frontend-description/1","language":"py","analyses":[]}')
+    sys.exit(0)
+source = pathlib.Path(sys.argv[sys.argv.index("--source") + 1]) / "invalid.py"
+fd = int(sys.argv[sys.argv.index("--output-fd") + 1])
+try:
+    ast.parse(source.read_text(), filename=str(source))
+except SyntaxError as error:
+    # More than a pipe buffer: stderr must drain while core waits for capture EOF.
+    sys.stderr.write("parser progress\n" * 8192)
+    print(f"{source.name}:{error.lineno}: {error.msg}", file=sys.stderr)
+    print("1 file can't be read. Fix or skip it with --exclude GLOB", file=sys.stderr)
+    os.close(fd)
+    sys.exit(1)
+raise AssertionError("fixture must fail to parse")
+"#;
+
 const NO_ANALYSES: &str =
     r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[]}"#;
 const ANALYSES: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"calls"},{"name":"broken"},{"name":"invalid"},{"name":"silent"}]}"#;
@@ -243,6 +265,50 @@ fn a_failed_stream_publishes_nothing() {
         "{output:?}"
     );
     assert!(project.run_folders().is_empty());
+}
+
+#[test]
+fn invalid_python_keeps_parser_details_in_the_capture_failure() {
+    let project = Project::new();
+    std::fs::write(project.root().join("invalid.py"), "value = 123abc\n").unwrap();
+    // Use Python's real parser, without a frontend installation or customer source.
+    script(
+        &project.root().join("fake-frontend"),
+        INVALID_PYTHON_FRONTEND,
+    );
+    let output = project
+        .py(&[
+            "--check",
+            "--format",
+            "json",
+            "--source",
+            project.root().to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    let stderr = stderr(&output);
+    let (_, failure_details) = stderr
+        .rsplit_once("Frontend stderr:\n")
+        .unwrap_or_else(|| panic!("capture failure lost its diagnostics: {stderr}"));
+    assert!(
+        failure_details.contains("invalid.py:1: invalid decimal literal"),
+        "{failure_details}"
+    );
+    assert!(
+        failure_details.contains("--exclude GLOB"),
+        "{failure_details}"
+    );
+    assert!(failure_details.starts_with("[frontend stderr truncated]\n"));
+    assert!(
+        failure_details.len() < 17 * 1024,
+        "diagnostics must be bounded"
+    );
+    assert!(output.stdout.is_empty(), "no clean report: {output:?}");
+    assert!(
+        project.run_folders().is_empty(),
+        "no incomplete run is published"
+    );
 }
 
 #[test]

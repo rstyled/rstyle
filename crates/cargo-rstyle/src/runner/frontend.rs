@@ -182,10 +182,32 @@ impl Frontend {
     ) -> Result<Streamed, String> {
         let (reader, writer) =
             std::io::pipe().map_err(|error| format!("Cannot create a pipe: {error}"))?;
-        let child = self.spawn_stream(source, &writer)?;
+        let mut child = self.spawn_stream(source, &writer)?;
+        let stderr = child.stderr.take().ok_or("Missing frontend stderr pipe")?;
         // The frontend must hold the only write end, or EOF would never arrive.
         drop(writer);
 
+        std::thread::scope(|scope| {
+            // Drain stderr concurrently: a parser can fill its pipe before closing capture.
+            let diagnostics = scope.spawn(|| crate::diagnostic_process::stderr_tail(stderr));
+            let result = self.receive_stream((child, reader), demand, saving);
+            let diagnostics = diagnostics
+                .join()
+                .map_err(|_| "Frontend stderr reader panicked".to_string())?
+                .map_err(|error| format!("Cannot read frontend stderr: {error}"))?;
+            result.map_err(|error| match diagnostics.trim() {
+                "" => error,
+                details => format!("{error}\nFrontend stderr:\n{details}"),
+            })
+        })
+    }
+
+    fn receive_stream(
+        &self,
+        (child, reader): (Child, std::io::PipeReader),
+        demand: Demand,
+        saving: &Saving<'_>,
+    ) -> Result<Streamed, String> {
         let child = Mutex::new(child);
         let stop = || stop_child(&child);
         let mut sequence = SequenceReader::new(BufReader::with_capacity(STREAM_BUFFER, reader));
@@ -210,6 +232,7 @@ impl Frontend {
         command
             .args(["--output-fd", &number])
             .args(self.stream_arguments.iter().chain(&self.passed_on))
+            .stderr(Stdio::piped())
             .spawn()
             .map_err(|error| format!("Cannot run {}: {error}", self.name()))
     }
