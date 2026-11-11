@@ -83,10 +83,7 @@ pub fn run_inputs(records: Vec<Record>, config: &Config) -> Result<RunInputs, St
         let observation = match record.measured {
             Measured::Generated(observation) => observation,
             // A body is its author's, but no rule reads it, so its effects count as a macro's do.
-            Measured::Body(facts) => {
-                let at = (facts.line, facts.column);
-                Box::new(records::observed(*facts, at, false))
-            }
+            Measured::Body(facts) => Box::new(records::body_observation(*facts)),
             measured => {
                 authored.extend(super::authored(Record { measured, ..record }));
                 continue;

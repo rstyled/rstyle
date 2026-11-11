@@ -90,16 +90,7 @@ pub(super) fn render(rows: &[Measurement]) -> String {
 
 /// A function's own events, as its document or its recorded observations give them.
 fn observed(function: &crate::compiler::Function) -> Result<Option<Observation>, String> {
-    use rstyle_core::cpg::records::Measured;
-    Ok(match &function.facts.document().record.measured {
-        Measured::Generated(observation) => Some((**observation).clone()),
-        Measured::Body(facts) => Some(rstyle_core::cpg::records::observed(
-            (**facts).clone(),
-            (facts.line, facts.column),
-            false,
-        )),
-        _ => None,
-    })
+    Ok(function.facts.document().record.measured.observation())
 }
 
 pub(super) fn read(
